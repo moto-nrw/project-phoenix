@@ -27,7 +27,7 @@ func buildSourcedTemplateModule(t *testing.T) *templateSetup {
 	t.Helper()
 	mat := &mockMaterializationService{result: &timetableplanning.MaterializationResult{}}
 	s := buildTemplateModule(t, mat, fixedTemplateClock)
-	s.res.TimetableData = testTimetableDataWithOfferingCallbacks(
+	s.res.Templates = testTimetableDataWithOfferingCallbacks(
 		s.db,
 		nil,
 		func(context.Context, []int64, []int64, *int64) error { return nil },

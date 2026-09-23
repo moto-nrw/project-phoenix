@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
@@ -38,7 +40,7 @@ func (rs *Resource) correctInstanceStudent(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if rs.TimetableData == nil {
+	if rs.Templates == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("attendance correction not wired")))
 		return
 	}
@@ -61,20 +63,20 @@ func (rs *Resource) correctInstanceStudent(w http.ResponseWriter, r *http.Reques
 	}
 
 	accountID, _ := operationActor(ctx)
-	updated, err := rs.TimetableData.CorrectInstanceStudentAttendance(ctx, instanceID, studentID, patch, req.Reason, accountID)
+	updated, err := rs.Templates.CorrectInstanceStudentAttendance(ctx, instanceID, studentID, scheduleModel.AttendanceFieldPatch(patch), req.Reason, accountID)
 	if err != nil {
 		rs.renderCorrectionError(w, r, err)
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, mapAttendanceToResponse(updated), "Attendance corrected")
+	common.Respond(w, r, http.StatusOK, attendanceResponse(updated.ID, updated.InstanceID, updated.StudentID, updated.Status, updated.Substatus, updated.Note, updated.CheckedInAt), "Attendance corrected")
 }
 
 // renderCorrectionError maps the correction sentinels onto the wire. The
 // reason rules render as field errors so the form can point at the input that
 // needs fixing.
 func (rs *Resource) renderCorrectionError(w http.ResponseWriter, r *http.Request, err error) {
-	var validationErr *timetableplanning.TimetableAttendanceValidationError
+	var validationErr *timetable.AttendanceValidationError
 	switch {
 	case errors.As(err, &validationErr):
 		renderValidationErrors(w, r, attendancePatchFieldErrors(validationErr.Fields))
@@ -105,12 +107,12 @@ func (rs *Resource) getInstanceStudentCorrections(w http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
-	if rs.TimetableData == nil {
+	if rs.Templates == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("attendance correction not wired")))
 		return
 	}
 
-	rows, err := rs.TimetableData.GetAttendanceCorrections(ctx, instanceID, studentID)
+	rows, err := rs.Templates.GetAttendanceCorrections(ctx, instanceID, studentID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load attendance corrections failed", err))
 		return

@@ -24,6 +24,10 @@ import (
 // SickCascadeDependencies are the surfaces the #1843 cascade writes across:
 // Workforce's Dienstplan on one side, the retained Betreuungsplan planning
 // services on the other.
+// TimetableRows are the Betreuungsplan rows and the day lock the sick
+// cascade reads through; the composition root binds them.
+type TimetableRows = application.TimetableRows
+
 type SickCascadeDependencies struct {
 	// Planning is the shift write that rebuilds a cancelled shift's cover set
 	// atomically; Workforce serves the rows and the provenance stamp.
@@ -32,7 +36,7 @@ type SickCascadeDependencies struct {
 	LockStaffShifts func(ctx context.Context, staffID int64) error
 
 	Instances     timetableplanning.InstanceService
-	TimetableData *timetableplanning.TimetableDataService
+	TimetableData TimetableRows
 	InstanceStaff scheduleModels.InstanceStaffRepository
 
 	Broadcaster realtime.Broadcaster

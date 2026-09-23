@@ -48,10 +48,6 @@ func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
 	shared, err := repo.FindByIDForShare(ctx, second.ID)
 	require.NoError(t, err)
 	assert.Equal(t, second.ID, shared.ID)
-	second.Name = "Spät"
-	updatedActive, err := repo.UpdateIfActive(ctx, second)
-	require.NoError(t, err)
-	assert.True(t, updatedActive)
 
 	archivedAt := time.Now()
 	first.ArchivedAt = &archivedAt
@@ -65,9 +61,6 @@ func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
 	assert.Equal(t, second.ID, tracks[0].ID)
 	assert.Equal(t, first.ID, tracks[1].ID)
 	assert.True(t, tracks[1].IsArchived())
-	updatedActive, err = repo.UpdateIfActive(ctx, first)
-	require.NoError(t, err)
-	assert.False(t, updatedActive)
 
 	require.NoError(t, reorderPlanningTracks(t, db, scope, []int64{second.ID}))
 	restored, err := repo.RestoreAtEnd(ctx, first)
@@ -143,13 +136,4 @@ func TestPlanningTrackRepositoryRejectsPartialOrder(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Error(t, repo.UpdateSortOrders(context.Background(), []int64{first.ID, second.ID}))
-
-	updated, err := repo.UpdateIfActive(scope.Context(), nil)
-	require.Error(t, err)
-	assert.False(t, updated)
-	updated, err = repo.UpdateIfActive(scope.Context(), &model.PlanningTrack{
-		Name: "Ungültig", Color: "blue",
-	})
-	require.Error(t, err)
-	assert.False(t, updated)
 }

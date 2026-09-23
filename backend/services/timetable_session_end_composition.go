@@ -2,10 +2,9 @@ package services
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -16,18 +15,14 @@ import (
 // retained instance and participant rows, which carry the Student Presence
 // session state. careDays is optional: without it no child is spared the
 // absent stamp.
-func NewTimetableEndedSessionCompletion(
-	instances scheduleModels.ActivityInstanceRepository,
-	participants scheduleModels.InstanceStudentRepository,
-	careDays careplan.CareDayQuery,
-) (timetable.EndedSessionCompletion, error) {
-	listing, ok := instances.(timetableCompose.EndedSessionInstances)
-	if !ok {
-		return nil, fmt.Errorf("ended session completion: %T cannot list instances by session", instances)
+func NewTimetableEndedSessionCompletion(rows repositories.TimetableOwnerRows, careDays careplan.CareDayQuery) (timetable.EndedSessionCompletion, error) {
+	instances, err := rows.EndedSessionInstances()
+	if err != nil {
+		return nil, err
 	}
 	return timetableCompose.NewEndedSessionCompletion(timetableCompose.EndedSessionCompletionDependencies{
-		Instances:    listing,
-		Participants: participants,
+		Instances:    instances,
+		Participants: rows.Participants,
 		CareDays:     newTimetableCareDays(careDays),
 	})
 }

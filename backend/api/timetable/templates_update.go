@@ -291,7 +291,7 @@ func (rs *Resource) resolveTemplateForRead(
 	requestedID int64,
 	periodID *int64,
 ) ([]templateResponse, bool) {
-	resolvedID, changed, err := rs.TimetableData.ResolveLivingTemplateSegment(r.Context(), requestedID)
+	resolvedID, changed, err := rs.Templates.ResolveLivingTemplateSegment(r.Context(), requestedID)
 	if err != nil {
 		if errors.Is(err, timetableplanning.ErrTemplateSeriesFullyEnded) {
 			renderTemplateNotFound(w, r)
@@ -366,16 +366,16 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := rs.TimetableData.ValidateTemplateEducationGroup(ctx, parsed.req.EducationGroupID); err != nil {
+	if err := rs.Templates.ValidateTemplateEducationGroup(ctx, parsed.req.EducationGroupID); err != nil {
 		renderTemplateEducationGroupError(w, r, err)
 		return
 	}
-	timeframeID, err := rs.TimetableData.FindOrCreateTimeframe(ctx, parsed.startTime, parsed.endTime, parsed.req.Name)
+	timeframeID, err := rs.Templates.FindOrCreateTimeframe(ctx, parsed.startTime, parsed.endTime, parsed.req.Name)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve timeframe failed", err))
 		return
 	}
-	updateErr := rs.TimetableData.UpdateTemplate(ctx, buildUpdateTemplateInput(id, parsed, timeframeID, gradeLevelMax, rosterValidFrom))
+	updateErr := rs.Templates.UpdateTemplate(ctx, buildUpdateTemplateInput(id, parsed, timeframeID, gradeLevelMax, rosterValidFrom))
 	if updateErr != nil {
 		// findOrCreateTimeframe runs before the recurrence service. Tenant
 		// middleware commits 4xx responses unless explicitly marked, so every
@@ -646,7 +646,7 @@ func (rs *Resource) archiveTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("no tenant in context")))
 		return
 	}
-	n, err := rs.TimetableData.ArchiveTemplate(r.Context(), id)
+	n, err := rs.Templates.ArchiveTemplate(r.Context(), id)
 	if err != nil {
 		if renderTemplateCareOfferingConflict(w, r, err) {
 			return

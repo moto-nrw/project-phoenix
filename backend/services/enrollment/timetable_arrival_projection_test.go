@@ -14,41 +14,90 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// timetableDataWithArrivalBaseline wires the read facade behind api/timetable
-// the way the factory does, with the arrival projection in booking mode
-// (#2414). Only the repositories the arrival read paths touch are filled — the
-// facade is a read boundary here, not a write one.
+// timetableDataWithArrivalBaseline composes the Timetable owner's planner
+// reads (#3551) the way the composition root does, with the arrival
+// projection in booking mode (#2414). Only the readers the student week
+// touches are real; the rest only have to exist.
 func timetableDataWithArrivalBaseline(
 	t *testing.T,
 	env *decisionTestEnv,
 	authoritative bool,
-) *timetableplanning.TimetableDataService {
+) timetable.TimetableDataCapability {
 	t.Helper()
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: env.db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	return timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{
-		InstanceStudentRepo:   env.repos.InstanceStudent,
-		ActivityInstanceRepo:  timetablesqltest.NewActivityInstanceRepository(env.db),
-		ActivityExceptionRepo: timetablesqltest.NewActivityExceptionRepository(env.db),
-		ActivityScheduleRepo:  env.repos.ActivitySchedule,
-		ArrivalBaselines:      bookingModeArrivalBaseline(t, env, authoritative),
-		ArrivalExceptionRepo:  env.repos.StudentArrivalException,
-		PickupScheduleRepo:    env.repos.StudentPickupSchedule,
-		PickupBaselines:       newPickupBaselineService(env.repos.CarePlan(), approvedOfferingTestProjection(env.repos)),
-		PickupExceptionRepo:   env.repos.StudentPickupException,
-		Presence:              presence,
-		EducationGroupRepo:    educationRepo.NewGroupRepository(env.db),
-		Logger:                slog.Default(),
-		DB:                    env.db,
+	data, err := arrivalTimetable.NewTimetableData(arrivalTimetable.TimetableDataDependencies{
+		Instances:         timetablesqltest.NewActivityInstanceRepository(env.db),
+		InstanceStaff:     env.repos.InstanceStaff,
+		Participants:      env.repos.InstanceStudent,
+		PickupExceptions:  env.repos.StudentPickupException,
+		ArrivalExceptions: env.repos.StudentArrivalException,
+		ArrivalBaselines:  arrivalBaselineProjector{reader: bookingModeArrivalBaseline(t, env, authoritative)},
+		PickupBaselines:   pickupBaselineProjector{reader: newPickupBaselineService(env.repos.CarePlan(), approvedOfferingTestProjection(env.repos))},
+		Visits:            presence,
+		Templates:         unusedStudentWeekTemplates{},
+		Groups:            unusedStudentWeekReaders{},
+		Categories:        unusedStudentWeekCategories{},
+		Rooms:             unusedStudentWeekReaders{},
+		RoomOccupancy:     unusedStudentWeekReaders{},
+		DeviationEvents:   unusedStudentWeekReaders{},
+		ConflictAcks:      unusedStudentWeekReaders{},
+		Logger:            slog.Default(),
 	})
+	require.NoError(t, err)
+	return data
+}
+
+// unusedStudentWeekReaders stands in for the planner readers the student
+// week never touches.
+type unusedStudentWeekReaders struct {
+	arrivalTimetable.DataGroups
+	arrivalTimetable.RoomNames
+	arrivalTimetable.RoomOccupancy
+	arrivalTimetable.DeviationEventReader
+	timetable.ConflictAckCapability
+}
+
+// unusedStudentWeekTemplates and unusedStudentWeekCategories stand in for
+// the template and category writes of a spontaneous start.
+type unusedStudentWeekTemplates struct {
+	arrivalTimetable.DataTemplates
+}
+
+type unusedStudentWeekCategories struct {
+	arrivalTimetable.DataCategories
+}
+
+// pickupBaselineProjector serves the Timetable pickup port from Care Plan's
+// baseline projection, the way the composition root does.
+type pickupBaselineProjector struct {
+	reader careplan.PickupBaselineReader
+}
+
+func (p pickupBaselineProjector) ProjectPickups(ctx context.Context, studentIDs []int64, from, to timezone.Date) (arrivalTimetable.PickupBaselines, error) {
+	projection, err := p.reader.Project(ctx, studentIDs, from, to)
+	if err != nil {
+		return nil, err
+	}
+	return pickupBaselineProjection{projection: projection}, nil
+}
+
+type pickupBaselineProjection struct {
+	projection *careplan.PickupBaselineProjection
+}
+
+func (p pickupBaselineProjection) RegularPickup(studentID int64, date timezone.Date) (time.Time, bool) {
+	row := p.projection.ForDate(studentID, date)
+	if row == nil {
+		return time.Time{}, false
+	}
+	return row.PickupTime, true
 }
 
 // exceptionConflictsWithArrivalBaseline composes the Timetable owner's
@@ -144,26 +193,32 @@ func TestTimetableRead_StudentWeekAppliesTheBookingMode(t *testing.T) {
 
 	t.Run("with the booking mode on only the booked weekday plans", func(t *testing.T) {
 		data := timetableDataWithArrivalBaseline(t, env, true)
-		pre, err := data.PreloadStudentWeek(ctx, studentID, monday, thursday)
+		week, err := data.StudentWeek(ctx, studentID, monday, thursday)
 		require.NoError(t, err)
 
-		booked := pre.ArrivalSchedByDate[monday.String()]
-		require.NotNil(t, booked, "the booked weekday keeps its arrival")
-		assert.Equal(t, "11:45", booked.ExpectedArrival.Format("15:04"))
-		assert.Equal(t, scheduleModels.ArrivalScheduleSourceClassSchedule, booked.Source)
+		booked := week.ArrivalByDate[monday.String()]
+		require.True(t, booked.HasSchedule, "the booked weekday keeps its arrival")
+		assert.Equal(t, "11:45", booked.Time.Format("15:04"))
+		// The week carries the time only; the source stays with Care Plan's
+		// projection the week is built from.
+		projection, err := bookingModeArrivalBaseline(t, env, true).Project(ctx, []int64{studentID}, monday, thursday)
+		require.NoError(t, err)
+		source := projection.ForDate(studentID, monday)
+		require.NotNil(t, source)
+		assert.Equal(t, scheduleModels.ArrivalScheduleSourceClassSchedule, source.Source)
 
-		assert.Nil(t, pre.ArrivalSchedByDate[thursday.String()],
+		assert.False(t, week.ArrivalByDate[thursday.String()].HasSchedule,
 			"a stale row on an unbooked weekday must not plan anything")
 	})
 
 	t.Run("with the booking mode off the stored row still plans", func(t *testing.T) {
 		data := timetableDataWithArrivalBaseline(t, env, false)
-		pre, err := data.PreloadStudentWeek(ctx, studentID, monday, thursday)
+		week, err := data.StudentWeek(ctx, studentID, monday, thursday)
 		require.NoError(t, err)
 
-		require.NotNil(t, pre.ArrivalSchedByDate[thursday.String()],
+		require.True(t, week.ArrivalByDate[thursday.String()].HasSchedule,
 			"the six schools without a Halbjahresanmeldung must not change")
-		assert.Nil(t, pre.ArrivalSchedByDate[monday.String()],
+		assert.False(t, week.ArrivalByDate[monday.String()].HasSchedule,
 			"without the booking mode a weekday without a stored row is not a care day")
 	})
 }
@@ -188,12 +243,12 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 
 	monday := nextWeekday(decisionTestToday, time.Monday)
 	data := timetableDataWithArrivalBaseline(t, env, true)
-	pre, err := data.PreloadStudentWeek(ctx, studentID, monday, monday)
+	week, err := data.StudentWeek(ctx, studentID, monday, monday)
 	require.NoError(t, err)
 
-	arrival := pre.ArrivalSchedByDate[monday.String()]
-	require.NotNil(t, arrival, "the booked day must remain visible without a class time")
-	assert.True(t, arrival.ExpectedArrival.IsZero(), "the visible care day has no arrival time to show")
+	arrival := week.ArrivalByDate[monday.String()]
+	require.True(t, arrival.HasSchedule, "the booked day must remain visible without a class time")
+	assert.True(t, arrival.Time.IsZero(), "the visible care day has no arrival time to show")
 
 	room := testpkg.CreateTestRoom(t, env.db, "Ohne-Zeit-Raum")
 	activity := testpkg.CreateTestActivityGroup(t, env.db, "Ohne-Zeit-AG")

@@ -348,8 +348,8 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 	periodID := int64(55)
 	rosterFrom := fixtureToday.AddDays(6)
 	scheduleFrom := fixtureToday.AddDays(28)
-	deps := func(resync func(context.Context, OfferingRosterResyncInput) error) TimetableDataDependencies {
-		return TimetableDataDependencies{Today: func() timezone.Date { return fixtureToday }, ResyncOfferingRoster: resync}
+	deps := func(resync func(context.Context, OfferingRosterResyncInput) error) TemplateServiceDependencies {
+		return TemplateServiceDependencies{Today: func() timezone.Date { return fixtureToday }, ResyncOfferingRoster: resync}
 	}
 
 	baseInput := func() TemplateUpdateInput {
@@ -362,7 +362,7 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 
 	t.Run("a template without a source before and after skips the hook", func(t *testing.T) {
 		called := false
-		svc := NewTimetableDataService(deps(
+		svc := NewTemplateService(deps(
 			func(context.Context, OfferingRosterResyncInput) error {
 				called = true
 				return nil
@@ -375,7 +375,7 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 
 	t.Run("removing a source still reconciles, using the previous offering", func(t *testing.T) {
 		var got OfferingRosterResyncInput
-		svc := NewTimetableDataService(deps(
+		svc := NewTemplateService(deps(
 			func(_ context.Context, in OfferingRosterResyncInput) error {
 				got = in
 				return nil
@@ -392,7 +392,7 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 
 	t.Run("a series start date wins over the roster valid_from", func(t *testing.T) {
 		var got OfferingRosterResyncInput
-		svc := NewTimetableDataService(deps(
+		svc := NewTemplateService(deps(
 			func(_ context.Context, in OfferingRosterResyncInput) error {
 				got = in
 				return nil
@@ -413,7 +413,7 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 
 	t.Run("an already-started series clamps the rewrite boundary to today", func(t *testing.T) {
 		var got OfferingRosterResyncInput
-		svc := NewTimetableDataService(deps(
+		svc := NewTemplateService(deps(
 			func(_ context.Context, in OfferingRosterResyncInput) error {
 				got = in
 				return nil
@@ -431,7 +431,7 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 	})
 
 	t.Run("a missing hook fails loudly instead of saving a dead rule", func(t *testing.T) {
-		svc := NewTimetableDataService(TimetableDataDependencies{})
+		svc := NewTemplateService(TemplateServiceDependencies{})
 		in := baseInput()
 		in.Fields.SourceCareOfferingIDs = []int64{12}
 
@@ -443,7 +443,7 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 
 	t.Run("a failing resync surfaces as a schedule error", func(t *testing.T) {
 		sentinel := errors.New("boom")
-		svc := NewTimetableDataService(deps(
+		svc := NewTemplateService(deps(
 			func(context.Context, OfferingRosterResyncInput) error {
 				return sentinel
 			},
@@ -468,7 +468,7 @@ func TestValidateOfferingSourceReference(t *testing.T) {
 
 	t.Run("no source skips the hook", func(t *testing.T) {
 		called := false
-		svc := NewTimetableDataService(TimetableDataDependencies{
+		svc := NewTemplateService(TemplateServiceDependencies{
 			ValidateOfferingSource: func(context.Context, []int64, []int64, *int64) error {
 				called = true
 				return nil
@@ -482,7 +482,7 @@ func TestValidateOfferingSourceReference(t *testing.T) {
 	t.Run("the sources are checked against the template period", func(t *testing.T) {
 		var gotOfferings []int64
 		var gotPeriod *int64
-		svc := NewTimetableDataService(TimetableDataDependencies{
+		svc := NewTemplateService(TemplateServiceDependencies{
 			ValidateOfferingSource: func(_ context.Context, ids, _ []int64, period *int64) error {
 				gotOfferings, gotPeriod = ids, period
 				return nil
@@ -495,7 +495,7 @@ func TestValidateOfferingSourceReference(t *testing.T) {
 	})
 
 	t.Run("an unknown source surfaces as ErrOfferingSourceInvalid before any write", func(t *testing.T) {
-		svc := NewTimetableDataService(TimetableDataDependencies{
+		svc := NewTemplateService(TemplateServiceDependencies{
 			ValidateOfferingSource: func(context.Context, []int64, []int64, *int64) error {
 				return fmt.Errorf("%w: care offering %d not found", ErrOfferingSourceInvalid, int64(12))
 			},
@@ -509,7 +509,7 @@ func TestValidateOfferingSourceReference(t *testing.T) {
 	})
 
 	t.Run("an unwired hook leaves the resync as the only guard", func(t *testing.T) {
-		svc := NewTimetableDataService(TimetableDataDependencies{})
+		svc := NewTemplateService(TemplateServiceDependencies{})
 
 		require.NoError(t, svc.validateOfferingSourceReference(t.Context(), []int64{12}, nil, &periodID, "create template: validate offering source"))
 	})

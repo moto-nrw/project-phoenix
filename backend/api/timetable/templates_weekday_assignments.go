@@ -15,6 +15,7 @@ import (
 	"fmt"
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
@@ -107,7 +108,7 @@ type templateProtectedStudentAssignmentResponse struct {
 // buildTemplateWeekdayAssignments groups the flat, kind-tagged roster rows the
 // repository returns into one entry per weekday, keyed by template id.
 func buildTemplateWeekdayAssignments(
-	rows []activitiesModel.TemplateWeekdayRosterRow,
+	rows []timetable.TemplateWeekdayRosterRow,
 ) map[int64][]templateWeekdayAssignmentResponse {
 	// The repository orders by (template, weekday, kind, is_primary, person),
 	// so appending in scan order already yields stable, sorted output.
@@ -150,7 +151,7 @@ func buildTemplateWeekdayAssignments(
 }
 
 func buildTemplateProtectedStudentAssignments(
-	rows []activitiesModel.TemplateWeekdayRosterRow,
+	rows []timetable.TemplateWeekdayRosterRow,
 ) map[int64][]templateProtectedStudentAssignmentResponse {
 	byTemplate := make(map[int64][]templateProtectedStudentAssignmentResponse)
 	index := make(map[int64]map[int]int)

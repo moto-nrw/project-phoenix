@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activityModel "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -35,8 +34,6 @@ type spontaneousStartRequest struct {
 	StaffIDs        []int64 `json:"staff_ids,omitempty"`
 	StudentIDs      []int64 `json:"student_ids,omitempty"`
 }
-
-var errSpontaneousCategoryArchived = errors.New("spontaneous activity category is archived")
 
 func (req *spontaneousStartRequest) Bind(_ *http.Request) error {
 	if req.Title == "" {
@@ -102,7 +99,7 @@ func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request)
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date")))
 			return
 		}
-		if opts.Scope == timetableplanning.PlannedNowScopePast && parsed != today {
+		if opts.Scope == timetable.PlannedNowScopePast && parsed != today {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("past scope only supports today's date")))
 			return
 		}
@@ -120,9 +117,9 @@ func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request)
 	common.Respond(w, r, http.StatusOK, map[string]any{"instances": result}, "Planned timetable instances retrieved")
 }
 
-func parsePlannedNowOptions(w http.ResponseWriter, r *http.Request) (timetableplanning.PlannedNowOptions, bool) {
+func parsePlannedNowOptions(w http.ResponseWriter, r *http.Request) (timetable.PlannedNowOptions, bool) {
 	query := r.URL.Query()
-	var opts timetableplanning.PlannedNowOptions
+	var opts timetable.PlannedNowOptions
 	if raw := query.Get("horizon_minutes"); raw != "" {
 		value, err := strconv.Atoi(raw)
 		if err != nil || value < 0 || value > 24*60 {
@@ -140,7 +137,7 @@ func parsePlannedNowOptions(w http.ResponseWriter, r *http.Request) (timetablepl
 		opts.Limit = value
 	}
 	if raw := query.Get("scope"); raw != "" {
-		if raw != timetableplanning.PlannedNowScopePast && raw != timetableplanning.PlannedNowScopeDay {
+		if raw != timetable.PlannedNowScopePast && raw != timetable.PlannedNowScopeDay {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid scope")))
 			return opts, false
 		}
@@ -197,8 +194,8 @@ func (rs *Resource) operationsStart(w http.ResponseWriter, r *http.Request) {
 			return nil, err
 		}
 		return startOperationResponse{
-			InstanceID:    result.Instance.ID,
-			Status:        result.Instance.Status,
+			InstanceID:    result.InstanceID,
+			Status:        result.Status,
 			ActiveGroupID: result.ActiveGroupID,
 			Warnings:      result.Warnings,
 		}, nil
@@ -212,7 +209,7 @@ func (rs *Resource) operationsReopen(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return nil, err
 		}
-		return startOperationResponse{InstanceID: result.Instance.ID, Status: result.Instance.Status, ActiveGroupID: result.ActiveGroupID, Warnings: result.Warnings}, nil
+		return startOperationResponse{InstanceID: result.InstanceID, Status: result.Status, ActiveGroupID: result.ActiveGroupID, Warnings: result.Warnings}, nil
 	}, "Timetable instance reopened")
 }
 
@@ -222,7 +219,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		return
 	}
 	if !rs.webSpontaneousActivitiesEnabled(r) {
-		common.RenderError(w, r, common.ErrorForbidden(timetableplanning.ErrTimetableOperationForbidden))
+		common.RenderError(w, r, common.ErrorForbidden(timetable.ErrTimetableOperationForbidden))
 		return
 	}
 	req, ok := bindSpontaneousStartRequest(w, r)
@@ -243,7 +240,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 
 	currentStaffID := rs.resolveStartedByStaffID(r.Context())
 	if currentStaffID <= 0 {
-		common.RenderError(w, r, common.ErrorForbidden(timetableplanning.ErrTimetableOperationForbidden))
+		common.RenderError(w, r, common.ErrorForbidden(timetable.ErrTimetableOperationForbidden))
 		return
 	}
 
@@ -257,7 +254,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	activityGroupID, err := rs.resolveSpontaneousActivityGroupID(r.Context(), req.Title, req.ActivityGroupID, createdBy)
+	activityGroupID, err := rs.TimetableData.ResolveSpontaneousActivity(r.Context(), req.Title, req.ActivityGroupID, createdBy)
 	if err != nil {
 		renderSpontaneousActivityResolutionError(w, r, err)
 		return
@@ -271,9 +268,8 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		return
 	}
 
-	isSpontaneous := true
 	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.OperationsService.CreateAndStartSpontaneous(r.Context(), int64(claims.ID), claims.IsAdmin, timetableplanning.CreateInstanceInput{
+	result, err := rs.OperationsService.CreateAndStartSpontaneous(r.Context(), int64(claims.ID), claims.IsAdmin, timetable.SpontaneousStart{
 		Date:             window.date,
 		StartTime:        window.startTime,
 		EndTime:          window.endTime,
@@ -282,9 +278,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		Notes:            req.Notes,
 		RoomID:           req.RoomID,
 		ActivityGroupID:  activityGroupID,
-		IsSpontaneous:    &isSpontaneous,
 		StaffIDs:         req.StaffIDs,
-		StudentIDs:       nil,
 		CreatedByStaffID: &createdBy,
 	})
 	if err != nil {
@@ -292,7 +286,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		// the request tx). A Create-phase failure is wrapped so it keeps the
 		// create-specific error mapping; a Start-phase failure uses the
 		// operations mapping.
-		var createErr *timetableplanning.SpontaneousCreateError
+		var createErr *timetable.SpontaneousCreateError
 		if errors.As(err, &createErr) {
 			renderCreateInstanceError(w, r, createErr.Err)
 		} else {
@@ -301,8 +295,8 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, startOperationResponse{
-		InstanceID:    result.Instance.ID,
-		Status:        result.Instance.Status,
+		InstanceID:    result.InstanceID,
+		Status:        result.Status,
 		ActiveGroupID: result.ActiveGroupID,
 		Warnings:      result.Warnings,
 	}, "Spontaneous timetable instance created and started")
@@ -313,24 +307,20 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 // existence-vs-conflict check is serialized. Renders the appropriate error and
 // returns false on any failure.
 func (rs *Resource) validateSpontaneousRoom(w http.ResponseWriter, r *http.Request, roomID int64) bool {
-	room, err := rs.TimetableData.GetRoom(r.Context(), roomID)
+	exists, err := rs.TimetableData.SpontaneousRoomExists(r.Context(), roomID)
 	if err != nil {
-		if common.IsNotFound(err) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("room not found")))
-			return false
-		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load spontaneous room failed", err))
 		return false
 	}
-	if room == nil {
+	if !exists {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("room not found")))
 		return false
 	}
-	if err := rs.lockSpontaneousStartRoom(r.Context(), roomID); err != nil {
+	if err := rs.TimetableData.LockSpontaneousStartRoom(r.Context(), roomID); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("lock spontaneous start room failed", err))
 		return false
 	}
-	hasRoomConflict, _, err := rs.TimetableData.CheckRoomConflict(r.Context(), roomID, 0)
+	hasRoomConflict, err := rs.TimetableData.SpontaneousRoomOccupied(r.Context(), roomID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("check room conflict failed", err))
 		return false
@@ -357,68 +347,6 @@ func bindSpontaneousStartRequest(w http.ResponseWriter, r *http.Request) (*spont
 	return req, true
 }
 
-func (rs *Resource) resolveSpontaneousActivityGroupID(ctx context.Context, title string, requestedID *int64, createdBy int64) (*int64, error) {
-	if requestedID != nil {
-		return requestedID, nil
-	}
-	if rs.TimetableData == nil {
-		return nil, errors.New("activity repositories are not wired")
-	}
-	if err := rs.lockSpontaneousActivityName(ctx, title); err != nil {
-		return nil, err
-	}
-	if existing, err := rs.TimetableData.GetActivityGroupByName(ctx, title); err == nil && existing != nil {
-		return &existing.ID, nil
-	} else if err != nil && !common.IsNotFound(err) {
-		return nil, err
-	}
-
-	category, err := rs.ensureSpontaneousActivityCategory(ctx)
-	if err != nil {
-		return nil, err
-	}
-	group := &activityModel.Group{
-		Name:            title,
-		CategoryID:      category.ID,
-		MaxParticipants: 0,
-		IsOpen:          true,
-		CreatedBy:       &createdBy,
-		Type:            activityModel.GroupTypeActivity,
-		IsTemplate:      false,
-	}
-	group.SetTenantID(tenant.FromContext(ctx))
-	if err := rs.TimetableData.CreateActivityGroup(ctx, group); err != nil {
-		return nil, err
-	}
-	return &group.ID, nil
-}
-
-func (rs *Resource) ensureSpontaneousActivityCategory(ctx context.Context) (*activityModel.Category, error) {
-	const spontaneousCategoryName = "Spontan"
-	if err := rs.lockSpontaneousActivityCategory(ctx); err != nil {
-		return nil, err
-	}
-	if existing, err := rs.TimetableData.GetActivityCategoryByName(ctx, spontaneousCategoryName); err == nil && existing != nil {
-		if existing.IsArchived() {
-			return nil, errSpontaneousCategoryArchived
-		}
-		return existing, nil
-	} else if err != nil && !common.IsNotFound(err) {
-		return nil, err
-	}
-
-	category := &activityModel.Category{
-		Name:        spontaneousCategoryName,
-		Description: "Automatisch angelegte Aktivitäten aus spontanen Web-Starts",
-		Color:       "#83CD2D",
-	}
-	category.SetTenantID(tenant.FromContext(ctx))
-	if err := rs.TimetableData.CreateActivityCategory(ctx, category); err != nil {
-		return nil, err
-	}
-	return category, nil
-}
-
 func serverSpontaneousActivityWindow(now time.Time) spontaneousActivityWindow {
 	now = now.In(timezone.Berlin)
 	currentMinutes := now.Hour()*60 + now.Minute()
@@ -441,18 +369,6 @@ func spontaneousStartWorkdayWindow(now time.Time) (spontaneousActivityWindow, er
 
 func clockTimeFromMinutes(minutes int) time.Time {
 	return time.Date(2000, 1, 1, minutes/60, minutes%60, 0, 0, time.UTC)
-}
-
-func (rs *Resource) lockSpontaneousStartRoom(ctx context.Context, roomID int64) error {
-	return rs.TimetableData.LockSpontaneousStartRoom(ctx, roomID)
-}
-
-func (rs *Resource) lockSpontaneousActivityName(ctx context.Context, name string) error {
-	return rs.TimetableData.LockSpontaneousActivityName(ctx, name)
-}
-
-func (rs *Resource) lockSpontaneousActivityCategory(ctx context.Context) error {
-	return rs.TimetableData.LockSpontaneousActivityCategory(ctx)
 }
 
 func (rs *Resource) operationsCapabilities(w http.ResponseWriter, r *http.Request) {
@@ -581,7 +497,7 @@ func canViewOperationPickupTimes(ctx context.Context) bool {
 		authorize.HasPermission(permissions.UsersRead, jwt.PermissionsFromCtx(ctx))
 }
 
-func redactOperationRosterPickupTimes(roster *timetableplanning.OperationRoster) {
+func redactOperationRosterPickupTimes(roster *timetable.OperationRoster) {
 	if roster == nil {
 		return
 	}
@@ -592,7 +508,7 @@ func redactOperationRosterPickupTimes(roster *timetableplanning.OperationRoster)
 	}
 }
 
-func redactOperationPlannedPickupTimes(instances []timetableplanning.OperationPlannedInstance) {
+func redactOperationPlannedPickupTimes(instances []timetable.OperationPlannedInstance) {
 	for i := range instances {
 		instances[i].PickupTimesLoaded = false
 		instances[i].PickupTimesRedacted = true
@@ -661,7 +577,7 @@ func appendUniquePositive(ids []int64, id int64) []int64 {
 }
 
 func renderSpontaneousActivityResolutionError(w http.ResponseWriter, r *http.Request, err error) {
-	if errors.Is(err, errSpontaneousCategoryArchived) {
+	if errors.Is(err, timetable.ErrSpontaneousCategoryArchived) {
 		common.RenderError(w, r, common.ErrorConflict(err))
 		return
 	}
@@ -669,15 +585,15 @@ func renderSpontaneousActivityResolutionError(w http.ResponseWriter, r *http.Req
 }
 
 func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request, err error) {
-	var validationErr *timetableplanning.TimetableAttendanceValidationError
+	var validationErr *timetable.AttendanceValidationError
 	switch {
 	case errors.As(err, &validationErr):
 		renderValidationErrors(w, r, attendancePatchFieldErrors(validationErr.Fields))
-	case errors.Is(err, timetableplanning.ErrTimetableOperationForbidden):
+	case errors.Is(err, timetable.ErrTimetableOperationForbidden):
 		common.RenderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, timetableplanning.ErrTimetableOperationNotFound):
+	case errors.Is(err, timetable.ErrTimetableOperationNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, timetableplanning.ErrTimetableOperationConflict), errors.Is(err, timetableplanning.ErrInvalidInstanceTransition),
+	case errors.Is(err, timetable.ErrTimetableOperationConflict), errors.Is(err, timetableplanning.ErrInvalidInstanceTransition),
 		errors.Is(err, timetableplanning.ErrInstanceStartTooEarly), errors.Is(err, timetableplanning.ErrInstanceStartExpired),
 		errors.Is(err, timetableplanning.ErrInstanceCompleteEarly):
 		common.RenderError(w, r, common.ErrorConflict(err))

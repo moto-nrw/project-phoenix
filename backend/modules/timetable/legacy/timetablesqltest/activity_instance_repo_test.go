@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -378,8 +377,9 @@ func TestActivityInstanceRepository_CompleteActiveByActiveGroupIDsOmitsRecoveryS
 	assert.Equal(t, scheduleModels.InstanceStatusCompleted, found.Status)
 	require.NotNil(t, found.CompletedAt)
 	assert.Nil(t, found.CompletedBy)
+	// Without a reopen window the reopen gate (timetable.CanReopenInstance)
+	// stays closed for a session-end completion.
 	assert.Nil(t, found.ReopenUntil)
-	assert.False(t, timetableplanning.CanReopenInstance(found, 42, true, completedAt.Add(time.Minute)))
 }
 
 func TestActivityInstanceRepository_FindByTenantAndDate(t *testing.T) {

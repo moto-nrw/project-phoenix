@@ -87,7 +87,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 		Workforce:       capability,
 		LockStaffShifts: lock,
 		Instances:       timetable.Instance,
-		TimetableData:   timetable.TimetableData,
+		TimetableData:   services.NewSickCascadeTimetableRows(repos.OwnerRows(), db),
 		InstanceStaff:   repos.InstanceStaff,
 		Broadcaster:     broadcaster,
 		Logger:          logger,

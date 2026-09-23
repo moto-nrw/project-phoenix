@@ -128,7 +128,7 @@ func livingTemplateSegment(segments []templateSeriesSegment) *templateSeriesSegm
 // to the still-editable segment of the same split series (#2187). Returns the
 // resolved id and whether it differs from the requested one. An unknown id or
 // a lineage with no open segment left returns ErrTemplateSeriesFullyEnded.
-func (s *TimetableDataService) ResolveLivingTemplateSegment(
+func (s *TemplateService) ResolveLivingTemplateSegment(
 	ctx context.Context,
 	templateID int64,
 ) (int64, bool, error) {

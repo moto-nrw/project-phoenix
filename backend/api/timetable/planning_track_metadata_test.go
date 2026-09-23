@@ -7,7 +7,6 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,17 +15,17 @@ import (
 func TestTemplateResponseIncludesPlanningTrackMetadata(t *testing.T) {
 	t.Parallel()
 
-	response := templateResponseFromRow(templateRow{
+	response := templateResponseFromRow(templateRow{TemplateListRow: timetable.TemplateListRow{
 		TemplateID:         41,
 		Name:               "Lernzeit",
 		Type:               activitiesModel.GroupTypeCare,
 		CategoryID:         9,
 		CategoryName:       "Lernzeit",
-		PlanningTrackID:    activitiesModel.NullInt64{Int64: 7, Valid: true},
+		PlanningTrackID:    testpkg.Int64Ptr(7),
 		PlanningTrackName:  "Jahrgang 1",
 		PlanningTrackColor: "#5080D8",
-		PlanningTrackOrder: activitiesModel.NullInt64{Int64: 2, Valid: true},
-	}, 10)
+		PlanningTrackOrder: testpkg.Int64Ptr(2),
+	}}, 10)
 
 	require.NotNil(t, response.PlanningTrackID)
 	assert.Equal(t, "Jahrgang 1", response.PlanningTrackName)
@@ -52,9 +51,7 @@ func TestInstanceMetadataResolvesPlanningTrackThroughTemplate(t *testing.T) {
 	require.NoError(t, err)
 
 	resource := NewResource(Dependencies{
-		TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{
-			ActivityGroupRepo: repos.ActivityGroup,
-		}),
+		TimetableData:  unitTimetableData(unitDataDeps{Groups: repos.Timetable}),
 		PlanningTracks: timetableCompose.NewPlanningTrackAdministration(repos.Timetable, db),
 	})
 	meta := resource.lookupTemplateMeta(

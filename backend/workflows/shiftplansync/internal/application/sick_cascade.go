@@ -35,13 +35,24 @@ const (
 	sickBlockAbsenceReason = "Krankmeldung"
 )
 
+// TimetableRows are the Betreuungsplan rows the cascade hands to the retained
+// deviation writes, and the Timetable owner's day lock of every day-wide
+// staffing mutation (timetable.SubstituteDayLockKey). The composition root
+// binds them to the retained repositories.
+type TimetableRows interface {
+	AcquireSubstituteDayLock(ctx context.Context, date timezone.Date) error
+	GetInstanceStaffByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*scheduleModel.InstanceStaff, error)
+	GetActivityInstancesByID(ctx context.Context, ids []int64) (map[int64]*scheduleModel.ActivityInstance, error)
+	GetInstanceStaff(ctx context.Context, instanceID int64) ([]*scheduleModel.InstanceStaff, error)
+}
+
 // SickCascadeDependencies are the owner surfaces the cascade coordinates: the
 // Dienstplan through the Workforce-backed port, the Betreuungsplan through the
 // retained timetable planning services.
 type SickCascadeDependencies struct {
 	Shifts        ports.Shifts
 	Instances     timetableplanning.InstanceService
-	TimetableData *timetableplanning.TimetableDataService
+	TimetableData TimetableRows
 	InstanceStaff scheduleModel.InstanceStaffRepository
 	Broadcaster   realtime.Broadcaster
 	Logger        *slog.Logger
@@ -53,7 +64,7 @@ type SickCascadeDependencies struct {
 type sickCascade struct {
 	shifts            ports.Shifts
 	instances         timetableplanning.InstanceService
-	timetableData     *timetableplanning.TimetableDataService
+	timetableData     TimetableRows
 	instanceStaffRepo scheduleModel.InstanceStaffRepository
 	broadcaster       realtime.Broadcaster
 	logger            *slog.Logger

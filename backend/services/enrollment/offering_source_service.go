@@ -23,7 +23,7 @@ import (
 
 // OfferingRosterResyncer is the factory-facing view of the offering-source
 // roster resync (#2137). The decision service implements it; the factory
-// injects it into the schedule layer's TimetableDataDependencies as a func
+// injects it into the schedule layer's TemplateServiceDependencies as a func
 // hook to avoid an enrollment→schedule package cycle.
 type OfferingRosterResyncer interface {
 	ResyncTemplateOfferingRoster(ctx context.Context, in timetableplanning.OfferingRosterResyncInput) error

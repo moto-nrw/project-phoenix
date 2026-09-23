@@ -188,7 +188,7 @@ func TestConvertInstanceToSeries_RejectsInvalidInput(t *testing.T) {
 func TestTemplateAssignmentsOn_NilDependencies(t *testing.T) {
 	t.Parallel()
 
-	svc := NewTimetableDataService(TimetableDataDependencies{})
+	svc := NewTemplateService(TemplateServiceDependencies{})
 	students, staff, err := svc.templateAssignmentsOn(context.Background(), 1, conversionValidFrom(), 11)
 	require.Error(t, err)
 	assert.Nil(t, students)
@@ -201,7 +201,7 @@ func TestTemplateAssignmentsOn_NilDependencies(t *testing.T) {
 func TestTemplateAssignmentsOn_EnrollmentLoadError(t *testing.T) {
 	t.Parallel()
 
-	svc := NewTimetableDataService(TimetableDataDependencies{
+	svc := NewTemplateService(TemplateServiceDependencies{
 		StudentEnrollmentRepo:  &conversionEnrollmentRepo{err: errConversionMock},
 		ActivitySupervisorRepo: &conversionSupervisorRepo{},
 		ActivityGroupRepo:      &conversionPlainGroupRepo{},
@@ -216,7 +216,7 @@ func TestTemplateAssignmentsOn_SupervisorLoadError(t *testing.T) {
 	t.Parallel()
 
 	from := conversionValidFrom()
-	svc := NewTimetableDataService(TimetableDataDependencies{
+	svc := NewTemplateService(TemplateServiceDependencies{
 		StudentEnrollmentRepo:  &conversionEnrollmentRepo{rows: []*activitiesModel.StudentEnrollment{}},
 		ActivitySupervisorRepo: &conversionSupervisorRepo{err: errConversionMock},
 		ActivityGroupRepo:      &conversionPlainGroupRepo{},
@@ -231,7 +231,7 @@ func TestTemplateAssignmentsOn_TargetStudentLoadError(t *testing.T) {
 	t.Parallel()
 
 	from := conversionValidFrom()
-	svc := NewTimetableDataService(TimetableDataDependencies{
+	svc := NewTemplateService(TemplateServiceDependencies{
 		StudentEnrollmentRepo:  &conversionEnrollmentRepo{},
 		ActivitySupervisorRepo: &conversionSupervisorRepo{},
 		ActivityGroupRepo:      &conversionGroupTargetRepo{err: errConversionMock},
@@ -269,7 +269,7 @@ func TestTemplateAssignmentsOn_FiltersDuplicatesTargetsAndInvalidRows(t *testing
 		conversionSupervisor(33, from),
 	}
 
-	svc := NewTimetableDataService(TimetableDataDependencies{
+	svc := NewTemplateService(TemplateServiceDependencies{
 		StudentEnrollmentRepo:  &conversionEnrollmentRepo{rows: enrollments},
 		ActivitySupervisorRepo: &conversionSupervisorRepo{rows: supervisors},
 		ActivityGroupRepo: &conversionGroupTargetRepo{
@@ -288,7 +288,7 @@ func TestTemplateAssignmentsOn_SkipsTargetBranchWithoutTargetRepo(t *testing.T) 
 	t.Parallel()
 
 	from := conversionValidFrom()
-	svc := NewTimetableDataService(TimetableDataDependencies{
+	svc := NewTemplateService(TemplateServiceDependencies{
 		StudentEnrollmentRepo: &conversionEnrollmentRepo{
 			rows: []*activitiesModel.StudentEnrollment{conversionEnrollment(41, from)},
 		},

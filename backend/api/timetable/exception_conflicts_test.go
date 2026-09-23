@@ -52,7 +52,8 @@ func buildConflictsSetup(t *testing.T) *conflictsSetup {
 	clock := func() time.Time { return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour) }
 	data := testTimetableData(db, clock)
 	res := NewResource(Dependencies{
-		TimetableData:     data,
+		Templates:         data,
+		TimetableData:     data.TimetableData(),
 		ConflictDetection: data.ConflictDetection(),
 		Now:               clock,
 		DB:                db,

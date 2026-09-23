@@ -192,3 +192,39 @@ func TestTimetablePlanningCutoverReplacesConsumersWithTheTimetableContract(t *te
 		t.Fatal("the Timetable replacement did not require the historical permission")
 	}
 }
+
+// Slice S5 (#3551) moved the timetable reads, the operational day, the
+// retention cleanup and the ended-session completion to the Timetable
+// owner: the scheduler and the timetable end-to-end flows, which named the
+// nest for them, may name the owner's public contract in their own scope,
+// and nothing else of it.
+func TestTimetablePlanningCutoverReplacesTheReadAndCleanupConsumers(t *testing.T) {
+	t.Parallel()
+	base, candidate := timetablePlanningCutoverPolicies(t,
+		timetablePlanningHistoricalConsumer(ScopeProduction, "scheduler-runtime", "application"),
+		timetablePlanningHistoricalConsumer(ScopeInternalTest, "scheduler-runtime", "module-internal-test"),
+		timetablePlanningHistoricalConsumer(ScopeInternalTest, "test-support", "e2e-test"),
+	)
+	timetablePublic := timetablePlanningPoint("timetable-activities", "public")
+	scheduler := Package{Owner: "scheduler-runtime", Role: "application", InternalTestRole: "module-internal-test", ExternalTestRole: "module-behavior-test"}
+	e2e := Package{Owner: "test-support", Role: "e2e-support", InternalTestRole: "e2e-test", ExternalTestRole: "e2e-test"}
+	if !timetablePlanningCutoverPermission(base, candidate, ScopeProduction, scheduler, timetablePublic) {
+		t.Fatal("the scheduler cannot reach the Timetable contract")
+	}
+	for _, role := range []string{"compose", "application", "port", "postgres", "domain"} {
+		if timetablePlanningCutoverPermission(base, candidate, ScopeProduction, scheduler, timetablePlanningPoint("timetable-activities", role)) {
+			t.Fatalf("the scheduler reached timetable-activities/%s", role)
+		}
+	}
+	for _, source := range []Package{scheduler, e2e} {
+		if !timetablePlanningCutoverPermission(base, candidate, ScopeInternalTest, source, timetablePublic) {
+			t.Fatalf("the %s suites cannot name the Timetable contract", source.Owner)
+		}
+	}
+	if timetablePlanningCutoverPermission(base, candidate, ScopeExternalTest, scheduler, timetablePublic) {
+		t.Fatal("an internal-test permission was lent to the external-test scope")
+	}
+	if timetablePlanningCutoverPermission(base, candidate, ScopeProduction, e2e, timetablePublic) {
+		t.Fatal("a test permission was lent to the production scope")
+	}
+}

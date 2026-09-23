@@ -1080,6 +1080,35 @@ staff names through a root-bound port instead of the nest's staff reader.
 Four emptied compatibility rules are deleted, five replacement permissions
 use the extended exception of ADR 0038, and `legacy.jsonl` is unchanged.
 
+Slice S5 (#3551, policy epoch 26 to 27) moved the planner's reads, the
+operational day, the retention cleanup, the ended-session completion and the
+planning-track administration to the Timetable owner. The public contracts
+are `timetable.TimetableDataCapability` (blocks with their rows, staffing
+gaps, a child's week, the Vorlagen list, the Änderungsprotokoll, the
+spontaneous-start preparation and the conflict acknowledgements),
+`timetable.OperationCapability`, `timetable.TimetableCleanup`,
+`timetable.EndedSessionCompletion` and `timetable.PlanningTrackAdministration`,
+with the lifecycle clock policy, the attendance-patch rules and the reopen
+gate as pure functions beside them; the retained lifecycle and template
+services delegate to those functions. The implementation lives in
+`modules/timetable/compose` and still reads the retained repository rows.
+The collaborators the owner may not name are consumer-owned ports bound at
+the root: `repositories.TimetableOwnerRows` hands over the retained rows,
+the Facilities room names, the School Structure group names and the Audit
+Platform's Änderungsprotokoll; `services` binds Care Plan's care days,
+baselines and effective times, Student Presence's attendance writes, the
+settings, the retained instance lifecycle (until slice S1) and the tenant
+runtime's advisory locks. The retained `TemplateService` (template writes
+and the attendance correction, slices S2 and S3) carries the planner reads
+to the root beside the conflict detection (`TimetableData()`), because
+`services.Factory` may not grow a field. The scheduler, the command line,
+the supervision dashboard, the kiosk session mirror, the sick cascade and
+the timetable end-to-end flows no longer name the nest. `careplan.ScheduleError`
+stays the one operation-wrapping error type (decision on #3551). Seventeen
+emptied compatibility rules are deleted, three replacement permissions use
+the exception of ADR 0038, and three resolved `legacy.jsonl` entries are
+removed; no key is added.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).
@@ -1485,12 +1514,10 @@ announcement data while the tenant role is still set, and queues every SSE
 event and guardian wake for after the commit. Its `ports` name the four owner
 capabilities it consumes (`session-end.port.*`, `session-end.application.*`);
 `compose` binds the tenant runtime and the realtime broadcaster. The root
-still satisfies `InstanceCompletion` with the retained
-`TimetableBridgeService` in `modules/timetable/legacy/timetableplanning`
-(#3218; the attendance finalization that #1747 requires before an instance
-may close); that binding is a legacy edge
-of the root composition tracked by #2762, and the port is rebound to the
-Timetable owner's public capability when that cutover lands. The kiosk
+satisfies `InstanceCompletion` with the Timetable owner's
+`timetable.EndedSessionCompletion` since slice S5 of #3424 (#3551; the
+attendance finalization that #1747 requires before an instance may close),
+which replaced the retained `TimetableBridgeService`. The kiosk
 endpoint (`api/iot/sessions`, `inbound-iot-sessions.to.session-end`) calls
 exactly this facade and no longer orchestrates the Timetable bridge and the
 active service itself. The other session-ending paths of the retained active

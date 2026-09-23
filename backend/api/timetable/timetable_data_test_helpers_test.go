@@ -25,9 +25,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 )
 
-// testTimetableData builds the full TimetableDataService against the test
-// database — the test-side equivalent of the factory wiring.
-func testTimetableData(db *bun.DB, clocks ...func() time.Time) *timetableplanning.TimetableDataService {
+// testTimetableData builds the retained template writes over the Timetable
+// owner's planner reads (TimetableData()) and conflict detection
+// (ConflictDetection()) against the test database — the test-side
+// equivalent of the factory wiring.
+func testTimetableData(db *bun.DB, clocks ...func() time.Time) *timetableplanning.TemplateService {
 	return testTimetableDataWithCareValidator(db, nil, clocks...)
 }
 
@@ -35,7 +37,7 @@ func testTimetableDataWithCareValidator(
 	db *bun.DB,
 	validateCareOfferingSeries func(context.Context, int64) error,
 	clocks ...func() time.Time,
-) *timetableplanning.TimetableDataService {
+) *timetableplanning.TemplateService {
 	return testTimetableDataWithOfferingCallbacks(db, validateCareOfferingSeries, nil, nil, clocks...)
 }
 
@@ -45,7 +47,7 @@ func testTimetableDataWithOfferingCallbacks(
 	validateOfferingSource func(context.Context, []int64, []int64, *int64) error,
 	resyncOfferingRoster func(context.Context, timetableplanning.OfferingRosterResyncInput) error,
 	clocks ...func() time.Time,
-) *timetableplanning.TimetableDataService {
+) *timetableplanning.TemplateService {
 	boundRepos := mustTimetableTestRepositories(db, clocks...)
 	people, err := repositories.NewPeopleDirectory(db)
 	if err != nil {
@@ -60,13 +62,11 @@ func testTimetableDataWithOfferingCallbacks(
 		panic(err)
 	}
 	activityInstanceRepo := timetablesqltest.NewActivityInstanceRepository(db)
-	supervisorRepo := repositories.NewPresenceSessionRecords(db)
 	var today func() timezone.Date
 	if len(clocks) > 0 && clocks[0] != nil {
 		clock := clocks[0]
 		today = func() timezone.Date { return timezone.DateFromTime(clock()) }
 		activityInstanceRepo = timetablesqltest.NewActivityInstanceRepository(db, clock)
-		supervisorRepo = repositories.NewPresenceSessionRecords(db, clock)
 	}
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	if err != nil {
@@ -98,21 +98,40 @@ func testTimetableDataWithOfferingCallbacks(
 	if err != nil {
 		panic(err)
 	}
-	deps := timetableplanning.TimetableDataDependencies{
+	recovery := repositories.NewActivityRecoveryRepository(db, boundRepos.InstanceStudent)
+	templates, ok := boundRepos.ActivityGroup.(arrivalTimetable.DataTemplates)
+	if !ok {
+		panic(fmt.Sprintf("timetable data: %T cannot read the template list", boundRepos.ActivityGroup))
+	}
+	timetableData, err := arrivalTimetable.NewTimetableData(arrivalTimetable.TimetableDataDependencies{
+		Instances:         activityInstanceRepo,
+		InstanceStaff:     timetablesqltest.NewInstanceStaffRepository(db),
+		Participants:      boundRepos.InstanceStudent,
+		PickupExceptions:  boundRepos.StudentPickupException,
+		ArrivalExceptions: boundRepos.StudentArrivalException,
+		ArrivalBaselines:  testArrivalBaselines{reader: arrivalBaselines},
+		PickupBaselines:   testPickupBaselines{reader: newPickupBaselineService(carePlan, approvedOfferings)},
+		Visits:            presence,
+		Templates:         templates,
+		Groups:            boundRepos.Timetable,
+		Categories:        boundRepos.ActivityCategory,
+		Rooms:             testRoomNames{rooms: boundRepos.Room},
+		RoomOccupancy:     testRoomOccupancy{sessions: boundRepos.ActiveGroup},
+		DeviationEvents: testDeviationEvents{
+			events: auditRepo.NewDeviationEventRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
+		},
+		ConflictAcks: boundRepos.Timetable,
+		Locks:        recovery,
+		Advisory:     testAdvisoryLocks{},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return timetableplanning.NewTemplateService(timetableplanning.TemplateServiceDependencies{
 		InstanceStudentRepo:        boundRepos.InstanceStudent,
 		ActivityInstanceRepo:       activityInstanceRepo,
-		ActivityExceptionRepo:      timetablesqltest.NewActivityExceptionRepository(db),
 		ActivityScheduleRepo:       boundRepos.ActivitySchedule,
 		InstanceStaffRepo:          timetablesqltest.NewInstanceStaffRepository(db),
-		ActiveGroupRepo:            boundRepos.ActiveGroup,
-		SupervisorRepo:             supervisorRepo,
-		ArrivalBaselines:           arrivalBaselines,
-		ArrivalExceptionRepo:       boundRepos.StudentArrivalException,
-		PickupScheduleRepo:         boundRepos.StudentPickupSchedule,
-		PickupBaselines:            newPickupBaselineService(carePlan, approvedOfferings),
-		PickupExceptionRepo:        boundRepos.StudentPickupException,
-		Presence:                   presence,
-		RoomRepo:                   boundRepos.Room,
 		ActivityCategoryRepo:       boundRepos.ActivityCategory,
 		ActivityGroupRepo:          boundRepos.ActivityGroup,
 		ActivitySupervisorRepo:     boundRepos.ActivitySupervisor,
@@ -122,16 +141,14 @@ func testTimetableDataWithOfferingCallbacks(
 		ValidateCareOfferingSeries: validateCareOfferingSeries,
 		ValidateOfferingSource:     validateOfferingSource,
 		ResyncOfferingRoster:       resyncOfferingRoster,
-		DeviationEventRepo:         auditRepo.NewDeviationEventRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
 		AttendanceCorrectionRepo:   auditRepo.NewAttendanceCorrectionRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
 		PersonRepo:                 usersRepo.NewPersonRepository(db),
-		ConflictAcks:               boundRepos.Timetable,
 		ConflictDetection:          conflicts,
-		RecoveryRepo:               repositories.NewActivityRecoveryRepository(db, boundRepos.InstanceStudent),
+		TimetableData:              timetableData,
+		RecoveryRepo:               recovery,
 		DB:                         db,
 		Today:                      today,
-	}
-	return timetableplanning.NewTimetableDataService(deps)
+	})
 }
 
 // testArrivalBaselines serves the conflict detection's arrival port from Care

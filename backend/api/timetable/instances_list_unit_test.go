@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -48,13 +49,13 @@ func TestSummarizeInstanceStudentsEarlyPickupRequiresExpectedCareDay(t *testing.
 
 	const studentID = int64(4711)
 	day := timezone.NewDate(2030, time.March, 4)
-	inst := &scheduleModel.ActivityInstance{
-		Date:      scheduleModel.Date(day),
+	inst := timetable.ScheduledInstance{
+		Date:      day,
 		StartTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)),
 		EndTime:   timezone.NormalizeWallClock(time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)),
 		Status:    scheduleModel.InstanceStatusPlanned,
 	}
-	rows := []*scheduleModel.InstanceStudent{
+	rows := []timetable.ScheduledParticipant{
 		{StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected},
 	}
 	cutoffs := map[int64]time.Time{

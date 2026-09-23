@@ -3,18 +3,25 @@ package timetableplanning
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -95,4 +102,95 @@ func staffingRows(rows []*scheduleModel.InstanceStaff) []timetable.InstanceStaff
 		}
 	}
 	return out
+}
+
+// ScheduleError is the operation-wrapping error the retained lifecycle,
+// template and deviation services share with Care Plan: one type, so
+// errors.As matches either name (#3551 decision). It goes with this package.
+type ScheduleError = careplan.ScheduleError
+
+// StudentVisitReader reads the Student Presence visits.
+type StudentVisitReader interface {
+	ListVisits(context.Context, studentpresence.VisitFilter) ([]studentpresence.Visit, error)
+}
+
+// InstancePresence supplies authoritative presence state for lifecycle
+// transitions: current visits, staff supervision facts and the session moves.
+type InstancePresence interface {
+	StudentVisitReader
+	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
+	TransferOpenVisits(context.Context, int64, int64) (int64, error)
+	// EndGroup releases an absorbed unsupervised group after its visits moved
+	// to the started instance's group (#2697).
+	EndGroup(context.Context, int64, time.Time) error
+	CountOpenVisitsInRoom(context.Context, int64) (int, error)
+}
+
+// substituteDayLockKey is the Timetable owner's day-wide staffing lock key
+// (timetable.SubstituteDayLockKey).
+func substituteDayLockKey(tenantID int64, date timezone.Date) string {
+	return timetable.SubstituteDayLockKey(tenantID, date)
+}
+
+// SubstituteDayLock takes the day-wide staffing lock (substituteDayLockKey)
+// on the caller's transaction, for compositions that serialize with the
+// retained deviation and substitution writes (#1843 sick cascade).
+func SubstituteDayLock(db *bun.DB) func(context.Context, timezone.Date) error {
+	return func(ctx context.Context, date timezone.Date) error {
+		return repoBase.AcquireXactLock(ctx, db, substituteDayLockKey(tenant.FromContext(ctx), date))
+	}
+}
+
+type legacyListRepository[T any] interface {
+	List(context.Context, *modelBase.QueryOptions) ([]T, error)
+}
+
+// legacyList reads through the retained repositories' List(options), which
+// they serve beside their model interfaces.
+func legacyList[T any](ctx context.Context, repository any, options *modelBase.QueryOptions) ([]T, error) {
+	lister, ok := repository.(legacyListRepository[T])
+	if !ok {
+		return nil, fmt.Errorf("legacy list capability is not configured for %T", repository)
+	}
+	return lister.List(ctx, options)
+}
+
+// int64FilterArgs widens IDs for the persistence-neutral Filter.In API.
+func int64FilterArgs(ids []int64) []any {
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	return args
+}
+
+func dateFilterArgs(dates []timezone.Date) []any {
+	args := make([]any, len(dates))
+	for i, date := range dates {
+		args[i] = date
+	}
+	return args
+}
+
+func activityInstanceIDs(instances []*scheduleModel.ActivityInstance) []int64 {
+	ids := make([]int64, 0, len(instances))
+	for _, instance := range instances {
+		ids = append(ids, instance.ID)
+	}
+	return ids
+}
+
+func indexInstanceStaffRows(rows []*scheduleModel.InstanceStaff) map[int64][]*scheduleModel.InstanceStaff {
+	byInstance := make(map[int64][]*scheduleModel.InstanceStaff)
+	for _, row := range rows {
+		byInstance[row.InstanceID] = append(byInstance[row.InstanceID], row)
+	}
+	return byInstance
+}
+
+// NormalizeSchoolClass is School Structure's class-name normalization, which
+// the Timetable owner's class-block read compares with (#2970); the retained
+// template writes normalize the same way.
+func NormalizeSchoolClass(class string) string {
+	return schoolclass.Normalize(class)
 }

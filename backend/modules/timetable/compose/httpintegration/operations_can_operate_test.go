@@ -1,19 +1,17 @@
-package timetableplanning
+package httpintegration_test
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,16 +33,16 @@ func TestTimetableAbsenceWithoutBlockAssignment(t *testing.T) {
 					const accountID, instanceID, studentID = int64(3421), int64(3422), int64(3423)
 					wireAssignedStaff(deps, accountID, 3424, 3425, instanceID)
 					deps.staffRepo.byInstance[instanceID] = nil
-					deps.settings.scope = configModel.OverviewScopeAllStaff
-					deps.settings.attendanceScope = configModel.AttendanceEditScopeOwn
+					deps.settings.scope = overviewScopeAllStaff
+					deps.settings.attendanceScope = attendanceEditScopeOwn
 					deps.settings.absenceScope = reportScope
 					deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 3426)
-					row := &scheduleModel.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Status: "expected"}
+					row := &scheduleModels.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Status: "expected"}
 					row.ID = 3427
 					deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
-					deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{row}
-					deps.students.byID[studentID] = &usersModel.Student{PersonID: 3428, SchoolClass: "1a"}
-					deps.personService.people[3428] = &usersModel.Person{FirstName: "Test", LastName: "Kind"}
+					deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{row}
+					deps.students.byID[studentID] = &usersModels.Student{PersonID: 3428, SchoolClass: "1a"}
+					deps.personService.people[3428] = &usersModels.Person{FirstName: "Test", LastName: "Kind"}
 					ctx := testpkg.IdentityContext(tenant.WithTenantID(context.Background(), 3429), accountID, 3429, "", []string{"schedules:read"})
 					roster, err := deps.service.Roster(ctx, accountID, false, instanceID)
 					require.NoError(t, err)
@@ -52,22 +50,22 @@ func TestTimetableAbsenceWithoutBlockAssignment(t *testing.T) {
 					require.False(t, roster.CanEditAttendance)
 					require.Equal(t, reportScope == "all_staff", roster.CanReportAbsence)
 					status := "absent"
-					patch := scheduleModel.AttendanceFieldPatch{Status: &status, Substatus: &substatus}
+					patch := timetable.AttendancePatch{Status: &status, Substatus: &substatus}
 					if retract {
 						row.Status, row.Substatus = "absent", &substatus
 						status = "expected"
-						patch = scheduleModel.AttendanceFieldPatch{Status: &status, SubstatusClear: true}
+						patch = timetable.AttendancePatch{Status: &status, SubstatusClear: true}
 					}
 					_, err = deps.service.PatchAttendance(ctx, accountID, false, instanceID, studentID, patch)
 					if reportScope == "all_staff" && substatus != "field_trip" {
 						require.NoError(t, err)
 						require.Len(t, deps.studentRepo.updates, 1)
 					} else {
-						require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+						require.ErrorIs(t, err, timetable.ErrTimetableOperationForbidden)
 						require.Empty(t, deps.studentRepo.updates)
 					}
 					_, err = deps.service.Complete(ctx, accountID, false, instanceID)
-					require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+					require.ErrorIs(t, err, timetable.ErrTimetableOperationForbidden)
 				})
 			}
 		}
@@ -86,25 +84,25 @@ func TestTimetableBlockAbsenceRespectsDirectReportScope(t *testing.T) {
 					wireAssignedStaff(deps, accountID, 3404, 3405, instanceID)
 					deps.settings.absenceScope = scope
 					deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 3406)
-					row := &scheduleModel.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Status: "expected"}
+					row := &scheduleModels.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Status: "expected"}
 					row.ID = 3407
 					deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
-					deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{row}
-					deps.students.byID[studentID] = &usersModel.Student{PersonID: 3408, SchoolClass: "1a"}
-					deps.personService.people[3408] = &usersModel.Person{FirstName: "Test", LastName: "Kind"}
+					deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{row}
+					deps.students.byID[studentID] = &usersModels.Student{PersonID: 3408, SchoolClass: "1a"}
+					deps.personService.people[3408] = &usersModels.Person{FirstName: "Test", LastName: "Kind"}
 					status := "absent"
-					patch := scheduleModel.AttendanceFieldPatch{Status: &status, Substatus: &substatus}
+					patch := timetable.AttendancePatch{Status: &status, Substatus: &substatus}
 					if retract {
 						row.Status, row.Substatus = "absent", &substatus
 						status = "expected"
-						patch = scheduleModel.AttendanceFieldPatch{Status: &status, SubstatusClear: true}
+						patch = timetable.AttendancePatch{Status: &status, SubstatusClear: true}
 					}
 					_, err := deps.service.PatchAttendance(context.Background(), accountID, false, instanceID, studentID, patch)
 					if scope == "all_staff" || substatus == "field_trip" {
 						require.NoError(t, err)
 						require.Len(t, deps.studentRepo.updates, 1)
 					} else {
-						require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+						require.ErrorIs(t, err, timetable.ErrTimetableOperationForbidden)
 						require.Empty(t, deps.studentRepo.updates)
 					}
 					roster, err := deps.service.Roster(context.Background(), accountID, false, instanceID)
@@ -124,8 +122,8 @@ func TestTimetableSchoolWideAttendanceDoesNotGrantLifecycleRights(t *testing.T) 
 	const accountID, instanceID, groupID, studentID = int64(3181), int64(3182), int64(3183), int64(3184)
 	wireAssignedStaff(deps, accountID, 3185, 3186, instanceID)
 	deps.staffRepo.byInstance[instanceID] = nil
-	deps.settings.scope = configModel.OverviewScopeAllStaff
-	deps.settings.attendanceScope = configModel.AttendanceEditScopeAllStaff
+	deps.settings.scope = overviewScopeAllStaff
+	deps.settings.attendanceScope = attendanceEditScopeAllStaff
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, groupID)
 	ctx := tenant.WithTenantID(context.Background(), 3187)
 	ctx = testpkg.IdentityContext(ctx, accountID, 3187, "", []string{"schedules:read"})
@@ -140,16 +138,16 @@ func TestTimetableSchoolWideAttendanceDoesNotGrantLifecycleRights(t *testing.T) 
 	assert.False(t, roster.CanOperate)
 	assert.True(t, roster.CanEditAttendance)
 	_, err = deps.service.Start(ctx, accountID, false, instanceID)
-	require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	require.ErrorIs(t, err, timetable.ErrTimetableOperationForbidden)
 	_, err = deps.service.Complete(ctx, accountID, false, instanceID)
-	require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	require.ErrorIs(t, err, timetable.ErrTimetableOperationForbidden)
 	assert.Empty(t, deps.supervisors.byActiveGroup[groupID])
 	assert.Empty(t, deps.staffRepo.byInstance[instanceID])
 
 	// A settings change is effective on the next call with the same identity.
-	deps.settings.attendanceScope = configModel.AttendanceEditScopeOwn
+	deps.settings.attendanceScope = attendanceEditScopeOwn
 	_, err = deps.service.CheckInStudent(ctx, accountID, false, instanceID, studentID)
-	require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	require.ErrorIs(t, err, timetable.ErrTimetableOperationForbidden)
 	require.Len(t, deps.activeService.created, 1)
 }
 
@@ -162,10 +160,10 @@ func TestTimetableSchoolWideAttendancePreservesAccessBoundaries(t *testing.T) {
 	}{
 		{name: "verified OGS staff", allowed: true},
 		{name: "own scope without assignment", change: func(d *timetableOpsTestDeps, _ *timetableAttendanceActor, _ *[]string) {
-			d.settings.attendanceScope = configModel.AttendanceEditScopeOwn
+			d.settings.attendanceScope = attendanceEditScopeOwn
 		}},
 		{name: "personal visibility", change: func(d *timetableOpsTestDeps, _ *timetableAttendanceActor, _ *[]string) {
-			d.settings.scope = configModel.OverviewScopeOwn
+			d.settings.scope = overviewScopeOwn
 		}},
 		{name: "unknown edit scope", change: func(d *timetableOpsTestDeps, _ *timetableAttendanceActor, _ *[]string) {
 			d.settings.attendanceScope = "unknown"
@@ -189,8 +187,8 @@ func TestTimetableSchoolWideAttendancePreservesAccessBoundaries(t *testing.T) {
 			const accountID, instanceID, groupID, studentID, visitID = int64(3191), int64(3192), int64(3193), int64(3194), int64(3195)
 			wireAssignedStaff(deps, accountID, 3196, 3197, instanceID)
 			deps.staffRepo.byInstance[instanceID] = nil
-			deps.settings.scope = configModel.OverviewScopeAllStaff
-			deps.settings.attendanceScope = configModel.AttendanceEditScopeAllStaff
+			deps.settings.scope = overviewScopeAllStaff
+			deps.settings.attendanceScope = attendanceEditScopeAllStaff
 			deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, groupID)
 			claims := timetableAttendanceActor{ID: int(accountID), TenantID: 3198}
 			permissions := []string{"schedules:read"}
@@ -243,25 +241,25 @@ func TestTimetableOperationsRosterReportsCanOperate(t *testing.T) {
 		{
 			name: "unplanned staff with all_staff overview",
 			setup: func(deps *timetableOpsTestDeps) {
-				deps.settings.scope = configModel.OverviewScopeAllStaff
+				deps.settings.scope = overviewScopeAllStaff
 				wireAssignedStaff(deps, 702, 802, 902, instanceID)
-				deps.staffRepo.byInstance[instanceID] = []*scheduleModel.InstanceStaff{{StaffID: 999}}
+				deps.staffRepo.byInstance[instanceID] = []*scheduleModels.InstanceStaff{{StaffID: 999}}
 			},
 			want: false,
 		},
 		{
 			name: "planned staff marked absent",
 			setup: func(deps *timetableOpsTestDeps) {
-				deps.settings.scope = configModel.OverviewScopeAllStaff
+				deps.settings.scope = overviewScopeAllStaff
 				wireAssignedStaff(deps, 703, 803, 903, instanceID)
-				deps.staffRepo.byInstance[instanceID] = []*scheduleModel.InstanceStaff{{StaffID: 903, IsAbsent: true}}
+				deps.staffRepo.byInstance[instanceID] = []*scheduleModels.InstanceStaff{{StaffID: 903, IsAbsent: true}}
 			},
 			want: false,
 		},
 		{
 			name: "supervisor of the running session",
 			setup: func(deps *timetableOpsTestDeps) {
-				deps.settings.scope = configModel.OverviewScopeAllStaff
+				deps.settings.scope = overviewScopeAllStaff
 				wireAssignedStaff(deps, 704, 804, 904, instanceID)
 				deps.staffRepo.byInstance[instanceID] = nil
 				deps.supervisors.byActiveGroup[activeGroupID] = []*studentpresence.StaffedSupervision{{GroupSupervision: studentpresence.GroupSupervision{StaffID: 904}}}
@@ -302,7 +300,7 @@ func TestTimetableOperationsCheckInWithoutStaffProfileNamesTheReason(t *testing.
 
 	_, err := deps.service.CheckInStudent(context.Background(), 712, true, instanceID, 3175)
 
-	require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	require.ErrorIs(t, err, timetable.ErrTimetableOperationForbidden)
 	assert.ErrorContains(t, err, "no staff profile")
 }
 
@@ -317,7 +315,7 @@ func TestTimetableOperationsWriteResponsesReportCanOperate(t *testing.T) {
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 711, 811, 911, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-	deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: time.Now()}}
+	deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: opsNow}}
 	deps.activeService.endErr = studentpresence.ErrVisitAlreadyEnded
 
 	roster, err := deps.service.CheckOutStudent(context.Background(), 711, false, instanceID, studentID)

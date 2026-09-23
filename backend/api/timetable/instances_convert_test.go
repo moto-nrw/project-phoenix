@@ -259,7 +259,7 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 			return nil
 		},
 	)
-	s.res.TimetableData = timetableData
+	s.res.Templates = timetableData
 	s.res.InstanceSeriesConverter = timetableplanning.NewInstanceSeriesConversionService(
 		timetableplanning.InstanceSeriesConversionDependencies{
 			DB:              s.db,
@@ -311,7 +311,7 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 			DB:              s.db,
 			InstanceRepo:    repoFactory.ActivityInstance,
 			InstanceService: failingInstanceService,
-			TimetableData:   s.res.TimetableData,
+			TimetableData:   s.res.Templates,
 		},
 	)
 	router := conversionRouter(s.ctx, s.res)

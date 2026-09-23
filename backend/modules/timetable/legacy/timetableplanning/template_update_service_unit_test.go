@@ -43,7 +43,7 @@ func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
 
 	t.Run("deletes only removed legacy weekend days", func(t *testing.T) {
 		repo := &legacyWeekendCleanerTestRepo{}
-		svc := NewTimetableDataService(TimetableDataDependencies{ActivityInstanceRepo: repo})
+		svc := NewTemplateService(TemplateServiceDependencies{ActivityInstanceRepo: repo})
 
 		err := svc.deleteRemovedLegacyWeekendInstances(context.Background(), templateID, previous, []int{activitiesModel.WeekdayFriday, activitiesModel.WeekdaySunday})
 
@@ -56,7 +56,7 @@ func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
 	t.Run("broadcasts after deleting materialized instances", func(t *testing.T) {
 		broadcaster := testpkg.NewRecordingBroadcaster()
 		repo := &legacyWeekendCleanerTestRepo{deleted: 2}
-		svc := NewTimetableDataService(TimetableDataDependencies{
+		svc := NewTemplateService(TemplateServiceDependencies{
 			ActivityInstanceRepo: repo,
 			Broadcaster:          broadcaster,
 			Logger:               slog.Default(),
@@ -75,7 +75,7 @@ func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
 
 	t.Run("skips cleanup when all legacy days remain", func(t *testing.T) {
 		repo := &legacyWeekendCleanerTestRepo{}
-		svc := NewTimetableDataService(TimetableDataDependencies{ActivityInstanceRepo: repo})
+		svc := NewTemplateService(TemplateServiceDependencies{ActivityInstanceRepo: repo})
 
 		require.NoError(t, svc.deleteRemovedLegacyWeekendInstances(context.Background(), templateID, previous, []int{activitiesModel.WeekdayFriday, activitiesModel.WeekdaySaturday, activitiesModel.WeekdaySunday}))
 		assert.Zero(t, repo.calls)
@@ -83,7 +83,7 @@ func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
 
 	t.Run("wraps cleanup failures", func(t *testing.T) {
 		repo := &legacyWeekendCleanerTestRepo{deleteErr: errors.New("delete failed")}
-		svc := NewTimetableDataService(TimetableDataDependencies{ActivityInstanceRepo: repo})
+		svc := NewTemplateService(TemplateServiceDependencies{ActivityInstanceRepo: repo})
 
 		err := svc.deleteRemovedLegacyWeekendInstances(context.Background(), templateID, previous, []int{activitiesModel.WeekdayFriday})
 

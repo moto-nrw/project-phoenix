@@ -21,6 +21,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
@@ -147,8 +148,10 @@ func buildTemplateModule(t *testing.T, mat timetableplanning.MaterializationServ
 	studentB := testpkg.CreateTestStudent(t, db, "Tpl", fmt.Sprintf("StudentB-%d", suffix), "3a")
 	repoFactory := mustTimetableTestRepositories(db)
 
+	data := testTimetableData(db, clocks...)
 	res := NewResource(Dependencies{
-		TimetableData:          testTimetableData(db, clocks...),
+		Templates:              data,
+		TimetableData:          data.TimetableData(),
 		CalendarPeriods:        repoFactory.SchoolCalendar(),
 		CalendarPeriodUsage:    calendarPeriodUsageFor(repoFactory),
 		MaterializationService: mat,
@@ -162,7 +165,7 @@ func buildTemplateModule(t *testing.T, mat timetableplanning.MaterializationServ
 			DB:              db,
 			InstanceRepo:    repoFactory.ActivityInstance,
 			InstanceService: res.InstanceService,
-			TimetableData:   res.TimetableData,
+			TimetableData:   res.Templates,
 		},
 	)
 
@@ -1253,7 +1256,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		CalendarPeriodID: &periodP.ID,
 	}
 	boundedEnrollment.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, s.res.TimetableData.CreateStudentEnrollment(s.ctx, boundedEnrollment))
+	require.NoError(t, s.enrollments.Create(s.ctx, boundedEnrollment))
 
 	for _, roster := range []struct {
 		studentID int64
@@ -1273,7 +1276,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 			CalendarPeriodID: roster.periodID,
 		}
 		enrollment.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, s.res.TimetableData.CreateStudentEnrollment(s.ctx, enrollment))
+		require.NoError(t, s.enrollments.Create(s.ctx, enrollment))
 	}
 	supervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          s.staffA,
@@ -1282,7 +1285,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		CalendarPeriodID: &periodP.ID,
 	}
 	supervisor.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, s.res.TimetableData.CreatePlannedSupervisor(s.ctx, supervisor))
+	require.NoError(t, s.supervisors.Create(s.ctx, supervisor))
 	// A bounded staff assignment contributes only on dates inside its own
 	// validity window. Occurrence-level capacity must count it there without
 	// smearing it across the rest of the period.
@@ -1295,7 +1298,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		CalendarPeriodID: &periodP.ID,
 	}
 	boundedSupervisor.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, s.res.TimetableData.CreatePlannedSupervisor(s.ctx, boundedSupervisor))
+	require.NoError(t, s.supervisors.Create(s.ctx, boundedSupervisor))
 	// Staff assigned only to overlapping period Q must stay visible in the
 	// period-tolerant roster, but must not make period P's 1/3 capacity look
 	// fully staffed.
@@ -1307,7 +1310,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 			CalendarPeriodID: &periodQ.ID,
 		}
 		periodQSupervisor.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, s.res.TimetableData.CreatePlannedSupervisor(s.ctx, periodQSupervisor))
+		require.NoError(t, s.supervisors.Create(s.ctx, periodQSupervisor))
 	}
 
 	listFor := func(t *testing.T, periodID int64) map[int64]templateResponse {
@@ -1646,7 +1649,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			Description: "Tpl-Occurrence-Explicit-Periods-Q",
 		}
 		timeframe.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, s.res.TimetableData.CreateTimeframe(s.ctx, timeframe))
+		require.NoError(t, ownedTimeframeRepository(t, s.db).Create(s.ctx, timeframe))
 
 		timeframeID := timeframe.ID
 		scheduleQ := &activitiesModel.Schedule{
@@ -1657,7 +1660,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			CalendarPeriodID: &periodQ.ID,
 		}
 		scheduleQ.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, s.res.TimetableData.CreateActivitySchedule(s.ctx, scheduleQ))
+		require.NoError(t, s.schedules.Create(s.ctx, scheduleQ))
 
 		createCapacityEnrollment(t, s, templateID, s.studentA, start, nil, &periodP.ID, nil)
 		createCapacityEnrollment(t, s, templateID, s.studentB, start, nil, &periodQ.ID, nil)
@@ -1806,15 +1809,15 @@ func setCapacityScheduleWindow(
 func TestTemplateScheduleResponseIncludesValidityBounds(t *testing.T) {
 	t.Parallel()
 
-	row := templateRow{
+	row := templateRow{TemplateListRow: timetable.TemplateListRow{
 		ScheduleID:         9,
 		Weekday:            1,
-		StartTime:          activitiesModel.NullString{String: "14:00", Valid: true},
-		EndTime:            activitiesModel.NullString{String: "15:00", Valid: true},
+		StartTime:          testpkg.StrPtr("14:00"),
+		EndTime:            testpkg.StrPtr("15:00"),
 		WeekPattern:        0,
-		ScheduleValidFrom:  activitiesModel.NullString{String: "2026-05-04", Valid: true},
-		ScheduleValidUntil: activitiesModel.NullString{String: "2026-06-01", Valid: true},
-	}
+		ScheduleValidFrom:  testpkg.StrPtr("2026-05-04"),
+		ScheduleValidUntil: testpkg.StrPtr("2026-06-01"),
+	}}
 
 	response := templateScheduleResponseFromRow(row)
 

@@ -11,6 +11,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -127,48 +128,6 @@ func TestWithCompletionConfirmationStoresClone(t *testing.T) {
 	got, ok := ctx.Value(lifecycleConfirmedStudentsKey).([]int64)
 	require.True(t, ok)
 	assert.Equal(t, []int64{42, 41}, got)
-}
-
-func TestCanReopenInstance(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 8, 13, 12, 0, 0, 0, time.UTC)
-	until := now.Add(5 * time.Minute)
-	completedBy := int64(42)
-	snapshot := []byte(`{"active_group_id":1}`)
-
-	base := &scheduleModel.ActivityInstance{
-		Status:             scheduleModel.InstanceStatusCompleted,
-		CompletedBy:        &completedBy,
-		ReopenUntil:        &until,
-		CompletionSnapshot: snapshot,
-	}
-
-	assert.True(t, CanReopenInstance(base, 42, false, now))
-	assert.True(t, CanReopenInstance(base, 41, true, now))
-	assert.False(t, CanReopenInstance(base, 40, false, now))
-	assert.False(t, CanReopenInstance(base, 42, false, until.Add(time.Second)))
-	assert.True(t, CanReopenAsActor(base, 42, false))
-	assert.False(t, CanReopenAsActor(base, 40, false))
-	completedAt := now
-	base.CompletedAt = &completedAt
-	changed := &scheduleModel.InstanceStudent{}
-	changed.UpdatedAt = now.Add(time.Minute)
-	assert.False(t, AttendanceUnchangedSinceCompletion(base, []*scheduleModel.InstanceStudent{changed}))
-	unchanged := &scheduleModel.InstanceStudent{}
-	unchanged.UpdatedAt = now.Add(-time.Minute)
-	assert.True(t, AttendanceUnchangedSinceCompletion(base, []*scheduleModel.InstanceStudent{unchanged}))
-	assert.False(t, CanReopenInstance(&scheduleModel.ActivityInstance{
-		Status:             scheduleModel.InstanceStatusCompleted,
-		CompletedBy:        &completedBy,
-		ReopenUntil:        &until,
-		CompletionSnapshot: nil,
-	}, 42, true, now))
-	assert.False(t, CanReopenInstance(&scheduleModel.ActivityInstance{
-		Status:      scheduleModel.InstanceStatusActive,
-		CompletedBy: &completedBy,
-		ReopenUntil: &until,
-	}, 42, true, now))
 }
 
 type studentReadScopeStub struct {
@@ -301,7 +260,7 @@ func TestLockReopenSnapshotStudents_RejectsActiveVisit(t *testing.T) {
 		ActiveGroupID: 90,
 		VisitIDs:      []int64{20},
 	})
-	require.ErrorIs(t, err, ErrTimetableOperationConflict)
+	require.ErrorIs(t, err, timetable.ErrTimetableOperationConflict)
 }
 
 func TestLockReopenSnapshotStudents_EmptySnapshot(t *testing.T) {

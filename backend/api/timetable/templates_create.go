@@ -361,7 +361,7 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := rs.TimetableData.CreateTemplate(ctx, buildCreateTemplateInput(
+	result, err := rs.Templates.CreateTemplate(ctx, buildCreateTemplateInput(
 		parsed, tenantID, gradeLevelMax, rosterValidFrom, rs.resolveStartedByStaffID(ctx),
 	))
 	if err != nil {

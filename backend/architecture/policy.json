@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 26,
+  "policy_epoch": 27,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -5255,17 +5255,6 @@
       ],
       "source_owner": "inbound-timetable",
       "source_role": "module-behavior-test",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "care-schedule-cutover.inbound-timetable.module-internal-test.care-plan.public",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "module-internal-test",
       "target_owner": "care-plan",
       "target_role": "public"
     },
@@ -21160,18 +21149,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "inbound-timetable.module-behavior-test.audit-platform-postgres",
-      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import database/repositories/audit as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "module-behavior-test",
-      "target_owner": "audit-platform",
-      "target_role": "postgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "inbound-timetable.module-behavior-test.communication-public",
       "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import modules/communication as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21316,30 +21293,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "inbound-timetable.module-behavior-test.settings-platform-application",
-      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import services/config as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "module-behavior-test",
-      "target_owner": "settings-platform",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
-      "id": "inbound-timetable.module-behavior-test.settings-platform-domain",
-      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import models/config as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "module-behavior-test",
-      "target_owner": "settings-platform",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "inbound-timetable.module-behavior-test.student-presence-compose",
       "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import modules/studentpresence/compose as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21458,18 +21411,6 @@
       "target_role": "contract"
     },
     {
-      "id": "calendar-view.adapter-test.inbound-timetable-adapter",
-      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/supervisiondashboard/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "inbound-timetable.adapter-test.inbound-timetable-adapter",
       "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by api/timetable. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21530,18 +21471,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "inbound-timetable.module-internal-test.people-directory-application",
-      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import services/users as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "module-internal-test",
-      "target_owner": "people-directory",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "inbound-timetable.module-internal-test.people-directory-domain",
       "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import models/users as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21562,18 +21491,6 @@
       "source_owner": "inbound-timetable",
       "source_role": "module-internal-test",
       "target_owner": "school-structure",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
-      "id": "inbound-timetable.module-internal-test.settings-platform-domain",
-      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import models/config as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "module-internal-test",
-      "target_owner": "settings-platform",
       "target_role": "domain",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
@@ -21638,18 +21555,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "test-support.e2e-test.inbound-timetable-adapter",
-      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by test/e2e/timetable. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "test-support",
-      "source_role": "e2e-test",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "test-support.fixtures.care-plan-absence-rows",
       "description": "The shared fixture catalog inserts and re-exports the Care Plan absence-table fixture rows of modules/careplan/absencerecordstest (#3422).",
       "scopes": [
@@ -21659,18 +21564,6 @@
       "source_role": "test-support",
       "target_owner": "care-plan",
       "target_role": "test-support"
-    },
-    {
-      "id": "calendar-view.adapter.inbound-timetable-adapter",
-      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/supervisiondashboard/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "enrollment.application.inbound-timetable-adapter",
@@ -21789,18 +21682,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "inbound-timetable.adapter.device-fleet-adapter",
-      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import auth/device as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "adapter",
-      "target_owner": "device-fleet",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "inbound-timetable.adapter.enrollment-domain",
       "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import models/enrollment as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21825,18 +21706,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "inbound-timetable.adapter.identity-access-adapter",
-      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import auth/jwt as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "adapter",
-      "target_owner": "identity-access",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "inbound-timetable.adapter.legacy-shared-domain",
       "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import internal/sliceutil, internal/timezone as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -21846,18 +21715,6 @@
       "source_role": "adapter",
       "target_owner": "legacy-shared",
       "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
-      "id": "inbound-timetable.adapter.people-directory-application",
-      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import services/users as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "adapter",
-      "target_owner": "people-directory",
-      "target_role": "application",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
@@ -21882,30 +21739,6 @@
       "source_role": "adapter",
       "target_owner": "school-structure",
       "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
-      "id": "inbound-timetable.adapter.security-runtime-application",
-      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import auth/authorize as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "adapter",
-      "target_owner": "security-runtime",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
-      "id": "inbound-timetable.adapter.settings-platform-application",
-      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import services/config as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "adapter",
-      "target_owner": "settings-platform",
-      "target_role": "application",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
@@ -22017,30 +21850,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "process-device-scan.compose.inbound-timetable-adapter",
-      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/devicescan/compose. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "process-device-scan",
-      "source_role": "compose",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
-      "id": "root-composition.cli.inbound-timetable-adapter",
-      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by cmd. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "cli",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "root-composition.compose.inbound-timetable-adapter",
       "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by api. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -22135,18 +21944,6 @@
       "source_role": "e2e-test",
       "target_owner": "timetable-activities",
       "target_role": "compose",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
-      "id": "inbound-timetable.e2e-test.inbound-timetable-adapter",
-      "description": "The retained timetable repository tests in modules/timetable/legacy/timetablesqltest still import modules/timetable/legacy/timetableplanning as database/repositories/schedule did (#3220). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "e2e-test",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
@@ -23106,6 +22903,39 @@
       ],
       "source_owner": "inbound-timetable",
       "source_role": "module-behavior-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.scheduler-runtime.application.timetable-activities.public",
+      "description": "The scheduler runs the timetable retention cleanup and the ended-session completion through the Timetable owner's contract since slice S5 of #3424 (ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.scheduler-runtime.module-internal-test.timetable-activities.public",
+      "description": "The scheduler suites drive the Timetable owner's retention cleanup and ended-session completion since slice S5 of #3424 (ADR 0038).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "module-internal-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.test-support.e2e-test.timetable-activities.public",
+      "description": "The timetable end-to-end flows assert the Timetable owner's retention cleanup and planner reads since slice S5 of #3424 (ADR 0038).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
       "target_owner": "timetable-activities",
       "target_role": "public"
     },

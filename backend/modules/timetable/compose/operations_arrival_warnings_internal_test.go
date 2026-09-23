@@ -1,12 +1,12 @@
-package timetableplanning
+package compose
 
 import (
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,13 +14,13 @@ import (
 func TestAppendArrivalWarningsAddsTheClassExceptionLine(t *testing.T) {
 	t.Parallel()
 
-	inst := &scheduleModel.ActivityInstance{StartTime: mustClock(t, "12:45")}
-	clock := mustClock(t, "12:45")
-	warnings := map[int64][]OperationRosterWarning{}
+	inst := &scheduleModels.ActivityInstance{StartTime: normalizedClock(t, "12:45")}
+	clock := normalizedClock(t, "12:45")
+	warnings := map[int64][]timetable.OperationRosterWarning{}
 
-	appendArrivalWarnings(warnings, map[int64]*careplan.EffectiveArrivalTime{
-		1: {ArrivalTime: &clock, ClassException: &careplan.ClassArrivalExceptionInfo{
-			SchoolClass: "4a", ArrivalTime: "12:45", Label: "Klasse 4a: Unterricht fällt aus",
+	appendArrivalWarnings(warnings, map[int64]*ExpectedArrival{
+		1: {ArrivalTime: &clock, ClassException: &ClassArrivalNotice{
+			ArrivalTime: "12:45", Label: "Klasse 4a: Unterricht fällt aus",
 		}},
 		2: {ArrivalTime: &clock},
 	}, inst)
@@ -36,13 +36,13 @@ func TestAppendArrivalWarningsAddsTheClassExceptionLine(t *testing.T) {
 func TestAppendArrivalWarningsKeepsOnlyTheReasonWhenTheClassArrivesLate(t *testing.T) {
 	t.Parallel()
 
-	inst := &scheduleModel.ActivityInstance{StartTime: mustClock(t, "12:45")}
-	late := mustClock(t, "13:30")
-	warnings := map[int64][]OperationRosterWarning{}
+	inst := &scheduleModels.ActivityInstance{StartTime: normalizedClock(t, "12:45")}
+	late := normalizedClock(t, "13:30")
+	warnings := map[int64][]timetable.OperationRosterWarning{}
 
-	appendArrivalWarnings(warnings, map[int64]*careplan.EffectiveArrivalTime{
-		1: {ArrivalTime: &late, ClassException: &careplan.ClassArrivalExceptionInfo{
-			SchoolClass: "4a", ArrivalTime: "13:30", Label: "Klasse 4a: Wandertag",
+	appendArrivalWarnings(warnings, map[int64]*ExpectedArrival{
+		1: {ArrivalTime: &late, ClassException: &ClassArrivalNotice{
+			ArrivalTime: "13:30", Label: "Klasse 4a: Wandertag",
 		}},
 	}, inst)
 
@@ -53,9 +53,7 @@ func TestAppendArrivalWarningsKeepsOnlyTheReasonWhenTheClassArrivesLate(t *testi
 		"the roster already shows 'Kommt um 13:30 Uhr' from the late-arrival warning")
 }
 
-func mustClock(t *testing.T, hhmm string) time.Time {
+func normalizedClock(t *testing.T, hhmm string) time.Time {
 	t.Helper()
-	parsed, err := time.Parse("15:04", hhmm)
-	require.NoError(t, err)
-	return timezone.NormalizeWallClock(parsed)
+	return timezone.NormalizeWallClock(mustClock(t, hhmm))
 }

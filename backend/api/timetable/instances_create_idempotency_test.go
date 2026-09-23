@@ -40,7 +40,8 @@ func setupIdempotentCreateRoute(t *testing.T) *idempotentCreateSetup {
 	testpkg.SetCalendarPeriodActive(t, db, period, true)
 	resource := timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriods: serviceFactory.SchoolCalendar,
-		TimetableData:   serviceFactory.TimetableData,
+		Templates:       serviceFactory.TimetableData,
+		TimetableData:   serviceFactory.TimetableData.TimetableData(),
 		InstanceService: serviceFactory.Instance,
 		DB:              db,
 	})

@@ -36,7 +36,7 @@ const MaxOfferingSourcesPerTemplate = 50
 // stays the authoritative guard; this call only pulls the same verdict
 // forward. Read-only test facades may leave the hook nil, in which case the
 // resync remains the only check.
-func (s *TimetableDataService) validateOfferingSourceReference(
+func (s *TemplateService) validateOfferingSourceReference(
 	ctx context.Context,
 	offeringIDs []int64,
 	storedOfferingIDs []int64,

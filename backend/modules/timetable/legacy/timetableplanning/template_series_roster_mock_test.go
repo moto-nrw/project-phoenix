@@ -177,9 +177,9 @@ func seriesMockSchedule(groupID int64, from timezone.Date, until *timezone.Date)
 func seriesMockChain(
 	enrollments *seriesMockEnrollmentRepo,
 	supervisors *seriesMockSupervisorRepo,
-) *TimetableDataService {
+) *TemplateService {
 	until := seriesMockUntil()
-	return NewTimetableDataService(TimetableDataDependencies{
+	return NewTemplateService(TemplateServiceDependencies{
 		ActivityGroupRepo: &seriesMockGroupRepo{groups: []*activitiesModel.Group{
 			seriesMockGroup(seriesMockOldID), seriesMockGroup(seriesMockLivingID),
 		}},
@@ -248,13 +248,13 @@ func TestReconcileSeriesPredecessorRoster_RepositoryFailures(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		build  func() *TimetableDataService
+		build  func() *TemplateService
 		mutate func(*TemplateUpdateInput)
 	}{
 		{
 			name: "lineage lookup fails",
-			build: func() *TimetableDataService {
-				return NewTimetableDataService(TimetableDataDependencies{
+			build: func() *TemplateService {
+				return NewTemplateService(TemplateServiceDependencies{
 					ActivityGroupRepo:    &seriesMockGroupRepo{err: errSeriesMock},
 					ActivityScheduleRepo: &seriesMockScheduleRepo{},
 				})
@@ -262,8 +262,8 @@ func TestReconcileSeriesPredecessorRoster_RepositoryFailures(t *testing.T) {
 		},
 		{
 			name: "schedule lookup fails",
-			build: func() *TimetableDataService {
-				return NewTimetableDataService(TimetableDataDependencies{
+			build: func() *TemplateService {
+				return NewTemplateService(TemplateServiceDependencies{
 					ActivityGroupRepo: &seriesMockGroupRepo{groups: []*activitiesModel.Group{
 						seriesMockGroup(seriesMockLivingID),
 					}},
@@ -273,31 +273,31 @@ func TestReconcileSeriesPredecessorRoster_RepositoryFailures(t *testing.T) {
 		},
 		{
 			name: "predecessor enrollments cannot be read",
-			build: func() *TimetableDataService {
+			build: func() *TemplateService {
 				return seriesMockChain(&seriesMockEnrollmentRepo{findErr: errSeriesMock}, &seriesMockSupervisorRepo{})
 			},
 		},
 		{
 			name: "predecessor supervisors cannot be read",
-			build: func() *TimetableDataService {
+			build: func() *TemplateService {
 				return seriesMockChain(&seriesMockEnrollmentRepo{}, &seriesMockSupervisorRepo{findErr: errSeriesMock})
 			},
 		},
 		{
 			name: "creating the predecessor enrollment fails",
-			build: func() *TimetableDataService {
+			build: func() *TemplateService {
 				return seriesMockChain(&seriesMockEnrollmentRepo{createErr: errSeriesMock}, &seriesMockSupervisorRepo{})
 			},
 		},
 		{
 			name: "creating the predecessor supervision fails",
-			build: func() *TimetableDataService {
+			build: func() *TemplateService {
 				return seriesMockChain(&seriesMockEnrollmentRepo{}, &seriesMockSupervisorRepo{createErr: errSeriesMock})
 			},
 		},
 		{
 			name: "closing a retired enrollment fails",
-			build: func() *TimetableDataService {
+			build: func() *TemplateService {
 				until := seriesMockUntil()
 				return seriesMockChain(&seriesMockEnrollmentRepo{
 					rows:     []*activitiesModel.StudentEnrollment{seriesMockEnrollmentRow(1, timezone.NewDate(2026, 8, 24), &until, nil)},
@@ -310,7 +310,7 @@ func TestReconcileSeriesPredecessorRoster_RepositoryFailures(t *testing.T) {
 		},
 		{
 			name: "closing a retired supervision fails",
-			build: func() *TimetableDataService {
+			build: func() *TemplateService {
 				until := seriesMockUntil()
 				return seriesMockChain(&seriesMockEnrollmentRepo{}, &seriesMockSupervisorRepo{
 					rows:     []*activitiesModel.SupervisorPlanned{seriesMockSupervisorRow(1, timezone.NewDate(2026, 8, 24), &until, nil)},
@@ -321,7 +321,7 @@ func TestReconcileSeriesPredecessorRoster_RepositoryFailures(t *testing.T) {
 		},
 		{
 			name: "deleting an enrollment that only started after the anchor fails",
-			build: func() *TimetableDataService {
+			build: func() *TemplateService {
 				until := seriesMockUntil()
 				return seriesMockChain(&seriesMockEnrollmentRepo{
 					rows: []*activitiesModel.StudentEnrollment{
@@ -426,7 +426,7 @@ func TestLoadTemplateSeriesSegments_SkipsBrokenSibling(t *testing.T) {
 func TestResolveLivingTemplateSegment_PropagatesLineageErrors(t *testing.T) {
 	t.Parallel()
 
-	svc := NewTimetableDataService(TimetableDataDependencies{
+	svc := NewTemplateService(TemplateServiceDependencies{
 		ActivityGroupRepo:    &seriesMockGroupRepo{err: errSeriesMock},
 		ActivityScheduleRepo: &seriesMockScheduleRepo{},
 	})

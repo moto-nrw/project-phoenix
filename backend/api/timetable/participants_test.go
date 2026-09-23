@@ -89,7 +89,7 @@ func buildParticipantsSetup(t *testing.T) *participantsSetup {
 	studentRepo := repositories.NewStudentRepository(db)
 	personRepo := usersRepo.NewPersonRepository(db)
 	setup.res = NewResource(Dependencies{
-		TimetableData: testTimetableData(db),
+		TimetableData: testTimetableData(db).TimetableData(),
 		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
 			StudentRepo: studentRepo,
 			PersonRepo:  personRepo,

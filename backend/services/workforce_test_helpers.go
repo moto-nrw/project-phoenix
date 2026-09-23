@@ -193,7 +193,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	}
 	shiftPlanSyncer, err = shiftplansyncCompose.NewSickCascade(shiftplansyncCompose.SickCascadeDependencies{
 		Planning: planning.Planning(nil), Workforce: repos.StaffAbsenceType, LockStaffShifts: workforceCompose.NewStaffShiftLock(db),
-		Instances: timetable.Instance, TimetableData: timetable.TimetableData, InstanceStaff: repos.InstanceStaff,
+		Instances: timetable.Instance, TimetableData: NewSickCascadeTimetableRows(repos.OwnerRows(), db), InstanceStaff: repos.InstanceStaff,
 		Broadcaster: realtimeHub, Logger: logger, Today: today,
 	})
 	if err != nil {

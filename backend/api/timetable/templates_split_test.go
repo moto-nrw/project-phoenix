@@ -146,7 +146,7 @@ func unusedTemplateClockWindow(t *testing.T, s *templateSetup, seed int64) (stri
 		require.NoError(t, err)
 		end, err := parseClockTime(endRaw)
 		require.NoError(t, err)
-		rows, err := s.res.TimetableData.GetTimeframesByTimeRange(s.ctx, start, end)
+		rows, err := ownedTimeframeRepository(t, s.db).FindByTimeRange(s.ctx, start, end)
 		require.NoError(t, err)
 		exactMatch := false
 		for _, row := range rows {
@@ -281,7 +281,7 @@ func TestTemplateUpdateHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rejectedW.Code, "body=%s", rejectedW.Body.String())
 	require.Contains(t, rejectedW.Body.String(), "target_grade_level 7 exceeds tenant maximum 4")
 
-	group, err := s.res.TimetableData.GetActivityGroup(s.ctx, created.TemplateID)
+	group, err := mustTimetableTestRepositories(s.db).ActivityGroup.FindByID(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	assert.Equal(t, "Tpl-GradeCap-Update-Unchanged", group.Name)
 	require.NotNil(t, group.TargetGradeLevel)
@@ -295,7 +295,7 @@ func TestTemplateUpdateHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 		fmt.Sprintf("/templates/%d", created.TemplateID), settingsFailure)
 	require.Equal(t, http.StatusInternalServerError, settingsFailureW.Code, "body=%s", settingsFailureW.Body.String())
 
-	group, err = s.res.TimetableData.GetActivityGroup(s.ctx, created.TemplateID)
+	group, err = mustTimetableTestRepositories(s.db).ActivityGroup.FindByID(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	assert.Equal(t, "Tpl-GradeCap-Update-Unchanged", group.Name)
 }
@@ -328,7 +328,7 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 			fmt.Sprintf("/templates/%d/split", created.TemplateID), body)
 		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 		result := decodeTemplateData[splitTemplateResponse](t, w)
-		successor, err := s.res.TimetableData.GetActivityGroup(s.ctx, result.NewTemplateID)
+		successor, err := mustTimetableTestRepositories(s.db).ActivityGroup.FindByID(s.ctx, result.NewTemplateID)
 		require.NoError(t, err)
 		require.NotNil(t, successor.TargetGradeLevel)
 		assert.EqualValues(t, 5, *successor.TargetGradeLevel)
@@ -476,7 +476,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 	created := createSourceTemplate(t, router, s, "Tpl-Update-Rollback-Quelle")
 
-	beforeGroup, err := s.res.TimetableData.GetActivityGroup(s.ctx, created.TemplateID)
+	beforeGroup, err := mustTimetableTestRepositories(s.db).ActivityGroup.FindByID(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	beforeSchedules := templateSchedules(t, s, created.TemplateID)
 	beforeEnrollments, err := s.enrollments.FindByGroupID(s.ctx, created.TemplateID)
@@ -491,7 +491,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 	require.Empty(t, existingTimeframes)
 
 	validatorReached := false
-	s.res.TimetableData = testTimetableDataWithCareValidator(s.db, func(ctx context.Context, templateID int64) error {
+	s.res.Templates = testTimetableDataWithCareValidator(s.db, func(ctx context.Context, templateID int64) error {
 		options := modelBase.NewQueryOptions()
 		options.Filter.ILike("description", "%"+updateName+"%")
 		provisionalTimeframes, lookupErr := timeframeRepo.List(ctx, options)
@@ -527,7 +527,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 
 	afterTimeframes := listTimeframesByDescription(t, timeframeRepo, s.ctx, updateName)
 	assert.Empty(t, afterTimeframes, "the unique timeframe created before validation must roll back")
-	afterGroup, err := s.res.TimetableData.GetActivityGroup(s.ctx, created.TemplateID)
+	afterGroup, err := mustTimetableTestRepositories(s.db).ActivityGroup.FindByID(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	assert.Equal(t, beforeGroup.Name, afterGroup.Name)
 	assert.Equal(t, beforeGroup.Type, afterGroup.Type)
@@ -662,7 +662,7 @@ func TestTemplateUpdateHandler_RejectsInconsistentValidityEnvelopeWithoutMutatio
 	assert.Equal(t, activitiesModel.Date(inconsistentFrom), *after[0].ValidFrom)
 	assert.Nil(t, after[1].ValidFrom)
 
-	group, err := s.res.TimetableData.GetActivityGroup(s.ctx, created.TemplateID)
+	group, err := mustTimetableTestRepositories(s.db).ActivityGroup.FindByID(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	assert.Equal(t, "Tpl-Update-Inconsistent-Quelle", group.Name,
 		"validity validation must run before template fields change")

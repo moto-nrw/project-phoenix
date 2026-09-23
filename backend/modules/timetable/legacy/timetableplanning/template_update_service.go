@@ -113,7 +113,7 @@ type TemplateUpdateInput struct {
 // while preserving the segment's inclusive valid_from and exclusive
 // valid_until boundaries across all three. All schedule rows of a segment must
 // share one envelope; inconsistent existing rows are rejected before mutation.
-func (s *TimetableDataService) UpdateTemplate(ctx context.Context, in TemplateUpdateInput) error {
+func (s *TemplateService) UpdateTemplate(ctx context.Context, in TemplateUpdateInput) error {
 	targetsProvided := in.Targets != nil
 	if err := normalizeTemplateUpdateTarget(&in); err != nil {
 		return &ScheduleError{Op: updateTemplateOp, Err: err}
@@ -146,7 +146,7 @@ func normalizeTemplateUpdateTarget(in *TemplateUpdateInput) error {
 	return nil
 }
 
-func (s *TimetableDataService) validateTemplateUpdateRequest(ctx context.Context, in TemplateUpdateInput) (int64, error) {
+func (s *TemplateService) validateTemplateUpdateRequest(ctx context.Context, in TemplateUpdateInput) (int64, error) {
 	if err := validateTemplateUpdateInput(in); err != nil {
 		return 0, &ScheduleError{Op: updateTemplateOp, Err: err}
 	}
@@ -165,7 +165,7 @@ func (s *TimetableDataService) validateTemplateUpdateRequest(ctx context.Context
 	return tenantID, nil
 }
 
-func (s *TimetableDataService) updateTemplateLocked(
+func (s *TemplateService) updateTemplateLocked(
 	ctx context.Context,
 	in TemplateUpdateInput,
 	tenantID int64,
@@ -297,7 +297,7 @@ func (s *TimetableDataService) updateTemplateLocked(
 // resyncUpdatedTemplateOfferingRoster runs the offering-source reconcile when
 // the edit involves a source (kept, changed, added, or removed). A template
 // that never had a source and gets none skips the hook entirely.
-func (s *TimetableDataService) resyncUpdatedTemplateOfferingRoster(
+func (s *TemplateService) resyncUpdatedTemplateOfferingRoster(
 	ctx context.Context,
 	in TemplateUpdateInput,
 	previousSourceOfferingIDs []int64,
@@ -359,7 +359,7 @@ func offeringResyncBoundary(rosterValidFrom timezone.Date, scheduleValidFrom *ti
 // A manual roster can only coexist with a source edit in the removal shape,
 // because validateOfferingSourceInput rejects student_ids next to a set
 // source.
-func (s *TimetableDataService) reconcileManualRosterInstances(
+func (s *TemplateService) reconcileManualRosterInstances(
 	ctx context.Context,
 	in TemplateUpdateInput,
 	previousSourceOfferingIDs []int64,
@@ -462,7 +462,7 @@ type legacyWeekendInstanceCleaner interface {
 	DeletePlannedMaterializedWeekendInstances(context.Context, int64, []int) (int64, error)
 }
 
-func (s *TimetableDataService) deleteRemovedLegacyWeekendInstances(ctx context.Context, templateID int64, previous []*activitiesModel.Schedule, requested []int) error {
+func (s *TemplateService) deleteRemovedLegacyWeekendInstances(ctx context.Context, templateID int64, previous []*activitiesModel.Schedule, requested []int) error {
 	requestedWeekdays := make(map[int]struct{}, len(requested))
 	for _, weekday := range requested {
 		requestedWeekdays[weekday] = struct{}{}
@@ -499,7 +499,7 @@ func (s *TimetableDataService) deleteRemovedLegacyWeekendInstances(ctx context.C
 // rules mirror the issue's scope: only earlier (a nil stored start means the
 // series already begins with its period — nothing lies in front of it), never
 // into the past, and never into a capped predecessor segment's window.
-func (s *TimetableDataService) resolvePulledForwardStart(
+func (s *TemplateService) resolvePulledForwardStart(
 	ctx context.Context,
 	in TemplateUpdateInput,
 	storedFrom *timezone.Date,
@@ -552,7 +552,7 @@ func (s *TimetableDataService) resolvePulledForwardStart(
 	return in.StartDate, nil
 }
 
-func (s *TimetableDataService) loadEditableTemplateEnvelope(
+func (s *TemplateService) loadEditableTemplateEnvelope(
 	ctx context.Context,
 	templateID int64,
 ) (*timezone.Date, *timezone.Date, error) {
@@ -570,7 +570,7 @@ func (s *TimetableDataService) loadEditableTemplateEnvelope(
 	return validFrom, validUntil, nil
 }
 
-func (s *TimetableDataService) updateTemplateFields(ctx context.Context, in TemplateUpdateInput) error {
+func (s *TemplateService) updateTemplateFields(ctx context.Context, in TemplateUpdateInput) error {
 	updated, err := s.deps.ActivityGroupRepo.UpdateTemplateFields(ctx, in.TemplateID, in.Fields)
 	if err != nil {
 		return &ScheduleError{Op: updateTemplateFieldsOp, Err: err}
@@ -597,7 +597,7 @@ func (s *TimetableDataService) updateTemplateFields(ctx context.Context, in Temp
 // (read-only test facades). Runs inside the caller's tenant transaction and
 // recurrence gate; the repository predicate preserves today/past rows,
 // non-planned/spontaneous rows, and per-occurrence classification overrides.
-func (s *TimetableDataService) propagateListKindToInstances(
+func (s *TemplateService) propagateListKindToInstances(
 	ctx context.Context,
 	templateID int64,
 	previousKind, newKind *string,
@@ -613,7 +613,7 @@ func (s *TimetableDataService) propagateListKindToInstances(
 	return nil
 }
 
-func (s *TimetableDataService) replaceTemplateSchedules(
+func (s *TemplateService) replaceTemplateSchedules(
 	ctx context.Context,
 	in TemplateUpdateInput,
 	tenantID int64,
@@ -645,7 +645,7 @@ func (s *TimetableDataService) replaceTemplateSchedules(
 // the same tenant recurrence gate as materialization. Without the gate a
 // materializer can load the unarchived template, wait for archive to commit,
 // then insert a stale future occurrence.
-func (s *TimetableDataService) ArchiveTemplate(ctx context.Context, templateID int64) (int64, error) {
+func (s *TemplateService) ArchiveTemplate(ctx context.Context, templateID int64) (int64, error) {
 	if templateID <= 0 {
 		return 0, &ScheduleError{Op: archiveTemplateOp, Err: errors.New("template id is required")}
 	}
@@ -729,7 +729,7 @@ func validateTemplateUpdateInput(in TemplateUpdateInput) error {
 // the students whose enrollment rows the rewrite retired (deleted or closed)
 // — the caller reconciles their already-materialized occurrences when the
 // edit involved an offering source (#2147 review).
-func (s *TimetableDataService) replaceTemplateRoster(
+func (s *TemplateService) replaceTemplateRoster(
 	ctx context.Context,
 	in TemplateUpdateInput,
 	tenantID int64,
@@ -819,7 +819,7 @@ const (
 // to rewrite. The second return value lists the students whose rows were
 // actually deleted or closed (#2147 review) — their future coverage shrank,
 // so already-materialized occurrences may need reconciling.
-func (s *TimetableDataService) retireTemplateEnrollments(
+func (s *TemplateService) retireTemplateEnrollments(
 	ctx context.Context,
 	templateID int64,
 	calendarPeriodID *int64,
@@ -850,7 +850,7 @@ func (s *TimetableDataService) retireTemplateEnrollments(
 	return coverage, retiredStudentIDs, nil
 }
 
-func (s *TimetableDataService) retireUnprotectedTemplateEnrollments(
+func (s *TemplateService) retireUnprotectedTemplateEnrollments(
 	ctx context.Context,
 	rows []*activitiesModel.StudentEnrollment,
 	calendarPeriodID *int64,
@@ -879,7 +879,7 @@ func (s *TimetableDataService) retireUnprotectedTemplateEnrollments(
 	return protected, retiredStudentIDs, nil
 }
 
-func (s *TimetableDataService) applyEnrollmentRetirement(
+func (s *TemplateService) applyEnrollmentRetirement(
 	ctx context.Context,
 	row *activitiesModel.StudentEnrollment,
 	action rosterRetirementAction,
@@ -898,7 +898,7 @@ func (s *TimetableDataService) applyEnrollmentRetirement(
 	return nil
 }
 
-func (s *TimetableDataService) rebaseProtectedTemplateEnrollments(
+func (s *TemplateService) rebaseProtectedTemplateEnrollments(
 	ctx context.Context,
 	protected []*activitiesModel.StudentEnrollment,
 	calendarPeriodID *int64,
@@ -921,7 +921,7 @@ func (s *TimetableDataService) rebaseProtectedTemplateEnrollments(
 	), nil
 }
 
-func (s *TimetableDataService) rebaseProtectedEnrollmentPeriod(
+func (s *TemplateService) rebaseProtectedEnrollmentPeriod(
 	ctx context.Context,
 	row *activitiesModel.StudentEnrollment,
 	calendarPeriodID *int64,
@@ -966,7 +966,7 @@ func classifyEnrollmentRetirement(
 	)
 }
 
-func (s *TimetableDataService) retireTemplateSupervisors(
+func (s *TemplateService) retireTemplateSupervisors(
 	ctx context.Context,
 	templateID int64,
 	calendarPeriodID *int64,

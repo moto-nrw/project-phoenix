@@ -268,12 +268,12 @@ func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 		renderTemplatePeriodLookupError(w, r, err)
 		return
 	}
-	if err := rs.TimetableData.ValidateTemplateEducationGroup(r.Context(), req.EducationGroupID); err != nil {
+	if err := rs.Templates.ValidateTemplateEducationGroup(r.Context(), req.EducationGroupID); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 	for _, target := range req.Targets {
-		if err := rs.TimetableData.ValidateTemplateEducationGroup(r.Context(), target.EducationGroupID); err != nil {
+		if err := rs.Templates.ValidateTemplateEducationGroup(r.Context(), target.EducationGroupID); err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}

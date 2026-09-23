@@ -27,7 +27,7 @@ import (
 type TimetableTestModule struct {
 	Instance       timetableplanning.InstanceService
 	SchoolCalendar schoolcalendar.Calendar
-	TimetableData  *timetableplanning.TimetableDataService
+	TimetableData  *timetableplanning.TemplateService
 	// ConflictDetection is the Timetable owner's conflict detection and
 	// staffing capability over the same repositories (#3550).
 	ConflictDetection timetable.ConflictDetectionCapability
@@ -85,7 +85,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		return TimetableTestModule{}, err
 	}
 	careplanCompose.WireCareParticipation(careDay, care.CareLifecycle)
-	bridge, err := NewTimetableEndedSessionCompletion(r.ActivityInstance, r.InstanceStudent, careDay)
+	bridge, err := NewTimetableEndedSessionCompletion(r.OwnerRows(), careDay)
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
@@ -141,17 +141,24 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		ActiveService: ender, Materialization: materialization, CareDayService: timetableplanning.NewInstanceCareDays(careDay, carePlan), DeviationEventRepo: r.DeviationEvent,
 		Broadcaster: hub, DB: db, Logger: logger, Settings: settings.Settings, RecoveryRepo: recovery, Now: now,
 	})
-	data := timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{
-		InstanceStudentRepo: r.InstanceStudent, ActivityInstanceRepo: r.ActivityInstance, ActivityExceptionRepo: r.ActivityException,
+	dataRows := r.OwnerRows()
+	dataRows.Locks = recovery
+	timetableData, err := newTimetableData(timetableDataInputs{
+		Rows: dataRows, ArrivalBaselines: arrival, PickupBaselines: pickup, Visits: newStudentPresence(db, logger),
+		Groups: r.Timetable, Sessions: r.ActiveGroup,
+		ConflictAcks: r.Timetable, Transactional: true, Logger: logger,
+	})
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
+	data := timetableplanning.NewTemplateService(timetableplanning.TemplateServiceDependencies{
+		InstanceStudentRepo: r.InstanceStudent, ActivityInstanceRepo: r.ActivityInstance,
 		ActivityScheduleRepo: r.ActivitySchedule, InstanceStaffRepo: r.InstanceStaff,
-		ActiveGroupRepo: r.ActiveGroup, SupervisorRepo: r.GroupSupervisor,
-		ArrivalBaselines: arrival, ArrivalExceptionRepo: r.StudentArrivalException,
-		PickupScheduleRepo: r.StudentPickupSchedule, PickupBaselines: pickup, PickupExceptionRepo: r.StudentPickupException,
-		Presence: newStudentPresence(db, logger), RoomRepo: r.Room, ActivityCategoryRepo: r.ActivityCategory, PlanningTracks: arrivalTimetable.NewPlanningTrackAdministration(r.Timetable, db),
+		ActivityCategoryRepo: r.ActivityCategory, PlanningTracks: arrivalTimetable.NewPlanningTrackAdministration(r.Timetable, db),
 		ActivityGroupRepo: r.ActivityGroup, ActivitySupervisorRepo: r.ActivitySupervisor, StudentEnrollmentRepo: r.StudentEnrollment,
 		TimeframeRepo: r.Timeframe, EducationGroupRepo: r.Group,
 		ValidateCareOfferingSeries: series.ValidateTemplateSeries, ValidateOfferingSource: series.ValidateTemplateOfferingSource,
-		DeviationEventRepo: r.DeviationEvent, ConflictAcks: r.Timetable, ConflictDetection: conflicts, RecoveryRepo: recovery,
+		ConflictDetection: conflicts, TimetableData: timetableData, RecoveryRepo: recovery,
 		Broadcaster: hub, Logger: logger, DB: db, Today: today,
 	})
 	return TimetableTestModule{Instance: instance, SchoolCalendar: calendar, TimetableData: data, ConflictDetection: conflicts, Materialization: materialization, RealtimeHub: hub}, nil

@@ -27,11 +27,6 @@ type CategoryRepository interface {
 	// ListAll returns all categories
 	ListAll(ctx context.Context) ([]*Category, error)
 
-	// UpdateIfActive writes only editable fields while archived_at is still
-	// NULL. The condition and update run in one statement so a stale editor
-	// cannot reactivate a category or overwrite a concurrent shift mapping.
-	UpdateIfActive(ctx context.Context, category *Category) (updated bool, err error)
-
 	// UpdateColumns is the generic partial-update helper promoted from the
 	// embedded base repository: updates only the named columns by primary key
 	// and returns the number of rows affected. Archive/restore writes just

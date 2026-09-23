@@ -1,4 +1,4 @@
-package timetableplanning
+package compose
 
 import (
 	"testing"
