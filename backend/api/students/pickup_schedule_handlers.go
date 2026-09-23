@@ -654,7 +654,7 @@ func (rs *Resource) bulkUpsertPickupSchedules(w http.ResponseWriter, r *http.Req
 		},
 	)
 	if err != nil {
-		if errors.Is(err, enrollmentService.ErrPickupAdjustmentBulkConfirmation) {
+		if errors.Is(err, careplan.ErrPickupAdjustmentBulkConfirmation) {
 			renderError(w, r, common.ErrorInvalidRequestWithCode(
 				err, "pickup.bulk_exception_confirmation_required",
 			))

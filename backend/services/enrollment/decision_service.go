@@ -47,7 +47,7 @@ var (
 	ErrDecisionStudentNotFound   = errors.New("student not found")
 	ErrDecisionInvalidStatus     = errors.New("invalid decision status")
 	ErrDecisionAlreadyTerminal   = errors.New("child is already in a terminal status")
-	ErrOfferingAdjustmentInvalid = errors.New("offering adjustment is invalid")
+	ErrOfferingAdjustmentInvalid = careplan.ErrOfferingAdjustmentInvalid
 	// ErrDecisionInvalidData marks an approval that failed because the
 	// parent-supplied request data (e.g. guardian phone) doesn't pass the
 	// student/person validators. Mapped to 400, not 500 — submit/edit now
