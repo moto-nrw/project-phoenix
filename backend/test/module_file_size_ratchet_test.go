@@ -65,7 +65,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/communication/internal/staffannouncements/service.go":                   1256,
 	"modules/enrollment/form_schema.go":                                              1015,
 	"modules/grouplive/grouplive.go":                                                 815,
-	"modules/identityaccess/compose/account_lifecycle.go":                            890,
+	"modules/identityaccess/compose/account_lifecycle.go":                            838,
 	"modules/organizationtenancy/inbound/operator/provisioning.go":                   865,
 	"modules/peopledirectory/http/guardian_handlers.go":                              1025,
 	"modules/schoolcalendar/portal/internal/application/service.go":                  2000,

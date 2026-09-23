@@ -1034,7 +1034,7 @@ func corsHandler(allowedOrigins string) func(http.Handler) http.Handler {
 
 	opts := cors.Options{
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Staff-PIN", "X-Staff-ID", "X-Staff-Auth-PIN", "X-Device-Key"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Staff-PIN", "X-Staff-ID", "X-Device-Key"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
 		MaxAge:           300,
@@ -1347,7 +1347,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	deviceAuth := deviceauth.New(deviceauth.Dependencies{
 		Devices:     api.Services.IoT.Fleet(),
 		Schools:     deviceSchoolDirectory{schools: api.Services.Schools},
-		StaffPIN:    deviceauth.StaffPIN(api.Services.StaffPINAuth.AuthenticateStaffPIN),
 		Settings:    api.Services.Settings,
 		FallbackPIN: os.Getenv("OGS_DEVICE_PIN"),
 	})

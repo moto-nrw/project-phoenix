@@ -348,7 +348,6 @@ GET /api/staff/dashboard-summary
 GET /api/staff/documents-directory
 GET /api/staff/documents-profile/{id}
 GET /api/staff/financial-profile/{id}
-GET /api/staff/pin
 GET /api/staff/time-tracking/audit-log
 GET /api/staff/time-tracking/export
 GET /api/staff/time-tracking/export/datev-report
@@ -1010,7 +1009,6 @@ PUT /api/staff-shifts/series/{id}/split
 PUT /api/staff-shifts/{id}
 PUT /api/staff-shifts/{id}/cancellation
 PUT /api/staff-shifts/{id}/move
-PUT /api/staff/pin
 PUT /api/staff/{id}
 PUT /api/staff/{id}/payroll-number
 PUT /api/staff/{id}/schedule

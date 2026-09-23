@@ -135,9 +135,8 @@ type Factory struct {
 	// Auth is the composed Identity & Access module: the sessions, the
 	// account lifecycle, the role administration, the invitations and the
 	// operator flows the surfaces consume (#3364).
-	Auth         *identityaccess.Module
-	Audit        auditModels.Command
-	StaffPINAuth StaffPINAuthenticator
+	Auth  *identityaccess.Module
+	Audit auditModels.Command
 	// MFA and Passkey are the Identity & Access second factor and the
 	// school-portal WebAuthn ceremonies (#3331).
 	MFA                  identityaccess.AccountMFA
@@ -2832,7 +2831,6 @@ func newFactory(
 		settingsRuntimeDB:       db,
 		Auth:                    identityAccess,
 		Audit:                   auditCommand,
-		StaffPINAuth:            NewStaffPINAuthenticator(identityAccess),
 		MFA:                     identityAccess,
 		Passkey:                 identityAccess,
 		Active:                  activeService,
