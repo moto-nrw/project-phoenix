@@ -1,4 +1,4 @@
-package enrollment_test
+package postgres_test
 
 import (
 	"context"
@@ -14,8 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -152,16 +150,16 @@ func TestRequestRepository_PinDecisionNotificationMode_FirstPinWins(t *testing.T
 	var first, second string
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		first, err = enrollmentCompose.New().PinDecisionNotificationMode(ctx, req.ID, configModels.EnrollmentNotifyPerDecisionDigest)
+		first, err = enrollmentCompose.New().PinDecisionNotificationMode(ctx, req.ID, notifyPerDecisionDigest)
 		return err
 	}))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		second, err = enrollmentCompose.New().PinDecisionNotificationMode(ctx, req.ID, configModels.EnrollmentNotifyPerDecisionImmediate)
+		second, err = enrollmentCompose.New().PinDecisionNotificationMode(ctx, req.ID, notifyPerDecisionImmediate)
 		return err
 	}))
 
-	assert.Equal(t, configModels.EnrollmentNotifyPerDecisionDigest, first)
+	assert.Equal(t, notifyPerDecisionDigest, first)
 	assert.Equal(t, first, second)
 	var stored *capability.Request
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -170,7 +168,7 @@ func TestRequestRepository_PinDecisionNotificationMode_FirstPinWins(t *testing.T
 		return err
 	}))
 	require.NotNil(t, stored.DecisionNotificationMode)
-	assert.Equal(t, configModels.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
+	assert.Equal(t, notifyPerDecisionDigest, *stored.DecisionNotificationMode)
 }
 
 func TestRequestRepository_PinDecisionNotificationMode_RejectsInvalidMode(t *testing.T) {
@@ -328,14 +326,14 @@ func TestRequestRepository_ListAdmin_ChildStatusFilter(t *testing.T) {
 			return repo.InsertRequest(ctx, r)
 		}))
 	}
-	insertRequestChild(t, db, tenantID, rApproved.ID, "Anna", "A", enrollmentModels.ChildStatusApproved)
-	insertRequestChild(t, db, tenantID, rWaitlisted.ID, "Bert", "B", enrollmentModels.ChildStatusWaitlisted)
+	insertRequestChild(t, db, tenantID, rApproved.ID, "Anna", "A", capability.ChildStatusApproved)
+	insertRequestChild(t, db, tenantID, rWaitlisted.ID, "Bert", "B", capability.ChildStatusWaitlisted)
 
 	var list []*capability.Request
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
 		list, lErr = enrollmentCompose.New().AdminRequests(ctx, capability.RequestListFilters{
-			ChildStatus: enrollmentModels.ChildStatusWaitlisted,
+			ChildStatus: capability.ChildStatusWaitlisted,
 		})
 		return lErr
 	}))
@@ -365,7 +363,7 @@ func TestRequestRepository_FindActiveDuplicate_BlocksRepeatSubmission(t *testing
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.InsertRequest(ctx, req)
 	}))
-	insertRequestChild(t, db, tenantID, req.ID, "  Lara  ", "Beispiel", enrollmentModels.ChildStatusSubmitted)
+	insertRequestChild(t, db, tenantID, req.ID, "  Lara  ", "Beispiel", capability.ChildStatusSubmitted)
 
 	// Re-submit attempt — same email (different case + whitespace),
 	// same child name (different case + whitespace) → MUST match.
@@ -392,7 +390,7 @@ func TestRequestRepository_FindActiveDuplicate_IgnoresWithdrawnAndRejected(t *te
 	// Two prior requests: one withdrawn, one rejected. A fresh
 	// submission with the same name + same email must NOT match either
 	// — the parent should be allowed to re-submit.
-	for i, status := range []string{enrollmentModels.ChildStatusWithdrawn, enrollmentModels.ChildStatusRejected} {
+	for i, status := range []string{capability.ChildStatusWithdrawn, capability.ChildStatusRejected} {
 		r := makeOwnerRequest(phaseID, fmt.Sprintf("%s-%d", token, i), "anna@example.test")
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 			return repo.InsertRequest(ctx, r)
@@ -424,7 +422,7 @@ func TestRequestRepository_FindActiveDuplicate_DifferentParentSameChildOK(t *tes
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.InsertRequest(ctx, r)
 	}))
-	insertRequestChild(t, db, tenantID, r.ID, "Lara", "Beispiel", enrollmentModels.ChildStatusSubmitted)
+	insertRequestChild(t, db, tenantID, r.ID, "Lara", "Beispiel", capability.ChildStatusSubmitted)
 
 	var dupes []capability.DuplicateChildKey
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -448,7 +446,7 @@ func TestRequestRepository_FindActiveDuplicate_DifferentPhaseSameChildOK(t *test
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.InsertRequest(ctx, r)
 	}))
-	insertRequestChild(t, db, tenantID, r.ID, "Lara", "Beispiel", enrollmentModels.ChildStatusSubmitted)
+	insertRequestChild(t, db, tenantID, r.ID, "Lara", "Beispiel", capability.ChildStatusSubmitted)
 
 	// Different phase id → fresh submission must be allowed.
 	otherPhaseID := phaseID + 99_999_999 // synthetic, no row → 0 matches expected
@@ -634,7 +632,7 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_TrueForActivePin(t 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.InsertRequest(ctx, r)
 	}))
-	insertRequestChildMatched(t, db, tenantID, r.ID, studentID, enrollmentModels.ChildStatusSubmitted)
+	insertRequestChildMatched(t, db, tenantID, r.ID, studentID, capability.ChildStatusSubmitted)
 
 	var has bool
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -663,7 +661,7 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_IgnoresTerminalAndO
 	studentID := createMatchTestStudent(t, db, tenantID)
 	// Withdrawn + rejected pins for the same student must NOT block: those
 	// requests are no longer live, so re-enrolling the student is fine.
-	for i, status := range []string{enrollmentModels.ChildStatusWithdrawn, enrollmentModels.ChildStatusRejected} {
+	for i, status := range []string{capability.ChildStatusWithdrawn, capability.ChildStatusRejected} {
 		r := makeOwnerRequest(phaseID, fmt.Sprintf("%s-%d", token, i), "anna@example.test")
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 			return repo.InsertRequest(ctx, r)
@@ -704,7 +702,7 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_ExcludesGivenChild(
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.InsertRequest(ctx, own)
 	}))
-	insertRequestChildMatched(t, db, tenantID, own.ID, studentID, enrollmentModels.ChildStatusUnderReview)
+	insertRequestChildMatched(t, db, tenantID, own.ID, studentID, capability.ChildStatusUnderReview)
 
 	var ownChildID int64
 	require.NoError(t, db.NewRaw(
@@ -725,7 +723,7 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_ExcludesGivenChild(
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.InsertRequest(ctx, other)
 	}))
-	insertRequestChildMatched(t, db, tenantID, other.ID, studentID, enrollmentModels.ChildStatusSubmitted)
+	insertRequestChildMatched(t, db, tenantID, other.ID, studentID, capability.ChildStatusSubmitted)
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var hErr error
@@ -754,3 +752,9 @@ func TestRequestRepository_AcquireExistingStudentMatchLock_SucceedsInTx(t *testi
 	})
 	require.NoError(t, err)
 }
+
+// The decision notification modes the tenant setting stores.
+const (
+	notifyPerDecisionDigest    = "digest"
+	notifyPerDecisionImmediate = "immediate"
+)

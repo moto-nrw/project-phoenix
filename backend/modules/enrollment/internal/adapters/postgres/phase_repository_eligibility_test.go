@@ -1,4 +1,4 @@
-package enrollment_test
+package postgres_test
 
 import (
 	"context"
@@ -11,8 +11,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
 // --- ListPublicOpen: audience filtering (#1663) ------------------------
@@ -32,13 +30,13 @@ func TestPhaseRepository_ListPublicOpen_HidesLinkedParentsPhases(t *testing.T) {
 	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 
 	pOpen := makeOwnerEligibilityPhase(openName)
-	pOpen.Audience = enrollmentModels.PhaseAudienceOpen
+	pOpen.Audience = capability.PhaseAudienceOpen
 
 	pNew := makeOwnerEligibilityPhase(newStudentsName)
-	pNew.Audience = enrollmentModels.PhaseAudienceNewStudents
+	pNew.Audience = capability.PhaseAudienceNewStudents
 
 	pLinked := makeOwnerEligibilityPhase(linkedName)
-	pLinked.Audience = enrollmentModels.PhaseAudienceLinkedParents
+	pLinked.Audience = capability.PhaseAudienceLinkedParents
 
 	for _, p := range []*capability.Phase{pOpen, pNew, pLinked} {
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -81,10 +79,10 @@ func TestPhaseRepository_ListPublicOpen_HidesExistingStudentsPhases(t *testing.T
 	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 
 	pOpen := makeOwnerEligibilityPhase(openName)
-	pOpen.Audience = enrollmentModels.PhaseAudienceOpen
+	pOpen.Audience = capability.PhaseAudienceOpen
 
 	pExisting := makeOwnerEligibilityPhase(existingName)
-	pExisting.Audience = enrollmentModels.PhaseAudienceExistingStudents
+	pExisting.Audience = capability.PhaseAudienceExistingStudents
 
 	for _, p := range []*capability.Phase{pOpen, pExisting} {
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -121,7 +119,7 @@ func TestPhaseRepository_EligibilityColumnsRoundtrip(t *testing.T) {
 	defer wipePhases(db, tenantID, name)
 
 	p := makeOwnerEligibilityPhase(name)
-	p.Audience = enrollmentModels.PhaseAudienceNewStudents
+	p.Audience = capability.PhaseAudienceNewStudents
 	// Eligible classes must also be offered by the phase (#1663), so seed the
 	// pick list with every class the eligibility list (and the later update)
 	// references.
@@ -138,12 +136,12 @@ func TestPhaseRepository_EligibilityColumnsRoundtrip(t *testing.T) {
 		loaded, fErr = repo.Phase(ctx, p.ID)
 		return fErr
 	}))
-	assert.Equal(t, enrollmentModels.PhaseAudienceNewStudents, loaded.Audience)
+	assert.Equal(t, capability.PhaseAudienceNewStudents, loaded.Audience)
 	assert.Equal(t, []string{"2a", "3b"}, loaded.EligibleSchoolClasses)
 
 	// Update must persist both columns (they are explicit Set() entries
 	// in the update query — a missing Set silently keeps stale values).
-	loaded.Audience = enrollmentModels.PhaseAudienceLinkedParents
+	loaded.Audience = capability.PhaseAudienceLinkedParents
 	loaded.EligibleSchoolClasses = []string{"4c"}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.UpdatePhase(ctx, loaded)
@@ -155,7 +153,7 @@ func TestPhaseRepository_EligibilityColumnsRoundtrip(t *testing.T) {
 		reloaded, fErr = repo.Phase(ctx, loaded.ID)
 		return fErr
 	}))
-	assert.Equal(t, enrollmentModels.PhaseAudienceLinkedParents, reloaded.Audience)
+	assert.Equal(t, capability.PhaseAudienceLinkedParents, reloaded.Audience)
 	assert.Equal(t, []string{"4c"}, reloaded.EligibleSchoolClasses)
 }
 
@@ -316,8 +314,8 @@ func TestEnrollment_MaxActivePhaseGrade(t *testing.T) {
 
 func makeOwnerEligibilityPhase(name string) *capability.Phase {
 	return &capability.Phase{
-		Name: name, Kind: enrollmentModels.PhaseKindSchoolYear,
+		Name: name, Kind: capability.PhaseKindSchoolYear,
 		ServiceStartDate: capability.Date("2026-09-01"), ServiceEndDate: capability.Date("2027-07-31"),
-		IsActive: true, CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		IsActive: true, CareOverflowMode: capability.PhaseCareOverflowWaitlist,
 	}
 }
