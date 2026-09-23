@@ -238,7 +238,7 @@ provider, is gone. The evidence lives in
 [docs/operations/presence-storage-cutover-2762.md](../../docs/operations/presence-storage-cutover-2762.md).
 
 #2756 cut the student-guardian relationship over to its three owners
-(migration 1.15.416, one release with the caller switch). People Directory
+(migration 1.15.417, one release with the caller switch). People Directory
 owns `users.student_guardian_relationships` (type, role, primary, emergency
 contact and priority, payer), Care Plan `users.student_guardian_pickup_permissions`
 (`careplan.GuardianPickupPermissions`) and Identity & Access
