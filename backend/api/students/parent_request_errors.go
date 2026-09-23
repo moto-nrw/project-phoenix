@@ -7,11 +7,10 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -137,21 +136,21 @@ type ParentRequestReviewAccess interface {
 func isParentRequestMissing(err error) bool {
 	return errors.Is(err, excusedrequests.ErrExcusedRequestNotFound) ||
 		errors.Is(err, carerequests.ErrNotFound) ||
-		errors.Is(err, enrollmentModels.ErrOfferingChangeNotFound) ||
+		errors.Is(err, careplan.ErrOfferingChangeNotFound) ||
 		errors.Is(err, userService.ErrReviewNotFound)
 }
 
 func isParentRequestNotPending(err error) bool {
 	return errors.Is(err, excusedrequests.ErrExcusedRequestNotPending) ||
 		errors.Is(err, carerequests.ErrNotPending) ||
-		errors.Is(err, enrollmentModels.ErrOfferingChangeNotPending) ||
+		errors.Is(err, careplan.ErrOfferingChangeNotPending) ||
 		errors.Is(err, userService.ErrReviewNotPending)
 }
 
 func isParentRequestForbidden(err error) bool {
 	return errors.Is(err, excusedrequests.ErrExcusedRequestForbidden) ||
 		errors.Is(err, carerequests.ErrCareRequestForbidden) ||
-		errors.Is(err, enrollmentService.ErrOfferingChangeForbidden) ||
+		errors.Is(err, careplan.ErrOfferingChangeForbidden) ||
 		errors.Is(err, userService.ErrReviewForbidden)
 }
 

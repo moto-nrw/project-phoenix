@@ -31,6 +31,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
@@ -60,15 +61,15 @@ func (s *offeringChangeRequestService) courseProjection() (CourseProjectionReade
 var (
 	// ErrCourseRequestsDisabled means the school has parent course requests
 	// switched off (or the offering-change machinery they run on).
-	ErrCourseRequestsDisabled = errors.New("enrollment: parent course requests are disabled")
+	ErrCourseRequestsDisabled = careplan.ErrCourseRequestsDisabled
 	// ErrCourseNotFound means the id is not a course the child may request:
 	// unknown, not bound to an AG, or not part of the child's care period.
-	ErrCourseNotFound = errors.New("enrollment: course not found")
+	ErrCourseNotFound = careplan.ErrCourseNotFound
 	// ErrCourseAlreadyBooked means the child already holds that course.
-	ErrCourseAlreadyBooked = errors.New("enrollment: course is already booked")
+	ErrCourseAlreadyBooked = careplan.ErrCourseAlreadyBooked
 	// ErrCourseRequestNotOwn means the pending request is not a course request
 	// the caller submitted, so it must not be withdrawn here.
-	ErrCourseRequestNotOwn = errors.New("enrollment: not an own course request")
+	ErrCourseRequestNotOwn = careplan.ErrCourseRequestNotOwn
 )
 
 // Reasons a school has no course requests. Wire-stable identifiers; the German
@@ -1148,10 +1149,10 @@ func (s *offeringChangeRequestService) WithdrawCourseRequest(
 	}
 	// A foreign request stays reported as missing, never as forbidden.
 	if row.StudentID != studentID || row.SubmittedBy != accountID {
-		return enrollmentModels.ErrOfferingChangeNotFound
+		return errOfferingChangeNotFound
 	}
 	if row.IsTerminal() {
-		return enrollmentModels.ErrOfferingChangeNotPending
+		return errOfferingChangeNotPending
 	}
 	catalog, err := s.Catalog(ctx, studentID)
 	if err != nil {
