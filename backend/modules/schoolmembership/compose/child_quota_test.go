@@ -112,6 +112,8 @@ func TestChildQuotaCountsActiveAndPendingChildren(t *testing.T) {
 	setMembership(t, db, tenantID, deleted.ID, "deleted_at = NOW()")
 	ended := testpkg.CreateTestStudent(t, db, "Frei", "Beendet", "1a")
 	setMembership(t, db, tenantID, ended.ID, "enrolled_until = '2020-07-31'")
+	endedPending := testpkg.CreateTestStudent(t, db, "Frei", "Vorgemerkt beendet", "1a")
+	setMembership(t, db, tenantID, endedPending.ID, "status = 'pending', enrolled_until = '2020-07-31'")
 
 	third := unenrolledStudent(t, db, tenantID, "Dritt")
 	_, err := module.Enroll(ctx, enrollment(third))

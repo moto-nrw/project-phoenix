@@ -14,22 +14,16 @@ var errChildQuotaUnbound = errors.New("school membership: child quota is not bou
 // against the school's Kinderkontingent (#3567). It is the one place every
 // such write passes through.
 //
-// Without a Kinderkontingent the write runs as before: no lock, no count. With
-// one, the shared class-writes gate comes first so the acquisition order stays
+// The shared class-writes gate comes first so the acquisition order stays
 // gate-then-quota for every writer, then the exclusive per-school quota lock,
-// then the count. The write and the second count run in a savepoint, so a
-// refused write is undone even when the caller catches the error and commits.
-// The whole write is judged at once: a batch is all or nothing.
+// then the limit read and count. Taking the lock before the read serializes a
+// membership write with an operator changing the Kinderkontingent. The write
+// and the second count run in a savepoint, so a refused write is undone even
+// when the caller catches the error and commits. The whole write is judged at
+// once: a batch is all or nothing.
 func (s *Service) countingWrite(ctx context.Context, stats *domain.OperationStats, write func(context.Context) error) error {
 	if s.quota == nil {
 		return errChildQuotaUnbound
-	}
-	limit, limited, err := s.quota.ChildQuotaLimit(ctx)
-	if err != nil {
-		return fmt.Errorf("school membership: read child quota: %w", err)
-	}
-	if !limited {
-		return write(ctx)
 	}
 	gateStats, err := s.store.LockStudentClassWrites(ctx, false)
 	stats.Add(gateStats)
@@ -40,6 +34,13 @@ func (s *Service) countingWrite(ctx context.Context, stats *domain.OperationStat
 	stats.Add(lockStats)
 	if err != nil {
 		return err
+	}
+	limit, limited, err := s.quota.ChildQuotaLimit(ctx)
+	if err != nil {
+		return fmt.Errorf("school membership: read child quota: %w", err)
+	}
+	if !limited {
+		return write(ctx)
 	}
 	day := s.today()
 	before, countStats, err := s.store.CountChildQuota(ctx, day)

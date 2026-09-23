@@ -12,6 +12,10 @@ import (
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
+// childQuotaLockKey is the advisory-lock namespace shared with School
+// Membership's Kontingentzahl checks ("kont").
+const childQuotaLockKey = int32(0x6b6f6e74)
+
 type schoolRow struct {
 	bun.BaseModel  `bun:"table:schools,alias:school"`
 	ID             int64      `bun:"id,pk,autoincrement"`
@@ -83,6 +87,27 @@ func (s *Store) UpdateSchool(ctx context.Context, input domain.UpdateSchool) (do
 	}
 	stats.Rows = 1
 	return toSchoolDomain(row), stats, nil
+}
+
+// LockSchoolChildQuota holds the per-school Kinderkontingent lock until the
+// caller's transaction completes. School Membership takes this same lock
+// before reading and checking the limit.
+func (s *Store) LockSchoolChildQuota(ctx context.Context, id int64) (domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	if id <= 0 || id > 0x7fffffff {
+		return domain.OperationStats{}, errors.New("organization tenancy: valid school is required")
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	_, err = db.NewRaw("SELECT pg_advisory_xact_lock(?, ?)", childQuotaLockKey, int32(id)).Exec(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return stats, fmt.Errorf("organization tenancy postgres: lock school child quota: %w", err)
+	}
+	return stats, nil
 }
 
 func (s *Store) FindSchoolByID(ctx context.Context, id int64, lock string) (domain.School, bool, domain.OperationStats, error) {

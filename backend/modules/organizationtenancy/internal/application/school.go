@@ -47,6 +47,11 @@ func (s *Service) UpdateSchool(ctx context.Context, input domain.UpdateSchool) (
 // SetSchoolChildQuota replaces a live school's Kinderkontingent (#3567).
 func (s *Service) SetSchoolChildQuota(ctx context.Context, id int64, bundles *int, bundleSize int) (result domain.School, err error) {
 	err = s.run(ctx, "set_school_child_quota", func(txCtx context.Context, stats *domain.OperationStats) error {
+		lockStats, lockErr := s.store.LockSchoolChildQuota(txCtx, id)
+		stats.Add(lockStats)
+		if lockErr != nil {
+			return lockErr
+		}
 		existing, found, queryStats, findErr := s.store.FindSchoolByID(txCtx, id, "UPDATE")
 		stats.Add(queryStats)
 		if findErr != nil {

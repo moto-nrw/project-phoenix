@@ -35,7 +35,9 @@ const countChildQuotaSQL = `SELECT COUNT(*)
 FROM users.student_school_memberships
 WHERE tenant_id = ?
   AND ((` + activelyManagedPredicate + `)
-    OR (deleted_at IS NULL AND status = 'pending'))`
+    OR (deleted_at IS NULL
+      AND status = 'pending'
+      AND (enrolled_until IS NULL OR enrolled_until >= ?::date)))`
 
 // childQuotaLockKey is the advisory-lock namespace of the counting writes
 // ("kont"); the second key is the tenant.
@@ -103,7 +105,7 @@ func (s *Store) CountChildQuota(ctx context.Context, on string) (int, domain.Ope
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	var count int
-	err = db.NewRaw(countChildQuotaSQL, tenantID, day).Scan(ctx, &count)
+	err = db.NewRaw(countChildQuotaSQL, tenantID, day, day).Scan(ctx, &count)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return 0, stats, fmt.Errorf("school membership postgres: count child quota: %w", err)
