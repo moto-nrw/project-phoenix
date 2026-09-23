@@ -69,7 +69,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/careplan/internal/adapters/postgres/offering_bookings.go:(*Store).replaceCareOfferingBookings":      17,
 	"modules/careplan/internal/adapters/postgres/status_days.go:(*statusDayStore).ArchiveStudentStatusFlags":     23,
 	"modules/careplan/internal/adapters/postgres/status_days.go:(*statusDayStore).CountEffectiveStudentAbsences": 16,
-	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*Store).ListWithdrawals":             22,
+	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*Store).ListWithdrawals":             20,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Correct":                       18,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Decide":                        34,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListHistory":                   20,
