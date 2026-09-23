@@ -388,11 +388,9 @@ describe("HomePage (Login)", () => {
         refreshToken: "refresh-token",
       });
     });
-    expect(mockTrackTenantEvent).toHaveBeenCalledWith(
-      "login_success",
-      "42",
-      undefined,
-    );
+    // login_success comes from the backend once it mints the session
+    // (#3602); a browser copy would count every login twice.
+    expect(mockTrackTenantEvent).not.toHaveBeenCalled();
   });
 
   it("removes stale session-expired query params before seeding the new session", async () => {

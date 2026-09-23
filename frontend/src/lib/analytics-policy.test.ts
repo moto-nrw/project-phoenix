@@ -326,10 +326,24 @@ describe("filterAnalyticsEvent", () => {
     }
   });
 
+  // The backend sends these after the write succeeded (#3602); a browser
+  // copy would count every action twice.
+  it("drops core actions that the backend sends", () => {
+    for (const event of [
+      "login_success",
+      "group_created",
+      "group_updated",
+      "user_invited",
+      "data_exported",
+    ]) {
+      expect(filterAnalyticsEvent(ogs, capture(event, {}))).toBeNull();
+    }
+  });
+
   it("keeps school and role, drops groups and person properties", () => {
     const result = filterAnalyticsEvent(
       ogs,
-      capture("group_created", {
+      capture("tenant_switched", {
         school_id: "42",
         role: "admin",
         $groups: { school: "42" },
@@ -341,7 +355,7 @@ describe("filterAnalyticsEvent", () => {
 
     expect(result).toEqual({
       uuid: UUID,
-      event: "group_created",
+      event: "tenant_switched",
       timestamp: undefined,
       properties: {
         token: "phc_test",
@@ -361,7 +375,7 @@ describe("filterAnalyticsEvent", () => {
   it("drops a free-text role or a non-numeric school", () => {
     const result = filterAnalyticsEvent(
       ogs,
-      capture("login_success", { role: "OGS-Leitung", school_id: "school-a" }),
+      capture("login_failed", { role: "OGS-Leitung", school_id: "school-a" }),
     );
 
     expect(result?.properties).not.toHaveProperty("role");

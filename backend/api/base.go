@@ -905,6 +905,9 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	// each protected group still rejects through the Authenticator and its
 	// scope gate. A group mounted without it fails closed.
 	api.Router.Use(sessionAuth.Verifier())
+	// Core actions of the portals reach the usage analytics once their
+	// response is 2xx (#3602). After the verifier, which names the session.
+	api.Router.Use(coreActionAnalytics(serviceFactory.Tracker, sessionAuth))
 
 	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, modules, db, logger, frontendURL, sessionAuth)
 	if err != nil {

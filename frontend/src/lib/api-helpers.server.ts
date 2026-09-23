@@ -2,6 +2,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { recordBackendProxyMetric } from "./backend-proxy-metrics";
+import { analyticsSessionHeaders } from "./analytics-session-header.server";
 import { canonicalForwardedFor } from "./client-headers.server";
 import { sanitizeEndpoint } from "./log-sanitize";
 import { createLogger } from "~/lib/logger";
@@ -120,6 +121,7 @@ async function getIncomingForwardHeaders(): Promise<Record<string, string>> {
         "X-Forwarded-For": forwardedFor,
       }),
       ...(userAgent && { "User-Agent": userAgent }),
+      ...analyticsSessionHeaders(incomingHeaders),
     };
   } catch {
     return {};

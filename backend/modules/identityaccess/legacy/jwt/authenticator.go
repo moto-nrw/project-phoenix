@@ -74,6 +74,22 @@ func EnrollmentClaimsFromCtx(ctx context.Context) (MFAEnrollmentClaims, bool) {
 	return claims, true
 }
 
+// VerifiedClaimsFromCtx returns the session claims the root Verifier found
+// on the request, checked like Authenticator checks them (signature, expiry,
+// no MFA interim token), without rejecting the request. It serves observers
+// that run outside a route's authentication, such as the usage analytics.
+func VerifiedClaimsFromCtx(ctx context.Context) (AppClaims, bool) {
+	token, claims, err := jwtauth.FromContext(ctx)
+	if err != nil || token == nil || jwt.Validate(token) != nil {
+		return AppClaims{}, false
+	}
+	var c AppClaims
+	if err := c.ParseClaims(claims); err != nil {
+		return AppClaims{}, false
+	}
+	return c, true
+}
+
 // Authenticator is a default authentication middleware to enforce access from the
 // Verifier middleware request context values. The Authenticator sends a 401 Unauthorized
 // response for any unverified tokens and passes the good ones through.

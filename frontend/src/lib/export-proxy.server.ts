@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { auth, uncachedAuth } from "~/server/auth";
+import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
 
 /**
@@ -36,6 +37,7 @@ export function createFileExportRoute(options: {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        ...(await incomingAnalyticsSessionHeaders()),
       },
       body,
       cache: "no-store",
