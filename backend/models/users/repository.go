@@ -311,7 +311,6 @@ type GuestRepository interface {
 	FindByStaffID(ctx context.Context, staffID int64) (*Guest, error)
 }
 
-// StudentGuardianRepository defines operations for managing student-guardian relationships
 // GuardianEmergencyContactRow is one (guardian, phone number) projection row
 // for the emergency contact list; the consumer aggregates rows per student.
 type GuardianEmergencyContactRow struct {
@@ -332,8 +331,23 @@ type GuardianEmergencyContactRow struct {
 	IsEmergencyContact bool           `bun:"is_emergency_contact"`
 }
 
+// StudentGuardianRepository is the retained composition seam over the
+// student-guardian relationship (#2756): People Directory's relationship with
+// Care Plan's pickup permission and Identity & Access's portal access. Writes
+// go to the owner of each column in one unit of work; reads join the three
+// through the tenant-safe guardian-link projection.
 type StudentGuardianRepository interface {
-	base.CRUDRepository[*StudentGuardian]
+	// Create links a guardian to a child across the three owners.
+	Create(ctx context.Context, relationship *StudentGuardian) error
+	// FindByID retrieves one relationship with its three halves.
+	FindByID(ctx context.Context, id any) (*StudentGuardian, error)
+	// Update rewrites every field of the relationship across its owners.
+	Update(ctx context.Context, relationship *StudentGuardian) error
+	// Delete unlinks a guardian; the owners' halves follow the relationship.
+	Delete(ctx context.Context, id any) error
+	// List retrieves the relationships matching the equality filters, keyed
+	// by column of the old row shape.
+	List(ctx context.Context, filters map[string]any) ([]*StudentGuardian, error)
 
 	// ListEmergencyContactRows returns guardian/phone rows for the given
 	// students, emergency contacts and primary entries first.
@@ -511,7 +525,7 @@ type GuardianProfileRepository interface {
 
 	// LoadProfileWithChildren returns the guardian profile linked to the
 	// given account along with their primary phone and a summary of
-	// every active student linked via users.students_guardians. Returns
+	// every active student linked via the student-guardian relationships. Returns
 	// (nil, nil) when no profile exists in the current tenant context
 	// — callers fall through to claims-derived defaults instead of
 	// erroring. RLS narrows reads to the tenant in context.

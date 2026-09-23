@@ -237,6 +237,35 @@ provider, is gone. The evidence lives in
 [presence-cutover-2762.json](presence-cutover-2762.json) and the runbook in
 [docs/operations/presence-storage-cutover-2762.md](../../docs/operations/presence-storage-cutover-2762.md).
 
+#2756 cut the student-guardian relationship over to its three owners
+(migration 1.15.416, one release with the caller switch). People Directory
+owns `users.student_guardian_relationships` (type, role, primary, emergency
+contact and priority, payer), Care Plan `users.student_guardian_pickup_permissions`
+(`careplan.GuardianPickupPermissions`) and Identity & Access
+`auth.guardian_student_access` (account binding and parents-portal
+permissions, `identityaccess.GuardianStudentAccess`). The retained
+`StudentGuardianRepository` seam is People Directory's relationship store in
+`database/repositories/users/guardian_relationships.go`: it writes the
+relationship and then the other two halves through consumer-owned ports,
+inside one savepoint that holds the relationship row lock, and the legacy
+composition binds the ports in `database/repositories/guardian_relationship_owners.go`.
+The People Directory parents-portal link writes take the same ports through
+`compose.Dependencies.GuardianLinkOwners`. Reads that need the whole row join
+the three owners through the tenant-safe projection `modules/guardianlinkview`
+(owner `guardian-link-view`), embedded as a subquery so every retained read,
+including the Communication audience and inbox projections, keeps its one
+statement; those two projections gave up their `users.students_guardians`
+grant instead of gaining the three owner tables. The account binding follows
+the guardian profile through a migration trigger. The old table stays a
+trigger-kept rollback mirror with the `users.students_guardians_compatibility_writes`
+counter until #2757, because the previous image links guardians with
+`INSERT ... ON CONFLICT`; `TestGuardianStorageCallerInventory` keeps every
+provider off it. `database/repositories/users/student_guardian.go`, the old
+provider, is gone. The evidence lives in
+[guardian-owner-cutover-2756.json](guardian-owner-cutover-2756.json) and the
+runbook in
+[docs/operations/guardian-owner-storage-cutover.md](../../docs/operations/guardian-owner-storage-cutover.md).
+
 The staff messaging writes live in the Communication Postgres adapter
 `modules/communication/internal/adapters/staffpostgres`. The inbox and unread
 badge join People Directory's person rows, so they read through the tenant-safe

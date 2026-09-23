@@ -38,7 +38,7 @@ func (r *ChildRepository) BindGuardianDirectory(guardians GuardianDirectory) {
 	r.guardians = guardians
 }
 
-// guardianLink is one users.students_guardians row the account reaches
+// guardianLink is one student-guardian relationship the account reaches
 // through an ACTIVE auth.account_tenants mapping.
 type guardianLink struct {
 	StudentID         int64

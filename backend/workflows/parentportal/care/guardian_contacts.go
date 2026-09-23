@@ -268,7 +268,7 @@ func (s *Service) loadChildGuardians(ctx context.Context, tenantID, accountID, s
 		profile, ok := profiles[link.GuardianProfileID]
 		if !ok {
 			// A link pointing to a missing profile is a data-integrity fault
-			// (orphaned students_guardians row), not an authorization outcome.
+			// (orphaned student-guardian relationship), not an authorization outcome.
 			// Surface it as an internal error (→ 500, caught by 5xx alerting)
 			// instead of masking it as ErrGuardianNotLinked (403), which would
 			// hide the inconsistency from monitoring.

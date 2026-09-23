@@ -1,6 +1,6 @@
 // Package peopledirectory is the public People Directory capability. It owns
 // users.persons, users.students, users.guardian_profiles,
-// users.guardian_phone_numbers and users.students_guardians: every read or
+// users.guardian_phone_numbers and users.student_guardian_relationships: every read or
 // write of a person, student or guardian row by another owner goes through
 // Query or Command instead of a foreign SQL join.
 package peopledirectory

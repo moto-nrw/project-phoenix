@@ -188,7 +188,7 @@ func (c *VisibilityCondition) Validate(appliesToChild bool) error {
 // is never auto-migrated. When set to one of the ReservedTargets entries,
 // the decision service copies the value onto the appropriate downstream
 // record on approval (Student column, guardian_phone_numbers row, schedule
-// row, additional students_guardians row, etc.). Type is constrained by
+// row, additional student-guardian relationship, etc.). Type is constrained by
 // Target — see ReservedTargets for the allowed (target, type) pairs.
 type FormField struct {
 	Key      string            `json:"key"`

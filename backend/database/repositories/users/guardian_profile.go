@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/guardianlinkview"
 	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
@@ -490,7 +491,7 @@ func (r *GuardianProfileRepository) linkAccount(ctx context.Context, profileID, 
 		return users.ErrGuardianAccountConflict
 	}
 	if previous != nil {
-		linked, err := db.NewSelect().TableExpr("users.students_guardians").
+		linked, err := db.NewSelect().TableExpr("users.student_guardian_relationships").
 			Where("tenant_id = ?", tenantID.Int64()).
 			Where("guardian_profile_id = ?", previous.ID).Exists(ctx)
 		if err != nil {
@@ -534,7 +535,7 @@ func (r *GuardianProfileRepository) linkAccount(ctx context.Context, profileID, 
 
 // LoadProfileWithChildren returns the guardian profile linked to the
 // account plus the primary phone + active-student summaries. Multi-
-// schema join (users.students_guardians → users.students →
+// schema join (guardian relationships → users.students →
 // users.persons) lives here so handlers/services don't reach into the
 // schema directly. Returns (nil, nil) when no profile is linked under
 // the current tenant context.
@@ -579,8 +580,7 @@ func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 		EnrollmentSubmit bool   `bun:"enrollment_submit"`
 	}
 	var rows []childRow
-	childErr := repoBase.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`users.students_guardians AS "sg"`).
+	childErr := guardianlinkview.Query(repoBase.GetDB(ctx, r.db), tenant.FromContext(ctx)).
 		ColumnExpr(`"s".id AS student_id`).
 		ColumnExpr(`"p".first_name`).
 		ColumnExpr(`"p".last_name`).
@@ -590,11 +590,11 @@ func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 		ColumnExpr(`"s".status`).
 		// Per-relationship enrollment-submit permission, so the form can offer
 		// reuse only for children this guardian may actually re-enroll (#1663).
-		ColumnExpr(`COALESCE(("sg".permissions ->> ?)::boolean, false) AS enrollment_submit`, authorize.GuardianPermissionEnrollmentSubmit).
-		Join(`INNER JOIN (?) AS "s" ON "s".id = "sg".student_id`, studentdirectoryview.Query(repoBase.GetDB(ctx, r.db), tenant.FromContext(ctx))).
+		ColumnExpr(`COALESCE(("student_guardian".permissions ->> ?)::boolean, false) AS enrollment_submit`, authorize.GuardianPermissionEnrollmentSubmit).
+		Join(`INNER JOIN (?) AS "s" ON "s".id = "student_guardian".student_id`, studentdirectoryview.Query(repoBase.GetDB(ctx, r.db), tenant.FromContext(ctx))).
 		Join(`INNER JOIN users.persons AS "p" ON "p".id = "s".person_id`).
-		Where(`"sg".guardian_profile_id = ?`, profile.ID).
-		Where(`COALESCE(("sg".permissions ->> ?)::boolean, false) = TRUE`, authorize.GuardianPermissionPortalAccess).
+		Where(`"student_guardian".guardian_profile_id = ?`, profile.ID).
+		Where(`COALESCE(("student_guardian".permissions ->> ?)::boolean, false) = TRUE`, authorize.GuardianPermissionPortalAccess).
 		Where(`"s".status <> ?`, "alumnus").
 		OrderExpr(`"p".last_name ASC, "p".first_name ASC`).
 		Scan(ctx, &rows)

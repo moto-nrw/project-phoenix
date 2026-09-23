@@ -1,0 +1,115 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2716",
+    "#2755"
+  ],
+  "owner_and_capability": "People Directory owns the student-guardian relationship (users.student_guardian_relationships) and runs its unit of work; Care Plan owns the pickup permission (users.student_guardian_pickup_permissions, careplan.GuardianPickupPermissions) and Identity & Access the parents-portal access (auth.guardian_student_access, identityaccess.GuardianStudentAccess), reached through consumer-owned ports; the tenant-safe guardian-link projection (modules/guardianlinkview, owner guardian-link-view) serves the retained reads that consumed the joined row (#2756)",
+  "affected_packages": [
+    "database/migrations",
+    "database/repositories",
+    "database/repositories/users",
+    "models/users",
+    "modules/guardianlinkview",
+    "modules/peopledirectory",
+    "modules/peopledirectory/compose",
+    "modules/careplan",
+    "modules/careplan/compose",
+    "modules/identityaccess",
+    "modules/identityaccess/compose",
+    "modules/communication/internal/adapters/parentaudience",
+    "modules/communication/internal/adapters/parentinbox"
+  ],
+  "affected_tables": [
+    "users.students_guardians",
+    "users.student_guardian_relationships",
+    "users.student_guardian_pickup_permissions",
+    "auth.guardian_student_access",
+    "users.students_guardians_compatibility_writes"
+  ],
+  "exact_ratchet_keys": [],
+  "atomic_cutover": "Migration 1.15.416 takes the backfill's advisory lock, locks the four guardian tables and users.guardian_profiles, drops target rows whose source changed a unique claim, applies the final delta per school, compares counts, checksums, rows and account bindings, and installs the compatibility shape in one transaction: owner updated_at triggers, the grant invalidation on the Identity permissions, the account-binding trigger on the guardian profile, the grant foreign keys on the relationship, the push-audience view, RESTRICT on the guardian key, the mirror and routing triggers and the counter. The old name stays a base table as a rollback-only mirror because the previous image links guardians with INSERT ... ON CONFLICT, which a view cannot serve. The same release switches every caller: the retained StudentGuardianRepository seam is People Directory's relationship store, which writes the relationship and then the Care Plan and Identity halves inside one savepoint under the relationship row lock and reads through the projection; the People Directory parents-portal link writes, the guardian profile, message recipient and portal-contact reads, and the Communication audience and inbox projections read and write the owners. The old provider database/repositories/users/student_guardian.go is deleted. No application dual write and no fallback read chain remain.",
+  "tests": [
+    "backend/database/migrations: TestGuardianOwnerCutover* (contract golden, final delta, refusals, preflight, rollback with a failing switch) and TestGuardianCompatibility* (routing of previous-image writes, mirroring of owner writes, tenant isolation, push audience); the Expand and Backfill contracts run against a restored pre-cutover clone.",
+    "backend/database/repositories/users/guardian_relationships_unit_of_work_test.go: a failure injected after each owner command leaves no half of the link even when the caller commits, the retry is idempotent, promotion demotes the previous primary, another school sees and changes nothing.",
+    "backend/modules/peopledirectory/compose/guardian_link_owners_test.go: the parents-portal link and pickup patch roll back after every owner command.",
+    "backend/modules/careplan/compose/guardian_pickup_test.go and backend/modules/identityaccess/compose/guardian_student_access_test.go: two-school isolation and refusal of a command naming another school.",
+    "backend/test/guardian_storage_caller_inventory_test.go: zero application literals name the mirror or the counter.",
+    "scripts/test-changed.sh origin/development without --fast, including the retained guardian repository, parents-portal, enrollment, communication and query-budget suites.",
+    "scripts/backend-architecture.sh check with no new violation and no policy loosening."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the PR branch against disposable PostgreSQL clones on 2026-09-23; staging acceptance (switch wall time on real data, previous image against the switched schema, counter trend over the rollback window) is recorded in docs/operations/guardian-owner-storage-cutover.md once the release is out.",
+    "sources": [
+      "docs/operations/guardian-owner-storage-cutover.md",
+      "docs/operations/guardian-owner-storage-cutover.sql",
+      "backend/database/migrations/guardian_owner_cutover_test.go",
+      "backend/database/repositories/users/guardian_relationships_unit_of_work_test.go",
+      "backend/modules/peopledirectory/compose/guardian_link_owners_test.go",
+      "backend/test/guardian_storage_caller_inventory_test.go",
+      "backend/test/query_budgets.go"
+    ],
+    "workload": "go test through scripts/run-go-toolchain.sh against the local postgres-test server with per-test tenants and default package parallelism: the migration, owner, unit-of-work, query-budget and ratchet suites listed under tests.",
+    "thresholds": "Every listed suite passes with unchanged assertion strength; the query-budget register is unchanged; the architecture check reports no new violation and no loosening; the caller inventory reports zero hits; the observation SQL reports zero mirror, binding and completeness drift.",
+    "affected_rows": {
+      "state": "measured",
+      "result": "The migration tests copy the final delta of a school with edited, deleted, new and re-primaried links and a newly bound account and report equal counts and checksums; the unit-of-work tests leave zero relationship, pickup and access rows after every injected owner failure and exactly one of each after the retry."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The query-budget tests pass with backend/test/query_budgets.go unchanged: every retained read joins the relationship, the pickup permission and the access row in one statement through the guardian-link projection, and the Communication projections keep one statement per question."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "Local clone latencies are not representative; the runbook records p50 of the owner commands during the staging rollback window."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "Local clone latencies are not representative; the runbook records p95 of the owner commands and the guardian list endpoints during the staging rollback window."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "The listed suites and scripts/test-changed.sh origin/development exit 0 with no failing test and no panic; a command naming another school fails with the owner's tenant-mismatch error and a foreign school's write changes zero rows."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection is acquired differently: the owner commands and the projection reads run on the caller's tenant or administrative connection; the migration uses the migration CLI's administrative connection like the backfill it completes."
+    },
+    "lock_wait": {
+      "state": "measured",
+      "result": "The cutover holds ACCESS EXCLUSIVE locks on the four guardian tables and users.guardian_profiles with lock_timeout 5s and statement_timeout 60s inside one transaction; TestGuardianOwnerCutoverRollsBackWithAFailingSwitch proves a failing switch releases them with a full rollback. The runbook samples pg_stat_activity lock waits during the window."
+    },
+    "deadlocks": {
+      "state": "measured",
+      "result": "No deadlock in the local suites; every link write takes the relationship row lock first and then writes the pickup permission and the access row, and the runbook records pg_stat_database.deadlocks with stats_reset."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The cutover has no worker path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The cutover has no worker path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The cutover has no worker path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "A failure after any owner command rolls back the whole link, also when the caller commits; a foreign school cannot read, change or delete another school's link; the migration refuses a school without a completed backfill pass, an uncopyable row and a second switch."
+    },
+    "rollback": {
+      "state": "measured",
+      "result": "TestGuardianCompatibilityRoutesPreviousImageWrites proves the previous image's inserts (including ON CONFLICT), updates, promotions and deletes on the mirror land in the owners and are counted; TestGuardianCompatibilityMirrorsOwnerWrites proves owner writes land in the mirror without counted hits; the down migration refuses and the runbook deploys the previous image against the retained shape."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passes with the 568 baseline violations unchanged, no key removed or added, and composition surface 623 -> 623; the caller inventory, module ratchets and query budgets pass."
+    }
+  },
+  "rollback_and_cleanup": "Deploy the previous image against the retained mirror; do not run a down migration, do not drop the mirror, the triggers or the counter, do not truncate the owner tables. The backfill, its reset and its rollback refuse after the switch. #2757 removes the mirror, the routing and mirror triggers, the old grant invalidation functions and the counter after the rollback window.",
+  "exit_criterion": "Every caller uses People Directory's relationship store with the Care Plan and Identity & Access commands, the People Directory portal commands, or the guardian-link projection; exactly one provider writes each field (the People Directory adapters the relationship, the Care Plan adapter the pickup permission, the Identity & Access adapter the portal access, the migration triggers the mirror and the account binding); the final-delta checksums are equal per school; compatibility writes are observable through users.students_guardians_compatibility_writes; scripts/backend-architecture.sh check removes no key, introduces no key and leaves ownership unchanged."
+}

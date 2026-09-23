@@ -121,7 +121,7 @@ type StudentGuardianUpdateRequest struct {
 
 func (req *StudentGuardianUpdateRequest) Bind(_ *http.Request) error { return nil }
 
-// GuardianLinkResponse is one students_guardians row on the wire. It keeps
+// GuardianLinkResponse is one student-guardian relationship on the wire. It keeps
 // the field names of the persisted row the link endpoint used to echo.
 type GuardianLinkResponse struct {
 	ID                 int64           `json:"id"`

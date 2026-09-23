@@ -468,6 +468,8 @@ func mapError(err error) error {
 		return identityaccess.ErrTenantRequired
 	case errors.Is(err, domain.ErrGuardianRoleMissing):
 		return identityaccess.ErrGuardianRoleMissing
+	case errors.Is(err, domain.ErrGuardianStudentAccessTenantMismatch):
+		return fmt.Errorf("%w: %w", identityaccess.ErrGuardianStudentAccessTenantMismatch, err)
 	case errors.Is(err, domain.ErrOperatorNotFound):
 		return identityaccess.ErrOperatorNotFound
 	case errors.Is(err, domain.ErrOperatorSessionNotFound):

@@ -35,7 +35,7 @@ func TestEmergencySnapshotRuntimeEvidence(t *testing.T) {
 	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{DB: db, DeletionLock: func(context.Context) error { return nil }, DeletionGuard: func(context.Context, int64) error { return nil }, Observe: func(facilitiesCompose.Observation) {}})
 	require.NoError(t, err)
 	query, err := New(Sources{Presence: newPresenceModule(t, db), PresenceMode: fakeMode{mode: "detailed"},
-		Students: newOwnerStudentSource(t, db), Persons: people, Contacts: usersRepo.NewStudentGuardianRepository(db),
+		Students: newOwnerStudentSource(t, db), Persons: people, Contacts: usersRepo.NewGuardianRelationshipRepository(db),
 		Rooms: rooms, Settings: &fakeSettings{enabled: true}, Renderer: listexport.NewService()})
 	require.NoError(t, err)
 	var postgres string

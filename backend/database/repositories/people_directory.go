@@ -64,6 +64,7 @@ func NewPeopleDirectoryWithPhotosAndObserver(
 		StudentConsentHistory: NewStudentConsentHistory(db),
 		StudentPhotoRuntime:   func() peopleCompose.StudentPhotoRuntime { return *photoRuntime },
 		StudentCompanions:     NewStudentCompanionSeam(companions),
+		GuardianLinkOwners:    newGuardianLinkOwners(db),
 	},
 		newIdentityAccess(db, nil).FindActiveGuardianMemberships,
 	)

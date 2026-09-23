@@ -123,7 +123,7 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	perm := authorize.GuardianPermissionPortalAccess
 
-	unbound := usersRepo.NewStudentGuardianRepository(db)
+	unbound := usersRepo.NewGuardianRelationshipRepository(db)
 	_, err := unbound.AccountHasStudentPermission(ctx, chain.AccountID, chain.StudentID, chain.TenantID, perm)
 	require.Error(t, err)
 	_, err = unbound.FilterAccountsWithStudentAccess(ctx, []int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID, perm)
@@ -134,7 +134,7 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 	_, err = usersRepo.NewMessageableGuardianRepository(db, nil).ListGuardiansForStudent(ctx, chain.StudentID)
 	require.Error(t, err)
 	lookupFailure := errors.New("school membership lookup failed")
-	failingRelationships := usersRepo.NewStudentGuardianRepository(db, usersRepo.WithStudentGuardianMemberships(
+	failingRelationships := usersRepo.NewGuardianRelationshipRepository(db, usersRepo.WithGuardianRelationshipMemberships(
 		func(_ context.Context, accountIDs, schoolIDs []int64) (map[int64][]int64, error) {
 			require.Equal(t, []int64{chain.AccountID}, accountIDs)
 			require.Equal(t, []int64{chain.TenantID}, schoolIDs)

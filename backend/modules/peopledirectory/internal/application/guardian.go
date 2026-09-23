@@ -11,16 +11,19 @@ import (
 // GuardianService serves the row-level guardian reads over the same
 // transaction and observation seams as the person service.
 type GuardianService struct {
-	store   ports.GuardianStore
+	store ports.GuardianStore
+	// owners writes the Care Plan and Identity & Access halves of a link.
+	// Optional: a graph without it refuses only the link writes.
+	owners  ports.GuardianLinkOwners
 	tx      ports.Transaction
 	observe ports.Observer
 }
 
-func NewGuardians(store ports.GuardianStore, tx ports.Transaction, observe ports.Observer) *GuardianService {
+func NewGuardians(store ports.GuardianStore, owners ports.GuardianLinkOwners, tx ports.Transaction, observe ports.Observer) *GuardianService {
 	if store == nil || tx == nil || observe == nil {
 		panic("people directory application: all guardian dependencies are required")
 	}
-	return &GuardianService{store: store, tx: tx, observe: observe}
+	return &GuardianService{store: store, owners: owners, tx: tx, observe: observe}
 }
 
 func (s *GuardianService) ListLinksByAccount(ctx context.Context, accountID int64) (result []domain.GuardianLink, err error) {

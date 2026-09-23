@@ -494,11 +494,13 @@ jobs:
             SELECT count(*) FROM platform.demo_school_states d
             JOIN users.guardian_profiles g ON g.account_id = d.visitor_parent_account_id AND g.tenant_id = d.tenant_id
             WHERE d.name LIKE 'ogs-smoke-%' AND g.first_name = 'Kim' AND g.last_name = 'Beispiel'
-              AND (SELECT count(*) FROM users.students_guardians sg WHERE sg.guardian_profile_id = g.id) = 1
-              AND (SELECT count(*) FROM users.students_guardians sg WHERE sg.guardian_profile_id = g.id
-                   AND sg.guardian_role = 'primary_guardian' AND (sg.permissions ->> 'parent_portal.access')::boolean) = 1
+              AND (SELECT count(*) FROM users.student_guardian_relationships sg WHERE sg.guardian_profile_id = g.id) = 1
+              AND (SELECT count(*) FROM users.student_guardian_relationships sg
+                   JOIN auth.guardian_student_access sga ON sga.tenant_id = sg.tenant_id AND sga.relationship_id = sg.id
+                   WHERE sg.guardian_profile_id = g.id
+                   AND sg.guardian_role = 'primary_guardian' AND (sga.permissions ->> 'parent_portal.access')::boolean) = 1
               AND (SELECT count(*) FROM users.guardian_profiles other
-                   JOIN users.students_guardians sg ON sg.guardian_profile_id = other.id
+                   JOIN users.student_guardian_relationships sg ON sg.guardian_profile_id = other.id
                    WHERE other.account_id = d.visitor_parent_account_id) = 1")
           echo "demo schools with the visitor's parent: ${parents}"
           test "${parents}" = 3

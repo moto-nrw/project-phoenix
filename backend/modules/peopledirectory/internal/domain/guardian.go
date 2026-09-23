@@ -30,7 +30,7 @@ type Guardian struct {
 // account see the child.
 const GuardianPermissionPortalAccess = "parent_portal.access"
 
-// GuardianLink is one users.students_guardians row. Permissions carries the
+// GuardianLink is one student-guardian relationship. Permissions carries the
 // granted parents-portal permission names.
 type GuardianLink struct {
 	ID                 int64

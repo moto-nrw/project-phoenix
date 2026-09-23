@@ -214,7 +214,7 @@ type SubmitRequest struct {
 
 	// AdditionalGuardians are the co-guardians the parent added beyond
 	// the primary guardian above. Stored in enrollment.request_guardians
-	// and materialized as additional users.students_guardians links on
+	// and materialized as additional student-guardian relationships on
 	// approval. Email/phone are optional per co-guardian.
 	AdditionalGuardians []SubmitGuardian
 }
@@ -1180,7 +1180,7 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 // guardian and each other. Email/phone are optional per co-guardian; only
 // first + last name are required. The primary guardian is the source of
 // truth — a co-guardian that duplicates it is dropped so approval never
-// creates two students_guardians links to the same profile.
+// creates two student-guardian relationships to the same profile.
 func normalizeAdditionalGuardians(req *SubmitRequest) error {
 	if len(req.AdditionalGuardians) == 0 {
 		return nil
