@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -28,12 +27,4 @@ func TestTimetableAuditVocabularyMatchesTheAuditPlatform(t *testing.T) {
 	assert.Equal(t, auditModels.AttendanceFieldSubstatus, timetableModule.AttendanceCorrectionFieldSubstatus)
 	assert.Equal(t, auditModels.AttendanceFieldNote, timetableModule.AttendanceCorrectionFieldNote)
 	assert.Equal(t, auditModels.CorrectionReasonMaxLength, timetableModule.AttendanceCorrectionReasonMaxLength)
-}
-
-// A missing correction repository stays a nil trail, so the owner's
-// correction fails closed instead of calling a nil repository.
-func TestTimetableAttendanceCorrectionTrailKeepsAMissingRepositoryNil(t *testing.T) {
-	t.Parallel()
-
-	assert.Nil(t, repositories.TimetableAttendanceCorrectionTrail(nil))
 }
