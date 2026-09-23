@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 type seedPlanningDemoStep struct{}
@@ -356,16 +354,14 @@ func createSeedTargetVariants(rt *Runtime, roomID, categoryID, trackID int64, st
 // closing day (today+40, seed_operations.go), but never after the default
 // school year (1 Aug to 31 Jul) that bootstraps the planning period.
 func holidayCareLastDay(today seedDate) seedDate {
-	day := timezone.NewDate(today.Year(), today.Month(), today.Day())
-	endYear := day.Year()
-	if day.Month() >= time.August {
-		endYear++
+	yearEnd := time.Date(today.Year(), time.July, 31, 0, 0, 0, 0, time.UTC)
+	if today.Month() >= time.August {
+		yearEnd = yearEnd.AddDate(1, 0, 0)
 	}
-	last := day.AddDays(44)
-	if yearEnd := timezone.NewDate(endYear, time.July, 31); last.After(yearEnd) {
-		last = yearEnd
+	if last := today.AddDays(44); !last.After(yearEnd) {
+		return last
 	}
-	return seedDate{Time: last.UTCMidnight()}
+	return seedDate{Time: yearEnd}
 }
 
 func orderedSeedStudentIDs(fs *FixedSeeder) []int64 {

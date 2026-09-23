@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -116,9 +116,9 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 func TestHolidayCareLastDayStaysInTheSchoolYear(t *testing.T) {
 	t.Parallel()
 	at := func(value string) seedDate {
-		day, err := timezone.ParseDate(value)
+		day, err := time.Parse(seedDateLayout, value)
 		require.NoError(t, err)
-		return seedDate{Time: day.UTCMidnight()}
+		return seedDate{Time: day}
 	}
 	assert.Equal(t, "2026-11-06", holidayCareLastDay(at("2026-09-23")).String())
 	assert.Equal(t, "2027-07-31", holidayCareLastDay(at("2027-07-01")).String())
