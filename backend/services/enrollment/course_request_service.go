@@ -58,18 +58,12 @@ func (s *offeringChangeRequestService) courseProjection() (CourseProjectionReade
 	return reader, nil
 }
 
+// Legacy names of the Care Plan decision error contract (#3558).
 var (
-	// ErrCourseRequestsDisabled means the school has parent course requests
-	// switched off (or the offering-change machinery they run on).
 	ErrCourseRequestsDisabled = careplan.ErrCourseRequestsDisabled
-	// ErrCourseNotFound means the id is not a course the child may request:
-	// unknown, not bound to an AG, or not part of the child's care period.
-	ErrCourseNotFound = careplan.ErrCourseNotFound
-	// ErrCourseAlreadyBooked means the child already holds that course.
-	ErrCourseAlreadyBooked = careplan.ErrCourseAlreadyBooked
-	// ErrCourseRequestNotOwn means the pending request is not a course request
-	// the caller submitted, so it must not be withdrawn here.
-	ErrCourseRequestNotOwn = careplan.ErrCourseRequestNotOwn
+	ErrCourseNotFound         = careplan.ErrCourseNotFound
+	ErrCourseAlreadyBooked    = careplan.ErrCourseAlreadyBooked
+	ErrCourseRequestNotOwn    = careplan.ErrCourseRequestNotOwn
 )
 
 // Reasons a school has no course requests. Wire-stable identifiers; the German

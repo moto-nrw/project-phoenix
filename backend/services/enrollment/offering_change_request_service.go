@@ -63,24 +63,13 @@ func offeringChangeApprovedBody(effectiveFrom timezone.Date) string {
 		effectiveFrom.Format("02.01.2006") + " umgestellt"
 }
 
+// Legacy names of the Care Plan decision error contract (#3558).
 var (
-	// ErrOfferingChangeDisabled means the school has post-enrollment changes
-	// switched off.
-	ErrOfferingChangeDisabled = careplan.ErrOfferingChangeDisabled
-	// ErrOfferingChangeInvalid marks a request the caller can correct: no
-	// selection, an unknown offering, a bad effective date.
-	ErrOfferingChangeInvalid = careplan.ErrOfferingChangeInvalid
-	// ErrOfferingChangeNoEnrollment means the child has no approved enrollment
-	// an offering change could be applied to.
-	ErrOfferingChangeNoEnrollment = careplan.ErrOfferingChangeNoEnrollment
-	// ErrOfferingChangeForbidden means the caller does not own the request.
-	ErrOfferingChangeForbidden = careplan.ErrOfferingChangeForbidden
-	// ErrOfferingChangeCapacityFull means an offering in the request has no free
-	// slot left. Raised at approval time, when it actually matters.
-	ErrOfferingChangeCapacityFull = careplan.ErrOfferingChangeCapacityFull
-	// ErrOfferingChangeDateOutOfRange means the reviewer confirmed a date the
-	// switch cannot take effect on: before today, or outside the care period the
-	// request belongs to.
+	ErrOfferingChangeDisabled       = careplan.ErrOfferingChangeDisabled
+	ErrOfferingChangeInvalid        = careplan.ErrOfferingChangeInvalid
+	ErrOfferingChangeNoEnrollment   = careplan.ErrOfferingChangeNoEnrollment
+	ErrOfferingChangeForbidden      = careplan.ErrOfferingChangeForbidden
+	ErrOfferingChangeCapacityFull   = careplan.ErrOfferingChangeCapacityFull
 	ErrOfferingChangeDateOutOfRange = careplan.ErrOfferingChangeDateOutOfRange
 )
 

@@ -52,6 +52,10 @@ func TestCarePlanDecisionErrorContract(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			if tt.legacy == tt.returned {
+				// A legacy name of this package is the owner value itself.
+				assert.True(t, tt.returned == tt.owner, "legacy name must alias the owner value") //nolint:errorlint // identity is the contract
+			}
 			wrapped := fmt.Errorf("decide: %w", tt.returned)
 
 			assert.ErrorIs(t, wrapped, tt.owner)
