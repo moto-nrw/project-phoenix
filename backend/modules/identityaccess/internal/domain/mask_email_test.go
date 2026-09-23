@@ -16,15 +16,17 @@ func TestMaskEmail(t *testing.T) {
 		input    string
 		expected string
 	}{
-		"normal address":       {"operator@example.com", "o***@example.com"},
-		"mfa hint":             {"jane@example.com", "j***@example.com"},
-		"two-character local":  {"ab@example.com", "***@example.com"},
-		"one-character local":  {"a@example.com", "***@example.com"},
-		"empty":                {"", "***"},
-		"no at sign":           {"invalid-email", "***"},
-		"empty local part":     {"@example.com", "***"},
-		"long local part":      {"verylonglocalpart@domain.org", "v***@domain.org"},
-		"three-character part": {"abc@domain.org", "a***@domain.org"},
+		"normal address":         {"operator@example.com", "o***@example.com"},
+		"mfa hint":               {"jane@example.com", "j***@example.com"},
+		"two-character local":    {"ab@example.com", "***@example.com"},
+		"one-character local":    {"a@example.com", "***@example.com"},
+		"empty":                  {"", "***"},
+		"no at sign":             {"invalid-email", "***"},
+		"empty local part":       {"@example.com", "***"},
+		"long local part":        {"verylonglocalpart@domain.org", "v***@domain.org"},
+		"three-character part":   {"abc@domain.org", "a***@domain.org"},
+		"unicode local part":     {"ümlaut@example.com", "ü***@example.com"},
+		"two unicode characters": {"äö@example.com", "***@example.com"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

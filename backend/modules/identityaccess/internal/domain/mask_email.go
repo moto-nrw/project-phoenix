@@ -16,8 +16,9 @@ func MaskEmail(address string) string {
 	if !ok || local == "" {
 		return "***"
 	}
-	if len(local) <= 2 {
+	localRunes := []rune(local)
+	if len(localRunes) <= 2 {
 		return "***@" + domain
 	}
-	return local[:1] + "***@" + domain
+	return string(localRunes[0]) + "***@" + domain
 }
