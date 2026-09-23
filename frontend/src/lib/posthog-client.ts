@@ -1,7 +1,14 @@
-import type { PostHogConfig, Properties } from "posthog-js";
+import type { Properties } from "posthog-js";
 import { clientEnv } from "~/env.client";
+import { analyticsDeployment } from "~/lib/analytics-deployment";
+import {
+  analyticsInitOptions,
+  analyticsSurfaceForHost,
+  filterAnalyticsEvent,
+  type AnalyticsContext,
+  type AnalyticsSurface,
+} from "~/lib/analytics-policy";
 import { createLogger } from "~/lib/logger";
-import { sanitizePostHogEvent } from "~/lib/posthog-privacy";
 
 type PostHog = (typeof import("posthog-js"))["default"];
 type Operation = (posthog: PostHog) => void;
@@ -16,31 +23,48 @@ let instance: PostHog | null = null;
 let initialization: Promise<void> | null = null;
 let initializationFailed = false;
 
-const postHogOptions = {
-  api_host: clientEnv.NEXT_PUBLIC_POSTHOG_HOST,
-  defaults: "2026-01-30",
-  autocapture: false,
-  rageclick: false,
-  capture_pageview: false,
-  capture_pageleave: false,
-  capture_performance: false,
-  capture_heatmaps: false,
-  capture_dead_clicks: false,
-  capture_exceptions: false,
-  disable_scroll_properties: true,
-  disable_session_recording: true,
-  persistence: "memory",
-  disable_persistence: true,
-  person_profiles: "never",
-  save_referrer: false,
-  save_campaign_params: false,
-  disable_surveys: true,
-  advanced_disable_flags: true,
-  before_send: sanitizePostHogEvent,
-} satisfies Partial<PostHogConfig>;
+// undefined: not resolved yet; null: this host has no analytics (operator).
+let hostSurface: AnalyticsSurface | null | undefined;
+let context: AnalyticsContext | null = null;
+
+function startSurface(): AnalyticsSurface | null {
+  if (hostSurface === undefined) {
+    hostSurface = analyticsSurfaceForHost(window.location.host, {
+      operator: clientEnv.NEXT_PUBLIC_OPERATOR_HOSTNAME,
+      parents: clientEnv.NEXT_PUBLIC_PARENTS_HOSTNAME,
+      school: clientEnv.NEXT_PUBLIC_SCHOOL_HOSTNAME,
+      tenantDomain: clientEnv.NEXT_PUBLIC_TENANT_DOMAIN,
+    });
+  }
+  return hostSurface;
+}
+
+function startContext(): AnalyticsContext | null {
+  const surface = startSurface();
+  if (!surface) return null;
+  return {
+    deployment: analyticsDeployment(),
+    surface,
+    analyseFreigabe: false,
+  };
+}
+
+function currentContext(): AnalyticsContext | null {
+  context ??= startContext();
+  return context;
+}
+
+function analyticsEnabled(): boolean {
+  return (
+    Boolean(clientEnv.NEXT_PUBLIC_POSTHOG_KEY) &&
+    !initializationFailed &&
+    typeof window !== "undefined" &&
+    currentContext() !== null
+  );
+}
 
 function execute(name: string, run: Operation): void {
-  if (!clientEnv.NEXT_PUBLIC_POSTHOG_KEY || initializationFailed) return;
+  if (!analyticsEnabled()) return;
 
   if (!instance) {
     pendingOperations.push({ name, run });
@@ -71,6 +95,17 @@ export function resetAndCapturePostHog(
   });
 }
 
+/**
+ * Sets the portal of the analytics context. The filter reads the context for
+ * every event, so the change applies to the next event, before and after the
+ * SDK has loaded.
+ */
+export function setAnalyticsSurface(surface: AnalyticsSurface): void {
+  const current = currentContext();
+  if (!current) return;
+  context = { ...current, surface };
+}
+
 export function setPostHogContext(
   properties: Properties,
   resetFirst: boolean,
@@ -82,22 +117,30 @@ export function setPostHogContext(
 }
 
 export function clearPostHogContext(): void {
+  if (currentContext()) context = startContext();
   execute("clear_context", (posthog) => {
     posthog.unregister("school_id");
-    posthog.unregister("$groups");
-    posthog.unregister("deployment");
+    posthog.unregister("role");
     posthog.reset();
   });
 }
 
 export function initializePostHog(): Promise<void> {
   const key = clientEnv.NEXT_PUBLIC_POSTHOG_KEY;
-  if (!key) return Promise.resolve();
+  const startingContext =
+    typeof window === "undefined" ? null : currentContext();
+  if (!key || !startingContext) return Promise.resolve();
   if (initialization) return initialization;
 
   initialization = import("posthog-js")
     .then(({ default: posthog }) => {
-      posthog.init(key, postHogOptions);
+      posthog.init(key, {
+        ...analyticsInitOptions(startingContext, window.location.hostname),
+        before_send: (captureResult) => {
+          const active = currentContext();
+          return active ? filterAnalyticsEvent(active, captureResult) : null;
+        },
+      });
       instance = posthog;
 
       for (const operation of pendingOperations.splice(0)) {
@@ -116,7 +159,7 @@ export function initializePostHog(): Promise<void> {
 }
 
 export function schedulePostHogInitialization(): void {
-  if (!clientEnv.NEXT_PUBLIC_POSTHOG_KEY) return;
+  if (!analyticsEnabled()) return;
 
   const initialize = () => void initializePostHog();
   if (typeof window.requestIdleCallback === "function") {

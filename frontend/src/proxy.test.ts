@@ -6,14 +6,12 @@ const OPERATOR_HOSTNAME = "operator.localhost:3000";
 const PARENTS_HOSTNAME = "parents.localhost:3000";
 const SCHOOL_HOSTNAME = "schule.localhost:3000";
 const POSTHOG_KEY = "phc_test_key_123";
-const POSTHOG_HOST = "https://eu.i.posthog.com";
 
 vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", OPERATOR_HOSTNAME);
 vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", PARENTS_HOSTNAME);
 vi.stubEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME", SCHOOL_HOSTNAME);
 vi.stubEnv("TENANT_DOMAIN", "localhost");
 vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", POSTHOG_KEY);
-vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", POSTHOG_HOST);
 
 // Import after env is stubbed , proxy reads the env var at module load
 const { proxy } = await import("./proxy");
@@ -61,31 +59,107 @@ describe("proxy env validation", () => {
     // Restore
     vi.stubEnv("TENANT_DOMAIN", "localhost");
   });
+});
 
-  it("rejects a non-HTTP PostHog ingestion URL", async () => {
-    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "data:text/plain,analytics");
+// Usage analytics (#3601): PostHog EU behind the same-origin /ingest proxy.
+describe("PostHog reverse proxy", () => {
+  function ingestRequest(url: string, host: string): NextRequest {
+    const req = makeRequest(url, host);
+    req.headers.set("cookie", "tenant.session-token=secret-jwt");
+    req.headers.set("authorization", "Bearer secret-jwt");
+    req.headers.set("referer", `http://${host}/students/123?token=secret`);
+    req.headers.set("x-forwarded-for", "203.0.113.7");
+    req.headers.set("user-agent", "browser fingerprint");
+    req.headers.set("content-type", "text/plain");
+    return req;
+  }
 
-    await expect(
-      // @ts-expect-error query string forces fresh module evaluation
-      import("./proxy?invalid-posthog-protocol"),
-    ).rejects.toThrow(
-      "NEXT_PUBLIC_POSTHOG_HOST must use the http or https protocol",
+  it.each([
+    ["school-a.localhost:3000", "tenant host"],
+    [PARENTS_HOSTNAME, "parents host"],
+    [SCHOOL_HOSTNAME, "school host"],
+    ["localhost:3000", "bare domain"],
+  ])("forwards /ingest to the EU ingestion host on the %s (%s)", (host) => {
+    const res = proxy(
+      ingestRequest(`http://${host}/ingest/i/v0/e/?ip=0&ver=1.415.2`, host),
     );
 
-    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", POSTHOG_HOST);
+    expect(res.headers.get("location")).toBeNull();
+    expect(res.headers.get("x-middleware-rewrite")).toBe(
+      "https://eu.i.posthog.com/i/v0/e/?ip=0&ver=1.415.2",
+    );
   });
 
-  it("rejects an analytics key without an explicit ingestion host", async () => {
-    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "");
+  it("forwards SDK assets and remote config to the EU asset host", () => {
+    const host = "school-a.localhost:3000";
 
-    await expect(
-      // @ts-expect-error query string forces fresh module evaluation
-      import("./proxy?missing-posthog-host"),
-    ).rejects.toThrow(
-      "NEXT_PUBLIC_POSTHOG_HOST is required when NEXT_PUBLIC_POSTHOG_KEY is set",
+    expect(
+      proxy(
+        ingestRequest(`http://${host}/ingest/static/recorder.js`, host),
+      ).headers.get("x-middleware-rewrite"),
+    ).toBe("https://eu-assets.i.posthog.com/static/recorder.js");
+    expect(
+      proxy(
+        ingestRequest(`http://${host}/ingest/array/phc_x/config.js`, host),
+      ).headers.get("x-middleware-rewrite"),
+    ).toBe("https://eu-assets.i.posthog.com/array/phc_x/config.js");
+  });
+
+  it("forwards no cookie, credential, referrer, or client address", () => {
+    const host = "school-a.localhost:3000";
+    const res = proxy(ingestRequest(`http://${host}/ingest/flags/?v=2`, host));
+
+    const forwarded = res.headers
+      .get("x-middleware-override-headers")
+      ?.split(",")
+      .map((name) => name.trim())
+      .sort();
+    expect(forwarded).toEqual(["content-type"]);
+    expect(getForwardedRequestHeader(res, "content-type")).toBe("text/plain");
+  });
+
+  it("never proxies to another host", () => {
+    const host = "school-a.localhost:3000";
+    const res = proxy(
+      ingestRequest(`http://${host}/ingest//evil.example/x`, host),
     );
 
-    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", POSTHOG_HOST);
+    const rewrite = res.headers.get("x-middleware-rewrite");
+    expect(
+      rewrite === null || new URL(rewrite).host === "eu.i.posthog.com",
+    ).toBe(true);
+  });
+
+  it("keeps the analytics CSP same-origin", () => {
+    const res = proxy(
+      makeRequest("http://school.localhost:3000/dashboard", "school.localhost"),
+    );
+
+    const csp = res.headers.get("Content-Security-Policy") ?? "";
+    expect(csp).toContain("connect-src 'self';");
+    expect(csp).not.toMatch(/posthog/i);
+  });
+});
+
+describe("trailing slash", () => {
+  it("drops the trailing slash of app paths, as Next.js did before", () => {
+    const res = proxy(
+      makeRequest(
+        "http://school-a.localhost:3000/students/42/?tab=akte",
+        "school-a.localhost:3000",
+      ),
+    );
+
+    expect(res.status).toBe(308);
+    expect(res.headers.get("location")).toBe("/students/42?tab=akte");
+  });
+
+  it("leaves the root path alone", () => {
+    const res = proxy(
+      makeRequest("http://school-a.localhost:3000/", "school-a.localhost:3000"),
+    );
+
+    expect(res.status).not.toBe(308);
   });
 });
 
@@ -135,16 +209,6 @@ describe("proxy", () => {
       expect(location.pathname).toBe("/rooms/unterwegs");
       expect(location.searchParams.get("from")).toBe("/rooms?building=Nord");
     });
-  });
-
-  it("allows the configured PostHog ingestion origin in connect-src", () => {
-    const res = proxy(
-      makeRequest("http://school.localhost:3000/dashboard", "school.localhost"),
-    );
-
-    expect(res.headers.get("Content-Security-Policy")).toContain(
-      `connect-src 'self' ${POSTHOG_HOST}`,
-    );
   });
 
   it("preserves x-forwarded-host as the original request host", () => {
