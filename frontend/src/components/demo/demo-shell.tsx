@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { MotoBrand } from "~/components/auth/auth-shell";
+import { MotoBrand } from "~/components/auth/moto-brand";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Loading } from "~/components/ui/loading";
