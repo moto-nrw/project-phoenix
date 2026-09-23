@@ -1,3 +1,4 @@
+import { DemoShell } from "~/components/demo/demo-shell";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { SectionCard } from "~/components/ui/section-card";
 import {
@@ -15,7 +16,7 @@ export function DemoRoleChoice({
   readonly onChoose: (role: DemoRole) => void;
 }) {
   return (
-    <main className="flex min-h-dvh items-center justify-center px-4 py-8">
+    <DemoShell>
       <SectionCard
         headingLevel={1}
         title={DEMO_ROLE_CHOICE_TITLE}
@@ -40,6 +41,6 @@ export function DemoRoleChoice({
           ))}
         </div>
       </SectionCard>
-    </main>
+    </DemoShell>
   );
 }
