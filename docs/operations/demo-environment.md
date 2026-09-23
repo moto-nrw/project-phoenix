@@ -1,7 +1,8 @@
 # Public demo environment
 
-The public demo is a separate deployment on the existing host (ADR 0029).
-Its Compose project is `demo`, its directory is `~/demo`, and its data is
+The public demo runs on its own VM, apart from the staging and production host
+(ADR 0029, host decision in #3460). Its Compose project is `demo`, its
+directory is `~/demo`, and its data is
 synthetic. Never restore staging or production data into this environment.
 The provisioning API, simulator and demo banner are separate work in #3456.
 
@@ -19,36 +20,70 @@ The provisioning API, simulator and demo banner are separate work in #3456.
 Compose owns the `demo` network and PostgreSQL volume within its own project.
 The uploads volume is explicitly named `phoenix-demo-uploads`. Nothing mounts
 the staging or production volumes. Containers reach the API as `server:8080`
-and PostgreSQL as `postgres:5432`, never through a public host.
+and PostgreSQL as `postgres:5432`, never through a public host. For read-only
+database access, open a tunnel: `ssh -L 5434:127.0.0.1:5434 root@<DEMO_HOST>`.
 
-Point `demo.moto-app.de` and `*.demo.moto-app.de` at the host. Caddy must route
-`api.demo.moto-app.de` to port 8082 before its wildcard frontend route to 3002.
-Preserve Host and the forwarded protocol. The wildcard covers operator,
-parents, school and tenant hosts; the bare `demo.moto-app.de` needs its own
-certificate name. A certificate for `*.moto-app.de` does **not** cover these
-second-level hosts.
+## Host
 
-Provision a certificate covering `demo.moto-app.de` and `*.demo.moto-app.de`
-through ACME DNS-01. Use the host's DNS-provider module and secret store, or
-mount a certificate managed by the existing DNS-01 tooling. With a managed
-certificate, the Caddy routing shape is:
+| Setting | Value |
+| --- | --- |
+| Provider | Hetzner Cloud, project `moto-demo`, server `moto-demo` |
+| Location | `nbg1`, same as production |
+| Type | CPX22 (2 vCPU, 4 GB RAM, 80 GB). Scale up to 4 vCPU / 8 GB when load or active demo schools grow; rescaling reboots and keeps the IP, and a disk upgrade cannot be undone. |
+| OS | Ubuntu 26.04 LTS |
+| Firewall | Hetzner firewall `moto-demo-fw`: inbound TCP 22, 80, 443 only |
+| SSH | `root`, with a personal key and the CI deploy key behind `DEMO_SSH_KEY` |
+| Backups | None at Hetzner (synthetic data); take a snapshot before trade fairs |
+
+Ubuntu 26.04 ships Rust coreutils (uutils) and `sudo-rs`. The release scripts
+use only basic flags. If a GNU-specific behavior breaks a host command,
+`apt install coreutils-from-gnu` switches back without rebuilding the VM.
+
+Docker Engine and the Compose plugin come from Docker's apt repository.
+journald stores logs persistently; all four services log to it with the tags
+`demo-postgres`, `demo-server`, `demo-frontend` and `demo-runtime`.
+
+## DNS, certificate and Caddy
+
+Cloudflare points `demo.moto-app.de` and `*.demo.moto-app.de` (A and AAAA) at
+the VM, DNS only (grey cloud): Caddy terminates TLS itself. The wildcard covers
+operator, parents, school and tenant hosts; the bare `demo.moto-app.de` needs
+its own certificate name. A certificate for `*.moto-app.de` does **not** cover
+these second-level hosts.
+
+Caddy obtains and renews one certificate for both names through ACME DNS-01,
+the same wiring as production:
+
+- Caddy comes from its apt repository with the `caddy-dns/cloudflare` module
+  added by `caddy add-package`. The package is on `apt-mark hold`, since an apt
+  upgrade would replace the custom binary; update it with `caddy upgrade`,
+  which keeps added modules.
+- The Cloudflare token (`Zone:DNS:Edit` on `moto-app.de`, restricted to the
+  VM's IPs) lives in `/etc/caddy/cloudflare.env` (mode 600, owner `caddy`) and
+  reaches Caddy through the systemd drop-in
+  `/etc/systemd/system/caddy.service.d/cloudflare.conf`.
+
+Caddy must route `api.demo.moto-app.de` to port 8082 before its wildcard
+frontend route to 3002. `reverse_proxy` preserves Host and the forwarded
+protocol. `/etc/caddy/Caddyfile`:
 
 ```caddyfile
 demo.moto-app.de, *.demo.moto-app.de {
-    tls /path/to/demo-fullchain.pem /path/to/demo-private-key.pem
-    @api host api.demo.moto-app.de
-    handle @api {
-        reverse_proxy 127.0.0.1:8082
-    }
-    handle {
-        reverse_proxy 127.0.0.1:3002
-    }
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+	@api host api.demo.moto-app.de
+	handle @api {
+		reverse_proxy 127.0.0.1:8082
+	}
+	handle {
+		reverse_proxy 127.0.0.1:3002
+	}
 }
 ```
 
-Paths above are operator-supplied certificate paths, not repository files.
-Keep renewal automated. Installing DNS, certificates and host routes is a
-separate host operation; adding this configuration does not publish the demo.
+`caddy validate` needs the token in its environment; run it through
+`systemd-run --pipe -p EnvironmentFile=/etc/caddy/cloudflare.env`.
 
 ## Configuration and images
 
@@ -76,8 +111,9 @@ image digests and configuration.
 
 ## Initial host setup
 
-1. Create `~/demo` with owner-only permissions. Install the demo Compose and
-   SOPS-decrypted env there as `docker-compose.yml` and `.env`. Do not print
+1. Create `~/demo` with owner-only permissions, plus `~/scripts/demo` and
+   `~/backups/demo`. Install the demo Compose and SOPS-decrypted env in
+   `~/demo` as `docker-compose.yml` and `.env` (mode 600). Do not print
    the decrypted file or render Compose values into logs.
 2. Configure GitHub environment `demo` and repository secrets `DEMO_HOST`,
    `DEMO_SSH_KEY`, `DEMO_SSH_KNOWN_HOSTS`, plus the existing `SOPS_AGE_KEY`.
@@ -85,13 +121,13 @@ image digests and configuration.
    remains enabled. Missing demo secrets must not fall back to production.
 3. Before the first workflow deployment, establish a healthy baseline using
    images built from `main`: pin backend `<short SHA>` and frontend
-   `demo-<short SHA>`, pull, start PostgreSQL, run the `migrate` service, then
-   start server and frontend with `--wait`. Record `CURRENT_SHA=<short SHA>`
-   in `.deploy-state`. The release script deliberately requires a running
-   baseline to capture a complete rollback snapshot; it is not a bootstrap tool.
-4. Configure DNS and Caddy as above. Public access should wait for the demo
-   provisioning and mail-delivery restrictions from #3456. This infrastructure
-   change does not add those application restrictions.
+   `demo-<short SHA>`, pull, start PostgreSQL, run the `migrate` service,
+   start server and frontend with `--wait`, then start `demo-runtime` with
+   `docker compose up -d --no-deps demo-runtime`. Record
+   `CURRENT_SHA=<short SHA>` in `.deploy-state`. The release script
+   deliberately requires a running baseline to capture a complete rollback
+   snapshot; it is not a bootstrap tool.
+4. Configure DNS and Caddy as above.
 
 ## Deploy and rollback
 
@@ -102,9 +138,9 @@ uses GitHub environment `demo` and concurrency group `deploy-demo`. Each deploy
 also starts the standing demo school (`demo-runtime`) on the released backend
 image; see [standing demo school](standing-demo.md#deployed-sidecar).
 
-Release scripts are copied to `~/scripts/demo/`. Staging and production use
-their own `~/scripts/<environment>/`, so a demo deploy cannot overwrite a script
-that another environment on the same host is executing.
+Release scripts are copied to `~/scripts/demo/`, the same per-environment
+layout as staging and production, which share their host and rely on separate
+script directories.
 
 For recovery, run **Manual Rollback**, also from `main`, and choose `demo`.
 It shares the deploy concurrency group and server-side lock. Three complete
