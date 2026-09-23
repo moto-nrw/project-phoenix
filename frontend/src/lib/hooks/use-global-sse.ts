@@ -478,6 +478,9 @@ export function useGlobalSSE(): SSEHookState {
         (key) =>
           typeof key === "string" &&
           (key.includes("database-students-list") ||
+            // Kinderkontingent line of the same page (#3569): a child added
+            // or ended elsewhere moves the Kontingentzahl too.
+            key.includes("database-students-child-quota") ||
             // Live "Kinder im Raum" view on /rooms/{id}. Cache key shape is
             // "room-students-{roomId}" — see
             // components/rooms/students-in-room-section.tsx. Student

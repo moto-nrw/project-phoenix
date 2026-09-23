@@ -61,6 +61,36 @@ func (s *Service) countingWrite(ctx context.Context, stats *domain.OperationStat
 	})
 }
 
+// ChildQuotaUsage reads the Kinderkontingent and today's Kontingentzahl for
+// the Datenverwaltung (#3569). A school without Kinderkontingent is not
+// counted. The read takes no quota lock: it shows a snapshot and decides
+// nothing, so a concurrent write may move the number right after it.
+func (s *Service) ChildQuotaUsage(ctx context.Context) (usage domain.ChildQuotaUsage, limited bool, err error) {
+	if s.quota == nil {
+		return domain.ChildQuotaUsage{}, false, errChildQuotaUnbound
+	}
+	err = s.runRead(ctx, "child_quota_usage", func(txCtx context.Context, stats *domain.OperationStats) error {
+		limit, ok, readErr := s.quota.ChildQuotaLimit(txCtx)
+		if readErr != nil {
+			return fmt.Errorf("school membership: read child quota: %w", readErr)
+		}
+		if !ok {
+			return nil
+		}
+		occupied, countStats, countErr := s.store.CountChildQuota(txCtx, s.today())
+		stats.Add(countStats)
+		if countErr != nil {
+			return countErr
+		}
+		usage, limited = domain.ChildQuotaUsage{Booked: limit, Occupied: occupied}, true
+		return nil
+	})
+	if err != nil {
+		return domain.ChildQuotaUsage{}, false, err
+	}
+	return usage, limited, nil
+}
+
 // countingTransition runs the scheduler's conditional pending → active write.
 // Its limit read comes after the compare-and-set, inside the savepoint: a
 // no-op for a child from another tenant must stay a no-op even when that

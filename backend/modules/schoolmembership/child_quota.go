@@ -1,6 +1,7 @@
 package schoolmembership
 
 import (
+	"context"
 	"errors"
 	"fmt"
 )
@@ -60,4 +61,26 @@ const (
 
 func (c ChildQuotaCheck) valid() bool {
 	return c == EnforceChildQuota || c == SkipChildQuotaForGradeTransitionRevert
+}
+
+// ChildQuotaUsage is the school's Kinderkontingent next to its
+// Kontingentzahl, the numbers the Datenverwaltung shows (#3569). Booked is
+// the Kinderkontingent, Occupied the Kontingentzahl of today.
+type ChildQuotaUsage struct {
+	Booked   int
+	Occupied int
+}
+
+// ChildQuotaUsages reads the Kinderkontingent of the tenant in context.
+// limited is false when the school has none; the usage is then empty and
+// the Kontingentzahl is not counted.
+type ChildQuotaUsages interface {
+	ChildQuotaUsage(context.Context) (usage ChildQuotaUsage, limited bool, err error)
+}
+
+func (m *Module) ChildQuotaUsage(ctx context.Context) (ChildQuotaUsage, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return ChildQuotaUsage{}, false, err
+	}
+	return m.engine.ChildQuotaUsage(ctx)
 }

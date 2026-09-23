@@ -1,6 +1,10 @@
 package compose
 
-import "context"
+import (
+	"context"
+
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+)
 
 func (e engine) TransitionStudentStatus(ctx context.Context, id int64, expected, next string) (bool, error) {
 	changed, err := e.service.TransitionStudentStatus(ctx, id, expected, next)
@@ -28,6 +32,11 @@ func (e engine) EndStudentCare(ctx context.Context, ids []int64, until string) (
 func (e engine) ReactivateStudents(ctx context.Context, ids []int64, status string, enforceChildQuota bool) ([]int64, error) {
 	changed, err := e.service.ReactivateStudents(ctx, ids, status, enforceChildQuota)
 	return changed, mapError(err)
+}
+
+func (e engine) ChildQuotaUsage(ctx context.Context) (schoolmembership.ChildQuotaUsage, bool, error) {
+	usage, limited, err := e.service.ChildQuotaUsage(ctx)
+	return schoolmembership.ChildQuotaUsage(usage), limited, mapError(err)
 }
 
 func (e engine) GraduateStudents(ctx context.Context, ids []int64) (int64, error) {
