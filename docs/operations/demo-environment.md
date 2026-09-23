@@ -90,11 +90,15 @@ demo.moto-app.de, *.demo.moto-app.de {
 `environments/demo.sops.env` has the same keys as staging and production.
 The initial configuration reuses staging SMTP with the name `moto Demo`.
 Database, application-role, JWT, NextAuth, metrics, admin, operator and device
-secrets are independently generated. Analytics, Sentry and Web Push are
-disabled in the initial demo configuration; configure their demo destinations
-before enabling them. Frontend analytics also need the build secrets
-`DEMO_NEXT_PUBLIC_POSTHOG_KEY` and `DEMO_NEXT_PUBLIC_SENTRY_DSN`; absent demo
-keys disable the integrations without falling back to production keys.
+secrets are independently generated. Frontend analytics use the shared PostHog
+project (free plan, one project); demo events carry `deployment=demo`, so they
+filter apart from schools. They need the build secret
+`DEMO_NEXT_PUBLIC_POSTHOG_KEY` besides the SOPS value. Backend analytics
+(`POSTHOG_API_KEY`) stay empty because backend events carry no `deployment`
+property and would mix with production. Sentry and Web Push are disabled;
+configure their demo destinations before enabling them. Frontend Sentry also
+needs the build secret `DEMO_NEXT_PUBLIC_SENTRY_DSN`; absent demo keys disable
+the integrations without falling back to production keys.
 No staging or production application secret is reused.
 `scripts/create-demo-env.py` creates the initial SOPS file through SOPS only
 and refuses to overwrite an existing file. Use `sops edit` for later changes.
