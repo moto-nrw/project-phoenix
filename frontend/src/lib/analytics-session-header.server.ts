@@ -4,7 +4,7 @@
  * the backend, which links its core-action events (#3602) to the session of
  * the page views. Only a session UUID passes; anything else is dropped.
  */
-export const ANALYTICS_SESSION_HEADER = "X-POSTHOG-SESSION-ID";
+const ANALYTICS_SESSION_HEADER = "X-POSTHOG-SESSION-ID";
 
 const SESSION_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
