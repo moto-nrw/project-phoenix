@@ -106,7 +106,3 @@ func (s CareStudents) ResumeCare(ctx context.Context, studentID int64, start use
 	}
 	return err
 }
-
-func (s CareStudents) ListWithdrawalStudents(ctx context.Context, studentIDs []int64) ([]careplan.WithdrawalStudent, error) {
-	return withdrawalStudents(ctx, s.people, studentIDs)
-}

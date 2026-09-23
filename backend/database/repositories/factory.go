@@ -641,10 +641,9 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StaffNotice:                timetableCompose.NewStaffNoticeRepository(db),
 	}
 	// Care withdrawal completions belong to Care Plan (#3221); the adapter
-	// follows the factory's current Care Plan and People Directory bindings.
+	// follows the factory's current Care Plan binding.
 	factory.CareWithdrawal = newCareWithdrawalCompletionRepository(
 		func() careplan.Capability { return factory.carePlan },
-		func() peopledirectory.StudentQuery { return factory.students },
 	)
 	factory.appointments = appointmentsModule
 	studentRepo.(interface {

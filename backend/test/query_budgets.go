@@ -61,6 +61,11 @@ var queryBudgets = map[string]queryBudget{
 	// departure plans in the same statement the rows come from, where the
 	// retained repository needed a second one to reach the scan-only columns.
 	"api.students.list": {max: 30},
+	// api/students — GET /care-withdrawals, page_size=1 over four pending
+	// withdrawals (#3412). The count and the page each run as one Care Plan
+	// statement that joins the named student directory projection; the
+	// matching test also pins the rows read at one and at four children.
+	"api.students.care_withdrawals.list": {max: 6},
 	// api/students — #2056: aggregated OGS group view, 10 students.
 	"api.students.ogs_group_live": {max: 41},
 	// api/students — #2099: identity chain resolved once per request.
