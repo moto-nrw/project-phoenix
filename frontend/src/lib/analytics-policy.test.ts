@@ -114,6 +114,10 @@ const CONTEXTS: ReadonlyArray<{
 describe.each(CONTEXTS)(
   "analytics rules: $name",
   ({ context, elementText, surface, origin, page, template }) => {
+    // Sent URLs name the deployment; the origin of the OGS portal carries the
+    // school slug and must never leave the browser.
+    const sentOrigin = `https://${context.deployment}`;
+
     it("configures anonymous capture without recording or persistence", () => {
       const options = analyticsInitOptions(context, "school-a.moto-app.de");
 
@@ -175,10 +179,10 @@ describe.each(CONTEXTS)(
         distinct_id: "0199aa2b-anon",
         $session_id: SESSION_ID,
         $window_id: WINDOW_ID,
-        $current_url: `${origin}${template}`,
+        $current_url: `${sentOrigin}${template}`,
         $pathname: template,
-        $host: new URL(origin).host,
-        $referrer: `${origin}${template}`,
+        $host: context.deployment,
+        $referrer: `${sentOrigin}${template}`,
         $prev_pageview_pathname: template,
         $prev_pageview_duration: 12.5,
         $prev_pageview_max_scroll_percentage: 0.8,
@@ -187,6 +191,9 @@ describe.each(CONTEXTS)(
         $geoip_disable: true,
         $process_person_profile: false,
       });
+      expect(JSON.stringify(result?.properties)).not.toContain(
+        new URL(origin).host,
+      );
     });
 
     it("sends a page without a template as /unknown", () => {
@@ -199,7 +206,7 @@ describe.each(CONTEXTS)(
       );
 
       expect(result?.properties).toMatchObject({
-        $current_url: `${origin}/unknown`,
+        $current_url: `${sentOrigin}/unknown`,
         $pathname: "/unknown",
       });
     });
@@ -289,7 +296,7 @@ describe.each(CONTEXTS)(
       );
 
       expect(result?.properties.$heatmap_data).toEqual({
-        [`${origin}${template}`]: [
+        [`${sentOrigin}${template}`]: [
           { x: 10, y: 20, target_fixed: false, type: "click" },
           { x: 30, y: 40, target_fixed: true, type: "rageclick" },
         ],

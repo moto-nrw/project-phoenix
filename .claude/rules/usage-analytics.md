@@ -21,9 +21,10 @@ commit. Terms: `CONTEXT.md`, section „Nutzungsanalyse"; spec #3598.
 | Portal login/logout registration | `TenantAuthWrapper` (OGS), `PortalAnalyticsSession` (parents, school) |
 | Same-origin `/ingest` proxy to PostHog EU | `frontend/src/proxy.ts` |
 
-The floor for real schools: route templates instead of URLs, no element text,
-no person profile, no IP. A privacy rule belongs in `analytics-policy.ts` and
-its table test, never in a component.
+The floor for real schools: route templates instead of URLs, the deployment
+instead of the real host (the OGS portal runs on `{slug}.TENANT_DOMAIN`), no
+element text, no person profile, no IP. A privacy rule belongs in
+`analytics-policy.ts` and its table test, never in a component.
 
 ## New page
 

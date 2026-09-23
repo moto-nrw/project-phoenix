@@ -257,6 +257,14 @@ function isSafeHost(value: unknown): value is string {
   );
 }
 
+/**
+ * The only host events may name: the deployment. The real origin of the OGS
+ * portal is `{slug}.{tenantDomain}` and would name the school.
+ */
+function analyticsHost(deployment: string): string {
+  return isSafeHost(deployment) ? deployment : "unknown";
+}
+
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
@@ -275,22 +283,27 @@ function templatePath(surface: AnalyticsRouteSurface, pathname: string) {
   return resolveAnalyticsRoute(surface, pathname) ?? UNKNOWN_ANALYTICS_PATH;
 }
 
-/** Origin plus route template; query, fragment, and IDs never survive. */
-function templateUrl(
-  surface: AnalyticsRouteSurface,
-  value: unknown,
-): string | undefined {
+/** What a URL may still carry: the route list and the deployment host. */
+interface UrlScope {
+  readonly surface: AnalyticsRouteSurface;
+  readonly host: string;
+}
+
+/**
+ * Deployment host plus route template; the real origin, query, fragment, and
+ * IDs never survive.
+ */
+function templateUrl(scope: UrlScope, value: unknown): string | undefined {
   const url = parseHttpUrl(value);
   return url
-    ? `${url.origin}${templatePath(surface, url.pathname)}`
+    ? `${url.protocol}//${scope.host}${templatePath(scope.surface, url.pathname)}`
     : undefined;
 }
 
-function templatePathname(
-  surface: AnalyticsRouteSurface,
-  value: unknown,
-): string | undefined {
-  return typeof value === "string" ? templatePath(surface, value) : undefined;
+function templatePathname(scope: UrlScope, value: unknown): string | undefined {
+  return typeof value === "string"
+    ? templatePath(scope.surface, value)
+    : undefined;
 }
 
 // --- $elements_chain -------------------------------------------------------
@@ -409,7 +422,7 @@ interface HeatmapPoint {
 }
 
 function sanitizeHeatmapData(
-  surface: AnalyticsRouteSurface,
+  scope: UrlScope,
   value: unknown,
 ): Record<string, HeatmapPoint[]> | undefined {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -417,7 +430,7 @@ function sanitizeHeatmapData(
   }
   const byUrl: Record<string, HeatmapPoint[]> = {};
   for (const [rawUrl, points] of Object.entries(value)) {
-    const url = templateUrl(surface, rawUrl);
+    const url = templateUrl(scope, rawUrl);
     if (!url || !Array.isArray(points)) continue;
     for (const point of points as unknown[]) {
       if (typeof point !== "object" || point === null) continue;
@@ -437,11 +450,7 @@ function sanitizeHeatmapData(
 
 // --- properties ----------------------------------------------------------
 
-function sanitizeCommon(
-  key: string,
-  value: unknown,
-  surface: AnalyticsRouteSurface,
-): unknown {
+function sanitizeCommon(key: string, value: unknown, scope: UrlScope): unknown {
   if (SAFE_ID_KEYS.has(key)) return isSafeId(value) ? value : undefined;
   if (SAFE_LABEL_KEYS.has(key)) return isSafeLabel(value) ? value : undefined;
   if (SAFE_NUMBER_KEYS.has(key)) {
@@ -451,13 +460,14 @@ function sanitizeCommon(
 
   switch (key) {
     case "$current_url":
-      return templateUrl(surface, value);
+      return templateUrl(scope, value);
     case "$pathname":
-      return templatePathname(surface, value);
+      return templatePathname(scope, value);
     case "$referrer":
-      return value === "$direct" ? value : templateUrl(surface, value);
+      return value === "$direct" ? value : templateUrl(scope, value);
+    // Never the real host: it names the school on the OGS portal.
     case "$host":
-      return isSafeHost(value) ? value : undefined;
+      return isSafeHost(value) ? scope.host : undefined;
     case "school_id":
       return isSafeSchoolID(value) ? value : undefined;
     // The demo source is a campaign label from the website (`messe`,
@@ -475,12 +485,12 @@ function sanitizeEventSpecific(
   event: string,
   key: string,
   value: unknown,
-  surface: AnalyticsRouteSurface,
+  scope: UrlScope,
   rules: TierRules,
 ): unknown {
   if (PAGE_EVENTS.has(event)) {
     if (key === "$prev_pageview_pathname") {
-      return templatePathname(surface, value);
+      return templatePathname(scope, value);
     }
     if (PREV_PAGEVIEW_NUMBER.test(key)) {
       return isFiniteNumber(value) ? value : undefined;
@@ -500,7 +510,7 @@ function sanitizeEventSpecific(
     }
   }
   if (event === HEATMAP_EVENT && key === "$heatmap_data") {
-    return sanitizeHeatmapData(surface, value);
+    return sanitizeHeatmapData(scope, value);
   }
   return undefined;
 }
@@ -510,22 +520,23 @@ function sanitizeProperties(
   event: string,
   properties: Properties,
 ): Properties {
-  const surface = routeSurfaceOf(context);
+  const scope: UrlScope = {
+    surface: routeSurfaceOf(context),
+    host: analyticsHost(context.deployment),
+  };
   const rules = TIER_RULES[tierOf(context)];
   const safe: Properties = {};
 
   for (const [key, value] of Object.entries(properties)) {
     const sanitized =
-      sanitizeCommon(key, value, surface) ??
-      sanitizeEventSpecific(event, key, value, surface, rules);
+      sanitizeCommon(key, value, scope) ??
+      sanitizeEventSpecific(event, key, value, scope, rules);
     if (sanitized !== undefined) safe[key] = sanitized;
   }
 
   // Forced after filtering so neither a caller nor a registered property can
   // override them.
-  safe.deployment = isSafeHost(context.deployment)
-    ? context.deployment
-    : "unknown";
+  safe.deployment = scope.host;
   safe.surface = isKnownSurface(context.surface) ? context.surface : "unknown";
   safe.$geoip_disable = true;
   safe.$process_person_profile = false;
