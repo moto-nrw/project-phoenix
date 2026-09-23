@@ -1,6 +1,6 @@
 # Guardian storage cutover and rollback window (#2756)
 
-Migration 1.15.416 applies the final delta of the
+Migration 1.15.417 applies the final delta of the
 [guardian owner backfill](guardian-owner-storage-backfill.md) under one write
 lock, verifies every school, and makes the three owner tables authoritative:
 
@@ -42,8 +42,9 @@ unit of work: it writes the relationship, then Care Plan's pickup permission
 and Identity & Access's portal access through consumer-owned ports, inside one
 savepoint that holds the relationship row lock. `TestGuardianStorageCallerInventory`
 fails the build when a provider names the mirror or the counter again. Keep the
-mirror, the triggers and the counter for the rollback window; #2757 removes
-them.
+mirror, the triggers and the counter for the
+[rollback window](../agents/operations.md#rollback-window-of-a-storage-cutover);
+#2757 removes them once its three conditions hold. There is no waiting period.
 
 ## Release and rollback
 
@@ -92,8 +93,8 @@ does this.
 
 Run [the observation SQL](guardian-owner-storage-cutover.sql) through the
 guarded maintenance connection with psql, `ON_ERROR_STOP=1`, and its file
-flag. Save the output before rollout, after the smoke tests, and at the end
-of the rollback window. The script uses one repeatable-read, read-only
+flag. Save the output before rollout, after the smoke tests, and once more
+before #2757 runs. The script uses one repeatable-read, read-only
 snapshot with bounded timeouts and changes no rows.
 
 | Evidence | Required result |
@@ -123,7 +124,7 @@ Plan's pickup commands (`create_guardian_pickup_permission`,
 `change_guardian_pickup_permission`) carry an observation seam that the
 composition leaves unobserved, like the companion slice; their latency is
 inside the two People Directory operations and the relationship store's
-callers. Record for the rollback window the p95 and the error counts of these
+callers. Record before #2757 runs the p95 and the error counts of these
 operations and of the guardian list endpoints; the query-budget register
 (`backend/test/query_budgets.go`) is unchanged by the cutover because every
 retained read joins the three owners in one statement through the projection.
@@ -146,4 +147,4 @@ Staging acceptance is still to be recorded:
 | --- | --- |
 | Switch wall time | |
 | Previous-image smoke against the mirror | |
-| Counter delta after 24 h on the new image | |
+| Counter delta on the new image under production load (zero is the gate, not the clock) | |

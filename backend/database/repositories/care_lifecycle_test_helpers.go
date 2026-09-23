@@ -12,7 +12,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/uptrace/bun"
 )
@@ -48,10 +47,9 @@ func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (
 	care := tt.CarePlan
 	return CareLifecycleTestRepositories{
 		TimetableTestRepositories: tt,
-		CareWithdrawal: newCareWithdrawalCompletionRepository(
-			func() careplan.Capability { return care }, func() peopledirectory.StudentQuery { return people }),
-		StudentFieldEdit: studentFieldEditCommand{auditRepo.NewStudentFieldEditRepository(newTestAuditRuntime(db)), command},
-		db:               db,
+		CareWithdrawal:            newCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
+		StudentFieldEdit:          studentFieldEditCommand{auditRepo.NewStudentFieldEditRepository(newTestAuditRuntime(db)), command},
+		db:                        db,
 		sources: CareLifecycleOwnerSources{
 			Students: tt.Student, Persons: tt.Person, Membership: membership,
 			People: people, Timetable: tt.Timetable, Calendar: calendar,

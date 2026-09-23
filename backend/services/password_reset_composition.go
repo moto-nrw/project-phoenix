@@ -138,7 +138,7 @@ func (d passwordResetDelivery) recordDelivery(ctx context.Context, meta email.De
 	if result.Final && result.Status == email.DeliveryStatusFailed {
 		d.logger.Error("password reset email permanently failed",
 			slog.Int64("token_id", meta.ReferenceID),
-			slog.String("recipient", meta.Recipient),
+			slog.String("recipient", identityaccessCompose.MaskEmail(meta.Recipient)),
 			slog.Any("error", result.Err),
 		)
 	}

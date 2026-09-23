@@ -176,7 +176,7 @@ var modulePassthroughBudgets = map[string]int{
 	// composition, the dead ListWithdrawalCompletionKeys, the People stranding
 	// forward and the internal-only AdministrativelyVisibleStudentIDs.
 	// Shrink-only from here like every other entry.
-	"modules/careplan": 112,
+	"modules/careplan": 111,
 	// The caller, report and arrival-exception ports reached straight
 	// through, most of them behind a nil-port guard and a date parse.
 	"modules/classday": 9,

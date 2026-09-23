@@ -1628,6 +1628,10 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 			},
 		},
 	})
+	billing, err := newOperatorBilling(logger)
+	if err != nil {
+		return fmt.Errorf("compose operator billing: %w", err)
+	}
 	schoolSettings := settingsCompose.NewOperatorSchoolSettings(settingsCompose.OperatorDependencies{
 		Settings:       api.Services.Settings,
 		DB:             db,
@@ -1640,8 +1644,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		OnValueSet: api.Services.SettingsSideEffects.Dispatch,
 	})
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
-		AppEnv:               viper.GetString("app_env"),
-		AuthService:          api.Services.OperatorAuth,
+		AppEnv:      viper.GetString("app_env"),
+		AuthService: api.Services.OperatorAuth,
+		IsLocalSeedRequest: func(r *http.Request) bool {
+			return apiCommon.IsLocalSeedRequest(r, viper.GetString("app_env"))
+		},
 		Identity:             identityOperatorAPI.NewResource(api.Services.AccountAuthentication(), operatorAPI.IdentityResponses()),
 		PasskeyService:       api.Services.OperatorPasskey,
 		MFAService:           api.Services.OperatorMFA,
@@ -1652,6 +1659,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		UnregisteredTagScans: tagScanReview.Router(),
 		SchoolSettings:       schoolSettings,
 		SchoolService:        api.Services.Schools,
+		Billing:              billing,
 		TenantMFAService:     api.Services.MFA,
 		Sessions:             identityOperatorAPI.NewSessions(sessionAuth, api.Services.OperatorAuth),
 	})

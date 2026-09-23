@@ -135,9 +135,7 @@ func (s *SchoolInvitation) CreateInvitation(ctx context.Context, request domain.
 	if err != nil {
 		return domain.SchoolInvitation{}, err
 	}
-	s.logger.Info("invitation created",
-		slog.Any("created_by", invitation.CreatedBy),
-		slog.String("email", result.Email))
+	s.logCreated(result, request.CreatedBy)
 
 	portal := s.portalOf(role)
 	schoolName := request.SchoolName
@@ -155,6 +153,15 @@ func (s *SchoolInvitation) CreateInvitation(ctx context.Context, request domain.
 		s.delivery.DispatchSchoolInvitation(dispatchCtx, result, schoolName, portal, s.expiry)
 	})
 	return result, nil
+}
+
+// logCreated is the one log line an invitation writes (#2108): the handler
+// no longer repeats it, and the address shows only masked.
+func (s *SchoolInvitation) logCreated(invitation domain.SchoolInvitation, createdBy int64) {
+	s.logger.Info("invitation created",
+		slog.Int64("invitation_id", invitation.ID),
+		slog.Int64("created_by", createdBy),
+		slog.String("email", domain.MaskEmail(invitation.Email)))
 }
 
 // validateRequest checks the address and the role the request asks for.

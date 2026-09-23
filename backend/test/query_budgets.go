@@ -39,6 +39,13 @@ var queryBudgets = map[string]queryBudget{
 	// organization summaries, and one device read through the Device Fleet
 	// owner. Flat in the number of devices.
 	"repositories.operator.device_rows": {max: 3},
+	// modules — the operator billing report (#2791), organizationtenancy
+	// BillingReport. The listing is one read of the captured rows. A capture
+	// is the key day, the schools still missing, and one insert for all of
+	// them; the owners' counts are stubbed in the scenario and add one read
+	// each in production. Both stay flat in the number of schools.
+	"modules.organizationtenancy.billing.key_date_counts": {max: 1, exact: true},
+	"modules.organizationtenancy.billing.capture":         {max: 3, exact: true},
 	// modules/careplan/inbound/parent — GET /me/children/{studentId}/courses resolves the catalog,
 	// capacity and pending-request queue through this bounded service scenario.
 	"api.parent.child_courses": {max: 14},
@@ -61,6 +68,11 @@ var queryBudgets = map[string]queryBudget{
 	// departure plans in the same statement the rows come from, where the
 	// retained repository needed a second one to reach the scan-only columns.
 	"api.students.list": {max: 30},
+	// api/students — GET /care-withdrawals, page_size=1 over four pending
+	// withdrawals (#3412). The count and the page each run as one Care Plan
+	// statement that joins the named student directory projection; the
+	// matching test also pins the rows read at one and at four children.
+	"api.students.care_withdrawals.list": {max: 6},
 	// api/students — #2056: aggregated OGS group view, 10 students.
 	"api.students.ogs_group_live": {max: 41},
 	// api/students — #2099: identity chain resolved once per request.

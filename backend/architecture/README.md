@@ -238,7 +238,7 @@ provider, is gone. The evidence lives in
 [docs/operations/presence-storage-cutover-2762.md](../../docs/operations/presence-storage-cutover-2762.md).
 
 #2756 cut the student-guardian relationship over to its three owners
-(migration 1.15.416, one release with the caller switch). People Directory
+(migration 1.15.417, one release with the caller switch). People Directory
 owns `users.student_guardian_relationships` (type, role, primary, emergency
 contact and priority, payer), Care Plan `users.student_guardian_pickup_permissions`
 (`careplan.GuardianPickupPermissions`) and Identity & Access
@@ -1689,13 +1689,14 @@ care-schedule diff row is named through the parent-portal workflow port
 (`CareRequestDiffEntry`), so the production `services/schedule` import fell
 with the move; the adapter tests still build that vocabulary. After the move the package
 is the only `inbound-parent` package, so the point exists only in the
-candidate. Every `inbound-parent.http.*` and `inbound-parent.adapter-test.*`
-rule this move added, `root-composition.to.inbound-parent-http` and
-`test-support.e2e-test.inbound-parent-http` are compatibility permissions, not
-target dependencies. They cover every future `inbound-parent` package, so no
-other package may join that point before the conversion. Convert them to exact
-debt with the rule above under #2580 once the package exists at a base SHA;
-the `modules/identityaccess/legacy/jwt` and `services/auth` edges then wait for #2725. The move replaced
+candidate. The `inbound-parent.http.*` and `inbound-parent.adapter-test.*`
+compatibility rules this move added are converted (#3421): the 27 rules are
+gone from `policy.json`, and the 29 imports they allowed (12 production,
+11 internal-test, 6 external-test) are exact `legacy.jsonl` entries under
+#3421, which closes when the last of them falls. `root-composition.to.inbound-parent-http` (#2750) and
+`test-support.e2e-test.inbound-parent-http` (#2748) are still compatibility
+permissions; convert them to exact debt with the rule above under their
+issues. The `modules/identityaccess/legacy/jwt` and `services/auth` edges wait for #2725. The move replaced
 the calendar, push, notification-preference and PWA-usage setters with a
 construction-time `ResourceConfig`, and the auth rate-limiter setter with
 `RouterWithAuthRateLimiter` (the school portal shape), because the

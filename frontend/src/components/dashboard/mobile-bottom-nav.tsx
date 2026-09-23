@@ -345,6 +345,13 @@ const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
     concept: "rfid",
     alwaysShow: true,
   },
+  {
+    href: "/operator/billing",
+    label: "Stichtagszahlen",
+    iconKey: "chart",
+    concept: "reports",
+    alwaysShow: true,
+  },
 ];
 
 /**

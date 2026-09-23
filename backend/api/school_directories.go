@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"time"
 
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
@@ -17,9 +18,19 @@ import (
 // and the worker read schools through their own ports; the adapters below
 // bind those ports to the public capability.
 
-// schedulerTenantDirectory lists the tenant IDs the worker iterates.
+// schedulerTenantDirectory lists the tenant IDs the worker iterates and
+// captures the billing key-date counts (#2791), both owned by Organisation &
+// Tenancy.
 type schedulerTenantDirectory struct {
 	schools organizationModule.Query
+	billing organizationModule.BillingReport
+}
+
+func (d schedulerTenantDirectory) RecordDueBillingKeyDates(ctx context.Context, now time.Time) (int, error) {
+	if d.billing == nil {
+		return 0, errors.New("billing report is not composed")
+	}
+	return d.billing.RecordDueBillingKeyDates(ctx, now)
 }
 
 func (d schedulerTenantDirectory) ListActiveTenantIDs(ctx context.Context) ([]int64, error) {
