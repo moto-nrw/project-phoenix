@@ -720,12 +720,16 @@ unused generic CRUD methods. The pure query-option translations and listing
 adapters the legacy composition uses moved to `modules/timetable/compose`
 (`legacy_repository_options.go`, `legacy_composition_support.go`,
 `calendar_period_usage.go`), which may already import their models. The SQL
-test providers the cross-package tests build and the repository behaviour
-tests are the test-only root `modules/timetable/legacy/timetablesqltest`
-(`inbound-timetable`/`test-support`, `e2e-test` in both test scopes, as
-`modules/workforce/contracttest`); its `inbound-timetable.test-support.*`,
+test providers the cross-package tests built went to the test-only root
+`modules/timetable/legacy/timetablesqltest`, which #3554 deleted with its
+package entry and its `inbound-timetable.test-support.*`,
 `inbound-timetable.e2e-test.*` and `<consumer>.<role>.inbound-timetable-test-support`
-rules are compatibility permissions of the same kind. With both packages gone,
+compatibility rules: the consumer suites read through the repositories the
+composition root binds to the Timetable owner, the repository behaviour tests
+of those bound repositories moved to `modules/timetable/compose/httpintegration`
+(`legacy_*_test.go`) and the staff-notice and listing-adapter tests to
+`modules/timetable/compose`, and the tests of the providers themselves were
+dropped. With both packages gone,
 all #2730 entries left `legacy.jsonl`, together with the other resolved
 imports of the two packages, and the 25 rules that only those imports used
 (for example `parent-portal.adapter.timetable-application` and

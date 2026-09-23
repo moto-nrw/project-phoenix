@@ -1,4 +1,4 @@
-package timetablesqltest_test
+package httpintegration_test
 
 import (
 	"fmt"
@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -188,7 +187,7 @@ func TestTimeframeRepository_List(t *testing.T) {
 		matching := &schedule.Timeframe{StartTime: time.Now(), IsActive: true, Description: description}
 		require.NoError(t, repo.Create(ctx, matching))
 
-		options := modelBase.NewQueryOptions().WithPagination(1, 1)
+		options := newListOptions().WithPagination(1, 1)
 		options.Filter.ILike("description", "%"+description+"%")
 		timeframes, err := repo.List(ctx, options)
 		require.NoError(t, err)

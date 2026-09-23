@@ -1,4 +1,4 @@
-package timetablesqltest_test
+package httpintegration_test
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	model "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -128,7 +127,7 @@ func TestPlanningTrackRepositoryRejectsPartialOrder(t *testing.T) {
 	require.NoError(t, repo.Create(scope.Context(), second))
 
 	err := reorderPlanningTracks(t, db, scope, []int64{first.ID})
-	require.True(t, modelBase.IsNoRows(err), "partial order must report not found, got %v", err)
+	require.True(t, isNotFound(err), "partial order must report not found, got %v", err)
 
 	err = testpkg.WithTenantTx(t, context.Background(), db, scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		require.NoError(t, repo.UpdateSortOrders(txCtx, nil))

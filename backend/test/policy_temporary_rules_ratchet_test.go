@@ -84,7 +84,10 @@ import (
 // the totals to 67 and 125. Slice S3 (#3553) moved the deviation writes, the
 // attendance correction and the attendance mirror and retired the two
 // compatibility grants their suites emptied, both conversion promises,
-// lowering the totals to 65 and 123.
+// lowering the totals to 65 and 123. #3554 deleted the legacy SQL test
+// providers (modules/timetable/legacy/timetablesqltest) and retired the
+// fifteen grants only they used, all conversion promises, lowering the totals
+// to 50 and 108.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -134,12 +137,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 65
+	policyTempRulesTotal = 50
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 123
+	policyTempRulesCompatTotal = 108
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -167,12 +170,12 @@ var policyTempRulesFamilies = map[string]int{
 	// #3422 removed 2 that went stale with legacy/services/active.
 
 	// #3218, #3219, #3220 — closed.
-	"document-rendering": 1,
+	// #3554 removed the last one with the legacy SQL test providers.
 
 	// #3214, #3218, #3220 — closed; #3427 removed the three #3350 (PR #3408)
 	// had added.
 	// #3552 removed 2 that the template-roster move emptied.
-	"enrollment": 1,
+	// #3554 removed the last one with the legacy SQL test providers.
 
 	// #3214, #3218, #3220, #3224 — closed; #3427 removed the one #3350 added.
 	// #3422 removed 1 that went stale with legacy/services/active.
@@ -189,7 +192,8 @@ var policyTempRulesFamilies = map[string]int{
 	// #3422 removed 5 that went stale with legacy/services/active.
 	// #3552 removed 6 that the template and materialization move emptied.
 	// #3553 removed 2 that the attendance mirror and deviation move emptied.
-	"inbound-timetable": 53,
+	// #3554 removed 12 with the legacy SQL test providers.
+	"inbound-timetable": 41,
 
 	// #2725 (OPEN) and #3224 (closed) name most rules jointly; #3214 the rest.
 	// The only large family with a live issue behind it.
@@ -213,7 +217,8 @@ var policyTempRulesFamilies = map[string]int{
 
 	// #3214, #3218, #3220 — closed.
 	// #3422 removed 3 that went stale with legacy/services/active.
-	"scheduler-runtime": 3,
+	// #3554 removed 1 with the legacy SQL test providers.
+	"scheduler-runtime": 2,
 
 	// #3214, #3218 — closed. #3552 removed the last one with the
 	// template-roster move.

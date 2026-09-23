@@ -13,7 +13,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -130,8 +131,8 @@ func TestPlanExportInputsEnforceRLS(t *testing.T) {
 		t.Run("export-"+fixture.title, func(t *testing.T) {
 			renderer := &captureRenderer{}
 			service := New(Sources{
-				Instances:     timetablesqltest.NewActivityInstanceRepository(db),
-				InstanceStaff: timetablesqltest.NewInstanceStaffRepository(db),
+				Instances:     newOwnerInstances(t, db),
+				InstanceStaff: newOwnerInstanceStaff(t, db),
 				Rooms:         facadeRooms{facade: rooms},
 				Staff:         fakeStaff{members: map[int64]*usersModel.Staff{fixtures[0].staff.ID: fixtures[0].staff, fixtures[1].staff.ID: fixtures[1].staff}},
 				Renderer:      renderer,
@@ -168,8 +169,8 @@ func TestPlanExportInputsEnforceRLS(t *testing.T) {
 				service := New(Sources{
 					Overview: workforceCompose.NewStaffScheduleOverview(workforceCompose.StaffScheduleOverviewDependencies{
 						Shifts:        reads,
-						Instances:     timetablesqltest.NewActivityInstanceRepository(db),
-						InstanceStaff: timetablesqltest.NewInstanceStaffRepository(db),
+						Instances:     newOwnerInstances(t, db),
+						InstanceStaff: newOwnerInstanceStaff(t, db),
 						Rooms:         facadeRooms{facade: rooms},
 						Staff:         reads,
 					}),
@@ -260,8 +261,8 @@ func TestInstanceSourceHonoursTheRequestedWindow(t *testing.T) {
 
 	renderer := &captureRenderer{}
 	service := New(Sources{
-		Instances:     timetablesqltest.NewActivityInstanceRepository(db),
-		InstanceStaff: timetablesqltest.NewInstanceStaffRepository(db),
+		Instances:     newOwnerInstances(t, db),
+		InstanceStaff: newOwnerInstanceStaff(t, db),
 		Renderer:      renderer,
 	})
 	params, err := planexport.ParseParams(monday.String(), monday.String(), string(planexport.TemplateByOffering), "", "")
@@ -274,4 +275,86 @@ func TestInstanceSourceHonoursTheRequestedWindow(t *testing.T) {
 	require.Equal(t, "Sonntag", listexport.StripStyleMarkers(renderer.doc.Rows[0].Values[listexport.ColumnPlanRowLabel]))
 	require.Len(t, renderer.doc.Columns, 8, "the Sunday block widens the sheet to the full week")
 	require.Contains(t, listexport.StripStyleMarkers(renderer.doc.Rows[0].Values[listexport.ColumnPlanSunday]), "09:00–10:00")
+}
+
+// ownerInstances serves the instance source from the Timetable owner's
+// presence-joined reads, the reads the composition root binds for the plan
+// exports.
+type ownerInstances struct {
+	rows timetabletest.LegacyRows
+}
+
+func newOwnerInstances(t *testing.T, db *bun.DB) ownerInstances {
+	t.Helper()
+	return ownerInstances{rows: timetabletest.NewLegacyRows(t, db)}
+}
+
+func (s ownerInstances) FindByTenantAndDateRange(ctx context.Context, from, to scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
+	return legacyInstances(s.rows.InstancesBetween(ctx, from.String(), to.String()))
+}
+
+func (s ownerInstances) FindByIDs(ctx context.Context, ids []int64) ([]*scheduleModel.ActivityInstance, error) {
+	return legacyInstances(s.rows.InstancesByID(ctx, ids))
+}
+
+func legacyInstances(rows []timetabletest.LegacyInstance, err error) ([]*scheduleModel.ActivityInstance, error) {
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*scheduleModel.ActivityInstance, 0, len(rows))
+	for _, row := range rows {
+		instance := &scheduleModel.ActivityInstance{
+			Date: scheduleModel.Date(row.Date), StartTime: row.StartTime, EndTime: row.EndTime,
+			Title: row.Title, ActivityGroupID: row.ActivityGroupID, ActiveGroupID: row.ActiveGroupID,
+			RoomID: row.RoomID, Status: row.Status, ListKind: row.ListKind,
+			CancelReason: row.CancelReason, Notes: row.Notes, UnderstaffedNote: row.UnderstaffedNote,
+		}
+		instance.ID = row.ID
+		out = append(out, instance)
+	}
+	return out, nil
+}
+
+// ownerInstanceStaff serves the instance-staff source from the Timetable
+// owner's staff-assignment reads with the filters and order the composition
+// root's repository asks for.
+type ownerInstanceStaff struct {
+	timetable timetable.Capability
+}
+
+func newOwnerInstanceStaff(t *testing.T, db *bun.DB) ownerInstanceStaff {
+	t.Helper()
+	return ownerInstanceStaff{timetable: timetabletest.New(t, db)}
+}
+
+func (s ownerInstanceStaff) FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModel.InstanceStaff, error) {
+	if len(instanceIDs) == 0 {
+		return []*scheduleModel.InstanceStaff{}, nil
+	}
+	return s.list(ctx, timetable.InstanceStaffFilter{InstanceIDs: instanceIDs, OrderByInstanceAndCreated: true})
+}
+
+func (s ownerInstanceStaff) FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to scheduleModel.Date) ([]*scheduleModel.InstanceStaff, error) {
+	fromText, toText := from.String(), to.String()
+	return s.list(ctx, timetable.InstanceStaffFilter{
+		StaffIDs: []int64{staffID}, FromDate: &fromText, ToDate: &toText, OrderByActivityDateTime: true,
+	})
+}
+
+func (s ownerInstanceStaff) list(ctx context.Context, filter timetable.InstanceStaffFilter) ([]*scheduleModel.InstanceStaff, error) {
+	rows, err := s.timetable.ListInstanceStaff(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*scheduleModel.InstanceStaff, 0, len(rows))
+	for _, row := range rows {
+		staff := &scheduleModel.InstanceStaff{
+			InstanceID: row.InstanceID, StaffID: row.StaffID, RoomID: row.RoomID,
+			IsPrimary: row.IsPrimary, IsSubstitute: row.IsSubstitute, IsAbsent: row.IsAbsent,
+			AbsenceReason: row.AbsenceReason, SickAbsenceID: row.SickAbsenceID,
+		}
+		staff.ID = row.ID
+		out = append(out, staff)
+	}
+	return out, nil
 }

@@ -1,10 +1,9 @@
-package timetablesqltest_test
+package compose
 
 import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +17,7 @@ func TestStaffNoticeRepository_ListValidOn(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repo := compose.NewStaffNoticeRepository(db)
+	repo := NewStaffNoticeRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "notice-author@test.local")
@@ -80,7 +79,7 @@ func TestStaffNoticeRepository_Acknowledge(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repo := compose.NewStaffNoticeRepository(db)
+	repo := NewStaffNoticeRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "notice-reader@test.local")
@@ -128,7 +127,7 @@ func TestStaffNoticeRepository_AcknowledgedCountsExcludesTheAuthor(t *testing.T)
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repo := compose.NewStaffNoticeRepository(db)
+	repo := NewStaffNoticeRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	author := testpkg.CreateTestAccount(t, db, "count-author@test.local")
@@ -166,7 +165,7 @@ func TestStaffNoticeRepository_ListValidOnFiltersAudience(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repo := compose.NewStaffNoticeRepository(db)
+	repo := NewStaffNoticeRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "notice-audience@test.local")
@@ -214,7 +213,7 @@ func TestStaffNoticeRepository_Acknowledgements(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repo := compose.NewStaffNoticeRepository(db)
+	repo := NewStaffNoticeRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	author := testpkg.CreateTestAccount(t, db, "notice-ack-author@test.local")

@@ -1,4 +1,4 @@
-package timetablesqltest_test
+package httpintegration_test
 
 import (
 	"context"

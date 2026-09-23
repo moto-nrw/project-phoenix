@@ -74,14 +74,15 @@ import (
 // trees. Slice S2 (#3552) moved the template writes, the materialization and
 // the roster maintenance after them, roughly halving the timetable tree.
 // Slice S3 (#3553) moved the deviation, substitution and sick-report writes,
-// the attendance correction and the attendance mirror.
+// the attendance correction and the attendance mirror. #3554 deleted the
+// legacy SQL test providers (timetablesqltest).
 // Re-measure the same way when a number needs to move — downwards.
 const moduleLegacyBudgetCheck = "legacy LOC budget"
 
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 25837
+const moduleLegacyBudgetTotal = 24828
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.
 // The comment on each entry names the ticket that is supposed to dissolve the
@@ -107,7 +108,7 @@ var moduleLegacyBudgets = map[string]int{
 	// No ticket today.
 	"modules/supervisiondashboard/legacy": 721,
 	// No ticket today — and the largest tree of the twelve.
-	"modules/timetable/legacy": 5710,
+	"modules/timetable/legacy": 4701,
 	// No ticket today — grew from 15,402 LOC at creation to this.
 	"modules/workforce/legacy": 16057,
 	// No ticket today.

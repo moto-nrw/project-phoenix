@@ -1,11 +1,10 @@
-package timetablesqltest_test
+package httpintegration_test
 
 import (
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -32,16 +31,16 @@ func TestDateframeRepositoryListPreservesQueryOptionsBehavior(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, alpha))
 	require.NoError(t, repo.Create(ctx, beta))
 
-	options := modelBase.NewQueryOptions().WithPagination(1, 1)
+	options := newListOptions().WithPagination(1, 1)
 	options.Filter.ILike("name", "List behavior %")
-	options.Sorting = (&modelBase.Sorting{}).AddField("name", modelBase.SortDesc)
+	sortedBy(options, "name", true)
 
 	rows, err := repo.List(ctx, options)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, beta.ID, rows[0].ID)
 
-	emptyOptions := modelBase.NewQueryOptions()
+	emptyOptions := newListOptions()
 	emptyOptions.Filter.Equal("name", "missing dateframe")
 	empty, err := repo.List(ctx, emptyOptions)
 	require.NoError(t, err)
@@ -61,9 +60,9 @@ func TestRecurrenceRuleRepositoryListPreservesQueryOptionsBehavior(t *testing.T)
 	require.NoError(t, repo.Create(ctx, daily))
 	require.NoError(t, repo.Create(ctx, weekly))
 
-	options := modelBase.NewQueryOptions().WithPagination(1, 1)
+	options := newListOptions().WithPagination(1, 1)
 	options.Filter.In("frequency", schedule.FrequencyDaily, schedule.FrequencyWeekly)
-	options.Sorting = (&modelBase.Sorting{}).AddField("interval_count", modelBase.SortDesc)
+	sortedBy(options, "interval_count", true)
 
 	rows, err := repo.List(ctx, options)
 	require.NoError(t, err)
@@ -76,7 +75,7 @@ func TestRecurrenceRuleRepositoryListPreservesEmptySlice(t *testing.T) {
 	t.Parallel()
 
 	repo := recurrenceRuleRepository(t, testpkg.SetupTestDB(t))
-	options := modelBase.NewQueryOptions()
+	options := newListOptions()
 	options.Filter.Equal("frequency", schedule.FrequencyMonthly)
 	empty, err := repo.List(testpkg.Ctx(t), options)
 	require.NoError(t, err)

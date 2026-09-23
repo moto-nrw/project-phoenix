@@ -26,7 +26,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 )
 
 // testTimetable bundles what the composition root hands api/timetable from
@@ -109,12 +108,11 @@ func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func(
 	if err != nil {
 		panic(err)
 	}
-	activityInstanceRepo := timetablesqltest.NewActivityInstanceRepository(db)
+	activityInstanceRepo := boundRepos.ActivityInstance
 	var today func() timezone.Date
 	if len(clocks) > 0 && clocks[0] != nil {
 		clock := clocks[0]
 		today = func() timezone.Date { return timezone.DateFromTime(clock()) }
-		activityInstanceRepo = timetablesqltest.NewActivityInstanceRepository(db, clock)
 	}
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	if err != nil {
@@ -130,9 +128,9 @@ func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func(
 	}
 	conflicts, err := arrivalTimetable.NewConflictDetection(arrivalTimetable.ConflictDetectionDependencies{
 		Instances:         activityInstanceRepo,
-		InstanceStaff:     timetablesqltest.NewInstanceStaffRepository(db),
+		InstanceStaff:     boundRepos.InstanceStaff,
 		InstanceStudents:  boundRepos.InstanceStudent,
-		Exceptions:        timetablesqltest.NewActivityExceptionRepository(db),
+		Exceptions:        boundRepos.ActivityException,
 		Schedules:         boundRepos.ActivitySchedule,
 		Shifts:            boundRepos.StaffShift,
 		Staff:             boundRepos.Staff,
@@ -153,7 +151,7 @@ func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func(
 	}
 	timetableData, err := arrivalTimetable.NewTimetableData(arrivalTimetable.TimetableDataDependencies{
 		Instances:         activityInstanceRepo,
-		InstanceStaff:     timetablesqltest.NewInstanceStaffRepository(db),
+		InstanceStaff:     boundRepos.InstanceStaff,
 		Participants:      boundRepos.InstanceStudent,
 		PickupExceptions:  boundRepos.StudentPickupException,
 		ArrivalExceptions: boundRepos.StudentArrivalException,
@@ -176,14 +174,14 @@ func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func(
 		panic(err)
 	}
 	lock := repositories.MustNewTimetableRecurrenceLock(db)
-	instanceStaff := timetablesqltest.NewInstanceStaffRepository(db)
+	instanceStaff := boundRepos.InstanceStaff
 	materialization := options.materialization
 	if materialization == nil {
 		materialization, err = arrivalTimetable.NewMaterialization(arrivalTimetable.MaterializationDependencies{
 			GroupRepo: boundRepos.ActivityGroup, ScheduleRepo: boundRepos.ActivitySchedule,
 			EnrollmentRepo: boundRepos.StudentEnrollment, SupervisorRepo: boundRepos.ActivitySupervisor,
 			PeriodRepo: boundRepos.CalendarPeriod, InstanceRepo: activityInstanceRepo, StaffRepo: instanceStaff,
-			StudentRepo: boundRepos.InstanceStudent, ExceptionRepo: timetablesqltest.NewActivityExceptionRepository(db),
+			StudentRepo: boundRepos.InstanceStudent, ExceptionRepo: boundRepos.ActivityException,
 			TimeframeRepo: boundRepos.Timeframe, CareBounds: boundRepos.Student, RecurrenceLock: lock, DB: db,
 		})
 		if err != nil {
@@ -353,4 +351,11 @@ type usageFunc func(context.Context) (map[int64]CalendarPeriodUsageCounts, error
 
 func (f usageFunc) UsageCounts(ctx context.Context) (map[int64]CalendarPeriodUsageCounts, error) {
 	return f(ctx)
+}
+
+// BoundTimetableRepositories hands the external suites the retained
+// repositories the composition root binds to the Timetable owner, so their
+// arrangements and assertions go through the live adapters.
+func BoundTimetableRepositories(db *bun.DB) repositories.TimetableTestRepositories {
+	return mustTimetableTestRepositories(db)
 }

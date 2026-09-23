@@ -1,4 +1,4 @@
-package timetablesqltest_test
+package httpintegration_test
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -258,9 +257,7 @@ func TestActivityExceptionRepository_FindByID(t *testing.T) {
 		got, err := repo.FindByID(ctx, int64(999999999))
 		require.Error(t, err)
 		assert.Nil(t, got)
-		var dbErr *modelBase.DatabaseError
-		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "find by id", dbErr.Op)
+		requireDatabaseError(t, err, "find by id")
 	})
 }
 
@@ -289,7 +286,7 @@ func TestActivityExceptionRepository_List(t *testing.T) {
 	})
 
 	t.Run("with filter + pagination", func(t *testing.T) {
-		options := modelBase.NewQueryOptions()
+		options := newListOptions()
 		options.Filter.Equal("activity_group_id", activity.ID)
 		options.WithPagination(1, 10)
 
@@ -308,9 +305,7 @@ func TestActivityExceptionRepository_List(t *testing.T) {
 		rows, err := repo.List(cancelledCtx, nil)
 		assert.Nil(t, rows)
 		require.Error(t, err)
-		var dbErr *modelBase.DatabaseError
-		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "list with options", dbErr.Op)
+		requireDatabaseError(t, err, "list with options")
 	})
 }
 
@@ -331,27 +326,21 @@ func TestActivityExceptionRepository_ErrorBranches(t *testing.T) {
 		rows, err := repo.FindByActivityGroupID(cancelledCtx, int64(999999))
 		assert.Nil(t, rows)
 		require.Error(t, err)
-		var dbErr *modelBase.DatabaseError
-		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "find by activity group id", dbErr.Op)
+		requireDatabaseError(t, err, "find by activity group id")
 	})
 
 	t.Run("FindByActivityGroupAndDate wraps driver errors", func(t *testing.T) {
 		row, err := repo.FindByActivityGroupAndDate(cancelledCtx, int64(999999), date)
 		assert.Nil(t, row)
 		require.Error(t, err)
-		var dbErr *modelBase.DatabaseError
-		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "find by activity group and date", dbErr.Op)
+		requireDatabaseError(t, err, "find by activity group and date")
 	})
 
 	t.Run("FindByDateRange wraps driver errors", func(t *testing.T) {
 		rows, err := repo.FindByDateRange(cancelledCtx, date, date)
 		assert.Nil(t, rows)
 		require.Error(t, err)
-		var dbErr *modelBase.DatabaseError
-		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "find by date range", dbErr.Op)
+		requireDatabaseError(t, err, "find by date range")
 	})
 }
 

@@ -1,4 +1,4 @@
-package timetablesqltest_test
+package httpintegration_test
 
 import (
 	"context"
@@ -6,9 +6,7 @@ import (
 	"testing"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -124,7 +122,6 @@ func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduled
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := timetablesqltest.NewActivityInstanceRepository(db)
 
 	student := testpkg.CreateTestStudent(t, db, "Lina", fmt.Sprintf("NSC-%d", time.Now().UnixNano()), "1b")
 
@@ -135,10 +132,8 @@ func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduled
 	cancelledInst, cleanCancelled := createInstanceFixture(t, db, "nsc-cxl", day)
 	defer cleanCancelled()
 
-	completedInst.Status = scheduleModels.InstanceStatusCompleted
-	require.NoError(t, instanceRepo.Update(ctx, completedInst))
-	cancelledInst.Status = scheduleModels.InstanceStatusCancelled
-	require.NoError(t, instanceRepo.Update(ctx, cancelledInst))
+	moveInstanceTo(t, db, completedInst, scheduleModels.InstanceStatusCompleted)
+	moveInstanceTo(t, db, cancelledInst, scheduleModels.InstanceStatusCancelled)
 
 	mkRow := func(instID int64, status string, notScheduled bool) *scheduleModels.InstanceStudent {
 		row := &scheduleModels.InstanceStudent{
@@ -170,8 +165,7 @@ func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduled
 		// from the history and the exports.
 		unmarked, cleanUnmarked := createInstanceFixture(t, db, "nsc-reset", day)
 		defer cleanUnmarked()
-		unmarked.Status = scheduleModels.InstanceStatusCompleted
-		require.NoError(t, instanceRepo.Update(ctx, unmarked))
+		moveInstanceTo(t, db, unmarked, scheduleModels.InstanceStatusCompleted)
 
 		row := mkRow(unmarked.ID, scheduleModels.AttendanceStatusExpected, false)
 		require.NoError(t, repo.Create(ctx, row))
@@ -202,8 +196,7 @@ func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduled
 		// (#1747 review).
 		decided, cleanDecided := createInstanceFixture(t, db, "nsc-manual", day)
 		defer cleanDecided()
-		decided.Status = scheduleModels.InstanceStatusCompleted
-		require.NoError(t, instanceRepo.Update(ctx, decided))
+		moveInstanceTo(t, db, decided, scheduleModels.InstanceStatusCompleted)
 
 		row := mkRow(decided.ID, scheduleModels.AttendanceStatusExpected, true)
 		decidedAt := time.Date(2034, 6, 5, 9, 30, 0, 0, time.UTC)
@@ -295,9 +288,7 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange(t *testing.T) {
 		has, err := repo.HasPlannedSlotsInRange(cancelledCtx, from, to)
 		assert.False(t, has)
 		require.Error(t, err)
-		var dbErr *modelBase.DatabaseError
-		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "check planned slots in range", dbErr.Op)
+		requireDatabaseError(t, err, "check planned slots in range")
 	})
 }
 
@@ -313,7 +304,6 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange_CancelledInstance(t *t
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := timetablesqltest.NewActivityInstanceRepository(db)
 
 	student := testpkg.CreateTestStudent(t, db, "Emil", fmt.Sprintf("HPC-%d", time.Now().UnixNano()), "4c")
 
@@ -337,8 +327,7 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange_CancelledInstance(t *t
 		assert.True(t, has)
 	})
 
-	inst.Status = scheduleModels.InstanceStatusCancelled
-	require.NoError(t, instanceRepo.Update(ctx, inst))
+	moveInstanceTo(t, db, inst, scheduleModels.InstanceStatusCancelled)
 
 	t.Run("cancelled instance is no evidence despite the surviving row", func(t *testing.T) {
 		has, err := repo.HasPlannedSlotsInRange(ctx, from, to)

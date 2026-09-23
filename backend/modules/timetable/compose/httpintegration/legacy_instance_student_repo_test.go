@@ -1,4 +1,4 @@
-package timetablesqltest_test
+package httpintegration_test
 
 import (
 	"context"
@@ -8,12 +8,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -268,9 +266,7 @@ func TestInstanceStudentRepository_FindByID_NotFound(t *testing.T) {
 	got, err := repo.FindByID(ctx, int64(999999999))
 	require.Error(t, err)
 	assert.Nil(t, got)
-	var dbErr *modelBase.DatabaseError
-	require.ErrorAs(t, err, &dbErr)
-	assert.Equal(t, "find by id", dbErr.Op)
+	requireDatabaseError(t, err, "find by id")
 }
 
 func TestInstanceStudentRepository_List(t *testing.T) {
@@ -316,9 +312,7 @@ func TestInstanceStudentRepository_List(t *testing.T) {
 		rows, err := repo.FindByInstanceID(cancelledCtx, inst.ID)
 		assert.Nil(t, rows)
 		require.Error(t, err)
-		var dbErr *modelBase.DatabaseError
-		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "find by instance id", dbErr.Op)
+		requireDatabaseError(t, err, "find by instance id")
 	})
 }
 
@@ -337,9 +331,7 @@ func TestInstanceStudentRepository_ErrorBranches(t *testing.T) {
 		rows, err := repo.FindByInstanceID(cancelledCtx, int64(999999))
 		assert.Nil(t, rows)
 		require.Error(t, err)
-		var dbErr *modelBase.DatabaseError
-		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "find by instance id", dbErr.Op)
+		requireDatabaseError(t, err, "find by instance id")
 	})
 
 	t.Run("FindByStudentAndDateRange wraps driver errors", func(t *testing.T) {
@@ -348,26 +340,20 @@ func TestInstanceStudentRepository_ErrorBranches(t *testing.T) {
 		rows, err := repo.FindByStudentAndDateRange(cancelledCtx, int64(999999), from, to)
 		assert.Nil(t, rows)
 		require.Error(t, err)
-		var dbErr *modelBase.DatabaseError
-		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "find by student and date range", dbErr.Op)
+		requireDatabaseError(t, err, "find by student and date range")
 	})
 
 	t.Run("FindByInstanceAndStudent wraps driver errors", func(t *testing.T) {
 		row, err := repo.FindByInstanceAndStudent(cancelledCtx, int64(999999), int64(999999))
 		assert.Nil(t, row)
 		require.Error(t, err)
-		var dbErr *modelBase.DatabaseError
-		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "find by instance and student", dbErr.Op)
+		requireDatabaseError(t, err, "find by instance and student")
 	})
 
 	t.Run("DeleteByInstanceID wraps driver errors", func(t *testing.T) {
 		err := repo.DeleteByInstanceID(cancelledCtx, int64(999999))
 		require.Error(t, err)
-		var dbErr *modelBase.DatabaseError
-		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "delete by instance id", dbErr.Op)
+		requireDatabaseError(t, err, "delete by instance id")
 	})
 }
 
@@ -606,7 +592,7 @@ func TestInstanceStudentRepository_FindCurrentCandidates_ExcludesEndedInstances(
 		instanceByStatus[status] = inst
 	}
 
-	at := time.Date(2026, 10, 15, 14, 30, 0, 0, timezone.Berlin)
+	at := time.Date(2026, 10, 15, 14, 30, 0, 0, calendar.Berlin)
 	rows, err := repo.FindCurrentCandidates(ctx, student.ID, day, at)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
@@ -684,11 +670,11 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	require.NoError(t, factory.InstanceStudent.Create(ctx, attendance))
 
 	older := &absencerecords.StudentStatusDay{
-		StudentID: student.ID, Date: timezone.Date(date), Status: absencerecords.StudentStatusDaySick,
+		StudentID: student.ID, Date: calendar.Date(date), Status: absencerecords.StudentStatusDaySick,
 		ReportedAt: time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC), Source: absencerecords.StudentStatusSourcePlanned,
 	}
 	newer := &absencerecords.StudentStatusDay{
-		StudentID: student.ID, Date: timezone.Date(date), Status: absencerecords.StudentStatusDayExcused,
+		StudentID: student.ID, Date: calendar.Date(date), Status: absencerecords.StudentStatusDayExcused,
 		ReportedAt: time.Date(2026, 10, 2, 8, 0, 0, 0, time.UTC), Source: absencerecords.StudentStatusSourcePlanned,
 	}
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, older))
@@ -725,7 +711,7 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	assert.Nil(t, got.StudentStatusDayID)
 
 	completedStatus := &absencerecords.StudentStatusDay{
-		StudentID: student.ID, Date: timezone.Date(date), Status: absencerecords.StudentStatusDayClassTrip,
+		StudentID: student.ID, Date: calendar.Date(date), Status: absencerecords.StudentStatusDayClassTrip,
 		ReportedAt: time.Date(2026, 10, 3, 8, 0, 0, 0, time.UTC), Source: absencerecords.StudentStatusSourcePlanned,
 	}
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, completedStatus))
@@ -772,7 +758,7 @@ func TestInstanceStudentRepository_MarkNotScheduled_TakesBackStatusDayAbsence(t 
 	require.NoError(t, factory.InstanceStudent.Create(ctx, attendance))
 
 	sick := &absencerecords.StudentStatusDay{
-		StudentID: student.ID, Date: timezone.Date(date), Status: absencerecords.StudentStatusDaySick,
+		StudentID: student.ID, Date: calendar.Date(date), Status: absencerecords.StudentStatusDaySick,
 		ReportedAt: time.Date(2026, 10, 14, 7, 0, 0, 0, time.UTC), Source: absencerecords.StudentStatusSourcePlanned,
 	}
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, sick))
@@ -910,7 +896,6 @@ func TestInstanceStudentRepository_MarkNotScheduled_LeavesFinishedInstancesAlone
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := timetablesqltest.NewActivityInstanceRepository(db)
 
 	for _, tc := range []struct {
 		name   string
@@ -937,8 +922,7 @@ func TestInstanceStudentRepository_MarkNotScheduled_LeavesFinishedInstancesAlone
 			row.SetTenantID(testpkg.Tenant(t))
 			require.NoError(t, repo.Create(ctx, row))
 
-			inst.Status = tc.status
-			require.NoError(t, instanceRepo.Update(ctx, inst))
+			moveInstanceTo(t, db, inst, tc.status)
 
 			require.NoError(t, repo.MarkNotScheduled(ctx, []scheduleModels.StudentInstanceRef{
 				{StudentID: student.ID, InstanceID: inst.ID},
@@ -1067,7 +1051,7 @@ func TestInstanceStudentRepository_MarkExpectedAbsentByActiveGroupIDs_PairScoped
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := timetablesqltest.NewActivityInstanceRepository(db)
+	instanceRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance
 
 	fx := newActivityInstanceFixtures(t, db, "mark-pairs")
 	defer fx.cleanup()
@@ -1392,7 +1376,7 @@ func TestInstanceStudentRepository_FindNotScheduledCandidatesByInstanceIDs(t *te
 	presentRow := create(presentStudent.ID, scheduleModels.AttendanceStatusPresent)
 
 	sick := &absencerecords.StudentStatusDay{
-		StudentID: sickStudent.ID, Date: timezone.Date(date), Status: absencerecords.StudentStatusDaySick,
+		StudentID: sickStudent.ID, Date: calendar.Date(date), Status: absencerecords.StudentStatusDaySick,
 		ReportedAt: time.Date(2026, 10, 16, 7, 0, 0, 0, time.UTC), Source: absencerecords.StudentStatusSourcePlanned,
 	}
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, sick))
@@ -1498,7 +1482,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 	account := testpkg.CreateTestAccount(t, db, "roster-archive@test.local")
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 
-	today := scheduleModels.Date(timezone.TodayDate())
+	today := scheduleModels.Date(calendar.TodayDate())
 	future := today.AddDays(7)
 	past := today.AddDays(-7)
 
@@ -1516,7 +1500,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 	// A planned sickness on the future date: ApplyActiveStatusDaysForInstance has
 	// already turned the graduate's row into an absence owned by the status day.
 	// This is the row the old status='expected' predicate left behind.
-	statusDay := testpkg.CreateTestStudentStatusDay(t, db, graduate.ID, timezone.Date(future), "sick")
+	statusDay := testpkg.CreateTestStudentStatusDay(t, db, graduate.ID, calendar.Date(future), "sick")
 
 	// Deleted: dated from today onwards and still planned.
 	testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, graduate.ID,
@@ -1711,7 +1695,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom_ManualStatusRo
 	account := testpkg.CreateTestAccount(t, db, "roster-archive-manual@test.local")
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 
-	today := scheduleModels.Date(timezone.TodayDate())
+	today := scheduleModels.Date(calendar.TodayDate())
 
 	// createInstanceFixture builds a 14:00-15:00 block, so "now" on either side
 	// of 14:00 decides whether the occurrence has started. Both clocks are
@@ -1800,12 +1784,12 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *te
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := timetablesqltest.NewActivityInstanceRepository(db)
+	instanceRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance
 
 	account := testpkg.CreateTestAccount(t, db, "roster-restore-frozen@test.local")
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 
-	today := scheduleModels.Date(timezone.TodayDate())
+	today := scheduleModels.Date(calendar.TodayDate())
 	soon := today.AddDays(3)
 
 	// Two occurrences that were both still ahead when the transition was
@@ -1886,7 +1870,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 	account := testpkg.CreateTestAccount(t, db, "roster-restore-status@test.local")
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 
-	today := scheduleModels.Date(timezone.TodayDate())
+	today := scheduleModels.Date(calendar.TodayDate())
 	soon := today.AddDays(3)
 
 	inst, cleanupInst := createInstanceFixture(t, db, "statusderiv", soon)
@@ -1901,7 +1885,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 
 	// The state at apply time: `recovered` was already down for a planned
 	// sickness, the other two were plain plan rows.
-	oldStatusDay := testpkg.CreateTestStudentStatusDay(t, db, recovered.ID, timezone.Date(soon), "sick")
+	oldStatusDay := testpkg.CreateTestStudentStatusDay(t, db, recovered.ID, calendar.Date(soon), "sick")
 
 	testpkg.CreateTestInstanceStudent(t, db, inst.ID, sickened.ID,
 		scheduleModels.AttendanceStatusExpected)
@@ -1921,13 +1905,13 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 
 	// The alumnus window: one child is reported sick, the other's sickness is
 	// cleared. Neither change could reach the archived snapshot.
-	newStatusDay := testpkg.CreateTestStudentStatusDay(t, db, sickened.ID, timezone.Date(soon), "sick")
+	newStatusDay := testpkg.CreateTestStudentStatusDay(t, db, sickened.ID, calendar.Date(soon), "sick")
 	_, err = db.NewRaw(`UPDATE active.student_status_days SET cleared_at = NOW() WHERE id = ?`,
 		oldStatusDay.ID).Exec(ctx)
 	require.NoError(t, err)
 	staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Owner-%d", suffix))
 	partial := testpkg.CreateTestPickupException(t, db, partiallyExcused.ID, soon, staff.ID, "13:00", "Termin")
-	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
+	from := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
@@ -1984,15 +1968,13 @@ func TestInstanceStudentRepository_ApplyActivePartialAbsencesSkipsCancelledInsta
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := timetablesqltest.NewActivityInstanceRepository(db)
 	date := scheduleModels.NewDate(2026, 11, 5)
 
 	activeInst, cleanupActive := createInstanceFixture(t, db, "partial-active", date)
 	defer cleanupActive()
 	cancelledInst, cleanupCancelled := createInstanceFixture(t, db, "partial-cxl", date)
 	defer cleanupCancelled()
-	cancelledInst.Status = scheduleModels.InstanceStatusCancelled
-	require.NoError(t, instanceRepo.Update(ctx, cancelledInst))
+	moveInstanceTo(t, db, cancelledInst, scheduleModels.InstanceStatusCancelled)
 
 	student := testpkg.CreateTestStudent(t, db, "Cancel", fmt.Sprintf("Partial-%d", time.Now().UnixNano()), "3a")
 	staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Cancel-%d", time.Now().UnixNano()))
@@ -2003,7 +1985,7 @@ func TestInstanceStudentRepository_ApplyActivePartialAbsencesSkipsCancelledInsta
 		scheduleModels.AttendanceStatusExpected)
 
 	partial := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "13:00", "Termin")
-	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
+	from := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
@@ -2040,15 +2022,13 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceSkipsCompletedInstance(t *
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := timetablesqltest.NewActivityInstanceRepository(db)
 	date := scheduleModels.NewDate(2026, 11, 6)
 
 	activeInst, cleanupActive := createInstanceFixture(t, db, "partial-act2", date)
 	defer cleanupActive()
 	completedInst, cleanupCompleted := createInstanceFixture(t, db, "partial-done", date)
 	defer cleanupCompleted()
-	completedInst.Status = scheduleModels.InstanceStatusCompleted
-	require.NoError(t, instanceRepo.Update(ctx, completedInst))
+	moveInstanceTo(t, db, completedInst, scheduleModels.InstanceStatusCompleted)
 
 	student := testpkg.CreateTestStudent(t, db, "Done", fmt.Sprintf("Partial-%d", time.Now().UnixNano()), "3a")
 	staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Done-%d", time.Now().UnixNano()))
@@ -2060,7 +2040,7 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceSkipsCompletedInstance(t *
 		scheduleModels.AttendanceStatusAbsent)
 
 	partial := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "13:00", "Termin")
-	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
+	from := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
@@ -2094,7 +2074,6 @@ func TestInstanceStudentRepository_ReleasePartialAbsenceSkipsCompletedInstance(t
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := timetablesqltest.NewActivityInstanceRepository(db)
 	date := scheduleModels.NewDate(2026, 11, 9)
 
 	activeInst, cleanupActive := createInstanceFixture(t, db, "release-act", date)
@@ -2111,7 +2090,7 @@ func TestInstanceStudentRepository_ReleasePartialAbsenceSkipsCompletedInstance(t
 		scheduleModels.AttendanceStatusExpected)
 
 	partial := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "13:00", "Termin")
-	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
+	from := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
@@ -2122,8 +2101,7 @@ func TestInstanceStudentRepository_ReleasePartialAbsenceSkipsCompletedInstance(t
 	n, err := repo.ApplyPartialAbsence(ctx, partial.ID)
 	require.NoError(t, err)
 	require.Equal(t, 2, n)
-	completedInst.Status = scheduleModels.InstanceStatusCompleted
-	require.NoError(t, instanceRepo.Update(ctx, completedInst))
+	moveInstanceTo(t, db, completedInst, scheduleModels.InstanceStatusCompleted)
 
 	released, err := repo.ReleasePartialAbsence(ctx, partial.ID)
 	require.NoError(t, err)
@@ -2170,7 +2148,7 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceClaimsBridgeBareAbsence(t 
 		scheduleModels.AttendanceStatusAbsent)
 
 	partial := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "13:00", "Termin")
-	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
+	from := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
@@ -2192,7 +2170,7 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceClaimsBridgeBareAbsence(t 
 	released, err := repo.ReleasePartialAbsence(ctx, partial.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, released)
-	statusDay := testpkg.CreateTestStudentStatusDay(t, db, student.ID, timezone.Date(date), "sick")
+	statusDay := testpkg.CreateTestStudentStatusDay(t, db, student.ID, calendar.Date(date), "sick")
 	applied, err := repo.ApplyStatusDay(ctx, student.ID, date, statusDay.ID, scheduleModels.AttendanceSubstatusSick)
 	require.NoError(t, err)
 	assert.Equal(t, 1, applied)
@@ -2256,7 +2234,7 @@ func TestInstanceStudentRepository_FindPartialAbsenceBlocksIncludesUnmaterialize
 	require.NoError(t, err)
 	assert.Empty(t, blocks, "a row owned by another pickup exception is not actionable")
 
-	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC))
+	from := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC))
 	otherException.ExcusedFrom = &from
 	otherException.ExcusedAuto = true
 	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, otherException))
@@ -2277,7 +2255,7 @@ func TestInstanceStudentRepository_FindPresentInOtherActiveInstances(t *testing.
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instRepo := timetablesqltest.NewActivityInstanceRepository(db)
+	instRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance
 
 	student := testpkg.CreateTestStudent(t, db, "Paula", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()), "1a")
 	other := testpkg.CreateTestStudent(t, db, "Otto", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()+1), "1a")
@@ -2292,11 +2270,11 @@ func TestInstanceStudentRepository_FindPresentInOtherActiveInstances(t *testing.
 	defer cleanPlanned()
 
 	activate := func(inst *scheduleModels.ActivityInstance, title string) {
-		inst.Status = scheduleModels.InstanceStatusActive
 		inst.Title = title
 		inst.StartTime = time.Date(2024, 1, 1, 12, 45, 0, 0, time.UTC)
 		inst.EndTime = time.Date(2024, 1, 1, 13, 45, 0, 0, time.UTC)
 		require.NoError(t, instRepo.Update(ctx, inst))
+		moveInstanceTo(t, db, inst, scheduleModels.InstanceStatusActive)
 	}
 	activate(instTarget, "Lernzeit JG 1")
 	activate(instActive, "GT 1")
@@ -2400,7 +2378,7 @@ func TestInstanceStudentRepository_BatchAttendanceMirrors(t *testing.T) {
 
 	// Plural finds resolve both students in one query.
 	studentIDs := []int64{studentA.ID, studentB.ID}
-	candidateAt := time.Date(2026, 10, 20, 14, 30, 0, 0, timezone.Berlin)
+	candidateAt := time.Date(2026, 10, 20, 14, 30, 0, 0, calendar.Berlin)
 	candidates, err := repo.FindCurrentCandidatesByStudentIDs(ctx, studentIDs, day, candidateAt)
 	require.NoError(t, err)
 	assert.Len(t, candidates, 2)

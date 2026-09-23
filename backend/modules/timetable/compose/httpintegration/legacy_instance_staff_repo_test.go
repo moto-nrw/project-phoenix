@@ -1,4 +1,4 @@
-package timetablesqltest_test
+package httpintegration_test
 
 import (
 	"context"
@@ -7,9 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +25,7 @@ func createInstanceFixture(t *testing.T, db *bun.DB, prefix string, date schedul
 
 	fx := newActivityInstanceFixtures(t, db, prefix)
 
-	repo := timetablesqltest.NewActivityInstanceRepository(db)
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance
 	ctx := testpkg.Ctx(t)
 
 	inst := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
@@ -319,9 +317,7 @@ func TestInstanceStaffRepository_FindByID(t *testing.T) {
 		got, err := repo.FindByID(ctx, int64(999999999))
 		require.Error(t, err)
 		assert.Nil(t, got)
-		var dbErr *modelBase.DatabaseError
-		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "find by id", dbErr.Op)
+		requireDatabaseError(t, err, "find by id")
 	})
 
 	t.Run("wraps driver errors in DatabaseError", func(t *testing.T) {
@@ -331,9 +327,7 @@ func TestInstanceStaffRepository_FindByID(t *testing.T) {
 		got, err := repo.FindByID(cancelledCtx, row.ID)
 		assert.Nil(t, got)
 		require.Error(t, err)
-		var dbErr *modelBase.DatabaseError
-		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "find by id", dbErr.Op)
+		requireDatabaseError(t, err, "find by id")
 	})
 }
 
@@ -361,7 +355,7 @@ func TestInstanceStaffRepository_List(t *testing.T) {
 	})
 
 	t.Run("with pagination and filter", func(t *testing.T) {
-		options := modelBase.NewQueryOptions()
+		options := newListOptions()
 		options.Filter.Equal("instance_id", inst.ID)
 		options.WithPagination(1, 50)
 
@@ -380,9 +374,7 @@ func TestInstanceStaffRepository_List(t *testing.T) {
 		rows, err := repo.List(cancelledCtx, nil)
 		assert.Nil(t, rows)
 		require.Error(t, err)
-		var dbErr *modelBase.DatabaseError
-		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "list with options", dbErr.Op)
+		requireDatabaseError(t, err, "list with options")
 	})
 }
 
@@ -401,26 +393,20 @@ func TestInstanceStaffRepository_ErrorBranches(t *testing.T) {
 		rows, err := repo.FindByInstanceID(cancelledCtx, int64(999999))
 		assert.Nil(t, rows)
 		require.Error(t, err)
-		var dbErr *modelBase.DatabaseError
-		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "find by instance id", dbErr.Op)
+		requireDatabaseError(t, err, "find by instance id")
 	})
 
 	t.Run("FindByStaffAndDate wraps driver errors", func(t *testing.T) {
 		rows, err := repo.FindByStaffAndDate(cancelledCtx, int64(999999), scheduleModels.NewDate(2026, 9, 24))
 		assert.Nil(t, rows)
 		require.Error(t, err)
-		var dbErr *modelBase.DatabaseError
-		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "find by staff and date", dbErr.Op)
+		requireDatabaseError(t, err, "find by staff and date")
 	})
 
 	t.Run("DeleteByInstanceID wraps driver errors", func(t *testing.T) {
 		err := repo.DeleteByInstanceID(cancelledCtx, int64(999999))
 		require.Error(t, err)
-		var dbErr *modelBase.DatabaseError
-		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "delete by instance id", dbErr.Op)
+		requireDatabaseError(t, err, "delete by instance id")
 	})
 }
 
@@ -517,4 +503,75 @@ func TestInstanceStaffRepository_FindByStaffAndDateRange(t *testing.T) {
 	empty, err := repo.FindByStaffAndDateRange(ctx, staff.ID, scheduleModels.NewDate(2026, 10, 1), scheduleModels.NewDate(2026, 10, 5))
 	require.NoError(t, err)
 	assert.Empty(t, empty)
+}
+
+// activityInstanceFixtures holds the shared dependencies a test instance row
+// needs: a room (primary, always NOT NULL) and optionally a template (activity group).
+type activityInstanceFixtures struct {
+	roomID     int64
+	activityID int64
+	cleanup    func()
+}
+
+func newActivityInstanceFixtures(t *testing.T, db *bun.DB, prefix string) *activityInstanceFixtures {
+	t.Helper()
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%s-%d", prefix, time.Now().UnixNano()))
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Template-%s-%d", prefix, time.Now().UnixNano()))
+	return &activityInstanceFixtures{
+		roomID:     room.ID,
+		activityID: activity.ID,
+		cleanup: func() {
+		},
+	}
+}
+
+func buildInstance(tenantID, roomID int64, activityID *int64, date scheduleModels.Date, start, end time.Time, title string) *scheduleModels.ActivityInstance {
+	inst := &scheduleModels.ActivityInstance{
+		Date:            date,
+		ActivityGroupID: activityID,
+		Title:           title,
+		StartTime:       start,
+		EndTime:         end,
+		RoomID:          roomID,
+		Status:          scheduleModels.InstanceStatusPlanned,
+	}
+	inst.SetTenantID(tenantID)
+	return inst
+}
+
+// moveInstanceTo carries the block into status the way the composition
+// root's instance repository routes the transition: a planning status is a
+// column patch on the plan, an execution status is the block's Student
+// Presence session, started for a live group of the block's template and, for
+// completed, ended again.
+func moveInstanceTo(t *testing.T, db *bun.DB, inst *scheduleModels.ActivityInstance, status string) {
+	t.Helper()
+	ctx := testpkg.Ctx(t)
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance
+	if status == scheduleModels.InstanceStatusActive || status == scheduleModels.InstanceStatusCompleted {
+		require.NotNil(t, inst.ActivityGroupID, "an execution needs the block's template")
+		group := testpkg.CreateTestActiveGroup(t, db, *inst.ActivityGroupID, inst.RoomID)
+		startedAt := time.Now()
+		inst.Status, inst.ActiveGroupID, inst.StartedAt = scheduleModels.InstanceStatusActive, &group.ID, &startedAt
+		_, err := repo.UpdateColumns(ctx, inst, "status", "active_group_id", "started_at")
+		require.NoError(t, err)
+		if status == scheduleModels.InstanceStatusActive {
+			return
+		}
+		completedAt := time.Now()
+		inst.CompletedAt = &completedAt
+	}
+	inst.Status = status
+	_, err := repo.UpdateColumns(ctx, inst, "status")
+	require.NoError(t, err)
+}
+
+func createRepositoryTestStaffID(tb testing.TB, db *bun.DB) int64 {
+	tb.Helper()
+
+	staff := testpkg.CreateTestStaff(tb, db, "Schedule", fmt.Sprintf("Creator-%d", time.Now().UnixNano()))
+	tb.Cleanup(func() {
+	})
+
+	return staff.ID
 }

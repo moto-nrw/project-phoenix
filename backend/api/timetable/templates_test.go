@@ -23,7 +23,6 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -440,7 +439,7 @@ func TestTemplateUpdatePropagatesListKindToFutureInstances(t *testing.T) {
 	created := decodeTemplateData[createTemplateResponse](t, w)
 	require.NotZero(t, created.TemplateID)
 
-	instanceRepo := timetablesqltest.NewActivityInstanceRepository(s.db)
+	instanceRepo := mustTimetableTestRepositories(s.db).ActivityInstance
 	today := timezone.NewDate(2026, 8, 24)
 	mkInstance := func(name string, date timezone.Date, hour int, listKind *string) *scheduleModel.ActivityInstance {
 		tmplID := created.TemplateID
@@ -1540,7 +1539,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 		}
 		exception.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, timetablesqltest.NewActivityExceptionRepository(s.db).Create(s.ctx, exception))
+		require.NoError(t, mustTimetableTestRepositories(s.db).ActivityException.Create(s.ctx, exception))
 
 		got := listCapacityTemplate(t, router, period.ID, templateID)
 		assert.Zero(t, got.RequiredStaffCount)
@@ -1615,7 +1614,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			RoomID:          &s.roomID,
 		}
 		exception.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, timetablesqltest.NewActivityExceptionRepository(s.db).Create(s.ctx, exception))
+		require.NoError(t, mustTimetableTestRepositories(s.db).ActivityException.Create(s.ctx, exception))
 
 		got := listCapacityTemplate(t, router, period.ID, templateID)
 		assert.Equal(t, 1, got.RequiredStaffCount,
