@@ -20,7 +20,7 @@ import {
   type AnalyticsRouteSurface,
 } from "~/lib/analytics-routes";
 
-export const ANALYTICS_SURFACES = [
+const ANALYTICS_SURFACES = [
   "ogs",
   "parents",
   "school",
@@ -31,11 +31,11 @@ export const ANALYTICS_SURFACES = [
 export type AnalyticsSurface = (typeof ANALYTICS_SURFACES)[number];
 
 /** `deployment` of the public demo; any other value is a school deployment. */
-export const DEMO_DEPLOYMENT = "demo";
+const DEMO_DEPLOYMENT = "demo";
 
 /** Same-origin reverse proxy to PostHog EU (`next.config.js` rewrites). */
-export const POSTHOG_PROXY_PATH = "/ingest";
-export const POSTHOG_UI_HOST = "https://eu.posthog.com";
+const POSTHOG_PROXY_PATH = "/ingest";
+const POSTHOG_UI_HOST = "https://eu.posthog.com";
 
 export interface AnalyticsContext {
   /** `demo` in the public demo, otherwise the tenant domain. */
@@ -47,12 +47,7 @@ export interface AnalyticsContext {
 }
 
 /** Values of the `role` property: the role model, never a free-text name. */
-export const ANALYTICS_ROLES = [
-  "admin",
-  "staff",
-  "lehrkraft",
-  "guardian",
-] as const;
+const ANALYTICS_ROLES = ["admin", "staff", "lehrkraft", "guardian"] as const;
 
 export type AnalyticsRole = (typeof ANALYTICS_ROLES)[number];
 
