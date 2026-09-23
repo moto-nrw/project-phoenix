@@ -211,7 +211,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/workforce/internal/adapters/postgres/substitution_store.go:(*Store).ListGroupSubstitutions":                             66,
 	"modules/workforce/legacy/absence_repositories.go:applyStaffAbsenceCondition":                                                    61,
 	"modules/workforce/internal/planning/staff_assignment_service.go:(*staffAssignmentService).ListAssignmentsForStaff":              83,
-	"modules/workforce/internal/planning/staff_schedule_overview.go:(*staffScheduleOverviewService).loadOverviewData":                68,
+	"modules/workforce/internal/planning/staff_schedule_overview.go:(*staffScheduleOverviewService).loadOverviewData":                66,
 	"modules/workforce/internal/planning/staff_schedule_overview.go:(*staffScheduleOverviewService).resolveWeeklyTargets":            83,
 	"modules/workforce/internal/planning/staff_shift_move.go:(*staffShiftService).MoveShift":                                         124,
 	"modules/workforce/internal/planning/staff_shift_series_service.go:(*staffShiftSeriesService).SplitSeries":                       157,

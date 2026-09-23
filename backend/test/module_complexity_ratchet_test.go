@@ -286,7 +286,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/workforce/legacy/absence_repositories.go:applyStaffAbsenceCondition":                                                    28,
 	"modules/workforce/legacy/absence_repositories.go:staffAbsenceFilterFromOptions":                                                 20,
 	"modules/workforce/internal/planning/staff_assignment_service.go:(*staffAssignmentService).ListAssignmentsForStaff":              16,
-	"modules/workforce/internal/planning/staff_schedule_overview.go:(*staffScheduleOverviewService).loadOverviewData":                17,
+	"modules/workforce/internal/planning/staff_schedule_overview.go:(*staffScheduleOverviewService).loadOverviewData":                16,
 	"modules/workforce/internal/planning/staff_schedule_overview.go:(*staffScheduleOverviewService).resolveWeeklyTargets":            52,
 	"modules/workforce/internal/planning/staff_shift_move.go:(*staffShiftService).MoveShift":                                         42,
 	"modules/workforce/internal/planning/staff_shift_series_service.go:(*staffShiftSeriesService).SplitSeries":                       38,
