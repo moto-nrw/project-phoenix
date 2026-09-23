@@ -279,7 +279,7 @@ func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 
 // DeleteGuardian removes a guardian profile WITHOUT touching its student links.
 //
-// Since migration 1.15.127 the students_guardians → guardian_profiles FK is
+// Since migration 1.15.127 the relationship → guardian_profiles FK is
 // ON DELETE RESTRICT, so this fails with a foreign-key violation when the
 // guardian is still linked to any student — the handler turns that into a 409.
 // Use this only for guardians with no remaining links; for the deliberate

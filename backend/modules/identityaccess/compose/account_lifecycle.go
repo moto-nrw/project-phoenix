@@ -124,7 +124,7 @@ type GuardianProfile struct {
 	HasAccount bool
 }
 
-// StudentGuardianLink is one users.students_guardians row.
+// StudentGuardianLink is one student-guardian relationship.
 type StudentGuardianLink struct {
 	ID                int64
 	TenantID          int64

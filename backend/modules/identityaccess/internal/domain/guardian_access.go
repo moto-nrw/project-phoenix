@@ -10,6 +10,9 @@ var (
 	ErrAccountNotFound     = errors.New("account not found")
 	ErrTenantRequired      = errors.New("tenant is required")
 	ErrGuardianRoleMissing = errors.New("guardian role not found")
+	// ErrGuardianStudentAccessTenantMismatch refuses a relationship access
+	// command whose school is not the school of the tenant transaction.
+	ErrGuardianStudentAccessTenantMismatch = errors.New("guardian access belongs to another school")
 )
 
 // GuardianRoleName is the base role every parent-portal login carries.

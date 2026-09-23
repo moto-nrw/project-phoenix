@@ -87,7 +87,7 @@ type StudentStore interface {
 	ListByStatusFlag(context.Context, string) ([]domain.Student, domain.OperationStats, error)
 	// Lock takes the row FOR UPDATE and reports whether it exists.
 	Lock(context.Context, int64) (bool, domain.OperationStats, error)
-	// CountGuardianLinks counts the current (students_guardians) and legacy
+	// CountGuardianLinks counts the current (relationship) and legacy
 	// (persons_guardians) links a permanent deletion removes.
 	CountGuardianLinks(ctx context.Context, studentID, personID int64) (int, domain.OperationStats, error)
 	// DeleteLegacyGuardianLinks removes the person-based guardian links that

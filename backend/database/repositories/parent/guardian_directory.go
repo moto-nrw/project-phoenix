@@ -7,8 +7,8 @@ import (
 )
 
 // DirectoryGuardianLink is the People Directory projection of one
-// users.students_guardians row the parent-portal repositories read.
-// users.guardian_profiles and users.students_guardians belong to that owner
+// student-guardian relationship the parent-portal repositories read.
+// users.guardian_profiles and the student-guardian relationships belong to that owner
 // (#2663); the cross-tenant joins that used to read them are now an
 // account-tenants read plus a directory lookup inside the same admin
 // transaction. Permissions lists the granted parents-portal permissions.

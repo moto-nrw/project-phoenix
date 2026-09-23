@@ -5,7 +5,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
-// The stored role of a users.students_guardians relationship, classified for
+// The stored role of a student-guardian relationship, classified for
 // the Identity & Access relative access flow (#3225): a full guardian keeps
 // portal access, a social worker is a school-managed contact the invite flow
 // never upgrades, everything else is a restrictive contact. The composition

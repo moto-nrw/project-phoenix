@@ -183,8 +183,10 @@ const threadHasMessages = `EXISTS (
 // who is primary for child A but pickup-only for child B does not see child B's
 // thread metadata. Guardian-facing queries only; staff see a child's threads
 // regardless of guardian link.
+//
+// Bind order: guardian links (the guardian-link projection, #2756).
 const guardianStillLinked = `EXISTS (
-	SELECT 1 FROM users.students_guardians sg_link
+	SELECT 1 FROM (?) sg_link
 	JOIN users.guardian_profiles gp_link ON gp_link.id = sg_link.guardian_profile_id
 	WHERE sg_link.student_id = t.student_id
 	  AND gp_link.account_id = t.guardian_account_id

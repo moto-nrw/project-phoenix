@@ -113,7 +113,7 @@ func (p *Projection) CountAudience(ctx context.Context, schoolID, announcementID
 	var count int
 	if err := db.NewRaw(countAudienceSQL,
 		applicants,
-		schoolID, schoolID, today, today, today, schoolID, schoolID, announcementID, schoolID,
+		schoolID, schoolID, today, today, today, guardianLinks(db, schoolID), schoolID, announcementID, schoolID,
 		announcementID, schoolID,
 	).Scan(ctx, &count); err != nil {
 		return 0, fmt.Errorf("count parent announcement audience: %w", err)
@@ -138,7 +138,7 @@ func (p *Projection) AccountMatchesAnnouncement(ctx context.Context, schoolID, a
 	var matched bool
 	if err := db.NewRaw(accountMatchesSQL,
 		applicants,
-		schoolID, schoolID, today, today, today, schoolID, schoolID, accountID, announcementID, schoolID,
+		schoolID, schoolID, today, today, today, guardianLinks(db, schoolID), schoolID, accountID, announcementID, schoolID,
 		schoolID, accountID, accountID, announcementID, schoolID,
 	).Scan(ctx, &matched); err != nil {
 		return false, fmt.Errorf("check parent announcement audience match: %w", err)
@@ -159,7 +159,7 @@ const audienceEmailsSQL = pendingApplicantsCTE + `
 			FROM (
 			SELECT DISTINCT gp.account_id, lower(gp.email) AS email,
 				COALESCE(gp.first_name, '') AS first_name, COALESCE(gp.last_name, '') AS last_name` + reachedStudentsBound + `
-			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
+			JOIN (?) sg ON sg.student_id = s.id
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
 				AND gp.account_id IS NOT NULL
@@ -200,7 +200,7 @@ func (p *Projection) ResolveAudienceEmails(ctx context.Context, schoolID, announ
 	var rows []recipientRow
 	if err := db.NewRaw(audienceEmailsSQL,
 		applicants,
-		schoolID, schoolID, today, today, today, schoolID, schoolID, announcementID, schoolID,
+		schoolID, schoolID, today, today, today, guardianLinks(db, schoolID), schoolID, announcementID, schoolID,
 		announcementID, schoolID,
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("resolve parent announcement audience emails: %w", err)
@@ -233,12 +233,12 @@ const letterChildStatusesSQL = `WITH reached AS (` + letterReachedStudentsBound 
 			JOIN users.persons p ON p.id = s.person_id
 			LEFT JOIN LATERAL (
 				SELECT par.acknowledged_at, gp.first_name, gp.last_name
-				FROM users.students_guardians sg
+				FROM (?) sg
 				JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id
 					AND gp.tenant_id = ? AND gp.account_id IS NOT NULL
 				JOIN users.parent_announcement_reads par ON par.announcement_id = ?
 					AND par.tenant_id = ? AND par.account_id = gp.account_id
-				WHERE sg.student_id = s.id AND sg.tenant_id = ?
+				WHERE sg.student_id = s.id
 					AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 					AND par.acknowledged_at IS NOT NULL
 				ORDER BY par.acknowledged_at ASC
@@ -268,8 +268,8 @@ func (p *Projection) LetterChildStatuses(ctx context.Context, schoolID, announce
 	var rows []letterChildRow
 	if err := db.NewRaw(letterChildStatusesSQL,
 		schoolID, schoolID, today, today, today, announcementID, schoolID, // reached
-		schoolID, schoolID, today, today, today, schoolID, schoolID, announcementID, schoolID, // confirmable
-		schoolID, announcementID, schoolID, schoolID, // acknowledgement lateral
+		schoolID, schoolID, today, today, today, guardianLinks(db, schoolID), schoolID, announcementID, schoolID, // confirmable
+		guardianLinks(db, schoolID), schoolID, announcementID, schoolID, // acknowledgement lateral
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent announcement letter child statuses: %w", err)
 	}
@@ -306,7 +306,7 @@ const deliveryRecipientsSQL = `
 							AND act.status = 'active'
 					)
 				) AS has_portal_access` + reachedStudentsBound + `
-			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
+			JOIN (?) sg ON sg.student_id = s.id
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ?
 			GROUP BY gp.id, gp.account_id, gp.first_name, gp.last_name, gp.email, gp.portal_locale
@@ -333,7 +333,7 @@ func (p *Projection) ResolveDeliveryRecipients(ctx context.Context, schoolID, an
 	today := p.day()
 	var rows []deliveryRecipientRow
 	if err := db.NewRaw(deliveryRecipientsSQL,
-		schoolID, schoolID, today, today, today, schoolID, schoolID, announcementID, schoolID,
+		schoolID, schoolID, today, today, today, guardianLinks(db, schoolID), schoolID, announcementID, schoolID,
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("resolve parent announcement delivery recipients: %w", err)
 	}
@@ -398,7 +398,7 @@ func (p *Projection) AudienceRecipients(ctx context.Context, schoolID, announcem
 	var rows []recipientStatusRow
 	if err := db.NewRaw(audienceRecipientsSQL,
 		applicants,
-		schoolID, schoolID, today, today, today, schoolID, schoolID, announcementID, schoolID,
+		schoolID, schoolID, today, today, today, guardianLinks(db, schoolID), schoolID, announcementID, schoolID,
 		announcementID, schoolID,
 		schoolID,       // guardian locale
 		announcementID, // reads join
@@ -421,7 +421,7 @@ const reachableGuardiansSQL = `
 			SELECT COUNT(DISTINCT gp.account_id)
 			FROM users.student_profiles s` + studentMembershipJoins + `
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
-			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
+			JOIN (?) sg ON sg.student_id = s.id
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
 				AND gp.account_id IS NOT NULL
@@ -441,7 +441,7 @@ func (p *Projection) CountReachableGuardiansForStudents(ctx context.Context, sch
 	}
 	var count int
 	if err := db.NewRaw(reachableGuardiansSQL,
-		schoolID, schoolID, schoolID, bun.List(studentIDs),
+		guardianLinks(db, schoolID), schoolID, schoolID, bun.List(studentIDs),
 	).Scan(ctx, &count); err != nil {
 		return 0, fmt.Errorf("count reachable guardians for students: %w", err)
 	}
@@ -505,7 +505,7 @@ func (p *Projection) ListFeedForAccount(ctx context.Context, accountID int64, sc
 	if err := db.NewRaw(feedSQL,
 		applicants,
 		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs),
-		today, today, today, accountID, accountID, accountID,
+		today, today, today, guardianLinks(db, 0), accountID, accountID, accountID,
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("list parent announcement feed: %w", err)
 	}
@@ -564,8 +564,8 @@ func (p *Projection) CountOutstandingForAccount(ctx context.Context, accountID i
 	if err := db.NewRaw(countOutstandingSQL,
 		applicants,
 		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs),
-		today, today, today, accountID,
-		today, today, today, accountID, accountID, accountID,
+		today, today, today, guardianLinks(db, 0), accountID,
+		today, today, today, guardianLinks(db, 0), accountID, accountID, accountID,
 	).Scan(ctx, &count); err != nil {
 		return 0, fmt.Errorf("count outstanding parent announcements: %w", err)
 	}
@@ -599,7 +599,7 @@ func (p *Projection) Stats(ctx context.Context, schoolID, announcementID int64) 
 	stats := &domain.ParentAnnouncementStats{}
 	if err := db.NewRaw(statsSQL,
 		applicants,
-		schoolID, schoolID, today, today, today, schoolID, schoolID, announcementID, schoolID,
+		schoolID, schoolID, today, today, today, guardianLinks(db, schoolID), schoolID, announcementID, schoolID,
 		announcementID, schoolID,
 		announcementID, schoolID,
 		announcementID, schoolID,
@@ -625,7 +625,7 @@ const answerableChildrenSQL = `
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 				AND sm.status <> 'alumnus'
-			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = a.tenant_id
+			JOIN (?) sg ON sg.student_id = s.id AND sg.tenant_id = a.tenant_id
 				AND sg.permissions @> '{"parent_portal.access": true, "parent_portal.poll.response": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = a.tenant_id
 				AND gp.account_id = ?
@@ -660,7 +660,7 @@ func (p *Projection) AnswerableChildren(ctx context.Context, accountID int64, an
 	today := p.day()
 	var rows []pollChildRow
 	if err := db.NewRaw(answerableChildrenSQL,
-		today, today, today, accountID, bun.List(announcementIDs),
+		today, today, today, guardianLinks(db, 0), accountID, bun.List(announcementIDs),
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("list answerable children for parent announcements: %w", err)
 	}
@@ -690,7 +690,7 @@ func (p *Projection) AccountMayAnswerForStudent(ctx context.Context, schoolID, a
 	today := p.day()
 	var allowed bool
 	if err := db.NewRaw(accountMayAnswerSQL,
-		schoolID, schoolID, today, today, today, schoolID, schoolID, accountID, announcementID, schoolID,
+		schoolID, schoolID, today, today, today, guardianLinks(db, schoolID), schoolID, accountID, announcementID, schoolID,
 		studentID,
 	).Scan(ctx, &allowed); err != nil {
 		return false, fmt.Errorf("check parent announcement answer permission: %w", err)
@@ -727,7 +727,7 @@ func (p *Projection) HoldAnswerPermission(ctx context.Context, schoolID, announc
 	today := p.day()
 	var relationshipID int64
 	err = db.NewRaw(holdAnswerPermissionSQL,
-		schoolID, schoolID, today, today, today, schoolID, schoolID, accountID, announcementID, schoolID,
+		schoolID, schoolID, today, today, today, guardianLinks(db, schoolID), schoolID, accountID, announcementID, schoolID,
 		studentID,
 	).Scan(ctx, &relationshipID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -779,15 +779,15 @@ func (p *Projection) PollResults(ctx context.Context, schoolID, announcementID i
 	today := p.day()
 	results := &domain.ParentAnnouncementPollResults{}
 	if err := db.NewRaw(pollCountsSQL,
-		schoolID, schoolID, today, today, today, schoolID, schoolID, announcementID, schoolID,
-		schoolID, schoolID, today, today, today, schoolID, schoolID, announcementID, schoolID,
+		schoolID, schoolID, today, today, today, guardianLinks(db, schoolID), schoolID, announcementID, schoolID,
+		schoolID, schoolID, today, today, today, guardianLinks(db, schoolID), schoolID, announcementID, schoolID,
 		announcementID, schoolID,
 	).Scan(ctx, &results.TargetChildCount, &results.ChildCount, &results.AnsweredCount); err != nil {
 		return nil, fmt.Errorf("parent announcement poll counts: %w", err)
 	}
 	var rows []pollOptionResultRow
 	if err := db.NewRaw(pollOptionResultsSQL,
-		schoolID, schoolID, today, today, today, schoolID, schoolID, announcementID, schoolID,
+		schoolID, schoolID, today, today, today, guardianLinks(db, schoolID), schoolID, announcementID, schoolID,
 		announcementID, schoolID,
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent announcement poll option results: %w", err)
@@ -842,8 +842,8 @@ func (p *Projection) PollChildren(ctx context.Context, schoolID, announcementID 
 	today := p.day()
 	var rows []pollChildStatusRow
 	if err := db.NewRaw(pollChildrenSQL,
-		schoolID, schoolID, today, today, today, schoolID, schoolID, announcementID, schoolID,
-		schoolID, schoolID, today, today, today, schoolID, schoolID, announcementID, schoolID,
+		schoolID, schoolID, today, today, today, guardianLinks(db, schoolID), schoolID, announcementID, schoolID,
+		schoolID, schoolID, today, today, today, guardianLinks(db, schoolID), schoolID, announcementID, schoolID,
 		announcementID, schoolID,
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent announcement poll children: %w", err)
@@ -885,7 +885,7 @@ const unansweredRecipientsSQL = reminderRecipientColumns + reachedStudentsBound 
 const unacknowledgedRecipientsSQL = reminderRecipientColumns + reachedStudentsBound + portalGuardiansBound + announcementTargetsBound + `
 				AND NOT EXISTS (
 					SELECT 1
-					FROM users.students_guardians osg
+					FROM (?) osg
 					JOIN users.guardian_profiles ogp ON ogp.id = osg.guardian_profile_id
 						AND ogp.tenant_id = pt.tenant_id AND ogp.account_id IS NOT NULL
 					JOIN users.parent_announcement_reads par ON par.announcement_id = pt.announcement_id
@@ -914,7 +914,7 @@ func (p *Projection) UnansweredReminderRecipients(ctx context.Context, schoolID,
 	today := p.day()
 	var rows []reminderRecipientRow
 	if err := db.NewRaw(unansweredRecipientsSQL,
-		schoolID, schoolID, today, today, today, schoolID, schoolID, announcementID, schoolID,
+		schoolID, schoolID, today, today, today, guardianLinks(db, schoolID), schoolID, announcementID, schoolID,
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent announcement poll reminder recipients: %w", err)
 	}
@@ -931,7 +931,7 @@ func (p *Projection) UnacknowledgedReminderRecipients(ctx context.Context, schoo
 	today := p.day()
 	var rows []reminderRecipientRow
 	if err := db.NewRaw(unacknowledgedRecipientsSQL,
-		schoolID, schoolID, today, today, today, schoolID, schoolID, announcementID, schoolID,
+		schoolID, schoolID, today, today, today, guardianLinks(db, schoolID), schoolID, announcementID, schoolID, guardianLinks(db, schoolID),
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent announcement letter reminder recipients: %w", err)
 	}

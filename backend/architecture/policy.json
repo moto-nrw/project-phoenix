@@ -437,6 +437,10 @@
     {
       "id": "shift-plan-sync",
       "kind": "workflow"
+    },
+    {
+      "id": "guardian-link-view",
+      "kind": "projection"
     }
   ],
   "roles": [
@@ -3393,6 +3397,13 @@
       "role": "compose",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/guardianlinkview",
+      "owner": "guardian-link-view",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     }
   ],
   "data_objects": [
@@ -4249,6 +4260,10 @@
       "write_owner": "migrations"
     },
     {
+      "name": "users.students_guardians_compatibility_writes",
+      "write_owner": "migrations"
+    },
+    {
       "name": "users.staff_document_file_cleanup",
       "write_owner": "workforce"
     },
@@ -4416,8 +4431,7 @@
         "users.persons",
         "users.student_care_profiles",
         "users.student_profiles",
-        "users.student_school_memberships",
-        "users.students_guardians"
+        "users.student_school_memberships"
       ],
       "tenant_safe": true
     },
@@ -4449,8 +4463,7 @@
         "users.persons",
         "users.student_care_profiles",
         "users.student_profiles",
-        "users.student_school_memberships",
-        "users.students_guardians"
+        "users.student_school_memberships"
       ],
       "tenant_safe": true
     },
@@ -4516,6 +4529,16 @@
         "iot.pwa_standalone_usage",
         "platform.organizations",
         "platform.schools"
+      ],
+      "tenant_safe": true
+    },
+    {
+      "id": "guardian-link-view",
+      "package": "modules/guardianlinkview",
+      "data_objects": [
+        "auth.guardian_student_access",
+        "users.student_guardian_pickup_permissions",
+        "users.student_guardian_relationships"
       ],
       "tenant_safe": true
     }
@@ -24625,6 +24648,39 @@
       "source_role": "e2e-test",
       "target_owner": "security-runtime",
       "target_role": "contract"
+    },
+    {
+      "id": "people-directory.postgres.guardian-link-view",
+      "description": "Relationship reads that need the pickup permission or the parents-portal permissions join the three relationship owners through the named guardian-link projection (#2756).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "postgres",
+      "target_owner": "guardian-link-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "parent-message-inbox.postgres.guardian-link-view",
+      "description": "The parent inbox checks a thread's guardian relationship and its parents-portal access through the guardian-link projection (#2756).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-message-inbox",
+      "source_role": "postgres",
+      "target_owner": "guardian-link-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "parent-announcement-audience.postgres.guardian-link-view",
+      "description": "The announcement audience resolves the guardians with parents-portal access through the guardian-link projection (#2756).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-announcement-audience",
+      "source_role": "postgres",
+      "target_owner": "guardian-link-view",
+      "target_role": "postgres"
     }
   ],
   "relocations": [

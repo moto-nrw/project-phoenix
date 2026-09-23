@@ -312,7 +312,7 @@ var backfillGuardianOwnerResetCmd = &cobra.Command{
 	Short: "Discard target rows and checkpoints to restart from zero (refused after Cutover)",
 	Long: `Truncate users.student_guardian_relationships, users.student_guardian_pickup_permissions and
 auth.guardian_student_access and delete the guardian-owner checkpoints. users.students_guardians is never
-modified. The command refuses once users.students_guardians is no longer a base table, because the
+modified. The command refuses once Cutover #2756 has installed the compatibility mirror, because the
 targets are then authoritative.`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		return defaultBackfillRoot.guardianOwnerReset(cmd)

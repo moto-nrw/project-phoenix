@@ -241,7 +241,7 @@ func enrollmentSchoolActive(school *EnrollmentSchool) bool {
 // submission (#1663).
 //
 // The family-link fact mirrors guard.has_family_link in ListEnrollable exactly:
-// a guardian_profile with at least one students_guardians row (HasGuardianLink)
+// a guardian_profile with at least one student-guardian relationship (HasGuardianLink)
 // AND an ACTIVE auth.account_tenants mapping (Linked). Membership alone is not
 // enough — auth.account_tenants also carries staff and other roles — and a
 // guardian row alone is not either, since a deactivated mapping leaves the

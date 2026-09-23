@@ -50,6 +50,7 @@ func RestoreStudentCompatibilityBeforeContract(tb testing.TB, db *bun.DB) {
 func RestoreStudentStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 	tb.Helper()
 	requireIsolatedStudentStorage(tb, db)
+	restoreGuardianStorageIfCutOver(tb, db)
 	var archiveMissing bool
 	if err := db.NewRaw(`SELECT to_regclass('users.students_legacy') IS NULL`).Scan(context.Background(), &archiveMissing); err != nil {
 		tb.Fatalf("inspect historical student archive: %v", err)

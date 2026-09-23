@@ -494,7 +494,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		RFIDCard:            identity,
 		Student:             studentRepo,
 		Profile:             identity,
-		StudentGuardian:     users.NewStudentGuardianRepository(db, users.WithStudentGuardianMemberships(identity.FindActiveSchoolMemberships)),
+		StudentGuardian:     newGuardianRelationships(db, identity.FindActiveSchoolMemberships, timetableDependencies.ObserveIdentityAccess),
 		GuardianProfile:     NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
 		FamilyProtection:    users.NewFamilyProtectionEventRepository(db),

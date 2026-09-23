@@ -12,7 +12,7 @@ import (
 
 // Guardian and contact-person capability (#2663). The People Directory owns
 // users.guardian_profiles, users.guardian_phone_numbers and
-// users.students_guardians: a contact person, the permission to collect a
+// users.student_guardian_relationships: a contact person, the permission to collect a
 // child, the emergency-contact flag and the parents-portal access are four
 // separate facts on the link, never inferred from one another.
 
@@ -119,7 +119,7 @@ type GuardianPhone struct {
 	Priority          int
 }
 
-// GuardianLink is one users.students_guardians row: the relationship of a
+// GuardianLink is one student-guardian relationship: the relationship of a
 // guardian to one child. Permissions lists the granted parents-portal
 // permission names of this link.
 type GuardianLink struct {

@@ -172,7 +172,7 @@ type PushSubscriptionRepository interface {
 	// recipients are deliberately excluded from Web Push.
 	//
 	// A non-empty studentIDs additionally requires parent_portal.access for at
-	// least one of those children on the caller's users.students_guardians row,
+	// least one of those children on the caller's student-guardian relationship,
 	// so a notification about a child reaches only the accounts that may still
 	// hear about it at delivery time. Pass nil for events about no child.
 	FindForGuardians(ctx context.Context, guardianAccountIDs []int64, studentIDs []int64) ([]*PushSubscription, error)

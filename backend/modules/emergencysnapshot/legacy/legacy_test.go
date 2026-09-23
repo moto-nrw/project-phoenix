@@ -443,7 +443,7 @@ func TestSnapshotInputsEnforceRLS(t *testing.T) {
 		PresenceMode: fakeMode{mode: "detailed"},
 		Students:     newOwnerStudentSource(t, db),
 		Persons:      people,
-		Contacts:     usersRepo.NewStudentGuardianRepository(db),
+		Contacts:     usersRepo.NewGuardianRelationshipRepository(db),
 		Rooms:        facilitiesModule,
 		Settings:     &fakeSettings{enabled: false},
 		Renderer:     listexport.NewService(),
