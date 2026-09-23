@@ -2,7 +2,7 @@
 //
 // The former POST /api/timetable/substitute endpoint was consolidated into
 // POST /instances/{id}/deviations (#1886), and the plan/classify/write logic
-// moved into modules/timetable/legacy/timetableplanning (InstanceService.ApplyDeviations, #1840). What
+// moved to the Timetable owner (timetable.StaffDeviations, #1840, #3424). What
 // remains here is the wire response row (AffectedInstance), the shared reason
 // normalizer, and the post-save SSE broadcast helpers the handlers drive.
 package timetable
@@ -13,7 +13,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -53,13 +53,19 @@ func trimReason(reason *string) *string {
 // invalidation (#1844).
 func (rs *Resource) broadcastDeviationSaveEvents(
 	ctx context.Context,
-	touched map[int64]*scheduleModel.ActivityInstance,
+	touched timetable.TouchedActivities,
 	appliedWrites int,
 	ackChanged bool,
 	clearedAcks int,
 ) {
-	rs.InstanceService.QueueActivityUpdates(ctx, touched)
-	if appliedWrites > 0 || ackChanged || clearedAcks > 0 {
+	rs.Deviations.QueueActivityUpdates(ctx, touched)
+	rs.broadcastStaffingIfChanged(ctx, appliedWrites > 0 || ackChanged || clearedAcks > 0)
+}
+
+// broadcastStaffingIfChanged sends the tenant-wide invalidation of a staffing
+// save that changed staffing state.
+func (rs *Resource) broadcastStaffingIfChanged(ctx context.Context, changed bool) {
+	if changed {
 		rs.broadcastStaffingDeviationChanged(ctx, "deviations")
 	}
 }

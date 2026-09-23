@@ -8,7 +8,8 @@
 // visit_helpers.go and every lower-level test would still pass — the SSE
 // enrichment would silently disappear in production.
 //
-// The test wires the real AttendanceSyncService into active.NewService
+// The test wires the real attendance mirror (the Timetable owner's command
+// bound to the syncer port) into active.NewService
 // (same way services.NewFactory wires it) against a seeded instance +
 // instance_students row and asserts the broadcast shape.
 package presence_test
@@ -26,7 +27,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,7 +52,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	suffix := time.Now().UnixNano()
 
 	// Real attendance syncer, wired the same way services.NewFactory does.
-	syncer := timetableplanning.NewAttendanceSyncService(
+	syncer := newAttendanceMirror(t,
 		repos.ActivityInstance,
 		repos.InstanceStudent,
 		slog.Default(),
@@ -208,7 +208,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	suffix := time.Now().UnixNano()
-	syncer := timetableplanning.NewAttendanceSyncService(
+	syncer := newAttendanceMirror(t,
 		repos.ActivityInstance,
 		repos.InstanceStudent,
 		slog.Default(),

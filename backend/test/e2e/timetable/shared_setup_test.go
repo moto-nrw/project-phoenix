@@ -77,6 +77,7 @@ func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *sce
 		Templates:              factory.TimetableData.Templates,
 		RecurrenceLock:         factory.TimetableData.RecurrenceLock,
 		AttendanceCorrections:  factory.TimetableData.AttendanceCorrections,
+		Deviations:             factory.TimetableData.Deviations,
 		TimetableData:          factory.TimetableData.Data,
 		ConflictDetection:      factory.TimetableData.ConflictDetection,
 		UserContextService:     factory.UserContext,

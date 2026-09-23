@@ -1,26 +1,22 @@
-// Package timetableplanning — WP-B12 substitute time-conflict detection.
-//
-// Soft warnings for the POST /substitute flow. A substitute carries no implicit
-// guarantee that their day is otherwise free; if they are already scheduled on
-// another instance that time-overlaps with one of the targeted instances, we
-// surface a "substitute_time_conflict" warning — informational only, never
-// blocks the write.
-//
-// Distinct from the Timetable owner's start-time conflicts (WP-B9) because the
-// input and semantics differ: here we compare a set of target instances against
-// the substitute's OTHER same-day assignments, not against live active.groups.
-package timetableplanning
+package timetable
 
-import (
-	"fmt"
-)
+import "fmt"
+
+// Substitute time conflicts (WP-B12) are soft warnings of the staffing
+// saves. A substitute carries no implicit guarantee that their day is
+// otherwise free; if they are already scheduled on another instance that
+// time-overlaps with one of the targeted instances, the save surfaces a
+// "substitute_time_conflict" warning — informational only, never blocking.
+//
+// Distinct from the start-time conflicts because the input and semantics
+// differ: here a set of target instances is compared against the
+// substitute's OTHER same-day assignments, not against live sessions.
 
 // SubstituteConflictKind is the stable JSON value for the one warning kind
-// this helper produces. Separate constant so callers can switch on it without
-// hardcoding strings.
+// DetectSubstituteTimeConflicts produces.
 const SubstituteConflictKind = "substitute_time_conflict"
 
-// SubstituteTimeConflict is one soft warning in the substitute response.
+// SubstituteTimeConflict is one soft warning in a staffing save response.
 type SubstituteTimeConflict struct {
 	Kind       string `json:"kind"`              // always "substitute_time_conflict"
 	InstanceID int64  `json:"instance_id"`       // the substituted target that collides
@@ -28,9 +24,8 @@ type SubstituteTimeConflict struct {
 	Message    string `json:"message"`           // German-facing copy
 }
 
-// SubstituteConflictInstance is the minimal shape needed by
-// DetectSubstituteTimeConflicts. Both target and foreign instances use this
-// shape so the helper stays DB-free and unit-testable.
+// SubstituteConflictInstance is the minimal shape of a target or foreign
+// instance, so the detection stays free of storage.
 type SubstituteConflictInstance struct {
 	ID        int64
 	StartMin  int    // minutes-since-midnight, Berlin-local
@@ -43,12 +38,12 @@ type SubstituteConflictInstance struct {
 // foreign.start < target.end). Same-minute edges (target.end == foreign.start)
 // do not collide.
 //
-// Targets: the instances being substituted today.
+// Targets: the instances being substituted.
 // Foreigns: the substitute's OTHER same-day non-absent assignments (caller
-// must pre-filter out the targets themselves and any is_absent rows).
+// must pre-filter out the targets themselves and any absent rows).
 //
 // Iteration walks targets in the order given, then foreigns within each
-// target — tests rely on that ordering.
+// target — callers rely on that ordering.
 func DetectSubstituteTimeConflicts(
 	targets []SubstituteConflictInstance,
 	foreigns []SubstituteConflictInstance,
@@ -79,11 +74,9 @@ func DetectSubstituteTimeConflicts(
 	return warnings
 }
 
-// MinutesOfTime returns minutes-since-midnight for a time value.
-// Used by callers to convert an activity_instance's StartTime/EndTime
-// (a TIME column, year 0000 in Go after bun decode) into the StartMin/EndMin
-// fields on SubstituteConflictInstance. The hour/minute fields are the only
-// data we care about; the zero-year date component is intentionally ignored.
+// MinutesOfTime returns minutes-since-midnight for a clock value. Callers
+// convert an instance's TIME columns (a zero-year time after decoding) into
+// the StartMin/EndMin fields; the date component is intentionally ignored.
 func MinutesOfTime(hour, minute int) int {
 	return hour*60 + minute
 }

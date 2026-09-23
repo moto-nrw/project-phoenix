@@ -67,6 +67,9 @@ type InstanceServiceDependencies struct {
 	// StartConflicts is the Timetable owner's start check (#2139, #3550) —
 	// required for Start.
 	StartConflicts timetable.StartConflictQuery
+	// SubstituteConflicts is the Timetable owner's substitute time-overlap
+	// advisory (#3424 slice S3) — required for the staff move.
+	SubstituteConflicts timetable.SubstituteConflictQuery
 }
 
 // detectStartConflicts asks the owner's start check for the block and keeps
@@ -81,19 +84,6 @@ func detectStartConflicts(ctx context.Context, query timetable.StartConflictQuer
 		return nil, &ScheduleError{Op: "detect start conflicts", Err: err}
 	}
 	return warnings, nil
-}
-
-// isProjectedUnderstaffed applies the owner's staffing rule to a deviation's
-// projected presence: the planned positions are the block's non-substitute
-// rows, whatever the deviation does to their presence.
-func isProjectedUnderstaffed(rows []*scheduleModel.InstanceStaff, projectedPresent int) bool {
-	planned := 0
-	for _, row := range rows {
-		if !row.IsSubstitute {
-			planned++
-		}
-	}
-	return timetable.IsUnderstaffedCounts(projectedPresent, planned)
 }
 
 // staffingRows maps retained staff rows onto the input of the owner's

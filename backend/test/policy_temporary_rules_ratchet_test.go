@@ -81,7 +81,10 @@ import (
 // lowering the totals to 79 and 137. Slice S2 (#3552) moved the template
 // writes, the materialization and the roster maintenance and retired the
 // thirteen grants it emptied, twelve of them conversion promises, lowering
-// the totals to 67 and 125.
+// the totals to 67 and 125. Slice S3 (#3553) moved the deviation writes, the
+// attendance correction and the attendance mirror and retired the two
+// compatibility grants their suites emptied, both conversion promises,
+// lowering the totals to 65 and 123.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -131,12 +134,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 67
+	policyTempRulesTotal = 65
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 125
+	policyTempRulesCompatTotal = 123
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -185,7 +188,8 @@ var policyTempRulesFamilies = map[string]int{
 	// one of them permitted by an issue that is done.
 	// #3422 removed 5 that went stale with legacy/services/active.
 	// #3552 removed 6 that the template and materialization move emptied.
-	"inbound-timetable": 55,
+	// #3553 removed 2 that the attendance mirror and deviation move emptied.
+	"inbound-timetable": 53,
 
 	// #2725 (OPEN) and #3224 (closed) name most rules jointly; #3214 the rest.
 	// The only large family with a live issue behind it.

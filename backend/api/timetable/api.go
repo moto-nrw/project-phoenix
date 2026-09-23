@@ -110,12 +110,13 @@ type Dependencies struct {
 	PersonService           userSvc.PersonService
 	// Templates are the Timetable owner's template writes including split
 	// and end (#3424 slice S2); RecurrenceLock is its tenant recurrence gate.
-	// AttendanceCorrections is the retained correction of completed blocks
-	// (slice S3). TimetableData serves the planner's reads from the Timetable
-	// owner (#3551).
+	// AttendanceCorrections corrects completed blocks and Deviations applies
+	// the Vertretungsplan saves (slice S3). TimetableData serves the planner's
+	// reads from the Timetable owner (#3551).
 	Templates             timetable.TemplateAdministration
 	RecurrenceLock        timetable.RecurrenceWriteLock
-	AttendanceCorrections *timetableplanning.AttendanceCorrectionService
+	AttendanceCorrections timetable.AttendanceCorrections
+	Deviations            timetable.StaffDeviations
 	TimetableData         timetable.TimetableDataCapability
 	// ConflictDetection serves the conflict warnings, the staff pool and the
 	// shift-coverage probe from the Timetable owner (#3550).

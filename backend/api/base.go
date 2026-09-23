@@ -1593,6 +1593,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Templates:               api.Services.TimetableData.Templates,
 		RecurrenceLock:          api.Services.TimetableData.RecurrenceLock,
 		AttendanceCorrections:   api.Services.TimetableData.AttendanceCorrections,
+		Deviations:              api.Services.TimetableData.Deviations,
 		TimetableData:           api.Services.TimetableData.Data,
 		ConflictDetection:       api.Services.TimetableData.ConflictDetection,
 		PlanningTracks:          api.Services.PlanningTracks,

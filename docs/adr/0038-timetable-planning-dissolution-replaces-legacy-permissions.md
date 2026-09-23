@@ -192,6 +192,37 @@ six reach rules of the nest itself the moved files needed
 `inbound-timetable.module-behavior-test.{enrollment-application,enrollment-domain,enrollment-public,school-structure-application}`,
 `inbound-timetable.module-internal-test.school-structure-domain`).
 
+### Slice S3: deviations, substitutions and the attendance mirror (#3553)
+
+Slice S3 moves the deviation, substitution and sick-report writes, the
+substitute time-overlap advisory, the attendance correction of completed
+blocks and the Student Presence attendance mirror to the Timetable &
+Activities owner. The public contracts are `timetable.StaffDeviations`,
+`timetable.SubstituteConflictQuery`, `timetable.AttendanceCorrections` and
+`timetable.AttendanceMirror`; the implementation sits in
+`modules/timetable/compose`. The mirror keeps one runtime write owner for
+`schedule.instance_students`: Student Presence triggers the Timetable command
+through its own attendance syncer port, bound at the composition root, in
+its tenant transaction. The replacement point stays the Timetable owner's
+`public` role.
+
+Epoch 29 uses the exception for exactly this rule:
+
+| Scope | Source owner/role | Target owner/role |
+|---|---|---|
+| production | shift-plan-sync/application | timetable-activities/public |
+
+`api/timetable`, the composition root and the nest already held a
+permission to the Timetable contract; the root binds the Audit Platform's
+trails, the retained lifecycle and the realtime activity update through
+consumer-owned ports. The same epoch deletes the five rules slice S3
+emptied: `shift-plan-sync.application.inbound-timetable-adapter`,
+`shift-plan-sync.compose.inbound-timetable-adapter`,
+`student-presence.e2e-test.inbound-timetable-adapter` (the Presence suites
+bind the mirror through the root) and the two reach rules of the nest's
+behaviour suites the moved attendance tests needed
+(`inbound-timetable.module-behavior-test.{inbound-timetable-test-support,transaction-runtime-domain}`).
+
 ## Verification
 
 `internal/architecture/timetableplanning_cutover_test.go` covers the
@@ -204,6 +235,8 @@ Timetable contract for the Workforce, supervision dashboard and nest points
 (public only; the other Timetable roles refused), the slice S5 replacement
 for the scheduler and the timetable end-to-end flows (public only, each in
 its own scope), the slice S2 replacement for Enrollment (public only, in
-production only) and the anchor (same or
+production only), the slice S3 replacement for the shift-plan-sync workflow
+(public only, in production only, no other role of the workflow) and the
+anchor (same or
 lower epoch, a reclassified or missing nest and a foreign module all
 refuse).

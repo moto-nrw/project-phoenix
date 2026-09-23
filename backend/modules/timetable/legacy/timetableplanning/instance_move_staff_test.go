@@ -18,6 +18,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/sessionrecordstest"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -111,9 +112,9 @@ func makeMoveSetup(t *testing.T) *moveSetup {
 	return s
 }
 
-func requireDeviationErr(t *testing.T, err error) *timetableplanning.DeviationError {
+func requireDeviationErr(t *testing.T, err error) *timetable.DeviationError {
 	t.Helper()
-	var de *timetableplanning.DeviationError
+	var de *timetable.DeviationError
 	require.ErrorAs(t, err, &de)
 	return de
 }
@@ -565,7 +566,7 @@ func TestMoveStaffBetweenBlocks_PastDateRejected(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, past.ID, timetableplanning.MoveStaffInput{StaffID: s.staffID})
-	var de *timetableplanning.DeviationError
+	var de *timetable.DeviationError
 	require.True(t, errors.As(err, &de))
 	assert.Equal(t, http.StatusBadRequest, de.Status)
 }

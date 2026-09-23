@@ -1137,6 +1137,35 @@ with the unchanged message format, because the owner may not name Care Plan.
 Thirteen emptied compatibility rules are deleted, one replacement permission
 uses the exception of ADR 0038, and `legacy.jsonl` is unchanged.
 
+Slice S3 (#3553, policy epoch 28 to 29) moved the deviation, substitution and
+sick-report writes (the single-day Vertretungsplan save, the
+Sammel-Vertretung and the #1843 sick stamps), the substitute time-overlap
+advisory, the attendance correction of completed blocks and the Student
+Presence attendance mirror to the Timetable owner. The public contracts are
+`timetable.StaffDeviations` (with `timetable.SubstituteConflictQuery`),
+`timetable.AttendanceCorrections` and `timetable.AttendanceMirror`, over the
+owner's own types (`timetable.DeviationError`, `timetable.TouchedActivities`,
+`timetable.AttendanceVisit`, the correction sentinels); the implementation
+sits in `modules/timetable/compose` and takes the day-wide staffing lock
+through the owner's Postgres adapter. The attendance mirror has exactly one
+runtime write owner: Student Presence's `studentpresence.AttendanceSyncer`
+port is bound at the root (`services.NewTimetableAttendanceMirror`) to the
+Timetable command, which runs inside Presence's tenant transaction with the
+lock order unchanged, so a failing mirror still rolls the visit write back.
+Collaborators the owner may not name are consumer-owned ports bound at the
+root: the Audit Platform's Änderungsprotokoll and correction trail
+(`repositories.TimetableDeviationProtocol`,
+`repositories.TimetableAttendanceCorrectionTrail`), the retained instance
+lifecycle for the cancel branch and the understaffed acknowledgement, and the
+realtime activity update. `services.Factory.TimetableData` carries the
+deviation writes and the correction to `api/timetable`; the shift-plan-sync
+workflow's sick cascade and Terminvertretung write through its own ports onto
+`timetable.StaffDeviations`. The standalone understaffed acknowledgement, the
+staff move and the Änderungsprotokoll entries of lifecycle writes stay with
+the retained lifecycle (slice S1), which asks the owner for the substitute
+advisory. Five emptied compatibility rules are deleted, one replacement
+permission uses the exception of ADR 0038, and `legacy.jsonl` is unchanged.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).

@@ -1,4 +1,4 @@
-package timetableplanning
+package timetable
 
 import (
 	"testing"

@@ -20,9 +20,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // CorrectAttendanceRequest reuses the PATCH body shape (same tri-state
@@ -63,7 +61,7 @@ func (rs *Resource) correctInstanceStudent(w http.ResponseWriter, r *http.Reques
 	}
 
 	accountID, _ := operationActor(ctx)
-	updated, err := rs.AttendanceCorrections.CorrectInstanceStudentAttendance(ctx, instanceID, studentID, scheduleModel.AttendanceFieldPatch(patch), req.Reason, accountID)
+	updated, err := rs.AttendanceCorrections.CorrectInstanceStudentAttendance(ctx, instanceID, studentID, timetable.AttendancePatch(patch), req.Reason, accountID)
 	if err != nil {
 		rs.renderCorrectionError(w, r, err)
 		return
@@ -80,18 +78,18 @@ func (rs *Resource) renderCorrectionError(w http.ResponseWriter, r *http.Request
 	switch {
 	case errors.As(err, &validationErr):
 		renderValidationErrors(w, r, attendancePatchFieldErrors(validationErr.Fields))
-	case errors.Is(err, timetableplanning.ErrCorrectionReasonRequired):
+	case errors.Is(err, timetable.ErrCorrectionReasonRequired):
 		renderValidationErrors(w, r, []fieldError{{Field: "reason", Reason: "a reason is required"}})
-	case errors.Is(err, timetableplanning.ErrCorrectionReasonTooLong):
+	case errors.Is(err, timetable.ErrCorrectionReasonTooLong):
 		renderValidationErrors(w, r, []fieldError{{Field: "reason", Reason: "reason is too long"}})
-	case errors.Is(err, timetableplanning.ErrAttendanceEntryNotFound),
-		errors.Is(err, timetableplanning.ErrInstanceNotFound):
+	case errors.Is(err, timetable.ErrAttendanceEntryNotFound),
+		errors.Is(err, timetable.ErrCorrectionInstanceNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("instance student not found")))
-	case errors.Is(err, timetableplanning.ErrCorrectionRequiresCompleted):
+	case errors.Is(err, timetable.ErrCorrectionRequiresCompleted):
 		common.RenderError(w, r, common.ErrorConflict(errors.New("only a completed block can be corrected")))
-	case errors.Is(err, timetableplanning.ErrCorrectionCancelled):
+	case errors.Is(err, timetable.ErrCorrectionCancelled):
 		common.RenderError(w, r, common.ErrorConflict(errors.New("attendance of a cancelled block cannot be corrected")))
-	case errors.Is(err, timetableplanning.ErrCorrectionTrailUnavailable):
+	case errors.Is(err, timetable.ErrCorrectionTrailUnavailable):
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("correction trail is not available")))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("correct attendance failed", err))
@@ -125,8 +123,8 @@ func (rs *Resource) getInstanceStudentCorrections(w http.ResponseWriter, r *http
 			OldValue:    row.OldValue,
 			NewValue:    row.NewValue,
 			Reason:      row.Reason,
-			ActorName:   row.ActorNameSnapshot,
-			CorrectedAt: row.CreatedAt,
+			ActorName:   row.ActorName,
+			CorrectedAt: row.CorrectedAt,
 		})
 	}
 	common.Respond(w, r, http.StatusOK, attendanceCorrectionsResponse{Corrections: items}, "Attendance corrections retrieved")

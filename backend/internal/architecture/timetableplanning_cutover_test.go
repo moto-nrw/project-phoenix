@@ -255,3 +255,33 @@ func TestTimetablePlanningCutoverReplacesTheEnrollmentRosterConsumer(t *testing.
 		}
 	}
 }
+
+// Slice S3 (#3553) moved the deviation, substitution and sick-report writes
+// to the Timetable owner: the shift-plan-sync workflow, whose sick cascade
+// and Terminvertretung named the nest for them, may name the owner's public
+// contract in production and nothing else of it.
+func TestTimetablePlanningCutoverReplacesTheShiftPlanSyncDeviationConsumer(t *testing.T) {
+	t.Parallel()
+	base, candidate := timetablePlanningCutoverPolicies(t,
+		timetablePlanningHistoricalConsumer(ScopeProduction, "shift-plan-sync", "application"),
+	)
+	timetablePublic := timetablePlanningPoint("timetable-activities", "public")
+	workflow := Package{Owner: "shift-plan-sync", Role: "application", InternalTestRole: "workflow-decision-test", ExternalTestRole: "workflow-integration-test"}
+	if !timetablePlanningCutoverPermission(base, candidate, ScopeProduction, workflow, timetablePublic) {
+		t.Fatal("the shift-plan-sync workflow cannot reach the Timetable contract")
+	}
+	for _, role := range []string{"compose", "application", "port", "postgres", "domain"} {
+		if timetablePlanningCutoverPermission(base, candidate, ScopeProduction, workflow, timetablePlanningPoint("timetable-activities", role)) {
+			t.Fatalf("the shift-plan-sync workflow reached timetable-activities/%s", role)
+		}
+	}
+	for _, scope := range []Scope{ScopeInternalTest, ScopeExternalTest} {
+		if timetablePlanningCutoverPermission(base, candidate, scope, workflow, timetablePublic) {
+			t.Fatalf("the production permission was lent to %s", scope)
+		}
+	}
+	compose := Package{Owner: "shift-plan-sync", Role: "compose", InternalTestRole: "adapter-test", ExternalTestRole: "adapter-test"}
+	if timetablePlanningCutoverPermission(base, candidate, ScopeProduction, compose, timetablePublic) {
+		t.Fatal("another shift-plan-sync role was granted without a historical permission")
+	}
+}

@@ -1,7 +1,9 @@
-// Hermetic integration tests for the WP-B10 attendance sync service.
+// Hermetic integration tests for the WP-B10 attendance mirror, the Timetable
+// owner's command Student Presence triggers through its syncer port (#3424
+// slice S3).
 //
 // Covers every branch of the graceful-degradation tree declared in
-// attendance_sync_service.go:
+// modules/timetable/compose/attendance_mirror.go:
 //
 //	B1 visit.ActiveGroupID <= 0    → nil
 //	B2 instance lookup error       → not hermetically reachable (covered by repo tests)
@@ -15,7 +17,7 @@
 //
 // Check-out is covered via MirrorCheckOutForVisit — no mutation regardless
 // of current state.
-package timetableplanning_test
+package presence_test
 
 import (
 	"context"
@@ -29,8 +31,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -41,7 +41,7 @@ import (
 // attendanceSyncSetup bundles the syncer and the repos used to seed test
 // state. All cleanup registered via t.Cleanup in LIFO order.
 type attendanceSyncSetup struct {
-	syncer      *timetableplanning.AttendanceSyncService
+	syncer      studentpresence.AttendanceSyncer
 	instRepo    scheduleModels.ActivityInstanceRepository
 	isRepo      scheduleModels.InstanceStudentRepository
 	statusRepo  *repositories.StudentStatusDayRepository
@@ -91,13 +91,11 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 		// active.group is tenant-owned and dies with the package clone
 	})
 
+	syncer, err := services.NewTimetableAttendanceMirror(repositories.TimetableOwnerRows{Instances: repoFactory.ActivityInstance, Participants: instanceStudentRepo}, slog.Default())
+	require.NoError(t, err)
 	return &attendanceSyncSetup{
-		syncer: timetableplanning.NewAttendanceSyncService(
-			timetablesqltest.NewActivityInstanceRepository(db),
-			instanceStudentRepo,
-			slog.Default(),
-		),
-		instRepo:    timetablesqltest.NewActivityInstanceRepository(db),
+		syncer:      syncer,
+		instRepo:    repoFactory.ActivityInstance,
 		isRepo:      instanceStudentRepo,
 		statusRepo:  repoFactory.StudentStatusDay,
 		groupRepo:   repositories.NewPresenceSessionRecords(db),
@@ -108,6 +106,15 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 		activeGroup: activeGroup,
 		instance:    instance,
 	}
+}
+
+// newAttendanceMirror binds the Timetable owner's attendance mirror to the
+// Presence syncer port the way the composition root does (#3424 slice S3).
+func newAttendanceMirror(t testing.TB, instances scheduleModels.ActivityInstanceRepository, rows scheduleModels.InstanceStudentRepository, logger *slog.Logger) studentpresence.AttendanceSyncer {
+	t.Helper()
+	syncer, err := services.NewTimetableAttendanceMirror(repositories.TimetableOwnerRows{Instances: instances, Participants: rows}, logger)
+	require.NoError(t, err)
+	return syncer
 }
 
 // seedInstanceStudent inserts an instance_students row for s.instance + studentID

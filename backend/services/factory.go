@@ -1055,15 +1055,18 @@ func newFactory(
 		PresenceSettings(settingsService),
 	)
 
-	// Initialize attendance sync service (WP-B10). Implements
-	// studentpresence.AttendanceSyncer - called from CreateVisit / EndVisit to mirror
-	// into schedule.instance_students and enrich SSE events. No circular
+	// The Timetable owner's attendance mirror (WP-B10, #3424 slice S3) serves
+	// Student Presence's attendance syncer port: CreateVisit / EndVisit trigger
+	// it in their own tenant transaction to mirror into
+	// schedule.instance_students and enrich SSE events. No circular
 	// dependency because it only depends on repos, not on studentpresence.Presence.
-	attendanceSyncService := timetableplanning.NewAttendanceSyncService(
-		repos.ActivityInstance,
-		repos.InstanceStudent,
+	attendanceSyncService, err := NewTimetableAttendanceMirror(
+		repositories.TimetableOwnerRows{Instances: repos.ActivityInstance, Participants: repos.InstanceStudent},
 		logger.With("service", "attendance-sync"),
 	)
+	if err != nil {
+		return nil, fmt.Errorf("compose timetable attendance mirror: %w", err)
+	}
 	approvedOfferingProjection := enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
 	pickupBaselines, err := careplanCompose.NewPickupBaselines(repos.CarePlan(), approvedOfferingProjection, func(ctx context.Context) (bool, error) {
 		return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
@@ -1408,37 +1411,52 @@ func newFactory(
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable conflict detection: %w", err)
 	}
+	substituteConflicts, err := newTimetableSubstituteConflicts(timetableRows)
+	if err != nil {
+		return nil, fmt.Errorf("compose timetable substitute conflicts: %w", err)
+	}
 	instanceService := timetableplanning.NewInstanceService(timetableplanning.InstanceServiceDependencies{
-		StartConflicts:     timetableConflicts,
-		Presence:           newStudentPresence(db, logger),
-		GuardianNotices:    lateCareCancellationPublisher{resolve: func() communication.CareCancellationPublisher { return guardianNoticePublisher }},
-		CareDayService:     timetableplanning.NewInstanceCareDays(careDayService, repos.CarePlan()),
-		InstanceRepo:       repos.ActivityInstance,
-		IdempotencyRepo:    repos.InstanceIdempotency,
-		InstanceStaffRepo:  repos.InstanceStaff,
-		InstanceStudents:   repos.InstanceStudent,
-		ExceptionRepo:      repos.ActivityException,
-		ActiveGroupRepo:    repos.ActiveGroup,
-		SupervisorRepo:     repos.GroupSupervisor,
-		RoomRepo:           repos.Room,
-		ActivityGroupRepo:  repos.ActivityGroup,
-		StaffRepo:          repos.Staff,
-		StudentRepo:        repos.Student,
-		CalendarPeriodRepo: repos.CalendarPeriod,
-		ActiveService:      activeService,
-		Materialization:    materializationService,
-		RecurrenceLock:     recurrenceLock,
-		DeviationEventRepo: repos.DeviationEvent,
-		Broadcaster:        realtimeHub,
-		DB:                 db,
-		Logger:             logger.With("service", "instance-lifecycle"),
-		Settings:           settingsService,
-		RecoveryRepo:       recoveryRepo,
-		Now:                now,
+		StartConflicts:      timetableConflicts,
+		SubstituteConflicts: substituteConflicts,
+		Presence:            newStudentPresence(db, logger),
+		GuardianNotices:     lateCareCancellationPublisher{resolve: func() communication.CareCancellationPublisher { return guardianNoticePublisher }},
+		CareDayService:      timetableplanning.NewInstanceCareDays(careDayService, repos.CarePlan()),
+		InstanceRepo:        repos.ActivityInstance,
+		IdempotencyRepo:     repos.InstanceIdempotency,
+		InstanceStaffRepo:   repos.InstanceStaff,
+		InstanceStudents:    repos.InstanceStudent,
+		ExceptionRepo:       repos.ActivityException,
+		ActiveGroupRepo:     repos.ActiveGroup,
+		SupervisorRepo:      repos.GroupSupervisor,
+		RoomRepo:            repos.Room,
+		ActivityGroupRepo:   repos.ActivityGroup,
+		StaffRepo:           repos.Staff,
+		StudentRepo:         repos.Student,
+		CalendarPeriodRepo:  repos.CalendarPeriod,
+		ActiveService:       activeService,
+		Materialization:     materializationService,
+		RecurrenceLock:      recurrenceLock,
+		DeviationEventRepo:  repos.DeviationEvent,
+		Broadcaster:         realtimeHub,
+		DB:                  db,
+		Logger:              logger.With("service", "instance-lifecycle"),
+		Settings:            settingsService,
+		RecoveryRepo:        recoveryRepo,
+		Now:                 now,
 		// Development and test seed profiles create completed instances at the
 		// current clock time. Lifecycle policy remains covered by dedicated tests.
 		EnforceTimePolicy: enforceInstanceTimePolicy(cfg.AppEnv),
 	})
+	// The Timetable owner's deviation writes (Vertretungsplan, #3424 slice S3)
+	// hand the cancel branch and the understaffed acknowledgement to the
+	// retained lifecycle.
+	staffDeviations, err := newTimetableStaffDeviations(timetableDeviationInputs{
+		Rows: timetableRows, Staff: repos.Staff, Supervisions: repos.GroupSupervisor, Lifecycle: instanceService,
+		Broadcaster: realtimeHub, DB: db, Logger: logger.With("service", "timetable-deviations"), Now: now,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose timetable deviations: %w", err)
+	}
 
 	// The Timetable owner's GDPR retention (WP-B14, #3551). Deletes
 	// schedule.activity_instances (CASCADE → instance_staff + instance_students)
@@ -1755,7 +1773,7 @@ func newFactory(
 	// Timetable line: the shift-plan-sync workflow serves the substitution
 	// module's schedule port (#3418).
 	scheduleSubstitution, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
-		Instances: instanceService, ActivityInstances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
+		Deviations: staffDeviations, ActivityInstances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
 		Staff: repos.Staff, Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
 	})
 	if err != nil {
@@ -2765,19 +2783,22 @@ func newFactory(
 		Templates:       timetableTemplates,
 		RecurrenceLock:  recurrenceLock,
 	})
+	attendanceCorrections, err := newTimetableAttendanceCorrections(timetableCorrectionInputs{
+		Rows:   timetableRows,
+		Trail:  repositories.NewAttendanceCorrectionRepository(auditReadRuntime),
+		People: repos.Person,
+		Logger: logger.With("service", "attendance-correction"),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose timetable attendance corrections: %w", err)
+	}
 	timetablePlanning := TimetablePlanning{
-		Templates:         timetableTemplates,
-		RecurrenceLock:    recurrenceLock,
-		Data:              timetableData,
-		ConflictDetection: timetableConflicts,
-		AttendanceCorrections: timetableplanning.NewAttendanceCorrectionService(timetableplanning.AttendanceCorrectionDependencies{
-			InstanceStudentRepo:      repos.InstanceStudent,
-			ActivityInstanceRepo:     repos.ActivityInstance,
-			AttendanceCorrectionRepo: repositories.NewAttendanceCorrectionRepository(auditReadRuntime),
-			PersonRepo:               repos.Person,
-			RecoveryRepo:             recoveryRepo,
-			Logger:                   logger.With("service", "attendance-correction"),
-		}),
+		Templates:             timetableTemplates,
+		RecurrenceLock:        recurrenceLock,
+		Data:                  timetableData,
+		ConflictDetection:     timetableConflicts,
+		AttendanceCorrections: attendanceCorrections,
+		Deviations:            staffDeviations,
 	}
 	masterDataReviewService := users.NewMasterDataReviewServiceWithAuditAndPolicy(authjwt.PermissionsFromCtx,
 		repos.StudentDataChangeRequest,
@@ -3011,7 +3032,7 @@ func newFactory(
 		Planning:        factory.StaffShifts,
 		Workforce:       workTime,
 		LockStaffShifts: workforceCompose.NewStaffShiftLock(db),
-		Instances:       instanceService,
+		Deviations:      timetablePlanning.Deviations,
 		TimetableData:   NewSickCascadeTimetableRows(timetableRows, db),
 		InstanceStaff:   repos.InstanceStaff,
 		Broadcaster:     factory.RealtimeHub,

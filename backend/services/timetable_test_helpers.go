@@ -96,6 +96,10 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
+	attendanceMirror, err := NewTimetableAttendanceMirror(r.OwnerRows(), logger)
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
 	// Instance completion consumes only the active-session end capability.
 	// Retain its real transaction, visit sync, supervision and SSE paths.
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(r.ActiveGroup)
@@ -106,7 +110,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		StudentRepo: PresenceStudents(db, r.Student), RoomRepo: NewAttendanceRooms(r.Room), ActivityGroupRepo: repositories.NewSessionActivities(r.ActivityGroup),
 		EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff),
 		DB: db, Broadcaster: hub, Logger: logger, Now: now,
-		AttendanceSyncer:         timetableplanning.NewAttendanceSyncService(r.ActivityInstance, r.InstanceStudent, logger),
+		AttendanceSyncer:         attendanceMirror,
 		TimetableBridgeCompleter: bridge,
 	}, presenceservice.WithPresenceSettings(PresenceSettings(settings.Settings)))
 	offerings := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
@@ -141,10 +145,14 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
+	substituteConflicts, err := newTimetableSubstituteConflicts(r.OwnerRows())
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
 	instance := timetableplanning.NewInstanceService(timetableplanning.InstanceServiceDependencies{
-		StartConflicts: conflicts,
-		Presence:       newStudentPresence(db, logger),
-		InstanceRepo:   r.ActivityInstance, IdempotencyRepo: r.InstanceIdempotency, InstanceStaffRepo: r.InstanceStaff,
+		StartConflicts: conflicts, SubstituteConflicts: substituteConflicts,
+		Presence:     newStudentPresence(db, logger),
+		InstanceRepo: r.ActivityInstance, IdempotencyRepo: r.InstanceIdempotency, InstanceStaffRepo: r.InstanceStaff,
 		InstanceStudents: r.InstanceStudent, ExceptionRepo: r.ActivityException, ActiveGroupRepo: r.ActiveGroup,
 		SupervisorRepo: r.GroupSupervisor, RoomRepo: r.Room, ActivityGroupRepo: r.ActivityGroup,
 		StaffRepo: r.Staff, StudentRepo: r.Student, CalendarPeriodRepo: r.CalendarPeriod,
@@ -169,11 +177,23 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
+	deviations, err := newTimetableStaffDeviations(timetableDeviationInputs{
+		Rows: r.OwnerRows(), Staff: r.Staff, Supervisions: r.GroupSupervisor,
+		Lifecycle: instance, Broadcaster: hub, DB: db, Logger: logger, Now: now,
+	})
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
+	// The trail stays unwired, as before: a correction fails closed here.
+	corrections, err := newTimetableAttendanceCorrections(timetableCorrectionInputs{
+		Rows: dataRows, Logger: logger,
+	})
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
 	planning := TimetablePlanning{
 		Templates: templates, RecurrenceLock: recurrenceLock, Data: timetableData, ConflictDetection: conflicts,
-		AttendanceCorrections: timetableplanning.NewAttendanceCorrectionService(timetableplanning.AttendanceCorrectionDependencies{
-			InstanceStudentRepo: r.InstanceStudent, ActivityInstanceRepo: r.ActivityInstance, RecoveryRepo: recovery, Logger: logger,
-		}),
+		AttendanceCorrections: corrections, Deviations: deviations,
 	}
 	return TimetableTestModule{Instance: instance, SchoolCalendar: calendar, TimetableData: planning, ConflictDetection: conflicts, Materialization: materialization, RealtimeHub: hub}, nil
 }

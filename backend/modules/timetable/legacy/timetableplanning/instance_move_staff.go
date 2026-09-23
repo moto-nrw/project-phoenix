@@ -6,7 +6,7 @@
 // leave a single staff_moved Änderungsprotokoll entry. Assigning a free
 // on-shift person from the pool is the same operation without a source block.
 //
-// Same plan-then-write discipline as deviation_apply.go: every 4xx is decided
+// Same plan-then-write discipline as the owner's deviation save: every 4xx is decided
 // before the first row is touched, because TenantTxMiddleware only rolls back
 // on 5xx.
 package timetableplanning
@@ -20,6 +20,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -47,7 +48,7 @@ type MoveStaffResult struct {
 	Action string
 	// Warnings lists the moved person's remaining same-day time overlaps with
 	// the target window (advisory, never blocking — #1873 semantics).
-	Warnings      []SubstituteTimeConflict
+	Warnings      []timetable.SubstituteTimeConflict
 	ActiveTouched map[int64]*scheduleModel.ActivityInstance
 }
 
@@ -84,7 +85,7 @@ func (s *instanceService) MoveStaffBetweenBlocks(ctx context.Context, targetID i
 			Target:        plan.target,
 			Source:        plan.source,
 			Action:        plan.action,
-			Warnings:      []SubstituteTimeConflict{},
+			Warnings:      []timetable.SubstituteTimeConflict{},
 			ActiveTouched: map[int64]*scheduleModel.ActivityInstance{},
 		}, nil
 	}
@@ -361,14 +362,18 @@ func staffMoveSlot(inst *scheduleModel.ActivityInstance, prefix string) map[stri
 // overlaps with the target window. A lookup failure propagates as an error:
 // the probe runs inside the tenant tx, and a PostgreSQL error aborts that tx,
 // so the eventual commit would fail after the client already saw a 200.
-func (s *instanceService) collectStaffMoveWarnings(ctx context.Context, plan *staffMovePlan) ([]SubstituteTimeConflict, error) {
-	ops := []SubstituteWriteOp{{Instance: plan.target, Action: SubstituteActionSubstituted}}
-	warnings, err := s.buildSubstituteTimeConflicts(ctx, ops, plan.staffID, timezone.Date(plan.target.Date))
+func (s *instanceService) collectStaffMoveWarnings(ctx context.Context, plan *staffMovePlan) ([]timetable.SubstituteTimeConflict, error) {
+	warnings, err := s.deps.SubstituteConflicts.DetectSubstituteConflicts(ctx, timetable.SubstituteConflictProbe{
+		StaffID:   plan.staffID,
+		Date:      timezone.Date(plan.target.Date),
+		Targets:   []timetable.SubstituteConflictInstance{substituteConflictInstance(plan.target)},
+		TargetIDs: []int64{plan.target.ID},
+	})
 	if err != nil {
 		return nil, err
 	}
 	if warnings == nil {
-		return []SubstituteTimeConflict{}, nil
+		return []timetable.SubstituteTimeConflict{}, nil
 	}
 	return warnings, nil
 }
