@@ -926,6 +926,9 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	api.rateLimiting = os.Getenv("RATE_LIMIT_ENABLED") == "true"
 	api.authRateLimit = os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE")
 	api.registerRoutesWithRateLimiting(requestFeedResource)
+	if err := requireCoreActionClassification(api.Router); err != nil {
+		return nil, err
+	}
 
 	buildResources.released = true
 	return api, nil

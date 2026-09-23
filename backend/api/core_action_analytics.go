@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -60,6 +61,21 @@ func analyticsActor(claims projectJWT.AppClaims) (analytics.Actor, bool) {
 	default:
 		return analytics.Actor{Surface: analytics.SurfaceOGS, Role: analytics.RoleStaff, SchoolID: claims.TenantID}, true
 	}
+}
+
+// requireCoreActionClassification refuses to start a server with a writing
+// portal route the usage analytics does not classify (#3602). The route
+// table is static, so TestFullProductionRouterGolden, which builds the
+// server, fails in CI long before a deploy could.
+func requireCoreActionClassification(router chi.Routes) error {
+	unclassified, _, err := coreActionRouteGaps(router)
+	if err != nil {
+		return fmt.Errorf("classify core actions: %w", err)
+	}
+	if len(unclassified) > 0 {
+		return fmt.Errorf("writing routes without a core-action classification in backend/analytics/core_actions.go: %s", strings.Join(unclassified, ", "))
+	}
+	return nil
 }
 
 // coreActionRouteGaps is the route guard of the usage analytics (#3602): it
