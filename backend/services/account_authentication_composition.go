@@ -180,6 +180,7 @@ func demoDependencies(wiring *demoAccessWiring, standingSchool string, schools o
 		},
 		Mail:     newDemoAccessMail(wiring),
 		NewToken: authjwt.NewOpaqueCapabilityToken, Fingerprint: authjwt.OpaqueCapabilityFingerprint,
+		OperatorWithoutSecondFactor: wiring.operatorWithoutSecondFactor,
 	}, nil
 }
 

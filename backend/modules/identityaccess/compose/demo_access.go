@@ -22,6 +22,11 @@ type DemoDependencies struct {
 	Mail        identityaccess.DemoAccessMail
 	NewToken    func() (raw, fingerprint string, err error)
 	Fingerprint func(raw string) string
+	// OperatorWithoutSecondFactor lets the operator sign in with the password
+	// alone (#3460). The demo's mail lock drops the sign-in code, so the demo
+	// process that seeds every demo school could never finish the second
+	// factor; the demo host keeps the operator surface off the internet.
+	OperatorWithoutSecondFactor bool
 }
 
 func composeDemoAccess(db *bun.DB, sessions DemoSessions, dependencies *DemoDependencies) (*identityaccess.DemoAccess, error) {
