@@ -180,7 +180,7 @@ type Factory struct {
 	PartialAbsence            careplan.PartialAbsenceService
 	ArrivalSchedule           careplan.ArrivalScheduleService
 	CareDay                   careplan.CareDayQuery
-	TimetableBridge           *timetableplanning.TimetableBridgeService
+	TimetableBridge           timetable.EndedSessionCompletion
 	Materialization           timetableplanning.MaterializationService
 	TemplateSplit             *timetableplanning.TemplateSplitService
 	TimetableCleanup          timetable.TimetableCleanup
@@ -1106,11 +1106,10 @@ func newFactory(
 	// keeps genuinely expected rows — readers take those as the "not booked
 	// into care that day" marker (#1747). Repos only, so no cycle with the
 	// active service it is injected into.
-	timetableBridgeService := timetableplanning.NewTimetableBridgeService(timetableplanning.TimetableBridgeDependencies{
-		Instances:        repos.ActivityInstance,
-		InstanceStudents: repos.InstanceStudent,
-		CareDays:         careDayService,
-	})
+	timetableBridgeService, err := NewTimetableEndedSessionCompletion(repos.ActivityInstance, repos.InstanceStudent, careDayService)
+	if err != nil {
+		return nil, fmt.Errorf("compose ended session completion: %w", err)
+	}
 
 	// Initialize active service with SSE broadcaster
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(repos.ActiveGroup)

@@ -273,3 +273,13 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 		checkedIn:  entryTime,
 	}}, instanceStudents.creates, "unplanned absorbed student gets a present attendance row")
 }
+
+func (r *absorbInstanceStudentRepo) FindByInstanceIDs(_ context.Context, instanceIDs []int64) ([]*scheduleModel.InstanceStudent, error) {
+	if len(instanceIDs) > 0 && r.unplannedStudentID > 0 {
+		r.lookups = append(r.lookups, absorbedAttendanceUpdate{
+			instanceID: instanceIDs[0],
+			studentID:  r.unplannedStudentID,
+		})
+	}
+	return nil, nil
+}

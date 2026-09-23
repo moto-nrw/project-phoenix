@@ -468,3 +468,7 @@ func (r *autoStartInstanceRepo) PropagateListKindToFutureInstances(context.Conte
 func (r *autoStartInstanceRepo) UpdateColumns(context.Context, *scheduleModel.ActivityInstance, ...string) (int64, error) {
 	return 0, nil
 }
+
+func (r *autoStartStaffRepo) FindByStaffIDsAndDate(context.Context, []int64, scheduleModel.Date) ([]*scheduleModel.InstanceStaff, error) {
+	return nil, nil
+}

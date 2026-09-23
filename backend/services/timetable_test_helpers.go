@@ -85,9 +85,10 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		return TimetableTestModule{}, err
 	}
 	careplanCompose.WireCareParticipation(careDay, care.CareLifecycle)
-	bridge := timetableplanning.NewTimetableBridgeService(timetableplanning.TimetableBridgeDependencies{
-		Instances: r.ActivityInstance, InstanceStudents: r.InstanceStudent, CareDays: careDay,
-	})
+	bridge, err := NewTimetableEndedSessionCompletion(r.ActivityInstance, r.InstanceStudent, careDay)
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
 	// Instance completion consumes only the active-session end capability.
 	// Retain its real transaction, visit sync, supervision and SSE paths.
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(r.ActiveGroup)

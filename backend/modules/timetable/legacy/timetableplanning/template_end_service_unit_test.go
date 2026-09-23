@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -381,4 +382,8 @@ func (r *templateEndUnitInstanceRepo) DeletePlannedNonSpontaneousInWindow(_ cont
 
 func (r *templateEndUnitInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, scheduleModel.Date) (int64, error) {
 	return 0, nil
+}
+
+func (r *templateEndUnitScheduleRepo) List(context.Context, *modelBase.QueryOptions) ([]*activitiesModel.Schedule, error) {
+	return r.schedules, r.findErr
 }

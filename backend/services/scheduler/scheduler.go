@@ -448,9 +448,9 @@ func (s *Scheduler) observeTenantRuntime(outcome string) {
 }
 
 // TimetableBridgeCompleter finalizes attendance and completes the schedule-side
-// instances of ended active.groups in one step. Implemented by
-// schedule.TimetableBridgeService — the same implementation the force-start
-// path uses, so both paths leave identical rows behind (#1747).
+// instances of ended active.groups in one step. Implemented by the Timetable
+// owner's timetable.EndedSessionCompletion, the same completion the
+// force-start path uses, so both paths leave identical rows behind (#1747).
 type TimetableBridgeCompleter interface {
 	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
 }

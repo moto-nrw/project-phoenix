@@ -604,3 +604,15 @@ func (r *deleteUnitExceptionRepo) Update(_ context.Context, exc *scheduleModel.A
 	r.updated = append(r.updated, exc)
 	return nil
 }
+
+func (s *reopenStudentLockStub) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*usersModel.Student, error) {
+	students := make(map[int64]*usersModel.Student, len(ids))
+	for _, id := range ids {
+		student, err := s.FindByIDForUpdate(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		students[id] = student
+	}
+	return students, nil
+}

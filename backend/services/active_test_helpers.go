@@ -137,7 +137,10 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		return ActiveTestModule{}, err
 	}
 	careplanCompose.WireCareParticipation(careDay, care.CareLifecycle)
-	bridge := timetableplanning.NewTimetableBridgeService(timetableplanning.TimetableBridgeDependencies{Instances: r.ActivityInstance, InstanceStudents: r.InstanceStudent, CareDays: careDay})
+	bridge, err := NewTimetableEndedSessionCompletion(r.ActivityInstance, r.InstanceStudent, careDay)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
 	displayGroups, err := repositories.NewSchoolStructure(db)
 	if err != nil {
 		return ActiveTestModule{}, err

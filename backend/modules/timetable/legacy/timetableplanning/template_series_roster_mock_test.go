@@ -15,6 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -457,4 +458,15 @@ func seriesMockSupervisorRow(id int64, from timezone.Date, until *timezone.Date,
 	}
 	row.ID = id
 	return row
+}
+
+func (r *seriesMockScheduleRepo) List(context.Context, *modelBase.QueryOptions) ([]*activitiesModel.Schedule, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	rows := make([]*activitiesModel.Schedule, 0)
+	for _, found := range r.byGroup {
+		rows = append(rows, found...)
+	}
+	return rows, nil
 }
