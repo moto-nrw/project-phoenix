@@ -315,7 +315,8 @@ func ruleLoosenings(base, candidate *Policy, candidateOnlyPoints map[string]stru
 		if candidateRuleCoveredDirectly(rule, base.Rules) {
 			continue
 		}
-		if candidate.PolicyEpoch > base.PolicyEpoch && (reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule)) {
+		if candidate.PolicyEpoch > base.PolicyEpoch &&
+			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedSharedKernelRule(rule)) {
 			continue
 		}
 		if problem := uncoveredRulePermission(rule, baseEvaluator, candidateEvaluator, owners, roles); problem != "" {
@@ -417,6 +418,43 @@ func firstPartyAllowedByReviewedSharedFixtureRule(base, candidate *Policy, scope
 	}
 	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
 	return decision.Allowed != nil && len(decision.Overlaps) == 0 && reviewedSharedFixtureRule(*decision.Allowed)
+}
+
+// reviewedSharedKernelRule reports whether a rule has the one owner-agnostic
+// shape a reviewed policy epoch may add for the shared kernel without an
+// anchor to a candidate-created package (ADR 0040, #3447, #3448): every owner
+// and every role, in every scope, importing shared-kernel/contract. A source
+// narrowed to an owner, an owner kind or a role is per-owner bookkeeping the
+// decision replaces; any other target, an owner-kind target, an external class
+// and the same-owner flag stay under the ordinary loosening guards.
+func reviewedSharedKernelRule(rule Rule) bool {
+	if rule.SourceOwner != "" || rule.SourceOwnerKind != "" || rule.SourceRole != "" ||
+		rule.TargetOwner != "shared-kernel" || rule.TargetOwnerKind != "" || rule.TargetRole != "contract" ||
+		rule.TargetClass != "" || rule.SameOwner {
+		return false
+	}
+	scopes := allScopes()
+	if len(rule.Scopes) != len(scopes) {
+		return false
+	}
+	for _, scope := range scopes {
+		if !sliceContains(rule.Scopes, string(scope)) {
+			return false
+		}
+	}
+	return true
+}
+
+// firstPartyAllowedByReviewedSharedKernelRule reports whether the single rule
+// that admits this first-party import in the candidate policy is the reviewed
+// shared-kernel rule (ADR 0040). The import loosening it implies is then the
+// intended effect of that rule, not a separate widening.
+func firstPartyAllowedByReviewedSharedKernelRule(base, candidate *Policy, scope Scope, source, target Package) bool {
+	if candidate.PolicyEpoch <= base.PolicyEpoch {
+		return false
+	}
+	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
+	return decision.Allowed != nil && len(decision.Overlaps) == 0 && reviewedSharedKernelRule(*decision.Allowed)
 }
 
 func candidateOnlyRolePoints(candidate *Policy, createdPackages map[string]struct{}) map[string]struct{} {
@@ -602,7 +640,8 @@ func firstPartyImportLoosenings(base, candidate *Policy, sourcePath string, base
 				!studentPresenceCutoverPermission(base, candidate, scope, baseSource, target) &&
 				!timetablePlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
 				!shiftPlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!firstPartyAllowedByReviewedSharedFixtureRule(base, candidate, scope, source, target) {
+				!firstPartyAllowedByReviewedSharedFixtureRule(base, candidate, scope, source, target) &&
+				!firstPartyAllowedByReviewedSharedKernelRule(base, candidate, scope, source, target) {
 				problems = append(problems, Violation{Scope: scope, Rule: "imports.forbidden", Source: sourcePath, Target: targetPath}.Key())
 			}
 		}

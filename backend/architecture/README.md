@@ -930,15 +930,17 @@ classified `student-presence`/`http` for the same reason (#3207). It replaced
 Schulhof routes from the public Student Presence contract and the public
 supervision projection, with unchanged paths, status codes and error strings.
 Its `student-presence.http.inbound-common` and
-`student-presence.http.legacy-shared-domain` rules, the
-`root-composition.to.student-presence-http` mount and every
-`student-presence.adapter-test.*` rule are compatibility permissions, not
-target dependencies: the shared HTTP rendering edge goes when the inbound
-common package moves and the calendar-date edge with the retained
-`internal/timezone` type. Convert them to exact debt with the rule above
-once the package exists at a base SHA. The settings test edge is gone (#3447):
-the tests name the setting keys through the public `modules/settings`
-contract, which now also exports the four tracking-indicator keys.
+`student-presence.adapter-test.inbound-common` rules are standing target
+rules (#3447): `api/common` is the shared HTTP runtime the other owners' HTTP
+adapters and adapter tests bind as well, and it has no replacement. The
+`root-composition.to.student-presence-http` mount stays a compatibility
+permission; convert it to exact debt with the rule above once the package
+exists at a base SHA. The calendar-date edges are gone: the adapter and its
+tests name `sharedkernel/calendar` directly under the shared-kernel rule
+([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md)).
+The settings test edge is gone too: the tests name the setting keys through
+the public `modules/settings` contract, which now also exports the four
+tracking-indicator keys.
 
 The retained Presence services, rows and repositories (#3214) moved file for
 file, with their tests, out of the legacy packages the HTTP composition left
@@ -1125,9 +1127,10 @@ The settings test support (`services/config/settingstest`, `settings-platform`/
 `test-support`) scripts the payroll and work-schedule settings that presence
 behaviour tests drive through their real services, so those tests name a school's
 configuration instead of registry keys and ORM rows. Its `models/config` import is
-a target dependency of the settings owner; its calendar-date import exists only
-because the settings package still carries the contractual work-schedule rows
-(#3207) and converts to exact debt with them.
+a target dependency of the settings owner. Its calendar dates are the
+shared-kernel `sharedkernel/calendar` type under the shared-kernel rule
+([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),
+#3448), so it no longer reaches the retained `internal/timezone` wrapper.
 
 The Identity & Access guardian-access capability (`modules/identityaccess`,
 `identity-access`/`public`) is the first just-in-time slice of the late
@@ -2313,6 +2316,18 @@ Epoch 24 registers the six `shared-fixtures.*` rules under it. Everything else
 the fixtures still import — the models, services and repositories other
 carriers are dissolving, the device authenticator, the legacy composition —
 stays exact debt on #2748 and falls with those carriers; a rule would hide it.
+
+A reviewed epoch may also add the one owner-agnostic shared-kernel rule
+([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),
+[#3447](https://github.com/moto-nrw/project-phoenix/issues/3447),
+[#3448](https://github.com/moto-nrw/project-phoenix/issues/3448)): no
+`source_owner`, no `source_owner_kind`, no `source_role`, all three scopes, and
+the target `shared-kernel`/`contract`. Epoch 25 registers it as
+`shared-kernel.contract` and removes the 15 owner-specific rules it subsumes, so
+a per-owner rule to the kernel would now overlap and fail to load. A
+`same_owner` rule never selects a kernel owner: the kernel's own tests reach
+its contract through this rule alone. A narrower source, another target, an
+owner-kind target and an external class are still loosenings.
 
 A reviewed epoch may also let a target owner adopt an existing table
 ([ADR 0015](../../docs/adr/0015-owners-adopt-existing-unowned-tables.md),

@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	tenantsettings "github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -137,7 +137,7 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 
 	envelope := dashboardExec(t, router, "/active/supervision-dashboard", account.ID, dashboardPerms)
 	data := envelope.Data
-	day, err := timezone.ParseDate(data.BusinessDay)
+	day, err := calendar.ParseDate(data.BusinessDay)
 	require.NoError(t, err)
 	if weekday := day.Weekday(); weekday == time.Saturday || weekday == time.Sunday {
 		assert.False(t, data.SpontaneousStartAvailability.Available)
@@ -328,7 +328,7 @@ func TestSupervisionDashboard_ErrorContract(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "DashErr", "Kind", "DE1")
 	testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now().Add(-30*time.Minute), nil)
 
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	_ = testpkg.CreateTestPickupException(t, tc.db, student.ID, today, teacher.Staff.ID, "15:45", "Test")
 
 	t.Run("invalid group_id is a 400", func(t *testing.T) {

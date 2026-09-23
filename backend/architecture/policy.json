@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 24,
+  "policy_epoch": 25,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -5244,24 +5244,13 @@
       "target_role": "test-support"
     },
     {
-      "id": "care-plan.contracttest.shared-kernel.contract",
-      "description": "The test-only native Care Plan contract suite uses owner fixtures and canonical calendar values (#3351).",
+      "id": "shared-kernel.contract",
+      "description": "Every role may import the shared kernel's contract: the canonical calendar Date, WallClock, TenantID and CorrelationID every owner exchanges (ADR 0040, #3447, #3448).",
       "scopes": [
+        "production",
+        "internal_test",
         "external_test"
       ],
-      "source_owner": "care-plan",
-      "source_role": "e2e-test",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
-      "id": "care-schedule-cutover.care-plan.module-behavior-test.shared-kernel.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "module-behavior-test",
       "target_owner": "shared-kernel",
       "target_role": "contract"
     },
@@ -5275,17 +5264,6 @@
       "source_role": "module-behavior-test",
       "target_owner": "care-plan",
       "target_role": "public"
-    },
-    {
-      "id": "care-schedule-cutover.care-plan.module-internal-test.shared-kernel.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "module-internal-test",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
     },
     {
       "id": "care-schedule-cutover.inbound-timetable.module-internal-test.care-plan.public",
@@ -5376,17 +5354,6 @@
       "target_role": "contract"
     },
     {
-      "id": "care-schedule-cutover.care-plan.contract.shared-kernel.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "contract",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
       "id": "care-schedule-cutover.care-plan.compose.care-plan.contract",
       "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
       "scopes": [
@@ -5398,17 +5365,6 @@
       "target_role": "contract"
     },
     {
-      "id": "care-schedule-cutover.care-plan.compose.shared-kernel.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "compose",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
       "id": "care-schedule-cutover.care-plan.application.care-plan.contract",
       "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
       "scopes": [
@@ -5417,28 +5373,6 @@
       "source_owner": "care-plan",
       "source_role": "application",
       "target_owner": "care-plan",
-      "target_role": "contract"
-    },
-    {
-      "id": "care-schedule-cutover.care-plan.application.shared-kernel.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "application",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
-      "id": "care-schedule-cutover.care-plan.domain.shared-kernel.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "domain",
-      "target_owner": "shared-kernel",
       "target_role": "contract"
     },
     {
@@ -5461,28 +5395,6 @@
       "source_owner": "care-plan",
       "source_role": "port",
       "target_owner": "care-plan",
-      "target_role": "contract"
-    },
-    {
-      "id": "care-schedule-cutover.care-plan.port.shared-kernel.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "port",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
-      "id": "care-schedule-cutover.care-plan.public.shared-kernel.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "public",
-      "target_owner": "shared-kernel",
       "target_role": "contract"
     },
     {
@@ -9008,18 +8920,6 @@
       "target_role": "domain"
     },
     {
-      "id": "settings-platform.test-support.legacy-shared-domain",
-      "description": "The settings test support takes calendar dates in the retained date type while the work-schedule rows still live in the settings package (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "test-support",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3448"
-    },
-    {
       "id": "student-presence.http.public",
       "description": "The presence HTTP composition calls exactly one public capability.",
       "scopes": [
@@ -9032,27 +8932,14 @@
     },
     {
       "id": "student-presence.http.inbound-common",
-      "description": "The presence HTTP composition binds the shared tenant middleware, response rendering and error helpers (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "description": "The presence HTTP adapter binds the shared HTTP runtime in api/common: tenant middleware, response rendering and error helpers. It has no replacement; the other owners' HTTP adapters hold the same standing rule (#3447).",
       "scopes": [
         "production"
       ],
       "source_owner": "student-presence",
       "source_role": "http",
       "target_owner": "inbound-common",
-      "target_role": "http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3447"
-    },
-    {
-      "id": "student-presence.http.legacy-shared-domain",
-      "description": "The presence HTTP composition parses and renders the retained calendar-date signatures while the date type migrates (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "http",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3447"
+      "target_role": "http"
     },
     {
       "id": "root-composition.to.student-presence-http",
@@ -9068,7 +8955,7 @@
     },
     {
       "id": "student-presence.adapter-test.inbound-common",
-      "description": "Presence HTTP tests assert the shared response rendering the adapter binds (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "description": "Presence HTTP tests assert the shared response rendering of api/common that the adapter binds, as the other owners' adapter tests do (#3447).",
       "scopes": [
         "internal_test",
         "external_test"
@@ -9076,21 +8963,7 @@
       "source_owner": "student-presence",
       "source_role": "adapter-test",
       "target_owner": "inbound-common",
-      "target_role": "http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3447"
-    },
-    {
-      "id": "student-presence.adapter-test.legacy-shared-domain",
-      "description": "Presence HTTP tests build fixed calendar dates for the retained date type (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "adapter-test",
-      "target_owner": "legacy-shared",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3447"
+      "target_role": "http"
     },
     {
       "id": "inbound-announcement.to.communication",
@@ -10781,17 +10654,6 @@
       "target_role": "public"
     },
     {
-      "id": "school-structure.staff-groups.calendar-contract",
-      "description": "The staff-keyed substitution read parses its day with the canonical shared-kernel calendar Date (#3499).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-structure",
-      "source_role": "adapter",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
       "id": "school-structure.integration-test.public",
       "description": "School Structure integration tests exercise the public facade.",
       "scopes": [
@@ -10845,17 +10707,6 @@
       "source_role": "adapter-test",
       "target_owner": "workforce",
       "target_role": "compose"
-    },
-    {
-      "id": "school-structure.adapter-test.calendar-contract",
-      "description": "Staff-keyed group read tests use fixed shared-kernel calendar dates (#3499).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "school-structure",
-      "source_role": "adapter-test",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
     },
     {
       "id": "root-composition.to.school-structure-compose",
@@ -20081,50 +19932,6 @@
       "source_role": "public",
       "target_owner": "identity-access",
       "target_role": "public"
-    },
-    {
-      "id": "legacy-shared.domain.calendar-contract",
-      "description": "Use the canonical Date and WallClock shared-kernel contract (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-shared",
-      "source_role": "domain",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
-      "id": "data-import.application.calendar-contract",
-      "description": "Use the canonical Date and WallClock shared-kernel contract (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "data-import",
-      "source_role": "application",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
-      "id": "data-import.workflow-decision-test.calendar-contract",
-      "description": "Use the canonical Date and WallClock shared-kernel contract (#2744).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "data-import",
-      "source_role": "workflow-decision-test",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
-    },
-    {
-      "id": "data-import.integration-test.shared-kernel.contract",
-      "description": "Integration tests exercise the canonical import contracts and their composition (#2744).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "data-import",
-      "source_role": "workflow-integration-test",
-      "target_owner": "shared-kernel",
-      "target_role": "contract"
     },
     {
       "id": "data-import.integration-test.data-import.compose",
