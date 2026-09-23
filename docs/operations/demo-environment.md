@@ -65,12 +65,23 @@ the same wiring as production:
 
 Caddy must route `api.demo.moto-app.de` to port 8082 before its wildcard
 frontend route to 3002. `reverse_proxy` preserves Host and the forwarded
-protocol. `/etc/caddy/Caddyfile`:
+protocol. The operator surface stays internal: the demo operator signs in
+without a second factor (#3460), so Caddy answers 404 for the operator host
+and every operator path on all demo hosts. The demo process reaches the API
+as `server:8080` and is not affected. `/etc/caddy/Caddyfile`:
 
 ```caddyfile
 demo.moto-app.de, *.demo.moto-app.de {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+	@operator host operator.demo.moto-app.de
+	handle @operator {
+		respond 404
+	}
+	@operatorPaths path /operator /operator/* /api/operator /api/operator/*
+	handle @operatorPaths {
+		respond 404
 	}
 	@api host api.demo.moto-app.de
 	handle @api {
