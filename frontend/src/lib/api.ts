@@ -155,12 +155,27 @@ function handleApiError(error: unknown, context: string): Error {
       code?: unknown;
       details?: unknown;
       body?: unknown;
+      response?: { data?: unknown };
     };
-    if (typeof structured.code === "string") {
-      Object.assign(handled, { code: structured.code });
+    const responseData = structured.response?.data;
+    const responseStructured =
+      responseData && typeof responseData === "object"
+        ? (responseData as { code?: unknown; details?: unknown })
+        : undefined;
+    const code =
+      typeof structured.code === "string"
+        ? structured.code
+        : responseStructured?.code;
+    const details =
+      structured.details !== undefined
+        ? structured.details
+        : responseStructured?.details;
+
+    if (typeof code === "string") {
+      Object.assign(handled, { code });
     }
-    if (structured.details !== undefined) {
-      Object.assign(handled, { details: structured.details });
+    if (details !== undefined) {
+      Object.assign(handled, { details });
     }
     if (typeof structured.body === "string") {
       Object.assign(handled, { body: structured.body });

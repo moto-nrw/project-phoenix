@@ -454,6 +454,66 @@ describe("api.ts helper functions", () => {
         restore();
       }
     });
+
+    it("keeps structured child quota details from the server Axios response", async () => {
+      const apiTransport = (await import("./api-transport")).default;
+      const axiosError = new Error(
+        "Request failed with status code 409",
+      ) as Error & {
+        response: {
+          status: number;
+          data: {
+            error: string;
+            code: string;
+            details: {
+              booked_places: number;
+              occupied_places: number;
+              requested_places: number;
+            };
+          };
+        };
+      };
+      axiosError.response = {
+        status: 409,
+        data: {
+          error: "child quota reached",
+          code: "students.child_quota_reached",
+          details: {
+            booked_places: 50,
+            occupied_places: 50,
+            requested_places: 1,
+          },
+        },
+      };
+      const postSpy = vi
+        .spyOn(apiTransport, "post")
+        .mockRejectedValueOnce(axiosError);
+      const { studentService } = await import("./api");
+
+      const restore = setupServerEnv();
+      try {
+        await expect(
+          studentService.createStudent({
+            first_name: "Test",
+            second_name: "Student",
+            school_class: "1a",
+            name: "Test Student",
+            current_location: "",
+          }),
+        ).rejects.toMatchObject({
+          status: 409,
+          code: "students.child_quota_reached",
+          details: {
+            booked_places: 50,
+            occupied_places: 50,
+            requested_places: 1,
+          },
+        });
+      } finally {
+        postSpy.mockRestore();
+        restore();
+      }
+    });
   });
 
   describe("studentService.getSchoolClasses", () => {
