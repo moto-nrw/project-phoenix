@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -534,4 +535,9 @@ func setInstanceStaffAbsent(t *testing.T, s *scenarioSetup, instanceID, staffID 
 		Where("tenant_id = ?", s.tenantID).
 		Exec(s.ctx)
 	require.NoError(t, err)
+}
+
+func testInstanceStudents(db *bun.DB) scheduleModels.InstanceStudentRepository {
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	return factory.InstanceStudent
 }

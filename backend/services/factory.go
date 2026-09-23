@@ -183,7 +183,7 @@ type Factory struct {
 	TimetableBridge           *timetableplanning.TimetableBridgeService
 	Materialization           timetableplanning.MaterializationService
 	TemplateSplit             *timetableplanning.TemplateSplitService
-	TimetableCleanup          timetableplanning.TimetableCleanupService
+	TimetableCleanup          timetable.TimetableCleanup
 	TimeTrackingCleanup       timetracking.TimeTrackingCleanupService
 	StudentChangeLogCleanup   users.StudentChangeLogCleanupService
 	Instance                  timetableplanning.InstanceService
@@ -1454,20 +1454,21 @@ func newFactory(
 		return resyncOfferingRoster(ctx, in)
 	}))
 
-	// Initialize timetable GDPR cleanup service (WP-B14). Deletes
+	// The Timetable owner's GDPR retention (WP-B14, #3551). Deletes
 	// schedule.activity_instances (CASCADE → instance_staff + instance_students)
 	// and schedule.activity_exceptions older than the tenant's retention window.
 	// Per-student audit rows via DataDeletion; exceptions slog-only.
-	timetableCleanupService := timetableplanning.NewTimetableCleanupService(
-		repos.ActivityInstance,
-		repos.ActivityException,
-		repos.InstanceStudent,
-		repos.DataDeletion,
-		repos.DeviationEvent,
-		settingsService,
-		logger.With("service", "timetable-cleanup"),
-		now,
-	)
+	timetableCleanupService, err := newTimetableCleanup(timetableRetentionInputs{
+		Owner:      timetableCapability,
+		Deletions:  repos.DataDeletion,
+		Deviations: repos.DeviationEvent,
+		Settings:   settingsService,
+		Logger:     logger.With("service", "timetable-cleanup"),
+		Clock:      now,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose timetable cleanup: %w", err)
+	}
 
 	// Initialize time-tracking GDPR cleanup service (Tranche 0b). Deletes
 	// active.work_sessions (CASCADE → work_session_breaks +

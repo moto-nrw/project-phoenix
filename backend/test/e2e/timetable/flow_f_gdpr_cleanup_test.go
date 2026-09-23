@@ -2,6 +2,7 @@ package e2e_timetable
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -13,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -99,7 +100,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	// --- Preview first (dry-run) ------------------------------------------
 	preview := runInTenantTx(t, s, func(ctx context.Context) (any, error) {
 		return s.previewTimetableCleanup(ctx)
-	}).(*timetableplanning.TimetableCleanupPreview)
+	}).(*timetable.TimetableCleanupPreview)
 	assert.GreaterOrEqual(t, preview.InstancesToDelete, 1,
 		"at least the old instance is previewed for delete")
 	assert.GreaterOrEqual(t, preview.ExceptionsToDelete, 1,
@@ -109,7 +110,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	// --- Run the actual cleanup -------------------------------------------
 	result := runInTenantTx(t, s, func(ctx context.Context) (any, error) {
 		return s.cleanupTimetable(ctx)
-	}).(*timetableplanning.TimetableCleanupResult)
+	}).(*timetable.TimetableCleanupResult)
 
 	assert.True(t, result.Success)
 	assert.Equal(t, 1, result.InstancesDeleted, "exactly one old instance deleted")
@@ -130,11 +131,17 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	assert.Equal(t, 1, auditCount, "studA audit row")
 	auditCount = countAuditRows(t, s, studB.ID, deletionTypeTimetableRetention)
 	assert.Equal(t, 1, auditCount, "studB audit row")
+	recordsDeleted, deletedBy, metadata := retentionAuditRow(t, s, studA.ID)
+	assert.Equal(t, 1, recordsDeleted, "studA had one expired slot")
+	assert.Equal(t, "system", deletedBy)
+	assert.EqualValues(t, 30, metadata["retention_days"])
+	assert.Equal(t, today.AddDays(-30).String(), metadata["cutoff_date"])
+	assert.Equal(t, []any{float64(oldInstance.ID)}, metadata["instance_ids_sample"])
 
 	// --- Idempotency: second run deletes nothing --------------------------
 	result2 := runInTenantTx(t, s, func(ctx context.Context) (any, error) {
 		return s.cleanupTimetable(ctx)
-	}).(*timetableplanning.TimetableCleanupResult)
+	}).(*timetable.TimetableCleanupResult)
 	assert.True(t, result2.Success)
 	assert.Equal(t, 0, result2.InstancesDeleted, "idempotent: nothing left to delete")
 	assert.Equal(t, 0, result2.ExceptionsDeleted)
@@ -244,4 +251,25 @@ func countAuditRows(t *testing.T, s *scenario, studentID int64, deletionType str
 		Count(s.tenantCtx())
 	require.NoError(t, err)
 	return n
+}
+
+// retentionAuditRow reads the retention audit row of one student: the count
+// of removed slots, the actor and the metadata the compliance log keeps.
+func retentionAuditRow(t *testing.T, s *scenario, studentID int64) (recordsDeleted int, deletedBy string, metadata map[string]any) {
+	t.Helper()
+	var row struct {
+		RecordsDeleted int    `bun:"records_deleted"`
+		DeletedBy      string `bun:"deleted_by"`
+		Metadata       []byte `bun:"metadata"`
+	}
+	err := s.db.NewSelect().
+		TableExpr(`audit.data_deletions AS "data_deletion"`).
+		Column("records_deleted", "deleted_by", "metadata").
+		Where(`"data_deletion".student_id = ?`, studentID).
+		Where(`"data_deletion".deletion_type = ?`, deletionTypeTimetableRetention).
+		Where(`"data_deletion".tenant_id = ?`, s.primaryTenant).
+		Scan(s.tenantCtx(), &row)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(row.Metadata, &metadata))
+	return row.RecordsDeleted, row.DeletedBy, metadata
 }
