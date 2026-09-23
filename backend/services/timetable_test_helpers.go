@@ -27,11 +27,14 @@ import (
 type TimetableTestModule struct {
 	Instance       timetableplanning.InstanceService
 	SchoolCalendar schoolcalendar.Calendar
-	TimetableData  *timetableplanning.TemplateService
+	// TimetableData carries the Timetable owner's template writes, recurrence
+	// gate, planner reads and conflict detection over the same repositories,
+	// as services.Factory does.
+	TimetableData TimetablePlanning
 	// ConflictDetection is the Timetable owner's conflict detection and
 	// staffing capability over the same repositories (#3550).
 	ConflictDetection timetable.ConflictDetectionCapability
-	Materialization   timetableplanning.MaterializationService
+	Materialization   timetable.MaterializationCapability
 	RealtimeHub       *realtime.Hub
 }
 
@@ -45,6 +48,10 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		return TimetableTestModule{}, err
 	}
 	settings, err := NewSettingsTestModule(db, unit)
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
+	recurrenceLock, err := repositories.NewTimetableRecurrenceLock(db)
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
@@ -106,21 +113,24 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		Repo: enrollment.NewCareOfferingRepository(r.CarePlan), Bookings: r.Enrollment(), ActivityGroupRepo: r.ActivityGroup,
 		ActivityScheduleRepo: r.ActivitySchedule, CalendarPeriodRepo: r.CalendarPeriod, TimeframeRepo: r.Timeframe,
 		ActivityExceptionRepo: r.ActivityException, Phases: r.Enrollment(), Settings: settings.Settings, Today: today,
-		LockTemplateRecurrence: func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) },
+		LockTemplateRecurrence: recurrenceLock.LockRecurrenceWrites,
 		Logger:                 logger,
 	})
 	series := offerings.(enrollment.CareOfferingSeriesValidator)
 	calendarAdministration := schoolCalendarAdministration(settings.Settings,
-		func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) },
+		recurrenceLock.LockRecurrenceWrites,
 		offerings.(enrollment.CareOfferingCalendarPeriodValidator))
 	calendar, err := repositories.NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	materialization := timetableplanning.NewMaterializationService(r.ActivityGroup, r.ActivitySchedule, r.StudentEnrollment,
-		r.ActivitySupervisor, r.CalendarPeriod, r.ActivityInstance, r.InstanceStaff, r.InstanceStudent,
-		r.ActivityException, r.Timeframe, db, hub, logger,
-		timetableplanning.WithCareBoundReader(r.Student))
+	rows := r.TimetableTemplateRows()
+	materialization, err := newTimetableMaterialization(timetableMaterializationInputs{
+		Rows: rows, CareBounds: r.Student, RecurrenceLock: recurrenceLock, Broadcaster: hub, DB: db, Logger: logger,
+	})
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
 	recovery := repositories.NewActivityRecoveryRepository(db, r.InstanceStudent)
 	conflicts, err := NewTimetableConflictDetection(TimetableConflictReaders{
 		Instances: r.ActivityInstance, InstanceStaff: r.InstanceStaff, InstanceStudents: r.InstanceStudent,
@@ -138,7 +148,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		InstanceStudents: r.InstanceStudent, ExceptionRepo: r.ActivityException, ActiveGroupRepo: r.ActiveGroup,
 		SupervisorRepo: r.GroupSupervisor, RoomRepo: r.Room, ActivityGroupRepo: r.ActivityGroup,
 		StaffRepo: r.Staff, StudentRepo: r.Student, CalendarPeriodRepo: r.CalendarPeriod,
-		ActiveService: ender, Materialization: materialization, CareDayService: timetableplanning.NewInstanceCareDays(careDay, carePlan), DeviationEventRepo: r.DeviationEvent,
+		ActiveService: ender, Materialization: materialization, RecurrenceLock: recurrenceLock, CareDayService: timetableplanning.NewInstanceCareDays(careDay, carePlan), DeviationEventRepo: r.DeviationEvent,
 		Broadcaster: hub, DB: db, Logger: logger, Settings: settings.Settings, RecoveryRepo: recovery, Now: now,
 	})
 	dataRows := r.OwnerRows()
@@ -151,15 +161,19 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	data := timetableplanning.NewTemplateService(timetableplanning.TemplateServiceDependencies{
-		InstanceStudentRepo: r.InstanceStudent, ActivityInstanceRepo: r.ActivityInstance,
-		ActivityScheduleRepo: r.ActivitySchedule, InstanceStaffRepo: r.InstanceStaff,
-		ActivityCategoryRepo: r.ActivityCategory, PlanningTracks: arrivalTimetable.NewPlanningTrackAdministration(r.Timetable, db),
-		ActivityGroupRepo: r.ActivityGroup, ActivitySupervisorRepo: r.ActivitySupervisor, StudentEnrollmentRepo: r.StudentEnrollment,
-		TimeframeRepo: r.Timeframe, EducationGroupRepo: r.Group,
-		ValidateCareOfferingSeries: series.ValidateTemplateSeries, ValidateOfferingSource: series.ValidateTemplateOfferingSource,
-		ConflictDetection: conflicts, TimetableData: timetableData, RecoveryRepo: recovery,
-		Broadcaster: hub, Logger: logger, DB: db, Today: today,
+	templates, err := newTimetableTemplates(timetableTemplateInputs{
+		Rows: rows, PlanningTracks: arrivalTimetable.NewPlanningTrackAdministration(r.Timetable, db),
+		Materialization: materialization, Instances: instance, CareOfferings: series,
+		RecurrenceLock: recurrenceLock, Broadcaster: hub, DB: db, Logger: logger, Today: today,
 	})
-	return TimetableTestModule{Instance: instance, SchoolCalendar: calendar, TimetableData: data, ConflictDetection: conflicts, Materialization: materialization, RealtimeHub: hub}, nil
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
+	planning := TimetablePlanning{
+		Templates: templates, RecurrenceLock: recurrenceLock, Data: timetableData, ConflictDetection: conflicts,
+		AttendanceCorrections: timetableplanning.NewAttendanceCorrectionService(timetableplanning.AttendanceCorrectionDependencies{
+			InstanceStudentRepo: r.InstanceStudent, ActivityInstanceRepo: r.ActivityInstance, RecoveryRepo: recovery, Logger: logger,
+		}),
+	}
+	return TimetableTestModule{Instance: instance, SchoolCalendar: calendar, TimetableData: planning, ConflictDetection: conflicts, Materialization: materialization, RealtimeHub: hub}, nil
 }

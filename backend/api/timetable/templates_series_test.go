@@ -25,7 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,7 +44,7 @@ type splitSeriesSetup struct {
 
 func buildSplitSeriesSetup(t *testing.T, name string) *splitSeriesSetup {
 	t.Helper()
-	mat := &mockMaterializationService{result: &timetableplanning.MaterializationResult{}}
+	mat := &mockMaterializationService{result: &timetableModule.MaterializationResult{}}
 	s := buildTemplateModule(t, mat, fixedTemplateClock)
 	attachSplitService(s, mat)
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})

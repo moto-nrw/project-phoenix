@@ -228,3 +228,30 @@ func TestTimetablePlanningCutoverReplacesTheReadAndCleanupConsumers(t *testing.T
 		t.Fatal("a test permission was lent to the production scope")
 	}
 }
+
+// Slice S2 (#3552) moved the template writes, the materialization and the
+// roster maintenance to the Timetable owner: Enrollment, which named the
+// nest for the recurrence gate, the roster maintenance and the offering
+// resync contract, may name the owner's public contract in production and
+// nothing else of it.
+func TestTimetablePlanningCutoverReplacesTheEnrollmentRosterConsumer(t *testing.T) {
+	t.Parallel()
+	base, candidate := timetablePlanningCutoverPolicies(t,
+		timetablePlanningHistoricalConsumer(ScopeProduction, "enrollment", "application"),
+	)
+	timetablePublic := timetablePlanningPoint("timetable-activities", "public")
+	enrollment := Package{Owner: "enrollment", Role: "application", InternalTestRole: "module-internal-test", ExternalTestRole: "module-behavior-test"}
+	if !timetablePlanningCutoverPermission(base, candidate, ScopeProduction, enrollment, timetablePublic) {
+		t.Fatal("Enrollment cannot reach the Timetable contract")
+	}
+	for _, role := range []string{"compose", "application", "port", "postgres", "domain"} {
+		if timetablePlanningCutoverPermission(base, candidate, ScopeProduction, enrollment, timetablePlanningPoint("timetable-activities", role)) {
+			t.Fatalf("Enrollment reached timetable-activities/%s", role)
+		}
+	}
+	for _, scope := range []Scope{ScopeInternalTest, ScopeExternalTest} {
+		if timetablePlanningCutoverPermission(base, candidate, scope, enrollment, timetablePublic) {
+			t.Fatalf("the production permission was lent to %s", scope)
+		}
+	}
+}

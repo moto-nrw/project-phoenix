@@ -936,6 +936,6 @@ func checkTimetableConflictWiring(t *testing.T, api *API) {
 
 	require.NotNil(t, api.Timetable)
 	require.NotNil(t, api.Timetable.ConflictDetection, "api/timetable must hold the owner's conflict detection")
-	assert.Same(t, api.Services.TimetableData.ConflictDetection(), api.Timetable.ConflictDetection,
+	assert.Same(t, api.Services.TimetableData.ConflictDetection, api.Timetable.ConflictDetection,
 		"the routes and the instance lifecycle share one composed capability")
 }

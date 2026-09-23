@@ -26,7 +26,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -202,7 +201,7 @@ func newDecisionServiceForTestWithPickupExtensions(
 		ParentsURL:                "http://parents.localhost:3000",
 		Settings:                  settings,
 		LockTemplateRecurrence:    lockTemplateRecurrence,
-		InstanceRosters: timetableplanning.NewRosterReconciler(
+		InstanceRosters: repositories.NewTimetableRosterMaintenance(
 			repoFactory.ActivityInstance,
 			repoFactory.InstanceStudent,
 			repoFactory.StudentEnrollment,
@@ -277,7 +276,7 @@ func assertOfferingAdjustmentWaitsForRecurrenceGate(
 	holderDone := make(chan error, 1)
 	go func() {
 		holderDone <- testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-			if err := timetableplanning.LockTenantRecurrenceWrites(txCtx, env.db); err != nil {
+			if err := repositories.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(txCtx); err != nil {
 				return err
 			}
 			close(holderAcquired)
@@ -3482,7 +3481,7 @@ func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t 
 		env.rolloverTestEnv,
 		nil,
 		func(lockCtx context.Context) error {
-			return timetableplanning.LockTenantRecurrenceWrites(lockCtx, env.db)
+			return repositories.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(lockCtx)
 		},
 	)
 	assertOfferingAdjustmentWaitsForRecurrenceGate(t, env, lockedDecision, enrollmentService.UpdateChildOfferingsInput{

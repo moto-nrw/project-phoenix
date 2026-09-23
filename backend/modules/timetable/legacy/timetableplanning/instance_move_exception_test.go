@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,7 +69,7 @@ func TestUpdatePlanned_DateMove_WritesExceptionAndBlocksRematerialization(t *tes
 	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
 
-	r0, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetableplanning.MaterializationSourceManual)
+	r0, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Equal(t, 1, r0.InstancesCreated)
 	rows := listInstancesForDate(t, s.db, s.template.ID, origDate)
@@ -88,7 +89,7 @@ func TestUpdatePlanned_DateMove_WritesExceptionAndBlocksRematerialization(t *tes
 	assert.NotEmpty(t, *excs[0].Reason)
 
 	// Re-materializing the original date must NOT resurrect the old slot.
-	r1, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetableplanning.MaterializationSourceManual)
+	r1, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	assert.Zero(t, r1.InstancesCreated, "original slot must stay consumed")
 	assert.Equal(t, 1, r1.CandidatesSkippedException)
@@ -102,7 +103,7 @@ func TestDeletePlanned_WritesExceptionAndBlocksRematerialization(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
 
-	r0, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetableplanning.MaterializationSourceManual)
+	r0, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Equal(t, 1, r0.InstancesCreated)
 	rows := listInstancesForDate(t, s.db, s.template.ID, origDate)
@@ -116,7 +117,7 @@ func TestDeletePlanned_WritesExceptionAndBlocksRematerialization(t *testing.T) {
 	assert.Equal(t, scheduleModels.Date(origDate), excs[0].ExceptionDate)
 	assert.Equal(t, scheduleModels.ActivityExceptionCancelled, excs[0].ExceptionType)
 
-	r1, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetableplanning.MaterializationSourceManual)
+	r1, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	assert.Zero(t, r1.InstancesCreated, "deleted slot must stay consumed")
 	assert.Equal(t, 1, r1.CandidatesSkippedException)
@@ -130,7 +131,7 @@ func TestUpdatePlanned_StartTimeOnlyMove_WritesException(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
 
-	r0, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetableplanning.MaterializationSourceManual)
+	r0, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Equal(t, 1, r0.InstancesCreated)
 	rows := listInstancesForDate(t, s.db, s.template.ID, origDate)
@@ -148,7 +149,7 @@ func TestUpdatePlanned_StartTimeOnlyMove_WritesException(t *testing.T) {
 
 	// The exception consumes the (template, date): re-materialization must
 	// not re-create the original start time next to the moved instance.
-	r1, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetableplanning.MaterializationSourceManual)
+	r1, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	assert.Zero(t, r1.InstancesCreated)
 	assert.Equal(t, 1, r1.CandidatesSkippedException)
@@ -164,7 +165,7 @@ func TestUpdatePlanned_NoDateOrTimeChange_WritesNothing(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
 
-	r0, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetableplanning.MaterializationSourceManual)
+	r0, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Equal(t, 1, r0.InstancesCreated)
 	rows := listInstancesForDate(t, s.db, s.template.ID, origDate)

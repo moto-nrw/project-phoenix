@@ -119,8 +119,8 @@ var convertInstanceToSeriesErrorRules = []common.ErrorRule{
 		Match: func(err error) bool {
 			return errors.Is(err, timetableplanning.ErrInstanceWeekend) ||
 				errors.Is(err, timetableplanning.ErrInstanceOutsideActiveCalendarPeriod) ||
-				errors.Is(err, timetableplanning.ErrOfferingSourceInvalid) ||
-				errors.Is(err, timetableplanning.ErrTemplateTargetGradeExceedsLimit)
+				errors.Is(err, timetableModule.ErrOfferingSourceInvalid) ||
+				errors.Is(err, timetableModule.ErrTemplateTargetGradeExceedsLimit)
 		},
 		Render: common.ErrorInvalidRequest,
 	},
@@ -141,7 +141,7 @@ var convertInstanceToSeriesErrorRules = []common.ErrorRule{
 	},
 	{
 		Match: func(err error) bool {
-			var educationGroupErr *timetableplanning.TemplateEducationGroupError
+			var educationGroupErr *timetableModule.TemplateEducationGroupError
 			return errors.As(err, &educationGroupErr)
 		},
 		Render: common.ErrorInvalidRequest,

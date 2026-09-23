@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -142,8 +143,8 @@ func TestConvertInstanceToSeries_PreservesTemplateValidationErrorContract(t *tes
 		{name: "inactive calendar period", err: timetableplanning.ErrInstanceOutsideActiveCalendarPeriod, wantMessage: "instance date must lie within an active calendar period"},
 		{name: "archived category", err: timetableModule.ErrCategoryNotAssignable, wantMessage: "category is archived or unavailable"},
 		{name: "archived planning track", err: timetableModule.ErrPlanningTrackArchived, wantMessage: "planning track is archived or unavailable"},
-		{name: "education group", err: &timetableplanning.TemplateEducationGroupError{Err: errors.New("education group is unavailable")}, wantMessage: "education group is unavailable"},
-		{name: "grade limit", err: timetableplanning.ErrTemplateTargetGradeExceedsLimit, wantMessage: "template target grade exceeds tenant limit"},
+		{name: "education group", err: &timetableModule.TemplateEducationGroupError{Err: errors.New("education group is unavailable")}, wantMessage: "education group is unavailable"},
+		{name: "grade limit", err: timetableModule.ErrTemplateTargetGradeExceedsLimit, wantMessage: "template target grade exceeds tenant limit"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -234,7 +235,7 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 		s.db,
 		nil,
 		func(context.Context, []int64, []int64, *int64) error { return nil },
-		func(ctx context.Context, in timetableplanning.OfferingRosterResyncInput) error {
+		func(ctx context.Context, in timetableModule.OfferingRosterResyncInput) error {
 			for _, enrollment := range []*activitiesModel.StudentEnrollment{
 				{
 					StudentID:        s.studentA,
@@ -265,7 +266,8 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 			DB:              s.db,
 			InstanceRepo:    repoFactory.ActivityInstance,
 			InstanceService: s.res.InstanceService,
-			TimetableData:   timetableData,
+			Templates:       timetableData,
+			RecurrenceLock:  timetableData.RecurrenceLock(),
 		},
 	)
 	router := conversionRouter(s.ctx, s.res)
@@ -311,7 +313,8 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 			DB:              s.db,
 			InstanceRepo:    repoFactory.ActivityInstance,
 			InstanceService: failingInstanceService,
-			TimetableData:   s.res.Templates,
+			Templates:       s.res.Templates,
+			RecurrenceLock:  repositories.MustNewTimetableRecurrenceLock(s.db),
 		},
 	)
 	router := conversionRouter(s.ctx, s.res)

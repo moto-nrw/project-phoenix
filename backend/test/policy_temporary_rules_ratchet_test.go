@@ -78,7 +78,10 @@ import (
 // promise (document-rendering), lowering the totals to 95 and 153. Slice S5
 // (#3551) moved the timetable reads, the operational day and the cleanup and
 // retired the seventeen grants it emptied, sixteen of them conversion promises,
-// lowering the totals to 79 and 137.
+// lowering the totals to 79 and 137. Slice S2 (#3552) moved the template
+// writes, the materialization and the roster maintenance and retired the
+// thirteen grants it emptied, twelve of them conversion promises, lowering
+// the totals to 67 and 125.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -128,12 +131,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 79
+	policyTempRulesTotal = 67
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 137
+	policyTempRulesCompatTotal = 125
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -165,7 +168,8 @@ var policyTempRulesFamilies = map[string]int{
 
 	// #3214, #3218, #3220 — closed; #3427 removed the three #3350 (PR #3408)
 	// had added.
-	"enrollment": 3,
+	// #3552 removed 2 that the template-roster move emptied.
+	"enrollment": 1,
 
 	// #3214, #3218, #3220, #3224 — closed; #3427 removed the one #3350 added.
 	// #3422 removed 1 that went stale with legacy/services/active.
@@ -174,12 +178,14 @@ var policyTempRulesFamilies = map[string]int{
 	// #3214, #3218, #3220, #3224 — closed. #3427 removed the 36 that #3350
 	// (PR #3408) had added with the care-lifecycle adapter.
 	// #3422 removed 4 that went stale with legacy/services/active.
-	"inbound-students": 2,
+	// #3552 removed 1 that the template-roster move emptied.
+	"inbound-students": 1,
 
 	// #3218, #3220, #3214, #3224 — closed. The largest family: 90 rules, every
 	// one of them permitted by an issue that is done.
 	// #3422 removed 5 that went stale with legacy/services/active.
-	"inbound-timetable": 61,
+	// #3552 removed 6 that the template and materialization move emptied.
+	"inbound-timetable": 55,
 
 	// #2725 (OPEN) and #3224 (closed) name most rules jointly; #3214 the rest.
 	// The only large family with a live issue behind it.
@@ -191,21 +197,22 @@ var policyTempRulesFamilies = map[string]int{
 
 	// #3214, #3218 — closed; #3427 removed the one #3350 (PR #3408) added.
 	// #3422 removed 1 that went stale with legacy/services/active.
-	"people-directory": 1,
+	// #3552 removed the last one with the template-roster move.
 
 	// #3214, #3218, #3220 — closed.
 	// #3422 removed 1 that went stale with legacy/services/active.
 
 	// #3207, #3214, #3217, #3218, #3219, #3220, #3224, #3229 — all closed.
 	// #3422 removed 2 that went stale with legacy/services/active.
-	"root-composition": 4,
+	// #3552 removed 1 that the template composition move emptied.
+	"root-composition": 3,
 
 	// #3214, #3218, #3220 — closed.
 	// #3422 removed 3 that went stale with legacy/services/active.
 	"scheduler-runtime": 3,
 
-	// #3214, #3218 — closed.
-	"school-structure": 1,
+	// #3214, #3218 — closed. #3552 removed the last one with the
+	// template-roster move.
 
 	// #3214, #3218, #3229 — closed.
 	"test-support": 1,

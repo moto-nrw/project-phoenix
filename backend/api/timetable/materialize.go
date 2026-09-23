@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -90,7 +90,7 @@ func (rs *Resource) materialize(w http.ResponseWriter, r *http.Request) {
 	)
 
 	result, err := rs.MaterializationService.MaterializeForTenant(
-		r.Context(), from, to, timetableplanning.MaterializationSourceManual,
+		r.Context(), from, to, timetableModule.MaterializationSourceManual,
 	)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("materialization failed", err))
@@ -170,7 +170,7 @@ func resolveMaterializationWindow(req *materializeRequest, now time.Time) (from,
 	if to.Before(from) {
 		return timezone.Date(""), timezone.Date(""), errors.New("to_date must not be before from_date")
 	}
-	if from.DaysUntil(to)+1 > timetableplanning.MaxMaterializationWindowDays {
+	if from.DaysUntil(to)+1 > timetableModule.MaxMaterializationWindowDays {
 		return timezone.Date(""), timezone.Date(""), errors.New("window exceeds 56 days (8 weeks)")
 	}
 	return from, to, nil

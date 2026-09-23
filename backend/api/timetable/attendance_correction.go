@@ -40,7 +40,7 @@ func (rs *Resource) correctInstanceStudent(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if rs.Templates == nil {
+	if rs.AttendanceCorrections == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("attendance correction not wired")))
 		return
 	}
@@ -63,7 +63,7 @@ func (rs *Resource) correctInstanceStudent(w http.ResponseWriter, r *http.Reques
 	}
 
 	accountID, _ := operationActor(ctx)
-	updated, err := rs.Templates.CorrectInstanceStudentAttendance(ctx, instanceID, studentID, scheduleModel.AttendanceFieldPatch(patch), req.Reason, accountID)
+	updated, err := rs.AttendanceCorrections.CorrectInstanceStudentAttendance(ctx, instanceID, studentID, scheduleModel.AttendanceFieldPatch(patch), req.Reason, accountID)
 	if err != nil {
 		rs.renderCorrectionError(w, r, err)
 		return
@@ -107,12 +107,12 @@ func (rs *Resource) getInstanceStudentCorrections(w http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
-	if rs.Templates == nil {
+	if rs.AttendanceCorrections == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("attendance correction not wired")))
 		return
 	}
 
-	rows, err := rs.Templates.GetAttendanceCorrections(ctx, instanceID, studentID)
+	rows, err := rs.AttendanceCorrections.GetAttendanceCorrections(ctx, instanceID, studentID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load attendance corrections failed", err))
 		return

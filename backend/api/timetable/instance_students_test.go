@@ -236,7 +236,7 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 	require.NoError(t, isRepo.Create(ctx, row))
 
 	data := testTimetableData(db)
-	res := NewResource(Dependencies{Templates: data, TimetableData: data.TimetableData(), DB: db})
+	res := NewResource(Dependencies{Templates: data, AttendanceCorrections: data.AttendanceCorrections(), TimetableData: data.TimetableData(), DB: db})
 
 	return &patchSetup{
 		res:        res,

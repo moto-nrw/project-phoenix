@@ -103,17 +103,20 @@ type Dependencies struct {
 	CalendarPeriods         CalendarPeriods
 	ClosingDays             ClosingDays
 	CalendarPeriodUsage     CalendarPeriodUsage
-	MaterializationService  timetableplanning.MaterializationService
+	MaterializationService  timetable.MaterializationCapability
 	InstanceService         timetableplanning.InstanceService
 	InstanceSeriesConverter timetableplanning.InstanceSeriesConverter
 	OperationsService       timetable.OperationCapability
-	TemplateSplitService    *timetableplanning.TemplateSplitService
 	PersonService           userSvc.PersonService
-	// Templates holds the retained template writes and the attendance
-	// correction (#3424 slices S2 and S3); TimetableData serves the planner's
-	// reads from the Timetable owner (#3551).
-	Templates     *timetableplanning.TemplateService
-	TimetableData timetable.TimetableDataCapability
+	// Templates are the Timetable owner's template writes including split
+	// and end (#3424 slice S2); RecurrenceLock is its tenant recurrence gate.
+	// AttendanceCorrections is the retained correction of completed blocks
+	// (slice S3). TimetableData serves the planner's reads from the Timetable
+	// owner (#3551).
+	Templates             timetable.TemplateAdministration
+	RecurrenceLock        timetable.RecurrenceWriteLock
+	AttendanceCorrections *timetableplanning.AttendanceCorrectionService
+	TimetableData         timetable.TimetableDataCapability
 	// ConflictDetection serves the conflict warnings, the staff pool and the
 	// shift-coverage probe from the Timetable owner (#3550).
 	ConflictDetection  timetable.ConflictDetectionCapability

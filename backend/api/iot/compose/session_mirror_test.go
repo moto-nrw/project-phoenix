@@ -68,7 +68,7 @@ func TestSessionStartMirrorsTenantAndWallClock(t *testing.T) {
 	assert.Equal(t, minutes, instance.StartTime.Hour()*60+instance.StartTime.Minute())
 	assert.Equal(t, min(minutes+60, 23*60+59), instance.EndTime.Hour()*60+instance.EndTime.Minute())
 	assert.Equal(t, 0, instance.StartTime.Second())
-	rows, err := timetable.TimetableData.TimetableData().ListBlockStaff(ctx, instance.ID)
+	rows, err := timetable.TimetableData.Data.ListBlockStaff(ctx, instance.ID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, staff.ID, rows[0].StaffID)

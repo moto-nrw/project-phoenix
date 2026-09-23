@@ -83,13 +83,13 @@ func ownedTimeframeRepository(tb timetabletest.TB, db *bun.DB) timeframeQueryRep
 }
 
 type mockMaterializationService struct {
-	result *timetableplanning.MaterializationResult
+	result *timetable.MaterializationResult
 	err    error
 	from   timezone.Date
 	to     timezone.Date
-	source timetableplanning.MaterializationSource
+	source timetable.MaterializationSource
 	// detectFn drives DetectEditedInWindow; nil returns (nil, nil).
-	detectFn func(activityGroupID int64, from, to timezone.Date, includeDeletions bool) ([]timetableplanning.EditedOccurrence, error)
+	detectFn func(activityGroupID int64, from, to timezone.Date, includeDeletions bool) ([]timetable.EditedOccurrence, error)
 }
 
 func TestValidateLegacyTemplateWorkdays(t *testing.T) {
@@ -113,7 +113,7 @@ func TestValidateLegacyTemplateWorkdays(t *testing.T) {
 	}))
 }
 
-func (m *mockMaterializationService) MaterializeForTenant(_ context.Context, from, to timezone.Date, source timetableplanning.MaterializationSource) (*timetableplanning.MaterializationResult, error) {
+func (m *mockMaterializationService) MaterializeForTenant(_ context.Context, from, to timezone.Date, source timetable.MaterializationSource) (*timetable.MaterializationResult, error) {
 	m.from = from
 	m.to = to
 	m.source = source
@@ -127,14 +127,14 @@ func (m *mockMaterializationService) ResolveWindow(baseDate timezone.Date, weeks
 	return baseDate, baseDate.AddDays(weeksAhead*7 - 1)
 }
 
-func (m *mockMaterializationService) DetectEditedInWindow(_ context.Context, activityGroupID int64, from, to timezone.Date, includeDeletions bool) ([]timetableplanning.EditedOccurrence, error) {
+func (m *mockMaterializationService) DetectEditedInWindow(_ context.Context, activityGroupID int64, from, to timezone.Date, includeDeletions bool) ([]timetable.EditedOccurrence, error) {
 	if m.detectFn != nil {
 		return m.detectFn(activityGroupID, from, to, includeDeletions)
 	}
 	return nil, nil
 }
 
-func buildTemplateModule(t *testing.T, mat timetableplanning.MaterializationService, clocks ...func() time.Time) *templateSetup {
+func buildTemplateModule(t *testing.T, mat timetable.MaterializationCapability, clocks ...func() time.Time) *templateSetup {
 	t.Helper()
 	db, serviceFactory := testutil.SetupTimetableModule(t, clocks...)
 
@@ -165,7 +165,8 @@ func buildTemplateModule(t *testing.T, mat timetableplanning.MaterializationServ
 			DB:              db,
 			InstanceRepo:    repoFactory.ActivityInstance,
 			InstanceService: res.InstanceService,
-			TimetableData:   res.Templates,
+			Templates:       res.Templates,
+			RecurrenceLock:  data.RecurrenceLock(),
 		},
 	)
 
@@ -326,7 +327,7 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{
-		result: &timetableplanning.MaterializationResult{InstancesCreated: 3},
+		result: &timetable.MaterializationResult{InstancesCreated: 3},
 	}
 	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
@@ -344,7 +345,7 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 	require.NotZero(t, created.TemplateID)
 	assert.Len(t, created.ScheduleIDs, 2)
 	assert.Equal(t, 3, created.InstancesCreated)
-	assert.Equal(t, timetableplanning.MaterializationSourceManual, mat.source)
+	assert.Equal(t, timetable.MaterializationSourceManual, mat.source)
 
 	listW := doTemplateJSON(t, router, http.MethodGet, "/templates", nil)
 	require.Equal(t, http.StatusOK, listW.Code, "body=%s", listW.Body.String())
@@ -423,7 +424,7 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 func TestTemplateUpdatePropagatesListKindToFutureInstances(t *testing.T) {
 	t.Parallel()
 
-	mat := &mockMaterializationService{result: &timetableplanning.MaterializationResult{}}
+	mat := &mockMaterializationService{result: &timetable.MaterializationResult{}}
 	clock := func() time.Time {
 		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
 	}
@@ -493,7 +494,7 @@ func TestTemplateUpdatePropagatesListKindToFutureInstances(t *testing.T) {
 func TestListTemplates_CapacityFields(t *testing.T) {
 	t.Parallel()
 
-	mat := &mockMaterializationService{result: &timetableplanning.MaterializationResult{}}
+	mat := &mockMaterializationService{result: &timetable.MaterializationResult{}}
 	s := buildTemplateModule(t, mat, fixedTemplateClock)
 	defer s.cleanupFn()
 
@@ -550,7 +551,7 @@ func TestListTemplates_CapacityFields(t *testing.T) {
 func TestTemplateCreateUpdate_ZielgruppeRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	mat := &mockMaterializationService{result: &timetableplanning.MaterializationResult{}}
+	mat := &mockMaterializationService{result: &timetable.MaterializationResult{}}
 	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -592,7 +593,7 @@ func TestTemplateCreateUpdate_ZielgruppeRoundTrip(t *testing.T) {
 func TestTemplateCreate_MultipleTargetsRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateModule(t, &mockMaterializationService{result: &timetableplanning.MaterializationResult{}})
+	s := buildTemplateModule(t, &mockMaterializationService{result: &timetable.MaterializationResult{}})
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Multiple-Targets-Read")
@@ -700,7 +701,7 @@ func TestTemplateUpdate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testi
 func TestTemplateCreate_RejectsInvalidZielgruppe(t *testing.T) {
 	t.Parallel()
 
-	mat := &mockMaterializationService{result: &timetableplanning.MaterializationResult{}}
+	mat := &mockMaterializationService{result: &timetable.MaterializationResult{}}
 	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -1900,7 +1901,7 @@ func createTemplateTestPeriodRange(
 func TestTemplate_WochennotizRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	mat := &mockMaterializationService{result: &timetableplanning.MaterializationResult{}}
+	mat := &mockMaterializationService{result: &timetable.MaterializationResult{}}
 	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -1948,7 +1949,7 @@ func TestTemplate_WochennotizRoundTrip(t *testing.T) {
 func TestTemplate_CreateRejectsOverlongNotes(t *testing.T) {
 	t.Parallel()
 
-	mat := &mockMaterializationService{result: &timetableplanning.MaterializationResult{}}
+	mat := &mockMaterializationService{result: &timetable.MaterializationResult{}}
 	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -1965,7 +1966,7 @@ func TestTemplate_CreateRejectsOverlongNotes(t *testing.T) {
 func TestTemplateList_IncludesShiftTypeBadge(t *testing.T) {
 	t.Parallel()
 
-	mat := &mockMaterializationService{result: &timetableplanning.MaterializationResult{}}
+	mat := &mockMaterializationService{result: &timetable.MaterializationResult{}}
 	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)

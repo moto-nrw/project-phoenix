@@ -283,7 +283,7 @@ type ReplanWeekResult struct {
 	From             timezone.Date
 	To               timezone.Date
 	DeletedInstances int
-	Materialization  *MaterializationResult
+	Materialization  *timetable.MaterializationResult
 }
 
 type instanceService struct {
@@ -309,7 +309,7 @@ func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
 		deps.ExceptionRepo == nil ||
 		deps.ActiveGroupRepo == nil || deps.SupervisorRepo == nil || deps.Presence == nil ||
 		deps.RoomRepo == nil || deps.ActivityGroupRepo == nil || deps.StaffRepo == nil ||
-		deps.StudentRepo == nil || deps.ActiveService == nil || deps.Materialization == nil ||
+		deps.StudentRepo == nil || deps.ActiveService == nil || deps.Materialization == nil || deps.RecurrenceLock == nil ||
 		deps.CalendarPeriodRepo == nil || deps.CareDayService == nil || deps.DeviationEventRepo == nil || deps.DB == nil ||
 		deps.RecoveryRepo == nil || deps.StartConflicts == nil || (deps.EnforceTimePolicy && deps.Settings == nil) {
 		panic("schedule.NewInstanceService: required dependency is nil")
@@ -2271,14 +2271,11 @@ func (s *instanceService) hasTx(ctx context.Context) bool {
 // the day-lock-only paths (/deviations, /substitute, move-staff) never wait on a
 // gate at all.
 func (s *instanceService) lockRecurrenceThenGradeTransitions(ctx context.Context, op string) error {
-	if s.deps.DB == nil {
+	if s.deps.DB == nil || s.deps.RecurrenceLock == nil {
 		return nil
 	}
-	if err := lockTenantRecurrenceWrites(ctx, s.deps.DB); err != nil {
+	if err := s.deps.RecurrenceLock.LockRecurrenceWritesThenGradeTransitions(ctx); err != nil {
 		return &ScheduleError{Op: op + ": lock recurrence", Err: err}
-	}
-	if err := lockTenantGradeTransitions(ctx, s.deps.DB); err != nil {
-		return &ScheduleError{Op: op + ": lock grade transitions", Err: err}
 	}
 	return nil
 }
@@ -2430,7 +2427,7 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		})
 		return result, err
 	}
-	if err := lockTenantRecurrenceWrites(ctx, s.deps.DB); err != nil {
+	if err := s.deps.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
 		return nil, &ScheduleError{Op: "replan week: lock recurrence", Err: err}
 	}
 
@@ -2474,7 +2471,7 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		return nil, &ScheduleError{Op: "replan week: delete planned", Err: err}
 	}
 
-	mat, err := s.deps.Materialization.MaterializeForTenant(ctx, from, to, MaterializationSourceManual)
+	mat, err := s.deps.Materialization.MaterializeForTenant(ctx, from, to, timetable.MaterializationSourceManual)
 	if err != nil {
 		return nil, &ScheduleError{Op: "replan week: materialize", Err: err}
 	}

@@ -7,22 +7,57 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 var ErrInstanceAlreadyInSeries = errors.New("activity instance already belongs to a series")
 
-// InstanceSeriesConversionDependencies are the three existing modules the
+// ConvertInstanceToSeriesInput turns one existing planned occurrence into the
+// seed of a new recurring template. Template contains the complete series
+// definition; InstanceNotes is the per-occurrence note that stays on the seed.
+type ConvertInstanceToSeriesInput struct {
+	InstanceID     int64
+	Template       timetable.CreateTemplateCommand
+	InstanceNotes  *string
+	ActorAccountID *int64
+}
+
+// ConvertInstanceToSeriesResult identifies both sides of a successful atomic
+// conversion. LinkedInstanceID is always the pre-existing occurrence ID.
+type ConvertInstanceToSeriesResult struct {
+	TemplateID       int64
+	TimeframeID      int64
+	ScheduleIDs      []int64
+	LinkedInstanceID int64
+}
+
+// InstanceSeriesConverter is the single write seam used by the timetable API
+// when a planner changes a one-off occurrence into a recurring series.
+type InstanceSeriesConverter interface {
+	ConvertInstanceToSeries(context.Context, ConvertInstanceToSeriesInput) (*ConvertInstanceToSeriesResult, error)
+}
+
+// TemplateSeriesSeeding is the slice of the Timetable owner's template
+// writes (timetable.TemplateAdministration) the conversion seeds a series
+// with.
+type TemplateSeriesSeeding interface {
+	CreateTemplate(ctx context.Context, cmd timetable.CreateTemplateCommand) (*timetable.CreateTemplateResult, error)
+	TemplateAssignmentsOn(ctx context.Context, templateID int64, date timezone.Date, calendarPeriodID int64) (timetable.TemplateAssignments, error)
+	AlignPlannedInstanceStaff(ctx context.Context, templateID int64, staffIDs []int64, from timezone.Date) error
+}
+
+// InstanceSeriesConversionDependencies are the existing modules the
 // conversion coordinates. The converter adds transactionality and ordering;
 // it does not duplicate their persistence rules.
 type InstanceSeriesConversionDependencies struct {
 	DB              *bun.DB
 	InstanceRepo    scheduleModel.ActivityInstanceRepository
 	InstanceService InstanceService
-	TimetableData   *TemplateService
+	Templates       TemplateSeriesSeeding
+	RecurrenceLock  timetable.RecurrenceWriteLock
 }
 
 type instanceSeriesConversionService struct {
@@ -30,7 +65,7 @@ type instanceSeriesConversionService struct {
 }
 
 func NewInstanceSeriesConversionService(deps InstanceSeriesConversionDependencies) InstanceSeriesConverter {
-	if deps.DB == nil || deps.InstanceRepo == nil || deps.InstanceService == nil || deps.TimetableData == nil {
+	if deps.DB == nil || deps.InstanceRepo == nil || deps.InstanceService == nil || deps.Templates == nil || deps.RecurrenceLock == nil {
 		panic("schedule.NewInstanceSeriesConversionService: required dependency is nil")
 	}
 	return &instanceSeriesConversionService{deps: deps}
@@ -61,7 +96,7 @@ func (s *instanceSeriesConversionService) ConvertInstanceToSeries(
 
 	var result ConvertInstanceToSeriesResult
 	err := tenant.WithTenantTx(ctx, s.deps.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		if err := lockTenantRecurrenceWrites(txCtx, s.deps.DB); err != nil {
+		if err := s.deps.RecurrenceLock.LockRecurrenceWrites(txCtx); err != nil {
 			return &ScheduleError{Op: "convert instance to series: lock recurrence", Err: err}
 		}
 
@@ -79,12 +114,12 @@ func (s *instanceSeriesConversionService) ConvertInstanceToSeries(
 			return ErrInstanceAlreadyInSeries
 		}
 
-		created, err := s.deps.TimetableData.CreateTemplate(txCtx, in.Template)
+		created, err := s.deps.Templates.CreateTemplate(txCtx, in.Template)
 		if err != nil {
 			return err
 		}
 		date := *in.Template.ScheduleValidFrom
-		studentIDs, staffIDs, err := s.deps.TimetableData.templateAssignmentsOn(
+		assignments, err := s.deps.Templates.TemplateAssignmentsOn(
 			txCtx, created.TemplateID, date, *in.Template.CalendarPeriodID,
 		)
 		if err != nil {
@@ -106,8 +141,8 @@ func (s *instanceSeriesConversionService) ConvertInstanceToSeries(
 			ActivityGroupID:  &templateID,
 			CalendarPeriodID: in.Template.CalendarPeriodID,
 			ListKind:         in.Template.ListKind,
-			StaffIDs:         staffIDs,
-			StudentIDs:       studentIDs,
+			StaffIDs:         assignments.StaffIDs,
+			StudentIDs:       assignments.StudentIDs,
 			RequiredStaff:    nil,
 		}, in.ActorAccountID)
 		if err != nil {
@@ -117,9 +152,7 @@ func (s *instanceSeriesConversionService) ConvertInstanceToSeries(
 		// UpdatePlanned preserves occurrence-specific staff metadata. Align the
 		// still-planned rows with the template once more so a newly selected
 		// Hauptbetreuung receives is_primary on the converted seed as well.
-		if err := s.deps.TimetableData.reconcilePredecessorInstanceStaff(
-			txCtx, templateID, staffIDs, date, nil,
-		); err != nil {
+		if err := s.deps.Templates.AlignPlannedInstanceStaff(txCtx, templateID, assignments.StaffIDs, date); err != nil {
 			return err
 		}
 
@@ -137,73 +170,59 @@ func (s *instanceSeriesConversionService) ConvertInstanceToSeries(
 	return &result, nil
 }
 
-// templateAssignmentsOn derives the same concrete people a fresh
-// materialized occurrence would receive for one date. It intentionally reads
-// the persisted template roster after CreateTemplate has completed, so
-// offering-service start dates and selected weekdays are already authoritative.
-func (s *TemplateService) templateAssignmentsOn(
-	ctx context.Context,
-	templateID int64,
-	date timezone.Date,
-	periodID int64,
-) ([]int64, []int64, error) {
-	if s.deps.StudentEnrollmentRepo == nil || s.deps.ActivitySupervisorRepo == nil || s.deps.ActivityGroupRepo == nil {
-		return nil, nil, &ScheduleError{
-			Op:  "derive template assignments: validate dependencies",
-			Err: errors.New("required roster repository is nil"),
-		}
-	}
+// seriesDeviationMachinery is the instance service's deviation snapshot and
+// reapply machinery (#1840) a template split preserves Vertretungsplan
+// overrides with.
+type seriesDeviationMachinery interface {
+	acquireSubstituteDayLocks(context.Context, int64, timezone.Date, timezone.Date) error
+	snapshotDeviations(context.Context, timezone.Date, timezone.Date, *int64) ([]deviationSnapshot, map[groupDay]int, error)
+	reapplyDeviations(context.Context, []deviationSnapshot, map[groupDay]int, *int64, *int64) (int, error)
+}
 
-	enrollments, err := s.deps.StudentEnrollmentRepo.FindByGroupID(ctx, templateID)
+// SeriesDeviationPreserver exposes that machinery to the Timetable owner's
+// template split (#3424 slice S2), which the composition root binds to it.
+type SeriesDeviationPreserver struct {
+	machinery seriesDeviationMachinery
+}
+
+// NewSeriesDeviationPreserver narrows the instance service to its deviation
+// machinery.
+func NewSeriesDeviationPreserver(svc InstanceService) (*SeriesDeviationPreserver, error) {
+	machinery, ok := svc.(seriesDeviationMachinery)
+	if !ok {
+		return nil, errors.New("instance service does not support deviation preservation")
+	}
+	return &SeriesDeviationPreserver{machinery: machinery}, nil
+}
+
+// LockDeviationDays takes the day-wide substitute/deviation lock of every
+// date in [from, to], in ascending order.
+func (p *SeriesDeviationPreserver) LockDeviationDays(ctx context.Context, tenantID int64, from, to timezone.Date) error {
+	return p.machinery.acquireSubstituteDayLocks(ctx, tenantID, from, to)
+}
+
+// SnapshotDeviations snapshots the template's deviations in [from, to].
+func (p *SeriesDeviationPreserver) SnapshotDeviations(ctx context.Context, from, to timezone.Date, templateID int64) (*SeriesDeviationSnapshot, error) {
+	id := templateID
+	snapshots, occurrences, err := p.machinery.snapshotDeviations(ctx, from, to, &id)
 	if err != nil {
-		return nil, nil, &ScheduleError{Op: "derive template assignments: load enrollments", Err: err}
+		return nil, err
 	}
-	studentIDs := make([]int64, 0, len(enrollments))
-	seenStudents := make(map[int64]struct{}, len(enrollments))
-	for _, enrollment := range enrollments {
-		if !isEnrollmentValidOn(enrollment, date, periodID) || enrollmentStudentIsAlumnus(enrollment) {
-			continue
-		}
-		if _, exists := seenStudents[enrollment.StudentID]; exists {
-			continue
-		}
-		seenStudents[enrollment.StudentID] = struct{}{}
-		studentIDs = append(studentIDs, enrollment.StudentID)
-	}
+	return &SeriesDeviationSnapshot{machinery: p.machinery, snapshots: snapshots, occurrences: occurrences}, nil
+}
 
-	if targetRepo, ok := s.deps.ActivityGroupRepo.(activitiesModel.GroupTargetRepository); ok {
-		targetStudentIDs, err := targetRepo.FindTargetStudentIDs(ctx, templateID)
-		if err != nil {
-			return nil, nil, &ScheduleError{Op: "derive template assignments: load target students", Err: err}
-		}
-		for _, studentID := range targetStudentIDs {
-			if studentID <= 0 {
-				continue
-			}
-			if _, exists := seenStudents[studentID]; exists {
-				continue
-			}
-			seenStudents[studentID] = struct{}{}
-			studentIDs = append(studentIDs, studentID)
-		}
-	}
+// SeriesDeviationSnapshot is one snapshot of SnapshotDeviations.
+type SeriesDeviationSnapshot struct {
+	machinery   seriesDeviationMachinery
+	snapshots   []deviationSnapshot
+	occurrences map[groupDay]int
+}
 
-	supervisors, err := s.deps.ActivitySupervisorRepo.FindByGroupID(ctx, templateID)
-	if err != nil {
-		return nil, nil, &ScheduleError{Op: "derive template assignments: load supervisors", Err: err}
-	}
-	staffIDs := make([]int64, 0, len(supervisors))
-	seenStaff := make(map[int64]struct{}, len(supervisors))
-	for _, supervisor := range supervisors {
-		if !isSupervisorValidOn(supervisor, date, periodID) {
-			continue
-		}
-		if _, exists := seenStaff[supervisor.StaffID]; exists {
-			continue
-		}
-		seenStaff[supervisor.StaffID] = struct{}{}
-		staffIDs = append(staffIDs, supervisor.StaffID)
-	}
+// Count is the number of snapshotted deviations.
+func (s *SeriesDeviationSnapshot) Count() int { return len(s.snapshots) }
 
-	return studentIDs, staffIDs, nil
+// Reapply writes the snapshot onto the given template's occurrences.
+func (s *SeriesDeviationSnapshot) Reapply(ctx context.Context, templateID int64, actorAccountID *int64) (int, error) {
+	id := templateID
+	return s.machinery.reapplyDeviations(ctx, s.snapshots, s.occurrences, &id, actorAccountID)
 }

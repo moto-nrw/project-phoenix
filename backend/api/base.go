@@ -113,7 +113,6 @@ import (
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	worktimemodelsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/httpadapter"
@@ -461,11 +460,13 @@ func observeDataImport(observation services.DataImportObservation) {
 func composeFacilities(db *bun.DB, legacyFacilities *interface {
 	ValidateRoomDeletion(context.Context, int64) error
 }) (*facilitiesModule.Module, error) {
+	recurrenceLock, err := repositories.NewTimetableRecurrenceLock(db)
+	if err != nil {
+		return nil, err
+	}
 	return facilitiesCompose.New(facilitiesCompose.Dependencies{
-		DB: db,
-		DeletionLock: func(ctx context.Context) error {
-			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
-		},
+		DB:           db,
+		DeletionLock: recurrenceLock.LockRecurrenceWrites,
 		DeletionGuard: func(ctx context.Context, roomID int64) error {
 			if *legacyFacilities == nil {
 				return facilitiesModule.ErrRoomDeletionGuardUnavailable
@@ -1422,19 +1423,17 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		EnrollmentDecision:           api.Services.EnrollmentDecision,
 		EnrollmentFormSchema:         api.Services.EnrollmentFormSchema,
 		OfferingSourceResyncer:       studentClassResyncer,
-		LockTemplateRecurrence: func(ctx context.Context) error {
-			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
-		},
-		Broadcaster:            api.Services.RealtimeHub,
-		ParentEventEmitter:     api.Services.ParentEventEmitter,
-		AbsenceNotifier:        api.Services.AbsenceNotifier,
-		StudentPhotos:          api.Services.StudentPhotos,
-		StudentConsents:        api.Services.StudentConsents,
-		PrivacyConsents:        presence,
-		StudentDocumentService: api.Services.StudentDocuments,
-		ListExportService:      api.Services.ListExport,
-		Logger:                 logger.With("handler", "students"),
-		DB:                     db,
+		LockTemplateRecurrence:       api.Services.TimetableData.RecurrenceLock.LockRecurrenceWrites,
+		Broadcaster:                  api.Services.RealtimeHub,
+		ParentEventEmitter:           api.Services.ParentEventEmitter,
+		AbsenceNotifier:              api.Services.AbsenceNotifier,
+		StudentPhotos:                api.Services.StudentPhotos,
+		StudentConsents:              api.Services.StudentConsents,
+		PrivacyConsents:              presence,
+		StudentDocumentService:       api.Services.StudentDocuments,
+		ListExportService:            api.Services.ListExport,
+		Logger:                       logger.With("handler", "students"),
+		DB:                           db,
 	})
 	api.Statistics = statisticsAPI.NewResource(api.Services.Statistics, api.Services.ListExport, db, logger.With("handler", "statistics"))
 	api.Messaging = messagingAPI.NewResource(api.Services.Messaging, db)
@@ -1496,7 +1495,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// rules to the Timetable owner; timeframe changes stay guarded by the
 	// recurrence gate and Enrollment's care-offering check.
 	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(modules.calendar, modules.timetable, services.TimeframeChangeGuard(
-		func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) },
+		api.Services.TimetableData.RecurrenceLock.LockRecurrenceWrites,
 		api.Services.EnrollmentCareOffering.(enrollmentSvc.CareOfferingMaterializationResourceValidator).ValidateTimeframeReplacement,
 	), db)
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
@@ -1590,11 +1589,12 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		InstanceService:         api.Services.Instance,
 		InstanceSeriesConverter: api.Services.InstanceSeriesConverter,
 		OperationsService:       api.Services.TimetableOperations,
-		TemplateSplitService:    api.Services.TemplateSplit,
 		PersonService:           api.Services.Users,
-		Templates:               api.Services.TimetableData,
-		TimetableData:           api.Services.TimetableData.TimetableData(),
-		ConflictDetection:       api.Services.TimetableData.ConflictDetection(),
+		Templates:               api.Services.TimetableData.Templates,
+		RecurrenceLock:          api.Services.TimetableData.RecurrenceLock,
+		AttendanceCorrections:   api.Services.TimetableData.AttendanceCorrections,
+		TimetableData:           api.Services.TimetableData.Data,
+		ConflictDetection:       api.Services.TimetableData.ConflictDetection,
 		PlanningTracks:          api.Services.PlanningTracks,
 		CareDayService:          api.Services.CareDay,
 		UserContextService:      api.Services.UserContext,
