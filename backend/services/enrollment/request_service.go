@@ -28,6 +28,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment/selection"
 	"github.com/moto-nrw/project-phoenix/services/config"
@@ -45,7 +46,7 @@ var (
 	ErrCareOfferingClosed      = selection.ErrCareOfferingClosed
 	ErrCareOfferingUnavailable = selection.ErrCareOfferingUnavailable
 	ErrCareOfferingFull        = errors.New("one or more selected care offerings are at capacity")
-	ErrCareOfferingsDisabled   = errors.New("care offerings are disabled for this tenant")
+	ErrCareOfferingsDisabled   = careplan.ErrCareOfferingsDisabled
 	// ErrCareOfferingMissing is returned when a phase requires at least
 	// one care offering per child but a child has no offering selected.
 	// Mapped to 400 with a stable code so the parent form can highlight

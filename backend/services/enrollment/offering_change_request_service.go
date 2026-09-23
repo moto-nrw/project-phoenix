@@ -12,7 +12,6 @@ package enrollment
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -23,6 +22,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment/selection"
 
@@ -63,25 +63,14 @@ func offeringChangeApprovedBody(effectiveFrom timezone.Date) string {
 		effectiveFrom.Format("02.01.2006") + " umgestellt"
 }
 
+// Legacy names of the Care Plan decision error contract (#3558).
 var (
-	// ErrOfferingChangeDisabled means the school has post-enrollment changes
-	// switched off.
-	ErrOfferingChangeDisabled = errors.New("enrollment: post-enrollment offering changes are disabled")
-	// ErrOfferingChangeInvalid marks a request the caller can correct: no
-	// selection, an unknown offering, a bad effective date.
-	ErrOfferingChangeInvalid = errors.New("enrollment: invalid offering change request")
-	// ErrOfferingChangeNoEnrollment means the child has no approved enrollment
-	// an offering change could be applied to.
-	ErrOfferingChangeNoEnrollment = errors.New("enrollment: child has no approved enrollment")
-	// ErrOfferingChangeForbidden means the caller does not own the request.
-	ErrOfferingChangeForbidden = errors.New("enrollment: offering change request forbidden")
-	// ErrOfferingChangeCapacityFull means an offering in the request has no free
-	// slot left. Raised at approval time, when it actually matters.
-	ErrOfferingChangeCapacityFull = errors.New("enrollment: care offering is at capacity")
-	// ErrOfferingChangeDateOutOfRange means the reviewer confirmed a date the
-	// switch cannot take effect on: before today, or outside the care period the
-	// request belongs to.
-	ErrOfferingChangeDateOutOfRange = errors.New("enrollment: confirmed effective date is out of range")
+	ErrOfferingChangeDisabled       = careplan.ErrOfferingChangeDisabled
+	ErrOfferingChangeInvalid        = careplan.ErrOfferingChangeInvalid
+	ErrOfferingChangeNoEnrollment   = careplan.ErrOfferingChangeNoEnrollment
+	ErrOfferingChangeForbidden      = careplan.ErrOfferingChangeForbidden
+	ErrOfferingChangeCapacityFull   = careplan.ErrOfferingChangeCapacityFull
+	ErrOfferingChangeDateOutOfRange = careplan.ErrOfferingChangeDateOutOfRange
 )
 
 // OfferingChangeSelection is one desired offering with its chosen days.
@@ -1190,10 +1179,10 @@ func (s *offeringChangeRequestService) Edit(
 		return nil, err
 	}
 	if row.StudentID != input.StudentID || row.SubmittedBy != input.AccountID {
-		return nil, enrollmentModels.ErrOfferingChangeNotFound
+		return nil, errOfferingChangeNotFound
 	}
 	if row.IsTerminal() {
-		return nil, enrollmentModels.ErrOfferingChangeNotPending
+		return nil, errOfferingChangeNotPending
 	}
 	if expectedVersion != "" && usersService.ParentRequestVersion(row.UpdatedAt) != expectedVersion {
 		return nil, usersService.ErrParentRequestStale
@@ -1745,7 +1734,7 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 		return err
 	}
 	if row.IsTerminal() {
-		return enrollmentModels.ErrOfferingChangeNotPending
+		return errOfferingChangeNotPending
 	}
 	// Staleness is decided under the row lock and before any authorization or
 	// apply work, so a decision taken on an outdated view never lands (#2267).
@@ -1757,12 +1746,12 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 		return fmt.Errorf("offering change: load student for decision: %w", err)
 	}
 	if student.IsAlumnus() {
-		return enrollmentModels.ErrOfferingChangeNotFound
+		return errOfferingChangeNotFound
 	}
 	// The child left the OGS after filing this request; approving it would
 	// book offerings for days they are no longer in care (#2487).
 	if student.CareEndedOn(s.todayDate()) {
-		return enrollmentModels.ErrOfferingChangeNotFound
+		return errOfferingChangeNotFound
 	}
 	allowed, authErr := s.canReviewStudent(ctx, student)
 	if authErr != nil {
@@ -1894,14 +1883,14 @@ func (s *offeringChangeRequestService) PreviewDecision(
 		return nil, err
 	}
 	if row.IsTerminal() {
-		return nil, enrollmentModels.ErrOfferingChangeNotPending
+		return nil, errOfferingChangeNotPending
 	}
 	student, err := s.StudentRepo.FindByID(ctx, row.StudentID)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: load student for preview: %w", err)
 	}
 	if student == nil || student.IsAlumnus() || student.CareEndedOn(s.todayDate()) {
-		return nil, enrollmentModels.ErrOfferingChangeNotFound
+		return nil, errOfferingChangeNotFound
 	}
 	allowed, authErr := s.canReviewStudent(ctx, student)
 	if authErr != nil {
@@ -3450,7 +3439,7 @@ func (s *offeringChangeRequestService) MarkDone(
 		return err
 	}
 	if row.IsTerminal() {
-		return enrollmentModels.ErrOfferingChangeNotPending
+		return errOfferingChangeNotPending
 	}
 	if expectedVersion != "" && usersService.ParentRequestVersion(row.UpdatedAt) != expectedVersion {
 		return usersService.ErrParentRequestStale
