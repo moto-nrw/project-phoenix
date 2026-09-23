@@ -47,7 +47,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-var updateGoldens = flag.Bool("update-goldens", false, "rewrite the route-table and IoT auth-matrix golden files")
+var updateGoldens = flag.Bool("update-goldens", false, "rewrite the route-table, IoT auth-matrix and IoT error-string golden files")
 
 func checkRouteTableGolden(t *testing.T, apiInstance *API) {
 	t.Parallel()
@@ -311,6 +311,7 @@ func TestFullProductionRouterGolden(t *testing.T) {
 		t.Run("contracts", func(t *testing.T) {
 			t.Run("route table", func(t *testing.T) { checkRouteTableGolden(t, api) })
 			t.Run("IoT auth matrix", func(t *testing.T) { checkIoTAuthMatrixGolden(t, api) })
+			t.Run("IoT error strings", checkIoTErrorStringsGolden)
 			t.Run("school scope matrix", func(t *testing.T) { checkSchoolScopeMatrix(t, api) })
 			t.Run("caregiver wiring", func(t *testing.T) { checkCaregiverWiring(t, api) })
 			t.Run("enrollment submission", func(t *testing.T) { checkEnrollmentSubmissionGolden(t, api) })
