@@ -4360,7 +4360,7 @@ function calendarPeriodsTopic(): HelpTopic {
           "Wählen Sie `Schließtag anlegen`.",
           "Tragen Sie `Grund`, `Von` und `Bis` ein, zum Beispiel `Herbstferien`.",
           "Wählen Sie `Speichern`.",
-          "Stehen an diesen Tagen schon Termine im Plan, fragt moto nach. Wählen Sie `Termine absagen`, dann nimmt moto die Termine aus dem Plan.",
+          "Stehen an diesen Tagen schon Termine im Plan, fragt moto nach. Wählen Sie `Termine absagen`, dann nimmt moto die Termine aus dem Plan. Serien, die auch an Schließtagen geplant sind, bleiben. Sie fallen nur aus, wenn Sie das Häkchen bei `Auch Serien absagen, die an Schließtagen geplant sind` setzen.",
         ],
       },
       {

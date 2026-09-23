@@ -95,6 +95,7 @@ export function StepWiederholung({
         value={form.seriesEndDate}
         min={isEditingSeries ? undefined : form.date || undefined}
         max={selectedPeriod?.endDate}
+        defaultMonth={form.date || undefined}
         invalid={Boolean(fieldErrors.seriesEndDate)}
         calendarLayout="popover"
         placeholder="Bis zum Ende des Zeitraums"
@@ -254,7 +255,7 @@ export function StepWiederholung({
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
             {showPeriodField ? (
               <Field
                 label="Planungszeitraum"

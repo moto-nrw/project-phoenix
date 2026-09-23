@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
@@ -44,6 +45,36 @@ func TestMaterializeForTenant_StopsAfterTheSeriesLastDay(t *testing.T) {
 	assert.Equal(t, 1, result.CandidatesSkippedEnded)
 	assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, lastDay), 1, "the last day is inclusive")
 	assert.Empty(t, listInstancesForDate(t, s.db, s.template.ID, after))
+}
+
+// Shortening a series in the template update removes the later planned
+// occurrences itself, whatever window a later re-plan covers. The module's
+// "today" runs on the real clock, so the series lies far in the future.
+func TestUpdateTemplateFields_DropsOccurrencesAfterTheNewLastDay(t *testing.T) {
+	t.Parallel()
+
+	first := timezone.NewDate(2099, time.December, 7) // a Monday
+	lastDay := first.AddDays(7)
+	after := first.AddDays(14)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, first)
+	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, first, after, timetableplanning.MaterializationSourceManual)
+	require.NoError(t, err)
+	require.Len(t, listInstancesForDate(t, s.db, s.template.ID, after), 1)
+
+	groups := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup
+	newEnd := lastDay.String()
+	updated, err := groups.UpdateTemplateFields(s.ctx, s.template.ID, activitiesModels.TemplateFieldsUpdate{
+		Name: s.template.Name, Type: s.template.Type, CategoryID: s.template.CategoryID,
+		RoomID: *s.template.PlannedRoomID, MaxParticipants: s.template.MaxParticipants,
+		CalendarPeriodID: s.template.CalendarPeriodID, TargetGroupType: s.template.TargetGroupType,
+		SeriesLastDay: &newEnd, SeriesLastDayProvided: true,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, updated)
+
+	assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, first), 1)
+	assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, lastDay), 1, "the new last day stays")
+	assert.Empty(t, listInstancesForDate(t, s.db, s.template.ID, after), "the occurrence after the new last day is gone")
 }
 
 // Shortening a series removes its later planned occurrences through the

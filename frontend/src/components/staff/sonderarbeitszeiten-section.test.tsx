@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   mutateList: vi.fn(),
   mutate: vi.fn(),
   toastSuccess: vi.fn(),
+  endDefaultMonth: undefined as string | undefined,
 }));
 
 vi.mock("swr", () => ({
@@ -41,7 +42,17 @@ vi.mock("~/contexts/ToastContext", () => ({
 
 vi.mock("~/components/ui/date-picker", async (importOriginal) => {
   const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
-  return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
+  const { ISODatePicker: Stub } = isoDatePickerMock();
+  return {
+    ...(await importOriginal<object>()),
+    // Records the month the "Letzter Tag" calendar opens in.
+    ISODatePicker: (props: Parameters<typeof Stub>[0]) => {
+      if (props.id === "target-override-end") {
+        mocks.endDefaultMonth = props.defaultMonth;
+      }
+      return Stub(props);
+    },
+  };
 });
 
 const holidayCare: StaffTargetOverride = {
@@ -260,9 +271,26 @@ describe("SonderarbeitszeitenSection", () => {
       "aria-invalid",
       "true",
     );
+    // Same red frame as the date fields.
+    expect(screen.getByLabelText("Stunden pro Tag")).toHaveClass(
+      "ring-moto-red",
+    );
     expect(
       screen.getByText("Bitte die markierten Felder prüfen."),
     ).toBeInTheDocument();
     expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it("opens the last day in the first day's month without filling it in", () => {
+    mocks.rows = [];
+    openCreate();
+    expect(mocks.endDefaultMonth).toBeUndefined();
+
+    fireEvent.change(screen.getByLabelText("Erster Tag"), {
+      target: { value: "2026-12-21" },
+    });
+
+    expect(mocks.endDefaultMonth).toBe("2026-12-21");
+    expect(screen.getByLabelText("Letzter Tag")).toHaveValue("");
   });
 });

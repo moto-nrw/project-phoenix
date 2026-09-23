@@ -163,6 +163,7 @@ export function ClosingDayModal({
               controlSize="lg"
               value={endDate}
               min={startDate || undefined}
+              defaultMonth={startDate}
               onChange={setEndDate}
               calendarLayout="popover"
             />

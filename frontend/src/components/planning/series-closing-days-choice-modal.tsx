@@ -10,12 +10,18 @@ import { ChoiceModal } from "~/components/ui/choice-modal";
  */
 export function SeriesClosingDaysChoiceModal({
   closingDayCount,
+  currentChoice,
   onCancel,
   onChoose,
   isBusy = false,
 }: {
   /** Wie viele Termine der Serie auf Schließtage fallen. */
   readonly closingDayCount: number;
+  /**
+   * Bisherige Wahl einer bestehenden Serie. Sie wird hervorgehoben, damit
+   * eine Bearbeitung sie nicht aus Versehen umschaltet. Neue Serie: leer.
+   */
+  readonly currentChoice?: boolean;
   readonly onCancel: () => void;
   /** `true` = auch an Schließtagen planen. */
   readonly onChoose: (includeClosingDays: boolean) => void;
@@ -33,12 +39,14 @@ export function SeriesClosingDaysChoiceModal({
         {
           value: "skip",
           label: "Schließtage auslassen",
-          description: "An Schließtagen gibt es keinen Termin.",
+          description: `${currentChoice === false ? "Wie bisher. " : ""}An Schließtagen gibt es keinen Termin.`,
+          primary: currentChoice === false,
         },
         {
           value: "include",
           label: "Auch an Schließtagen planen",
-          description: "Zum Beispiel für die Ferienbetreuung.",
+          description: `${currentChoice === true ? "Wie bisher. " : ""}Zum Beispiel für die Ferienbetreuung.`,
+          primary: currentChoice === true,
         },
       ]}
       onSelect={(value) => onChoose(value === "include")}

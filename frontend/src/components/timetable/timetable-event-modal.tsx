@@ -942,6 +942,7 @@ export function TimetableEventModal({
         {closingDayPrompt !== null && isSeriesFlow && (
           <SeriesClosingDaysChoiceModal
             closingDayCount={closingDayPrompt.count}
+            currentChoice={initialSeries?.includeClosingDays}
             onCancel={() => setClosingDayPrompt(null)}
             onChoose={submitAfterConfirm}
           />
@@ -950,6 +951,9 @@ export function TimetableEventModal({
         {scopeClosingDayWarning !== null && (
           <SeriesClosingDaysChoiceModal
             closingDayCount={scopeClosingDayWarning.closingDayCount}
+            currentChoice={
+              scopeClosingDayWarning.template.includeClosingDays ?? false
+            }
             onCancel={() => setScopeClosingDayWarning(null)}
             onChoose={(include) => void confirmScopeClosingDay(include)}
             isBusy={submitting}

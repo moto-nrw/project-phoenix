@@ -318,6 +318,8 @@ export function SonderarbeitszeitenSection({
                 controlSize="lg"
                 value={draft.endDate}
                 min={draft.startDate || undefined}
+                // An empty last day opens in the month of the first day.
+                defaultMonth={draft.startDate || undefined}
                 onChange={(value) => setDraft({ ...draft, endDate: value })}
                 calendarLayout="popover"
               />
@@ -327,6 +329,9 @@ export function SonderarbeitszeitenSection({
                 id="target-override-hours"
                 label="Stunden pro Tag"
                 error={fieldErrors.hours}
+                // The kit Input marks only aria-invalid; the red ring matches
+                // the date fields, the way ISODateInput does it.
+                className={fieldErrors.hours ? "ring-moto-red" : ""}
                 type="text"
                 inputMode="decimal"
                 value={draft.hours}
