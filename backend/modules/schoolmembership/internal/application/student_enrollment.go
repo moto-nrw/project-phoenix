@@ -22,6 +22,29 @@ func (s *Service) TransitionStudentStatus(ctx context.Context, id int64, expecte
 	return changed, err
 }
 
+// SetStudentStatus is the unconditional status change. Unlike the
+// scheduler's compare-and-set it can bring an inactive child back, so it is
+// checked against the Kinderkontingent (#3567).
+func (s *Service) SetStudentStatus(ctx context.Context, id int64, status string) (changed bool, err error) {
+	err = s.runWrite(ctx, "set_student_status", func(txCtx context.Context, stats *domain.OperationStats) error {
+		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
+		stats.Add(gateStats)
+		if gateErr != nil {
+			return gateErr
+		}
+		return s.countingWrite(txCtx, stats, func(writeCtx context.Context) error {
+			moved, queryStats, writeErr := s.store.TransitionStudentStatus(writeCtx, id, "", status)
+			stats.Add(queryStats)
+			changed = moved
+			return writeErr
+		})
+	})
+	if err != nil {
+		return false, err
+	}
+	return changed, nil
+}
+
 func (s *Service) ResumeStudentCare(ctx context.Context, id int64, from, status, on string) (changed bool, err error) {
 	err = s.runWrite(ctx, "resume_student_care", func(txCtx context.Context, stats *domain.OperationStats) error {
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
@@ -29,12 +52,17 @@ func (s *Service) ResumeStudentCare(ctx context.Context, id int64, from, status,
 		if gateErr != nil {
 			return gateErr
 		}
-		var queryStats domain.OperationStats
-		changed, queryStats, err = s.store.ResumeStudentCare(txCtx, id, from, status, on)
-		stats.Add(queryStats)
-		return err
+		return s.countingWrite(txCtx, stats, func(writeCtx context.Context) error {
+			resumed, queryStats, writeErr := s.store.ResumeStudentCare(writeCtx, id, from, status, on)
+			stats.Add(queryStats)
+			changed = resumed
+			return writeErr
+		})
 	})
-	return changed, err
+	if err != nil {
+		return false, err
+	}
+	return changed, nil
 }
 
 func (s *Service) EndStudentCare(ctx context.Context, ids []int64, until string) (changed int64, err error) {
@@ -52,19 +80,30 @@ func (s *Service) EndStudentCare(ctx context.Context, ids []int64, until string)
 	return changed, err
 }
 
-func (s *Service) ReactivateStudents(ctx context.Context, ids []int64, status string) (changed []int64, err error) {
+// ReactivateStudents brings graduates back. Only the grade-transition revert
+// passes enforceChildQuota=false (#3567).
+func (s *Service) ReactivateStudents(ctx context.Context, ids []int64, status string, enforceChildQuota bool) (changed []int64, err error) {
 	err = s.runWrite(ctx, "reactivate_students", func(txCtx context.Context, stats *domain.OperationStats) error {
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
 		stats.Add(gateStats)
 		if gateErr != nil {
 			return gateErr
 		}
-		var queryStats domain.OperationStats
-		changed, queryStats, err = s.store.ReactivateStudents(txCtx, ids, status)
-		stats.Add(queryStats)
-		return err
+		reactivate := func(writeCtx context.Context) error {
+			reactivated, queryStats, writeErr := s.store.ReactivateStudents(writeCtx, ids, status)
+			stats.Add(queryStats)
+			changed = reactivated
+			return writeErr
+		}
+		if !enforceChildQuota {
+			return reactivate(txCtx)
+		}
+		return s.countingWrite(txCtx, stats, reactivate)
 	})
-	return changed, err
+	if err != nil {
+		return nil, err
+	}
+	return changed, nil
 }
 
 func (s *Service) GraduateStudents(ctx context.Context, ids []int64) (changed int64, err error) {

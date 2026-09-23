@@ -23,6 +23,19 @@ type Dependencies struct {
 	Observe func(Observation)
 	// Employment is the Workforce half of every staff member (#2753).
 	Employment StaffEmployment
+	// ChildQuota reads the school's Kinderkontingent (#3567). A graph that
+	// never enrolls children may leave it unbound; its counting writes then
+	// fail instead of skipping the check.
+	ChildQuota ChildQuota
+}
+
+// ChildQuota is the consumer-owned port over Organisation & Tenancy's
+// Kinderkontingent. The composition root binds it to
+// organizationtenancy.ChildQuotaLimits; School Membership never reads
+// platform.schools itself. It answers for the tenant in context on the
+// caller's transaction; limited is false when the school has none.
+type ChildQuota interface {
+	ChildQuotaLimit(ctx context.Context) (limit int, limited bool, err error)
 }
 
 // New composes the School Membership module. Every operation runs on the
@@ -60,7 +73,11 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 		}
 		return nil, 0, fmt.Errorf("school membership postgres: unsupported transaction %T", transaction)
 	})
-	service := application.New(store, staffEmployment{port: dependencies.Employment}, transaction{}, func(observation Observation) {
+	var quota ports.ChildQuota
+	if dependencies.ChildQuota != nil {
+		quota = dependencies.ChildQuota
+	}
+	service := application.New(store, staffEmployment{port: dependencies.Employment}, quota, postgres.BerlinToday, transaction{}, func(observation Observation) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	})
@@ -320,9 +337,14 @@ func guestToPublic(value domain.Guest) schoolmembership.Guest {
 }
 
 func mapError(err error) error {
+	var quotaReached *domain.ChildQuotaReachedError
 	switch {
 	case err == nil:
 		return nil
+	case errors.As(err, &quotaReached):
+		return &schoolmembership.ChildQuotaReachedError{
+			Booked: quotaReached.Booked, Occupied: quotaReached.Occupied, Requested: quotaReached.Requested,
+		}
 	case errors.Is(err, domain.ErrOffboardingConflict):
 		return schoolmembership.ErrOffboardingConflict
 	case errors.Is(err, domain.ErrStaffNotFound):

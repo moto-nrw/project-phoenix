@@ -88,7 +88,11 @@ func TestDataImportRuntimeEvidence(t *testing.T) {
 			// owners since #2756: a savepoint, the People Directory
 			// relationship, the Care Plan pickup permission and the Identity &
 			// Access portal access (5 statements where the old table took 1).
-			require.LessOrEqual(t, counter.Total(), 284)
+			// Since #3567 each of the ten new children is a counting write
+			// that first reads the school's Kinderkontingent: one statement per
+			// child. Without a Kinderkontingent, as here, there is no lock and
+			// no count.
+			require.LessOrEqual(t, counter.Total(), 294)
 			// BUN labels RawQuery as SELECT, including the three owner INSERTs
 			// and, since #2756, the three owner INSERTs of each guardian link
 			// (ten rows the counter used to see as one INSERT each).

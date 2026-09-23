@@ -588,3 +588,20 @@ zuletzt online war, zählt nicht. Ein umgezogenes Gerät zählt nur bei der neue
 Schule.
 _Vermeiden_: „Abrechnung“ für die Stichtagszahl (im OGS-Portal meint
 Abrechnung die Lohnabrechnung), Förderstichtag (15.10., eine andere Frage).
+
+## Kinderkontingent
+
+Das **Kinderkontingent** ist die vertraglich gebuchte Höchstzahl an Kindern
+einer OGS: die Zahl der gebuchten **Bundles** mal der Bundle-Größe des
+Vertrags (üblich 50). Nur der Betreiber legt es fest; eine OGS ohne
+Kinderkontingent hat keine Grenze. Ist es erreicht, lässt moto kein weiteres
+Kind hinzukommen, deaktiviert aber nie ein vorhandenes.
+_Vermeiden_: Lizenz, Plätze, Kapazität (das ist die Teilnehmergrenze eines
+Angebots), Limit (nur im Code).
+
+Die **Kontingentzahl** ist die Zahl der Kinder, die gegen das
+Kinderkontingent zählen: die aktiv verwalteten Kinder und zusätzlich die
+vorgemerkten, deren Betreuung erst später beginnt. Sie ist bewusst größer als
+die Stichtagszahl, damit ein späteres Startdatum das Kinderkontingent nicht
+umgeht.
+_Vermeiden_: Stichtagszahl für diese Zahl.

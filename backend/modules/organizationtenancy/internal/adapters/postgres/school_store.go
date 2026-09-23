@@ -31,6 +31,10 @@ type schoolRow struct {
 	Phone          string     `bun:"phone"`
 	Email          string     `bun:"email"`
 	DevicePinHash  string     `bun:"device_pin_hash"`
+	// The Kinderkontingent (#3567) is written only by SetSchoolChildQuota;
+	// the full school update leaves both columns alone.
+	ChildQuotaBundles    *int `bun:"child_quota_bundles"`
+	ChildQuotaBundleSize int  `bun:"child_quota_bundle_size,nullzero,notnull,default:50"`
 }
 
 func (s *Store) CreateSchool(ctx context.Context, input domain.CreateSchool) (domain.School, domain.OperationStats, error) {
@@ -232,8 +236,61 @@ func toSchoolDomain(row schoolRow) domain.School {
 		OrganizationID: row.OrganizationID, Name: row.Name, Slug: row.Slug, Subdomain: row.Subdomain,
 		Active: row.Active, Hidden: row.Hidden, DeletedAt: row.DeletedAt, Settings: row.Settings,
 		Address: row.Address, City: row.City, Zip: row.Zip, Phone: row.Phone, Email: row.Email,
-		DevicePinHash: row.DevicePinHash,
+		DevicePinHash:     row.DevicePinHash,
+		ChildQuotaBundles: row.ChildQuotaBundles, ChildQuotaBundleSize: row.ChildQuotaBundleSize,
 	}
+}
+
+// SetSchoolChildQuota replaces the school's Kinderkontingent. Nil bundles
+// remove it; the bundle size is kept then, so a later quota starts from it.
+func (s *Store) SetSchoolChildQuota(ctx context.Context, id int64, bundles *int, bundleSize int) (domain.School, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return domain.School{}, domain.OperationStats{}, err
+	}
+	row := schoolRow{}
+	query := db.NewUpdate().Model(&row).
+		ModelTableExpr(`platform.schools AS "school"`).
+		Set("child_quota_bundles = ?", bundles).
+		Where(`"school".id = ?`, id).
+		Returning("*")
+	if bundles != nil {
+		query = query.Set("child_quota_bundle_size = ?", bundleSize)
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = query.Scan(ctx)
+	stats.StatementDuration = time.Since(started)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.School{}, stats, domain.ErrSchoolNotFound
+	}
+	if err != nil {
+		return domain.School{}, stats, fmt.Errorf("organization tenancy postgres: set school child quota: %w", err)
+	}
+	stats.Rows = 1
+	return toSchoolDomain(row), stats, nil
+}
+
+// ReadChildQuota reads the Kinderkontingent of one school on the caller's
+// connection. It is the storage half of the tenant-safe ChildQuotaLimits
+// read; the caller supplies the tenant from its context, never from input.
+func ReadChildQuota(ctx context.Context, db bun.IDB, schoolID int64) (bundles *int, bundleSize int, err error) {
+	var row struct {
+		Bundles    *int `bun:"child_quota_bundles"`
+		BundleSize int  `bun:"child_quota_bundle_size"`
+	}
+	err = db.NewSelect().
+		TableExpr(`platform.schools AS "school"`).
+		ColumnExpr(`"school".child_quota_bundles, "school".child_quota_bundle_size`).
+		Where(`"school".id = ?`, schoolID).
+		Scan(ctx, &row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, 0, domain.ErrSchoolNotFound
+	}
+	if err != nil {
+		return nil, 0, fmt.Errorf("organization tenancy postgres: read child quota: %w", err)
+	}
+	return row.Bundles, row.BundleSize, nil
 }
 
 func wrapSchoolWriteError(operation string, err error) error {
