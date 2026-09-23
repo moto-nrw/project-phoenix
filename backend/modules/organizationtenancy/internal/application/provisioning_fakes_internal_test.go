@@ -331,6 +331,23 @@ func (e *fakeEngine) UpdateSchool(_ context.Context, input organizationtenancy.U
 	return *school, nil
 }
 
+func (e *fakeEngine) SetSchoolChildQuota(_ context.Context, id int64, quota *organizationtenancy.ChildQuota) (organizationtenancy.School, error) {
+	if err := e.call("SetSchoolChildQuota"); err != nil {
+		return organizationtenancy.School{}, err
+	}
+	school, ok := e.schools[id]
+	if !ok {
+		return organizationtenancy.School{}, organizationtenancy.ErrSchoolNotFound
+	}
+	if quota == nil {
+		school.ChildQuotaBundles = nil
+		return *school, nil
+	}
+	bundles := quota.Bundles
+	school.ChildQuotaBundles, school.ChildQuotaBundleSize = &bundles, quota.BundleSize
+	return *school, nil
+}
+
 func (e *fakeEngine) SoftDeleteSchool(_ context.Context, id int64) (organizationtenancy.School, error) {
 	if err := e.call("SoftDeleteSchool"); err != nil {
 		return organizationtenancy.School{}, err

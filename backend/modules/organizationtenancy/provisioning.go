@@ -74,6 +74,15 @@ type SchoolChanges struct {
 	Email          string
 	Active         bool
 	Hidden         bool
+	// ChildQuota changes the Kinderkontingent (#3567) when set. Nil leaves it
+	// as it is, so a school update that does not mention it never clears it.
+	ChildQuota *ChildQuotaChange
+}
+
+// ChildQuotaChange is the operator's Kinderkontingent decision. A nil Quota
+// removes the Kinderkontingent.
+type ChildQuotaChange struct {
+	Quota *ChildQuota
 }
 
 // SchoolAdminInvitationInput invites the first administrator of a school.

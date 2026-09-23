@@ -2789,6 +2789,7 @@ function createStudentTopic(): HelpTopic {
       "Fehlt die passende `Gruppe`? Legen Sie sie zuerst in der `Datenverwaltung` unter `Gruppen` an.",
       "Der grüne Knopf ist grau? Dann hat die Vorschau noch Fehler. Beheben Sie sie in der Datei und laden Sie erneut hoch.",
       "moto erkennt eine Zeile an Vorname, Nachname und Klasse. Bei einem Klassenwechsel an der Spalte `RFID-Karte` oder am Geburtstag.",
+      "moto meldet, das Kinderkontingent ist voll? Dann ist die Kontingentzahl erreicht. Ihre Eingaben bleiben im Fenster. Für weitere Kinder melden Sie sich beim moto-Team.",
     ],
     related: [
       HELP_TOPICS.leadCareTimes,
