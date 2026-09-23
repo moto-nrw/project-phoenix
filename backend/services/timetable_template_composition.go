@@ -9,9 +9,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 )
@@ -63,15 +63,15 @@ func newTimetableMaterialization(in timetableMaterializationInputs) (timetable.M
 	})
 }
 
-// timetableTemplateInputs compose the template writes. Instances is the
-// retained instance lifecycle whose deviation machinery the split preserves
+// timetableTemplateInputs compose the template writes. Deviations is the
+// instance lifecycle's deviation machinery the split preserves
 // Vertretungsplan overrides with; CareOfferings and ResyncOfferingRoster are
 // Enrollment's.
 type timetableTemplateInputs struct {
 	Rows                 repositories.TimetableTemplateRows
 	PlanningTracks       timetableCompose.PlanningTrackAssignments
 	Materialization      timetable.MaterializationCapability
-	Instances            timetableplanning.InstanceService
+	Deviations           timetableCompose.SeriesDeviations
 	CareOfferings        enrollment.CareOfferingSeriesValidator
 	ResyncOfferingRoster func(context.Context, timetable.OfferingRosterResyncInput) error
 	RecurrenceLock       timetable.RecurrenceWriteLock
@@ -82,12 +82,8 @@ type timetableTemplateInputs struct {
 }
 
 func newTimetableTemplates(in timetableTemplateInputs) (timetable.TemplateAdministration, error) {
-	if in.CareOfferings == nil || in.Instances == nil {
+	if in.CareOfferings == nil || in.Deviations == nil {
 		return nil, errors.New("timetable templates: care offerings and instance lifecycle are required")
-	}
-	preserver, err := timetableplanning.NewSeriesDeviationPreserver(in.Instances)
-	if err != nil {
-		return nil, err
 	}
 	return timetableCompose.NewTemplateAdministration(timetableCompose.TemplateAdministrationDependencies{
 		Groups:               in.Rows.Groups,
@@ -102,7 +98,7 @@ func newTimetableTemplates(in timetableTemplateInputs) (timetable.TemplateAdmini
 		PlanningTracks:       in.PlanningTracks,
 		EducationGroups:      in.Rows.EducationGroups,
 		Materialization:      in.Materialization,
-		Deviations:           seriesDeviations{preserver: preserver},
+		Deviations:           in.Deviations,
 		CareOfferings:        timetableCareOfferingChecks(in.CareOfferings),
 		ResyncOfferingRoster: in.ResyncOfferingRoster,
 		RecurrenceLock:       in.RecurrenceLock,
@@ -115,13 +111,12 @@ func newTimetableTemplates(in timetableTemplateInputs) (timetable.TemplateAdmini
 }
 
 // timetableSchoolClassRules are School Structure's grade range and class
-// identity the template writes validate against, served by the retained
-// nest beside NormalizeSchoolClass.
+// identity the template writes validate against.
 func timetableSchoolClassRules() timetableCompose.SchoolClassRules {
 	return timetableCompose.SchoolClassRules{
-		MinGradeLevel: timetableplanning.MinSchoolGradeLevel,
-		MaxGradeLevel: timetableplanning.MaxSchoolGradeLevel,
-		Normalize:     timetableplanning.NormalizeSchoolClass,
+		MinGradeLevel: schoolStructure.MinGradeLevel,
+		MaxGradeLevel: schoolStructure.MaxGradeLevel,
+		Normalize:     schoolStructure.NormalizeClass,
 	}
 }
 
@@ -133,24 +128,6 @@ func timetableCareOfferingChecks(validator enrollment.CareOfferingSeriesValidato
 		ValidateOfferingSource: validator.ValidateTemplateOfferingSource,
 		IsConflict:             enrollment.IsCareOfferingInvalid,
 	}
-}
-
-// seriesDeviations serves the split's deviation port from the retained
-// instance lifecycle.
-type seriesDeviations struct {
-	preserver *timetableplanning.SeriesDeviationPreserver
-}
-
-func (d seriesDeviations) LockDeviationDays(ctx context.Context, tenantID int64, from, to timezone.Date) error {
-	return d.preserver.LockDeviationDays(ctx, tenantID, from, to)
-}
-
-func (d seriesDeviations) SnapshotDeviations(ctx context.Context, from, to timezone.Date, templateID int64) (timetableCompose.PreservedDeviations, error) {
-	snapshot, err := d.preserver.SnapshotDeviations(ctx, from, to, templateID)
-	if err != nil {
-		return nil, err
-	}
-	return snapshot, nil
 }
 
 // staffingAnnouncer wakes the staffing caches through the realtime hub; the

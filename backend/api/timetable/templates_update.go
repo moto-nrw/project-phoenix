@@ -9,9 +9,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -167,7 +166,7 @@ func (req *updateTemplateRequest) normalizeTargetAndSourceFields() error {
 	// above (the source is merged in later), so the class list is trimmed and
 	// duplicate-checked here — otherwise " 1b " would be stored with its
 	// padding and shown back to the school that way (#2482).
-	normalized, err := activitiesModel.NormalizeSourceSchoolClasses(req.SourceSchoolClasses.Value)
+	normalized, err := timetableModule.NormalizeSourceSchoolClasses(req.SourceSchoolClasses.Value)
 	if err != nil {
 		return err
 	}
@@ -184,8 +183,8 @@ type parsedUpdateTemplate struct {
 	weekPattern             int
 	maxParticipants         int
 	maxParticipantsProvided bool
-	seriesRosterFrom        *timezone.Date
-	startDate               *timezone.Date
+	seriesRosterFrom        *calendar.Date
+	startDate               *calendar.Date
 }
 
 // parseUpdateTemplateRequest binds and format-validates the request. Format
@@ -205,16 +204,16 @@ func parseUpdateTemplateRequest(w http.ResponseWriter, r *http.Request) (*parsed
 	if !ok {
 		return nil, false
 	}
-	var seriesRosterFrom *timezone.Date
+	var seriesRosterFrom *calendar.Date
 	if req.SeriesRosterFrom != nil {
-		parsedDate, err := timezone.ParseDate(*req.SeriesRosterFrom)
+		parsedDate, err := calendar.ParseDate(*req.SeriesRosterFrom)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid series_roster_from format, expected YYYY-MM-DD")))
 			return nil, false
 		}
 		seriesRosterFrom = &parsedDate
 	}
-	var startDate *timezone.Date
+	var startDate *calendar.Date
 	if req.StartDate != nil {
 		parsedDate, err := berlinDate(*req.StartDate)
 		if err != nil {
@@ -397,7 +396,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 // both enforces its bounds and prevents the replacement update from clearing
 // it. Updates without start_date preserve the existing omission semantics.
 func updateCalendarPeriodID(
-	startDate *timezone.Date,
+	startDate *calendar.Date,
 	requestedPeriodID *int64,
 	existing templateResponse,
 ) *int64 {
@@ -421,7 +420,7 @@ func updateCalendarPeriodID(
 // conflicts loudly (400) with submitted student_ids or weekday_assignments
 // instead of being half-applied.
 func applyOfferingSourcePresence(req *updateTemplateRequest, existing templateResponse) {
-	if req.TargetGroupType != activitiesModel.TargetGroupTypeAngebot {
+	if req.TargetGroupType != timetableModule.TargetGroupTypeOffering {
 		return
 	}
 	if !req.SourceCareOfferingIDs.Set && len(existing.SourceCareOfferingIDs) > 0 {
@@ -491,12 +490,12 @@ func inheritSourceSchoolClasses(req *updateTemplateRequest, existing templateRes
 func validateLegacyTemplateWorkdays(existing []templateScheduleResponse, requested []int) error {
 	legacy := make(map[int]struct{})
 	for _, schedule := range existing {
-		if schedule.Weekday > activitiesModel.WeekdayFriday {
+		if schedule.Weekday > timetableModule.WeekdayFriday {
 			legacy[schedule.Weekday] = struct{}{}
 		}
 	}
 	for _, weekday := range requested {
-		if weekday > activitiesModel.WeekdayFriday {
+		if weekday > timetableModule.WeekdayFriday {
 			if _, ok := legacy[weekday]; !ok {
 				return errors.New("timetable templates can only be scheduled from Monday to Friday")
 			}
@@ -507,7 +506,7 @@ func validateLegacyTemplateWorkdays(existing []templateScheduleResponse, request
 
 func hasWeekendTemplateWeekday(weekdays []int) bool {
 	for _, weekday := range weekdays {
-		if weekday > activitiesModel.WeekdayFriday {
+		if weekday > timetableModule.WeekdayFriday {
 			return true
 		}
 	}
@@ -521,7 +520,7 @@ func buildUpdateTemplateInput(
 	parsed *parsedUpdateTemplate,
 	timeframeID int64,
 	gradeLevelMax int,
-	rosterValidFrom timezone.Date,
+	rosterValidFrom calendar.Date,
 ) timetableModule.UpdateTemplateCommand {
 	req := parsed.req
 	return timetableModule.UpdateTemplateCommand{

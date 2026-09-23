@@ -26,9 +26,9 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -50,7 +50,7 @@ type devSetup struct {
 
 func buildDevModule(t *testing.T) *devSetup {
 	t.Helper()
-	clock := func() time.Time { return timezone.NewDate(2030, 8, 26).BerlinMidnight().Add(12 * time.Hour) }
+	clock := func() time.Time { return calendar.NewDate(2030, 8, 26).BerlinMidnight().Add(12 * time.Hour) }
 	db, serviceFactory := testutil.SetupTimetableModule(t, clock)
 
 	ctx := testpkg.Ctx(t)
@@ -110,10 +110,13 @@ func doDev(t *testing.T, router chi.Router, instanceID int64, body any) *httptes
 	return w
 }
 
-func devInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, instanceID int64) []*scheduleModel.InstanceStaff {
+// devInstanceStaff reads the block's staff rows through the Timetable owner,
+// oldest first.
+func devInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, instanceID int64) []timetable.InstanceStaff {
 	t.Helper()
-	repo := mustTimetableTestRepositories(db).InstanceStaff
-	rows, err := repo.FindByInstanceID(ctx, instanceID)
+	rows, err := mustTimetableTestRepositories(db).Timetable.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{
+		InstanceIDs: []int64{instanceID}, OrderByCreated: true,
+	})
 	require.NoError(t, err)
 	return rows
 }
@@ -121,8 +124,7 @@ func devInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, instanceID 
 func setUnderstaffedAckFixture(t *testing.T, db *bun.DB, ctx context.Context, instanceID int64) {
 	t.Helper()
 	_, err := db.NewUpdate().
-		Model((*scheduleModel.ActivityInstance)(nil)).
-		ModelTableExpr(`schedule.activity_instances`).
+		TableExpr(`schedule.activity_instances`).
 		Set("understaffed_ack = ?", true).
 		Where("id = ?", instanceID).
 		Exec(ctx)
@@ -368,7 +370,7 @@ func TestApplyDeviations_Cancel(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"cancelled":true`)
 
 	after := readInstance(t, s.db, s.ctx, inst.ID)
-	assert.Equal(t, scheduleModel.InstanceStatusCancelled, after.Status, "block cancelled in the DB")
+	assert.Equal(t, timetable.InstanceStatusCancelled, after.Status, "block cancelled in the DB")
 	require.NotNil(t, after.CancelReason, "cancel reason persisted")
 	assert.Equal(t, reason, *after.CancelReason)
 }
@@ -380,7 +382,7 @@ func TestApplyDeviations_PastBlock_Rejected(t *testing.T) {
 
 	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
-	past := timezone.TodayDate().AddDays(-1)
+	past := calendar.TodayDate().AddDays(-1)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, past, s.roomID, testpkg.ActivityInstanceOpts{Title: "Past"})
 
@@ -710,7 +712,7 @@ func TestAcknowledgeUnderstaffed_PastBlock_Rejected(t *testing.T) {
 
 	s := buildDevModule(t)
 	router := ackRouter(s.ctx, s.res)
-	past := timezone.TodayDate().AddDays(-1)
+	past := calendar.TodayDate().AddDays(-1)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, past, s.roomID, testpkg.ActivityInstanceOpts{Title: "PastAck"})
 
@@ -722,19 +724,18 @@ func TestAcknowledgeUnderstaffed_PastBlock_Rejected(t *testing.T) {
 }
 
 // futureSubDate returns a YYYY-MM-DD in the future plus the matching
-// timezone.Date for fixture rows. (Moved from the removed substitute endpoint
+// calendar.Date for fixture rows. (Moved from the removed substitute endpoint
 // tests, #1886.)
-func futureSubDate(offsetDays int) (string, timezone.Date) {
-	d := timezone.NewDate(2030, 8, 26).AddDays(offsetDays)
+func futureSubDate(offsetDays int) (string, calendar.Date) {
+	d := calendar.NewDate(2030, 8, 26).AddDays(offsetDays)
 	return d.String(), d
 }
 
 // readInstanceStaff pulls the row directly from the DB for atomicity
 // assertions. Uses the repo to honour tenant scoping.
-func readInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, id int64) *scheduleModel.InstanceStaff {
+func readInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, id int64) timetable.InstanceStaff {
 	t.Helper()
-	repo := mustTimetableTestRepositories(db).InstanceStaff
-	row, err := repo.FindByID(ctx, id)
+	row, err := mustTimetableTestRepositories(db).Timetable.FindInstanceStaff(ctx, id)
 	require.NoError(t, err)
 	return row
 }
@@ -743,10 +744,9 @@ func readInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, id int64) 
 // now owns the ack/cancel writes internally (they no longer route through the
 // mock InstanceService seam), the acknowledgement/cancellation assertions read
 // the persisted row instead of the old mock recorders.
-func readInstance(t *testing.T, db *bun.DB, ctx context.Context, id int64) *scheduleModel.ActivityInstance {
+func readInstance(t *testing.T, db *bun.DB, ctx context.Context, id int64) timetable.ActivityInstance {
 	t.Helper()
-	repo := mustTimetableTestRepositories(db).ActivityInstance
-	inst, err := repo.FindByID(ctx, id)
+	inst, err := mustTimetableTestRepositories(db).Timetable.FindActivityInstance(ctx, id)
 	require.NoError(t, err)
 	return inst
 }

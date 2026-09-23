@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"strconv"
 	"time"
@@ -11,10 +10,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
@@ -56,7 +55,7 @@ type timetableOperationInputs struct {
 	CareDays       careplan.CareDayQuery
 	Arrivals       timetableArrivalTimes
 	Pickups        timetablePickupTimes
-	Lifecycle      timetableplanning.InstanceService
+	Lifecycle      timetableCompose.OperationLifecycle
 	Broadcaster    realtime.Broadcaster
 	Logger         *slog.Logger
 	Now            func() time.Time
@@ -87,10 +86,10 @@ func newTimetableOperations(in timetableOperationInputs) (timetable.OperationCap
 		CareDays:             newTimetableCareDays(in.CareDays),
 		Arrivals:             timetableEffectiveArrivals{times: in.Arrivals},
 		Pickups:              timetableEffectivePickups{times: in.Pickups},
-		Lifecycle:            timetableOperationLifecycle{instances: in.Lifecycle},
+		Lifecycle:            in.Lifecycle,
 		Locks:                in.Rows.AttendanceLocks(),
 		Announcer:            newTimetableAttendanceAnnouncer(in.Broadcaster),
-		NormalizeSchoolClass: timetableplanning.NormalizeSchoolClass,
+		NormalizeSchoolClass: schoolStructure.NormalizeClass,
 		Logger:               in.Logger,
 		Now:                  in.Now,
 	})
@@ -227,73 +226,4 @@ func (a timetableAttendanceAnnouncer) AnnounceAttendanceChanged(tenantID, active
 		Reason:     &reason,
 	})
 	return a.broadcaster.BroadcastToTenant(tenantID, event)
-}
-
-// timetableOperationLifecycle drives the retained instance lifecycle for
-// the operational commands until #3424 slice S1 moves it.
-type timetableOperationLifecycle struct {
-	instances timetableplanning.InstanceService
-}
-
-func (l timetableOperationLifecycle) CreateSpontaneous(ctx context.Context, in timetable.SpontaneousStart) (int64, error) {
-	spontaneous := true
-	instance, err := l.instances.Create(ctx, timetableplanning.CreateInstanceInput{
-		Date:             in.Date,
-		StartTime:        in.StartTime,
-		EndTime:          in.EndTime,
-		Title:            in.Title,
-		Description:      in.Description,
-		Notes:            in.Notes,
-		RoomID:           in.RoomID,
-		ActivityGroupID:  in.ActivityGroupID,
-		IsSpontaneous:    &spontaneous,
-		StaffIDs:         in.StaffIDs,
-		CreatedByStaffID: in.CreatedByStaffID,
-	})
-	if err != nil {
-		return 0, err
-	}
-	if instance == nil {
-		return 0, errors.New("create spontaneous instance: no instance returned")
-	}
-	return instance.ID, nil
-}
-
-func (l timetableOperationLifecycle) Start(ctx context.Context, instanceID, staffID int64, spontaneous bool) (*timetable.StartedOperation, error) {
-	if spontaneous {
-		ctx = timetableplanning.WithSpontaneousStartWorkdayGuard(ctx)
-	}
-	result, err := l.instances.Start(ctx, instanceID, staffID)
-	if err != nil {
-		return nil, err
-	}
-	return startedOperation(result), nil
-}
-
-func (l timetableOperationLifecycle) Complete(ctx context.Context, instanceID, accountID int64) (*timetable.ScheduledInstance, error) {
-	instance, err := l.instances.Complete(timetableplanning.WithLifecycleActor(ctx, accountID), instanceID)
-	if err != nil || instance == nil {
-		return nil, err
-	}
-	scheduled := timetableCompose.ScheduledInstanceOf(instance)
-	return &scheduled, nil
-}
-
-func (l timetableOperationLifecycle) Reopen(ctx context.Context, instanceID, accountID int64, isAdmin bool) (*timetable.StartedOperation, error) {
-	result, err := l.instances.Reopen(ctx, instanceID, accountID, isAdmin)
-	if err != nil {
-		return nil, err
-	}
-	return startedOperation(result), nil
-}
-
-func startedOperation(result *timetableplanning.StartInstanceResult) *timetable.StartedOperation {
-	if result == nil {
-		return nil
-	}
-	started := &timetable.StartedOperation{ActiveGroupID: result.ActiveGroupID, Warnings: result.Warnings}
-	if result.Instance != nil {
-		started.InstanceID, started.Status = result.Instance.ID, result.Instance.Status
-	}
-	return started
 }

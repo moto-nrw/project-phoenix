@@ -9,8 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,8 +18,8 @@ func TestAcknowledgeUnderstaffed_SetWithNote(t *testing.T) {
 	t.Parallel()
 
 	note := "kein Ersatz verfügbar"
-	instance := &scheduleModel.ActivityInstance{
-		Status:           scheduleModel.InstanceStatusPlanned,
+	instance := &timetable.LifecycleInstance{
+		Status:           timetable.InstanceStatusPlanned,
 		UnderstaffedAck:  true,
 		UnderstaffedNote: &note,
 	}
@@ -52,7 +51,7 @@ func TestAcknowledgeUnderstaffed_SetWithNote(t *testing.T) {
 func TestAcknowledgeUnderstaffed_ClearDropsNote(t *testing.T) {
 	t.Parallel()
 
-	instance := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusPlanned}
+	instance := &timetable.LifecycleInstance{Status: timetable.InstanceStatusPlanned}
 	instance.ID = int64(8)
 
 	mock := &mockInstanceService{ackRes: instance}
@@ -75,7 +74,7 @@ func TestAcknowledgeUnderstaffed_ClearDropsNote(t *testing.T) {
 func TestAcknowledgeUnderstaffed_EmptyNoteNormalized(t *testing.T) {
 	t.Parallel()
 
-	instance := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusPlanned, UnderstaffedAck: true}
+	instance := &timetable.LifecycleInstance{Status: timetable.InstanceStatusPlanned, UnderstaffedAck: true}
 	instance.ID = int64(9)
 	mock := &mockInstanceService{ackRes: instance}
 	rs := NewResource(Dependencies{InstanceService: mock})
@@ -91,7 +90,7 @@ func TestAcknowledgeUnderstaffed_WhitespaceNoteNormalized(t *testing.T) {
 
 	// A whitespace-only note must normalize to nil, not persist as an
 	// empty-looking reason — matching trimReason on the substitute path.
-	instance := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusPlanned, UnderstaffedAck: true}
+	instance := &timetable.LifecycleInstance{Status: timetable.InstanceStatusPlanned, UnderstaffedAck: true}
 	instance.ID = int64(10)
 	mock := &mockInstanceService{ackRes: instance}
 	rs := NewResource(Dependencies{InstanceService: mock})
@@ -107,7 +106,7 @@ func TestAcknowledgeUnderstaffed_NoteTrimmed(t *testing.T) {
 
 	// Surrounding whitespace is stripped before persisting so the stored reason
 	// is exactly the trimmed text.
-	instance := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusPlanned, UnderstaffedAck: true}
+	instance := &timetable.LifecycleInstance{Status: timetable.InstanceStatusPlanned, UnderstaffedAck: true}
 	instance.ID = int64(11)
 	mock := &mockInstanceService{ackRes: instance}
 	rs := NewResource(Dependencies{InstanceService: mock})
@@ -156,7 +155,7 @@ func TestAcknowledgeUnderstaffed_CompletedRejected(t *testing.T) {
 
 	// Service refuses a terminal-status instance → 409 via the shared lifecycle
 	// error mapper.
-	mock := &mockInstanceService{ackErr: timetableplanning.ErrInvalidInstanceTransition}
+	mock := &mockInstanceService{ackErr: timetable.ErrInvalidInstanceTransition}
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
 
@@ -167,7 +166,7 @@ func TestAcknowledgeUnderstaffed_CompletedRejected(t *testing.T) {
 func TestAcknowledgeUnderstaffed_NotFound(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockInstanceService{ackErr: timetableplanning.ErrInstanceNotFound}
+	mock := &mockInstanceService{ackErr: timetable.ErrInstanceNotFound}
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
 

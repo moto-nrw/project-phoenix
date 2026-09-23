@@ -19,12 +19,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModel "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -111,18 +109,11 @@ func createJahrgangSourceTemplate(
 ) createTemplateResponse {
 	t.Helper()
 	body := createTemplateBody(s, name)
-	body["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
+	body["target_group_type"] = timetableModule.TargetGroupTypeGrade
 	body["target_grade_level"] = grade
 	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
 	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
 	return decodeTemplateData[createTemplateResponse](t, w)
-}
-
-func templateSchedules(t *testing.T, s *templateSetup, templateID int64) []*activitiesModel.Schedule {
-	t.Helper()
-	rows, err := s.schedules.FindByGroupID(s.ctx, templateID)
-	require.NoError(t, err)
-	return rows
 }
 
 func unusedTemplateClockWindow(t *testing.T, s *templateSetup, seed int64) (string, string) {
@@ -136,13 +127,22 @@ func unusedTemplateClockWindow(t *testing.T, s *templateSetup, seed int64) (stri
 		require.NoError(t, err)
 		end, err := parseClockTime(endRaw)
 		require.NoError(t, err)
-		rows, err := ownedTimeframeRepository(t, s.db).FindByTimeRange(s.ctx, start, end)
+		overlapStart, overlapEnd := start.Format(timeframeClockLayout), end.Format(timeframeClockLayout)
+		rows, err := s.owner.ListTimeframes(s.ctx, timetableModule.TimeframeFilter{
+			OverlapsStart: &overlapStart,
+			OverlapsEnd:   &overlapEnd,
+		})
 		require.NoError(t, err)
 		exactMatch := false
 		for _, row := range rows {
-			if row != nil && row.EndTime != nil &&
-				timezone.SameClockTime(row.StartTime, start) &&
-				timezone.SameClockTime(*row.EndTime, end) {
+			if row.EndTime == nil {
+				continue
+			}
+			rowStart, err := time.Parse(timeframeClockLayout, row.StartTime)
+			require.NoError(t, err)
+			rowEnd, err := time.Parse(timeframeClockLayout, *row.EndTime)
+			require.NoError(t, err)
+			if calendar.SameClockTime(rowStart, start) && calendar.SameClockTime(rowEnd, end) {
 				exactMatch = true
 				break
 			}
@@ -155,7 +155,10 @@ func unusedTemplateClockWindow(t *testing.T, s *templateSetup, seed int64) (stri
 	return "", ""
 }
 
-func splitBody(s *templateSetup, name string, effective timezone.Date) map[string]any {
+// timeframeClockLayout is the clock format of the owner's timeframe rows.
+const timeframeClockLayout = "15:04:05"
+
+func splitBody(s *templateSetup, name string, effective calendar.Date) map[string]any {
 	body := createTemplateBody(s, name)
 	body["effective_date"] = effective.String()
 	delete(body, "materialize_from")
@@ -163,7 +166,7 @@ func splitBody(s *templateSetup, name string, effective timezone.Date) map[strin
 	return body
 }
 
-func endBody(effective timezone.Date) map[string]any {
+func endBody(effective calendar.Date) map[string]any {
 	return map[string]any{"effective_date": effective.String()}
 }
 
@@ -180,7 +183,7 @@ func TestTemplateSplitHandler_HappyPath(t *testing.T) {
 
 	created := createSourceTemplate(t, router, s, "Tpl-Split-Quelle")
 
-	effective := timezone.TodayDate().AddDays(7)
+	effective := calendar.TodayDate().AddDays(7)
 	body := splitBody(s, "Tpl-Split-Nachfolger", effective)
 	body["materialize_from"] = effective.String()
 	body["materialize_to"] = effective.AddDays(6).String()
@@ -213,7 +216,7 @@ func TestTemplateSplitHandler_RejectsOverlongNotes(t *testing.T) {
 
 	created := createSourceTemplate(t, router, s, "Tpl-Split-LongNote-Quelle")
 
-	effective := timezone.TodayDate().AddDays(7)
+	effective := calendar.TodayDate().AddDays(7)
 	body := splitBody(s, "Tpl-Split-LongNote", effective)
 	body["notes"] = strings.Repeat("x", 2001)
 
@@ -234,21 +237,19 @@ func TestTemplateUpdateHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 	created := createJahrgangSourceTemplate(t, router, s, "Tpl-GradeCap-Update-Source", 5)
 	gradeFive := int16(5)
 	gradeSix := int16(6)
-	targetRepo, ok := mustTimetableTestRepositories(s.db).ActivityGroup.(activitiesModel.GroupTargetRepository)
-	require.True(t, ok)
-	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, created.TemplateID, []*activitiesModel.GroupTarget{
-		{TargetGroupType: activitiesModel.TargetGroupTypeJahrgang, TargetGradeLevel: &gradeFive},
-		{TargetGroupType: activitiesModel.TargetGroupTypeJahrgang, TargetGradeLevel: &gradeSix},
-	}))
+	replaceTemplateTargets(t, s, created.TemplateID,
+		timetableModule.GroupTargetInput{TargetGroupType: timetableModule.TargetGroupTypeGrade, TargetGradeLevel: &gradeFive},
+		timetableModule.GroupTargetInput{TargetGroupType: timetableModule.TargetGroupTypeGrade, TargetGradeLevel: &gradeSix},
+	)
 
 	// Lowering the tenant cap must not strand an existing legacy series.
 	s.res.SettingsService = templateGradeSettings(4, nil)
 	unchanged := createTemplateBody(s, "Tpl-GradeCap-Update-Unchanged")
-	unchanged["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
+	unchanged["target_group_type"] = timetableModule.TargetGroupTypeGrade
 	unchanged["target_grade_level"] = 5
 	unchanged["targets"] = []map[string]any{
-		{"type": activitiesModel.TargetGroupTypeJahrgang, "grade_level": 5},
-		{"type": activitiesModel.TargetGroupTypeJahrgang, "grade_level": 6},
+		{"type": timetableModule.TargetGroupTypeGrade, "grade_level": 5},
+		{"type": timetableModule.TargetGroupTypeGrade, "grade_level": 6},
 	}
 	unchangedW := doTemplateJSON(t, router, http.MethodPut,
 		fmt.Sprintf("/templates/%d", created.TemplateID), unchanged)
@@ -257,12 +258,12 @@ func TestTemplateUpdateHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 	rejectedName := fmt.Sprintf("Tpl-GradeCap-Update-Rejected-%d", time.Now().UnixNano())
 	startTime, endTime := unusedTemplateClockWindow(t, s, created.TemplateID)
 	rejected := createTemplateBody(s, rejectedName)
-	rejected["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
+	rejected["target_group_type"] = timetableModule.TargetGroupTypeGrade
 	rejected["target_grade_level"] = 5
 	rejected["targets"] = []map[string]any{
-		{"type": activitiesModel.TargetGroupTypeJahrgang, "grade_level": 5},
-		{"type": activitiesModel.TargetGroupTypeJahrgang, "grade_level": 6},
-		{"type": activitiesModel.TargetGroupTypeJahrgang, "grade_level": 7},
+		{"type": timetableModule.TargetGroupTypeGrade, "grade_level": 5},
+		{"type": timetableModule.TargetGroupTypeGrade, "grade_level": 6},
+		{"type": timetableModule.TargetGroupTypeGrade, "grade_level": 7},
 	}
 	rejected["start_time"] = startTime
 	rejected["end_time"] = endTime
@@ -276,7 +277,7 @@ func TestTemplateUpdateHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 	assert.Equal(t, "Tpl-GradeCap-Update-Unchanged", group.Name)
 	require.NotNil(t, group.TargetGradeLevel)
 	assert.EqualValues(t, 5, *group.TargetGradeLevel)
-	timeframes := listTimeframesByDescription(t, ownedTimeframeRepository(t, s.db), s.ctx, rejectedName)
+	timeframes := listTimeframesByDescription(t, s, s.ctx, rejectedName)
 	assert.Empty(t, timeframes, "the handler-created timeframe must roll back with the rejected update")
 
 	s.res.SettingsService = templateGradeSettings(0, errors.New("settings unavailable"))
@@ -303,15 +304,13 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 		created := createJahrgangSourceTemplate(t, router, s, "Tpl-GradeCap-Split-Legacy", 5)
 		gradeFive := int16(5)
 		gradeSix := int16(6)
-		targetRepo, ok := mustTimetableTestRepositories(s.db).ActivityGroup.(activitiesModel.GroupTargetRepository)
-		require.True(t, ok)
-		require.NoError(t, targetRepo.ReplaceTargets(s.ctx, created.TemplateID, []*activitiesModel.GroupTarget{
-			{TargetGroupType: activitiesModel.TargetGroupTypeJahrgang, TargetGradeLevel: &gradeFive},
-			{TargetGroupType: activitiesModel.TargetGroupTypeJahrgang, TargetGradeLevel: &gradeSix},
-		}))
+		replaceTemplateTargets(t, s, created.TemplateID,
+			timetableModule.GroupTargetInput{TargetGroupType: timetableModule.TargetGroupTypeGrade, TargetGradeLevel: &gradeFive},
+			timetableModule.GroupTargetInput{TargetGroupType: timetableModule.TargetGroupTypeGrade, TargetGradeLevel: &gradeSix},
+		)
 		s.res.SettingsService = templateGradeSettings(4, nil)
-		body := splitBody(s, "Tpl-GradeCap-Split-Legacy-Successor", timezone.TodayDate().AddDays(7))
-		body["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
+		body := splitBody(s, "Tpl-GradeCap-Split-Legacy-Successor", calendar.TodayDate().AddDays(7))
+		body["target_group_type"] = timetableModule.TargetGroupTypeGrade
 		body["target_grade_level"] = 5
 
 		w := doTemplateJSON(t, router, http.MethodPost,
@@ -322,7 +321,7 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, successor.TargetGradeLevel)
 		assert.EqualValues(t, 5, *successor.TargetGradeLevel)
-		successorTargets, err := targetRepo.FindTargetsByGroupIDs(s.ctx, []int64{result.NewTemplateID})
+		successorTargets, err := s.owner.ListGroupTargets(s.ctx, []int64{result.NewTemplateID})
 		require.NoError(t, err)
 		require.Len(t, successorTargets[result.NewTemplateID], 2)
 	})
@@ -336,11 +335,11 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 		s.res.SettingsService = templateGradeSettings(13, nil)
 		created := createJahrgangSourceTemplate(t, router, s, "Tpl-GradeCap-Split-Rejected", 5)
 		s.res.SettingsService = templateGradeSettings(4, nil)
-		body := splitBody(s, "Tpl-GradeCap-Split-Rejected-Successor", timezone.TodayDate().AddDays(7))
-		body["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
+		body := splitBody(s, "Tpl-GradeCap-Split-Rejected-Successor", calendar.TodayDate().AddDays(7))
+		body["target_group_type"] = timetableModule.TargetGroupTypeGrade
 		body["target_grade_level"] = 6
 		body["targets"] = []map[string]any{
-			{"type": activitiesModel.TargetGroupTypeJahrgang, "grade_level": 6},
+			{"type": timetableModule.TargetGroupTypeGrade, "grade_level": 6},
 		}
 
 		w := doTemplateJSON(t, router, http.MethodPost,
@@ -363,8 +362,8 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 		s.res.SettingsService = templateGradeSettings(13, nil)
 		created := createJahrgangSourceTemplate(t, router, s, "Tpl-GradeCap-Split-Settings", 5)
 		s.res.SettingsService = templateGradeSettings(0, errors.New("settings unavailable"))
-		body := splitBody(s, "Tpl-GradeCap-Split-Settings-Successor", timezone.TodayDate().AddDays(7))
-		body["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
+		body := splitBody(s, "Tpl-GradeCap-Split-Settings-Successor", calendar.TodayDate().AddDays(7))
+		body["target_group_type"] = timetableModule.TargetGroupTypeGrade
 		body["target_grade_level"] = 5
 
 		w := doTemplateJSON(t, router, http.MethodPost,
@@ -393,7 +392,7 @@ func TestTemplateSplitHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) {
 
 	w := doTemplateJSON(t, router, http.MethodPost,
 		fmt.Sprintf("/templates/%d/split", created.TemplateID),
-		splitBody(s, "Tpl-Split-Rollback-Nachfolger", timezone.TodayDate().AddDays(7)))
+		splitBody(s, "Tpl-Split-Rollback-Nachfolger", calendar.TodayDate().AddDays(7)))
 	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
 	assert.Contains(t, w.Body.String(), `"code":"timetable.template_care_offering_conflict"`)
 	assert.Contains(t, w.Body.String(), "Die Änderung ist nicht möglich")
@@ -442,7 +441,7 @@ func TestTemplateSplitHandler_CareValidatorInfrastructureFailureReturnsGeneric50
 
 	w := doTemplateJSON(t, router, http.MethodPost,
 		fmt.Sprintf("/templates/%d/split", created.TemplateID),
-		splitBody(s, "Tpl-Split-Infra-Nachfolger", timezone.TodayDate().AddDays(7)))
+		splitBody(s, "Tpl-Split-Infra-Nachfolger", calendar.TodayDate().AddDays(7)))
 	require.Equal(t, http.StatusInternalServerError, w.Code, "body=%s", w.Body.String())
 	assert.NotContains(t, w.Body.String(), "synthetic database details")
 
@@ -469,22 +468,17 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 	beforeGroup, err := mustTimetableTestRepositories(s.db).ActivityGroup.FindByID(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	beforeSchedules := templateSchedules(t, s, created.TemplateID)
-	beforeEnrollments, err := s.enrollments.FindByGroupID(s.ctx, created.TemplateID)
-	require.NoError(t, err)
-	beforeSupervisors, err := s.supervisors.FindByGroupID(s.ctx, created.TemplateID)
-	require.NoError(t, err)
+	beforeEnrollments := templateEnrollments(t, s, created.TemplateID)
+	beforeSupervisors := templateSupervisors(t, s, created.TemplateID)
 
 	updateName := fmt.Sprintf("Tpl-Update-Rollback-%d", time.Now().UnixNano())
 	startTime, endTime := unusedTemplateClockWindow(t, s, created.TemplateID)
-	timeframeRepo := ownedTimeframeRepository(t, s.db)
-	existingTimeframes := listTimeframesByDescription(t, timeframeRepo, s.ctx, updateName)
+	existingTimeframes := listTimeframesByDescription(t, s, s.ctx, updateName)
 	require.Empty(t, existingTimeframes)
 
 	validatorReached := false
 	s.res.Templates = testTimetableDataWithCareValidator(s.db, func(ctx context.Context, templateID int64) error {
-		options := modelBase.NewQueryOptions()
-		options.Filter.ILike("description", "%"+updateName+"%")
-		provisionalTimeframes, lookupErr := timeframeRepo.List(ctx, options)
+		provisionalTimeframes, lookupErr := s.owner.ListTimeframes(ctx, timetableModule.TimeframeFilter{DescriptionContains: updateName})
 		if lookupErr != nil {
 			return lookupErr
 		}
@@ -503,7 +497,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 	})
 
 	updateBody := createTemplateBody(s, updateName)
-	updateBody["weekdays"] = []int{activitiesModel.WeekdayFriday}
+	updateBody["weekdays"] = []int{timetableModule.WeekdayFriday}
 	updateBody["start_time"] = startTime
 	updateBody["end_time"] = endTime
 	updateBody["student_ids"] = []int64{s.studentB}
@@ -515,7 +509,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 	assert.Contains(t, updateW.Body.String(), `"code":"timetable.template_care_offering_conflict"`)
 	assert.True(t, validatorReached, "the test must fail after the provisional writes, not during preflight")
 
-	afterTimeframes := listTimeframesByDescription(t, timeframeRepo, s.ctx, updateName)
+	afterTimeframes := listTimeframesByDescription(t, s, s.ctx, updateName)
 	assert.Empty(t, afterTimeframes, "the unique timeframe created before validation must roll back")
 	afterGroup, err := mustTimetableTestRepositories(s.db).ActivityGroup.FindByID(s.ctx, created.TemplateID)
 	require.NoError(t, err)
@@ -529,30 +523,24 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 		assert.Equal(t, beforeSchedules[i].Weekday, afterSchedules[i].Weekday)
 		assert.Equal(t, beforeSchedules[i].TimeframeID, afterSchedules[i].TimeframeID)
 	}
-	afterEnrollments, err := s.enrollments.FindByGroupID(s.ctx, created.TemplateID)
-	require.NoError(t, err)
+	afterEnrollments := templateEnrollments(t, s, created.TemplateID)
 	assert.ElementsMatch(t, enrollmentIDs(beforeEnrollments), enrollmentIDs(afterEnrollments))
-	afterSupervisors, err := s.supervisors.FindByGroupID(s.ctx, created.TemplateID)
-	require.NoError(t, err)
+	afterSupervisors := templateSupervisors(t, s, created.TemplateID)
 	assert.ElementsMatch(t, supervisorIDs(beforeSupervisors), supervisorIDs(afterSupervisors))
 }
 
-func enrollmentIDs(rows []*activitiesModel.StudentEnrollment) []int64 {
+func enrollmentIDs(rows []timetableModule.StudentEnrollment) []int64 {
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
-		if row != nil {
-			ids = append(ids, row.ID)
-		}
+		ids = append(ids, row.ID)
 	}
 	return ids
 }
 
-func supervisorIDs(rows []*activitiesModel.SupervisorPlanned) []int64 {
+func supervisorIDs(rows []timetableModule.PlannedSupervisor) []int64 {
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
-		if row != nil {
-			ids = append(ids, row.ID)
-		}
+		ids = append(ids, row.ID)
 	}
 	return ids
 }
@@ -567,7 +555,7 @@ func TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom(t *testing.T) {
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 
 	created := createSourceTemplate(t, router, s, "Tpl-Split-Update-Quelle")
-	effective := timezone.NewDate(2099, 1, 12)
+	effective := calendar.NewDate(2099, 1, 12)
 	splitW := doTemplateJSON(t, router, http.MethodPost,
 		fmt.Sprintf("/templates/%d/split", created.TemplateID),
 		splitBody(s, "Tpl-Split-Update-Nachfolger", effective))
@@ -575,7 +563,7 @@ func TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom(t *testing.T) {
 	split := decodeTemplateData[splitTemplateResponse](t, splitW)
 
 	updateBody := createTemplateBody(s, "Tpl-Split-Update-Nachfolger-Bearbeitet")
-	updateBody["weekdays"] = []int{activitiesModel.WeekdayTuesday, activitiesModel.WeekdayThursday}
+	updateBody["weekdays"] = []int{timetableModule.WeekdayTuesday, timetableModule.WeekdayThursday}
 	updateW := doTemplateJSON(t, router, http.MethodPut,
 		fmt.Sprintf("/templates/%d", split.NewTemplateID), updateBody)
 	require.Equal(t, http.StatusOK, updateW.Code, "body=%s", updateW.Body.String())
@@ -584,36 +572,34 @@ func TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom(t *testing.T) {
 	require.Len(t, schedules, 2)
 	for _, schedule := range schedules {
 		require.NotNil(t, schedule.ValidFrom, "editing the successor must not erase its split start")
-		assert.Equal(t, activitiesModel.Date(effective), *schedule.ValidFrom)
+		assert.Equal(t, effective.String(), *schedule.ValidFrom)
 		assert.Nil(t, schedule.ValidUntil)
 	}
 
-	enrollments, err := s.enrollments.FindByGroupID(s.ctx, split.NewTemplateID)
-	require.NoError(t, err)
+	enrollments := templateEnrollments(t, s, split.NewTemplateID)
 	activeEnrollments := 0
 	for _, enrollment := range enrollments {
 		if enrollment.ValidUntil == nil {
 			activeEnrollments++
-			assert.Equal(t, activitiesModel.Date(effective), enrollment.ValidFrom,
+			assert.Equal(t, effective.String(), enrollment.ValidFrom,
 				"successor roster must inherit the split start, not the period start")
 			continue
 		}
-		assert.False(t, enrollment.ValidUntil.Before(enrollment.ValidFrom),
+		assert.False(t, *enrollment.ValidUntil < enrollment.ValidFrom,
 			"retired successor roster bounds must not invert")
 	}
 	assert.Equal(t, 2, activeEnrollments)
 
-	supervisors, err := s.supervisors.FindByGroupID(s.ctx, split.NewTemplateID)
-	require.NoError(t, err)
+	supervisors := templateSupervisors(t, s, split.NewTemplateID)
 	activeSupervisors := 0
 	for _, supervisor := range supervisors {
 		if supervisor.ValidUntil == nil {
 			activeSupervisors++
-			assert.Equal(t, activitiesModel.Date(effective), supervisor.ValidFrom,
+			assert.Equal(t, effective.String(), supervisor.ValidFrom,
 				"successor supervision must inherit the split start")
 			continue
 		}
-		assert.False(t, supervisor.ValidUntil.Before(supervisor.ValidFrom),
+		assert.False(t, *supervisor.ValidUntil < supervisor.ValidFrom,
 			"retired successor supervision bounds must not invert")
 	}
 	assert.Equal(t, 2, activeSupervisors)
@@ -630,10 +616,9 @@ func TestTemplateUpdateHandler_RejectsInconsistentValidityEnvelopeWithoutMutatio
 	created := createSourceTemplate(t, router, s, "Tpl-Update-Inconsistent-Quelle")
 	before := templateSchedules(t, s, created.TemplateID)
 	require.Len(t, before, 2)
-	inconsistentFrom := timezone.NewDate(2026, 8, 24).AddDays(14)
+	inconsistentFrom := calendar.NewDate(2026, 8, 24).AddDays(14)
 	_, err := s.db.NewUpdate().
-		Model((*activitiesModel.Schedule)(nil)).
-		ModelTableExpr(`activities.schedules AS "schedule"`).
+		TableExpr(`activities.schedules AS "schedule"`).
 		Set("valid_from = ?", inconsistentFrom).
 		Where(`"schedule".id = ?`, before[0].ID).
 		Where(`"schedule".tenant_id = ?`, tenant.FromContext(s.ctx)).
@@ -649,7 +634,7 @@ func TestTemplateUpdateHandler_RejectsInconsistentValidityEnvelopeWithoutMutatio
 	require.Len(t, after, 2, "inconsistent schedules must not be deleted")
 	assert.Equal(t, []int64{before[0].ID, before[1].ID}, []int64{after[0].ID, after[1].ID})
 	require.NotNil(t, after[0].ValidFrom)
-	assert.Equal(t, activitiesModel.Date(inconsistentFrom), *after[0].ValidFrom)
+	assert.Equal(t, inconsistentFrom.String(), *after[0].ValidFrom)
 	assert.Nil(t, after[1].ValidFrom)
 
 	group, err := mustTimetableTestRepositories(s.db).ActivityGroup.FindByID(s.ctx, created.TemplateID)
@@ -670,7 +655,7 @@ func TestTemplateSplitHandler_BadEffectiveDate(t *testing.T) {
 	created := createSourceTemplate(t, router, s, "Tpl-Split-DatumQuelle")
 
 	t.Run("malformed date", func(t *testing.T) {
-		body := splitBody(s, "Tpl-Split-Datum", timezone.TodayDate())
+		body := splitBody(s, "Tpl-Split-Datum", calendar.TodayDate())
 		body["effective_date"] = "12.07.2026"
 		w := doTemplateJSON(t, router, http.MethodPost,
 			fmt.Sprintf("/templates/%d/split", created.TemplateID), body)
@@ -678,7 +663,7 @@ func TestTemplateSplitHandler_BadEffectiveDate(t *testing.T) {
 	})
 
 	t.Run("missing date", func(t *testing.T) {
-		body := splitBody(s, "Tpl-Split-Datum", timezone.TodayDate())
+		body := splitBody(s, "Tpl-Split-Datum", calendar.TodayDate())
 		delete(body, "effective_date")
 		w := doTemplateJSON(t, router, http.MethodPost,
 			fmt.Sprintf("/templates/%d/split", created.TemplateID), body)
@@ -686,7 +671,7 @@ func TestTemplateSplitHandler_BadEffectiveDate(t *testing.T) {
 	})
 
 	t.Run("past date", func(t *testing.T) {
-		body := splitBody(s, "Tpl-Split-Datum", timezone.TodayDate().AddDays(-1))
+		body := splitBody(s, "Tpl-Split-Datum", calendar.TodayDate().AddDays(-1))
 		w := doTemplateJSON(t, router, http.MethodPost,
 			fmt.Sprintf("/templates/%d/split", created.TemplateID), body)
 		assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
@@ -702,7 +687,7 @@ func TestTemplateSplitHandler_UnknownTemplate(t *testing.T) {
 	attachSplitService(s, mat)
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 
-	body := splitBody(s, "Tpl-Split-Unbekannt", timezone.TodayDate().AddDays(7))
+	body := splitBody(s, "Tpl-Split-Unbekannt", calendar.TodayDate().AddDays(7))
 	w := doTemplateJSON(t, router, http.MethodPost, "/templates/999999999/split", body)
 	assert.Equal(t, http.StatusNotFound, w.Code, "body=%s", w.Body.String())
 }
@@ -719,7 +704,7 @@ func TestTemplateSplitHandler_ForbiddenForReadOnly(t *testing.T) {
 	created := createSourceTemplate(t, adminRouter, s, "Tpl-Split-NurLesen")
 
 	readOnlyRouter := splitRouter(s.ctx, s.res, []string{permissions.SchedulesRead})
-	body := splitBody(s, "Tpl-Split-NurLesenNeu", timezone.TodayDate().AddDays(7))
+	body := splitBody(s, "Tpl-Split-NurLesenNeu", calendar.TodayDate().AddDays(7))
 	w := doTemplateJSON(t, readOnlyRouter, http.MethodPost,
 		fmt.Sprintf("/templates/%d/split", created.TemplateID), body)
 	assert.Equal(t, http.StatusForbidden, w.Code, "body=%s", w.Body.String())
@@ -735,7 +720,7 @@ func TestTemplateEndHandler_HappyPath(t *testing.T) {
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 
 	created := createSourceTemplate(t, router, s, "Tpl-End-Quelle")
-	effective := timezone.NewDate(2099, 1, 12)
+	effective := calendar.NewDate(2099, 1, 12)
 
 	w := doTemplateJSON(t, router, http.MethodPost,
 		fmt.Sprintf("/templates/%d/end", created.TemplateID), endBody(effective))
@@ -757,7 +742,7 @@ func TestTemplateEndHandler_RemovesTemplateFromActiveCRUD(t *testing.T) {
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 
 	created := createSourceTemplate(t, router, s, "Tpl-End-Hidden")
-	effective := timezone.TodayDate().AddDays(7)
+	effective := calendar.TodayDate().AddDays(7)
 
 	w := doTemplateJSON(t, router, http.MethodPost,
 		fmt.Sprintf("/templates/%d/end", created.TemplateID), endBody(effective))
@@ -808,7 +793,7 @@ func TestTemplateEndHandler_BadEffectiveDate(t *testing.T) {
 	t.Run("past date", func(t *testing.T) {
 		w := doTemplateJSON(t, router, http.MethodPost,
 			fmt.Sprintf("/templates/%d/end", created.TemplateID),
-			endBody(timezone.TodayDate().AddDays(-1)))
+			endBody(calendar.TodayDate().AddDays(-1)))
 		assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
 	})
 }
@@ -823,7 +808,7 @@ func TestTemplateEndHandler_UnknownTemplate(t *testing.T) {
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 
 	w := doTemplateJSON(t, router, http.MethodPost, "/templates/999999999/end",
-		endBody(timezone.TodayDate().AddDays(7)))
+		endBody(calendar.TodayDate().AddDays(7)))
 	assert.Equal(t, http.StatusNotFound, w.Code, "body=%s", w.Body.String())
 }
 
@@ -841,6 +826,6 @@ func TestTemplateEndHandler_ForbiddenForReadOnly(t *testing.T) {
 	readOnlyRouter := splitRouter(s.ctx, s.res, []string{permissions.SchedulesRead})
 	w := doTemplateJSON(t, readOnlyRouter, http.MethodPost,
 		fmt.Sprintf("/templates/%d/end", created.TemplateID),
-		endBody(timezone.TodayDate().AddDays(7)))
+		endBody(calendar.TodayDate().AddDays(7)))
 	assert.Equal(t, http.StatusForbidden, w.Code, "body=%s", w.Body.String())
 }

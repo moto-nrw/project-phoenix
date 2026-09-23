@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +32,7 @@ func TestUpdateTemplatePlanningTrackThreeState(t *testing.T) {
 				&parsedUpdateTemplate{req: req},
 				200,
 				4,
-				timezone.Date(""),
+				calendar.Date(""),
 			)
 
 			assert.Equal(t, tc.wantProvided, input.Fields.PlanningTrackIDProvided)

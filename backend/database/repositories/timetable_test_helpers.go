@@ -23,7 +23,6 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -37,10 +36,10 @@ type TimetableTestRepositories struct {
 	ActivitySchedule          activitiesModels.ScheduleRepository
 	ActivitySupervisor        activitiesModels.SupervisorPlannedRepository
 	StudentEnrollment         activitiesModels.StudentEnrollmentRepository
-	StaffShift                *workforceCompose.ShiftRows
-	StaffShiftSeries          *workforceCompose.ShiftSeriesRows
-	StaffShiftSeriesException *workforceCompose.ShiftSeriesExceptionRows
-	ShiftType                 *workforceCompose.ShiftTypeRows
+	StaffShift                *WorkforceShiftRows
+	StaffShiftSeries          *WorkforceShiftSeriesRows
+	StaffShiftSeriesException *WorkforceShiftSeriesExceptionRows
+	ShiftType                 *WorkforceShiftTypeRows
 	PlanningTrack             scheduleModels.PlanningTrackRepository
 	ActivityInstance          scheduleModels.ActivityInstanceRepository
 	InstanceIdempotency       scheduleModels.InstanceIdempotencyRepository
@@ -150,12 +149,12 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	result := timetableTestRepositories(repos)
 	result.Timetable = bookings
 	// The Dienstplan rows belong to Workforce (#2689); suites that still
-	// speak the retained rows reach them through the compose adapters
+	// speak the retained rows reach them through the legacy row adapters
 	// over the one facade (#3418).
-	result.StaffShift = workforceCompose.NewShiftRows(workTime)
-	result.StaffShiftSeries = workforceCompose.NewShiftSeriesRows(workTime)
-	result.StaffShiftSeriesException = workforceCompose.NewShiftSeriesExceptionRows(workTime)
-	result.ShiftType = workforceCompose.NewShiftTypeRows(workTime)
+	result.StaffShift = NewWorkforceShiftRows(workTime)
+	result.StaffShiftSeries = NewWorkforceShiftSeriesRows(workTime)
+	result.StaffShiftSeriesException = NewWorkforceShiftSeriesExceptionRows(workTime)
+	result.ShiftType = NewWorkforceShiftTypeRows(workTime)
 	return result, nil
 }
 

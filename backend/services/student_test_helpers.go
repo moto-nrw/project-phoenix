@@ -338,8 +338,9 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	parentRequestCoordinator.SetOfferingConflictPort(offeringChangeRequestService.(users.ParentRequestConflictPort))
 	parentRequestCoordinator.SetEventRecorder(parentRequestEvents)
 	scheduleSubstitution, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
-		Deviations: live.Deviations, ActivityInstances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
-		Staff: repos.Staff, Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
+		Deviations: live.Deviations, Staff: repos.Staff, Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
+		ActivityInstances: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
+		InstanceStaff:     repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 	})
 	if err != nil {
 		return StudentTestModule{}, err
@@ -381,7 +382,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		Settings:          settingsService,
 		Pickups:           pickupScheduleService,
 		Arrivals:          arrivalScheduleService,
-		Instances:         instanceService,
+		PlannedStudentIDs: instanceService.GetPlannedStudentIDsByDate,
 		CareDays:          careDayService,
 		CareParticipation: careLifecycleService,
 		ExcusedRequests:   excusedRequestService,

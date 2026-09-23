@@ -12,7 +12,6 @@ import (
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -112,7 +111,7 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		EducationGroupID:            row.EducationGroupID,
 		EducationGroupName:          stringValue(row.EducationGroupName),
 		IsOpen:                      row.IsOpen,
-		MaxParticipants:             activities.ParticipantLimitPtr(row.MaxParticipants),
+		MaxParticipants:             timetable.ParticipantLimitPtr(row.MaxParticipants),
 		CalendarPeriodID:            row.TemplateCalendarPeriodID,
 		TargetGroupType:             row.TargetGroupType,
 		TargetGradeLevel:            row.TargetGradeLevel,

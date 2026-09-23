@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // errTemplateStartDateOutsidePeriod marks a create request whose start_date
@@ -24,8 +24,8 @@ var errTemplateStartDateOutsidePeriod = errors.New("start_date must lie within t
 func (rs *Resource) templateRosterValidFrom(
 	ctx context.Context,
 	calendarPeriodID *int64,
-	startDate *timezone.Date,
-) (timezone.Date, error) {
+	startDate *calendar.Date,
+) (calendar.Date, error) {
 	if calendarPeriodID == nil {
 		if startDate != nil {
 			return *startDate, nil
@@ -33,21 +33,21 @@ func (rs *Resource) templateRosterValidFrom(
 		return rs.todayDate(), nil
 	}
 	if rs.CalendarPeriods == nil {
-		return timezone.Date(""), errors.New("calendar period service not wired")
+		return calendar.Date(""), errors.New("calendar period service not wired")
 	}
 	period, err := rs.CalendarPeriods.FindCalendarPeriod(ctx, *calendarPeriodID)
 	if err != nil {
-		return timezone.Date(""), err
+		return calendar.Date(""), err
 	}
 	if startDate != nil {
-		if startDate.Before(timezone.Date(period.StartDate)) || startDate.After(timezone.Date(period.EndDate)) {
-			return timezone.Date(""), fmt.Errorf("%w (%s to %s)",
+		if startDate.Before(calendar.Date(period.StartDate)) || startDate.After(calendar.Date(period.EndDate)) {
+			return calendar.Date(""), fmt.Errorf("%w (%s to %s)",
 				errTemplateStartDateOutsidePeriod,
 				period.StartDate, period.EndDate)
 		}
 		return *startDate, nil
 	}
-	return timezone.Date(period.StartDate), nil
+	return calendar.Date(period.StartDate), nil
 }
 
 func renderTemplatePeriodLookupError(w http.ResponseWriter, r *http.Request, err error) {
@@ -71,19 +71,19 @@ func (rs *Resource) templateWritePreflight(
 	w http.ResponseWriter,
 	r *http.Request,
 	calendarPeriodID *int64,
-	startDate *timezone.Date,
-) (gradeLevelMax int, rosterValidFrom timezone.Date, ok bool) {
+	startDate *calendar.Date,
+) (gradeLevelMax int, rosterValidFrom calendar.Date, ok bool) {
 	ctx := r.Context()
 	gradeLevelMax, err := rs.resolveTemplateGradeLevelMax(ctx)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
 			"resolve template grade level limit failed", err))
-		return 0, timezone.Date(""), false
+		return 0, calendar.Date(""), false
 	}
 	rosterValidFrom, err = rs.templateRosterValidFrom(ctx, calendarPeriodID, startDate)
 	if err != nil {
 		renderTemplatePeriodLookupError(w, r, err)
-		return 0, timezone.Date(""), false
+		return 0, calendar.Date(""), false
 	}
 	return gradeLevelMax, rosterValidFrom, true
 }

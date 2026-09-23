@@ -14,9 +14,15 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
+
+// StaffingAnnouncer sends the tenant-wide staffing_deviation_changed event
+// whose Source names the emitting flow. The composition root binds it to
+// the realtime hub.
+type StaffingAnnouncer interface {
+	AnnounceStaffingChanged(tenantID int64, source string) error
+}
 
 // AffectedInstance is one row in the affected_instances list of the response.
 type AffectedInstance struct {
@@ -78,13 +84,12 @@ func (rs *Resource) broadcastStaffingIfChanged(ctx context.Context, changed bool
 // (Betreuungsplan card, planner) stays stale until reload (#1844). source names
 // the emitting flow for log review.
 func (rs *Resource) broadcastStaffingDeviationChanged(ctx context.Context, source string) {
-	if rs.Broadcaster == nil {
+	if rs.Staffing == nil {
 		return
 	}
 	tenantID := tenant.FromContext(ctx)
-	event := realtime.NewEvent(realtime.EventStaffingDeviationChanged, "", realtime.EventData{Source: &source})
 	tenant.RegisterAfterCommit(ctx, func() {
-		if err := rs.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+		if err := rs.Staffing.AnnounceStaffingChanged(tenantID, source); err != nil {
 			rs.getLogger().Warn("SSE staffing deviation broadcast failed",
 				slog.String("source", source),
 				slog.Int64("tenant_id", tenantID),

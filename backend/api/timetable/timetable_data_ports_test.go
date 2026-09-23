@@ -5,14 +5,13 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -26,7 +25,7 @@ type testPickupBaselines struct {
 	reader careplan.PickupBaselineReader
 }
 
-func (p testPickupBaselines) ProjectPickups(ctx context.Context, studentIDs []int64, from, to timezone.Date) (timetableCompose.PickupBaselines, error) {
+func (p testPickupBaselines) ProjectPickups(ctx context.Context, studentIDs []int64, from, to calendar.Date) (timetableCompose.PickupBaselines, error) {
 	projection, err := p.reader.Project(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, err
@@ -38,7 +37,7 @@ type testPickupProjection struct {
 	projection *careplan.PickupBaselineProjection
 }
 
-func (p testPickupProjection) RegularPickup(studentID int64, date timezone.Date) (time.Time, bool) {
+func (p testPickupProjection) RegularPickup(studentID int64, date calendar.Date) (time.Time, bool) {
 	row := p.projection.ForDate(studentID, date)
 	if row == nil {
 		return time.Time{}, false
@@ -89,7 +88,7 @@ type testDeviationEvents struct {
 	events auditModels.DeviationEventRepository
 }
 
-func (e testDeviationEvents) ListDeviationEvents(ctx context.Context, from, to timezone.Date, activityGroupID *int64, startTime *string) ([]timetable.DeviationEvent, error) {
+func (e testDeviationEvents) ListDeviationEvents(ctx context.Context, from, to calendar.Date, activityGroupID *int64, startTime *string) ([]timetable.DeviationEvent, error) {
 	rows, err := e.events.ListByRange(ctx, auditModels.Date(from), auditModels.Date(to), activityGroupID, startTime)
 	if err != nil {
 		return nil, err
@@ -97,7 +96,7 @@ func (e testDeviationEvents) ListDeviationEvents(ctx context.Context, from, to t
 	events := make([]timetable.DeviationEvent, 0, len(rows))
 	for _, row := range rows {
 		events = append(events, timetable.DeviationEvent{
-			ID: row.ID, ActivityGroupID: row.ActivityGroupID, OccurrenceDate: timezone.Date(row.OccurrenceDate),
+			ID: row.ID, ActivityGroupID: row.ActivityGroupID, OccurrenceDate: calendar.Date(row.OccurrenceDate),
 			StartTime: row.StartTime, InstanceID: row.InstanceID, EventType: row.EventType,
 			SubjectStaffID: row.SubjectStaffID, RelatedStaffID: row.RelatedStaffID, ActorAccountID: row.ActorAccountID,
 			OldValue: row.OldValue, NewValue: row.NewValue, Reason: row.Reason, OccurredAt: row.OccurredAt,
@@ -216,16 +215,92 @@ func unitTimetableData(deps unitDataDeps) timetable.TimetableDataCapability {
 	return data
 }
 
-// plannedInstanceRepo answers every block as planned, so the attendance
-// freeze check lets a write through.
-type plannedInstanceRepo struct {
-	timetableCompose.DataInstances
+// fakeTimetableData is a capability-level fake of the Timetable owner's
+// planner reads for database-free handler tests. Each overridable method
+// answers from its func field; an unset field, like every other method of
+// the capability, reaches the nil embedded capability and panics, so an
+// accidental dependency fails loudly.
+type fakeTimetableData struct {
+	timetable.TimetableDataCapability
+
+	FindScheduledInstanceFn        func(ctx context.Context, id int64) (timetable.ScheduledInstance, error)
+	FindBlockParticipantFn         func(ctx context.Context, instanceID, studentID int64) (*timetable.ScheduledParticipant, error)
+	LockBlockAttendanceFn          func(ctx context.Context, instanceID int64) error
+	PatchSlotAttendanceFn          func(ctx context.Context, participantID int64, patch timetable.AttendancePatch) error
+	ListTemplateEntriesForPeriodFn func(ctx context.Context, periodID *int64, childrenPerStaffRatio int) ([]timetable.TemplateListEntry, error)
+	ListTemplateWeekdayRosterFn    func(ctx context.Context, templateID, calendarPeriodID *int64) ([]timetable.TemplateWeekdayRosterRow, error)
+	SpontaneousRoomExistsFn        func(ctx context.Context, roomID int64) (bool, error)
+	LockSpontaneousStartRoomFn     func(ctx context.Context, roomID int64) error
+	SpontaneousRoomOccupiedFn      func(ctx context.Context, roomID int64) (bool, error)
+	ResolveSpontaneousActivityFn   func(ctx context.Context, title string, requestedID *int64, createdBy int64) (*int64, error)
 }
 
-func (plannedInstanceRepo) FindByID(_ context.Context, id any) (*schedule.ActivityInstance, error) {
-	instance := &schedule.ActivityInstance{Status: schedule.InstanceStatusPlanned}
-	if value, ok := id.(int64); ok {
-		instance.ID = value
+func (f *fakeTimetableData) FindScheduledInstance(ctx context.Context, id int64) (timetable.ScheduledInstance, error) {
+	if f.FindScheduledInstanceFn == nil {
+		return f.TimetableDataCapability.FindScheduledInstance(ctx, id)
 	}
-	return instance, nil
+	return f.FindScheduledInstanceFn(ctx, id)
+}
+
+func (f *fakeTimetableData) FindBlockParticipant(ctx context.Context, instanceID, studentID int64) (*timetable.ScheduledParticipant, error) {
+	if f.FindBlockParticipantFn == nil {
+		return f.TimetableDataCapability.FindBlockParticipant(ctx, instanceID, studentID)
+	}
+	return f.FindBlockParticipantFn(ctx, instanceID, studentID)
+}
+
+func (f *fakeTimetableData) LockBlockAttendance(ctx context.Context, instanceID int64) error {
+	if f.LockBlockAttendanceFn == nil {
+		return f.TimetableDataCapability.LockBlockAttendance(ctx, instanceID)
+	}
+	return f.LockBlockAttendanceFn(ctx, instanceID)
+}
+
+func (f *fakeTimetableData) PatchSlotAttendance(ctx context.Context, participantID int64, patch timetable.AttendancePatch) error {
+	if f.PatchSlotAttendanceFn == nil {
+		return f.TimetableDataCapability.PatchSlotAttendance(ctx, participantID, patch)
+	}
+	return f.PatchSlotAttendanceFn(ctx, participantID, patch)
+}
+
+func (f *fakeTimetableData) ListTemplateEntriesForPeriod(ctx context.Context, periodID *int64, childrenPerStaffRatio int) ([]timetable.TemplateListEntry, error) {
+	if f.ListTemplateEntriesForPeriodFn == nil {
+		return f.TimetableDataCapability.ListTemplateEntriesForPeriod(ctx, periodID, childrenPerStaffRatio)
+	}
+	return f.ListTemplateEntriesForPeriodFn(ctx, periodID, childrenPerStaffRatio)
+}
+
+func (f *fakeTimetableData) ListTemplateWeekdayRoster(ctx context.Context, templateID, calendarPeriodID *int64) ([]timetable.TemplateWeekdayRosterRow, error) {
+	if f.ListTemplateWeekdayRosterFn == nil {
+		return f.TimetableDataCapability.ListTemplateWeekdayRoster(ctx, templateID, calendarPeriodID)
+	}
+	return f.ListTemplateWeekdayRosterFn(ctx, templateID, calendarPeriodID)
+}
+
+func (f *fakeTimetableData) SpontaneousRoomExists(ctx context.Context, roomID int64) (bool, error) {
+	if f.SpontaneousRoomExistsFn == nil {
+		return f.TimetableDataCapability.SpontaneousRoomExists(ctx, roomID)
+	}
+	return f.SpontaneousRoomExistsFn(ctx, roomID)
+}
+
+func (f *fakeTimetableData) LockSpontaneousStartRoom(ctx context.Context, roomID int64) error {
+	if f.LockSpontaneousStartRoomFn == nil {
+		return f.TimetableDataCapability.LockSpontaneousStartRoom(ctx, roomID)
+	}
+	return f.LockSpontaneousStartRoomFn(ctx, roomID)
+}
+
+func (f *fakeTimetableData) SpontaneousRoomOccupied(ctx context.Context, roomID int64) (bool, error) {
+	if f.SpontaneousRoomOccupiedFn == nil {
+		return f.TimetableDataCapability.SpontaneousRoomOccupied(ctx, roomID)
+	}
+	return f.SpontaneousRoomOccupiedFn(ctx, roomID)
+}
+
+func (f *fakeTimetableData) ResolveSpontaneousActivity(ctx context.Context, title string, requestedID *int64, createdBy int64) (*int64, error) {
+	if f.ResolveSpontaneousActivityFn == nil {
+		return f.TimetableDataCapability.ResolveSpontaneousActivity(ctx, title, requestedID, createdBy)
+	}
+	return f.ResolveSpontaneousActivityFn(ctx, title, requestedID, createdBy)
 }

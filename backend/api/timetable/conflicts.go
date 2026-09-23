@@ -22,8 +22,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // PlannedConflictsResponse is the 200 body for GET /conflicts.
@@ -36,7 +36,7 @@ type PlannedConflictsResponse struct {
 
 // plannedConflictParams is the parsed query string of GET /conflicts.
 type plannedConflictParams struct {
-	date              timezone.Date
+	date              calendar.Date
 	startTime         time.Time
 	endTime           time.Time
 	roomID            *int64

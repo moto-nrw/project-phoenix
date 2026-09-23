@@ -3,8 +3,8 @@ package timetable
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // SlotResponse describes an arrival or pickup slot for a single day.
@@ -155,7 +155,7 @@ func formatOptionalRFC3339(t *time.Time) *string {
 	if t == nil {
 		return nil
 	}
-	s := t.In(timezone.Berlin).Format(time.RFC3339)
+	s := t.In(calendar.Berlin).Format(time.RFC3339)
 	return &s
 }
 

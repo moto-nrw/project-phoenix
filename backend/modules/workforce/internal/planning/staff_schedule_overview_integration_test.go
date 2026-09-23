@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -53,30 +52,24 @@ func createOverviewTenantFixture(
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Overview", fmt.Sprintf("Tenant-%d", tenantID))
 	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, fmt.Sprintf("Overview-%d", tenantID))
-	repos, shiftRows := overviewRepositories(db)
+	_, shiftRows := overviewRepositories(db)
 	ctx := testpkg.TenantContext(tenantID)
 
-	instance := &scheduleModel.ActivityInstance{
-		Date: scheduleModel.Date(date), Title: fmt.Sprintf("Tenant %d block", tenantID),
-		StartTime: integrationClock(t, "09:00"), EndTime: integrationClock(t, "10:00"),
-		RoomID: room.ID, Status: scheduleModel.InstanceStatusPlanned, IsSpontaneous: true,
-	}
-	instance.SetTenantID(tenantID)
-	require.NoError(t, repos.ActivityInstance.Create(ctx, instance))
-	assignment := &scheduleModel.InstanceStaff{InstanceID: instance.ID, StaffID: staff.ID}
-	assignment.SetTenantID(tenantID)
-	require.NoError(t, repos.InstanceStaff.Create(ctx, assignment))
+	instance := testpkg.CreateTestActivityInstanceForTenant(t, db, tenantID, date, room.ID, testpkg.ActivityInstanceOpts{
+		Title: fmt.Sprintf("Tenant %d block", tenantID), StartHHMM: "09:00", EndHHMM: "10:00", IsSpontaneous: true,
+	})
+	assignment := testpkg.CreateTestInstanceStaffForTenant(t, db, tenantID, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
 
 	fixture := overviewTenantFixture{
 		staffID: staff.ID, roomID: room.ID, instanceID: instance.ID, assignmentID: assignment.ID,
 	}
 	if withShift {
-		shift := &scheduleModel.StaffShift{
-			StaffID: staff.ID, Date: scheduleModel.Date(date),
+		shift := &planning.StaffShift{
+			StaffID: staff.ID, Date: timezone.Date(date),
 			StartTime: integrationClock(t, "08:00"), EndTime: integrationClock(t, "11:00"),
 			CreatedBy: staff.ID,
 		}
-		shift.SetTenantID(tenantID)
+		shift.TenantID = tenantID
 		require.NoError(t, shiftRows.Create(ctx, shift))
 		fixture.shiftID = shift.ID
 	}
@@ -92,16 +85,15 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 	local := createOverviewTenantFixture(t, db, testpkg.Tenant(t), date, false)
 	foreign := createOverviewTenantFixture(t, db, foreignTenantID, date, true)
 	secondLocalStaff := testpkg.CreateTestStaffForTenant(t, db, testpkg.Tenant(t), "Overview", "Second-Assignment")
-	secondLocalAssignment := &scheduleModel.InstanceStaff{InstanceID: local.instanceID, StaffID: secondLocalStaff.ID}
-	secondLocalAssignment.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InstanceStaff.Create(testpkg.Ctx(t), secondLocalAssignment))
+	testpkg.CreateTestInstanceStaffForTenant(t, db, testpkg.Tenant(t), local.instanceID, secondLocalStaff.ID, testpkg.InstanceStaffOpts{})
 
 	queryCounter := testpkg.NewQueryCounter()
 	countedDB := db.WithQueryHook(queryCounter)
 	repos, shiftRows := overviewRepositories(countedDB)
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
-		Shifts: shiftRows, Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
-		Rooms: repos.Room, Staff: repos.Staff,
+		Shifts: shiftRows, Instances: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
+		InstanceStaff: repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
+		Rooms:         repos.Room, Staff: repos.Staff,
 		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel,
 	})
 
@@ -153,12 +145,12 @@ func insertWorkScheduleRow(t *testing.T, db *bun.DB, tenantID, staffID int64, da
 
 func createOverviewShift(t *testing.T, db *bun.DB, tenantID, staffID int64, date timezone.Date, start, end string, breakMinutes int) int64 {
 	t.Helper()
-	shift := &scheduleModel.StaffShift{
-		StaffID: staffID, Date: scheduleModel.Date(date),
+	shift := &planning.StaffShift{
+		StaffID: staffID, Date: timezone.Date(date),
 		StartTime: integrationClock(t, start), EndTime: integrationClock(t, end),
 		BreakMinutes: breakMinutes, CreatedBy: staffID,
 	}
-	shift.SetTenantID(tenantID)
+	shift.TenantID = tenantID
 	_, shiftRows := overviewRepositories(db)
 	require.NoError(t, shiftRows.Create(testpkg.TenantContext(tenantID), shift))
 	return shift.ID
@@ -220,8 +212,9 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 	repos, shiftRows := overviewRepositories(countedDB)
 	repos.SetConfigRuntime(testpkg.ConfigRuntime(countedDB))
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
-		Shifts: shiftRows, Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
-		Rooms: repos.Room, Staff: repos.Staff,
+		Shifts: shiftRows, Instances: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
+		InstanceStaff: repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
+		Rooms:         repos.Room, Staff: repos.Staff,
 		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel,
 	})
 
@@ -303,8 +296,9 @@ func TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport(t *te
 
 	repos, shiftRows := overviewRepositories(db)
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
-		Shifts: shiftRows, Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
-		Rooms: repos.Room, Staff: repos.Staff,
+		Shifts: shiftRows, Instances: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
+		InstanceStaff: repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
+		Rooms:         repos.Room, Staff: repos.Staff,
 		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel,
 	})
 

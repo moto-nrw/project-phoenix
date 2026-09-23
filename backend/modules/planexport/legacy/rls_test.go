@@ -7,6 +7,7 @@ import (
 
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
@@ -15,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -169,8 +171,8 @@ func TestPlanExportInputsEnforceRLS(t *testing.T) {
 				service := New(Sources{
 					Overview: workforceCompose.NewStaffScheduleOverview(workforceCompose.StaffScheduleOverviewDependencies{
 						Shifts:        reads,
-						Instances:     newOwnerInstances(t, db),
-						InstanceStaff: newOwnerInstanceStaff(t, db),
+						Instances:     newOverviewInstances(t, db),
+						InstanceStaff: newOverviewInstanceStaff(t, db),
 						Rooms:         facadeRooms{facade: rooms},
 						Staff:         reads,
 					}),
@@ -198,21 +200,34 @@ func TestPlanExportInputsEnforceRLS(t *testing.T) {
 }
 
 // txOverviewReads serves the overview's shift and staff reads from the
-// tenant transaction under test, in the shape the retained Workforce-backed
-// repositories return them.
+// tenant transaction under test, in the public Workforce shape the shift
+// source of the overview reads.
 type txOverviewReads struct {
 	tx bun.IDB
 }
 
-func (r txOverviewReads) FindByDateRange(ctx context.Context, start, end scheduleModel.Date) ([]*scheduleModel.StaffShift, error) {
+func (r txOverviewReads) ListStaffShifts(ctx context.Context, filter workforce.StaffShiftFilter) ([]workforce.StaffShift, error) {
 	var rows []*scheduleModel.StaffShift
 	err := r.tx.NewSelect().Model(&rows).ModelTableExpr(`schedule.staff_shifts AS "staff_shift"`).
-		Where(`"staff_shift".date BETWEEN ? AND ?`, start, end).
+		Where(`"staff_shift".date BETWEEN ? AND ?`, filter.From, filter.To).
 		Order("date", "staff_id", "start_time").Scan(ctx)
-	return rows, err
+	if err != nil {
+		return nil, err
+	}
+	out := make([]workforce.StaffShift, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, workforce.StaffShift{
+			ID: row.ID, TenantID: row.TenantID, StaffID: row.StaffID, Date: row.Date.String(),
+			StartTime: row.StartTime.Format(workforce.ClockLayout), EndTime: row.EndTime.Format(workforce.ClockLayout),
+			BreakMinutes: row.BreakMinutes, ShiftTypeID: row.ShiftTypeID, Notes: row.Notes, SeriesID: row.SeriesID,
+			Detached: row.Detached, Cancelled: row.Cancelled, ChangeReason: row.ChangeReason,
+			OriginShiftID: row.OriginShiftID, SickAbsenceID: row.SickAbsenceID, CreatedBy: row.CreatedBy,
+		})
+	}
+	return out, nil
 }
 
-func (r txOverviewReads) FindUsedCalendarWeeks(context.Context, scheduleModel.Date, scheduleModel.Date) ([]scheduleModel.Date, error) {
+func (r txOverviewReads) UsedStaffShiftWeeks(context.Context, string, string) ([]string, error) {
 	return nil, nil
 }
 
@@ -293,10 +308,6 @@ func (s ownerInstances) FindByTenantAndDateRange(ctx context.Context, from, to s
 	return legacyInstances(s.rows.InstancesBetween(ctx, from.String(), to.String()))
 }
 
-func (s ownerInstances) FindByIDs(ctx context.Context, ids []int64) ([]*scheduleModel.ActivityInstance, error) {
-	return legacyInstances(s.rows.InstancesByID(ctx, ids))
-}
-
 func legacyInstances(rows []timetabletest.LegacyInstance, err error) ([]*scheduleModel.ActivityInstance, error) {
 	if err != nil {
 		return nil, err
@@ -334,13 +345,6 @@ func (s ownerInstanceStaff) FindByInstanceIDs(ctx context.Context, instanceIDs [
 	return s.list(ctx, timetable.InstanceStaffFilter{InstanceIDs: instanceIDs, OrderByInstanceAndCreated: true})
 }
 
-func (s ownerInstanceStaff) FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to scheduleModel.Date) ([]*scheduleModel.InstanceStaff, error) {
-	fromText, toText := from.String(), to.String()
-	return s.list(ctx, timetable.InstanceStaffFilter{
-		StaffIDs: []int64{staffID}, FromDate: &fromText, ToDate: &toText, OrderByActivityDateTime: true,
-	})
-}
-
 func (s ownerInstanceStaff) list(ctx context.Context, filter timetable.InstanceStaffFilter) ([]*scheduleModel.InstanceStaff, error) {
 	rows, err := s.timetable.ListInstanceStaff(ctx, filter)
 	if err != nil {
@@ -355,6 +359,79 @@ func (s ownerInstanceStaff) list(ctx context.Context, filter timetable.InstanceS
 		}
 		staff.ID = row.ID
 		out = append(out, staff)
+	}
+	return out, nil
+}
+
+// overviewInstances serves the overview's instance reads from the same
+// presence-joined owner reads, in the Timetable owner's scheduled-instance
+// shape the Workforce overview speaks.
+type overviewInstances struct {
+	rows timetabletest.LegacyRows
+}
+
+func newOverviewInstances(t *testing.T, db *bun.DB) overviewInstances {
+	t.Helper()
+	return overviewInstances{rows: timetabletest.NewLegacyRows(t, db)}
+}
+
+func (s overviewInstances) FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*timetable.ScheduledInstance, error) {
+	return scheduledInstances(s.rows.InstancesBetween(ctx, from.String(), to.String()))
+}
+
+func (s overviewInstances) FindByIDs(ctx context.Context, ids []int64) ([]*timetable.ScheduledInstance, error) {
+	return scheduledInstances(s.rows.InstancesByID(ctx, ids))
+}
+
+func scheduledInstances(rows []timetabletest.LegacyInstance, err error) ([]*timetable.ScheduledInstance, error) {
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*timetable.ScheduledInstance, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, &timetable.ScheduledInstance{
+			ID: row.ID, Date: timezone.Date(row.Date), StartTime: row.StartTime, EndTime: row.EndTime,
+			Title: row.Title, ActivityGroupID: row.ActivityGroupID, ActiveGroupID: row.ActiveGroupID,
+			RoomID: row.RoomID, Status: row.Status, ListKind: row.ListKind,
+			CancelReason: row.CancelReason, Notes: row.Notes, UnderstaffedNote: row.UnderstaffedNote,
+		})
+	}
+	return out, nil
+}
+
+// overviewInstanceStaff serves the overview's staff-assignment reads from the
+// Timetable owner with the filters and order of the root's repository.
+type overviewInstanceStaff struct {
+	timetable timetable.Capability
+}
+
+func newOverviewInstanceStaff(t *testing.T, db *bun.DB) overviewInstanceStaff {
+	t.Helper()
+	return overviewInstanceStaff{timetable: timetabletest.New(t, db)}
+}
+
+func (s overviewInstanceStaff) FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*timetable.InstanceStaff, error) {
+	if len(instanceIDs) == 0 {
+		return []*timetable.InstanceStaff{}, nil
+	}
+	return s.list(ctx, timetable.InstanceStaffFilter{InstanceIDs: instanceIDs, OrderByInstanceAndCreated: true})
+}
+
+func (s overviewInstanceStaff) FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*timetable.InstanceStaff, error) {
+	fromText, toText := from.String(), to.String()
+	return s.list(ctx, timetable.InstanceStaffFilter{
+		StaffIDs: []int64{staffID}, FromDate: &fromText, ToDate: &toText, OrderByActivityDateTime: true,
+	})
+}
+
+func (s overviewInstanceStaff) list(ctx context.Context, filter timetable.InstanceStaffFilter) ([]*timetable.InstanceStaff, error) {
+	rows, err := s.timetable.ListInstanceStaff(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*timetable.InstanceStaff, 0, len(rows))
+	for index := range rows {
+		out = append(out, &rows[index])
 	}
 	return out, nil
 }

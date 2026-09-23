@@ -14,9 +14,9 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -307,7 +307,7 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (timetableModu
 	if err != nil {
 		return timetableModule.SplitTemplateCommand{}, errors.New("invalid end_time format, expected HH:MM")
 	}
-	effectiveDate, err := timezone.ParseDate(req.EffectiveDate)
+	effectiveDate, err := calendar.ParseDate(req.EffectiveDate)
 	if err != nil {
 		return timetableModule.SplitTemplateCommand{}, errors.New("invalid effective_date format, expected YYYY-MM-DD")
 	}
@@ -376,11 +376,11 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (timetableModu
 	}, nil
 }
 
-func parseOptionalSplitDate(raw *string) (*timezone.Date, error) {
+func parseOptionalSplitDate(raw *string) (*calendar.Date, error) {
 	if raw == nil {
 		return nil, nil
 	}
-	d, err := timezone.ParseDate(*raw)
+	d, err := calendar.ParseDate(*raw)
 	if err != nil {
 		return nil, err
 	}

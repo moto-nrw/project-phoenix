@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -54,13 +54,13 @@ func TestAttachRosterMaintenance_DerivesEveryTemplateInOneRead(t *testing.T) {
 	templates := []templateResponse{
 		{
 			ID:              classTemplateID,
-			TargetGroupType: activities.TargetGroupTypeKlasse,
-			Targets:         []templateTargetResponse{{Type: activities.TargetGroupTypeKlasse, SchoolClass: &schoolClass}},
+			TargetGroupType: timetable.TargetGroupTypeSchoolClass,
+			Targets:         []templateTargetResponse{{Type: timetable.TargetGroupTypeSchoolClass, SchoolClass: &schoolClass}},
 		},
 		{
 			ID:                    sourcedTemplateID,
 			CalendarPeriodID:      &calendarPeriodID,
-			TargetGroupType:       activities.TargetGroupTypeAngebot,
+			TargetGroupType:       timetable.TargetGroupTypeOffering,
 			SourceCareOfferingIDs: []int64{7},
 			SourceGradeLevels:     []int{2},
 			Schedules: []templateScheduleResponse{{
@@ -69,8 +69,8 @@ func TestAttachRosterMaintenance_DerivesEveryTemplateInOneRead(t *testing.T) {
 		},
 		{
 			ID:              linkedTemplateID,
-			TargetGroupType: activities.TargetGroupTypeGruppe,
-			Targets:         []templateTargetResponse{{Type: activities.TargetGroupTypeGruppe}},
+			TargetGroupType: timetable.TargetGroupTypeEducationGroup,
+			Targets:         []templateTargetResponse{{Type: timetable.TargetGroupTypeEducationGroup}},
 		},
 	}
 

@@ -39,8 +39,8 @@ func TestDienstplanRuntimeEvidence(t *testing.T) {
 		service := New(Sources{
 			Overview: workforceCompose.NewStaffScheduleOverview(workforceCompose.StaffScheduleOverviewDependencies{
 				Shifts:        reads,
-				Instances:     newOwnerInstances(t, db),
-				InstanceStaff: newOwnerInstanceStaff(t, db),
+				Instances:     newOverviewInstances(t, db),
+				InstanceStaff: newOverviewInstanceStaff(t, db),
 				Rooms:         rooms,
 				Staff:         reads,
 			}),

@@ -21,7 +21,6 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -87,6 +86,13 @@ type WeekdayPickupNoteReplacer interface {
 	ReplaceWeekdayPickupNotes(context.Context, int64, int64, map[int]string) error
 }
 
+// PlannedStudents is the consumer-owned port to the Timetable owner's
+// planned-block lookup the day planning reads (#584): which of the children
+// have a planned block on a date.
+type PlannedStudents interface {
+	GetPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]int64, error)
+}
+
 // StudentPresence is the consumer-owned presence port of the students inbound
 // (#3352). It names exactly what the student list, day planning, visit and
 // school check-in handlers read and write on the Student Presence capability:
@@ -127,7 +133,7 @@ type ResourceConfig struct {
 	WeekdayPickupNotes     WeekdayPickupNoteReplacer
 	PartialAbsenceService  careplan.PartialAbsenceService
 	ArrivalScheduleService careplan.ArrivalScheduleService
-	InstanceService        timetableplanning.InstanceService
+	InstanceService        PlannedStudents
 	// CareDayService gates the day-planning timetable signal on the child's
 	// care plan (#1747) — without it a child assigned to a block counts as
 	// "kommt heute" on every weekday, including the ones they are not booked

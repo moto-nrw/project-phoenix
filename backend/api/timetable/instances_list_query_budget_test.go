@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -36,7 +36,7 @@ func TestListInstancesQueryBudget(t *testing.T) {
 			staff := testpkg.CreateTestStaff(t, s.db, "InstancesBudget", fmt.Sprintf("Staff%d", created))
 			student := testpkg.CreateTestStudent(t, s.db, "InstancesBudget", fmt.Sprintf("Kind%d", created), "1a")
 			testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
-			testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, schedule.AttendanceStatusExpected)
+			testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, timetable.SlotAttendanceExpected)
 			created++
 		}
 	}

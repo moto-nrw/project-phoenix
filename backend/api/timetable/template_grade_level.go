@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 )
@@ -20,13 +19,13 @@ func (rs *Resource) resolveTemplateGradeLevelMax(ctx context.Context) (int, erro
 	if err != nil {
 		return 0, fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentGradeLevelMax, err)
 	}
-	if value < schoolclass.MinGradeLevel || value > schoolclass.MaxGradeLevel {
+	if value < timetableModule.MinSchoolGradeLevel || value > timetableModule.MaxSchoolGradeLevel {
 		return 0, fmt.Errorf(
 			"resolve %s: value %d is outside %d..%d",
 			configModel.KeyEnrollmentGradeLevelMax,
 			value,
-			schoolclass.MinGradeLevel,
-			schoolclass.MaxGradeLevel,
+			timetableModule.MinSchoolGradeLevel,
+			timetableModule.MaxSchoolGradeLevel,
 		)
 	}
 	return value, nil

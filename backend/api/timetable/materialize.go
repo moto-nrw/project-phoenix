@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -130,7 +130,7 @@ func (rs *Resource) materialize(w http.ResponseWriter, r *http.Request) {
 //   - Both present → parse as YYYY-MM-DD civil dates; reject if from > to
 //     or the span exceeds 56 days (8 weeks).
 //   - Only one present → 400 (ambiguous, don't guess).
-func resolveMaterializationWindow(req *materializeRequest, now time.Time) (from, to timezone.Date, err error) {
+func resolveMaterializationWindow(req *materializeRequest, now time.Time) (from, to calendar.Date, err error) {
 	bothNil := req.FromDate == nil && req.ToDate == nil
 	bothSet := req.FromDate != nil && req.ToDate != nil
 
@@ -139,7 +139,7 @@ func resolveMaterializationWindow(req *materializeRequest, now time.Time) (from,
 		// ResolveWindow is wired via the scheduleSvc package to keep the rule in
 		// one place, but at the HTTP layer we don't want to instantiate a service
 		// just to compute it; re-derive it inline with the same formula.
-		d := timezone.DateFromTime(now)
+		d := calendar.DateFromTime(now)
 		var delta int
 		switch d.Weekday() {
 		case time.Sunday:
@@ -155,23 +155,23 @@ func resolveMaterializationWindow(req *materializeRequest, now time.Time) (from,
 	}
 
 	if !bothSet {
-		return timezone.Date(""), timezone.Date(""), errors.New("from_date and to_date must both be present or both omitted")
+		return calendar.Date(""), calendar.Date(""), errors.New("from_date and to_date must both be present or both omitted")
 	}
 
-	from, err = timezone.ParseDate(*req.FromDate)
+	from, err = calendar.ParseDate(*req.FromDate)
 	if err != nil {
-		return timezone.Date(""), timezone.Date(""), errors.New("invalid from_date: expected YYYY-MM-DD")
+		return calendar.Date(""), calendar.Date(""), errors.New("invalid from_date: expected YYYY-MM-DD")
 	}
-	to, err = timezone.ParseDate(*req.ToDate)
+	to, err = calendar.ParseDate(*req.ToDate)
 	if err != nil {
-		return timezone.Date(""), timezone.Date(""), errors.New("invalid to_date: expected YYYY-MM-DD")
+		return calendar.Date(""), calendar.Date(""), errors.New("invalid to_date: expected YYYY-MM-DD")
 	}
 
 	if to.Before(from) {
-		return timezone.Date(""), timezone.Date(""), errors.New("to_date must not be before from_date")
+		return calendar.Date(""), calendar.Date(""), errors.New("to_date must not be before from_date")
 	}
 	if from.DaysUntil(to)+1 > timetableModule.MaxMaterializationWindowDays {
-		return timezone.Date(""), timezone.Date(""), errors.New("window exceeds 56 days (8 weeks)")
+		return calendar.Date(""), calendar.Date(""), errors.New("window exceeds 56 days (8 weeks)")
 	}
 	return from, to, nil
 }

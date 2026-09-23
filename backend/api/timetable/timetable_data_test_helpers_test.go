@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -18,14 +19,12 @@ import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // testTimetable bundles what the composition root hands api/timetable from
@@ -61,7 +60,7 @@ type testTimetableOptions struct {
 	validateOfferingSource     func(context.Context, []int64, []int64, *int64) error
 	resyncOfferingRoster       func(context.Context, timetableModule.OfferingRosterResyncInput) error
 	materialization            timetableModule.MaterializationCapability
-	instances                  timetableplanning.InstanceService
+	instances                  timetableModule.InstanceLifecycleCapability
 }
 
 // testTimetableData builds the Timetable owner's template writes, planner
@@ -109,10 +108,10 @@ func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func(
 		panic(err)
 	}
 	activityInstanceRepo := boundRepos.ActivityInstance
-	var today func() timezone.Date
+	var today func() calendar.Date
 	if len(clocks) > 0 && clocks[0] != nil {
 		clock := clocks[0]
-		today = func() timezone.Date { return timezone.DateFromTime(clock()) }
+		today = func() calendar.Date { return calendar.DateFromTime(clock()) }
 	}
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	if err != nil {
@@ -205,7 +204,8 @@ func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func(
 		ResyncOfferingRoster: options.resyncOfferingRoster,
 		RecurrenceLock:       lock,
 		SchoolClasses: arrivalTimetable.SchoolClassRules{
-			MinGradeLevel: schoolclass.MinGradeLevel, MaxGradeLevel: schoolclass.MaxGradeLevel, Normalize: schoolclass.Normalize,
+			MinGradeLevel: timetableModule.MinSchoolGradeLevel, MaxGradeLevel: timetableModule.MaxSchoolGradeLevel,
+			Normalize: normalizeTestSchoolClass,
 		},
 		DB:    db,
 		Today: today,
@@ -232,6 +232,12 @@ func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func(
 	}
 }
 
+// normalizeTestSchoolClass is School Structure's class identity (trimmed,
+// lowercased), which the composition root binds from its class rules.
+func normalizeTestSchoolClass(class string) string {
+	return strings.ToLower(strings.TrimSpace(class))
+}
+
 // testCareOfferingChecks binds the suite's care-offering callbacks; an
 // omitted callback accepts, and an invalid linked offering is the conflict,
 // as the composition root binds Enrollment.
@@ -254,40 +260,26 @@ func testCareOfferingChecks(options testTimetableOptions) arrivalTimetable.CareO
 
 // testSeriesDeviations binds the split's deviation port to the suite's
 // instance lifecycle, or to one that preserves nothing.
-func testSeriesDeviations(instances timetableplanning.InstanceService) arrivalTimetable.SeriesDeviations {
+func testSeriesDeviations(instances timetableModule.InstanceLifecycleCapability) arrivalTimetable.SeriesDeviations {
 	if instances == nil {
 		return noSeriesDeviations{}
 	}
-	preserver, err := timetableplanning.NewSeriesDeviationPreserver(instances)
-	if err != nil {
-		panic(err)
+	lifecycle, ok := instances.(interface {
+		SeriesDeviations() arrivalTimetable.SeriesDeviations
+	})
+	if !ok {
+		panic(fmt.Sprintf("timetable data: %T cannot preserve series deviations", instances))
 	}
-	return lifecycleSeriesDeviations{preserver: preserver}
-}
-
-type lifecycleSeriesDeviations struct {
-	preserver *timetableplanning.SeriesDeviationPreserver
-}
-
-func (d lifecycleSeriesDeviations) LockDeviationDays(ctx context.Context, tenantID int64, from, to timezone.Date) error {
-	return d.preserver.LockDeviationDays(ctx, tenantID, from, to)
-}
-
-func (d lifecycleSeriesDeviations) SnapshotDeviations(ctx context.Context, from, to timezone.Date, templateID int64) (arrivalTimetable.PreservedDeviations, error) {
-	snapshot, err := d.preserver.SnapshotDeviations(ctx, from, to, templateID)
-	if err != nil {
-		return nil, err
-	}
-	return snapshot, nil
+	return lifecycle.SeriesDeviations()
 }
 
 type noSeriesDeviations struct{}
 
-func (noSeriesDeviations) LockDeviationDays(context.Context, int64, timezone.Date, timezone.Date) error {
+func (noSeriesDeviations) LockDeviationDays(context.Context, int64, calendar.Date, calendar.Date) error {
 	return nil
 }
 
-func (noSeriesDeviations) SnapshotDeviations(context.Context, timezone.Date, timezone.Date, int64) (arrivalTimetable.PreservedDeviations, error) {
+func (noSeriesDeviations) SnapshotDeviations(context.Context, calendar.Date, calendar.Date, int64) (arrivalTimetable.PreservedDeviations, error) {
 	return noPreservedDeviations{}, nil
 }
 
@@ -303,7 +295,7 @@ type testArrivalBaselines struct {
 	reader careplan.ArrivalBaselineReader
 }
 
-func (b testArrivalBaselines) ProjectArrivals(ctx context.Context, studentIDs []int64, from, to timezone.Date) (arrivalTimetable.ArrivalBaselines, error) {
+func (b testArrivalBaselines) ProjectArrivals(ctx context.Context, studentIDs []int64, from, to calendar.Date) (arrivalTimetable.ArrivalBaselines, error) {
 	projection, err := b.reader.Project(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, err
@@ -315,7 +307,7 @@ type testArrivalProjection struct {
 	projection *careplan.ArrivalBaselineProjection
 }
 
-func (p testArrivalProjection) ExpectedArrival(studentID int64, date timezone.Date) (time.Time, bool) {
+func (p testArrivalProjection) ExpectedArrival(studentID int64, date calendar.Date) (time.Time, bool) {
 	row := p.projection.ForDate(studentID, date)
 	if row == nil {
 		return time.Time{}, false

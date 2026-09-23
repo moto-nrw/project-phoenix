@@ -1605,7 +1605,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		ReportService:           api.Services.EnrollmentReport,
 		PlanExportService:       api.Services.PlanExport,
 		PickupExtensions:        pickupExtensions,
-		Broadcaster:             api.Services.RealtimeHub,
+		Staffing:                timetableStaffingAnnouncer(api.Services.Instance),
 		Logger:                  logger.With("handler", "timetable"),
 		DB:                      db,
 	})
