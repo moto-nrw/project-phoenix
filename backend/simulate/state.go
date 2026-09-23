@@ -1,6 +1,7 @@
 package simulate
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
@@ -50,7 +51,6 @@ type SeedStateAccounts struct {
 type AccountCredentials struct {
 	Email     string `json:"email"`
 	Password  string `json:"password"`
-	PIN       string `json:"pin"`
 	Name      string `json:"name"`
 	StaffID   int64  `json:"staff_id"`
 	TeacherID int64  `json:"teacher_id,omitempty"`
@@ -74,6 +74,14 @@ func LoadSeedStateProfile(path, profileKey string) (*SeedState, error) {
 	contract, err := demoprofile.LoadSeedState(path)
 	if err != nil {
 		return nil, err
+	}
+	return SeedStateFromContract(contract, profileKey)
+}
+
+// SeedStateFromContract accepts a database-backed seed without a state file.
+func SeedStateFromContract(contract *demoprofile.SeedState, profileKey string) (*SeedState, error) {
+	if contract == nil {
+		return nil, fmt.Errorf("seed contract is required")
 	}
 	profile, err := contract.SelectProfile(profileKey)
 	if err != nil {
@@ -122,7 +130,7 @@ func simulationAccounts(accounts []demoprofile.AccountCredentials) []AccountCred
 	result := make([]AccountCredentials, 0, len(accounts))
 	for _, account := range accounts {
 		result = append(result, AccountCredentials{
-			Email: account.Email, Password: account.Password, PIN: account.PIN, Name: account.Name,
+			Email: account.Email, Password: account.Password, Name: account.Name,
 			StaffID: account.StaffID, TeacherID: account.TeacherID, Group: account.Group,
 		})
 	}

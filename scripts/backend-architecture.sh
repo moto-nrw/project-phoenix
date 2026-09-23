@@ -58,13 +58,17 @@ case "${1:-}" in
     shift
     run_with_default_baseline dependencies "$@"
     ;;
+  cycles)
+    shift
+    run_with_default_baseline cycles "$@"
+    ;;
   validate-ticket)
     shift
     cd "$repo_root/scripts/backend-architecture"
     exec go run . validate-ticket "$@"
     ;;
   *)
-    echo "Usage: $0 {check [--project path] [--policy path] [--baseline path] [--base-ref sha]|explain|audit-issues --api-url url|diagram [--output dir]|dependencies --focus module-or-package [--output dir]|validate-ticket --ticket path}" >&2
+    echo "Usage: $0 {check [--project path] [--policy path] [--baseline path] [--base-ref sha]|explain|audit-issues --api-url url|diagram [--output dir]|dependencies --focus module-or-package [--output dir]|cycles [--graph target|migration|both] [--json]|validate-ticket [--ticket path|--all] [--base-ref sha]}" >&2
     exit 2
     ;;
 esac

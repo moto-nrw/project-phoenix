@@ -64,7 +64,6 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificat
 		MessageReadRepo:       repos.ParentMessageRead,
 		Conversations:         communicationtest.NewParentConversationCore(repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead, bc, slog.Default()),
 		ParentMessageNotifier: notifier,
-		DB:                    db,
 		Logger:                slog.Default(),
 	})
 	return svc, bc, db, repos
@@ -231,7 +230,7 @@ func TestListChildThreads_NotOwnedDenied(t *testing.T) {
 
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 	defer func() {
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.students WHERE id = ?`, other.ID)
+		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.student_profiles WHERE id = ?`, other.ID)
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, other.PersonID)
 	}()
 

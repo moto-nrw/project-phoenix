@@ -1,0 +1,247 @@
+# Demo Docker Compose
+# Deployed manually from main by CI — changes here are synced to ~/demo/docker-compose.yml on the server.
+# Uses pre-built images from GHCR (pushed by CI build step).
+
+name: demo
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    # Loopback only: read-only developer access via SSH tunnel (see docs/operations/demo-environment.md).
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - demo-postgres:/var/lib/postgresql/data
+    environment:
+      TZ: ${TZ:?TZ is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    command:
+      [
+        "postgres",
+        "-c",
+        "shared_preload_libraries=pg_stat_statements",
+        "-c",
+        "pg_stat_statements.track=all",
+      ]
+    healthcheck:
+      # The init-only server accepts sockets before restarting; wait for TCP.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
+      interval: 1s
+      timeout: 1s
+      retries: 5
+    logging:
+      driver: journald
+      options:
+        tag: demo-postgres
+    networks:
+      - demo
+
+  server:
+    image: ghcr.io/moto-nrw/phoenix-server:demo
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # At most this many demo schools exist at once; a further request that
+    # needs a new one answers 503 demo_capacity_reached (#3466).
+    command: ["./main", "serve", "--demo-max-active-schools", "300"]
+    ports:
+      - "127.0.0.1:8082:8080"
+    volumes:
+      - demo-avatar-uploads:/app/public/uploads
+    environment:
+      # Endpoint only. The application password is added by GetServeDSN.
+      # Never interpolate the privileged maintenance DB_DSN here.
+      DB_DSN: postgres://phoenix_auth@postgres:5432/postgres?sslmode=disable
+      TZ: ${TZ:?TZ is required}
+      APP_ENV: ${APP_ENV:?APP_ENV is required}
+      LOG_LEVEL: ${LOG_LEVEL:?LOG_LEVEL is required}
+      LOG_TEXTLOGGING: ${LOG_TEXTLOGGING:?LOG_TEXTLOGGING is required}
+      PORT: ${PORT:?PORT is required}
+      DB_MAX_OPEN_CONNS: ${DB_MAX_OPEN_CONNS:?DB_MAX_OPEN_CONNS is required}
+      DB_MAX_IDLE_CONNS: ${DB_MAX_IDLE_CONNS:?DB_MAX_IDLE_CONNS is required}
+      DB_CONN_MAX_LIFETIME: ${DB_CONN_MAX_LIFETIME:?DB_CONN_MAX_LIFETIME is required}
+      DB_CONN_MAX_IDLE_TIME: ${DB_CONN_MAX_IDLE_TIME:?DB_CONN_MAX_IDLE_TIME is required}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?AUTH_JWT_SECRET is required}
+      AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY:?AUTH_JWT_EXPIRY is required}
+      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:?AUTH_JWT_REFRESH_EXPIRY is required}
+      PHOENIX_AUTH_PASSWORD: ${PHOENIX_AUTH_PASSWORD:?PHOENIX_AUTH_PASSWORD is required}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:?EMAIL_FROM_ADDRESS is required}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:?EMAIL_FROM_NAME is required}
+      EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST:?EMAIL_SMTP_HOST is required}
+      EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT:?EMAIL_SMTP_PORT is required}
+      EMAIL_SMTP_USER: ${EMAIL_SMTP_USER?EMAIL_SMTP_USER is required}
+      EMAIL_SMTP_PASSWORD: ${EMAIL_SMTP_PASSWORD?EMAIL_SMTP_PASSWORD is required}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY?VAPID_PUBLIC_KEY is required}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY?VAPID_PRIVATE_KEY is required}
+      VAPID_SUBSCRIBER: ${VAPID_SUBSCRIBER?VAPID_SUBSCRIBER is required}
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL is required}
+      PARENTS_URL: ${PARENTS_URL:?PARENTS_URL is required}
+      SCHOOL_URL: ${SCHOOL_URL:?SCHOOL_URL is required}
+      TENANT_DOMAIN: ${TENANT_DOMAIN:?TENANT_DOMAIN is required}
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: ${NEXT_PUBLIC_OPERATOR_HOSTNAME:?NEXT_PUBLIC_OPERATOR_HOSTNAME is required}
+      INVITATION_TOKEN_EXPIRY_HOURS: ${INVITATION_TOKEN_EXPIRY_HOURS:?INVITATION_TOKEN_EXPIRY_HOURS is required}
+      PASSWORD_RESET_TOKEN_EXPIRY_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRY_MINUTES:?PASSWORD_RESET_TOKEN_EXPIRY_MINUTES is required}
+      ENABLE_CORS: ${ENABLE_CORS:?ENABLE_CORS is required}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS is required}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:?RATE_LIMIT_ENABLED is required}
+      RATE_LIMIT_REQUESTS_PER_MINUTE: ${RATE_LIMIT_REQUESTS_PER_MINUTE:?RATE_LIMIT_REQUESTS_PER_MINUTE is required}
+      RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:?RATE_LIMIT_BURST is required}
+      RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE: ${RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE:?RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE is required}
+      SECURITY_LOGGING_ENABLED: ${SECURITY_LOGGING_ENABLED:?SECURITY_LOGGING_ENABLED is required}
+      METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:?METRICS_BEARER_TOKEN is required}
+      SENTRY_DSN: ${SENTRY_DSN?SENTRY_DSN is required}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT?SENTRY_ENVIRONMENT is required}
+      POSTHOG_API_KEY: ${POSTHOG_API_KEY?POSTHOG_API_KEY is required}
+      POSTHOG_HOST: ${POSTHOG_HOST?POSTHOG_HOST is required}
+      CLEANUP_SCHEDULER_ENABLED: ${CLEANUP_SCHEDULER_ENABLED:?CLEANUP_SCHEDULER_ENABLED is required}
+      CLEANUP_SCHEDULER_TIME: ${CLEANUP_SCHEDULER_TIME:?CLEANUP_SCHEDULER_TIME is required}
+      CLEANUP_SCHEDULER_TIMEOUT_MINUTES: ${CLEANUP_SCHEDULER_TIMEOUT_MINUTES:?CLEANUP_SCHEDULER_TIMEOUT_MINUTES is required}
+      SESSION_END_SCHEDULER_ENABLED: ${SESSION_END_SCHEDULER_ENABLED:?SESSION_END_SCHEDULER_ENABLED is required}
+      SESSION_END_TIME: ${SESSION_END_TIME:?SESSION_END_TIME is required}
+      SESSION_END_TIMEOUT_MINUTES: ${SESSION_END_TIMEOUT_MINUTES:?SESSION_END_TIMEOUT_MINUTES is required}
+      STUDENT_DAILY_CHECKOUT_TIME: ${STUDENT_DAILY_CHECKOUT_TIME:?STUDENT_DAILY_CHECKOUT_TIME is required}
+      SESSION_CLEANUP_ENABLED: ${SESSION_CLEANUP_ENABLED:?SESSION_CLEANUP_ENABLED is required}
+      SESSION_CLEANUP_INTERVAL_MINUTES: ${SESSION_CLEANUP_INTERVAL_MINUTES:?SESSION_CLEANUP_INTERVAL_MINUTES is required}
+      SESSION_ABANDONED_THRESHOLD_MINUTES: ${SESSION_ABANDONED_THRESHOLD_MINUTES:?SESSION_ABANDONED_THRESHOLD_MINUTES is required}
+      OGS_DEVICE_PIN: ${OGS_DEVICE_PIN:?OGS_DEVICE_PIN is required}
+    logging:
+      driver: journald
+      options:
+        tag: demo-server
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - demo
+
+  frontend:
+    image: ghcr.io/moto-nrw/phoenix-frontend:demo
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "127.0.0.1:3002:3000"
+    environment:
+      # Allowlist: browser build values and frontend-owned runtime secrets only.
+      TZ: ${TZ:?TZ is required}
+      AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY:?AUTH_JWT_EXPIRY is required}
+      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:?AUTH_JWT_REFRESH_EXPIRY is required}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:?NEXTAUTH_URL is required}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required}
+      METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:?METRICS_BEARER_TOKEN is required}
+      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:?AUTH_TRUST_HOST is required}
+      TENANT_DOMAIN: ${TENANT_DOMAIN:?TENANT_DOMAIN is required}
+      NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:?NEXT_PUBLIC_APP_ENV is required}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL is required}
+      NEXT_PUBLIC_LOG_LEVEL: ${NEXT_PUBLIC_LOG_LEVEL:?NEXT_PUBLIC_LOG_LEVEL is required}
+      NEXT_PUBLIC_TENANT_DOMAIN: ${NEXT_PUBLIC_TENANT_DOMAIN:?NEXT_PUBLIC_TENANT_DOMAIN is required}
+      NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY?NEXT_PUBLIC_POSTHOG_KEY is required}
+      NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST?NEXT_PUBLIC_POSTHOG_HOST is required}
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: ${NEXT_PUBLIC_OPERATOR_HOSTNAME:?NEXT_PUBLIC_OPERATOR_HOSTNAME is required}
+      NEXT_PUBLIC_PARENTS_HOSTNAME: ${NEXT_PUBLIC_PARENTS_HOSTNAME:?NEXT_PUBLIC_PARENTS_HOSTNAME is required}
+      NEXT_PUBLIC_SCHOOL_HOSTNAME: ${NEXT_PUBLIC_SCHOOL_HOSTNAME:?NEXT_PUBLIC_SCHOOL_HOSTNAME is required}
+      NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN?NEXT_PUBLIC_SENTRY_DSN is required}
+      NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT?NEXT_PUBLIC_SENTRY_ENVIRONMENT is required}
+      # Frontend-specific: internal API URL (not exposed via .env)
+      API_URL: http://server:8080
+      # Next.js and the backend listen on different ports.
+      PORT: 3000
+      # Bind Next.js standalone to IPv4 so Docker healthchecks can reach it inside Alpine.
+      HOSTNAME: 0.0.0.0
+    logging:
+      driver: journald
+      options:
+        tag: demo-frontend
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - demo
+
+  # Demo process (docs/operations/standing-demo.md): seeds one demo school per
+  # demo access and keeps them alive. deploy-remote.sh pins the image to the
+  # server's revision and starts it with the application.
+  # Fallback to the one standing demo school: append "--demo-standing-school"
+  # to this command AND to the server's command; check-runtime-env.py rejects
+  # a stack where only one of them carries it.
+  demo-runtime:
+    image: ghcr.io/moto-nrw/phoenix-server:demo
+    command: ["./main", "demo", "--url", "http://server:8080", "--heartbeat", "/tmp/demo-heartbeat"]
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    # No published port, state file or upload volume belongs to the sidecar.
+    network_mode: service:server
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      APP_ENV: ${APP_ENV:?APP_ENV is required}
+      TZ: ${TZ:?TZ is required}
+      DEMO_DB_DSN: ${DEMO_DB_DSN:?DEMO_DB_DSN is required}
+      DB_MAX_OPEN_CONNS: ${DB_MAX_OPEN_CONNS:?DB_MAX_OPEN_CONNS is required}
+      DB_MAX_IDLE_CONNS: ${DB_MAX_IDLE_CONNS:?DB_MAX_IDLE_CONNS is required}
+      DB_CONN_MAX_LIFETIME: ${DB_CONN_MAX_LIFETIME:?DB_CONN_MAX_LIFETIME is required}
+      DB_CONN_MAX_IDLE_TIME: ${DB_CONN_MAX_IDLE_TIME:?DB_CONN_MAX_IDLE_TIME is required}
+      PHOENIX_DEMO_PASSWORD: ${PHOENIX_DEMO_PASSWORD:?PHOENIX_DEMO_PASSWORD is required}
+      OPERATOR_EMAIL: ${OPERATOR_EMAIL:?OPERATOR_EMAIL is required}
+      OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:?OPERATOR_PASSWORD is required}
+      OGS_DEVICE_PIN: ${OGS_DEVICE_PIN:?OGS_DEVICE_PIN is required}
+    logging:
+      driver: journald
+      options:
+        tag: demo-runtime
+    healthcheck:
+      # Every successful tick (5-8 s apart) rewrites the heartbeat. A frozen or
+      # failing runner turns unhealthy instead of leaving a silent, static demo.
+      test: ["CMD-SHELL", "[ -n \"$$(find /tmp/demo-heartbeat -mmin -2)\" ]"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # The first start seeds the whole school before its first tick.
+      start_period: 15m
+
+  # Explicit one-shot job, excluded from normal service startup.
+  migrate:
+    image: ghcr.io/moto-nrw/phoenix-server:demo
+    profiles: ["maintenance"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["./main", "migrate"]
+    environment:
+      TZ: ${TZ:?TZ is required}
+      APP_ENV: ${APP_ENV:?APP_ENV is required}
+      DB_DSN: ${DB_DSN:?DB_DSN is required}
+      DB_MAX_OPEN_CONNS: ${DB_MAX_OPEN_CONNS:?DB_MAX_OPEN_CONNS is required}
+      DB_MAX_IDLE_CONNS: ${DB_MAX_IDLE_CONNS:?DB_MAX_IDLE_CONNS is required}
+      DB_CONN_MAX_LIFETIME: ${DB_CONN_MAX_LIFETIME:?DB_CONN_MAX_LIFETIME is required}
+      DB_CONN_MAX_IDLE_TIME: ${DB_CONN_MAX_IDLE_TIME:?DB_CONN_MAX_IDLE_TIME is required}
+      PHOENIX_AUTH_PASSWORD: ${PHOENIX_AUTH_PASSWORD:?PHOENIX_AUTH_PASSWORD is required}
+      PHOENIX_DEMO_PASSWORD: ${PHOENIX_DEMO_PASSWORD:?PHOENIX_DEMO_PASSWORD is required}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?ADMIN_EMAIL is required}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
+      OPERATOR_EMAIL: ${OPERATOR_EMAIL:?OPERATOR_EMAIL is required}
+      OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:?OPERATOR_PASSWORD is required}
+      OPERATOR_DISPLAY_NAME: ${OPERATOR_DISPLAY_NAME:?OPERATOR_DISPLAY_NAME is required}
+    networks:
+      - demo
+
+networks:
+  demo:
+    driver: bridge
+
+volumes:
+  demo-postgres:
+  demo-avatar-uploads:
+    name: phoenix-demo-uploads

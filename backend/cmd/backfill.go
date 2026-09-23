@@ -120,6 +120,42 @@ func writeStudentOwnerReport(output io.Writer, report *migrations.StudentOwnerBa
 		"rows_rejected, mismatch_count, guardian_mismatch_count and care_state_mismatch_count", report)
 }
 
+func writeGuardianOwnerReport(output io.Writer, report *migrations.GuardianOwnerBackfillReport) error {
+	return writeBackfillReport(output, "guardian owner", "guardian-owner",
+		"rows_rejected, mismatch_count and guardian_access_mismatch_count", report)
+}
+
+func (root backfillRoot) guardianOwnerRun(cmd *cobra.Command, opts migrations.GuardianOwnerBackfillOptions) error {
+	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
+		opts.Logger = slog.Default().With("backfill", migrations.GuardianOwnerBackfillName)
+		report, err := migrations.RunGuardianOwnerBackfill(ctx, db, opts)
+		if report != nil {
+			err = errors.Join(err, writeGuardianOwnerReport(cmd.OutOrStdout(), report))
+		}
+		return err
+	})
+}
+
+func (root backfillRoot) guardianOwnerStatus(cmd *cobra.Command) error {
+	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
+		report, err := migrations.GuardianOwnerBackfillStatus(ctx, db)
+		if err != nil {
+			return err
+		}
+		return writeGuardianOwnerReport(cmd.OutOrStdout(), report)
+	})
+}
+
+func (root backfillRoot) guardianOwnerReset(cmd *cobra.Command) error {
+	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
+		if err := migrations.ResetGuardianOwnerBackfill(ctx, db); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintln(cmd.OutOrStdout(), "guardian owner backfill reset: target rows and checkpoints discarded; users.students_guardians untouched")
+		return err
+	})
+}
+
 func (root backfillRoot) studentOwnerRun(cmd *cobra.Command, opts migrations.StudentOwnerBackfillOptions) error {
 	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
 		opts.Logger = slog.Default().With("backfill", migrations.StudentOwnerBackfillName)
@@ -241,8 +277,50 @@ are then authoritative.`,
 	},
 }
 
+var backfillGuardianOwnerCmd = &cobra.Command{
+	Use:   "guardian-owner",
+	Short: "Backfill People, Care Plan and Identity guardian storage from users.students_guardians (#2755)",
+	Long: `Copy users.students_guardians into users.student_guardian_relationships,
+users.student_guardian_pickup_permissions and auth.guardian_student_access. Re-reads changed old rows
+until every tenant is stable, then prints per-tenant counts, checksums, batch timings, retries and the
+final-delta checkpoint that Cutover #2756 consumes. The Identity row binds the guardian's account as
+users.guardian_profiles names it; a drifted binding is reported as guardian_access_mismatch_count and
+closed by the next pass. Exits non-zero while any tenant is unstable.`,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		batchSize, err := cmd.Flags().GetInt(flagBackfillBatchSize)
+		if err != nil {
+			return err
+		}
+		maxPasses, err := cmd.Flags().GetInt(flagBackfillMaxPasses)
+		if err != nil {
+			return err
+		}
+		return defaultBackfillRoot.guardianOwnerRun(cmd, migrations.GuardianOwnerBackfillOptions{BatchSize: batchSize, MaxPasses: maxPasses})
+	},
+}
+
+var backfillGuardianOwnerStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show the persisted per-tenant checkpoints without copying",
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return defaultBackfillRoot.guardianOwnerStatus(cmd)
+	},
+}
+
+var backfillGuardianOwnerResetCmd = &cobra.Command{
+	Use:   "reset",
+	Short: "Discard target rows and checkpoints to restart from zero (refused after Cutover)",
+	Long: `Truncate users.student_guardian_relationships, users.student_guardian_pickup_permissions and
+auth.guardian_student_access and delete the guardian-owner checkpoints. users.students_guardians is never
+modified. The command refuses once Cutover #2756 has installed the compatibility mirror, because the
+targets are then authoritative.`,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return defaultBackfillRoot.guardianOwnerReset(cmd)
+	},
+}
+
 func init() {
-	for _, cmd := range []*cobra.Command{backfillStaffOwnerCmd, backfillStudentOwnerCmd} {
+	for _, cmd := range []*cobra.Command{backfillStaffOwnerCmd, backfillStudentOwnerCmd, backfillGuardianOwnerCmd} {
 		cmd.Flags().Int(flagBackfillBatchSize, 0, "rows per batch transaction (default 500)")
 		cmd.Flags().Int(flagBackfillMaxPasses, 0, "re-read passes per tenant before giving up on stability (default 5)")
 	}
@@ -253,4 +331,7 @@ func init() {
 	backfillCmd.AddCommand(backfillStudentOwnerCmd)
 	backfillStudentOwnerCmd.AddCommand(backfillStudentOwnerStatusCmd)
 	backfillStudentOwnerCmd.AddCommand(backfillStudentOwnerResetCmd)
+	backfillCmd.AddCommand(backfillGuardianOwnerCmd)
+	backfillGuardianOwnerCmd.AddCommand(backfillGuardianOwnerStatusCmd)
+	backfillGuardianOwnerCmd.AddCommand(backfillGuardianOwnerResetCmd)
 }

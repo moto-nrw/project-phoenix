@@ -32,15 +32,15 @@ func TestDataImportCutover_DepartureModesSurviveNoteOnlyUpdate(t *testing.T) {
 	requireNoRowErrors(t, result)
 
 	var studentID int64
-	require.NoError(t, db.NewSelect().TableExpr("users.students AS s").Column("s.id").
+	require.NoError(t, db.NewSelect().TableExpr("users.student_profiles AS s").Column("s.id").
 		Join("JOIN users.persons p ON p.id = s.person_id").Where("s.tenant_id = ? AND p.last_name = ?", tenantID, "Gehweise").Scan(ctx, &studentID))
 
 	// A second way home on Monday, stored by another writer (the parents
 	// portal records these mode sets), must survive an import that carries
 	// only the companion note.
-	_, err = db.NewUpdate().TableExpr("users.students").
+	_, err = db.NewUpdate().TableExpr("users.student_care_profiles").
 		Set(`allowed_departure_modes = '{"mon":["bus","accompanied"],"tue":["pickup"]}'::jsonb`).
-		Where("id = ?", studentID).Exec(ctx)
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", studentID).Exec(ctx)
 	require.NoError(t, err)
 
 	noteOnly := importModels.StudentImportRow{
@@ -58,8 +58,9 @@ func TestDataImportCutover_DepartureModesSurviveNoteOnlyUpdate(t *testing.T) {
 	readPlan := func() storedPlan {
 		t.Helper()
 		var plan storedPlan
-		require.NoError(t, db.NewSelect().TableExpr("users.students").
-			ColumnExpr("allowed_departure_modes::text AS allowed, departure_companion_note").Where("id = ?", studentID).Scan(ctx, &plan))
+		require.NoError(t, db.NewSelect().TableExpr("users.student_care_profiles").
+			ColumnExpr("allowed_departure_modes::text AS allowed, departure_companion_note").
+			Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", studentID).Scan(ctx, &plan))
 		return plan
 	}
 	stored := readPlan()

@@ -1,5 +1,5 @@
 // Package legacy keeps the retained staff absence and group substitution
-// repository contracts (models/active, models/education) alive on top of the
+// repository contracts (adapters/timerecords, models/education) alive on top of the
 // Workforce capability while their consumers migrate (#2688). It performs no
 // persistence of its own: every adapter maps the legacy models onto the public
 // capability types and preserves the error shapes those callers still classify

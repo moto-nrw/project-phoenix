@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -29,7 +28,7 @@ type flakyMailer struct {
 	err      error
 }
 
-func (m *flakyMailer) Send(email.Message) error {
+func (m *flakyMailer) Send(testpkg.EmailMessage) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.attempts++
@@ -45,7 +44,7 @@ func (m *flakyMailer) sent() int {
 	return m.attempts
 }
 
-func resetMailContent(t *testing.T, message email.Message) map[string]any {
+func resetMailContent(t *testing.T, message testpkg.EmailMessage) map[string]any {
 	t.Helper()
 	content, ok := message.Content.(map[string]any)
 	require.True(t, ok, "the reset mail carries its template content")

@@ -55,7 +55,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		Requests:                  repoFactory.Enrollment(),
 		Children:                  repoFactory.Enrollment(),
 		ApprovedOfferings:         approvedOfferingTestProjection(repoFactory),
-		CareOfferingRepo:          repoFactory.CareOffering,
+		CareOfferingRepo:          enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		Phases:                    repoFactory.Enrollment(),
 		PersonRepo:                repoFactory.Person,
 		StaffRepo:                 repoFactory.Staff,
@@ -70,10 +70,10 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		ActivityExceptionRepo:     repoFactory.ActivityException,
 		GuardianAccess:            testGuardianAccess(env.db),
 		StudentEnrollment:         testStudentEnrollment(env.db),
-		DepartureCompanions:       repoFactory.StudentCompanion,
+		DepartureCompanions:       repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteDepartureCompanions: repoFactory.CarePlan().DeleteCompanionEdges,
 		OutboxEnqueuer:            env.outbox,
-		StudentAudit:              usersService.NewStudentAuditService(repositories.NewStudentAudit(env.db)),
+		StudentAudit:              usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
 		FrontendURL:               "http://localhost:3000",
 		ParentsURL:                "http://parents.localhost:3000",
 		Settings:                  settings,
@@ -521,7 +521,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offering))
 	link := &capability.RequestChildOffering{
 		RequestChildID: source.ID,
 		CareOfferingID: offering.ID,

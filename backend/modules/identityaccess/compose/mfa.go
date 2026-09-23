@@ -12,17 +12,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// The MFA and passkey composition (#3331). The account MFA rows still live
-// in the retained repositories until #3226 moves them, so the root binds
-// them through AccountMFARecords; everything else the flows need — the
-// school settings, the challenge codec, the code hasher, the two mails and
-// the operator action log — is a consumer-owned seam the root fills.
+// The MFA and passkey composition owns its persistence. School settings,
+// challenge signing, code hashing, mail and the operator action log arrive
+// through consumer-owned seams.
 
-// AccountMFARecords is the account MFA persistence the root binds. A missing
-// row is reported as found=false, never as an error; a state change that did
-// not apply is an error, which is what keeps a code single-use.
+// AccountMFARecords is the test-decoration view of native MFA persistence.
+// A state change that did not apply is an error, keeping codes single-use.
 type AccountMFARecords interface {
 	FindAccountIdentity(ctx context.Context, accountID int64) (identityaccess.AccountMFAIdentity, bool, error)
 	AccountBelongsToTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
@@ -123,19 +121,21 @@ type PasskeyDependencies struct {
 // compositions without them report ErrAccountMFAUnavailable and
 // ErrOperatorMFAUnavailable.
 type MFADependencies struct {
-	Records       AccountMFARecords
-	Settings      MFASettings
-	Codec         MFAChallengeCodec
-	Codes         ShortCodeHasher
-	Mail          MFAMail
-	OperatorAudit OperatorActionLog
+	// DecorateRecords lets behavior tests inject persistence failures.
+	// Production leaves it nil and uses the native records directly.
+	DecorateRecords func(AccountMFARecords) AccountMFARecords
+	Settings        MFASettings
+	Codec           MFAChallengeCodec
+	Codes           ShortCodeHasher
+	Mail            MFAMail
+	OperatorAudit   OperatorActionLog
 	// JWTSecret derives the trusted-device HMAC key, so the cookie signature
 	// and the JWT signing key stay independent.
 	JWTSecret string
 	Passkeys  *PasskeyDependencies
 	Logger    *slog.Logger
 	// Capability lets a composition serve the account second factor itself
-	// instead of composing it over Records. The service root leaves it nil;
+	// instead of composing it over native records. The service root leaves it nil;
 	// a root that already holds the capability — a behaviour test driving
 	// the login branches, a future in-process fake — supplies it here, and
 	// the login gate, the MFA routes and the passkey registration all reach
@@ -146,6 +146,7 @@ type MFADependencies struct {
 // mfaFlows is what New composes from the MFA dependencies. Its members are
 // nil when a root composed the module without them.
 type mfaFlows struct {
+	records ports.AccountMFARecords
 	account *application.AccountMFAFlows
 	// capability is what the engine and the gate reach the account second
 	// factor through: the composed flows, or the one a root supplied.
@@ -161,6 +162,7 @@ type mfaFlows struct {
 func newMFACore(
 	service *application.Service,
 	operatorRecords *application.OperatorMFA,
+	records ports.AccountMFARecords,
 	sessions *SessionDependencies,
 	deps *MFADependencies,
 ) (mfaFlows, error) {
@@ -171,16 +173,19 @@ func newMFACore(
 		return mfaFlows{}, errors.New("identity access compose: mfa requires the session dependencies")
 	}
 	switch {
-	case deps.Records == nil, deps.Settings == nil, deps.Codec == nil, deps.Codes == nil,
+	case records == nil, deps.Settings == nil, deps.Codec == nil, deps.Codes == nil,
 		deps.Mail == nil, deps.OperatorAudit == nil, strings.TrimSpace(deps.JWTSecret) == "":
 		return mfaFlows{}, errors.New("identity access compose: every mfa dependency is required")
 	}
 	runtime := mfaRuntime(sessions)
 	trail := mfaAuditTrail{events: authAudit{sessions.Audit}, operator: deps.OperatorAudit}
 	secret := domain.DeriveMFASecret(deps.JWTSecret)
+	if deps.DecorateRecords != nil {
+		records = accountMFARecords{source: deps.DecorateRecords(publicAccountMFARecords{source: records})}
+	}
 
 	account, err := application.NewAccountMFAFlows(application.AccountMFAFlowDependencies{
-		Records: accountMFARecords{source: deps.Records}, Settings: deps.Settings,
+		Records: records, Settings: deps.Settings,
 		Codec: mfaChallengeCodec{deps.Codec}, Codes: deps.Codes, Mail: mfaMail{deps.Mail},
 		Audit: trail, Runtime: runtime, Secret: secret, Logger: deps.Logger,
 	})
@@ -198,7 +203,7 @@ func newMFACore(
 	if err != nil {
 		return mfaFlows{}, err
 	}
-	return mfaFlows{account: account, capability: capability, operator: operator}, nil
+	return mfaFlows{records: records, account: account, capability: capability, operator: operator}, nil
 }
 
 // withPasskeyFlows composes both portals' ceremonies once the session flows
@@ -223,7 +228,7 @@ func withPasskeyFlows(
 	}
 	runtime := mfaRuntime(sessions)
 	accountFlows, err := application.NewAccountPasskeyFlows(application.AccountPasskeyFlowDependencies{
-		Accounts: accountMFARecords{source: deps.Records}, Records: accountPasskeys, MFA: flows.account,
+		Accounts: flows.records, Records: accountPasskeys, MFA: flows.account,
 		Sessions: auth, Runtime: runtime, RPID: deps.Passkeys.RPID, RPName: deps.Passkeys.RPName,
 		TenantDomain: deps.Passkeys.TenantDomain,
 	})
@@ -241,7 +246,7 @@ func withPasskeyFlows(
 	// The ceremonies are carried in a new value rather than written into the
 	// composed one: the composition surface stays free of mutable wiring.
 	return mfaFlows{
-		account: flows.account, capability: flows.capability, operator: flows.operator,
+		records: flows.records, account: flows.account, capability: flows.capability, operator: flows.operator,
 		accountPasskey: accountFlows, operatorPasskey: operatorFlows,
 	}, nil
 }
@@ -267,6 +272,15 @@ func mfaRuntime(sessions *SessionDependencies) tenantRuntime {
 // operator login consults. Operator MFA is mandatory, so an unconfigured
 // gate issues the token pair directly, as the early phases did.
 type operatorMFAGate struct{ flows *application.OperatorMFAFlows }
+
+// operatorLoginGate is the gate the operator login consults; the demo
+// environment may leave it unconfigured (DemoDependencies.OperatorWithoutSecondFactor).
+func operatorLoginGate(flows mfaFlows, demo *DemoDependencies) operatorMFAGate {
+	if demo != nil && demo.OperatorWithoutSecondFactor {
+		return operatorMFAGate{}
+	}
+	return operatorMFAGate{flows.operator}
+}
 
 func (g operatorMFAGate) Configured() bool { return g.flows != nil }
 
@@ -678,7 +692,7 @@ func (e engine) OperatorDisableMFA(ctx context.Context, operatorID, schoolID, ta
 	if err != nil {
 		return err
 	}
-	return mfa.OperatorDisableMFA(ctx, operatorID, schoolID, targetAccountID, reason)
+	return mfa.OperatorDisableMFA(operatorSchoolContext(ctx, schoolID), operatorID, schoolID, targetAccountID, reason)
 }
 
 func (e engine) OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID, targetAccountID int64, override, reason string) error {
@@ -686,7 +700,19 @@ func (e engine) OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID
 	if err != nil {
 		return err
 	}
-	return mfa.OperatorSetMFAOverride(ctx, operatorID, schoolID, targetAccountID, override, reason)
+	return mfa.OperatorSetMFAOverride(operatorSchoolContext(ctx, schoolID), operatorID, schoolID, targetAccountID, override, reason)
+}
+
+// operatorSchoolContext runs an operator's school-scoped MFA admin write
+// under that school. The operator routes run outside the tenant middleware,
+// and the audit append needs the tenant (#3231: moved here from the operator
+// HTTP adapter, which may not name the tenant runtime). A missing school is
+// left to the application, which refuses it.
+func operatorSchoolContext(ctx context.Context, schoolID int64) context.Context {
+	if schoolID <= 0 {
+		return ctx
+	}
+	return tenant.WithTenantID(ctx, schoolID)
 }
 
 func (e engine) OperatorSetGlobalMFAOverride(ctx context.Context, operatorID, targetAccountID int64, override, reason string) error {

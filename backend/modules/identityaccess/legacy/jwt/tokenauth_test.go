@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/randstr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -48,6 +47,15 @@ func TestNewTokenAuthWithSecret_EmptySecret(t *testing.T) {
 	auth, err := newTestTokenAuth(t, "")
 	require.NoError(t, err)
 	assert.NotNil(t, auth)
+}
+
+func TestRejectGeneratedSecret(t *testing.T) {
+	t.Parallel()
+
+	err := rejectGeneratedSecret("random")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "AUTH_JWT_SECRET=random")
+	assert.NoError(t, rejectGeneratedSecret(testSecret))
 }
 
 func TestNewTokenAuthWithSecret_ShortSecret(t *testing.T) {
@@ -389,45 +397,6 @@ func TestParseStructToMap_NilSlices(t *testing.T) {
 
 	// Nil slices get explicitly set in ParseStructToMap
 	assert.NotNil(t, result)
-}
-
-// =============================================================================
-// randStringBytes Tests
-// =============================================================================
-
-func TestRandStringBytes_GeneratesCorrectLength(t *testing.T) {
-	t.Parallel()
-
-	lengths := []int{10, 32, 64, 128}
-
-	for _, length := range lengths {
-		result, _ := randstr.String(length, randstr.Alphanumeric)
-		assert.Len(t, result, length)
-	}
-}
-
-func TestRandStringBytes_GeneratesUniqueValues(t *testing.T) {
-	t.Parallel()
-
-	results := make(map[string]bool)
-
-	for i := 0; i < 100; i++ {
-		result, _ := randstr.String(32, randstr.Alphanumeric)
-		assert.False(t, results[result], "Generated duplicate random string")
-		results[result] = true
-	}
-}
-
-func TestRandStringBytes_ContainsOnlyValidChars(t *testing.T) {
-	t.Parallel()
-
-	validChars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-	result, _ := randstr.String(1000, randstr.Alphanumeric)
-
-	for _, char := range result {
-		assert.Contains(t, validChars, string(char), "Random string contains invalid character")
-	}
 }
 
 // =============================================================================

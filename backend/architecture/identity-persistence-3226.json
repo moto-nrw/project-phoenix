@@ -1,0 +1,152 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3389 relocation of the auth packages into modules/identityaccess/legacy",
+    "#3226 consumer migrations to owner capabilities and consumer-owned ports",
+    "#2720 account sessions and #2721 school membership reads"
+  ],
+  "owner_and_capability": "Identity & Access — native persistence for accounts, school memberships, roles, permissions, sessions, MFA, invitations, password resets, calendar-feed credentials and RFID ownership; signed identity token codecs; token adapter scope port",
+  "affected_packages": [
+    "modules/identityaccess",
+    "modules/identityaccess/compose",
+    "modules/identityaccess/internal/adapters/postgres",
+    "modules/identityaccess/legacy/jwt",
+    "database/repositories",
+    "database/repositories/users",
+    "models/users",
+    "services/users",
+    "api/auth",
+    "api/common",
+    "tenant",
+    "cmd",
+    "test"
+  ],
+  "affected_tables": [
+    "auth.accounts",
+    "auth.account_tenants",
+    "auth.account_roles",
+    "auth.roles",
+    "auth.permissions",
+    "auth.role_permissions",
+    "auth.account_permissions",
+    "auth.tokens",
+    "auth.invitation_tokens",
+    "auth.guardian_invitations",
+    "auth.accounts_parents",
+    "auth.password_reset_rate_limits",
+    "auth.mfa_credentials",
+    "auth.mfa_email_challenges",
+    "auth.mfa_trusted_devices",
+    "auth.mfa_overrides",
+    "users.rfid_cards"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/auth|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/users|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres|github.com/moto-nrw/project-phoenix/database/repositories",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres|github.com/moto-nrw/project-phoenix/models/base",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt|github.com/moto-nrw/project-phoenix/tenant",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/auth|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/models/users|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/models|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels|github.com/moto-nrw/project-phoenix/models/base",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt|github.com/moto-nrw/project-phoenix/internal/randstr",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/auth|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/cmd|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/users|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/models/users|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels|github.com/moto-nrw/project-phoenix/auth/userpass",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres|github.com/moto-nrw/project-phoenix/database/repositories/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt|github.com/moto-nrw/project-phoenix/internal/randstr",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt|github.com/spf13/viper",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/test|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+  ],
+  "atomic_cutover": "The legacy auth models and authpostgres repositories are deleted in the same change that binds every consumer to the module's native adapters, owner capabilities or consumer-owned ports; no consumer keeps a fallback to the legacy rows. The token adapter loses its tenant runtime, viper and randstr imports together with the root change that resolves the signer once and binds the scope gates through jwt.TenantScope. Table shapes, RLS policies and the token wire format are unchanged; no DDL and no data migration. The adapter package legacy/jwt itself stays and continues under #3487.",
+  "tests": [
+    "scripts/test-changed.sh origin/development without --fast on the final commit: 178 packages ok, 0 failures. An earlier run of the same command failed once in TestFullProductionRouterGolden/contracts/phase_response_query_budget (package api, enrollment phase responses, 13 instead of 10 statements); it did not reproduce in seven isolated reruns or in the two following full runs.",
+    "Identity & Access behavior and integration suites, api/auth, api/operator and api/common scope-middleware suites, TestNativeSessionCodecTokenBoundaries and TestNativeSessionCodecRejectsOtherHMACAlgorithms for the token wire format, the route-table golden with its verifier-before-authenticator walk.",
+    "scripts/backend-architecture.sh check and golangci-lint on the touched packages."
+  ],
+  "runtime_evidence": {
+    "source": "docs/runtime-checkpoints/identity-persistence-3226.md, identity-persistence-3226.raw.json and identity-persistence-3226.baseline.raw.json",
+    "sources": [
+      "docs/runtime-checkpoints/identity-persistence-3226.md",
+      "docs/runtime-checkpoints/identity-persistence-3226.raw.json",
+      "docs/runtime-checkpoints/identity-persistence-3226.baseline.raw.json"
+    ],
+    "workload": "2026-09-21 local hermetic PostgreSQL 17.11 test database, Go 1.27.0 darwin/arm64; five warmup plus 30 measured interleaved rounds of ten school account operations through the mounted auth router (login, refresh rotation, own account and school list, account list, account roles, effective and direct permissions, role assignment and removal), run back to back on merge base 3c33e6a4e8 and the candidate with the same harness file.",
+    "thresholds": "No task-specific latency SLO is defined. Statement counts per operation must not grow against the merge base, every request must return its expected status, and pool waits, lock waits and deadlocks must stay zero. Measured latencies are observations on a developer machine, not a production performance claim.",
+    "affected_rows": {
+      "state": "measured",
+      "result": "Written rows per call, base/candidate: login 3/3, refresh 4/4, role assignment 4/3, role removal 1/1, all reads 0/0; identical in every sample of a side."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "Statements per call including transaction scope, base/candidate: login 40/38, refresh 27/27, own account 1/1, own schools 9/9, account list 5/5, account roles 6/6, effective permissions 6/6, direct permissions 6/6, role assignment 25/25, role removal 10/10; identical in every sample of a side. No operation grew."
+    },
+    "latency_p50": {
+      "state": "measured",
+      "result": "Candidate 0.260 to 8.147 ms, baseline 0.249 to 8.359 ms per operation (nearest rank over 30 samples); per-operation values are in the evidence document."
+    },
+    "latency_p95": {
+      "state": "measured",
+      "result": "Candidate 0.333 to 9.416 ms, baseline 0.341 to 9.729 ms per operation (nearest rank over 30 samples); per-operation values are in the evidence document."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "0 unexpected statuses in 350 requests per side; every request returned its expected 200 or 204."
+    },
+    "pool_wait": {
+      "state": "measured",
+      "result": "Zero pool waits in all 300 measured samples on both sides."
+    },
+    "lock_wait": {
+      "state": "measured",
+      "result": "519 baseline and 496 candidate pg_stat_activity samples during the run, none with a backend waiting on a lock."
+    },
+    "deadlocks": {
+      "state": "measured",
+      "result": "pg_stat_database deadlock delta 0 on both sides."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The harness measures request paths. The session and token cleanup jobs keep their schedule and were not benchmarked; their behavior is covered by the module suites."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No worker retry policy is introduced or modified."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No queue or worker scheduling is introduced or modified."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The token boundary suites reject foreign-key, expired, wrong-kind and same-key HS384/HS512 tokens on every parse path; the route-table walk in api/route_table_golden_test.go fails when an authenticated route has no verifier before it."
+    },
+    "rollback": {
+      "state": "measured",
+      "result": "api/auth school identity rollback tests and the identity integration suites keep their rollback assertions and pass on the candidate."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "All ten measured operations succeed end to end through the mounted auth router on both sides; the full changed-package run on the final commit reports 178 packages ok."
+    }
+  },
+  "rollback_and_cleanup": "Revert the commit range against the unchanged schema; no data cleanup or deployment sequencing is required. AUTH_JWT_SECRET must be an explicit secret on both sides of the revert, as serve already required.",
+  "exit_criterion": "No package imports modules/identityaccess/legacy/authmodels or legacy/authpostgres, the token adapter imports neither tenant, viper nor internal/randstr, the architecture baseline drops the listed keys without additions, and the measured account operations keep or lower their statement counts. Removing legacy/jwt itself is outside this record and tracked in #3487."
+}

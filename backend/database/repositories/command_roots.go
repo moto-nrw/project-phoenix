@@ -15,9 +15,10 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
 )
@@ -58,8 +59,9 @@ func NewAuthCleanupRepositories(db *bun.DB, command auditModels.Command) AuthCle
 }
 
 type SessionCleanupRepositories struct {
-	Group           activeModels.GroupRepository
-	Supervisor      activeModels.GroupSupervisorRepository
+	// Sessions are the Student Presence session and supervision records the
+	// session cleanup runs on.
+	Sessions        studentpresence.SessionRecords
 	Device          iotModels.DeviceRepository
 	TimetableBridge scheduleModels.ActivityInstanceRepository
 }
@@ -77,24 +79,28 @@ func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Cap
 	if err != nil {
 		panic(fmt.Sprintf("session cleanup repositories: compose facilities: %v", err))
 	}
-	group := presenceCompose.NewLegacyGroupRepository(activeDeviceDirectory{devices: fleet}, NewPresenceGroupRecords(db), NewSessionActivities(timetableActivityGroupRepository{timetable: timetableCapability}),
-		presenceCompose.WithLegacyRoomDirectory(&activeRoomDirectory{rooms: rooms}))
+	sessions := newPresenceSessionRecords(presenceCompose.SessionRecordDependencies{
+		DB: db, Devices: activeDeviceDirectory{devices: fleet}, Rooms: &activeRoomDirectory{rooms: rooms},
+		Activities: NewSessionActivities(timetableActivityGroupRepository{timetable: timetableCapability}),
+	})
 	return SessionCleanupRepositories{
-		Group: group, Supervisor: presenceCompose.NewLegacyGroupSupervisorRepository(NewPresenceSupervisionRecords(db)), Device: device,
-		TimetableBridge: timetableActivityInstanceRepository{timetable: timetableCapability},
+		Sessions: sessions, Device: device,
+		TimetableBridge: newTimetableActivityInstanceRepository(db, timetableCapability, newStudentPresence(db)),
 	}
 }
 
 type RetentionCleanupRepositories struct {
-	Supervisor activeModels.GroupSupervisorRepository
-	Deletion   auditModels.DataDeletionRepository
+	// Sessions are the Student Presence session and supervision records the
+	// stale-supervisor cleanup runs on.
+	Sessions studentpresence.SessionRecords
+	Deletion auditModels.DataDeletionRepository
 }
 
 func NewRetentionCleanupRepositories(db *bun.DB, command auditModels.Command) RetentionCleanupRepositories {
 	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
 	return RetentionCleanupRepositories{
-		Supervisor: presenceCompose.NewLegacyGroupSupervisorRepository(NewPresenceSupervisionRecords(db)),
-		Deletion:   RouteDataDeletionWrites(deletions, command),
+		Sessions: NewPresenceSessionRecords(db),
+		Deletion: RouteDataDeletionWrites(deletions, command),
 	}
 }
 
@@ -111,17 +117,18 @@ func NewTimetableCleanupRepositories(db *bun.DB, command auditModels.Command, ti
 		panic("timetable cleanup repositories: timetable capability is required")
 	}
 	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
+	presence := newStudentPresence(db)
 	return TimetableCleanupRepositories{
-		Instance:  timetableActivityInstanceRepository{timetable: timetableCapability},
+		Instance:  newTimetableActivityInstanceRepository(db, timetableCapability, presence),
 		Exception: timetableActivityExceptionRepository{timetable: timetableCapability},
-		Student:   timetableInstanceStudentRepository{timetable: timetableCapability}, Deletion: RouteDataDeletionWrites(deletions, command),
+		Student:   newTimetableInstanceStudentRepository(db, timetableCapability, presence), Deletion: RouteDataDeletionWrites(deletions, command),
 		Deviation: auditRepo.NewDeviationEventRepository(auditRootRuntime(db)),
 	}
 }
 
 type TimeTrackingCleanupRepositories struct {
-	Session  activeModels.WorkSessionRepository
-	Absence  activeModels.StaffAbsenceRepository
+	Session  timerecords.WorkSessionRepository
+	Absence  timerecords.StaffAbsenceRepository
 	Deletion auditModels.DataDeletionRepository
 }
 

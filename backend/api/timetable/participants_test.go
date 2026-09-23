@@ -168,9 +168,9 @@ func TestGetInstanceParticipants_AlumnusExcluded(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, err := s.db.NewUpdate().
-		Table("users.students").
+		Table("users.student_school_memberships").
 		Set("status = ?", "alumnus").
-		Where("id = ?", s.students[0].studentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", s.students[0].studentID).
 		Exec(ctx)
 	require.NoError(t, err)
 

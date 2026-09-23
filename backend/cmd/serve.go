@@ -101,7 +101,7 @@ func scrubSentryEvent(event *sentry.Event) *sentry.Event {
 		event.Request.QueryString = appmiddleware.RedactFeedToken(event.Request.QueryString)
 		event.Request.Data = ""
 		for key := range event.Request.Headers {
-			for _, sensitive := range []string{"Authorization", "X-Staff-PIN", "X-Staff-Id", "X-Staff-Auth-PIN", "X-Device-Key"} {
+			for _, sensitive := range []string{"Authorization", "X-Staff-PIN", "X-Staff-Auth-PIN", "X-Staff-Id", "X-Device-Key"} {
 				if strings.EqualFold(key, sensitive) {
 					event.Request.Headers[key] = "[filtered]"
 					break
@@ -116,6 +116,9 @@ func init() {
 	RootCmd.AddCommand(serveCmd)
 
 	viper.SetDefault("log_level", "debug")
+	// Capacity of the public demo (#3466); required under APP_ENV=demo.
+	serveCmd.Flags().Int("demo-max-active-schools", 0, "public demo: how many demo schools may exist at once; further requests answer 503")
+	_ = viper.BindPFlag("demo_max_active_schools", serveCmd.Flags().Lookup("demo-max-active-schools"))
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:

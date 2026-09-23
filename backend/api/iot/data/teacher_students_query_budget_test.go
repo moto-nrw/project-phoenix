@@ -24,8 +24,8 @@ func TestTeacherStudentsQueryBudget(t *testing.T) {
 			group := testpkg.CreateTestEducationGroup(t, tc.db, fmt.Sprintf("TeacherBudget%d", len(teacherIDs)+i))
 			testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 			student := testpkg.CreateTestStudent(t, tc.db, fmt.Sprintf("Student%d", len(teacherIDs)+i), "Budget", "1a")
-			_, err := tc.db.NewUpdate().Model(student).ModelTableExpr(`users.students AS "student"`).
-				Set("group_id = ?", group.ID).Where("id = ?", student.ID).Exec(testpkg.Ctx(t))
+			_, err := tc.db.NewUpdate().Model(student).ModelTableExpr(`users.student_school_memberships AS "student"`).
+				Set("group_id = ?", group.ID).Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Exec(testpkg.Ctx(t))
 			require.NoError(t, err)
 			teacherIDs = append(teacherIDs, strconv.FormatInt(teacher.StaffID, 10))
 		}

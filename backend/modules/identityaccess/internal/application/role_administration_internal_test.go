@@ -259,9 +259,12 @@ func (s *raStore) GrantAccountPermission(_ context.Context, accountID, permissio
 func (s *raStore) DenyAccountPermission(context.Context, int64, int64) error   { return nil }
 func (s *raStore) RemoveAccountPermission(context.Context, int64, int64) error { return nil }
 
-func (s *raStore) FindManageableAccount(_ context.Context, accountID int64) (bool, error) {
+func (s *raStore) FindManageableAccount(_ context.Context, accountID int64) (domain.ManagedAccountRecord, error) {
 	s.record("find manageable account")
-	return s.manageable[accountID], nil
+	if !s.manageable[accountID] {
+		return domain.ManagedAccountRecord{}, domain.ErrAccountNotFound
+	}
+	return domain.ManagedAccountRecord{ID: accountID}, nil
 }
 
 func (s *raStore) LockAccount(_ context.Context, accountID int64) (bool, error) {
@@ -372,7 +375,8 @@ func newRAFixture(t *testing.T) *raFixture {
 	}
 	var err error
 	f.admin, err = NewRoleAdministration(RoleAdministrationDependencies{
-		Store: f.store, Profiles: f.profiles, Policy: raPolicy{}, IdentityRoles: lifecycleRoles{},
+		Accounts: f.store,
+		Store:    f.store, Profiles: f.profiles, Policy: raPolicy{}, IdentityRoles: lifecycleRoles{},
 		Identity: f.identity, Sessions: f.sessions, Runtime: &fakeRuntime{},
 	})
 	require.NoError(t, err)
@@ -789,7 +793,8 @@ func TestRoleAdministration_CaregiverRoleNeedsProfileOnLehrkraftAccount(t *testi
 
 	f, account, _ := newEnv(t, false)
 	admin := &RoleAdministration{
-		store: f.store, profiles: f.profiles, policy: raPolicy{}, identityRoles: caregiverLehrkraftRoles{},
+		accounts: f.store,
+		store:    f.store, profiles: f.profiles, policy: raPolicy{}, identityRoles: caregiverLehrkraftRoles{},
 		identity: f.identity, sessions: f.sessions, runtime: &fakeRuntime{}, logger: f.admin.logger,
 	}
 	role := f.store.addRole(domain.ManagedRole{Name: "lehrkraft", IsSystem: true})
@@ -797,7 +802,7 @@ func TestRoleAdministration_CaregiverRoleNeedsProfileOnLehrkraftAccount(t *testi
 	require.ErrorIs(t, err, domain.ErrRoleCaregiverNeedsProfile)
 
 	g, account, _ := newEnv(t, true)
-	admin.store, admin.profiles = g.store, g.profiles
+	admin.accounts, admin.store, admin.profiles = g.store, g.store, g.profiles
 	role = g.store.addRole(domain.ManagedRole{Name: "lehrkraft", IsSystem: true})
 	err = admin.AssignRoleToAccount(raContext(), account, role.ID)
 	require.ErrorIs(t, err, domain.ErrRoleLehrkraftCaregiverProfile, "the Lehrkraft profile guard runs first")

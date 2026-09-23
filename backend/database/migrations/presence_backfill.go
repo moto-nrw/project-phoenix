@@ -85,6 +85,9 @@ func PresenceBackfillBatch(ctx context.Context, db *bun.DB, tenantID int64, batc
 	if db == nil || tenantID <= 0 || batchSize < 1 || batchSize > 10000 {
 		return PresenceBackfillReport{}, fmt.Errorf("database, positive tenant ID and batch size between 1 and 10000 are required")
 	}
+	if err := requirePresenceStorageBeforeCutover(ctx, db); err != nil {
+		return PresenceBackfillReport{}, err
+	}
 	started := time.Now()
 	var retries, deadlocks int
 	var observation presenceBatchObservation

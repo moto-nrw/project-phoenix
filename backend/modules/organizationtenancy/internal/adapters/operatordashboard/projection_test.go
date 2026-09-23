@@ -38,23 +38,31 @@ func ambientTransaction(ctx context.Context) (bun.IDB, error) {
 	return tx, nil
 }
 
-// activeMemberships spells the Identity & Access active-membership statement
-// (AccountTenantRepository.ActiveMemberships, #2721) the root binds; this
-// test scope may not import that owner's adapter.
-func activeMemberships(ctx context.Context) *bun.SelectQuery {
+// fixtureAccountCounts binds the aggregate port to fixture memberships without
+// importing another owner's composition. Native aggregate behavior is covered
+// in Identity; these tests exercise the dashboard's school-group selection.
+func fixtureAccountCounts(ctx context.Context, groups map[int64][]int64) (map[int64]int, error) {
 	db, err := ambientTransaction(ctx)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return db.NewSelect().
-		TableExpr(`auth.account_tenants AS "account_tenant"`).
-		ColumnExpr(`"account_tenant".account_id`).
-		ColumnExpr(`"account_tenant".tenant_id`).
-		Where(`"account_tenant".status = ?`, "active")
+	counts := make(map[int64]int, len(groups))
+	for key, schoolIDs := range groups {
+		counts[key] = 0
+		if len(schoolIDs) == 0 {
+			continue
+		}
+		var count int
+		if err := db.NewRaw("SELECT COUNT(DISTINCT account_id) FROM auth.account_tenants WHERE status = 'active' AND tenant_id IN (?)", bun.List(schoolIDs)).Scan(ctx, &count); err != nil {
+			return nil, err
+		}
+		counts[key] = count
+	}
+	return counts, nil
 }
 
 func newProjection() *operatordashboard.Projection {
-	return operatordashboard.New(ambientTransaction, activeMemberships)
+	return operatordashboard.New(ambientTransaction, fixtureAccountCounts)
 }
 
 // TestAccountCountsFailClosedWithoutMembershipQuery pins that the account
@@ -68,13 +76,31 @@ func TestAccountCountsFailClosedWithoutMembershipQuery(t *testing.T) {
 
 	withinAdmin(t, db, func(ctx context.Context) error {
 		_, err := projection.Counts(ctx)
-		require.ErrorContains(t, err, "active membership query is not bound")
+		require.ErrorContains(t, err, "active account counts are not bound")
 		_, err = projection.OrganizationSummaries(ctx)
-		require.ErrorContains(t, err, "active membership query is not bound")
+		require.ErrorContains(t, err, "active account counts are not bound")
 		_, err = projection.SchoolSummaries(ctx, nil)
-		require.ErrorContains(t, err, "active membership query is not bound")
+		require.ErrorContains(t, err, "active account counts are not bound")
 		_, err = projection.SchoolSummaries(ctx, &organizationID)
-		require.ErrorContains(t, err, "active membership query is not bound")
+		require.ErrorContains(t, err, "active account counts are not bound")
+		return nil
+	})
+
+	failure := errors.New("identity counts unavailable")
+	failing := operatordashboard.New(ambientTransaction, func(context.Context, map[int64][]int64) (map[int64]int, error) {
+		return nil, failure
+	})
+	withinAdmin(t, db, func(ctx context.Context) error {
+		_, err := failing.Counts(ctx)
+		require.ErrorIs(t, err, failure)
+		organizations, err := failing.OrganizationSummaries(ctx)
+		require.ErrorIs(t, err, failure)
+		require.Nil(t, organizations)
+		for _, filter := range []*int64{nil, &organizationID} {
+			schools, readErr := failing.SchoolSummaries(ctx, filter)
+			require.ErrorIs(t, readErr, failure)
+			require.Nil(t, schools)
+		}
 		return nil
 	})
 }
@@ -286,6 +312,32 @@ func TestProjection_SchoolSummaries_Global(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, del.DeletedAt)
 	assert.Equal(t, 0, del.AccountCount)
+}
+
+// TestProjection_SchoolSummaries_ChildQuota pins that both listings carry
+// the Kinderkontingent (#3568): the bundles and bundle size of a limited
+// school, and no bundles next to the default size for one without.
+func TestProjection_SchoolSummaries_ChildQuota(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	projection := newProjection()
+	fix := setupSummariesFixture(t, db)
+	_, err := db.ExecContext(context.Background(),
+		"UPDATE platform.schools SET child_quota_bundles = 3, child_quota_bundle_size = 40 WHERE id = ?", fix.SchoolA1)
+	require.NoError(t, err)
+
+	for name, organizationID := range map[string]*int64{"global": nil, "by organization": &fix.OrgA.ID} {
+		byID := map[int64]domain.SchoolSummary{}
+		for _, s := range schoolSummaries(t, db, projection, organizationID) {
+			byID[s.ID] = s
+		}
+		limited, unlimited := byID[fix.SchoolA1], byID[fix.SchoolA2]
+		require.NotNil(t, limited.ChildQuotaBundles, name)
+		assert.Equal(t, 3, *limited.ChildQuotaBundles, name)
+		assert.Equal(t, 40, limited.ChildQuotaBundleSize, name)
+		assert.Nil(t, unlimited.ChildQuotaBundles, name)
+		assert.Equal(t, 50, unlimited.ChildQuotaBundleSize, name)
+	}
 }
 
 func TestProjection_SchoolSummaries_ByOrganization(t *testing.T) {

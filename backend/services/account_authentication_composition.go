@@ -15,6 +15,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/uptrace/bun"
@@ -34,7 +35,7 @@ import (
 // the auth service was composed with.
 type accountAuthenticationWiring struct {
 	repos         sessionRepositories
-	tokenAuth     *authjwt.TokenAuth
+	codec         identityaccessCompose.SignedIdentityTokens
 	settings      config.SettingsService
 	audit         auditModels.Command
 	logger        *slog.Logger
@@ -59,6 +60,12 @@ type accountAuthenticationWiring struct {
 	// flows (#3332); nil composes the module without them and every
 	// operator link reports it as unavailable.
 	operatorLinks *operatorLinkWiring
+	// demoAccess composes the public demo flow only for APP_ENV=demo.
+	demoAccess *demoAccessWiring
+	// demoStandingSchool is the slug of the standing demo school every demo
+	// access enters instead of a school of its own: the fallback of #3463.
+	// Empty gives every access its own school.
+	demoStandingSchool string
 }
 
 // sessionRepositories are the retained repositories the session seams read:
@@ -82,23 +89,29 @@ func sessionRepositoriesOf(repos *repositories.Factory, organizations organizati
 		persons: repos.Person, staff: repos.Staff, teachers: repos.Teacher, students: repos.Student,
 		guardianProfiles: repos.GuardianProfile, studentGuardians: repos.StudentGuardian, authEvents: repos.AuthEvent,
 	}
-	lifecycle.roles, lifecycle.rolesErr = repositories.NewIdentityRoleDirectory(repositories.IdentityRoleRepositories{
-		Roles: repos.Role, Permissions: repos.Permission, RolePermissions: repos.RolePermission,
-		AccountRoles: repos.AccountRole, AccountPermissions: repos.AccountPermission,
-		Accounts: repos.Account, AccountTenants: repos.AccountTenant,
-	})
 	return sessionRepositories{
-		schools: newSchoolDirectory(organizations, repos),
+		schools: schoolDirectory{schools: organizations},
 		persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
 		lifecycle: lifecycle,
 	}
 }
 
+// signedIdentityTokensOf adapts a root's resolved signer to the native claim
+// codec. The signing primitive stays in the token adapter; Identity owns the
+// claim schema and validation.
+func signedIdentityTokensOf(signer *authjwt.TokenAuth) (identityaccessCompose.SignedIdentityTokens, error) {
+	codec, err := identityaccessCompose.NewSessionTokenCodec(signer.JwtAuth, signer.JwtExpiry, signer.JwtRefreshExpiry)
+	if err != nil {
+		return nil, fmt.Errorf("identity token codec: %w", err)
+	}
+	return codec, nil
+}
+
 // newIdentityAccessWithSessions composes the Identity & Access module with
 // the account-authentication flows bound.
 func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWiring) (*identityaccess.Module, error) {
-	if wiring.repos.schools.schools == nil || wiring.repos.persons == nil || wiring.repos.authEvents == nil || wiring.repos.pushSubscriptions == nil || wiring.tokenAuth == nil || wiring.audit == nil {
-		return nil, errors.New("identity access composition: repositories, token auth and audit command are required")
+	if wiring.repos.schools.schools == nil || wiring.repos.persons == nil || wiring.repos.authEvents == nil || wiring.repos.pushSubscriptions == nil || wiring.codec == nil || wiring.audit == nil {
+		return nil, errors.New("identity access composition: repositories, token codec and audit command are required")
 	}
 	observe := func(identityaccessCompose.Observation) {}
 	if wiring.observe != nil {
@@ -116,17 +129,21 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	if err != nil {
 		return nil, err
 	}
+	demo, err := demoDependencies(wiring.demoAccess, wiring.demoStandingSchool, wiring.repos.schools.schools)
+	if err != nil {
+		return nil, err
+	}
 	// The reset delivery records its outcome through the module it is
 	// composed into, so it reads the module back at call time.
 	var module *identityaccess.Module
 	resets := passwordResetDependencies(wiring.resets, func() identityaccess.PasswordResets { return module }, wiring.logger)
-	invitations := invitationDependencies(wiring.invitations, func() identityaccess.SchoolInvitations { return module }, wiring.logger)
+	invitations := invitationDependencies(wiring.invitations, wiring.codec, func() identityaccess.SchoolInvitations { return module }, wiring.logger)
 	operatorLinks := operatorProvisioningDependencies(wiring.operatorLinks, func() identityaccess.OperatorTokens { return module }, wiring.logger)
 	module, err = identityaccessCompose.New(identityaccessCompose.Dependencies{
 		Lifecycle:            lifecycle,
 		Resets:               resets,
 		Invitations:          invitations,
-		MFA:                  mfaDependencies(wiring.mfa),
+		MFA:                  mfaDependencies(wiring.mfa, wiring.codec),
 		OperatorProvisioning: operatorLinks,
 		DB:                   db,
 		Observe:              observe,
@@ -134,7 +151,7 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 			Schools:       wiring.repos.schools,
 			Persons:       personDirectory{persons: wiring.repos.persons},
 			Passwords:     passwordVerifier{},
-			Codec:         sessionTokenCodec{tokenAuth: wiring.tokenAuth},
+			Codec:         wiring.codec,
 			MFALock:       mfaPolicyLock{settings: wiring.settings},
 			Audit:         authAudit{command: wiring.audit, events: wiring.repos.authEvents},
 			Push:          pushSubscriptionCleanup{subscriptions: wiring.repos.pushSubscriptions},
@@ -142,11 +159,119 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 			Logger:        wiring.logger,
 		},
 		Operators: wiring.operators,
+		Demo:      demo,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return module, nil
+}
+
+func demoDependencies(wiring *demoAccessWiring, standingSchool string, schools organizationtenancy.Query) (*identityaccessCompose.DemoDependencies, error) {
+	if wiring == nil {
+		return nil, nil
+	}
+	if wiring.maxActiveSchools < 1 {
+		return nil, errors.New("the public demo requires serve --demo-max-active-schools above zero")
+	}
+	return &identityaccessCompose.DemoDependencies{
+		Schools: demoSchoolDirectory{
+			schools: schools, orders: organizationCompose.NewDemoSchoolOrders(SecureRandomSource(), wiring.maxActiveSchools), standing: standingSchool,
+		},
+		Mail:     newDemoAccessMail(wiring),
+		NewToken: authjwt.NewOpaqueCapabilityToken, Fingerprint: authjwt.OpaqueCapabilityFingerprint,
+		OperatorWithoutSecondFactor: wiring.operatorWithoutSecondFactor,
+	}, nil
+}
+
+// StandingDemoSchoolSlug is the shared demo school `go run . demo` provisions.
+// Every demo access enters it while the fallback is selected; accesses issued
+// before #3463 carry it as well.
+const StandingDemoSchoolSlug = "messe-demo"
+
+func standingDemoSchool(selected bool) string {
+	if selected {
+		return StandingDemoSchoolSlug
+	}
+	return ""
+}
+
+type demoSchoolDirectory struct {
+	schools  organizationtenancy.Query
+	orders   *organizationtenancy.DemoSchoolOrders
+	standing string
+}
+
+func (d demoSchoolDirectory) PrepareDemoSchool(ctx context.Context, schoolName, personName string) (string, error) {
+	if d.standing != "" {
+		return d.standing, nil
+	}
+	slug, err := d.orders.OrderDemoSchool(ctx, schoolName, personName)
+	if errors.Is(err, organizationtenancy.ErrDemoCapacityReached) {
+		return "", identityaccess.ErrDemoCapacityReached
+	}
+	return slug, err
+}
+
+// ReplaceDemoSchool hides the visitor's school and queues a fresh one with
+// the same names (#3470). It hides first, so the restart needs no free place
+// at the capacity; both happen in the caller's transaction, so a refused
+// order leaves the old school as it was. The standing school is shared: a
+// restart is refused.
+func (d demoSchoolDirectory) ReplaceDemoSchool(ctx context.Context, slug, schoolName, personName string) (string, error) {
+	if d.standing != "" || slug == StandingDemoSchoolSlug {
+		return "", identityaccess.ErrDemoAccessInvalid
+	}
+	if err := d.orders.RetireDemoSchool(ctx, slug); err != nil {
+		return "", err
+	}
+	return d.PrepareDemoSchool(ctx, schoolName, personName)
+}
+
+// MarkDemoSchoolUsed notes an entry. The standing school has no order and is
+// always simulated, so there is nothing to note for it.
+func (d demoSchoolDirectory) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {
+	if slug == d.standing {
+		return nil
+	}
+	return d.orders.MarkDemoSchoolUsed(ctx, slug, usedAt)
+}
+
+func (d demoSchoolDirectory) DemoSchoolEntry(ctx context.Context, slug string) (identityaccess.DemoSchoolEntry, error) {
+	preparing := identityaccess.DemoSchoolEntry{Status: identityaccess.DemoSchoolPreparing}
+	progress, err := d.orders.DemoSchoolProgress(ctx, slug)
+	if err != nil {
+		return preparing, err
+	}
+	// The standing school is provisioned without an order; its school record
+	// alone tells whether it can be entered.
+	if progress == nil && slug != d.standing {
+		return preparing, nil
+	}
+	if progress != nil && progress.Status != organizationtenancy.DemoSchoolReady {
+		return identityaccess.DemoSchoolEntry{Status: progress.Status}, nil
+	}
+	var school organizationtenancy.School
+	if progress != nil {
+		// The order names the school it seeded; the slug is only its address.
+		school, err = d.schools.FindSchool(ctx, progress.SchoolID)
+	} else {
+		school, err = d.schools.FindSchoolBySlug(ctx, slug)
+	}
+	if errors.Is(err, organizationtenancy.ErrSchoolNotFound) {
+		return preparing, nil
+	}
+	if err != nil {
+		return preparing, err
+	}
+	if !school.Active || school.IsDeleted() {
+		return preparing, nil
+	}
+	entry := identityaccess.DemoSchoolEntry{Status: identityaccess.DemoSchoolReady, SchoolID: school.ID}
+	if progress != nil {
+		entry.AccountID, entry.ParentAccountID = progress.VisitorAccountID, progress.VisitorParentAccountID
+	}
+	return entry, nil
 }
 
 // AccountAuthentication returns the Identity & Access module the session,
@@ -157,35 +282,17 @@ func (f *Factory) AccountAuthentication() *identityaccess.Module {
 	return f.Auth
 }
 
-// --- retained owner seams -------------------------------------------------
-
-// newSchoolDirectory binds the session school seam to the Organisation &
-// Tenancy capability and to the retained account-tenant memberships.
-func newSchoolDirectory(organizations organizationtenancy.Query, repos *repositories.Factory) schoolDirectory {
-	directory := schoolDirectory{schools: organizations}
-	if repos == nil || repos.AccountTenant == nil {
-		return directory
-	}
-	memberships := repos.AccountTenant
-	directory.activeTenantIDs = func(ctx context.Context, accountID int64) ([]int64, error) {
-		rows, err := memberships.FindActiveByAccountID(ctx, accountID)
-		if err != nil {
-			return nil, err
-		}
-		ids := make([]int64, 0, len(rows))
-		for _, row := range rows {
-			ids = append(ids, row.TenantID)
-		}
-		return ids, nil
-	}
-	return directory
+// AccountRouteTenantRuntime is the tenant runtime the account routes of
+// Identity & Access run in (#2736). The root may not name the module's
+// composition, so it takes the runtime from here.
+func AccountRouteTenantRuntime() identityaccessCompose.TenantUnitOfWork {
+	return identityaccessCompose.TenantUnitOfWork{}
 }
+
+// --- retained owner seams -------------------------------------------------
 
 type schoolDirectory struct {
 	schools organizationtenancy.Query
-	// activeTenantIDs lists the schools the account holds an active
-	// membership in.
-	activeTenantIDs func(ctx context.Context, accountID int64) ([]int64, error)
 }
 
 func schoolFact(school organizationtenancy.School) identityaccess.School {
@@ -235,13 +342,12 @@ func (d schoolDirectory) LockSchoolShared(ctx context.Context, id int64) (identi
 	return schoolFact(school), true, nil
 }
 
-func (d schoolDirectory) ListActiveSchoolsOfAccount(ctx context.Context, accountID int64) ([]identityaccess.School, error) {
-	if d.schools == nil || d.activeTenantIDs == nil {
+func (d schoolDirectory) ListActiveSchoolsByID(ctx context.Context, ids []int64) ([]identityaccess.School, error) {
+	if d.schools == nil {
 		return nil, errors.New("school directory is not composed")
 	}
-	ids, err := d.activeTenantIDs(ctx, accountID)
-	if err != nil || len(ids) == 0 {
-		return []identityaccess.School{}, err
+	if len(ids) == 0 {
+		return []identityaccess.School{}, nil
 	}
 	schools, err := d.schools.ListSchoolsByID(ctx, ids)
 	if err != nil {
@@ -298,78 +404,6 @@ type passwordVerifier struct{}
 func (passwordVerifier) VerifyPassword(password, hash string) (bool, error) {
 	return securityruntime.VerifyPassword(password, hash)
 }
-
-type sessionTokenCodec struct{ tokenAuth *authjwt.TokenAuth }
-
-func appClaims(claims identityaccess.SessionClaims) authjwt.AppClaims {
-	return authjwt.AppClaims{
-		ID: int(claims.AccountID), Sub: claims.Email, Username: claims.Username, FirstName: claims.FirstName, LastName: claims.LastName,
-		Roles: claims.Roles, Permissions: claims.Permissions, IsAdmin: claims.IsAdmin, Scope: claims.Scope,
-		TenantID: claims.TenantID, OrgID: claims.OrgID, FamilyID: claims.FamilyID,
-		ReadOnly: claims.ReadOnly, ActingAdminID: claims.ActingAdminID, PreviewID: claims.PreviewID,
-		CommonClaims: authjwt.CommonClaims{ExpiresAt: claims.ExpiresAt, IssuedAt: claims.IssuedAt},
-	}
-}
-
-func sessionClaims(claims *authjwt.AppClaims) identityaccess.SessionClaims {
-	return identityaccess.SessionClaims{
-		AccountID: int64(claims.ID), Email: claims.Sub, Username: claims.Username, FirstName: claims.FirstName, LastName: claims.LastName,
-		Roles: claims.Roles, Permissions: claims.Permissions, IsAdmin: claims.IsAdmin, Scope: claims.Scope,
-		TenantID: claims.TenantID, OrgID: claims.OrgID, FamilyID: claims.FamilyID,
-		ReadOnly: claims.ReadOnly, ActingAdminID: claims.ActingAdminID, PreviewID: claims.PreviewID,
-		ExpiresAt: claims.ExpiresAt, IssuedAt: claims.IssuedAt,
-	}
-}
-
-func (c sessionTokenCodec) IssueTokenPair(access identityaccess.SessionClaims, refresh identityaccess.RefreshClaims) (string, string, error) {
-	return c.tokenAuth.GenTokenPair(appClaims(access), authjwt.RefreshClaims{
-		ID: int(refresh.AccountID), Token: refresh.Token, TenantID: refresh.TenantID, Scope: refresh.Scope,
-		CommonClaims: authjwt.CommonClaims{ExpiresAt: refresh.ExpiresAt},
-	})
-}
-
-func (c sessionTokenCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error) {
-	enrollmentScope := authjwt.MFAEnrollmentScopeTenant
-	switch scope {
-	case "school":
-		enrollmentScope = authjwt.MFAEnrollmentScopeSchool
-	case "platform":
-		enrollmentScope = authjwt.MFAEnrollmentScopePlatform
-	}
-	return c.tokenAuth.CreateMFAEnrollmentJWT(authjwt.MFAEnrollmentClaims{AccountID: accountID, Scope: enrollmentScope, TenantID: tenantID}, ttl)
-}
-
-func (c sessionTokenCodec) ParseAccessToken(token string) (identityaccess.SessionClaims, error) {
-	claims, err := c.tokenAuth.ParseAccessJWT(token)
-	if err != nil {
-		return identityaccess.SessionClaims{}, err
-	}
-	return sessionClaims(claims), nil
-}
-
-func (c sessionTokenCodec) ParseRefreshToken(token string) (identityaccess.RefreshClaims, error) {
-	decoded, err := c.tokenAuth.JwtAuth.Decode(token)
-	if err != nil {
-		return identityaccess.RefreshClaims{}, err
-	}
-	raw := make(map[string]any)
-	for _, key := range decoded.Keys() {
-		var value any
-		if decoded.Get(key, &value) == nil {
-			raw[key] = value
-		}
-	}
-	var claims authjwt.RefreshClaims
-	if err := claims.ParseClaims(raw); err != nil {
-		return identityaccess.RefreshClaims{}, err
-	}
-	if expiry, ok := decoded.Expiration(); ok {
-		claims.ExpiresAt = expiry.Unix()
-	}
-	return identityaccess.RefreshClaims{AccountID: int64(claims.ID), Token: claims.Token, TenantID: claims.TenantID, Scope: claims.Scope, ExpiresAt: claims.ExpiresAt}, nil
-}
-
-func (c sessionTokenCodec) RefreshExpiry() time.Duration { return c.tokenAuth.JwtRefreshExpiry }
 
 type mfaPolicyLock struct{ settings config.SettingsService }
 

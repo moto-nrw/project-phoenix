@@ -941,7 +941,7 @@ func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
-	require.NoError(t, s.factory.CalendarPeriod.CreatePeriod(s.ctx, periodB))
+	createCalendarPeriodRow(t, s.db, s.ctx, periodB)
 	s.cleanup = append(s.cleanup, func() {
 	})
 
@@ -1038,7 +1038,7 @@ func makeWeekdayRosterScenario(t *testing.T, anchor timezone.Date) *weekdayRoste
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
-	require.NoError(t, serviceFactory.CalendarPeriod.CreatePeriod(ctx, period))
+	createCalendarPeriodRow(t, db, ctx, period)
 
 	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, fmt.Sprintf("Raum-%d", suffix))
 	category := testpkg.CreateTestActivityCategoryForTenant(t, db, tenantID, fmt.Sprintf("Kat-%d", suffix))

@@ -99,6 +99,7 @@ jobs:
         env:
           PG_CONTAINER: ${{ job.services.postgres.id }}
           PHOENIX_AUTH_PASSWORD: phoenix_auth_test
+          PHOENIX_DEMO_PASSWORD: phoenix_demo_test
         run: |
           # pg_dump omits global objects (roles, ALTER ROLE ... SET). Recreate
           # them exactly as migration 001014001_create_tenant_roles.go does,
@@ -111,6 +112,7 @@ jobs:
           # refuses a v17 server.
           docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d phoenix_test <<EOF
           CREATE ROLE phoenix_auth LOGIN NOINHERIT PASSWORD '${PHOENIX_AUTH_PASSWORD}';
+          CREATE ROLE phoenix_demo LOGIN NOINHERIT PASSWORD '${PHOENIX_DEMO_PASSWORD}';
           CREATE ROLE phoenix_tenant NOLOGIN;
           CREATE ROLE phoenix_admin NOLOGIN BYPASSRLS;
           GRANT phoenix_tenant TO phoenix_auth;
@@ -130,6 +132,7 @@ jobs:
           DB_CONN_MAX_LIFETIME: 30m
           DB_CONN_MAX_IDLE_TIME: 10m
           PHOENIX_AUTH_PASSWORD: phoenix_auth_test
+          PHOENIX_DEMO_PASSWORD: phoenix_demo_test
         run: go run main.go migrate
 
       - name: Dump migrated database for snapshot cache
@@ -160,6 +163,7 @@ jobs:
           # value must stay identical to testdb.AuthRolePassword — the test
           # lifecycle pins the cluster-global phoenix_auth role to it.
           PHOENIX_AUTH_PASSWORD: phoenix_auth_test
+          PHOENIX_DEMO_PASSWORD: phoenix_demo_test
           # Dummy 32+ char secret so services.NewFactory can init the MFA
           # service in tests. NewFactory hard-fails without it (the secret
           # is the HMAC key for trusted-device cookies). Production and
@@ -315,11 +319,13 @@ jobs:
 
     env:
       DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_seed?sslmode=disable
+      DEMO_DB_DSN: postgres://phoenix_demo@localhost:5432/phoenix_seed?sslmode=disable
       DB_MAX_OPEN_CONNS: "40"
       DB_MAX_IDLE_CONNS: "40"
       DB_CONN_MAX_LIFETIME: 30m
       DB_CONN_MAX_IDLE_TIME: 10m
       PHOENIX_AUTH_PASSWORD: phoenix_auth_test
+      PHOENIX_DEMO_PASSWORD: phoenix_demo_test
       # validateServeConfig() in cmd/serve.go requires every one of these:
       # there are no fallback defaults anywhere in this codebase.
       PORT: "8080"
@@ -345,6 +351,7 @@ jobs:
       NEXT_PUBLIC_API_URL: http://localhost:8080
       NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
       NEXT_PUBLIC_PARENTS_HOSTNAME: parents.localhost:3000
+      NEXT_PUBLIC_APP_ENV: test
       NEXT_PUBLIC_SCHOOL_HOSTNAME: schule.localhost:3000
       TENANT_DOMAIN: localhost
       # api/server.go refuses to build the server without it.
@@ -424,6 +431,79 @@ jobs:
         run: |
           "${RUNNER_TEMP}/phoenix" simulate status --profile anmeldung-wochenplan
           "${RUNNER_TEMP}/phoenix" simulate status --profile anmeldung-buchungen
+
+      # The public demo (#3456) seeds one such school per visitor into a
+      # database that already holds others. The duration is what a visitor
+      # waits for, so it is printed per school.
+      - name: Seed two demo schools into the same database and simulate their day
+        working-directory: backend
+        run: |
+          for slug in demo-smoke-eins demo-smoke-zwei; do
+            started=$(date +%s)
+            "${RUNNER_TEMP}/phoenix" seed \
+              --email "${OPERATOR_EMAIL}" \
+              --password "${OPERATOR_PASSWORD}" \
+              --pin 1234 \
+              --url http://localhost:8080 \
+              --profile vollbetrieb \
+              --tenant-slug "${slug}" \
+              --school-name "OGS ${slug}" \
+              --staff-password 'SeedSmoke1234%' \
+              --state "${RUNNER_TEMP}/${slug}.seed-state.json"
+            seeded=$(date +%s)
+            "${RUNNER_TEMP}/phoenix" simulate full-day --profile vollbetrieb \
+              --state "${RUNNER_TEMP}/${slug}.seed-state.json"
+            finished=$(date +%s)
+            echo "demo school ${slug}: seed $((seeded - started))s, full day $((finished - seeded))s"
+          done
+
+      - name: Provision and restart the standing demo school
+        working-directory: backend
+        run: |
+          # The preceding scenarios consumed the operator's three MFA codes
+          # per 15-minute window. Reset only consumed challenge fixtures in
+          # this disposable CI database; keep production limits unchanged.
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
+            'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
+          # The standing school is the fallback of #3463 and keeps its coverage.
+          "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once --demo-standing-school
+          "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once --demo-standing-school
+
+      # One demo school per demo access (#3463): queue what the serving backend
+      # queues for three prospects, let the demo process seed them with its
+      # three workers and tick them once. A school that did not become ready
+      # fails the job. The durations are what a visitor waits for.
+      - name: Seed queued demo schools with the demo process
+        working-directory: backend
+        run: |
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
+            'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
+            "INSERT INTO platform.demo_school_states (name, school_name, person_name)
+             SELECT 'ogs-smoke-' || i || '-k3m9x' || i, 'OGS Smoke ' || i, 'Kim Beispiel' FROM generate_series(1, 3) AS i"
+          LOG_LEVEL=info "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once 2>&1 | grep -E 'demo school (ready|order failed)' || true
+          not_ready=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%' AND status <> 'ready'")
+          visitors=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM users.persons p JOIN platform.demo_school_states d ON d.tenant_id = p.tenant_id JOIN users.staff s ON s.person_id = p.id WHERE d.name LIKE 'ogs-smoke-%' AND p.first_name = 'Kim' AND p.last_name = 'Beispiel'")
+          echo "demo schools not ready: ${not_ready}, staff named after the visitor: ${visitors}"
+          test "${not_ready}" = 0
+          test "${visitors}" = 3
+          # The demo role parent (#3468): each school names the visitor's
+          # parent, a guardian of the visitor's name with full parent portal
+          # rights for exactly one child and no other child.
+          parents=$(psql "${DB_DSN}" -At -c "
+            SELECT count(*) FROM platform.demo_school_states d
+            JOIN users.guardian_profiles g ON g.account_id = d.visitor_parent_account_id AND g.tenant_id = d.tenant_id
+            WHERE d.name LIKE 'ogs-smoke-%' AND g.first_name = 'Kim' AND g.last_name = 'Beispiel'
+              AND (SELECT count(*) FROM users.student_guardian_relationships sg WHERE sg.guardian_profile_id = g.id) = 1
+              AND (SELECT count(*) FROM users.student_guardian_relationships sg
+                   JOIN auth.guardian_student_access sga ON sga.tenant_id = sg.tenant_id AND sga.relationship_id = sg.id
+                   WHERE sg.guardian_profile_id = g.id
+                   AND sg.guardian_role = 'primary_guardian' AND (sga.permissions ->> 'parent_portal.access')::boolean) = 1
+              AND (SELECT count(*) FROM users.guardian_profiles other
+                   JOIN users.student_guardian_relationships sg ON sg.guardian_profile_id = other.id
+                   WHERE other.account_id = d.visitor_parent_account_id) = 1")
+          echo "demo schools with the visitor's parent: ${parents}"
+          test "${parents}" = 3
 
       - name: Check seed coverage ratchet
         working-directory: backend

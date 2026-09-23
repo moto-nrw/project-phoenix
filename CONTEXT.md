@@ -45,15 +45,54 @@ getrennt erkennbar.
 ## Demo-Daten
 
 Ein **Demo-Schulprofil** ist ein stabil benanntes, synthetisches Szenario für
-genau eine Schule im lokalen Entwicklungs-Seed. Es legt die schulbezogenen
-Einstellungen, Zugangsdaten, Stammdaten und fachlich erwarteten Zustände fest
-und wird über dieselben HTTP-Schnittstellen aufgebaut, die auch das Produkt
-verwendet.
+genau eine Schule. Es legt die schulbezogenen Einstellungen, Zugangsdaten,
+Stammdaten und fachlich erwarteten Zustände fest und wird über dieselben
+HTTP-Schnittstellen aufgebaut, die auch das Produkt verwendet. Aus einem
+Profil entstehen die Schulen des lokalen Entwicklungs-Seeds und die
+Demo-Schulen der öffentlichen Demo.
+
+Die **öffentliche Demo** ist das Angebot, moto ohne Vertrag und ohne eigene
+Daten auszuprobieren. Sie enthält ausschließlich synthetische Daten und läuft
+getrennt von den Schulen echter Träger.
+
+Eine **Demo-Schule** ist eine aus einem Demo-Schulprofil erzeugte Schule, die
+genau einem Interessenten gehört. Er darf darin alles ändern; seine Änderungen
+sind für niemanden sonst sichtbar. Eine Demo-Schule verfällt, wenn sie länger
+nicht genutzt wird.
+
+Ein **Demo-Zugang** verbindet die E-Mail-Adresse eines Interessenten mit
+seiner Demo-Schule. Der Interessent betritt die Demo-Schule über einen Link
+aus einer E-Mail und wählt dort eine **Demo-Rolle** (Betreuungskraft,
+OGS-Leitung oder Elternteil), ohne sich ein Passwort zu setzen.
+
+_Vermeiden_: Demo-Tenant (klingt nach einer gemeinsamen Schule für alle),
+Sandbox, Testzugang, Probeaccount.
 
 **Szenarioparität** bedeutet, dass die Demo-Schulprofile die relevanten, in
 echten Schulen vorkommenden Konfigurationen und fachlichen Zustände
 repräsentieren. Sie bedeutet weder eine Kopie von Produktionsdaten noch deren
 Zeilenzahlen oder Verteilungen.
+
+## Nutzungsanalyse
+
+Die **Nutzungsanalyse** zeigt dem moto-Team, wie moto benutzt wird: welche
+Seiten und Funktionen, wo Nutzer hängen bleiben, wie Interessenten durch die
+öffentliche Demo gehen. Sie dient nur der Produktverbesserung; Schulen und
+Träger sehen sie nicht, und sie bewertet keine einzelnen Mitarbeitenden.
+
+Eine **Sitzungsaufzeichnung** gibt eine Browsersitzung als Film wieder, mit
+ausgeblendeten Inhalten. In der öffentlichen Demo läuft sie immer. In einer
+echten Schule laufen sie und die Wiedererkennung einzelner Nutzer nur im
+OGS-Portal und nur mit **Analyse-Freigabe**: der schriftlichen Zustimmung der
+Schule bzw. ihres Trägers, die das moto-Team daraufhin für genau diese Schule
+erteilt. Ohne Analyse-Freigabe, im Eltern-Portal, im Schul-Portal der
+Lehrkräfte und im Träger-Büro bleibt die Nutzungsanalyse ohne Personenbezug.
+Jede neue Oberfläche und jede neue Seite gehört von Anfang an zur
+Nutzungsanalyse.
+
+_Vermeiden_: Tracking (klingt nach Überwachung von Personen), Telemetrie,
+Monitoring (gehört zum Betrieb, nicht zur Nutzung), Replay-Freigabe (deckt nur
+die Hälfte der Analyse-Freigabe ab).
 
 ## Auswahl
 
@@ -383,6 +422,19 @@ Ein **Betreuungsangebot** ist eine innerhalb der OGS-Betreuung auswählbare
 Leistung, etwa Mittagessen oder Ferienbetreuung. Eine Änderung der Auswahl ist
 eine Elternanfrage und wird erst nach Bestätigung durch die OGS wirksam.
 
+## Schultext und Übersetzung
+
+Ein **Schultext** ist ein Text der Online-Anmeldung, den die Schule selbst
+schreibt: Name der Anmeldephase, Fragen, Hinweise, Infotexte, Auswahlwerte,
+Zustimmungstexte, Name, Beschreibung und Pflichtauswahl-Gruppe eines
+Betreuungsangebots. Die
+Sprachwahl der Eltern übersetzt ihn nicht von selbst.
+
+Eine **Übersetzung** eines Schultexts pflegt die Schule selbst. Sie ist
+**gültig**, solange der deutsche Text unverändert ist, zu dem sie geschrieben
+wurde. Danach ist sie **zu prüfen**: Eltern lesen den deutschen Text, bis die
+Schule die Übersetzung anpasst oder bestätigt (ADR 0034).
+
 ## Phasenende
 
 Eine **auslaufende Angebotsbuchung** ist eine am Ende des Leistungszeitraums
@@ -447,6 +499,17 @@ Ablehnung (der Vorgang ist gerade nicht möglich), Nicht erreichbar (später
 erneut versuchen) und Serverfehler (bei uns ist etwas kaputt). Jeder Fehlercode
 gehört zu genau einer Klasse. Kennt der Fehlerkatalog einen Code nicht, wird der
 Text seiner Klasse angezeigt.
+_Vermeiden_: Netzabbruch (heißt Nicht erreichbar).
+
+## Absturz
+
+Ein **Absturz** ist ein Fehler, den kein Programmteil abgefangen hat. Er hat
+keinen Fehlercode und gehört deshalb zu keiner Fehlerklasse. Zusammen mit
+Serverfehlern und endgültig gescheiterter Hintergrundarbeit ist er ein
+**Defekt**: etwas, das bei uns kaputt ist und behoben werden muss. Nur Defekte
+werden in der Fehlerbeobachtung einzeln gemeldet; Erwartbares wird nur
+protokolliert.
+_Vermeiden_: Crash.
 
 ## Fehlerkatalog
 
@@ -533,3 +596,44 @@ Austritt die OGS-Betreuung.
 nicht, dass der Betreuungszeitraum gerade läuft; ein inaktives Kind bleibt
 angemeldet.
 _Vermeiden_: „angemeldet" für „im Betreuungszeitraum".
+
+## Stichtagszahl
+
+Die **Stichtagszahl** ist die Zahl, nach der moto einer Schule im Monat
+berechnet wird: die **aktiv verwalteten Kinder** und die **aktiven Terminals**
+am **Stichtag**. Der Stichtag ist ein Tag im Monat (1. bis 28.), einer für alle
+Schulen; der Betreiber legt ihn fest. Die Zahl wird am Stichtag ab 6 Uhr
+einmal festgehalten und danach nie geändert, auch wenn sich Kinder oder Geräte
+später ändern. Lief die Erfassung am Stichtag nicht, holt sie sie im selben
+Monat nach und nennt den tatsächlichen Zeitpunkt.
+
+**Aktiv verwaltet** ist ein Kind mit dem Status „aktiv“ und einer nicht
+gelöschten Schulzugehörigkeit, deren Betreuungsende nicht vor dem Tag der
+Erfassung liegt. Ein sofort aktiviertes Kind zählt auch vor seinem regulären
+Betreuungsbeginn. Nicht gezählt werden Kinder, deren Betreuung
+erst später beginnt, deren Betreuung beendet ist (inaktiv), Abgänger und
+gelöschte Kinder.
+
+Ein **aktives Terminal** ist ein Gerät mit dem Status „aktiv“, das nicht
+archiviert ist und nicht die Erfassung im Browser (virtuelles Gerät) ist. Ob es
+zuletzt online war, zählt nicht. Ein umgezogenes Gerät zählt nur bei der neuen
+Schule.
+_Vermeiden_: „Abrechnung“ für die Stichtagszahl (im OGS-Portal meint
+Abrechnung die Lohnabrechnung), Förderstichtag (15.10., eine andere Frage).
+
+## Kinderkontingent
+
+Das **Kinderkontingent** ist die vertraglich gebuchte Höchstzahl an Kindern
+einer OGS: die Zahl der gebuchten **Bundles** mal der Bundle-Größe des
+Vertrags (üblich 50). Nur der Betreiber legt es fest; eine OGS ohne
+Kinderkontingent hat keine Grenze. Ist es erreicht, lässt moto kein weiteres
+Kind hinzukommen, deaktiviert aber nie ein vorhandenes.
+_Vermeiden_: Lizenz, Plätze, Kapazität (das ist die Teilnehmergrenze eines
+Angebots), Limit (nur im Code).
+
+Die **Kontingentzahl** ist die Zahl der Kinder, die gegen das
+Kinderkontingent zählen: die aktiv verwalteten Kinder und zusätzlich die
+vorgemerkten, deren Betreuung erst später beginnt. Sie ist bewusst größer als
+die Stichtagszahl, damit ein späteres Startdatum das Kinderkontingent nicht
+umgeht.
+_Vermeiden_: Stichtagszahl für diese Zahl.

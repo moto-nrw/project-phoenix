@@ -39,7 +39,39 @@ var (
 	ErrRoomConflict              = errors.New("room is already occupied by another active group")
 	ErrRoomCapacityExceeded      = errors.New("room capacity exceeded")
 	ErrNoRoomAvailable           = errors.New("no room available for this activity")
+	// ErrNoAttendanceRecordForCheckout is returned by ConfirmDailyCheckout when
+	// the student has no attendance record for today — a daily checkout makes no
+	// sense because the student was never checked in. The message is a cross-repo
+	// contract mapped to German UI text in PyrePortal; do not change it.
+	ErrNoAttendanceRecordForCheckout = errors.New("student has no attendance record for today")
+	// Kiosk session errors. ErrDeviceAlreadyActive and ErrNoActiveSession are
+	// PyrePortal contract strings; do not change them.
+	ErrDeviceAlreadyActive    = errors.New("device is already running an activity session")
+	ErrNoActiveSession        = errors.New("no active session found")
+	ErrSessionConflict        = errors.New("session conflict detected")
+	ErrInvalidActivitySession = errors.New("invalid activity session parameters")
 )
+
+// OperationError names the presence operation that failed around the
+// classified sentinel. Consumers classify the wrapped error with errors.Is;
+// the kiosk mapping also inspects the outer wrapper.
+type OperationError struct {
+	Op  string // Operation that failed
+	Err error  // Underlying error
+}
+
+// Error returns the error message
+func (e *OperationError) Error() string {
+	if e.Err == nil {
+		return fmt.Sprintf("active: %s: unknown error", e.Op)
+	}
+	return fmt.Sprintf("active: %s: %v", e.Op, e.Err)
+}
+
+// Unwrap returns the underlying error
+func (e *OperationError) Unwrap() error {
+	return e.Err
+}
 
 // RoomCapacityError reports a presence admission beyond the room's capacity.
 type RoomCapacityError struct {
@@ -98,7 +130,19 @@ type StudentMoveResult struct {
 	Skipped       []StudentMoveSkipped `json:"skipped"`
 	ActiveGroupID *int64               `json:"active_group_id,omitempty"`
 	RoomID        *int64               `json:"room_id,omitempty"`
+	// PreviousActiveGroupIDs records the source observed after move serialization.
+	// It is service metadata and intentionally not part of the bulk-move API.
+	PreviousActiveGroupIDs map[int64]int64 `json:"-"`
 }
+
+// Reasons a transit assignment or a move leaves a student out.
+const (
+	TransitSkipNotInTransit = "not_in_transit"
+	TransitSkipCreateFailed = "create_failed"
+
+	StudentMoveSkipNotPresent = "not_present"
+	StudentMoveSkipConflict   = "conflict"
+)
 
 // TransitAssignSkipped names a student a transit assignment left out.
 type TransitAssignSkipped struct {
@@ -120,12 +164,14 @@ type TransitAssignResult struct {
 type VisitDisplay struct {
 	VisitID       int64
 	StudentID     int64
+	PersonID      int64
 	ActiveGroupID int64
 	EntryTime     time.Time
 	ExitTime      *time.Time
 	FirstName     string
 	LastName      string
 	SchoolClass   string
+	GroupID       *int64 // student's education group_id (nullable)
 	OGSGroupName  string
 	Sick          *bool
 	SickSince     *time.Time
@@ -140,6 +186,7 @@ type VisitDisplay struct {
 type SessionRoomSummary struct {
 	ID       int64
 	Name     string
+	Building string
 	Category *string
 	Color    *string
 }
@@ -147,8 +194,12 @@ type SessionRoomSummary struct {
 // SessionActivitySummary is the activity template projection presence
 // responses embed.
 type SessionActivitySummary struct {
-	ID   int64
-	Name string
+	ID              int64
+	Name            string
+	MaxParticipants int
+	PlannedRoomID   *int64
+	IsSystem        bool
+	IsOpen          bool
 }
 
 // UnclaimedSession is an open session without supervisors together with the

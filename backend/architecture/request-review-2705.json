@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "ticket_kind": "migration",
   "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
   "prerequisites": [
@@ -35,11 +35,70 @@
     "source": "docs/runtime-checkpoints/request-review-2705.md with the baseline and candidate logs and the baseline and candidate plan files beside it; harness backend/api/students/change_request_review_runtime_test.go",
     "workload": "Local PostgreSQL 17.11, Go 1.27.0, package test database; baseline fixed at 939126a901 in a detached worktree, candidate at 78f35b2996; open list, history and pending-count over 0, 8 and 32 children with one pending request per queue and three decided requests each; five warmups and 30 samples per request, concurrency 1, both runs alone on the machine. After the 32-child samples the harness explains every distinct read statement shape under the least-privilege role, outside the timer and the counter.",
     "thresholds": "No new SLO. Statement, returned-row and plan parity with the pre-cutover reader per scenario; local same-workload comparison, not staging/production parity. Budget modules.requestreview.open_page (max 101) for the fixture-sized open page. The two readers are within run-to-run variation at p50 (32 children/open: 218.65 ms candidate against 222.53 ms baseline in this run, 19% above in #3156's run) with byte-identical statement and row counts; no regression issue.",
-    "query_count": "Identical on both sides: open 14/320/728, history 10/19/19, pending-count 8/156/564 statements for 0/8/32 children; driver-reported rows 3/590/1550, 2/92/322 and 1/209/833. Plans at 32 children: open 38 read shapes and 724 read statements scanning an estimated 79,000 rows for 1,550 returned; history 11 shapes, about 73,000 scanned for 322; pending-count 21 shapes, about 3,900 scanned for 833. Shapes, rows and buffer hits are identical on both sides, no block was read from disk, the only sequential scan is enrollment.request_child_offerings. The scanned rows come from the retained queues' child-name search evaluated in a nested loop per request row; that and the per-row hydration are owner-side follow-ups, unchanged by the cutover.",
-    "errors": "Zero unexpected errors, zero write rows, zero pool waits, zero deadlocks and no lock sample with a waiting backend in either run; all 540 measured requests per reader answered 200. No projection cache. Both stored logs retain the full per-sample arrays (duration, queries, rows affected, write rows, pool wait count and duration). The golden pins the malformed-query 400 body, the 403 bodies and the absence-only 403 contract identically to the pre-cutover reader.",
-    "failure": "One owner-queue failure surfaces unchanged (errors.Is and 500 text) through the shared parent-request error rules; a missing queue or access port fails composition with ErrIncompleteSources; malformed queries answer 400 with the unchanged invalid-query error.",
-    "rollback": "Projection persists nothing; every measured write_rows_affected was zero. Revert api/base.go and the api/students wiring to restore the retained fan-out handler without data migration.",
-    "smoke": "Production students router with signed JWT, permission gates and tenant transaction serves all three routes for the admin reviewer; the absence-only reviewer keeps seeing only the excused queue and the group leader only the children of the led group (router test and golden). The staging check after #3156's deploy (recorded on #2705) was a read-only health check, not an old-versus-new comparison."
+    "query_count": {
+      "state": "measured",
+      "result": "Identical on both sides: open 14/320/728, history 10/19/19, pending-count 8/156/564 statements for 0/8/32 children; driver-reported rows 3/590/1550, 2/92/322 and 1/209/833. Plans at 32 children: open 38 read shapes and 724 read statements scanning an estimated 79,000 rows for 1,550 returned; history 11 shapes, about 73,000 scanned for 322; pending-count 21 shapes, about 3,900 scanned for 833. Shapes, rows and buffer hits are identical on both sides, no block was read from disk, the only sequential scan is enrollment.request_child_offerings. The scanned rows come from the retained queues' child-name search evaluated in a nested loop per request row; that and the per-row hydration are owner-side follow-ups, unchanged by the cutover."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "Zero unexpected errors, zero write rows, zero pool waits, zero deadlocks and no lock sample with a waiting backend in either run; all 540 measured requests per reader answered 200. No projection cache. Both stored logs retain the full per-sample arrays (duration, queries, rows affected, write rows, pool wait count and duration). The golden pins the malformed-query 400 body, the 403 bodies and the absence-only 403 contract identically to the pre-cutover reader."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "One owner-queue failure surfaces unchanged (errors.Is and 500 text) through the shared parent-request error rules; a missing queue or access port fails composition with ErrIncompleteSources; malformed queries answer 400 with the unchanged invalid-query error."
+    },
+    "rollback": {
+      "state": "measured",
+      "result": "Projection persists nothing; every measured write_rows_affected was zero. Revert api/base.go and the api/students wiring to restore the retained fan-out handler without data migration."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "Production students router with signed JWT, permission gates and tenant transaction serves all three routes for the admin reviewer; the absence-only reviewer keeps seeing only the excused queue and the group leader only the children of the led group (router test and golden). The staging check after #3156's deploy (recorded on #2705) was a read-only health check, not an old-versus-new comparison."
+    },
+    "sources": [
+      "docs/runtime-checkpoints/request-review-2705.baseline-plans.json",
+      "docs/runtime-checkpoints/request-review-2705.baseline.txt",
+      "docs/runtime-checkpoints/request-review-2705.candidate.txt",
+      "docs/runtime-checkpoints/request-review-2705.md",
+      "docs/runtime-checkpoints/request-review-2705.plans.json",
+      "backend/api/students/change_request_review_runtime_test.go"
+    ],
+    "affected_rows": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record affected_rows evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "latency_p50": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record latency_p50 evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "latency_p95": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record latency_p95 evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "pool_wait": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record pool_wait evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "lock_wait": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record lock_wait evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "deadlocks": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record deadlocks evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "job_duration": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record job_duration evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "job_retries": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record job_retries evidence. This is a historical reporting gap, not a claim of non-applicability."
+    },
+    "job_backlog": {
+      "state": "historical_gap",
+      "reason": "The pre-gate ticket did not record job_backlog evidence. This is a historical reporting gap, not a claim of non-applicability."
+    }
   },
   "rollback_and_cleanup": "Revert the consumer wiring (api/base.go composition, api/students handlers) as a whole while the retained queues remain intact; the read-only projection owns no authoritative state. The fan-out was deleted in #3156, before a golden existed; the output golden now backs that deletion locally, and the staging check after the deploy was a read-only health check, not an old-versus-new comparison. The adapter's compatibility permissions convert to exact debt under #3174, now that the packages exist at a base SHA; the inbound-students adapter import goes when the decide routes move to their owners. No deployment or staging/production requests for this evidence.",
   "exit_criterion": "The ticket's named consumers, the staff open list, the decision history and the badge, read the one projection with byte-identical output to the pre-cutover reader, tenant safety and no direct cross-owner reads in api/students, and their query plans match the pre-cutover reader shape for shape. #2705 is rescoped to those consumers: the request-review-view.* compatibility permissions convert to exact debt under #3174, now that the packages exist at the base SHA, and the staff RSS feed, added after the evidence commit, keeps its registered parent-request-feed-read-model projection because it also announces config:manage enrollment change requests, selects by submission instant and costs one statement, and because care-plan/compose and care-plan/postgres may not import request-review-view/public, request-review-view/adapter and root-composition/compose may not import parent-request-feed-view/postgres, a new rule between existing role points is a policy loosening, and PR mode grants read_projections only to a newly created projection owner; moving it needs a reviewed policy decision under #2580. enrollment.change_requests stays behind its own config:manage list by design (#2435). No ratchet key added or removed, composition surface unchanged, ownership and policy epoch 5 preserved."

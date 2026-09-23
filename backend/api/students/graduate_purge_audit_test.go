@@ -99,7 +99,7 @@ func TestPurgeGraduatedStudent_RefusesActiveChild(t *testing.T) {
 	require.Equal(t, http.StatusConflict, response.Code, "Body: %s", response.Body.String())
 
 	var count int
-	require.NoError(t, tc.db.NewSelect().TableExpr(`users.students`).ColumnExpr("COUNT(*)").
+	require.NoError(t, tc.db.NewSelect().TableExpr(`users.student_profiles`).ColumnExpr("COUNT(*)").
 		Where("id = ?", student.ID).Scan(testpkg.Ctx(t), &count))
 	assert.Equal(t, 1, count, "an active child must never be purged")
 }

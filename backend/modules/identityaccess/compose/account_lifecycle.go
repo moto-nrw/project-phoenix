@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
@@ -16,7 +17,7 @@ import (
 // The account lifecycle flows (#3225) and the role administration (#3314)
 // need facts other owners hold and seams the composition root binds: persons,
 // staff and caregiver profiles, guardian profiles and relationships, the
-// audit evidence, the PIN and password hashers, the retained role storage and
+// audit evidence, the password hasher, the retained role storage and
 // account management and the retained guardian invitation delivery. The
 // seams below are expressed in public values; this package adapts them to the
 // consumer-owned ports.
@@ -75,18 +76,6 @@ type StaffDirectory interface {
 	HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error)
 }
 
-// PINHasher hashes and verifies staff PINs.
-type PINHasher interface {
-	HashPIN(pin string) (string, error)
-	VerifyPIN(pin, hash string) bool
-}
-
-// LockoutPolicy resolves the tenant's PIN lockout threshold and duration;
-// zero values fall back to the module defaults.
-type LockoutPolicy interface {
-	PINLockout(ctx context.Context) (threshold int, duration time.Duration)
-}
-
 // StaffPreviewEvent is the audit evidence of one preview start or end.
 type StaffPreviewEvent struct {
 	AdminAccountID  int64
@@ -123,7 +112,7 @@ type GuardianProfile struct {
 	HasAccount bool
 }
 
-// StudentGuardianLink is one users.students_guardians row.
+// StudentGuardianLink is one student-guardian relationship.
 type StudentGuardianLink struct {
 	ID                int64
 	TenantID          int64
@@ -163,7 +152,7 @@ type GuardianDirectory interface {
 	FindStudentGuardianLinkForUpdate(ctx context.Context, studentID, guardianProfileID int64) (StudentGuardianLink, bool, error)
 	LinkStudentGuardianIfAbsent(ctx context.Context, link StudentGuardianLink) (bool, error)
 	PromoteStudentGuardianLink(ctx context.Context, linkID int64) error
-	ListStudentGuardianLinksByStudent(ctx context.Context, studentID int64) ([]StudentGuardianLink, error)
+	ListStudentGuardianLinksByStudents(ctx context.Context, studentIDs []int64) ([]StudentGuardianLink, error)
 	ListStudentGuardianLinksByProfile(ctx context.Context, guardianProfileID int64) ([]StudentGuardianLink, error)
 	DeleteStudentGuardianLink(ctx context.Context, linkID int64) error
 	GuardianRoleClass(role string) GuardianRoleClass
@@ -197,8 +186,6 @@ type FinancialAudit interface {
 // beyond the database and the session dependencies.
 type LifecycleDependencies struct {
 	Staff     StaffDirectory
-	PINs      PINHasher
-	Lockout   LockoutPolicy
 	Audit     PreviewAudit
 	Passwords PasswordPolicy
 	Guardians GuardianDirectory
@@ -207,16 +194,13 @@ type LifecycleDependencies struct {
 	// pre-account enrollment requests.
 	Enrollments GuardianEnrollments
 	Financial   FinancialAudit
-	// Roles is the retained role and permission storage the role
-	// administration (#3314) reads and writes.
-	Roles  RoleDirectory
-	Logger *slog.Logger
+	Logger      *slog.Logger
 }
 
 // newAccountLifecycle composes the lifecycle flows and the role
 // administration: offboarding removes roles through the administration, and
 // an assignment completes the school identity through the lifecycle.
-func newAccountLifecycle(service *application.Service, auth *application.AccountAuthentication, store lifecycleStore, sessions *SessionDependencies, deps *LifecycleDependencies, administration *application.AccountAdministration) (*application.AccountLifecycle, *application.RoleAdministration, error) {
+func newAccountLifecycle(service *application.Service, auth *application.AccountAuthentication, store *postgres.Store, sessions *SessionDependencies, deps *LifecycleDependencies, administration *application.AccountAdministration) (*application.AccountLifecycle, *application.RoleAdministration, error) {
 	if deps == nil {
 		return nil, nil, nil
 	}
@@ -224,9 +208,8 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 		return nil, nil, errors.New("identity access compose: the lifecycle flows require the session dependencies")
 	}
 	switch {
-	case deps.Staff == nil, deps.PINs == nil, deps.Lockout == nil, deps.Audit == nil,
-		deps.Passwords == nil, deps.Guardians == nil, deps.Delivery == nil, deps.Financial == nil,
-		deps.Roles == nil:
+	case deps.Staff == nil, deps.Audit == nil,
+		deps.Passwords == nil, deps.Guardians == nil, deps.Delivery == nil, deps.Financial == nil:
 		return nil, nil, errors.New("identity access compose: every lifecycle dependency is required")
 	case administration == nil:
 		return nil, nil, errors.New("identity access compose: the account administration is required")
@@ -237,7 +220,7 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 	}
 	runtime := tenantRuntime{attach: attach, runner: newTransactionRunner()}
 	var lifecycle *application.AccountLifecycle
-	roles, err := newRoleAdministration(auth, runtime, deps, func() *application.AccountLifecycle { return lifecycle })
+	roles, err := newRoleAdministration(auth, runtime, postgres.NewRoleStore(store), administration, deps, func() *application.AccountLifecycle { return lifecycle })
 	if err != nil {
 		return nil, nil, err
 	}
@@ -246,8 +229,6 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 		Staff:       staffDirectory{deps.Staff},
 		Profiles:    staffDirectory{deps.Staff},
 		Roles:       rolePolicy{},
-		PINs:        deps.PINs,
-		Lockout:     deps.Lockout,
 		Audit:       previewAudit{deps.Audit},
 		Codec:       tokenCodec{sessions.Codec},
 		Admin:       accountAdministration{roles: roles, accounts: administration},
@@ -265,14 +246,6 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 		return nil, nil, err
 	}
 	return lifecycle, roles, nil
-}
-
-// lifecycleStore is the module store as the lifecycle flows read it.
-type lifecycleStore interface {
-	ports.AccountLifecycleStore
-	ports.AccountLoginStore
-	ports.GuardianInvitationStore
-	ports.Store
 }
 
 // --- port adapters ---------------------------------------------------------
@@ -457,8 +430,8 @@ func studentGuardianLinks(links []StudentGuardianLink) []domain.StudentGuardianL
 	return result
 }
 
-func (d guardianDirectory) ListStudentGuardianLinksByStudent(ctx context.Context, studentID int64) ([]domain.StudentGuardianLink, error) {
-	links, err := d.source.ListStudentGuardianLinksByStudent(ctx, studentID)
+func (d guardianDirectory) ListStudentGuardianLinksByStudents(ctx context.Context, studentIDs []int64) ([]domain.StudentGuardianLink, error) {
+	links, err := d.source.ListStudentGuardianLinksByStudents(ctx, studentIDs)
 	return studentGuardianLinks(links), err
 }
 
@@ -545,36 +518,6 @@ func roleFacts(role *identityaccess.RoleFacts) *domain.RoleFacts {
 	}
 	facts := domain.RoleFacts(*role)
 	return &facts
-}
-
-func (e engine) AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (identityaccess.AuthenticatedStaff, error) {
-	if e.lifecycle == nil {
-		return identityaccess.AuthenticatedStaff{}, errAccountLifecycleUnavailable
-	}
-	staff, err := e.lifecycle.AuthenticateStaffPIN(e.attach(ctx), tenantID, staffID, pin)
-	return identityaccess.AuthenticatedStaff(staff), lifecycleError(err)
-}
-
-func (e engine) StaffPINStatus(ctx context.Context, accountID int64) (bool, *time.Time, error) {
-	if e.lifecycle == nil {
-		return false, nil, errAccountLifecycleUnavailable
-	}
-	hasPIN, lastChanged, err := e.lifecycle.StaffPINStatus(e.attach(ctx), accountID)
-	return hasPIN, lastChanged, lifecycleError(err)
-}
-
-func (e engine) StaffPINPreflight(ctx context.Context, accountID int64) error {
-	if e.lifecycle == nil {
-		return errAccountLifecycleUnavailable
-	}
-	return lifecycleError(e.lifecycle.StaffPINPreflight(e.attach(ctx), accountID))
-}
-
-func (e engine) ChangeStaffPIN(ctx context.Context, accountID int64, currentPIN *string, newPIN string) error {
-	if e.lifecycle == nil {
-		return errAccountLifecycleUnavailable
-	}
-	return lifecycleError(e.lifecycle.ChangeStaffPIN(e.attach(ctx), accountID, currentPIN, newPIN))
 }
 
 func (e engine) StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previousToken, ipAddress, userAgent string) (*identityaccess.StaffPreviewSession, error) {
@@ -873,12 +816,6 @@ var lifecycleSentinels = []struct {
 	internal error
 	public   error
 }{
-	{domain.ErrInvalidStaffPINCredentials, identityaccess.ErrInvalidStaffPINCredentials},
-	{domain.ErrStaffPINLocked, identityaccess.ErrStaffPINLocked},
-	{domain.ErrStaffPINAccountNotFound, identityaccess.ErrStaffPINAccountNotFound},
-	{domain.ErrStaffPINSelfServiceLocked, identityaccess.ErrStaffPINSelfServiceLocked},
-	{domain.ErrStaffPINCurrentRequired, identityaccess.ErrStaffPINCurrentRequired},
-	{domain.ErrStaffPINCurrentWrong, identityaccess.ErrStaffPINCurrentWrong},
 	{domain.ErrPreviewSelf, identityaccess.ErrPreviewSelf},
 	{domain.ErrPreviewTargetNotStaff, identityaccess.ErrPreviewTargetNotStaff},
 	{domain.ErrPreviewTokenInvalid, identityaccess.ErrPreviewTokenInvalid},
@@ -898,28 +835,4 @@ var lifecycleSentinels = []struct {
 	{domain.ErrInviteSocialWorkerManaged, identityaccess.ErrInviteSocialWorkerManaged},
 	{domain.ErrGuardianInvitationNotFound, identityaccess.ErrGuardianInvitationNotFound},
 	{domain.ErrGuardianInvitationExpired, identityaccess.ErrGuardianInvitationExpired},
-}
-
-// lifecycleError translates a flow error to the public contract: the
-// operation envelope keeps its text, a lifecycle sentinel gains its public
-// twin, and everything else falls through to the authentication mapping
-// (account, tenant and session sentinels the preview and offboarding share).
-func lifecycleError(err error) error {
-	if err == nil {
-		return nil
-	}
-	var operation *application.OperationError
-	if errors.As(err, &operation) && operation == err {
-		return &identityaccess.AuthenticationError{Op: operation.Op, Err: lifecycleError(operation.Err)}
-	}
-	for _, sentinel := range lifecycleSentinels {
-		if !errors.Is(err, sentinel.internal) {
-			continue
-		}
-		if err == sentinel.internal {
-			return sentinel.public
-		}
-		return &translatedError{text: err.Error(), public: sentinel.public, cause: err}
-	}
-	return authenticationError(err)
 }

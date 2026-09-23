@@ -4,10 +4,10 @@ import { useCallback, useState } from "react";
 import { EnrollmentFormEditor } from "~/components/enrollment/enrollment-form-editor";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
-import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
+import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
 export default function EnrollmentFormPage() {
-  const { isReady } = useRequireAdmin();
+  const { isReady } = useRequirePermission("config:manage");
   // Statuszeile des Seitenkopfs: die Vorlagen, die der Editor ohnehin lädt.
   const [templateCount, setTemplateCount] = useState<number | null>(null);
   const handleTemplateCountChange = useCallback(

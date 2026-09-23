@@ -7,32 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 )
 
-func notFound(found bool, err error) error {
-	if err == nil && !found {
-		return careplan.ErrStudentScheduleNotFound
-	}
-	return err
-}
-
-func (s *Service) FindArrivalSchedule(ctx context.Context, id int64) (result careplan.ArrivalSchedule, err error) {
-	err = s.run("find_arrival_schedule", func(stats *domain.OperationStats) error {
-		var found bool
-		var q domain.OperationStats
-		result, found, q, err = s.store.FindArrivalSchedule(ctx, id)
-		stats.Add(q)
-		return notFound(found, err)
-	})
-	return
-}
-func (s *Service) ListArrivalSchedules(ctx context.Context, f careplan.StudentScheduleFilter) (result []careplan.ArrivalSchedule, err error) {
-	err = s.run("list_arrival_schedules", func(stats *domain.OperationStats) error {
-		var q domain.OperationStats
-		result, q, err = s.store.ListArrivalSchedules(ctx, f)
-		stats.Add(q)
-		return err
-	})
-	return
-}
 func (s *Service) CreateArrivalSchedule(ctx context.Context, v careplan.ArrivalSchedule) (result careplan.ArrivalSchedule, err error) {
 	err = s.run("create_arrival_schedule", func(stats *domain.OperationStats) error {
 		var q domain.OperationStats
@@ -73,25 +47,6 @@ func (s *Service) DeleteArrivalSchedulesByStudent(ctx context.Context, id int64)
 	})
 }
 
-func (s *Service) FindArrivalException(ctx context.Context, id int64, lock bool) (result careplan.ArrivalException, err error) {
-	err = s.run("find_arrival_exception", func(stats *domain.OperationStats) error {
-		var found bool
-		var q domain.OperationStats
-		result, found, q, err = s.store.FindArrivalException(ctx, id, lock)
-		stats.Add(q)
-		return notFound(found, err)
-	})
-	return
-}
-func (s *Service) ListArrivalExceptions(ctx context.Context, f careplan.StudentScheduleFilter) (result []careplan.ArrivalException, err error) {
-	err = s.run("list_arrival_exceptions", func(stats *domain.OperationStats) error {
-		var q domain.OperationStats
-		result, q, err = s.store.ListArrivalExceptions(ctx, f)
-		stats.Add(q)
-		return err
-	})
-	return
-}
 func (s *Service) CreateArrivalException(ctx context.Context, v careplan.ArrivalException) (result careplan.ArrivalException, err error) {
 	err = s.run("create_arrival_exception", func(stats *domain.OperationStats) error {
 		var q domain.OperationStats
@@ -132,25 +87,6 @@ func (s *Service) DeleteArrivalExceptionsBefore(ctx context.Context, d careplan.
 	return
 }
 
-func (s *Service) FindArrivalNote(ctx context.Context, id int64) (result careplan.ArrivalNote, err error) {
-	err = s.run("find_arrival_note", func(stats *domain.OperationStats) error {
-		var found bool
-		var q domain.OperationStats
-		result, found, q, err = s.store.FindArrivalNote(ctx, id)
-		stats.Add(q)
-		return notFound(found, err)
-	})
-	return
-}
-func (s *Service) ListArrivalNotes(ctx context.Context, f careplan.StudentScheduleFilter) (result []careplan.ArrivalNote, err error) {
-	err = s.run("list_arrival_notes", func(stats *domain.OperationStats) error {
-		var q domain.OperationStats
-		result, q, err = s.store.ListArrivalNotes(ctx, f)
-		stats.Add(q)
-		return err
-	})
-	return
-}
 func (s *Service) CreateArrivalNote(ctx context.Context, v careplan.ArrivalNote) (result careplan.ArrivalNote, err error) {
 	err = s.run("create_arrival_note", func(stats *domain.OperationStats) error {
 		var q domain.OperationStats
@@ -191,25 +127,6 @@ func (s *Service) DeleteArrivalNotesBefore(ctx context.Context, d careplan.Date)
 	return
 }
 
-func (s *Service) FindPickupSchedule(ctx context.Context, id int64) (result careplan.PickupSchedule, err error) {
-	err = s.run("find_pickup_schedule", func(stats *domain.OperationStats) error {
-		var found bool
-		var q domain.OperationStats
-		result, found, q, err = s.store.FindPickupSchedule(ctx, id)
-		stats.Add(q)
-		return notFound(found, err)
-	})
-	return
-}
-func (s *Service) ListPickupSchedules(ctx context.Context, f careplan.StudentScheduleFilter) (result []careplan.PickupSchedule, err error) {
-	err = s.run("list_pickup_schedules", func(stats *domain.OperationStats) error {
-		var q domain.OperationStats
-		result, q, err = s.store.ListPickupSchedules(ctx, f)
-		stats.Add(q)
-		return err
-	})
-	return
-}
 func (s *Service) CreatePickupSchedule(ctx context.Context, v careplan.PickupSchedule) (result careplan.PickupSchedule, err error) {
 	err = s.run("create_pickup_schedule", func(stats *domain.OperationStats) error {
 		var q domain.OperationStats
@@ -250,26 +167,12 @@ func (s *Service) DeletePickupSchedulesByStudent(ctx context.Context, id int64) 
 	})
 }
 
-func (s *Service) FindPickupException(ctx context.Context, id int64, lock bool) (result careplan.PickupException, err error) {
-	err = s.run("find_pickup_exception", func(stats *domain.OperationStats) error {
-		var found bool
-		var q domain.OperationStats
-		result, found, q, err = s.store.FindPickupException(ctx, id, lock)
-		stats.Add(q)
-		return notFound(found, err)
-	})
-	return
-}
-func (s *Service) ListPickupExceptions(ctx context.Context, f careplan.StudentScheduleFilter) (result []careplan.PickupException, err error) {
-	err = s.run("list_pickup_exceptions", func(stats *domain.OperationStats) error {
-		var q domain.OperationStats
-		result, q, err = s.store.ListPickupExceptions(ctx, f)
-		stats.Add(q)
-		return err
-	})
-	return
-}
+// Pickup exception writes validate here because guardian and approval writes
+// reach the store through this capability without passing the effective-time core.
 func (s *Service) CreatePickupException(ctx context.Context, v careplan.PickupException) (result careplan.PickupException, err error) {
+	if err = v.Validate(); err != nil {
+		return result, err
+	}
 	err = s.run("create_pickup_exception", func(stats *domain.OperationStats) error {
 		var q domain.OperationStats
 		result, q, err = s.store.CreatePickupException(ctx, v)
@@ -279,6 +182,9 @@ func (s *Service) CreatePickupException(ctx context.Context, v careplan.PickupEx
 	return
 }
 func (s *Service) UpdatePickupException(ctx context.Context, v careplan.PickupException) error {
+	if err := v.Validate(); err != nil {
+		return err
+	}
 	return s.run("update_pickup_exception", func(stats *domain.OperationStats) error {
 		q, err := s.store.UpdatePickupException(ctx, v)
 		stats.Add(q)
@@ -309,25 +215,6 @@ func (s *Service) DeletePickupExceptionsBefore(ctx context.Context, d careplan.D
 	return
 }
 
-func (s *Service) FindPickupNote(ctx context.Context, id int64) (result careplan.PickupNote, err error) {
-	err = s.run("find_pickup_note", func(stats *domain.OperationStats) error {
-		var found bool
-		var q domain.OperationStats
-		result, found, q, err = s.store.FindPickupNote(ctx, id)
-		stats.Add(q)
-		return notFound(found, err)
-	})
-	return
-}
-func (s *Service) ListPickupNotes(ctx context.Context, f careplan.StudentScheduleFilter) (result []careplan.PickupNote, err error) {
-	err = s.run("list_pickup_notes", func(stats *domain.OperationStats) error {
-		var q domain.OperationStats
-		result, q, err = s.store.ListPickupNotes(ctx, f)
-		stats.Add(q)
-		return err
-	})
-	return
-}
 func (s *Service) CreatePickupNote(ctx context.Context, v careplan.PickupNote) (result careplan.PickupNote, err error) {
 	err = s.run("create_pickup_note", func(stats *domain.OperationStats) error {
 		var q domain.OperationStats
@@ -350,6 +237,78 @@ func (s *Service) DeletePickupNote(ctx context.Context, id int64) error {
 		stats.Add(q)
 		return err
 	})
+}
+func (s *Service) ReplaceWeekdayPickupNotes(ctx context.Context, studentID, createdBy int64, wanted map[int]string) error {
+	return s.run("replace_weekday_pickup_notes", func(stats *domain.OperationStats) error {
+		stored, err := s.lockWeekdayPickupNotes(ctx, studentID, stats)
+		if err != nil {
+			return err
+		}
+		if err := s.deleteRemovedWeekdayPickupNotes(ctx, stored, wanted, stats); err != nil {
+			return err
+		}
+		return s.saveWeekdayPickupNotes(ctx, studentID, createdBy, stored, wanted, stats)
+	})
+}
+
+func (s *Service) lockWeekdayPickupNotes(ctx context.Context, studentID int64, stats *domain.OperationStats) (map[int]careplan.PickupNote, error) {
+	stored, q, err := s.store.ListPickupNotes(ctx, careplan.StudentScheduleFilter{
+		StudentIDs: []int64{studentID}, LockForUpdate: true,
+	})
+	stats.Add(q)
+	if err != nil {
+		return nil, err
+	}
+	byWeekday := make(map[int]careplan.PickupNote, len(stored))
+	for _, note := range stored {
+		if note.Weekday != 0 {
+			byWeekday[note.Weekday] = note
+		}
+	}
+	return byWeekday, nil
+}
+
+func (s *Service) deleteRemovedWeekdayPickupNotes(ctx context.Context, stored map[int]careplan.PickupNote, wanted map[int]string, stats *domain.OperationStats) error {
+	for weekday, note := range stored {
+		if _, keep := wanted[weekday]; !keep {
+			q, err := s.store.DeletePickupNote(ctx, note.ID)
+			stats.Add(q)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Service) saveWeekdayPickupNotes(ctx context.Context, studentID, createdBy int64, stored map[int]careplan.PickupNote, wanted map[int]string, stats *domain.OperationStats) error {
+	for weekday := 1; weekday <= 5; weekday++ {
+		content, wantedForWeekday := wanted[weekday]
+		if !wantedForWeekday {
+			continue
+		}
+		storedNote, exists := stored[weekday]
+		if !exists {
+			_, q, err := s.store.CreatePickupNote(ctx, careplan.PickupNote{
+				StudentID: studentID, Weekday: weekday, Content: content, CreatedBy: createdBy,
+			})
+			stats.Add(q)
+			if err != nil {
+				return err
+			}
+			continue
+		}
+		if storedNote.Content == content {
+			continue
+		}
+		storedNote.Content = content
+		q, err := s.store.UpdatePickupNote(ctx, storedNote)
+		stats.Add(q)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 func (s *Service) DeletePickupNotesByStudent(ctx context.Context, id int64) error {
 	return s.run("delete_pickup_notes_by_student", func(stats *domain.OperationStats) error {
@@ -384,16 +343,6 @@ func (s *Service) RestoreStudentSchedulesForCareExit(ctx context.Context, studen
 		stats.Add(q)
 		rows = q.Rows
 		return runErr
-	})
-	return
-}
-
-func (s *Service) CountStudentScheduleRows(ctx context.Context, studentID int64) (result int, err error) {
-	err = s.run("count_student_schedule_rows", func(stats *domain.OperationStats) error {
-		var q domain.OperationStats
-		result, q, err = s.store.CountStudentScheduleRows(ctx, studentID)
-		stats.Add(q)
-		return err
 	})
 	return
 }

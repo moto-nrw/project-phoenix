@@ -1,0 +1,98 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3020",
+    "#3353"
+  ],
+  "owner_and_capability": "Care Plan — the public modules/careplan decision error contract for offering-change, course-request, pickup-adjustment and offering-adjustment decisions (decision_errors.go), which api/students and the parent inbound handlers now map instead of the services/enrollment and models/enrollment values (#3558)",
+  "affected_packages": [
+    "modules/careplan",
+    "modules/careplan/inbound/parent",
+    "services/enrollment",
+    "api/students"
+  ],
+  "affected_tables": [
+    "enrollment.offering_change_requests"
+  ],
+  "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/enrollment"
+  ],
+  "atomic_cutover": "One PR defines the owner error values in modules/careplan with texts byte-identical to the legacy values, points the services/enrollment names at them, and switches every api/students mapping to the owner values. models/enrollment may not import Care Plan, so services/enrollment returns not-found and not-pending errors that match both the owner value and the legacy name. The offering-change not-found and not-pending mappings were the last production uses of models/enrollment in api/students, which retires the listed key. No statement, no table access and no second provider is added.",
+  "tests": [
+    "scripts/test-changed.sh origin/development without --fast: the full suites of every changed package, including api/students, services/enrollment, modules/careplan and workflows/parentportal.",
+    "api/students/care_plan_decision_errors_golden_test.go pins status, code and text of every mapped owner error.",
+    "modules/careplan/decision_errors_test.go pins every owner text; services/enrollment/care_plan_decision_errors_test.go pins that each legacy name matches its owner value under errors.Is.",
+    "scripts/backend-architecture.sh check with the listed key absent from legacy.jsonl."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the PR branch at origin/development 44bd4230a4. The change retargets error sentinels and handler mappings; request paths execute the same statements, so the evidence is the unchanged behaviour and query-budget suites plus the architecture check, not a benchmark rerun.",
+    "sources": [
+      "backend/api/students/care_plan_decision_errors_golden_test.go",
+      "backend/services/enrollment/care_plan_decision_errors_test.go",
+      "backend/test/query_budgets.go",
+      "https://github.com/moto-nrw/project-phoenix/pull/3581"
+    ],
+    "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The suite passes with an unchanged query-budget register, the golden test shows unchanged status codes, codes and texts, and the architecture check reports no new violation and no stale baseline entry.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "enrollment.offering_change_requests is listed because the not-found and not-pending outcomes describe its rows; only error values and their HTTP mappings change, no statement on it changes."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The query-budget tests passed with test/query_budgets.go unchanged, so no budgeted scenario gained a statement."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "Retargeting error sentinels adds no statement or call to a request path."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "Retargeting error sentinels adds no statement or call to a request path."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development exited 0 with no failing test and no panic; the golden test pins unchanged 4xx answers for every mapped error."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection is acquired differently."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No lock statement or lock order changes."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No transaction boundary or lock order changes."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The changed mappings have no worker path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The changed mappings have no worker path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The changed mappings have no worker path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The golden test renders every owner error through the api/students renderers and asserts the previous status, code and text; the contract test asserts that the legacy not-found and not-pending names still match."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data or schema change. Reverting the PR restores the legacy mappings, the models/enrollment import and the baseline entry together."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally with the key absent: 588 legacy violations remain, composition surface 623 -> 623."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR; the legacy error values, the api/students mappings and the baseline entry return together. No data cleanup.",
+  "exit_criterion": "api/students maps every offering-change, pickup-adjustment and offering-adjustment error through the Care Plan owner contract, has no production import of models/enrollment, and the listed key is absent from legacy.jsonl."
+}

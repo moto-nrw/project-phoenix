@@ -14,7 +14,6 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -82,7 +81,7 @@ type usageService struct {
 	db             *bun.DB
 	repo           usageRepository
 	summaries      UsageCounts
-	accountTenants authModels.AccountTenantRepository
+	accountTenants GuardianSchools
 	settings       config.SettingsService
 	logger         *slog.Logger
 	tenantRuntime  *tenant.UnitOfWork
@@ -101,7 +100,7 @@ func NewUsageService(
 	db *bun.DB,
 	repo usageRepository,
 	summaries UsageCounts,
-	accountTenants authModels.AccountTenantRepository,
+	accountTenants GuardianSchools,
 	settings config.SettingsService,
 	logger *slog.Logger,
 ) UsageService {
@@ -132,10 +131,10 @@ func (s *usageService) ReportParent(ctx context.Context, accountID int64) error 
 	if s.tenantRuntime != nil {
 		ctx = tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 	}
-	var mappings []authModels.AccountTenant
+	var mappings []int64
 	if err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
-		mappings, err = s.accountTenants.FindActiveGuardianByAccountID(txCtx, accountID)
+		mappings, err = s.accountTenants.ListGuardianSchoolIDs(txCtx, accountID)
 		if err != nil {
 			return fmt.Errorf("resolving guardian tenant mappings: %w", err)
 		}
@@ -147,17 +146,17 @@ func (s *usageService) ReportParent(ctx context.Context, accountID int64) error 
 	// A guardian mid-offboarding simply has nothing to report. Each remaining
 	// mapping gets its own tenant role and RLS boundary after the admin read ends.
 	for _, mapping := range mappings {
-		tenantID, err := tenant.NewTenantID(mapping.TenantID)
+		tenantID, err := tenant.NewTenantID(mapping)
 		if err != nil {
-			return fmt.Errorf("recording pwa usage for tenant %d: %w", mapping.TenantID, err)
+			return fmt.Errorf("recording pwa usage for tenant %d: %w", mapping, err)
 		}
 		if err := tenant.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
-			if err := validateTenantWriteContext(txCtx, mapping.TenantID); err != nil {
+			if err := validateTenantWriteContext(txCtx, mapping); err != nil {
 				return err
 			}
-			return s.repo.RecordSeen(txCtx, mapping.TenantID, accountID, deliveryModels.PushPortalParent)
+			return s.repo.RecordSeen(txCtx, mapping, accountID, deliveryModels.PushPortalParent)
 		}); err != nil {
-			return fmt.Errorf("recording pwa usage for tenant %d: %w", mapping.TenantID, err)
+			return fmt.Errorf("recording pwa usage for tenant %d: %w", mapping, err)
 		}
 	}
 	return nil

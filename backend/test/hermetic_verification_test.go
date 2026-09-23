@@ -526,11 +526,11 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"makeMoveSetup",                    // modules/timetable/legacy/timetableplanning staff-pool/move tests (#1884) — wraps SetupTestDB
 		"buildDevSetup",                    // api/timetable deviations/protocol tests — wraps SetupTestDB
 		"setupAbsenceAdminTest",            // api/staff absence question tests (#1419) — wraps setupTestContext
-		"newOverviewFixture",               // modules/studentpresence/legacy/services/active overview/export integration tests (#1417) — wraps SetupTestDB
+		"newOverviewFixture",               // modules/studentpresence/internal/application/presence overview/export integration tests (#1417) — wraps SetupTestDB
 		"setupOverviewAPI",                 // api/staff overview/export tests (#1417) — wraps setupTestContext
 		"newTransitionFixture",             // services/education grade-transition workflow tests — wraps SetupTestDB
 		"buildLifecycle",                   // modules/timetable/legacy/timetableplanning instance-lifecycle tests — wraps SetupTestDB
-		"newCareFixture",                   // modules/careplan/legacy/careschedule care-request tests — wraps SetupTestDB
+		"newCareFixture",                   // modules/careplan/contracttest care-request tests — wraps SetupTestDB
 		"setupDashboardContext",            // api/active supervision-dashboard tests — wraps SetupActiveModule → SetupTestDB
 		"setupStudentStorageBeforeCutover", // database/migrations student-owner cutover + preflight tests — wraps SetupTestDB
 	}
@@ -574,6 +574,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 			"test/module_file_size_ratchet_test.go",                        // Source-scanning ratchet (#2580); allowlist keys name *_repositories.go files, no DB is used
 			"test/module_complexity_ratchet_test.go",                       // Source-scanning ratchet (#2580); same as above, no DB is used
 			"test/module_http_orm_ratchet_test.go",                         // Source-scanning ratchet (#2580); the rule text names *bun.DB, which is the thing it forbids, no DB is used
+			"modules/identityaccess/behavior/owner_contracts_test.go",      // Shared row readers of the behaviour suites (#3446); caller tests own DB setup
 		}
 		skip := false
 		for _, sf := range skipFiles {

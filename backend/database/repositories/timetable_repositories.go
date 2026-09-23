@@ -8,7 +8,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/uptrace/bun"
 )
 
 type timetableRepositories struct {
@@ -27,12 +30,15 @@ type timetableRepositories struct {
 	InstanceStudent     schedule.InstanceStudentRepository
 }
 
-func newTimetableRepositories(capability timetable.Capability, people peopledirectory.Capability, groups schoolstructure.Query, rooms facilities.Query, calendar schoolcalendar.Query, membership schoolmembership.Capability, shiftTypes schedule.ShiftTypeRepository) timetableRepositories {
+// newTimetableRepositories builds the legacy schedule adapters over the
+// Timetable owner. The instance and participant adapters also compose Student
+// Presence, which owns the execution and the attendance since #2762.
+func newTimetableRepositories(db *bun.DB, capability timetable.Capability, presence *studentpresence.Module, people peopledirectory.Capability, groups schoolstructure.Query, rooms facilities.Query, calendar schoolcalendar.Query, membership schoolmembership.Capability, shiftTypes workforce.ShiftQuery) timetableRepositories {
 	groupRows := timetableActivityGroupRepository{timetable: capability, groups: groups, rooms: rooms, calendar: calendar, shiftTypes: shiftTypes}
 	groupProjection := groupActivityGroupRepository{activityGroupTargets: groupRows, groups: groups}
 	staffGroups := newStaffActivityGroupRepository(groupProjection, membership)
 	supervisors := staffSupervisorPlannedRepository{SupervisorPlannedRepository: timetableActivitySupervisorRepository{timetable: capability}, membership: membership}
-	instances := timetableActivityInstanceRepository{timetable: capability}
+	instances := newTimetableActivityInstanceRepository(db, capability, presence)
 	return timetableRepositories{
 		ActivityCategory:   timetableActivityCategoryRepository{timetable: capability},
 		ActivityGroup:      newPersonActivityGroupRepository(staffGroups, people),
@@ -45,6 +51,6 @@ func newTimetableRepositories(capability timetable.Capability, people peopledire
 		ActivityException:  timetableActivityExceptionRepository{timetable: capability},
 		ActivityInstance:   instances, InstanceIdempotency: instances,
 		InstanceStaff:   timetableInstanceStaffRepository{timetable: capability},
-		InstanceStudent: timetableInstanceStudentRepository{timetable: capability},
+		InstanceStudent: newTimetableInstanceStudentRepository(db, capability, presence),
 	}
 }

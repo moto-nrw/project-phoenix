@@ -6,7 +6,11 @@ import { Button } from "~/components/ui/button";
 import { useFormError } from "~/components/ui/form-error";
 import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
-import type { CareDaysSource } from "~/lib/student-arrival-api";
+import type {
+  CareDaysSource,
+  CareTimePresets,
+  SchoolPeriod,
+} from "~/lib/student-arrival-api";
 import type { ArrivalScheduleFormEntry } from "~/lib/arrival-schedule-helpers";
 import type {
   BulkPickupScheduleFormData,
@@ -23,6 +27,10 @@ interface CareWeeklyPlanModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly careDaysSource: CareDaysSource;
+  /** Lessons the arrival can be picked by; none keeps the selection hidden. */
+  readonly schoolPeriods?: readonly SchoolPeriod[];
+  /** The school's usual times, offered for one click into an empty field. */
+  readonly timePresets?: CareTimePresets;
   readonly initialArrivalSchedules: ArrivalScheduleFormEntry[];
   readonly initialPickupSchedules: PickupScheduleFormData[];
   readonly onSubmit: (data: {
@@ -50,6 +58,8 @@ export function CareWeeklyPlanModal(props: CareWeeklyPlanModalProps) {
 function CareWeeklyPlanModalForm({
   onClose,
   careDaysSource,
+  schoolPeriods,
+  timePresets,
   initialArrivalSchedules,
   initialPickupSchedules,
   onSubmit,
@@ -130,6 +140,7 @@ function CareWeeklyPlanModalForm({
       footer={footer}
       size="xl"
       mobilePosition="bottom"
+      isBackdropDismissDisabled
       error={error}
     >
       <form
@@ -157,6 +168,8 @@ function CareWeeklyPlanModalForm({
           removals={[]}
           disabled={isSubmitting}
           pickupNeedsCareDay
+          schoolPeriods={schoolPeriods}
+          timePresets={timePresets}
         />
       </form>
     </FormModal>

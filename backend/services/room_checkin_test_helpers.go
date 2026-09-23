@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -45,7 +44,7 @@ func NewCheckinTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() t
 		return CheckinTestModule{}, err
 	}
 	logger := slog.Default()
-	rosters := timetable.SessionRosters{Query: repositories.NewUnobservedTimetableDependencies(db).Capability}
+	rosters := repositories.SessionRosters{Sessions: newStudentPresence(db, logger), Roster: repositories.NewUnobservedTimetableDependencies(db).Capability}
 	scan := devicescanCompose.New(devicescanCompose.Dependencies{
 		Fleet:      module.IoT.Fleet(),
 		Presence:   newStudentPresence(db, logger),

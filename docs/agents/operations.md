@@ -28,8 +28,45 @@ through `devbox run` when the current process has not loaded the project environ
 | Fast inner loop | `scripts/test-changed.sh --fast origin/development` (run without `--fast` before push) |
 | Generate route docs | `docker compose run server go run . gendoc --routes` |
 
+### Native dev loop
+
+`scripts/dev-native.sh` (or `devbox run dev <command>`) runs the backend
+(`air`) and frontend (`next dev`) on the host while `postgres` and `mailpit`
+stay in Compose. Both processes read the root `.env` that Compose uses; only
+Compose hostnames (`DB_DSN`, `EMAIL_SMTP_*`, `MAILPIT_URL`, `API_URL`, `PORT`)
+are rewritten to localhost with the published ports. Nothing else changes, so
+`.env` stays the single source and the env-sync rule applies unchanged.
+
+| Task | Command |
+|---|---|
+| Start infra + backend + frontend (foreground) | `scripts/dev-native.sh up` |
+| Stop native processes (infra keeps running) | `scripts/dev-native.sh down` |
+| Status | `scripts/dev-native.sh status` |
+| Backend CLI with the native env | `scripts/dev-native.sh backend go run . migrate` |
+| Frontend command with the native env | `scripts/dev-native.sh frontend pnpm run check` |
+| Back to the full Compose stack | `scripts/dev-native.sh docker` |
+
+Logs land in `tmp/dev-native/backend.log` and `tmp/dev-native/frontend.log`.
+`up` stops the `server` and `frontend` containers first and refuses to start
+when a published port is taken. After `go.mod` changes restart `up`; plain Go
+edits reload through air. Worktrees created with `wt` carry their own ports in
+the copied `.env`, so several native loops run side by side.
+
+### Worktrees
+
+`wt add <issue|branch>` creates a worktree with copied local files (`.env`,
+`backend/dev.env`, `frontend/.env.local`, `docker-compose.yml`, the Postgres
+certificates), rewritten host ports, an isolated Compose project, and the
+frozen frontend dependencies; see `.wtconfig`. `wt doctor` inside a worktree
+lists ignored files the worktree lacks and leased ports that the shell or
+`.envrc` shadows. `wt remove` tears down the worktree's Compose project and
+its `project-phoenix-testdb-<port>` test server, including volumes.
+
 The seeder is **dev-only**. Staging/production infrastructure belongs in data
-migrations or the admin UI, never the seeder. See Cleanup CLI below for cleanup
+migrations or the admin UI, never the seeder. The one deployed exception is the
+public demo environment (`APP_ENV=demo`, ADR 0029): `seed`, `simulate`,
+`seed-parents`, and the seed-token exposure name `demo` in their allow-lists;
+`staging` and `production` stay rejected. See Cleanup CLI below for cleanup
 command shapes: some commands delete data and silently ignore extra arguments.
 
 ## Cleanup CLI
@@ -49,6 +86,7 @@ go run . cleanup timetable|time-tracking [preview|stats]      # nested dry-runs 
 go run . cleanup tokens|invitations|rate-limits|attendance|sessions|supervisors
 go run . backfill staff-owner [status|reset]   # resumable users.staff → Membership/Workforce copy (#2752); exits 1 while unstable
 go run . backfill student-owner [status|reset] # resumable users.students → People/Membership/Care Plan copy (#2758); exits 1 while unstable
+go run . backfill guardian-owner [status|reset] # resumable users.students_guardians → People/Care Plan/Identity copy (#2755); exits 1 while unstable; refused after Cutover #2756 (runbook: docs/operations/guardian-owner-storage-cutover.md)
 go run . gendoc                     # Generates routes.md + docs/openapi.yaml
 ```
 
@@ -112,13 +150,18 @@ Docker volumes as part of automatic test-server cleanup.
 
 ## Environment Management (SOPS)
 
-Edit `environments/{staging,production}.sops.env` only through the SOPS CLI.
+Edit `environments/{staging,production,demo}.sops.env` only through the SOPS CLI.
 Never hand-edit ciphertext or deployed `.env` files over SSH. Share age private
 keys through 1Password/Signal, never Slack/email.
 
 1. `sops environments/staging.sops.env` decrypts into the editor and re-encrypts.
 2. Push to `development` deploys staging; push to `main` deploys production.
-3. CI decrypts and copies `.env`, compose, and `deploy-remote.sh` to the server.
+   Demo deploys only through manual dispatch from `main`; see
+   [demo environment](../operations/demo-environment.md) for host setup and ports.
+3. CI decrypts and copies `.env` and compose to `~/<environment>/` and the release
+   scripts to `~/scripts/<environment>/`. Staging and production deploy
+   concurrently on one host, so they never share a script directory; demo runs
+   on its own VM with the same layout.
 4. Deployment pulls images, runs `migrate preflight`, backs up the DB, migrates,
    starts, and healthchecks; failures after the backup trigger rollback.
 
@@ -131,27 +174,52 @@ refusal a human has to resolve registers that same check next to its `Up`.
 
 | File | Purpose |
 |---|---|
-| `environments/{staging,production}.sops.env` | Encrypted values, plaintext keys for sync checking |
-| `environments/{staging,production}.compose.yml` | GHCR images pinned to commit SHA |
+| `environments/{staging,production,demo}.sops.env` | Encrypted values, plaintext keys for sync checking |
+| `environments/{staging,production,demo}.compose.yml` | GHCR images pinned to commit SHA |
 | `.sops.yaml`, `scripts/sops-setup.sh` | Encryption config and age setup |
 | `scripts/env-check.sh` | Key parity across deployed envs and `.env.example`; dev-only exceptions are declared in the script |
 | `scripts/deploy-remote.sh` | Exit 0: success; 1: aborted before migration; 10: rollback succeeded; 11: rollback failed (critical) |
 
-Both encrypted files must have identical keys and match `.env.example` except
+All encrypted files must have identical keys and match `.env.example` except
 the script's dev-only whitelist. The shared `.env` supplies Compose interpolation
 only. Each service receives an explicit environment allowlist; `migrate` alone
 receives the privileged DSN. Read [runtime environment boundaries](../operations/runtime-environment-boundaries.md)
 before changing deployment environments or maintenance jobs.
 
-CI uses `SOPS_AGE_KEY`, `STAGING_SSH_*`, and `PRODUCTION_SSH_*` secrets;
+CI uses `SOPS_AGE_KEY`, `STAGING_SSH_*`, `PRODUCTION_SSH_*`, and `DEMO_SSH_*` secrets;
 failure recipients are in the `DEPLOY_NOTIFY_EMAILS` repository variable.
-Server layout is `~/{staging,production}/` (`.env`, `docker-compose.yml`,
-`.deploy-state`) and `~/backups/{env}/` (3 staging / 7 production complete
+Server layout on each host is `~/{staging,production,demo}/` (`.env`, `docker-compose.yml`,
+`.deploy-state`) and `~/backups/{env}/` (3 staging / 7 production / 3 demo complete
 snapshot sets). See [complete release backup and rollback](../operations/release-backup-rollback.md)
 for snapshot contents, verification, manual recovery and data-loss boundaries.
 Rollbacks restore matching images, configuration, roles, database and uploads;
 an old image alone is not compatible with every newer schema.
 For env changes, read `.claude/rules/env-docker-sync.md` before editing.
+
+## Rollback window of a storage cutover
+
+A storage cutover leaves the old shape in place as a compatibility mirror so the
+previous image can be deployed again. The period until the matching Contract
+ticket drops that mirror is the rollback window. **It is not a waiting period,
+and it has no fixed length.** Sitting out hours or a school day proves nothing
+that the counters do not already say.
+
+The window ends as soon as all three hold:
+
+1. The cutover shipped in a production release, so the owner tables are filled
+   and in use there. This is ordering, not waiting: the Contract migration may
+   not drop columns the running image still needs.
+2. Both compatibility hit counters read zero and the cutover's caller-inventory
+   test is green. Together they answer who still uses the old path: the counters
+   at runtime, the test in the code.
+3. A restorable backup is verified, not merely present. After the Contract
+   migration, rolling the image back is no longer enough; recovery means
+   restoring that backup.
+
+Then the Contract ticket goes into the next release. Recording an observation
+day, a minimum duration or a separate evidence file is not required
+(decided 2026-09-23, same reasoning as the deployment gates removed in #3453
+and #3455).
 
 ## PR screenshots and QA evidence
 

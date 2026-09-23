@@ -56,10 +56,10 @@ func (f *Factory) registerFacilitiesRoomBinder() {
 }
 
 func (f *Factory) registerActiveRoomBinders() {
-	if repo, ok := f.ActiveGroup.(*presenceCompose.LegacyGroupRepository); ok {
+	if records, ok := f.ActiveGroup.(*presenceCompose.SessionRecords); ok {
 		// The directory is installed at construction (#3214); the binder
 		// swaps the room owner behind it once Facilities is observed.
-		directory, ok := repo.RoomDirectory().(*activeRoomDirectory)
+		directory, ok := records.RoomDirectory().(*activeRoomDirectory)
 		if !ok {
 			panic("repository factory: active group repository has no rebindable room directory")
 		}
@@ -103,7 +103,7 @@ func (f *Factory) bindRoomDirectories(rooms facilitiesModule.Query) {
 // repository constructed earlier (#2665, #3214).
 type activeRoomDirectory struct{ rooms facilitiesModule.Query }
 
-func (d *activeRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]presenceCompose.LegacyDirectoryRoom, error) {
+func (d *activeRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]presenceCompose.DirectoryRoom, error) {
 	if d.rooms == nil {
 		return nil, fmt.Errorf("active room directory: no room owner bound")
 	}
@@ -111,9 +111,9 @@ func (d *activeRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([
 	if err != nil {
 		return nil, err
 	}
-	result := make([]presenceCompose.LegacyDirectoryRoom, 0, len(rooms))
+	result := make([]presenceCompose.DirectoryRoom, 0, len(rooms))
 	for _, room := range rooms {
-		result = append(result, presenceCompose.LegacyDirectoryRoom{
+		result = append(result, presenceCompose.DirectoryRoom{
 			ID: room.ID, TenantID: room.TenantID, CreatedAt: room.CreatedAt, UpdatedAt: room.UpdatedAt,
 			Name: room.Name, Building: room.Building, Floor: room.Floor, Capacity: room.Capacity,
 			Category: room.Category, Color: room.Color, IsSystem: room.IsSystem,

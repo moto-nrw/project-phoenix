@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -109,10 +109,10 @@ func replaceScenarioTarget(t *testing.T, s *scenarioSetup, targetType string) {
 		group := testpkg.CreateTestEducationGroupForTenant(t, s.db, s.tenantID, "Zielgruppe-2526")
 		target.EducationGroupID = &group.ID
 		_, err := s.db.NewUpdate().
-			Table("users.students").
+			Table("users.student_school_memberships").
 			Set("group_id = ?", group.ID).
 			Where("tenant_id = ?", s.tenantID).
-			Where("id = ?", s.students[2]).
+			Where("student_profile_id = ? AND deleted_at IS NULL", s.students[2]).
 			Exec(s.ctx)
 		require.NoError(t, err)
 	}
@@ -252,9 +252,9 @@ func TestDetectEditedInWindow_StatusDayAbsenceIsRosterMembership(t *testing.T) {
 		status    string
 		substatus string
 	}{
-		{name: "sick", status: activeModels.StudentStatusDaySick, substatus: scheduleModels.AttendanceSubstatusSick},
-		{name: "excused", status: activeModels.StudentStatusDayExcused, substatus: scheduleModels.AttendanceSubstatusExcused},
-		{name: "class trip", status: activeModels.StudentStatusDayClassTrip, substatus: scheduleModels.AttendanceSubstatusFieldTrip},
+		{name: "sick", status: absencerecords.StudentStatusDaySick, substatus: scheduleModels.AttendanceSubstatusSick},
+		{name: "excused", status: absencerecords.StudentStatusDayExcused, substatus: scheduleModels.AttendanceSubstatusExcused},
+		{name: "class trip", status: absencerecords.StudentStatusDayClassTrip, substatus: scheduleModels.AttendanceSubstatusFieldTrip},
 	}
 
 	for _, tc := range statuses {
@@ -263,12 +263,12 @@ func TestDetectEditedInWindow_StatusDayAbsenceIsRosterMembership(t *testing.T) {
 			defer s.runCleanup(t)
 			inst := materializeSingleInstance(t, s)
 
-			statusDay := &activeModels.StudentStatusDay{
+			statusDay := &absencerecords.StudentStatusDay{
 				StudentID:  s.students[0],
 				Date:       editWindowStart,
 				Status:     tc.status,
 				ReportedAt: time.Now(),
-				Source:     activeModels.StudentStatusSourcePlanned,
+				Source:     absencerecords.StudentStatusSourcePlanned,
 			}
 			require.NoError(t, s.factory.StudentStatusDays.UpsertReported(s.ctx, statusDay))
 			s.extraCleanups = append(s.extraCleanups, func() {

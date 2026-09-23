@@ -1,6 +1,7 @@
 package architecture
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"go/token"
@@ -73,6 +74,7 @@ type ExternalPackage struct {
 }
 
 type Rule struct {
+	Issue           string   `json:"issue,omitempty"`
 	ID              string   `json:"id"`
 	Description     string   `json:"description"`
 	Scopes          []string `json:"scopes"`
@@ -84,6 +86,32 @@ type Rule struct {
 	TargetRole      string   `json:"target_role"`
 	TargetClass     string   `json:"target_class"`
 	SameOwner       bool     `json:"same_owner"`
+}
+
+// Presence marks a temporary permission, so an explicit empty/null issue is
+// invalid, while an omitted issue denotes an ordinary target permission.
+func (r *Rule) UnmarshalJSON(data []byte) error {
+	type ruleJSON Rule
+	var decoded ruleJSON
+	wire := struct {
+		*ruleJSON
+		Issue json.RawMessage `json:"issue"`
+	}{ruleJSON: &decoded}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&wire); err != nil {
+		return err
+	}
+	if wire.Issue != nil {
+		if err := json.Unmarshal(wire.Issue, &decoded.Issue); err != nil {
+			return err
+		}
+		if _, err := ParseGitHubIssue(decoded.Issue); err != nil {
+			return err
+		}
+	}
+	*r = Rule(decoded)
+	return nil
 }
 
 var (
@@ -115,6 +143,10 @@ func LoadPolicy(path string) (*Policy, error) {
 }
 
 func DecodePolicy(reader io.Reader) (*Policy, error) {
+	return decodePolicy(reader, false)
+}
+
+func decodePolicy(reader io.Reader, allowSchema2 bool) (*Policy, error) {
 	decoder := json.NewDecoder(reader)
 	decoder.DisallowUnknownFields()
 	var policy Policy
@@ -123,6 +155,10 @@ func DecodePolicy(reader io.Reader) (*Policy, error) {
 	}
 	if err := requireJSONEnd(decoder); err != nil {
 		return nil, err
+	}
+	// Only immutable base policies may cross the schema-2 transition.
+	if allowSchema2 && policy.SchemaVersion == 2 {
+		policy.SchemaVersion = 3
 	}
 	if err := policy.Validate(); err != nil {
 		return nil, fmt.Errorf("validate policy: %w", err)
@@ -172,8 +208,8 @@ func (p *Policy) Validate() error {
 }
 
 func (p *Policy) validateHeader() error {
-	if p.SchemaVersion != 2 {
-		return fmt.Errorf("schema_version must be 2, got %d", p.SchemaVersion)
+	if p.SchemaVersion != 3 {
+		return fmt.Errorf("schema_version must be 3, got %d", p.SchemaVersion)
 	}
 	if p.PolicyEpoch < 1 {
 		return fmt.Errorf("policy_epoch must be a positive integer")
@@ -457,6 +493,11 @@ func (p *Policy) validateRules(owners map[string]Owner, roles, classes map[strin
 }
 
 func validateRule(rule Rule, seenIDs map[string]struct{}, owners map[string]Owner, roles, classes map[string]struct{}) error {
+	if rule.Issue != "" {
+		if _, err := ParseGitHubIssue(rule.Issue); err != nil {
+			return err
+		}
+	}
 	if !identifierPattern.MatchString(rule.ID) {
 		return fmt.Errorf("rule id %q is invalid", rule.ID)
 	}
@@ -512,12 +553,32 @@ func targetSelectorsOverlap(left, right Rule, owners map[string]Owner) bool {
 		return ownerSelectorsOverlap(left.TargetOwner, left.TargetOwnerKind, right.TargetOwner, right.TargetOwnerKind, owners)
 	}
 	for _, owner := range owners {
-		if ownerMatches(left.SourceOwner, left.SourceOwnerKind, owner) && ownerMatches(right.SourceOwner, right.SourceOwnerKind, owner) &&
+		if sameOwnerSelects(owner) &&
+			ownerMatches(left.SourceOwner, left.SourceOwnerKind, owner) && ownerMatches(right.SourceOwner, right.SourceOwnerKind, owner) &&
 			ownerMatches(left.TargetOwner, left.TargetOwnerKind, owner) && ownerMatches(right.TargetOwner, right.TargetOwnerKind, owner) {
 			return true
 		}
 	}
 	return false
+}
+
+// sameOwnerSelects reports whether a same_owner rule can select owner as its
+// target. The shared kernel has no private side: every role reaches its
+// contract through the one owner-agnostic shared-kernel rule (ADR 0040), so a
+// same_owner rule never selects a kernel owner and cannot overlap that rule.
+func sameOwnerSelects(owner Owner) bool {
+	return owner.Kind != "kernel"
+}
+
+// sameOwnerSelectsID is sameOwnerSelects for an owner named by ID; an unknown
+// owner is left to the ordinary owner selectors.
+func (p *Policy) sameOwnerSelectsID(id string) bool {
+	for _, owner := range p.Owners {
+		if owner.ID == id {
+			return sameOwnerSelects(owner)
+		}
+	}
+	return true
 }
 
 func ownerSelectorsOverlap(leftID, leftKind, rightID, rightKind string, owners map[string]Owner) bool {

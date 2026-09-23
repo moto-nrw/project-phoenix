@@ -45,7 +45,7 @@ func TestGradeTransitionWorkflow_History_StudentStates(t *testing.T) {
 	// purge route does — the two states the ledger cannot express.
 	require.NoError(t, f.deps.UnitOfWork(ctx, func(txCtx context.Context) error {
 		reactivated, err := f.deps.Membership.Reactivate(txCtx,
-			[]int64{restored.ID}, string(users.StudentStatusActive))
+			[]int64{restored.ID}, string(users.StudentStatusActive), gradetransition.RevertChildQuotaCheck)
 		if err != nil {
 			return err
 		}
@@ -55,7 +55,7 @@ func TestGradeTransitionWorkflow_History_StudentStates(t *testing.T) {
 
 	_, err = db.NewDelete().
 		Model((*struct{})(nil)).
-		ModelTableExpr("users.students").
+		ModelTableExpr("users.student_profiles").
 		Where("id = ?", purged.ID).
 		Exec(ctx)
 	require.NoError(t, err)

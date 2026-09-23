@@ -2,7 +2,7 @@
 // the parent-OGS messaging feature: the central inbox, per-thread chats, and
 // staff replies / new conversations. A thread is one conversation between the
 // OGS and a single guardian about one child (email-like, identified by a
-// subject). The parent side lives in workflows/parentportal/legacy; both operate on the same
+// subject). The parent side lives in workflows/parentportal/messaging; both operate on the same
 // users.parent_message_* tables.
 //
 // All methods run inside the request's tenant transaction (routes are mounted
@@ -26,7 +26,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -83,7 +82,7 @@ type Config struct {
 	MessageRepo usersModels.ParentMessageRepository
 	ReadRepo    usersModels.ParentMessageReadRepository
 	Persons     userService.PersonService
-	UserContext userContextService.UserContextService
+	UserContext authorize.StudentAccessUserContext
 	Settings    configService.SettingsService
 	Broadcaster realtime.Broadcaster
 	DB          *bun.DB

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -30,7 +30,7 @@ func TimeClockCapability(sessions timetracking.WorkSessionService) workforce.Tim
 
 func (c timeClock) CheckIn(ctx context.Context, stamp workforce.CheckInStamp) (workforce.WorkSession, error) {
 	var (
-		session *activeModels.WorkSession
+		session *timerecords.WorkSession
 		err     error
 	)
 	if stamp.Day == "" {
@@ -137,8 +137,8 @@ func (c timeClock) Workday(ctx context.Context, staffID int64, day string, now t
 		return result, nil
 	}
 	dayStart := date.BerlinMidnight()
-	sessions := make([]*activeModels.WorkSession, 0, len(history.Sessions))
-	breaksBySession := make(map[int64][]*activeModels.WorkSessionBreak, len(history.Sessions))
+	sessions := make([]*timerecords.WorkSession, 0, len(history.Sessions))
+	breaksBySession := make(map[int64][]*timerecords.WorkSessionBreak, len(history.Sessions))
 	for _, daySession := range history.Sessions {
 		if daySession == nil || daySession.WorkSession == nil {
 			continue
@@ -233,7 +233,7 @@ func MapTimeTrackingError(err error) error {
 	}
 }
 
-func workSessionToCapability(session *activeModels.WorkSession) workforce.WorkSession {
+func workSessionToCapability(session *timerecords.WorkSession) workforce.WorkSession {
 	if session == nil {
 		return workforce.WorkSession{}
 	}
@@ -246,7 +246,7 @@ func workSessionToCapability(session *activeModels.WorkSession) workforce.WorkSe
 	}
 }
 
-func workSessionBreakToCapability(workBreak *activeModels.WorkSessionBreak) workforce.WorkSessionBreak {
+func workSessionBreakToCapability(workBreak *timerecords.WorkSessionBreak) workforce.WorkSessionBreak {
 	if workBreak == nil {
 		return workforce.WorkSessionBreak{}
 	}

@@ -14,9 +14,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -34,7 +33,7 @@ type StudentResponseOpts struct {
 
 // StudentResponseServices groups service dependencies for student response creation
 type StudentResponseServices struct {
-	ActiveService activeService.Service
+	ActiveService StudentPresence
 	PersonService userService.PersonService
 }
 
@@ -304,7 +303,7 @@ func absentInfo(hasFullAccess bool, checkOutTime *time.Time) common.StudentLocat
 // write only attendance (no room visit), so falling through to
 // presentOrTransit() would always yield "Unterwegs", contradicting the
 // simplified Anwesend/Schulhof/Abwesend UX binary mode promises.
-func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, svc activeService.Service) (common.StudentLocationInfo, error) {
+func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, svc StudentPresence) (common.StudentLocationInfo, error) {
 	mode, err := svc.GetPresenceMode(ctx)
 	if err != nil {
 		return common.StudentLocationInfo{}, err
@@ -332,7 +331,7 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 
 	// Student is checked in - get current visit to check room assignment
 	currentVisit, err := svc.GetStudentCurrentVisit(ctx, studentID)
-	if err != nil && !errors.Is(err, activeService.ErrVisitNotFound) {
+	if err != nil && !errors.Is(err, studentpresence.ErrVisitNotFound) {
 		return common.StudentLocationInfo{}, err
 	}
 	if currentVisit == nil || currentVisit.ActiveGroupID <= 0 {
@@ -533,7 +532,7 @@ func (rs *Resource) enrichWithCareExitFlag(ctx context.Context, responses []Stud
 // applyPickupTimesFromMap writes already-loaded effective pickup times onto the
 // responses without touching the database, so a pipeline stage that has the
 // bulk map in hand does not re-run the three pickup SELECTs (#2098).
-func applyPickupTimesFromMap(responses []StudentResponse, pickupTimes map[int64]*careschedule.EffectivePickupTime) {
+func applyPickupTimesFromMap(responses []StudentResponse, pickupTimes map[int64]*careplan.EffectivePickupTime) {
 	for i := range responses {
 		if !responses[i].HasFullAccess {
 			continue
@@ -552,7 +551,7 @@ func applyPickupTimesFromMap(responses []StudentResponse, pickupTimes map[int64]
 // applyArrivalTimesFromMap writes already-loaded effective arrival times onto
 // the responses without touching the database, so a pipeline stage that has the
 // bulk map in hand does not re-run the three arrival SELECTs (#2098).
-func applyArrivalTimesFromMap(responses []StudentResponse, arrivalTimes map[int64]*careschedule.EffectiveArrivalTime) {
+func applyArrivalTimesFromMap(responses []StudentResponse, arrivalTimes map[int64]*careplan.EffectiveArrivalTime) {
 	for i := range responses {
 		if !responses[i].HasFullAccess {
 			continue
@@ -569,7 +568,7 @@ func applyArrivalTimesFromMap(responses []StudentResponse, arrivalTimes map[int6
 }
 
 // buildPickupNotes combines exception reason and day notes into a single string.
-func buildPickupNotes(ept *careschedule.EffectivePickupTime) string {
+func buildPickupNotes(ept *careplan.EffectivePickupTime) string {
 	var parts []string
 	if ept.Notes != "" {
 		parts = append(parts, ept.Notes)
@@ -583,7 +582,7 @@ func buildPickupNotes(ept *careschedule.EffectivePickupTime) string {
 }
 
 // buildArrivalNotes combines exception reason and day notes into a single string.
-func buildArrivalNotes(eat *careschedule.EffectiveArrivalTime) string {
+func buildArrivalNotes(eat *careplan.EffectiveArrivalTime) string {
 	var parts []string
 	if eat.Notes != "" {
 		parts = append(parts, eat.Notes)
@@ -596,7 +595,7 @@ func buildArrivalNotes(eat *careschedule.EffectiveArrivalTime) string {
 	return strings.Join(parts, ", ")
 }
 
-func applyActualTimesFromAttendance(response *StudentResponse, status *activeService.AttendanceStatus) {
+func applyActualTimesFromAttendance(response *StudentResponse, status *studentpresence.DailyAttendanceStatus) {
 	if response == nil || status == nil {
 		return
 	}

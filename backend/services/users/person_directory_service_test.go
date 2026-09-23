@@ -210,8 +210,7 @@ func TestPersonService_Create(t *testing.T) {
 		err := service.Create(ctx, person)
 
 		// ASSERT
-		require.Error(t, err)
-		// Error indicates account not found or validation failed
+		require.ErrorIs(t, err, users.ErrAccountNotFound)
 	})
 }
 
@@ -692,9 +691,9 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "ALUMNUSTAG")
 
 		_, err := db.NewUpdate().
-			TableExpr(`users.students`).
+			TableExpr(`users.student_school_memberships`).
 			Set("status = ?", string(userModels.StudentStatusAlumnus)).
-			Where("id = ?", student.ID).
+			Where("student_profile_id = ?", student.ID).Where("deleted_at IS NULL").
 			Exec(ctx)
 		require.NoError(t, err)
 

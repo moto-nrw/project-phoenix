@@ -11,9 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -22,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
@@ -38,9 +38,10 @@ import (
 
 // testContext holds shared test dependencies.
 type testContext struct {
-	db          *bun.DB
-	resource    *studentsAPI.Resource
-	broadcaster *testpkg.RecordingBroadcaster
+	careRequests carerequests.Submissions
+	db           *bun.DB
+	resource     *studentsAPI.Resource
+	broadcaster  *testpkg.RecordingBroadcaster
 }
 
 func newStudentTestRepositories(db *bun.DB) repositories.StudentTestRepositories {
@@ -129,6 +130,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 			return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
 		},
 		ObserveCare: func(requestreviewcompose.CareObservation) {}, ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
+		Blocks: repositories.NewPickupReviewBlocks(db),
 	})
 	require.NoError(t, err)
 	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, func() requestreviewcompose.ReviewDate {
@@ -182,18 +184,19 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		PeopleDirectory:        svc.PeopleDirectory,
 		StudentDeletion:        studentDeletion,
 		StudentService:         userService.NewStudentService(repositories.NewStudentDirectory(svc.PeopleDirectory), svc.PeopleDirectory, repoFactory.Student),
-		CompanionService:       carelifecycle.NewStudentCompanionService(repoFactory.Student, repoFactory.StudentCompanion, svc.StudentAudit),
+		CompanionService:       repositories.MustNewStudentCompanions(repoFactory.CarePlan, repoFactory.Student, svc.PeopleDirectory, svc.StudentAudit),
 		EducationService:       svc.Education,
 		UserContextService:     svc.UserContext,
 		ActiveService:          svc.Active,
 		IoTService:             svc.IoT,
-		DeviceAuthenticator:    testutil.NewDeviceAuthenticators(svc.IoT.Fleet(), testutil.DeviceSchools(t, db), nil, svc.Settings, testDevicePIN).Device(),
+		DeviceAuthenticator:    testutil.NewDeviceAuthenticators(svc.IoT.Fleet(), testutil.DeviceSchools(t, db), svc.Settings, testDevicePIN).Device(),
 		PickupScheduleService:  svc.PickupSchedule,
+		WeekdayPickupNotes:     repoFactory.CarePlan,
 		PartialAbsenceService:  svc.PartialAbsence,
 		ArrivalScheduleService: svc.ArrivalSchedule,
 		SchoolService:          exportSchools{schools: svc.Schools},
 		SettingsService:        svc.Settings,
-		StudentHistoryService: activeSvc.NewStudentHistoryService(presence, func(ctx context.Context, ids []int64) (map[int64]string, error) {
+		StudentHistoryService: presenceservice.NewStudentHistory(presence, func(ctx context.Context, ids []int64) (map[int64]string, error) {
 			rooms, err := repoFactory.Room.FindByIDs(ctx, ids)
 			if err != nil {
 				return nil, err
@@ -208,8 +211,8 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		InstanceService:         svc.Instance,
 		CareDayService:          svc.CareDay,
 		CareLifecycleService:    svc.CareLifecycle,
-		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, svc.ManualPartialAbsences(repoFactory.CarePlan), db, repoFactory.CarePlan.LockExceptionDay),
-		AbsenceOverview:         activeSvc.NewStudentStatusDayOverviewService(repoFactory.StudentStatusDay, svc.StatusDayOverviewPeople()),
+		StudentStatusDayService: presenceservice.NewStatusDays(repoFactory.StudentStatusDay, svc.ManualPartialAbsences(repoFactory.CarePlan), db, repoFactory.CarePlan.LockExceptionDay),
+		AbsenceOverview:         presenceservice.NewStatusDayOverviews(repoFactory.StudentStatusDay, svc.StatusDayOverviewPeople()),
 		ExcusedRequestService:   svc.ExcusedRequests,
 		StudentAuditService:     svc.StudentAudit,
 		PrivacyConsents:         presence,
@@ -218,6 +221,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		// pending-count endpoint can be exercised end to end (#2232).
 		MasterDataReviewService:  svc.MasterDataReview,
 		CareRequestService:       svc.CareRequests,
+		CareRequestReviews:       careReviews,
 		OfferingChangeService:    svc.OfferingChanges,
 		PickupAdjustmentService:  svc.PickupAdjustments,
 		ParentRequestBulkService: svc.ParentRequests,
@@ -234,9 +238,10 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	})
 
 	return &testContext{
-		db:          db,
-		resource:    resource,
-		broadcaster: broadcaster,
+		careRequests: svc.CareRequests,
+		db:           db,
+		resource:     resource,
+		broadcaster:  broadcaster,
 	}
 }
 

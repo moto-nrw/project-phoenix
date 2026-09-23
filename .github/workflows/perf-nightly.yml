@@ -79,6 +79,7 @@ jobs:
       DB_CONN_MAX_LIFETIME: 30m
       DB_CONN_MAX_IDLE_TIME: 10m
       PHOENIX_AUTH_PASSWORD: phoenix_auth_test
+      PHOENIX_DEMO_PASSWORD: phoenix_demo_test
       # Backend port. The Playwright configs override PORT=3000 for the Next
       # server they start themselves.
       PORT: "8080"
@@ -115,6 +116,7 @@ jobs:
       NEXT_PUBLIC_TENANT_DOMAIN: localhost
       NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
       NEXT_PUBLIC_PARENTS_HOSTNAME: parents.localhost:3000
+      NEXT_PUBLIC_APP_ENV: test
       NEXT_PUBLIC_SCHOOL_HOSTNAME: schule.localhost:3000
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: ci-perf-nightly-throwaway-secret

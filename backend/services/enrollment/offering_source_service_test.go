@@ -62,7 +62,7 @@ func createSourceOffering(t *testing.T, env *decisionTestEnv, name string, activ
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offering))
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("enrollment.care_offerings").
@@ -742,9 +742,9 @@ func TestResyncOfferingSourcedTemplates_FollowsClassChange(t *testing.T) {
 
 	// Promotion: the child moves from Jahrgang 2 into Jahrgang 3.
 	_, err := env.db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("school_class = ?", "3a").
-		Where("id = ?", studentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", studentID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -984,7 +984,7 @@ func TestValidateTemplateOfferingSource_RejectsNewUnknownToleratesStored(t *test
 
 	offering := createSourceOffering(t, env, "PruefQuelle", nil)
 	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
-		Repo:               env.repos.CareOffering,
+		Repo:               enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
 		Phases:             env.repos.Enrollment(),
 		CalendarPeriodRepo: env.repos.CalendarPeriod,
 	})
@@ -1195,7 +1195,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 		IsActive:       true,
 	}
 	offeringA.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(ctx, offeringA))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offeringA))
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("enrollment.care_offerings").
@@ -1418,7 +1418,7 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	phaseSvc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Owner:                  repoFactory.Enrollment(),
-		CareOfferingRepo:       repoFactory.CareOffering,
+		CareOfferingRepo:       enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		LockTemplateRecurrence: func(context.Context) error { return nil },
 		DB:                     env.db,
 		Today:                  func() timezone.Date { return offeringResyncToday },
@@ -1953,7 +1953,7 @@ func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t
 	sourceOffering := createSourceOffering(t, env, "LegacyMischQuelle", nil)
 	sourceOffering.AvailableDays = []string{"tue"}
 	sourceOffering.PickupTimes = carePickupTimes("tue")
-	require.NoError(t, env.repos.CareOffering.Update(ctx, sourceOffering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, sourceOffering))
 
 	// The child holds BOTH offerings.
 	grade := int16(2)
@@ -2109,7 +2109,7 @@ func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
 	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays)
 
 	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
-		Repo:                  env.repos.CareOffering,
+		Repo:                  enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
 		Bookings:              env.repos.Enrollment(),
 		ActivityGroupRepo:     env.repos.ActivityGroup,
 		ActivityScheduleRepo:  env.repos.ActivitySchedule,
@@ -2209,7 +2209,7 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 	})
 
 	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
-		Repo:                  env.repos.CareOffering,
+		Repo:                  enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
 		Bookings:              env.repos.Enrollment(),
 		ActivityGroupRepo:     env.repos.ActivityGroup,
 		ActivityScheduleRepo:  env.repos.ActivitySchedule,
@@ -2261,7 +2261,7 @@ func TestListOfferingSourceOptions_CountsScopedToSelectedPeriod(t *testing.T) {
 	// start, which lies after the cap).
 	ctx := testpkg.Ctx(t)
 	_, err := env.db.NewRaw(
-		`UPDATE enrollment.request_child_offerings SET valid_from = NULL, valid_until = ? WHERE request_child_id = ? AND care_offering_id = ?`,
+		`UPDATE enrollment.care_offering_bookings SET valid_from = NULL, valid_until = ? WHERE request_child_id = ? AND care_offering_id = ?`,
 		phaseStart.AddDays(-20), childID, offering.ID,
 	).Exec(ctx)
 	require.NoError(t, err)

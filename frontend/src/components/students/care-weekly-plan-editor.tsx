@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, StickyNote } from "lucide-react";
+import { ChevronDown, Plus, StickyNote } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { EditActions } from "~/components/ui/edit-actions";
@@ -9,6 +9,10 @@ import { useFormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
+import {
+  completesOneDigitHour,
+  normalizeTimeInput,
+} from "~/components/ui/time-field";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import {
@@ -18,14 +22,20 @@ import {
 import {
   formatDateISO,
   type PickupScheduleFormData,
+  type WeekdayNoteEntry,
 } from "~/lib/pickup-schedule-helpers";
 import type {
   PickupAdjustmentPreview,
   PickupAdjustmentResolution,
   PickupAdjustmentSelection,
 } from "~/lib/pickup-schedule-api";
-import type { CareDaysSource } from "~/lib/student-arrival-api";
+import type {
+  CareDaysSource,
+  CareTimePresets,
+  SchoolPeriod,
+} from "~/lib/student-arrival-api";
 import { PickupAdjustmentDecision } from "./pickup-adjustment-decision";
+import { SchoolPeriodSelect } from "./school-period-select";
 
 /**
  * Der Wochenplan eines Kindes: die festen Ankunfts- und Abholzeiten je
@@ -41,6 +51,12 @@ import { PickupAdjustmentDecision } from "./pickup-adjustment-decision";
 export interface CarePlanWeeklySubmit {
   readonly arrivalSchedules: ArrivalScheduleFormEntry[];
   readonly pickupSchedules: PickupScheduleFormData[];
+  /**
+   * Notes of weekdays without a pickup time (#3369). They cannot ride on the
+   * pickup row: that row's existence marks the child as expected. Absent
+   * means: leave the stored weekday notes untouched.
+   */
+  readonly weekdayNotes?: WeekdayNoteEntry[];
 }
 
 export interface CarePlanWeeklyAdjustment {
@@ -67,6 +83,8 @@ export interface WeeklyRow {
   readonly pickupNotes: string;
 }
 
+const NO_WEEKDAY_NOTES: WeekdayNoteEntry[] = [];
+
 type WeeklyRowField =
   "arrivalTime" | "pickupTime" | "arrivalNotes" | "pickupNotes";
 
@@ -77,6 +95,7 @@ const TIME_PATTERN = /^([01]?\d|2[0-3]):[0-5]\d$/;
 function buildWeeklyRows(
   arrival: readonly ArrivalScheduleFormEntry[],
   pickup: readonly PickupScheduleFormData[],
+  weekdayNotes: readonly WeekdayNoteEntry[],
 ): WeeklyRow[] {
   return WEEKDAYS.map((day) => {
     const arrivalEntry = arrival.find(
@@ -94,12 +113,25 @@ function buildWeeklyRows(
       arrivalClassTime: arrivalEntry?.classTime ?? "",
       arrivalNotes: arrivalEntry?.notes ?? "",
       pickupTime: pickupEntry?.pickupTime ?? "",
-      pickupNotes: pickupEntry?.notes ?? "",
+      // ONE note field per day: the pickup row carries it while the day has a
+      // pickup time, the weekday note while it has none (#3369).
+      pickupNotes:
+        (pickupEntry?.notes ? pickupEntry.notes : undefined) ??
+        weekdayNotes.find((note) => note.weekday === day.value)?.content ??
+        "",
     };
   });
 }
 
-export function validateWeeklyRows(rows: readonly WeeklyRow[]): string | null {
+export function validateWeeklyRows(
+  rows: readonly WeeklyRow[],
+  /**
+   * The detail page stores a note without pickup time as a weekday note
+   * (#3369). The create assistant has no child yet to attach one to, so there
+   * the note still needs its pickup time.
+   */
+  notesWithoutPickup = false,
+): string | null {
   for (const row of rows) {
     const day = WEEKDAYS.find((weekday) => weekday.value === row.weekday);
     if (row.arrivalTime && !TIME_PATTERN.test(row.arrivalTime)) {
@@ -111,7 +143,11 @@ export function validateWeeklyRows(rows: readonly WeeklyRow[]): string | null {
     if (row.pickupTime && !TIME_PATTERN.test(row.pickupTime)) {
       return `Ungültige Abholzeit für ${day?.label ?? "diesen Tag"}.`;
     }
-    if (row.pickupNotes.trim() && !row.pickupTime.trim()) {
+    if (
+      !notesWithoutPickup &&
+      row.pickupNotes.trim() &&
+      !row.pickupTime.trim()
+    ) {
       return `Eine Abholnotiz für ${day?.label ?? "diesen Tag"} benötigt eine Abholzeit.`;
     }
   }
@@ -155,6 +191,8 @@ export function toWeeklySubmit(
   rows: readonly WeeklyRow[],
   pickupNeedsCareDay = false,
 ): CarePlanWeeklySubmit {
+  const keepsPickup = (row: WeeklyRow) =>
+    row.pickupTime.trim() !== "" && (!pickupNeedsCareDay || row.arrivalInCare);
   return {
     arrivalSchedules: rows
       .filter((row) => row.arrivalInCare)
@@ -166,16 +204,16 @@ export function toWeeklySubmit(
         expected_arrival: row.arrivalTime.trim(),
         notes: row.arrivalNotes.trim() ? row.arrivalNotes : null,
       })),
-    pickupSchedules: rows
-      .filter(
-        (row) =>
-          row.pickupTime.trim() !== "" &&
-          (!pickupNeedsCareDay || row.arrivalInCare),
-      )
+    pickupSchedules: rows.filter(keepsPickup).map((row) => ({
+      weekday: row.weekday,
+      pickupTime: row.pickupTime,
+      notes: row.pickupNotes.trim() ? row.pickupNotes : undefined,
+    })),
+    weekdayNotes: rows
+      .filter((row) => !keepsPickup(row) && row.pickupNotes.trim() !== "")
       .map((row) => ({
         weekday: row.weekday,
-        pickupTime: row.pickupTime,
-        notes: row.pickupNotes.trim() ? row.pickupNotes : undefined,
+        content: row.pickupNotes.trim(),
       })),
   };
 }
@@ -220,9 +258,10 @@ export interface WeeklyPlanDraft {
 export function useWeeklyPlanDraft(
   initialArrival: readonly ArrivalScheduleFormEntry[],
   initialPickup: readonly PickupScheduleFormData[],
+  initialWeekdayNotes: readonly WeekdayNoteEntry[] = [],
 ): WeeklyPlanDraft {
   const [rows, setRows] = useState<WeeklyRow[]>(() =>
-    buildWeeklyRows(initialArrival, initialPickup),
+    buildWeeklyRows(initialArrival, initialPickup, initialWeekdayNotes),
   );
   const [expandedWeekdays, setExpandedWeekdays] = useState<Set<number>>(
     () =>
@@ -270,6 +309,9 @@ export function useWeeklyPlanDraft(
 
 // --- the grid ---------------------------------------------------------------
 
+const NO_SCHOOL_PERIODS: readonly SchoolPeriod[] = [];
+const NO_CARE_TIME_PRESETS: CareTimePresets = { arrival: "", pickup: "" };
+
 const GRID_COLUMNS =
   "sm:grid-cols-[minmax(100px,0.7fr)_minmax(140px,1fr)_minmax(140px,1fr)]";
 
@@ -279,15 +321,24 @@ export function CareWeeklyPlanGrid({
   removals,
   disabled = false,
   pickupNeedsCareDay = false,
+  schoolPeriods = NO_SCHOOL_PERIODS,
+  timePresets = NO_CARE_TIME_PRESETS,
+  notesWithoutPickup = false,
 }: {
   readonly draft: WeeklyPlanDraft;
   readonly careDaysSource: CareDaysSource;
+  /** Lessons the arrival can be picked by (#3372); none hides the choice. */
+  readonly schoolPeriods?: readonly SchoolPeriod[];
+  /** The school's usual times, offered for one click into an empty field. */
+  readonly timePresets?: CareTimePresets;
   /** Times the save would delete; shown as a warning under the grid. */
   readonly removals: readonly string[];
   /** Every field is locked while a save is running. */
   readonly disabled?: boolean;
   /** In bookings mode a pickup time is only possible on a booked care day. */
   readonly pickupNeedsCareDay?: boolean;
+  /** A day without pickup time can still carry a note (#3369). */
+  readonly notesWithoutPickup?: boolean;
 }) {
   const { rows, expandedWeekdays, setField, toggleCare, toggleNotes } = draft;
   return (
@@ -307,15 +358,32 @@ export function CareWeeklyPlanGrid({
             const pickupLocked =
               disabled ||
               (pickupNeedsCareDay && careDaysSource === "bookings" && !inCare);
+            // Without a pickup time the note belongs to the day, not to an
+            // Abholung the child does not have (#3369).
+            const noteIsForDay =
+              notesWithoutPickup &&
+              (pickupLocked || !(row?.pickupTime ?? "").trim());
+            // The usual time is offered only where it becomes the child's
+            // time: never over the class time, whose empty field already
+            // means a time (#2414), and never on a day that is no care day,
+            // whose pickup the save drops (#3371).
+            const arrivalPreset =
+              inCare && !row?.arrivalTime && !row?.arrivalClassTime
+                ? timePresets.arrival
+                : "";
+            const pickupPreset =
+              inCare && !pickupLocked && !row?.pickupTime
+                ? timePresets.pickup
+                : "";
             return (
               <div
                 key={day.value}
-                className={`grid gap-3 px-3 py-4 sm:items-center sm:px-4 ${GRID_COLUMNS}`}
+                className={`grid gap-3 px-3 py-4 sm:items-start sm:px-4 ${GRID_COLUMNS}`}
               >
                 <div>
                   <label
                     htmlFor={`weekly-care-${day.value}`}
-                    className="flex min-h-6 cursor-pointer items-center gap-2 text-sm font-semibold text-gray-900 has-[:disabled]:cursor-not-allowed"
+                    className="flex min-h-6 cursor-pointer items-center gap-2 text-sm font-semibold text-gray-900 has-[:disabled]:cursor-not-allowed sm:min-h-10"
                   >
                     <Checkbox
                       id={`weekly-care-${day.value}`}
@@ -355,6 +423,26 @@ export function CareWeeklyPlanGrid({
                       setField(day.value, "arrivalTime", value)
                     }
                   />
+                  <TimePresetButton
+                    time={arrivalPreset}
+                    ariaLabel={`${day.label}: Ankunft ${arrivalPreset} Uhr eintragen`}
+                    disabled={disabled}
+                    onApply={() =>
+                      setField(day.value, "arrivalTime", arrivalPreset)
+                    }
+                  />
+                  <div className="mt-1 empty:hidden">
+                    <SchoolPeriodSelect
+                      id={`weekly-arrival-period-${day.value}`}
+                      periods={schoolPeriods}
+                      time={row?.arrivalTime ?? ""}
+                      ariaLabel={`${day.label}: Ankunft nach Schulstunde`}
+                      disabled={disabled || !inCare}
+                      onSelect={(endTime) =>
+                        setField(day.value, "arrivalTime", endTime)
+                      }
+                    />
+                  </div>
                   {inCare && row?.arrivalClassTime ? (
                     <div className="mt-1 flex flex-wrap items-center justify-between gap-1">
                       <p className="text-xs text-gray-500">
@@ -375,13 +463,25 @@ export function CareWeeklyPlanGrid({
                     </div>
                   ) : null}
                 </div>
-                <WeeklyTimeField
-                  id={`weekly-pickup-${day.value}`}
-                  label="Abholung"
-                  value={row?.pickupTime ?? ""}
-                  disabled={pickupLocked}
-                  onChange={(value) => setField(day.value, "pickupTime", value)}
-                />
+                <div>
+                  <WeeklyTimeField
+                    id={`weekly-pickup-${day.value}`}
+                    label="Abholung"
+                    value={row?.pickupTime ?? ""}
+                    disabled={pickupLocked}
+                    onChange={(value) =>
+                      setField(day.value, "pickupTime", value)
+                    }
+                  />
+                  <TimePresetButton
+                    time={pickupPreset}
+                    ariaLabel={`${day.label}: Abholung ${pickupPreset} Uhr eintragen`}
+                    disabled={disabled}
+                    onApply={() =>
+                      setField(day.value, "pickupTime", pickupPreset)
+                    }
+                  />
+                </div>
                 {expandedWeekdays.has(day.value) ? (
                   <div className={`grid gap-3 sm:col-span-3 ${GRID_COLUMNS}`}>
                     <div className="hidden sm:block" />
@@ -396,9 +496,13 @@ export function CareWeeklyPlanGrid({
                     />
                     <WeeklyNoteField
                       id={`weekly-pickup-notes-${day.value}`}
-                      label="Abholnotiz (jede Woche)"
+                      label={
+                        noteIsForDay
+                          ? "Notiz zum Tag (jede Woche)"
+                          : "Abholnotiz (jede Woche)"
+                      }
                       value={row?.pickupNotes ?? ""}
-                      disabled={pickupLocked}
+                      disabled={notesWithoutPickup ? disabled : pickupLocked}
                       onChange={(value) =>
                         setField(day.value, "pickupNotes", value)
                       }
@@ -433,25 +537,84 @@ function WeeklyTimeField({
   readonly disabled: boolean;
   readonly onChange: (value: string) => void;
 }) {
+  const completedOneDigitHour = useRef<string | null>(null);
+
   return (
     <div>
       {/* The column header names the field on wide screens; the label is
-          only shown where the rows stack. */}
+          only shown where the rows stack. It stays for screen readers, which
+          do not associate the column header with the field. */}
       <label
         htmlFor={id}
-        className="mb-1 block text-xs font-medium text-gray-500 sm:hidden"
+        className="mb-1 block text-xs font-medium text-gray-500 sm:sr-only"
       >
         {label}
       </label>
+      {/* A text field with the digit mask instead of the native time input
+          (#3371): Safari fills an empty native field with the current time in
+          grey, which reads like a stored value and has to be overwritten hour
+          and minute apart. Here "1600" becomes 16:00 in one go. */}
       <Input
         id={id}
-        type="time"
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="HH:MM"
+        maxLength={6}
         controlSize="compact"
+        className="tabular-nums"
         value={value}
         disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => {
+          const nextValue = normalizeTimeInput(
+            event.target.value,
+            value,
+            completedOneDigitHour.current === value,
+          );
+          completedOneDigitHour.current = completesOneDigitHour(
+            event.target.value,
+          )
+            ? nextValue
+            : null;
+          onChange(nextValue);
+        }}
+        onBlur={() => {
+          completedOneDigitHour.current = null;
+        }}
       />
     </div>
+  );
+}
+
+/**
+ * Copies the school's usual time into the empty field above it (#3371).
+ * Nothing is stored until the plan is saved. Renders nothing without a time.
+ */
+function TimePresetButton({
+  time,
+  ariaLabel,
+  disabled,
+  onApply,
+}: {
+  readonly time: string;
+  readonly ariaLabel: string;
+  readonly disabled: boolean;
+  readonly onApply: () => void;
+}) {
+  if (!time) return null;
+  return (
+    <Button
+      type="button"
+      variant="surface"
+      size="compact"
+      className="mt-1.5"
+      aria-label={ariaLabel}
+      disabled={disabled}
+      onClick={onApply}
+    >
+      <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+      {time} Uhr eintragen
+    </Button>
   );
 }
 
@@ -494,8 +657,12 @@ function WeeklyNoteField({
 
 interface CareWeeklyPlanEditFormProps {
   readonly careDaysSource: CareDaysSource;
+  readonly schoolPeriods?: readonly SchoolPeriod[];
+  readonly timePresets?: CareTimePresets;
   readonly weeklyArrival: ArrivalScheduleFormEntry[];
   readonly weeklyPickup: PickupScheduleFormData[];
+  /** The notes of weekdays without a pickup time (#3369). */
+  readonly weeklyNotes?: WeekdayNoteEntry[];
   readonly onSubmitWeekly: (
     payload: CarePlanWeeklySubmit,
     adjustment?: CarePlanWeeklyAdjustment,
@@ -516,14 +683,17 @@ interface CareWeeklyPlanEditFormProps {
  */
 export function CareWeeklyPlanEditForm({
   careDaysSource,
+  schoolPeriods,
+  timePresets,
   weeklyArrival,
   weeklyPickup,
+  weeklyNotes = NO_WEEKDAY_NOTES,
   onSubmitWeekly,
   onCancel,
   onSaved,
 }: CareWeeklyPlanEditFormProps) {
   const toast = useToast();
-  const draft = useWeeklyPlanDraft(weeklyArrival, weeklyPickup);
+  const draft = useWeeklyPlanDraft(weeklyArrival, weeklyPickup, weeklyNotes);
   const pickupNeedsCareDay = careDaysSource === "bookings";
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useFormError();
@@ -570,7 +740,7 @@ export function CareWeeklyPlanEditForm({
     event.preventDefault();
     if (weeklyAdjustment || isSubmitting) return;
     setError(null);
-    const invalid = validateWeeklyRows(draft.rows);
+    const invalid = validateWeeklyRows(draft.rows, true);
     if (invalid) {
       setError(invalid);
       return;
@@ -781,6 +951,9 @@ export function CareWeeklyPlanEditForm({
           removals={weeklyRemovals}
           disabled={isSubmitting}
           pickupNeedsCareDay
+          schoolPeriods={schoolPeriods}
+          timePresets={timePresets}
+          notesWithoutPickup
         />
         <EditActions onCancel={onCancel} saving={isSubmitting} />
       </form>

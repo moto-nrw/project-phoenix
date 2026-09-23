@@ -13,9 +13,8 @@ import (
 
 // EnrollablePhaseRepository implements parentModels.EnrollablePhaseRepository.
 type EnrollablePhaseRepository struct {
-	runtime     Runtime
 	phases      PhaseQueries
-	memberships ActiveMembershipQuery
+	memberships ActiveSchoolMemberships
 	students    StudentDirectory
 	guardians   GuardianDirectory
 }
@@ -61,11 +60,11 @@ type PhaseQueries interface {
 	OpenPhaseCandidates(context.Context) ([]*enrollment.Phase, error)
 }
 
-func NewEnrollablePhaseRepository(runtime Runtime, phases PhaseQueries, memberships ActiveMembershipQuery) parentModels.EnrollablePhaseRepository {
+func NewEnrollablePhaseRepository(phases PhaseQueries, memberships ActiveSchoolMemberships) parentModels.EnrollablePhaseRepository {
 	if phases == nil {
 		panic("parent: enrollment phase queries are required")
 	}
-	return &EnrollablePhaseRepository{runtime: requireRuntime(runtime), phases: phases, memberships: memberships}
+	return &EnrollablePhaseRepository{phases: phases, memberships: memberships}
 }
 
 // guardianGuard is the per-school guardian evidence the picker and the
@@ -124,7 +123,7 @@ func (r *EnrollablePhaseRepository) guardianGuards(ctx context.Context, accountI
 // unlinked parent must not learn a hidden school's name or phase details
 // through this picker. A hidden school stays visible only to an account that
 // holds an actual FAMILY link there — a guardian_profile with at least one
-// students_guardians row, backed by an ACTIVE auth.account_tenants mapping
+// student-guardian relationship, backed by an ACTIVE auth.account_tenants mapping
 // (HasFamilyLink) — so existing families keep seeing their own school's
 // re-enrollment phases.
 //
@@ -182,7 +181,7 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 	if err != nil {
 		return nil, err
 	}
-	activeTenants, err := activeMappingTenants(ctx, r.runtime, r.memberships, accountID)
+	activeTenants, err := activeMappingTenants(ctx, r.memberships, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("parent: list enrollable phases: %w", err)
 	}
@@ -223,17 +222,18 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 			continue
 		}
 		out = append(out, &parentModels.EnrollablePhase{
-			SchoolID:          rr.TenantID,
-			PhaseID:           rr.ID,
-			PhaseName:         rr.Name,
-			PhaseKind:         rr.Kind,
-			ServiceStartDate:  careplan.Date(rr.ServiceStartDate),
-			ServiceEndDate:    careplan.Date(rr.ServiceEndDate),
-			EnrollmentOpenAt:  rr.EnrollmentOpenAt,
-			EnrollmentCloseAt: rr.EnrollmentCloseAt,
-			AlreadyLinked:     alreadyLinked,
-			Audience:          rr.Audience,
-			HasFamilyLink:     guard.hasFamilyLink,
+			SchoolID:              rr.TenantID,
+			PhaseID:               rr.ID,
+			PhaseName:             rr.Name,
+			PhaseNameTranslations: rr.PublicNameTranslations(),
+			PhaseKind:             rr.Kind,
+			ServiceStartDate:      careplan.Date(rr.ServiceStartDate),
+			ServiceEndDate:        careplan.Date(rr.ServiceEndDate),
+			EnrollmentOpenAt:      rr.EnrollmentOpenAt,
+			EnrollmentCloseAt:     rr.EnrollmentCloseAt,
+			AlreadyLinked:         alreadyLinked,
+			Audience:              rr.Audience,
+			HasFamilyLink:         guard.hasFamilyLink,
 
 			EnrolledSubmitPersonIDs: r.enrolledSubmitPersonIDs(students, rr.TenantID, guard.submitStudentIDs),
 		})
@@ -260,7 +260,7 @@ func (r *EnrollablePhaseRepository) GuardianSubmitStatus(ctx context.Context, ac
 		return nil, fmt.Errorf("parent: account_id and tenant_id must be positive")
 	}
 
-	tenants, err := activeMappingTenants(ctx, r.runtime, r.memberships, accountID)
+	tenants, err := activeMappingTenants(ctx, r.memberships, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("parent: guardian submit status: %w", err)
 	}

@@ -8,19 +8,11 @@ import (
 )
 
 // AccountLifecycleStore is the persistence port over the identity-owned rows
-// the lifecycle flows (#3225) read and write beyond the login store: the PIN
-// columns of auth.accounts, the school's account listing, the direct
-// permission grants, the school mapping deactivation, account e-mails and
-// auth.accounts_parents. Every statement runs on the connection the caller's
-// context carries.
+// the lifecycle flows (#3225) read and write beyond the login store: the
+// school's account listing, the direct permission grants, the school mapping
+// deactivation, account e-mails and auth.accounts_parents. Every statement
+// runs on the connection the caller's context carries.
 type AccountLifecycleStore interface {
-	FindPINAccount(ctx context.Context, id int64, forUpdate bool) (domain.PINAccount, bool, domain.OperationStats, error)
-	// IncrementPINAttempts bumps the counter and applies lockedUntil in one
-	// statement once the post-increment count reaches threshold.
-	IncrementPINAttempts(ctx context.Context, id int64, threshold int, lockedUntil time.Time) (domain.OperationStats, error)
-	ResetPINAttempts(ctx context.Context, id int64) (domain.OperationStats, error)
-	UpdatePINHash(ctx context.Context, id int64, hash string) (domain.OperationStats, error)
-
 	// ListTenantAccounts returns every account mapped to the school with its
 	// role names at that school, ascending by account id.
 	ListTenantAccounts(ctx context.Context, tenantID int64) ([]domain.TenantAccount, domain.OperationStats, error)
@@ -69,19 +61,6 @@ type StaffDirectory interface {
 type RolePolicy interface {
 	RoleNeedsStaffRecord(role *domain.RoleFacts) bool
 	RoleNeedsCaregiverProfile(role *domain.RoleFacts) bool
-}
-
-// PINHasher hashes and verifies staff PINs with the credential hash the
-// accounts store.
-type PINHasher interface {
-	HashPIN(pin string) (string, error)
-	VerifyPIN(pin, hash string) bool
-}
-
-// LockoutPolicy resolves the tenant's PIN lockout threshold and duration for
-// the context; the domain defaults apply without an override.
-type LockoutPolicy interface {
-	PINLockout(ctx context.Context) (threshold int, duration time.Duration)
 }
 
 // PreviewAudit is the consumer-owned port over the Audit platform's staff
@@ -140,7 +119,9 @@ type GuardianDirectory interface {
 	// PromoteStudentGuardianLink upgrades the relationship to legal guardian
 	// with the server-derived parent-portal permission set (#2172).
 	PromoteStudentGuardianLink(ctx context.Context, linkID int64) error
-	ListStudentGuardianLinksByStudent(ctx context.Context, studentID int64) ([]domain.StudentGuardianLink, error)
+	// ListStudentGuardianLinksByStudents reads the relationships of the given
+	// children in one statement.
+	ListStudentGuardianLinksByStudents(ctx context.Context, studentIDs []int64) ([]domain.StudentGuardianLink, error)
 	ListStudentGuardianLinksByProfile(ctx context.Context, guardianProfileID int64) ([]domain.StudentGuardianLink, error)
 	DeleteStudentGuardianLink(ctx context.Context, linkID int64) error
 	// GuardianRoleClass classifies a stored guardian role for the invite flow.

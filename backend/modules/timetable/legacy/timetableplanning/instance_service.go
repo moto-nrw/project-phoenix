@@ -36,18 +36,11 @@ import (
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -311,43 +304,6 @@ type ReplanWeekResult struct {
 	Materialization  *MaterializationResult
 }
 
-// InstanceServiceDependencies aggregates wiring. All repo fields are required;
-// Broadcaster is optional (nil → no SSE).
-type InstanceServiceDependencies struct {
-	InstanceRepo       scheduleModel.ActivityInstanceRepository
-	IdempotencyRepo    scheduleModel.InstanceIdempotencyRepository
-	InstanceStaffRepo  scheduleModel.InstanceStaffRepository
-	InstanceStudents   scheduleModel.InstanceStudentRepository
-	ExceptionRepo      scheduleModel.ActivityExceptionRepository
-	ActiveGroupRepo    activeModel.GroupRepository
-	SupervisorRepo     activeModel.GroupSupervisorRepository
-	Presence           InstancePresence
-	RoomRepo           facilitiesModel.RoomRepository
-	ActivityGroupRepo  activitiesModel.GroupRepository
-	StaffRepo          usersModel.StaffRepository
-	StudentRepo        usersModel.StudentRepository
-	CalendarPeriodRepo scheduleModel.CalendarPeriodRepository
-	ActiveService      ActiveSessionEnder
-	Materialization    MaterializationService
-	// CareDayService decides which still-expected children may be stamped
-	// absent when an instance ends (#1747) — required.
-	CareDayService careschedule.CareDayService
-	// DeviationEventRepo appends the Änderungsprotokoll (#1886) — required.
-	DeviationEventRepo auditModel.DeviationEventRepository
-	Broadcaster        realtime.Broadcaster
-	DB                 *bun.DB
-	Logger             *slog.Logger
-	Settings           LifecycleSettings
-	RecoveryRepo       scheduleModel.ActivityRecoveryRepository
-	Now                func() time.Time
-	EnforceTimePolicy  bool
-	// GuardianNotices publishes the cancellation notice to families (#2601).
-	// Optional: nil means a cancellation can never carry a notice. The
-	// composition root passes a late-bound publisher because the announcement
-	// service is built after this one.
-	GuardianNotices announcement.CareCancellationPublisher
-}
-
 type instanceService struct {
 	deps InstanceServiceDependencies
 }
@@ -571,16 +527,16 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 			return nil, err
 		}
 	}
-	newGroup := &activeModel.Group{
-		StartTime:      now,
-		LastActivity:   now,
-		TimeoutMinutes: 30,
-		GroupID:        instance.ActivityGroupID,
-		DeviceID:       nil,
-		RoomID:         instance.RoomID,
+	newGroup := &studentpresence.LiveGroup{
+		StartTime:       now,
+		LastActivity:    now,
+		TimeoutMinutes:  30,
+		ActivityGroupID: instance.ActivityGroupID,
+		DeviceID:        nil,
+		RoomID:          instance.RoomID,
 	}
-	newGroup.SetTenantID(tenant.FromContext(ctx))
-	if err := s.deps.ActiveGroupRepo.Create(ctx, newGroup); err != nil {
+	newGroup.TenantID = tenant.FromContext(ctx)
+	if err := s.deps.ActiveGroupRepo.CreateSession(ctx, newGroup); err != nil {
 		return nil, &ScheduleError{Op: "start instance: create active.group", Err: err}
 	}
 
@@ -600,14 +556,14 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 			continue
 		}
 		activeStaffRows = append(activeStaffRows, row)
-		sup := &activeModel.GroupSupervisor{
+		sup := &studentpresence.GroupSupervision{
 			StaffID:   row.StaffID,
 			GroupID:   newGroup.ID,
 			Role:      "supervisor",
-			StartDate: timezone.DateFromTime(now),
+			StartDate: timezone.DateFromTime(now).String(),
 		}
-		sup.SetTenantID(tenant.FromContext(ctx))
-		if err := s.deps.SupervisorRepo.Create(ctx, sup); err != nil {
+		sup.TenantID = tenant.FromContext(ctx)
+		if err := s.deps.SupervisorRepo.CreateSupervision(ctx, sup); err != nil {
 			return nil, &ScheduleError{Op: "start instance: create supervisor", Err: err}
 		}
 	}
@@ -668,7 +624,7 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 	// locker takes exactly one row lock per transaction, so no wait cycle can
 	// form regardless of order — but a deterministic order keeps this loop
 	// deadlock-free even if a second multi-row locker appears later.
-	slices.SortFunc(openGroups, func(a, b *activeModel.Group) int {
+	slices.SortFunc(openGroups, func(a, b *studentpresence.LiveGroup) int {
 		return cmp.Compare(a.ID, b.ID)
 	})
 
@@ -750,7 +706,7 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 	return nil
 }
 
-func (s *instanceService) systemActivitiesByID(ctx context.Context, groups []*activeModel.Group) (map[int64]bool, error) {
+func (s *instanceService) systemActivitiesByID(ctx context.Context, groups []*studentpresence.LiveGroup) (map[int64]bool, error) {
 	ids := make([]int64, 0, len(groups))
 	seen := make(map[int64]struct{}, len(groups))
 	for _, group := range groups {
@@ -1267,7 +1223,7 @@ func (s *instanceService) validateReopenOccupancy(ctx context.Context, instance 
 		return &ScheduleError{Op: "reopen instance: check room", Err: err}
 	}
 	if hasConflict {
-		return activeSvc.ErrRoomConflict
+		return studentpresence.ErrRoomConflict
 	}
 	if len(snapshot.VisitIDs) == 0 {
 		return nil
@@ -1280,7 +1236,7 @@ func (s *instanceService) validateReopenOccupancy(ctx context.Context, instance 
 		return &ScheduleError{Op: "reopen instance: count room occupancy", Err: err}
 	}
 	if currentOccupancy+len(snapshot.VisitIDs) > *room.Capacity {
-		return careschedule.ErrRoomCapacityExceeded
+		return studentpresence.ErrRoomCapacityExceeded
 	}
 	return nil
 }
@@ -1317,7 +1273,7 @@ func (s *instanceService) validateReopenSupervisorsUnchanged(ctx context.Context
 	if err != nil {
 		return &ScheduleError{Op: "reopen instance: load supervisors", Err: err}
 	}
-	byID := make(map[int64]*activeModel.GroupSupervisor, len(rows))
+	byID := make(map[int64]*studentpresence.StaffedSupervision, len(rows))
 	staffIDs := make([]int64, 0, len(rows))
 	seenStaff := make(map[int64]bool, len(rows))
 	for _, row := range rows {
@@ -2230,7 +2186,7 @@ func (s *instanceService) lockCareExceptionDaysForStudents(
 	sorted := append([]int64(nil), studentIDs...)
 	slices.Sort(sorted)
 	for _, studentID := range sorted {
-		if err := careschedule.LockCareExceptionDay(ctx, s.deps.DB, studentID, date); err != nil {
+		if err := s.deps.CareDayService.LockStudentAndExceptionDay(ctx, studentID, date.String()); err != nil {
 			return &ScheduleError{Op: "lock care exception day for roster rewrite", Err: err}
 		}
 	}
@@ -3082,7 +3038,7 @@ func (s *instanceService) broadcastInstanceEvent(
 	ctx context.Context,
 	eventType realtime.EventType,
 	instance *scheduleModel.ActivityInstance,
-	activeGroup *activeModel.Group,
+	activeGroup *studentpresence.LiveGroup,
 	staffRows []*scheduleModel.InstanceStaff,
 ) {
 	if s.deps.Broadcaster == nil || instance == nil {

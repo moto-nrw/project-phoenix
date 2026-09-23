@@ -18,8 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	authModel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -126,7 +124,7 @@ func TestMFAService_GetTenantMFAOverride_DefaultNone(t *testing.T) {
 // The *bun.DB it accepts comes from newTestMFAService, which calls
 // testpkg.SetupTestDB internally — keeping the helper signature explicit
 // keeps callers honest about the fact that they're hitting a real DB.
-func tenantMappedAccount(t *testing.T, db *bun.DB, slug string) (*authModel.Account, int64) {
+func tenantMappedAccount(t *testing.T, db *bun.DB, slug string) (*testpkg.AccountFixture, int64) {
 	t.Helper()
 	acc := testpkg.CreateTestAccount(t, db, slug)
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -290,7 +288,7 @@ func TestMFAService_IsRequired_GlobalOverride_AppliesEverywhere(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, identityaccess.MFAAdminOverrideNone, override,
 		"clearing the global override must remove the platform-wide row")
-	waitForOperatorAuditLogs(t, db, op.ID, acc.ID, platformModels.ActionMFAAdminOverride, 2, 3*time.Second)
+	waitForOperatorAuditLogs(t, db, op.ID, acc.ID, operatorActionMFAAdminOverride, 2, 3*time.Second)
 }
 
 // TestMFAService_SetMFAOverride_RejectionDoesNotPartialWrite is a regression
@@ -519,7 +517,7 @@ func TestMFAService_VerifyChallenge_ExpiredChallengeRejected(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	svc, repos, db := newTestMFAService(t)
+	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-expired")
 
@@ -531,10 +529,10 @@ func TestMFAService_VerifyChallenge_ExpiredChallengeRejected(t *testing.T) {
 	// to match — same observable outcome as an expired challenge (the
 	// service can't distinguish "expired" from "already redeemed" at the
 	// row level; both surface as ErrMFACodeInvalid).
-	row, err := repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant)
+	row, _, err := nativeMFARecords(t, db).FindActiveChallengeInScope(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant)
 	require.NoError(t, err)
 	require.NotNil(t, row)
-	require.NoError(t, repos.MFAEmailChallenge.MarkConsumed(ctx, row.ID, time.Now()))
+	require.NoError(t, nativeMFARecords(t, db).ConsumeChallenge(ctx, row.ID, time.Now()))
 
 	_, err = svc.VerifyMFAChallenge(ctx, challenge, "000000")
 	assert.Error(t, err, "consumed/expired challenge must not verify")
@@ -561,8 +559,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_WritesOperatorAuditLog(t *testi
 	// so the override actor must be a real operator row, not a synthetic ID.
 	op := testpkg.CreateTestOperator(t, db)
 	t.Cleanup(func() {
-		_, _ = db.NewDelete().Model((*platformModels.Operator)(nil)).
-			ModelTableExpr("platform.operators").
+		_, _ = db.NewDelete().Table("platform.operators").
 			Where("id = ?", op.ID).Exec(context.Background())
 	})
 
@@ -576,12 +573,11 @@ func TestMFAService_OperatorSetGlobalMFAOverride_WritesOperatorAuditLog(t *testi
 		identityaccess.MFAAdminOverrideForceOff, "mailbox lockout account-wide"))
 
 	row := waitForOperatorAuditLog(t, db, op.ID, acc.ID,
-		platformModels.ActionMFAAdminOverride, 3*time.Second)
+		operatorActionMFAAdminOverride, 3*time.Second)
 	require.NotNil(t, row, "operator override must write a platform.operator_audit_log row — the dropped audit was the regression")
-	assert.Equal(t, platformModels.ResourceAccount, row.ResourceType)
+	assert.Equal(t, operatorResourceAccount, row.ResourceType)
 
-	changes, err := row.GetChanges()
-	require.NoError(t, err)
+	changes := row.changes(t)
 	assert.Equal(t, "set_global_override", changes["action"])
 	assert.Equal(t, "platform", changes["scope"])
 	assert.Equal(t, identityaccess.MFAAdminOverrideForceOff, changes["override"])
@@ -592,13 +588,12 @@ func TestMFAService_OperatorSetGlobalMFAOverride_WritesOperatorAuditLog(t *testi
 // (operatorID, resourceID, action) and returns it once it lands or after the
 // timeout (the audit write is async). Returns nil on timeout. Queries directly
 // with the test DB superuser connection.
-func waitForOperatorAuditLog(t *testing.T, db *bun.DB, operatorID, resourceID int64, action string, timeout time.Duration) *platformModels.OperatorAuditLog {
+func waitForOperatorAuditLog(t *testing.T, db *bun.DB, operatorID, resourceID int64, action string, timeout time.Duration) *operatorAuditLogRow {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for {
-		var row platformModels.OperatorAuditLog
+		var row operatorAuditLogRow
 		err := db.NewSelect().Model(&row).
-			ModelTableExpr(`platform.operator_audit_log AS "operator_audit_log"`).
 			Where("operator_id = ?", operatorID).
 			Where("resource_id = ?", resourceID).
 			Where("action = ?", action).
@@ -619,8 +614,7 @@ func waitForOperatorAuditLogs(t *testing.T, db *bun.DB, operatorID, resourceID i
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for {
-		count, err := db.NewSelect().Model((*platformModels.OperatorAuditLog)(nil)).
-			ModelTableExpr(`platform.operator_audit_log AS "operator_audit_log"`).
+		count, err := db.NewSelect().Model((*operatorAuditLogRow)(nil)).
 			Where("operator_id = ?", operatorID).
 			Where("resource_id = ?", resourceID).
 			Where("action = ?", action).

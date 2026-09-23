@@ -12,6 +12,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -31,7 +32,7 @@ func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Owner:            repoFactory.Enrollment(),
-		CareOfferingRepo: repoFactory.CareOffering,
+		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		DB:               db,
 		Logger:           slog.Default(),
 	})
@@ -181,7 +182,7 @@ func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(
 	validatorCalls := 0
 	guardedService := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Owner:            repoFactory.Enrollment(),
-		CareOfferingRepo: repoFactory.CareOffering,
+		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		LockTemplateRecurrence: func(context.Context) error {
 			lockCalls++
 			return nil
@@ -259,12 +260,12 @@ func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *tes
 		AutoAddGradeLevels: []int{},
 		SelectionRule:      enrollmentModels.SelectionRuleOptional,
 	}
-	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, offering))
 
 	resyncer := &recordingSourcedTemplateResyncer{}
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Owner:                  repoFactory.Enrollment(),
-		CareOfferingRepo:       repoFactory.CareOffering,
+		CareOfferingRepo:       enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		LockTemplateRecurrence: func(context.Context) error { return nil },
 		DB:                     db,
 		Logger:                 slog.Default(),
@@ -309,14 +310,14 @@ func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *t
 		AutoAddGradeLevels: []int{},
 		SelectionRule:      enrollmentModels.SelectionRuleOptional,
 	}
-	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, offering))
 
 	resyncer := &recordingSourcedTemplateResyncer{
 		err: fmt.Errorf("offering roster resync: template 7: %w", timetableplanning.ErrOfferingSourceInvalid),
 	}
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Owner:                  repoFactory.Enrollment(),
-		CareOfferingRepo:       repoFactory.CareOffering,
+		CareOfferingRepo:       enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		LockTemplateRecurrence: func(context.Context) error { return nil },
 		DB:                     db,
 		Logger:                 slog.Default(),
@@ -466,7 +467,7 @@ func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
 		IsActive:       true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, offering))
 
 	require.NoError(t, svc.Delete(ctx, phase.ID),
 		"phase with care offerings must be deletable")
@@ -474,7 +475,7 @@ func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
 	_, err = svc.GetByID(ctx, phase.ID)
 	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseNotFound),
 		"phase must be gone after delete")
-	remaining, err := repoFactory.CareOffering.CountByPhaseID(ctx, phase.ID)
+	remaining, err := enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).CountByPhaseID(ctx, phase.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 0, remaining, "care offerings must cascade away with the phase")
 }
@@ -494,7 +495,7 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 	student := testpkg.CreateTestStudent(t, db, "Kept", "Child", "1a")
 	defer func() {
 		bg := context.Background()
-		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", student.ID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", student.ID).Exec(bg)
 	}()
 
 	phase, err := svc.Create(ctx, minimalPhase(t, t.Name()))
@@ -533,7 +534,7 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 	// The student must survive — deleting the request child never deletes
 	// the student it points to.
 	studentCount, err := db.NewSelect().
-		TableExpr("users.students").
+		TableExpr("users.student_profiles").
 		Where("id = ?", student.ID).
 		Count(ctx)
 	require.NoError(t, err)
@@ -551,7 +552,7 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Impact", "Child", "1a")
 	defer func() {
 		bg := context.Background()
-		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", student.ID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", student.ID).Exec(bg)
 	}()
 
 	phase, err := svc.Create(ctx, minimalPhase(t, t.Name()))
@@ -565,7 +566,7 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 		IsActive:       true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, offering))
 
 	req := &enrollmentModels.Request{
 		PhaseID:           phase.ID,
@@ -654,12 +655,10 @@ func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentService.PhaseServi
 	_, repoFactory, db, cleanup := setupPhaseTest(t)
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Owner:            repoFactory.Enrollment(),
-		CareOfferingRepo: repoFactory.CareOffering,
-		CalendarPeriods: timetableplanning.NewCalendarPeriodServiceWithConfig(timetableplanning.CalendarPeriodServiceConfig{
-			Repo: repoFactory.CalendarPeriod, Logger: slog.Default(),
-		}),
-		DB:     db,
-		Logger: slog.Default(),
+		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
+		CalendarPeriods:  repoFactory.SchoolCalendar(),
+		DB:               db,
+		Logger:           slog.Default(),
 	})
 	return svc, repoFactory, db, cleanup
 }
@@ -806,42 +805,6 @@ type failingCalendarPeriodService struct {
 	err error
 }
 
-func (s failingCalendarPeriodService) GetAllPeriods(context.Context) ([]*scheduleModels.CalendarPeriod, error) {
-	return nil, s.err
-}
-
-func (s failingCalendarPeriodService) GetActivePeriods(context.Context) ([]*scheduleModels.CalendarPeriod, error) {
-	return nil, s.err
-}
-
-func (s failingCalendarPeriodService) GetPeriodByID(context.Context, int64) (*scheduleModels.CalendarPeriod, error) {
-	return nil, s.err
-}
-
-func (s failingCalendarPeriodService) CreatePeriod(context.Context, *scheduleModels.CalendarPeriod) error {
-	return s.err
-}
-
-func (s failingCalendarPeriodService) UpdatePeriod(context.Context, *scheduleModels.CalendarPeriod) error {
-	return s.err
-}
-
-func (s failingCalendarPeriodService) DeletePeriod(context.Context, int64) error {
-	return s.err
-}
-
-func (s failingCalendarPeriodService) EnsureDefaultSchoolYear(context.Context) ([]*scheduleModels.CalendarPeriod, bool, error) {
-	return nil, false, s.err
-}
-
-func (s failingCalendarPeriodService) FindActiveOverlaps(context.Context, *scheduleModels.CalendarPeriod) ([]*scheduleModels.CalendarPeriod, error) {
-	return nil, s.err
-}
-
-func (s failingCalendarPeriodService) GetUsageCounts(context.Context) (map[int64]scheduleModels.CalendarPeriodUsage, error) {
-	return nil, s.err
-}
-
-func (failingCalendarPeriodService) ShouldMaterialize(int, timezone.Date, *scheduleModels.CalendarPeriod) bool {
-	return false
+func (s failingCalendarPeriodService) FindCalendarPeriod(context.Context, int64) (schoolcalendar.CalendarPeriod, error) {
+	return schoolcalendar.CalendarPeriod{}, s.err
 }

@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -54,28 +54,28 @@ func TestListStudents_DayPlanningForDate(t *testing.T) {
 	// Sick TODAY (legacy student-row flag) — must not leak into tomorrow.
 	_, err := tc.db.NewUpdate().
 		Model((*usersModel.Student)(nil)).
-		ModelTableExpr("users.students").
+		ModelTableExpr("users.student_care_profiles").
 		Set("sick = ?", true).
-		Where("id = ?", sickTodayPlannedTomorrow.ID).
+		Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", sickTodayPlannedTomorrow.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 
 	// Explicit absence recorded for the requested day.
-	statusDay := &activeModel.StudentStatusDay{
+	statusDay := &testpkg.StudentStatusDayRow{
 		StudentID:  sickTomorrow.ID,
 		Date:       tomorrow,
-		Status:     activeModel.StudentStatusDaySick,
+		Status:     absencerecords.StudentStatusDaySick,
 		ReportedAt: fixedNow,
-		Source:     activeModel.StudentStatusSourcePlanned,
+		Source:     absencerecords.StudentStatusSourcePlanned,
 	}
-	statusDay.SetTenantID(testpkg.Tenant(t))
+	statusDay.TenantID = testpkg.Tenant(t)
 	_, err = tc.db.NewInsert().Model(statusDay).
 		ModelTableExpr("active.student_status_days").
 		Returning("id").
 		Exec(context.Background())
 	require.NoError(t, err)
 	defer func() {
-		_, _ = tc.db.NewDelete().Model((*activeModel.StudentStatusDay)(nil)).
+		_, _ = tc.db.NewDelete().Model((*testpkg.StudentStatusDayRow)(nil)).
 			ModelTableExpr("active.student_status_days").
 			Where("id = ?", statusDay.ID).
 			Exec(context.Background())

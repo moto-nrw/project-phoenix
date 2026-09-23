@@ -15,6 +15,33 @@ describe("PhaseExpiryWarnings", () => {
     useSWRAuth.mockReset();
   });
 
+  it("zeigt ohne das Leserecht weder Hinweis noch Fehler", () => {
+    // Eine Leitungsrolle der Schule bearbeitet Anmeldungen mit config:manage,
+    // die Hinweise verlangen das Admin-Wildcard-Recht (#3469).
+    const forbidden = Object.assign(new Error("Forbidden"), { status: 403 });
+    useSWRAuth.mockReturnValue({
+      data: undefined,
+      error: forbidden,
+      isLoading: false,
+    });
+
+    const { container } = render(<PhaseExpiryWarnings />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("meldet einen anderen Ladefehler", () => {
+    useSWRAuth.mockReturnValue({
+      data: undefined,
+      error: Object.assign(new Error("Boom"), { status: 500 }),
+      isLoading: false,
+    });
+
+    render(<PhaseExpiryWarnings />);
+
+    expect(screen.getByText("Hinweise nicht geladen")).toBeVisible();
+  });
+
   it("fordert 30 Tage vorher zum Erstellen einer Anschlussphase auf", () => {
     useSWRAuth.mockReturnValue({
       data: [

@@ -25,7 +25,7 @@ func (s *Store) PreviewStaffOffboarding(ctx context.Context, staffID int64, from
 	}
 	rows := []offboardingInstanceRow{}
 	query := instanceStaffSelect(db, &rows, tenantID).
-		ColumnExpr(`"activity_instance".date::text AS offboarding_date, "activity_instance".status AS offboarding_status, "activity_instance".updated_at AS instance_updated_at`).
+		ColumnExpr(`"activity_instance".date::text AS offboarding_date, CASE WHEN "activity_instance".status = 'cancelled' THEN 'cancelled' ELSE 'planned' END AS offboarding_status, "activity_instance".updated_at AS instance_updated_at`).
 		Join(`INNER JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_staff".instance_id AND "activity_instance".tenant_id = "instance_staff".tenant_id`).
 		Where(`"instance_staff".staff_id = ?`, staffID).
 		OrderExpr(`"activity_instance".id ASC, "instance_staff".id ASC`).For("UPDATE OF activity_instance, instance_staff")

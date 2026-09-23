@@ -51,7 +51,7 @@ func newCalendarPeriodValidationFixture(t *testing.T) *calendarPeriodValidationF
 	require.NoError(t, enrollmentService.InsertOwnerPhaseForTest(ctx, repos.Enrollment(), phase))
 
 	service := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
-		Repo:                  repos.CareOffering,
+		Repo:                  enrollmentService.NewCareOfferingRepository(repos.CarePlan()),
 		Bookings:              repos.Enrollment(),
 		ActivityGroupRepo:     repos.ActivityGroup,
 		ActivityScheduleRepo:  repos.ActivitySchedule,
@@ -274,7 +274,7 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering
 	_, offering := fixture.createLinkedTemplate(t, &period.ID, nil)
 	fixture.selectOfferingForSubmittedChild(t, offering.ID)
 	offering.IsActive = false
-	require.NoError(t, repositories.NewFactory(fixture.db, repositories.NewUnobservedTimetableDependencies(fixture.db)).CareOffering.Update(fixture.ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repositories.NewFactory(fixture.db, repositories.NewUnobservedTimetableDependencies(fixture.db)).CarePlan()).Update(fixture.ctx, offering))
 
 	replacement := *period
 	replacement.IsActive = false

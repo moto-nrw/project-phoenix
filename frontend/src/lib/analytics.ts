@@ -7,8 +7,13 @@
  */
 
 import type { Properties } from "posthog-js";
-import { clientEnv } from "~/env.client";
-import { capturePostHog, resetAndCapturePostHog } from "~/lib/posthog-client";
+import { analyticsDeployment } from "~/lib/analytics-deployment";
+import type { DemoVisit } from "~/lib/demo-access";
+import {
+  capturePostHog,
+  resetAndCapturePostHog,
+  setPostHogContext,
+} from "~/lib/posthog-client";
 import {
   isAnalyticsViewId,
   type AnalyticsViewId,
@@ -47,7 +52,7 @@ export function trackTenantEvent(
 
   const eventProperties = {
     ...props,
-    deployment: clientEnv.NEXT_PUBLIC_TENANT_DOMAIN,
+    deployment: analyticsDeployment(),
     school_id: schoolId,
     $groups: { school: schoolId },
   };
@@ -68,10 +73,41 @@ export function trackPageView(viewId: AnalyticsViewId, schoolId: string): void {
   capturePostHog("page_viewed", {
     view_id: viewId,
     portal: "tenant",
-    deployment: clientEnv.NEXT_PUBLIC_TENANT_DOMAIN,
+    deployment: analyticsDeployment(),
     school_id: schoolId,
     $groups: { school: schoolId },
     $geoip_disable: true,
     $process_person_profile: false,
   });
+}
+
+export type DemoAnalyticsEvent =
+  | "demo_entered"
+  | "demo_role_switched"
+  | "demo_restarted"
+  | "demo_start_clicked";
+
+// The visitor of the public demo is the demo access (#3467): its ID is the
+// distinct_id, so the team can follow one visit without a name or address.
+// An unknown visit (no storage) still counts, as the demo without identity.
+function demoProperties(visit: DemoVisit | null): Properties {
+  if (!visit) return { deployment: "demo" };
+  return {
+    ...(visit.accessId ? { distinct_id: visit.accessId } : {}),
+    deployment: "demo",
+    demo_role: visit.role,
+    ...(visit.src ? { src: visit.src } : {}),
+  };
+}
+
+/** Makes every later event of this page belong to the demo visit. */
+export function registerDemoVisit(visit: DemoVisit): void {
+  setPostHogContext(demoProperties(visit), false);
+}
+
+export function trackDemoEvent(
+  event: DemoAnalyticsEvent,
+  visit: DemoVisit | null,
+): void {
+  capturePostHog(event, demoProperties(visit));
 }

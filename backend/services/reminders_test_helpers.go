@@ -1,12 +1,14 @@
 package services
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
@@ -18,7 +20,7 @@ import (
 type RemindersTestModule struct {
 	Reminders   reminder.Query
 	Settings    config.SettingsService
-	UserContext usercontext.UserContextService
+	UserContext *repositories.CallerRows
 }
 
 func NewRemindersTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (RemindersTestModule, error) {
@@ -42,9 +44,30 @@ func NewRemindersTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return RemindersTestModule{}, err
 	}
-	baseline := careschedule.NewPickupBaselineServiceWithSettings(r.StudentPickupSchedule, approvedOfferings, r.CareOffering, settings.Settings)
-	pickup := careschedule.NewPickupScheduleServiceWithBulk(r.StudentPickupSchedule, r.StudentPickupException, r.StudentPickupNote,
-		r.Student, r.Person, careschedule.NewPickupAutoExcusalSyncer(r.StudentPickupException, baseline, r.InstanceStudent, db), baseline, db, slog.Default())
+	students, err := repositories.NewPeopleDirectory(db)
+	if err != nil {
+		return RemindersTestModule{}, err
+	}
+	carePlan, err := repositories.NewCarePlan(db, students, r.InstanceStudent)
+	if err != nil {
+		return RemindersTestModule{}, err
+	}
+	baseline, err := careplanCompose.NewPickupBaselines(carePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
+		return settings.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
+	})
+	if err != nil {
+		return RemindersTestModule{}, err
+	}
+	autoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
+		DB: db, Records: carePlan, Baselines: baseline, Blocks: newStudentPresence(db, slog.Default()), Preview: newPickupExcusalTimetable(r.Timetable, db),
+	})
+	if err != nil {
+		return RemindersTestModule{}, err
+	}
+	pickup, err := NewPickupSchedules(db, carePlan, students, baseline, autoExcusal, slog.Default())
+	if err != nil {
+		return RemindersTestModule{}, err
+	}
 	service := reminderCompose.NewQuery(reminderPorts.QueryDependencies{
 		Clock:        reminderClock(clocks...),
 		CurrentStaff: reminderStaffIdentity(groups.UserContext),

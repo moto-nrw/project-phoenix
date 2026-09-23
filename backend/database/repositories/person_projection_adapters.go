@@ -16,8 +16,8 @@ func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
 	if projection, ok := f.CrossTenant.(*visitorProjection); ok {
 		projection.persons = persons
 	}
-	if f.GroupSupervisor != nil {
-		f.GroupSupervisor = personGroupSupervisorRepository{GroupSupervisorRepository: f.GroupSupervisor, persons: persons}
+	if staff := f.supervisionStaffOf(); staff != nil {
+		staff.persons = persons
 	}
 	if f.StaffAbsence != nil {
 		f.StaffAbsence = personStaffAbsenceRepository{StaffAbsenceRepository: f.StaffAbsence, persons: persons}
@@ -34,9 +34,7 @@ func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
 	if f.ParentEnrollablePhase != nil {
 		f.ParentEnrollablePhase = personEnrollablePhaseRepository{EnrollablePhaseRepository: f.ParentEnrollablePhase, persons: persons}
 	}
-	if f.AccountTenant != nil {
-		f.AccountTenant = newPersonAccountTenantRepository(f.AccountTenant, persons)
-	}
+
 }
 
 // personsByID resolves the non-deleted persons for ids through the owner

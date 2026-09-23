@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 )
 
@@ -17,14 +17,14 @@ type deletionAudit struct {
 // NewDeletionAudit connects retention evidence to the existing audit writer.
 func NewDeletionAudit(writer interface {
 	Create(context.Context, *audit.DataDeletion) error
-}) active.DeletionAudit {
+}) presenceservice.DeletionAudit {
 	if writer == nil {
 		return nil
 	}
 	return deletionAudit{writer: writer}
 }
 
-func (a deletionAudit) Create(ctx context.Context, event *active.DeletionEvent) error {
+func (a deletionAudit) Create(ctx context.Context, event *presenceservice.DeletionEvent) error {
 	if event == nil {
 		return a.writer.Create(ctx, nil)
 	}

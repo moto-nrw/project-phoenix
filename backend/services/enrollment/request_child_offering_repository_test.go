@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
@@ -56,7 +58,7 @@ func setupChildOfferingTest(t *testing.T, db *bun.DB) (
 		return childRepo.InsertChild(ctx, child)
 	}))
 
-	offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
+	offeringRepo := enrollmentSvc.NewCareOfferingRepository(carePlanTest.NewCarePlan(t, db))
 	offering := makeOffering(phase.ID, uniqueOfferingName("childoffering"))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return offeringRepo.Create(ctx, offering)
@@ -65,7 +67,7 @@ func setupChildOfferingTest(t *testing.T, db *bun.DB) (
 	t.Cleanup(func() {
 		bg := context.Background()
 		_, _ = db.NewDelete().
-			TableExpr("enrollment.request_child_offerings").
+			TableExpr("enrollment.care_offering_bookings").
 			Where("tenant_id = ? AND request_child_id = ?", tenantID, child.ID).
 			Exec(bg)
 		wipeOfferings(db, tenantID, phase.ID)
@@ -99,7 +101,7 @@ func addGradedChild(
 	t.Cleanup(func() {
 		bg := context.Background()
 		_, _ = db.NewDelete().
-			TableExpr("enrollment.request_child_offerings").
+			TableExpr("enrollment.care_offering_bookings").
 			Where("tenant_id = ? AND request_child_id = ?", tenantID, child.ID).
 			Exec(bg)
 		_, _ = db.NewDelete().
@@ -131,7 +133,7 @@ func requestIDOf(t *testing.T, db *bun.DB, tenantID, childID int64) int64 {
 // batched query has more than one id to separate.
 func addSiblingOffering(t *testing.T, db *bun.DB, tenantID, phaseID int64, prefix string) int64 {
 	t.Helper()
-	offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
+	offeringRepo := enrollmentSvc.NewCareOfferingRepository(carePlanTest.NewCarePlan(t, db))
 	offering := makeOffering(phaseID, uniqueOfferingName(prefix))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return offeringRepo.Create(ctx, offering)
@@ -143,7 +145,7 @@ func addSiblingOffering(t *testing.T, db *bun.DB, tenantID, phaseID int64, prefi
 // are phase-scoped, and the shared fixture does not hand the phase back.
 func phaseIDOfOffering(t *testing.T, db *bun.DB, tenantID, offeringID int64) int64 {
 	t.Helper()
-	offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
+	offeringRepo := enrollmentSvc.NewCareOfferingRepository(carePlanTest.NewCarePlan(t, db))
 	var phaseID int64
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		offering, err := offeringRepo.FindByID(ctx, offeringID)
@@ -196,7 +198,7 @@ func addRolloverSuccessorHolding(
 	}))
 	t.Cleanup(func() {
 		bg := context.Background()
-		_, _ = db.NewDelete().TableExpr("enrollment.request_child_offerings").
+		_, _ = db.NewDelete().TableExpr("enrollment.care_offering_bookings").
 			Where("tenant_id = ? AND request_child_id = ?", tenantID, childID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("enrollment.request_children").
 			Where("tenant_id = ? AND id = ?", tenantID, childID).Exec(bg)
@@ -275,7 +277,7 @@ func TestOwnerOffering_ListByRequestChildID_ReturnsAllForChild(t *testing.T) {
 	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 
 	// Second offering so the child has two picks.
-	offering2Repo := carePlanTest.NewCareOfferingRepository(t, db)
+	offering2Repo := enrollmentSvc.NewCareOfferingRepository(carePlanTest.NewCarePlan(t, db))
 	o2 := makeOffering(0, uniqueOfferingName("second"))
 	// We need o2's PhaseID; fetch the first offering's phase via repo.
 	var first *enrollmentModels.CareOffering
@@ -316,7 +318,7 @@ func TestOwnerOffering_ListByRequestChildIDs_BatchLoad(t *testing.T) {
 	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 
 	// Two offering links for the one child.
-	offering2Repo := carePlanTest.NewCareOfferingRepository(t, db)
+	offering2Repo := enrollmentSvc.NewCareOfferingRepository(carePlanTest.NewCarePlan(t, db))
 	var first *enrollmentModels.CareOffering
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
@@ -351,7 +353,7 @@ func TestOwnerOffering_ListByRequestChildIDsAtDate_ExcludesHistoricalIntervals(t
 
 	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
 	repo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
-	offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
+	offeringRepo := enrollmentSvc.NewCareOfferingRepository(carePlanTest.NewCarePlan(t, db))
 	var first *enrollmentModels.CareOffering
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error

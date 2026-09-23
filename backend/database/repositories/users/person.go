@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	modelAuth "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/uptrace/bun"
 )
 
@@ -342,7 +341,7 @@ func (r *PersonRepository) Update(ctx context.Context, person *users.Person) err
 // AccountLookup resolves the login account behind a person. Identity &
 // Access owns auth.accounts, so the relation that used to be a LEFT JOIN is
 // injected as an owner lookup; a missing account resolves to nil.
-type AccountLookup func(ctx context.Context, accountID int64) (*modelAuth.Account, error)
+type AccountLookup func(ctx context.Context, accountID int64) (*users.PersonAccount, error)
 
 // FindWithAccount retrieves a person with their associated account. The
 // person row is read here; the account comes from the Identity & Access

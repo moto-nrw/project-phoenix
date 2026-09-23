@@ -11,7 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
 
 // Period values for the dashboard summary (#1417).
@@ -147,11 +147,11 @@ type StaffOverviewService interface {
 
 type staffOverviewService struct {
 	staffRepo      OverviewStaffQuery
-	sessionRepo    activeModels.WorkSessionRepository
-	breakRepo      activeModels.WorkSessionBreakRepository
-	absenceRepo    activeModels.StaffAbsenceRepository
-	adjustmentRepo activeModels.StaffBalanceAdjustmentRepository
-	quotaRepo      activeModels.StaffVacationQuotaRepository
+	sessionRepo    timerecords.WorkSessionRepository
+	breakRepo      timerecords.WorkSessionBreakRepository
+	absenceRepo    timerecords.StaffAbsenceRepository
+	adjustmentRepo StaffBalanceAdjustmentRepository
+	quotaRepo      timerecords.StaffVacationQuotaRepository
 	snapshotRepo   MonthSnapshots
 	scheduleRepo   OverviewWorkSchedules
 	workModelRepo  OverviewWorkTimeModels
@@ -160,7 +160,7 @@ type staffOverviewService struct {
 	holidayReader  HolidayDatesReader
 	// openingRepo carries the vacation takeover rows (#2132); supplied by
 	// WithOverviewVacationOpenings, nil in bare unit fixtures.
-	openingRepo activeModels.StaffVacationOpeningRepository
+	openingRepo timerecords.StaffVacationOpeningRepository
 	logger      *slog.Logger
 
 	// todayFunc is a test hook; production uses timezone.TodayDate.
@@ -169,11 +169,11 @@ type staffOverviewService struct {
 
 func NewStaffOverviewService(
 	staffRepo OverviewStaffQuery,
-	sessionRepo activeModels.WorkSessionRepository,
-	breakRepo activeModels.WorkSessionBreakRepository,
-	absenceRepo activeModels.StaffAbsenceRepository,
-	adjustmentRepo activeModels.StaffBalanceAdjustmentRepository,
-	quotaRepo activeModels.StaffVacationQuotaRepository,
+	sessionRepo timerecords.WorkSessionRepository,
+	breakRepo timerecords.WorkSessionBreakRepository,
+	absenceRepo timerecords.StaffAbsenceRepository,
+	adjustmentRepo StaffBalanceAdjustmentRepository,
+	quotaRepo timerecords.StaffVacationQuotaRepository,
 	snapshotRepo MonthSnapshots,
 	scheduleRepo OverviewWorkSchedules,
 	workModelRepo OverviewWorkTimeModels,
@@ -469,9 +469,9 @@ func (s *staffOverviewService) remainingVacationDays(
 	staffID int64,
 	year int,
 	through timezone.Date,
-	quota *activeModels.StaffVacationQuota,
-	absences []*activeModels.StaffAbsence,
-	opening *activeModels.StaffVacationOpening,
+	quota *StaffVacationQuota,
+	absences []*StaffAbsence,
+	opening *StaffVacationOpening,
 ) float64 {
 	entitled, carryover := defaultEntitledDays, 0.0
 	if quota != nil {
@@ -480,9 +480,9 @@ func (s *staffOverviewService) remainingVacationDays(
 	return computeVacationQuotaSummaryThrough(staffID, year, entitled, carryover, through, absences, opening).RemainingDays
 }
 
-func (s *staffOverviewService) prefetchVacationOpenings(ctx context.Context, staffIDs []int64, year int) (map[int64]*activeModels.StaffVacationOpening, error) {
+func (s *staffOverviewService) prefetchVacationOpenings(ctx context.Context, staffIDs []int64, year int) (map[int64]*StaffVacationOpening, error) {
 	if s.openingRepo == nil {
-		return map[int64]*activeModels.StaffVacationOpening{}, nil
+		return map[int64]*StaffVacationOpening{}, nil
 	}
 	openings, err := s.openingRepo.GetByStaffIDsAndYear(ctx, staffIDs, year)
 	if err != nil {
@@ -668,7 +668,7 @@ func (s *staffOverviewService) addTodayCounters(
 		if !activeIDs[staffID] {
 			continue
 		}
-		if status == activeModels.WorkSessionStatusPresent || status == activeModels.WorkSessionStatusHomeOffice {
+		if status == WorkSessionStatusPresent || status == WorkSessionStatusHomeOffice {
 			clockedIn[staffID] = true
 		}
 	}
@@ -698,9 +698,9 @@ func (s *staffOverviewService) addTodayCounters(
 			continue
 		}
 		switch absenceType {
-		case activeModels.AbsenceTypeSick:
+		case AbsenceTypeSick:
 			summary.SickToday++
-		case activeModels.AbsenceTypeVacation:
+		case AbsenceTypeVacation:
 			summary.VacationToday++
 		}
 	}
@@ -745,8 +745,8 @@ func (s *staffOverviewService) expectedClockedIn(
 func (s *staffOverviewService) countPendingRequests(ctx context.Context) (int, error) {
 	options := modelBase.NewQueryOptions()
 	options.Filter = options.Filter.In("status",
-		activeModels.AbsenceStatusRequested,
-		activeModels.AbsenceStatusQuestion,
+		AbsenceStatusRequested,
+		AbsenceStatusQuestion,
 	)
 	count, err := s.absenceRepo.CountWithOptions(ctx, options)
 	if err != nil {

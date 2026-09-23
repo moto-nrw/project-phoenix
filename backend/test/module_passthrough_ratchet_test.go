@@ -160,7 +160,23 @@ var modulePassthroughBudgets = map[string]int{
 	// forward one store call per schedule and record operation, plus
 	// withdrawals (12), the care-exit/companion service surface (15) and the
 	// student-deletion and excused-request entry points.
-	"modules/careplan": 106,
+	//
+	// The one raise in this register, 105 → 112 with #3427: the care-lifecycle
+	// adapter (5,278 LOC, never scanned because it sat under legacy/) became
+	// native Care Plan application code, and eight of its methods keep the
+	// counted shape while each carries a rule of its own — GetPendingWithdrawal
+	// (state check and error mapping), LockStudentsForUpdateBelow (the
+	// no-wait lock order), CompanionIDsForWeekday and ListCompanionsForStudents
+	// (weekday and empty-set validation), QueueStudentDocumentFileCleanup
+	// (intent validation and delay), ResolveStudentDocumentCleanup,
+	// ListDeletedStudentDocumentsPendingFileCleanup and
+	// CanSeeStudentDocumentCategory (category authority). The same change
+	// removed nine counted forwarders: three file-sweep reads and marks folded
+	// into one owner command, three File Storage port methods bound in
+	// composition, the dead ListWithdrawalCompletionKeys, the People stranding
+	// forward and the internal-only AdministrativelyVisibleStudentIDs.
+	// Shrink-only from here like every other entry.
+	"modules/careplan": 111,
 	// The caller, report and arrival-exception ports reached straight
 	// through, most of them behind a nil-port guard and a date parse.
 	"modules/classday": 9,
@@ -188,7 +204,7 @@ var modulePassthroughBudgets = map[string]int{
 	// (12), operator.go (10) and operator_mfa.go (9): session/operator
 	// lookups and their ForUpdate twins, MFA and passkey credential and
 	// challenge stores, permission and role administration reads.
-	"modules/identityaccess": 120,
+	"modules/identityaccess": 117,
 	// Menu, participation and week reads forwarded to the store.
 	"modules/mealplan": 8,
 	// The provisioning listings (organisations, accounts, devices, dashboard)
@@ -204,17 +220,37 @@ var modulePassthroughBudgets = map[string]int{
 	"modules/schoolcalendar": 15,
 	// Membership service reads (17), teaching assignments (11) and the
 	// class-list-entry surface (5).
-	"modules/schoolmembership": 33,
+	"modules/schoolmembership": 28,
 	// School-year transition (9) plus the transition history and service reads.
 	"modules/schoolstructure": 13,
 	// Attendance, visit, supervision, group-mapping and room reads/writes
-	// across 18 files, each one store call inside the operation wrapper.
-	"modules/studentpresence": 64,
+	// across 18 files, each one store call inside the operation wrapper (64).
+	// internal/application/presence (#3422) adds 12 that map a single read or
+	// write onto the capability's contract: presence-mode validation, the
+	// visit and session lookups that turn port failures and misses into the
+	// public sentinels (ErrVisitNotFound, ErrNoActiveSession), the room and
+	// present-today projections, the combined-group validation and the
+	// status-day upsert guarded by the exception-day lock.
+	//
+	// The second raise in this register, 76 → 89 with #2762, has the same
+	// shape as the #3427 one above: the activity-session and session-attendance
+	// commands used to live in database/repositories/student_presence.go
+	// (legacy composition, never scanned) and are now the owner's native
+	// application code. Thirteen of them keep the counted shape while each
+	// carries its own rule: the session reads and SessionExecution validate the
+	// id sets and the status filter; the attendance reads and the participant
+	// commands (check-in, checkout, close, interval reconciliation, manual
+	// patch, non-booking marker, excusal reconnection) validate the ids, the
+	// instants and the patch shape before the one store call inside the
+	// tenant transaction. The same cutover removed the four reads and the
+	// reinstate command no consumer called. Shrink-only from here like every
+	// other entry.
+	"modules/studentpresence": 89,
 	// The largest block, and the one the previous version could not see at
 	// all: service.go (23), instance_students.go (21), activity_instances.go
 	// (14) and 19 more files, every one of them s.run around a single
 	// s.store call.
-	"modules/timetable": 127,
+	"modules/timetable": 100,
 	// Work sessions (15), the service facade (7), absences, shifts, staff
 	// records, month snapshots, offboarding and substitutions.
 	"modules/workforce": 47,

@@ -116,6 +116,9 @@ type engine struct {
 }
 
 func (e engine) LockStudentAndExceptionDay(ctx context.Context, studentID int64, date string) error {
+	if _, _, err := carePlanDatabase(e.database)(ctx); err != nil {
+		return err
+	}
 	return careplanning.LockStudentAndExceptionDay(ctx, e.database, studentID, date)
 }
 
@@ -260,6 +263,7 @@ func offeringFieldsToDomain(fields careplan.CareOfferingFields) domain.CareOffer
 		CountsAsCare: fields.CountsAsCare, AutoAddGradeLevels: fields.AutoAddGradeLevels, AvailabilityRule: fields.AvailabilityRule,
 		SortOrder: fields.SortOrder, SelectionGroup: fields.SelectionGroup, SelectionRule: fields.SelectionRule,
 		PickupTimes: fields.PickupTimes, AutoAddTriggerOfferingIDs: fields.AutoAddTriggerOfferingIDs,
+		Translations: fields.Translations,
 	}
 }
 
@@ -273,6 +277,7 @@ func offeringToPublic(value domain.CareOffering) careplan.CareOffering {
 		CountsAsCare: value.CountsAsCare, AutoAddGradeLevels: value.AutoAddGradeLevels, AvailabilityRule: value.AvailabilityRule,
 		SortOrder: value.SortOrder, SelectionGroup: value.SelectionGroup, SelectionRule: value.SelectionRule,
 		PickupTimes: value.PickupTimes, AutoAddTriggerOfferingIDs: value.AutoAddTriggerOfferingIDs,
+		Translations: value.Translations,
 	}
 }
 

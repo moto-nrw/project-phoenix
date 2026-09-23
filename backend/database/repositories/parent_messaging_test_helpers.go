@@ -2,13 +2,19 @@ package repositories
 
 import (
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/uptrace/bun"
 )
+
+// NewMessageableGuardianRepository binds the recipient lookup to the native
+// Identity capability for focused repository tests.
+func NewMessageableGuardianRepository(db *bun.DB) *usersRepo.MessageableGuardianRepository {
+	return usersRepo.NewMessageableGuardianRepository(db, newIdentityAccess(db, nil).FindActiveSchoolMemberships)
+}
 
 // ParentMessagingTestRepositories is the parent-conversation data layer for
 // repository tests.
@@ -30,13 +36,7 @@ func NewParentMessagingTestRepositories(db *bun.DB) (ParentMessagingTestReposito
 	if err != nil {
 		return ParentMessagingTestRepositories{}, err
 	}
-	deps := newStaffMembershipDeps(
-		NewPersonRepository(db),
-		authRepo.NewAccountRepository(db),
-		authRepo.NewAccountTenantRepository(db),
-		authRepo.NewPermissionRepository(db),
-		authRepo.NewRoleRepository(db),
-	)
+	deps := newStaffMembershipDeps(NewPersonRepository(db), newIdentityAccess(db, nil), MustNewStaffEmployment(db))
 	groupTeachers := newGroupTeacherRepository(membership, educationRepo.NewGroupRepository(db))
 	deps.groupTeachers = func() educationModels.GroupTeacherRepository { return groupTeachers }
 	return ParentMessagingTestRepositories{

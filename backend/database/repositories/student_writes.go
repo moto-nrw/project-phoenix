@@ -387,10 +387,6 @@ func (r studentRepositoryWithOwnerWrites) FindByGroupIDs(ctx context.Context, gr
 	return r.reads.FindByGroupIDs(ctx, groupIDs)
 }
 
-func (r studentRepositoryWithOwnerWrites) FindBySchoolClass(ctx context.Context, schoolClass string) ([]*userModels.Student, error) {
-	return r.reads.FindBySchoolClass(ctx, schoolClass)
-}
-
 func (r studentRepositoryWithOwnerWrites) FindPendingDueForActivation(ctx context.Context, asOf userModels.CalendarDate) ([]*userModels.Student, error) {
 	return r.reads.FindPendingDueForActivation(ctx, asOf)
 }
@@ -423,10 +419,6 @@ func (r studentRepositoryWithOwnerWrites) ListSchoolClasses(ctx context.Context)
 	return r.reads.ListSchoolClasses(ctx)
 }
 
-func (r studentRepositoryWithOwnerWrites) ListIDs(ctx context.Context) ([]int64, error) {
-	return r.reads.ListIDs(ctx)
-}
-
 func (r studentRepositoryWithOwnerWrites) ListByGroupIDsIncludingAlumni(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
 	return r.reads.ListByGroupIDsIncludingAlumni(ctx, groupIDs)
 }
@@ -441,10 +433,6 @@ func (r studentRepositoryWithOwnerWrites) CountEnrolled(ctx context.Context) (in
 
 func (r studentRepositoryWithOwnerWrites) FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
 	return r.reads.FindByIDForUpdate(ctx, id)
-}
-
-func (r studentRepositoryWithOwnerWrites) FindByIDForUpdateNoWait(ctx context.Context, id int64) (*userModels.Student, error) {
-	return r.reads.FindByIDForUpdateNoWait(ctx, id)
 }
 
 func (r studentRepositoryWithOwnerWrites) Create(ctx context.Context, student *userModels.Student) error {

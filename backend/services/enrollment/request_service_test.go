@@ -164,7 +164,7 @@ func TestRequestService_RollsBackDurableOutboxWrite(t *testing.T) {
 			_, err := svc.Submit(testpkg.Ctx(t), input)
 			require.ErrorIs(t, err, failure)
 			require.Equal(t, failAt, outbox.calls)
-			tables := []string{"enrollment.requests", "enrollment.request_children", "enrollment.request_guardians", "enrollment.request_child_offerings", "platform.email_outbox"}
+			tables := []string{"enrollment.requests", "enrollment.request_children", "enrollment.request_guardians", "enrollment.request_child_offering_selections", "enrollment.care_offering_bookings", "platform.email_outbox"}
 			for _, table := range tables {
 				count, err := env.db.NewSelect().Table(table).Where("tenant_id = ?", testpkg.Tenant(t)).Count(testpkg.Ctx(t))
 				require.NoError(t, err)
@@ -259,7 +259,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 		Children:         repoFactory.Enrollment(),
 		Bookings:         requestTestBookingCommands(),
 		Guardians:        repoFactory.Enrollment(),
-		CareOfferingRepo: repoFactory.CareOffering,
+		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		Catalog:          repoFactory.Enrollment(),
 		SchoolRepo:       factorySchools{repos: repoFactory},
 		RateLimitRepo:    repoFactory.Enrollment(),
@@ -1066,7 +1066,7 @@ func TestRequestService_Submit_RejectsInactiveOffering(t *testing.T) {
 	}
 	inactiveOffering.TenantID = testpkg.Tenant(t)
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	require.NoError(t, repoFactory.CareOffering.Create(ctx, inactiveOffering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, inactiveOffering))
 
 	req := validSubmission(t, env.phaseID)
 	req.Children[0].OfferingIDs = []int64{inactiveOffering.ID}
@@ -1143,7 +1143,7 @@ func TestRequestService_Submit_ExactlyOneCountsOnlyChoosableOfferings(t *testing
 		IsRequired:     true,
 	}
 	required.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repoFactory.CareOffering.Create(ctx, required))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, required))
 
 	// Two choosable time-slot offerings the parent picks exactly one of.
 	slotA := setupCareOfferingForCapacity(t, env, 5)
@@ -1200,7 +1200,7 @@ func TestRequestService_Submit_AtLeastOneCountsOnlyChoosableOfferings(t *testing
 		IsRequired:     true,
 	}
 	required.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repoFactory.CareOffering.Create(ctx, required))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, required))
 
 	choosable := setupCareOfferingForCapacity(t, env, 5)
 
@@ -1515,7 +1515,7 @@ func TestRequestService_GetEditDraft_ChangeRequestIncludesInactiveCurrentOfferin
 	enableChangeRequestMode(t, env, submitted.Children[0].ID)
 
 	offering.IsActive = false
-	require.NoError(t, repoFactory.CareOffering.Update(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Update(ctx, offering))
 
 	draft, err := env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
 	require.NoError(t, err)
@@ -1543,7 +1543,7 @@ func TestRequestService_GetEditDraft_PreservesGradeCapabilityForInactiveConditio
 	env.settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = false
 	offering := setupCareOfferingForCapacity(t, env, 10)
 	offering.AvailabilityRule = requestTestGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1)
-	require.NoError(t, repoFactory.CareOffering.Update(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Update(ctx, offering))
 
 	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "draft-inactive-conditional@example.com"
@@ -1554,7 +1554,7 @@ func TestRequestService_GetEditDraft_PreservesGradeCapabilityForInactiveConditio
 	enableChangeRequestMode(t, env, submitted.Children[0].ID)
 
 	offering.IsActive = false
-	require.NoError(t, repoFactory.CareOffering.Update(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Update(ctx, offering))
 
 	draft, err := env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
 	require.NoError(t, err)
@@ -1595,7 +1595,7 @@ func TestRequestService_GetEditDraft_DirectEditRejectsInactiveCurrentOffering(t 
 	require.NoError(t, err)
 
 	offering.IsActive = false
-	require.NoError(t, repoFactory.CareOffering.Update(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Update(ctx, offering))
 
 	_, err = env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
 	require.Error(t, err)
@@ -2329,7 +2329,7 @@ func setupCareOfferingForCapacity(t *testing.T, env *requestTestEnv, capacity in
 		IsActive:            true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, offering))
 	return offering
 }
 
@@ -2693,7 +2693,7 @@ func TestRequestService_Submit_CapacityNullMeansUnlimited(t *testing.T) {
 		IsActive:            true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, offering))
 
 	for i := 0; i < 3; i++ {
 		req := validSubmission(t, env.phaseID)
@@ -3191,7 +3191,7 @@ func TestRequestService_Submit_PrunesNonCareDayPickupTimes(t *testing.T) {
 		IsActive:       true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, offering))
 
 	req := validSubmission(t, env.phaseID)
 	req.Children[0].OfferingIDs = []int64{offering.ID}
@@ -3259,7 +3259,7 @@ func TestRequestService_Submit_OffListPickupOnNonCareDayIsPrunedNotRejected(t *t
 		IsActive:       true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, offering))
 
 	req := validSubmission(t, env.phaseID)
 	req.Children[0].OfferingIDs = []int64{offering.ID}
@@ -3435,7 +3435,7 @@ func TestRequestService_SubmitRollsBackWhenEmailEnqueueFails(t *testing.T) {
 	require.NoError(t, env.db.NewRaw(`SELECT COUNT(*) FROM enrollment.requests WHERE phase_id = ?`, env.phaseID).Scan(testpkg.Ctx(t), &count))
 	assert.Zero(t, count)
 	assertRows := func(expected int) {
-		for _, table := range []string{"enrollment.requests", "enrollment.request_children", "enrollment.request_guardians", "enrollment.request_child_offerings"} {
+		for _, table := range []string{"enrollment.requests", "enrollment.request_children", "enrollment.request_guardians", "enrollment.request_child_offering_selections", "enrollment.care_offering_bookings"} {
 			rows, err := env.db.NewSelect().Table(table).Where("tenant_id = ?", testpkg.Tenant(t)).Count(testpkg.Ctx(t))
 			require.NoError(t, err)
 			require.Equal(t, expected, rows, table)

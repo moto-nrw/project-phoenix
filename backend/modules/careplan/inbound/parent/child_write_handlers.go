@@ -12,10 +12,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 const (
@@ -73,7 +72,7 @@ type StatusDayResponse struct {
 	Note       *string   `json:"note,omitempty"`
 }
 
-func toStatusDayResponse(d *activeModels.StudentStatusDay) StatusDayResponse {
+func toStatusDayResponse(d *absencerecords.StudentStatusDay) StatusDayResponse {
 	return StatusDayResponse{
 		ID:         strconv.FormatInt(d.ID, 10),
 		StudentID:  strconv.FormatInt(d.StudentID, 10),
@@ -152,7 +151,7 @@ func (rs *Resource) submitSickNote(w http.ResponseWriter, r *http.Request) {
 	// keep reporting Krankmeldungen unchanged. The service validates the value.
 	status := req.Status
 	if status == "" {
-		status = activeModels.StudentStatusDaySick
+		status = absencerecords.StudentStatusDaySick
 	}
 
 	recipients, ok := parseCreateRecipients(w, r, req.RecipientGuardianProfileIDs)
@@ -683,19 +682,19 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_contact_invalid"))
 	case errors.Is(err, parentService.ErrGuardianRelationshipInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_relationship_invalid"))
-	case errors.Is(err, enrollmentService.ErrOfferingChangeDisabled):
+	case errors.Is(err, careplan.ErrOfferingChangeDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "offering_changes_disabled"))
-	case errors.Is(err, enrollmentService.ErrCareOfferingsDisabled):
+	case errors.Is(err, careplan.ErrCareOfferingsDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "care_offerings_disabled"))
-	case errors.Is(err, enrollmentService.ErrOfferingChangeNoEnrollment):
+	case errors.Is(err, careplan.ErrOfferingChangeNoEnrollment):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "offering_changes_no_enrollment"))
-	case errors.Is(err, enrollmentService.ErrOfferingChangeForbidden):
+	case errors.Is(err, careplan.ErrOfferingChangeForbidden):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "offering_change_forbidden"))
-	case errors.Is(err, enrollmentService.ErrOfferingChangeCapacityFull):
+	case errors.Is(err, careplan.ErrOfferingChangeCapacityFull):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "offering_change_capacity_full"))
-	case errors.Is(err, enrollmentService.ErrOfferingChangeInvalid):
+	case errors.Is(err, careplan.ErrOfferingChangeInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "offering_change_invalid"))
-	case errors.Is(err, enrollmentService.ErrCompleteWithdrawalConfirmationRequired):
+	case errors.Is(err, careplan.ErrCompleteWithdrawalConfirmationRequired):
 		common.RenderError(w, r, common.ErrorConflictWithDetails(
 			err,
 			"enrollment.complete_withdrawal_confirmation_required",
@@ -703,9 +702,9 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		))
 	case errors.Is(err, enrollmentModels.ErrOfferingChangeAlreadyPending):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "offering_change_already_pending"))
-	case errors.Is(err, enrollmentModels.ErrOfferingChangeNotPending):
+	case errors.Is(err, careplan.ErrOfferingChangeNotPending):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "request_not_open"))
-	case errors.Is(err, enrollmentModels.ErrOfferingChangeNotFound):
+	case errors.Is(err, careplan.ErrOfferingChangeNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, parentService.ErrAnnouncementNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))

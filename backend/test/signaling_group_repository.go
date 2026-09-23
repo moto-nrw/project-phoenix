@@ -4,17 +4,17 @@ import (
 	"context"
 	"sync"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // SignalingGroupRepository reports when a row-lock lookup reaches its repository.
 type SignalingGroupRepository struct {
-	active.GroupRepository
+	studentpresence.SessionRecords
 	Entered chan struct{}
 	once    sync.Once
 }
 
-func (repository *SignalingGroupRepository) FindByIDForUpdate(ctx context.Context, id int64) (*active.Group, error) {
+func (repository *SignalingGroupRepository) FindByIDForUpdate(ctx context.Context, id int64) (*studentpresence.LiveGroup, error) {
 	repository.once.Do(func() { close(repository.Entered) })
-	return repository.GroupRepository.FindByIDForUpdate(ctx, id)
+	return repository.SessionRecords.FindByIDForUpdate(ctx, id)
 }

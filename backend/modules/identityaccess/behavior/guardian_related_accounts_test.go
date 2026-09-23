@@ -7,27 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-type guardianFinancialAuditCommand struct {
-	repo auditModels.GuardianFinancialChangeCreator
-}
-
-func (c guardianFinancialAuditCommand) Append(ctx context.Context, event any) error {
-	return c.repo.Create(ctx, event.(*auditModels.GuardianFinancialChange))
-}
 
 // linkExists reports whether a student↔guardian link row exists.
 func (env *guardianTestEnv) linkExists(t *testing.T, studentID, guardianProfileID int64) bool {
@@ -122,7 +109,7 @@ func TestInviteToStudent_ExistingAccount_AutoLinks(t *testing.T) {
 func TestInviteToStudent_StaffAccountAsParent_GetsPortalAccessEmail(t *testing.T) {
 	t.Parallel()
 
-	outbox := &stubOutboxEnqueuer{}
+	outbox := testpkg.NewCapturingOutbox()
 	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
 		cfg.Outbox = outbox
 	})
@@ -159,9 +146,9 @@ func TestInviteToStudent_StaffAccountAsParent_GetsPortalAccessEmail(t *testing.T
 	require.NotNil(t, stored.AccountID)
 	assert.Equal(t, adminAccount.ID, *stored.AccountID, "the profile is attached to the admin account")
 
-	require.Len(t, outbox.requests, 1)
-	payload := outbox.requests[0].Payload
-	assert.Equal(t, platformModels.EmailKindGuardianInvitation, outbox.requests[0].Kind)
+	require.Len(t, outbox.Requests(), 1)
+	payload := outbox.Requests()[0].Payload
+	assert.Equal(t, emailKindGuardianInvitation, outbox.Requests()[0].Kind)
 	assert.Equal(t, adminAccount.Email, payload["recipient_email"])
 	assert.Equal(t, "http://localhost:3000/login", payload["invitation_url"])
 	assert.Equal(t, true, payload["existing_account"])
@@ -257,15 +244,9 @@ func TestRevokeAccess_ParentCannotRemovePrimary_StaffCan(t *testing.T) {
 
 	// Link as the primary guardian.
 	ctx := testpkg.Ctx(t)
-	link := &users.StudentGuardian{
-		StudentID:         student.ID,
-		GuardianProfileID: profile.ID,
-		RelationshipType:  "parent",
-		IsPrimary:         true,
-		EmergencyPriority: 1,
-	}
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.StudentGuardian.Create(ctx, link))
+	insertGuardianLink(t, env.db, guardianLinkSpec{
+		studentID: student.ID, guardianProfileID: profile.ID, relationshipType: "parent", isPrimary: true,
+	})
 
 	actorID := env.inviterAccountID(t)
 
@@ -300,7 +281,7 @@ func TestRevokeAccess_PayerStaysWithoutFinancialPermission(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t, func(db *bun.DB, cfg *services.GuardianInvitationTestConfig) {
-		cfg.Audit = guardianFinancialAuditCommand{repo: repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianFinancialChange}
+		cfg.Audit = testpkg.NewGuardianFinancialChangeCommand(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianFinancialChange)
 	})
 	defer env.cleanup()
 
@@ -313,15 +294,9 @@ func TestRevokeAccess_PayerStaysWithoutFinancialPermission(t *testing.T) {
 	}()
 
 	ctx := testpkg.Ctx(t)
-	link := &users.StudentGuardian{
-		StudentID:         student.ID,
-		GuardianProfileID: profile.ID,
-		RelationshipType:  "parent",
-		IsPayer:           true,
-		EmergencyPriority: 1,
-	}
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.StudentGuardian.Create(ctx, link))
+	insertGuardianLink(t, env.db, guardianLinkSpec{
+		studentID: student.ID, guardianProfileID: profile.ID, relationshipType: "parent", isPayer: true,
+	})
 
 	actorID := env.inviterAccountID(t)
 
@@ -357,7 +332,7 @@ func TestRevokeAccess_PayerStaysWithoutFinancialPermission(t *testing.T) {
 	count, err := env.db.NewSelect().TableExpr(`audit.guardian_financial_changes AS "change"`).
 		Where(`"change".guardian_profile_id = ?`, profile.ID).
 		Where(`"change".student_id = ?`, student.ID).
-		Where(`"change".field_name = ?`, auditModels.GuardianPaymentFieldIsPayer).
+		Where(`"change".field_name = ?`, guardianPaymentFieldIsPayer).
 		Where(`"change".new_value = ?`, "false").
 		Count(ctx)
 	require.NoError(t, err)
@@ -379,14 +354,9 @@ func TestRevokeAccess_ParentCannotRemoveStaffManagedNoAccountContact(t *testing.
 	}()
 
 	ctx := testpkg.Ctx(t)
-	link := &users.StudentGuardian{
-		StudentID:         student.ID,
-		GuardianProfileID: profile.ID,
-		RelationshipType:  "guardian",
-		EmergencyPriority: 1,
-	}
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.StudentGuardian.Create(ctx, link))
+	insertGuardianLink(t, env.db, guardianLinkSpec{
+		studentID: student.ID, guardianProfileID: profile.ID, relationshipType: "guardian",
+	})
 
 	err := env.service.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{
 		StudentID:         student.ID,
@@ -415,24 +385,19 @@ func TestRevokeAccess_ParentCancelsInviteForStaffManagedContactWithoutDeletingLi
 	}()
 
 	ctx := testpkg.Ctx(t)
-	link := &users.StudentGuardian{
-		StudentID:         student.ID,
-		GuardianProfileID: profile.ID,
-		RelationshipType:  "guardian",
-		EmergencyPriority: 1,
-	}
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.StudentGuardian.Create(ctx, link))
+	insertGuardianLink(t, env.db, guardianLinkSpec{
+		studentID: student.ID, guardianProfileID: profile.ID, relationshipType: "guardian",
+	})
 	studentID := student.ID
-	invitation := &authModels.GuardianInvitation{
+	invitation := &testpkg.GuardianInvitation{
 		Token:             fmt.Sprintf("staff-contact-open-invite-%d", time.Now().UnixNano()),
 		GuardianProfileID: profile.ID,
 		CreatedBy:         actorID,
 		ExpiresAt:         time.Now().Add(time.Hour),
 		StudentID:         &studentID,
-		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+		ApprovalStatus:    identityaccess.GuardianInvitationApprovalNotRequired,
 	}
-	invitation.SetTenantID(testpkg.Tenant(t))
+	invitation.TenantID = testpkg.Tenant(t)
 	testpkg.InsertTestGuardianInvitation(t, env.db, invitation)
 
 	require.NoError(t, env.service.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{
@@ -533,7 +498,7 @@ func TestInviteToStudent_RequireApproval_QueuesPending(t *testing.T) {
 func TestInviteToStudent_PendingApprovalTokenIsNotDeliverableOrRedeemable(t *testing.T) {
 	t.Parallel()
 
-	outbox := &stubOutboxEnqueuer{}
+	outbox := testpkg.NewCapturingOutbox()
 	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
 		cfg.Outbox = outbox
 	})
@@ -555,7 +520,7 @@ func TestInviteToStudent_PendingApprovalTokenIsNotDeliverableOrRedeemable(t *tes
 	require.NoError(t, err)
 	require.NotNil(t, result.InvitationID)
 	defer env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
-	require.Empty(t, outbox.requests, "a queued request mails nothing before staff decide")
+	require.Empty(t, outbox.Requests(), "a queued request mails nothing before staff decide")
 
 	invitation := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
 
@@ -568,11 +533,11 @@ func TestInviteToStudent_PendingApprovalTokenIsNotDeliverableOrRedeemable(t *tes
 	require.ErrorIs(t, err, identityaccess.ErrInvitationNotFound)
 
 	require.Error(t, env.service.ResendGuardianInvitation(ctx, invitation.ID, creatorID))
-	assert.Empty(t, outbox.requests, "the frozen token must not be mailed out by a resend")
+	assert.Empty(t, outbox.Requests(), "the frozen token must not be mailed out by a resend")
 
 	// Staff approval is what releases it.
 	require.NoError(t, env.service.ApproveInvitation(ctx, invitation.ID, creatorID))
-	require.Len(t, outbox.requests, 1)
+	require.Len(t, outbox.Requests(), 1)
 	preview, err := env.service.ValidateGuardianInvitation(context.Background(), invitation.Token)
 	require.NoError(t, err)
 	assert.Equal(t, email, preview.Email)
@@ -655,7 +620,7 @@ func TestInviteToStudent_DirectInvitePromotesPendingApproval(t *testing.T) {
 	assert.True(t, env.linkExists(t, student.ID, pending.GuardianProfileID), "staff/direct invite should create the child link")
 
 	invitation := testpkg.GuardianInvitationByID(t, env.db, *pending.InvitationID)
-	assert.Equal(t, authModels.GuardianInvitationApprovalNotRequired, invitation.ApprovalStatus)
+	assert.Equal(t, identityaccess.GuardianInvitationApprovalNotRequired, invitation.ApprovalStatus)
 }
 
 func TestListPendingApprovalsDetailed_ResolvesNames(t *testing.T) {
@@ -783,7 +748,7 @@ func TestApproveInvitation_ExistingAccount_LinksWithoutEmail(t *testing.T) {
 	assert.True(t, env.linkExists(t, student.ID, profile.ID), "approval must link the child")
 
 	inv := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
-	assert.Equal(t, authModels.GuardianInvitationApprovalApproved, inv.ApprovalStatus)
+	assert.Equal(t, identityaccess.GuardianInvitationApprovalApproved, inv.ApprovalStatus)
 	assert.NotNil(t, inv.AcceptedAt, "existing-account approval closes the invitation")
 }
 
@@ -906,9 +871,9 @@ func TestRejectInvitation_PreservesProfileWithOtherLinks(t *testing.T) {
 	}()
 
 	// Existing link to student A.
-	link := &users.StudentGuardian{StudentID: studentA.ID, GuardianProfileID: profile.ID, RelationshipType: "parent", EmergencyPriority: 1}
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.StudentGuardian.Create(ctx, link))
+	insertGuardianLink(t, env.db, guardianLinkSpec{
+		studentID: studentA.ID, guardianProfileID: profile.ID, relationshipType: "parent",
+	})
 
 	// Pending request for the SAME guardian, targeting student B.
 	res, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
@@ -1006,7 +971,7 @@ func TestRejectInvitation_PreservesSharedPendingProfile(t *testing.T) {
 	assert.NotNil(t, p, "profile with another open invitation must survive reject cleanup")
 
 	inv := testpkg.GuardianInvitationByID(t, env.db, *second.InvitationID)
-	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus)
+	assert.Equal(t, identityaccess.GuardianInvitationApprovalPending, inv.ApprovalStatus)
 }
 
 // createRestrictedContactLink links a guardian profile to a student with a
@@ -1014,23 +979,16 @@ func TestRejectInvitation_PreservesSharedPendingProfile(t *testing.T) {
 // staff-maintained contact (#2172).
 func (env *guardianTestEnv) createRestrictedContactLink(t *testing.T, studentID, guardianProfileID int64, role string) {
 	t.Helper()
-	link := &users.StudentGuardian{
-		StudentID:         studentID,
-		GuardianProfileID: guardianProfileID,
-		RelationshipType:  "other",
-		EmergencyPriority: 1,
-	}
-	authorize.ApplyStudentGuardianRole(link, role)
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.StudentGuardian.Create(testpkg.Ctx(t), link))
+	linkID := insertGuardianLink(t, env.db, guardianLinkSpec{
+		studentID: studentID, guardianProfileID: guardianProfileID, relationshipType: "other",
+	})
+	testpkg.SetTestStudentGuardianLinkRole(t, env.db, linkID, role)
 }
 
 // fetchLink reads the current student↔guardian link row.
-func (env *guardianTestEnv) fetchLink(t *testing.T, studentID, guardianProfileID int64) *users.StudentGuardian {
+func (env *guardianTestEnv) fetchLink(t *testing.T, studentID, guardianProfileID int64) *guardianLinkRow {
 	t.Helper()
-	link, err := env.repos.StudentGuardian.FindByStudentAndGuardianForUpdate(testpkg.Ctx(t), studentID, guardianProfileID)
-	require.NoError(t, err)
-	return link
+	return readGuardianLink(t, env.db, studentID, guardianProfileID)
 }
 
 func TestInviteToStudent_RestrictedContact_RequiresConfirmation(t *testing.T) {
@@ -1048,7 +1006,7 @@ func TestInviteToStudent_RestrictedContact_RequiresConfirmation(t *testing.T) {
 	}()
 
 	ctx := testpkg.Ctx(t)
-	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleEmergency)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRoleEmergency)
 
 	// Staff-shaped invite without confirmation → detection, zero side effects.
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
@@ -1058,7 +1016,7 @@ func TestInviteToStudent_RestrictedContact_RequiresConfirmation(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, identityaccess.InviteOutcomeExistingContactRestricted, result.Outcome)
-	assert.Equal(t, authorize.GuardianRoleEmergency, result.ExistingRole)
+	assert.Equal(t, guardianRoleEmergency, result.ExistingRole)
 	assert.Equal(t, profile.ID, result.GuardianProfileID)
 	assert.Nil(t, result.InvitationID)
 
@@ -1075,7 +1033,7 @@ func TestInviteToStudent_RestrictedContact_RequiresConfirmation(t *testing.T) {
 	assert.Equal(t, identityaccess.InviteOutcomeExistingContactRestricted, parentResult.Outcome)
 
 	link := env.fetchLink(t, student.ID, profile.ID)
-	assert.Equal(t, authorize.GuardianRoleEmergency, link.GuardianRole, "link role must be untouched")
+	assert.Equal(t, guardianRoleEmergency, link.GuardianRole, "link role must be untouched")
 	invitations := testpkg.GuardianInvitationsByProfile(t, env.db, profile.ID)
 	assert.Empty(t, invitations, "detection must not create invitation rows")
 }
@@ -1095,7 +1053,7 @@ func TestInviteToStudent_ConfirmedUpgrade_DirectNoAccount(t *testing.T) {
 	}()
 
 	ctx := testpkg.Ctx(t)
-	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRolePickupOnly)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRolePickupOnly)
 
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:          student.ID,
@@ -1109,8 +1067,8 @@ func TestInviteToStudent_ConfirmedUpgrade_DirectNoAccount(t *testing.T) {
 
 	assert.Equal(t, identityaccess.InviteOutcomeInvited, result.Outcome)
 	link := env.fetchLink(t, student.ID, profile.ID)
-	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
-	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess),
+	assert.Equal(t, guardianRoleLegalGuardian, link.GuardianRole)
+	assert.True(t, link.portalAccess,
 		"upgraded link must carry parent_portal.access")
 
 	inv := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
@@ -1134,7 +1092,7 @@ func TestInviteToStudent_ConfirmedUpgrade_DirectExistingAccount(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
-	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleEmergency)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRoleEmergency)
 
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:          student.ID,
@@ -1147,8 +1105,8 @@ func TestInviteToStudent_ConfirmedUpgrade_DirectExistingAccount(t *testing.T) {
 	assert.Nil(t, result.InvitationID)
 
 	link := env.fetchLink(t, student.ID, profile.ID)
-	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
-	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess),
+	assert.Equal(t, guardianRoleLegalGuardian, link.GuardianRole)
+	assert.True(t, link.portalAccess,
 		"existing account must gain access immediately")
 }
 
@@ -1169,7 +1127,7 @@ func TestInviteToStudent_ConfirmedUpgrade_ApprovalPersistsFlagAndAppliesOnApprov
 
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
-	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleCustom)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRoleCustom)
 
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
@@ -1187,7 +1145,7 @@ func TestInviteToStudent_ConfirmedUpgrade_ApprovalPersistsFlagAndAppliesOnApprov
 	inv := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
 	assert.True(t, inv.RoleUpgrade, "approval mode must persist the upgrade intent")
 	link := env.fetchLink(t, student.ID, profile.ID)
-	assert.Equal(t, authorize.GuardianRoleCustom, link.GuardianRole, "no upgrade before approval")
+	assert.Equal(t, guardianRoleCustom, link.GuardianRole, "no upgrade before approval")
 
 	// Staff sees the upgrade marker in the queue.
 	views, err := env.service.ListPendingApprovalsDetailed(ctx)
@@ -1203,8 +1161,8 @@ func TestInviteToStudent_ConfirmedUpgrade_ApprovalPersistsFlagAndAppliesOnApprov
 
 	require.NoError(t, env.service.ApproveInvitation(ctx, *result.InvitationID, creatorID))
 	link = env.fetchLink(t, student.ID, profile.ID)
-	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole, "approval must apply the upgrade")
-	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+	assert.Equal(t, guardianRoleLegalGuardian, link.GuardianRole, "approval must apply the upgrade")
+	assert.True(t, link.portalAccess)
 }
 
 func TestInviteToStudent_ConfirmedUpgrade_ReusedPendingInvitationGetsFlag(t *testing.T) {
@@ -1223,18 +1181,18 @@ func TestInviteToStudent_ConfirmedUpgrade_ReusedPendingInvitationGetsFlag(t *tes
 	}()
 
 	ctx := testpkg.Ctx(t)
-	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleEmergency)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRoleEmergency)
 	studentID := student.ID
-	existing := &authModels.GuardianInvitation{
+	existing := &testpkg.GuardianInvitation{
 		Token:                fmt.Sprintf("upgrade-reuse-%d", time.Now().UnixNano()),
 		GuardianProfileID:    profile.ID,
 		CreatedBy:            creatorID,
 		ExpiresAt:            time.Now().Add(time.Hour),
 		StudentID:            &studentID,
 		RequestedByAccountID: &creatorID,
-		ApprovalStatus:       authModels.GuardianInvitationApprovalPending,
+		ApprovalStatus:       identityaccess.GuardianInvitationApprovalPending,
 	}
-	existing.SetTenantID(testpkg.Tenant(t))
+	existing.TenantID = testpkg.Tenant(t)
 	testpkg.InsertTestGuardianInvitation(t, env.db, existing)
 
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
@@ -1270,7 +1228,7 @@ func TestInviteToStudent_FullRoleLink_NoConfirmationNeeded(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
-	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleLegalGuardian)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRoleLegalGuardian)
 
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID: student.ID,
@@ -1298,7 +1256,7 @@ func TestInviteToStudent_SocialWorkerLink_RefusedEvenWithConfirmation(t *testing
 	}()
 
 	ctx := testpkg.Ctx(t)
-	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleSocialWorker)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRoleSocialWorker)
 
 	// Without confirmation → refused outright, never the confirmation outcome.
 	_, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
@@ -1329,8 +1287,8 @@ func TestInviteToStudent_SocialWorkerLink_RefusedEvenWithConfirmation(t *testing
 	require.ErrorIs(t, err, identityaccess.ErrInviteSocialWorkerManaged)
 
 	link := env.fetchLink(t, student.ID, profile.ID)
-	assert.Equal(t, authorize.GuardianRoleSocialWorker, link.GuardianRole, "link must be untouched")
-	assert.False(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+	assert.Equal(t, guardianRoleSocialWorker, link.GuardianRole, "link must be untouched")
+	assert.False(t, link.portalAccess)
 	invitations := testpkg.GuardianInvitationsByProfile(t, env.db, profile.ID)
 	assert.Empty(t, invitations, "refusal must not create invitation rows")
 }
@@ -1343,7 +1301,7 @@ func TestInviteToStudent_SocialWorkerLink_RefusedEvenWithConfirmation(t *testing
 func TestApproveInvitation_RoleUpgradeRefusesSocialWorkerLink(t *testing.T) {
 	t.Parallel()
 
-	outbox := &stubOutboxEnqueuer{}
+	outbox := testpkg.NewCapturingOutbox()
 	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
 		cfg.Outbox = outbox
 	})
@@ -1358,7 +1316,7 @@ func TestApproveInvitation_RoleUpgradeRefusesSocialWorkerLink(t *testing.T) {
 	}()
 
 	ctx := testpkg.Ctx(t)
-	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleCustom)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRoleCustom)
 
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
@@ -1375,22 +1333,21 @@ func TestApproveInvitation_RoleUpgradeRefusesSocialWorkerLink(t *testing.T) {
 	// The link becomes a school-managed social-worker contact between the
 	// request and the staff approval.
 	link := env.fetchLink(t, student.ID, profile.ID)
-	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleSocialWorker)
-	require.NoError(t, env.repos.StudentGuardian.Update(ctx, link))
+	testpkg.SetTestStudentGuardianLinkRole(t, env.db, link.ID, guardianRoleSocialWorker)
 
 	err = env.service.ApproveInvitation(ctx, *result.InvitationID, creatorID)
 	require.ErrorIs(t, err, identityaccess.ErrInviteSocialWorkerManaged)
 
 	link = env.fetchLink(t, student.ID, profile.ID)
-	assert.Equal(t, authorize.GuardianRoleSocialWorker, link.GuardianRole,
+	assert.Equal(t, guardianRoleSocialWorker, link.GuardianRole,
 		"persisted upgrade flag must not promote a social-worker link")
-	assert.False(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+	assert.False(t, link.portalAccess)
 
 	inv := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
-	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus,
+	assert.Equal(t, identityaccess.GuardianInvitationApprovalPending, inv.ApprovalStatus,
 		"a refused upgrade must not mark the request approved")
 	assert.Nil(t, inv.ApprovedAt)
-	assert.Empty(t, outbox.requests, "no invitation email for access that was not granted")
+	assert.Empty(t, outbox.Requests(), "no invitation email for access that was not granted")
 }
 
 // TestInviteToStudent_ConfirmedUpgrade_ParentDirectModeQueuesApproval verifies
@@ -1414,7 +1371,7 @@ func TestInviteToStudent_ConfirmedUpgrade_ParentDirectModeQueuesApproval(t *test
 	}()
 
 	ctx := testpkg.Ctx(t)
-	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRolePickupOnly)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRolePickupOnly)
 
 	// Parent-shaped invite in DIRECT mode (RequireApproval false) with a
 	// confirmed upgrade → queued, nothing applied yet.
@@ -1433,17 +1390,17 @@ func TestInviteToStudent_ConfirmedUpgrade_ParentDirectModeQueuesApproval(t *test
 
 	inv := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
 	assert.True(t, inv.RoleUpgrade, "queued request must persist the upgrade intent")
-	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus)
+	assert.Equal(t, identityaccess.GuardianInvitationApprovalPending, inv.ApprovalStatus)
 
 	link := env.fetchLink(t, student.ID, profile.ID)
-	assert.Equal(t, authorize.GuardianRolePickupOnly, link.GuardianRole, "no upgrade before approval")
-	assert.False(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+	assert.Equal(t, guardianRolePickupOnly, link.GuardianRole, "no upgrade before approval")
+	assert.False(t, link.portalAccess)
 
 	// Approval applies the upgrade, exactly like staff_approval mode.
 	require.NoError(t, env.service.ApproveInvitation(ctx, *result.InvitationID, creatorID))
 	link = env.fetchLink(t, student.ID, profile.ID)
-	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
-	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+	assert.Equal(t, guardianRoleLegalGuardian, link.GuardianRole)
+	assert.True(t, link.portalAccess)
 }
 
 // TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation reproduces
@@ -1469,19 +1426,19 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation(t *testin
 	}()
 
 	ctx := testpkg.Ctx(t)
-	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleCustom)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRoleCustom)
 
 	// Earlier staff direct invite: open, token emailed, no approval required.
 	studentID := student.ID
-	existing := &authModels.GuardianInvitation{
+	existing := &testpkg.GuardianInvitation{
 		Token:             fmt.Sprintf("upgrade-requeue-%d", time.Now().UnixNano()),
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 		ExpiresAt:         time.Now().Add(48 * time.Hour),
 		StudentID:         &studentID,
-		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+		ApprovalStatus:    identityaccess.GuardianInvitationApprovalNotRequired,
 	}
-	existing.SetTenantID(testpkg.Tenant(t))
+	existing.TenantID = testpkg.Tenant(t)
 	testpkg.InsertTestGuardianInvitation(t, env.db, existing)
 
 	// Parent confirms the upgrade (direct mode — approval is forced).
@@ -1499,7 +1456,7 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation(t *testin
 	assert.Equal(t, identityaccess.InviteOutcomePendingApproval, result.Outcome)
 
 	inv := testpkg.GuardianInvitationByID(t, env.db, existing.ID)
-	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus,
+	assert.Equal(t, identityaccess.GuardianInvitationApprovalPending, inv.ApprovalStatus,
 		"reused not_required invitation must be re-queued as pending")
 	assert.True(t, inv.RoleUpgrade)
 	require.NotNil(t, inv.RequestedByAccountID)
@@ -1520,8 +1477,8 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation(t *testin
 
 	require.NoError(t, env.service.ApproveInvitation(ctx, existing.ID, creatorID))
 	link := env.fetchLink(t, student.ID, profile.ID)
-	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
-	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+	assert.Equal(t, guardianRoleLegalGuardian, link.GuardianRole)
+	assert.True(t, link.portalAccess)
 }
 
 // TestInviteToStudent_ConfirmedUpgrade_RequeueRefreshesExpiry guards the
@@ -1544,24 +1501,24 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeueRefreshesExpiry(t *testing.T) {
 	}()
 
 	ctx := testpkg.Ctx(t)
-	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleCustom)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRoleCustom)
 
 	// Earlier staff direct invite, almost expired but still open.
 	studentID := student.ID
 	staleExpiry := time.Now().Add(2 * time.Minute)
 	sentAt := time.Now().Add(-46 * time.Hour)
 	emailError := "smtp timeout"
-	existing := &authModels.GuardianInvitation{
+	existing := &testpkg.GuardianInvitation{
 		Token:             fmt.Sprintf("upgrade-expiry-%d", time.Now().UnixNano()),
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 		ExpiresAt:         staleExpiry,
 		StudentID:         &studentID,
-		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+		ApprovalStatus:    identityaccess.GuardianInvitationApprovalNotRequired,
 		EmailSentAt:       &sentAt,
 		EmailError:        &emailError,
 	}
-	existing.SetTenantID(testpkg.Tenant(t))
+	existing.TenantID = testpkg.Tenant(t)
 	testpkg.InsertTestGuardianInvitation(t, env.db, existing)
 
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
@@ -1576,7 +1533,7 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeueRefreshesExpiry(t *testing.T) {
 	require.Equal(t, existing.ID, *result.InvitationID)
 
 	inv := testpkg.GuardianInvitationByID(t, env.db, existing.ID)
-	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus)
+	assert.Equal(t, identityaccess.GuardianInvitationApprovalPending, inv.ApprovalStatus)
 	assert.True(t, inv.ExpiresAt.After(staleExpiry.Add(time.Hour)),
 		"re-queued request must get a fresh approval window, not the leftover expiry")
 	assert.Nil(t, inv.EmailSentAt, "stale email tracking must be cleared")
@@ -1585,7 +1542,7 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeueRefreshesExpiry(t *testing.T) {
 	// The freshly queued request is approvable.
 	require.NoError(t, env.service.ApproveInvitation(ctx, existing.ID, creatorID))
 	link := env.fetchLink(t, student.ID, profile.ID)
-	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
+	assert.Equal(t, guardianRoleLegalGuardian, link.GuardianRole)
 }
 
 // TestInviteToStudent_DirectLinkClosesPendingApprovalRequest covers the
@@ -1610,7 +1567,7 @@ func TestInviteToStudent_DirectLinkClosesPendingApprovalRequest(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
-	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRolePickupOnly)
+	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRolePickupOnly)
 
 	// Parent queues the upgrade request.
 	queued, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
@@ -1636,11 +1593,11 @@ func TestInviteToStudent_DirectLinkClosesPendingApprovalRequest(t *testing.T) {
 	assert.Equal(t, identityaccess.InviteOutcomeAlreadyLinked, direct.Outcome)
 
 	link := env.fetchLink(t, student.ID, profile.ID)
-	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
-	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
+	assert.Equal(t, guardianRoleLegalGuardian, link.GuardianRole)
+	assert.True(t, link.portalAccess)
 
 	inv := testpkg.GuardianInvitationByID(t, env.db, *queued.InvitationID)
-	assert.NotEqual(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus,
+	assert.NotEqual(t, identityaccess.GuardianInvitationApprovalPending, inv.ApprovalStatus,
 		"the superseded request must leave the approval queue")
 	assert.NotNil(t, inv.AcceptedAt, "access exists, so the request is resolved")
 
@@ -1674,8 +1631,8 @@ func TestInviteToStudent_PlainReinviteKeepsResolvedInvitation(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	for _, status := range []string{
-		authModels.GuardianInvitationApprovalApproved,
-		authModels.GuardianInvitationApprovalNotRequired,
+		identityaccess.GuardianInvitationApprovalApproved,
+		identityaccess.GuardianInvitationApprovalNotRequired,
 	} {
 		t.Run(status, func(t *testing.T) {
 			// One student per subtest: findOpenStudentInvitation is scoped by
@@ -1684,7 +1641,7 @@ func TestInviteToStudent_PlainReinviteKeepsResolvedInvitation(t *testing.T) {
 			student := testpkg.CreateTestStudent(t, env.db, "Plain", "Reinvite", "7k")
 			now := time.Now()
 			studentID := student.ID
-			existing := &authModels.GuardianInvitation{
+			existing := &testpkg.GuardianInvitation{
 				Token:             fmt.Sprintf("plain-reinvite-%s-%d", status, now.UnixNano()),
 				GuardianProfileID: profile.ID,
 				CreatedBy:         creatorID,
@@ -1692,11 +1649,11 @@ func TestInviteToStudent_PlainReinviteKeepsResolvedInvitation(t *testing.T) {
 				StudentID:         &studentID,
 				ApprovalStatus:    status,
 			}
-			if status == authModels.GuardianInvitationApprovalApproved {
+			if status == identityaccess.GuardianInvitationApprovalApproved {
 				existing.ApprovedBy = &creatorID
 				existing.ApprovedAt = &now
 			}
-			existing.SetTenantID(testpkg.Tenant(t))
+			existing.TenantID = testpkg.Tenant(t)
 			// Cleanup: the test-level defer deletes every invitation of this
 			// profile, so no per-subtest cleanup (which would also delete the
 			// shared profile).
@@ -1718,7 +1675,7 @@ func TestInviteToStudent_PlainReinviteKeepsResolvedInvitation(t *testing.T) {
 			assert.Equal(t, status, inv.ApprovalStatus,
 				"a plain re-invite must not revert a resolved invitation")
 			assert.False(t, inv.RoleUpgrade)
-			if status == authModels.GuardianInvitationApprovalApproved {
+			if status == identityaccess.GuardianInvitationApprovalApproved {
 				assert.NotNil(t, inv.ApprovedBy, "approval record must survive a duplicate submission")
 				assert.NotNil(t, inv.ApprovedAt)
 			}

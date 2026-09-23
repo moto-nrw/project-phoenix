@@ -12,8 +12,8 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 )
 
 // StudentStatusDayCancelled is the class-day-only marker for a pickup
@@ -288,9 +288,9 @@ func (s *reportService) classDayStatuses(ctx context.Context, studentIDs []int64
 	// Betreuung" — the exact failure this view exists to prevent. Known
 	// statuses keep precedence over an unknown one.
 	rank := map[string]int{
-		activeModels.StudentStatusDaySick:      6,
-		activeModels.StudentStatusDayClassTrip: 4,
-		activeModels.StudentStatusDayExcused:   2,
+		absencerecords.StudentStatusDaySick:      6,
+		absencerecords.StudentStatusDayClassTrip: 4,
+		absencerecords.StudentStatusDayExcused:   2,
 	}
 	statusRank := func(status string) int {
 		if status == "" {
@@ -565,7 +565,7 @@ func (s *reportService) classDayEffectiveTimes(ctx context.Context, studentIDs [
 // ClassArrivalExceptionReader is the slice of the arrival schedule service
 // the class day view reads the class-wide day exception from (#2962).
 type ClassArrivalExceptionReader interface {
-	ListClassArrivalExceptions(ctx context.Context, schoolClass string, from, to timezone.Date) ([]*scheduleModel.ClassArrivalException, error)
+	ListClassArrivalExceptions(ctx context.Context, schoolClass string, from, to timezone.Date) ([]*careplan.ClassArrivalException, error)
 }
 
 // classDayArrivalException loads the class-wide arrival day exception of the
@@ -580,13 +580,13 @@ func (s *reportService) classDayArrivalException(ctx context.Context, schoolClas
 	if err != nil {
 		// A deployment without the exception repository still serves the
 		// sheet; the exception line is an extra, not the report.
-		if errors.Is(err, careschedule.ErrClassArrivalExceptionNotConfigured) {
+		if errors.Is(err, careplan.ErrClassArrivalExceptionNotConfigured) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("class day report: load class arrival exception: %w", err)
 	}
 	for _, row := range rows {
-		if row == nil || row.Date != scheduleModel.Date(date) {
+		if row == nil || row.Date != date {
 			continue
 		}
 		out := &ClassDayArrivalException{
@@ -614,7 +614,7 @@ func (s *reportService) classDayArrivalException(ctx context.Context, schoolClas
 // (the child normally is not in care then). A timeless exception carries no
 // time at all; that is "kommt heute nicht" and travels as a status, not as a
 // changed pickup.
-func applyClassDayPickup(facts *classDayFacts, studentID int64, entry *careschedule.EffectivePickupTime) {
+func applyClassDayPickup(facts *classDayFacts, studentID int64, entry *careplan.EffectivePickupTime) {
 	if entry.PickupTime != nil {
 		facts.pickups[studentID] = entry.PickupTime.Format("15:04")
 	}
@@ -659,9 +659,9 @@ func (s *reportService) classDayCancellations(ctx context.Context, studentIDs []
 	}
 	for studentID, status := range statuses {
 		switch status {
-		case careschedule.CareDayCancelled:
+		case careplan.CareDayCancelled:
 			cancelled[studentID] = true
-		case careschedule.CareDayNotScheduled:
+		case careplan.CareDayNotScheduled:
 			facts.notScheduled[studentID] = true
 		}
 	}

@@ -57,7 +57,7 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 			}
 		}
 		childRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
-		offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
+		offeringRepo := enrollmentService.NewCareOfferingRepository(carePlanTest.NewCarePlan(t, db))
 		linkRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 		for _, fixture := range []struct {
 			student *usersModels.Student
@@ -200,7 +200,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	offering.CountsAsCare = false
 	offering.CountsAsCareSet = true
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return carePlanTest.NewCareOfferingRepository(t, db).Create(ctx, offering)
+		return enrollmentService.NewCareOfferingRepository(carePlanTest.NewCarePlan(t, db)).Create(ctx, offering)
 	}))
 
 	validFrom := timezone.Date(phase.ServiceStartDate)
@@ -217,7 +217,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	secondOffering := makeOffering(phase.ID, uniqueOfferingName("second-offering"))
 	secondOffering.AvailableDays = []string{"tue"}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return carePlanTest.NewCareOfferingRepository(t, db).Create(ctx, secondOffering)
+		return enrollmentService.NewCareOfferingRepository(carePlanTest.NewCarePlan(t, db)).Create(ctx, secondOffering)
 	}))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
@@ -286,7 +286,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	offering.IsActive = false
 	secondOffering.IsActive = false
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
+		offeringRepo := enrollmentService.NewCareOfferingRepository(carePlanTest.NewCarePlan(t, db))
 		if updateErr := offeringRepo.Update(ctx, offering); updateErr != nil {
 			return updateErr
 		}
@@ -305,7 +305,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	assert.Empty(t, snapshots, "inactive offerings must not trigger a warning")
 	offering.IsActive = true
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return carePlanTest.NewCareOfferingRepository(t, db).Update(ctx, offering)
+		return enrollmentService.NewCareOfferingRepository(carePlanTest.NewCarePlan(t, db)).Update(ctx, offering)
 	}))
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -387,7 +387,7 @@ func newExpiryStudentFixture(t *testing.T, db *bun.DB) expiryStudentFixture {
 
 func (f expiryStudentFixture) set(ctx context.Context, ids []int64, values map[string]any) (count int64, err error) {
 	err = testpkg.WithTenantTx(f.t, ctx, f.db, testpkg.Tenant(f.t), func(ctx context.Context, tx bun.Tx) error {
-		query := tx.NewUpdate().TableExpr("users.students").Where("tenant_id = ?", testpkg.Tenant(f.t)).Where("id IN (?)", bun.List(ids))
+		query := tx.NewUpdate().TableExpr("users.student_school_memberships").Where("tenant_id = ?", testpkg.Tenant(f.t)).Where("deleted_at IS NULL").Where("student_profile_id IN (?)", bun.List(ids))
 		for column, value := range values {
 			query = query.Set("? = ?", bun.Ident(column), value)
 		}

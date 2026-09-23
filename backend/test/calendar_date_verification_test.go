@@ -43,11 +43,11 @@ var legacyTimeTimeDateColumns = map[string]string{}
 var unmappedDateColumns = map[string]string{
 	// Expand #2715 creates empty storage with no Go reader or writer. Cutover
 	// must replace this classification with a timezone.Date owner row field.
-	"users.staff_employment_profiles.rotation_anchor_date": "empty Expand storage; no application access before Cutover (#2715)",
-	// Expand #2717 creates empty storage with no Go reader or writer. Cutover
-	// must replace these classifications with timezone.Date owner row fields.
-	"users.student_school_memberships.enrolled_from":  "empty Expand storage; no application access before Cutover (#2717)",
-	"users.student_school_memberships.enrolled_until": "empty Expand storage; no application access before Cutover (#2717)",
+	// People Directory uses explicit joined projections, not a table-bound
+	// model. Its adapter-local studentRow and studentRecordRow use calendar.Date;
+	// adapters/postgres/store_test.go checks the persistence field types.
+	"users.student_school_memberships.enrolled_from":  "People Directory explicit projection uses *calendar.Date",
+	"users.student_school_memberships.enrolled_until": "People Directory explicit projection uses *calendar.Date",
 	// Reminder push claims are written and deleted exclusively by the two
 	// SECURITY DEFINER functions from 001015255; the occurrence date is bound as
 	// a timezone.Date parameter there and never scanned into a struct, so the
@@ -72,6 +72,12 @@ var unmappedDateColumns = map[string]string{
 	// target architecture forbids a dependency on internal/timezone.
 	"schedule.pickup_extension_tasks.task_date":      "timetable adapter-local row uses the typed domain.Date — no models/ struct",
 	"schedule.pickup_extension_tasks.effective_from": "timetable adapter-local row uses the typed domain.Date — no models/ struct",
+	// The billing key-date counts (#2791) are owned by Organisation & Tenancy,
+	// which may not depend on internal/timezone or the shared calendar. Its
+	// raw SQL binds the YYYY-MM-DD strings with an explicit ::date cast and
+	// reads them back as ::text, so no time.Time ever meets these columns.
+	"platform.billing_key_date_counts.period":   "organization-tenancy raw SQL binds and reads YYYY-MM-DD through ::date / ::text casts — no models/ struct",
+	"platform.billing_key_date_counts.key_date": "organization-tenancy raw SQL binds and reads YYYY-MM-DD through ::date / ::text casts — no models/ struct",
 }
 
 // renamedDateColumns maps a DATE column declared under an old name in a
@@ -79,6 +85,10 @@ var unmappedDateColumns = map[string]string{
 // The scanner only sees declarations; renames are direction-blind in
 // migration+rollback strings, so they are recorded explicitly.
 var renamedDateColumns = map[string]string{
+	// Student owner cutover moves the dates to school membership; the Student
+	// DTO no longer declares the removed compatibility table as owned storage.
+	"users.students.enrolled_from":  "users.student_school_memberships.enrolled_from",
+	"users.students.enrolled_until": "users.student_school_memberships.enrolled_until",
 	// Cutover 1.15.385 moves effective dates to the typed Care Plan target;
 	// the old name is only the rollback view over those same date columns.
 	"enrollment.request_child_offerings.valid_from":  "enrollment.care_offering_bookings.valid_from",

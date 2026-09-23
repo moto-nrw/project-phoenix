@@ -85,7 +85,7 @@ func conflictGroup(updatedAt time.Time, ids ...int64) map[int64]*ParentRequestCo
 }
 
 func resolverWithExcusedPort(port ParentRequestConflictPort) *ParentRequestCoordinator {
-	coordinator := NewParentRequestCoordinator(nil, nil)
+	coordinator := NewParentRequestCoordinator(reviewPermissions, nil, nil)
 	coordinator.SetExcusedConflictPort(port)
 	return coordinator
 }
@@ -391,7 +391,7 @@ func TestResolveConflictLetsAnAbsenceOnlyReviewerResolveAbsencesOnly(t *testing.
 		t.Parallel()
 
 		port := &conflictPortStub{candidates: conflictGroup(now, 4, 5)}
-		coordinator := NewParentRequestCoordinator(nil, nil)
+		coordinator := NewParentRequestCoordinator(reviewPermissions, nil, nil)
 		coordinator.SetMasterDataConflictPort(port)
 		input := excusedResolveInput(now, 4, 5)
 		input.Kind = ParentRequestKindMasterData
@@ -426,7 +426,7 @@ func TestSetCareConflictPortServesBothCareKinds(t *testing.T) {
 	t.Parallel()
 
 	port := &conflictPortStub{}
-	coordinator := NewParentRequestCoordinator(nil, nil)
+	coordinator := NewParentRequestCoordinator(reviewPermissions, nil, nil)
 	coordinator.SetCareConflictPort(port)
 
 	ctx := bulkReviewContext(t, "users:update")

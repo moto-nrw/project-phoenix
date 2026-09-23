@@ -93,12 +93,12 @@ type fixture struct {
 
 func newPersons(repos *repositories.Factory, db *bun.DB) usersService.PersonService {
 	return usersService.NewPersonService(usersService.PersonServiceDependencies{
-		PersonRepo:  repos.Person,
-		AccountRepo: repos.Account,
-		StudentRepo: repos.Student,
-		StaffRepo:   repos.Staff,
-		DB:          db,
-		Logger:      slog.Default(),
+		PersonRepo:    repos.Person,
+		AccountExists: repositories.AccountExists(repos.Profile),
+		StudentRepo:   repos.Student,
+		StaffRepo:     repos.Staff,
+		DB:            db,
+		Logger:        slog.Default(),
 	})
 }
 
@@ -603,7 +603,7 @@ func TestMessaging_GraduatedStudentIsForbidden(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = f.db.ExecContext(context.Background(), `
-		UPDATE users.students SET status = ? WHERE id = ?
+		UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL
 	`, usersModels.StudentStatusAlumnus, f.chain.StudentID)
 	require.NoError(t, err)
 

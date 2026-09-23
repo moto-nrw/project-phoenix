@@ -84,10 +84,21 @@ func TestDataImportRuntimeEvidence(t *testing.T) {
 			require.Equal(t, 16, counter.Total())
 			require.EqualValues(t, 1, writes)
 		} else {
-			require.LessOrEqual(t, counter.Total(), 250)
-			// BUN labels RawQuery as SELECT, including the three owner INSERTs.
+			// Each of the ten guardian links is one unit of work over three
+			// owners since #2756: a savepoint, the People Directory
+			// relationship, the Care Plan pickup permission and the Identity &
+			// Access portal access (5 statements where the old table took 1).
+			// Since #3567 each of the ten new children takes the class-write
+			// gate and Kinderkontingent lock before reading the limit. The
+			// locks are also required without a Kinderkontingent, so a
+			// concurrent quota change cannot pass a previously read unlimited
+			// limit (three statements per child).
+			require.LessOrEqual(t, counter.Total(), 314)
+			// BUN labels RawQuery as SELECT, including the three owner INSERTs
+			// and, since #2756, the three owner INSERTs of each guardian link
+			// (ten rows the counter used to see as one INSERT each).
 			// This remains the driver-reported DML counter, not physical table writes.
-			require.EqualValues(t, 61, writes)
+			require.EqualValues(t, 51, writes)
 		}
 		affected, statements := counter.Rows()
 		samples[operation] = append(samples[operation], testpkg.RuntimeCheckpointSample{

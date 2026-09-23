@@ -38,9 +38,6 @@ func (s *service) loadTargetResolutionReadSet(ctx context.Context, targets []App
 	if err := s.loadTargetStaff(ctx, selection, readSet); err != nil {
 		return nil, err
 	}
-	if err := s.loadExplicitGuardianLinks(ctx, selection.guardianIDs, readSet); err != nil {
-		return nil, err
-	}
 	groupStudents, err := s.loadTargetStudents(ctx, selection, readSet)
 	if err != nil {
 		return nil, err
@@ -78,17 +75,6 @@ func (s *service) loadTargetStaff(ctx context.Context, selection targetSelection
 	return nil
 }
 
-func (s *service) loadExplicitGuardianLinks(ctx context.Context, guardianIDs []int64, readSet *targetResolutionReadSet) error {
-	guardianLinks, err := s.cfg.StudentGuardianRepo.FindByGuardianProfileIDs(ctx, guardianIDs)
-	if err != nil {
-		return err
-	}
-	for _, link := range guardianLinks {
-		readSet.linksByGuardian[link.GuardianProfileID] = append(readSet.linksByGuardian[link.GuardianProfileID], link)
-	}
-	return nil
-}
-
 func (s *service) loadTargetStudents(ctx context.Context, selection targetSelection, readSet *targetResolutionReadSet) ([]*ports.Student, error) {
 	if selection.allParents || len(selection.schoolClasses) > 0 {
 		students, err := s.cfg.StudentRepo.ListActive(ctx)
@@ -114,26 +100,26 @@ func (s *service) loadTargetStudents(ctx context.Context, selection targetSelect
 }
 
 func (s *service) loadStudentGuardianLinks(ctx context.Context, explicitGuardianIDs, studentIDs []int64, readSet *targetResolutionReadSet) error {
-	studentLinks, err := s.cfg.StudentGuardianRepo.FindByStudentIDs(ctx, studentIDs)
+	if len(explicitGuardianIDs) == 0 && len(studentIDs) == 0 {
+		return nil
+	}
+	contacts, err := s.cfg.GuardianProfileRepo.ListPortalContacts(ctx, explicitGuardianIDs, studentIDs)
 	if err != nil {
 		return err
 	}
-	guardianIDs := append([]int64(nil), explicitGuardianIDs...)
-	seenGuardians := int64SliceSet(guardianIDs)
-	for _, link := range studentLinks {
-		readSet.linksByStudent[link.StudentID] = append(readSet.linksByStudent[link.StudentID], link)
-		if link.PortalAccess && !seenGuardians[link.GuardianProfileID] {
-			seenGuardians[link.GuardianProfileID] = true
-			guardianIDs = append(guardianIDs, link.GuardianProfileID)
+	explicit := int64SliceSet(explicitGuardianIDs)
+	students := int64SliceSet(studentIDs)
+	for _, contact := range contacts {
+		readSet.activeGuardians[contact.Profile.ID] = true
+		link := contact.Relationship
+		if link == nil {
+			continue
 		}
-	}
-	if len(guardianIDs) > 0 {
-		profiles, err := s.cfg.GuardianProfileRepo.FindActivePortalProfilesByIDs(ctx, guardianIDs)
-		if err != nil {
-			return err
+		if explicit[link.GuardianProfileID] {
+			readSet.linksByGuardian[link.GuardianProfileID] = append(readSet.linksByGuardian[link.GuardianProfileID], link)
 		}
-		for id := range profiles {
-			readSet.activeGuardians[id] = true
+		if students[link.StudentID] {
+			readSet.linksByStudent[link.StudentID] = append(readSet.linksByStudent[link.StudentID], link)
 		}
 	}
 	return nil

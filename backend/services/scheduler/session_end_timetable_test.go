@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -60,7 +60,7 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		}),
 		logger: slog.Default()})
 
-	completed, err := s.completeTimetableInstancesForEndedSessions(ctx, &activeSvc.DailySessionCleanupResult{
+	completed, err := s.completeTimetableInstancesForEndedSessions(ctx, &studentpresence.DailySessionCleanupResult{
 		EndedActiveGroupIDs: []int64{activeGroup.ID},
 	})
 	require.NoError(t, err)

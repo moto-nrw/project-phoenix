@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -21,7 +20,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 func TestCareUsageRowCountsEffectiveDaysAsUnion(t *testing.T) {
@@ -506,20 +505,20 @@ type fakeClassCareParticipation map[int64]bool
 
 func (f fakeClassCareParticipation) ResolveListParticipation(
 	_ context.Context, studentIDs []int64, _, _ timezone.Date, _ bool,
-) (*carelifecycle.CareParticipationResolution, error) {
-	return &carelifecycle.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: f}, nil
+) (*careplan.CareParticipationResolution, error) {
+	return &careplan.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: f}, nil
 }
 
 type allClassCareParticipation struct{}
 
 func (allClassCareParticipation) ResolveListParticipation(
 	_ context.Context, studentIDs []int64, _, _ timezone.Date, _ bool,
-) (*carelifecycle.CareParticipationResolution, error) {
+) (*careplan.CareParticipationResolution, error) {
 	result := make(map[int64]bool, len(studentIDs))
 	for _, studentID := range studentIDs {
 		result[studentID] = true
 	}
-	return &carelifecycle.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: result}, nil
+	return &careplan.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: result}, nil
 }
 
 type recordingClassCareParticipation struct {
@@ -529,9 +528,9 @@ type recordingClassCareParticipation struct {
 
 func (f *recordingClassCareParticipation) ResolveListParticipation(
 	_ context.Context, studentIDs []int64, on, today timezone.Date, _ bool,
-) (*carelifecycle.CareParticipationResolution, error) {
+) (*careplan.CareParticipationResolution, error) {
 	f.on, f.today = on, today
-	return &carelifecycle.CareParticipationResolution{
+	return &careplan.CareParticipationResolution{
 		CandidateIDs: studentIDs, ParticipatingIDs: map[int64]bool{studentIDs[0]: true},
 	}, nil
 }
@@ -1503,14 +1502,14 @@ func (r *fakeCareUsageRequestRepo) AdminRequests(_ context.Context, _ capability
 }
 
 type fakeCareUsagePickupScheduleSvc struct {
-	careschedule.PickupScheduleService
-	rows       []*scheduleModels.StudentPickupSchedule
+	careplan.PickupScheduleService
+	rows       []*careplan.PickupSchedule
 	err        error
 	studentIDs []int64
 	date       timezone.Date
 }
 
-func (s *fakeCareUsagePickupScheduleSvc) GetWeeklySchedulesByStudentIDsForDate(_ context.Context, studentIDs []int64, date timezone.Date) ([]*scheduleModels.StudentPickupSchedule, error) {
+func (s *fakeCareUsagePickupScheduleSvc) GetWeeklySchedulesByStudentIDsForDate(_ context.Context, studentIDs []int64, date timezone.Date) ([]*careplan.PickupSchedule, error) {
 	s.studentIDs = append([]int64(nil), studentIDs...)
 	s.date = date
 	return s.rows, s.err
@@ -1529,7 +1528,7 @@ func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 		LastName:  "Muster",
 		Email:     &guardianEmail,
 	}}}
-	pickupSvc := &fakeCareUsagePickupScheduleSvc{rows: []*scheduleModels.StudentPickupSchedule{{
+	pickupSvc := &fakeCareUsagePickupScheduleSvc{rows: []*careplan.PickupSchedule{{
 		StudentID:  studentID,
 		Weekday:    scheduleModels.WeekdayMonday,
 		PickupTime: time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC),
@@ -1603,7 +1602,7 @@ func TestCareUsageDoesNotEnrichSchedulePickupBeforeApproval(t *testing.T) {
 		}}},
 		CareOfferingRepo: &fakeClassRosterCareOfferingRepo{},
 		Phases:           &fakeClassRosterPhaseRepo{},
-		PickupScheduleSvc: &fakeCareUsagePickupScheduleSvc{rows: []*scheduleModels.StudentPickupSchedule{{
+		PickupScheduleSvc: &fakeCareUsagePickupScheduleSvc{rows: []*careplan.PickupSchedule{{
 			StudentID:  studentID,
 			Weekday:    scheduleModels.WeekdayMonday,
 			PickupTime: time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC),

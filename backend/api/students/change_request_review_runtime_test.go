@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -81,7 +80,7 @@ func TestRequestReviewRuntimeEvidence(t *testing.T) {
 		_, err = tc.db.NewInsert().Model(care).Exec(ctx)
 		require.NoError(t, err)
 
-		excused := &activeModels.ExcusedAbsenceRequest{
+		excused := &testpkg.ExcusedAbsenceRequestRow{
 			StudentID: student.ID, SubmittedBy: account.ID,
 			Dates: []timezone.Date{timezone.TodayDate().AddDays(3)}, Note: "Arzttermin",
 			AbsenceStatus: "excused", Status: "pending",
@@ -98,7 +97,7 @@ func TestRequestReviewRuntimeEvidence(t *testing.T) {
 				decidedBase.Add(-time.Duration(n*10+i)*time.Minute))
 		}
 		reviewed := decidedBase.Add(-time.Duration(n*10+5) * time.Minute)
-		decidedExcused := &activeModels.ExcusedAbsenceRequest{
+		decidedExcused := &testpkg.ExcusedAbsenceRequestRow{
 			StudentID: student.ID, SubmittedBy: account.ID,
 			Dates: []timezone.Date{timezone.TodayDate().AddDays(-3)}, Note: "Krank",
 			AbsenceStatus: "sick", Status: "approved", ReviewedBy: &account.ID, ReviewedAt: &reviewed,

@@ -7,15 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	modelbase "github.com/moto-nrw/project-phoenix/models/base"
-	authmodel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -28,10 +24,7 @@ type raceLosingConsume struct{ markCalls int }
 
 func (r *raceLosingConsume) consume(context.Context, int64, time.Time) error {
 	r.markCalls++
-	return &modelbase.DatabaseError{
-		Op:  "mark mfa email challenge consumed",
-		Err: errors.New("expected 1 rows affected, got 0"),
-	}
+	return errors.New("mark mfa email challenge consumed: expected 1 rows affected, got 0")
 }
 
 // TestMFAService_VerifyChallenge_RaceLoserRejected exercises Item #4 from the
@@ -48,8 +41,8 @@ func TestMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	stub := &raceLosingConsume{}
 	module := newMFATestModule(t, db, withFailingMFARecords(failingMFARecords{consumeChallenge: stub.consume}))
-	svc, repos, tokenAuth := module.MFA, module.Repos, module.TokenAuth
-	realChallengeRepo := repos.MFAEmailChallenge
+	svc, tokenAuth := module.MFA, module.TokenAuth
+	realChallengeRepo := nativeMFARecords(t, db)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-race-loser")
 
@@ -62,19 +55,19 @@ func TestMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 	// known hash so VerifyShortCode succeeds and the flow reaches
 	// MarkConsumed.
 	plaintext := "654321"
-	hash, err := securityruntime.HashPassword(plaintext)
-	require.NoError(t, err)
+	hash := testpkg.HashTestPassword(t, plaintext)
 	_ = tokenAuth
 
 	now := time.Now()
-	challenge := &authmodel.MFAEmailChallenge{
+	challenge := identityaccess.AccountMFAChallenge{
 		AccountID: acc.ID,
 		Scope:     identityaccess.MFAChallengeScopeTenant,
 		CodeHash:  hash,
 		ExpiresAt: now.Add(identityaccess.MFAChallengeTTL),
 		IPAddress: net.ParseIP("203.0.113.99"),
 	}
-	require.NoError(t, realChallengeRepo.Create(ctx, challenge))
+	challenge, err := realChallengeRepo.CreateChallenge(ctx, challenge)
+	require.NoError(t, err)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().Table("auth.mfa_email_challenges").Where("account_id = ?", acc.ID).Exec(context.Background())
 	})
@@ -107,21 +100,21 @@ func TestMFAService_VerifyCodeForAccount_RaceLoserRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	stub := &raceLosingConsume{}
 	module := newMFATestModule(t, db, withFailingMFARecords(failingMFARecords{consumeChallenge: stub.consume}))
-	svc, realChallengeRepo := module.MFA, module.Repos.MFAEmailChallenge
+	svc, realChallengeRepo := module.MFA, nativeMFARecords(t, db)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-race-loser-jwt-less")
 
 	plaintext := "987654"
-	hash, err := securityruntime.HashPassword(plaintext)
-	require.NoError(t, err)
+	hash := testpkg.HashTestPassword(t, plaintext)
 
-	challenge := &authmodel.MFAEmailChallenge{
+	challenge := identityaccess.AccountMFAChallenge{
 		AccountID: acc.ID,
 		Scope:     identityaccess.MFAChallengeScopeTenant,
 		CodeHash:  hash,
 		ExpiresAt: time.Now().Add(identityaccess.MFAChallengeTTL),
 	}
-	require.NoError(t, realChallengeRepo.Create(ctx, challenge))
+	_, err := realChallengeRepo.CreateChallenge(ctx, challenge)
+	require.NoError(t, err)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().Table("auth.mfa_email_challenges").Where("account_id = ?", acc.ID).Exec(context.Background())
 	})

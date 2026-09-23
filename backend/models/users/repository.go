@@ -77,9 +77,6 @@ type StudentRepository interface {
 	// FindByGroupIDs retrieves students by multiple group IDs
 	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*Student, error)
 
-	// FindBySchoolClass retrieves students by their school class
-	FindBySchoolClass(ctx context.Context, schoolClass string) ([]*Student, error)
-
 	// ExistsEnrolledByNameAndBirthday reports whether an already-enrolled
 	// student (active OR pending — a child approved before its service
 	// start date is created pending until activation) with the given
@@ -101,10 +98,6 @@ type StudentRepository interface {
 
 	// ListSchoolClasses retrieves all distinct non-empty school classes.
 	ListSchoolClasses(ctx context.Context) ([]string, error)
-
-	// ListIDs retrieves lightweight tenant-scoped candidates. The shared dated
-	// participation evaluator, not a lifecycle status, decides visibility.
-	ListIDs(ctx context.Context) ([]int64, error)
 
 	// FindBirthdaysOn returns the non-graduated children whose birthday falls
 	// on one of the given annually recurring days (#1542). Children without a
@@ -185,13 +178,6 @@ type StudentRepository interface {
 	// opened a batch MUST call this before committing.
 	VerifyCompanionStrandingBatch(ctx context.Context) error
 
-	// FindByIDForUpdateNoWait is FindByIDForUpdate that fails immediately
-	// (PostgreSQL 55P03) instead of waiting when the row is already locked.
-	// Used only where waiting would invert the ascending-id order every
-	// companion writer follows and could therefore deadlock — see the
-	// lock protocol in api/students and StudentRepository.lockCompanionFarEnds.
-	FindByIDForUpdateNoWait(ctx context.Context, id int64) (*Student, error)
-
 	// FindByIDsForUpdate fetches and locks the given student rows in one
 	// SELECT … ORDER BY id FOR UPDATE (the project-wide ascending-id lock
 	// order), so batch writers acquire all their row locks in one query and
@@ -233,12 +219,6 @@ type StaffRepository interface {
 	// (role + direct account_permissions grants, wildcard-aware) so unreachable
 	// staff aren't invited as recipients.
 	FindReachableCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
-
-	// ClearWorkTimeModel sets work_time_model_id to NULL. Used by staff
-	// offboarding: soft-deleted staff must not keep the reference, or the
-	// RESTRICT FK blocks work-time-model deletion while the live-staff
-	// pre-check reports zero assignments.
-	ClearWorkTimeModel(ctx context.Context, id int64) error
 
 	// FindWithPerson retrieves a staff member with their associated person data
 	FindWithPerson(ctx context.Context, id int64) (*Staff, error)
@@ -329,12 +309,8 @@ type GuestRepository interface {
 
 	// FindByStaffID retrieves a guest by their staff ID
 	FindByStaffID(ctx context.Context, staffID int64) (*Guest, error)
-
-	// FindActive retrieves currently active guests
-	FindActive(ctx context.Context) ([]*Guest, error)
 }
 
-// StudentGuardianRepository defines operations for managing student-guardian relationships
 // GuardianEmergencyContactRow is one (guardian, phone number) projection row
 // for the emergency contact list; the consumer aggregates rows per student.
 type GuardianEmergencyContactRow struct {
@@ -355,8 +331,23 @@ type GuardianEmergencyContactRow struct {
 	IsEmergencyContact bool           `bun:"is_emergency_contact"`
 }
 
+// StudentGuardianRepository is the retained composition seam over the
+// student-guardian relationship (#2756): People Directory's relationship with
+// Care Plan's pickup permission and Identity & Access's portal access. Writes
+// go to the owner of each column in one unit of work; reads join the three
+// through the tenant-safe guardian-link projection.
 type StudentGuardianRepository interface {
-	base.CRUDRepository[*StudentGuardian]
+	// Create links a guardian to a child across the three owners.
+	Create(ctx context.Context, relationship *StudentGuardian) error
+	// FindByID retrieves one relationship with its three halves.
+	FindByID(ctx context.Context, id any) (*StudentGuardian, error)
+	// Update rewrites every field of the relationship across its owners.
+	Update(ctx context.Context, relationship *StudentGuardian) error
+	// Delete unlinks a guardian; the owners' halves follow the relationship.
+	Delete(ctx context.Context, id any) error
+	// List retrieves the relationships matching the equality filters, keyed
+	// by column of the old row shape.
+	List(ctx context.Context, filters map[string]any) ([]*StudentGuardian, error)
 
 	// ListEmergencyContactRows returns guardian/phone rows for the given
 	// students, emergency contacts and primary entries first.
@@ -371,9 +362,6 @@ type StudentGuardianRepository interface {
 
 	// FindByGuardianProfileID retrieves relationships by guardian profile ID
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*StudentGuardian, error)
-	// FindByGuardianProfileIDs retrieves relationships for several guardian
-	// profiles in one query.
-	FindByGuardianProfileIDs(ctx context.Context, guardianProfileIDs []int64) ([]*StudentGuardian, error)
 
 	// AccountHasStudentPermission reports whether the guardian account holds the
 	// named parent_portal.* permission on its relationship to the given student
@@ -467,15 +455,10 @@ type StudentCompanionRepository interface {
 	// ListForStudent returns every edge touching the student, all weekdays.
 	ListForStudent(ctx context.Context, studentID int64) ([]*StudentCompanion, error)
 
-	// ListLinksForStudent returns the edges folded per companion, with names.
-	ListLinksForStudent(ctx context.Context, studentID int64) ([]CompanionLink, error)
-
-	// ListLinksForStudents is the bulk form of ListLinksForStudent, for the
-	// offline lists that render the "mit wem" detail of a whole school.
+	// ListLinksForStudents returns the edges folded per companion, with
+	// names, for the offline lists that render the "mit wem" detail of a
+	// whole school.
 	ListLinksForStudents(ctx context.Context, studentIDs []int64) (map[int64][]CompanionLink, error)
-
-	// ReplaceForStudent makes the given edges the student's complete set.
-	ReplaceForStudent(ctx context.Context, studentID int64, edges []*StudentCompanion) error
 
 	// CompanionIDsForWeekday bulk-resolves companions for one weekday.
 	CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error)
@@ -534,10 +517,6 @@ type GuardianProfileRepository interface {
 	// Update updates an existing guardian profile
 	Update(ctx context.Context, profile *GuardianProfile) error
 
-	// UpdatePortalLocaleByAccountID updates portal_locale for every guardian
-	// profile linked to the given parent account.
-	UpdatePortalLocaleByAccountID(ctx context.Context, accountID int64, locale string) error
-
 	// Delete removes a guardian profile
 	Delete(ctx context.Context, id int64) error
 
@@ -546,7 +525,7 @@ type GuardianProfileRepository interface {
 
 	// LoadProfileWithChildren returns the guardian profile linked to the
 	// given account along with their primary phone and a summary of
-	// every active student linked via users.students_guardians. Returns
+	// every active student linked via the student-guardian relationships. Returns
 	// (nil, nil) when no profile exists in the current tenant context
 	// — callers fall through to claims-derived defaults instead of
 	// erroring. RLS narrows reads to the tenant in context.
@@ -583,9 +562,6 @@ type GuardianPhoneNumberRepository interface {
 
 	// CountByGuardianID returns the number of phone numbers for a guardian
 	CountByGuardianID(ctx context.Context, guardianProfileID int64) (int, error)
-
-	// DeleteByGuardianID removes all phone numbers for a guardian
-	DeleteByGuardianID(ctx context.Context, guardianProfileID int64) error
 
 	// GetNextPriority returns the next priority value for a guardian's phone numbers
 	GetNextPriority(ctx context.Context, guardianProfileID int64) (int, error)

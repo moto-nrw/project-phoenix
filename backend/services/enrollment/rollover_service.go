@@ -281,7 +281,7 @@ func NewRolloverService(cfg RolloverServiceConfig) RolloverService {
 //  4. List approved source children + skip ones already rolled
 //  5. Group by source request_id and create one new request per group
 //  6. Per child: compute new grade, decide status, create row
-//  7. Copy the effective care-offering booking (request_child_offerings),
+//  7. Copy the effective care-offering booking (care_offering_bookings),
 //     remapped to the cloned offerings, days carried, validity reset
 //  8. Enqueue one email per new request via the outbox
 func (s *rolloverService) CreatePhaseFromSource(ctx context.Context, req CreatePhaseFromSourceRequest) (*RolloverResult, error) {
@@ -432,6 +432,9 @@ func (s *rolloverService) createRolloverPhase(ctx context.Context, tenantID int6
 		CareOfferingSelectionMode: source.CareOfferingSelectionMode,
 		AvailableSchoolClasses:    source.AvailableSchoolClasses,
 		RequireSchoolClass:        source.RequireSchoolClass,
+		// Name translations ride along as a starting point; parents only see
+		// them again once the new name matches their German source (#3377).
+		Translations: source.Translations,
 		// Carry the eligibility config forward. Without this the successor
 		// silently defaults to audience=open with no class gate (Phase.Validate
 		// fills those in), turning a rolled linked/class-restricted phase

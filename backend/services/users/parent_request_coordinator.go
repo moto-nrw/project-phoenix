@@ -12,8 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -81,8 +80,9 @@ type MasterDataBulkReviewPort interface {
 // ParentRequestCoordinator owns invariants spanning request kinds. Each
 // domain service still loads and applies its own payload.
 type ParentRequestCoordinator struct {
-	masterData MasterDataBulkReviewPort
-	excused    ExcusedBulkReviewPort
+	requestPermissions RequestPermissions
+	masterData         MasterDataBulkReviewPort
+	excused            ExcusedBulkReviewPort
 	// conflictPorts carry the resolve command (#2267, stories 6-10). They are
 	// injected by setter rather than by constructor parameter so that adding a
 	// domain to the conflict resolver never rewrites the bulk-approval
@@ -96,10 +96,14 @@ type ParentRequestCoordinator struct {
 }
 
 func NewParentRequestCoordinator(
+	requestPermissions RequestPermissions,
 	masterData MasterDataBulkReviewPort,
 	excused ExcusedBulkReviewPort,
 ) *ParentRequestCoordinator {
-	return &ParentRequestCoordinator{masterData: masterData, excused: excused}
+	if requestPermissions == nil {
+		panic("request permissions are required")
+	}
+	return &ParentRequestCoordinator{requestPermissions: requestPermissions, masterData: masterData, excused: excused}
 }
 
 func ParentRequestVersion(updatedAt time.Time) string {
@@ -114,7 +118,7 @@ func (s *ParentRequestCoordinator) BulkApprove(ctx context.Context, input BulkAp
 		tenant.MarkRollback(ctx)
 		return err
 	}
-	if err := authorizeBulkParentRequestKinds(ctx, input.Requests); err != nil {
+	if err := authorizeBulkParentRequestKinds(s.requestPermissions(ctx), input.Requests); err != nil {
 		tenant.MarkRollback(ctx)
 		return err
 	}
@@ -167,8 +171,8 @@ func isBulkRequestRace(err error) bool {
 		errors.Is(err, ErrReviewNotPending) ||
 		errors.Is(err, userModels.ErrChangeRequestNotFound) ||
 		errors.Is(err, userModels.ErrChangeRequestNotPending) ||
-		errors.Is(err, activeModels.ErrExcusedRequestNotFound) ||
-		errors.Is(err, activeModels.ErrExcusedRequestNotPending)
+		errors.Is(err, absencerecords.ErrExcusedRequestNotFound) ||
+		errors.Is(err, absencerecords.ErrExcusedRequestNotPending)
 }
 
 func bulkStudentIDs(
@@ -253,14 +257,13 @@ func (s *ParentRequestCoordinator) applyBulkParentRequest(ctx context.Context, i
 		return err
 	}
 	err := s.excused.ApproveExcusedBulk(ctx, ref.ID, input.Reason, input.ReviewerID, ref.ExpectedVersion)
-	if errors.Is(err, activeModels.ErrExcusedRequestNotPending) {
+	if errors.Is(err, absencerecords.ErrExcusedRequestNotPending) {
 		return ErrParentRequestDecisionRace
 	}
 	return err
 }
 
-func authorizeBulkParentRequestKinds(ctx context.Context, refs []ParentRequestRef) error {
-	granted := jwt.PermissionsFromCtx(ctx)
+func authorizeBulkParentRequestKinds(granted []string, refs []ParentRequestRef) error {
 	canUpdate := authorize.HasPermission(permissions.UsersUpdate, granted)
 	canReviewAbsence := canUpdate || authorize.HasPermission(permissions.UsersAbsence, granted)
 	for _, ref := range refs {

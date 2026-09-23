@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
 
@@ -119,12 +118,10 @@ func (rs *Resource) Router() chi.Router {
 	r.Post("/requests/{statusToken}/confirm-renewal", rs.confirmRenewal)
 
 	// Authenticated admin endpoints.
-	tokenAuth := jwt.MustNewTokenAuth()
 	r.Group(func(r chi.Router) {
-		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(common.ReadOnlyPreviewMiddleware)
-		r.Use(jwt.TenantMiddleware)
+		r.Use(common.TenantScopeMiddleware)
 		r.Use(common.SecurityPrincipalMiddleware)
 
 		r.Route("/schema", func(r chi.Router) {
@@ -156,7 +153,9 @@ func (rs *Resource) Router() chi.Router {
 
 		r.Route("/phases", func(r chi.Router) {
 			r.With(common.RequiresPermission("config:read")).Get("/", rs.listPhases)
-			r.With(common.RequiresPermission("admin:*")).Get("/expiry-warnings", rs.listPhaseExpiryWarnings)
+			// The warnings ask for a successor phase, which config:manage
+			// creates; a lead role without the admin wildcard reads them too (#3469).
+			r.With(common.RequiresPermission("config:manage")).Get("/expiry-warnings", rs.listPhaseExpiryWarnings)
 			r.With(common.RequiresPermission("config:manage")).Post("/", rs.createPhase)
 			r.Route("/{id}", func(r chi.Router) {
 				r.With(common.RequiresPermission("config:read")).Get("/", rs.getPhase)

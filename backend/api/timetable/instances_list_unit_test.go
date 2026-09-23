@@ -6,7 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -60,16 +60,16 @@ func TestSummarizeInstanceStudentsEarlyPickupRequiresExpectedCareDay(t *testing.
 	cutoffs := map[int64]time.Time{
 		studentID: timezone.NormalizeWallClock(time.Date(1, 1, 1, 14, 45, 0, 0, time.UTC)),
 	}
-	verdicts := func(v careschedule.CareDayStatus) map[int64]map[timezone.Date]careschedule.CareDayStatus {
-		return map[int64]map[timezone.Date]careschedule.CareDayStatus{studentID: {day: v}}
+	verdicts := func(v careplan.CareDayStatus) map[int64]map[timezone.Date]careplan.CareDayStatus {
+		return map[int64]map[timezone.Date]careplan.CareDayStatus{studentID: {day: v}}
 	}
 
-	scheduled := summarizeInstanceStudents(inst, rows, verdicts(careschedule.CareDayScheduled), cutoffs)
+	scheduled := summarizeInstanceStudents(inst, rows, verdicts(careplan.CareDayScheduled), cutoffs)
 	if assert.Len(t, scheduled.students, 1) && assert.NotNil(t, scheduled.students[0].EarlyPickupTime) {
 		assert.Equal(t, "14:45", *scheduled.students[0].EarlyPickupTime)
 	}
 
-	cancelled := summarizeInstanceStudents(inst, rows, verdicts(careschedule.CareDayCancelled), cutoffs)
+	cancelled := summarizeInstanceStudents(inst, rows, verdicts(careplan.CareDayCancelled), cutoffs)
 	if assert.Len(t, cancelled.students, 1) {
 		assert.Nil(t, cancelled.students[0].EarlyPickupTime)
 	}

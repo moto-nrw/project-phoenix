@@ -28,6 +28,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment/selection"
 	"github.com/moto-nrw/project-phoenix/services/config"
@@ -45,7 +46,7 @@ var (
 	ErrCareOfferingClosed      = selection.ErrCareOfferingClosed
 	ErrCareOfferingUnavailable = selection.ErrCareOfferingUnavailable
 	ErrCareOfferingFull        = errors.New("one or more selected care offerings are at capacity")
-	ErrCareOfferingsDisabled   = errors.New("care offerings are disabled for this tenant")
+	ErrCareOfferingsDisabled   = careplan.ErrCareOfferingsDisabled
 	// ErrCareOfferingMissing is returned when a phase requires at least
 	// one care offering per child but a child has no offering selected.
 	// Mapped to 400 with a stable code so the parent form can highlight
@@ -214,7 +215,7 @@ type SubmitRequest struct {
 
 	// AdditionalGuardians are the co-guardians the parent added beyond
 	// the primary guardian above. Stored in enrollment.request_guardians
-	// and materialized as additional users.students_guardians links on
+	// and materialized as additional student-guardian relationships on
 	// approval. Email/phone are optional per co-guardian.
 	AdditionalGuardians []SubmitGuardian
 }
@@ -235,7 +236,7 @@ type SubmitGuardian struct {
 // for offerings whose days_of_week_mode is "parent_choice". Entries
 // in OfferingDays MUST also appear in OfferingIDs; missing entries
 // inherit the offering's default (admin-fixed) day set, written as
-// NULL on the resulting request_child_offerings row. The service
+// NULL on the resulting selection and booking rows. The service
 // validates subset/non-empty before inserting.
 type SubmitChild struct {
 	ID                int64
@@ -520,6 +521,9 @@ type LegalBlock struct {
 	Required  bool   `json:"required"`
 	SortOrder int    `json:"sort_order,omitempty"`
 	Source    string `json:"source,omitempty"`
+	// Translations holds only translations that still match the German
+	// text, without their source (#3377).
+	Translations enrollmentCapability.Translations `json:"translations,omitempty"`
 }
 
 // RequestSettingsResolver is the narrow contract the service needs from
@@ -1177,7 +1181,7 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 // guardian and each other. Email/phone are optional per co-guardian; only
 // first + last name are required. The primary guardian is the source of
 // truth — a co-guardian that duplicates it is dropped so approval never
-// creates two students_guardians links to the same profile.
+// creates two student-guardian relationships to the same profile.
 func normalizeAdditionalGuardians(req *SubmitRequest) error {
 	if len(req.AdditionalGuardians) == 0 {
 		return nil
@@ -3564,6 +3568,8 @@ func buildTemplateLegalBlocks(configured []enrollmentCapability.FormLegalBlock) 
 			Required:  block.Required,
 			SortOrder: block.SortOrder,
 			Source:    block.Source,
+
+			Translations: block.PublicTranslations(),
 		})
 	}
 	// The editor writes blocks in display order, but API-written templates
@@ -3646,6 +3652,8 @@ func legalBlocksSnapshotEntry(blocks []LegalBlock, flags map[string]any, at time
 			Text:     block.Text,
 			Required: block.Required,
 			Source:   block.Source,
+
+			Translations: block.Translations.Texts(),
 		})
 	}
 	// Freeze the flags independently of subsequent request edits.

@@ -1,6 +1,6 @@
 // Package peopledirectory is the public People Directory capability. It owns
 // users.persons, users.students, users.guardian_profiles,
-// users.guardian_phone_numbers and users.students_guardians: every read or
+// users.guardian_phone_numbers and users.student_guardian_relationships: every read or
 // write of a person, student or guardian row by another owner goes through
 // Query or Command instead of a foreign SQL join.
 package peopledirectory
@@ -99,6 +99,7 @@ type Query interface {
 	StudentConsentQuery
 	GuardianQuery
 	GuardianPortalReachQuery
+	GuardianPortalContacts
 	// FindPerson returns one non-deleted person of the current tenant.
 	FindPerson(context.Context, int64) (Person, error)
 	// FindPersonForMutation locks the row for the caller's transaction.
@@ -130,6 +131,8 @@ type Command interface {
 	StudentAuditCommand
 	StudentPhotoCommand
 	GuardianCommand
+	GuardianPortalCommand
+	StudentPortalCommand
 	FamilyProtectionCommand
 	CreatePerson(context.Context, CreatePerson) (Person, error)
 	UpdatePerson(context.Context, UpdatePerson) (Person, error)
@@ -168,6 +171,7 @@ type engine interface {
 	StudentAuditCommand
 	StudentPhotoCommand
 	guardianEngine
+	guardianPortalEngine
 	Create(context.Context, CreatePerson) (Person, error)
 	Update(context.Context, UpdatePerson) (Person, error)
 	Delete(context.Context, int64) error

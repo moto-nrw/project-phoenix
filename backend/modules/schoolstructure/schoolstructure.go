@@ -125,7 +125,8 @@ func ErrorCode(err error) string {
 		return "none"
 	case errors.Is(err, ErrGroupNotFound), errors.Is(err, ErrTransitionNotFound):
 		return "not_found"
-	case errors.Is(err, ErrInvalidGroup), errors.Is(err, ErrInvalidTransition):
+	case errors.Is(err, ErrInvalidGroup), errors.Is(err, ErrInvalidTransition),
+		errors.Is(err, ErrInvalidStaff), errors.Is(err, ErrInvalidDay):
 		return "invalid"
 	case errors.Is(err, ErrTransitionStateConflict):
 		return "conflict"

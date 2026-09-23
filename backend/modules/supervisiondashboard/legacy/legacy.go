@@ -21,11 +21,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -33,19 +31,36 @@ import (
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 )
 
+// CallerGroup is one of the caller's educational groups.
+type CallerGroup struct {
+	ID     int64
+	Name   string
+	RoomID *int64
+}
+
+// CallerContext is the Identity & Access caller context the adapters read;
+// it answers the projection's CurrentStaffID and FullStudentAccess itself.
+type CallerContext interface {
+	CurrentStaffID(context.Context) (*int64, error)
+	FullStudentAccess(context.Context) (bool, error)
+	HasCurrentStaff(context.Context) (bool, error)
+	GetMySupervisedGroups(context.Context) ([]*studentpresence.SessionDetail, error)
+	MyGroups(context.Context) ([]CallerGroup, error)
+}
+
 // Sources are the retained owner services the projection's ports adapt.
 type Sources struct {
-	Active       activeService.Service
+	Active       studentpresence.Presence
 	ActiveGroups OpenRoomSessions
-	OpenVisits   activeService.VisitDisplayBatchReader
+	OpenVisits   studentpresence.SessionReads
 	Rooms        supervisiondashboard.RoomDirectory
-	UserContext  userContextService.UserContextService
+	UserContext  CallerContext
 	Education    educationService.Service
 	Schulhof     facilitiesService.SchulhofService
 	Operations   timetableplanning.TimetableOperationsService
 	Settings     configService.SettingsService
-	Pickups      careschedule.PickupScheduleService
-	Arrivals     careschedule.ArrivalScheduleService
+	Pickups      careplan.BulkPickupTimes
+	Arrivals     careplan.BulkArrivalTimes
 	Now          func() time.Time
 }
 
@@ -65,7 +80,7 @@ func New(sources Sources) (supervisiondashboard.Query, error) {
 		sources.Now = time.Now
 	}
 	return supervisiondashboard.New(supervisiondashboard.Dependencies{
-		Access:   access{settings: sources.Settings, userContext: sources.UserContext},
+		Access:   access{settings: sources.Settings, CallerContext: sources.UserContext},
 		Sessions: sessions{active: sources.Active, groups: sources.ActiveGroups, userContext: sources.UserContext},
 		Rooms:    sources.Rooms,
 		Yard:     yard{schulhof: sources.Schulhof},
@@ -80,24 +95,8 @@ func New(sources Sources) (supervisiondashboard.Query, error) {
 }
 
 type access struct {
-	settings    configService.SettingsService
-	userContext userContextService.UserContextService
-}
-
-func (a access) CurrentStaffID(ctx context.Context) (*int64, error) {
-	staff, err := a.userContext.GetCurrentStaff(ctx)
-	if err != nil {
-		if errors.Is(err, userContextService.ErrUserNotLinkedToStaff) ||
-			errors.Is(err, userContextService.ErrUserNotLinkedToPerson) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	if staff == nil {
-		return nil, nil
-	}
-	id := staff.ID
-	return &id, nil
+	settings configService.SettingsService
+	CallerContext
 }
 
 // Caller asks the one school-wide overview rule (#2380). The organisational
@@ -107,7 +106,7 @@ func (a access) Caller(ctx context.Context) (supervisiondashboard.Caller, error)
 	principal, principalErr := permissions.PrincipalFromContext(ctx)
 	assignmentBound := principalErr == nil && principal.Scope() == permissions.ScopeSchool
 	admin := principalErr == nil && principal.HasAdminScope()
-	overview, err := authorize.HasOperationalOverview(ctx, a.settings, a.userContext, assignmentBound, admin)
+	overview, err := authorize.HasOperationalOverview(ctx, a.settings, a.CallerContext, assignmentBound, admin)
 	if err != nil {
 		return supervisiondashboard.Caller{}, fmt.Errorf("resolve operational overview scope: %w", err)
 	}
@@ -123,14 +122,10 @@ func (a access) Caller(ctx context.Context) (supervisiondashboard.Caller, error)
 	}, nil
 }
 
-func (a access) FullStudentAccess(ctx context.Context) (bool, error) {
-	return userContextService.ResolveStudentAccess(ctx, a.userContext).HasFullAccess(), nil
-}
-
 type sessions struct {
-	active      activeService.Service
+	active      studentpresence.Presence
 	groups      OpenRoomSessions
-	userContext userContextService.UserContextService
+	userContext CallerContext
 }
 
 // Running lists every running session with the template activity relation
@@ -145,7 +140,7 @@ func (s sessions) Running(ctx context.Context) ([]supervisiondashboard.Session, 
 	if err != nil {
 		return nil, fmt.Errorf("load active group relations: %w", err)
 	}
-	groups := make([]*activeModels.Group, 0, len(ids))
+	groups := make([]*studentpresence.SessionDetail, 0, len(ids))
 	for _, id := range ids {
 		if group := loaded[id]; group != nil {
 			groups = append(groups, group)
@@ -205,7 +200,7 @@ func (s sessions) InRooms(ctx context.Context, roomIDs []int64) ([]supervisionda
 
 // records maps the rows to session records with their rooms resolved and
 // sorts them in German dictionary order of the room name.
-func (s sessions) records(ctx context.Context, groups []*activeModels.Group) ([]supervisiondashboard.Session, error) {
+func (s sessions) records(ctx context.Context, groups []*studentpresence.SessionDetail) ([]supervisiondashboard.Session, error) {
 	rooms, err := s.rooms(ctx, groups)
 	if err != nil {
 		return nil, err
@@ -213,8 +208,8 @@ func (s sessions) records(ctx context.Context, groups []*activeModels.Group) ([]
 	result := make([]supervisiondashboard.Session, 0, len(groups))
 	for _, group := range groups {
 		item := supervisiondashboard.Session{ID: group.ID}
-		if group.ActualGroup != nil {
-			item.Name = group.ActualGroup.Name
+		if group.Activity != nil {
+			item.Name = group.Activity.Name
 		}
 		if group.RoomID > 0 {
 			roomID := group.RoomID
@@ -234,10 +229,10 @@ func (s sessions) records(ctx context.Context, groups []*activeModels.Group) ([]
 
 // rooms bulk-resolves rooms for groups whose relation is not preloaded —
 // this replaces the former per-group GET /api/rooms/{id} N+1.
-func (s sessions) rooms(ctx context.Context, groups []*activeModels.Group) (map[int64]*activeModels.SessionRoom, error) {
+func (s sessions) rooms(ctx context.Context, groups []*studentpresence.SessionDetail) (map[int64]*studentpresence.SessionRoomSummary, error) {
 	missing := make([]int64, 0, len(groups))
 	seen := map[int64]struct{}{}
-	result := map[int64]*activeModels.SessionRoom{}
+	result := map[int64]*studentpresence.SessionRoomSummary{}
 	for _, group := range groups {
 		if group.RoomID <= 0 {
 			continue
@@ -305,11 +300,11 @@ func schulhofStatus(status *facilitiesService.SchulhofStatus) *supervisiondashbo
 
 type groups struct {
 	education   educationService.Service
-	userContext userContextService.UserContextService
+	userContext CallerContext
 }
 
 func (g groups) MyGroups(ctx context.Context) ([]supervisiondashboard.EducationalGroup, error) {
-	myGroups, err := g.userContext.GetMyGroups(ctx)
+	myGroups, err := g.userContext.MyGroups(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -495,8 +490,8 @@ func conflictWarning(warning timetableplanning.InstanceConflictWarning) supervis
 }
 
 type presence struct {
-	active     activeService.Service
-	openVisits activeService.VisitDisplayBatchReader
+	active     studentpresence.Presence
+	openVisits studentpresence.SessionReads
 }
 
 func (p presence) GroupVisits(ctx context.Context, activeGroupID int64) ([]supervisiondashboard.VisitRecord, error) {
@@ -507,7 +502,7 @@ func (p presence) GroupVisits(ctx context.Context, activeGroupID int64) ([]super
 	return visitRecords(rows), nil
 }
 
-func visitRecords(rows []*activeService.VisitWithStudentDisplay) []supervisiondashboard.VisitRecord {
+func visitRecords(rows []*studentpresence.VisitDisplay) []supervisiondashboard.VisitRecord {
 	result := make([]supervisiondashboard.VisitRecord, 0, len(rows))
 	for _, row := range rows {
 		if row == nil {
@@ -568,8 +563,8 @@ func (p presence) TrackingIndicators(ctx context.Context, studentIDs []int64, la
 }
 
 type planning struct {
-	pickups  careschedule.PickupScheduleService
-	arrivals careschedule.ArrivalScheduleService
+	pickups  careplan.BulkPickupTimes
+	arrivals careplan.BulkArrivalTimes
 }
 
 func (p planning) Pickups(ctx context.Context, studentIDs []int64, date supervisiondashboard.Date) (map[int64]supervisiondashboard.Pickup, error) {
@@ -592,7 +587,7 @@ func (p planning) Pickups(ctx context.Context, studentIDs []int64, date supervis
 			PickupTime:  wallClock(pickup.PickupTime),
 			IsException: pickup.IsException,
 			Notes:       pickup.Notes,
-			DayNotes: mapSlice(pickup.DayNotes, func(note careschedule.NoteData) supervisiondashboard.DayNote {
+			DayNotes: mapSlice(pickup.DayNotes, func(note careplan.NoteData) supervisiondashboard.DayNote {
 				return supervisiondashboard.DayNote{ID: note.ID, Content: note.Content}
 			}),
 		}
@@ -620,7 +615,7 @@ func (p planning) Arrivals(ctx context.Context, studentIDs []int64, date supervi
 			ArrivalTime: wallClock(arrival.ArrivalTime),
 			IsException: arrival.IsException,
 			Notes:       arrival.Notes,
-			DayNotes: mapSlice(arrival.DayNotes, func(note careschedule.ArrivalNoteData) supervisiondashboard.DayNote {
+			DayNotes: mapSlice(arrival.DayNotes, func(note careplan.ArrivalNoteData) supervisiondashboard.DayNote {
 				return supervisiondashboard.DayNote{ID: note.ID, Content: note.Content}
 			}),
 		}

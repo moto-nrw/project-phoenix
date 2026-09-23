@@ -20,7 +20,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -41,11 +40,19 @@ type deletionFixture struct {
 	feedback *testpkg.FeedbackEntryCounterMock
 }
 
-// newCompanionTestService wires the real repositories behind the Care Plan
-// companion service so the deletion tests stage links the way a request does.
-func newCompanionTestService(db *bun.DB) carelifecycle.StudentCompanionService {
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	return carelifecycle.NewStudentCompanionService(factory.Student, factory.StudentCompanion, nil)
+// companionLinks is the Care Plan record store behind the "läuft mit" edges,
+// through the repository contract the retained student services read, so the
+// deletion tests read links without driving the companion capability itself.
+func companionLinks(db *bun.DB) userModels.StudentCompanionRepository {
+	return repositories.NewStudentCompanionRepository(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CarePlan())
+}
+
+// linkCompanions stages one Monday link between two children.
+func linkCompanions(t *testing.T, ctx context.Context, db *bun.DB, subjectID, companionID int64) {
+	t.Helper()
+	edge, err := repositories.NewStudentCompanionEdge(subjectID, companionID, 1)
+	require.NoError(t, err)
+	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, companionLinks(db), subjectID, []*userModels.StudentCompanion{edge}))
 }
 
 // studentPlans is the child repository the departure-plan fixture writes
@@ -66,9 +73,9 @@ func careWithdrawals(db *bun.DB) testpkg.CareWithdrawalWriter {
 func clearCompanionNote(t *testing.T, db *bun.DB, studentID int64) {
 	t.Helper()
 	_, err := db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_care_profiles").
 		Set("departure_companion_note = NULL").
-		Where("id = ?", studentID).
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", studentID).
 		Exec(context.Background())
 	require.NoError(t, err)
 }
@@ -128,16 +135,21 @@ func personSnapshot(t *testing.T, db *bun.DB, personID int64) (firstName string,
 	return row.FirstName, row.DeletedAt
 }
 
-func storeStudentDocument(t *testing.T, ctx context.Context, repo userModels.StudentDocumentRepository, studentID, accountID int64, category, stored string) *userModels.StudentDocument {
+type storedStudentDocument struct {
+	ID             int64
+	FilenameStored string
+}
+
+// storeStudentDocument writes one document metadata row as a fixture. The row
+// is inserted directly: this package may not import the Care Plan public
+// contract, whose document type the owner's create command takes.
+func storeStudentDocument(t *testing.T, ctx context.Context, db *bun.DB, studentID, accountID int64, category, stored string) storedStudentDocument {
 	t.Helper()
-	doc := &userModels.StudentDocument{StudentID: studentID}
-	doc.Category = category
-	doc.FilenameDisplay = category + ".pdf"
-	doc.FilenameStored = stored
-	doc.SizeBytes = 512
-	doc.ContentType = "application/pdf"
-	doc.UploadedBy = accountID
-	require.NoError(t, repo.Create(ctx, doc))
+	doc := storedStudentDocument{FilenameStored: stored}
+	require.NoError(t, db.NewRaw(`INSERT INTO users.student_documents
+		(tenant_id, student_id, category, filename_display, filename_stored, size_bytes, content_type, uploaded_by)
+		VALUES (?, ?, ?, ?, ?, 512, 'application/pdf', ?) RETURNING id`,
+		testpkg.Tenant(t), studentID, category, category+".pdf", stored, accountID).Scan(ctx, &doc.ID))
 	return doc
 }
 
@@ -180,13 +192,13 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 	_, err = db.NewRaw(`UPDATE users.persons SET account_id = ?, tag_id = ? WHERE id = ?`, childAccount.ID, card.ID, target.PersonID).Exec(ctx)
 	require.NoError(t, err)
 	photoPath := "students/delete-service-target.webp"
-	_, err = db.NewUpdate().TableExpr(`users.students AS "student"`).Set(`photo_path = ?`, photoPath).
+	_, err = db.NewUpdate().TableExpr(`users.student_profiles AS "student"`).Set(`photo_path = ?`, photoPath).
 		Where(`"student".id = ?`, target.ID).Exec(ctx)
 	require.NoError(t, err)
 	var legacyGuardianLinkID int64
 	require.NoError(t, db.NewRaw(`
 		INSERT INTO users.persons_guardians (tenant_id, person_id, guardian_account_id, relationship_type)
-		VALUES (?, ?, ?, 'parent') RETURNING id`, target.TenantID, target.PersonID, legacyGuardianAccount.ID).Scan(ctx, &legacyGuardianLinkID))
+		VALUES (?, ?, ?, 'parent') RETURNING id`, target.TenantID, target.PersonID, legacyGuardianAccount).Scan(ctx, &legacyGuardianLinkID))
 	var removedPhoto string
 	f.deps.PhotoRemoved = func(_ context.Context, _ studentdeletion.Actor, path string) { removedPhoto = path }
 	workflow := f.workflow(t)
@@ -207,7 +219,7 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 	assert.Equal(t, 1, result.PrimaryRowsDeleted)
 	assert.EqualValues(t, 1, result.HistoryAnonymized)
 
-	assert.Zero(t, rowCount(t, db, "users.students", target.ID))
+	assert.Zero(t, rowCount(t, db, "users.student_profiles", target.ID))
 	assert.Zero(t, rowCount(t, db, "schedule.instance_students", targetAssignment.ID))
 	assert.Zero(t, rowCount(t, db, "users.persons_guardians", legacyGuardianLinkID))
 	assert.Zero(t, rowCount(t, db, "users.parent_message_threads", messageThreadID))
@@ -215,7 +227,7 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 	var readCursorCount int
 	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM users.parent_message_reads WHERE thread_id = ?`, messageThreadID).Scan(ctx, &readCursorCount))
 	assert.Zero(t, readCursorCount)
-	assert.Equal(t, 1, rowCount(t, db, "users.students", spared.ID))
+	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", spared.ID))
 	assert.Equal(t, 1, rowCount(t, db, "schedule.instance_students", sparedAssignment.ID))
 	assert.Equal(t, 1, rowCount(t, db, "schedule.activity_instances", instance.ID))
 	var historyName string
@@ -239,7 +251,7 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 	assert.NotNil(t, anonymized.DeletedAt)
 	assert.Equal(t, 1, rowCount(t, db, "auth.accounts", childAccount.ID), "credentials are unlinked, never deleted")
 	assert.Equal(t, 1, rowCount(t, db, "auth.accounts", messageGuardianAccount.ID))
-	assert.Equal(t, 1, rowCount(t, db, "auth.accounts_parents", legacyGuardianAccount.ID))
+	assert.Equal(t, 1, rowCount(t, db, "auth.accounts_parents", legacyGuardianAccount))
 
 	var audit struct {
 		StudentID      int64
@@ -362,7 +374,7 @@ func TestStudentDeletionWorkflow_RejectsStalePreview(t *testing.T) {
 
 		_, err = workflow.Execute(ctx, target.ID, confirm(preview, studentdeletion.ReasonTestData))
 		require.ErrorIs(t, err, studentdeletion.ErrPreviewChanged)
-		assert.Equal(t, 1, rowCount(t, db, "users.students", target.ID))
+		assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", target.ID))
 		assert.Equal(t, 1, rowCount(t, db, "schedule.instance_students", assignment.ID))
 	})
 
@@ -381,7 +393,7 @@ func TestStudentDeletionWorkflow_RejectsStalePreview(t *testing.T) {
 
 		_, err = workflow.Execute(ctx, target.ID, confirm(preview, studentdeletion.ReasonTestData))
 		require.ErrorIs(t, err, studentdeletion.ErrPreviewChanged)
-		assert.Equal(t, 1, rowCount(t, db, "users.students", target.ID))
+		assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", target.ID))
 	})
 
 	t.Run("a person edit after the confirmed name", func(t *testing.T) {
@@ -393,7 +405,7 @@ func TestStudentDeletionWorkflow_RejectsStalePreview(t *testing.T) {
 
 		_, err = workflow.Execute(ctx, target.ID, confirm(preview, studentdeletion.ReasonTestData))
 		require.ErrorIs(t, err, studentdeletion.ErrPreviewChanged)
-		assert.Equal(t, 1, rowCount(t, db, "users.students", target.ID))
+		assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", target.ID))
 		firstName, deletedAt := personSnapshot(t, db, target.PersonID)
 		assert.Equal(t, "DeleteStale", firstName)
 		assert.Nil(t, deletedAt)
@@ -435,7 +447,7 @@ func TestStudentDeletionWorkflow_RejectsIncompleteConfirmation(t *testing.T) {
 	wrongName.ConfirmationName = "Wrong Name"
 	_, err = workflow.Execute(ctx, student.ID, wrongName)
 	require.ErrorIs(t, err, studentdeletion.ErrConfirmationMismatch)
-	assert.Equal(t, 1, rowCount(t, db, "users.students", student.ID))
+	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", student.ID))
 }
 
 func TestStudentDeletionWorkflow_GraduatesUsePurgeNotDelete(t *testing.T) {
@@ -445,8 +457,8 @@ func TestStudentDeletionWorkflow_GraduatesUsePurgeNotDelete(t *testing.T) {
 	f := newDeletionFixture(t, db)
 	workflow := f.workflow(t)
 	graduate := func(id int64) {
-		_, err := db.NewUpdate().TableExpr(`users.students AS "student"`).Set(`status = ?`, userModels.StudentStatusAlumnus).
-			Where(`"student".id = ?`, id).Exec(ctx)
+		_, err := db.NewUpdate().TableExpr(`users.student_school_memberships AS "student"`).Set(`status = ?`, userModels.StudentStatusAlumnus).
+			Where(`"student".student_profile_id = ?`, id).Where(`"student".deleted_at IS NULL`).Exec(ctx)
 		require.NoError(t, err)
 	}
 
@@ -463,13 +475,13 @@ func TestStudentDeletionWorkflow_GraduatesUsePurgeNotDelete(t *testing.T) {
 	graduate(late.ID)
 	_, err = workflow.Execute(ctx, late.ID, confirm(preview, studentdeletion.ReasonTestData))
 	require.ErrorIs(t, err, studentdeletion.ErrGraduatedUnderLock)
-	assert.Equal(t, 1, rowCount(t, db, "users.students", late.ID))
+	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", late.ID))
 
 	// The purge is the mirror image: it needs the alumnus state under lock.
 	active := testpkg.CreateTestStudent(t, db, "PurgeActive", "Target", "1a")
 	_, err = workflow.PurgeGraduate(ctx, active.ID)
 	require.ErrorIs(t, err, studentdeletion.ErrNotGraduated)
-	assert.Equal(t, 1, rowCount(t, db, "users.students", active.ID))
+	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", active.ID))
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2027-2028", f.actorID)
 	history := &educationModels.GradeTransitionHistory{
@@ -483,7 +495,7 @@ func TestStudentDeletionWorkflow_GraduatesUsePurgeNotDelete(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, studentdeletion.ReasonGraduatePurge, result.Reason)
 	assert.Equal(t, 2, result.PrimaryRowsDeleted)
-	assert.Zero(t, rowCount(t, db, "users.students", alumnus.ID))
+	assert.Zero(t, rowCount(t, db, "users.student_profiles", alumnus.ID))
 	var historyName string
 	require.NoError(t, db.NewRaw(`SELECT person_name FROM education.grade_transition_history WHERE id = ?`, history.ID).Scan(ctx, &historyName))
 	assert.Equal(t, "Gelöschtes Kind", historyName)
@@ -592,7 +604,7 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 				Title: "Rollback deletion instance", IsSpontaneous: true,
 			})
 			assignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, target.ID, "")
-			document := storeStudentDocument(t, ctx, f.repos.StudentDocument, target.ID, f.actorID,
+			document := storeStudentDocument(t, ctx, db, target.ID, f.actorID,
 				userModels.StudentDocumentCategorySonstiges, fmt.Sprintf("rollback-%s-%d.pdf", phase, target.ID))
 			completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), target.ID, f.actorID, timezone.TodayDate())
 			transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", f.actorID)
@@ -606,7 +618,7 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 			legacyGuardian := testpkg.CreateTestParentAccount(t, db, "rollback-legacy-guardian@example.com")
 			var legacyLinkID int64
 			require.NoError(t, db.NewRaw(`INSERT INTO users.persons_guardians (tenant_id, person_id, guardian_account_id, relationship_type)
-				VALUES (?, ?, ?, 'parent') RETURNING id`, target.TenantID, target.PersonID, legacyGuardian.ID).Scan(ctx, &legacyLinkID))
+				VALUES (?, ?, ?, 'parent') RETURNING id`, target.TenantID, target.PersonID, legacyGuardian).Scan(ctx, &legacyLinkID))
 
 			failure := errors.New("injected " + phase + " failure")
 			switch phase {
@@ -634,11 +646,11 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 			require.Equal(t, studentdeletion.Result{}, result)
 			assert.False(t, photoRemoved)
 
-			assert.Equal(t, 1, rowCount(t, db, "users.students", target.ID), "%s: the student row survives", phase)
+			assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", target.ID), "%s: the student row survives", phase)
 			assert.Equal(t, 1, rowCount(t, db, "schedule.instance_students", assignment.ID), "%s: the assignment survives", phase)
 			assert.Equal(t, 1, rowCount(t, db, "users.persons_guardians", legacyLinkID), "%s: the legacy guardian link survives", phase)
 			assert.Equal(t, 1, rowCount(t, db, "users.student_documents", document.ID), "%s: the document row survives", phase)
-			queued, err := f.repos.StudentDocument.ListQueuedFileCleanupByOwnerID(ctx, target.ID)
+			queued, err := f.repos.CarePlan().ListCareDocumentCleanups(ctx, &target.ID)
 			require.NoError(t, err)
 			assert.Empty(t, queued, "%s: no cleanup intent may outlive the rollback", phase)
 			pending, err := f.repos.CareWithdrawal.FindByID(ctx, completion.ID)
@@ -662,7 +674,7 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 			require.NoError(t, err)
 			_, err = retry.Execute(ctx, target.ID, confirm(fresh, studentdeletion.ReasonIncorrectEntry))
 			require.NoError(t, err)
-			assert.Zero(t, rowCount(t, db, "users.students", target.ID))
+			assert.Zero(t, rowCount(t, db, "users.student_profiles", target.ID))
 		})
 	}
 }
@@ -686,16 +698,17 @@ func TestStudentDeletionWorkflow_QueuesDocumentCleanupInsideTheTransaction(t *te
 	f := newDeletionFixture(t, db)
 	suffix := time.Now().UnixNano()
 	student := testpkg.CreateTestStudent(t, db, "Dokumente", fmt.Sprintf("Loeschung-%d", suffix), "1a")
-	live := storeStudentDocument(t, ctx, f.repos.StudentDocument, student.ID, f.actorID,
+	live := storeStudentDocument(t, ctx, db, student.ID, f.actorID,
 		userModels.StudentDocumentCategoryBetreuungsvertrag, fmt.Sprintf("vertrag-%d.pdf", suffix))
 	// Already soft-deleted, bytes not yet unlinked: still pending cleanup.
-	deleted := storeStudentDocument(t, ctx, f.repos.StudentDocument, student.ID, f.actorID,
+	deleted := storeStudentDocument(t, ctx, db, student.ID, f.actorID,
 		userModels.StudentDocumentCategoryAttest, fmt.Sprintf("attest-%d.pdf", suffix))
-	require.NoError(t, f.repos.StudentDocument.SoftDelete(ctx, deleted, f.actorID))
+	_, err := f.repos.CarePlan().SoftDeleteCareDocument(ctx, deleted.ID, f.actorID)
+	require.NoError(t, err)
 	// Bytes already gone: nothing left to reclaim, so no intent must appear.
-	settled := storeStudentDocument(t, ctx, f.repos.StudentDocument, student.ID, f.actorID,
+	settled := storeStudentDocument(t, ctx, db, student.ID, f.actorID,
 		userModels.StudentDocumentCategorySonstiges, fmt.Sprintf("erledigt-%d.pdf", suffix))
-	require.NoError(t, f.repos.StudentDocument.MarkFileDeleted(ctx, settled.ID))
+	require.NoError(t, f.repos.CarePlan().MarkCareDocumentFileDeleted(ctx, settled.ID))
 	workflow := f.workflow(t)
 
 	preview, err := workflow.Preview(ctx, student.ID)
@@ -704,11 +717,11 @@ func TestStudentDeletionWorkflow_QueuesDocumentCleanupInsideTheTransaction(t *te
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.DocumentCleanups)
 
-	assert.Zero(t, rowCount(t, db, "users.students", student.ID))
+	assert.Zero(t, rowCount(t, db, "users.student_profiles", student.ID))
 	assert.Zero(t, rowCount(t, db, "users.student_documents", live.ID))
 	assert.Zero(t, rowCount(t, db, "users.student_documents", deleted.ID))
 
-	queued, err := f.repos.StudentDocument.ListQueuedFileCleanupByOwnerID(ctx, student.ID)
+	queued, err := f.repos.CarePlan().ListCareDocumentCleanups(ctx, &student.ID)
 	require.NoError(t, err)
 	names := make([]string, 0, len(queued))
 	for _, cleanup := range queued {
@@ -721,7 +734,7 @@ func TestStudentDeletionWorkflow_QueuesDocumentCleanupInsideTheTransaction(t *te
 	// again reactivates the row instead of adding a second one.
 	_, err = f.repos.CarePlan().QueueCareDocumentCleanupForDeletedStudent(ctx, student.ID, time.Now())
 	require.NoError(t, err)
-	queued, err = f.repos.StudentDocument.ListQueuedFileCleanupByOwnerID(ctx, student.ID)
+	queued, err = f.repos.CarePlan().ListCareDocumentCleanups(ctx, &student.ID)
 	require.NoError(t, err)
 	assert.Len(t, queued, 2)
 }
@@ -875,10 +888,10 @@ func TestStudentDeletionWorkflow_RetentionReasonOnlyForEndedCare(t *testing.T) {
 	require.NoError(t, err)
 	_, err = workflow.Execute(ctx, student.ID, confirm(preview, studentdeletion.ReasonRetentionExpired))
 	require.ErrorIs(t, err, studentdeletion.ErrRetentionNotEnded)
-	assert.Equal(t, 1, rowCount(t, db, "users.students", student.ID), "the refused deletion left the child untouched")
+	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", student.ID), "the refused deletion left the child untouched")
 
-	_, err = db.NewUpdate().TableExpr("users.students").Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
-		Where("id = ?", student.ID).Exec(ctx)
+	_, err = db.NewUpdate().TableExpr("users.student_school_memberships").Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
+		Where("student_profile_id = ?", student.ID).Where("deleted_at IS NULL").Exec(ctx)
 	require.NoError(t, err)
 	fresh, err := workflow.Preview(ctx, student.ID)
 	require.NoError(t, err)
@@ -904,7 +917,7 @@ func TestStudentDeletionWorkflow_AuthorizationAndTenantIsolation(t *testing.T) {
 		require.ErrorIs(t, err, studentdeletion.ErrUnauthorized)
 		_, err = workflow.Execute(ctx, student.ID, studentdeletion.Confirmation{ExpectedFingerprint: "aa", Acknowledged: true, Reason: studentdeletion.ReasonTestData})
 		require.ErrorIs(t, err, studentdeletion.ErrUnauthorized)
-		assert.Equal(t, 1, rowCount(t, db, "users.students", student.ID))
+		assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", student.ID))
 	})
 
 	t.Run("the composed gate requires the tenant principal with users:delete", func(t *testing.T) {
@@ -923,7 +936,7 @@ func TestStudentDeletionWorkflow_AuthorizationAndTenantIsolation(t *testing.T) {
 		_, err = workflow.Execute(ctx, foreign.ID, studentdeletion.Confirmation{ExpectedFingerprint: "aa", Acknowledged: true, Reason: studentdeletion.ReasonTestData})
 		require.ErrorIs(t, err, studentdeletion.ErrStudentNotFound)
 		var count int
-		require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM users.students WHERE id = ? AND tenant_id = ?`, foreign.ID, foreignTenantID).Scan(foreignCtx, &count))
+		require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM users.student_profiles WHERE id = ? AND tenant_id = ?`, foreign.ID, foreignTenantID).Scan(foreignCtx, &count))
 		assert.Equal(t, 1, count)
 	})
 }
@@ -951,16 +964,11 @@ func TestStudentDeletionWorkflow_CompanionGraphLockAndStrandingCheck(t *testing.
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	f := newDeletionFixture(t, db)
-	service := newCompanionTestService(db)
 	subject := testpkg.CreateTestStudent(t, db, "DeleteSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "DeleteCompanion", "Companion", "1a")
 	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
 	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
-	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
-		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
-	})
-	require.NoError(t, err)
-	require.Empty(t, conflicts)
+	linkCompanions(t, ctx, db, subject.ID, companion.ID)
 	clearCompanionNote(t, db, companion.ID)
 	broadcasts := 0
 	f.deps.CompanionsChanged = func(context.Context, studentdeletion.Actor, int64) { broadcasts++ }
@@ -974,7 +982,7 @@ func TestStudentDeletionWorkflow_CompanionGraphLockAndStrandingCheck(t *testing.
 	// link; deleting the subject would strand them.
 	_, err = workflow.Execute(ctx, subject.ID, confirm(preview, studentdeletion.ReasonTestData))
 	require.ErrorIs(t, err, studentdeletion.ErrCompanionWouldLoseDeparture)
-	assert.Equal(t, 1, rowCount(t, db, "users.students", subject.ID))
+	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", subject.ID))
 	assert.Zero(t, broadcasts)
 
 	// A concurrent holder of the far end's row blocks the ascending lock pass
@@ -989,7 +997,7 @@ func TestStudentDeletionWorkflow_CompanionGraphLockAndStrandingCheck(t *testing.
 	_, err = workflow.Execute(lockCtx, subject.ID, confirm(preview, studentdeletion.ReasonTestData))
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, studentdeletion.ErrCompanionLockBusy, "the first pass waits in ascending order; NOWAIT is only for late lower ids")
-	assert.Equal(t, 1, rowCount(t, db, "users.students", subject.ID))
+	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", subject.ID))
 }
 
 func TestStudentDeletionWorkflow_RemovesCompanionEdgesAndNotifies(t *testing.T) {
@@ -997,16 +1005,11 @@ func TestStudentDeletionWorkflow_RemovesCompanionEdgesAndNotifies(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	f := newDeletionFixture(t, db)
-	service := newCompanionTestService(db)
 	subject := testpkg.CreateTestStudent(t, db, "DeleteSubject", "Notified", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "DeleteCompanion", "Notified", "1a")
 	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
 	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
-	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
-		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
-	})
-	require.NoError(t, err)
-	require.Empty(t, conflicts)
+	linkCompanions(t, ctx, db, subject.ID, companion.ID)
 	var notified []int64
 	f.deps.CompanionsChanged = func(_ context.Context, _ studentdeletion.Actor, studentID int64) {
 		notified = append(notified, studentID)
@@ -1019,10 +1022,10 @@ func TestStudentDeletionWorkflow_RemovesCompanionEdgesAndNotifies(t *testing.T) 
 	require.NoError(t, err)
 	assert.Equal(t, []int64{companion.ID}, result.CompanionIDs)
 	assert.Equal(t, []int64{subject.ID}, notified)
-	assert.Equal(t, 1, rowCount(t, db, "users.students", companion.ID))
-	remaining, err := service.ListCompanions(ctx, companion.ID)
+	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", companion.ID))
+	remaining, err := companionLinks(db).ListLinksForStudents(ctx, []int64{companion.ID})
 	require.NoError(t, err)
-	assert.Empty(t, remaining, "the cascade removed the edge from the surviving child's card")
+	assert.Empty(t, remaining[companion.ID], "the cascade removed the edge from the surviving child's card")
 }
 
 // Local cutover evidence for #2710, not a production observation or a new

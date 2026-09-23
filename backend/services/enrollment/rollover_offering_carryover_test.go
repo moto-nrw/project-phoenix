@@ -34,7 +34,7 @@ func sourceOffering(t *testing.T, env *rolloverTestEnv, offering *enrollmentMode
 	t.Helper()
 	offering.PhaseID = env.sourcePhase.ID
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(testpkg.Ctx(t), offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(testpkg.Ctx(t), offering))
 	return offering
 }
 
@@ -101,7 +101,7 @@ func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t 
 		Exec(ctx)
 	require.NoError(t, err)
 	// Frühbetreuung is auto-added whenever Betreuung kurz is selected.
-	require.NoError(t, env.repos.CareOffering.ReplaceAutoAddTriggers(ctx, frueh.ID, []int64{kurz.ID}))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).ReplaceAutoAddTriggers(ctx, frueh.ID, []int64{kurz.ID}))
 
 	// A replaced historical booking (kurz, first months only) plus the
 	// booking effective at the end of the source phase (kurz with a
@@ -136,7 +136,7 @@ func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t 
 	require.Equal(t, 4, result.ClonedOfferingCount)
 
 	// The target phase owns a full clone of the catalog.
-	clones, err := env.repos.CareOffering.ListByPhase(ctx, result.Phase.ID)
+	clones, err := enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).ListByPhase(ctx, result.Phase.ID)
 	require.NoError(t, err)
 	require.Len(t, clones, 4)
 	cloneByName := make(map[string]*enrollmentModels.CareOffering, len(clones))
@@ -204,7 +204,7 @@ func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t 
 	assert.Nil(t, mittagCopy.SelectedDays)
 
 	// Source data is untouched: same offering rows, same booking history.
-	sourceOfferings, err := env.repos.CareOffering.ListByPhase(ctx, env.sourcePhase.ID)
+	sourceOfferings, err := enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).ListByPhase(ctx, env.sourcePhase.ID)
 	require.NoError(t, err)
 	assert.Len(t, sourceOfferings, 4)
 	sourceHistory, err := env.repos.Enrollment().RequestChildOfferingHistory(ctx, child.ID)
@@ -259,7 +259,7 @@ func TestRolloverService_CreatePhaseFromSource_ClonesLegacyCrossPhaseBooking(t *
 	require.NoError(t, err)
 	require.Equal(t, 1, result.ClonedOfferingCount)
 
-	clones, err := env.repos.CareOffering.ListByPhase(ctx, result.Phase.ID)
+	clones, err := enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).ListByPhase(ctx, result.Phase.ID)
 	require.NoError(t, err)
 	require.Len(t, clones, 1)
 	rolled, err := env.repos.Enrollment().ChildrenByPhaseStatuses(ctx, result.Phase.ID, []string{enrollmentModels.ChildStatusAutoRenewed})
@@ -527,7 +527,7 @@ func TestRolloverService_CreatePhaseFromSource_RepeatedExecutionCreatesNoDuplica
 	links, err := env.repos.Enrollment().RequestChildOfferingHistory(ctx, rolled[0].ID)
 	require.NoError(t, err)
 	assert.Len(t, links, 1, "repeated execution must not duplicate bookings")
-	clones, err := env.repos.CareOffering.ListByPhase(ctx, first.Phase.ID)
+	clones, err := enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).ListByPhase(ctx, first.Phase.ID)
 	require.NoError(t, err)
 	assert.Len(t, clones, 1, "repeated execution must not duplicate cloned offerings")
 }
@@ -564,7 +564,7 @@ func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offering))
 
 	source, existing := seedApprovedChildWithStudent(
 		t, env,
@@ -591,7 +591,7 @@ func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t
 
 	// The clone keeps the timetable-template link — the series covers the
 	// target phase, so approval materialization keeps working (#2249).
-	clones, err := env.repos.CareOffering.ListByPhase(ctx, result.Phase.ID)
+	clones, err := enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).ListByPhase(ctx, result.Phase.ID)
 	require.NoError(t, err)
 	require.Len(t, clones, 1)
 	require.NotNil(t, clones[0].ActivityGroupID)

@@ -1,0 +1,98 @@
+package studentpresence
+
+import (
+	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func statusRow(id int64, status string, reportedAt time.Time) *absencerecords.StudentStatusDay {
+	return &absencerecords.StudentStatusDay{
+		ID:         id,
+		StudentID:  90,
+		Date:       timezone.NewDate(2026, 5, 25),
+		Status:     status,
+		ReportedAt: reportedAt,
+		Source:     absencerecords.StudentStatusSourcePlanned,
+	}
+}
+
+func TestResolveEffectiveStatus_Precedence(t *testing.T) {
+	t.Parallel()
+
+	base := time.Date(2026, 5, 25, 8, 0, 0, 0, time.UTC)
+
+	t.Run("empty rows resolve to nothing", func(t *testing.T) {
+		eff := ResolveEffectiveStatus(nil)
+		assert.False(t, eff.Sick)
+		assert.False(t, eff.ClassTrip)
+		assert.False(t, eff.Excused)
+	})
+
+	t.Run("sick wins over class trip and excused", func(t *testing.T) {
+		eff := ResolveEffectiveStatus([]*absencerecords.StudentStatusDay{
+			statusRow(1, absencerecords.StudentStatusDayExcused, base),
+			statusRow(2, absencerecords.StudentStatusDayClassTrip, base.Add(time.Hour)),
+			statusRow(3, absencerecords.StudentStatusDaySick, base.Add(2*time.Hour)),
+		})
+		assert.True(t, eff.Sick)
+		assert.False(t, eff.ClassTrip)
+		assert.False(t, eff.Excused)
+		require.NotNil(t, eff.SickSince)
+		assert.Equal(t, base.Add(2*time.Hour), *eff.SickSince)
+	})
+
+	t.Run("class trip wins over excused", func(t *testing.T) {
+		eff := ResolveEffectiveStatus([]*absencerecords.StudentStatusDay{
+			statusRow(1, absencerecords.StudentStatusDayExcused, base),
+			statusRow(2, absencerecords.StudentStatusDayClassTrip, base),
+		})
+		assert.True(t, eff.ClassTrip)
+		assert.False(t, eff.Excused)
+		require.NotNil(t, eff.ClassTripSince)
+	})
+
+	t.Run("latest reported wins within a status", func(t *testing.T) {
+		eff := ResolveEffectiveStatus([]*absencerecords.StudentStatusDay{
+			statusRow(1, absencerecords.StudentStatusDayExcused, base),
+			statusRow(2, absencerecords.StudentStatusDayExcused, base.Add(time.Hour)),
+		})
+		assert.True(t, eff.Excused)
+		require.NotNil(t, eff.ExcusedSince)
+		assert.Equal(t, base.Add(time.Hour), *eff.ExcusedSince)
+	})
+}
+
+func TestApplyAndClearLiveStatusForToday(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 25, 9, 30, 0, 0, time.UTC)
+	student := &StudentRecord{}
+
+	ApplyLiveStatusForToday(student, absencerecords.StudentStatusDaySick, now)
+	require.NotNil(t, student.Sick)
+	require.NotNil(t, student.Excused)
+	assert.True(t, *student.Sick)
+	assert.False(t, *student.Excused)
+	require.NotNil(t, student.SickSince)
+	assert.Nil(t, student.ExcusedSince)
+
+	ApplyLiveStatusForToday(student, absencerecords.StudentStatusDayExcused, now.Add(time.Hour))
+	assert.False(t, *student.Sick)
+	assert.True(t, *student.Excused)
+	assert.Nil(t, student.SickSince)
+	require.NotNil(t, student.ExcusedSince)
+
+	ApplyLiveStatusForToday(student, absencerecords.StudentStatusDayClassTrip, now)
+	assert.False(t, *student.Sick)
+	assert.False(t, *student.Excused)
+
+	ApplyLiveStatusForToday(student, absencerecords.StudentStatusDaySick, now)
+	ClearLiveStatusForToday(student, absencerecords.StudentStatusDaySick)
+	assert.False(t, *student.Sick)
+	assert.Nil(t, student.SickSince)
+}

@@ -9,7 +9,6 @@ package compose
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -18,34 +17,33 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
 // CareDayResolver is the retained schedule service's care-day derivation.
 type CareDayResolver interface {
-	ResolveForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]careschedule.CareDayStatus, error)
+	ResolveForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]careplan.CareDayStatus, error)
 }
 
 // PickupTimeReader is the retained pickup schedule service's bulk read.
 type PickupTimeReader interface {
-	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careschedule.EffectivePickupTime, error)
+	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectivePickupTime, error)
 }
 
 // ArrivalTimeReader is the retained arrival schedule service's bulk read.
 type ArrivalTimeReader interface {
-	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careschedule.EffectiveArrivalTime, error)
+	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectiveArrivalTime, error)
 }
 
 // PickupBaselineReader is the retained date-aware recurring pickup projection
 // (no exceptions applied).
 type PickupBaselineReader interface {
-	Project(ctx context.Context, studentIDs []int64, from, to timezone.Date) (*careschedule.PickupBaselineProjection, error)
+	Project(ctx context.Context, studentIDs []int64, from, to timezone.Date) (*careplan.PickupBaselineProjection, error)
 }
 
 // SettingsReader is the slice of the settings service the lists read.
@@ -58,9 +56,11 @@ type SettingsReader interface {
 	LockSlotListCutoffPairShared(ctx context.Context) error
 }
 
-// StaffReader resolves the caller's staff record for the read-access verdict.
+// StaffReader resolves the caller's staff member for the read-access
+// verdict. found is false, without an error, for a person who is no staff
+// member; an account without a person is an error.
 type StaffReader interface {
-	GetCurrentStaff(ctx context.Context) (*userModel.Staff, error)
+	CurrentStaffIDOfPerson(ctx context.Context) (staffID int64, found bool, err error)
 }
 
 // SlotListDependencies wires the slot lists. The owner facades are the
@@ -227,14 +227,11 @@ func (b accessBinding) CanReadStudents(ctx context.Context) (bool, error) {
 	if b.staff == nil {
 		return false, nil
 	}
-	staff, err := b.staff.GetCurrentStaff(ctx)
+	_, found, err := b.staff.CurrentStaffIDOfPerson(ctx)
 	if err != nil {
-		if errors.Is(err, usercontext.ErrUserNotLinkedToStaff) {
-			return false, nil
-		}
 		return false, fmt.Errorf("resolve current staff: %w", err)
 	}
-	return staff != nil, nil
+	return found, nil
 }
 
 // Rules forwards the pure care-plan rules to their owners so every reader of
@@ -242,11 +239,8 @@ func (b accessBinding) CanReadStudents(ctx context.Context) (bool, error) {
 type Rules struct{}
 
 func (Rules) RowCareDay(instanceCompleted bool, row ports.RosterFacts, planVerdict ports.CareDay) ports.CareDay {
-	model := &scheduleModel.InstanceStudent{
-		Status: row.Status, NotScheduled: row.NotScheduled, ManualStatusAt: row.ManualStatusAt,
-		StudentStatusDayID: row.StudentStatusDayID, PickupExceptionID: row.PickupExceptionID,
-	}
-	return ports.CareDay(careschedule.AttendanceRowCareDay(instanceCompleted, model, careschedule.CareDayStatus(planVerdict)))
+	model := &careplan.CareDayAttendance{Expected: row.Status == scheduleModel.AttendanceStatusExpected, NotScheduled: row.NotScheduled, ManuallyDecided: row.ManualStatusAt != nil, PlanOwnedAbsence: row.StudentStatusDayID != nil || row.PickupExceptionID != nil}
+	return ports.CareDay(careplan.AttendanceRowCareDay(instanceCompleted, model, careplan.CareDayStatus(planVerdict)))
 }
 
 func (Rules) EnrolledOn(student ports.StudentFacts, date, today timezone.Date) bool {
@@ -254,3 +248,14 @@ func (Rules) EnrolledOn(student ports.StudentFacts, date, today timezone.Date) b
 		Status: userModel.StudentStatus(student.Status), EnrolledFrom: student.EnrolledFrom, EnrolledUntil: student.EnrolledUntil,
 	}, date, today)
 }
+
+// SlotBlock is one block of the day as the slot lists read it: the Timetable
+// plan folded with the Student Presence execution (#2762).
+type SlotBlock = ports.ActivityInstance
+
+// SlotRosterRow is one roster row of a block with the attendance it carries.
+type SlotRosterRow = ports.InstanceStudent
+
+// TimetableReader is the block and roster read seam the slot lists build on;
+// the composition root binds it over both owners.
+type TimetableReader = ports.TimetableReader

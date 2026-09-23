@@ -59,8 +59,11 @@ type Access interface {
 }
 
 type Dependencies struct {
-	DB          *bun.DB
-	Access      Access
+	DB     *bun.DB
+	Access Access
+	// Employment binds School Membership to Workforce's staff employment
+	// profile (#2753); the composition root supplies it.
+	Employment  membershipcompose.StaffEmployment
 	Authorize   func(context.Context) (staffoffboarding.Actor, error)
 	Cleanup     func(context.Context, int64) error
 	Broadcaster realtime.Broadcaster
@@ -86,7 +89,7 @@ func Authorize(ctx context.Context, resolveActor func(context.Context) (int64, e
 // New constructs only the required owner capabilities.
 // It does not build or retain a service/repository factory.
 func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
-	if deps.DB == nil || deps.Access == nil || deps.Authorize == nil || deps.Cleanup == nil {
+	if deps.DB == nil || deps.Access == nil || deps.Employment == nil || deps.Authorize == nil || deps.Cleanup == nil {
 		return nil, errors.New("staff offboarding composition: required dependency is missing")
 	}
 	logger := deps.Logger
@@ -118,7 +121,7 @@ func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
 		}
 		audit = command
 	}
-	memberDeps := membershipcompose.Dependencies{DB: deps.DB, Observe: func(membershipcompose.Observation) {}}
+	memberDeps := membershipcompose.Dependencies{DB: deps.DB, Observe: func(membershipcompose.Observation) {}, Employment: deps.Employment}
 	membership, err := membershipcompose.New(memberDeps)
 	if err != nil {
 		return nil, err
@@ -135,7 +138,7 @@ func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
 	if err != nil {
 		return nil, err
 	}
-	timetable, err := timetablecompose.NewOffboarding(timetablecompose.OffboardingDependencies{DB: deps.DB, Observe: func(timetablecompose.Observation) {}})
+	timetable, err := timetablecompose.NewOffboarding(timetablecompose.OffboardingDependencies{DB: deps.DB, Sessions: timetablecompose.NewPresenceSessionFacts(presence), Observe: func(timetablecompose.Observation) {}})
 	if err != nil {
 		return nil, err
 	}
@@ -145,8 +148,8 @@ func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
 			return err
 		},
 		DB: deps.DB, Observe: func(workforcecompose.Observation) {},
-		AssignedStaffIDs: func(ctx context.Context, modelID int64) ([]int64, error) {
-			rows, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{WorkTimeModelID: &modelID})
+		LiveStaffIDs: func(ctx context.Context, membershipIDs []int64) ([]int64, error) {
+			rows, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: membershipIDs, MembershipOnly: true})
 			if err != nil {
 				return nil, err
 			}
@@ -156,7 +159,6 @@ func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
 			}
 			return ids, nil
 		},
-		RebaseStaffAnchor: membership.RebaseWorkTimeModelAnchor,
 	}, func(ctx context.Context, absence workforce.StaffAbsence, actorID int64) error {
 		payload, err := json.Marshal(absence)
 		if err != nil {

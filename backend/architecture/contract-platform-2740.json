@@ -1,0 +1,113 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2659",
+    "#2660",
+    "#2667",
+    "#2673",
+    "#2720",
+    "#2721",
+    "#2722",
+    "#2723",
+    "#2724",
+    "#3252",
+    "#3253",
+    "#3331",
+    "#3332",
+    "#3364"
+  ],
+  "owner_and_capability": "Legacy composition — bounded Contract step for api/platform (inbound-platform http) and models/platform (organization-tenancy domain)",
+  "affected_packages": [
+    "api",
+    "api/enrollment",
+    "api/platform",
+    "models/platform"
+  ],
+  "affected_tables": [
+    "platform.operators",
+    "platform.organizations",
+    "platform.operator_invitation_tokens",
+    "platform.operator_email_change_tokens"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/platform|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/enrollment|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/platform|github.com/moto-nrw/project-phoenix/api/common",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/platform|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/models/platform|github.com/moto-nrw/project-phoenix/models/base"
+  ],
+  "atomic_cutover": "One code-only commit: api/platform takes its authenticated route group, viewer, ID parsing and response bodies through an injected Runtime that api/base.go binds to the unchanged middleware chain; the four models/platform entities carry id and timestamp fields directly instead of embedding base.Model. No second provider, no fallback, no policy rule added.",
+  "tests": [
+    "api/platform handler tests for success, invalid ID and service failure on all four routes, plus a test that every route sits inside the protected group.",
+    "TestFullProductionRouterGolden on the assembled production router: route table golden unchanged and the school scope matrix (#2207) rejects school-scope tokens on the /api/platform routes.",
+    "scripts/test-changed.sh origin/development without --fast, and the source-level ratchet tests in backend/test."
+  ],
+  "runtime_evidence": {
+    "source": "Local test runs on the PR branch for #2740, commit 0323bbf765 and its merge with development, 2026-09-20; PR https://github.com/moto-nrw/project-phoenix/pull/3452.",
+    "sources": [
+      "https://github.com/moto-nrw/project-phoenix/pull/3452"
+    ],
+    "workload": "No load run. Go test suites against the local isolated PostgreSQL test database: api/platform (20 passing tests and subtests), TestFullProductionRouterGolden on the assembled production router, and scripts/test-changed.sh origin/development (136 packages).",
+    "thresholds": "Code-only Contract: per #2740 the primary gate is zero old callers and zero listed keys rather than database metrics. scripts/backend-architecture.sh check must pass with exactly these keys removed and none added.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "Code-only Contract: no SQL statement, table mapping or write path changed. The table tag on the embedded base.Model was inert because bun reads it only from bun.BaseModel and every caller sets ModelTableExpr."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "The handlers issue no SQL themselves and still make the same single Communication capability call per request; no query was added, moved or removed."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency run was made. The change replaces direct helper calls with injected function values bound to the same helpers; #2740 names zero callers and zero keys as the gate for a code-only Contract."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency run was made. The change replaces direct helper calls with injected function values bound to the same helpers; #2740 names zero callers and zero keys as the gate for a code-only Contract."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development reported 136 packages ok and no failure; golangci-lint on the touched packages reported 0 issues; scripts/backend-architecture.sh check passed with 677 remaining keys and an unchanged composition surface of 667."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection acquisition, transaction boundary or pool setting changed."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No statement or transaction changed, so no lock behaviour can differ."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No statement or transaction changed, so no lock ordering can differ."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The affected packages have no worker or scheduler path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The affected packages have no worker or scheduler path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The affected packages have no worker or scheduler path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "api/platform tests: a failing Communication capability yields 500 with the stable client message on all four routes, and a non-numeric announcement ID yields 400. In these package tests the bodies come from a test runtime; the production binding uses api/common unchanged."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data write or schema change. Reverting the single commit restores the previous imports."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "TestFullProductionRouterGolden passed on the assembled production router: the route table golden is unchanged and the school scope matrix still gets 401 for a school-scope token on the /api/platform routes. No manual application start or HTTP smoke run was made."
+    }
+  },
+  "rollback_and_cleanup": "Revert the code-only commit if a hidden caller appears. No table, migration or configuration is touched, and nothing remains to clean up.",
+  "exit_criterion": "api/platform and models/platform compile without api/common, the JWT adapter and models/base; the five listed keys are absent from legacy.jsonl; scripts/backend-architecture.sh check passes with no new key and unchanged policy ownership."
+}

@@ -14,8 +14,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,7 +60,7 @@ func TestCheckoutStudent_Integration(t *testing.T) {
 		token := testpkg.CreateTestJWT(t, account.ID, checkoutPermissions)
 		req := makeCheckoutRequest(t, student.ID, token)
 
-		router := handler.Router()
+		router := testpkg.SessionVerifier(handler.Router())
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
@@ -68,7 +68,7 @@ func TestCheckoutStudent_Integration(t *testing.T) {
 
 		// Attendance row is closed...
 		presence := testPresenceQueries(t, db)
-		today := timezone.TodayDate().String()
+		today := calendar.TodayDate().String()
 		records, err := presence.ListAttendance(testpkg.Ctx(t), studentpresence.AttendanceFilter{
 			StudentIDs: []int64{student.ID}, FromDate: today, UntilDate: today,
 		})
@@ -98,7 +98,7 @@ func TestCheckoutStudent_Integration(t *testing.T) {
 		_ = testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, checkInTime, nil)
 
 		token := testpkg.CreateTestJWT(t, account.ID, checkoutPermissions)
-		router := handler.Router()
+		router := testpkg.SessionVerifier(handler.Router())
 
 		// First checkout succeeds.
 		rr := httptest.NewRecorder()
@@ -114,7 +114,7 @@ func TestCheckoutStudent_Integration(t *testing.T) {
 
 		// Still exactly one attendance row, still closed.
 		presence := testPresenceQueries(t, db)
-		today := timezone.TodayDate().String()
+		today := calendar.TodayDate().String()
 		records, err := presence.ListAttendance(testpkg.Ctx(t), studentpresence.AttendanceFilter{
 			StudentIDs: []int64{student.ID}, FromDate: today, UntilDate: today,
 		})

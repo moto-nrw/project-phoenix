@@ -134,17 +134,17 @@ func setupGuardiansCompositionRoute(t *testing.T, appEnvs ...string) *guardianCo
 		assignGroup: func(studentID, teacherID int64, groupName string) {
 			group := testpkg.CreateTestEducationGroup(t, db, groupName)
 			testpkg.CreateTestGroupTeacher(t, db, group.ID, teacherID)
-			_, err := db.NewUpdate().TableExpr("users.students").
+			_, err := db.NewUpdate().TableExpr("users.student_school_memberships").
 				Set("group_id = ?", group.ID).
-				Where("id = ?", studentID).
+				Where("student_profile_id = ? AND deleted_at IS NULL", studentID).
 				Where("tenant_id = ?", tenantID).
 				Exec(ctx)
 			require.NoError(t, err)
 		},
 		graduate: func(studentID int64) {
-			_, err := db.NewUpdate().TableExpr("users.students").
+			_, err := db.NewUpdate().TableExpr("users.student_school_memberships").
 				Set("status = ?", "alumnus").
-				Where("id = ?", studentID).
+				Where("student_profile_id = ? AND deleted_at IS NULL", studentID).
 				Where("tenant_id = ?", tenantID).
 				Exec(ctx)
 			require.NoError(t, err)

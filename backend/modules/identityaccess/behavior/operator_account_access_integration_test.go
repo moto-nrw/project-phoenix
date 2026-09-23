@@ -5,9 +5,7 @@ import (
 	"context"
 	"testing"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,10 +35,10 @@ func systemRoleID(t *testing.T, db *bun.DB, name string) int64 {
 	return id
 }
 
-func createAccessTenantRole(t *testing.T, db *bun.DB, name string, tenantID int64, baseRole *string) *authModels.Role {
+func createAccessTenantRole(t *testing.T, db *bun.DB, name string, tenantID int64, baseRole *string) *testpkg.RoleFixture {
 	t.Helper()
-	role := &authModels.Role{Name: name, IsSystem: false, BaseRole: baseRole}
-	role.SetTenantID(tenantID)
+	role := &testpkg.RoleFixture{Name: name, IsSystem: false, BaseRole: baseRole}
+	role.TenantID = &tenantID
 	require.NoError(t, db.NewInsert().Model(role).ModelTableExpr(`auth.roles`).Scan(context.Background()))
 	return role
 }
@@ -78,7 +76,7 @@ func entryFor(entries []identityaccess.AccountTenantAccess, tenantID int64) *ide
 
 // setupAccessTestAccount creates an account that already belongs to the default
 // test school, plus the second school the tests grant access to.
-func setupAccessTestAccount(t *testing.T, db *bun.DB) (*authModels.Account, func()) {
+func setupAccessTestAccount(t *testing.T, db *bun.DB) (*testpkg.AccountFixture, func()) {
 	t.Helper()
 	account := testpkg.CreateTestAccount(t, db, "access-target")
 	testpkg.EnsureAccountTenant(t, db, account.ID, testSchoolID(t))
@@ -141,7 +139,7 @@ func TestIntegration_GrantAccountTenantAccess_AddsSchoolWithRole(t *testing.T) {
 
 	granted := entryFor(entries, accessTargetTenantID(t))
 	require.NotNil(t, granted, "the new school must show up in the returned access list")
-	assert.Equal(t, authModels.AccountTenantStatusActive, granted.Status)
+	assert.Equal(t, "active", granted.Status)
 	assert.Equal(t, []string{"admin"}, roleNamesAt(entries, accessTargetTenantID(t)))
 
 	// The account must be usable at the new school, which means a person and a
@@ -167,7 +165,7 @@ func TestIntegration_GrantAccountTenantAccess_CustomUserBaseCreatesCaregiverProf
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
 	operator := testpkg.CreateTestOperator(t, db)
-	baseRole := authModels.BaseRoleUser
+	baseRole := "user"
 	role := createAccessTenantRole(t, db, "zugriff-custom-user", accessTargetTenantID(t), &baseRole)
 	defer cleanupTenantRole(t, db, role.ID)
 
@@ -216,7 +214,7 @@ func TestIntegration_GrantAccountTenantAccess_RejectsGuardianRole(t *testing.T) 
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
 	operator := testpkg.CreateTestOperator(t, db)
-	guardianRoleID := systemRoleID(t, db, authModels.BaseRoleGuardian)
+	guardianRoleID := systemRoleID(t, db, "guardian")
 
 	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
 		accessGrant{RoleID: guardianRoleID}, operator.ID, testClientIP)
@@ -287,9 +285,9 @@ func TestIntegration_GrantAccountTenantAccess_RejectsLehrkraftForCaregiverProfil
 	// RevokeAccountTenantAccess).
 	staff := testpkg.CreateTestStaffForTenant(t, db, accessTargetTenantID(t), "Gestrandet", "Betreuung")
 	linkPersonToAccount(t, db, staff.PersonID, account.ID)
-	teacher := &userModels.Teacher{StaffID: staff.ID}
-	teacher.SetTenantID(accessTargetTenantID(t))
-	require.NoError(t, db.NewInsert().Model(teacher).ModelTableExpr(`users.teachers`).Scan(ctx))
+	_, teacherErr := db.NewRaw(`INSERT INTO users.teachers (tenant_id, staff_id) VALUES (?, ?)`,
+		accessTargetTenantID(t), staff.ID).Exec(ctx)
+	require.NoError(t, teacherErr)
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
 	}()
@@ -387,7 +385,7 @@ func TestIntegration_RevokeAccountTenantAccess_DeactivatesMappingAndRoles(t *tes
 
 	revoked := entryFor(entries, accessTargetTenantID(t))
 	require.NotNil(t, revoked, "a revoked mapping stays visible as inactive")
-	assert.Equal(t, authModels.AccountTenantStatusInactive, revoked.Status)
+	assert.Equal(t, "inactive", revoked.Status)
 	assert.Empty(t, roleNamesAt(entries, accessTargetTenantID(t)), "tenant-scoped roles must be removed")
 
 	// The account keeps its original school and therefore stays active.
@@ -404,7 +402,7 @@ func TestIntegration_RevokeAccountTenantAccess_AllowsCustomRoleNamedUser(t *test
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
 	operator := testpkg.CreateTestOperator(t, db)
-	role := createAccessTenantRole(t, db, authModels.BaseRoleUser, accessTargetTenantID(t), nil)
+	role := createAccessTenantRole(t, db, "user", accessTargetTenantID(t), nil)
 	defer cleanupTenantRole(t, db, role.ID)
 
 	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
@@ -413,12 +411,12 @@ func TestIntegration_RevokeAccountTenantAccess_AllowsCustomRoleNamedUser(t *test
 
 	entries, err := service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t), operator.ID, testClientIP)
 	require.NoError(t, err)
-	assert.Equal(t, authModels.AccountTenantStatusInactive, entryFor(entries, accessTargetTenantID(t)).Status)
+	assert.Equal(t, "inactive", entryFor(entries, accessTargetTenantID(t)).Status)
 }
 
 func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(t *testing.T) {
 	t.Parallel()
-	for _, roleName := range []string{authModels.BaseRoleGuardian, authModels.BaseRoleUser, "teacher"} {
+	for _, roleName := range []string{"guardian", "user", "teacher"} {
 		t.Run(roleName, func(t *testing.T) {
 			db := testpkg.SetupTestDB(t)
 
@@ -436,7 +434,7 @@ func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(
 			if roleName == "teacher" {
 				// The migration removes this retired role. Recreate the exact legacy
 				// shape to prove an old database row cannot bypass caregiver checks.
-				legacyRole := &authModels.Role{Name: "teacher", IsSystem: true}
+				legacyRole := &testpkg.RoleFixture{Name: "teacher", IsSystem: true}
 				require.NoError(t, db.NewInsert().Model(legacyRole).ModelTableExpr(`auth.roles`).Scan(ctx))
 				roleID = legacyRole.ID
 				defer cleanupTenantRole(t, db, legacyRole.ID)
@@ -444,9 +442,8 @@ func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(
 				roleID = systemRoleID(t, db, roleName)
 			}
 
-			assignment := &authModels.AccountRole{AccountID: account.ID, RoleID: roleID}
-			assignment.SetTenantID(accessTargetTenantID(t))
-			_, err = db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+			_, err = db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+				account.ID, roleID, accessTargetTenantID(t)).Exec(ctx)
 			require.NoError(t, err)
 
 			_, err = service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t), operator.ID, testClientIP)
@@ -455,7 +452,7 @@ func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(
 
 			entries, err := service.ListAccountTenantAccess(ctx, account.ID)
 			require.NoError(t, err)
-			assert.Equal(t, authModels.AccountTenantStatusActive, entryFor(entries, accessTargetTenantID(t)).Status)
+			assert.Equal(t, "active", entryFor(entries, accessTargetTenantID(t)).Status)
 		})
 	}
 }
@@ -602,7 +599,7 @@ func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLa
 
 	granted := entryFor(entries, accessTargetTenantID(t))
 	require.NotNil(t, granted)
-	assert.Equal(t, authModels.AccountTenantStatusActive, granted.Status)
+	assert.Equal(t, "active", granted.Status)
 	assertAccountActive(t, db, account.ID, true)
 
 	// The caregiver role also creates the teacher record, carrying the position.
@@ -746,7 +743,7 @@ func TestIntegration_UpdateAccountTenantRole_RefusesStudentAsNameSource(t *testi
 	testpkg.EnsureTestTenant(t, db, accessTargetTenantID(t))
 	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID(t))
 	defer func() {
-		_, err := db.ExecContext(ctx, `DELETE FROM users.students WHERE id = ?`, student.ID)
+		_, err := db.ExecContext(ctx, `DELETE FROM users.student_profiles WHERE id = ?`, student.ID)
 		require.NoError(t, err)
 		cleanupAccessFixtures(t, db, account.ID)
 	}()
@@ -782,7 +779,7 @@ func TestIntegration_UpdateAccountTenantRole_RefusesAmbiguousNameSource(t *testi
 	first := testpkg.CreateTestPerson(t, db, "Anna", "Beispiel")
 	linkPersonToAccount(t, db, first.ID, account.ID)
 	second := createPersonAtTenant(t, db, ambiguousNameTenantID(t), "Bea", "Beispiel")
-	linkPersonToAccount(t, db, second.ID, account.ID)
+	linkPersonToAccount(t, db, second, account.ID)
 
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
@@ -824,7 +821,7 @@ func TestIntegration_GrantAccountTenantAccess_ReGrantReusesLocalIdentityDespiteA
 	first := testpkg.CreateTestPerson(t, db, "Anna", "Beispiel")
 	linkPersonToAccount(t, db, first.ID, account.ID)
 	second := createPersonAtTenant(t, db, ambiguousNameTenantID(t), "Bea", "Beispiel")
-	linkPersonToAccount(t, db, second.ID, account.ID)
+	linkPersonToAccount(t, db, second, account.ID)
 
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
@@ -852,7 +849,7 @@ func TestIntegration_GrantAccountTenantAccess_ReGrantReusesLocalIdentityDespiteA
 
 	granted := entryFor(entries, accessTargetTenantID(t))
 	require.NotNil(t, granted)
-	assert.Equal(t, authModels.AccountTenantStatusActive, granted.Status)
+	assert.Equal(t, "active", granted.Status)
 
 	// The retained person was reused rather than duplicated, and nothing
 	// overwrote the name it already carried.
@@ -880,18 +877,11 @@ func ambiguousNameTenantID(t *testing.T) int64 {
 	return testpkg.Tenant(t) + 600_000_000
 }
 
-func createPersonAtTenant(t *testing.T, db *bun.DB, tenantID int64, firstName, lastName string) *userModels.Person {
+// createPersonAtTenant creates a person at tenantID and returns its id.
+func createPersonAtTenant(t *testing.T, db *bun.DB, tenantID int64, firstName, lastName string) int64 {
 	t.Helper()
 	testpkg.EnsureTestTenant(t, db, tenantID)
-
-	person := &userModels.Person{FirstName: firstName, LastName: lastName}
-	person.SetTenantID(tenantID)
-	_, err := db.NewInsert().
-		Model(person).
-		ModelTableExpr(`users.persons`).
-		Exec(context.Background())
-	require.NoError(t, err)
-	return person
+	return testpkg.CreateTestPersonForTenant(t, db, tenantID, firstName, lastName).ID
 }
 
 func assertNoPersonAt(t *testing.T, db *bun.DB, accountID, tenantID int64) {

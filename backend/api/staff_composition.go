@@ -177,17 +177,15 @@ func newStaffResource(module schoolMembershipModule.Capability, buildRuntime fun
 		ServeAvatar:        serveStaffAvatar,
 		WriteFailure:       renderStaffWriteFailure,
 		SchoolClassFailure: delegatedStaffFailure(services.ClassifyStaffSchoolClassFailure),
-		PINFailure:         delegatedStaffFailure(services.ClassifyStaffPINFailure),
 
 		Permissions:      jwt.PermissionsFromCtx,
 		HasPermission:    apiCommon.HasPermission,
 		CurrentAccountID: currentStaffAccountID,
 		CurrentUsername:  currentStaffUsername,
 
-		Person:            staffPersonLookup(runtime),
-		PersonNotFound:    apiCommon.IsNotFound,
-		Persons:           staffPersonsLookup(runtime),
-		PersonIDByAccount: runtime.PersonIDByAccount,
+		Person:         staffPersonLookup(runtime),
+		PersonNotFound: apiCommon.IsNotFound,
+		Persons:        staffPersonsLookup(runtime),
 
 		PresentStaffIDs: runtime.PresentStaffIDs,
 		WorkStatusMap:   runtime.WorkStatusMap,
@@ -210,10 +208,6 @@ func newStaffResource(module schoolMembershipModule.Capability, buildRuntime fun
 		CreateStaff: staffCreate(runtime),
 		UpdateStaff: staffUpdate(runtime),
 		Offboard:    runtime.Offboard,
-
-		PINStatus:    runtime.PINStatus,
-		PINPreflight: runtime.PINPreflight,
-		UpdatePIN:    runtime.UpdatePIN,
 
 		Log: logger,
 	})

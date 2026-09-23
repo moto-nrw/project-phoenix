@@ -8,7 +8,8 @@ import (
 	repoFactory "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/audit"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -241,11 +242,11 @@ func insertSession(t *testing.T, db *testpkg.DB, staffID int64, createdAt time.T
 func insertSessionWithBusinessDate(t *testing.T, db *testpkg.DB, staffID int64, createdAt, businessDate time.Time) int64 {
 	t.Helper()
 	checkOut := createdAt.Add(8 * time.Hour)
-	s := &activeModels.WorkSession{
+	s := &timerecords.WorkSession{
 		StaffID:      staffID,
 		Date:         timezone.DateFromTime(businessDate),
-		Status:       activeModels.WorkSessionStatusPresent,
-		Source:       activeModels.WorkSessionSourceApp,
+		Status:       workforce.WorkSessionStatusPresent,
+		Source:       workforce.WorkSessionSourceApp,
 		CheckInTime:  createdAt,
 		CheckOutTime: &checkOut,
 		BreakMinutes: 30,
@@ -275,7 +276,7 @@ func insertSessionWithBusinessDate(t *testing.T, db *testpkg.DB, staffID int64, 
 func insertBreak(t *testing.T, db *testpkg.DB, sessionID int64, createdAt time.Time) int64 {
 	t.Helper()
 	end := createdAt.Add(30 * time.Minute)
-	b := &activeModels.WorkSessionBreak{
+	b := &timerecords.WorkSessionBreak{
 		SessionID:       sessionID,
 		StartedAt:       createdAt,
 		EndedAt:         &end,
@@ -315,12 +316,12 @@ func insertAbsence(t *testing.T, db *testpkg.DB, staffID int64, createdAt time.T
 
 func insertAbsenceWithBusinessDates(t *testing.T, db *testpkg.DB, staffID int64, createdAt, dateStart, dateEnd time.Time) int64 {
 	t.Helper()
-	a := &activeModels.StaffAbsence{
+	a := &timerecords.StaffAbsence{
 		StaffID:     staffID,
-		AbsenceType: activeModels.AbsenceTypeSick,
+		AbsenceType: workforce.AbsenceTypeSick,
 		DateStart:   timezone.DateFromTime(dateStart),
 		DateEnd:     timezone.DateFromTime(dateEnd),
-		Status:      activeModels.AbsenceStatusApproved,
+		Status:      workforce.AbsenceStatusApproved,
 		CreatedBy:   staffID,
 	}
 	a.SetTenantID(testpkg.Tenant(t))

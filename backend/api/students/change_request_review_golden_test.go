@@ -23,7 +23,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -125,7 +124,7 @@ func TestRequestReviewGolden(t *testing.T) {
 		return request.ID
 	}
 	excused := func(studentID int64, dates []timezone.Date, absence, status string, created time.Time, decided *time.Time) int64 {
-		request := &activeModels.ExcusedAbsenceRequest{
+		request := &testpkg.ExcusedAbsenceRequestRow{
 			StudentID: studentID, SubmittedBy: parent.ID, Dates: dates, Note: "Familienfeier",
 			AbsenceStatus: absence, Status: status, ReviewedAt: decided,
 		}

@@ -54,8 +54,10 @@ func CreateTestRequestReviewSchool(t *testing.T, db *bun.DB, side string) Reques
  (tenant_id,request_id,first_name,last_name,date_of_birth,status,created_student_id)
  VALUES (?,?,'ReviewRLS',?,?::date,'approved',?) RETURNING id`, tenantID, requestID, side, "2019-10-20", student.ID).Scan(ctx, &childID))
 	for _, offeringID := range []int64{care.ID, lunch.ID} {
-		_, err := db.NewRaw(`INSERT INTO enrollment.request_child_offerings
-  (tenant_id,request_child_id,care_offering_id) VALUES (?,?,?)`, tenantID, childID, offeringID).Exec(ctx)
+		_, err := db.NewRaw(`INSERT INTO enrollment.request_child_offering_selections
+  (tenant_id,request_child_id,care_offering_id) VALUES (?,?,?);
+  INSERT INTO enrollment.care_offering_bookings
+  (tenant_id,request_child_id,care_offering_id) VALUES (?,?,?)`, tenantID, childID, offeringID, tenantID, childID, offeringID).Exec(ctx)
 		require.NoError(t, err)
 	}
 	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.offering_change_requests

@@ -121,6 +121,7 @@ func (s parentEnrollmentSeedStep) seedParentAccounts(ctx context.Context, rt *Ru
 			return nil, nil, fmt.Errorf("demo guardian index %d out of range", idx)
 		}
 		guardian := DemoGuardians[idx]
+		guardian.Email = scopedEmail(guardian.Email, rt.FixedSeeder.accountScope)
 		guardianKey := fmt.Sprintf("%s %s", guardian.FirstName, guardian.LastName)
 		guardianID, ok := rt.FixedSeeder.guardianIDs[guardianKey]
 		if !ok || guardianID == 0 {
@@ -711,12 +712,44 @@ func publicEnrollmentSeedHeaders(index int) map[string]string {
 	}
 }
 
+// seedTranslations builds the translation document of one attribute (#3377):
+// every text is recorded against german, the text it translates.
+func seedTranslations(attr, german string, texts map[string]string) map[string]any {
+	doc := make(map[string]any, len(texts))
+	for locale, text := range texts {
+		doc[locale] = map[string]any{attr: map[string]string{"text": text, "source": german}}
+	}
+	return doc
+}
+
 func (s parentEnrollmentSeedStep) createEnrollmentSchema(rt *Runtime, auth AuthRef) (int64, error) {
+	const allergies = "Allergien und Unverträglichkeiten"
+	const swimming = "Mein Kind darf schwimmen."
+	swimmingTranslations := seedTranslations("label", swimming, map[string]string{
+		"en": "My child is allowed to swim.",
+		"ru": "Моему ребёнку разрешено плавать.",
+		"uk": "Моїй дитині дозволено плавати.",
+	})
+	// One translation of an older wording, so the editor shows a text that
+	// needs checking and the form falls back to German for that language.
+	swimmingTranslations["pl"] = map[string]any{"label": map[string]string{
+		"text": "Moje dziecko umie pływać.", "source": "Mein Kind kann schwimmen.",
+	}}
 	raw, err := rt.Client.PostWithAuth(auth, "/api/enrollment/schema/", map[string]any{
 		"name": "Demo-Anmeldeformular",
 		"fields": []map[string]any{
-			{"key": "allergies", "label": "Allergien und Unverträglichkeiten", "type": "textarea", "sort_order": 10},
-			{"key": "swimming_permission", "label": "Mein Kind darf schwimmen.", "type": "boolean", "sort_order": 20},
+			{
+				"key": "allergies", "label": allergies, "type": "textarea", "sort_order": 10,
+				"translations": seedTranslations("label", allergies, map[string]string{
+					"en": "Allergies and intolerances",
+					"ru": "Аллергии и непереносимости",
+					"uk": "Алергії та непереносимості",
+				}),
+			},
+			{
+				"key": "swimming_permission", "label": swimming, "type": "boolean", "sort_order": 20,
+				"translations": swimmingTranslations,
+			},
 		},
 	})
 	if err != nil {
@@ -735,8 +768,14 @@ func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth AuthRe
 	closeAt := now.AddDate(0, 2, 0).Format(time.RFC3339)
 	serviceStart := now.AddDate(0, -10, 0).Format("2006-01-02")
 	serviceEnd := now.AddDate(1, 0, 0).Format("2006-01-02")
+	name := fmt.Sprintf("Demo Anmeldung %d/%d", now.Year(), now.Year()+1)
 	body := map[string]any{
-		"name":                         fmt.Sprintf("Demo Anmeldung %d/%d", now.Year(), now.Year()+1),
+		"name": name,
+		"translations": seedTranslations("name", name, map[string]string{
+			"en": fmt.Sprintf("Demo enrollment %d/%d", now.Year(), now.Year()+1),
+			"ru": fmt.Sprintf("Демо-запись %d/%d", now.Year(), now.Year()+1),
+			"uk": fmt.Sprintf("Демо-запис %d/%d", now.Year(), now.Year()+1),
+		}),
 		"kind":                         "school_year",
 		"service_start_date":           serviceStart,
 		"service_end_date":             serviceEnd,
@@ -772,13 +811,22 @@ type seedCareOffering struct {
 	sort         int
 	countsAsCare bool
 	pickupTime   string
+	// names and descriptions translate the two texts per locale (#3377).
+	names        map[string]string
+	descriptions map[string]string
 }
 
 func demoCareOfferings() []seedCareOffering {
 	return []seedCareOffering{
-		{key: "ogs-ganztag", name: "OGS Ganztag", description: "Betreuung bis 16 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 16500, sort: 10, countsAsCare: true, pickupTime: "16:00"},
-		{key: "ogs-kurz", name: "Kurzbetreuung", description: "Betreuung bis 14 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: false, price: 9000, sort: 20, countsAsCare: true, pickupTime: "14:00"},
-		{key: "mittagessen", name: "Mittagessen", description: "Warme Mahlzeit an Betreuungstagen", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, required: true, price: 5200, sort: 30},
+		{key: "ogs-ganztag", name: "OGS Ganztag", description: "Betreuung bis 16 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 16500, sort: 10, countsAsCare: true, pickupTime: "16:00",
+			names:        map[string]string{"en": "All-day care", "ru": "Группа продлённого дня", "uk": "Група подовженого дня"},
+			descriptions: map[string]string{"en": "Care until 4 pm", "ru": "Присмотр до 16:00", "uk": "Догляд до 16:00"}},
+		{key: "ogs-kurz", name: "Kurzbetreuung", description: "Betreuung bis 14 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: false, price: 9000, sort: 20, countsAsCare: true, pickupTime: "14:00",
+			names:        map[string]string{"en": "Short care", "ru": "Короткий присмотр", "uk": "Короткий догляд"},
+			descriptions: map[string]string{"en": "Care until 2 pm", "ru": "Присмотр до 14:00", "uk": "Догляд до 14:00"}},
+		{key: "mittagessen", name: "Mittagessen", description: "Warme Mahlzeit an Betreuungstagen", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, required: true, price: 5200, sort: 30,
+			names:        map[string]string{"en": "Lunch", "ru": "Обед", "uk": "Обід"},
+			descriptions: map[string]string{"en": "Hot meal on care days", "ru": "Горячее питание в дни присмотра", "uk": "Гаряча їжа в дні догляду"}},
 		{key: "ferienbetreuung", name: "Ferienbetreuung Herbst", description: "Plätze für die Herbstferien", daysMode: "fixed", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 7500, capacity: intPtr(2), sort: 40, countsAsCare: true, pickupTime: "16:00"},
 		// Die Demo-Kurse (#3075): Angebote, die an einer AG hängen. Zwei davon,
 		// damit die Eltern-App beide Zustände zeigt — einer mit freien Plätzen,
@@ -832,7 +880,25 @@ func careOfferingSeedBody(offering seedCareOffering, phaseID int64) map[string]a
 	if offering.capacity != nil {
 		body["capacity"] = *offering.capacity
 	}
+	if translations := careOfferingSeedTranslations(offering); len(translations) > 0 {
+		body["translations"] = translations
+	}
 	return body
+}
+
+func careOfferingSeedTranslations(offering seedCareOffering) map[string]map[string]any {
+	translations := map[string]map[string]any{}
+	add := func(attr, german string, texts map[string]string) {
+		for locale, text := range texts {
+			if translations[locale] == nil {
+				translations[locale] = map[string]any{}
+			}
+			translations[locale][attr] = map[string]string{"text": text, "source": german}
+		}
+	}
+	add("name", offering.name, offering.names)
+	add("description", offering.description, offering.descriptions)
+	return translations
 }
 
 func (s parentEnrollmentSeedStep) enrollmentSubmissionWithDays(phaseID int64, offerings map[string]int64, childFirstName, childLastName, dob string, grade int16, guardianFirstName, guardianLastName, guardianEmail, source string, offeringIDs []int64, selectedDaysByOffering map[int64][]string) map[string]any {

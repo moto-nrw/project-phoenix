@@ -331,6 +331,23 @@ func (e *fakeEngine) UpdateSchool(_ context.Context, input organizationtenancy.U
 	return *school, nil
 }
 
+func (e *fakeEngine) SetSchoolChildQuota(_ context.Context, id int64, quota *organizationtenancy.ChildQuota) (organizationtenancy.School, error) {
+	if err := e.call("SetSchoolChildQuota"); err != nil {
+		return organizationtenancy.School{}, err
+	}
+	school, ok := e.schools[id]
+	if !ok {
+		return organizationtenancy.School{}, organizationtenancy.ErrSchoolNotFound
+	}
+	if quota == nil {
+		school.ChildQuotaBundles = nil
+		return *school, nil
+	}
+	bundles := quota.Bundles
+	school.ChildQuotaBundles, school.ChildQuotaBundleSize = &bundles, quota.BundleSize
+	return *school, nil
+}
+
 func (e *fakeEngine) SoftDeleteSchool(_ context.Context, id int64) (organizationtenancy.School, error) {
 	if err := e.call("SoftDeleteSchool"); err != nil {
 		return organizationtenancy.School{}, err
@@ -519,7 +536,8 @@ func (d *fakeDashboard) SchoolSummaries(ctx context.Context, organizationID *int
 			Active: school.Active, Hidden: school.Hidden, CreatedAt: school.CreatedAt, UpdatedAt: school.UpdatedAt,
 			DeletedAt: school.DeletedAt, Address: school.Address, City: school.City, Zip: school.Zip,
 			Phone: school.Phone, Email: school.Email, Settings: school.Settings,
-			AccountCount: d.accounts[school.ID],
+			AccountCount: d.accounts[school.ID], ChildQuotaBundles: school.ChildQuotaBundles,
+			ChildQuotaBundleSize: school.ChildQuotaBundleSize,
 		})
 	}
 	return rows, nil
@@ -853,8 +871,10 @@ type fakePeople struct {
 	listings      []domain.PersonListing
 	listedTenants [][]int64
 	counts        map[int64]int
-	calls         []string
-	fail          map[string]error
+	// childQuotaCounts is the Kontingentzahl per school.
+	childQuotaCounts map[int64]int
+	calls            []string
+	fail             map[string]error
 }
 
 func (f *fakePeople) call(ctx context.Context, name string) error {
@@ -868,6 +888,13 @@ func (f *fakePeople) CountPersonsByTenant(ctx context.Context) (map[int64]int, e
 		return nil, err
 	}
 	return f.counts, nil
+}
+
+func (f *fakePeople) CountChildQuotaByTenant(ctx context.Context) (map[int64]int, error) {
+	if err := f.call(ctx, "CountChildQuotaByTenant"); err != nil {
+		return nil, err
+	}
+	return f.childQuotaCounts, nil
 }
 
 func (f *fakePeople) ListPersons(ctx context.Context, tenantIDs []int64) ([]domain.PersonListing, error) {

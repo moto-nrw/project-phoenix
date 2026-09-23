@@ -66,15 +66,11 @@ type CareScheduleChangeRequest struct {
 	DecisionSnapshot *CareRequestDecisionSnapshot `bun:"decision_snapshot,type:jsonb" json:"decision_snapshot,omitempty"`
 }
 
-// CareRequestDecisionSnapshot is the frozen review diff stored on a decided
-// request (see the DecisionSnapshot field).
+// CareRequestDecisionSnapshot is the retained repository's persisted JSON shape.
 type CareRequestDecisionSnapshot struct {
 	Diff []CareRequestSnapshotEntry `json:"diff"`
 }
 
-// CareRequestSnapshotEntry is one frozen "alt → neu" comparison row. It
-// mirrors the service-level RequestDiffEntry wire shape so decided rows
-// replay exactly what the reviewer saw.
 type CareRequestSnapshotEntry struct {
 	Label    string   `json:"label"`
 	Old      string   `json:"old,omitempty"`

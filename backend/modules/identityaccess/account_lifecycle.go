@@ -7,20 +7,11 @@ import (
 	"time"
 )
 
-// Account lifecycle (#3225): staff PIN verification and lockout, the admin
-// staff-view preview, staff offboarding, the school identity chain a
-// personnel role requires, parent accounts and guardian relative access. The
-// error messages are the wire contract the retained auth service
-// established; the kiosk (PyrePortal) maps the staff PIN texts and the HTTP
-// layers switch on the sentinels.
+// Account lifecycle (#3225): the admin staff-view preview, staff offboarding,
+// the school identity chain a personnel role requires, parent accounts and
+// guardian relative access. The error messages are the wire contract the
+// retained auth service established; the HTTP layers switch on the sentinels.
 var (
-	ErrInvalidStaffPINCredentials = errors.New("invalid staff PIN credentials")
-	ErrStaffPINLocked             = errors.New("staff PIN is temporarily locked")
-	ErrStaffPINAccountNotFound    = errors.New("account not found")
-	ErrStaffPINSelfServiceLocked  = errors.New("account is temporarily locked due to failed PIN attempts")
-	ErrStaffPINCurrentRequired    = errors.New("current PIN is required when updating existing PIN")
-	ErrStaffPINCurrentWrong       = errors.New("current PIN is incorrect")
-
 	ErrPreviewSelf           = errors.New("cannot preview your own account")
 	ErrPreviewTargetNotStaff = errors.New("account is not a staff member at this school")
 	ErrPreviewTokenInvalid   = errors.New("not a preview token of this session")
@@ -57,6 +48,13 @@ var (
 	ErrAccountLifecycleUnavailable = errors.New("account lifecycle is not composed")
 )
 
+// GuardianInvitationValidationError marks input rejected by the guardian
+// invitation flows while retaining the original caller-facing explanation.
+type GuardianInvitationValidationError struct{ Err error }
+
+func (e *GuardianInvitationValidationError) Error() string { return e.Err.Error() }
+func (e *GuardianInvitationValidationError) Unwrap() error { return e.Err }
+
 // IsSchoolIdentityRequestError reports whether the error is the caller's
 // fault rather than the server's: a missing name, a child's record, an
 // unknown or conflicting transponder. Handlers render these as 400.
@@ -66,28 +64,6 @@ func IsSchoolIdentityRequestError(err error) bool {
 		errors.Is(err, ErrSchoolIdentityTagUnknown) ||
 		errors.Is(err, ErrSchoolIdentityTagConflict) ||
 		errors.Is(err, ErrSchoolIdentityTagTaken)
-}
-
-// AuthenticatedStaff is the staff member a verified PIN binds a kiosk action to.
-type AuthenticatedStaff struct {
-	ID       int64
-	PersonID int64
-	TenantID int64
-}
-
-// StaffPINAuthentication verifies staff PINs inside the staff member's
-// tenant boundary and serves the PIN self-service behind /api/staff/pin.
-type StaffPINAuthentication interface {
-	// AuthenticateStaffPIN runs under the tenant's RLS on its own transaction;
-	// device middleware calls it before a request transaction exists. A
-	// wrong PIN counts towards the lockout; a locked account reports
-	// ErrStaffPINLocked.
-	AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (AuthenticatedStaff, error)
-	// StaffPINStatus reports whether the account has a PIN and when it last
-	// changed.
-	StaffPINStatus(ctx context.Context, accountID int64) (bool, *time.Time, error)
-	StaffPINPreflight(ctx context.Context, accountID int64) error
-	ChangeStaffPIN(ctx context.Context, accountID int64, currentPIN *string, newPIN string) error
 }
 
 // StaffPreviewSession is the result of starting an admin staff-view preview
@@ -401,6 +377,7 @@ type PendingApprovalView struct {
 // which opens one for the tenant in context and locks the child's row.
 type GuardianRelativeAccess interface {
 	InviteToStudent(ctx context.Context, req InviteToStudentRequest) (*InviteToStudentResult, error)
+	BulkInviteToStudents(ctx context.Context, req BulkInviteRequest) (*BulkInviteResult, error)
 	ApproveInvitation(ctx context.Context, invitationID, approverAccountID int64) error
 	RejectInvitation(ctx context.Context, invitationID, approverAccountID int64) error
 	PendingInvitationStudentID(ctx context.Context, invitationID int64) (int64, error)
@@ -408,33 +385,15 @@ type GuardianRelativeAccess interface {
 	RevokeAccess(ctx context.Context, req RevokeAccessRequest) error
 }
 
-// AccountLifecycle is the capability the retained auth service, the device
-// authentication, the staff membership runtime and the guardian directory
-// consume (#3225).
+// AccountLifecycle is the capability the retained auth service, the staff
+// membership runtime and the guardian directory consume (#3225).
 type AccountLifecycle interface {
-	StaffPINAuthentication
 	StaffPreview
 	StaffOffboardingAccess
 	SchoolIdentityProvisioning
 	ParentAccountAccess
 	GuardianRelativeAccess
 	GuardianInvitations
-}
-
-func (m *Module) AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (AuthenticatedStaff, error) {
-	return m.engine.AuthenticateStaffPIN(ctx, tenantID, staffID, pin)
-}
-
-func (m *Module) StaffPINStatus(ctx context.Context, accountID int64) (bool, *time.Time, error) {
-	return m.engine.StaffPINStatus(ctx, accountID)
-}
-
-func (m *Module) StaffPINPreflight(ctx context.Context, accountID int64) error {
-	return m.engine.StaffPINPreflight(ctx, accountID)
-}
-
-func (m *Module) ChangeStaffPIN(ctx context.Context, accountID int64, currentPIN *string, newPIN string) error {
-	return m.engine.ChangeStaffPIN(ctx, accountID, currentPIN, newPIN)
 }
 
 func (m *Module) StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previousToken, ipAddress, userAgent string) (*StaffPreviewSession, error) {

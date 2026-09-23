@@ -5,15 +5,17 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // scheduleLookupError keeps missing-resource wire messages stable without treating a
 // failed read as a missing row.
 func scheduleLookupError(err error, notFoundMessage string) render.Renderer {
-	if errors.Is(err, careschedule.ErrDateframeNotFound) ||
-		errors.Is(err, careschedule.ErrTimeframeNotFound) ||
-		errors.Is(err, careschedule.ErrRecurrenceRuleNotFound) {
+	if errors.Is(err, schoolcalendar.ErrDateframeNotFound) ||
+		errors.Is(err, timetableModule.ErrTimeframeNotFound) ||
+		errors.Is(err, timetableModule.ErrRecurrenceRuleNotFound) {
 		return common.ErrorNotFound(errors.New(notFoundMessage))
 	}
 	return common.ErrorInternalServer(err)
@@ -25,14 +27,14 @@ func scheduleLookupError(err error, notFoundMessage string) render.Renderer {
 // prefix (unlike rooms/groups, which strip it), and keeping the bytes
 // identical is part of the issue #575 B2 consolidation contract.
 var scheduleErrorRules = []common.ErrorRule{
-	{Target: careschedule.ErrDateframeNotFound, Render: common.ErrorNotFound},
-	{Target: careschedule.ErrTimeframeNotFound, Render: common.ErrorNotFound},
-	{Target: careschedule.ErrTimeframeRequiredByCareOffering, Render: common.ErrorConflict},
-	{Target: careschedule.ErrRecurrenceRuleNotFound, Render: common.ErrorNotFound},
-	{Target: careschedule.ErrInvalidDateRange, Render: common.ErrorInvalidRequest},
-	{Target: careschedule.ErrInvalidTimeRange, Render: common.ErrorInvalidRequest},
-	{Target: careschedule.ErrInvalidDuration, Render: common.ErrorInvalidRequest},
-	{Target: careschedule.ErrRoomCapacityExceeded, Render: common.ErrorConflict},
+	{Target: schoolcalendar.ErrDateframeNotFound, Render: common.ErrorNotFound},
+	{Target: timetableModule.ErrTimeframeNotFound, Render: common.ErrorNotFound},
+	{Target: timetableModule.ErrTimeframeRequiredByCareOffering, Render: common.ErrorConflict},
+	{Target: timetableModule.ErrRecurrenceRuleNotFound, Render: common.ErrorNotFound},
+	{Target: timetableModule.ErrInvalidRecurrenceRange, Render: common.ErrorInvalidRequest},
+	{Target: timetableModule.ErrInvalidTimeRange, Render: common.ErrorInvalidRequest},
+	{Target: timetableModule.ErrInvalidDuration, Render: common.ErrorInvalidRequest},
+	{Target: studentpresence.ErrRoomCapacityExceeded, Render: common.ErrorConflict},
 }
 
 // SchedulesErrorRenderer renders an error to an HTTP response based on the schedule

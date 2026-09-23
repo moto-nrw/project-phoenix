@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // GuardianAnnouncementTenant answers the file storage's only question about a
@@ -36,7 +35,7 @@ func (s *Service) GuardianAnnouncementTenant(ctx context.Context, accountID, ann
 
 	var announcementTenantID int64
 	var systemKind *string
-	err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		a, err := s.AnnouncementRepo.FindByID(adminCtx, announcementID)
 		if err != nil {
 			return fmt.Errorf("parent: load announcement for attachment: %w", err)

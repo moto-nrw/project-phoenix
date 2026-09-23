@@ -8,23 +8,28 @@ import (
 )
 
 type Store interface {
+	ListReplannableActivityInstanceIDs(context.Context, string, *string, *int64, bool) ([]int64, domain.OperationStats, error)
+	DeleteActivityInstancesByID(context.Context, []int64) (int64, domain.OperationStats, error)
+	ListRemovedWeekendActivityInstanceIDs(context.Context, int64, []int, string) ([]int64, domain.OperationStats, error)
+	ListFutureTemplateActivityInstanceIDs(context.Context, int64, *string, string) ([]int64, domain.OperationStats, error)
+	SetActivityInstanceListKind(context.Context, []int64, *string, time.Time) (int64, domain.OperationStats, error)
+	ListPlannedInstanceStudents(context.Context, domain.InstanceStudentFilter) ([]domain.PlannedInstanceStudent, domain.OperationStats, error)
+	EnsureInstanceStudent(context.Context, int64, int64) (domain.InstanceStudent, bool, domain.OperationStats, error)
+	LockInstanceStudentsByID(context.Context, []int64) (domain.OperationStats, error)
+	ArchivePlannedInstanceStudents(context.Context, int64, []domain.RosterArchiveEntry) (int64, domain.OperationStats, error)
+	InsertRestoredInstanceStudents(context.Context, []domain.InstanceStudentFields) ([]domain.InstanceStudent, domain.OperationStats, error)
+	ListPlannedRosterForCareExit(context.Context, []int64, string) ([]domain.CareExitRosterRow, domain.OperationStats, error)
+	RemovePlannedRosterForCareExit(context.Context, []int64) ([]domain.CareExitRosterRow, domain.OperationStats, error)
+	RestoreRosterForCareExit(context.Context, []int64, []domain.CareExitRosterRow, []int64) ([]domain.CareExitRosterRow, domain.OperationStats, error)
+	ListRestorableRosterForCareExit(context.Context, []int64, string, []domain.CareExitRosterRow) ([]domain.CareExitRosterRow, domain.OperationStats, error)
 	PreviewStaffOffboarding(context.Context, int64, string) (domain.OffboardingSnapshot, domain.OperationStats, error)
 	CountCalendarPeriodReferences(context.Context) (map[int64]domain.CalendarPeriodReferences, domain.OperationStats, error)
 	LockInstanceStudentAssignments(context.Context, int64) (domain.OperationStats, error)
-	RestoreInstanceStudentAttendanceRow(context.Context, int64, domain.CompletionAttendance) (domain.OperationStats, error)
-	CourseInstances(context.Context, string, string, string) ([]domain.CourseInstanceRow, domain.OperationStats, error)
-	CourseParticipation(context.Context, string, string, string) ([]domain.CourseParticipationRow, domain.OperationStats, error)
-	LockOpenStudentAssignments(ctx context.Context, studentIDs []int64) (domain.OperationStats, error)
-	ReconnectCareExitAssignmentPickupExceptions(ctx context.Context, studentIDs, pickupExceptionIDs []int64, removals []domain.InstanceStudent) (domain.OperationStats, error)
-	ListOpenStudentAssignments(ctx context.Context, studentIDs []int64) ([]int64, domain.OperationStats, error)
-	LatestStudentAssignmentAttendanceDate(ctx context.Context, studentID int64) (*string, domain.OperationStats, error)
-	CloseOpenStudentAssignments(ctx context.Context, studentIDs []int64, at time.Time) (int64, domain.OperationStats, error)
 	CountStudentAssignments(context.Context, int64) (int, domain.OperationStats, error)
 	CountStudentRosterRemovals(context.Context, int64) (int, domain.OperationStats, error)
 	DeleteStudentAssignments(context.Context, int64) (domain.OperationStats, error)
-	LockPlannedRosterForCareExit(context.Context, []int64, string) (domain.OperationStats, error)
-	RemovePlannedRosterForCareExit(context.Context, []int64, string) ([]domain.CareExitRosterRow, domain.OperationStats, error)
-	RestoreRosterForCareExit(context.Context, []int64, []domain.CareExitRosterRow) (int64, domain.OperationStats, error)
+	CountRunningEnrollmentsForCareExit(context.Context, []int64, string, []domain.CareExitEnrollmentRemoval) (map[int64]int, domain.OperationStats, error)
+	CountRestorableEnrollmentsForCareExit(context.Context, []int64, string, []domain.CareExitEnrollmentRemoval) (map[int64]int, domain.OperationStats, error)
 	FindCategory(context.Context, int64, string) (domain.Category, bool, domain.OperationStats, error)
 	FindCategoryByName(context.Context, string, bool, string) (domain.Category, bool, domain.OperationStats, error)
 	ListCategories(context.Context) ([]domain.Category, domain.OperationStats, error)
@@ -123,11 +128,6 @@ type Store interface {
 	UpdateActivityInstance(context.Context, int64, domain.ActivityInstanceFields) (domain.ActivityInstance, bool, domain.OperationStats, error)
 	PatchActivityInstance(context.Context, int64, domain.ActivityInstanceFields, []string) (int64, domain.OperationStats, error)
 	DeleteActivityInstance(context.Context, int64) (domain.OperationStats, error)
-	MarkActivityInstanceCompleted(context.Context, int64, time.Time) (bool, domain.OperationStats, error)
-	CompleteActiveActivityInstances(context.Context, []int64, time.Time) (int64, domain.OperationStats, error)
-	DeletePlannedActivityInstances(context.Context, string, *string, *int64, bool) (int64, domain.OperationStats, error)
-	DeleteRemovedWeekendActivityInstances(context.Context, int64, []int, string) (int64, domain.OperationStats, error)
-	PropagateActivityInstanceListKind(context.Context, int64, *string, *string, string, time.Time) (int64, domain.OperationStats, error)
 	DeleteActivityInstancesBefore(context.Context, string) (int64, domain.OperationStats, error)
 	FindInstanceStaff(context.Context, int64) (domain.InstanceStaff, bool, domain.OperationStats, error)
 	ListInstanceStaff(context.Context, domain.InstanceStaffFilter) ([]domain.InstanceStaff, domain.OperationStats, error)
@@ -137,21 +137,15 @@ type Store interface {
 	PatchInstanceStaff(context.Context, int64, domain.InstanceStaffFields, []string) (int64, domain.OperationStats, error)
 	DeleteInstanceStaff(context.Context, int64) (domain.OperationStats, error)
 	DeleteInstanceStaffByInstance(context.Context, int64) (domain.OperationStats, error)
-	DeleteUpcomingInstanceStaff(context.Context, int64, string) (int64, domain.OperationStats, error)
+	DeleteUpcomingInstanceStaff(context.Context, int64, string, []int64) (int64, domain.OperationStats, error)
 	FindInstanceStudent(context.Context, int64) (domain.InstanceStudent, bool, domain.OperationStats, error)
 	ListInstanceStudents(context.Context, domain.InstanceStudentFilter) ([]domain.InstanceStudent, domain.OperationStats, error)
-	CountNonAbsentInstanceStudents(context.Context, []int64) (map[int64]int, domain.OperationStats, error)
-	ListParallelStudentPresence(context.Context, int64, string, []int64) ([]domain.ParallelPresence, domain.OperationStats, error)
 	ListStudentInstanceRefsBefore(context.Context, string) ([]domain.StudentInstanceRef, domain.OperationStats, error)
-	ListScheduledInstancesForStudent(context.Context, int64, string, string) ([]domain.ScheduledInstanceRow, domain.OperationStats, error)
-	HasPlannedStudentSlots(context.Context, string, string) (bool, domain.OperationStats, error)
 	ListPlannedStudentIDs(context.Context, []int64, string) ([]int64, domain.OperationStats, error)
-	ListPartialAbsenceBlocks(context.Context, int64, string, time.Time, bool, []int64) ([]domain.PartialAbsenceBlock, domain.OperationStats, error)
 	CreateInstanceStudent(context.Context, domain.InstanceStudentFields) (domain.InstanceStudent, domain.OperationStats, error)
 	UpdateInstanceStudent(context.Context, int64, domain.InstanceStudentFields) (domain.InstanceStudent, bool, domain.OperationStats, error)
 	DeleteInstanceStudent(context.Context, int64) (domain.OperationStats, error)
 	DeleteInstanceStudentsByInstance(context.Context, int64) (domain.OperationStats, error)
-	UpdateAttendanceFromCheckin(context.Context, int64, int64, time.Time) (bool, domain.OperationStats, error)
 	ListConflictAckFingerprints(context.Context, int64) ([]string, domain.OperationStats, error)
 	InsertConflictAck(context.Context, int64, string) (bool, domain.OperationStats, error)
 	PruneConflictAcks(context.Context, int64, int) (int64, domain.OperationStats, error)
@@ -167,27 +161,7 @@ type Store interface {
 	ListPickupExtensionDayBlocks(context.Context, []domain.PickupExtensionTask) ([]domain.PickupExtensionBlock, domain.OperationStats, error)
 	ListPickupExtensionWeekdayBlocks(context.Context, []domain.PickupExtensionTask, domain.Date) ([]domain.PickupExtensionBlock, domain.OperationStats, error)
 	ListPickupExtensionTemplateInstances(context.Context, int64, int64, int, domain.Date, *int64, *domain.Date) ([]domain.PickupExtensionInstance, domain.OperationStats, error)
-	CreateInstanceStudentIfAbsent(context.Context, domain.InstanceStudentFields) (bool, domain.OperationStats, error)
-	UpdateAttendanceFromCheckinBatch(context.Context, []domain.InstanceStudentKey, time.Time) (domain.OperationStats, error)
-	UpdateAttendanceCheckout(context.Context, int64, int64, time.Time) (domain.OperationStats, error)
-	UpdateAttendanceCheckoutBatch(context.Context, []domain.InstanceStudentKey, time.Time) (domain.OperationStats, error)
-	CreateUnplannedPresentIfAbsent(context.Context, int64, int64, time.Time) (domain.InstanceStudent, domain.OperationStats, error)
-	ReconcileAttendanceInterval(context.Context, int64, int64, time.Time, *time.Time, time.Time, *time.Time) (bool, domain.OperationStats, error)
-	UpdateAttendanceFields(context.Context, int64, domain.AttendanceFieldPatch) (domain.OperationStats, error)
-	BulkUpdateStatus(context.Context, int64, string, string, []int64) (int64, domain.OperationStats, error)
-	MarkNotScheduled(context.Context, []domain.StudentInstanceRef) (domain.OperationStats, error)
-	MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time, []domain.StudentInstanceRef) (domain.OperationStats, error)
-	CloseOpenCheckoutsByActiveGroupIDs(context.Context, []int64, time.Time) (int64, domain.OperationStats, error)
-	ApplyStatusDay(context.Context, int64, string, int64, string, time.Time) (int64, domain.OperationStats, error)
-	ReleaseStatusDay(context.Context, int64, int64, *domain.StudentStatusDay, time.Time) (int64, domain.OperationStats, error)
-	ApplyActiveStatusDaysForInstance(context.Context, int64, []domain.StudentStatusDay, time.Time) (int64, domain.OperationStats, error)
-	ApplyPartialAbsence(context.Context, domain.PickupException, bool, time.Time) (int64, domain.OperationStats, error)
-	ReleasePartialAbsence(context.Context, int64, int64, *domain.StudentStatusDay, time.Time) (int64, domain.OperationStats, error)
-	ApplyActivePartialAbsencesForInstance(context.Context, int64, string, []domain.PickupException, time.Time) (int64, domain.OperationStats, error)
-	ArchivePlannedInstanceStudents(context.Context, int64, []int64, string, string, string) (int64, domain.OperationStats, error)
-	ListRosterRemovalCareDays(context.Context, int64, []int64, string) ([]domain.CareDay, domain.OperationStats, error)
 	ConsumeRosterRemovals(context.Context, int64, []int64) ([]domain.RosterRemoval, domain.OperationStats, error)
-	InsertRestoredInstanceStudents(context.Context, []domain.InstanceStudentFields) (int64, domain.OperationStats, error)
 }
 
 type Transaction interface {
@@ -198,20 +172,18 @@ type StudentDirectory interface {
 	ListEnrolledStudents(context.Context) ([]domain.TargetStudent, domain.OperationStats, error)
 }
 
-type CarePlanDirectory interface {
-	FindPickupException(context.Context, int64) (*domain.PickupException, error)
-	ListPickupExceptions(context.Context, domain.PickupExceptionFilter) ([]domain.PickupException, error)
-	FindStudentStatusDay(context.Context, int64, bool) (*domain.StudentStatusDay, error)
-	ListStudentStatusDays(context.Context, domain.StudentStatusDayFilter) ([]domain.StudentStatusDay, error)
-}
-
-type CareDayLocker interface {
-	LockStudentAndExceptionDay(context.Context, int64, string) error
-	LockExceptionDay(context.Context, int64, string) error
-}
-
 type RoomDirectory interface {
 	LockRoomsByID(context.Context, []int64) ([]domain.RoomRef, domain.OperationStats, error)
+}
+
+// SessionFacts is the consumer-owned port to Student Presence: which planned
+// rows already carry an execution or observed presence (#2762).
+type SessionFacts interface {
+	StartedInstanceIDs(context.Context, []int64) ([]int64, error)
+	CompletedInstanceIDs(context.Context, []int64) ([]int64, error)
+	ObservedParticipantIDs(context.Context, []int64) ([]int64, error)
+	NotScheduledParticipantIDs(context.Context, []int64) ([]int64, error)
+	ExecutionFacts(ctx context.Context, instanceIDs, participantIDs []int64) (completed, notScheduled []int64, err error)
 }
 
 type Observation struct {

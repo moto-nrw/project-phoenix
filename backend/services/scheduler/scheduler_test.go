@@ -14,8 +14,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -618,126 +616,6 @@ func TestScheduleCleanupTask_InvalidTimeFormat(t *testing.T) {
 	})
 }
 
-func (m *mockActiveService) CreateVisit(_ context.Context, _ *studentpresence.Visit) error {
-	return nil
-}
-func (m *mockActiveService) UpdateVisit(_ context.Context, _ *studentpresence.Visit) error {
-	return nil
-}
-func (m *mockActiveService) DeleteVisit(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) FindVisitsByStudentID(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveService) EndVisit(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) GetStudentCurrentVisit(_ context.Context, _ int64) (*studentpresence.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*studentpresence.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*activeService.VisitWithRoom, error) {
-	return nil, nil
-}
-func (m *mockActiveService) CreateGroupSupervisor(_ context.Context, _ *active.GroupSupervisor) error {
-	return nil
-}
-func (m *mockActiveService) UpdateGroupSupervisor(_ context.Context, _ *active.GroupSupervisor) error {
-	return nil
-}
-func (m *mockActiveService) DeleteGroupSupervisor(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) EndSupervision(_ context.Context, _ int64) error        { return nil }
-func (m *mockActiveService) CreateCombinedGroup(_ context.Context, _ *studentpresence.CombinedGroup) error {
-	return nil
-}
-func (m *mockActiveService) UpdateCombinedGroup(_ context.Context, _ *studentpresence.CombinedGroup) error {
-	return nil
-}
-func (m *mockActiveService) DeleteCombinedGroup(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) EndCombinedGroup(_ context.Context, _ int64) error    { return nil }
-func (m *mockActiveService) CreateCombinedGroupWithGroups(_ context.Context, _ *studentpresence.CombinedGroup, _ []int64) error {
-	return nil
-}
-func (m *mockActiveService) StartActivitySessionWithSupervisors(_ context.Context, _, _ int64, _ []int64, _ *int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) CheckActivityConflict(_ context.Context, _, _ int64) (*activeService.ActivityConflictInfo, error) {
-	return nil, nil
-}
-func (m *mockActiveService) EndActivitySession(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) ForceStartActivitySessionWithSupervisors(_ context.Context, _, _ int64, _ []int64, _ *int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetDeviceCurrentSession(_ context.Context, _ int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) UpdateActiveGroupSupervisors(_ context.Context, _ int64, _ []int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) ProcessSessionTimeout(_ context.Context, _ int64) (*activeService.TimeoutResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) UpdateSessionActivity(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) ValidateSessionTimeout(_ context.Context, _ int64, _ int) error {
-	return nil
-}
-func (m *mockActiveService) GetSessionTimeoutInfo(_ context.Context, _ int64) (*activeService.SessionTimeoutInfo, error) {
-	return nil, nil
-}
-func (m *mockActiveService) CountActiveVisitsByActiveGroupID(_ context.Context, _ int64) (int, error) {
-	return 0, nil
-}
-func (m *mockActiveService) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]int64, error) {
-	return nil, nil
-}
-func (m *mockActiveService) ListOpenVisitStudentIDsByRoom(context.Context) (map[int64][]int64, error) {
-	return nil, nil
-}
-func (m *mockActiveService) ListStudentsInTransit(_ context.Context) ([]int64, error) {
-	return nil, nil
-}
-func (m *mockActiveService) ListStudentsPresentToday(_ context.Context) ([]int64, error) {
-	return nil, nil
-}
-func (m *mockActiveService) AssignTransitStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeService.TransitAssignResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) AssignTransitStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeService.StudentMoveAuthorization) (*activeService.TransitAssignResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeService.StudentMoveAuthorization) (*activeService.StudentMoveResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) MoveStudentsToTransitAuthorized(_ context.Context, _ []int64, _ activeService.StudentMoveAuthorization) (*activeService.StudentMoveResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetDashboardAnalytics(_ context.Context) (*activeService.DashboardAnalytics, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetActiveGroupsByIDs(_ context.Context, _ []int64) (map[int64]*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetStudentAttendanceStatus(_ context.Context, _ int64) (*activeService.AttendanceStatus, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetStudentsAttendanceStatuses(_ context.Context, _ []int64) (map[int64]*activeService.AttendanceStatus, error) {
-	return nil, nil
-}
-func (m *mockActiveService) ToggleStudentAttendance(_ context.Context, _, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) CheckInStudent(_ context.Context, _, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) CheckOutStudent(_ context.Context, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) CheckOutStudentFromDevice(_ context.Context, _, _ int64) (*activeService.AttendanceResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) ProcessSchoolCheckinBatch(_ context.Context, _ []int64, _ int64, _ string) (*activeService.SchoolCheckinBatchResult, error) {
-	return nil, nil
-}
-
 func TestScheduleCleanupTask_InvalidHour(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
@@ -1029,7 +907,7 @@ func TestScheduleSessionCleanupTask_Disabled(t *testing.T) {
 type mockActiveService struct {
 	mu                       sync.Mutex
 	endDailySessionsCalls    int
-	endDailySessionsResult   *activeService.DailySessionCleanupResult
+	endDailySessionsResult   *studentpresence.DailySessionCleanupResult
 	endDailySessionsErr      error
 	cleanupAbandonedCalls    int
 	cleanupAbandonedResult   int
@@ -1037,23 +915,7 @@ type mockActiveService struct {
 	cleanupAbandonedDuration time.Duration
 }
 
-func (m *mockActiveService) GetRoomsByIDs(_ context.Context, _ []int64) ([]*active.SessionRoom, error) {
-	return nil, nil
-}
-
-func (m *mockActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*activeService.VisitWithStudentDisplay, error) {
-	return nil, nil
-}
-
-func (m *mockActiveService) ConfirmDailyCheckout(_ context.Context, _, _ int64, _ string) (*activeService.DailyCheckoutResult, error) {
-	return nil, nil
-}
-
-func (m *mockActiveService) HasOpenAttendanceOn(_ context.Context, _ timezone.Date) (bool, error) {
-	return false, nil
-}
-
-func (m *mockActiveService) EndDailySessions(_ context.Context) (*activeService.DailySessionCleanupResult, error) {
+func (m *mockActiveService) EndDailySessions(_ context.Context) (*studentpresence.DailySessionCleanupResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.endDailySessionsCalls++
@@ -1068,37 +930,6 @@ func (m *mockActiveService) CleanupAbandonedSessions(_ context.Context, olderTha
 	return m.cleanupAbandonedResult, m.cleanupAbandonedErr
 }
 
-// Implement remaining Service interface methods (not used by scheduler)
-func (m *mockActiveService) GetActiveGroup(_ context.Context, _ int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) CreateActiveGroup(_ context.Context, _ *active.Group) error { return nil }
-func (m *mockActiveService) UpdateActiveGroup(_ context.Context, _ *active.Group) error { return nil }
-func (m *mockActiveService) DeleteActiveGroup(_ context.Context, _ int64) error         { return nil }
-func (m *mockActiveService) FindDeviceActiveGroupInRoom(_ context.Context, _, _ int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) FindActiveGroupsByTimeRange(_ context.Context, _, _ time.Time) ([]*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) EndActiveGroupSession(_ context.Context, _ int64) error { return nil }
-
-func (m *mockActiveService) GetUnclaimedActiveGroups(_ context.Context) ([]*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) ClaimActiveGroup(_ context.Context, _, _ int64, _ string) (*active.GroupSupervisor, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetCrossTenantStudents(_ context.Context, _ int64) ([]active.CrossTenantStudent, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetTrackingIndicators(_ context.Context, _ []int64, _ []string) (map[int64][]bool, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetPresenceMode(_ context.Context) (string, error) {
-	return "detailed", nil
-}
-
 // =============================================================================
 // Mock Cleanup Service for Execute Tests
 // =============================================================================
@@ -1106,7 +937,7 @@ func (m *mockActiveService) GetPresenceMode(_ context.Context) (string, error) {
 type mockCleanupService struct {
 	mu                     sync.Mutex
 	cleanupCalls           int
-	cleanupResult          *activeService.CleanupResult
+	cleanupResult          *studentpresence.CleanupResult
 	cleanupErr             error
 	studentCalls           int
 	studentErr             error
@@ -1115,13 +946,13 @@ type mockCleanupService struct {
 	previewCalls           int
 	previewErr             error
 	attendanceCalls        int
-	attendanceResult       *activeService.AttendanceCleanupResult
+	attendanceResult       *studentpresence.AttendanceCleanupResult
 	attendanceErr          error
 	attendancePreviewCalls int
 	attendancePreviewErr   error
 }
 
-func (m *mockCleanupService) CleanupExpiredVisits(_ context.Context) (*activeService.CleanupResult, error) {
+func (m *mockCleanupService) CleanupExpiredVisits(_ context.Context) (*studentpresence.CleanupResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.cleanupCalls++
@@ -1135,40 +966,40 @@ func (m *mockCleanupService) CleanupVisitsForStudent(_ context.Context, _ int64)
 	return 0, m.studentErr
 }
 
-func (m *mockCleanupService) GetRetentionStatistics(_ context.Context) (*activeService.RetentionStats, error) {
+func (m *mockCleanupService) GetRetentionStatistics(_ context.Context) (*studentpresence.RetentionStats, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.retentionCalls++
 	return nil, m.retentionErr
 }
 
-func (m *mockCleanupService) PreviewCleanup(_ context.Context) (*activeService.CleanupPreview, error) {
+func (m *mockCleanupService) PreviewCleanup(_ context.Context) (*studentpresence.CleanupPreview, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.previewCalls++
 	return nil, m.previewErr
 }
 
-func (m *mockCleanupService) CleanupStaleAttendance(_ context.Context) (*activeService.AttendanceCleanupResult, error) {
+func (m *mockCleanupService) CleanupStaleAttendance(_ context.Context) (*studentpresence.AttendanceCleanupResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.attendanceCalls++
 	return m.attendanceResult, m.attendanceErr
 }
 
-func (m *mockCleanupService) PreviewAttendanceCleanup(_ context.Context) (*activeService.AttendanceCleanupPreview, error) {
+func (m *mockCleanupService) PreviewAttendanceCleanup(_ context.Context) (*studentpresence.AttendanceCleanupPreview, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.attendancePreviewCalls++
 	return nil, m.attendancePreviewErr
 }
 
-func (m *mockCleanupService) CleanupStaleSupervisors(_ context.Context) (*activeService.SupervisorCleanupResult, error) {
-	return &activeService.SupervisorCleanupResult{Success: true}, nil
+func (m *mockCleanupService) CleanupStaleSupervisors(_ context.Context) (*studentpresence.SupervisorCleanupResult, error) {
+	return &studentpresence.SupervisorCleanupResult{Success: true}, nil
 }
 
-func (m *mockCleanupService) PreviewSupervisorCleanup(_ context.Context) (*activeService.SupervisorCleanupPreview, error) {
-	return &activeService.SupervisorCleanupPreview{}, nil
+func (m *mockCleanupService) PreviewSupervisorCleanup(_ context.Context) (*studentpresence.SupervisorCleanupPreview, error) {
+	return &studentpresence.SupervisorCleanupPreview{}, nil
 }
 
 // =============================================================================
@@ -1179,7 +1010,7 @@ func TestExecuteSessionEndForTenant_Success(t *testing.T) {
 	t.Parallel()
 
 	activeSvc := &mockActiveService{
-		endDailySessionsResult: &activeService.DailySessionCleanupResult{
+		endDailySessionsResult: &studentpresence.DailySessionCleanupResult{
 			SessionsEnded:    5,
 			VisitsEnded:      20,
 			SupervisorsEnded: 3,
@@ -1228,7 +1059,7 @@ func TestExecuteSessionEndForTenant_WithErrors(t *testing.T) {
 	t.Parallel()
 
 	activeSvc := &mockActiveService{
-		endDailySessionsResult: &activeService.DailySessionCleanupResult{
+		endDailySessionsResult: &studentpresence.DailySessionCleanupResult{
 			SessionsEnded:    5,
 			VisitsEnded:      20,
 			SupervisorsEnded: 3,
@@ -1260,7 +1091,7 @@ func TestExecuteSessionEndForTenant_WithManyErrors(t *testing.T) {
 	}
 
 	activeSvc := &mockActiveService{
-		endDailySessionsResult: &activeService.DailySessionCleanupResult{
+		endDailySessionsResult: &studentpresence.DailySessionCleanupResult{
 			SessionsEnded: 5,
 			Success:       true,
 			Errors:        errors,
@@ -1304,7 +1135,7 @@ func TestCheckAndRunSessionEnd_AlreadyRunning(t *testing.T) {
 func TestExecuteSessionEndForTenant_CustomTimeout(t *testing.T) {
 	t.Parallel()
 	activeSvc := &mockActiveService{
-		endDailySessionsResult: &activeService.DailySessionCleanupResult{
+		endDailySessionsResult: &studentpresence.DailySessionCleanupResult{
 			SessionsEnded: 5,
 			Success:       true,
 		},
@@ -1699,12 +1530,12 @@ func TestScheduleSessionCleanupTask_DefaultEnabled(t *testing.T) {
 
 func TestMockActiveService_ImplementsInterface(t *testing.T) {
 	t.Parallel()
-	var _ activeService.Service = &mockActiveService{}
+	var _ studentpresence.SessionMaintenance = &mockActiveService{}
 }
 
 func TestMockCleanupService_ImplementsInterface(t *testing.T) {
 	t.Parallel()
-	var _ activeService.CleanupService = &mockCleanupService{}
+	var _ studentpresence.PresenceCleanup = &mockCleanupService{}
 }
 
 // =============================================================================
@@ -1715,7 +1546,7 @@ func TestRunCleanupTask_DefaultScheduleTime(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		cleanupSvc := &mockCleanupService{
-			cleanupResult: &activeService.CleanupResult{
+			cleanupResult: &studentpresence.CleanupResult{
 				StudentsProcessed: 5,
 				RecordsDeleted:    25,
 				Success:           true,
@@ -1749,7 +1580,7 @@ func TestRunCleanupTask_ExecutesOnSchedule(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		cleanupSvc := &mockCleanupService{
-			cleanupResult: &activeService.CleanupResult{
+			cleanupResult: &studentpresence.CleanupResult{
 				StudentsProcessed: 10,
 				RecordsDeleted:    100,
 				Success:           true,
@@ -1788,7 +1619,7 @@ func TestRunCleanupTask_StopsOnDone(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		cleanupSvc := &mockCleanupService{
-			cleanupResult: &activeService.CleanupResult{Success: true},
+			cleanupResult: &studentpresence.CleanupResult{Success: true},
 		}
 
 		s := unitScheduler(&Scheduler{
@@ -1823,7 +1654,7 @@ func TestRunSessionEndTask_ExecutesOnSchedule(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		activeSvc := &mockActiveService{
-			endDailySessionsResult: &activeService.DailySessionCleanupResult{
+			endDailySessionsResult: &studentpresence.DailySessionCleanupResult{
 				SessionsEnded:    5,
 				VisitsEnded:      20,
 				SupervisorsEnded: 3,
@@ -1863,7 +1694,7 @@ func TestRunSessionEndTask_StopsOnDone(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		activeSvc := &mockActiveService{
-			endDailySessionsResult: &activeService.DailySessionCleanupResult{Success: true},
+			endDailySessionsResult: &studentpresence.DailySessionCleanupResult{Success: true},
 		}
 
 		s := unitScheduler(&Scheduler{
@@ -2101,7 +1932,7 @@ func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &activeService.CleanupResult{},
+			cleanupResult: &studentpresence.CleanupResult{},
 		},
 		logger: slog.Default()})
 
@@ -2113,7 +1944,7 @@ func TestExecuteCleanupForTenant_ReturnsFalseOnFeedbackFailure(t *testing.T) {
 	t.Parallel()
 	wantErr := errors.New("feedback database unavailable")
 	s := unitScheduler(&Scheduler{
-		cleanupService:  &mockCleanupService{cleanupResult: &activeService.CleanupResult{}},
+		cleanupService:  &mockCleanupService{cleanupResult: &studentpresence.CleanupResult{}},
 		feedbackCleaner: &fakeFeedbackCleaner{err: wantErr},
 		logger:          slog.Default(),
 	})
@@ -2126,7 +1957,7 @@ func TestExecuteCleanupForTenant_AttendanceError(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &activeService.CleanupResult{},
+			cleanupResult: &studentpresence.CleanupResult{},
 			attendanceErr: errors.New("attendance db error"),
 		},
 		logger: slog.Default()})
@@ -2141,8 +1972,8 @@ func TestExecuteCleanupForTenant_AttendancePartialFailure(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &activeService.CleanupResult{},
-			attendanceResult: &activeService.AttendanceCleanupResult{
+			cleanupResult: &studentpresence.CleanupResult{},
+			attendanceResult: &studentpresence.AttendanceCleanupResult{
 				Success:       false,
 				RecordsClosed: 3,
 				Errors:        []string{"record 1 failed", "record 2 failed"},
@@ -2159,8 +1990,8 @@ func TestExecuteCleanupForTenant_AttendanceSuccess(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &activeService.CleanupResult{},
-			attendanceResult: &activeService.AttendanceCleanupResult{
+			cleanupResult: &studentpresence.CleanupResult{},
+			attendanceResult: &studentpresence.AttendanceCleanupResult{
 				Success:          true,
 				RecordsClosed:    5,
 				StudentsAffected: 3,
@@ -2177,8 +2008,8 @@ func TestExecuteCleanupForTenant_AttendanceNoRecords(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &activeService.CleanupResult{},
-			attendanceResult: &activeService.AttendanceCleanupResult{
+			cleanupResult: &studentpresence.CleanupResult{},
+			attendanceResult: &studentpresence.AttendanceCleanupResult{
 				Success:       true,
 				RecordsClosed: 0,
 			},
@@ -2194,7 +2025,7 @@ func TestExecuteCleanupForTenant_AttendanceNilResult(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult:    &activeService.CleanupResult{},
+			cleanupResult:    &studentpresence.CleanupResult{},
 			attendanceResult: nil,
 		},
 		logger: slog.Default()})

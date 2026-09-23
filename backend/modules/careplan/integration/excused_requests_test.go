@@ -281,8 +281,8 @@ func TestExcusedRequestApproveRejectsDatesAfterPlannedCareEnd(t *testing.T) {
 	t.Parallel()
 	f := newExcusedFixture(t)
 	pending := f.createPending(t, []careplan.Date{excusedIn4Days}, "Termin nach Betreuungsende")
-	_, err := f.db.NewUpdate().TableExpr("users.students").Set("enrolled_until = ?", excusedIn3Days.String()).
-		Where("id = ?", f.chain.StudentID).Exec(context.Background())
+	_, err := f.db.NewUpdate().TableExpr("users.student_school_memberships").Set("enrolled_until = ?", excusedIn3Days.String()).
+		Where("student_profile_id = ? AND deleted_at IS NULL", f.chain.StudentID).Exec(context.Background())
 	require.NoError(t, err)
 
 	_, err = f.decide(t, careplan.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: true, ReviewedBy: f.chain.AccountID})
@@ -293,8 +293,8 @@ func TestExcusedRequestApproveRejectsDatesAfterPlannedCareEnd(t *testing.T) {
 func TestExcusedRequestApproveWritesDaysAndClearsLiveSickToday(t *testing.T) {
 	t.Parallel()
 	f := newExcusedFixture(t)
-	_, err := f.db.NewUpdate().Table("users.students").Set("sick = ?", true).Set("sick_since = ?", time.Now()).
-		Where("id = ?", f.chain.StudentID).Exec(context.Background())
+	_, err := f.db.NewUpdate().Table("users.student_care_profiles").Set("sick = ?", true).Set("sick_since = ?", time.Now()).
+		Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", f.chain.StudentID).Exec(context.Background())
 	require.NoError(t, err)
 	pending := f.createPending(t, []careplan.Date{excusedToday, excusedTomorrow}, "krank gemeldet, jetzt entschuldigt")
 
@@ -314,7 +314,7 @@ func TestExcusedRequestApproveWritesDaysAndClearsLiveSickToday(t *testing.T) {
 		assert.Equal(t, f.chain.AccountID, *day.GuardianAccountID)
 	}
 	var sick *bool
-	require.NoError(t, f.db.NewSelect().Table("users.students").Column("sick").Where("id = ?", f.chain.StudentID).Scan(context.Background(), &sick))
+	require.NoError(t, f.db.NewSelect().Table("users.student_care_profiles").Column("sick").Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", f.chain.StudentID).Scan(context.Background(), &sick))
 	require.NotNil(t, sick)
 	assert.False(t, *sick, "approving an excused request that includes today clears the live sick flag")
 }
@@ -481,8 +481,8 @@ func TestExcusedRequestGraduatedChildLeavesQueueAndRefusesDecisions(t *testing.T
 	t.Parallel()
 	f := newExcusedFixture(t)
 	req := f.createPending(t, []careplan.Date{excusedIn3Days}, "Arzttermin")
-	_, err := f.db.NewUpdate().TableExpr("users.students").Set("status = ?", string(usersModels.StudentStatusAlumnus)).
-		Where("id = ?", f.chain.StudentID).Exec(context.Background())
+	_, err := f.db.NewUpdate().TableExpr("users.student_school_memberships").Set("status = ?", string(usersModels.StudentStatusAlumnus)).
+		Where("student_profile_id = ? AND deleted_at IS NULL", f.chain.StudentID).Exec(context.Background())
 	require.NoError(t, err)
 
 	require.NoError(t, f.inTenant(t, func(ctx context.Context) error {

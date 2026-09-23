@@ -13,7 +13,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -87,20 +88,20 @@ func newDatevFixture(t *testing.T) *overviewFixture {
 	// days, 1 training day, one payout and one comp-time booking.
 	f.addSession(t, f.staff[0], timezone.NewDate(2026, time.June, 1), 8*time.Hour)
 	f.addSession(t, f.staff[0], timezone.NewDate(2026, time.June, 2), 8*time.Hour)
-	f.addAbsence(t, f.staff[0], activeModels.AbsenceTypeSick, activeModels.AbsenceStatusReported,
+	f.addAbsence(t, f.staff[0], workforce.AbsenceTypeSick, workforce.AbsenceStatusReported,
 		timezone.NewDate(2026, time.June, 3), timezone.NewDate(2026, time.June, 3))
-	f.addAbsence(t, f.staff[0], activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusApproved,
+	f.addAbsence(t, f.staff[0], workforce.AbsenceTypeVacation, workforce.AbsenceStatusApproved,
 		timezone.NewDate(2026, time.June, 4), timezone.NewDate(2026, time.June, 5))
-	f.addAbsence(t, f.staff[0], activeModels.AbsenceTypeTraining, activeModels.AbsenceStatusApproved,
+	f.addAbsence(t, f.staff[0], workforce.AbsenceTypeTraining, workforce.AbsenceStatusApproved,
 		timezone.NewDate(2026, time.June, 8), timezone.NewDate(2026, time.June, 8))
 	for _, adj := range []struct {
 		typ   string
 		delta int
 	}{
-		{activeModels.BalanceAdjustmentTypePayout, -600},
-		{activeModels.BalanceAdjustmentTypeCompTime, -120},
+		{workforce.BalanceAdjustmentTypePayout, -600},
+		{workforce.BalanceAdjustmentTypeCompTime, -120},
 	} {
-		adjustment := &activeModels.StaffBalanceAdjustment{
+		adjustment := &timerecords.StaffBalanceAdjustment{
 			StaffID:       f.staff[0],
 			Type:          adj.typ,
 			MinutesDelta:  adj.delta,

@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -12,39 +11,45 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// activityInstanceRow maps the planning columns of schedule.activity_instances.
+// The execution columns still present on the table are a rollback-only mirror
+// of active.activity_sessions (#2762) and are neither read nor written here;
+// the planning status is read through activityInstancePlanningStatus so a
+// mirrored execution state reads as planned.
 type activityInstanceRow struct {
 	bun.BaseModel          `bun:"table:activity_instances,alias:activity_instance"`
-	ID                     int64           `bun:"id,pk,autoincrement"`
-	TenantID               int64           `bun:"tenant_id,notnull"`
-	CreatedAt              time.Time       `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt              time.Time       `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	Date                   string          `bun:"date,notnull"`
-	ActivityGroupID        *int64          `bun:"activity_group_id"`
-	CalendarPeriodID       *int64          `bun:"calendar_period_id"`
-	Title                  string          `bun:"title,notnull"`
-	Description            *string         `bun:"description"`
-	StartTime              string          `bun:"start_time,notnull"`
-	EndTime                string          `bun:"end_time,notnull"`
-	RoomID                 int64           `bun:"room_id,notnull"`
-	RequiredStaff          *int            `bun:"required_staff"`
-	Status                 string          `bun:"status,notnull"`
-	ActiveGroupID          *int64          `bun:"active_group_id"`
-	ListKind               *string         `bun:"list_kind"`
-	IsSpontaneous          bool            `bun:"is_spontaneous,notnull"`
-	UnderstaffedAck        bool            `bun:"understaffed_ack,notnull"`
-	UnderstaffedNote       *string         `bun:"understaffed_note"`
-	CancelReason           *string         `bun:"cancel_reason"`
-	Notes                  *string         `bun:"notes"`
-	IdempotencyKey         *string         `bun:"idempotency_key"`
-	IdempotencyFingerprint *string         `bun:"idempotency_fingerprint"`
-	CreatedBy              *int64          `bun:"created_by"`
-	StartedBy              *int64          `bun:"started_by"`
-	StartedAt              *time.Time      `bun:"started_at"`
-	CompletedAt            *time.Time      `bun:"completed_at"`
-	CompletedBy            *int64          `bun:"completed_by"`
-	ReopenUntil            *time.Time      `bun:"reopen_until"`
-	CompletionSnapshot     json.RawMessage `bun:"completion_snapshot,type:jsonb"`
+	ID                     int64     `bun:"id,pk,autoincrement"`
+	TenantID               int64     `bun:"tenant_id,notnull"`
+	CreatedAt              time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt              time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	Date                   string    `bun:"date,notnull"`
+	ActivityGroupID        *int64    `bun:"activity_group_id"`
+	CalendarPeriodID       *int64    `bun:"calendar_period_id"`
+	Title                  string    `bun:"title,notnull"`
+	Description            *string   `bun:"description"`
+	StartTime              string    `bun:"start_time,notnull"`
+	EndTime                string    `bun:"end_time,notnull"`
+	RoomID                 int64     `bun:"room_id,notnull"`
+	RequiredStaff          *int      `bun:"required_staff"`
+	Status                 string    `bun:"status,notnull"`
+	ListKind               *string   `bun:"list_kind"`
+	IsSpontaneous          bool      `bun:"is_spontaneous,notnull"`
+	UnderstaffedAck        bool      `bun:"understaffed_ack,notnull"`
+	UnderstaffedNote       *string   `bun:"understaffed_note"`
+	CancelReason           *string   `bun:"cancel_reason"`
+	Notes                  *string   `bun:"notes"`
+	IdempotencyKey         *string   `bun:"idempotency_key"`
+	IdempotencyFingerprint *string   `bun:"idempotency_fingerprint"`
+	CreatedBy              *int64    `bun:"created_by"`
 }
+
+// activityInstancePlanningStatus projects the stored status onto the planning
+// states: the mirrored execution states are planned occurrences.
+const activityInstancePlanningStatus = `CASE WHEN "activity_instance".status = 'cancelled' THEN 'cancelled' ELSE 'planned' END`
+
+// activityInstanceNotCancelled is the planning predicate for an occurrence
+// that may still take place.
+const activityInstanceNotCancelled = `"activity_instance".status <> 'cancelled'`
 
 func (s *Store) FindActivityInstance(ctx context.Context, id int64) (domain.ActivityInstance, bool, domain.OperationStats, error) {
 	return s.findActivityInstance(ctx, id, "")
@@ -96,8 +101,11 @@ func (s *Store) ListActivityInstances(ctx context.Context, filter domain.Activit
 func filterActivityInstances(query *bun.SelectQuery, filter domain.ActivityInstanceFilter) *bun.SelectQuery {
 	query = filterActivityInstanceIDs(query, filter)
 	query = filterActivityInstanceDates(query, filter)
-	if filter.Status != "" {
-		query = query.Where(`"activity_instance".status = ?`, filter.Status)
+	switch filter.Status {
+	case domain.InstanceStatusCancelled:
+		query = query.Where(`"activity_instance".status = 'cancelled'`)
+	case domain.InstanceStatusPlanned:
+		query = query.Where(activityInstanceNotCancelled)
 	}
 	if filter.IsSpontaneous != nil {
 		query = query.Where(`"activity_instance".is_spontaneous = ?`, *filter.IsSpontaneous)
@@ -106,7 +114,7 @@ func filterActivityInstances(query *bun.SelectQuery, filter domain.ActivityInsta
 		query = query.Where(`"activity_instance".idempotency_key = ?`, filter.IdempotencyKey)
 	}
 	if filter.MaterializedPlanned {
-		query = query.Where(`"activity_instance".status = 'planned'`).
+		query = query.Where(activityInstanceNotCancelled).
 			Where(`"activity_instance".activity_group_id IS NOT NULL`).
 			Where(`"activity_instance".calendar_period_id IS NOT NULL`).
 			Where(`"activity_instance".is_spontaneous = FALSE`)
@@ -129,12 +137,6 @@ func filterActivityInstanceIDs(query *bun.SelectQuery, filter domain.ActivityIns
 	}
 	if len(filter.ActivityGroupIDs) > 0 {
 		query = query.Where(`"activity_instance".activity_group_id IN (?)`, bun.List(filter.ActivityGroupIDs))
-	}
-	if filter.ActiveGroupID != nil {
-		query = query.Where(`"activity_instance".active_group_id = ?`, *filter.ActiveGroupID)
-	}
-	if len(filter.ActiveGroupIDs) > 0 {
-		query = query.Where(`"activity_instance".active_group_id IN (?)`, bun.List(filter.ActiveGroupIDs))
 	}
 	return query
 }
@@ -281,6 +283,9 @@ func activityInstanceInsertResult(row activityInstanceRow, stats domain.Operatio
 	return activityInstanceToDomain(row), true, stats, nil
 }
 
+// UpdateActivityInstance replaces every planning field except the status,
+// which only PatchActivityInstance changes: writing the status back would
+// overwrite the rollback mirror of a running block.
 func (s *Store) UpdateActivityInstance(ctx context.Context, id int64, fields domain.ActivityInstanceFields) (domain.ActivityInstance, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -291,7 +296,13 @@ func (s *Store) UpdateActivityInstance(ctx context.Context, id int64, fields dom
 	started := time.Now()
 	query := db.NewUpdate().Model(&row).ModelTableExpr(`schedule.activity_instances`).
 		Where("id = ?", id).Where("tenant_id = ?", tenantID).Returning(activityInstanceColumns)
-	err = setAllActivityInstanceFields(query, fields).Scan(ctx)
+	for _, column := range activityInstanceWritableColumns {
+		if column == "status" {
+			continue
+		}
+		query = setActivityInstanceField(query, fields, column)
+	}
+	err = query.Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.ActivityInstance{}, false, stats, nil
@@ -326,45 +337,23 @@ func (s *Store) DeleteActivityInstance(ctx context.Context, id int64) (domain.Op
 		Where("tenant_id = ?", tenantID).Where("id = ?", id), "delete activity instance")
 }
 
-func (s *Store) MarkActivityInstanceCompleted(ctx context.Context, id int64, completedAt time.Time) (bool, domain.OperationStats, error) {
+// ListReplannableActivityInstanceIDs returns the template-backed, period-bound
+// occurrences of the window a replan may replace, before the caller removes
+// the ones that started.
+func (s *Store) ListReplannableActivityInstanceIDs(ctx context.Context, from string, to *string, groupID *int64, preserveDeviations bool) ([]int64, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return false, domain.OperationStats{}, err
+		return nil, domain.OperationStats{}, err
 	}
-	stats, err := execMeasuredWrite(ctx, db.NewUpdate().Table("schedule.activity_instances").
-		Set("status = ?", "completed").Set("completed_at = ?", completedAt).
-		Where("tenant_id = ?", tenantID).Where("id = ?", id), "mark activity instance completed")
-	return stats.Rows > 0, stats, err
-}
-
-func (s *Store) CompleteActiveActivityInstances(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, domain.OperationStats, error) {
-	if len(activeGroupIDs) == 0 {
-		return 0, domain.OperationStats{}, nil
-	}
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return 0, domain.OperationStats{}, err
-	}
-	stats, err := execMeasuredWrite(ctx, db.NewUpdate().Table("schedule.activity_instances").
-		Set("status = ?", "completed").Set("completed_at = ?", completedAt).Set("updated_at = ?", completedAt).
-		Where("tenant_id = ?", tenantID).Where("status = ?", "active").
-		Where("active_group_id IN (?)", bun.List(activeGroupIDs)), "complete active activity instances")
-	return stats.Rows, stats, err
-}
-
-func (s *Store) DeletePlannedActivityInstances(ctx context.Context, from string, to *string, groupID *int64, preserveDeviations bool) (int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return 0, domain.OperationStats{}, err
-	}
-	query := db.NewDelete().TableExpr(`schedule.activity_instances AS "activity_instance"`).
+	query := db.NewSelect().TableExpr(`schedule.activity_instances AS "activity_instance"`).ColumnExpr(`"activity_instance".id`).
 		Where(`"activity_instance".tenant_id = ?`, tenantID).
 		Where(`"activity_instance".date >= ?::date`, from).
-		Where(`"activity_instance".status = 'planned'`).
+		Where(activityInstanceNotCancelled).
 		Where(`"activity_instance".is_spontaneous = FALSE`).
-		Where(`"activity_instance".activity_group_id IS NOT NULL`)
+		Where(`"activity_instance".activity_group_id IS NOT NULL`).
+		OrderExpr(`"activity_instance".id ASC`)
 	if preserveDeviations {
-		query = preserveActivityInstanceDeviations(query)
+		query = query.Where(`"activity_instance".understaffed_ack = FALSE`).Where(activityInstanceNoDeviations)
 	}
 	if to != nil {
 		query = query.Where(`"activity_instance".date <= ?::date`, *to)
@@ -372,47 +361,88 @@ func (s *Store) DeletePlannedActivityInstances(ctx context.Context, from string,
 	if groupID != nil {
 		query = query.Where(`"activity_instance".activity_group_id = ?`, *groupID)
 	}
-	stats, err := execMeasuredWrite(ctx, query, "delete planned activity instances")
-	return stats.Rows, stats, err
+	var ids []int64
+	stats, err := scanAllInto(ctx, query, &ids, "list replannable activity instances")
+	stats.Rows = int64(len(ids))
+	return ids, stats, err
 }
 
-func preserveActivityInstanceDeviations(query *bun.DeleteQuery) *bun.DeleteQuery {
-	return query.Where(`"activity_instance".understaffed_ack = FALSE`).Where(`NOT EXISTS (
+const activityInstanceNoDeviations = `NOT EXISTS (
 		SELECT 1 FROM schedule.instance_staff AS "deviation"
 		WHERE "deviation".instance_id = "activity_instance".id
 		  AND "deviation".tenant_id = "activity_instance".tenant_id
 		  AND ("deviation".is_absent OR "deviation".is_substitute OR "deviation".absence_reason IS NOT NULL)
-	)`)
-}
+	)`
 
-func (s *Store) DeleteRemovedWeekendActivityInstances(ctx context.Context, groupID int64, weekdays []int, today string) (int64, domain.OperationStats, error) {
-	if len(weekdays) == 0 {
+// DeleteActivityInstancesByID removes the given occurrences; the caller
+// already excluded the ones with an execution.
+func (s *Store) DeleteActivityInstancesByID(ctx context.Context, ids []int64) (int64, domain.OperationStats, error) {
+	if len(ids) == 0 {
 		return 0, domain.OperationStats{}, nil
 	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	query := db.NewDelete().Table("schedule.activity_instances").
-		Where("tenant_id = ?", tenantID).Where("activity_group_id = ?", groupID).
-		Where("calendar_period_id IS NOT NULL").Where("date > ?::date", today).
-		Where("status = 'planned'").Where("is_spontaneous = FALSE").
-		Where("date_part('isodow', date)::int IN (?)", bun.List(weekdays))
-	stats, err := execMeasuredWrite(ctx, query, "delete removed weekend activity instances")
+	stats, err := execMeasuredWrite(ctx, db.NewDelete().Table("schedule.activity_instances").
+		Where("tenant_id = ?", tenantID).Where("id IN (?)", bun.List(ids)), "delete activity instances by id")
 	return stats.Rows, stats, err
 }
 
-func (s *Store) PropagateActivityInstanceListKind(ctx context.Context, groupID int64, previousKind, newKind *string, after string, updatedAt time.Time) (int64, domain.OperationStats, error) {
+// ListRemovedWeekendActivityInstanceIDs returns the future, period-bound
+// occurrences of the template on the given weekdays.
+func (s *Store) ListRemovedWeekendActivityInstanceIDs(ctx context.Context, groupID int64, weekdays []int, today string) ([]int64, domain.OperationStats, error) {
+	if len(weekdays) == 0 {
+		return nil, domain.OperationStats{}, nil
+	}
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	query := db.NewSelect().TableExpr(`schedule.activity_instances AS "activity_instance"`).ColumnExpr(`"activity_instance".id`).
+		Where(`"activity_instance".tenant_id = ?`, tenantID).Where(`"activity_instance".activity_group_id = ?`, groupID).
+		Where(`"activity_instance".calendar_period_id IS NOT NULL`).Where(`"activity_instance".date > ?::date`, today).
+		Where(activityInstanceNotCancelled).Where(`"activity_instance".is_spontaneous = FALSE`).
+		Where(`date_part('isodow', "activity_instance".date)::int IN (?)`, bun.List(weekdays)).
+		OrderExpr(`"activity_instance".id ASC`)
+	var ids []int64
+	stats, err := scanAllInto(ctx, query, &ids, "list removed weekend activity instances")
+	stats.Rows = int64(len(ids))
+	return ids, stats, err
+}
+
+// ListFutureTemplateActivityInstanceIDs returns the template's not cancelled,
+// template-backed occurrences after the date whose list kind still matches
+// the previous one.
+func (s *Store) ListFutureTemplateActivityInstanceIDs(ctx context.Context, groupID int64, previousKind *string, after string) ([]int64, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	query := db.NewSelect().TableExpr(`schedule.activity_instances AS "activity_instance"`).ColumnExpr(`"activity_instance".id`).
+		Where(`"activity_instance".tenant_id = ?`, tenantID).Where(`"activity_instance".activity_group_id = ?`, groupID).
+		Where(`"activity_instance".date > ?::date`, after).Where(activityInstanceNotCancelled).
+		Where(`"activity_instance".is_spontaneous = FALSE`).
+		Where(`COALESCE("activity_instance".list_kind, '') = COALESCE(?, '')`, previousKind).
+		OrderExpr(`"activity_instance".id ASC`)
+	var ids []int64
+	stats, err := scanAllInto(ctx, query, &ids, "list future template activity instances")
+	stats.Rows = int64(len(ids))
+	return ids, stats, err
+}
+
+func (s *Store) SetActivityInstanceListKind(ctx context.Context, ids []int64, newKind *string, updatedAt time.Time) (int64, domain.OperationStats, error) {
+	if len(ids) == 0 {
+		return 0, domain.OperationStats{}, nil
+	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
 	query := db.NewUpdate().Table("schedule.activity_instances").
 		Set("list_kind = ?", newKind).Set("updated_at = ?", updatedAt).
-		Where("tenant_id = ?", tenantID).Where("activity_group_id = ?", groupID).
-		Where("date > ?::date", after).Where("status = 'planned'").Where("is_spontaneous = FALSE").
-		Where("COALESCE(list_kind, '') = COALESCE(?, '')", previousKind)
-	stats, err := execMeasuredWrite(ctx, query, "propagate activity instance list kind")
+		Where("tenant_id = ?", tenantID).Where("id IN (?)", bun.List(ids))
+	stats, err := execMeasuredWrite(ctx, query, "set activity instance list kind")
 	return stats.Rows, stats, err
 }
 
@@ -428,36 +458,36 @@ func (s *Store) DeleteActivityInstancesBefore(ctx context.Context, before string
 
 const activityInstanceColumns = `id, tenant_id, created_at, updated_at, date::text AS date,
 	activity_group_id, calendar_period_id, title, description, start_time::text AS start_time,
-	end_time::text AS end_time, room_id, required_staff, status, active_group_id, list_kind,
+	end_time::text AS end_time, room_id, required_staff,
+	CASE WHEN status = 'cancelled' THEN 'cancelled' ELSE 'planned' END AS status, list_kind,
 	is_spontaneous, understaffed_ack, understaffed_note, cancel_reason, notes, idempotency_key,
-	idempotency_fingerprint, created_by, started_by, started_at, completed_at, completed_by,
-	reopen_until, completion_snapshot`
+	idempotency_fingerprint, created_by`
 
 func activityInstanceSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQuery {
 	return db.NewSelect().Model(model).ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		ColumnExpr(`"activity_instance".id, "activity_instance".tenant_id, "activity_instance".created_at, "activity_instance".updated_at`).
 		ColumnExpr(`"activity_instance".date::text AS date, "activity_instance".activity_group_id, "activity_instance".calendar_period_id`).
 		ColumnExpr(`"activity_instance".title, "activity_instance".description, "activity_instance".start_time::text AS start_time, "activity_instance".end_time::text AS end_time`).
-		ColumnExpr(`"activity_instance".room_id, "activity_instance".required_staff, "activity_instance".status, "activity_instance".active_group_id, "activity_instance".list_kind`).
+		ColumnExpr(`"activity_instance".room_id, "activity_instance".required_staff, `+activityInstancePlanningStatus+` AS status, "activity_instance".list_kind`).
 		ColumnExpr(`"activity_instance".is_spontaneous, "activity_instance".understaffed_ack, "activity_instance".understaffed_note, "activity_instance".cancel_reason, "activity_instance".notes`).
-		ColumnExpr(`"activity_instance".idempotency_key, "activity_instance".idempotency_fingerprint, "activity_instance".created_by, "activity_instance".started_by`).
-		ColumnExpr(`"activity_instance".started_at, "activity_instance".completed_at, "activity_instance".completed_by, "activity_instance".reopen_until, "activity_instance".completion_snapshot`).
+		ColumnExpr(`"activity_instance".idempotency_key, "activity_instance".idempotency_fingerprint, "activity_instance".created_by`).
 		Where(`"activity_instance".tenant_id = ?`, tenantID)
 }
 
 func newActivityInstanceRow(tenantID int64, fields domain.ActivityInstanceFields) activityInstanceRow {
+	status := fields.Status
+	if status == "" {
+		status = domain.InstanceStatusPlanned
+	}
 	return activityInstanceRow{
 		TenantID: tenantID, Date: fields.Date, ActivityGroupID: fields.ActivityGroupID,
 		CalendarPeriodID: fields.CalendarPeriodID, Title: fields.Title, Description: fields.Description,
 		StartTime: fields.StartTime, EndTime: fields.EndTime, RoomID: fields.RoomID,
-		RequiredStaff: fields.RequiredStaff, Status: fields.Status, ActiveGroupID: fields.ActiveGroupID,
+		RequiredStaff: fields.RequiredStaff, Status: status,
 		ListKind: fields.ListKind, IsSpontaneous: fields.IsSpontaneous,
 		UnderstaffedAck: fields.UnderstaffedAck, UnderstaffedNote: fields.UnderstaffedNote,
 		CancelReason: fields.CancelReason, Notes: fields.Notes, IdempotencyKey: fields.IdempotencyKey,
 		IdempotencyFingerprint: fields.IdempotencyFingerprint, CreatedBy: fields.CreatedBy,
-		StartedBy: fields.StartedBy, StartedAt: fields.StartedAt, CompletedAt: fields.CompletedAt,
-		CompletedBy: fields.CompletedBy, ReopenUntil: fields.ReopenUntil,
-		CompletionSnapshot: json.RawMessage(fields.CompletionSnapshot),
 	}
 }
 
@@ -466,42 +496,22 @@ func activityInstanceToDomain(row activityInstanceRow) domain.ActivityInstance {
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Date: row.Date, ActivityGroupID: row.ActivityGroupID, CalendarPeriodID: row.CalendarPeriodID,
 		Title: row.Title, Description: row.Description, StartTime: row.StartTime, EndTime: row.EndTime,
-		RoomID: row.RoomID, RequiredStaff: row.RequiredStaff, Status: row.Status, ActiveGroupID: row.ActiveGroupID,
+		RoomID: row.RoomID, RequiredStaff: row.RequiredStaff, Status: row.Status,
 		ListKind: row.ListKind, IsSpontaneous: row.IsSpontaneous, UnderstaffedAck: row.UnderstaffedAck,
 		UnderstaffedNote: row.UnderstaffedNote, CancelReason: row.CancelReason, Notes: row.Notes,
 		IdempotencyKey: row.IdempotencyKey, IdempotencyFingerprint: row.IdempotencyFingerprint,
-		CreatedBy: row.CreatedBy, StartedBy: row.StartedBy, StartedAt: row.StartedAt,
-		CompletedAt: row.CompletedAt, CompletedBy: row.CompletedBy, ReopenUntil: row.ReopenUntil,
-		CompletionSnapshot: []byte(row.CompletionSnapshot),
+		CreatedBy: row.CreatedBy,
 	}
-}
-
-func setAllActivityInstanceFields(query *bun.UpdateQuery, fields domain.ActivityInstanceFields) *bun.UpdateQuery {
-	for _, column := range activityInstanceWritableColumns {
-		query = setActivityInstanceField(query, fields, column)
-	}
-	return query
 }
 
 var activityInstanceWritableColumns = []string{
 	"date", "activity_group_id", "calendar_period_id", "title", "description", "start_time", "end_time",
-	"room_id", "required_staff", "status", "active_group_id", "list_kind", "is_spontaneous",
+	"room_id", "required_staff", "status", "list_kind", "is_spontaneous",
 	"understaffed_ack", "understaffed_note", "cancel_reason", "notes", "idempotency_key",
-	"idempotency_fingerprint", "created_by", "started_by", "started_at", "completed_at", "completed_by",
-	"reopen_until", "completion_snapshot",
+	"idempotency_fingerprint", "created_by",
 }
 
 func setActivityInstanceField(query *bun.UpdateQuery, fields domain.ActivityInstanceFields, column string) *bun.UpdateQuery {
-	switch column {
-	case "date", "activity_group_id", "calendar_period_id", "title", "description", "start_time", "end_time",
-		"room_id", "required_staff", "status", "active_group_id", "list_kind", "is_spontaneous":
-		return setActivityInstanceCoreField(query, fields, column)
-	default:
-		return setActivityInstanceLifecycleField(query, fields, column)
-	}
-}
-
-func setActivityInstanceCoreField(query *bun.UpdateQuery, fields domain.ActivityInstanceFields, column string) *bun.UpdateQuery {
 	switch column {
 	case "date":
 		return query.Set("date = ?::date", fields.Date)
@@ -523,18 +533,16 @@ func setActivityInstanceCoreField(query *bun.UpdateQuery, fields domain.Activity
 		return query.Set("required_staff = ?", fields.RequiredStaff)
 	case "status":
 		return query.Set("status = ?", fields.Status)
-	case "active_group_id":
-		return query.Set("active_group_id = ?", fields.ActiveGroupID)
 	case "list_kind":
 		return query.Set("list_kind = ?", fields.ListKind)
 	case "is_spontaneous":
 		return query.Set("is_spontaneous = ?", fields.IsSpontaneous)
 	default:
-		panic("unvalidated activity instance core column: " + column)
+		return setActivityInstanceAnnotation(query, fields, column)
 	}
 }
 
-func setActivityInstanceLifecycleField(query *bun.UpdateQuery, fields domain.ActivityInstanceFields, column string) *bun.UpdateQuery {
+func setActivityInstanceAnnotation(query *bun.UpdateQuery, fields domain.ActivityInstanceFields, column string) *bun.UpdateQuery {
 	switch column {
 	case "understaffed_ack":
 		return query.Set("understaffed_ack = ?", fields.UnderstaffedAck)
@@ -550,19 +558,7 @@ func setActivityInstanceLifecycleField(query *bun.UpdateQuery, fields domain.Act
 		return query.Set("idempotency_fingerprint = ?", fields.IdempotencyFingerprint)
 	case "created_by":
 		return query.Set("created_by = ?", fields.CreatedBy)
-	case "started_by":
-		return query.Set("started_by = ?", fields.StartedBy)
-	case "started_at":
-		return query.Set("started_at = ?", fields.StartedAt)
-	case "completed_at":
-		return query.Set("completed_at = ?", fields.CompletedAt)
-	case "completed_by":
-		return query.Set("completed_by = ?", fields.CompletedBy)
-	case "reopen_until":
-		return query.Set("reopen_until = ?", fields.ReopenUntil)
-	case "completion_snapshot":
-		return query.Set("completion_snapshot = ?", json.RawMessage(fields.CompletionSnapshot))
 	default:
-		panic("unvalidated activity instance lifecycle column: " + column)
+		panic("unvalidated activity instance column: " + column)
 	}
 }

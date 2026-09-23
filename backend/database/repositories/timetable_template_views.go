@@ -99,7 +99,7 @@ func (r timetableActivityGroupRepository) attachTemplateOwnerNames(ctx context.C
 	if err != nil {
 		return err
 	}
-	shifts, err := r.shiftTypes.ListAll(ctx)
+	shifts, err := r.shiftTypes.ListShiftTypes(ctx)
 	if err != nil {
 		return err
 	}

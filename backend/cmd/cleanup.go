@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -312,7 +312,7 @@ func runVisitsCleanup(logger *log.Logger, ctx *cleanupContext, verbose bool) err
 	})
 }
 
-func logVisitCleanupResult(logger *log.Logger, result *active.CleanupResult, verbose bool) {
+func logVisitCleanupResult(logger *log.Logger, result *studentpresence.CleanupResult, verbose bool) {
 	duration := result.CompletedAt.Sub(result.StartedAt)
 	logger.Printf("Cleanup completed in %s\n", duration)
 	logger.Printf("Students processed: %d\n", result.StudentsProcessed)
@@ -330,7 +330,7 @@ func logVisitCleanupResult(logger *log.Logger, result *active.CleanupResult, ver
 	}
 }
 
-func printVisitCleanupSummary(output io.Writer, result *active.CleanupResult) {
+func printVisitCleanupSummary(output io.Writer, result *studentpresence.CleanupResult) {
 	duration := result.CompletedAt.Sub(result.StartedAt)
 
 	mustFprintln(output, "\nCleanup Summary:")
@@ -366,7 +366,7 @@ func runCleanupPreview(cmd *cobra.Command, _ []string) error {
 	})
 }
 
-func printPreviewHeader(output io.Writer, preview *active.CleanupPreview) {
+func printPreviewHeader(output io.Writer, preview *studentpresence.CleanupPreview) {
 	mustFprintln(output, "Data Retention Cleanup Preview")
 	mustFprintln(output, "==============================")
 	mustFprintf(output, "Total visits to delete: %d\n", preview.TotalVisits)
@@ -409,7 +409,7 @@ func runCleanupStats(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func printRetentionStats(output io.Writer, stats *active.RetentionStats) {
+func printRetentionStats(output io.Writer, stats *studentpresence.RetentionStats) {
 	mustFprintln(output, "Data Retention Statistics")
 	mustFprintln(output, "========================")
 	mustFprintf(output, "Total expired visits: %d\n", stats.TotalExpiredVisits)
@@ -551,7 +551,7 @@ func runAttendanceDryRun(ctx *cleanupContext, verbose bool) error {
 	})
 }
 
-func printAttendancePreviewHeader(output io.Writer, preview *active.AttendanceCleanupPreview) {
+func printAttendancePreviewHeader(output io.Writer, preview *studentpresence.AttendanceCleanupPreview) {
 	mustFprintln(output, "\nAttendance Cleanup Preview:")
 	mustFprintf(output, "Total stale records: %d\n", preview.TotalRecords)
 
@@ -577,7 +577,7 @@ func runAttendanceCleanup(ctx *cleanupContext, verbose bool) error {
 	})
 }
 
-func printAttendanceCleanupSummary(output io.Writer, result *active.AttendanceCleanupResult, verbose bool) {
+func printAttendanceCleanupSummary(output io.Writer, result *studentpresence.AttendanceCleanupResult, verbose bool) {
 	duration := result.CompletedAt.Sub(result.StartedAt)
 
 	mustFprintln(output, "\nAttendance Cleanup Summary:")
@@ -675,7 +675,7 @@ func runDailySessionCleanup(ctx *cleanupContext, dryRun bool, verbose bool) erro
 	})
 }
 
-func printDailySessionSummary(output io.Writer, result *active.DailySessionCleanupResult, verbose bool) {
+func printDailySessionSummary(output io.Writer, result *studentpresence.DailySessionCleanupResult, verbose bool) {
 	mustFprintln(output, "\nDaily Session Cleanup Summary:")
 	mustFprintf(output, "Sessions ended: %d\n", result.SessionsEnded)
 	mustFprintf(output, "Visits ended: %d\n", result.VisitsEnded)
@@ -719,7 +719,7 @@ func runSupervisorsDryRun(ctx *cleanupContext, verbose bool) error {
 	})
 }
 
-func printSupervisorPreviewHeader(output io.Writer, preview *active.SupervisorCleanupPreview) {
+func printSupervisorPreviewHeader(output io.Writer, preview *studentpresence.SupervisorCleanupPreview) {
 	mustFprintln(output, "\nSupervisor Cleanup Preview:")
 	mustFprintf(output, "Total stale records: %d\n", preview.TotalRecords)
 
@@ -745,7 +745,7 @@ func runSupervisorsCleanup(ctx *cleanupContext, verbose bool) error {
 	})
 }
 
-func printSupervisorCleanupSummary(output io.Writer, result *active.SupervisorCleanupResult, verbose bool) {
+func printSupervisorCleanupSummary(output io.Writer, result *studentpresence.SupervisorCleanupResult, verbose bool) {
 	duration := result.CompletedAt.Sub(result.StartedAt)
 
 	mustFprintln(output, "\nSupervisor Cleanup Summary:")

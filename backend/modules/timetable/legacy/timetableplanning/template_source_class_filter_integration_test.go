@@ -166,7 +166,7 @@ func TestTemplateSourceClassFilter_SeedsOnlyTheFilteredClass(t *testing.T) {
 	assert.Nil(t, stored.SourceGradeLevels, "class and grade filter are mutually exclusive")
 }
 
-// The class name is free text in users.students.school_class. Matching must
+// The class name is free text in users.student_school_memberships.school_class. Matching must
 // ignore case and padding, or a school typing "1B" silently loses children.
 func TestTemplateSourceClassFilter_MatchesCaseInsensitively(t *testing.T) {
 	t.Parallel()
@@ -226,7 +226,7 @@ func TestTemplateSourceClassFilter_ClassChangeMovesTheChild(t *testing.T) {
 	require.Empty(t, sourcedStudentIDs(t, s, terminB.TemplateID))
 
 	_, err := s.db.NewRaw(
-		`UPDATE users.students SET school_class = ? WHERE id = ?`, "1b", s.students[0],
+		`UPDATE users.student_school_memberships SET school_class = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, "1b", s.students[0],
 	).Exec(s.ctx)
 	require.NoError(t, err)
 	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, classSourceResyncDate))
@@ -431,8 +431,8 @@ func mustJSON(t *testing.T, value any) string {
 func setLinkSelectedDays(t *testing.T, s *scenarioSetup, studentID int64, days []string) {
 	t.Helper()
 	_, err := s.db.NewRaw(`
-		UPDATE enrollment.request_child_offerings AS rco
-		SET selected_days = ?::jsonb
+		UPDATE enrollment.care_offering_bookings AS rco
+		SET manual_selected_days = ?::jsonb
 		FROM enrollment.request_children AS rc
 		WHERE rc.id = rco.request_child_id
 		  AND COALESCE(rc.created_student_id, rc.matched_student_id) = ?`,
@@ -446,7 +446,7 @@ func setLinkSelectedDays(t *testing.T, s *scenarioSetup, studentID int64, days [
 func endLinkAt(t *testing.T, s *scenarioSetup, studentID int64, until timezone.Date) {
 	t.Helper()
 	_, err := s.db.NewRaw(`
-		UPDATE enrollment.request_child_offerings AS rco
+		UPDATE enrollment.care_offering_bookings AS rco
 		SET valid_until = ?
 		FROM enrollment.request_children AS rc
 		WHERE rc.id = rco.request_child_id

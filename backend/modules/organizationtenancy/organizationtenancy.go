@@ -106,6 +106,7 @@ type Command interface {
 	RestoreOrganization(context.Context, int64) (Organization, error)
 	CreateSchool(context.Context, CreateSchool) (School, error)
 	UpdateSchool(context.Context, UpdateSchool) (School, error)
+	SetSchoolChildQuota(context.Context, int64, *ChildQuota) (School, error)
 	SoftDeleteSchool(context.Context, int64) (School, error)
 	RestoreSchool(context.Context, int64) (School, error)
 }
@@ -129,6 +130,7 @@ type engine interface {
 	FindForSchoolMutation(context.Context, int64) (Organization, error)
 	CreateSchool(context.Context, CreateSchool) (School, error)
 	UpdateSchool(context.Context, UpdateSchool) (School, error)
+	SetSchoolChildQuota(context.Context, int64, *ChildQuota) (School, error)
 	SoftDeleteSchool(context.Context, int64) (School, error)
 	RestoreSchool(context.Context, int64) (School, error)
 	FindSchoolByID(context.Context, int64, string) (School, error)

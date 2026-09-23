@@ -610,8 +610,8 @@ func TestFilter_ApplyToQuery_FirstNumberIn(t *testing.T) {
 
 	t.Run("aliased column", func(t *testing.T) {
 		query := db.NewSelect().
-			ColumnExpr(`"student".id`).
-			TableExpr(`users.students AS "student"`)
+			ColumnExpr(`"student".student_profile_id`).
+			TableExpr(`users.student_school_memberships AS "student"`)
 		filter := modelBase.NewFilter().
 			WithTableAlias("student").
 			FirstNumberIn("school_class", "3")
@@ -624,8 +624,8 @@ func TestFilter_ApplyToQuery_FirstNumberIn(t *testing.T) {
 
 	t.Run("plain column identifier", func(t *testing.T) {
 		query := db.NewSelect().
-			ColumnExpr("id").
-			TableExpr("users.students")
+			ColumnExpr("student_profile_id").
+			TableExpr("users.student_school_memberships")
 		filter := modelBase.NewFilter().FirstNumberIn("school_class", "3")
 		query = ApplyFilter(query, filter)
 
@@ -636,8 +636,8 @@ func TestFilter_ApplyToQuery_FirstNumberIn(t *testing.T) {
 
 	t.Run("several years", func(t *testing.T) {
 		query := db.NewSelect().
-			ColumnExpr(`"student".id`).
-			TableExpr(`users.students AS "student"`)
+			ColumnExpr(`"student".student_profile_id`).
+			TableExpr(`users.student_school_memberships AS "student"`)
 		filter := modelBase.NewFilter().
 			WithTableAlias("student").
 			FirstNumberIn("school_class", "3", "13")
@@ -662,7 +662,7 @@ func TestFilter_ApplyToQuery_TrimOperatorsUseDatabaseNormalization(t *testing.T)
 
 	selectIDs := func(filter *modelBase.Filter) []int64 {
 		t.Helper()
-		query := db.NewSelect().ColumnExpr("id").TableExpr("users.students")
+		query := db.NewSelect().ColumnExpr("student_profile_id").TableExpr("users.student_school_memberships")
 		var ids []int64
 		require.NoError(t, ApplyFilter(query, filter).Scan(ctx, &ids))
 		return ids

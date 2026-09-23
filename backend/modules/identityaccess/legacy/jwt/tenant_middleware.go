@@ -1,10 +1,6 @@
 package jwt
 
-import (
-	"net/http"
-
-	"github.com/moto-nrw/project-phoenix/tenant"
-)
+import "net/http"
 
 // TenantMiddleware extracts multi-tenancy fields from JWT claims and sets them
 // on the request context. It must be placed AFTER the Authenticator middleware
@@ -18,48 +14,31 @@ import (
 // here because some platform endpoints intentionally cross-tenant via WithAdminTx
 // (operator dashboards) — they use IsPlatformScope checks at the handler level
 // instead.
-func TenantMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims := ClaimsFromCtx(r.Context())
-		if claims.ID == 0 {
-			renderUnauthorized(w, r, ErrTokenUnauthorized)
-			return
-		}
-
-		// Hard reject parent-scope tokens on tenant endpoints.
-		if claims.Scope == tenant.ScopeParent {
-			renderUnauthorized(w, r, ErrTokenUnauthorized)
-			return
-		}
-
-		// Hard reject school-scope tokens on tenant endpoints (#2207).
-		// School tokens carry a real tenant_id and would otherwise pass
-		// RLS silently — this is the symmetric guard to SchoolMiddleware
-		// rejecting tenant tokens on /school/*.
-		if claims.Scope == tenant.ScopeSchool {
-			renderUnauthorized(w, r, ErrTokenUnauthorized)
-			return
-		}
-		if claims.Scope != tenant.ScopePlatform && claims.TenantID <= 0 {
-			_, err := tenant.NewTenantID(claims.TenantID)
-			tenant.ObserveMissingTenant(r.Context(), err)
-			renderUnauthorized(w, r, ErrTokenUnauthorized)
-			return
-		}
-
-		ctx := r.Context()
-		if claims.TenantID > 0 {
-			tenantID, err := tenant.NewTenantID(claims.TenantID)
-			if err != nil {
-				tenant.ObserveMissingTenant(r.Context(), err)
+func TenantMiddleware(scope TenantScope) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims := ClaimsFromCtx(r.Context())
+			// Hard reject parent- and school-scope tokens on tenant endpoints
+			// (#2207). School tokens carry a real tenant_id and would otherwise
+			// pass RLS silently — this is the symmetric guard to
+			// SchoolMiddleware rejecting tenant tokens on /school/*.
+			if claims.ID == 0 || claims.Scope == claimScopeParent || claims.Scope == claimScopeSchool {
 				renderUnauthorized(w, r, ErrTokenUnauthorized)
 				return
 			}
-			ctx = tenant.WithTenant(ctx, tenantID)
-		}
-		ctx = tenant.WithOrgID(ctx, claims.OrgID)
-		ctx = tenant.WithScope(ctx, claims.Scope)
+			// Only a platform token may travel without a tenant. Every other
+			// token binds one; an invalid ID is observed by the tenant runtime.
+			if claims.Scope == claimScopePlatform && claims.TenantID <= 0 {
+				next.ServeHTTP(w, r.WithContext(scope.BindOrganization(r.Context(), claims.OrgID, claims.Scope)))
+				return
+			}
+			ctx, err := scope.BindTenant(r.Context(), claims.TenantID, claims.OrgID, claims.Scope)
+			if err != nil {
+				renderUnauthorized(w, r, ErrTokenUnauthorized)
+				return
+			}
 
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
 }

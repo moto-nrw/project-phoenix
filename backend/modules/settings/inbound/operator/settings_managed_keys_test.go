@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,7 +15,7 @@ func TestGuardOperatorDirectManagedSettingWrite_BlocksAGBDocumentURL(t *testing.
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPut, "/test", nil)
 
-	blocked := guardOperatorDirectManagedSettingWrite(w, r, configModel.KeyEnrollmentLegalAGBDocumentURL)
+	blocked := guardOperatorDirectManagedSettingWrite(w, r, settings.KeyEnrollmentLegalAGBDocumentURL)
 
 	assert.True(t, blocked)
 	assert.Equal(t, http.StatusForbidden, w.Code)
@@ -27,7 +27,7 @@ func TestGuardOperatorDirectManagedSettingWrite_AllowsRegularSettings(t *testing
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPut, "/test", nil)
 
-	blocked := guardOperatorDirectManagedSettingWrite(w, r, configModel.KeyEnrollmentLegalAGBText)
+	blocked := guardOperatorDirectManagedSettingWrite(w, r, "enrollment.legal_agb_text")
 
 	assert.False(t, blocked)
 	assert.Equal(t, http.StatusOK, w.Code)

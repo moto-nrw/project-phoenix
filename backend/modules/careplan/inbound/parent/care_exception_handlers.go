@@ -7,10 +7,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // careExceptionTimeLayout is the wall-clock layout parents send (HH:MM).
@@ -96,15 +97,19 @@ type PickupChangeRequestResponse struct {
 	IsSelf         bool       `json:"is_self"`
 }
 
-func toPickupChangeRequestResponse(req *scheduleModels.CareScheduleChangeRequest, accountID int64) (PickupChangeRequestResponse, error) {
-	date, dateOK := req.Payload["date"].(string)
-	pickup, pickupOK := req.Payload["pickup_time"].(string)
-	reason, reasonOK := req.Payload["reason"].(string)
+func toPickupChangeRequestResponse(req *careplan.CareScheduleChangeRequest, accountID int64) (PickupChangeRequestResponse, error) {
+	var payload map[string]any
+	if err := json.Unmarshal(req.Payload, &payload); err != nil {
+		return PickupChangeRequestResponse{}, errors.New("invalid pickup change request payload")
+	}
+	date, dateOK := payload["date"].(string)
+	pickup, pickupOK := payload["pickup_time"].(string)
+	reason, reasonOK := payload["reason"].(string)
 	if !dateOK || !pickupOK || !reasonOK {
 		return PickupChangeRequestResponse{}, errors.New("invalid pickup change request payload")
 	}
 	var previousPickup *string
-	if value, ok := req.Payload["previous_pickup_time"].(string); ok && value != "" {
+	if value, ok := payload["previous_pickup_time"].(string); ok && value != "" {
 		previousPickup = &value
 	}
 	return PickupChangeRequestResponse{
@@ -198,7 +203,7 @@ func (rs *Resource) listPickupChangeRequests(w http.ResponseWriter, r *http.Requ
 	}
 	out := make([]PickupChangeRequestResponse, 0, len(rows))
 	for _, row := range rows {
-		response, convertErr := toPickupChangeRequestResponse(row, accountID)
+		response, convertErr := toPickupChangeRequestResponse(&row, accountID)
 		if convertErr != nil {
 			common.RenderError(w, r, common.ErrorInternalServer(convertErr))
 			return

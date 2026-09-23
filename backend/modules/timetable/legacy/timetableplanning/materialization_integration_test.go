@@ -82,7 +82,6 @@ func makeScenario(t *testing.T, weekday int, materializeDate timezone.Date) *sce
 		repoFactory.InstanceStudent,
 		repoFactory.ActivityException,
 		repoFactory.Timeframe,
-		serviceFactory.CalendarPeriod,
 		db,
 		nil,
 		slog.Default(),
@@ -102,7 +101,7 @@ func makeScenario(t *testing.T, weekday int, materializeDate timezone.Date) *sce
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
-	require.NoError(t, serviceFactory.CalendarPeriod.CreatePeriod(ctx, period))
+	createCalendarPeriodRow(t, db, ctx, period)
 
 	// 2. Fixtures: room, staff, 3 students.
 	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, fmt.Sprintf("Room-%d", suffix))
@@ -260,9 +259,9 @@ func TestMaterializeForTenant_ExcludesGraduatedStudents(t *testing.T) {
 	// Graduate one of the two students with a valid enrollment. Their enrollment
 	// row is intentionally left in place (soft delete).
 	_, err := s.db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Set("status = ?", string(usersModels.StudentStatusAlumnus)).
-		Where("id = ?", s.students[0]).
+		Where("student_profile_id = ? AND deleted_at IS NULL", s.students[0]).
 		Where("tenant_id = ?", s.tenantID).
 		Exec(s.ctx)
 	require.NoError(t, err)
@@ -315,10 +314,10 @@ func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testin
 	require.Len(t, firstInstances, 1)
 
 	_, err = s.db.NewUpdate().
-		Table("users.students").
+		Table("users.student_school_memberships").
 		Set("school_class = ?", class4a).
 		Where("tenant_id = ?", s.tenantID).
-		Where("id = ?", laterStudent.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", laterStudent.ID).
 		Exec(s.ctx)
 	require.NoError(t, err)
 
@@ -389,13 +388,11 @@ func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
-	require.NoError(t, err)
 	svc := timetableplanning.NewMaterializationService(
 		repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.StudentEnrollment,
 		repoFactory.ActivitySupervisor, repoFactory.CalendarPeriod, repoFactory.ActivityInstance,
 		repoFactory.InstanceStaff, repoFactory.InstanceStudent, repoFactory.ActivityException,
-		repoFactory.Timeframe, serviceFactory.CalendarPeriod, db, nil, slog.Default(),
+		repoFactory.Timeframe, db, nil, slog.Default(),
 	)
 
 	// Use a fresh tenant id that we know has no active periods.
@@ -427,19 +424,17 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
-	require.NoError(t, err)
 	svc := timetableplanning.NewMaterializationService(
 		repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.StudentEnrollment,
 		repoFactory.ActivitySupervisor, repoFactory.CalendarPeriod, repoFactory.ActivityInstance,
 		repoFactory.InstanceStaff, repoFactory.InstanceStudent, repoFactory.ActivityException,
-		repoFactory.Timeframe, serviceFactory.CalendarPeriod, db, nil, slog.Default(),
+		repoFactory.Timeframe, db, nil, slog.Default(),
 	)
 
 	emptyTemplateTenantID := testpkg.UniqueTestTenantID(t)
 	ctx := testpkg.TenantContext(emptyTemplateTenantID)
 	testpkg.EnsureTestTenant(t, db, emptyTemplateTenantID)
-	_, err = db.ExecContext(context.Background(), `DELETE FROM schedule.calendar_periods WHERE tenant_id = ?`, emptyTemplateTenantID)
+	_, err := db.ExecContext(context.Background(), `DELETE FROM schedule.calendar_periods WHERE tenant_id = ?`, emptyTemplateTenantID)
 	require.NoError(t, err)
 	defer func() {
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM schedule.calendar_periods WHERE tenant_id = ?`, emptyTemplateTenantID)
@@ -457,7 +452,7 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
-	require.NoError(t, serviceFactory.CalendarPeriod.CreatePeriod(ctx, period))
+	createCalendarPeriodRow(t, db, ctx, period)
 
 	r, err := svc.MaterializeForTenant(ctx, from, to, timetableplanning.MaterializationSourceManual)
 	require.NoError(t, err)
@@ -514,7 +509,7 @@ func TestMaterializeForTenant_TemplateScheduleBoundToPeriod_OutOfRange_Skips(t *
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
-	require.NoError(t, s.factory.CalendarPeriod.CreatePeriod(s.ctx, holiday))
+	createCalendarPeriodRow(t, s.db, s.ctx, holiday)
 	s.extraCleanups = append(s.extraCleanups, func() {
 	})
 
@@ -680,4 +675,21 @@ func TestMaterializeForTenant_ScheduleValidFrom_SkipsNotStartedDates(t *testing.
 		"no phantom instance before valid_from")
 	created := listInstancesForDate(t, s.db, s.template.ID, secondMonday)
 	require.Len(t, created, 1, "valid_from is inclusive")
+}
+
+// createCalendarPeriodRow stores a period through the retained repository
+// adapter over the School Calendar and fills in the generated ID. The
+// scenarios below need calendar rows as fixtures, not the administrative
+// rules the period editor enforces.
+func createCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, period *scheduleModels.CalendarPeriod) {
+	t.Helper()
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CalendarPeriod
+	require.NoError(t, repo.Create(ctx, period))
+}
+
+// updateCalendarPeriodRow rewrites a period row the same way.
+func updateCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, period *scheduleModels.CalendarPeriod) {
+	t.Helper()
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CalendarPeriod
+	require.NoError(t, repo.Update(ctx, period))
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -34,7 +35,7 @@ func buildModule(t *testing.T, db *bun.DB, observers ...func(Observation)) *time
 		observe = observers[0]
 	}
 	students := StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return []TargetStudent{}, nil })
-	module, err := New(Dependencies{DB: db, Students: students, Rooms: testRooms(), CareDays: testCareDays(), CarePlan: unusedCarePlanDirectory{}, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: observe})
+	module, err := New(Dependencies{DB: db, Students: students, Rooms: testRooms(), Sessions: &fixedSessions{}, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: observe})
 	require.NoError(t, err)
 	return module
 }
@@ -492,7 +493,7 @@ func TestModuleResolvesTargetStudentsThroughPeopleDirectory(t *testing.T) {
 			{ID: nonMember.ID, SchoolClass: nonMember.SchoolClass},
 		}, nil
 	})
-	module, err := New(Dependencies{DB: db, Students: students, Rooms: testRooms(), CareDays: testCareDays(), CarePlan: unusedCarePlanDirectory{}, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: func(Observation) {}})
+	module, err := New(Dependencies{DB: db, Students: students, Rooms: testRooms(), Sessions: &fixedSessions{}, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: func(Observation) {}})
 	require.NoError(t, err)
 	class := "2b"
 	insertGroupTarget(t, db, testpkg.Tenant(t), group.ID, timetable.TargetGroupTypeSchoolClass, &class)
@@ -501,13 +502,6 @@ func TestModuleResolvesTargetStudentsThroughPeopleDirectory(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []int64{member.ID}, studentIDs[group.ID])
 	assert.NotContains(t, studentIDs[group.ID], nonMember.ID)
-}
-
-func testCareDays() timetable.CareDayLocker {
-	return timetable.NewCareDayLocker(
-		func(context.Context, int64, string) error { return nil },
-		func(context.Context, int64, string) error { return nil },
-	)
 }
 
 func testRooms() timetable.RoomDirectory {
@@ -746,4 +740,46 @@ func observedDuplicateConflicts(observations []Observation) int64 {
 		total += observation.Stats.DuplicatePreventionConflicts
 	}
 	return total
+}
+
+// fixedSessions is the session facts port with the answers a test fixes
+// up front: which blocks started or ended, which participants were observed
+// or marked as not scheduled.
+type fixedSessions struct {
+	started, completed, observed, notScheduled []int64
+}
+
+func intersect(wanted, known []int64) []int64 {
+	result := make([]int64, 0, len(known))
+	for _, id := range known {
+		if slices.Contains(wanted, id) {
+			result = append(result, id)
+		}
+	}
+	return result
+}
+
+func (s *fixedSessions) StartedInstanceIDs(_ context.Context, ids []int64) ([]int64, error) {
+	return intersect(ids, append(slices.Clone(s.started), s.completed...)), nil
+}
+func (s *fixedSessions) CompletedInstanceIDs(_ context.Context, ids []int64) ([]int64, error) {
+	return intersect(ids, s.completed), nil
+}
+func (s *fixedSessions) ObservedParticipantIDs(_ context.Context, ids []int64) ([]int64, error) {
+	return intersect(ids, s.observed), nil
+}
+func (s *fixedSessions) NotScheduledParticipantIDs(_ context.Context, ids []int64) ([]int64, error) {
+	return intersect(ids, s.notScheduled), nil
+}
+func (s *fixedSessions) ExecutionFacts(_ context.Context, instanceIDs, participantIDs []int64) ([]int64, []int64, error) {
+	return intersect(instanceIDs, s.completed), intersect(participantIDs, s.notScheduled), nil
+}
+
+// buildModuleWithSessions composes the owner over the given session facts.
+func buildModuleWithSessions(t *testing.T, db *bun.DB, sessions timetable.SessionFacts) *timetable.Module {
+	t.Helper()
+	students := StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return []TargetStudent{}, nil })
+	module, err := New(Dependencies{DB: db, Students: students, Rooms: testRooms(), Sessions: sessions, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: func(Observation) {}})
+	require.NoError(t, err)
+	return module
 }

@@ -17,12 +17,6 @@ func (s *Service) FindWithdrawalCompletion(ctx context.Context, id int64, lock b
 	})
 }
 
-func (s *Service) ListWithdrawalStudentIDs(ctx context.Context, state string, studentID int64) ([]int64, error) {
-	return runValue(s, "list_withdrawal_student_ids", func() ([]int64, domain.OperationStats, error) {
-		return s.store.ListWithdrawalStudentIDs(ctx, state, studentID)
-	})
-}
-
 // ListWithdrawals pages the tasks in state together with their total count.
 func (s *Service) ListWithdrawals(ctx context.Context, state string, filter domain.WithdrawalListFilter) ([]domain.WithdrawalCompletion, int, error) {
 	var total int
@@ -49,12 +43,6 @@ func (s *Service) ListPendingWithdrawalStudentIDs(ctx context.Context, studentID
 func (s *Service) ListPendingWithdrawalBoundaries(ctx context.Context, studentIDs []int64, includeBookingExpired bool) (map[int64]domain.Date, error) {
 	return runValue(s, "list_pending_withdrawal_boundaries", func() (map[int64]domain.Date, domain.OperationStats, error) {
 		return s.store.ListPendingWithdrawalBoundaries(ctx, studentIDs, includeBookingExpired)
-	})
-}
-
-func (s *Service) ListWithdrawalCompletionKeys(ctx context.Context, studentIDs []int64) ([]domain.WithdrawalCompletionKey, error) {
-	return runValue(s, "list_withdrawal_completion_keys", func() ([]domain.WithdrawalCompletionKey, domain.OperationStats, error) {
-		return s.store.ListWithdrawalCompletionKeys(ctx, studentIDs)
 	})
 }
 

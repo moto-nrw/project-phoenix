@@ -118,12 +118,6 @@ func (r *StudentReads) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]
 	})
 }
 
-func (r *StudentReads) FindBySchoolClass(ctx context.Context, schoolClass string) ([]*userModels.Student, error) {
-	return r.listRecords(ctx, "find by school class", func() ([]peopleModule.StudentRecord, error) {
-		return r.directory.ListStudentRecordsByClass(ctx, []string{schoolClass}, peopleModule.StudentScopeEnrolled)
-	})
-}
-
 func (r *StudentReads) FindPendingDueForActivation(
 	ctx context.Context,
 	asOf userModels.CalendarDate,
@@ -203,16 +197,6 @@ func (r *StudentReads) ListSchoolClasses(ctx context.Context) ([]string, error) 
 	return classes, nil
 }
 
-func (r *StudentReads) ListIDs(ctx context.Context) ([]int64, error) {
-	// Alumni included: this is the candidate set a presence lookup narrows,
-	// and a graduate who is actually present must survive it.
-	ids, err := r.directory.ListAllStudentIDs(ctx)
-	if err != nil {
-		return nil, translateStudentReadError("list student ids", err)
-	}
-	return ids, nil
-}
-
 // FindByIDForUpdate takes the row lock the caller will write under. The owner
 // takes the shared class-writes gate first, which is what keeps the
 // acquisition order gate-then-rows for every writer.
@@ -220,19 +204,6 @@ func (r *StudentReads) FindByIDForUpdate(ctx context.Context, id int64) (*userMo
 	record, err := r.directory.FindStudentRecordForMutation(ctx, id)
 	if err != nil {
 		return nil, translateStudentReadError("find by id for update", err)
-	}
-	return studentRecordToModel(record), nil
-}
-
-// FindByIDForUpdateNoWait refuses rather than waits, which is what makes a
-// downward acquisition in the companion graph safe.
-func (r *StudentReads) FindByIDForUpdateNoWait(ctx context.Context, id int64) (*userModels.Student, error) {
-	record, err := r.directory.FindStudentRecordForMutationNoWait(ctx, id)
-	if err != nil {
-		if errors.Is(err, peopleModule.ErrStudentLockBusy) {
-			return nil, userModels.ErrCompanionLockBusy
-		}
-		return nil, translateStudentReadError("find by id for update nowait", err)
 	}
 	return studentRecordToModel(record), nil
 }

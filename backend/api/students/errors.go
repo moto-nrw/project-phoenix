@@ -6,8 +6,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 // renderError writes an error response to the HTTP response writer.
@@ -30,26 +29,26 @@ var (
 	// changed or removed by a user who has a staff profile: reclaiming the day
 	// for staff stamps the editing staff as author (created_by → users.staff),
 	// which an admin-only account without a staff record cannot satisfy.
-	ErrStaffProfileRequired = careschedule.ErrCareExceptionStaffProfileRequired
+	ErrStaffProfileRequired = careplan.ErrCareExceptionStaffProfileRequired
 	// ErrExceptionNotFound means the targeted exception no longer exists (it was
 	// removed between the ownership pre-check and the locked re-read).
-	ErrExceptionNotFound = careschedule.ErrCareExceptionNotFound
+	ErrExceptionNotFound = careplan.ErrCareExceptionNotFound
 	// ErrExceptionWrongStudent means the exception does not belong to the student
 	// named in the path.
-	ErrExceptionWrongStudent = careschedule.ErrCareExceptionWrongStudent
+	ErrExceptionWrongStudent = careplan.ErrCareExceptionWrongStudent
 	// ErrExceptionDayConflict means a staff-authored exception already existed for
 	// the day when a create came in. The staff client only POSTs when its loaded
 	// view shows no exception, so this is a concurrent staff edit — refuse rather
 	// than silently overwrite a colleague's change. (A guardian-authored row is
 	// reclaimed inline instead; only the staff-on-staff race lands here.) The
 	// client reloads and the retry goes through the update path.
-	ErrExceptionDayConflict = careschedule.ErrCareExceptionDayConflict
+	ErrExceptionDayConflict = careplan.ErrCareExceptionDayConflict
 	// ErrExceptionContainsPartialAbsence requires the dedicated partial-absence
 	// endpoint so slot provenance is restored atomically with the pickup row.
-	ErrExceptionContainsPartialAbsence = careschedule.ErrCareExceptionContainsPartialAbsence
+	ErrExceptionContainsPartialAbsence = careplan.ErrCareExceptionContainsPartialAbsence
 	// ErrPickupResetNoOffering means a manual row cannot be removed because
 	// no booking-derived pickup time would replace it on the requested date.
-	ErrPickupResetNoOffering = enrollmentService.ErrPickupResetNoOffering
+	ErrPickupResetNoOffering = careplan.ErrPickupResetNoOffering
 )
 
 var exceptionWriteErrorRenderer = common.RulesRenderer([]common.ErrorRule{

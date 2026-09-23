@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	calendarPortal "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
@@ -28,7 +28,7 @@ type CalendarDependencies struct {
 	// RoomRepo resolves room names for timetable events in one batch per
 	// window (#2078). Optional: nil leaves Location empty instead of failing
 	// the whole calendar, mirroring StaffShiftRepo/ShiftTypeRepo below.
-	UserContext      usercontext.UserContextService
+	UserContext      identityaccess.CallerIdentities
 	DB               *bun.DB
 	CalendarRenderer calendarPortal.CalendarRenderer
 
@@ -153,33 +153,28 @@ func (r calendarPortalRuntime) WithoutTransactionAndHooks(ctx context.Context) c
 }
 
 type calendarIdentityPort struct {
-	source usercontext.UserContextService
+	source identityaccess.CallerIdentities
 }
 
 func (p calendarIdentityPort) GetCurrentStaff(ctx context.Context) (*calendarCompose.Staff, error) {
-	value, err := p.source.GetCurrentStaff(ctx)
-	if value == nil {
+	staffID, err := p.source.StaffID(ctx)
+	if err != nil {
 		return nil, err
 	}
-	person := value.Person
-	var mapped *calendarCompose.Person
-	if person != nil {
-		mapped = &calendarCompose.Person{ID: person.ID, FirstName: person.FirstName, LastName: person.LastName}
-	}
-	return &calendarCompose.Staff{ID: value.ID, Person: mapped}, err
+	return &calendarCompose.Staff{ID: staffID}, nil
 }
 func (p calendarIdentityPort) GetCurrentUser(ctx context.Context) (*calendarCompose.Account, error) {
-	value, err := p.source.GetCurrentUser(ctx)
-	if value == nil {
+	value, err := p.source.Account(ctx)
+	if err != nil {
 		return nil, err
 	}
-	return &calendarCompose.Account{ID: value.ID, Email: value.Email, Active: value.IsActive(), CalendarFeedToken: value.CalendarFeedToken}, err
+	return &calendarCompose.Account{ID: value.ID, Email: value.Email, Active: value.Active}, nil
 }
 func (p calendarIdentityPort) MissingUser(err error) bool {
-	return errors.Is(err, usercontext.ErrUserNotAuthenticated) || errors.Is(err, usercontext.ErrUserNotFound)
+	return errors.Is(err, identityaccess.ErrCallerNotAuthenticated) || errors.Is(err, identityaccess.ErrCallerNotFound)
 }
 func (p calendarIdentityPort) MissingStaff(err error) bool {
-	return p.MissingUser(err) || errors.Is(err, usercontext.ErrUserNotLinkedToPerson) || errors.Is(err, usercontext.ErrUserNotLinkedToStaff)
+	return p.MissingUser(err) || errors.Is(err, identityaccess.ErrCallerNotLinkedToPerson) || errors.Is(err, identityaccess.ErrCallerNotLinkedToStaff)
 }
 
 type calendarOutboxPort struct{ CalendarOutbox }

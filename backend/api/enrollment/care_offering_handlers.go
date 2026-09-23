@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -44,8 +45,12 @@ type CareOfferingResponse struct {
 	SelectionGroup      string                                         `json:"selection_group,omitempty"`
 	SelectionRule       string                                         `json:"selection_rule"`
 	PickupTimes         map[string]string                              `json:"pickup_times,omitempty"`
-	CreatedAt           time.Time                                      `json:"created_at"`
-	UpdatedAt           time.Time                                      `json:"updated_at"`
+	// Translations of Name and Description (#3377). Admin responses carry
+	// every stored translation with its German source; parent-facing
+	// responses only the ones still matching the German text, without source.
+	Translations capability.Translations `json:"translations,omitempty"`
+	CreatedAt    time.Time               `json:"created_at"`
+	UpdatedAt    time.Time               `json:"updated_at"`
 }
 
 // ErrCodeCareOfferingTemplatePeriodMismatch lets the admin frontend map the
@@ -124,6 +129,17 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 	for _, id := range o.AutoAddTriggerOfferingIDs {
 		resp.AutoAddTriggerIDs = append(resp.AutoAddTriggerIDs, strconv.FormatInt(id, 10))
 	}
+	// The document is validated on every write. Should a row still fail to
+	// decode, the offering renders untranslated instead of failing the list.
+	resp.Translations, _ = enrollmentService.CareOfferingTranslations(o)
+	return resp
+}
+
+// toPublicCareOfferingResponse is the parent-facing variant: translations are
+// reduced to those still matching the German text, without their source.
+func toPublicCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingResponse {
+	resp := toCareOfferingResponse(o)
+	resp.Translations, _ = enrollmentService.CareOfferingPublicTranslations(o)
 	return resp
 }
 
@@ -151,6 +167,9 @@ type CareOfferingRequest struct {
 	// PickupTimes is the booking-derived pickup baseline per weekday. Active
 	// offerings that count as care require a value for every selected weekday.
 	PickupTimes map[string]string `json:"pickup_times,omitempty"`
+	// Translations of Name and Description (#3377). The editor always sends
+	// the full document; the service validates it.
+	Translations json.RawMessage `json:"translations,omitempty"`
 }
 
 // Bind satisfies render.Binder. Field-level validation runs in the
@@ -198,6 +217,7 @@ func (req *CareOfferingRequest) toModel(existingID int64) (*enrollmentModels.Car
 		SelectionGroup:            req.SelectionGroup,
 		SelectionRule:             req.SelectionRule,
 		PickupTimes:               req.PickupTimes,
+		Translations:              req.Translations,
 		AutoAddTriggerOfferingIDs: triggerIDs,
 	}
 	o.ID = existingID
@@ -376,15 +396,27 @@ func (rs *Resource) createCareOffering(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) updateCareOffering(w http.ResponseWriter, r *http.Request) {
+	req := &CareOfferingRequest{}
 	updateWithRefetch(rs, w, r, rs.CareOfferingService == nil, "care offering service not configured",
 		func(r *http.Request, id int64) (*enrollmentModels.CareOffering, error) {
-			req := &CareOfferingRequest{}
 			if err := render.Bind(r, req); err != nil {
 				return nil, err
 			}
 			return req.toModel(id)
 		},
 		func(ctx context.Context, model *enrollmentModels.CareOffering) error {
+			// Older callers do not send translations. Preserve their document;
+			// an explicit {} still reaches normalization and clears it.
+			if req.Translations == nil {
+				existing, err := rs.CareOfferingService.GetByID(ctx, model.ID)
+				if err != nil {
+					return err
+				}
+				if existing == nil {
+					return errors.New("care offering service returned no offering")
+				}
+				model.Translations = existing.Translations
+			}
 			return rs.CareOfferingService.Update(ctx, model)
 		},
 		func(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error) {
@@ -408,7 +440,7 @@ func (rs *Resource) deleteCareOffering(w http.ResponseWriter, r *http.Request) {
 		return rs.CareOfferingService.Delete(ctx, id)
 	})
 	if err != nil {
-		// FK violation when request_child_offerings already references
+		// FK violation when a selection or care booking already references
 		// this offering — admin should soft-delete (is_active=false).
 		if common.IsConstraintViolation(err) {
 			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
@@ -500,7 +532,7 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 	schoolClassCfg := toPublicSchoolClassConfig(data.Phase, data.Capabilities.CollectSchoolClass)
 	items := make([]CareOfferingResponse, 0, len(data.Offerings))
 	for _, o := range data.Offerings {
-		items = append(items, toCareOfferingResponse(o))
+		items = append(items, toPublicCareOfferingResponse(o))
 	}
 	capabilities := enrollmentService.EffectiveFormCapabilities(data.Capabilities, data.Offerings)
 	common.Respond(w, r, http.StatusOK, PublicCareOfferingsResponse{
@@ -691,6 +723,9 @@ type PublicPhase struct {
 	// grade_not_eligible — the same reason the offered class list is
 	// narrowed server-side.
 	EligibleGradeLevels []int `json:"eligible_grade_levels"`
+	// Translations holds only name translations that still match the
+	// German name, without their source (#3377).
+	Translations capability.Translations `json:"translations,omitempty"`
 }
 
 func toPublicPhase(p *capability.Phase) PublicPhase {
@@ -704,6 +739,9 @@ func toPublicPhase(p *capability.Phase) PublicPhase {
 		CareOfferingSelectionMode: p.CareOfferingSelectionMode,
 		Audience:                  p.Audience,
 		EligibleGradeLevels:       p.EligibleGradeLevels,
+		Translations: p.Translations.Fresh(map[string]string{
+			capability.TranslationAttrName: p.Name,
+		}),
 	}
 	if entry.EligibleGradeLevels == nil {
 		// Emit [] rather than null so the frontend list binding is stable.
@@ -725,7 +763,7 @@ func toPublicFormSchemaResponse(schema *capability.FormSchema) *PublicFormSchema
 	return &PublicFormSchemaResponse{
 		ID:               strconv.FormatInt(schema.ID, 10),
 		Version:          schema.Version,
-		Fields:           schema.Fields,
+		Fields:           capability.PublicFormFields(schema.Fields),
 		CoreRequirements: coreRequirementsValue(schema.CoreRequirements),
 	}
 }
@@ -783,7 +821,7 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 func BuildPublicEnrollmentFormBootstrapResponse(data *enrollmentService.PublicFormBootstrapData, captcha PublicCaptchaConfigResponse) PublicEnrollmentFormBootstrapResponse {
 	items := make([]CareOfferingResponse, 0, len(data.Offerings))
 	for _, o := range data.Offerings {
-		items = append(items, toCareOfferingResponse(o))
+		items = append(items, toPublicCareOfferingResponse(o))
 	}
 	phase := data.Phase
 	texts := data.LegalTexts

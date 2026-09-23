@@ -6,7 +6,9 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -16,9 +18,9 @@ import (
 func TestSchedulesErrorRenderer_DateframeNotFound(t *testing.T) {
 	t.Parallel()
 
-	err := &careschedule.ScheduleError{
+	err := &careplan.ScheduleError{
 		Op:  "GetDateframe",
-		Err: careschedule.ErrDateframeNotFound,
+		Err: schoolcalendar.ErrDateframeNotFound,
 	}
 
 	renderer := schedulesAPI.SchedulesErrorRenderer(err)
@@ -34,9 +36,9 @@ func TestSchedulesErrorRenderer_DateframeNotFound(t *testing.T) {
 func TestSchedulesErrorRenderer_TimeframeNotFound(t *testing.T) {
 	t.Parallel()
 
-	err := &careschedule.ScheduleError{
+	err := &careplan.ScheduleError{
 		Op:  "GetTimeframe",
-		Err: careschedule.ErrTimeframeNotFound,
+		Err: timetableModule.ErrTimeframeNotFound,
 	}
 
 	renderer := schedulesAPI.SchedulesErrorRenderer(err)
@@ -52,9 +54,9 @@ func TestSchedulesErrorRenderer_TimeframeNotFound(t *testing.T) {
 func TestSchedulesErrorRenderer_TimeframeCareOfferingConflict(t *testing.T) {
 	t.Parallel()
 
-	err := &careschedule.ScheduleError{
+	err := &careplan.ScheduleError{
 		Op:  "UpdateTimeframe",
-		Err: careschedule.ErrTimeframeRequiredByCareOffering,
+		Err: timetableModule.ErrTimeframeRequiredByCareOffering,
 	}
 
 	renderer := schedulesAPI.SchedulesErrorRenderer(err)
@@ -69,9 +71,9 @@ func TestSchedulesErrorRenderer_TimeframeCareOfferingConflict(t *testing.T) {
 func TestSchedulesErrorRenderer_RecurrenceRuleNotFound(t *testing.T) {
 	t.Parallel()
 
-	err := &careschedule.ScheduleError{
+	err := &careplan.ScheduleError{
 		Op:  "GetRecurrenceRule",
-		Err: careschedule.ErrRecurrenceRuleNotFound,
+		Err: timetableModule.ErrRecurrenceRuleNotFound,
 	}
 
 	renderer := schedulesAPI.SchedulesErrorRenderer(err)
@@ -87,9 +89,9 @@ func TestSchedulesErrorRenderer_RecurrenceRuleNotFound(t *testing.T) {
 func TestSchedulesErrorRenderer_InvalidDateRange(t *testing.T) {
 	t.Parallel()
 
-	err := &careschedule.ScheduleError{
+	err := &careplan.ScheduleError{
 		Op:  "ValidateDateRange",
-		Err: careschedule.ErrInvalidDateRange,
+		Err: timetableModule.ErrInvalidRecurrenceRange,
 	}
 
 	renderer := schedulesAPI.SchedulesErrorRenderer(err)
@@ -105,9 +107,9 @@ func TestSchedulesErrorRenderer_InvalidDateRange(t *testing.T) {
 func TestSchedulesErrorRenderer_InvalidTimeRange(t *testing.T) {
 	t.Parallel()
 
-	err := &careschedule.ScheduleError{
+	err := &careplan.ScheduleError{
 		Op:  "ValidateTimeRange",
-		Err: careschedule.ErrInvalidTimeRange,
+		Err: timetableModule.ErrInvalidTimeRange,
 	}
 
 	renderer := schedulesAPI.SchedulesErrorRenderer(err)
@@ -123,9 +125,9 @@ func TestSchedulesErrorRenderer_InvalidTimeRange(t *testing.T) {
 func TestSchedulesErrorRenderer_InvalidDuration(t *testing.T) {
 	t.Parallel()
 
-	err := &careschedule.ScheduleError{
+	err := &careplan.ScheduleError{
 		Op:  "ValidateDuration",
-		Err: careschedule.ErrInvalidDuration,
+		Err: timetableModule.ErrInvalidDuration,
 	}
 
 	renderer := schedulesAPI.SchedulesErrorRenderer(err)
@@ -154,7 +156,7 @@ func TestSchedulesErrorRenderer_UnknownScheduleError(t *testing.T) {
 
 	// ScheduleError with unknown underlying error should fall to default case
 	unknownErr := errors.New("unknown schedule error")
-	err := &careschedule.ScheduleError{
+	err := &careplan.ScheduleError{
 		Op:  "UnknownOperation",
 		Err: unknownErr,
 	}
@@ -189,7 +191,7 @@ func TestSchedulesErrorRenderer_ScheduleErrorNilUnwrap(t *testing.T) {
 	t.Parallel()
 
 	// ScheduleError with nil Err (Unwrap returns nil) should fall to default case
-	err := &careschedule.ScheduleError{
+	err := &careplan.ScheduleError{
 		Op:  "SomeOperation",
 		Err: nil,
 	}

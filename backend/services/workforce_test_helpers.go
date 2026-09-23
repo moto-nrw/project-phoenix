@@ -9,13 +9,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
+	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -50,10 +52,6 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	calendar, err := repositories.NewSchoolCalendar(db)
-	if err != nil {
-		return WorkforceTestModule{}, err
-	}
 	logger := slog.Default()
 	identityAccess, err := lifecycleTestModule(db, unit, GuardianInvitationTestConfig{Audit: command, Logger: logger})
 	if err != nil {
@@ -66,21 +64,24 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
 		PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
 		StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
-		PersonRepo:       repos.Person, RFIDRepo: identity.RFIDCard, AccountRepo: identity.Account, StudentRepo: repos.Student,
+		PersonRepo:       repos.Person, RFIDRepo: identity.RFIDCard, AccountExists: repositories.AccountExists(identityAccess), StudentRepo: repos.Student,
 		StaffRepo: repos.Staff, TeacherRepo: repos.Teacher, LehrkraftRoles: identityRoles, PersonnelNumberAudit: repos.PersonnelNumberChange,
 		StaffMasterDataRepo: repos.StaffMasterData, StaffQualificationRepo: repos.StaffQualification, StaffFinancialRepo: repos.StaffFinancialData,
 		StammdatenAudit: repos.StaffMasterDataChange, DataAccessLog: repos.DataAccessLog, DB: db, SettingsService: settingsService, Logger: logger,
 	})
 	staffDocumentService := users.NewStaffDocumentService(db, repos.StaffDocument, repos.Staff, repos.StaffMasterData, repos.StaffMasterDataChange, repos.DataAccessLog, logger)
-	holidayService := timetableplanning.NewHolidayService(settingsService, schoolCalendarHolidayAdapter{query: calendar}, logger.With("service", "holidays"))
-	closingDayService := timetableplanning.NewClosingDayService(repos.ClosingDay)
-	nonWorkingDayService := timetableplanning.NewNonWorkingDayResolver(holidayService, closingDayService)
+	calendarAdministration := schoolCalendarAdministration(settingsService, func(context.Context) error { return nil }, nil)
+	calendar, err := repositories.NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
+	nonWorkingDayService := nonWorkingDays{calendar: calendar}
 	staffAbsenceTypeService := AbsenceTypes(repos.StaffAbsenceType)
 	timeTrackingEvents := TimeTrackingEvents(realtimeHub)
 	today := timezone.CalendarDateClock(optionalClock(clocks))
-	var shiftPlanSyncer shiftplanning.ShiftPlanSyncer
-	workSessionService := timetracking.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff), NewWorkSessionSchedules(repos.StaffWorkSchedule), NewWorkSessionTimeModels(repos.WorkTimeModel), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
-		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(repos.StaffShift)),
+	var shiftPlanSyncer shiftplansync.SickCascade
+	workSessionService := timetracking.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff, repositories.MustNewStaffEmployment(db)), NewWorkSessionSchedules(repos.StaffWorkSchedule), NewWorkSessionTimeModels(repos.WorkTimeModel), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
+		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(repos.StaffAbsenceType)),
 		timetracking.WithWorkSessionEvents(timeTrackingEvents),
 		timetracking.WithWorkSessionHolidays(nonWorkingDayService),
 		timetracking.WithWorkSessionAbsenceTypes(staffAbsenceTypeService),
@@ -89,10 +90,10 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		repos.WorkSession,
 		repos.WorkSessionBreak,
 		repos.StaffAbsence,
-		StaffScheduleAssignments(repos.Staff),
+		StaffScheduleAssignments(repositories.MustNewStaffEmployment(db)),
 		NewWorkScheduleTargets(repos.StaffWorkSchedule),
 		NewWorkTimeTargetModels(repos.WorkTimeModel),
-		NewTimeTrackingShifts(repos.StaffShift),
+		NewTimeTrackingShifts(repos.StaffAbsenceType),
 		PresenceSettings(settingsService),
 		activeLogger,
 		timetracking.WithMonthHolidays(nonWorkingDayService),
@@ -107,7 +108,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		timetracking.WithAbsenceLogger(activeLogger),
 		timetracking.WithAbsenceDeletionAudit(NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion)),
 		timetracking.WithVacationOpenings(repos.StaffVacationOpening),
-		timetracking.WithAbsenceShiftPlanSyncer(ShiftPlanSyncBridge(func() shiftplanning.ShiftPlanSyncer { return shiftPlanSyncer })),
+		timetracking.WithAbsenceShiftPlanSyncer(shiftplansyncCompose.DeferredSickCascade(func() shiftplansync.SickCascade { return shiftPlanSyncer })),
 		timetracking.WithAbsenceMonthSnapshots(MonthSnapshotCapability(repos.StaffMonthSnapshot)),
 	)
 
@@ -137,7 +138,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		MonthSnapshotCapability(repos.StaffMonthSnapshot),
 		NewWorkScheduleTargets(repos.StaffWorkSchedule),
 		NewWorkTimeTargetModels(repos.WorkTimeModel),
-		NewTimeTrackingShifts(repos.StaffShift),
+		NewTimeTrackingShifts(repos.StaffAbsenceType),
 		PresenceSettings(settingsService),
 		activeLogger,
 		timetracking.WithOverviewHolidays(nonWorkingDayService),
@@ -178,12 +179,26 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	shifts := shiftplanning.NewStaffShiftService(repos.StaffShift, repos.Staff, shiftplanning.NewShiftTypeService(repos.ShiftType, logger), db, logger,
-		shiftplanning.WithStaffShiftSeriesExceptions(repos.StaffShiftSeriesException),
-		shiftplanning.WithStaffShiftDeviationEvents(repos.DeviationEvent),
-		shiftplanning.WithStaffShiftBroadcaster(realtimeHub))
-	shiftPlanSyncer = shiftplanning.NewShiftPlanSyncService(shifts, timetable.Instance, timetable.TimetableData,
-		repos.StaffShift, repos.InstanceStaff, realtimeHub, db, logger, today)
+	// The #1843 sick cascade is the shift-plan-sync workflow over the
+	// Workforce planning composition and the timetable test module, bound
+	// the way the factory binds it (#3418).
+	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
+		Workforce: repos.StaffAbsenceType, Staff: repos.Staff, CalendarPeriods: repos.CalendarPeriod, DeviationEvents: repos.DeviationEvent,
+		Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff, Rooms: repos.Room, ActivityGroups: repos.ActivityGroup,
+		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel, Holidays: nonWorkingDayService,
+		DB: db, Broadcaster: realtimeHub, Logger: logger, Today: today,
+	})
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
+	shiftPlanSyncer, err = shiftplansyncCompose.NewSickCascade(shiftplansyncCompose.SickCascadeDependencies{
+		Planning: planning.Planning(nil), Workforce: repos.StaffAbsenceType, LockStaffShifts: workforceCompose.NewStaffShiftLock(db),
+		Instances: timetable.Instance, TimetableData: timetable.TimetableData, InstanceStaff: repos.InstanceStaff,
+		Broadcaster: realtimeHub, Logger: logger, Today: today,
+	})
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
 	return WorkforceTestModule{Users: usersService, StaffDocuments: staffDocumentService, WorkSession: workSessionService, StaffAbsence: staffAbsenceService, WorkTimeMonth: workTimeMonthService, StaffBalanceAdjust: staffBalanceAdjustService, StaffMonthClose: staffMonthCloseService, StaffOverview: staffOverviewService, TimeTrackingAuditLog: timeTrackingAuditLogService, StaffTimeExport: staffTimeExportService, Settings: settingsService}, nil
 }
 

@@ -211,7 +211,7 @@ Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` struc
 
 ## 9. Auth Code Location — Audit Before Adding
 
-**RULE: Before adding new authentication or authorization code, search both `backend/auth/` and `backend/modules/identityaccess/` (and `modules/identityaccess/legacy/usercontext/`) — match the existing layering rather than creating a third home.**
+**RULE: Before adding new authentication or authorization code, search both `backend/auth/` and `backend/modules/identityaccess/` — match the existing layering rather than creating a third home.**
 
 `backend/auth/` is NOT legacy. It contains structured low-level utility packages:
 
@@ -228,7 +228,8 @@ because packages outside the module still import it; do not move it back.
 
 - New low-level primitive (hash, parse, verify)? → `backend/auth/{subdomain}/`
 - New business flow (login, invite, reset)? → `backend/modules/identityaccess/`
-- New permission decision? → `backend/auth/authorize/policy/` (`modules/identityaccess/legacy/usercontext/` is the retained user-context read side under #2725: do not extend it)
+- New permission decision? → `backend/auth/authorize/policy/`
+- Who is the caller, what do they reach? → the caller context (`identityaccess.CallerContext`); consumers declare their own port and bind it at the composition root
 - Handler needs to authorize? → call the service or middleware, never decide inline
 
 ---
@@ -265,7 +266,7 @@ Cross-repo / cross-schema cleanup operations that genuinely don't fit a single r
 
 ### Handler-side transactions (`tenant.WithTenantTx` in `api/`)
 
-A `tenant.WithTenantTx` closure in a handler is usually the smell of a missing service method — multi-step writes belong in a service method that the handler's transaction wraps as ONE call (see `UpdateGroupWithDetails`, #575 B10). The exception is a genuine cross-service composition with no natural owner: `createStudent` atomically composes Guardian + Person + Student + Arrival/Pickup-schedule services (the latter live in `modules/careplan/legacy/careschedule`, so a `services/users` orchestrator would import-cycle), and `updateStudent`'s locked-row invariants include an in-tx re-authorization against the caller's JWT permissions — HTTP-bound policy that doesn't belong in a service. Those handler-side transactions are sanctioned; new ones need the same written justification.
+A `tenant.WithTenantTx` closure in a handler is usually the smell of a missing service method — multi-step writes belong in a service method that the handler's transaction wraps as ONE call (see `UpdateGroupWithDetails`, #575 B10). The exception is a genuine cross-service composition with no natural owner: `createStudent` atomically composes Guardian + Person + Student + Arrival/Pickup-schedule services (the latter are native Care Plan capabilities bound at the composition root since #3351, so a `services/users` orchestrator would import-cycle), and `updateStudent`'s locked-row invariants include an in-tx re-authorization against the caller's JWT permissions — HTTP-bound policy that doesn't belong in a service. Those handler-side transactions are sanctioned; new ones need the same written justification.
 
 ### Why
 
@@ -293,10 +294,10 @@ The four violations this rule originally named were all extracted in issue #586 
 
 | Was in model | Now lives at |
 |---|---|
-| `Visit.EndVisit()` | `modules/studentpresence/legacy/services/active/` (with logging, events, audit) |
+| `Visit.EndVisit()` | `modules/studentpresence/internal/application/presence/` (with logging, events, audit) |
 | `Device.IsOnline()` (hardcoded 5 min) | service + `iot.device_online_window_minutes` setting |
 | `Group` default duration (hardcoded 30 min) | settings registry |
-| `Account.HasPermission()` | `modules/identityaccess/legacy/usercontext` / `backend/auth/authorize` |
+| `Account.HasPermission()` | `modules/identityaccess` caller context / `backend/auth/authorize` |
 
 Remaining known hits: `RFIDCard.Activate/Deactivate` (`models/users/rfid_card.go`) — don't copy that pattern.
 

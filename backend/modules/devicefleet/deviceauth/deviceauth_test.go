@@ -95,15 +95,6 @@ func (s fakeSettings) ResolveStringForTenant(_ context.Context, tenantID int64, 
 	return s.pins[tenantID], nil
 }
 
-// staffRow stands in for the retained people-directory staff row.
-type staffRow struct {
-	id       int64
-	tenantID int64
-}
-
-func (r *staffRow) GetID() any         { return r.id }
-func (r *staffRow) GetTenantID() int64 { return r.tenantID }
-
 type stubNetError struct{}
 
 func (stubNetError) Error() string   { return "network error" }
@@ -330,101 +321,38 @@ func TestDevice_MissingPIN(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), `"error":"staff PIN is required"`)
 }
 
-// =============================================================================
-// Staff PIN adapter
-// =============================================================================
-
-func TestStaffPIN_BindsVerifiedStaff(t *testing.T) {
-	t.Parallel()
-
-	fleet := newFakeFleet()
-	fleet.add("kiosk-key", activeDevice(8, "kiosk"))
-	var verified struct {
-		tenantID, staffID int64
-		pin               string
-	}
-	verify := func(_ context.Context, tenantID, staffID int64, pin string) (*staffRow, error) {
-		verified.tenantID, verified.staffID, verified.pin = tenantID, staffID, pin
-		return &staffRow{id: staffID, tenantID: tenantID}, nil
-	}
-	var staff *device.AuthenticatedStaff
-	handler := router(New(Dependencies{Devices: fleet, FallbackPIN: "1234", StaffPIN: StaffPIN(verify)}).Device(), func(w http.ResponseWriter, r *http.Request) {
-		staff = device.StaffFromCtx(r.Context())
-		w.WriteHeader(http.StatusOK)
-	})
-
-	rr := serve(handler, request(http.MethodPost, "kiosk-key", map[string]string{
-		"X-Staff-PIN": "1234", "X-Staff-ID": "42", "X-Staff-Auth-PIN": "personal",
-	}))
-
-	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	require.NotNil(t, staff)
-	assert.Equal(t, int64(42), staff.ID)
-	assert.Equal(t, testTenantID, staff.TenantID)
-	assert.Equal(t, testTenantID, verified.tenantID)
-	assert.Equal(t, int64(42), verified.staffID)
-	assert.Equal(t, "personal", verified.pin)
-}
-
-func TestStaffPIN_Rejections(t *testing.T) {
+// Kiosks share one device PIN, so the staff headers a client sends are
+// caller-controlled. They must neither reject the request nor bind a staff
+// identity (#3310).
+func TestDevice_StaffHeadersNeverBindStaff(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		verify func(context.Context, int64, int64, string) (*staffRow, error)
+		name    string
+		headers map[string]string
 	}{
-		{"verification error", func(context.Context, int64, int64, string) (*staffRow, error) {
-			return nil, errors.New("invalid credential")
-		}},
-		{"nil row", func(context.Context, int64, int64, string) (*staffRow, error) { return nil, nil }},
-		{"cross-tenant row", func(_ context.Context, _, staffID int64, _ string) (*staffRow, error) {
-			return &staffRow{id: staffID, tenantID: 8}, nil
-		}},
-		{"unusable id", func(context.Context, int64, int64, string) (*staffRow, error) {
-			return &staffRow{id: 0, tenantID: 7}, nil
-		}},
+		{"staff id alone", map[string]string{"X-Staff-PIN": "1234", "X-Staff-ID": "42"}},
+		{"staff id with a personal PIN", map[string]string{"X-Staff-PIN": "1234", "X-Staff-ID": "42", "X-Staff-Auth-PIN": "personal"}},
+		{"personal PIN alone", map[string]string{"X-Staff-PIN": "1234", "X-Staff-Auth-PIN": "personal"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			fleet := newFakeFleet()
-			fleet.add("kiosk-key", activeDevice(9, "kiosk"))
-			handler := router(New(Dependencies{Devices: fleet, FallbackPIN: "1234", StaffPIN: StaffPIN(tc.verify)}).Device(), func(http.ResponseWriter, *http.Request) {
-				t.Fatal("unverified staff must not reach the handler")
+			fleet.add("kiosk-key", activeDevice(10, "kiosk"))
+			served := false
+			handler := router(New(Dependencies{Devices: fleet, FallbackPIN: "1234"}).Device(), func(w http.ResponseWriter, r *http.Request) {
+				served = true
+				assert.Nil(t, device.StaffFromCtx(r.Context()))
+				assert.NotNil(t, device.DeviceFromCtx(r.Context()))
+				w.WriteHeader(http.StatusOK)
 			})
-			rr := serve(handler, request(http.MethodPost, "kiosk-key", map[string]string{
-				"X-Staff-PIN": "1234", "X-Staff-ID": "42", "X-Staff-Auth-PIN": "personal",
-			}))
-			assert.Equal(t, http.StatusUnauthorized, rr.Code)
-			assert.Contains(t, rr.Body.String(), `"error":"invalid staff PIN"`)
+			rr := serve(handler, request(http.MethodPost, "kiosk-key", tc.headers))
+			assert.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+			assert.True(t, served)
 		})
 	}
-}
-
-func TestStaffPIN_NilVerifier(t *testing.T) {
-	t.Parallel()
-
-	var verify func(context.Context, int64, int64, string) (*staffRow, error)
-	assert.Nil(t, StaffPIN(verify))
-}
-
-func TestDevice_LegacyStaffIDWithoutCredentialIsIgnored(t *testing.T) {
-	t.Parallel()
-
-	fleet := newFakeFleet()
-	fleet.add("kiosk-key", activeDevice(10, "kiosk"))
-	calls := 0
-	verify := func(context.Context, int64, int64, string) (*staffRow, error) {
-		calls++
-		return &staffRow{id: 42, tenantID: 7}, nil
-	}
-	handler := router(New(Dependencies{Devices: fleet, FallbackPIN: "1234", StaffPIN: StaffPIN(verify)}).Device(), func(w http.ResponseWriter, r *http.Request) {
-		assert.Nil(t, device.StaffFromCtx(r.Context()))
-		w.WriteHeader(http.StatusOK)
-	})
-	rr := serve(handler, request(http.MethodPost, "kiosk-key", map[string]string{"X-Staff-PIN": "1234", "X-Staff-ID": "42"}))
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Zero(t, calls)
 }
 
 // =============================================================================

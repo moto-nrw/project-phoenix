@@ -21,10 +21,10 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -563,7 +563,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	now := rs.Now()
 	rs.applyStatusDaysForDateToResponse(r.Context(), &response.StudentResponse, now)
 
-	attendances := map[int64]*activeService.AttendanceStatus{}
+	attendances := map[int64]*studentpresence.DailyAttendanceStatus{}
 	if hasFullAccess {
 		attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
 		if err != nil {
@@ -931,6 +931,12 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		// transaction has already rolled back, so no partial data survives.
 		if errors.Is(err, peopleModule.ErrInvalidGuardian) {
 			renderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		// A full Kinderkontingent (#3567) is a business rejection with
+		// its own code; the form keeps its input and shows the numbers.
+		if common.IsBusinessRejection(err) {
+			renderError(w, r, common.ErrorBusinessRejection(err))
 			return
 		}
 		renderError(w, r, common.ErrorInternalServer(err))
@@ -1523,7 +1529,7 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 		return common.ErrorForbidden(errors.New("insufficient permissions to update this student's data"))
 	case errors.Is(err, errStudentNotFoundUnderLock):
 		return common.ErrorNotFound(errors.New("student not found"))
-	case errors.Is(err, activeService.ErrStudentStatusDayPartialAbsenceConflict):
+	case errors.Is(err, studentpresence.ErrStudentStatusDayPartialAbsenceConflict):
 		return common.ErrorConflictWithCode(err, "partial_absence_conflict")
 	// The merged plan (request modes applied onto the stored row) can violate
 	// the accompanied-requires-note invariant — e.g. a caller sets a "Mit
@@ -1545,16 +1551,16 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 	// Companion input the client should not have sent: a day the child's own
 	// plan does not allow, a duplicate, a self-link, an unknown child. All 4xx,
 	// with the German sentinel text going straight to the UI.
-	case errors.Is(err, carelifecycle.ErrCompanionNotFound):
+	case errors.Is(err, careplan.ErrCompanionNotFound):
 		return common.ErrorNotFound(err)
-	case errors.Is(err, carelifecycle.ErrCompanionDayNotAllowed),
-		errors.Is(err, carelifecycle.ErrDuplicateCompanion),
-		errors.Is(err, carelifecycle.ErrCompanionWeekdayRequired),
-		errors.Is(err, carelifecycle.ErrTooManyCompanions),
-		errors.Is(err, carelifecycle.ErrCompanionAtLimit),
-		errors.Is(err, users.ErrCompanionSelfLink),
-		errors.Is(err, users.ErrCompanionStudentIDRequired),
-		errors.Is(err, users.ErrCompanionInvalidWeekday):
+	case errors.Is(err, careplan.ErrCompanionDayNotAllowed),
+		errors.Is(err, careplan.ErrDuplicateCompanion),
+		errors.Is(err, careplan.ErrCompanionWeekdayRequired),
+		errors.Is(err, careplan.ErrTooManyCompanions),
+		errors.Is(err, careplan.ErrCompanionAtLimit),
+		errors.Is(err, careplan.ErrCompanionSelfLink), errors.Is(err, users.ErrCompanionSelfLink),
+		errors.Is(err, careplan.ErrCompanionStudentIDRequired), errors.Is(err, users.ErrCompanionStudentIDRequired),
+		errors.Is(err, careplan.ErrCompanionInvalidWeekday), errors.Is(err, users.ErrCompanionInvalidWeekday):
 		return common.ErrorInvalidRequest(err)
 	// The two sentinels every departure-plan write shares (stranded companion,
 	// locked companion row) — classified once, in companionPlanErrorRenderer.

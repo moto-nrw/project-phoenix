@@ -29,7 +29,7 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(reviewPermissions,
 		repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -47,9 +47,9 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 
 	// The child graduates (grade-transition apply).
 	_, err = db.NewUpdate().
-		TableExpr("users.students").
+		TableExpr("users.student_school_memberships").
 		Set("status = ?", string(userModels.StudentStatusAlumnus)).
-		Where("id = ?", chain.StudentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", chain.StudentID).
 		Exec(context.Background())
 	require.NoError(t, err)
 

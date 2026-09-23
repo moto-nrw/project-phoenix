@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -40,12 +40,12 @@ func (s plannedNowBudgetPersonService) GetStaffWithPersonByIDs(context.Context, 
 
 type plannedNowBudgetCareDayService struct{}
 
-func (plannedNowBudgetCareDayService) ResolveForDate(context.Context, []int64, timezone.Date) (map[int64]careschedule.CareDayStatus, error) {
-	return map[int64]careschedule.CareDayStatus{}, nil
+func (plannedNowBudgetCareDayService) ResolveForDate(context.Context, []int64, timezone.Date) (map[int64]careplan.CareDayStatus, error) {
+	return map[int64]careplan.CareDayStatus{}, nil
 }
 
-func (plannedNowBudgetCareDayService) ResolveForRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64]map[timezone.Date]careschedule.CareDayStatus, error) {
-	return map[int64]map[timezone.Date]careschedule.CareDayStatus{}, nil
+func (plannedNowBudgetCareDayService) ResolveForRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64]map[timezone.Date]careplan.CareDayStatus, error) {
+	return map[int64]map[timezone.Date]careplan.CareDayStatus{}, nil
 }
 
 type plannedNowBudgetSettings struct{}

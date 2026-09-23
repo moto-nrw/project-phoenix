@@ -40,10 +40,16 @@ func renderPeopleDirectoryFailure(w http.ResponseWriter, r *http.Request, kind u
 }
 
 func guardianFailureKind(kind services.GuardianFailureKind) usersAPI.FailureKind {
-	if kind == services.GuardianFailureForbidden {
+	switch kind {
+	case services.GuardianFailureConflict:
+		return usersAPI.FailureConflict
+	case services.GuardianFailureForbidden:
 		return usersAPI.FailureForbidden
+	case services.GuardianFailureInvalidRequest:
+		return usersAPI.FailureInvalidRequest
+	default:
+		return usersAPI.FailureInternal
 	}
-	return usersAPI.FailureInvalidRequest
 }
 
 // newGuardiansResource binds the guardian HTTP adapter over the People
@@ -121,6 +127,7 @@ func newGuardiansResource(module peopleModule.Capability, runtime services.Guard
 				InvitationID: result.InvitationID, ExistingRole: result.ExistingRole,
 			}, nil
 		},
+		BulkInviteGuardians: bulkInviteGuardians(runtime),
 		InviteFailureKind: func(err error) usersAPI.FailureKind {
 			return guardianFailureKind(services.ClassifyGuardianInvitationFailure(err))
 		},
@@ -154,4 +161,26 @@ func newGuardiansResource(module peopleModule.Capability, runtime services.Guard
 
 		Log: logger,
 	})
+}
+
+// bulkInviteGuardians maps the bulk invitation (#3378) between the adapter's
+// contract and the runtime's.
+func bulkInviteGuardians(runtime services.GuardianDirectoryRuntime) func(context.Context, usersAPI.GuardianBulkInvite) (usersAPI.GuardianBulkInviteResult, error) {
+	return func(ctx context.Context, input usersAPI.GuardianBulkInvite) (usersAPI.GuardianBulkInviteResult, error) {
+		result, err := runtime.BulkInviteGuardians(ctx, services.GuardianBulkInviteRequest{
+			StudentIDs: input.StudentIDs, CreatedBy: input.ActorAccountID, ResendOpen: input.ResendOpen, DryRun: input.DryRun,
+		})
+		if err != nil {
+			return usersAPI.GuardianBulkInviteResult{}, err
+		}
+		problems := make([]usersAPI.GuardianBulkInviteProblem, 0, len(result.Problems))
+		for _, problem := range result.Problems {
+			problems = append(problems, usersAPI.GuardianBulkInviteProblem(problem))
+		}
+		return usersAPI.GuardianBulkInviteResult{
+			Invited: result.Invited, LinkedExistingAccount: result.LinkedExistingAccount, Resent: result.Resent,
+			SkippedActive: result.SkippedActive, SkippedOpen: result.SkippedOpen,
+			SkippedRestricted: result.SkippedRestricted, Problems: problems,
+		}, nil
+	}
 }

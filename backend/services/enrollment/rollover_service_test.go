@@ -9,6 +9,7 @@ import (
 	"time"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +20,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -30,6 +30,7 @@ import (
 type rolloverTestEnv struct {
 	db             *bun.DB
 	repos          *repositories.Factory
+	timetable      timetable.Capability
 	rolloverSvc    enrollmentService.RolloverService
 	requestSvc     enrollmentService.RequestService
 	offeringCloner enrollmentService.RolloverOfferingCatalogCloner
@@ -42,9 +43,6 @@ type rolloverTestEnv struct {
 func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	lock, notFound, err := repositories.NewCareStudentLock(db)
-	require.NoError(t, err)
-	careschedule.BindCareStudentLockForDB(db, lock, notFound)
 	// Close the pool after all fixture cleanups registered by the test. The
 	// decision-service tests reuse this setup and may register additional
 	// t.Cleanup hooks (for example calendar periods); closing inside the
@@ -52,7 +50,8 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	// into subsequent tests in the package-isolated database.
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	timetableDeps := repositories.NewUnobservedTimetableDependencies(db)
+	repoFactory := repositories.NewFactory(db, timetableDeps)
 	settings := newStubRequestSettings()
 	settings.boolValues[configModel.KeyEnrollmentEnabled] = true
 	settings.boolValues[configModel.KeyEnrollmentAllowSubmissionEdit] = true
@@ -80,7 +79,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 		Bookings:         requestTestBookingCommands(),
 		Requests:         repoFactory.Enrollment(),
 		Children:         repoFactory.Enrollment(),
-		CareOfferingRepo: repoFactory.CareOffering,
+		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		Catalog:          repoFactory.Enrollment(),
 		SchoolRepo:       factorySchools{repos: repoFactory},
 		RateLimitRepo:    repoFactory.Enrollment(),
@@ -93,7 +92,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	})
 
 	careOfferingSvc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
-		Repo:                  repoFactory.CareOffering,
+		Repo:                  enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		Bookings:              repoFactory.Enrollment(),
 		ActivityGroupRepo:     repoFactory.ActivityGroup,
 		ActivityScheduleRepo:  repoFactory.ActivitySchedule,
@@ -147,6 +146,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	env := &rolloverTestEnv{
 		db:             db,
 		repos:          repoFactory,
+		timetable:      timetableDeps.Capability,
 		rolloverSvc:    rolloverSvc,
 		requestSvc:     requestSvc,
 		offeringCloner: offeringCloner,
@@ -166,7 +166,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 				WHERE tenant_id = ?
 				  AND (id = ? OR rollover_source_phase_id = ?)
 			)
-			DELETE FROM enrollment.request_child_offerings rco
+			DELETE FROM enrollment.care_offering_bookings rco
 			USING enrollment.request_children rc, enrollment.requests r, phase_scope ps
 			WHERE rco.request_child_id = rc.id
 			  AND rc.request_id = r.id

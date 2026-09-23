@@ -59,6 +59,22 @@ function toStr(v: unknown): string {
   return JSON.stringify(v);
 }
 
+/**
+ * What an optional time setting shows while it is empty. „Jederzeit“ fits a
+ * time that limits something; a lesson without an end time (#3372) or a care
+ * time preset (#3371) limits nothing, it is just not maintained.
+ */
+const NOT_ENTERED_TIME_PREFIXES = ["school_periods.", "care_times."];
+
+function emptyTimeLabel(setting: ResolvedSetting): string | undefined {
+  if (setting.default !== "") return undefined;
+  return NOT_ENTERED_TIME_PREFIXES.some((prefix) =>
+    setting.key.startsWith(prefix),
+  )
+    ? "Nicht eingetragen"
+    : "Jederzeit";
+}
+
 const REQUIRED_ENROLLMENT_LEGAL_TEXT_ERROR =
   "Dieser Text oder eine PDF-Datei ist erforderlich, solange der Block im Anmeldeformular angezeigt wird.";
 
@@ -1466,7 +1482,7 @@ function renderField(
           onChange={onLocalChange}
           onBlur={onBlur}
           disabled={disabled}
-          emptyLabel={setting.default === "" ? "Jederzeit" : undefined}
+          emptyLabel={emptyTimeLabel(setting)}
         />
       );
     case "date":

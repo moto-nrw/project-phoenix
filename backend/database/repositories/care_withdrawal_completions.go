@@ -11,47 +11,37 @@ import (
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
 // careWithdrawalCompletionRepository preserves the retained users model
 // contract over the Care Plan owner, which persists
-// users.care_withdrawal_completions (#3221). The list queries take the
-// children's names and classes from the People Directory capability. It
-// contains no persistence of its own.
+// users.care_withdrawal_completions (#3221). The owner's list queries join
+// the children's names and classes from the named student directory
+// projection. It contains no persistence of its own.
 type careWithdrawalCompletionRepository struct {
 	carePlan func() careplan.Capability
-	students func() peopledirectory.StudentQuery
 }
 
 var _ userModels.CareWithdrawalCompletionRepository = careWithdrawalCompletionRepository{}
 
-// newCareWithdrawalCompletionRepository adapts the owner capabilities to the
-// legacy model contract. Both are read on every call rather than captured, so
-// the factory may bind them after construction and a later BindCarePlan or
-// BindPeopleDirectory reaches this adapter without rewiring it. An unbound
-// capability fails the call in owners(); it is not a construction error.
-func newCareWithdrawalCompletionRepository(
-	carePlan func() careplan.Capability, students func() peopledirectory.StudentQuery,
-) userModels.CareWithdrawalCompletionRepository {
-	if carePlan == nil || students == nil {
-		panic("care withdrawal repository: Care Plan and People Directory bindings are required")
+// newCareWithdrawalCompletionRepository adapts the owner capability to the
+// legacy model contract. It is read on every call rather than captured, so
+// the factory may bind it after construction and a later BindCarePlan
+// reaches this adapter without rewiring it. An unbound capability fails the
+// call in owner(); it is not a construction error.
+func newCareWithdrawalCompletionRepository(carePlan func() careplan.Capability) userModels.CareWithdrawalCompletionRepository {
+	if carePlan == nil {
+		panic("care withdrawal repository: Care Plan binding is required")
 	}
-	return careWithdrawalCompletionRepository{carePlan: carePlan, students: students}
-}
-
-func (r careWithdrawalCompletionRepository) owners() (careplan.Capability, peopledirectory.StudentQuery, error) {
-	carePlan, students := r.carePlan(), r.students()
-	if carePlan == nil || students == nil {
-		return nil, nil, errors.New("care withdrawal repository: Care Plan and People Directory capabilities are not bound")
-	}
-	return carePlan, students, nil
+	return careWithdrawalCompletionRepository{carePlan: carePlan}
 }
 
 func (r careWithdrawalCompletionRepository) owner() (careplan.Capability, error) {
-	carePlan, _, err := r.owners()
-	return carePlan, err
+	carePlan := r.carePlan()
+	if carePlan == nil {
+		return nil, errors.New("care withdrawal repository: Care Plan capability is not bound")
+	}
+	return carePlan, nil
 }
 
 func (r careWithdrawalCompletionRepository) UpsertPending(ctx context.Context, completion *userModels.CareWithdrawalCompletion) error {
@@ -121,20 +111,12 @@ func (r careWithdrawalCompletionRepository) ListResolved(
 func (r careWithdrawalCompletionRepository) list(
 	ctx context.Context, state string, filter userModels.CareWithdrawalCompletionFilter, operation string,
 ) ([]*userModels.CareWithdrawalCompletion, int, error) {
-	carePlan, students, err := r.owners()
+	carePlan, err := r.owner()
 	if err != nil {
 		return nil, 0, err
 	}
-	studentIDs, err := carePlan.ListWithdrawalStudentIDs(ctx, state, filter.StudentID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("%s: %w", operation, err)
-	}
-	directory, err := withdrawalStudents(ctx, students, studentIDs)
-	if err != nil {
-		return nil, 0, fmt.Errorf("%s: %w", operation, err)
-	}
 	ownerFilter := careplan.WithdrawalListFilter{
-		Search: filter.Search, StudentID: filter.StudentID, Page: filter.Page, PageSize: filter.PageSize, Students: directory,
+		Search: filter.Search, StudentID: filter.StudentID, Page: filter.Page, PageSize: filter.PageSize,
 	}
 	var values []careplan.WithdrawalCompletion
 	var total int
@@ -155,35 +137,6 @@ func (r careWithdrawalCompletionRepository) list(
 		rows = append(rows, row)
 	}
 	return rows, total, nil
-}
-
-// withdrawalStudents resolves the directory rows the list queries join: every
-// tenant student with its class, and its name when the person row exists.
-func withdrawalStudents(ctx context.Context, students peopledirectory.StudentQuery, ids []int64) ([]careplan.WithdrawalStudent, error) {
-	result := []careplan.WithdrawalStudent{}
-	if len(ids) == 0 {
-		return result, nil
-	}
-	rows, err := students.ListStudentsByID(ctx, ids)
-	if err != nil || len(rows) == 0 {
-		return result, err
-	}
-	names, err := students.ListStudentNamesByID(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	nameByStudent := make(map[int64]peopledirectory.StudentName, len(names))
-	for _, name := range names {
-		nameByStudent[name.StudentID] = name
-	}
-	for _, row := range rows {
-		value := careplan.WithdrawalStudent{ID: row.ID, SchoolClass: row.SchoolClass}
-		if name, ok := nameByStudent[row.ID]; ok {
-			value.FirstName, value.LastName = &name.FirstName, &name.LastName
-		}
-		result = append(result, value)
-	}
-	return result, nil
 }
 
 func (r careWithdrawalCompletionRepository) ListPendingByStudentIDs(
@@ -219,8 +172,8 @@ func (r careWithdrawalCompletionRepository) ListPendingByStudentIDs(
 // end costs no extra statement.
 func (r careWithdrawalCompletionRepository) ListParticipationBoundaries(
 	ctx context.Context, students map[int64]*userModels.Student, includeBookingBoundaries bool,
-) (map[int64]carePlanLegacy.ScheduleDate, error) {
-	boundaries := make(map[int64]carePlanLegacy.ScheduleDate, len(students))
+) (map[int64]userModels.CalendarDate, error) {
+	boundaries := make(map[int64]userModels.CalendarDate, len(students))
 	if len(students) == 0 {
 		return boundaries, nil
 	}
@@ -234,13 +187,13 @@ func (r careWithdrawalCompletionRepository) ListParticipationBoundaries(
 		return nil, fmt.Errorf("list care participation boundaries: %w", err)
 	}
 	for _, studentID := range studentIDs {
-		var boundary carePlanLegacy.ScheduleDate
+		var boundary userModels.CalendarDate
 		found := false
 		if student := students[studentID]; student != nil && student.EnrolledUntil != nil && !student.EnrolledUntil.IsZero() {
 			boundary, found = student.EnrolledUntil.AddDays(1), true
 		}
 		if day, ok := pending[studentID]; ok {
-			completion := carePlanLegacy.ScheduleDate(day)
+			completion := userModels.CalendarDate(day)
 			if !found || completion.Before(boundary) {
 				boundary = completion
 			}
@@ -297,7 +250,7 @@ func (r careWithdrawalCompletionRepository) MarkDeleted(ctx context.Context, id,
 
 // MarkObsoleteForRebooking atomically applies the no-gap domain predicate.
 func (r careWithdrawalCompletionRepository) MarkObsoleteForRebooking(
-	ctx context.Context, studentID int64, careStartsOn carePlanLegacy.ScheduleDate, at time.Time,
+	ctx context.Context, studentID int64, careStartsOn userModels.CalendarDate, at time.Time,
 ) (bool, error) {
 	carePlan, err := r.owner()
 	if err != nil {
@@ -358,7 +311,7 @@ func withdrawalCompletionToPublic(completion *userModels.CareWithdrawalCompletio
 
 func withdrawalCompletionToLegacy(value careplan.WithdrawalCompletion) (*userModels.CareWithdrawalCompletion, error) {
 	row := &userModels.CareWithdrawalCompletion{
-		StudentID: value.StudentID, FirstBookinglessDay: carePlanLegacy.ScheduleDate(value.FirstBookinglessDay),
+		StudentID: value.StudentID, FirstBookinglessDay: userModels.CalendarDate(value.FirstBookinglessDay),
 		Trigger: value.Trigger, SourceAdjustmentID: value.SourceAdjustmentID,
 		SourceRequestChildID: value.SourceRequestChildID, WithdrawalConfirmedBy: value.WithdrawalConfirmedBy,
 		WithdrawalConfirmedRole: value.WithdrawalConfirmedRole, WithdrawalConfirmedAt: value.WithdrawalConfirmedAt,

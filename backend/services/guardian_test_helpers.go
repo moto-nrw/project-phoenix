@@ -70,8 +70,8 @@ func NewGuardianTestModule(db *bun.DB, unit tenant.UnitOfWork) (GuardianTestModu
 	}, slog.Default())
 	guardian := users.NewGuardianService(users.GuardianServiceDependencies{
 		GuardianProfileRepo: r.GuardianProfile, GuardianPhoneNumberRepo: g.Phone, StudentGuardianRepo: r.StudentGuardian,
-		GuardianInvitations: newGuardianInvitationReads(func() identityaccess.GuardianInvitations { return auth.AccountAuthentication }), AccountRepo: r.Account,
-		AccountTenantRepo: r.AccountTenant, AccountRoleRepo: r.AccountRole, RoleRepo: r.Role, StudentRepo: r.Student, PersonRepo: r.Person,
+		GuardianInvitations: newGuardianInvitationReads(func() identityaccess.GuardianInvitations { return auth.AccountAuthentication }),
+		StudentRepo:         r.Student, PersonRepo: r.Person,
 		GuardianFinancialRepo: g.Financial, GuardianFinancialAudit: g.FinancialAudit, DataAccessLog: g.AccessLog,
 		Mailer: mailer, Dispatcher: email.NewDispatcher(mailer, slog.Default()), FrontendURL: cfg.FrontendURL, DefaultFrom: from,
 		InvitationExpiry: time.Duration(hours) * time.Hour, MailIdentity: mailIdentity, DB: db,

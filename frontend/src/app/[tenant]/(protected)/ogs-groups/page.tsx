@@ -939,7 +939,13 @@ function OGSGroupPageContent() {
                         />
                       )}
                       {studentAbsence && !student.actual_pickup_time ? (
-                        <StudentAbsenceRow label={studentAbsence.label} />
+                        <StudentAbsenceRow
+                          label={studentAbsence.label}
+                          note={combineTimeNotes(
+                            studentPickup?.notes,
+                            studentPickup?.dayNotes,
+                          )}
+                        />
                       ) : (
                         (() => {
                           const dayPlanningNotComingLabel =
@@ -951,6 +957,10 @@ function OGSGroupPageContent() {
                             return (
                               <StudentAbsenceRow
                                 label={dayPlanningNotComingLabel}
+                                note={combineTimeNotes(
+                                  studentPickup?.notes,
+                                  studentPickup?.dayNotes,
+                                )}
                               />
                             );
                           }
@@ -1226,7 +1236,13 @@ export default function OGSGroupPage() {
 
 function OGSGroupPageGuarded() {
   return (
-    <RoleGuard variant="staffOrAdmin" fallback={<OgsGroupsPageSkeleton />}>
+    <RoleGuard
+      variant="staffOrAdmin"
+      // Eine Betreuungsrolle, die die Schule selbst anlegt, heißt nicht
+      // „user“; die Gruppen liest das Backend mit groups:read (#3469).
+      permission="groups:read"
+      fallback={<OgsGroupsPageSkeleton />}
+    >
       <Suspense fallback={<OgsGroupsPageSkeleton />}>
         <SSEErrorBoundary>
           <OGSGroupPageContent />

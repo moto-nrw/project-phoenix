@@ -17,7 +17,7 @@ type CLIDependencies struct {
 
 func RunCLI(args []string, dependencies CLIDependencies) error {
 	if len(args) == 0 {
-		return fmt.Errorf("command is required: check, explain, diagram, dependencies, audit-issues, or validate-ticket")
+		return fmt.Errorf("command is required: check, explain, diagram, dependencies, cycles, audit-issues, or validate-ticket")
 	}
 
 	switch args[0] {
@@ -31,10 +31,12 @@ func RunCLI(args []string, dependencies CLIDependencies) error {
 		return runDiagram(args[1:])
 	case "dependencies":
 		return runDependencies(args[1:])
+	case "cycles":
+		return runCycles(args[1:])
 	case "validate-ticket":
 		return runValidateMigrationTicket(args[1:], dependencies)
 	default:
-		return fmt.Errorf("unknown command %q: expected check, explain, diagram, dependencies, audit-issues, or validate-ticket", args[0])
+		return fmt.Errorf("unknown command %q: expected check, explain, diagram, dependencies, cycles, audit-issues, or validate-ticket", args[0])
 	}
 }
 
@@ -144,6 +146,7 @@ func compareWithBase(options checkOptions, policy *Policy, manifest *LegacyManif
 
 func runAuditIssues(args []string, dependencies CLIDependencies) error {
 	flags := flag.NewFlagSet("audit-issues", flag.ContinueOnError)
+	policyPath := flags.String("policy", filepath.Join("architecture", "policy.json"), "architecture policy")
 	baselinePath := flags.String("baseline", "", "exact legacy JSONL baseline")
 	apiURL := flags.String("api-url", "", "GitHub API base URL")
 	if err := flags.Parse(args); err != nil {
@@ -156,6 +159,10 @@ func runAuditIssues(args []string, dependencies CLIDependencies) error {
 	if err != nil {
 		return err
 	}
+	policy, err := LoadPolicy(*policyPath)
+	if err != nil {
+		return err
+	}
 	if dependencies.IssueClient == nil {
 		return fmt.Errorf("audit-issues requires an issue client dependency")
 	}
@@ -163,11 +170,11 @@ func runAuditIssues(args []string, dependencies CLIDependencies) error {
 	if getenv == nil {
 		getenv = os.Getenv
 	}
-	result, err := AuditLegacyIssues(context.Background(), dependencies.IssueClient, *apiURL, getenv("GITHUB_TOKEN"), manifest)
+	result, err := AuditLegacyIssues(context.Background(), dependencies.IssueClient, *apiURL, getenv("GITHUB_TOKEN"), manifest, policy)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("issue audit passed: %d open migration issue(s) cover %d legacy violation(s)\n", result.Issues, result.Entries)
+	fmt.Printf("issue audit passed: %d open migration issue(s) cover %d legacy violation(s) and %d temporary rule(s)\n", result.Issues, result.Entries, result.Rules)
 	return nil
 }
 

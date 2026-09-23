@@ -17,7 +17,7 @@ type settingsSource interface {
 
 // presenceSettings answers the presence and workforce services' settings
 // questions by name. Holding the registry keys here rather than in
-// modules/studentpresence/legacy/services/active keeps the settings vocabulary with its owner and turns a
+// modules/studentpresence/internal/application/presence keeps the settings vocabulary with its owner and turns a
 // renamed key into a compile error in this file, instead of a runtime miss
 // deep inside a presence flow.
 type presenceSettings struct{ source settingsSource }

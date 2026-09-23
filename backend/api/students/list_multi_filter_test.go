@@ -54,9 +54,9 @@ func assignStudentGroup(t *testing.T, tc *testContext, studentID, groupID int64)
 
 	_, err := tc.db.NewUpdate().
 		Model((*usersModel.Student)(nil)).
-		ModelTableExpr("users.students").
+		ModelTableExpr("users.student_school_memberships").
 		Set("group_id = ?", groupID).
-		Where("id = ?", studentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", studentID).
 		Exec(context.Background())
 	require.NoError(t, err)
 }

@@ -145,6 +145,9 @@ type CareOfferingSeriesValidator interface {
 type CareOfferingMaterializationResourceValidator interface {
 	ValidateRoomDeletion(ctx context.Context, roomID int64) error
 	ValidateTimeframeChange(ctx context.Context, timeframeID int64, replacement *scheduleModels.Timeframe) error
+	// ValidateTimeframeReplacement is the same check for the Timetable
+	// owner's clock strings; a nil replacement is a deletion.
+	ValidateTimeframeReplacement(ctx context.Context, timeframeID int64, replacement *TimeframeReplacement) error
 	ValidateTimeframeDeletion(ctx context.Context, timeframeID int64) error
 }
 
@@ -723,7 +726,7 @@ func careOfferingOccurrenceCovered(
 	for _, segment := range segments {
 		for _, schedule := range segment.schedules {
 			if schedule == nil || schedule.Weekday != weekday || !scheduleCoversDate(schedule, date) ||
-				!timetableplanning.ShouldMaterializeWeekPattern(schedule.WeekPattern, date, segment.period) {
+				!weekPatternApplies(schedule.WeekPattern, date, segment.period) {
 				continue
 			}
 			if requireActivePeriod && (segment.period == nil || !segment.period.IsActive) {
@@ -1108,6 +1111,9 @@ func (s *careOfferingService) Update(ctx context.Context, offering *enrollmentMo
 func validateCareOfferingWrite(offering *enrollmentModels.CareOffering) error {
 	if err := offering.Validate(); err != nil {
 		return wrapCareOfferingInvalid(err, "validate care offering")
+	}
+	if err := normalizeCareOfferingTranslations(offering); err != nil {
+		return err
 	}
 	if !offering.IsActive || !offering.CountsAsCare {
 		return nil

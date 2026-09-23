@@ -112,14 +112,6 @@ func (r guestMembershipRepository) FindByStaffID(ctx context.Context, staffID in
 	return toLegacyGuest(value), nil
 }
 
-func (r guestMembershipRepository) FindActive(ctx context.Context) ([]*userModels.Guest, error) {
-	values, err := r.membership.ListGuests(ctx, schoolmembership.GuestFilter{ActiveOn: usersRepo.TodayCalendarDate()})
-	if err != nil {
-		return nil, membershipError("find active", err)
-	}
-	return toLegacyGuestList(values), nil
-}
-
 func guestFilterFromLegacy(filters map[string]any) (schoolmembership.GuestFilter, error) {
 	filter := schoolmembership.GuestFilter{}
 	for field, value := range filters {

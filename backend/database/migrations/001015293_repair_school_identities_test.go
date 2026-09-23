@@ -15,7 +15,7 @@ import (
 // give a caregiver-tier role its profile too.
 func TestRepairSchoolIdentities(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 
@@ -53,7 +53,7 @@ func TestRepairSchoolIdentities(t *testing.T) {
 // supervisions empty: the same bug one level down.
 func TestRepairSchoolIdentitiesCoversLegacyTeacherRole(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 
@@ -102,7 +102,7 @@ func ensureLegacySystemTeacherRole(t *testing.T, db *testpkg.DB) int64 {
 // not be silently re-staffed by the repair.
 func TestRepairSchoolIdentitiesSkipsInactiveAccess(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 
@@ -204,7 +204,8 @@ func liveStaffCount(t *testing.T, db *testpkg.DB, personID int64) int {
 // holding the invariant up, which is worth failing a test over.
 func TestRepairSchoolIdentitiesTenantScopingIsEnforcedBySchema(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
+	testpkg.RestoreStaffStorageBeforeCutover(t, db)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 	otherTenantID := testpkg.UniqueTestTenantID(t)
@@ -282,7 +283,7 @@ func liveTeacherCount(t *testing.T, db *testpkg.DB, personID int64) int {
 // would have.
 func TestRepairSchoolIdentitiesCreatesPersonFromMappedSchool(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := context.Background()
 	homeTenantID := testpkg.UniqueTestTenantID(t)
 	targetTenantID := testpkg.UniqueTestTenantID(t)
@@ -324,7 +325,7 @@ func TestRepairSchoolIdentitiesCreatesPersonFromMappedSchool(t *testing.T) {
 // getting a guessed identity.
 func TestRepairSchoolIdentitiesSkipsAmbiguousNameAcrossSchools(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := context.Background()
 	firstTenantID := testpkg.UniqueTestTenantID(t)
 	secondTenantID := testpkg.UniqueTestTenantID(t)
@@ -452,7 +453,7 @@ func personLastName(t *testing.T, db *testpkg.DB, personID int64) string {
 // exists to end, and unreported too, since their staff record does get created.
 func TestRepairSchoolIdentitiesCaregiverProfileIsDecidedPerRole(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 
@@ -484,7 +485,7 @@ func TestRepairSchoolIdentitiesCaregiverProfileIsDecidedPerRole(t *testing.T) {
 // clean while the account stays unusable.
 func TestRepairSchoolIdentitiesReportsStudentLinkedIdentity(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 
@@ -578,7 +579,7 @@ func markPersonAsStudent(t *testing.T, db *testpkg.DB, tenantID, personID int64)
 // staff step declined to create one for it.
 func TestRepairSchoolIdentitiesSkipsStudentPersonForCaregiverProfile(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 

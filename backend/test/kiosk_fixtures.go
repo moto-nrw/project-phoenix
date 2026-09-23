@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // Fixtures of the kiosk scan flows (#2698): rooms with exact names, the
@@ -76,13 +75,23 @@ func LinkDeviceToActiveGroup(tb testing.TB, db *bun.DB, activeGroupID, deviceID 
 // SetStudentGroup assigns (or clears, with nil) the education group of a student.
 func SetStudentGroup(tb testing.TB, db *bun.DB, studentID int64, groupID *int64) {
 	tb.Helper()
-	setColumn(tb, db, "users.students", "group_id", groupID, studentID)
+	ctx, cancel := fixtureCtx()
+	defer cancel()
+	query, err := updateStudentMembershipFixture(ctx, db, studentID)
+	require.NoError(tb, err)
+	_, err = query.Set("group_id = ?", groupID).Exec(ctx)
+	require.NoError(tb, err)
 }
 
 // SetStudentStatus updates the lifecycle status of a student.
 func SetStudentStatus(tb testing.TB, db *bun.DB, studentID int64, status string) {
 	tb.Helper()
-	setColumn(tb, db, "users.students", "status", status, studentID)
+	ctx, cancel := fixtureCtx()
+	defer cancel()
+	query, err := updateStudentMembershipFixture(ctx, db, studentID)
+	require.NoError(tb, err)
+	_, err = query.Set("status = ?", status).Exec(ctx)
+	require.NoError(tb, err)
 }
 
 // SetEducationGroupRoom assigns (or clears, with nil) the room of an education group.
@@ -112,7 +121,7 @@ func CreateTestActivityGroupWithLimit(tb testing.TB, db *bun.DB, name string, ma
 // CreateTestRunningBlock starts a timetable block in a room: an activity, its
 // open session, and today's active instance with the given children in its
 // day roster. Blocks created later have the later start.
-func CreateTestRunningBlock(tb testing.TB, db *bun.DB, roomID int64, name string, rosterStudentIDs ...int64) *active.Group {
+func CreateTestRunningBlock(tb testing.TB, db *bun.DB, roomID int64, name string, rosterStudentIDs ...int64) *ActiveGroupRow {
 	tb.Helper()
 	activity := CreateTestActivityGroup(tb, db, name)
 	session := CreateTestActiveGroup(tb, db, activity.ID, roomID)
@@ -154,12 +163,12 @@ func NewCalendarDate(year int, month time.Month, day int) CalendarDate {
 }
 
 // LatestActiveGroupInRoom returns the newest open session of a room.
-func LatestActiveGroupInRoom(tb testing.TB, db *bun.DB, roomID int64) *active.Group {
+func LatestActiveGroupInRoom(tb testing.TB, db *bun.DB, roomID int64) *ActiveGroupRow {
 	tb.Helper()
 	ctx, cancel := fixtureCtx()
 	defer cancel()
 
-	group := new(active.Group)
+	group := new(ActiveGroupRow)
 	err := db.NewSelect().Model(group).ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".room_id = ?`, roomID).Where(`"group".end_time IS NULL`).
 		OrderExpr(`"group".id DESC`).Limit(1).Scan(ctx)
@@ -189,6 +198,20 @@ func ActiveGroupLastActivity(tb testing.TB, db *bun.DB, activeGroupID int64) tim
 	err := db.NewSelect().TableExpr("active.groups").Column("last_activity").Where("id = ?", activeGroupID).Scan(ctx, &lastActivity)
 	require.NoError(tb, err)
 	return lastActivity
+}
+
+// GroupSupervisorRowByID reads one stored supervision row, for tests that
+// assert what a service wrote.
+func GroupSupervisorRowByID(tb testing.TB, db *bun.DB, id int64) *GroupSupervisorRow {
+	tb.Helper()
+	ctx, cancel := fixtureCtx()
+	defer cancel()
+
+	row := new(GroupSupervisorRow)
+	err := db.NewSelect().Model(row).ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
+		Where(`"group_supervisor".id = ?`, id).Scan(ctx)
+	require.NoError(tb, err, "no supervision row %d", id)
+	return row
 }
 
 // CountRoomsNamed counts the fixture tenant's rooms carrying one of the names.

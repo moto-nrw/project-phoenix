@@ -70,7 +70,9 @@ func TestListPhaseExpiryWarnings_RequiresAdminScope(t *testing.T) {
 	resource := &Resource{PhaseExpiryService: &phaseExpiryServiceStub{}}
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.With(common.RequiresPermission("admin:*")).Get(
+	// Same gate as the route: whoever creates phases (config:manage) reads
+	// the warnings that ask for a successor phase (#3469).
+	router.With(common.RequiresPermission("config:manage")).Get(
 		"/enrollment/phases/expiry-warnings",
 		resource.listPhaseExpiryWarnings,
 	)
@@ -83,6 +85,15 @@ func TestListPhaseExpiryWarnings_RequiresAdminScope(t *testing.T) {
 		[]string{"config:read"},
 	)
 	assert.Equal(t, http.StatusForbidden, readOnly.Code)
+
+	lead := executeAdminJSONWithPermissions(
+		t,
+		router,
+		http.MethodGet,
+		"/enrollment/phases/expiry-warnings",
+		[]string{"config:manage"},
+	)
+	assert.Equal(t, http.StatusOK, lead.Code)
 
 	admin := executeAdminJSONWithPermissions(
 		t,

@@ -7,6 +7,7 @@ package care
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,12 +16,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 )
 
 var (
@@ -59,7 +58,7 @@ func (c CareScheduleRequestCapabilities) Any() bool {
 // configured set, matching the diff convention).
 type CareScheduleWeekday struct {
 	Weekday int
-	Status  careschedule.CareDayStatus
+	Status  careplan.CareDayStatus
 	Arrival string
 	Pickup  string
 	Modes   []string
@@ -71,7 +70,7 @@ type CareScheduleWeekday struct {
 type PendingCareRequest struct {
 	ID              int64
 	CreatedAt       time.Time
-	Diff            []careschedule.RequestDiffEntry
+	Diff            []carerequests.DiffEntry
 	SubmittedBySelf bool
 }
 
@@ -107,7 +106,7 @@ func (s *Service) GetChildCareSchedule(ctx context.Context, accountID, studentID
 		return nil, err
 	}
 	view := &ChildCareSchedule{}
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.buildCareScheduleView(txCtx, view, accountID, studentID); err != nil {
 			return err
 		}
@@ -155,7 +154,7 @@ func (s *Service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 	if bookingsAuthoritative {
 		return nil, ErrCareRequestBookingsAuthoritative
 	}
-	requested, err := careschedule.RequestedCareScheduleFields(payload)
+	raw, requested, err := encodeRequestedCareFields(payload)
 	if err != nil {
 		return nil, MapCareRequestError(err, "validate care schedule request")
 	}
@@ -166,7 +165,7 @@ func (s *Service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 		return nil, ErrCareRequestFieldDisabled
 	}
 	view := &ChildCareSchedule{CanRequest: capabilities.Any(), RequestCapabilities: capabilities}
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err
@@ -174,7 +173,7 @@ func (s *Service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		if _, err := s.CareRequests.CreateRequest(txCtx, studentID, accountID, payload); err != nil {
+		if _, err := s.CareRequests.CreateRequest(txCtx, studentID, accountID, raw); err != nil {
 			return err
 		}
 		return s.buildCareScheduleView(txCtx, view, accountID, studentID)
@@ -188,6 +187,15 @@ func (s *Service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 		slog.Int64("tenant_id", child.TenantID),
 	)
 	return view, nil
+}
+
+func encodeRequestedCareFields(payload map[string]any) (json.RawMessage, carerequests.RequestedFieldGroups, error) {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil, carerequests.RequestedFieldGroups{}, carerequests.ErrInvalidPayload
+	}
+	fields, err := carerequests.RequestedFields(raw)
+	return raw, fields, err
 }
 
 // resolveCareScheduleRequestCapabilities returns the field-level capabilities
@@ -263,7 +271,7 @@ func (s *Service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 		for _, m := range modes {
 			keys = append(keys, string(m))
 		}
-		if len(keys) == 0 && status == careschedule.CareDayScheduled {
+		if len(keys) == 0 && status == careplan.CareDayScheduled {
 			// An empty configured set means the child goes home alone — surface
 			// that explicitly instead of an ambiguous empty list (matches the
 			// request-diff convention).
@@ -297,8 +305,8 @@ func (s *Service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 }
 
 func pendingCareRequest(
-	pending *scheduleModels.CareScheduleChangeRequest,
-	diff []careschedule.RequestDiffEntry,
+	pending *carerequests.Request,
+	diff []carerequests.DiffEntry,
 	accountID int64,
 	visible bool,
 ) *PendingCareRequest {
@@ -313,14 +321,14 @@ func pendingCareRequest(
 	}
 }
 
-func careDayStatus(hasCarePlan, hasArrivalDay bool, arrival, pickup string) careschedule.CareDayStatus {
+func careDayStatus(hasCarePlan, hasArrivalDay bool, arrival, pickup string) careplan.CareDayStatus {
 	if hasArrivalDay || arrival != "" || pickup != "" {
-		return careschedule.CareDayScheduled
+		return careplan.CareDayScheduled
 	}
 	if hasCarePlan {
-		return careschedule.CareDayNotScheduled
+		return careplan.CareDayNotScheduled
 	}
-	return careschedule.CareDayUnknown
+	return careplan.CareDayUnknown
 }
 
 // hasActiveAbsenceToday reports whether the child has any active scheduled
@@ -341,9 +349,9 @@ func (s *Service) hasActiveAbsenceToday(ctx context.Context, studentID int64, to
 	}
 	for _, r := range rows {
 		switch r.Status {
-		case activeModels.StudentStatusDaySick,
-			activeModels.StudentStatusDayExcused,
-			activeModels.StudentStatusDayClassTrip:
+		case absencerecords.StudentStatusDaySick,
+			absencerecords.StudentStatusDayExcused,
+			absencerecords.StudentStatusDayClassTrip:
 			return true, nil
 		}
 	}
@@ -377,8 +385,12 @@ func (s *Service) EditCareScheduleRequest(
 	if err != nil {
 		return nil, err
 	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil, ErrInvalidCareRequestPayload
+	}
 	view := &ChildCareSchedule{CanRequest: capabilities.Any(), RequestCapabilities: capabilities}
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err
@@ -386,12 +398,12 @@ func (s *Service) EditCareScheduleRequest(
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		if _, editErr := s.CareRequests.EditRequest(txCtx, careschedule.CareRequestEditInput{
+		if _, editErr := s.CareRequests.EditRequest(txCtx, carerequests.EditInput{
 			RequestID:         requestID,
 			StudentID:         studentID,
 			GuardianAccountID: accountID,
 			ExpectedVersion:   expectedVersion,
-			Payload:           payload,
+			Payload:           raw,
 		}); editErr != nil {
 			return editErr
 		}
@@ -405,17 +417,24 @@ func (s *Service) EditCareScheduleRequest(
 
 func MapCareRequestError(err error, op string) error {
 	switch {
-	case errors.Is(err, scheduleModels.ErrCareRequestNotFound):
+	case errors.Is(err, carerequests.ErrNotFound):
 		return ErrCareRequestNotFound
-	case errors.Is(err, scheduleModels.ErrCareRequestNotPending):
+	case errors.Is(err, carerequests.ErrNotPending):
 		return ErrCareRequestNotPending
-	case errors.Is(err, careschedule.ErrCareRequestAlreadyPending):
+	case errors.Is(err, carerequests.ErrAlreadyPending):
 		return ErrCareRequestAlreadyPending
-	case errors.Is(err, careschedule.ErrInvalidCareRequestPayload):
+	case errors.Is(err, carerequests.ErrInvalidPayload):
 		return ErrInvalidCareRequestPayload
-	case errors.Is(err, careschedule.ErrPickupChangeCutoffPassed):
+	case errors.Is(err, careplan.ErrPickupChangeCutoffPassed):
 		return ErrPickupChangeCutoffPassed
 	default:
 		return fmt.Errorf("parent: %s: %w", op, err)
 	}
 }
+
+// CareRequestDiffEntry is one "current → requested" row of a pending
+// care-schedule request, as PendingCareRequest.Diff carries it.
+type CareRequestDiffEntry = carerequests.DiffEntry
+
+// PickupChangeRequest is a guardian's one-day pickup change request.
+type PickupChangeRequest = carerequests.Request

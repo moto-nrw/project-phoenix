@@ -3,7 +3,6 @@ package timetable
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,13 +12,10 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -27,10 +23,10 @@ import (
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
@@ -1012,13 +1008,13 @@ func TestOperationsIDParsingAndErrorMapping(t *testing.T) {
 		{timetableplanning.ErrTimetableOperationConflict, http.StatusConflict},
 		{timetableplanning.ErrInvalidInstanceTransition, http.StatusConflict},
 		{timetableplanning.ErrInstanceNotFound, http.StatusNotFound},
-		{activeSvc.ErrStudentAlreadyActive, http.StatusConflict},
-		{activeSvc.ErrRoomConflict, http.StatusConflict},
-		{activeSvc.ErrRoomCapacityExceeded, http.StatusConflict},
-		{activeSvc.ErrActiveGroupAlreadyEnded, http.StatusConflict},
-		{activeSvc.ErrStudentNotFound, http.StatusNotFound},
-		{activeSvc.ErrVisitNotFound, http.StatusNotFound},
-		{activeSvc.ErrInvalidData, http.StatusBadRequest},
+		{studentpresence.ErrStudentAlreadyActive, http.StatusConflict},
+		{studentpresence.ErrRoomConflict, http.StatusConflict},
+		{studentpresence.ErrRoomCapacityExceeded, http.StatusConflict},
+		{studentpresence.ErrGroupAlreadyEnded, http.StatusConflict},
+		{studentpresence.ErrStudentNotFound, http.StatusNotFound},
+		{studentpresence.ErrVisitNotFound, http.StatusNotFound},
+		{studentpresence.ErrInvalidData, http.StatusBadRequest},
 		{errors.New("boom"), http.StatusInternalServerError},
 	}
 
@@ -1055,7 +1051,7 @@ type fakeOperationsService struct {
 }
 
 type fakeOperationActiveGroupRepo struct {
-	activeModels.GroupRepository
+	studentpresence.SessionRecords
 	hasRoomConflict bool
 	err             error
 }
@@ -1091,7 +1087,7 @@ type stubOpInstanceStudentRepo struct {
 	schedule.InstanceStudentRepository
 }
 type stubOpSupervisorRepo struct {
-	activeModels.GroupSupervisorRepository
+	studentpresence.SupervisionRecords
 }
 type stubOpPresence struct {
 	timetableplanning.StudentVisitReader
@@ -1105,19 +1101,19 @@ type stubOpActiveService struct{}
 
 func (stubOpActiveService) CreateVisit(context.Context, *studentpresence.Visit) error { return nil }
 func (stubOpActiveService) EndVisit(context.Context, int64) error                     { return nil }
-func (stubOpActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, studentIDs []int64, activeGroupID int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
-	return &activeSvc.StudentMoveResult{Moved: studentIDs, ActiveGroupID: &activeGroupID}, nil
+func (stubOpActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, studentIDs []int64, activeGroupID int64, _ studentpresence.StudentMoveAuthorization) (*studentpresence.StudentMoveResult, error) {
+	return &studentpresence.StudentMoveResult{Moved: studentIDs, ActiveGroupID: &activeGroupID}, nil
 }
 
 type stubOpArrivalService struct{}
 
-func (stubOpArrivalService) GetBulkEffectiveArrivalTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*careschedule.EffectiveArrivalTime, error) {
+func (stubOpArrivalService) GetBulkEffectiveArrivalTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*careplan.EffectiveArrivalTime, error) {
 	return nil, nil
 }
 
 type stubOpPickupService struct{}
 
-func (stubOpPickupService) GetBulkEffectivePickupTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*careschedule.EffectivePickupTime, error) {
+func (stubOpPickupService) GetBulkEffectivePickupTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*careplan.EffectivePickupTime, error) {
 	return nil, nil
 }
 
@@ -1126,12 +1122,12 @@ func (stubOpPickupService) GetBulkEffectivePickupTimesForDate(context.Context, [
 // before the care-day derivation (#1747) existed.
 type stubOpCareDayService struct{}
 
-func (stubOpCareDayService) ResolveForDate(context.Context, []int64, timezone.Date) (map[int64]careschedule.CareDayStatus, error) {
-	return map[int64]careschedule.CareDayStatus{}, nil
+func (stubOpCareDayService) ResolveForDate(context.Context, []int64, timezone.Date) (map[int64]careplan.CareDayStatus, error) {
+	return map[int64]careplan.CareDayStatus{}, nil
 }
 
-func (stubOpCareDayService) ResolveForRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64]map[timezone.Date]careschedule.CareDayStatus, error) {
-	return map[int64]map[timezone.Date]careschedule.CareDayStatus{}, nil
+func (stubOpCareDayService) ResolveForRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64]map[timezone.Date]careplan.CareDayStatus, error) {
+	return map[int64]map[timezone.Date]careplan.CareDayStatus{}, nil
 }
 
 // newRealSpontaneousOpsService wires a production timetableOperationsService so
@@ -1165,7 +1161,7 @@ func (r *fakeOperationRoomRepo) FindByID(_ context.Context, _ interface{}) (*fac
 		return nil, r.err
 	}
 	if r.room == nil {
-		return nil, sql.ErrNoRows
+		return nil, facilities.ErrRoomNotFound
 	}
 	return r.room, nil
 }
@@ -1187,7 +1183,7 @@ func (r *fakeOperationActivityGroupRepo) FindByName(_ context.Context, name stri
 	if r.findByNameResult != nil {
 		return r.findByNameResult, nil
 	}
-	return nil, sql.ErrNoRows
+	return nil, activityModels.WrapNotFoundDatabaseError("find group by name")
 }
 
 func (r *fakeOperationActivityGroupRepo) Create(_ context.Context, group *activityModels.Group) error {
@@ -1220,7 +1216,7 @@ func (r *fakeOperationActivityCategoryRepo) findByName() (*activityModels.Catego
 	if r.findByNameResult != nil {
 		return r.findByNameResult, nil
 	}
-	return nil, sql.ErrNoRows
+	return nil, activityModels.WrapNotFoundDatabaseError("find by name")
 }
 
 func (r *fakeOperationActivityCategoryRepo) Create(_ context.Context, category *activityModels.Category) error {
@@ -1265,7 +1261,7 @@ func (s *fakeOperationSettingsService) ResolveString(_ context.Context, key stri
 	return s.stringValue, nil
 }
 
-func (r *fakeOperationActiveGroupRepo) CheckRoomConflict(_ context.Context, _ int64, _ int64) (bool, *activeModels.Group, error) {
+func (r *fakeOperationActiveGroupRepo) CheckRoomConflict(_ context.Context, _ int64, _ int64) (bool, *studentpresence.LiveGroup, error) {
 	if r.err != nil {
 		return false, nil, r.err
 	}

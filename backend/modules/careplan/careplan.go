@@ -44,15 +44,18 @@ const (
 	GuardianPermissionEnrollmentsView  = "parent_portal.enrollments.view"
 	GuardianPermissionEnrollmentSubmit = "parent_portal.enrollment.submit"
 
-	StudentStatusPending = "pending"
-	StudentStatusActive  = "active"
-	StudentStatusAlumnus = "alumnus"
+	StudentStatusPending  = "pending"
+	StudentStatusActive   = "active"
+	StudentStatusInactive = "inactive"
+	StudentStatusAlumnus  = "alumnus"
 )
 
 var (
-	ErrCareOfferingNotFound       = errors.New("care offering not found")
-	ErrOfferingChangeNotFound     = errors.New("offering change request not found")
-	ErrOfferingChangeNotPending   = errors.New("offering change request is not pending")
+	ErrCareOfferingNotFound = errors.New("care offering not found")
+	// ErrOfferingChangeNotFound and ErrOfferingChangeNotPending are part of the
+	// decision error contract (decision_errors.go): handlers render their texts.
+	ErrOfferingChangeNotFound     = errors.New("enrollment: offering change request not found")
+	ErrOfferingChangeNotPending   = errors.New("enrollment: offering change request is not pending")
 	ErrOfferingChangeAlreadyOpen  = errors.New("offering change request already pending")
 	ErrInvalidCareOffering        = errors.New("invalid care offering")
 	ErrInvalidOfferingChange      = errors.New("invalid offering change request")
@@ -71,54 +74,60 @@ func (e *InvalidError) Unwrap() error { return e.Kind }
 // Calendar dates do not occur on the row. JSON-backed rules remain raw so the
 // capability does not leak the enrollment package's model types.
 type CareOffering struct {
-	ID                        int64
-	TenantID                  int64
-	CreatedAt                 time.Time
-	UpdatedAt                 time.Time
-	PhaseID                   int64
-	ActivityGroupID           *int64
-	Name                      string
-	Description               *string
-	DaysOfWeekMode            string
-	AvailableDays             []string
-	IncludesHolidayCare       bool
-	IncludesLunch             bool
-	Capacity                  *int
-	PriceCents                *int
-	IsActive                  bool
-	IsRequired                bool
-	CountsAsCare              bool
-	AutoAddGradeLevels        []int
-	AvailabilityRule          json.RawMessage
-	SortOrder                 int
-	SelectionGroup            string
-	SelectionRule             string
-	PickupTimes               map[string]string
+	ID                  int64
+	TenantID            int64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	PhaseID             int64
+	ActivityGroupID     *int64
+	Name                string
+	Description         *string
+	DaysOfWeekMode      string
+	AvailableDays       []string
+	IncludesHolidayCare bool
+	IncludesLunch       bool
+	Capacity            *int
+	PriceCents          *int
+	IsActive            bool
+	IsRequired          bool
+	CountsAsCare        bool
+	AutoAddGradeLevels  []int
+	AvailabilityRule    json.RawMessage
+	SortOrder           int
+	SelectionGroup      string
+	SelectionRule       string
+	PickupTimes         map[string]string
+	// Translations is the school-written translation document of Name and
+	// Description (#3377). Enrollment owns its shape; Care Plan stores it.
+	Translations              json.RawMessage
 	AutoAddTriggerOfferingIDs []int64
 }
 
 // CareOfferingFields is the writable catalog state. Trigger IDs are part of
 // the command so the offering and its selection links commit atomically.
 type CareOfferingFields struct {
-	PhaseID                   int64
-	ActivityGroupID           *int64
-	Name                      string
-	Description               *string
-	DaysOfWeekMode            string
-	AvailableDays             []string
-	IncludesHolidayCare       bool
-	IncludesLunch             bool
-	Capacity                  *int
-	PriceCents                *int
-	IsActive                  bool
-	IsRequired                bool
-	CountsAsCare              bool
-	AutoAddGradeLevels        []int
-	AvailabilityRule          json.RawMessage
-	SortOrder                 int
-	SelectionGroup            string
-	SelectionRule             string
-	PickupTimes               map[string]string
+	PhaseID             int64
+	ActivityGroupID     *int64
+	Name                string
+	Description         *string
+	DaysOfWeekMode      string
+	AvailableDays       []string
+	IncludesHolidayCare bool
+	IncludesLunch       bool
+	Capacity            *int
+	PriceCents          *int
+	IsActive            bool
+	IsRequired          bool
+	CountsAsCare        bool
+	AutoAddGradeLevels  []int
+	AvailabilityRule    json.RawMessage
+	SortOrder           int
+	SelectionGroup      string
+	SelectionRule       string
+	PickupTimes         map[string]string
+	// Translations is the school-written translation document of Name and
+	// Description (#3377). Enrollment owns its shape; Care Plan stores it.
+	Translations              json.RawMessage
 	AutoAddTriggerOfferingIDs []int64
 }
 
@@ -213,12 +222,14 @@ type Command interface {
 type Capability interface {
 	Query
 	Command
+	WeekdayPickupNotesCommand
 	CareDayLocker
 }
 
 type engine interface {
 	Query
 	Command
+	WeekdayPickupNotesCommand
 	CareDayLocker
 }
 

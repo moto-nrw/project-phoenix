@@ -11,15 +11,12 @@ import (
 // the account MFA rows, the school settings that parameterise the gate, the
 // challenge-token codec, the code hasher and the two mails the flows send.
 //
-// AccountMFARecords is a persistence port the composition still binds to the
-// retained `database/repositories/auth` repositories: those rows are
-// identity-owned and move under the module with #3226, and keeping their SQL
-// where it is keeps the lockout, expiry and single-use semantics byte
-// identical across this cutover. A missing row is reported as found=false,
-// never as an error.
+// AccountMFARecords is bound to the module's native Postgres persistence.
+// Missing active challenges and devices may return a not-found error;
+// callers refuse verification for either an error or found=false.
 type AccountMFARecords interface {
 	AccountDirectory
-	// AccountBelongsToTenant reports an active or pending school mapping.
+	// AccountBelongsToTenant reports an active school mapping.
 	AccountBelongsToTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
 	// LockAccountForOverrideWrite takes the account row FOR UPDATE. A
 	// missing account is not an error: the foreign keys of the rows written

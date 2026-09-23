@@ -43,19 +43,24 @@ type AccountIdentityUpdate struct {
 // deactivation, and the credential change an account holder makes for
 // themselves.
 //
-// Accounts are platform-wide rows without a tenant, so every command here
-// applies the account set the caller's scope may administer — the school in
-// context, the manageable schools of their organisation, or every account
+// Accounts are platform-wide rows without a tenant, so ordinary administration
+// commands are restricted to the account set the caller may administer:
+// the school in context, the manageable schools of their organisation, or every account
 // for a platform-scoped caller and an administrative transaction. An
 // account outside that set reads as ErrAccountNotFound, so the boundary
 // never reveals that it exists. FindOwnAccount and ChangeAccountPassword
 // are the account holder's own business and carry no such predicate; who
-// may ask for them is the request boundary's decision.
+// may ask for them is the request boundary's decision. AnonymizeAccountForDeletion
+// is likewise account-wide and reserved for the authorized platform deletion flow.
 //
 // Refusals arrive wrapped in an AuthenticationError whose Op names the
 // flow, carrying ErrAccountNotFound, ErrInvalidCredentials or
 // ErrPasswordTooWeak.
 type AccountAdministration interface {
+	// AnonymizeAccountForDeletion replaces identifying fields for an already
+	// authorized platform deletion workflow. It is account-wide, preserves
+	// the caller's transaction, and does not deactivate or unlink the account.
+	AnonymizeAccountForDeletion(ctx context.Context, accountID int64, email string) error
 	FindOwnAccount(ctx context.Context, accountID int64) (ManagedAccount, error)
 	FindManageableAccount(ctx context.Context, accountID int64) (ManagedAccount, error)
 	ListManageableAccounts(ctx context.Context, filter AccountListFilter) ([]ManagedAccount, error)
@@ -64,6 +69,10 @@ type AccountAdministration interface {
 	ActivateAccount(ctx context.Context, accountID int64) error
 	DeactivateAccount(ctx context.Context, accountID int64) error
 	ChangeAccountPassword(ctx context.Context, accountID int64, currentPassword, newPassword string) error
+}
+
+func (m *Module) AnonymizeAccountForDeletion(ctx context.Context, accountID int64, email string) error {
+	return m.engine.AnonymizeAccountForDeletion(ctx, accountID, email)
 }
 
 func (m *Module) FindOwnAccount(ctx context.Context, accountID int64) (ManagedAccount, error) {

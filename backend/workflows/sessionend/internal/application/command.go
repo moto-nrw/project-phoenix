@@ -18,6 +18,7 @@ import (
 // Dependencies are the owner capabilities and runtime the command coordinates.
 type Dependencies struct {
 	Presence   ports.Presence
+	Sessions   ports.Sessions
 	Timetable  ports.Timetable
 	Completion ports.InstanceCompletion
 	Students   ports.Students
@@ -34,7 +35,7 @@ type command struct {
 // NewCommand builds the session end command. Every dependency is required;
 // a missing one is a composition error, not a runtime fallback.
 func NewCommand(deps Dependencies) sessionend.Command {
-	if deps.Presence == nil || deps.Timetable == nil || deps.Completion == nil || deps.Students == nil ||
+	if deps.Presence == nil || deps.Sessions == nil || deps.Timetable == nil || deps.Completion == nil || deps.Students == nil ||
 		deps.Rooms == nil || deps.Notifier == nil || deps.Observe == nil ||
 		deps.Runtime.TenantID == nil || deps.Runtime.WithinTenant == nil || deps.Runtime.AfterCommit == nil || deps.Runtime.Now == nil {
 		panic("session end: all dependencies are required")
@@ -146,24 +147,27 @@ func presenceError(err error) error {
 // that does not mirror) has nothing to complete. An instance another path
 // already completed is left alone and not re-announced.
 func (c *command) completeMirroredInstance(ctx context.Context, activeGroupID int64, now time.Time) (*ports.CompletedInstance, error) {
-	instances, err := c.deps.Timetable.ListActivityInstances(ctx, timetable.ActivityInstanceFilter{ActiveGroupID: &activeGroupID})
+	sessions, err := c.deps.Sessions.ListActivitySessions(ctx, studentpresence.ActivitySessionFilter{ActiveGroupIDs: []int64{activeGroupID}})
 	if err != nil {
 		return nil, fmt.Errorf("session end: find mirrored instance: %w", err)
 	}
-	if len(instances) == 0 {
+	if len(sessions) == 0 {
 		return nil, nil
 	}
-	if _, err := c.deps.Timetable.CloseOpenCheckoutsByActiveGroupIDs(ctx, []int64{activeGroupID}, now); err != nil {
+	if _, err := c.deps.Sessions.CloseOpenCheckoutsByActiveGroupIDs(ctx, []int64{activeGroupID}, now); err != nil {
 		return nil, fmt.Errorf("session end: close slot check-outs: %w", err)
 	}
 	changed, err := c.deps.Completion.CompleteActiveByActiveGroupIDs(ctx, []int64{activeGroupID}, now)
 	if err != nil {
-		return nil, fmt.Errorf("session end: complete mirrored instance %d: %w", instances[0].ID, err)
+		return nil, fmt.Errorf("session end: complete mirrored instance %d: %w", sessions[0].InstanceID, err)
 	}
 	if changed == 0 {
 		return nil, nil
 	}
-	instance := instances[0]
+	instance, err := c.deps.Timetable.FindActivityInstance(ctx, sessions[0].InstanceID)
+	if err != nil {
+		return nil, fmt.Errorf("session end: read mirrored instance %d: %w", sessions[0].InstanceID, err)
+	}
 	return &ports.CompletedInstance{ID: instance.ID, Date: instance.Date, StartTime: instance.StartTime, RoomID: instance.RoomID}, nil
 }
 

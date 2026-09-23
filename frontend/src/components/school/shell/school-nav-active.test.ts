@@ -16,9 +16,11 @@ describe("isSchoolNavActive", () => {
   });
 
   it("markiert die Hilfe samt Unterseiten", () => {
-    expect(isSchoolNavActive("/help", "/help")).toBe(true);
-    expect(isSchoolNavActive("/help", "/help/setup")).toBe(true);
-    expect(isSchoolNavActive("/help", "/helpdesk")).toBe(false);
+    expect(isSchoolNavActive("/help?role=teacher", "/help")).toBe(true);
+    expect(isSchoolNavActive("/help?role=teacher", "/help/kindersuche")).toBe(
+      true,
+    );
+    expect(isSchoolNavActive("/help?role=teacher", "/helpdesk")).toBe(false);
   });
 });
 

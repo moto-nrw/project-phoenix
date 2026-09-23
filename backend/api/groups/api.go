@@ -17,9 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -39,17 +37,22 @@ type GroupStudentResponse struct {
 	TagID       string `json:"tag_id,omitempty"`
 }
 
+// CallerGroups resolves the educational groups of the request's caller.
+type CallerGroups interface {
+	GetMyGroups(ctx context.Context) ([]*education.Group, error)
+}
+
 // Resource defines the group API resource
 type Resource struct {
 	EducationService   educationSvc.Service
-	ActiveService      activeService.Service
+	ActiveService      studentpresence.Presence
 	UserService        userService.PersonService
-	UserContextService userContextService.UserContextService
+	UserContextService CallerGroups
 	db                 *bun.DB
 }
 
 // NewResource creates a new groups resource
-func NewResource(educationService educationSvc.Service, activeService activeService.Service, userService userService.PersonService, userContextService userContextService.UserContextService, db *bun.DB) *Resource {
+func NewResource(educationService educationSvc.Service, activeService studentpresence.Presence, userService userService.PersonService, userContextService CallerGroups, db *bun.DB) *Resource {
 	return &Resource{
 		EducationService:   educationService,
 		ActiveService:      activeService,
@@ -299,7 +302,7 @@ func (rs *Resource) getStudentVisitGroupID(ctx context.Context, studentID int64,
 }
 
 // getVisitActiveGroup retrieves the active group for a visit from snapshot or service
-func (rs *Resource) getVisitActiveGroup(ctx context.Context, activeGroupID int64, snapshot *common.StudentLocationSnapshot) *active.Group {
+func (rs *Resource) getVisitActiveGroup(ctx context.Context, activeGroupID int64, snapshot *common.StudentLocationSnapshot) *studentpresence.SessionDetail {
 	if snapshot != nil {
 		return snapshot.Groups[activeGroupID]
 	}

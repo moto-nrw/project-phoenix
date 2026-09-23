@@ -54,8 +54,38 @@ export interface ArrivalData {
 
 export type CareDaysSource = "weekly_plan" | "bookings";
 
+/** A lesson the school maintains an end time for (#3372). */
+export interface SchoolPeriod {
+  /** 1-based number of the lesson. */
+  period: number;
+  /** "HH:MM" */
+  end_time: string;
+}
+
 export interface ArrivalSettings {
   care_days_source: CareDaysSource;
+  /** In lesson order; empty when the school maintains no lesson end times. */
+  school_periods: SchoolPeriod[];
+  /** "HH:MM", or empty when the school maintains none (#3371). */
+  defaultArrivalTime: string;
+  /** "HH:MM", or empty when the school maintains none (#3371). */
+  defaultPickupTime: string;
+}
+
+interface ArrivalSettingsResponse {
+  care_days_source: CareDaysSource;
+  school_periods: SchoolPeriod[];
+  default_arrival_time: string;
+  default_pickup_time: string;
+}
+
+/**
+ * The usual clock times a school offers for one-click adoption in the weekly
+ * plan (#3371). Empty strings offer nothing.
+ */
+export interface CareTimePresets {
+  readonly arrival: string;
+  readonly pickup: string;
 }
 
 export interface ArrivalScheduleInput {
@@ -172,7 +202,13 @@ export async function fetchArrivalSettings(): Promise<ArrivalSettings> {
     headers: await authHeaders(),
     credentials: "include",
   });
-  return parseResponse<ArrivalSettings>(response);
+  const settings = await parseResponse<ArrivalSettingsResponse>(response);
+  return {
+    care_days_source: settings.care_days_source,
+    school_periods: settings.school_periods,
+    defaultArrivalTime: settings.default_arrival_time,
+    defaultPickupTime: settings.default_pickup_time,
+  };
 }
 
 export async function updateArrivalSchedules(

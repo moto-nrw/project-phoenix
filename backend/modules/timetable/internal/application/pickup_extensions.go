@@ -7,8 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
-const expectedAttendanceStatus = "expected"
-
 func (s *Service) pickupExtensionToday() domain.Date { return domain.Date(s.today()) }
 
 // RecordPickupDayExtension stores the later day pickup. Past days never open
@@ -132,6 +130,10 @@ type PickupExtensionResolution struct {
 	Task        domain.PickupExtensionTask
 	Assigned    []domain.PickupExtensionBlock
 	InstanceIDs []int64
+	// Instances are the concrete blocks the child was added to, with their
+	// dates, so the caller can have Student Presence re-apply the day's
+	// reported statuses and partial absences.
+	Instances []domain.PickupExtensionInstance
 }
 
 // ResolvePickupExtension adds the child to the chosen blocks and removes the
@@ -151,19 +153,31 @@ func (s *Service) ResolvePickupExtension(ctx context.Context, taskID int64, bloc
 		if chooseErr != nil {
 			return chooseErr
 		}
-		for _, block := range chosen {
-			instanceIDs, assignErr := s.assignPickupExtensionBlock(txCtx, task, block, stats)
-			if assignErr != nil {
-				return assignErr
-			}
-			result.InstanceIDs = append(result.InstanceIDs, instanceIDs...)
+		instances, assignErr := s.assignPickupExtensionBlocks(txCtx, task, chosen, stats)
+		if assignErr != nil {
+			return assignErr
 		}
-		result.Assigned = chosen
+		result.Assigned, result.Instances = chosen, instances
+		for _, instance := range instances {
+			result.InstanceIDs = append(result.InstanceIDs, instance.ID)
+		}
 		deleteStats, deleteErr := s.store.DeletePickupExtensionTask(txCtx, task.ID)
 		stats.Add(deleteStats)
 		return deleteErr
 	})
 	return result, err
+}
+
+func (s *Service) assignPickupExtensionBlocks(ctx context.Context, task domain.PickupExtensionTask, chosen []domain.PickupExtensionBlock, stats *domain.OperationStats) ([]domain.PickupExtensionInstance, error) {
+	var instances []domain.PickupExtensionInstance
+	for _, block := range chosen {
+		assigned, err := s.assignPickupExtensionBlock(ctx, task, block, stats)
+		if err != nil {
+			return nil, err
+		}
+		instances = append(instances, assigned...)
+	}
+	return instances, nil
 }
 
 func (s *Service) chosenPickupExtensionBlocks(ctx context.Context, task domain.PickupExtensionTask, blockIDs []int64, stats *domain.OperationStats) ([]domain.PickupExtensionBlock, error) {
@@ -186,23 +200,23 @@ func (s *Service) chosenPickupExtensionBlocks(ctx context.Context, task domain.P
 	return chosen, nil
 }
 
-func (s *Service) assignPickupExtensionBlock(ctx context.Context, task domain.PickupExtensionTask, block domain.PickupExtensionBlock, stats *domain.OperationStats) ([]int64, error) {
+func (s *Service) assignPickupExtensionBlock(ctx context.Context, task domain.PickupExtensionTask, block domain.PickupExtensionBlock, stats *domain.OperationStats) ([]domain.PickupExtensionInstance, error) {
 	if task.IsDay() {
-		if err := s.lockPickupExtensionInstance(ctx, task, domain.PickupExtensionInstance{ID: block.ID, Date: task.Date}, 0, stats); err != nil {
+		instance := domain.PickupExtensionInstance{ID: block.ID, Date: task.Date}
+		if err := s.lockPickupExtensionInstance(ctx, task, instance, 0, stats); err != nil {
 			return nil, err
 		}
-		if err := s.addPlannedStudent(ctx, block.ID, task.StudentID, task.Date, stats); err != nil {
+		if err := s.addPlannedStudent(ctx, block.ID, task.StudentID, stats); err != nil {
 			return nil, err
 		}
-		return []int64{block.ID}, nil
+		return []domain.PickupExtensionInstance{instance}, nil
 	}
 	validFrom := max(task.EffectiveFrom, s.pickupExtensionToday(), block.ValidFrom)
 	weekday := task.Weekday
 	// The generator only fills new blocks. Blocks already planned for this
 	// weekday get the child here, without re-planning the week, so edits made
 	// to single dates stay untouched.
-	instances, listStats, err := s.store.ListPickupExtensionTemplateInstances(ctx, block.ID, task.StudentID, task.Weekday, validFrom, block.CalendarPeriodID, block.ValidUntil)
-	stats.Add(listStats)
+	instances, err := s.pickupExtensionTemplateInstances(ctx, block, task, validFrom, stats)
 	if err != nil {
 		return nil, err
 	}
@@ -214,14 +228,107 @@ func (s *Service) assignPickupExtensionBlock(ctx context.Context, task domain.Pi
 	if err := s.ensurePickupWeekdayEnrollment(ctx, task.StudentID, block, weekday, validFrom, stats); err != nil {
 		return nil, err
 	}
-	instanceIDs := make([]int64, 0, len(instances))
 	for _, instance := range instances {
-		if err := s.addPlannedStudent(ctx, instance.ID, task.StudentID, instance.Date, stats); err != nil {
+		if err := s.addPlannedStudent(ctx, instance.ID, task.StudentID, stats); err != nil {
 			return nil, err
 		}
-		instanceIDs = append(instanceIDs, instance.ID)
 	}
-	return instanceIDs, nil
+	return instances, nil
+}
+
+// pickupExtensionTemplateInstances lists the template's planned blocks on the
+// weekday that do not list the child as scheduled: a block that already
+// ended is not a choice, and a child whose row carries the non-booking
+// marker is not scheduled on it.
+func (s *Service) pickupExtensionTemplateInstances(ctx context.Context, block domain.PickupExtensionBlock, task domain.PickupExtensionTask, validFrom domain.Date, stats *domain.OperationStats) ([]domain.PickupExtensionInstance, error) {
+	candidates, listStats, err := s.store.ListPickupExtensionTemplateInstances(ctx, block.ID, task.StudentID, task.Weekday, validFrom, block.CalendarPeriodID, block.ValidUntil)
+	stats.Add(listStats)
+	if err != nil || len(candidates) == 0 {
+		return nil, err
+	}
+	instanceIDs := make([]int64, 0, len(candidates))
+	ownIDs := make([]int64, 0, len(candidates))
+	for _, candidate := range candidates {
+		instanceIDs = append(instanceIDs, candidate.ID)
+		if candidate.OwnParticipantID != nil {
+			ownIDs = append(ownIDs, *candidate.OwnParticipantID)
+		}
+	}
+	completedIDs, notScheduledIDs, err := s.sessions.ExecutionFacts(ctx, instanceIDs, ownIDs)
+	if err != nil {
+		return nil, err
+	}
+	completed, notScheduled := idLookup(completedIDs), idLookup(notScheduledIDs)
+	result := make([]domain.PickupExtensionInstance, 0, len(candidates))
+	for _, candidate := range candidates {
+		if completed[candidate.ID] {
+			continue
+		}
+		if candidate.OwnParticipantID != nil && !notScheduled[*candidate.OwnParticipantID] {
+			continue
+		}
+		result = append(result, candidate)
+	}
+	return result, nil
+}
+
+// pickupExtensionDayBlocks lists the blocks of the day tasks that can still
+// be chosen: not ended, with at least one scheduled child, and not carrying
+// the child as explicitly not booked. The roster comes with the block; the
+// execution and the non-booking markers are one Student Presence read.
+func (s *Service) pickupExtensionDayBlocks(ctx context.Context, tasks []domain.PickupExtensionTask, stats *domain.OperationStats) ([]domain.PickupExtensionBlock, error) {
+	blocks, queryStats, err := s.store.ListPickupExtensionDayBlocks(ctx, tasks)
+	stats.Add(queryStats)
+	if err != nil || len(blocks) == 0 {
+		return nil, err
+	}
+	instanceIDs, participantIDs := pickupExtensionBlockIDs(blocks)
+	completed, notScheduled, err := s.sessions.ExecutionFacts(ctx, instanceIDs, participantIDs)
+	if err != nil {
+		return nil, err
+	}
+	return openPickupExtensionDayBlocks(blocks, idLookup(completed), idLookup(notScheduled)), nil
+}
+
+func pickupExtensionBlockIDs(blocks []domain.PickupExtensionBlock) (instanceIDs, participantIDs []int64) {
+	for _, block := range blocks {
+		instanceIDs = append(instanceIDs, block.ID)
+		participantIDs = append(participantIDs, block.ParticipantIDs...)
+	}
+	return uniquePositiveIDs(instanceIDs), uniquePositiveIDs(participantIDs)
+}
+
+func idLookup(ids []int64) map[int64]bool {
+	result := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		result[id] = true
+	}
+	return result
+}
+
+func openPickupExtensionDayBlocks(blocks []domain.PickupExtensionBlock, completed, notScheduled map[int64]bool) []domain.PickupExtensionBlock {
+	result := make([]domain.PickupExtensionBlock, 0, len(blocks))
+	for _, block := range blocks {
+		if completed[block.ID] || !pickupExtensionBlockScheduled(block, notScheduled) {
+			continue
+		}
+		if block.OwnParticipantID != nil && notScheduled[*block.OwnParticipantID] {
+			continue
+		}
+		result = append(result, block)
+	}
+	return result
+}
+
+// pickupExtensionBlockScheduled reports whether at least one child of the
+// block is still booked on it.
+func pickupExtensionBlockScheduled(block domain.PickupExtensionBlock, notScheduled map[int64]bool) bool {
+	for _, id := range block.ParticipantIDs {
+		if !notScheduled[id] {
+			return true
+		}
+	}
+	return false
 }
 
 // lockPickupExtensionInstance keeps a selected instance selectable until the
@@ -241,7 +348,7 @@ func (s *Service) lockPickupExtensionInstance(
 		return err
 	}
 	if !found || current.Date != instance.Date.String() || current.IsSpontaneous ||
-		(current.Status != "planned" && current.Status != "active") ||
+		current.Status != domain.InstanceStatusPlanned ||
 		!pickupExtensionTimesOverlap(current.StartTime, current.EndTime, task.PreviousPickup, task.Pickup) {
 		return domain.ErrPickupExtensionBlockGone
 	}
@@ -320,22 +427,12 @@ func samePickupExtensionPeriod(a, b *int64) bool {
 	return (a == nil && b == nil) || (a != nil && b != nil && *a == *b)
 }
 
-// addPlannedStudent adds the child as expected, like the generator does, and
-// re-applies sick days and partial absences of that date.
-func (s *Service) addPlannedStudent(ctx context.Context, instanceID, studentID int64, date domain.Date, stats *domain.OperationStats) error {
-	_, createStats, err := s.store.CreateInstanceStudentIfAbsent(ctx, domain.InstanceStudentFields{
-		InstanceID: instanceID,
-		StudentID:  studentID,
-		Status:     expectedAttendanceStatus,
-	})
+// addPlannedStudent adds the child to the roster, like the generator does.
+// Re-applying the day's sick days and partial absences is Student Presence's
+// rule; the resolution reports the added blocks so the caller runs it.
+func (s *Service) addPlannedStudent(ctx context.Context, instanceID, studentID int64, stats *domain.OperationStats) error {
+	_, _, createStats, err := s.store.EnsureInstanceStudent(ctx, instanceID, studentID)
 	stats.Add(createStats)
-	if err != nil {
-		return err
-	}
-	if _, err := s.ApplyActiveStatusDaysForInstance(ctx, instanceID, date.String()); err != nil {
-		return err
-	}
-	_, err = s.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date.String())
 	return err
 }
 
@@ -354,8 +451,7 @@ func (s *Service) pickupExtensionBlocks(ctx context.Context, tasks []domain.Pick
 	}
 	byTask := make(map[int64][]domain.PickupExtensionBlock, len(tasks))
 	if len(dayTasks) > 0 {
-		blocks, queryStats, err := s.store.ListPickupExtensionDayBlocks(ctx, dayTasks)
-		stats.Add(queryStats)
+		blocks, err := s.pickupExtensionDayBlocks(ctx, dayTasks, stats)
 		if err != nil {
 			return nil, err
 		}

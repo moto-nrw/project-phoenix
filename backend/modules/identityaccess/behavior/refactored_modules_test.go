@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -724,7 +723,7 @@ func TestAuthService_UpdateAccount_Extended(t *testing.T) {
 
 	t.Run("returns error for non-existent account", func(t *testing.T) {
 		// ARRANGE
-		fakeAccount := &authModels.Account{}
+		fakeAccount := &testpkg.AccountFixture{}
 		fakeAccount.ID = 99999999
 
 		// ACT
@@ -974,13 +973,13 @@ func TestAuthService_UpdateParentAccount_Extended(t *testing.T) {
 		require.NoError(t, err)
 
 		// Get original
-		original, err := service.GetParentAccountByID(ctx, int(account.ID))
-		require.NoError(t, err)
+		var originalHash string
+		require.NoError(t, db.NewRaw("SELECT password_hash FROM auth.accounts_parents WHERE id = ?", account.ID).Scan(ctx, &originalHash))
+		require.NotEmpty(t, originalHash)
 
 		// Update without password
 		newUsername := fmt.Sprintf("updated-%s", uniqueID)
-		account.Username = &newUsername
-		account.PasswordHash = nil
+		account.Username = newUsername
 
 		// ACT
 		err = service.UpdateParentAccount(ctx, account)
@@ -989,10 +988,12 @@ func TestAuthService_UpdateParentAccount_Extended(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify password preserved
-		updated, err := service.GetParentAccountByID(ctx, int(account.ID))
+		updated, err := service.GetParentAccountByID(ctx, account.ID)
 		require.NoError(t, err)
-		assert.Equal(t, original.PasswordHash, updated.PasswordHash)
-		assert.Equal(t, newUsername, *updated.Username)
+		var updatedHash string
+		require.NoError(t, db.NewRaw("SELECT password_hash FROM auth.accounts_parents WHERE id = ?", account.ID).Scan(ctx, &updatedHash))
+		assert.Equal(t, originalHash, updatedHash)
+		assert.Equal(t, newUsername, updated.Username)
 	})
 }
 
@@ -1011,13 +1012,12 @@ func TestAuthService_ListParentAccounts_Extended(t *testing.T) {
 		require.NoError(t, err)
 
 		// Deactivate account
-		err = service.DeactivateParentAccount(ctx, int(account.ID))
+		err = service.DeactivateParentAccount(ctx, account.ID)
 		require.NoError(t, err)
 
 		// ACT - Filter for active only
-		filters := map[string]interface{}{
-			"active": true,
-		}
+		active := true
+		filters := identityaccess.ParentAccountFilter{Active: &active}
 		result, err := service.ListParentAccounts(ctx, filters)
 
 		// ASSERT

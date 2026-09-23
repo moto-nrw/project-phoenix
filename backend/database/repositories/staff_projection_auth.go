@@ -4,42 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
-
-// staffAccountTenantRepository serves the caregiver half of the account
-// listings from School Membership. The auth repository used to answer it
-// with a staff/teacher join of its own (#2667); the person projection above
-// still type-asserts caregiverChainQuery on whatever it wraps, so the
-// capability is attached here, below it.
-type staffAccountTenantRepository struct {
-	authModels.AccountTenantRepository
-	rows   accountTenantSchoolRowsQuery
-	chains caregiverChainQuery
-}
-
-func newStaffAccountTenantRepository(inner authModels.AccountTenantRepository, membership staffLookup) authModels.AccountTenantRepository {
-	rows, _ := inner.(accountTenantSchoolRowsQuery)
-	return staffAccountTenantRepository{
-		AccountTenantRepository: inner,
-		rows:                    rows,
-		chains:                  caregiverChainsFromMembership(membership),
-	}
-}
-
-func (r staffAccountTenantRepository) CaregiverChainByPersonIDs(ctx context.Context, personIDs []int64) (map[int64]authModels.CaregiverChain, error) {
-	return r.chains.CaregiverChainByPersonIDs(ctx, personIDs)
-}
-
-// ListAccountsBySchoolIDs keeps the raw school-set listing reachable for the
-// person and school projections stacked above this decorator.
-func (r staffAccountTenantRepository) ListAccountsBySchoolIDs(ctx context.Context, schoolIDs []int64) ([]authModels.OrgAccountInfo, error) {
-	if r.rows == nil {
-		return nil, fmt.Errorf("account tenant repository does not list accounts by school")
-	}
-	return r.rows.ListAccountsBySchoolIDs(ctx, schoolIDs)
-}
 
 // caregiverChainsFromMembership is the caregiver half of the account
 // listings, served from the School Membership capability instead of the auth
@@ -57,12 +23,12 @@ type membershipCaregiverChains struct {
 // Persons without a live staff record are absent from the result; a person
 // with several staff rows keeps the one with the lowest staff ID, as the
 // former "ORDER BY person_id ASC, staff id ASC" query did.
-func (r membershipCaregiverChains) CaregiverChainByPersonIDs(ctx context.Context, personIDs []int64) (map[int64]authModels.CaregiverChain, error) {
-	result := make(map[int64]authModels.CaregiverChain, len(personIDs))
+func (r membershipCaregiverChains) CaregiverChainByPersonIDs(ctx context.Context, personIDs []int64) (map[int64]CaregiverChain, error) {
+	result := make(map[int64]CaregiverChain, len(personIDs))
 	if len(personIDs) == 0 {
 		return result, nil
 	}
-	members, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs})
+	members, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs, MembershipOnly: true})
 	if err != nil {
 		return nil, fmt.Errorf("load staff for caregiver chains: %w", err)
 	}
@@ -89,7 +55,7 @@ func (r membershipCaregiverChains) CaregiverChainByPersonIDs(ctx context.Context
 		if _, found := result[member.PersonID]; found {
 			continue
 		}
-		chain := authModels.CaregiverChain{
+		chain := CaregiverChain{
 			PersonID: member.PersonID,
 			TenantID: member.TenantID,
 			StaffID:  member.ID,

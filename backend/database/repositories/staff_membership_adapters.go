@@ -8,8 +8,8 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 // The adapters in this file serve the legacy users.StaffRepository,
@@ -19,66 +19,28 @@ import (
 // permission half from identity access. Nothing here builds SQL — a
 // composition that used to be one join is now one call per owner.
 
-// membershipTenantQuery is the identity-access lookup that decides which of a
-// set of accounts may act at a tenant.
-type membershipTenantQuery interface {
+// staffIdentityQuery is the consumer-owned account-facts port for staff projections.
+type staffIdentityQuery interface {
 	ListActiveAccountIDsForTenant(ctx context.Context, tenantID int64, accountIDs []int64) ([]int64, error)
-}
-
-// membershipPermissionQuery resolves effective permission names per account.
-type membershipPermissionQuery interface {
 	FindEffectivePermissionNamesByAccountIDsForTenant(ctx context.Context, accountIDs []int64, tenantID int64) (map[int64][]string, error)
-}
-
-// membershipRoleQuery answers the two role questions the staff compositions ask.
-type membershipRoleQuery interface {
 	CountRoleNameMatchesByAccountIDs(ctx context.Context, accountIDs []int64, roleNames []string) (map[int64]int, error)
 	ListAccountIDsWithSystemRoleNames(ctx context.Context, accountIDs []int64, roleNames []string, tenantID int64) ([]int64, error)
+	ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 }
 
-// staffMembershipDeps are the owner-side lookups the membership adapters
-// compose with. They are captured from the concrete repositories at factory
-// construction: the public interfaces stay untouched, and a wrapper that only
-// forwards the interface can never hide one of these methods by accident.
+// staffMembershipDeps binds staff projections to their owners without legacy auth repositories.
 type staffMembershipDeps struct {
-	persons     userModels.PersonRepository
-	accounts    authModels.AccountRepository
-	memberships membershipTenantQuery
-	permissions membershipPermissionQuery
-	roles       membershipRoleQuery
-	// groupTeachers is read lazily because the factory may rebind School
-	// Membership after construction.
+	persons  userModels.PersonRepository
+	identity staffIdentityQuery
+	// employment is Workforce's owner of the employment-only staff writes
+	// (#2753): notes and the birthday opt-out.
+	employment workforce.StaffEmploymentCommand
+	// groupTeachers is lazy because School Membership may be rebound after construction.
 	groupTeachers func() educationModels.GroupTeacherRepository
 }
 
-// newStaffMembershipDeps asserts the extra owner methods once, at construction,
-// so a missing one is a startup panic instead of a runtime surprise.
-func newStaffMembershipDeps(
-	persons userModels.PersonRepository,
-	accounts authModels.AccountRepository,
-	accountTenants authModels.AccountTenantRepository,
-	permissionRepo authModels.PermissionRepository,
-	roleRepo authModels.RoleRepository,
-) *staffMembershipDeps {
-	memberships, ok := accountTenants.(membershipTenantQuery)
-	if !ok {
-		panic(fmt.Sprintf("repository factory: account tenant repository %T must serve staff membership lookups", accountTenants))
-	}
-	permissionQuery, ok := permissionRepo.(membershipPermissionQuery)
-	if !ok {
-		panic(fmt.Sprintf("repository factory: permission repository %T must serve batched effective permissions", permissionRepo))
-	}
-	roleQuery, ok := roleRepo.(membershipRoleQuery)
-	if !ok {
-		panic(fmt.Sprintf("repository factory: role repository %T must serve staff role lookups", roleRepo))
-	}
-	return &staffMembershipDeps{
-		persons:     persons,
-		accounts:    accounts,
-		memberships: memberships,
-		permissions: permissionQuery,
-		roles:       roleQuery,
-	}
+func newStaffMembershipDeps(persons userModels.PersonRepository, identity staffIdentityQuery, employment workforce.StaffEmploymentCommand) *staffMembershipDeps {
+	return &staffMembershipDeps{persons: persons, identity: identity, employment: employment}
 }
 
 // staffMembershipRepository serves users.StaffRepository.
@@ -251,12 +213,6 @@ func (r staffMembershipRepository) List(ctx context.Context, filters map[string]
 				return nil, usersRepo.WrapError("list staff", err)
 			}
 			filter.PersonIDs = append(filter.PersonIDs, id)
-		case "work_time_model_id":
-			id, err := membershipID(value)
-			if err != nil {
-				return nil, usersRepo.WrapError("list staff", err)
-			}
-			filter.WorkTimeModelID = &id
 		default:
 			return nil, usersRepo.WrapError("list staff", fmt.Errorf("unsupported staff filter %q", field))
 		}
@@ -415,7 +371,7 @@ func (r staffMembershipRepository) activeAccountsByTenant(ctx context.Context, l
 	}
 	active := make(map[tenantAccountID]bool, len(links))
 	for tenantID, accountIDs := range byTenant {
-		allowed, err := r.deps.memberships.ListActiveAccountIDsForTenant(ctx, tenantID, accountIDs)
+		allowed, err := r.deps.identity.ListActiveAccountIDsForTenant(ctx, tenantID, accountIDs)
 		if err != nil {
 			return nil, err
 		}
@@ -427,6 +383,7 @@ func (r staffMembershipRepository) activeAccountsByTenant(ctx context.Context, l
 }
 
 func (r staffMembershipRepository) accountIDsByStaff(ctx context.Context, filter schoolmembership.StaffFilter, op string) (map[int64]int64, error) {
+	filter.MembershipOnly = true // account links read no employment field
 	values, err := r.membership.ListStaff(ctx, filter)
 	if err != nil {
 		return nil, membershipError(op, err)
@@ -463,6 +420,7 @@ func (r staffMembershipRepository) ListAllStaffAccountIDs(ctx context.Context) (
 // account is active there, together with their effective permission names.
 func (r staffMembershipRepository) permittedStaffLinks(ctx context.Context, filter schoolmembership.StaffFilter, op string) ([]staffAccountLink, map[int64][]string, error) {
 	tenantID := usersRepo.TenantIDFromContext(ctx)
+	filter.MembershipOnly = true // permission links read no employment field
 	values, err := r.membership.ListStaff(ctx, filter)
 	if err != nil {
 		return nil, nil, membershipError(op, err)
@@ -475,7 +433,7 @@ func (r staffMembershipRepository) permittedStaffLinks(ctx context.Context, filt
 	for _, link := range links {
 		accountIDs = append(accountIDs, link.accountID)
 	}
-	allowed, err := r.deps.memberships.ListActiveAccountIDsForTenant(ctx, tenantID, accountIDs)
+	allowed, err := r.deps.identity.ListActiveAccountIDsForTenant(ctx, tenantID, accountIDs)
 	if err != nil {
 		return nil, nil, usersRepo.WrapError(op, err)
 	}
@@ -489,7 +447,7 @@ func (r staffMembershipRepository) permittedStaffLinks(ctx context.Context, filt
 			reachable = append(reachable, link)
 		}
 	}
-	names, err := r.deps.permissions.FindEffectivePermissionNamesByAccountIDsForTenant(ctx, allowed, tenantID)
+	names, err := r.deps.identity.FindEffectivePermissionNamesByAccountIDsForTenant(ctx, allowed, tenantID)
 	if err != nil {
 		return nil, nil, usersRepo.WrapError(op, err)
 	}
@@ -510,7 +468,7 @@ func (r staffMembershipRepository) ListStaffWithPermission(ctx context.Context, 
 			accountIDs = append(accountIDs, link.accountID)
 		}
 	}
-	emails, err := r.deps.accounts.FindEmailsByAccountIDs(ctx, accountIDs)
+	emails, err := r.deps.identity.ListAccountEmails(ctx, accountIDs)
 	if err != nil {
 		return nil, usersRepo.WrapError(op, err)
 	}
@@ -559,7 +517,7 @@ func (r staffMembershipRepository) GetStaffContactInfo(ctx context.Context, staf
 	if person.AccountID == nil {
 		return nil, membershipNotFound(op)
 	}
-	emails, err := r.deps.accounts.FindEmailsByAccountIDs(ctx, []int64{*person.AccountID})
+	emails, err := r.deps.identity.ListAccountEmails(ctx, []int64{*person.AccountID})
 	if err != nil {
 		return nil, usersRepo.WrapError(op, err)
 	}
@@ -583,7 +541,7 @@ func (r staffMembershipRepository) GetStaffContactInfo(ctx context.Context, staf
 // entry per matching role assignment rather than one per staff member.
 func (r staffMembershipRepository) ListStaffByRoles(ctx context.Context, roles []string) ([]*userModels.StaffWithRoleInfo, error) {
 	const op = "list staff by roles"
-	values, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{})
+	values, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{MembershipOnly: true})
 	if err != nil {
 		return nil, membershipError(op, err)
 	}
@@ -595,11 +553,11 @@ func (r staffMembershipRepository) ListStaffByRoles(ctx context.Context, roles [
 	for _, link := range links {
 		accountIDs = append(accountIDs, link.accountID)
 	}
-	matches, err := r.deps.roles.CountRoleNameMatchesByAccountIDs(ctx, accountIDs, roles)
+	matches, err := r.deps.identity.CountRoleNameMatchesByAccountIDs(ctx, accountIDs, roles)
 	if err != nil {
 		return nil, usersRepo.WrapError(op, err)
 	}
-	emails, err := r.deps.accounts.FindEmailsByAccountIDs(ctx, accountIDs)
+	emails, err := r.deps.identity.ListAccountEmails(ctx, accountIDs)
 	if err != nil {
 		return nil, usersRepo.WrapError(op, err)
 	}
@@ -684,15 +642,31 @@ func (r staffMembershipRepository) ListBirthdaysForExport(ctx context.Context) (
 	return r.staffBirthdays(ctx, nil, false, "list staff birthdays for export")
 }
 
-func (r staffMembershipRepository) SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error {
-	return membershipError("set staff birthday display opt-out", r.membership.SetBirthdayDisplayOptOut(ctx, staffID, optOut))
-}
+// The employment-only writes go to their Workforce owner. The opt-out and the
+// notes apply to live staff members only, as before the split, so both check
+// the membership first. Inside a caller's transaction the check and the write
+// share it and the membership stays locked; without one they are two short
+// transactions, and an offboarding that commits in between leaves the note or
+// opt-out on the retired member, which nothing reads for live staff.
 
-func (r staffMembershipRepository) ClearWorkTimeModel(ctx context.Context, id int64) error {
-	return membershipError("clear work time model", r.membership.ClearWorkTimeModel(ctx, id))
+func (r staffMembershipRepository) SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error {
+	return membershipError("set staff birthday display opt-out", r.withLiveStaff(ctx, staffID, func(ctx context.Context) error {
+		return membershipEmploymentError(r.deps.employment.SetStaffBirthdayDisplayOptOut(ctx, staffID, optOut))
+	}))
 }
 
 func (r staffMembershipRepository) AddNotes(ctx context.Context, id int64, notes string) error {
-	_, err := r.membership.AppendStaffNotes(ctx, id, notes)
-	return membershipError("add notes", err)
+	return membershipError("add notes", r.withLiveStaff(ctx, id, func(ctx context.Context) error {
+		_, err := r.deps.employment.AppendStaffNotes(ctx, id, notes)
+		return membershipEmploymentError(err)
+	}))
+}
+
+// withLiveStaff runs write only for a live membership. Inside the caller's
+// transaction the membership stays locked until it commits.
+func (r staffMembershipRepository) withLiveStaff(ctx context.Context, staffID int64, write func(context.Context) error) error {
+	if _, err := r.membership.FindStaffForMutation(ctx, staffID); err != nil {
+		return err
+	}
+	return write(ctx)
 }

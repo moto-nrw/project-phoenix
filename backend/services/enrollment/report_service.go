@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
@@ -23,9 +21,9 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 var (
@@ -255,6 +253,12 @@ type ReportService interface {
 	SupervisionStudentSheet(ctx context.Context, in SupervisionSheetInput) (*SupervisionStudentSheet, error)
 }
 
+// StudentStatusDayReader reads the active scheduled day statuses of many
+// students for one calendar date.
+type StudentStatusDayReader interface {
+	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*absencerecords.StudentStatusDay, error)
+}
+
 type ReportServiceConfig struct {
 	Requests            ReportRequests
 	Children            ReportChildren
@@ -277,14 +281,14 @@ type ReportServiceConfig struct {
 	// not configured") rather than serving a sheet where a sick child shows
 	// as staying. The enrollment reports and the class roster never consume
 	// it, so a config built only for those may leave it nil.
-	StudentStatusDayRepo activeModels.StudentStatusDayRepository
+	StudentStatusDayRepo StudentStatusDayReader
 	// PickupScheduleSvc / ArrivalScheduleSvc supply the effective per-date
 	// times (weekly plan + day exceptions) for the class day view. They are
 	// the CURRENT truth — the enrollment form answer is only the snapshot the
 	// plan was materialized from. REQUIRED for ClassDay (same fail-fast as
 	// StudentStatusDayRepo); no other report path consumes them.
-	PickupScheduleSvc  careschedule.PickupScheduleService
-	ArrivalScheduleSvc careschedule.ArrivalScheduleService
+	PickupScheduleSvc  careplan.PickupScheduleService
+	ArrivalScheduleSvc careplan.ArrivalScheduleService
 	// ClassArrivalExceptions supplies the class-wide arrival day exception
 	// (#2962) the class day view shows as one line on top (#2970).
 	// Optional: nil serves the sheet without that line.
@@ -300,7 +304,7 @@ type ReportServiceConfig struct {
 	// it instead of re-deriving the precedence from raw schedule entries —
 	// re-implementations are explicitly forbidden (care_day_resolver.go).
 	// REQUIRED for ClassDay (same fail-fast); unused by the other reports.
-	CareDaySvc careschedule.CareDayService
+	CareDaySvc careplan.CareDayQuery
 	// Settings supplies enrollment.care_offerings_enabled so the class
 	// roster matches the form: a leftover active catalog must not constrain
 	// pickup times when offerings are turned off. Optional in tests; nil
@@ -330,7 +334,7 @@ type ClassListEntryReader interface {
 // by CareLifecycleService. Keeping the narrow interface here avoids teaching
 // enrollment reports about withdrawal states.
 type CareParticipationResolver interface {
-	ResolveListParticipation(ctx context.Context, studentIDs []int64, on, today timezone.Date, includePending bool) (*carelifecycle.CareParticipationResolution, error)
+	ResolveListParticipation(ctx context.Context, studentIDs []int64, on, today timezone.Date, includePending bool) (*careplan.CareParticipationResolution, error)
 }
 
 type reportService struct {

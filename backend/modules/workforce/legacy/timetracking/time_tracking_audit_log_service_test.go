@@ -9,12 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -74,11 +75,11 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	// Session + two edit rows from one save action.
 	checkIn := time.Date(2025, time.August, 4, 8, 0, 0, 0, time.UTC)
 	checkOut := checkIn.Add(8 * time.Hour)
-	session := &activeModels.WorkSession{
+	session := &timerecords.WorkSession{
 		StaffID:     staffA.ID,
 		Date:        timezone.NewDate(2025, time.August, 4),
-		Status:      activeModels.WorkSessionStatusPresent,
-		Source:      activeModels.WorkSessionSourceApp,
+		Status:      workforce.WorkSessionStatusPresent,
+		Source:      workforce.WorkSessionSourceApp,
 		CheckInTime: checkIn, CheckOutTime: &checkOut,
 		CreatedBy: staffA.ID,
 	}
@@ -101,21 +102,21 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	require.NoError(t, repos.WorkSessionEdit.CreateBatch(ctx, edits))
 
 	// Absence + status-transition audit row (actor = ACCOUNT id).
-	absence := &activeModels.StaffAbsence{
+	absence := &timerecords.StaffAbsence{
 		StaffID:     staffA.ID,
-		AbsenceType: activeModels.AbsenceTypeSick,
+		AbsenceType: workforce.AbsenceTypeSick,
 		DateStart:   timezone.NewDate(2025, time.August, 6),
 		DateEnd:     timezone.NewDate(2025, time.August, 7),
-		Status:      activeModels.AbsenceStatusReported,
+		Status:      workforce.AbsenceStatusReported,
 		CreatedBy:   admin.ID,
 	}
 	absence.SetTenantID(tenantID)
 	require.NoError(t, repos.StaffAbsence.Create(ctx, absence))
-	fromStatus := activeModels.AbsenceStatusReported
-	absenceAudit := &activeModels.StaffAbsenceAudit{
+	fromStatus := workforce.AbsenceStatusReported
+	absenceAudit := &timerecords.StaffAbsenceAudit{
 		AbsenceID:  absence.ID,
 		FromStatus: &fromStatus,
-		ToStatus:   activeModels.AbsenceStatusApproved,
+		ToStatus:   workforce.AbsenceStatusApproved,
 		ActorID:    adminAccount.ID,
 		Note:       "Attest liegt vor",
 	}
@@ -123,10 +124,10 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	require.NoError(t, repos.StaffAbsenceAudit.Create(ctx, absenceAudit))
 
 	// Balance adjustment for staffA (stays) and one for staffB (deleted below).
-	makeAdjustment := func(staffID int64, day int) *activeModels.StaffBalanceAdjustment {
-		adj := &activeModels.StaffBalanceAdjustment{
+	makeAdjustment := func(staffID int64, day int) *timerecords.StaffBalanceAdjustment {
+		adj := &timerecords.StaffBalanceAdjustment{
 			StaffID:       staffID,
-			Type:          activeModels.BalanceAdjustmentTypePayout,
+			Type:          workforce.BalanceAdjustmentTypePayout,
 			MinutesDelta:  -60,
 			EffectiveDate: timezone.NewDate(2025, time.August, day),
 			Note:          "Auszahlung",

@@ -28,7 +28,7 @@ import (
 )
 
 // init seeds JWT viper defaults before any test constructs a Resource via
-// jwt.MustNewTokenAuth() (inside Router()). CI runs without a .env so
+// the session verifier of the shared executors. CI runs without a .env so
 // AUTH_JWT_SECRET is unset; without a secret jwx refuses HMAC signing.
 func init() {
 	testutil.SeedTestJWTConfig()
@@ -60,7 +60,7 @@ func setupActivitiesRoute(t *testing.T) *testContext {
 
 	resource := activitiesAPI.NewResource(
 		svc.Activities,
-		svc.Schedule,
+		svc.Timetable,
 		svc.Users,
 		svc.UserContext,
 		db,
@@ -684,9 +684,9 @@ func TestGetAvailableActivities_GraduatedStudentNotFound(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Available", "Graduate", "4a")
 
 	_, err := ctx.db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Set("status = ?", string(usersModels.StudentStatusAlumnus)).
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(t.Context())
 	require.NoError(t, err)
 

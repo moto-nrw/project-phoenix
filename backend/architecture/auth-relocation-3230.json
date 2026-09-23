@@ -1,0 +1,103 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3226 relocation of the auth models, repositories and JWT adapter into modules/identityaccess/legacy",
+    "#3331 and #3332 tenant auth routes calling the Identity & Access public contract"
+  ],
+  "owner_and_capability": "inbound-auth — the tenant auth HTTP adapter, relocated from api/auth to modules/identityaccess/inbound/auth, calling the identity-access public contract (#3230)",
+  "affected_packages": [
+    "api/auth",
+    "modules/identityaccess/inbound/auth",
+    "api"
+  ],
+  "affected_tables": [
+    "auth.invitation_tokens",
+    "auth.guardian_invitations",
+    "auth.permissions"
+  ],
+  "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/internal/schoolclass",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/moto-nrw/project-phoenix/services/parentmessaging",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/auth|github.com/uptrace/bun"
+  ],
+  "atomic_cutover": "api/auth moves to modules/identityaccess/inbound/auth in one PR under the ADR 0020 relocation declaration (policy epoch 19), keeping owner inbound-auth and its roles, so the other 26 keys keep issue #2736 under the new path. Three imports disappear in the same PR. The tenant shell resolves operations.parent_notes_enabled through its own fail-open resolver: same key, same true fallback, same Warn level. The grade_level_max bounds 1..13 are local constants. The *bun.DB handle, which the ignored db argument of tenant.WithTenantTx and WithAdminTx made a mere switch, becomes the consumer-owned UnitOfWork port backed by tenant.WithinCurrentTenant and tenant.WithinAdmin.",
+  "tests": [
+    "scripts/test-changed.sh origin/development without --fast: the moved auth route suites, including tenant resolve, invitation, guardian invitation, RBAC, MFA, passkey and demo access tests, with no assertion changes.",
+    "api/route_table_golden_test.go TestFullProductionRouterGolden: the route and middleware tables are unchanged apart from the package name of requirePlatformScope.",
+    "modules/identityaccess/inbound/auth/auth_internal_test.go TestRouterWithAuthRateLimiter: the limiter wraps login, password reset, MFA verify and resend and passkey login, not tenant resolve or register.",
+    "modules/identityaccess/inbound/auth/tenant_resolve_query_budget_test.go with test/query_budgets.go unchanged.",
+    "scripts/backend-architecture.sh check with the listed keys absent from legacy.jsonl."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the PR branch after merging development at 78055dc479. The change relocates an HTTP adapter and replaces three imports without touching a statement, so the evidence is the unchanged route, behaviour and query-budget suites plus the architecture check, not a benchmark rerun.",
+    "sources": [
+      "backend/modules/identityaccess/inbound/account/api.go",
+      "backend/modules/identityaccess/inbound/account/tenant_handlers.go",
+      "backend/api/testdata/middleware_table.golden",
+      "backend/test/query_budgets.go",
+      "https://github.com/moto-nrw/project-phoenix/pull/3507"
+    ],
+    "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The suites pass with unchanged assertions and an unchanged query-budget register, the middleware golden changes only a package name, and the architecture check reports no new violation and no stale baseline entry.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "No write statement changes. The invitation and role routes call the same identity-access capabilities inside the same unit of work."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The tenant resolve query-budget test passed with test/query_budgets.go unchanged; the parent messaging fallback still issues one ResolveBoolForTenant call."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "The request paths execute the same capability calls and statements; only package location and call-site wiring changed."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "The request paths execute the same capability calls and statements; only package location and call-site wiring changed."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development passed for the affected packages with no failing test and no panic; golangci-lint reported 0 issues."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection is acquired differently: the old helpers already took the unit of work from context and ignored the *bun.DB argument."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No lock statement or lock order changes."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No transaction boundary changes: tenant.WithinCurrentTenant and WithinAdmin run the same runtime transactions as WithTenantTx and WithAdminTx."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The auth adapter has no worker path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The auth adapter has no worker path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The auth adapter has no worker path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "Status codes and error bodies are unchanged and covered by the moved route suites, including the generic 500 for an out-of-range grade_level_max and the 503 for unwired MFA or passkey services."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data or schema change. Reverting the PR restores api/auth, its policy classification and the baseline entries together."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally and against base 78055dc479 with the keys absent: 681 legacy violations remain, composition surface 641 -> 638."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR; api/auth, its policy entry, the three setters and the three baseline entries return together, and the relocation declaration stops being active. No data cleanup.",
+  "exit_criterion": "backend/api/auth no longer exists, no file imports github.com/moto-nrw/project-phoenix/api/auth, and the listed keys are absent from legacy.jsonl."
+}

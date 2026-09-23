@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/config"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // Identity & Access owns the guardian invitation lifecycle (#2722). This
@@ -230,7 +230,7 @@ func (r guardianInvitationReads) ListByProfile(ctx context.Context, guardianProf
 	for _, invitation := range invitations {
 		result = append(result, parentportal.GuardianInvitationRecord{
 			ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, StudentID: invitation.StudentID,
-			ExpiresAt: invitation.ExpiresAt, AcceptedAt: invitation.AcceptedAt, ApprovalStatus: invitation.ApprovalStatus,
+			ExpiresAt: invitation.ExpiresAt, AcceptedAt: invitation.AcceptedAt, Rejected: invitation.ApprovalStatus == identityaccess.GuardianInvitationApprovalRejected,
 		})
 	}
 	return result, nil

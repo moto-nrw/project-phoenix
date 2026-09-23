@@ -15,16 +15,15 @@ import (
 
 // ChildRepository implements parentModels.ChildRepository.
 type ChildRepository struct {
-	runtime     Runtime
-	memberships ActiveMembershipQuery
+	memberships ActiveSchoolMemberships
 	students    StudentDirectory
 	guardians   GuardianDirectory
 }
 
 // NewChildRepository wires a fresh repository with the Identity & Access
 // active-membership query that scopes every read (#2721).
-func NewChildRepository(runtime Runtime, memberships ActiveMembershipQuery) parentModels.ChildRepository {
-	return &ChildRepository{runtime: requireRuntime(runtime), memberships: memberships}
+func NewChildRepository(memberships ActiveSchoolMemberships) parentModels.ChildRepository {
+	return &ChildRepository{memberships: memberships}
 }
 
 // BindStudentDirectory installs the People Directory the guardian links are
@@ -39,7 +38,7 @@ func (r *ChildRepository) BindGuardianDirectory(guardians GuardianDirectory) {
 	r.guardians = guardians
 }
 
-// guardianLink is one users.students_guardians row the account reaches
+// guardianLink is one student-guardian relationship the account reaches
 // through an ACTIVE auth.account_tenants mapping.
 type guardianLink struct {
 	StudentID         int64
@@ -86,7 +85,7 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 // existence.
 //
 // This is THE authorization gate for every per-child parent write
-// (workflows/parentportal/legacy resolvePermittedChild), so the alumnus exclusion that
+// (workflows/parentportal/care ResolvePermittedChild), so the alumnus exclusion that
 // hides graduates from the dashboard also stops the writes: a guardian
 // cannot submit a future-dated sick note or care exception for a child
 // who has left the school (#405 review).
@@ -123,7 +122,7 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 // portalLinks returns the account's guardian links at the schools it holds
 // an ACTIVE mapping at, keeping only the links that grant portal access.
 func (r *ChildRepository) portalLinks(ctx context.Context, accountID int64) ([]guardianLink, error) {
-	links, err := activeGuardianLinks(ctx, r.runtime, r.memberships, r.guardians, accountID)
+	links, err := activeGuardianLinks(ctx, r.memberships, r.guardians, accountID)
 	if err != nil {
 		return nil, err
 	}

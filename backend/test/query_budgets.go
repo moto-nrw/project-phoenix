@@ -39,6 +39,18 @@ var queryBudgets = map[string]queryBudget{
 	// organization summaries, and one device read through the Device Fleet
 	// owner. Flat in the number of devices.
 	"repositories.operator.device_rows": {max: 3},
+	// services — the operator school listing (#3568), organizationtenancy
+	// Provisioning.ListSchoolSummaries: the school rows plus one aggregate
+	// each for accounts, devices, persons and the Kontingentzahl, eight
+	// statements in all. Flat in the number of schools and children.
+	"services.operator.school_summaries": {max: 8},
+	// modules — the operator billing report (#2791), organizationtenancy
+	// BillingReport. The listing is one read of the captured rows. A capture
+	// is the key day, the schools still missing, and one insert for all of
+	// them; the owners' counts are stubbed in the scenario and add one read
+	// each in production. Both stay flat in the number of schools.
+	"modules.organizationtenancy.billing.key_date_counts": {max: 1, exact: true},
+	"modules.organizationtenancy.billing.capture":         {max: 3, exact: true},
 	// modules/careplan/inbound/parent — GET /me/children/{studentId}/courses resolves the catalog,
 	// capacity and pending-request queue through this bounded service scenario.
 	"api.parent.child_courses": {max: 14},
@@ -61,6 +73,11 @@ var queryBudgets = map[string]queryBudget{
 	// departure plans in the same statement the rows come from, where the
 	// retained repository needed a second one to reach the scan-only columns.
 	"api.students.list": {max: 30},
+	// api/students — GET /care-withdrawals, page_size=1 over four pending
+	// withdrawals (#3412). The count and the page each run as one Care Plan
+	// statement that joins the named student directory projection; the
+	// matching test also pins the rows read at one and at four children.
+	"api.students.care_withdrawals.list": {max: 6},
 	// api/students — #2056: aggregated OGS group view, 10 students.
 	"api.students.ogs_group_live": {max: 41},
 	// api/students — #2099: identity chain resolved once per request.
@@ -155,6 +172,11 @@ var queryBudgets = map[string]queryBudget{
 	// modules/schoolmembership — assignment lists, 8 rows each.
 	"modules.schoolmembership.list_class_assignments": {max: 5},
 	"modules.schoolmembership.list_group_assignments": {max: 5},
+	// modules/schoolstructure — staff-keyed group reads (#3499): teacher
+	// groups, substituted groups and school classes in one pass, 1 and then
+	// 4 rows each, on the caller's tenant transaction. Every read resolves
+	// ids at its owner and loads groups in one batch.
+	"modules.schoolstructure.staff_group_reads": {max: 6},
 	// modules/classday — one slot reconciliation over the owner facades
 	// inside its tenant transaction, 3 and then 8 planned children (#2701).
 	// Every read is a bulk load by ID set; the count must not move with the
@@ -188,7 +210,8 @@ var queryBudgets = map[string]queryBudget{
 	// as N+1 here.
 	"api.staff_notices.acknowledgements": {max: 7, exact: true},
 	"modules.careplan.request_feed.list": {max: 1, exact: true},
-	// modules/identityaccess/legacy/usercontext — #2099 request cache dedups the identity chain.
+	// modules/identityaccess caller context (behavior/caller_request_cache_test.go) —
+	// the #2099 request cache dedups the identity chain.
 	"services.usercontext.identity_chain.persons":       {max: 1, exact: true},
 	"services.usercontext.identity_chain.staff":         {max: 1, exact: true},
 	"services.usercontext.identity_chain.teachers":      {max: 1, exact: true},

@@ -39,9 +39,9 @@ func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 	require.False(t, snapshot.IsAlumnus())
 
 	_, err := ctx.db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Set("status = ?", "alumnus").
-		Where("id = ?", student.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(t.Context())
 	require.NoError(t, err)
 

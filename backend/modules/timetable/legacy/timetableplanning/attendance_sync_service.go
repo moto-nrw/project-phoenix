@@ -26,11 +26,10 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// AttendanceSyncService implements activeSvc.AttendanceSyncer.
+// AttendanceSyncService implements studentpresence.AttendanceSyncer.
 type AttendanceSyncService struct {
 	instanceRepo        scheduleModel.ActivityInstanceRepository
 	instanceStudentRepo scheduleModel.InstanceStudentRepository
@@ -53,13 +52,13 @@ func NewAttendanceSyncService(
 
 // Verify at compile-time that the concrete type satisfies the interface
 // declared in the active package.
-var _ activeSvc.AttendanceSyncer = (*AttendanceSyncService)(nil)
+var _ studentpresence.AttendanceSyncer = (*AttendanceSyncService)(nil)
 
 func (s *AttendanceSyncService) getLogger() *slog.Logger {
 	return cmp.Or(s.logger, slog.Default())
 }
 
-// MirrorCheckInForVisit implements activeSvc.AttendanceSyncer.
+// MirrorCheckInForVisit implements studentpresence.AttendanceSyncer.
 //
 // Branches (all logged with student_id / instance_id only — no names at
 // Info level per GDPR):
@@ -75,7 +74,7 @@ func (s *AttendanceSyncService) getLogger() *slog.Logger {
 //	B9 happy path                    → Info, return new snapshot
 func (s *AttendanceSyncService) MirrorCheckInForVisit(
 	ctx context.Context, visit *studentpresence.Visit,
-) (snapshot *activeSvc.AttendanceSnapshot, err error) {
+) (snapshot *studentpresence.AttendanceSnapshot, err error) {
 	// Return unexpected failures to the transaction owner; keep the stack
 	// in logs for diagnosis without publishing it to clients.
 	defer func() {
@@ -197,7 +196,7 @@ func (s *AttendanceSyncService) createUnplannedAttendance(
 	ctx context.Context,
 	instanceID int64,
 	visit *studentpresence.Visit,
-) (*activeSvc.AttendanceSnapshot, error) {
+) (*studentpresence.AttendanceSnapshot, error) {
 	row, err := s.instanceStudentRepo.CreateUnplannedPresentIfAbsent(
 		ctx, instanceID, visit.StudentID, visit.EntryTime,
 	)
@@ -221,7 +220,7 @@ func (s *AttendanceSyncService) finishVisitInterval(
 	instanceID int64,
 	visit *studentpresence.Visit,
 	row *scheduleModel.InstanceStudent,
-) (*activeSvc.AttendanceSnapshot, error) {
+) (*studentpresence.AttendanceSnapshot, error) {
 	if visit == nil || visit.ExitTime == nil || row == nil ||
 		row.Status != scheduleModel.AttendanceStatusPresent || row.CheckedInAt == nil ||
 		visit.ExitTime.Before(*row.CheckedInAt) {
@@ -246,7 +245,7 @@ func (s *AttendanceSyncService) finishVisitInterval(
 // unassigned; assigning either would invent business data.
 func (s *AttendanceSyncService) MirrorCheckInAt(
 	ctx context.Context, studentID int64, at time.Time,
-) (snapshot *activeSvc.AttendanceSnapshot, err error) {
+) (snapshot *studentpresence.AttendanceSnapshot, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.getLogger().Error("roomless attendance mirror panic",
@@ -317,11 +316,11 @@ func shouldPreserveAttendanceOnCheckin(row *scheduleModel.InstanceStudent) bool 
 	return row.Status != scheduleModel.AttendanceStatusPresent || row.CheckedOutAt == nil
 }
 
-// MirrorCheckOutForVisit implements activeSvc.AttendanceSyncer. It preserves
+// MirrorCheckOutForVisit implements studentpresence.AttendanceSyncer. It preserves
 // the slot status while recording the observed checkout for history/export.
 func (s *AttendanceSyncService) MirrorCheckOutForVisit(
 	ctx context.Context, visit *studentpresence.Visit,
-) (snapshot *activeSvc.AttendanceSnapshot, err error) {
+) (snapshot *studentpresence.AttendanceSnapshot, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.getLogger().Error("attendance load panic",
@@ -676,11 +675,11 @@ func (s *AttendanceSyncService) MirrorCheckOutForVisits(ctx context.Context, vis
 // snapshotFromRow is the common projection. Substatus and Note already
 // pointer-typed in the model, so we reuse the same pointers — no need to
 // dereference + re-address.
-func snapshotFromRow(row *scheduleModel.InstanceStudent) *activeSvc.AttendanceSnapshot {
+func snapshotFromRow(row *scheduleModel.InstanceStudent) *studentpresence.AttendanceSnapshot {
 	if row == nil {
 		return nil
 	}
-	return &activeSvc.AttendanceSnapshot{
+	return &studentpresence.AttendanceSnapshot{
 		Status:      row.Status,
 		Substatus:   row.Substatus,
 		Note:        row.Note,

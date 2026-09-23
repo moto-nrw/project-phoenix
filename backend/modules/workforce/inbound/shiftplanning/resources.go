@@ -4,8 +4,8 @@
 // package supplies authentication, tenant transaction scoping, permission
 // names, actor resolution and the shared response envelope through their
 // Runtime. The public StaffShiftPlanning and ShiftTypeAdministration
-// contracts it mounts are served by the retained services in
-// modules/workforce/legacy/shiftplanning (#3219).
+// contracts it mounts are served by the Workforce planning composition
+// (modules/workforce/compose, #3418).
 package shiftplanning
 
 import (

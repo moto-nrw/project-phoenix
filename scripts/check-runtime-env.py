@@ -22,8 +22,10 @@ OPTIONAL_VALUES = {
 
 
 def compose_config(path, interpolate, env_file=ROOT / ".env.example"):
-    command = ["docker", "compose", "--profile", "maintenance", "--env-file", str(env_file),
-               "-f", str(path), "config", "--format", "json", "--no-env-resolution"]
+    command = ["docker", "compose", "--profile", "maintenance", "--env-file", str(env_file)]
+    for compose_path in path if isinstance(path, list) else [path]:
+        command.extend(["-f", str(compose_path)])
+    command.extend(["config", "--format", "json", "--no-env-resolution"])
     if not interpolate:
         command.append("--no-interpolate")
     # Keep Docker connectivity, but never inherit shell application credentials.
@@ -56,7 +58,7 @@ def check(path, target, expected):
         if any(".env" in str(volume.get("source", "")) for volume in service.get("volumes", [])):
             raise ValueError(name + ": dotenv mounts are forbidden")
         for key, value in service["environment"].items():
-            if key in ("DB_DSN", "API_URL", "PORT", "HOSTNAME") and name != "migrate":
+            if key in ("DB_DSN", "DEMO_DB_DSN", "API_URL", "PORT", "HOSTNAME") and name != "migrate":
                 continue
             operator = "?" if key in OPTIONAL_VALUES else ":?"
             if value != "${" + key + operator + key + " is required}":
@@ -98,7 +100,7 @@ def main():
     expected = json.loads((ROOT / "environments/runtime-env-allowlist.json").read_text())
     try:
         with tempfile.TemporaryDirectory(prefix="phoenix-env-check-") as directory:
-            for target in ("staging", "production"):
+            for target in ("staging", "production", "demo"):
                 relative = "environments/" + target + ".compose.yml"
                 path = ROOT / relative
                 if args.revision:
@@ -106,13 +108,50 @@ def main():
                                             cwd=ROOT, capture_output=True, text=True, check=True)
                     path = Path(directory) / (target + ".yml")
                     path.write_text(result.stdout)
-                check(path, target, expected)
+                # Only the demo stack carries the sidecar; revisions before #3482 lack it.
+                sidecar = target == "demo" and (not args.revision or "  demo-runtime:" in path.read_text())
+                check(path, target, {name: keys for name, keys in expected.items()
+                                     if sidecar or name != "demo-runtime"})
                 check_missing_config(path, directory)
+                if sidecar:
+                    check_demo_runtime(path)
         print("Runtime environment boundaries: PASS")
     except (ValueError, KeyError, subprocess.CalledProcessError) as error:
         print("Runtime environment boundaries: FAIL: " + str(error), file=sys.stderr)
         return 1
     return 0
+
+
+def check_demo_runtime(path):
+    """Sidecar rules beyond the allowlist that check() already enforced."""
+    services = compose_config(path, False)["services"]
+    raw = services["demo-runtime"]
+    key = "DEMO_DB_DSN"
+    if raw["environment"][key] != "${" + key + ":?" + key + " is required}":
+        raise ValueError("demo-runtime: missing fail-fast binding for " + key)
+    resolved = compose_config(path, True)["services"]["demo-runtime"]["environment"]
+    dsn = urlsplit(resolved[key])
+    if dsn.username != "phoenix_demo" or dsn.password is not None:
+        raise ValueError("demo-runtime: DEMO_DB_DSN must contain only the phoenix_demo endpoint")
+    if raw.get("env_file") or raw.get("volumes") or raw.get("ports"):
+        raise ValueError("demo-runtime: must not receive env files, volumes or published ports")
+    if raw.get("network_mode") != "service:server" or not raw.get("read_only"):
+        raise ValueError("demo-runtime: must share the server network with a read-only filesystem")
+    command = ["./main", "demo", "--url", "http://server:8080", "--heartbeat", "/tmp/demo-heartbeat"]
+    # Fallback of #3463: both processes must agree on the standing demo school.
+    fallback = "--demo-standing-school"
+    if raw.get("command") not in (command, command + [fallback]):
+        raise ValueError("demo-runtime: must use the guarded command and internal server host")
+    if (fallback in raw["command"]) != (fallback in services["server"].get("command", [])):
+        raise ValueError("demo-runtime: server and sidecar must both select the standing demo school, or neither")
+    if raw["image"] != services["server"]["image"]:
+        raise ValueError("demo-runtime: must use the serving backend image")
+    # A frozen runner must surface as unhealthy, and a crashed one must come back.
+    if "/tmp/demo-heartbeat" not in " ".join(raw.get("healthcheck", {}).get("test", [])):
+        raise ValueError("demo-runtime: healthcheck must watch the tick heartbeat")
+    if raw.get("restart") != "unless-stopped":
+        raise ValueError("demo-runtime: must restart after a crash")
+    print("Demo runtime environment boundary: PASS")
 
 
 if __name__ == "__main__":

@@ -12,8 +12,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -33,13 +31,9 @@ func setupPersonalCalendarRoute(t *testing.T) (*bun.DB, chi.Router) {
 
 func calendarToken(t *testing.T, accountID int64, perms ...string) string {
 	t.Helper()
-	return testutil.MintTestJWT(t, jwt.AppClaims{
-		ID:          int(accountID),
-		Sub:         "calendar-e2e@example.com",
-		Roles:       []string{"user"},
-		TenantID:    testpkg.Tenant(t),
-		Permissions: perms,
-	})
+	claims := testutil.TenantUserTestClaims(int(accountID), testpkg.Tenant(t), perms...)
+	claims.Sub = "calendar-e2e@example.com"
+	return testutil.MintTestJWT(t, claims)
 }
 
 func doJSON(t *testing.T, router http.Handler, method, path, token string, body any) *httptest.ResponseRecorder {
@@ -123,7 +117,7 @@ func TestPersonalCalendarHTTPFlow_StaffInvitationRSVP(t *testing.T) {
 	require.NoError(t, json.Unmarshal(listRR.Body.Bytes(), &listed))
 	require.Len(t, listed.Data.Events, 1)
 	assert.Equal(t, "HTTP calendar planning", listed.Data.Events[0].Title)
-	assert.Equal(t, timezone.NewDate(2026, 5, 4).String(), listed.Data.Events[0].StartDate)
+	assert.Equal(t, "2026-05-04", listed.Data.Events[0].StartDate)
 	assert.Equal(t, "pending", listed.Data.Events[0].ResponseStatus)
 	assert.True(t, listed.Data.Events[0].CanRespond)
 

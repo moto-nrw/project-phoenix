@@ -8,7 +8,8 @@ recall sent emails, push messages, or other external effects.
 
 ## Deployment
 
-The deployment pulls candidate images, stops the server and frontend, then
+The deployment pulls candidate images, stops the server and frontend (in the
+demo stack also its `demo-runtime` sidecar, which writes to the database), then
 captures the previous state under `~/backups/<environment>/release-<timestamp>-<sha>/`:
 
 - `database.dump`: PostgreSQL schema, data, sequences and ACLs.
@@ -41,7 +42,7 @@ Automatic rollback uses the same snapshot if migration or startup fails.
 
 ## Manual rollback
 
-1. Run **Manual Rollback** on the deployed branch. Production requires `main`.
+1. Run **Manual Rollback** on the deployed branch. Production and demo require `main`.
 2. Choose the environment. Leave `backup_id` empty to use its recorded
    pre-deployment snapshot, or supply a complete backup directory's basename.
 3. The workflow validates the full snapshot and old images before any

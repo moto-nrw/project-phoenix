@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+
 	bookingFixtures "github.com/moto-nrw/project-phoenix/services"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -173,7 +175,7 @@ func createSplitRequestChild(t *testing.T, s *scenarioSetup, studentID int64) in
 
 func createSplitRequestChildInPhase(t *testing.T, s *scenarioSetup, phaseID, studentID int64) int64 {
 	t.Helper()
-	suffix := time.Now().UnixNano()
+	suffix := testpkg.UniqueSuffix()
 	var requestID int64
 	require.NoError(t, s.db.NewRaw(`
 		INSERT INTO enrollment.requests
@@ -292,7 +294,7 @@ func createShortCalendarPeriod(t *testing.T, s *scenarioSetup, start, end timezo
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
-	require.NoError(t, s.factory.CalendarPeriod.CreatePeriod(s.ctx, period))
+	createCalendarPeriodRow(t, s.db, s.ctx, period)
 	return period
 }
 
@@ -428,7 +430,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		s.extraCleanups = append([]func(){func() {
 		}}, s.extraCleanups...)
 		offering.IsActive = false
-		require.NoError(t, repos.CareOffering.Update(s.ctx, offering))
+		require.NoError(t, enrollmentSvc.NewCareOfferingRepository(repos.CarePlan()).Update(s.ctx, offering))
 
 		_, err := s.factory.TemplateSplit.EndFromDate(s.ctx, timetableplanning.TemplateEndInput{
 			TemplateID:    s.template.ID,
@@ -471,7 +473,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		anchor := scheduleModels.Date(effective)
 		s.period.WeekCycleLength = 2
 		s.period.WeekCycleAnchor = &anchor
-		require.NoError(t, s.factory.CalendarPeriod.UpdatePeriod(s.ctx, s.period))
+		updateCalendarPeriodRow(t, s.db, s.ctx, s.period)
 		createLinkedCareOffering(t, s, effective, effective.AddDays(21))
 		in := linkedTemplateUpdateInput(t, s, &s.period.ID)
 		in.WeekPattern = 1

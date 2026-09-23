@@ -29,7 +29,7 @@ func TestGenerateSeedPassword(t *testing.T) {
 
 	// Run multiple times to verify deterministic compliance (was probabilistic before fix).
 	for i := 0; i < 50; i++ {
-		password, err := generateSeedPassword(random)
+		password, err := GenerateSeedPassword(random)
 		require.NoError(t, err)
 		assert.Len(t, password, seedPasswordLength)
 		for _, char := range password {
@@ -345,9 +345,9 @@ func TestCollectSeedState_BasicFields(t *testing.T) {
 
 	// Populate FixedSeeder internal maps
 	fs.staffCredentials = []StaffCredentials{
-		{Email: "demo1@mail.de", Password: "pass1", PIN: "1000", Name: "Anna Müller", Position: "OGS-Büro"},
-		{Email: "demo11@mail.de", Password: "pass11", PIN: "1010", Name: "Julia Klein", Position: "Pädagogische Fachkraft"},
-		{Email: "demo12@mail.de", Password: "pass12", PIN: "1011", Name: "Markus Wolf", Position: "Pädagogische Fachkraft"},
+		{Email: "demo1@mail.de", Password: "pass1", Name: "Anna Müller", Position: "OGS-Büro"},
+		{Email: "demo11@mail.de", Password: "pass11", Name: "Julia Klein", Position: "Pädagogische Fachkraft"},
+		{Email: "demo12@mail.de", Password: "pass12", Name: "Markus Wolf", Position: "Pädagogische Fachkraft"},
 	}
 	fs.staffIDs = map[string]int64{
 		"Anna Müller": 11,
@@ -671,6 +671,52 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	assertWithdrawalSeedTrace(t, trace)
 }
 
+// A long-running demo stores the same complete seed contract in its database,
+// without producing a credentials file on the sidecar filesystem.
+func TestSeeder_Seed_UsesStateSink(t *testing.T) {
+	t.Parallel()
+	srv := fullSeedAPIMock(t)
+	defer srv.Close()
+	statePath := filepath.Join(t.TempDir(), "must-not-exist.json")
+	var saved *SeedState
+	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{
+		OnlyProfile: DefaultProfileKey,
+		StatePath:   statePath,
+		SaveState: func(_ context.Context, state *SeedState) error {
+			saved = state
+			return nil
+		},
+	})
+	result, err := s.Seed(context.Background(), "operator@example.test", "test-password", "1234")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, saved)
+	require.Len(t, saved.Profiles, 1)
+	profile, err := saved.SelectProfile(DefaultProfileKey)
+	require.NoError(t, err)
+	assert.Len(t, profile.Entities.Students, len(DemoStudents))
+	require.NotEmpty(t, profile.Credentials.Accounts.Admin)
+	assert.NotEmpty(t, profile.Credentials.Accounts.Admin[0].Password)
+	assert.NotEmpty(t, profile.Devices)
+	_, err = os.Stat(statePath)
+	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestSeeder_Seed_StateSinkFailureFailsRun(t *testing.T) {
+	t.Parallel()
+	srv := fullSeedAPIMock(t)
+	defer srv.Close()
+	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{
+		OnlyProfile: DefaultProfileKey,
+		SaveState: func(context.Context, *SeedState) error {
+			return fmt.Errorf("demo state storage unavailable")
+		},
+	})
+	result, err := s.Seed(context.Background(), "operator@example.test", "test-password", "1234")
+	require.ErrorContains(t, err, "demo state storage unavailable")
+	assert.Nil(t, result, "a school without saved credentials must not be reported as ready")
+}
+
 func TestManualGuardianForStudentUsesStudentIndex(t *testing.T) {
 	t.Parallel()
 
@@ -795,7 +841,7 @@ func TestPrintSuccessSummary_DoesNotPanic(t *testing.T) {
 			ActivityCount: 10,
 			DeviceCount:   10,
 			StaffCredentials: []StaffCredentials{
-				{Name: "Anna Müller", Position: "OGS-Büro", Email: "demo1@mail.de", Password: "pass1", PIN: "1000"},
+				{Name: "Anna Müller", Position: "OGS-Büro", Email: "demo1@mail.de", Password: "pass1"},
 			},
 		},
 	}
@@ -1251,6 +1297,10 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		if r.URL.Path == "/api/staff" && r.Method == seedHTTPMethodPost && planningStaffID == 0 {
 			planningStaffID = idCounter
 		}
+		if strings.HasPrefix(r.URL.Path, "/auth/roles/") && strings.HasSuffix(r.URL.Path, "/permissions") {
+			w.WriteHeader(seedHTTPStatusNoContent)
+			return
+		}
 
 		switch r.URL.Path {
 		case "/health":
@@ -1291,6 +1341,14 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 
 		case "/operator/schools":
+			// The Kinderkontingent step (#3567) reads the school back.
+			if r.Method == seedHTTPMethodGet {
+				_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []map[string]any{{
+					"id": 1, "organization_id": 1, "name": "Demo-Schule Vollbetrieb",
+					"slug": "vollbetrieb", "subdomain": "vollbetrieb", "active": true,
+				}}})
+				return
+			}
 			var body struct {
 				Slug string `json:"slug"`
 			}
@@ -1375,6 +1433,13 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 
 		case "/auth/roles":
+			if r.Method == seedHTTPMethodPost {
+				// A reduced demo role of the school (#3469).
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"status": "success", "data": map[string]any{"id": fmt.Sprintf("%d", 100+idCounter)},
+				})
+				return
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
 				"data": []map[string]any{
@@ -1382,6 +1447,11 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 					{"id": "2", "name": "user"},
 					{"id": "3", "name": "guest"},
 				},
+			})
+
+		case "/auth/permissions":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": seedTestPermissionCatalog(),
 			})
 
 		case "/api/activities/categories":

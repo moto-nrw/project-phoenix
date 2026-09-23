@@ -257,3 +257,9 @@ func staffDisplayName(member *usersModel.Staff) string {
 	}
 	return member.Person.FirstName + " " + member.Person.LastName
 }
+
+type StaffShiftCoverageReader interface {
+	FindByDateRange(ctx context.Context, start, end scheduleModel.Date) ([]*scheduleModel.StaffShift, error)
+	FindByStaffIDsAndDates(ctx context.Context, staffIDs []int64, dates []scheduleModel.Date) ([]*scheduleModel.StaffShift, error)
+	FindUsedCalendarWeeks(ctx context.Context, start, end scheduleModel.Date) ([]scheduleModel.Date, error)
+}

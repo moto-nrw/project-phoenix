@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 func sortStaffByName(staffMembers []OverviewStaff) {
@@ -113,13 +112,13 @@ func buildMonthExportRow(staff OverviewStaff, summary *MonthSummary) MonthExport
 	}
 	for _, adjustment := range summary.Adjustments {
 		switch adjustment.Type {
-		case activeModels.BalanceAdjustmentTypePayout:
+		case BalanceAdjustmentTypePayout:
 			row.PayoutMinutes += adjustment.MinutesDelta
-		case activeModels.BalanceAdjustmentTypeCompTime:
+		case BalanceAdjustmentTypeCompTime:
 			row.CompTimeMinutes += adjustment.MinutesDelta
-		case activeModels.BalanceAdjustmentTypeReset:
+		case BalanceAdjustmentTypeReset:
 			row.ResetMinutes += adjustment.MinutesDelta
-		case activeModels.BalanceAdjustmentTypeOpening:
+		case BalanceAdjustmentTypeOpening:
 			row.OpeningMinutes += adjustment.MinutesDelta
 		}
 	}
@@ -167,13 +166,13 @@ func (s *workSessionService) DayExportRowsByStaffIDs(ctx context.Context, staffI
 		return nil, fmt.Errorf("failed to get sessions for export: %w", err)
 	}
 
-	absencesByStaff := make(map[int64][]*activeModels.StaffAbsence, len(staffIDs))
+	absencesByStaff := make(map[int64][]*StaffAbsence, len(staffIDs))
 	if s.absenceRepo != nil {
 		absencesByStaff, err = s.absenceRepo.GetByStaffIDsAndDateRange(ctx, staffIDs, from, to)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get absences for export: %w", err)
 		}
-		allAbsences := make([]*activeModels.StaffAbsence, 0)
+		allAbsences := make([]*StaffAbsence, 0)
 		for _, absences := range absencesByStaff {
 			allAbsences = append(allAbsences, absences...)
 		}
@@ -182,7 +181,7 @@ func (s *workSessionService) DayExportRowsByStaffIDs(ctx context.Context, staffI
 		StampAbsenceTypeLabels(ctx, s.absenceTypes, allAbsences, s.getLogger())
 	}
 
-	allSessions := make([]*activeModels.WorkSession, 0)
+	allSessions := make([]*WorkSession, 0)
 	for _, staffID := range staffIDs {
 		allSessions = append(allSessions, sessionsByStaff[staffID]...)
 	}
@@ -207,7 +206,7 @@ func (s *workSessionService) DayExportRowsByStaffIDs(ctx context.Context, staffI
 	return result, nil
 }
 
-func (s *workSessionService) buildDayExportSessionResponses(ctx context.Context, sessions []*activeModels.WorkSession) ([]*SessionResponse, error) {
+func (s *workSessionService) buildDayExportSessionResponses(ctx context.Context, sessions []*WorkSession) ([]*SessionResponse, error) {
 	sessionIDs := make([]int64, len(sessions))
 	sessionIDValues := make([]interface{}, len(sessions))
 	for i, session := range sessions {
@@ -220,7 +219,7 @@ func (s *workSessionService) buildDayExportSessionResponses(ctx context.Context,
 		return nil, fmt.Errorf("failed to get edit counts: %w", err)
 	}
 
-	breaksBySession := make(map[int64][]*activeModels.WorkSessionBreak, len(sessions))
+	breaksBySession := make(map[int64][]*WorkSessionBreak, len(sessions))
 	if len(sessionIDValues) > 0 {
 		options := modelBase.NewQueryOptions()
 		options.Filter.In("session_id", sessionIDValues...)

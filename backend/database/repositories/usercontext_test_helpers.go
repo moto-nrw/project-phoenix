@@ -3,18 +3,18 @@ package repositories
 import (
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
-	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
 )
 
 type UserContextTestRepositories struct {
 	Timetable     TimetableTestRepositories
-	Account       authModels.AccountRepository
-	Profile       authModels.ProfileRepository
+	Profile       identityaccess.AccountProfiles
 	Substitutions educationModels.GroupSubstitutionRepository
+	StaffGroups   schoolstructure.StaffGroupQuery
 }
 
 func NewUserContextTestRepositories(db *bun.DB) (UserContextTestRepositories, error) {
@@ -26,11 +26,15 @@ func NewUserContextTestRepositories(db *bun.DB) (UserContextTestRepositories, er
 	if err != nil {
 		return UserContextTestRepositories{}, err
 	}
-	organizations, err := NewOrganizationTenancy(db)
+	workTime, err := NewWorkforce(db, membership)
 	if err != nil {
 		return UserContextTestRepositories{}, err
 	}
-	workTime, err := NewWorkforce(db, membership)
+	structure, err := NewSchoolStructure(db)
+	if err != nil {
+		return UserContextTestRepositories{}, err
+	}
+	staffGroups, err := NewUserContextStaffGroups(structure, membership, workTime)
 	if err != nil {
 		return UserContextTestRepositories{}, err
 	}
@@ -38,7 +42,6 @@ func NewUserContextTestRepositories(db *bun.DB) (UserContextTestRepositories, er
 	substitutions := workforceLegacy.NewGroupSubstitutionRepository(workTime, groups.FindByIDs,
 		substitutionStaffResolver(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}))
 	return UserContextTestRepositories{
-		Timetable: timetable, Profile: authRepo.NewProfileRepository(db), Substitutions: substitutions,
-		Account: schoolAccountRepository{AccountRepository: authRepo.NewAccountRepository(db), schools: organizations},
+		Timetable: timetable, Profile: newIdentityAccess(db, nil), Substitutions: substitutions, StaffGroups: staffGroups,
 	}, nil
 }

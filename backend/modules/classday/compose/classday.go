@@ -5,11 +5,9 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -23,7 +21,9 @@ type DayReportReader interface {
 // resolves the caller with.
 type CallerReader interface {
 	GetMySchoolClasses(ctx context.Context) ([]string, error)
-	GetCurrentStaff(ctx context.Context) (*userModel.Staff, error)
+	// CurrentStaffID resolves the caller's staff member; found is false,
+	// without an error, for a caller who is no staff member.
+	CurrentStaffID(ctx context.Context) (staffID int64, found bool, err error)
 }
 
 // ClassDayDependencies wires the school-portal capability. ArrivalExceptions
@@ -97,13 +97,14 @@ func (b reportBinding) ClassDay(ctx context.Context, schoolClass string, date ti
 	if err != nil {
 		return nil, mapError(err, errorPair{legacy: enrollment.ErrReportInvalidFilter, sentinel: classday.ErrInvalidReportFilter})
 	}
-	return DayReportFromEnrollment(report), nil
+	return dayReportFromEnrollment(report), nil
 }
 
-// DayReportFromEnrollment projects the enrollment report onto the public
-// contract field by field; the JSON shapes are identical (see the parity
-// test).
-func DayReportFromEnrollment(report *enrollment.ClassDayReport) *classday.DayReport {
+// dayReportFromEnrollment projects the enrollment report onto the public
+// contract. Rows, totals and the class exception convert as struct types, so
+// the compiler refuses a field the two sides do not share; the wire golden
+// and the class-day HTTP tests pin the JSON tags.
+func dayReportFromEnrollment(report *enrollment.ClassDayReport) *classday.DayReport {
 	if report == nil {
 		return nil
 	}
@@ -114,27 +115,15 @@ func DayReportFromEnrollment(report *enrollment.ClassDayReport) *classday.DayRep
 		SchoolDay:       report.SchoolDay,
 		PhaseName:       report.PhaseName,
 		EnrollmentKnown: report.EnrollmentKnown,
-		Totals: classday.DayTotals{
-			Students: report.Totals.Students, Staying: report.Totals.Staying, Leaving: report.Totals.Leaving,
-			Absent: report.Totals.Absent, ListEntries: report.Totals.ListEntries,
-		},
-		Rows: make([]classday.DayRow, 0, len(report.Rows)),
+		Totals:          classday.DayTotals(report.Totals),
+		Rows:            make([]classday.DayRow, 0, len(report.Rows)),
 	}
 	for _, row := range report.Rows {
-		out.Rows = append(out.Rows, classday.DayRow{
-			StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName,
-			ListEntry: row.ListEntry, ListEntryID: row.ListEntryID, GroupName: row.GroupName,
-			Registered: row.Registered, StaysToday: row.StaysToday, Offerings: row.Offerings,
-			Arrival: row.Arrival, Pickup: row.Pickup, Departure: row.Departure, Status: row.Status,
-			PickupChanged: row.PickupChanged, PickupRegular: row.PickupRegular, ReportedAt: row.ReportedAt,
-		})
+		out.Rows = append(out.Rows, classday.DayRow(row))
 	}
 	if report.ClassArrivalException != nil {
-		out.ClassArrivalException = &classday.DayArrivalException{
-			ArrivalTime: report.ClassArrivalException.ArrivalTime,
-			Reason:      report.ClassArrivalException.Reason,
-			Origin:      report.ClassArrivalException.Origin,
-		}
+		exception := classday.DayArrivalException(*report.ClassArrivalException)
+		out.ClassArrivalException = &exception
 	}
 	return out
 }
@@ -151,16 +140,14 @@ func (b callerBinding) AssignedClasses(ctx context.Context) ([]string, error) {
 // lookup is a server error, not a missing record — the caller must not be
 // told to fix their account for a database outage.
 func (b callerBinding) StaffID(ctx context.Context) (int64, error) {
-	staff, err := b.context.GetCurrentStaff(ctx)
+	staffID, found, err := b.context.CurrentStaffID(ctx)
 	switch {
-	case errors.Is(err, usercontext.ErrUserNotLinkedToStaff), errors.Is(err, usercontext.ErrUserNotLinkedToPerson):
-		return 0, classday.ErrStaffRecordRequired
 	case err != nil:
 		return 0, err
-	case staff == nil:
+	case !found:
 		return 0, classday.ErrStaffRecordRequired
 	}
-	return staff.ID, nil
+	return staffID, nil
 }
 
 type arrivalExceptionBinding struct {

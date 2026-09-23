@@ -33,6 +33,9 @@ func LockExceptionDay(ctx context.Context, db bun.IDB, tenantID, studentID int64
 	if db == nil {
 		return errors.New("care plan postgres: ambient database is required")
 	}
+	if tenantID <= 0 {
+		return errors.New("care plan postgres: tenant id is required")
+	}
 	key := fmt.Sprintf("care-exception-day:%d:%d:%s", tenantID, studentID, date)
 	_, err := db.NewRaw(`SELECT pg_advisory_xact_lock(hashtext(?))`, key).Exec(ctx)
 	return err
@@ -65,6 +68,7 @@ type careOfferingRow struct {
 	SelectionGroup      string            `bun:"selection_group"`
 	SelectionRule       string            `bun:"selection_rule,notnull"`
 	PickupTimes         map[string]string `bun:"pickup_times,type:jsonb"`
+	Translations        json.RawMessage   `bun:"translations,type:jsonb,notnull"`
 }
 
 type autoTriggerRow struct {
@@ -241,7 +245,7 @@ func (s *Store) UpdateCareOffering(ctx context.Context, id int64, fields domain.
 		ModelTableExpr(`enrollment.care_offerings AS "care_offering"`).
 		Column("phase_id", "activity_group_id", "name", "description", "days_of_week_mode", "available_days",
 			"includes_holiday_care", "includes_lunch", "capacity", "price_cents", "is_active", "is_required",
-			"counts_as_care", "auto_add_grade_levels", "availability_rule", "sort_order", "selection_group", "selection_rule", "pickup_times").
+			"counts_as_care", "auto_add_grade_levels", "availability_rule", "sort_order", "selection_group", "selection_rule", "pickup_times", "translations").
 		Set("updated_at = NOW()").
 		Where(`"care_offering".id = ?`, id), "care_offering", tenantID)
 	stats := domain.OperationStats{Queries: 1}
@@ -596,6 +600,11 @@ func applyCareOfferingFields(row *careOfferingRow, fields domain.CareOfferingFie
 	row.SelectionGroup = fields.SelectionGroup
 	row.SelectionRule = fields.SelectionRule
 	row.PickupTimes = fields.PickupTimes
+	row.Translations = fields.Translations
+	if len(row.Translations) == 0 {
+		// The column is NOT NULL; an untranslated offering stores {}.
+		row.Translations = json.RawMessage(`{}`)
+	}
 }
 
 func careOfferingToDomain(row careOfferingRow) domain.CareOffering {
@@ -607,6 +616,7 @@ func careOfferingToDomain(row careOfferingRow) domain.CareOffering {
 		Capacity: row.Capacity, PriceCents: row.PriceCents, IsActive: row.IsActive, IsRequired: row.IsRequired,
 		CountsAsCare: row.CountsAsCare, AutoAddGradeLevels: row.AutoAddGradeLevels, AvailabilityRule: row.AvailabilityRule,
 		SortOrder: row.SortOrder, SelectionGroup: row.SelectionGroup, SelectionRule: row.SelectionRule, PickupTimes: row.PickupTimes,
+		Translations: row.Translations,
 	}
 }
 

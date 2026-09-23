@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
-import { POST } from "./route";
+import { POST, PUT } from "./route";
 
 // ============================================================================
 // Types
@@ -15,9 +15,10 @@ interface ExtendedSession extends Session {
 // Mocks (using vi.hoisted for proper hoisting)
 // ============================================================================
 
-const { mockAuth, mockApiPost } = vi.hoisted(() => ({
+const { mockAuth, mockApiPost, mockApiPut } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
   mockApiPost: vi.fn(),
+  mockApiPut: vi.fn(),
 }));
 
 vi.mock("~/server/auth", () => ({
@@ -27,7 +28,7 @@ vi.mock("~/server/auth", () => ({
 vi.mock("@/lib/api-helpers.server", () => ({
   apiGet: vi.fn(),
   apiPost: mockApiPost,
-  apiPut: vi.fn(),
+  apiPut: mockApiPut,
   apiDelete: vi.fn(),
   handleApiError: vi.fn((error: unknown) => {
     const message =
@@ -135,5 +136,29 @@ describe("POST /api/students/[id]/pickup-notes", () => {
     expect(json.data.id).toBe(1);
     expect(json.data.student_id).toBe(123);
     expect(json.data.note).toBe("Pickup at 3pm today");
+  });
+});
+
+describe("PUT /api/students/[id]/pickup-notes", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuth.mockResolvedValue(defaultSession);
+  });
+
+  it("forwards the complete weekday-note list", async () => {
+    mockApiPut.mockResolvedValueOnce({ status: "success" });
+    const request = createMockRequest("/api/students/123/pickup-notes", {
+      method: "PUT",
+      body: { notes: [{ weekday: 2, content: "Dienstags zu Hause" }] },
+    });
+
+    const response = await PUT(request, createMockContext({ id: "123" }));
+
+    expect(mockApiPut).toHaveBeenCalledWith(
+      "/api/students/123/pickup-notes",
+      "test-token",
+      { notes: [{ weekday: 2, content: "Dienstags zu Hause" }] },
+    );
+    expect(response.status).toBe(200);
   });
 });

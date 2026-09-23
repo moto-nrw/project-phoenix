@@ -12,8 +12,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
-	"github.com/moto-nrw/project-phoenix/models/audit"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -347,7 +345,7 @@ func TestSwitchSchool_PortalRoleRequiredAtTarget(t *testing.T) {
 		// The switch must leave a trace at the TARGET school. Without the
 		// request IP reaching generateAndLogTokens this event is silently
 		// never written — a school switch that nothing records.
-		requireAuthEventEventually(t, db, accountID, tenantB, audit.EventTypeTenantSwitch)
+		requireAuthEventEventually(t, db, accountID, tenantB, authEventTenantSwitch)
 	})
 }
 
@@ -815,13 +813,13 @@ func TestLogout_SchoolSession_AuditedAtTheSessionsSchool(t *testing.T) {
 
 	require.NoError(t, service.LogoutWithAudit(context.Background(), login.RefreshToken, switchIP, switchUserAgent))
 
-	requireAuthEventEventually(t, db, accountID, schoolTenantID, audit.EventTypeLogout)
+	requireAuthEventEventually(t, db, accountID, schoolTenantID, authEventLogout)
 
 	count, err := db.NewSelect().
 		TableExpr("audit.auth_events").
 		Where("account_id = ?", accountID).
 		Where("tenant_id = ?", otherTenantID).
-		Where("event_type = ?", audit.EventTypeLogout).
+		Where("event_type = ?", authEventLogout).
 		Count(context.Background())
 	require.NoError(t, err)
 	assert.Zero(t, count, "the logout must not be filed under a school the session never belonged to")
@@ -856,9 +854,8 @@ func TestLoginSchool_MFARequirementAppearingMidLogin_ChallengesInsteadOfMinting(
 	)
 	service := newGatedAuthService(t, db, &MFAServiceMock{
 		ResolveMFAPolicyFn: func(_ context.Context, policyAccountID, _ int64) (identityaccess.MFAPolicy, error) {
-			assignment := &authModels.AccountRole{AccountID: policyAccountID, RoleID: adminRoleID}
-			assignment.SetTenantID(tenantID)
-			_, err := db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(context.Background())
+			_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+				policyAccountID, adminRoleID, tenantID).Exec(context.Background())
 			require.NoError(t, err)
 			return requiredAdminsPolicy(), nil
 		},

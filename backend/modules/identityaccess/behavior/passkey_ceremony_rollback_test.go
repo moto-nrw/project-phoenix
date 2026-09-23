@@ -8,12 +8,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	authmodel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -40,11 +39,7 @@ func TestPasskeyRegistration_RefusedAttestationSpendsTheCeremony(t *testing.T) {
 
 	// The registration is gated on an e-mail code of this school's portal.
 	const code = "246813"
-	challenge := seedTenantChallenge(t, module.Repos.MFAEmailChallenge, account.ID, tenantID, code)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Model((*authmodel.MFAEmailChallenge)(nil)).
-			Where("id = ?", challenge.ID).Exec(context.Background())
-	})
+	seedTenantChallenge(t, nativeMFARecords(t, db), account.ID, tenantID, code)
 
 	options, err := module.Passkeys.BeginAccountPasskeyRegistration(ctx, identityaccess.AccountPasskeyRegistrationStart{
 		AccountID:       account.ID,
@@ -85,11 +80,10 @@ func TestPasskeyRegistration_RefusedAttestationSpendsTheCeremony(t *testing.T) {
 
 // seedTenantChallenge writes an active tenant-portal challenge with a known
 // code, so a test can drive a flow that redeems one.
-func seedTenantChallenge(t *testing.T, repo authmodel.MFAEmailChallengeRepository, accountID, tenantID int64, code string) *authmodel.MFAEmailChallenge {
+func seedTenantChallenge(t *testing.T, repo services.AccountMFARecords, accountID, tenantID int64, code string) identityaccess.AccountMFAChallenge {
 	t.Helper()
-	hash, err := securityruntime.HashPassword(code)
-	require.NoError(t, err)
-	challenge := &authmodel.MFAEmailChallenge{
+	hash := testpkg.HashTestPassword(t, code)
+	challenge := identityaccess.AccountMFAChallenge{
 		AccountID: accountID,
 		TenantID:  tenantID,
 		Scope:     identityaccess.MFAChallengeScopeTenant,
@@ -97,6 +91,7 @@ func seedTenantChallenge(t *testing.T, repo authmodel.MFAEmailChallengeRepositor
 		ExpiresAt: time.Now().Add(identityaccess.MFAChallengeTTL),
 		IPAddress: net.ParseIP("203.0.113.11"),
 	}
-	require.NoError(t, repo.Create(context.Background(), challenge))
-	return challenge
+	stored, err := repo.CreateChallenge(context.Background(), challenge)
+	require.NoError(t, err)
+	return stored
 }

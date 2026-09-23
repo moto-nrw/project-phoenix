@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,12 +21,9 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	usercontextSvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	calendarRuntime "github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +35,7 @@ func deactivateAccountTenant(t *testing.T, db *bun.DB, accountID, tenantID int64
 	t.Helper()
 	_, err := db.NewUpdate().
 		TableExpr("auth.account_tenants").
-		Set("status = ?", authModels.AccountTenantStatusInactive).
+		Set("status = ?", "inactive").
 		Set("deactivated_at = NOW()").
 		Set("staff_calendar_feed_token = NULL").
 		Set("updated_at = NOW()").
@@ -52,31 +48,15 @@ func deactivateAccountTenant(t *testing.T, db *bun.DB, accountID, tenantID int64
 func calendarTestConfig(t *testing.T, db *bun.DB) calendarRuntime.CalendarDependencies {
 	t.Helper()
 	repos := calendarTestRepositories(t, db)
-	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	identity, err := calendarRuntime.NewUserContextTestModule(db, testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	userContext := usercontextSvc.NewUserContextServiceWithRepos(
-		usercontextSvc.UserContextRepositories{
-			AccountRepo:        repos.Account,
-			PersonRepo:         repos.Person,
-			StaffRepo:          repos.Staff,
-			TeacherRepo:        repos.Teacher,
-			StudentRepo:        repos.Student,
-			EducationGroupRepo: repos.Group,
-			ActivityGroupRepo:  repos.ActivityGroup,
-			ActiveGroupRepo:    repos.ActiveGroup,
-			Presence:           presence,
-			SupervisorRepo:     repos.GroupSupervisor,
-			ProfileRepo:        repos.Profile,
-			SubstitutionRepo:   repos.GroupSubstitution,
-		},
-		slog.Default(),
-	)
+	userContext := identity.UserContext.Caller()
 
 	return calendarRuntime.CalendarDependencies{
 		CalendarFacts: repositories.CalendarFacts{
 			StaffRepo:            repos.Staff,
 			StudentRepo:          repos.Student,
-			GuardianProfileRepo:  repos.GuardianProfile,
+			GuardianProfileRepo:  repositories.NewCalendarGuardianDirectory(repos.GuardianProfile, repositories.MustNewPeopleDirectory(db)),
 			StudentGuardianRepo:  repos.StudentGuardian,
 			ChildRepo:            repos.ParentChild,
 			GroupRepo:            repos.Group,
@@ -638,7 +618,7 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 
 	cfg := calendarTestConfig(t, db)
 	repos := calendarTestRepositories(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.ParentsURL = "https://parents.test"
 	service := calendarRuntime.NewCalendarPortal(cfg)
 
@@ -741,7 +721,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionFeed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
@@ -793,7 +773,7 @@ func TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndTo
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
@@ -878,7 +858,7 @@ func TestCalendarServiceIntegration_StaffCalDAVSettingFailureLeavesICalendarAvai
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
@@ -903,7 +883,7 @@ func TestCalendarServiceIntegration_StaffFeedPreservesIdentityDatabaseErrors(t *
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.PersonRepo = repos.Person
 	cfg.FrontendURL = "https://moto.test"
@@ -925,7 +905,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedInd
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
@@ -958,10 +938,9 @@ func TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedInd
 	deactivateAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	_, _, err = service.StaffCalendarFeedByToken(testpkg.Ctx(t), rotatedToken)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
-	require.NoError(t, repos.AccountTenant.EnsureActive(testpkg.Ctx(t), &authModels.AccountTenant{
-		AccountID: account.ID,
-		TenantID:  testpkg.Tenant(t),
-	}))
+	_, err = db.NewRaw(`UPDATE auth.account_tenants SET status = 'active', activated_at = NOW(),
+		deactivated_at = NULL, updated_at = NOW() WHERE account_id = ? AND tenant_id = ?`, account.ID, testpkg.Tenant(t)).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
 	_, _, err = service.StaffCalendarFeedByToken(testpkg.Ctx(t), rotatedToken)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound, "reactivation must not resurrect a capability issued before offboarding")
 }
@@ -972,7 +951,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionMatchesPersonalCalendarWith
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
@@ -1029,7 +1008,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvent
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
@@ -1076,7 +1055,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEve
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
@@ -1128,7 +1107,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDelet
 	db := testpkg.SetupTestDB(t)
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
@@ -1270,7 +1249,7 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 
 	cfg := calendarTestConfig(t, db)
 	repos := calendarTestRepositories(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.ParentsURL = "https://parents.test"
 	service := calendarRuntime.NewCalendarPortal(cfg)
 
@@ -1393,7 +1372,7 @@ func TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow(t *
 
 	cfg := calendarTestConfig(t, db)
 	repos := calendarTestRepositories(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.ParentsURL = "https://parents.test"
 	service := calendarRuntime.NewCalendarPortal(cfg)
 
@@ -1487,9 +1466,9 @@ func TestCalendarServiceIntegration_AllSchoolParentsExcludesInactiveStudents(t *
 
 	// Mark the second family's child as a former (inactive) student.
 	_, err := db.NewUpdate().
-		Table("users.students").
+		Table("users.student_school_memberships").
 		Set("status = ?", string(userModels.StudentStatusInactive)).
-		Where("id = ?", formerChain.StudentID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", formerChain.StudentID).
 		Exec(context.Background())
 	require.NoError(t, err)
 
@@ -1729,7 +1708,7 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 	_, err := db.ExecContext(
 		context.Background(),
 		`UPDATE auth.account_tenants SET status = ? WHERE account_id = ? AND tenant_id = ?`,
-		authModels.AccountTenantStatusInactive,
+		"inactive",
 		inactiveParentChain.AccountID,
 		inactiveParentChain.TenantID,
 	)
@@ -2396,7 +2375,7 @@ func TestCalendarServiceIntegration_FeedRejectsInactiveAccount(t *testing.T) {
 
 	cfg := calendarTestConfig(t, db)
 	repos := calendarTestRepositories(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.ParentsURL = "https://parents.test"
 	service := calendarRuntime.NewCalendarPortal(cfg)
 
@@ -2990,7 +2969,7 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 
 	cfg := calendarTestConfig(t, db)
 	repos := calendarTestRepositories(t, db)
-	cfg.AccountRepo = repos.Account
+	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.ParentsURL = "https://parents.test"
 	service := calendarRuntime.NewCalendarPortal(cfg)
 

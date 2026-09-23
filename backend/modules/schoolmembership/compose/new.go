@@ -21,6 +21,21 @@ type Observation = ports.Observation
 type Dependencies struct {
 	DB      *bun.DB
 	Observe func(Observation)
+	// Employment is the Workforce half of every staff member (#2753).
+	Employment StaffEmployment
+	// ChildQuota reads the school's Kinderkontingent (#3567). A graph that
+	// never enrolls children may leave it unbound; its counting writes then
+	// fail instead of skipping the check.
+	ChildQuota ChildQuota
+}
+
+// ChildQuota is the consumer-owned port over Organisation & Tenancy's
+// Kinderkontingent. The composition root binds it to
+// organizationtenancy.ChildQuotaLimits; School Membership never reads
+// platform.schools itself. It answers for the tenant in context on the
+// caller's transaction; limited is false when the school has none.
+type ChildQuota interface {
+	ChildQuotaLimit(ctx context.Context) (limit int, limited bool, err error)
 }
 
 // New composes the School Membership module. Every operation runs on the
@@ -40,6 +55,9 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("school membership compose: all dependencies are required")
 	}
+	if dependencies.Employment == nil {
+		return nil, errStaffEmploymentUnbound
+	}
 	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
 		transaction, ok := tenant.TransactionFromContext(ctx)
 		if !ok {
@@ -55,7 +73,11 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 		}
 		return nil, 0, fmt.Errorf("school membership postgres: unsupported transaction %T", transaction)
 	})
-	service := application.New(store, transaction{}, func(observation Observation) {
+	var quota ports.ChildQuota
+	if dependencies.ChildQuota != nil {
+		quota = dependencies.ChildQuota
+	}
+	service := application.New(store, staffEmployment{port: dependencies.Employment}, quota, postgres.BerlinToday, transaction{}, func(observation Observation) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	})
@@ -71,6 +93,10 @@ func (transaction) RunWrite(ctx context.Context, callback func(context.Context) 
 	return tenant.WithinCurrentTenant(ctx, callback)
 }
 
+func (transaction) RunSavepoint(ctx context.Context, callback func(context.Context) error) error {
+	return tenant.WithSavepoint(ctx, callback)
+}
+
 func (transaction) RunRead(ctx context.Context, callback func(context.Context) error) error {
 	if _, ok := tenant.TransactionFromContext(ctx); ok {
 		return callback(ctx)
@@ -83,6 +109,18 @@ func (transaction) RunRead(ctx context.Context, callback func(context.Context) e
 
 type engine struct{ service *application.Service }
 
+// ReadInTenant never takes the admin fallback of RunRead: the identity read
+// answers for one school, so a missing tenant is an error.
+func (engine) ReadInTenant(ctx context.Context, read func(context.Context) error) error {
+	if _, err := tenant.TenantFromContext(ctx); err != nil {
+		return fmt.Errorf("school membership: staff identity: %w", err)
+	}
+	if _, ok := tenant.TransactionFromContext(ctx); ok {
+		return read(ctx)
+	}
+	return tenant.WithinCurrentTenant(ctx, read)
+}
+
 func (e engine) FindStaff(ctx context.Context, id int64, lock string) (schoolmembership.Staff, error) {
 	value, err := e.service.FindStaff(ctx, id, lock)
 	return staffToPublic(value), mapError(err)
@@ -93,10 +131,15 @@ func (e engine) FindStaffByPerson(ctx context.Context, personID int64) (schoolme
 	return staffToPublic(value), mapError(err)
 }
 
+func (e engine) FindStaffMembershipByPerson(ctx context.Context, personID int64) (schoolmembership.Staff, error) {
+	value, err := e.service.FindStaffMembershipByPerson(ctx, personID)
+	return staffToPublic(value), mapError(err)
+}
+
 func (e engine) ListStaff(ctx context.Context, filter schoolmembership.StaffFilter) ([]schoolmembership.Staff, error) {
 	values, err := e.service.ListStaff(ctx, domain.StaffFilter{
-		IDs: filter.IDs, PersonIDs: filter.PersonIDs, WorkTimeModelID: filter.WorkTimeModelID,
-		TenantIDs: filter.TenantIDs, IncludeDeleted: filter.IncludeDeleted,
+		IDs: filter.IDs, PersonIDs: filter.PersonIDs,
+		TenantIDs: filter.TenantIDs, IncludeDeleted: filter.IncludeDeleted, MembershipOnly: filter.MembershipOnly,
 	})
 	if err != nil {
 		return nil, mapError(err)
@@ -120,24 +163,6 @@ func (e engine) UpdateStaff(ctx context.Context, input schoolmembership.UpdateSt
 
 func (e engine) DeleteStaff(ctx context.Context, id int64) error {
 	return mapError(e.service.DeleteStaff(ctx, id))
-}
-
-func (e engine) ClearWorkTimeModel(ctx context.Context, id int64) error {
-	return mapError(e.service.ClearWorkTimeModel(ctx, id))
-}
-
-func (e engine) AppendStaffNotes(ctx context.Context, id int64, notes string) (schoolmembership.Staff, error) {
-	value, err := e.service.AppendStaffNotes(ctx, id, notes)
-	return staffToPublic(value), mapError(err)
-}
-
-func (e engine) SetBirthdayDisplayOptOut(ctx context.Context, id int64, optOut bool) error {
-	return mapError(e.service.SetBirthdayDisplayOptOut(ctx, id, optOut))
-}
-
-func (e engine) RebaseWorkTimeModelAnchor(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error) {
-	ids, err := e.service.RebaseWorkTimeModelAnchor(ctx, workTimeModelID, anchorDate)
-	return ids, mapError(err)
 }
 
 func (e engine) FindTeacher(ctx context.Context, id int64) (schoolmembership.Teacher, error) {
@@ -312,9 +337,14 @@ func guestToPublic(value domain.Guest) schoolmembership.Guest {
 }
 
 func mapError(err error) error {
+	var quotaReached *domain.ChildQuotaReachedError
 	switch {
 	case err == nil:
 		return nil
+	case errors.As(err, &quotaReached):
+		return &schoolmembership.ChildQuotaReachedError{
+			Booked: quotaReached.Booked, Occupied: quotaReached.Occupied, Requested: quotaReached.Requested,
+		}
 	case errors.Is(err, domain.ErrOffboardingConflict):
 		return schoolmembership.ErrOffboardingConflict
 	case errors.Is(err, domain.ErrStaffNotFound):

@@ -47,7 +47,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-var updateGoldens = flag.Bool("update-goldens", false, "rewrite the route-table and IoT auth-matrix golden files")
+var updateGoldens = flag.Bool("update-goldens", false, "rewrite the route-table, IoT auth-matrix and IoT error-string golden files")
 
 func checkRouteTableGolden(t *testing.T, apiInstance *API) {
 	t.Parallel()
@@ -67,6 +67,22 @@ func checkRouteTableGolden(t *testing.T, apiInstance *API) {
 	require.NoError(t, walkErr)
 	sort.Strings(routes)
 	sort.Strings(middlewareRoutes)
+
+	// The root mounts the only session verifier. An Authenticator without a
+	// verifier before it rejects every token, and the shared test executors
+	// mount their own verifier, so only this walk of the production router
+	// notices a missing root mount. Regenerating the golden cannot hide it.
+	for _, chain := range middlewareRoutes {
+		authenticator := strings.Index(chain, "legacy/jwt.Authenticat")
+		if authenticator < 0 {
+			authenticator = strings.Index(chain, "legacy/jwt.MFAEnrollmentAuthenticat")
+		}
+		if authenticator < 0 {
+			continue
+		}
+		verifier := strings.Index(chain, "jwtauth/v5.Verif")
+		require.Truef(t, verifier >= 0 && verifier < authenticator, "authenticated route without a preceding session verifier: %s", chain)
+	}
 
 	compareGolden(t, filepath.Join("testdata", "route_table.golden"), strings.Join(routes, "\n")+"\n",
 		"the route table changed — if intentional, regenerate with -update-goldens and call the change out in the PR description")
@@ -295,6 +311,7 @@ func TestFullProductionRouterGolden(t *testing.T) {
 		t.Run("contracts", func(t *testing.T) {
 			t.Run("route table", func(t *testing.T) { checkRouteTableGolden(t, api) })
 			t.Run("IoT auth matrix", func(t *testing.T) { checkIoTAuthMatrixGolden(t, api) })
+			t.Run("IoT error strings", checkIoTErrorStringsGolden)
 			t.Run("school scope matrix", func(t *testing.T) { checkSchoolScopeMatrix(t, api) })
 			t.Run("caregiver wiring", func(t *testing.T) { checkCaregiverWiring(t, api) })
 			t.Run("enrollment submission", func(t *testing.T) { checkEnrollmentSubmissionGolden(t, api) })

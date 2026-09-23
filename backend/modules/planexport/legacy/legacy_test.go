@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -15,7 +15,6 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,15 +38,20 @@ func clock(hour, minute int) time.Time {
 func ptr[T any](v T) *T { return &v }
 
 type fakeOverview struct {
-	overview *shiftplanning.StaffScheduleOverview
+	overview workforce.StaffScheduleOverview
 	err      error
-	from, to timezone.Date
+	from, to string
 }
 
-func (f *fakeOverview) GetOverview(_ context.Context, from, to timezone.Date) (*shiftplanning.StaffScheduleOverview, error) {
+func (f *fakeOverview) Overview(_ context.Context, from, to string) (workforce.StaffScheduleOverview, error) {
 	f.from, f.to = from, to
 	return f.overview, f.err
 }
+
+// clockString is the public ClockLayout form of a fixture clock; wall
+// restores the normalized wall clock the adapter hands the renderer.
+func clockString(hour, minute int) string { return clock(hour, minute).Format(workforce.ClockLayout) }
+func wall(hour, minute int) time.Time     { return timezone.NormalizeWallClock(clock(hour, minute)) }
 
 type fakeShiftTypes struct {
 	types []*scheduleModel.ShiftType
@@ -119,22 +123,20 @@ func (f fakePlanningTracks) ListAll(context.Context) ([]*scheduleModel.PlanningT
 }
 
 type fakeClosingDays struct {
-	timetableplanning.ClosingDayService
-	days []*scheduleModel.ClosingDay
+	days []*planexport.ClosingPeriod
 	err  error
 }
 
-func (f fakeClosingDays) ClosingDaysInRange(context.Context, timezone.Date, timezone.Date) ([]*scheduleModel.ClosingDay, error) {
+func (f fakeClosingDays) ClosingDaysInRange(context.Context, planexport.Date, planexport.Date) ([]*planexport.ClosingPeriod, error) {
 	return f.days, f.err
 }
 
 type fakeHolidays struct {
-	timetableplanning.HolidayService
-	days []timetableplanning.Holiday
+	days []planexport.Holiday
 	err  error
 }
 
-func (f fakeHolidays) HolidaysInRange(context.Context, timezone.Date, timezone.Date) ([]timetableplanning.Holiday, error) {
+func (f fakeHolidays) HolidaysInRange(context.Context, planexport.Date, planexport.Date) ([]planexport.Holiday, error) {
 	return f.days, f.err
 }
 
@@ -153,10 +155,10 @@ func staffRow(id int64, first, last string) *usersModel.Staff {
 	return member
 }
 
-func shiftRow(id, staffID int64, date timezone.Date) *scheduleModel.StaffShift {
-	shift := &scheduleModel.StaffShift{StaffID: staffID, Date: scheduleModel.Date(date), StartTime: clock(7, 30), EndTime: clock(14, 0)}
-	shift.ID = id
-	return shift
+func plannedShift(id, staffID int64, date timezone.Date) workforce.PlannedShift {
+	return workforce.PlannedShift{StaffShift: workforce.StaffShift{
+		ID: id, StaffID: staffID, Date: date.String(), StartTime: clockString(7, 30), EndTime: clockString(14, 0),
+	}}
 }
 
 func instanceRow(id int64, date timezone.Date, title string, status string) *scheduleModel.ActivityInstance {
@@ -172,48 +174,46 @@ func day(date timezone.Date) planexport.Date {
 func TestOverviewAdapterMapsEveryPrintedField(t *testing.T) {
 	t.Parallel()
 
-	cancelled := shiftRow(1, 7, monday)
+	cancelled := plannedShift(1, 7, monday)
 	cancelled.Cancelled = true
 	cancelled.ChangeReason = ptr("krank")
 	cancelled.ShiftTypeID = ptr[int64](4)
 	cancelled.Notes = "Frühdienst"
-	cover := shiftRow(2, 8, monday)
+	cover := plannedShift(2, 8, monday)
 	cover.OriginShiftID = ptr[int64](1)
-	headless := &usersModel.Staff{}
-	headless.ID = 9
-	source := &fakeOverview{overview: &shiftplanning.StaffScheduleOverview{
-		Staff:  []*usersModel.Staff{staffRow(7, "Franziska", "Kessener"), nil, headless},
-		Shifts: []*scheduleModel.StaffShift{cancelled, nil, cover},
-		Assignments: []shiftplanning.StaffScheduleAssignment{{
-			StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0),
+	source := &fakeOverview{overview: workforce.StaffScheduleOverview{
+		Staff:  []workforce.OverviewStaff{{ID: 7, FirstName: "Franziska", LastName: "Kessener"}, {ID: 9}},
+		Shifts: []workforce.PlannedShift{cancelled, cover},
+		Assignments: []workforce.OverviewAssignment{{
+			StaffID: 7, Date: monday.String(), StartTime: clockString(12, 0), EndTime: clockString(13, 0),
 			ActivityTitle: "Mensa", ActivityGroupID: ptr[int64](21), RoomName: "Speisesaal",
 			IsSubstitute: true, IsAbsent: true,
-			UncoveredIntervals: []timetableplanning.ShiftCoverageInterval{{StartTime: clock(12, 30), EndTime: clock(13, 0)}},
+			UncoveredIntervals: []workforce.CoverageInterval{{StartTime: clockString(12, 30), EndTime: clockString(13, 0)}},
 		}},
 	}}
 
 	overview, err := (overviewAdapter{source: source}).StaffScheduleOverview(context.Background(), day(monday), day(monday.AddDays(6)))
 	require.NoError(t, err)
-	assert.Equal(t, monday, source.from)
-	assert.Equal(t, monday.AddDays(6), source.to)
+	assert.Equal(t, monday.String(), source.from)
+	assert.Equal(t, monday.AddDays(6).String(), source.to)
 
-	require.Len(t, overview.Staff, 2, "nil rows are dropped, a staff row without a person record is kept")
+	require.Len(t, overview.Staff, 2, "a staff row without a person record is kept")
 	assert.Equal(t, &planexport.StaffMember{ID: 7, FirstName: "Franziska", LastName: "Kessener"}, overview.Staff[0])
 	assert.Equal(t, &planexport.StaffMember{ID: 9}, overview.Staff[1])
 
 	require.Len(t, overview.Shifts, 2)
 	assert.Equal(t, &planexport.Shift{
-		ID: 1, StaffID: 7, Date: "2026-07-27", StartTime: clock(7, 30), EndTime: clock(14, 0),
+		ID: 1, StaffID: 7, Date: "2026-07-27", StartTime: wall(7, 30), EndTime: wall(14, 0),
 		ShiftTypeID: ptr[int64](4), Cancelled: true, ChangeReason: ptr("krank"), Notes: "Frühdienst",
 	}, overview.Shifts[0])
 	assert.Equal(t, ptr[int64](1), overview.Shifts[1].OriginShiftID)
 
 	require.Len(t, overview.Assignments, 1)
 	assert.Equal(t, planexport.Assignment{
-		StaffID: 7, Date: "2026-07-27", StartTime: clock(12, 0), EndTime: clock(13, 0),
+		StaffID: 7, Date: "2026-07-27", StartTime: wall(12, 0), EndTime: wall(13, 0),
 		ActivityTitle: "Mensa", ActivityGroupID: ptr[int64](21), RoomName: "Speisesaal",
 		IsSubstitute: true, IsAbsent: true,
-		UncoveredIntervals: []planexport.Interval{{StartTime: clock(12, 30), EndTime: clock(13, 0)}},
+		UncoveredIntervals: []planexport.Interval{{StartTime: wall(12, 30), EndTime: wall(13, 0)}},
 	}, overview.Assignments[0])
 }
 
@@ -296,15 +296,6 @@ func TestRowAdaptersMapPlainRecordsAndSkipNilRows(t *testing.T) {
 		9: {ID: 9},
 	}, members, "a missing staff row keeps its slot so the sheet still prints Unbekannt for it")
 
-	closing, err := (closingDayAdapter{source: fakeClosingDays{days: []*scheduleModel.ClosingDay{
-		{StartDate: scheduleModel.Date(monday), EndDate: scheduleModel.Date(monday.AddDays(1)), Reason: "Betriebsferien"}, nil,
-	}}}).ClosingDaysInRange(ctx, day(monday), day(monday.AddDays(6)))
-	require.NoError(t, err)
-	assert.Equal(t, []*planexport.ClosingPeriod{{StartDate: "2026-07-27", EndDate: "2026-07-28", Reason: "Betriebsferien"}}, closing)
-
-	holidays, err := (holidayAdapter{source: fakeHolidays{days: []timetableplanning.Holiday{{Date: monday.AddDays(2), Name: "Fronleichnam"}}}}).HolidaysInRange(ctx, day(monday), day(monday.AddDays(6)))
-	require.NoError(t, err)
-	assert.Equal(t, []planexport.Holiday{{Date: "2026-07-29", Name: "Fronleichnam"}}, holidays)
 }
 
 // Source failures surface unchanged, so the capability keeps deciding which
@@ -329,10 +320,6 @@ func TestAdaptersSurfaceSourceErrors(t *testing.T) {
 	require.ErrorIs(t, err, errBoom)
 	_, err = (planningTrackAdapter{source: fakePlanningTracks{err: errBoom}}).ListPlanningTracks(ctx)
 	require.ErrorIs(t, err, errBoom)
-	_, err = (closingDayAdapter{source: fakeClosingDays{err: errBoom}}).ClosingDaysInRange(ctx, day(monday), day(monday))
-	require.ErrorIs(t, err, errBoom)
-	_, err = (holidayAdapter{source: fakeHolidays{err: errBoom}}).HolidaysInRange(ctx, day(monday), day(monday))
-	require.ErrorIs(t, err, errBoom)
 }
 
 // The capability validates its own request days, so a malformed day reaching
@@ -346,10 +333,6 @@ func TestAdaptersRefuseMalformedDays(t *testing.T) {
 	require.Error(t, err)
 	_, err = (instanceAdapter{source: &fakeInstances{}}).InstancesInRange(ctx, day(monday), "")
 	require.Error(t, err)
-	_, err = (closingDayAdapter{source: fakeClosingDays{}}).ClosingDaysInRange(ctx, "x", day(monday))
-	require.Error(t, err)
-	_, err = (holidayAdapter{source: fakeHolidays{}}).HolidaysInRange(ctx, day(monday), "x")
-	require.Error(t, err)
 }
 
 // An unbound optional source leaves its port unbound, so the capability
@@ -360,9 +343,9 @@ func TestNewLeavesUnboundSourcesOptional(t *testing.T) {
 
 	renderer := &captureRenderer{}
 	service := New(Sources{
-		Overview: &fakeOverview{overview: &shiftplanning.StaffScheduleOverview{
-			Staff:  []*usersModel.Staff{staffRow(7, "Franziska", "Kessener")},
-			Shifts: []*scheduleModel.StaffShift{shiftRow(1, 7, monday)},
+		Overview: &fakeOverview{overview: workforce.StaffScheduleOverview{
+			Staff:  []workforce.OverviewStaff{{ID: 7, FirstName: "Franziska", LastName: "Kessener"}},
+			Shifts: []workforce.PlannedShift{plannedShift(1, 7, monday)},
 		}},
 		Renderer: renderer,
 	})
@@ -400,8 +383,8 @@ func TestNewRendersTheBetreuungsplanOverRetainedRows(t *testing.T) {
 		Staff:          fakeStaff{members: map[int64]*usersModel.Staff{7: staffRow(7, "Franziska", "Kessener")}},
 		ActivityGroups: fakeActivityGroups{groups: []*activitiesModel.Group{group}},
 		PlanningTracks: fakePlanningTracks{tracks: []*scheduleModel.PlanningTrack{track}},
-		ClosingDays:    fakeClosingDays{days: []*scheduleModel.ClosingDay{{StartDate: scheduleModel.Date(monday.AddDays(1)), EndDate: scheduleModel.Date(monday.AddDays(1)), Reason: "Betriebsferien"}}},
-		Holidays:       fakeHolidays{days: []timetableplanning.Holiday{{Date: monday.AddDays(2), Name: "Fronleichnam"}}},
+		ClosingDays:    fakeClosingDays{days: []*planexport.ClosingPeriod{{StartDate: day(monday.AddDays(1)), EndDate: day(monday.AddDays(1)), Reason: "Betriebsferien"}}},
+		Holidays:       fakeHolidays{days: []planexport.Holiday{{Date: day(monday.AddDays(2)), Name: "Fronleichnam"}}},
 		Renderer:       renderer,
 	})
 	params, err := planexport.ParseParams(monday.String(), monday.AddDays(4).String(), string(planexport.TemplateByOffering), "", "")

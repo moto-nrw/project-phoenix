@@ -71,7 +71,7 @@ func newSchoolInvitation(
 		attach = func(ctx context.Context) context.Context { return ctx }
 	}
 	return application.NewSchoolInvitation(application.SchoolInvitationDependencies{
-		Store: store, Logins: store, Roles: roleStore{lifecycleDeps.Roles},
+		Store: store, Logins: store, Roles: postgres.NewRoleStore(store),
 		Policy:    roleAssignmentPolicy{},
 		Grants:    invitationGrantPolicy{deps.Grants},
 		Identity:  lifecycle,

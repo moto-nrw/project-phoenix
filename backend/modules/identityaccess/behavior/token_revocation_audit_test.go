@@ -8,8 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -37,22 +35,24 @@ func TestLogoutPersistsRevocationAuditWithoutRawFamilyID(t *testing.T) {
 
 	_, refreshToken, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
-	var persisted authModels.Token
-	require.NoError(t, db.NewSelect().Model(&persisted).ModelTableExpr(`auth.tokens AS "token"`).
-		Where(`"token".account_id = ?`, account.ID).Scan(ctx))
-	require.Equal(t, authModels.PortalScopeTenant, persisted.PortalScope)
+	var persisted struct {
+		PortalScope string `bun:"portal_scope"`
+		FamilyID    string `bun:"family_id"`
+	}
+	require.NoError(t, db.NewRaw("SELECT portal_scope, family_id FROM auth.tokens WHERE account_id = ?", account.ID).Scan(ctx, &persisted))
+	require.Equal(t, "tenant", persisted.PortalScope)
 
 	require.NoError(t, service.LogoutWithAudit(ctx, refreshToken, "192.0.2.10", "revocation-test"))
 
-	var event auditModels.AuthEvent
-	require.NoError(t, db.NewSelect().Model(&event).ModelTableExpr(`audit.auth_events AS "auth_event"`).
+	var event authEventRow
+	require.NoError(t, db.NewSelect().Model(&event).
 		Where(`"auth_event".account_id = ?`, account.ID).
-		Where(`"auth_event".event_type = ?`, auditModels.EventTypeTokenRevoked).
+		Where(`"auth_event".event_type = ?`, authEventTokenRevoked).
 		OrderExpr(`"auth_event".id DESC`).Limit(1).Scan(ctx))
 	assert.Equal(t, tenantID, event.TenantID)
 	assert.Equal(t, "192.0.2.10", event.IPAddress)
 	assert.Equal(t, "revocation-test", event.UserAgent)
-	assert.Equal(t, authModels.PortalScopeTenant, event.Metadata["portal_scope"])
+	assert.Equal(t, "tenant", event.Metadata["portal_scope"])
 	assert.Equal(t, "logout", event.Metadata["reason"])
 	assert.Equal(t, float64(1), event.Metadata["revoked_token_count"])
 	assert.Equal(t, rotation.FamilyFingerprint(persisted.FamilyID), event.Metadata["family_fingerprint"])
@@ -74,7 +74,7 @@ func TestLogoutRevokesTokensWhenAuditFails(t *testing.T) {
 	require.NoError(t, err)
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	signer, err := authjwt.NewTokenAuthWithSecret(authTestFactoryConfig(false).JWTSecret)
+	signer, err := authjwt.NewTokenAuthWithDurations(authTestFactoryConfig(false).JWTSecret, 15*time.Minute, time.Hour)
 	require.NoError(t, err)
 	service, err := services.IdentityAccessForTests(repoFactory, services.IdentityAccessTestConfig{
 		TokenAuth: signer, TenantRuntime: testpkg.TenantRuntime(t, db),
@@ -128,7 +128,7 @@ func TestRevocationAuditFailureRollsBackAndRetryIsIdempotent(t *testing.T) {
 	assert.Zero(t, count)
 	eventCount, err := db.NewSelect().TableExpr("audit.auth_events").
 		Where("account_id = ?", account.ID).
-		Where("event_type = ?", auditModels.EventTypeTokenRevoked).
+		Where("event_type = ?", authEventTokenRevoked).
 		Where("metadata->>'reason' = ?", "password_reset").
 		Count(ctx)
 	require.NoError(t, err)
@@ -156,13 +156,13 @@ func TestSessionCapAuditsEvictedTokenFamily(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 5, tokenCount)
 
-	var event auditModels.AuthEvent
-	require.NoError(t, db.NewSelect().Model(&event).ModelTableExpr(`audit.auth_events AS "auth_event"`).
+	var event authEventRow
+	require.NoError(t, db.NewSelect().Model(&event).
 		Where(`"auth_event".account_id = ?`, account.ID).
-		Where(`"auth_event".event_type = ?`, auditModels.EventTypeTokenRevoked).
+		Where(`"auth_event".event_type = ?`, authEventTokenRevoked).
 		Where(`"auth_event".metadata->>'reason' = 'session_cap'`).
 		OrderExpr(`"auth_event".id DESC`).Limit(1).Scan(ctx))
-	assert.Equal(t, authModels.PortalScopeTenant, event.Metadata["portal_scope"])
+	assert.Equal(t, "tenant", event.Metadata["portal_scope"])
 	assert.Equal(t, float64(1), event.Metadata["revoked_token_count"])
 }
 
@@ -189,10 +189,10 @@ func TestCleanupExpiredTokensRetainsPendingWipeReason(t *testing.T) {
 	_, err = service.CleanupExpiredTokens(ctx)
 	require.NoError(t, err)
 
-	var event auditModels.AuthEvent
-	require.NoError(t, db.NewSelect().Model(&event).ModelTableExpr(`audit.auth_events AS "auth_event"`).
+	var event authEventRow
+	require.NoError(t, db.NewSelect().Model(&event).
 		Where(`"auth_event".account_id = ?`, account.ID).
-		Where(`"auth_event".event_type = ?`, auditModels.EventTypeTokenRevoked).
+		Where(`"auth_event".event_type = ?`, authEventTokenRevoked).
 		Where(`"auth_event".metadata->>'reason' = 'password_reset'`).
 		Where(`COALESCE("auth_event".metadata->>'pending_account_wide_wipe', 'false') <> 'true'`).
 		OrderExpr(`"auth_event".id DESC`).Limit(1).Scan(ctx))

@@ -17,12 +17,14 @@ import (
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/services"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
 
 // alwaysOnSettings enables the parent-portal features for the handler E2E
@@ -80,15 +82,17 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService
 	t.Helper()
 	repos, repoErr := repositories.NewParentRouteTestRepositories(db)
 	require.NoError(t, repoErr)
-	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:           repos.ParentChild,
-		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         repos.Student,
-		PickupExceptionRepo: repos.StudentPickupException,
-		Settings:            settings,
-		ExcusedRequests:     repos.ExcusedRequests,
-		DB:                  db,
-		Logger:              slog.Default(),
+	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		CarePlan:        repos.CareExceptions,
+		People:          repositories.MustNewPeopleDirectory(db),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChild,
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     repos.Student,
+		CareExceptions:  repos.CareExceptions,
+		Settings:        settings,
+		ExcusedRequests: repos.ExcusedRequests,
+		Logger:          slog.Default(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc, DB: db})
 	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router())
@@ -180,7 +184,7 @@ func TestSickNoteEndpoint_ForbidsNonOwnedChild(t *testing.T) {
 	// A student id the account is not a guardian of.
 	other := testpkg.CreateTestStudent(t, db, "Fremd", "Kind", "4a")
 	defer func() {
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.students WHERE id = ?`, other.ID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.student_profiles WHERE id = ?`, other.ID)
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, other.PersonID)
 	}()
 	sid := strconv.FormatInt(other.ID, 10)
@@ -227,12 +231,13 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	t.Helper()
 	repos, repoErr := repositories.NewParentRouteTestRepositories(db)
 	require.NoError(t, repoErr)
-	svc := parentService.NewService(parentService.ServiceConfig{
+	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		CarePlan:      repos.CareExceptions,
+		People:        repositories.MustNewPeopleDirectory(db),
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,
 		StudentRepo:   repos.Student,
 		Settings:      disabledSettings{},
-		DB:            db,
 		Logger:        slog.Default(),
 	})
 	return testpkg.TenantRuntimeMiddleware(t, db)(parent.NewResource(parent.ResourceConfig{Parent: svc, DB: db}).Router())
@@ -474,4 +479,13 @@ func nowISO() string         { return isoDay(0) }
 func futureISO(d int) string { return isoDay(d) }
 func isoDay(addDays int) string {
 	return time.Now().AddDate(0, 0, addDays).Format("2006-01-02")
+}
+
+// careProfiles builds Care Plan's care-profile commands the portal writes the
+// child's health information and live absence flags through.
+func careProfiles(t *testing.T, db *bun.DB) careplan.StudentProfileCommands {
+	t.Helper()
+	commands, err := services.NewParentPortalCareProfiles(db)
+	require.NoError(t, err)
+	return commands
 }

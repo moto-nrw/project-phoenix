@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	tenantsettings "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -19,7 +19,7 @@ func TestBinaryCreateVisitPreservesSuccessfulNoOp(t *testing.T) {
 	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.settings.SetString(ctx, configModel.KeyPresenceMode, "binary", nil, nil))
+	require.NoError(t, tc.settings.SetString(ctx, tenantsettings.KeyPresenceMode, "binary", nil, nil))
 	student := testpkg.CreateTestStudent(t, tc.db, "Binary", "Visit", "3a")
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "Binary visit")
 	room := testpkg.CreateTestRoom(t, tc.db, "Binary visit")

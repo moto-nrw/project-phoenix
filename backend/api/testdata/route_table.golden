@@ -348,7 +348,6 @@ GET /api/staff/dashboard-summary
 GET /api/staff/documents-directory
 GET /api/staff/documents-profile/{id}
 GET /api/staff/financial-profile/{id}
-GET /api/staff/pin
 GET /api/staff/time-tracking/audit-log
 GET /api/staff/time-tracking/export
 GET /api/staff/time-tracking/export/datev-report
@@ -501,6 +500,9 @@ GET /operator/announcements/{id}/views
 GET /operator/auth/mfa/trusted-devices
 GET /operator/auth/passkeys
 GET /operator/auth/passkeys/
+GET /operator/billing/key-date-counts
+GET /operator/billing/key-date-counts/export
+GET /operator/billing/key-day
 GET /operator/devices/
 GET /operator/devices/{id}/transfer-status
 GET /operator/invitations/
@@ -679,6 +681,7 @@ POST /api/files/folders
 POST /api/files/folders/{folderId}/files
 POST /api/groups/
 POST /api/guardians/
+POST /api/guardians/bulk-invite
 POST /api/guardians/invitations/{invitationId}/approve
 POST /api/guardians/invitations/{invitationId}/reject
 POST /api/guardians/payment-overview/export
@@ -901,6 +904,7 @@ POST /operator/auth/passkeys/login/verify
 POST /operator/auth/passkeys/register/options
 POST /operator/auth/passkeys/register/verify
 POST /operator/auth/refresh
+POST /operator/billing/key-date-counts/seed
 POST /operator/devices/
 POST /operator/devices/{id}/set-api-key
 POST /operator/devices/{id}/transfer
@@ -1005,7 +1009,6 @@ PUT /api/staff-shifts/series/{id}/split
 PUT /api/staff-shifts/{id}
 PUT /api/staff-shifts/{id}/cancellation
 PUT /api/staff-shifts/{id}/move
-PUT /api/staff/pin
 PUT /api/staff/{id}
 PUT /api/staff/{id}/payroll-number
 PUT /api/staff/{id}/schedule
@@ -1025,6 +1028,7 @@ PUT /api/students/{id}/arrival-schedules
 PUT /api/students/{id}/family-protection
 PUT /api/students/{id}/partial-absences/{partialAbsenceId}
 PUT /api/students/{id}/pickup-exceptions/{exceptionId}
+PUT /api/students/{id}/pickup-notes
 PUT /api/students/{id}/pickup-notes/{noteId}
 PUT /api/students/{id}/pickup-schedules
 PUT /api/students/{id}/privacy-consent
@@ -1054,6 +1058,7 @@ PUT /internal/metrics
 PUT /operator/accounts/{accountId}/mfa/global-override
 PUT /operator/accounts/{accountId}/tenants/{tenantId}
 PUT /operator/announcements/{id}
+PUT /operator/billing/key-day
 PUT /operator/organizations/{id}
 PUT /operator/profile/
 PUT /operator/schools/{id}

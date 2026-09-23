@@ -8,17 +8,17 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/operator"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
 // chiWalk traverses all routes in the chi.Router and calls fn for each
@@ -30,11 +30,16 @@ func chiWalk(router chi.Router, fn func(pattern string)) error {
 	})
 }
 
-// stubSettingsService is a no-op SettingsService used only to satisfy the
-// non-nil check in NewResource so that the settings routes get wired.
-// Handler behavior is exercised in settings_integration_test.go with a real
-// service.
-func stubSettingsService() *configtest.Mock { return &configtest.Mock{} }
+// stubSchoolSettings satisfies only the non-nil check in NewResource so that
+// the school settings routes get wired. Handler behavior is exercised with
+// Settings Platform's operator routes.
+type stubSchoolSettings struct {
+	settings.OperatorSchoolSettings
+}
+
+type stubBillingReport struct {
+	organizationtenancy.BillingReport
+}
 
 type protectedRouteProvisioningService struct {
 	organizationtenancy.Provisioning
@@ -56,28 +61,25 @@ func TestNewResource(t *testing.T) {
 		cfg := operator.ResourceConfig{
 			AuthService:          nil,
 			AnnouncementsService: nil,
-			TokenAuth:            nil,
+			Sessions:             identityoperator.Sessions{},
 		}
 
 		resource := operator.NewResource(cfg)
 		require.NotNil(t, resource)
 	})
 
-	t.Run("creates resource with provided token auth", func(t *testing.T) {
-		tokenAuth, err := jwt.NewTokenAuth()
-		require.NoError(t, err)
-
+	t.Run("creates resource with provided sessions", func(t *testing.T) {
 		cfg := operator.ResourceConfig{
 			AuthService:          nil,
 			AnnouncementsService: nil,
-			TokenAuth:            tokenAuth,
+			Sessions:             operatorTestSessions(t, nil),
 		}
 
 		resource := operator.NewResource(cfg)
 		require.NotNil(t, resource)
 	})
 
-	t.Run("creates token auth internally when not provided", func(t *testing.T) {
+	t.Run("accepts a config whose sessions the root provides later", func(t *testing.T) {
 		cfg := operator.ResourceConfig{}
 		resource := operator.NewResource(cfg)
 		require.NotNil(t, resource)
@@ -89,15 +91,23 @@ func TestRouter(t *testing.T) {
 	t.Parallel()
 
 	t.Run("creates router successfully", func(t *testing.T) {
-		cfg := operator.ResourceConfig{}
+		cfg := operator.ResourceConfig{Sessions: operatorTestSessions(t, nil)}
 		resource := operator.NewResource(cfg)
 
 		router := resource.Router()
 		require.NotNil(t, router)
 	})
 
+	t.Run("names the missing sessions instead of dereferencing nil", func(t *testing.T) {
+		resource := operator.NewResource(operator.ResourceConfig{})
+		require.PanicsWithValue(t,
+			"operator api: ResourceConfig.Sessions is required to mount the operator routes",
+			func() { resource.Router() },
+		)
+	})
+
 	t.Run("router has expected routes", func(t *testing.T) {
-		cfg := operator.ResourceConfig{}
+		cfg := operator.ResourceConfig{Sessions: operatorTestSessions(t, nil)}
 		resource := operator.NewResource(cfg)
 
 		router := resource.Router()
@@ -107,9 +117,10 @@ func TestRouter(t *testing.T) {
 		assert.NotEmpty(t, routes)
 	})
 
-	t.Run("settings routes are mounted when SettingsService is provided", func(t *testing.T) {
+	t.Run("settings routes are mounted when SchoolSettings is provided", func(t *testing.T) {
 		cfg := operator.ResourceConfig{
-			SettingsService: stubSettingsService(),
+			SchoolSettings: stubSchoolSettings{},
+			Sessions:       operatorTestSessions(t, nil),
 		}
 		resource := operator.NewResource(cfg)
 		require.NotNil(t, resource)
@@ -127,11 +138,11 @@ func TestRouter(t *testing.T) {
 			}
 		})
 		require.NoError(t, err)
-		assert.True(t, found, "expected /schools/{id}/settings/* routes to be mounted when SettingsService is provided")
+		assert.True(t, found, "expected /schools/{id}/settings/* routes to be mounted when SchoolSettings is provided")
 	})
 
-	t.Run("settings routes are NOT mounted when SettingsService is nil", func(t *testing.T) {
-		cfg := operator.ResourceConfig{}
+	t.Run("settings routes are NOT mounted when SchoolSettings is nil", func(t *testing.T) {
+		cfg := operator.ResourceConfig{Sessions: operatorTestSessions(t, nil)}
 		resource := operator.NewResource(cfg)
 		require.NotNil(t, resource)
 
@@ -144,7 +155,24 @@ func TestRouter(t *testing.T) {
 			}
 		})
 		require.NoError(t, err)
-		assert.False(t, found, "expected settings routes NOT to be mounted when SettingsService is nil")
+		assert.False(t, found, "expected settings routes NOT to be mounted when SchoolSettings is nil")
+	})
+
+	t.Run("billing seed route is mounted with the billing report", func(t *testing.T) {
+		cfg := operator.ResourceConfig{
+			Billing:  stubBillingReport{},
+			Sessions: operatorTestSessions(t, nil),
+		}
+		router := operator.NewResource(cfg).Router()
+
+		found := false
+		err := chiWalk(router, func(pattern string) {
+			if pattern == "/billing/key-date-counts/seed" {
+				found = true
+			}
+		})
+		require.NoError(t, err)
+		assert.True(t, found, "expected local billing seed route when billing is configured")
 	})
 }
 
@@ -154,22 +182,22 @@ func TestRouter(t *testing.T) {
 func TestUnregisteredTagScanRoutesSitBehindOperatorAuth(t *testing.T) {
 	t.Parallel()
 
-	tokenAuth := newOperatorRouteTokenAuth(t)
 	var reached []string
 	review := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reached = append(reached, r.Method+" "+chi.RouteContext(r.Context()).RoutePath)
 		w.WriteHeader(http.StatusTeapot)
 	})
-	router := operator.NewResource(operator.ResourceConfig{
-		AuthService: &mockOperatorAuthService{
-			getOperatorFn: func(_ context.Context, id int64) (*platformModels.Operator, error) {
-				op := &platformModels.Operator{Active: true}
-				op.ID = id
-				return op, nil
-			},
+	authService := &mockOperatorAuthService{
+		getOperatorFn: func(_ context.Context, id int64) (*identityaccess.Operator, error) {
+			op := &identityaccess.Operator{Active: true}
+			op.ID = id
+			return op, nil
 		},
+	}
+	router := operator.NewResource(operator.ResourceConfig{
+		AuthService:          authService,
 		UnregisteredTagScans: review,
-		TokenAuth:            tokenAuth,
+		Sessions:             operatorTestSessions(t, authService),
 	}).Router()
 
 	anonymous := httptest.NewRecorder()
@@ -182,7 +210,7 @@ func TestUnregisteredTagScanRoutesSitBehindOperatorAuth(t *testing.T) {
 		{method: http.MethodPost, path: "/unregistered-tag-scans/123/resolve", routePath: "/123/resolve"},
 	} {
 		req := httptest.NewRequest(target.method, target.path, nil)
-		req.Header.Set("Authorization", "Bearer "+operatorRouteAccessToken(t, tokenAuth, 42))
+		req.Header.Set("Authorization", "Bearer "+operatorRouteAccessToken(t, 42))
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 		assert.Equal(t, http.StatusTeapot, rr.Code, target.path)
@@ -193,12 +221,11 @@ func TestUnregisteredTagScanRoutesSitBehindOperatorAuth(t *testing.T) {
 func TestProtectedOperatorRoutesRejectInactiveOperator(t *testing.T) {
 	t.Parallel()
 
-	tokenAuth := newOperatorRouteTokenAuth(t)
-	accessToken := operatorRouteAccessToken(t, tokenAuth, 42)
+	accessToken := operatorRouteAccessToken(t, 42)
 	authService := &mockOperatorAuthService{
-		getOperatorFn: func(_ context.Context, id int64) (*platformModels.Operator, error) {
+		getOperatorFn: func(_ context.Context, id int64) (*identityaccess.Operator, error) {
 			assert.Equal(t, int64(42), id)
-			op := &platformModels.Operator{Active: false}
+			op := &identityaccess.Operator{Active: false}
 			op.ID = id
 			return op, nil
 		},
@@ -212,7 +239,7 @@ func TestProtectedOperatorRoutesRejectInactiveOperator(t *testing.T) {
 	router := operator.NewResource(operator.ResourceConfig{
 		AuthService:         authService,
 		ProvisioningService: provisioningService,
-		TokenAuth:           tokenAuth,
+		Sessions:            operatorTestSessions(t, authService),
 	}).Router()
 
 	req := newCreateSchoolRequest(accessToken, 7)
@@ -226,13 +253,12 @@ func TestProtectedOperatorRoutesRejectInactiveOperator(t *testing.T) {
 func TestProtectedOperatorRoutesAllowActiveOperator(t *testing.T) {
 	t.Parallel()
 
-	tokenAuth := newOperatorRouteTokenAuth(t)
-	accessToken := operatorRouteAccessToken(t, tokenAuth, 42)
+	accessToken := operatorRouteAccessToken(t, 42)
 	organizationID := 7
 	authService := &mockOperatorAuthService{
-		getOperatorFn: func(_ context.Context, id int64) (*platformModels.Operator, error) {
+		getOperatorFn: func(_ context.Context, id int64) (*identityaccess.Operator, error) {
 			assert.Equal(t, int64(42), id)
-			op := &platformModels.Operator{Active: true}
+			op := &identityaccess.Operator{Active: true}
 			op.ID = id
 			return op, nil
 		},
@@ -250,7 +276,7 @@ func TestProtectedOperatorRoutesAllowActiveOperator(t *testing.T) {
 	router := operator.NewResource(operator.ResourceConfig{
 		AuthService:         authService,
 		ProvisioningService: provisioningService,
-		TokenAuth:           tokenAuth,
+		Sessions:            operatorTestSessions(t, authService),
 	}).Router()
 
 	req := newCreateSchoolRequest(accessToken, organizationID)
@@ -261,17 +287,16 @@ func TestProtectedOperatorRoutesAllowActiveOperator(t *testing.T) {
 	assert.True(t, createSchoolCalled, "active operator should reach protected provisioning handler")
 }
 
-func newOperatorRouteTokenAuth(t *testing.T) *jwt.TokenAuth {
+// operatorTestSessions binds the operator session chains to the seeded test
+// signer and the given active-operator lookup.
+func operatorTestSessions(t *testing.T, operators identityoperator.OperatorLookup) identityoperator.Sessions {
 	t.Helper()
-	tokenAuth, err := jwt.NewTokenAuthWithSecret("operator-route-test-secret-123456")
-	require.NoError(t, err)
-	tokenAuth.JwtExpiry = 15 * time.Minute
-	return tokenAuth
+	return identityoperator.NewSessions(testutil.TestTokenAuth(t), operators)
 }
 
-func operatorRouteAccessToken(t *testing.T, tokenAuth *jwt.TokenAuth, operatorID int) string {
+func operatorRouteAccessToken(t *testing.T, operatorID int) string {
 	t.Helper()
-	token, err := tokenAuth.CreateJWT(jwt.AppClaims{
+	token, err := testutil.TestTokenAuth(t).CreateJWT(testutil.Claims{
 		ID:    operatorID,
 		Sub:   "operator-route-test",
 		Roles: []string{"operator"},

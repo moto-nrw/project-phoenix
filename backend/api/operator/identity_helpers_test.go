@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/api/operator"
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 )
@@ -15,7 +14,9 @@ func newIdentityResource(identity identityoperator.Capability) *identityoperator
 	return identityoperator.NewResource(identity, operator.IdentityResponses())
 }
 
-func identityOperatorOf(op *platform.Operator) *identityaccess.Operator {
+// identityOperatorOf is the operator the capability answers with: the
+// identity fields of the row the mock was given.
+func identityOperatorOf(op *identityaccess.Operator) *identityaccess.Operator {
 	if op == nil {
 		return nil
 	}

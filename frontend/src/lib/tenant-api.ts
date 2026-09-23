@@ -99,6 +99,13 @@ export interface TenantInfo {
    */
   operationalOverviewScope?: OperationalOverviewScope;
   /**
+   * Who at this school may correct attendance beyond their own supervisions
+   * (operations.attendance_edit_scope). With the overview scope it decides
+   * whether staff may move children they do not supervise (#3066). A hint,
+   * never the gate. Unknown values collapse to "own".
+   */
+  attendanceEditScope?: AttendanceEditScope;
+  /**
    * Wer eine Begründung eintragen muss, damit eine Elternanfrage entschieden
    * werden kann (operations.parent_request_reason_policy, #2267). Unbekanntes
    * gilt als „both" — die strengste Fassung.
@@ -160,6 +167,7 @@ interface TenantResolveResponse {
   attendance_log_enabled?: boolean;
   group_mode?: string;
   operational_overview_scope?: string;
+  attendance_edit_scope?: string;
   parent_request_reason_policy?: string;
   show_timetable_counts?: boolean;
   timetable_enabled?: boolean;
@@ -178,6 +186,20 @@ export type OperationalOverviewScope = "own" | "admins" | "all_staff";
  */
 export function normalizeOverviewScope(raw: unknown): OperationalOverviewScope {
   return raw === "admins" || raw === "all_staff" ? raw : "own";
+}
+
+/** Scope values of operations.attendance_edit_scope. */
+export type AttendanceEditScope = "own" | "all_staff";
+
+/**
+ * Normalize the backend's attendance_edit_scope string. Like the overview
+ * scope, anything unknown (including an older backend without the field)
+ * collapses to the restrictive "own".
+ */
+export function normalizeAttendanceEditScope(
+  raw: unknown,
+): AttendanceEditScope {
+  return raw === "all_staff" ? raw : "own";
 }
 
 /** Werte von operations.parent_request_reason_policy (#2267). */
@@ -254,6 +276,9 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       groupMode: data.group_mode === "open_care" ? "open_care" : "fixed_groups",
       operationalOverviewScope: normalizeOverviewScope(
         data.operational_overview_scope,
+      ),
+      attendanceEditScope: normalizeAttendanceEditScope(
+        data.attendance_edit_scope,
       ),
       parentRequestReasonPolicy: normalizeReasonPolicy(
         data.parent_request_reason_policy,

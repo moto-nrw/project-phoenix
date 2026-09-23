@@ -138,6 +138,26 @@ describe("ParentSidebar", () => {
     expect(within(accountNav).getByText("Abmelden")).toBeVisible();
   });
 
+  // Die Hilfe steht unten bei den angehefteten Zielen, nicht zwischen den
+  // Alltagszielen -- dieselbe Stelle wie in der Mitarbeiter-Seitenleiste.
+  it("pins the help link at the bottom, outside the portal", () => {
+    const { container } = renderSidebar();
+
+    const mainNav = screen.getByRole("navigation", { name: "Hauptnavigation" });
+    const accountNav = screen.getByRole("navigation", {
+      name: "Kontonavigation",
+    });
+
+    expect(within(mainNav).queryByText("Hilfe")).not.toBeInTheDocument();
+    expect(within(accountNav).getByText("Hilfe")).toBeVisible();
+
+    const help = container.querySelector('[data-parent-nav-item="help"]');
+    expect(help).toHaveAttribute("href", "/help?role=parent");
+    expect(help).toHaveAttribute("target", "_blank");
+    expect(help).toHaveAttribute("rel", "noopener noreferrer");
+    expect(help).toHaveAttribute("data-active", "false");
+  });
+
   it("uses CSS to hide itself below 1024px without a hydration swap", () => {
     mockedUseMediaQuery.mockReturnValue(true);
     const { container } = renderSidebar();

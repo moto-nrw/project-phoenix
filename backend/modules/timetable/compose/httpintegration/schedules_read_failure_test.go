@@ -8,21 +8,19 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 )
 
-type failedScheduleRead struct {
-	timetableplanning.Service
+type failedDateframeRead struct {
+	schedulesAPI.Dateframes
 	err error
 }
 
-func (s failedScheduleRead) GetDateframe(context.Context, int64) (*schedule.Dateframe, error) {
-	return nil, &careschedule.ScheduleError{Op: "get dateframe", Err: s.err}
+func (s failedDateframeRead) FindDateframe(context.Context, int64) (schoolcalendar.Dateframe, error) {
+	return schoolcalendar.Dateframe{}, fmt.Errorf("get dateframe: %w", s.err)
 }
 
 func TestSchedulesReadFailureIsNotNotFound(t *testing.T) {
@@ -36,10 +34,10 @@ func TestSchedulesReadFailureIsNotNotFound(t *testing.T) {
 		message string
 	}{
 		{"failed read", context.Canceled, http.StatusInternalServerError, "context canceled"},
-		{"missing row", careschedule.ErrDateframeNotFound, http.StatusNotFound, "dateframe not found"},
+		{"missing row", schoolcalendar.ErrDateframeNotFound, http.StatusNotFound, "dateframe not found"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			resource := schedulesAPI.NewSchedulesResource(failedScheduleRead{Service: services.Schedule, err: tc.err}, db)
+			resource := schedulesAPI.NewSchedulesResource(failedDateframeRead{Dateframes: services.Calendar, err: tc.err}, services.Timetable, services.TimeframeGuard, db)
 			request := testutil.NewRequest("GET", fmt.Sprintf("/dateframes/%d", dateframe.ID), nil)
 			response := testutil.ExecuteWithAuth(t, resource.Router(), request, testutil.AdminTestClaims(1))
 			assert.Equal(t, tc.status, response.Code)

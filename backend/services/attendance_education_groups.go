@@ -6,7 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
 
 type attendanceEducationGroups struct {
@@ -28,7 +28,7 @@ func (r attendanceEducationGroups) StudentGroupID(ctx context.Context, id int64)
 }
 
 // NewAttendanceEducationGroups projects the tenant's group-to-room directory.
-func NewAttendanceEducationGroups(groups schoolStructure.GroupRoomRecords, students attendanceGroupStudents) active.AttendanceEducationGroups {
+func NewAttendanceEducationGroups(groups schoolStructure.GroupRoomRecords, students attendanceGroupStudents) presenceservice.AttendanceEducationGroups {
 	return attendanceEducationGroups{groups: schoolStructure.NewGroupRoomDirectory(groups), students: students}
 }
 
@@ -49,15 +49,15 @@ func (r attendanceEducationGroups) StudentGroupIDs(ctx context.Context, ids []in
 	return groups, nil
 }
 
-func (r attendanceEducationGroups) ListGroupRooms(ctx context.Context) ([]*active.EducationGroupRoom, error) {
+func (r attendanceEducationGroups) ListGroupRooms(ctx context.Context) ([]*presenceservice.EducationGroupRoom, error) {
 	rows, err := r.groups.ListGroupRooms(ctx)
 	if rows == nil {
 		return nil, err
 	}
-	result := make([]*active.EducationGroupRoom, len(rows))
+	result := make([]*presenceservice.EducationGroupRoom, len(rows))
 	for i, row := range rows {
 		if row != nil {
-			result[i] = &active.EducationGroupRoom{ID: row.ID, RoomID: row.RoomID}
+			result[i] = &presenceservice.EducationGroupRoom{ID: row.ID, RoomID: row.RoomID}
 		}
 	}
 	return result, err

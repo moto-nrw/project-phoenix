@@ -1,0 +1,543 @@
+package account
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
+	validation "github.com/go-ozzo/ozzo-validation"
+	"github.com/go-ozzo/ozzo-validation/is"
+
+	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+)
+
+// Error messages (S1192 - avoid duplicate string literals)
+const errInvitationServiceUnavailable = "invitation service unavailable"
+
+type CreateInvitationRequest struct {
+	Email     string        `json:"email"`
+	RoleID    common.JSONID `json:"role_id"`
+	FirstName string        `json:"first_name"`
+	LastName  string        `json:"last_name"`
+	Position  string        `json:"position"`
+}
+
+func (req *CreateInvitationRequest) Bind(_ *http.Request) error {
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	req.FirstName = strings.TrimSpace(req.FirstName)
+	req.LastName = strings.TrimSpace(req.LastName)
+	req.Position = strings.TrimSpace(req.Position)
+
+	return validation.ValidateStruct(req,
+		validation.Field(&req.Email, validation.Required, is.Email),
+		validation.Field(&req.RoleID, validation.Required, validation.By(func(value interface{}) error {
+			roleID, ok := value.(common.JSONID)
+			if !ok || roleID.Int64() <= 0 {
+				return errors.New("role_id is required")
+			}
+			return nil
+		})),
+		validation.Field(&req.FirstName, validation.Length(0, 100)),
+		validation.Field(&req.LastName, validation.Length(0, 100)),
+		validation.Field(&req.Position, validation.Length(0, 100)),
+	)
+}
+
+type InvitationResponse struct {
+	ID              int64      `json:"id"`
+	Email           string     `json:"email"`
+	RoleID          int64      `json:"role_id,string"`
+	RoleName        string     `json:"role_name,omitempty"`
+	Token           string     `json:"token,omitempty"`
+	ExpiresAt       time.Time  `json:"expires_at"`
+	FirstName       *string    `json:"first_name,omitempty"`
+	LastName        *string    `json:"last_name,omitempty"`
+	Position        *string    `json:"position,omitempty"`
+	CreatedBy       int64      `json:"created_by"`
+	Creator         string     `json:"creator,omitempty"`
+	DeliveryStatus  string     `json:"delivery_status"`
+	EmailSentAt     *time.Time `json:"email_sent_at,omitempty"`
+	EmailError      *string    `json:"email_error,omitempty"`
+	EmailRetryCount int        `json:"email_retry_count"`
+}
+
+// InvitationValidationResponse is the public-safe view of a redeemable
+// invitation the accept page reads. The field names are the wire contract.
+type InvitationValidationResponse struct {
+	TargetPortal         string    `json:"target_portal"`
+	RequiresAccountLogin bool      `json:"requires_account_login"`
+	Email                string    `json:"email"`
+	RoleName             string    `json:"role_name"`
+	FirstName            *string   `json:"first_name,omitempty"`
+	LastName             *string   `json:"last_name,omitempty"`
+	Position             *string   `json:"position,omitempty"`
+	CaregiverEnabled     bool      `json:"caregiver_enabled"`
+	ExpiresAt            time.Time `json:"expires_at"`
+}
+
+func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
+	if rs.Invitations == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
+		return
+	}
+
+	req := &CreateInvitationRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+	invitationReq := rs.buildInvitationRequest(r, req, claims)
+
+	invitation, err := rs.runCreateInvitation(r.Context(), invitationReq)
+	if err != nil {
+		if renderCreateInvitationError(w, r, err) {
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusCreated, toInvitationResponse(invitation), "Invitation created successfully")
+}
+
+// buildInvitationRequest maps the wire request into the module's invitation
+// request, resolving the tenant display name for the invitation email and
+// copying the optional name/position fields.
+func (rs *Resource) buildInvitationRequest(r *http.Request, req *CreateInvitationRequest, claims jwt.AppClaims) identityaccess.SchoolInvitationRequest {
+	invitationReq := identityaccess.SchoolInvitationRequest{
+		Email:            req.Email,
+		RoleID:           req.RoleID.Int64(),
+		CreatedBy:        int64(claims.ID),
+		ActorPermissions: claims.Permissions,
+	}
+	if rs.SchoolService != nil {
+		tenantID := rs.tenantID(r.Context())
+		if school, err := rs.SchoolService.GetSchoolByID(r.Context(), tenantID); err == nil && school != nil && !school.Deleted {
+			invitationReq.SchoolName = school.Name
+		}
+	}
+	if req.FirstName != "" {
+		first := req.FirstName
+		invitationReq.FirstName = &first
+	}
+	if req.LastName != "" {
+		last := req.LastName
+		invitationReq.LastName = &last
+	}
+	if req.Position != "" {
+		position := req.Position
+		invitationReq.Position = &position
+	}
+	return invitationReq
+}
+
+// runCreateInvitation invokes the invitation capability inside the tenant tx
+// when transactions are wired, or directly otherwise.
+func (rs *Resource) runCreateInvitation(ctx context.Context, invitationReq identityaccess.SchoolInvitationRequest) (identityaccess.SchoolInvitation, error) {
+	if rs.transactions == nil {
+		return rs.Invitations.CreateSchoolInvitation(ctx, invitationReq)
+	}
+	var invitation identityaccess.SchoolInvitation
+	err := rs.transactions.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		inv, txErr := rs.Invitations.CreateSchoolInvitation(txCtx, invitationReq)
+		invitation = inv
+		return txErr
+	})
+	return invitation, err
+}
+
+// renderCreateInvitationError maps the create-specific conflict errors before
+// delegating to the shared invitation error renderer. Returns true if handled.
+func renderCreateInvitationError(w http.ResponseWriter, r *http.Request, err error) bool {
+	if errors.Is(err, identityaccess.ErrEmailAlreadyExists) {
+		common.RenderError(w, r, common.ErrorConflict(identityaccess.ErrEmailAlreadyExists))
+		return true
+	}
+	if errors.Is(err, identityaccess.ErrAccountAlreadyHasTenantAccess) {
+		common.RenderError(w, r, common.ErrorConflictWithCode(identityaccess.ErrAccountAlreadyHasTenantAccess, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS"))
+		return true
+	}
+	switch {
+	case errors.Is(err, identityaccess.ErrRoleGrantNotPermitted):
+		common.RenderError(w, r, common.ErrorForbidden(identityaccess.ErrRoleGrantNotPermitted))
+		return true
+	case errors.Is(err, identityaccess.ErrRoleNotAssignable),
+		errors.Is(err, identityaccess.ErrRoleForeignTenant),
+		errors.Is(err, identityaccess.ErrRoleGuardianNotAssignable),
+		errors.Is(err, identityaccess.ErrRoleLegacyTeacherNotAssignable),
+		errors.Is(err, identityaccess.ErrLehrkraftNoCaregiver):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return true
+	}
+	return renderInvitationError(w, r, err)
+}
+
+// toInvitationResponse maps an invitation to its wire response shape.
+func toInvitationResponse(invitation identityaccess.SchoolInvitation) InvitationResponse {
+	return InvitationResponse{
+		ID:              invitation.ID,
+		Email:           invitation.Email,
+		RoleID:          invitation.RoleID,
+		RoleName:        invitation.RoleName,
+		Token:           invitation.Token,
+		ExpiresAt:       invitation.ExpiresAt,
+		FirstName:       invitation.FirstName,
+		LastName:        invitation.LastName,
+		Position:        invitation.Position,
+		CreatedBy:       invitationCreatedByValue(invitation.CreatedBy),
+		Creator:         invitation.CreatorEmail,
+		DeliveryStatus:  deriveDeliveryStatus(invitation.Delivery.SentAt, invitation.Delivery.Error),
+		EmailSentAt:     invitation.Delivery.SentAt,
+		EmailError:      invitation.Delivery.Error,
+		EmailRetryCount: invitation.Delivery.RetryCount,
+	}
+}
+
+func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
+	if rs.Invitations == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
+		return
+	}
+
+	token := strings.TrimSpace(chi.URLParam(r, "token"))
+	slog.Default().Info("invitation validation requested")
+
+	// Public route — no JWT/tenant context. Use WithAdminTx (BYPASSRLS) to read invitation_tokens.
+	var preview identityaccess.InvitationPreview
+	var err error
+	if rs.transactions != nil {
+		err = rs.transactions.WithinAdmin(r.Context(), func(txCtx context.Context) error {
+			var txErr error
+			preview, txErr = rs.Invitations.ValidateSchoolInvitation(txCtx, token)
+			return txErr
+		})
+	} else {
+		preview, err = rs.Invitations.ValidateSchoolInvitation(r.Context(), token)
+	}
+	if err != nil {
+		if renderInvitationError(w, r, err) {
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, toInvitationValidationResponse(preview), "Invitation validated successfully")
+}
+
+func toInvitationValidationResponse(preview identityaccess.InvitationPreview) InvitationValidationResponse {
+	return InvitationValidationResponse{
+		TargetPortal:         string(preview.Portal),
+		RequiresAccountLogin: preview.RequiresAccountLogin,
+		Email:                preview.Email,
+		RoleName:             preview.RoleName,
+		FirstName:            preview.FirstName,
+		LastName:             preview.LastName,
+		Position:             preview.Position,
+		CaregiverEnabled:     preview.CaregiverEnabled,
+		ExpiresAt:            preview.ExpiresAt,
+	}
+}
+
+type AcceptInvitationRequest struct {
+	FirstName       string `json:"first_name"`
+	LastName        string `json:"last_name"`
+	Password        string `json:"password"`
+	ConfirmPassword string `json:"confirm_password"`
+}
+
+func (req *AcceptInvitationRequest) Bind(_ *http.Request) error {
+	req.FirstName = strings.TrimSpace(req.FirstName)
+	req.LastName = strings.TrimSpace(req.LastName)
+
+	// Registration passwords are validated by the owner only for new accounts.
+	return nil
+}
+
+type AcceptInvitationResponse struct {
+	AccountID       int64  `json:"account_id"`
+	Email           string `json:"email"`
+	TenantSubdomain string `json:"tenant_subdomain,omitempty"`
+}
+
+var acceptInvitationErrorRules = []common.ErrorRule{
+	{Target: identityaccess.ErrInvitationOwnerRequired, Render: func(err error) render.Renderer {
+		return common.ErrorUnauthorizedWithCode(err, "INVITATION_ACCOUNT_LOGIN_REQUIRED")
+	}},
+	{Target: identityaccess.ErrInvitationOwnerMismatch, Render: func(err error) render.Renderer {
+		return common.ErrorForbiddenWithCode(err, "INVITATION_ACCOUNT_MISMATCH")
+	}},
+	{Target: identityaccess.ErrAccountInactive, Render: func(err error) render.Renderer {
+		return common.ErrorForbiddenWithCode(err, "ACCOUNT_INACTIVE")
+	}},
+	{Target: identityaccess.ErrPasswordTooWeak, Render: common.ErrorInvalidRequest},
+	{Target: identityaccess.ErrInvitationPasswordMismatch, Render: common.ErrorInvalidRequest},
+	{Target: identityaccess.ErrEmailAlreadyExists, Render: common.FixedRenderer(common.ErrorConflict, identityaccess.ErrEmailAlreadyExists)},
+	{Target: identityaccess.ErrInvitationNameRequired, Render: common.FixedRenderer(common.ErrorInvalidRequest, identityaccess.ErrInvitationNameRequired)},
+	{Target: identityaccess.ErrInvitationTenantDeleted, Render: common.FixedRenderer(common.ErrorNotFound, identityaccess.ErrInvitationTenantDeleted)},
+	// A child's identity cannot be provisioned as personnel; expose the fixable request error.
+	{Match: identityaccess.IsSchoolIdentityRequestError, Render: common.ErrorInvalidRequest},
+}
+
+// renderAcceptError maps owner-reported errors to HTTP responses.
+// Returns true if the error was handled.
+func renderAcceptError(w http.ResponseWriter, r *http.Request, err error) bool {
+	response := common.RenderWithRules(err, acceptInvitationErrorRules, func(error) render.Renderer { return nil })
+	if response == nil {
+		return renderInvitationError(w, r, err)
+	}
+	common.RenderError(w, r, response)
+	return true
+}
+
+func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
+	if rs.Invitations == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
+		return
+	}
+
+	token := strings.TrimSpace(chi.URLParam(r, "token"))
+
+	req := &AcceptInvitationRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	registration := identityaccess.InvitationRegistration{
+		OwnerAccessToken: strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "),
+		FirstName:        req.FirstName,
+		LastName:         req.LastName,
+		Password:         req.Password,
+		ConfirmPassword:  req.ConfirmPassword,
+	}
+
+	// Public route — no JWT/tenant context. Use WithAdminTx (BYPASSRLS) so the owner's
+	// inner transaction reuses the admin tx from context.
+	var account identityaccess.Account
+	var err error
+	if rs.transactions != nil {
+		err = rs.transactions.WithinAdmin(r.Context(), func(txCtx context.Context) error {
+			var txErr error
+			account, txErr = rs.Invitations.AcceptSchoolInvitation(txCtx, token, registration)
+			return txErr
+		})
+	} else {
+		account, err = rs.Invitations.AcceptSchoolInvitation(r.Context(), token, registration)
+	}
+	if err != nil {
+		if !renderAcceptError(w, r, err) {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+		}
+		return
+	}
+
+	slog.Default().Info("invitation accepted",
+		slog.Int64("account_id", account.ID))
+
+	resp := AcceptInvitationResponse{
+		AccountID: account.ID,
+		Email:     account.Email,
+	}
+	if rs.SchoolService != nil && rs.transactions != nil {
+		if subdomain := rs.lookupTenantSubdomainForInvitation(r.Context(), token); subdomain != "" {
+			resp.TenantSubdomain = subdomain
+		}
+	}
+	common.Respond(w, r, http.StatusCreated, resp, "Invitation accepted successfully")
+}
+
+// lookupTenantSubdomainForInvitation resolves the tenant subdomain from an
+// invitation token. Best-effort: returns "" on any error so the accept
+// response still succeeds.
+func (rs *Resource) lookupTenantSubdomainForInvitation(ctx context.Context, token string) string {
+	return rs.Invitations.SchoolInvitationSubdomain(ctx, token)
+}
+
+func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Request) {
+	if rs.Invitations == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
+		return
+	}
+
+	var invitations []identityaccess.SchoolInvitation
+	ctx := r.Context()
+	var err error
+	if rs.transactions != nil {
+		err = rs.transactions.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+			inv, txErr := rs.Invitations.ListPendingSchoolInvitations(txCtx)
+			invitations = inv
+			return txErr
+		})
+	} else {
+		invitations, err = rs.Invitations.ListPendingSchoolInvitations(ctx)
+	}
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	responses := make([]InvitationResponse, 0, len(invitations))
+	for _, invitation := range invitations {
+		resp := toInvitationResponse(invitation)
+		// Copyable creation links are membership offers, not existing-account
+		// ownership proof. Existing accounts must independently authenticate.
+		// Nothing consumes tokens from this list, so do not expose them here.
+		resp.Token = ""
+		responses = append(responses, resp)
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Pending invitations retrieved successfully")
+}
+
+// The delivery states of an invitation mail on the wire, as Delivery names
+// them.
+const (
+	deliveryStatusPending = "pending"
+	deliveryStatusSent    = "sent"
+	deliveryStatusFailed  = "failed"
+)
+
+func deriveDeliveryStatus(sentAt *time.Time, emailError *string) string {
+	if sentAt != nil {
+		return deliveryStatusSent
+	}
+	if emailError != nil && strings.TrimSpace(*emailError) != "" {
+		return deliveryStatusFailed
+	}
+	return deliveryStatusPending
+}
+
+func invitationCreatedByValue(createdBy *int64) int64 {
+	if createdBy == nil {
+		return 0
+	}
+	return *createdBy
+}
+
+func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
+	if rs.Invitations == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
+		return
+	}
+	rs.resendInvitationHandler(w, r,
+		rs.Invitations.ResendSchoolInvitation,
+		"invitation resend requested", "Invitation resent", "Invitation resent successfully")
+}
+
+// resendInvitationHandler is the shared body of the staff and guardian
+// invitation resend endpoints: parse id, run the resend inside the tenant
+// tx (when transactions are wired), map expired/known errors, log, respond.
+// The response strings are passed verbatim per endpoint. Callers must
+// nil-check their service before delegating (svcCall is a bound method).
+func (rs *Resource) resendInvitationHandler(w http.ResponseWriter, r *http.Request, svcCall func(ctx context.Context, invitationID, actorID int64) error, logMsg, message, respondMsg string) {
+	idParam := chi.URLParam(r, "id")
+	invitationID, err := strconv.ParseInt(idParam, 10, 64)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid invitation id")))
+		return
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+
+	ctx := r.Context()
+	if rs.transactions != nil {
+		err = rs.transactions.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+			return svcCall(txCtx, invitationID, int64(claims.ID))
+		})
+	} else {
+		err = svcCall(ctx, invitationID, int64(claims.ID))
+	}
+	if err != nil {
+		if errors.Is(err, identityaccess.ErrInvitationExpired) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrInvitationExpired))
+			return
+		}
+		if renderInvitationError(w, r, err) {
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	slog.Default().Info(logMsg,
+		slog.Int64("invitation_id", invitationID),
+		slog.Int64("account_id", int64(claims.ID)))
+	common.Respond(w, r, http.StatusOK, map[string]string{"message": message}, respondMsg)
+}
+
+func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
+	if rs.Invitations == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
+		return
+	}
+
+	idParam := chi.URLParam(r, "id")
+	invitationID, err := strconv.ParseInt(idParam, 10, 64)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid invitation id")))
+		return
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+
+	ctx := r.Context()
+	var revokeErr error
+	if rs.transactions != nil {
+		revokeErr = rs.transactions.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+			return rs.Invitations.RevokeSchoolInvitation(txCtx, invitationID, int64(claims.ID))
+		})
+	} else {
+		revokeErr = rs.Invitations.RevokeSchoolInvitation(ctx, invitationID, int64(claims.ID))
+	}
+	if revokeErr != nil {
+		if renderInvitationError(w, r, revokeErr) {
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(revokeErr))
+		return
+	}
+
+	slog.Default().Info("invitation revoked",
+		slog.Int64("invitation_id", invitationID),
+		slog.Int64("account_id", int64(claims.ID)))
+	common.RespondNoContent(w, r)
+}
+
+// renderInvitationError maps owner-reported invitation errors to appropriate
+// HTTP responses.
+func renderInvitationError(w http.ResponseWriter, r *http.Request, err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var operation *identityaccess.AuthenticationError
+	if errors.As(err, &operation) && operation.Err != nil {
+		err = operation.Err
+	}
+
+	switch {
+	case errors.Is(err, identityaccess.ErrInvitationNotFound):
+		if render.Render(w, r, common.ErrorNotFound(identityaccess.ErrInvitationNotFound)) != nil {
+			return false
+		}
+		return true
+	case errors.Is(err, identityaccess.ErrInvitationExpired), errors.Is(err, identityaccess.ErrInvitationUsed):
+		if render.Render(w, r, common.ErrorGone(err)) != nil {
+			return false
+		}
+		return true
+	default:
+		return false
+	}
+}

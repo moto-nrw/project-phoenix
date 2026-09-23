@@ -16,7 +16,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
 
 // relAcctHandlerSettings is a configurable settings stub for the related-
@@ -73,7 +74,9 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 	t.Helper()
 	repos, repoErr := repositories.NewParentRouteTestRepositories(db)
 	require.NoError(t, repoErr)
-	svc := parentService.NewService(parentService.ServiceConfig{
+	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		CarePlan:            repos.CareExceptions,
+		People:              repositories.MustNewPeopleDirectory(db),
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         repos.Student,
@@ -81,7 +84,6 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 		GuardianInvites:     relAcctStubInvites{},
 		StudentGuardianRepo: repos.StudentGuardian,
 		GuardianProfileRepo: repos.GuardianProfile,
-		DB:                  db,
 		Logger:              slog.Default(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc, DB: db})
@@ -181,7 +183,9 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService
 	t.Helper()
 	repos, repoErr := repositories.NewParentRouteTestRepositories(db)
 	require.NoError(t, repoErr)
-	svc := parentService.NewService(parentService.ServiceConfig{
+	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		CarePlan:            repos.CareExceptions,
+		People:              repositories.MustNewPeopleDirectory(db),
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         repos.Student,
@@ -189,7 +193,6 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService
 		GuardianInvites:     invites,
 		StudentGuardianRepo: repos.StudentGuardian,
 		GuardianProfileRepo: repos.GuardianProfile,
-		DB:                  db,
 		Logger:              slog.Default(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc, DB: db})

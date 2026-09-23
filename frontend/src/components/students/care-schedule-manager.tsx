@@ -36,6 +36,8 @@ import {
   updateArrivalNote,
   updateArrivalSchedules,
   type CareDaysSource,
+  type CareTimePresets,
+  type SchoolPeriod,
 } from "~/lib/student-arrival-api";
 import {
   type ArrivalDayData,
@@ -55,6 +57,7 @@ import {
   fetchStudentPickupData,
   applyStudentPickupAdjustment,
   previewStudentPickupAdjustment,
+  replaceStudentWeekdayPickupNotes,
   type PickupAdjustmentPayload,
   type PickupAdjustmentPreview,
   resetStudentPickupToOffering,
@@ -262,6 +265,10 @@ export function CareScheduleManager({
   const [careDaysSource, setCareDaysSource] = useState<CareDaysSource | null>(
     null,
   );
+  const [schoolPeriods, setSchoolPeriods] = useState<readonly SchoolPeriod[]>(
+    [],
+  );
+  const [timePresets, setTimePresets] = useState<CareTimePresets>();
   const [error, setError] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
@@ -435,6 +442,11 @@ export function CareScheduleManager({
       setArrivalData(arrival);
       setPickupData(pickup);
       setCareDaysSource(settings.care_days_source);
+      setSchoolPeriods(settings.school_periods ?? []);
+      setTimePresets({
+        arrival: settings.defaultArrivalTime ?? "",
+        pickup: settings.defaultPickupTime ?? "",
+      });
       // A newer read succeeded, so any banner or spinner an older attempt is
       // still going to leave behind is already obsolete. Clearing here (rather
       // than only in loadCareData) is what lets the failure path below bail out
@@ -545,6 +557,19 @@ export function CareScheduleManager({
     refreshFromRemote();
   }, [isEditorOpen, refreshFromRemote]);
 
+  /**
+   * Bring the recurring weekday notes in line with the saved plan (#3369). They
+   * live beside the pickup rows, not on them: a row would mark the child as
+   * expected, and these notes are for the days it is not.
+   */
+  const syncWeekdayNotes = useCallback(
+    async (next: CarePlanWeeklySubmit["weekdayNotes"]) => {
+      if (!next) return;
+      await replaceStudentWeekdayPickupNotes(studentId, next);
+    },
+    [studentId],
+  );
+
   const handleUpdateWeeklyPlan = useCallback(
     async (
       data: CarePlanWeeklySubmit,
@@ -561,8 +586,10 @@ export function CareScheduleManager({
       if (!pickupChanged && !careDaysChanged && !adjustment) {
         try {
           await updateArrivalSchedules(studentId, weeklyArrivalPayload(data));
+          await syncWeekdayNotes(data.weekdayNotes);
         } finally {
           await refreshCareData();
+          invalidatePickupCaches();
         }
         return;
       }
@@ -579,11 +606,15 @@ export function CareScheduleManager({
       }
 
       try {
-        return await applyWeeklyPickupAdjustment(
+        const pending = await applyWeeklyPickupAdjustment(
           studentId,
           basePayload,
           adjustment,
         );
+        // A returned preview means the plan still waits for a decision, so
+        // nothing is written yet, the notes included.
+        if (!pending) await syncWeekdayNotes(data.weekdayNotes);
+        return pending;
       } finally {
         await refreshCareData();
         invalidatePickupCaches();
@@ -592,6 +623,7 @@ export function CareScheduleManager({
     [
       studentId,
       refreshCareData,
+      syncWeekdayNotes,
       pickupData.schedules,
       arrivalData.schedules,
       weekDays,
@@ -918,11 +950,18 @@ export function CareScheduleManager({
           // refresh of arrivalData / pickupData cannot overwrite the typing.
           <CareWeeklyPlanEditForm
             careDaysSource={careDaysSource}
+            schoolPeriods={schoolPeriods}
+            timePresets={timePresets}
             weeklyArrival={mergeArrivalSchedulesWithTemplate(
               arrivalData.schedules,
             )}
             weeklyPickup={mergePickupSchedulesWithTemplate(
               pickupData.schedules,
+            )}
+            weeklyNotes={pickupData.notes.flatMap((note) =>
+              note.weekday
+                ? [{ weekday: note.weekday, content: note.content }]
+                : [],
             )}
             onSubmitWeekly={handleUpdateWeeklyPlan}
             onCancel={() => setIsEditingWeekly(false)}
@@ -1620,7 +1659,8 @@ function getCareNotes(day: CareDayData): CareNoteItem[] {
   if (pickupNotes.length > 0) {
     notes.push({
       key: "pickup-notes",
-      label: "Abholung",
+      // Without a pickup time the note belongs to the day (#3369).
+      label: day.pickup.effectiveTime ? "Abholung" : "Notiz",
       value: pickupNotes.join(", "),
     });
   }
@@ -1637,6 +1677,7 @@ function getArrivalDisplayNotes(day: ArrivalDayData): string[] {
 function getPickupDisplayNotes(day: PickupDayData): string[] {
   return [
     day.baseSchedule?.notes ?? null,
+    day.weekdayNote?.content ?? null,
     ...day.notes.map((note) => note.content),
   ].filter((note): note is string => !!note);
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/uptrace/bun"
 
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -260,7 +259,7 @@ func TestGuardianAccountIsNotAddressable(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, guardian.ID, testpkg.Tenant(t))
 	_, err := db.NewUpdate().
 		Table("auth.account_tenants").
-		Set("status = ?", authModels.AccountTenantStatusActive).
+		Set("status = ?", "active").
 		Where("account_id = ? AND tenant_id = ?", guardian.ID, testpkg.Tenant(t)).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -396,7 +395,7 @@ func TestDeactivatedStaffCannotSend(t *testing.T) {
 	// Anna verlaesst die Schule - ihr Token gilt aber weiter.
 	_, err = db.NewUpdate().
 		Table("auth.account_tenants").
-		Set("status = ?", authModels.AccountTenantStatusInactive).
+		Set("status = ?", "inactive").
 		Where("account_id = ? AND tenant_id = ?", anna, testpkg.Tenant(t)).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -484,7 +483,7 @@ func TestCannotWriteToDepartedCounterpart(t *testing.T) {
 	// Ben verlaesst die Schule.
 	_, err = db.NewUpdate().
 		Table("auth.account_tenants").
-		Set("status = ?", authModels.AccountTenantStatusInactive).
+		Set("status = ?", "inactive").
 		Where("account_id = ? AND tenant_id = ?", ben, testpkg.Tenant(t)).
 		Exec(ctx)
 	require.NoError(t, err)

@@ -2,11 +2,10 @@ package testdb
 
 import (
 	"context"
-	"crypto/sha1" //nolint:gosec // identifier derivation, not security
-	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,6 +38,10 @@ const touchedCommentKey = " touched:"
 // cluster on port 5433 / the CI service container.
 const AuthRolePassword = "phoenix_auth_test"
 
+// DemoRolePassword is the cluster-global phoenix_demo role password on the
+// throwaway test server. It is a fixture value, like AuthRolePassword.
+const DemoRolePassword = "phoenix_demo_test"
+
 // templateHashLen is how many hex characters of the migrations hash go into
 // the template name. 48 bits of collision resistance for a name that only
 // has to distinguish a handful of concurrently checked out branches.
@@ -62,8 +65,7 @@ func templateNameForHash(base, hash string) string {
 	if !hexHash.MatchString(suffix) || len(suffix) < templateHashLen {
 		// Test hooks (WithMigrationsHash) pass arbitrary strings; hash them
 		// down so the name stays a valid, deterministic identifier.
-		sum := sha1.Sum([]byte(hash)) //nolint:gosec // identifier derivation, not security
-		suffix = hex.EncodeToString(sum[:])
+		suffix = identifierHash(hash)
 	}
 	suffix = suffix[:templateHashLen]
 
@@ -145,7 +147,7 @@ func MigrationsHash() (string, error) {
 	}
 	sort.Strings(names)
 
-	h := sha256.New()
+	h := fnv.New128a() // identifier derivation, see identifierHash
 	for _, name := range names {
 		content, err := os.ReadFile(filepath.Join(dir, name)) //nolint:gosec // paths come from ReadDir of a repo directory
 		if err != nil {
@@ -445,6 +447,7 @@ func templateBuildEnvironment(inherited []string, templateDSN string) []string {
 		"APP_ENV=test",
 		"TEST_DB_DSN="+templateDSN,
 		"PHOENIX_AUTH_PASSWORD="+AuthRolePassword,
+		"PHOENIX_DEMO_PASSWORD="+DemoRolePassword,
 		"DB_MAX_OPEN_CONNS=4",
 		"DB_MAX_IDLE_CONNS=2",
 		"DB_CONN_MAX_LIFETIME=30m",

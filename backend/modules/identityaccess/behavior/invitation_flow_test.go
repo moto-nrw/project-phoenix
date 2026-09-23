@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
-
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -103,7 +102,7 @@ func TestInvitationIsRedeemableOnce(t *testing.T) {
 	testpkg.OwnTestAccount(t, db, account.ID)
 	assert.Equal(t, address, account.Email)
 
-	member, err := env.repos.AccountTenant.ExistsByAccountAndTenant(context.Background(), account.ID, testpkg.Tenant(t))
+	member, err := testpkg.ActiveAccountTenantExists(context.Background(), env.db, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.True(t, member, "the invitee can sign in at the school")
 	person, err := env.repos.Person.FindByAccountID(ctx, account.ID)
@@ -140,8 +139,10 @@ func TestCreateInvitationInvalidatesThePreviousInvitationOfTheSchool(t *testing.
 
 	first, err := env.service.CreateSchoolInvitation(ctx, request)
 	require.NoError(t, err)
+	request.Email = " " + strings.ToUpper(address) + " "
 	second, err := env.service.CreateSchoolInvitation(ctx, request)
 	require.NoError(t, err)
+	assert.Equal(t, address, second.Email)
 
 	assert.True(t, env.storedInvitation(t, first.ID).IsUsed(), "the previous invitation is spent")
 	_, err = env.service.ValidateSchoolInvitation(context.Background(), first.Token)
@@ -172,15 +173,11 @@ func TestCreateInvitationRefusesRolesTheInviterMayNotGrant(t *testing.T) {
 	env := newInvitationEnv(t, db)
 	ctx := testpkg.Ctx(t)
 	creator := testpkg.CreateTestAccount(t, db, "invite-escalation-creator")
-	adminRole, err := authModels.ResolveSystemRoleByName(ctx, env.repos.Role, "admin")
-	require.NoError(t, err)
-	require.NotNil(t, adminRole, "the seeded admin role must exist")
-	lehrkraft, err := authModels.ResolveSystemRoleByName(ctx, env.repos.Role, "lehrkraft")
-	require.NoError(t, err)
-	require.NotNil(t, lehrkraft)
+	adminRoleID := systemRoleID(t, db, "admin")
+	lehrkraftID := systemRoleID(t, db, "lehrkraft")
 
-	_, err = env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
-		Email: inviteeAddress("escalation"), RoleID: adminRole.ID, CreatedBy: creator.ID,
+	_, err := env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
+		Email: inviteeAddress("escalation"), RoleID: adminRoleID, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Ada"), LastName: testpkg.StrPtr("Lovelace"),
 		ActorPermissions: []string{usersCreatePermission},
 	})
@@ -188,7 +185,7 @@ func TestCreateInvitationRefusesRolesTheInviterMayNotGrant(t *testing.T) {
 		"users:create alone must not hand out an admin-tier role")
 
 	_, err = env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
-		Email: inviteeAddress("lehrkraft-caregiver"), RoleID: lehrkraft.ID, CreatedBy: creator.ID,
+		Email: inviteeAddress("lehrkraft-caregiver"), RoleID: lehrkraftID, CreatedBy: creator.ID,
 		CaregiverEnabled: true, FirstName: testpkg.StrPtr("Lena"), LastName: testpkg.StrPtr("Lehrkraft"),
 		ActorPermissions: []string{usersManagePermission},
 	})
@@ -197,7 +194,7 @@ func TestCreateInvitationRefusesRolesTheInviterMayNotGrant(t *testing.T) {
 	// An operator-issued invitation carries no tenant permissions and is
 	// still allowed to hand out the role.
 	operatorInvitation, err := env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
-		Email: inviteeAddress("operator-invited"), RoleID: adminRole.ID, CreatedBy: creator.ID,
+		Email: inviteeAddress("operator-invited"), RoleID: adminRoleID, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Ada"), LastName: testpkg.StrPtr("Lovelace"), OperatorGrant: true,
 	})
 	require.NoError(t, err)
@@ -212,11 +209,10 @@ func TestValidateInvitationNamesTheAcceptancePortal(t *testing.T) {
 	env := newInvitationEnv(t, db)
 	ctx := testpkg.Ctx(t)
 	creator := testpkg.CreateTestAccount(t, db, "invite-portal-creator")
-	lehrkraft, err := authModels.ResolveSystemRoleByName(ctx, env.repos.Role, "lehrkraft")
-	require.NoError(t, err)
+	lehrkraftID := systemRoleID(t, db, "lehrkraft")
 
 	invitation, err := env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
-		Email: inviteeAddress("school-portal"), RoleID: lehrkraft.ID, CreatedBy: creator.ID,
+		Email: inviteeAddress("school-portal"), RoleID: lehrkraftID, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Lena"), LastName: testpkg.StrPtr("Lehrkraft"),
 		ActorPermissions: []string{usersManagePermission},
 	})
@@ -463,13 +459,11 @@ func TestAcceptInvitationRollsBackEveryWriteOfTheFailedChain(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	creator := testpkg.CreateTestAccount(t, db, "invite-rollback-creator")
 	// The Betreuer tier needs the staff record the failing directory refuses.
-	role, err := authModels.ResolveSystemRoleByName(ctx, newInvitationEnv(t, db).repos.Role, "user")
-	require.NoError(t, err)
-	require.NotNil(t, role)
+	roleID := systemRoleID(t, db, "user")
 	address := inviteeAddress("rollback")
 
 	invitation, err := failing.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
-		Email: address, RoleID: role.ID, CreatedBy: creator.ID,
+		Email: address, RoleID: roleID, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Ada"), LastName: testpkg.StrPtr("Lovelace"),
 		ActorPermissions: []string{usersManagePermission},
 	})
@@ -480,8 +474,9 @@ func TestAcceptInvitationRollsBackEveryWriteOfTheFailedChain(t *testing.T) {
 	})
 	require.ErrorIs(t, err, provisioningErr)
 
-	_, err = env.repos.Account.FindByEmail(context.Background(), address)
-	require.Error(t, err, "the account must be rolled back")
+	exists, err := testpkg.AccountEmailExists(context.Background(), env.db, address)
+	require.NoError(t, err)
+	require.False(t, exists, "the account must be rolled back")
 	assert.False(t, env.storedInvitation(t, invitation.ID).IsUsed(), "the invitation stays redeemable for the retry")
 
 	account, err := working.Invitation.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{

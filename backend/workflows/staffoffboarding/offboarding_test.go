@@ -18,6 +18,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 func TestMain(m *testing.M) {
@@ -42,7 +43,7 @@ func newFixture(t *testing.T) fixture {
 	staff := testpkg.CreateTestStaff(t, db, "Lifecycle", "Subject")
 	actor := testpkg.CreateTestStaff(t, db, "Lifecycle", "Actor")
 	account := testpkg.CreateTestAccount(t, db, "offboarding-actor@example.org")
-	memberDeps := membershipcompose.Dependencies{DB: db, Observe: func(membershipcompose.Observation) {}}
+	memberDeps := membershipcompose.Dependencies{DB: db, Observe: func(membershipcompose.Observation) {}, Employment: staffEmployment(t, db)}
 	membership, err := membershipcompose.New(memberDeps)
 	require.NoError(t, err)
 	retirement, err := membershipcompose.NewOffboarding(memberDeps)
@@ -55,14 +56,14 @@ func newFixture(t *testing.T) fixture {
 	workforceDeps := workforcecompose.Dependencies{LockStaffAssignment: func(ctx context.Context, id int64) error {
 		_, err := membership.FindStaffForMutation(ctx, id)
 		return err
-	}, DB: db, AssignedStaffIDs: runtime.AssignedStaffIDs, RebaseStaffAnchor: runtime.RebaseAssignedStaffAnchor, Observe: func(workforcecompose.Observation) {}}
+	}, DB: db, LiveStaffIDs: runtime.LiveStaffIDs, Observe: func(workforcecompose.Observation) {}}
 	work, err := workforcecompose.New(workforceDeps)
 	require.NoError(t, err)
 	workOffboarding, err := workforcecompose.NewOffboarding(workforceDeps, func(context.Context, workforce.StaffAbsence, int64) error {
 		return errors.New("fixture has no absences")
 	})
 	require.NoError(t, err)
-	timetableOffboarding, err := timetablecompose.NewOffboarding(timetablecompose.OffboardingDependencies{DB: db, Observe: func(timetablecompose.Observation) {}})
+	timetableOffboarding, err := timetablecompose.NewOffboarding(timetablecompose.OffboardingDependencies{DB: db, Sessions: timetablecompose.NewPresenceSessionFacts(presence), Observe: func(timetablecompose.Observation) {}})
 	require.NoError(t, err)
 	room := testpkg.CreateTestRoom(t, db, "Offboarding workflow")
 	instance := testpkg.CreateTestActivityInstance(t, db, testpkg.Date(2027, 10, 4), room.ID, testpkg.ActivityInstanceOpts{})
@@ -234,4 +235,32 @@ func TestOffboardObservesOuterTransactionFailure(t *testing.T) {
 	require.ErrorIs(t, last.Err, failure)
 	require.Equal(t, staffoffboarding.Result{}, last.Result)
 	f.assertOperational(t)
+}
+
+// staffEmployment binds School Membership to the real Workforce employment
+// owner (#2753), as the composition root does.
+func staffEmployment(t *testing.T, db *bun.DB) membershipcompose.StaffEmployment {
+	t.Helper()
+	owner, err := workforcecompose.NewStaffEmployment(db, nil)
+	require.NoError(t, err)
+	return employmentBinding{owner: owner}
+}
+
+type employmentBinding struct{ owner workforce.StaffEmployments }
+
+func (b employmentBinding) StaffEmployments(ctx context.Context, ids []int64) (map[int64]membershipcompose.StaffEmploymentProfile, error) {
+	values, err := b.owner.StaffEmployments(ctx, ids)
+	result := make(map[int64]membershipcompose.StaffEmploymentProfile, len(values))
+	for id, value := range values {
+		result[id] = membershipcompose.StaffEmploymentProfile(value)
+	}
+	return result, err
+}
+
+func (b employmentBinding) SaveStaffEmployment(ctx context.Context, value membershipcompose.StaffEmploymentProfile) error {
+	return b.owner.SaveStaffEmployment(ctx, workforce.StaffEmployment(value))
+}
+
+func (b employmentBinding) ClearStaffWorkTimeModel(ctx context.Context, id int64) error {
+	return b.owner.ClearStaffWorkTimeModel(ctx, id)
 }

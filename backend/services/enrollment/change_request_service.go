@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
@@ -1347,6 +1348,12 @@ func (s *changeRequestService) lockApprovedStudents(ctx context.Context, childre
 		return nil
 	}
 	if err := s.CompanionGraphLocker.LockCompanionGraph(ctx, ids, nil); err != nil {
+		// Care Plan reports a linked child held elsewhere with its own
+		// sentinel; the approval answers with the student write's retriable
+		// conflict, the one the handler maps to 409.
+		if errors.Is(err, careplan.ErrCompanionLockBusy) {
+			err = userModels.ErrCompanionLockBusy
+		}
 		return fmt.Errorf("change request approve: lock students: %w", err)
 	}
 	return nil
@@ -2629,13 +2636,13 @@ func (s *changeRequestService) enqueueAdminNotification(ctx context.Context, ten
 				RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
 				RelatedEntityID:   req.ID,
 			}); enqueueErr != nil {
-				s.logChangeRequestNotificationFailure(enqueueErr, tenantID, req.ID, changeRequestID, kind, admin, "enqueue")
+				s.logChangeRequestNotificationFailure(enqueueErr, tenantID, req.ID, changeRequestID, kind, "enqueue")
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		s.logChangeRequestNotificationFailure(err, tenantID, req.ID, changeRequestID, kind, "", "tenant_tx")
+		s.logChangeRequestNotificationFailure(err, tenantID, req.ID, changeRequestID, kind, "tenant_tx")
 	}
 }
 
@@ -2662,16 +2669,19 @@ func (s *changeRequestService) enqueueParentNotification(ctx context.Context, te
 			RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
 			RelatedEntityID:   req.ID,
 		}); enqueueErr != nil {
-			s.logChangeRequestNotificationFailure(enqueueErr, tenantID, req.ID, changeRequestID, kind, req.GuardianEmail, "enqueue")
+			s.logChangeRequestNotificationFailure(enqueueErr, tenantID, req.ID, changeRequestID, kind, "enqueue")
 		}
 		return nil
 	})
 	if err != nil {
-		s.logChangeRequestNotificationFailure(err, tenantID, req.ID, changeRequestID, kind, req.GuardianEmail, "tenant_tx")
+		s.logChangeRequestNotificationFailure(err, tenantID, req.ID, changeRequestID, kind, "tenant_tx")
 	}
 }
 
-func (s *changeRequestService) logChangeRequestNotificationFailure(err error, tenantID, requestID, changeRequestID int64, kind, recipient, stage string) {
+// logChangeRequestNotificationFailure names the request, not the recipient:
+// request_id leads to the guardian or admin address, which stays out of the
+// log (#2108).
+func (s *changeRequestService) logChangeRequestNotificationFailure(err error, tenantID, requestID, changeRequestID int64, kind, stage string) {
 	if err == nil || s.Logger == nil {
 		return
 	}
@@ -2681,7 +2691,6 @@ func (s *changeRequestService) logChangeRequestNotificationFailure(err error, te
 		slog.Int64("request_id", requestID),
 		slog.Int64("change_request_id", changeRequestID),
 		slog.String("kind", kind),
-		slog.String("recipient", recipient),
 		slog.String("error", err.Error()),
 	)
 }

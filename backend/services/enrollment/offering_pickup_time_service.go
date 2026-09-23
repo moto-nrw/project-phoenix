@@ -2,15 +2,14 @@ package enrollment
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
 
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -26,13 +25,13 @@ type OfferingPickupTimeService interface {
 
 // ErrPickupResetNoOffering protects a manual pickup row when no booking-derived
 // pickup time would replace it on the requested date.
-var ErrPickupResetNoOffering = errors.New("für diesen Tag gibt es keine Angebots-Gehzeit")
+var ErrPickupResetNoOffering = careplan.ErrPickupResetNoOffering
 
 // OfferingPickupBaselineReader is the date-aware read boundary needed by the
 // reset write. The schedule projector implements it without coupling this
 // service package to the schedule service package.
 type OfferingPickupBaselineReader interface {
-	OfferingPickupForDate(ctx context.Context, studentID int64, date timezone.Date) (*scheduleModels.StudentPickupSchedule, error)
+	OfferingPickupForDate(ctx context.Context, studentID int64, date timezone.Date) (*careplan.PickupSchedule, error)
 }
 
 // LockOfferingDerivedWrites establishes the project-wide gate order before a

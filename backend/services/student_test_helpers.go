@@ -2,30 +2,29 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
+	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
@@ -42,11 +41,11 @@ type StudentTestModule struct {
 	PeopleDirectory    peopledirectory.Capability
 	Audit              auditModels.Command
 	Schools            organizationtenancy.Capability
-	CareLifecycle      carelifecycle.CareLifecycleService
+	CareLifecycle      careplan.CareLifecycle
 	StudentAudit       users.StudentAuditService
-	PartialAbsence     careschedule.PartialAbsenceService
+	PartialAbsence     careplan.PartialAbsenceService
 	EnrollmentDecision enrollment.DecisionService
-	CareRequests       careschedule.CareScheduleRequestService
+	CareRequests       carerequests.Service
 	OfferingChanges    enrollment.OfferingChangeRequestService
 	PickupAdjustments  enrollment.PickupAdjustmentService
 	ExcusedRequests    careplan.ExcusedAbsenceRequests
@@ -61,12 +60,12 @@ type StudentTestModule struct {
 }
 
 // ManualPartialAbsences binds the owner projection without constructing another service graph.
-func (m StudentTestModule) ManualPartialAbsences(source careplan.Capability) active.ManualPartialAbsenceReader {
+func (m StudentTestModule) ManualPartialAbsences(source careplan.Capability) presenceservice.ManualPartialAbsenceReader {
 	return NewManualPartialAbsenceDates(source)
 }
 
 // DataAccessAudit supplies the access-evidence writer from this module's audit command.
-func (m StudentTestModule) DataAccessAudit() active.DataAccessAudit {
+func (m StudentTestModule) DataAccessAudit() presenceservice.DataAccessAudit {
 	return NewDataAccessAudit(studentAccessAuditWriter{m.Audit})
 }
 
@@ -147,10 +146,20 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	}
 	studentPhotoService := newStudentPhotos(realtimeHub, nil)
 	users.WirePersonCareParticipation(usersService, careParticipationResolver(careLifecycleService))
-	careschedule.WireCareParticipation(careDayService, careLifecycleService)
+	careplanCompose.WireCareParticipation(careDayService, careLifecycleService)
 	approvedOfferings := enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
-	pickupBaselines := careschedule.NewPickupBaselineServiceWithSettings(repos.StudentPickupSchedule, approvedOfferings, repos.CareOffering, settingsService)
-	pickupAutoExcusal := careschedule.NewPickupAutoExcusalSyncer(repos.StudentPickupException, pickupBaselines, repos.InstanceStudent, db)
+	pickupBaselines, err := careplanCompose.NewPickupBaselines(repos.CarePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
+		return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
+	})
+	if err != nil {
+		return StudentTestModule{}, err
+	}
+	pickupAutoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
+		DB: db, Records: repos.CarePlan, Baselines: pickupBaselines, Blocks: newStudentPresence(db, logger), Preview: newPickupExcusalTimetable(repos.Timetable, db),
+	})
+	if err != nil {
+		return StudentTestModule{}, err
+	}
 	rosterReconciler := timetableplanning.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, logger, now)
 	pillEmitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
 		DB:          db,
@@ -161,14 +170,10 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		Broadcaster: realtimeHub,
 		Logger:      logger.With("service", "parent-events"),
 	})
-	partialAbsenceService := careschedule.NewPartialAbsenceService(
-		repos.StudentPickupException,
-		repos.StudentStatusDay,
-		repos.ExcusedAbsenceRequest,
-		repos.InstanceStudent,
-		pickupAutoExcusal,
-		db,
-	)
+	partialAbsenceService, err := careplanCompose.NewPartialAbsences(db, repos.CarePlan, newStudentPresence(db, logger), pickupAutoExcusal)
+	if err != nil {
+		return StudentTestModule{}, err
+	}
 	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	if err != nil {
 		return StudentTestModule{}, err
@@ -180,7 +185,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		Guardians:                 repos.Enrollment(),
 		LateInviteRepo:            repos.Enrollment(),
 		ApprovedOfferings:         approvedOfferings,
-		CareOfferingRepo:          repos.CareOffering,
+		CareOfferingRepo:          enrollment.NewCareOfferingRepository(repos.CarePlan),
 		Phases:                    repos.Enrollment(),
 		Schemas:                   repos.Enrollment(),
 		DataAccessLogRepo:         repos.DataAccessLog,
@@ -205,7 +210,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		ActivityExceptionRepo:     repos.ActivityException,
 		GuardianAccess:            guardianAccess,
 		StudentEnrollment:         persons,
-		DepartureCompanions:       repos.StudentCompanion,
+		DepartureCompanions:       repositories.NewStudentCompanionRepository(repos.CarePlan),
 		DeleteDepartureCompanions: repos.CarePlan.DeleteCompanionEdges,
 		OutboxEnqueuer:            outboxEnqueuer{outbox: emailOutboxService},
 		StudentAudit:              studentAuditService,
@@ -232,8 +237,8 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		},
 		LockPickupStudents: func(ctx context.Context, studentIDs []int64) error {
 			for _, studentID := range studentIDs {
-				if err := careschedule.LockCareStudent(ctx, db, studentID); err != nil {
-					if errors.Is(err, sql.ErrNoRows) {
+				if err := persons.LockStudent(ctx, studentID); err != nil {
+					if errors.Is(err, peopledirectory.ErrStudentNotFound) {
 						continue
 					}
 					return err
@@ -247,22 +252,16 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	offeringResync = enrollmentDecisionService.(education.OfferingSourceResyncer)
 	enrollmentDecisionApplier := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
 	directOfferingApplier := enrollmentDecisionService.(enrollment.DirectOfferingAdjustmentApplier)
-	requestReviewPolicy := usercontext.NewParentRequestReviewPolicy(
-		settingsService,
-		userContextService,
-		configModels.KeyParentRequestGroupLeaderReviewEnabled,
-		configModels.KeyParentAbsenceReviewScope,
-	)
+	requestReviewPolicy := NewParentRequestReviewPolicy(userContextService.Caller().ParentRequestReviews)
 	parentRequestEvents := users.NewParentRequestEventRecorder(repos.ParentRequestEvent)
-	careRequestService := careschedule.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
-		repos.CareScheduleChangeRequest,
-		repos.Student,
-		repos.Person,
+	careRequestService := NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+		repos.CarePlan,
+		persons,
 		arrivalScheduleService,
 		pickupScheduleService,
-		repos.StudentPickupException,
 		newStudentPresence(db, logger),
 		pickupAutoExcusal,
+		repos.CarePlan,
 		userContextService,
 		pillEmitter,
 		realtimeHub,
@@ -270,14 +269,14 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		parentRequestEvents,
 		logger.With("service", "care-requests"),
 		studentAuditService,
-		careschedule.WithCareRequestToday(today),
+		WithCareRequestToday(today),
 	)
 	offeringChangeRequestService := enrollment.NewOfferingChangeRequestServiceWithPolicy(enrollment.OfferingChangeRequestServiceConfig{
-		ChangeRepo:             repos.OfferingChangeRequest,
+		ChangeRepo:             enrollment.NewOfferingChangeRepository(repos.CarePlan, offeringChangeStudentSearch{people: persons}),
 		Children:               repos.Enrollment(),
 		Requests:               repos.Enrollment(),
 		Phases:                 repos.Enrollment(),
-		CareOfferingRepo:       repos.CareOffering,
+		CareOfferingRepo:       enrollment.NewCareOfferingRepository(repos.CarePlan),
 		ImpactRepo:             manualPlanningReader{db: db},
 		StudentRepo:            repos.Student,
 		PersonRepo:             repos.Person,
@@ -315,7 +314,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	masterDataReviewService := users.NewMasterDataReviewServiceWithAuditAndPolicy(
+	masterDataReviewService := users.NewMasterDataReviewServiceWithAuditAndPolicy(authjwt.PermissionsFromCtx,
 		repos.StudentDataChangeRequest,
 		repos.Student,
 		repos.Person,
@@ -328,7 +327,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		realtimeHub,
 	)
 	excusedCoordinatorPort := excusedRequestCoordinatorPort{requests: excusedRequestService}
-	parentRequestCoordinator := users.NewParentRequestCoordinator(
+	parentRequestCoordinator := users.NewParentRequestCoordinator(authjwt.PermissionsFromCtx,
 		masterDataReviewService.(users.MasterDataBulkReviewPort),
 		excusedCoordinatorPort,
 	)
@@ -337,18 +336,21 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	parentRequestCoordinator.SetCareConflictPort(careRequestService.(users.ParentRequestConflictPort))
 	parentRequestCoordinator.SetOfferingConflictPort(offeringChangeRequestService.(users.ParentRequestConflictPort))
 	parentRequestCoordinator.SetEventRecorder(parentRequestEvents)
+	scheduleSubstitution, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
+		Instances: instanceService, ActivityInstances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
+		Staff: repos.Staff, Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
+	})
+	if err != nil {
+		return StudentTestModule{}, err
+	}
 	substitutionService := education.NewSubstitutionModule(education.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: contextRepos.Substitutions, Persons: newEducationPersonQuery(persons),
-		Teachers: repos.Teacher, Staff: repos.Staff, Actors: substitutionActorResolver{identity: userContextService},
+		Teachers: repos.Teacher, Staff: repos.Staff, Actors: substitutionActorResolver{identity: userContextService.Caller()},
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Audit:                   repos.SubstitutionChange, DB: db, Broadcaster: realtimeHub,
-		Logger: logger.With("service", "substitution"),
-		Schedule: newScheduleSubstitutionBridge(shiftplanning.NewSubstitutionAdapter(shiftplanning.SubstitutionAdapterDependencies{
-			Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
-			Staff: repos.Staff, Engine: instanceService, Broadcaster: realtimeHub,
-			Logger: logger.With("service", "schedule-substitution"),
-		})),
+		Logger:   logger.With("service", "substitution"),
+		Schedule: scheduleSubstitution,
 		CanSeeAll: func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error) {
 			if assignmentBound {
 				return false, nil
@@ -361,7 +363,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		},
 		Now: now,
 	})
-	studentStatusDayService := active.NewStudentStatusDayServiceWithPartialAbsences(
+	studentStatusDayService := presenceservice.NewStatusDays(
 		repos.StudentStatusDay,
 		NewManualPartialAbsenceDates(repos.CarePlan),
 		db,
@@ -373,7 +375,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		People:            usersService,
 		Education:         educationService,
 		Substitutions:     substitutionService,
-		UserContext:       userContextService,
+		UserContext:       groupLiveCaller{userContextService},
 		Active:            activeService,
 		Settings:          settingsService,
 		Pickups:           pickupScheduleService,
@@ -401,11 +403,11 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 
 // StatusDayOverviewPeople serves the absence overview's people reads from the
 // module's users service.
-func (m StudentTestModule) StatusDayOverviewPeople() active.StatusDayOverviewPeople {
+func (m StudentTestModule) StatusDayOverviewPeople() presenceservice.StatusDayOverviewPeople {
 	return StatusDayOverviewPeople(m.Users)
 }
 
 // HistorySlots supplies the same owner projection to narrow student route fixtures.
-func (m StudentTestModule) HistorySlots(records timetableCompose.AttendanceHistoryRecords) active.HistorySlotReader {
+func (m StudentTestModule) HistorySlots(records timetableCompose.AttendanceHistoryRecords) presenceservice.HistorySlotReader {
 	return NewHistorySlots(records)
 }

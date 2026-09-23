@@ -19,7 +19,7 @@ func TestOffboardingPreviewLocksConcurrentShiftWriters(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Locked", "Offboarding")
 	runtime := testpkg.ConfigRuntime(db)
-	offboarding, err := NewOffboarding(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment, DB: db, AssignedStaffIDs: runtime.AssignedStaffIDs, RebaseStaffAnchor: runtime.RebaseAssignedStaffAnchor, Observe: func(Observation) {}}, func(context.Context, workforce.StaffAbsence, int64) error { return nil })
+	offboarding, err := NewOffboarding(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment, DB: db, LiveStaffIDs: runtime.LiveStaffIDs, Observe: func(Observation) {}}, func(context.Context, workforce.StaffAbsence, int64) error { return nil })
 	require.NoError(t, err)
 	require.NoError(t, testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		_, err := offboarding.Preview(txCtx, staff.ID, "2027-10-02")
@@ -54,7 +54,7 @@ func TestOffboardingWorkforceCannotDeleteAnotherTenantsPlans(t *testing.T) {
 	shift, err := module.CreateStaffShift(ctx, testShift(staff.ID, timezone.NewDate(2026, 3, 5), "09:00:00", "12:00:00"))
 	require.NoError(t, err)
 	runtime := testpkg.ConfigRuntime(db)
-	offboarding, err := NewOffboarding(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment, DB: db, AssignedStaffIDs: runtime.AssignedStaffIDs, RebaseStaffAnchor: runtime.RebaseAssignedStaffAnchor, Observe: func(Observation) {}}, func(context.Context, workforce.StaffAbsence, int64) error {
+	offboarding, err := NewOffboarding(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment, DB: db, LiveStaffIDs: runtime.LiveStaffIDs, Observe: func(Observation) {}}, func(context.Context, workforce.StaffAbsence, int64) error {
 		return errors.New("foreign absence must never reach the audit command")
 	})
 	require.NoError(t, err)
@@ -80,7 +80,7 @@ func TestOffboardingWorkforceDetectsDriftAndBlocksHandovers(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Handover", "Offboarding")
 	module := buildWorkforce(t, db)
 	runtime := testpkg.ConfigRuntime(db)
-	offboarding, err := NewOffboarding(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment, DB: db, AssignedStaffIDs: runtime.AssignedStaffIDs, RebaseStaffAnchor: runtime.RebaseAssignedStaffAnchor, Observe: func(Observation) {}}, func(context.Context, workforce.StaffAbsence, int64) error { return nil })
+	offboarding, err := NewOffboarding(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment, DB: db, LiveStaffIDs: runtime.LiveStaffIDs, Observe: func(Observation) {}}, func(context.Context, workforce.StaffAbsence, int64) error { return nil })
 	require.NoError(t, err)
 	preview, err := offboarding.Preview(ctx, staff.ID, "2026-02-01")
 	require.NoError(t, err)
@@ -111,7 +111,7 @@ func TestOffboardingWorkforceRollsBackPlansAndCapsSeriesOnRetry(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Planning", "Offboarding")
 	module := buildWorkforce(t, db)
 	runtime := testpkg.ConfigRuntime(db)
-	offboarding, err := NewOffboarding(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment, DB: db, AssignedStaffIDs: runtime.AssignedStaffIDs, RebaseStaffAnchor: runtime.RebaseAssignedStaffAnchor, Observe: func(Observation) {}}, func(context.Context, workforce.StaffAbsence, int64) error { return nil })
+	offboarding, err := NewOffboarding(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment, DB: db, LiveStaffIDs: runtime.LiveStaffIDs, Observe: func(Observation) {}}, func(context.Context, workforce.StaffAbsence, int64) error { return nil })
 	require.NoError(t, err)
 	period := testpkg.CreateTestCalendarPeriod(t, db, "Offboarding year", timezone.NewDate(2026, 1, 1), timezone.NewDate(2026, 12, 31))
 	series, err := module.CreateStaffShiftSeries(ctx, workforce.StaffShiftSeries{StaffID: staff.ID, Weekdays: []int{1}, StartTime: "09:00:00", EndTime: "12:00:00", CalendarPeriodID: period.ID, ValidFrom: "2026-01-01", CreatedBy: staff.ID})
@@ -164,7 +164,7 @@ func TestOffboardingWorkforcePreservesHistoryAndRequiresAbsenceAudit(t *testing.
 	runtime := testpkg.ConfigRuntime(db)
 	failure := errors.New("absence audit unavailable")
 	var archived []workforce.StaffAbsence
-	offboarding, err := NewOffboarding(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment, DB: db, AssignedStaffIDs: runtime.AssignedStaffIDs, RebaseStaffAnchor: runtime.RebaseAssignedStaffAnchor, Observe: func(Observation) {}}, func(_ context.Context, absence workforce.StaffAbsence, actorID int64) error {
+	offboarding, err := NewOffboarding(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment, DB: db, LiveStaffIDs: runtime.LiveStaffIDs, Observe: func(Observation) {}}, func(_ context.Context, absence workforce.StaffAbsence, actorID int64) error {
 		require.Equal(t, staff.ID, actorID)
 		if failure != nil {
 			return failure

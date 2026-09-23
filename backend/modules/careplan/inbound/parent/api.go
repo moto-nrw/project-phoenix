@@ -20,7 +20,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
 
@@ -31,7 +30,7 @@ import (
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // Resource bundles the parent-portal HTTP handlers + their deps.
@@ -42,7 +41,7 @@ type Resource struct {
 	// Resets is the reset runtime the composition root binds to Identity &
 	// Access (#3332); the zero value leaves the reset routes answering 500.
 	Resets                PasswordResetRuntime
-	ParentService         parentService.Service
+	ParentService         PortalService
 	RequestSharing        parentService.RequestSharingService
 	CalendarService       calendarService.Service
 	RequestService        enrollmentService.RequestService
@@ -62,7 +61,7 @@ type ResourceConfig struct {
 	Auth LoginRuntime
 	// Resets is the reset runtime the composition root binds (#3332).
 	Resets                PasswordResetRuntime
-	Parent                parentService.Service
+	Parent                PortalService
 	Calendar              calendarService.Service
 	Requests              enrollmentService.RequestService
 	GuardianProfileLoader *usersService.GuardianProfileLoader
@@ -116,8 +115,6 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	tokenAuth := jwt.MustNewTokenAuth()
-
 	// Public auth routes. parent-credentials login issues a
 	// parent-scope JWT that's NOT bound to any tenant_id; per-action
 	// tenant resolution happens at downstream parent endpoints from
@@ -134,10 +131,9 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	// Authenticated parent routes — all require scope=parent.
 	// jwt.ParentMiddleware rejects tenant + operator tokens.
 	r.Group(func(r chi.Router) {
-		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(common.ReadOnlyPreviewMiddleware)
-		r.Use(jwt.ParentMiddleware)
+		r.Use(common.ParentScopeMiddleware)
 		r.Use(common.SecurityPrincipalMiddleware)
 
 		// Cross-tenant children list — every student the parent is

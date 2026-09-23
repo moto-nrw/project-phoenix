@@ -50,6 +50,9 @@ vi.mock("~/lib/auth-utils", () => ({
     if (role === "user") return !(session?.user?.isAdmin ?? false);
     return false;
   },
+  // Der RoleGuard nennt seit #3469 das Recht der Route; die Sitzungen dieser
+  // Tests tragen keine Rechte, die Rolle entscheidet weiter.
+  hasPermission: () => false,
 }));
 
 // Mock next-auth/react
@@ -401,8 +404,10 @@ vi.mock("~/components/students/student-card", () => ({
       {notes && <span>({notes})</span>}
     </div>
   ),
-  StudentAbsenceRow: ({ label }: { label: string }) => (
-    <div data-testid="student-absence-row">Kommt heute nicht ({label})</div>
+  StudentAbsenceRow: ({ label, note }: { label: string; note?: string }) => (
+    <div data-testid="student-absence-row">
+      Kommt heute nicht ({label}){note && <span>Notiz: {note}</span>}
+    </div>
   ),
 }));
 
@@ -2416,6 +2421,31 @@ describe("OGSGroupPage rendered pickup urgency", () => {
         .getAllByTestId("pickup-time-row")
         .some((el) => el.dataset.pickupTime === "13:00"),
     ).toBe(false);
+  });
+
+  it("shows a day note below the status absence", async () => {
+    const pickupMap = new Map([
+      [
+        "1",
+        {
+          pickupTime: "",
+          isException: false,
+          dayNotes: [{ id: "1", content: "Heute beim Arzt" }],
+        },
+      ],
+    ]);
+    setupWithStudentsAndPickupTimes(pickupMap, undefined, undefined, {
+      "1": { sick: true },
+    });
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Kommt heute nicht (krank gemeldet)"),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText("Notiz: Heute beim Arzt")).toBeInTheDocument();
   });
 
   it("uses day planning status for OGS group card absence and badge state", async () => {

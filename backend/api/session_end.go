@@ -18,6 +18,7 @@ func newSessionEnd(presence *studentpresence.Module, modules moduleServices, fac
 	log := logger.With("workflow", "session-end")
 	deps := sessionEndCompose.Dependencies{
 		Presence:    presence,
+		Sessions:    presence,
 		Timetable:   modules.timetable,
 		Completion:  factory.TimetableBridge,
 		Students:    modules.persons,

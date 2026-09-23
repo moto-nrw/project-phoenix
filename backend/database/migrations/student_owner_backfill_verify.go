@@ -83,14 +83,40 @@ const studentOwnerMismatch = `
 // historically it held whichever the school had. Comparison is exact after that
 // normalization; a differently written phone or name is reported rather than
 // assumed equal, so the correction stays a human decision.
-const studentOwnerGuardianMismatch = `
+const studentOwnerGuardianMismatch = studentOwnerGuardianMismatchPrefix + " FROM users.students AS s " + studentOwnerGuardianMismatchSuffix
+
+// The archive can lag live owner edits. Do not compare all its columns to live
+// rows, and never copy it back. Only unreconciled contact copies block deletion.
+func studentOwnerContractGuardianPreflight(ctx context.Context, db bun.IDB) error {
+	var tenantIDs []int64
+	if err := db.NewRaw(`SELECT DISTINCT tenant_id FROM users.students_legacy ORDER BY tenant_id`).Scan(ctx, &tenantIDs); err != nil {
+		return fmt.Errorf("student contract: list archive schools: %w", err)
+	}
+	for _, tenantID := range tenantIDs {
+		var count int64
+		var oldest sql.NullTime
+		if err := db.NewRaw(studentContractGuardianMismatch, tenantID, tenantID).Scan(ctx, &count, &oldest); err != nil {
+			return fmt.Errorf("student contract: reconcile guardian copies for school %d: %w", tenantID, err)
+		}
+		if count != 0 {
+			return fmt.Errorf("student contract: school %d has %d unreconciled guardian values", tenantID, count)
+		}
+	}
+	return nil
+}
+
+const studentContractGuardianMismatch = studentOwnerGuardianMismatchPrefix + " FROM users.students_legacy AS s " + studentOwnerGuardianMismatchSuffix
+
+const studentOwnerGuardianMismatchPrefix = `
 	WITH legacy AS (
 		SELECT s.id, s.updated_at,
 		       nullif(lower(btrim(coalesce(s.guardian_name, ''))), '') AS guardian_name,
 		       nullif(lower(btrim(coalesce(s.guardian_contact, ''))), '') AS guardian_contact,
 		       nullif(lower(btrim(coalesce(s.guardian_email, ''))), '') AS guardian_email,
 		       nullif(regexp_replace(coalesce(s.guardian_phone, ''), '\D', '', 'g'), '') AS guardian_phone
-		FROM users.students AS s
+	`
+
+const studentOwnerGuardianMismatchSuffix = `
 		WHERE s.tenant_id = ?
 	),
 	links AS (

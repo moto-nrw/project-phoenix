@@ -136,7 +136,7 @@ func TestEnrollmentDeletionOwner_MismatchedRequestPreservesChildSelections(t *te
 	other := f.request("other", nil)
 	child := f.child(request.ID, "Rejected", enrollmentModels.ChildStatusRejected, nil)
 	offering := &enrollmentModels.CareOffering{PhaseID: f.phase, Name: "Care", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true, CountsAsCare: true, CountsAsCareSet: true}
-	require.NoError(t, f.repos.CareOffering.Create(f.scope.Context(), offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(f.repos.CarePlan()).Create(f.scope.Context(), offering))
 	selection := &capability.RequestChildOffering{RequestChildID: child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}}
 	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(f.scope.Context(), selection))
 	counts, err := f.repos.Enrollment().DeletionChildCounts(f.scope.Context(), other.ID, child.ID)
@@ -231,7 +231,7 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 	require.NoError(t, f.repos.Enrollment().CreateRequestGuardian(f.scope.Context(), coGuardian))
 
 	offering := &enrollmentModels.CareOffering{PhaseID: f.phase, Name: "Test care", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true, CountsAsCare: true, CountsAsCareSet: true, AutoAddGradeLevels: []int{}, SelectionRule: enrollmentModels.SelectionRuleOptional}
-	require.NoError(t, f.repos.CareOffering.Create(f.scope.Context(), offering))
+	require.NoError(t, enrollmentService.NewCareOfferingRepository(f.repos.CarePlan()).Create(f.scope.Context(), offering))
 	require.NoError(t, f.repos.Enrollment().RecordSubmittedOfferingChoices(f.scope.Context(), child.ID, []capability.SubmittedOfferingChoice{
 		{CareOfferingID: offering.ID, SelectedDays: []string{"mon"}},
 	}))
@@ -280,7 +280,7 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 	}{
 		{"enrollment.requests", request.ID},
 		{"enrollment.request_children", child.ID},
-		{"enrollment.request_child_offerings", childOffering.ID},
+		{"enrollment.care_offering_bookings", childOffering.ID},
 		{"enrollment.request_guardians", coGuardian.ID},
 		{"enrollment.change_requests", change.ID},
 		{"enrollment.change_request_messages", message.ID},
@@ -290,7 +290,7 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 		assert.Zero(t, tableCount(t, db, check.table, "id = ?", check.id), check.table)
 	}
 	assert.Equal(t, 1, tableCount(t, db, "platform.email_outbox", "id = ? AND status = 'cancelled'", outbox.ID))
-	assert.Equal(t, 1, tableCount(t, db, "users.students", "id = ?", student.ID))
+	assert.Equal(t, 1, tableCount(t, db, "users.student_profiles", "id = ?", student.ID))
 	assert.Equal(t, 1, tableCount(t, db, "users.guardian_profiles", "id = ?", profile.ID))
 	assert.Equal(t, 1, tableCount(t, db, "auth.accounts", "id = ?", guardianAccount.ID))
 	_, err = f.repos.Enrollment().RequestByToken(f.scope.Context(), request.StatusToken, false)
@@ -335,7 +335,7 @@ func TestEnrollmentDeletion_BlocksExistingStudent(t *testing.T) {
 	})
 	require.ErrorIs(t, err, enrollmentService.ErrEnrollmentDeletionStudentExists)
 	assert.Equal(t, 1, tableCount(t, db, "enrollment.requests", "id = ?", request.ID))
-	assert.Equal(t, 1, tableCount(t, db, "users.students", "id = ?", student.ID))
+	assert.Equal(t, 1, tableCount(t, db, "users.student_profiles", "id = ?", student.ID))
 	assert.Zero(t, tableCount(t, db, "audit.enrollment_deletions", "tenant_id = ?", f.scope.TenantID))
 }
 

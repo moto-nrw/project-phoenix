@@ -13,11 +13,14 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 )
 
@@ -93,15 +96,19 @@ func (f *Factory) AuthMaintenanceRuntime() *AuthMaintenance {
 // cleanup repositories and a signer the sweep never uses.
 func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.Logger, command AuditCommand) (*AuthMaintenance, error) {
 	repos := repositories.NewAuthCleanupRepositories(db, command)
-	tokenAuth, err := authjwt.NewTokenAuth()
+	tokenAuth, err := configuredTokenAuth()
 	if err != nil {
 		return nil, fmt.Errorf("auth cleanup service: token auth: %w", err)
 	}
+	codec, err := signedIdentityTokensOf(tokenAuth)
+	if err != nil {
+		return nil, err
+	}
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos: sessionRepositories{
-			schools: newSchoolDirectory(repos.School, nil), persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
+			schools: schoolDirectory{schools: repos.School}, persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
 		},
-		tokenAuth: tokenAuth, audit: command, logger: logger,
+		codec: codec, audit: command, logger: logger,
 		// The cleanup root only removes spent links and stale windows; it
 		// never issues a link, so it composes the flows without a mailer.
 		resets: &passwordResetWiring{expiry: cleanupResetExpiry},
@@ -128,21 +135,23 @@ func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) (identityacces
 	return module, nil
 }
 
-func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger) active.Service {
+func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger) studentpresence.Presence {
 	repos := repositories.NewSessionCleanupRepositories(db, timetableCapability)
+	groups, supervisors := presenceCompose.SessionRepositories(repos.Sessions)
 	settings := NewCleanupSettingsService(db, runtime, schools, logger)
-	return active.NewService(active.ServiceDependencies{
+	return presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader: AttendancePrincipal,
 		SchoolPresence:  newStudentPresence(db, logger),
-		GroupRepo:       repos.Group, SupervisorRepo: repos.Supervisor,
+		GroupRepo:       groups, SupervisorRepo: supervisors,
 		DeviceRepo: NewSessionDeviceDirectory(repos.Device, settings, logger), TimetableBridgeCompleter: repos.TimetableBridge, DB: db, Logger: logger,
-	}, active.WithTenantRuntime(runtime), active.WithSettings(PresenceSettings(settings)))
+	}, presenceservice.WithPresenceTenantRuntime(runtime), presenceservice.WithPresenceSettings(PresenceSettings(settings)))
 }
 
-func NewRetentionCleanupService(db *bun.DB, logger *slog.Logger, command AuditCommand) active.CleanupService {
+func NewRetentionCleanupService(db *bun.DB, logger *slog.Logger, command AuditCommand) studentpresence.PresenceCleanup {
 	repos := repositories.NewRetentionCleanupRepositories(db, command)
-	return active.NewCleanupService(
-		newStudentPresence(db, logger), repos.Supervisor, NewDeletionAudit(repos.Deletion),
+	_, supervisors := presenceCompose.SessionRepositories(repos.Sessions)
+	return presenceservice.NewPresenceCleanup(
+		newStudentPresence(db, logger), supervisors, NewDeletionAudit(repos.Deletion),
 	)
 }
 
@@ -172,3 +181,13 @@ type TimeTrackingCleanupService = timetracking.TimeTrackingCleanupService
 type TimeTrackingCleanupResult = timetracking.TimeTrackingCleanupResult
 type TimeTrackingCleanupPreview = timetracking.TimeTrackingCleanupPreview
 type TimeTrackingCleanupStats = timetracking.TimeTrackingCleanupStats
+
+// configuredTokenAuth resolves the signer of roots that receive no resolved
+// configuration: the cleanup CLI and the test compositions.
+func configuredTokenAuth() (*authjwt.TokenAuth, error) {
+	return authjwt.NewTokenAuthWithDurations(
+		viper.GetString("auth_jwt_secret"),
+		viper.GetDuration("auth_jwt_expiry"),
+		viper.GetDuration("auth_jwt_refresh_expiry"),
+	)
+}

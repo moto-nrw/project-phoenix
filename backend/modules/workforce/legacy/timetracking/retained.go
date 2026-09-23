@@ -1,7 +1,7 @@
 // Package timetracking holds the retained Workforce time-tracking services
 // while they wait for their dissolution into the owner's application and
 // domain layers (#3213). It is compatibility code: the services still speak
-// the retained models/active vocabulary and are served behind the public
+// the retained time-record vocabulary and are served behind the public
 // modules/workforce contracts by the composition root. Nothing in here is a
 // target dependency; the package goes with the last retained contract.
 package timetracking

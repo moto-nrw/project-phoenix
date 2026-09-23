@@ -36,6 +36,9 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ./dev.env")
 	RootCmd.PersistentFlags().Bool("db_debug", false, "log sql to console")
 	_ = viper.BindPFlag("db_debug", RootCmd.PersistentFlags().Lookup("db_debug"))
+	// Fallback of the public demo (#3463); serve and demo must agree on it.
+	RootCmd.PersistentFlags().Bool("demo-standing-school", false, "public demo: every demo access enters the standing demo school instead of a school of its own")
+	_ = viper.BindPFlag("demo_standing_school", RootCmd.PersistentFlags().Lookup("demo-standing-school"))
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
@@ -74,12 +77,16 @@ func loadConfig(config *viper.Viper, configFile string, docker bool) {
 // available to persistence adapters, which intentionally depend only on the
 // process environment.
 func propagateDatabaseConfig() {
+	propagateDatabaseConfigFrom(viper.GetViper(), os.Setenv)
+}
+
+func propagateDatabaseConfigFrom(config *viper.Viper, setenv func(string, string) error) {
 	for _, key := range []string{
-		"app_env", "db_dsn", "test_db_dsn", "phoenix_auth_password",
+		"app_env", "db_dsn", "demo_db_dsn", "test_db_dsn", "phoenix_auth_password", "phoenix_demo_password",
 		"db_max_open_conns", "db_max_idle_conns", "db_conn_max_lifetime", "db_conn_max_idle_time",
 	} {
-		if value := viper.GetString(key); value != "" {
-			if err := os.Setenv(strings.ToUpper(key), value); err != nil {
+		if value := config.GetString(key); value != "" {
+			if err := setenv(strings.ToUpper(key), value); err != nil {
 				panic(fmt.Errorf("propagate %s configuration: %w", key, err))
 			}
 		}

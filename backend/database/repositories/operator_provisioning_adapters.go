@@ -11,17 +11,23 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/uptrace/bun"
 )
 
 // deviceAPIKeyConstraint is the unique constraint PostgreSQL generated for
 // iot.devices.api_key (migration 001003009).
 const deviceAPIKeyConstraint = "devices_api_key_key"
+
+// accountEmailQuery is the operator person listing's account-facts port.
+type accountEmailQuery interface {
+	ListAccountEmails(context.Context, []int64) (map[int64]string, error)
+	CountActiveAccountsBySchoolGroups(context.Context, map[int64][]int64) (map[int64]int, error)
+}
 
 // OperatorProvisioningDependencies are the owner capabilities and retained
 // repositories the Organisation & Tenancy provisioning seams (#3253) bind to.
@@ -32,13 +38,15 @@ type OperatorProvisioningDependencies struct {
 	Membership   schoolmembership.Query
 	PersonRepo   userModels.PersonRepository
 	StaffRepo    userModels.StaffRepository
-	Accounts     authModels.AccountRepository
+	Accounts     accountEmailQuery
 	ActiveGroups interface {
-		FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*activeModels.Group, error)
+		FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*studentpresence.SessionDetail, error)
 	}
-	Supervisors activeModels.GroupSupervisorRepository
-	Categories  activitiesModels.CategoryRepository
-	AuditLog    platformModels.OperatorAuditLogRepository
+	Supervisors interface {
+		FindActiveByStaffID(ctx context.Context, staffID int64) ([]*studentpresence.GroupSupervision, error)
+	}
+	Categories activitiesModels.CategoryRepository
+	AuditLog   platformModels.OperatorAuditLogRepository
 }
 
 // OperatorProvisioningAdapters bind the provisioning seams to the retained
@@ -49,9 +57,8 @@ type OperatorProvisioningAdapters struct {
 	Presence   organizationCompose.ProvisioningPresence
 	Categories organizationCompose.ProvisioningCategories
 	Audit      organizationCompose.OperatorAudit
-	// ActiveMemberships is the Identity & Access active-membership statement
-	// the dashboard account counts aggregate over (#2721).
-	ActiveMemberships func(context.Context) *bun.SelectQuery
+	// ActiveAccountCounts supplies bounded dashboard account aggregates.
+	ActiveAccountCounts func(context.Context, map[int64][]int64) (map[int64]int, error)
 }
 
 // NewOperatorProvisioningAdapters binds the provisioning seams.
@@ -64,13 +71,14 @@ func NewOperatorProvisioningAdapters(deps OperatorProvisioningDependencies) (Ope
 	return OperatorProvisioningAdapters{
 		Devices: provisioningDevices{devices: deps.Devices},
 		People: provisioningPeople{
-			persons: deps.Persons, membership: deps.Membership, personRepo: deps.PersonRepo,
-			staffRepo: deps.StaffRepo, accounts: deps.Accounts, db: deps.DB,
+			persons: deps.Persons, membership: deps.Membership, childQuota: schoolMembershipCompose.NewChildQuotaCounts(),
+			personRepo: deps.PersonRepo,
+			staffRepo:  deps.StaffRepo, accounts: deps.Accounts, db: deps.DB,
 		},
-		Presence:          provisioningPresence{groups: deps.ActiveGroups, supervisors: deps.Supervisors},
-		Categories:        provisioningCategories{categories: deps.Categories},
-		Audit:             provisioningAudit{log: deps.AuditLog},
-		ActiveMemberships: activeMembershipQuery(deps.DB),
+		Presence:            provisioningPresence{groups: deps.ActiveGroups, supervisors: deps.Supervisors},
+		Categories:          provisioningCategories{categories: deps.Categories},
+		Audit:               provisioningAudit{log: deps.AuditLog},
+		ActiveAccountCounts: deps.Accounts.CountActiveAccountsBySchoolGroups,
 	}, nil
 }
 
@@ -174,14 +182,21 @@ func isForeignKeyViolation(err error) bool {
 type provisioningPeople struct {
 	persons    peopledirectory.Query
 	membership schoolmembership.Query
+	childQuota schoolmembership.ChildQuotaCounts
 	personRepo userModels.PersonRepository
 	staffRepo  userModels.StaffRepository
-	accounts   authModels.AccountRepository
+	accounts   accountEmailQuery
 	db         *bun.DB
 }
 
 func (p provisioningPeople) CountPersonsByTenant(ctx context.Context) (map[int64]int, error) {
 	return p.persons.CountPersonsByTenant(ctx)
+}
+
+// CountChildQuotaByTenant asks School Membership, which owns the
+// Kontingentzahl rule (#3568).
+func (p provisioningPeople) CountChildQuotaByTenant(ctx context.Context) (map[int64]int, error) {
+	return p.childQuota.CountChildQuotaByTenant(ctx)
 }
 
 // ListPersons lists the persons of the schools with their staff, student and
@@ -198,14 +213,14 @@ func (p provisioningPeople) ListPersons(ctx context.Context, tenantIDs []int64) 
 		return nil, err
 	}
 	staff := make(map[int64]bool, len(personIDs))
-	members, err := p.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs})
+	members, err := p.membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: personIDs, MembershipOnly: true})
 	if err != nil {
 		return nil, fmt.Errorf("load operator staff membership: %w", err)
 	}
 	for _, member := range members {
 		staff[member.PersonID] = true
 	}
-	emails, err := p.accounts.FindEmailsByAccountIDs(ctx, accountIDs)
+	emails, err := p.accounts.ListAccountEmails(ctx, accountIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load operator account emails: %w", err)
 	}
@@ -277,9 +292,11 @@ func (p provisioningPeople) AnonymizeAndSoftDelete(ctx context.Context, personID
 
 type provisioningPresence struct {
 	groups interface {
-		FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*activeModels.Group, error)
+		FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*studentpresence.SessionDetail, error)
 	}
-	supervisors activeModels.GroupSupervisorRepository
+	supervisors interface {
+		FindActiveByStaffID(ctx context.Context, staffID int64) ([]*studentpresence.GroupSupervision, error)
+	}
 }
 
 // ActiveDeviceSession reads the device's open kiosk session under the
@@ -290,8 +307,8 @@ func (p provisioningPresence) ActiveDeviceSession(ctx context.Context, tenantID,
 		return nil, err
 	}
 	session := &organizationCompose.DeviceSession{ID: group.ID, StartedAt: group.StartTime}
-	if group.ActualGroup != nil {
-		session.ActivityName = &group.ActualGroup.Name
+	if group.Activity != nil {
+		session.ActivityName = &group.Activity.Name
 	}
 	if group.Room != nil {
 		session.RoomName = &group.Room.Name

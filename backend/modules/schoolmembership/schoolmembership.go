@@ -1,8 +1,13 @@
 // Package schoolmembership is the public School Membership capability. It
-// owns users.staff, users.teachers, users.guests, users.class_list_entries,
-// education.class_teachers and education.group_teacher. Every read or write
-// of those rows by another owner goes through Query or Command instead of a
-// foreign SQL join.
+// owns users.staff_school_memberships, users.teachers, users.guests,
+// users.class_list_entries, education.class_teachers and
+// education.group_teacher. Every read or write of those rows by another owner
+// goes through Query or Command instead of a foreign SQL join.
+//
+// A Staff value also carries the employment profile Workforce owns on
+// users.staff_employment_profiles (#2753). The module composes it through a
+// consumer-owned port and writes it only as part of CreateStaff and
+// UpdateStaff; the employment-only commands belong to Workforce.
 //
 // The capability stops at the membership rows themselves. Person names live
 // with the People Directory, login accounts and roles with Identity Access;
@@ -152,9 +157,8 @@ type UpdateGuest struct {
 // StaffFilter narrows a staff listing. Every field is optional; an empty
 // filter lists every live staff member visible in the caller's transaction.
 type StaffFilter struct {
-	IDs             []int64
-	PersonIDs       []int64
-	WorkTimeModelID *int64
+	IDs       []int64
+	PersonIDs []int64
 	// TenantIDs bounds the listing to the given schools. A cross-tenant
 	// reader (admin transaction) that knows its schools up front passes them
 	// here, so the query stays bounded to those schools instead of scanning
@@ -163,6 +167,10 @@ type StaffFilter struct {
 	// IncludeDeleted also returns soft-deleted rows; history readers use it
 	// to keep resolving offboarded colleagues.
 	IncludeDeleted bool
+	// MembershipOnly skips the Workforce employment half (#2753): the staff
+	// values carry ID, person, tenant and lifecycle only. Callers that read no
+	// employment field set it and save a statement.
+	MembershipOnly bool
 }
 
 // TeacherFilter narrows a teacher listing. The *Contains matches are
@@ -231,16 +239,6 @@ type Command interface {
 	UpdateStaff(context.Context, UpdateStaff) (Staff, error)
 	// DeleteStaff soft-deletes the staff row (deleted_at), keeping it.
 	DeleteStaff(context.Context, int64) error
-	// ClearWorkTimeModel detaches the staff member from their work-time
-	// template. Offboarding uses it so the retained row does not block
-	// template deletion.
-	ClearWorkTimeModel(context.Context, int64) error
-	// AppendStaffNotes adds a paragraph to the private staff notes.
-	AppendStaffNotes(context.Context, int64, string) (Staff, error)
-	SetBirthdayDisplayOptOut(context.Context, int64, bool) error
-	// RebaseWorkTimeModelAnchor stamps the template's rotation anchor onto
-	// every live staff member assigned to it and returns their IDs.
-	RebaseWorkTimeModelAnchor(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error)
 
 	CreateTeacher(context.Context, CreateTeacher) (Teacher, error)
 	UpdateTeacher(context.Context, UpdateTeacher) (Teacher, error)
@@ -284,10 +282,12 @@ type Capability interface {
 	StudentEnrollmentCommands
 	Query
 	Command
+	StaffIdentities
 }
 
 type engine interface {
 	TransitionStudentStatus(context.Context, int64, string, string) (bool, error)
+	SetStudentStatus(context.Context, int64, string) (bool, error)
 	EnrollStudent(context.Context, StudentEnrollment) (int64, error)
 	RenewStudentEnrollment(context.Context, StudentEnrollment) (int64, error)
 	AssignStudentGroup(context.Context, int64, *int64) (bool, error)
@@ -295,18 +295,17 @@ type engine interface {
 	EndStudentCare(context.Context, []int64, string) (int64, error)
 	ResumeStudentCare(context.Context, int64, string, string, string) (bool, error)
 	GraduateStudents(context.Context, []int64) (int64, error)
-	ReactivateStudents(context.Context, []int64, string) ([]int64, error)
+	ReactivateStudents(ctx context.Context, ids []int64, status string, enforceChildQuota bool) ([]int64, error)
 	ChangeStudentClass(context.Context, []int64, string, string) (int64, error)
 	FindStaff(ctx context.Context, id int64, lock string) (Staff, error)
 	FindStaffByPerson(context.Context, int64) (Staff, error)
+	// FindStaffMembershipByPerson returns the membership row alone, without
+	// the Workforce employment half: the identity chain needs only the ID.
+	FindStaffMembershipByPerson(context.Context, int64) (Staff, error)
 	ListStaff(context.Context, StaffFilter) ([]Staff, error)
 	CreateStaff(context.Context, CreateStaff) (Staff, error)
 	UpdateStaff(context.Context, UpdateStaff) (Staff, error)
 	DeleteStaff(context.Context, int64) error
-	ClearWorkTimeModel(context.Context, int64) error
-	AppendStaffNotes(context.Context, int64, string) (Staff, error)
-	SetBirthdayDisplayOptOut(context.Context, int64, bool) error
-	RebaseWorkTimeModelAnchor(context.Context, int64, string) ([]int64, error)
 
 	FindTeacher(context.Context, int64) (Teacher, error)
 	FindTeacherByStaff(context.Context, int64) (Teacher, error)
@@ -334,6 +333,9 @@ type engine interface {
 	RemoveClassListEntry(context.Context, RemoveClassListEntry) error
 	ResolveClassListEntry(context.Context, ResolveClassListEntry) error
 	BindClassListEntryAdministration(ClassListEntryStudents, ClassListEntryTrail)
+	// ReadInTenant runs read inside one read transaction of the context's
+	// tenant and fails when the context carries none.
+	ReadInTenant(ctx context.Context, read func(context.Context) error) error
 }
 
 type teachingAssignmentEngine interface {
@@ -400,9 +402,6 @@ func (m *Module) ListStaff(ctx context.Context, filter StaffFilter) ([]Staff, er
 	filter.IDs = uniquePositive(filter.IDs)
 	filter.PersonIDs = uniquePositive(filter.PersonIDs)
 	filter.TenantIDs = uniquePositive(filter.TenantIDs)
-	if filter.WorkTimeModelID != nil && *filter.WorkTimeModelID <= 0 {
-		return nil, invalid("work time model ID must be positive")
-	}
 	return m.engine.ListStaff(ctx, filter)
 }
 
@@ -428,37 +427,6 @@ func (m *Module) DeleteStaff(ctx context.Context, id int64) error {
 		return invalid("staff ID is required")
 	}
 	return m.engine.DeleteStaff(ctx, id)
-}
-
-func (m *Module) ClearWorkTimeModel(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return invalid("staff ID is required")
-	}
-	return m.engine.ClearWorkTimeModel(ctx, id)
-}
-
-func (m *Module) AppendStaffNotes(ctx context.Context, id int64, notes string) (Staff, error) {
-	if id <= 0 {
-		return Staff{}, invalid("staff ID is required")
-	}
-	return m.engine.AppendStaffNotes(ctx, id, notes)
-}
-
-func (m *Module) SetBirthdayDisplayOptOut(ctx context.Context, id int64, optOut bool) error {
-	if id <= 0 {
-		return invalid("staff ID is required")
-	}
-	return m.engine.SetBirthdayDisplayOptOut(ctx, id, optOut)
-}
-
-func (m *Module) RebaseWorkTimeModelAnchor(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error) {
-	if workTimeModelID <= 0 {
-		return nil, invalid("work time model ID is required")
-	}
-	if err := validateDate(anchorDate, "rotation anchor date"); err != nil {
-		return nil, err
-	}
-	return m.engine.RebaseWorkTimeModelAnchor(ctx, workTimeModelID, anchorDate)
 }
 
 // --- teachers ---
@@ -700,6 +668,8 @@ func ErrorCode(err error) string {
 		return "class_assignment_conflict"
 	case errors.Is(err, ErrGroupAssignmentConflict):
 		return "group_assignment_conflict"
+	case errors.Is(err, ErrChildQuotaReached):
+		return "child_quota_reached"
 	default:
 		return "internal_error"
 	}

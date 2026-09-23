@@ -137,6 +137,11 @@ export function PhaseExpiryWarnings({
   );
 
   if (error) {
+    // Die Hinweise liest das Backend mit config:manage, dem Recht, das die
+    // erfragte Folgephase anlegt (#3469). Eine Rolle, die Anmeldungen ohne
+    // dieses Recht bearbeitet, bekommt hier 403: dann gibt es keinen Hinweis
+    // und keinen Fehler statt einer Fehlerkarte, die sie nicht auflösen kann.
+    if ((error as { status?: number }).status === 403) return null;
     return (
       <Alert
         type="error"

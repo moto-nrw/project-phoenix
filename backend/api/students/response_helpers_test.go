@@ -15,15 +15,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type failedPresenceMode struct {
-	activeService.Service
+	studentpresence.Presence
 	err error
 }
 
@@ -37,7 +35,7 @@ func TestStudentResponsePropagatesPresenceModeFailure(t *testing.T) {
 }
 
 type failedStudentLocationRead struct {
-	activeService.Service
+	studentpresence.Presence
 	attendanceErr error
 	visitErr      error
 	visit         *studentpresence.Visit
@@ -45,18 +43,18 @@ type failedStudentLocationRead struct {
 }
 
 func (s failedStudentLocationRead) GetPresenceMode(context.Context) (string, error) {
-	return activeService.PresenceModeDetailed, nil
+	return studentpresence.PresenceModeDetailed, nil
 }
 
-func (s failedStudentLocationRead) GetStudentAttendanceStatus(context.Context, int64) (*activeService.AttendanceStatus, error) {
-	return &activeService.AttendanceStatus{Status: "checked_in"}, s.attendanceErr
+func (s failedStudentLocationRead) GetStudentAttendanceStatus(context.Context, int64) (*studentpresence.DailyAttendanceStatus, error) {
+	return &studentpresence.DailyAttendanceStatus{Status: "checked_in"}, s.attendanceErr
 }
 
 func (s failedStudentLocationRead) GetStudentCurrentVisit(context.Context, int64) (*studentpresence.Visit, error) {
 	return s.visit, s.visitErr
 }
 
-func (s failedStudentLocationRead) GetActiveGroup(context.Context, int64) (*activeModels.Group, error) {
+func (s failedStudentLocationRead) GetActiveGroup(context.Context, int64) (*studentpresence.SessionDetail, error) {
 	return nil, s.groupErr
 }
 
@@ -81,7 +79,7 @@ func TestStudentResponseDistinguishesLocationReadFailureFromMissingVisit(t *test
 	}{
 		{name: "attendance read", svc: failedStudentLocationRead{attendanceErr: injected}, wantErr: injected},
 		{name: "visit read", svc: failedStudentLocationRead{visitErr: injected}, wantErr: injected},
-		{name: "visit not found", svc: failedStudentLocationRead{visitErr: &activeService.ActiveError{Op: "GetStudentCurrentVisit", Err: activeService.ErrVisitNotFound}}},
+		{name: "visit not found", svc: failedStudentLocationRead{visitErr: &studentpresence.OperationError{Op: "GetStudentCurrentVisit", Err: studentpresence.ErrVisitNotFound}}},
 		{name: "no visit", svc: failedStudentLocationRead{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

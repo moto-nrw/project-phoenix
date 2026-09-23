@@ -28,7 +28,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
@@ -45,11 +44,9 @@ const (
 	substatusFieldTrip = "field_trip"
 )
 
-// TimetableReader is the Timetable & Activities query seam the lists read.
-type TimetableReader interface {
-	ListActivityInstances(ctx context.Context, filter timetable.ActivityInstanceFilter) ([]timetable.ActivityInstance, error)
-	ListInstanceStudents(ctx context.Context, filter timetable.InstanceStudentFilter) ([]timetable.InstanceStudent, error)
-}
+// TimetableReader is the block and roster read seam the lists read; the
+// binding joins the Timetable plan with the Student Presence execution.
+type TimetableReader = ports.TimetableReader
 
 // PresenceReader is the Student Presence query seam the lists read.
 type PresenceReader interface {
@@ -215,8 +212,7 @@ type slotInstance struct {
 // loadInstances reads every activity instance of the date in start-time
 // order, exactly as every other reader of the day sees them.
 func (s *service) loadInstances(ctx context.Context, date timezone.Date) ([]*slotInstance, error) {
-	text := date.String()
-	rows, err := s.timetable.ListActivityInstances(ctx, timetable.ActivityInstanceFilter{Date: &text, OrderByDateAndTime: true})
+	rows, err := s.timetable.ListActivityInstancesOn(ctx, date.String())
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +227,7 @@ func (s *service) loadInstances(ctx context.Context, date timezone.Date) ([]*slo
 	return instances, nil
 }
 
-func slotInstanceFromTimetable(row timetable.ActivityInstance) (*slotInstance, error) {
+func slotInstanceFromTimetable(row ports.ActivityInstance) (*slotInstance, error) {
 	date, err := timezone.ParseDate(row.Date)
 	if err != nil {
 		return nil, fmt.Errorf("activity instance %d: invalid date %q: %w", row.ID, row.Date, err)
@@ -259,15 +255,15 @@ func parseWallClock(value string) (time.Time, error) {
 }
 
 // loadRoster reads the roster rows of the given instances in one query.
-func (s *service) loadRoster(ctx context.Context, instanceIDs []int64) ([]timetable.InstanceStudent, error) {
+func (s *service) loadRoster(ctx context.Context, instanceIDs []int64) ([]ports.InstanceStudent, error) {
 	if len(instanceIDs) == 0 {
-		return []timetable.InstanceStudent{}, nil
+		return []ports.InstanceStudent{}, nil
 	}
-	return s.timetable.ListInstanceStudents(ctx, timetable.InstanceStudentFilter{InstanceIDs: instanceIDs, OrderByInstanceStudent: true})
+	return s.timetable.ListRoster(ctx, instanceIDs)
 }
 
 // rosterFacts projects a roster row onto the columns the care-day rule reads.
-func rosterFacts(row timetable.InstanceStudent) ports.RosterFacts {
+func rosterFacts(row ports.InstanceStudent) ports.RosterFacts {
 	return ports.RosterFacts{
 		Status: row.Status, NotScheduled: row.NotScheduled, ManualStatusAt: row.ManualStatusAt,
 		StudentStatusDayID: row.StudentStatusDayID, PickupExceptionID: row.PickupExceptionID,
@@ -652,7 +648,7 @@ func (s *service) ListOptions(ctx context.Context, requested classday.Date) (*cl
 		// resolution and before publishing Slots so omitted instance_ids means
 		// "all non-cancelled slots" and a stale/direct cancelled selection cannot
 		// be offered back to the client.
-		if inst.Status == timetable.InstanceStatusCancelled {
+		if inst.Status == ports.InstanceStatusCancelled {
 			continue
 		}
 		roomName, err := s.lookupRoomName(ctx, inst.RoomID, roomCache)
@@ -717,7 +713,7 @@ func (s *service) ListOptions(ctx context.Context, requested classday.Date) (*cl
 	}
 	completedByInstance := make(map[int64]bool, len(instances))
 	for _, inst := range instances {
-		completedByInstance[inst.ID] = inst.Status == timetable.InstanceStatusCompleted
+		completedByInstance[inst.ID] = inst.Status == ports.InstanceStatusCompleted
 	}
 
 	// One bulk roster load over every classified instance for the per-kind
@@ -826,7 +822,7 @@ func (s *service) ListOptions(ctx context.Context, requested classday.Date) (*cl
 			// (#1565 review pass 1).
 			if row.ManualStatusAt == nil &&
 				careDays[row.StudentID] == ports.CareDayCancelled &&
-				(row.Status == timetable.InstanceAttendancePresent ||
+				(row.Status == ports.AttendancePresent ||
 					presentViaVisit(row.InstanceID, row.StudentID)) {
 				continue
 			}
@@ -1187,7 +1183,7 @@ func (s *service) collectSlotContexts(ctx context.Context, params listRequest, r
 		// Enforce the non-cancelled contract before list-kind matching, option
 		// publication and selection. This also neutralizes a caller passing a
 		// cancelled instance ID directly.
-		if inst.Status == timetable.InstanceStatusCancelled {
+		if inst.Status == ports.InstanceStatusCancelled {
 			continue
 		}
 		if !instanceMatchesListKind(inst, params.ListKind) {
@@ -1260,7 +1256,7 @@ func (s *service) buildSlotContext(ctx context.Context, inst *slotInstance, para
 // loadSlotPresence bulk-loads the rosters, the shared care-day verdict, and the
 // visit-derived presence for every instance the merge will process.
 func (s *service) loadSlotPresence(ctx context.Context, process []slotContext, date timezone.Date) (
-	map[int64][]timetable.InstanceStudent,
+	map[int64][]ports.InstanceStudent,
 	map[int64]ports.CareDay,
 	map[int64]map[int64]bool,
 	error,
@@ -1273,7 +1269,7 @@ func (s *service) loadSlotPresence(ctx context.Context, process []slotContext, d
 	// block ends. Without the live verdict such a child reaches the default
 	// branch below, counts as planned, and shows as "Fehlt" in the Abgleich
 	// though they were never booked.
-	rosterByInstance := make(map[int64][]timetable.InstanceStudent, len(process))
+	rosterByInstance := make(map[int64][]ports.InstanceStudent, len(process))
 	careDay := map[int64]ports.CareDay{}
 	// presentByGroup maps an active-group ID to the students seen present in it.
 	// A slot only has visit evidence once it carries an ActiveGroupID, so this is
@@ -1344,7 +1340,7 @@ func (s *service) loadSlotPresence(ctx context.Context, process []slotContext, d
 // accounting for void-plan slots.
 func (s *service) mergeSlotInstance(
 	p slotContext,
-	rosterByInstance map[int64][]timetable.InstanceStudent,
+	rosterByInstance map[int64][]ports.InstanceStudent,
 	careDay map[int64]ports.CareDay,
 	presentByGroup map[int64]map[int64]bool,
 	deferredInstances map[int64]struct{},
@@ -1362,7 +1358,7 @@ func (s *service) mergeSlotInstance(
 	if inst.ActiveGroupID != nil {
 		presentSet = presentByGroup[*inst.ActiveGroupID]
 	}
-	completed := inst.Status == timetable.InstanceStatusCompleted
+	completed := inst.Status == ports.InstanceStatusCompleted
 
 	entries := []mergedEntry{}
 	seenPlanned := make(map[int64]struct{}, len(planned))
@@ -1388,7 +1384,7 @@ func (s *service) mergeSlotInstance(
 // not re-add them.
 func (s *service) classifyPlannedRows(
 	p slotContext,
-	planned []timetable.InstanceStudent,
+	planned []ports.InstanceStudent,
 	presentSet map[int64]bool,
 	completed bool,
 	careDay map[int64]ports.CareDay,
@@ -1396,7 +1392,7 @@ func (s *service) classifyPlannedRows(
 ) []mergedEntry {
 	entries := []mergedEntry{}
 	for _, row := range planned {
-		present := presentSet[row.StudentID] || row.Status == timetable.InstanceAttendancePresent
+		present := presentSet[row.StudentID] || row.Status == ports.AttendancePresent
 		// A manual attendance correction is a human decision that outranks stale
 		// visit evidence. UpdateAttendanceFields stamps ManualStatusAt whenever
 		// staff set the row's status by hand, so when an erroneous scan created a
@@ -1406,7 +1402,7 @@ func (s *service) classifyPlannedRows(
 		// counters would report the child "Anwesend" against the explicit human
 		// correction (#1565 review pass 12).
 		if row.ManualStatusAt != nil {
-			present = row.Status == timetable.InstanceAttendancePresent
+			present = row.Status == ports.AttendancePresent
 		}
 		// The canonical care-day verdict decides whether an assignment row
 		// is a genuine expectation on this date; it folds the frozen
@@ -1485,7 +1481,7 @@ func recordDeferredAccounting(result *classday.Result, instanceID int64, deferre
 //     review pass 1 P2).
 func (s *service) retainDeferredRows(
 	p slotContext,
-	planned []timetable.InstanceStudent,
+	planned []ports.InstanceStudent,
 	careDay map[int64]ports.CareDay,
 	seenPlanned map[int64]struct{},
 ) ([]mergedEntry, bool) {
@@ -1493,7 +1489,7 @@ func (s *service) retainDeferredRows(
 	retained := false
 	for _, row := range planned {
 		switch row.Status {
-		case timetable.InstanceAttendancePresent:
+		case ports.AttendancePresent:
 			seenPlanned[row.StudentID] = struct{}{}
 			retained = true
 			entries = append(entries, mergedEntry{
@@ -1518,7 +1514,7 @@ func (s *service) retainDeferredRows(
 				RoomName:         p.roomName,
 				Planned:          true,
 				Present:          false,
-				PlannedStatus:    timetable.InstanceAttendanceAbsent,
+				PlannedStatus:    ports.AttendanceAbsent,
 				PlannedSubstatus: &substatusCopy,
 			})
 		}
@@ -1533,7 +1529,7 @@ func (s *service) retainDeferredRows(
 // derivation the non-booking / cancellation branches key on.
 func (s *service) classifyPlannedRow(
 	p slotContext,
-	row timetable.InstanceStudent,
+	row ports.InstanceStudent,
 	present bool,
 	verdict, rawCareDay ports.CareDay,
 ) ([]mergedEntry, bool) {
@@ -1553,7 +1549,7 @@ func (s *service) classifyPlannedRow(
 			Present:    true,
 		}}
 	}
-	completed := inst.Status == timetable.InstanceStatusCompleted
+	completed := inst.Status == ports.InstanceStatusCompleted
 	switch {
 	case row.IsUnplanned:
 		// #1913: the row was created by an observed walk-in visit, not by
@@ -1632,10 +1628,10 @@ func (s *service) classifyPlannedRow(
 			RoomName:         p.roomName,
 			Planned:          true,
 			Present:          false,
-			PlannedStatus:    timetable.InstanceAttendanceAbsent,
+			PlannedStatus:    ports.AttendanceAbsent,
 			PlannedSubstatus: &cancelledSubstatus,
 		}}, true
-	case row.Status == timetable.InstanceAttendanceExpected && !verdict.Expected():
+	case row.Status == ports.AttendanceExpected && !verdict.Expected():
 		// #1747 non-booking safety net for a COMPLETED block: ending the slot
 		// froze the not_scheduled marker into the row, so AttendanceRowCareDay
 		// keeps returning not_scheduled from that frozen flag even if the live
@@ -2053,7 +2049,7 @@ func plannedPickupEntry(
 	if present {
 		return entry
 	}
-	entry.PlannedStatus = timetable.InstanceAttendanceAbsent
+	entry.PlannedStatus = ports.AttendanceAbsent
 	switch {
 	case hasStatus:
 		entry.PlannedSubstatus = &status
@@ -2303,7 +2299,7 @@ func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, sour
 // safety-relevant missing-child signal, so anything short of registered
 // absence evidence falls through to "Fehlt".
 func signedOffAbsence(entry mergedEntry) bool {
-	if entry.PlannedStatus != timetable.InstanceAttendanceAbsent || entry.PlannedSubstatus == nil {
+	if entry.PlannedStatus != ports.AttendanceAbsent || entry.PlannedSubstatus == nil {
 		return false
 	}
 	switch *entry.PlannedSubstatus {
@@ -2347,7 +2343,7 @@ func partialCoversPickup(pickupHHMM, excusedFromHHMM string) bool {
 // Anything else — an expected no-show, a lifecycle absent without a sign-off
 // substatus, a not_scheduled non-booking — is not a registered absence and stays
 // suppressed so the deferred slot never prints a not-yet-due child as "Fehlt".
-func voidPlanRegisteredAbsence(row timetable.InstanceStudent, careDay ports.CareDay) (string, bool) {
+func voidPlanRegisteredAbsence(row ports.InstanceStudent, careDay ports.CareDay) (string, bool) {
 	// The care plan never booked this child into the OGS on this weekday
 	// (CareDayNotScheduled means a plan exists but does not cover today), yet a
 	// broad sick/excused/class-trip status day can still stamp the roster row
@@ -2364,7 +2360,7 @@ func voidPlanRegisteredAbsence(row timetable.InstanceStudent, careDay ports.Care
 	if row.ManualStatusAt == nil && careDay == ports.CareDayNotScheduled {
 		return "", false
 	}
-	if row.Status == timetable.InstanceAttendanceAbsent && row.Substatus != nil {
+	if row.Status == ports.AttendanceAbsent && row.Substatus != nil {
 		switch *row.Substatus {
 		case substatusSick,
 			substatusExcused,
@@ -2603,7 +2599,7 @@ func summarySlotCount(params listRequest, result *classday.Result) int {
 	selected := int64Set(params.InstanceIDs)
 	count := 0
 	for _, slot := range result.Slots {
-		if slot.Status == string(timetable.InstanceStatusCancelled) {
+		if slot.Status == string(ports.InstanceStatusCancelled) {
 			continue
 		}
 		if _, deferred := result.DeferredSlots[slot.InstanceID]; deferred {

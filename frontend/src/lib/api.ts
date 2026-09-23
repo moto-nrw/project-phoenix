@@ -3,7 +3,11 @@ import { clearSessionCache, getCachedSession } from "./session-cache";
 import { createLogger } from "~/lib/logger";
 import api from "./api-transport";
 import { resolveApiUrl } from "./api-url";
-import { convertToBackendRoom, fetchWithRetry } from "./api-helpers";
+import {
+  convertToBackendRoom,
+  fetchWithRetry,
+  type ApiErrorResponse,
+} from "./api-helpers";
 import {
   mapSingleStudentResponse,
   mapStudentsResponse,
@@ -109,7 +113,14 @@ function handleApiError(error: unknown, context: string): Error {
   // Extract error details
   const errorMessage = error instanceof Error ? error.message : String(error);
   const statusMatch = /API error[:\s(]+(\d{3})/.exec(errorMessage);
-  const status =
+  const directStatus =
+    error &&
+    typeof error === "object" &&
+    "status" in error &&
+    typeof error.status === "number"
+      ? error.status
+      : undefined;
+  const responseStatus =
     error &&
     typeof error === "object" &&
     "response" in error &&
@@ -117,9 +128,11 @@ function handleApiError(error: unknown, context: string): Error {
     typeof error.response === "object" &&
     "status" in error.response
       ? (error.response.status as number)
-      : statusMatch?.[1]
-        ? Number.parseInt(statusMatch[1], 10)
-        : undefined;
+      : undefined;
+  const status =
+    directStatus ??
+    responseStatus ??
+    (statusMatch?.[1] ? Number.parseInt(statusMatch[1], 10) : undefined);
 
   const logContext = {
     context,
@@ -133,7 +146,42 @@ function handleApiError(error: unknown, context: string): Error {
     logger.error("api operation failed", logContext);
   }
 
-  return new Error(`${context}: ${errorMessage}`);
+  const handled = new Error(`${context}: ${errorMessage}`);
+  if (status !== undefined) {
+    Object.assign(handled, { status });
+  }
+  if (error && typeof error === "object") {
+    const structured = error as {
+      code?: unknown;
+      details?: unknown;
+      body?: unknown;
+      response?: { data?: unknown };
+    };
+    const responseData = structured.response?.data;
+    const responseStructured =
+      responseData && typeof responseData === "object"
+        ? (responseData as { code?: unknown; details?: unknown })
+        : undefined;
+    const code =
+      typeof structured.code === "string"
+        ? structured.code
+        : responseStructured?.code;
+    const details =
+      structured.details !== undefined
+        ? structured.details
+        : responseStructured?.details;
+
+    if (typeof code === "string") {
+      Object.assign(handled, { code });
+    }
+    if (details !== undefined) {
+      Object.assign(handled, { details });
+    }
+    if (typeof structured.body === "string") {
+      Object.assign(handled, { body: structured.body });
+    }
+  }
+  return handled;
 }
 
 // Paginated response interface for API responses with pagination metadata
@@ -404,6 +452,26 @@ function parseApiErrorMessage(errorText: string): string | null {
   } catch {
     return null;
   }
+}
+
+function browserApiError(status: number, body: string): Error {
+  const message = parseApiErrorMessage(body);
+  const error = Object.assign(
+    new Error(message ? `API error: ${message}` : `API error: ${status}`),
+    { status, body },
+  );
+  try {
+    const parsed = JSON.parse(body) as ApiErrorResponse;
+    if (typeof parsed.code === "string") {
+      Object.assign(error, { code: parsed.code });
+    }
+    if (parsed.details !== undefined) {
+      Object.assign(error, { details: parsed.details });
+    }
+  } catch {
+    // The body is retained above for callers that understand a non-JSON error.
+  }
+  return error;
 }
 
 /**
@@ -1164,12 +1232,7 @@ export const studentService = {
             status: response.status,
             error_text: errorText.substring(0, 200), // Truncate long errors
           });
-          const detailedError = parseApiErrorMessage(errorText);
-          throw new Error(
-            detailedError
-              ? `API error: ${detailedError}`
-              : `API error: ${response.status}`,
-          );
+          throw browserApiError(response.status, errorText);
         }
 
         const data: unknown = await response.json();

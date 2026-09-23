@@ -31,7 +31,15 @@ const ICON =
  * hier offen, die auf dem Handy hinter "Mehr" liegen. Unter 1024 px blendet
  * CSS die Spalte bereits beim ersten Paint aus, ohne Hydrationssprung.
  */
-export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
+export function ParentSidebar({
+  badges,
+  gates,
+  childCount,
+  demoBannerShown = false,
+}: ParentNavCounts & {
+  /** The demo banner (#3468) sits above the header; the sidebar moves with it. */
+  readonly demoBannerShown?: boolean;
+}) {
   const t = useTranslations("parentNav");
   const pathname = usePathname();
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
@@ -42,11 +50,16 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
     (item) =>
       item.key !== "settings" &&
       item.key !== "enroll" &&
+      item.key !== "help" &&
       (!item.gate || gates[item.gate]),
   );
 
+  // `external` wird hier mitgetragen, obwohl der einzige heutige Eintrag
+  // dieser Art -- die Hilfe -- unten von Hand steht: der Typ lässt externe
+  // Ziele in jeder Liste zu, und ein nächster soll nicht still über
+  // `parentPath` laufen.
   const renderItem = (item: ParentNavItem) => {
-    const active = isParentNavActive(item.href, pathname);
+    const active = !item.external && isParentNavActive(item.href, pathname);
     const count = item.badge ? (badges[item.badge] ?? 0) : 0;
     const label =
       item.key === "children"
@@ -55,7 +68,10 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
     return (
       <li key={item.key}>
         <NavLink
-          href={parentPath(item.href)}
+          href={item.external ? item.href : parentPath(item.href)}
+          {...(item.external
+            ? { target: "_blank", rel: "noopener noreferrer" }
+            : {})}
           data-parent-nav-item={item.key}
           data-active={active ? "true" : "false"}
           aria-current={active ? "page" : undefined}
@@ -91,7 +107,13 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
   return (
     <>
       <aside className="hidden min-h-screen w-64 shrink-0 border-r border-gray-200/70 bg-white/95 lg:block">
-        <div className="sticky top-[57px] flex h-[calc(100vh-57px)] flex-col">
+        <div
+          className={`sticky flex flex-col ${
+            demoBannerShown
+              ? "top-[105px] h-[calc(100vh-105px)]"
+              : "top-[57px] h-[calc(100vh-57px)]"
+          }`}
+        >
           <nav
             aria-label={t("mainNav")}
             className="flex-1 overflow-y-auto p-3 lg:p-4 xl:p-3"
@@ -105,6 +127,26 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
             className="border-t border-gray-200 p-3 lg:p-4 xl:p-3"
           >
             <ul className="space-y-1">
+              <li>
+                {/* Die Anleitung liegt ausserhalb des Portals: eigener Tab,
+                    nie ein Aktivzustand. `role=parent` erspart den Eltern
+                    die Frage, fuer wen die Anleitung ist. */}
+                <NavLink
+                  href="/help?role=parent"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-parent-nav-item="help"
+                  data-active="false"
+                  className={`${ROW} ${ROW_IDLE}`}
+                >
+                  <MotoNavIcon
+                    concept="help"
+                    active={false}
+                    className={`${ICON} text-gray-400`}
+                  />
+                  <span className="flex-1">{t("help")}</span>
+                </NavLink>
+              </li>
               <li>
                 <NavLink
                   href={parentPath("/parents/settings")}

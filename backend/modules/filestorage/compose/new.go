@@ -7,9 +7,9 @@
 //
 // documents.file_cleanup has no policy owner yet: the retained generic
 // document repository reaches it only dynamically, so the ratchet records no
-// finding to adopt it from (ADR 0015). Its intent operations therefore stay
-// bound to that repository here, as a compatibility binding, until the table
-// can be adopted; every other table is served by the owner's own adapter.
+// finding to adopt it from (ADR 0015). The root supplies its intent operations
+// through CleanupStore; this module no longer imports the retained repository.
+// Every other table is served by the owner's own adapter.
 package compose
 
 import (
@@ -18,18 +18,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	documentsRepo "github.com/moto-nrw/project-phoenix/database/repositories/documents"
-	"github.com/moto-nrw/project-phoenix/internal/storage"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	documentsModel "github.com/moto-nrw/project-phoenix/models/documents"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application"
@@ -46,7 +38,11 @@ type Observation = ports.Observation
 
 // ObjectBackend is the object store the module writes bytes to, keyed
 // {kind}/{tenant}/{stored name} below the uploads root the root supplies.
-type ObjectBackend = storage.Backend
+type ObjectBackend interface {
+	SavePrivate(ctx context.Context, kind string, tenantID int64, storedName string, source io.Reader) (int64, error)
+	OpenPrivate(ctx context.Context, kind string, tenantID int64, storedName string) (ports.Object, error)
+	RemovePrivate(ctx context.Context, kind string, tenantID int64, storedName string) error
+}
 
 const (
 	// fileObjectKind is the storage key prefix of the school file storage.
@@ -55,8 +51,6 @@ const (
 	// distinct: the two have separate tables, intents and audiences, and a
 	// shared prefix would let one sweep reach the other's objects.
 	attachmentObjectKind = "announcement-attachments"
-
-	bytesPerMB = 1024 * 1024
 )
 
 // Identity is the Identity & Access surface the module consumes.
@@ -71,10 +65,20 @@ type People interface {
 }
 
 // Settings is the Settings Platform surface the module consumes.
-type Settings interface {
-	ResolveBool(ctx context.Context, key string) (bool, error)
-	ResolveInt(ctx context.Context, key string) (int, error)
-}
+type Settings = ports.Settings
+
+// Event is one append-only File Storage audit record.
+type Event = ports.Event
+
+// Events appends records inside the caller's transaction.
+type Events = ports.Events
+
+// CleanupStore is the tenant-scoped durable file cleanup capability.
+type CleanupStore = ports.CleanupStore
+
+// CleanupIntent and OperationStats are the cleanup port's persistence-free values.
+type CleanupIntent = domain.CleanupIntent
+type OperationStats = domain.OperationStats
 
 // Announcements is the Communication surface for the staff side of
 // attachments; see ports.Announcements.
@@ -93,7 +97,9 @@ type Dependencies struct {
 	Identity         Identity
 	People           People
 	Settings         Settings
-	Events           auditModels.FileEventRepository
+	Events           Events
+	FileCleanups     CleanupStore
+	HasPermission    func(required string, permissions []string) bool
 	Announcements    Announcements
 	GuardianAudience GuardianAudience
 	Observe          func(Observation)
@@ -106,8 +112,8 @@ type Dependencies struct {
 // from the context; the stores apply it as a defense-in-depth predicate.
 func New(dependencies Dependencies) (*filestorage.Module, error) {
 	if dependencies.DB == nil || dependencies.Objects == nil || dependencies.Identity == nil ||
-		dependencies.People == nil || dependencies.Settings == nil || dependencies.Events == nil ||
-		dependencies.Observe == nil || dependencies.Logger == nil {
+		dependencies.People == nil || dependencies.Settings == nil || dependencies.Events == nil || dependencies.FileCleanups == nil ||
+		dependencies.Observe == nil || dependencies.Logger == nil || dependencies.HasPermission == nil {
 		return nil, errors.New("file storage compose: all dependencies are required")
 	}
 	now := dependencies.Now
@@ -118,15 +124,15 @@ func New(dependencies Dependencies) (*filestorage.Module, error) {
 	service := application.New(application.Dependencies{
 		Folders:            postgres.NewFolderStore(runtime),
 		Files:              postgres.NewFileStore(runtime),
-		FileCleanups:       fileCleanups{repo: newLegacyFileCleanupRepository(dependencies.DB)},
+		FileCleanups:       dependencies.FileCleanups,
 		Attachments:        postgres.NewAttachmentStore(runtime),
 		AttachmentCleanups: postgres.NewAttachmentCleanupStore(runtime),
 		FileObjects:        objectStore{kind: fileObjectKind, backend: dependencies.Objects},
 		AttachmentObjects:  objectStore{kind: attachmentObjectKind, backend: dependencies.Objects},
 		Identity:           identity{module: dependencies.Identity},
 		People:             people{query: dependencies.People},
-		Settings:           settings{service: dependencies.Settings},
-		Events:             events{repo: dependencies.Events},
+		Settings:           dependencies.Settings,
+		Events:             dependencies.Events,
 		Announcements:      dependencies.Announcements,
 		GuardianAudience:   dependencies.GuardianAudience,
 		Tx:                 transaction{},
@@ -138,7 +144,7 @@ func New(dependencies Dependencies) (*filestorage.Module, error) {
 		Logger: dependencies.Logger,
 		Now:    now,
 	})
-	return filestorage.NewModule(engine{service: service}), nil
+	return filestorage.NewModule(engine{service: service, hasPermission: dependencies.HasPermission}), nil
 }
 
 func databaseRuntime(db *bun.DB) postgres.Database {
@@ -202,31 +208,19 @@ func (transaction) Detach(ctx context.Context) context.Context {
 
 type objectStore struct {
 	kind    string
-	backend storage.Backend
+	backend ObjectBackend
 }
 
 func (s objectStore) Save(ctx context.Context, tenantID int64, storedName string, source io.Reader) (int64, error) {
-	key, err := storage.TenantKey(s.kind, tenantID, storedName)
-	if err != nil {
-		return 0, err
-	}
-	return s.backend.Save(ctx, key, source, storage.SaveOptions{Private: true})
+	return s.backend.SavePrivate(ctx, s.kind, tenantID, storedName, source)
 }
 
 func (s objectStore) Open(ctx context.Context, tenantID int64, storedName string) (ports.Object, error) {
-	key, err := storage.TenantKey(s.kind, tenantID, storedName)
-	if err != nil {
-		return nil, err
-	}
-	return s.backend.Open(ctx, key)
+	return s.backend.OpenPrivate(ctx, s.kind, tenantID, storedName)
 }
 
 func (s objectStore) Remove(ctx context.Context, tenantID int64, storedName string) error {
-	key, err := storage.TenantKey(s.kind, tenantID, storedName)
-	if err != nil {
-		return err
-	}
-	return s.backend.Remove(ctx, key)
+	return s.backend.RemovePrivate(ctx, s.kind, tenantID, storedName)
 }
 
 // newStoredName generates the storage name for a validated content type.
@@ -298,131 +292,23 @@ func (p people) PersonNames(ctx context.Context, accountIDs []int64) (map[int64]
 	return result, nil
 }
 
-type settings struct{ service Settings }
-
-func (s settings) StaffUploadEnabled(ctx context.Context) (bool, error) {
-	enabled, err := s.service.ResolveBool(ctx, configModel.KeyFilesStaffUploadEnabled)
-	if err != nil {
-		return false, fmt.Errorf("resolve %s: %w", configModel.KeyFilesStaffUploadEnabled, err)
-	}
-	return enabled, nil
-}
-
-func (s settings) MaxStorageBytes(ctx context.Context) (int64, error) {
-	mb, err := s.service.ResolveInt(ctx, configModel.KeyFilesMaxStorageMB)
-	if err != nil {
-		return 0, fmt.Errorf("resolve %s: %w", configModel.KeyFilesMaxStorageMB, err)
-	}
-	return int64(mb) * bytesPerMB, nil
-}
-
-type events struct {
-	repo auditModels.FileEventRepository
-}
-
-func (e events) Record(ctx context.Context, event ports.Event) error {
-	name := strings.TrimSpace(event.Actor.Name)
-	if name == "" {
-		name = "Unbekannt"
-	}
-	row := &auditModels.FileEvent{
-		FolderID:       event.FolderID,
-		AnnouncementID: event.AnnouncementID,
-		FileID:         event.FileID,
-		Action:         event.Action,
-		ActorName:      name,
-		Detail:         event.Detail,
-	}
-	if event.Actor.AccountID > 0 {
-		id := event.Actor.AccountID
-		row.ActorAccountID = &id
-	}
-	return e.repo.Create(ctx, row)
-}
-
-// --- file cleanup intents over the retained generic repository -----------------
-
-// legacyFileRow satisfies the generic repository's entity constraint; only the
-// cleanup half of that repository is used here.
-type legacyFileRow struct {
-	documentsModel.File
-	FolderID int64 `bun:"folder_id,notnull"`
-}
-
-func (r *legacyFileRow) GetOwnerID() int64 { return r.FolderID }
-
-func (r *legacyFileRow) Validate() error { return documentsModel.ValidateFile(&r.File) }
-
-type legacyFileCleanupRepository = documentsRepo.Repository[*legacyFileRow, *documentsModel.FileCleanup]
-
-func newLegacyFileCleanupRepository(db *bun.DB) *legacyFileCleanupRepository {
-	return documentsRepo.NewRepository[*legacyFileRow, *documentsModel.FileCleanup](db, documentsRepo.Config{
-		Table:        "documents.files",
-		Alias:        "file",
-		OwnerColumn:  "folder_id",
-		CleanupTable: "documents.file_cleanup",
-		CleanupAlias: "file_cleanup",
-	})
-}
-
-type fileCleanups struct{ repo *legacyFileCleanupRepository }
-
-func (c fileCleanups) Queue(ctx context.Context, ownerID int64, storedName string, retryAfter time.Time) (domain.OperationStats, error) {
-	intent := &documentsModel.FileCleanup{OwnerID: ownerID, FilenameStored: storedName, RetryAfter: retryAfter}
-	started := time.Now()
-	err := c.repo.QueueFileCleanup(ctx, intent)
-	return domain.OperationStats{Queries: 1, Rows: 1, StatementDuration: time.Since(started)}, err
-}
-
-func (c fileCleanups) ListQueued(ctx context.Context) ([]domain.CleanupIntent, domain.OperationStats, error) {
-	started := time.Now()
-	rows, err := c.repo.ListQueuedFileCleanups(ctx)
-	stats := domain.OperationStats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}
-	if err != nil {
-		return nil, stats, err
-	}
-	result := make([]domain.CleanupIntent, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, domain.CleanupIntent{
-			ID: row.ID, TenantID: row.TenantID, OwnerID: row.OwnerID, FilenameStored: row.FilenameStored,
-			RetryAfter: row.RetryAfter, CleanedAt: row.CleanedAt,
-		})
-	}
-	return result, stats, nil
-}
-
-func (c fileCleanups) MarkComplete(ctx context.Context, intentID int64) (domain.OperationStats, error) {
-	started := time.Now()
-	err := c.repo.MarkQueuedFileCleanupComplete(ctx, intentID)
-	return domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}, err
-}
-
-func (c fileCleanups) MarkCompleteByFilename(ctx context.Context, storedName string) (domain.OperationStats, error) {
-	started := time.Now()
-	err := c.repo.MarkQueuedFileCleanupCompleteByFilename(ctx, storedName)
-	return domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}, err
-}
-
-func (c fileCleanups) ActivateByFilename(ctx context.Context, storedName string) (domain.OperationStats, error) {
-	started := time.Now()
-	err := c.repo.ActivateQueuedFileCleanupByFilename(ctx, storedName)
-	return domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}, err
-}
-
 // --- public engine -------------------------------------------------------------
 
-type engine struct{ service *application.Service }
+type engine struct {
+	service       *application.Service
+	hasPermission func(string, []string) bool
+}
 
-func actor(value filestorage.Actor) domain.Actor {
+func (e engine) actor(value filestorage.Actor) domain.Actor {
 	return domain.Actor{
 		AccountID: value.AccountID,
 		Name:      value.Name,
-		Manager:   authorize.HasPermission(permissions.FilesManage, value.Permissions),
+		Manager:   e.hasPermission("files:manage", value.Permissions),
 	}
 }
 
 func (e engine) ListFolders(ctx context.Context, who filestorage.Actor) (filestorage.FolderOverview, error) {
-	overview, err := e.service.ListFolders(ctx, actor(who))
+	overview, err := e.service.ListFolders(ctx, e.actor(who))
 	if err != nil {
 		return filestorage.FolderOverview{}, mapError(err)
 	}
@@ -441,7 +327,7 @@ func (e engine) ListFolders(ctx context.Context, who filestorage.Actor) (filesto
 }
 
 func (e engine) ListAudienceOptions(ctx context.Context, who filestorage.Actor) (filestorage.AudienceOptions, error) {
-	roles, accounts, err := e.service.ListAudienceOptions(ctx, actor(who))
+	roles, accounts, err := e.service.ListAudienceOptions(ctx, e.actor(who))
 	if err != nil {
 		return filestorage.AudienceOptions{}, mapError(err)
 	}
@@ -463,21 +349,21 @@ func folderInput(input filestorage.FolderInput) domain.FolderInput {
 }
 
 func (e engine) CreateFolder(ctx context.Context, input filestorage.FolderInput, who filestorage.Actor) (filestorage.Folder, error) {
-	view, err := e.service.CreateFolder(ctx, folderInput(input), actor(who))
+	view, err := e.service.CreateFolder(ctx, folderInput(input), e.actor(who))
 	return toFolder(view), mapError(err)
 }
 
 func (e engine) UpdateFolder(ctx context.Context, folderID int64, input filestorage.FolderInput, who filestorage.Actor) (filestorage.Folder, error) {
-	view, err := e.service.UpdateFolder(ctx, folderID, folderInput(input), actor(who))
+	view, err := e.service.UpdateFolder(ctx, folderID, folderInput(input), e.actor(who))
 	return toFolder(view), mapError(err)
 }
 
 func (e engine) DeleteFolder(ctx context.Context, folderID int64, who filestorage.Actor) error {
-	return mapError(e.service.DeleteFolder(ctx, folderID, actor(who)))
+	return mapError(e.service.DeleteFolder(ctx, folderID, e.actor(who)))
 }
 
 func (e engine) ListFiles(ctx context.Context, folderID int64, who filestorage.Actor) (filestorage.FileList, error) {
-	folder, files, err := e.service.ListFiles(ctx, folderID, actor(who))
+	folder, files, err := e.service.ListFiles(ctx, folderID, e.actor(who))
 	if err != nil {
 		return filestorage.FileList{}, mapError(err)
 	}
@@ -492,7 +378,7 @@ func (e engine) ListFiles(ctx context.Context, folderID int64, who filestorage.A
 }
 
 func (e engine) OpenFile(ctx context.Context, folderID, fileID int64, who filestorage.Actor) (filestorage.Content, error) {
-	file, object, err := e.service.OpenFile(ctx, folderID, fileID, actor(who))
+	file, object, err := e.service.OpenFile(ctx, folderID, fileID, e.actor(who))
 	if err != nil {
 		return filestorage.Content{}, mapError(err)
 	}
@@ -504,7 +390,7 @@ func upload(value filestorage.Upload) domain.Upload {
 }
 
 func (e engine) UploadFile(ctx context.Context, folderID int64, value filestorage.Upload, who filestorage.Actor) (filestorage.File, error) {
-	file, err := e.service.UploadFile(ctx, folderID, upload(value), actor(who))
+	file, err := e.service.UploadFile(ctx, folderID, upload(value), e.actor(who))
 	if err != nil {
 		return filestorage.File{}, mapError(err)
 	}
@@ -512,7 +398,7 @@ func (e engine) UploadFile(ctx context.Context, folderID int64, value filestorag
 }
 
 func (e engine) DeleteFile(ctx context.Context, folderID, fileID int64, who filestorage.Actor) error {
-	return mapError(e.service.DeleteFile(ctx, folderID, fileID, actor(who)))
+	return mapError(e.service.DeleteFile(ctx, folderID, fileID, e.actor(who)))
 }
 
 func (e engine) ListAttachments(ctx context.Context, announcementID int64) (filestorage.AttachmentList, error) {
@@ -548,7 +434,7 @@ func (e engine) OpenGuardianAttachment(ctx context.Context, accountID, announcem
 }
 
 func (e engine) UploadAttachment(ctx context.Context, announcementID int64, value filestorage.Upload, who filestorage.Actor) (filestorage.Attachment, error) {
-	attachment, err := e.service.UploadAttachment(ctx, announcementID, upload(value), actor(who))
+	attachment, err := e.service.UploadAttachment(ctx, announcementID, upload(value), e.actor(who))
 	if err != nil {
 		return filestorage.Attachment{}, mapError(err)
 	}
@@ -556,7 +442,7 @@ func (e engine) UploadAttachment(ctx context.Context, announcementID int64, valu
 }
 
 func (e engine) DeleteAttachment(ctx context.Context, announcementID, attachmentID int64, who filestorage.Actor) error {
-	return mapError(e.service.DeleteAttachment(ctx, announcementID, attachmentID, actor(who)))
+	return mapError(e.service.DeleteAttachment(ctx, announcementID, attachmentID, e.actor(who)))
 }
 
 func (e engine) QueueAttachmentCleanupForAnnouncement(ctx context.Context, announcementID int64) error {

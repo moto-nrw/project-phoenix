@@ -15,6 +15,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+var reviewPermissions = jwt.PermissionsFromCtx
+
 type masterDataBulkStub struct {
 	rows           []*MasterDataReviewItem
 	decided        []int64
@@ -132,13 +134,28 @@ func bulkReviewContext(t *testing.T, permissions ...string) context.Context {
 	return context.WithValue(ctx, jwt.CtxPermissions, permissions)
 }
 
+func TestParentRequestCoordinatorDoesNotBypassPermissionPort(t *testing.T) {
+	t.Parallel()
+	service := NewParentRequestCoordinator(func(context.Context) []string { return nil }, nil, nil)
+	ctx := bulkReviewContext(t, "admin:*")
+	err := service.BulkApprove(ctx, BulkApproveParentRequestsInput{
+		Requests: []ParentRequestRef{
+			{Kind: ParentRequestKindMasterData, ID: 1, ExpectedVersion: "v1"},
+			{Kind: ParentRequestKindMasterData, ID: 2, ExpectedVersion: "v2"},
+		},
+		Reason: "Reviewed", ReviewerID: 99,
+	})
+	require.ErrorIs(t, err, ErrParentRequestForbidden)
+	assert.True(t, tenant.RollbackRequested(ctx))
+}
+
 func TestParentRequestCoordinatorValidatesEveryVersionBeforeApplying(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.August, 29, 10, 0, 0, 0, time.UTC)
 	master := &masterDataBulkStub{rows: []*MasterDataReviewItem{pendingBulkMaster(1, now)}}
 	excused := &excusedBulkStub{rows: []ExcusedBulkCandidate{{ID: 2, UpdatedAt: now, Eligible: true}}}
-	service := NewParentRequestCoordinator(master, excused)
+	service := NewParentRequestCoordinator(reviewPermissions, master, excused)
 
 	ctx := bulkReviewContext(t, "users:update")
 	err := service.BulkApprove(ctx, BulkApproveParentRequestsInput{
@@ -162,7 +179,7 @@ func TestParentRequestCoordinatorMarksRollbackWhenApplyFails(t *testing.T) {
 	master := &masterDataBulkStub{
 		rows: []*MasterDataReviewItem{pendingBulkMaster(1, now), pendingBulkMaster(2, now)}, failID: 2,
 	}
-	service := NewParentRequestCoordinator(master, &excusedBulkStub{})
+	service := NewParentRequestCoordinator(reviewPermissions, master, &excusedBulkStub{})
 
 	ctx := bulkReviewContext(t, "users:update")
 	err := service.BulkApprove(ctx, BulkApproveParentRequestsInput{
@@ -181,7 +198,7 @@ func TestParentRequestCoordinatorMarksRollbackWhenApplyFails(t *testing.T) {
 func TestParentRequestCoordinatorRejectsIneligibleKindWithoutApplying(t *testing.T) {
 	t.Parallel()
 
-	service := NewParentRequestCoordinator(&masterDataBulkStub{}, &excusedBulkStub{})
+	service := NewParentRequestCoordinator(reviewPermissions, &masterDataBulkStub{}, &excusedBulkStub{})
 	ctx := bulkReviewContext(t, "users:update")
 
 	err := service.BulkApprove(ctx, BulkApproveParentRequestsInput{
@@ -204,7 +221,7 @@ func TestParentRequestCoordinatorReportsDecisionRaceAsStale(t *testing.T) {
 		rows:   []*MasterDataReviewItem{pendingBulkMaster(1, now), pendingBulkMaster(2, now)},
 		failID: 2, failErr: userModels.ErrChangeRequestNotPending,
 	}
-	service := NewParentRequestCoordinator(master, &excusedBulkStub{})
+	service := NewParentRequestCoordinator(reviewPermissions, master, &excusedBulkStub{})
 
 	ctx := bulkReviewContext(t, "users:update")
 	err := service.BulkApprove(ctx, BulkApproveParentRequestsInput{
@@ -230,7 +247,7 @@ func TestParentRequestCoordinatorReportsLockRaceAsStale(t *testing.T) {
 		},
 		lockErr: userModels.ErrChangeRequestNotPending,
 	}
-	service := NewParentRequestCoordinator(master, &excusedBulkStub{})
+	service := NewParentRequestCoordinator(reviewPermissions, master, &excusedBulkStub{})
 	ctx := bulkReviewContext(t, "users:update")
 
 	err := service.BulkApprove(ctx, BulkApproveParentRequestsInput{
@@ -251,7 +268,7 @@ func TestParentRequestCoordinatorRejectsMasterDataForAbsenceOnlyReviewer(t *test
 
 	now := time.Date(2026, time.August, 29, 10, 0, 0, 0, time.UTC)
 	master := &masterDataBulkStub{rows: []*MasterDataReviewItem{pendingBulkMaster(1, now), pendingBulkMaster(2, now)}}
-	service := NewParentRequestCoordinator(master, &excusedBulkStub{})
+	service := NewParentRequestCoordinator(reviewPermissions, master, &excusedBulkStub{})
 	ctx := bulkReviewContext(t, "users:absence")
 
 	err := service.BulkApprove(ctx, BulkApproveParentRequestsInput{

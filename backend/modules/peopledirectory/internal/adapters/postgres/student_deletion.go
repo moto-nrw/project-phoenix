@@ -28,7 +28,7 @@ func (s *StudentStore) CountGuardianLinks(ctx context.Context, studentID, person
 	started := time.Now()
 	err = db.NewRaw(`
 		SELECT (
-			(SELECT COUNT(*) FROM users.students_guardians WHERE tenant_id = ? AND student_id = ?) +
+			(SELECT COUNT(*) FROM users.student_guardian_relationships WHERE tenant_id = ? AND student_id = ?) +
 			(SELECT COUNT(*) FROM users.persons_guardians WHERE tenant_id = ? AND person_id = ?)
 		)::int`, tenantID, studentID, tenantID, personID).Scan(ctx, &count)
 	stats.StatementDuration = time.Since(started)

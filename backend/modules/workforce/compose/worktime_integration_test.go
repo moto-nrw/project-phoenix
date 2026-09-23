@@ -22,10 +22,9 @@ func buildWorkforce(t *testing.T, db *bun.DB) workforce.Capability {
 	t.Helper()
 	runtime := testpkg.ConfigRuntime(db)
 	capability, err := New(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment,
-		DB:                db,
-		AssignedStaffIDs:  runtime.AssignedStaffIDs,
-		RebaseStaffAnchor: runtime.RebaseAssignedStaffAnchor,
-		Observe:           func(Observation) {},
+		DB:           db,
+		LiveStaffIDs: runtime.LiveStaffIDs,
+		Observe:      func(Observation) {},
 	})
 	require.NoError(t, err)
 	return capability

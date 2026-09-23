@@ -20,16 +20,21 @@ type Store interface {
 	GraduateStudents(context.Context, []int64) (int64, domain.OperationStats, error)
 	ReactivateStudents(context.Context, []int64, string) ([]int64, domain.OperationStats, error)
 	ChangeStudentClass(context.Context, []int64, string, string) (int64, domain.OperationStats, error)
+	// LockChildQuota serializes the counting writes of the tenant in
+	// context. The lock is exclusive and held until the transaction ends.
+	LockChildQuota(context.Context) (domain.OperationStats, error)
+	// CountChildQuota is the Kontingentzahl of the tenant in context on the
+	// given Berlin calendar day: the actively managed children of the
+	// Stichtagszahl plus the pending ones.
+	CountChildQuota(ctx context.Context, on string) (int, domain.OperationStats, error)
 	FindStaff(ctx context.Context, id int64, lock string, includeDeleted bool) (domain.Staff, bool, domain.OperationStats, error)
 	FindStaffByPerson(context.Context, int64) (domain.Staff, bool, domain.OperationStats, error)
 	ListStaff(context.Context, domain.StaffFilter) ([]domain.Staff, domain.OperationStats, error)
-	CreateStaff(context.Context, domain.StaffFields) (domain.Staff, domain.OperationStats, error)
-	UpdateStaff(context.Context, int64, domain.StaffFields) (domain.Staff, domain.OperationStats, error)
+	// CreateStaff and UpdateStaff write the membership row only; the
+	// employment half belongs to Workforce (StaffEmployment).
+	CreateStaff(ctx context.Context, personID int64) (domain.Staff, domain.OperationStats, error)
+	UpdateStaff(ctx context.Context, id, personID int64) (domain.Staff, domain.OperationStats, error)
 	SoftDeleteStaff(context.Context, int64) (domain.OperationStats, error)
-	ClearWorkTimeModel(context.Context, int64) (domain.OperationStats, error)
-	SetStaffNotes(context.Context, int64, string) (domain.OperationStats, error)
-	SetBirthdayDisplayOptOut(context.Context, int64, bool) (domain.OperationStats, error)
-	RebaseWorkTimeModelAnchor(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, domain.OperationStats, error)
 
 	FindTeacher(ctx context.Context, id int64, lock string) (domain.Teacher, bool, domain.OperationStats, error)
 	FindTeacherByStaff(context.Context, int64) (domain.Teacher, bool, domain.OperationStats, error)
@@ -91,10 +96,37 @@ type AuditTrail interface {
 	AppendClassListEntryChange(context.Context, domain.ClassListEntryChange) error
 }
 
+// StaffEmployment is the consumer-owned Workforce port over the employment
+// profile of a staff membership (#2753). A staff member is the membership row
+// plus this profile; the module composes the two and never stores the profile
+// itself. Calls join the caller's transaction.
+type StaffEmployment interface {
+	// StaffEmployments returns the profiles of the given memberships; a
+	// membership without one is absent from the map.
+	StaffEmployments(context.Context, []int64) (map[int64]domain.StaffEmployment, error)
+	SaveStaffEmployment(context.Context, domain.StaffEmployment) error
+	ClearStaffWorkTimeModel(context.Context, int64) error
+}
+
+// ChildQuota is the consumer-owned port over Organisation & Tenancy's
+// Kinderkontingent (#3567). It answers for the tenant in context on the
+// caller's transaction; limited is false when the school has none.
+type ChildQuota interface {
+	ChildQuotaLimit(ctx context.Context) (limit int, limited bool, err error)
+}
+
+// Clock returns the Berlin calendar day (YYYY-MM-DD) the Kontingentzahl is
+// counted on.
+type Clock func() string
+
 type Transaction interface {
 	// RunWrite joins the caller's transaction or opens one for the tenant
 	// in context.
 	RunWrite(context.Context, func(context.Context) error) error
+	// RunSavepoint runs a multi-owner write inside a savepoint of the
+	// current transaction, so a failed owner write undoes the earlier ones
+	// even when the caller catches the error and commits.
+	RunSavepoint(context.Context, func(context.Context) error) error
 	// RunRead joins the caller's transaction, else opens a tenant
 	// transaction, else an admin transaction for cross-tenant readers.
 	RunRead(context.Context, func(context.Context) error) error

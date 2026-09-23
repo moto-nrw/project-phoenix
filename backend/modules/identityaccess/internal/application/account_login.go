@@ -166,12 +166,9 @@ func (s *AccountAuthentication) mfaChallengeResult(ctx context.Context, account 
 // pipeline, so the session is indistinguishable from a password login.
 // tenantID is the school carried in the MFA challenge.
 func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
-	account, found, _, err := s.store.FindLoginAccount(ctx, accountID, false)
-	if err != nil || !found {
-		return "", "", failed("issue tokens", domain.ErrAccountNotFound)
-	}
-	if !account.Active {
-		return "", "", failed("issue tokens", domain.ErrAccountInactive)
+	account, err := s.authenticatedAccount(ctx, "issue tokens", accountID)
+	if err != nil {
+		return "", "", err
 	}
 	metadata, err := s.loadAccountMetadataForTenant(ctx, account, tenantID)
 	if err != nil {
@@ -191,6 +188,20 @@ func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.C
 	}
 	access, refresh := buildClaims(account, session, metadata, account.Email)
 	return s.generateAndLogTokens(ctx, account.ID, access, refresh, ipAddress, userAgent, domain.AuthEventLogin)
+}
+
+// authenticatedAccount loads the active account whose identity a
+// non-password channel proved. A missing account and a failed lookup both
+// read as not found, as they always did at the token issue sites.
+func (s *AccountAuthentication) authenticatedAccount(ctx context.Context, operation string, accountID int64) (domain.LoginAccount, error) {
+	account, found, _, err := s.store.FindLoginAccount(ctx, accountID, false)
+	if err != nil || !found {
+		return domain.LoginAccount{}, failed(operation, domain.ErrAccountNotFound)
+	}
+	if !account.Active {
+		return domain.LoginAccount{}, failed(operation, domain.ErrAccountInactive)
+	}
+	return account, nil
 }
 
 // validateLoginCredentials checks the address, the password and the account
@@ -321,17 +332,31 @@ func (s *AccountAuthentication) persistSessionInTransaction(ctx context.Context,
 				slog.Int64("account_id", account.ID),
 				slog.Any("error", err))
 		}
-		evicted, err := s.enforcePortalSessionCap(txCtx, account.ID, created.PortalScope)
-		if err != nil {
-			return err
-		}
-		s.queuePushCleanup(txCtx, account.ID, evicted, "session_cap")
-		return nil
+		return s.capSessionsUnlessDemo(txCtx, account.ID, created.PortalScope)
 	})
 	if err != nil {
 		return domain.AccountSession{}, err
 	}
 	return stored, nil
+}
+
+// capSessionsUnlessDemo enforces the session cap for every account except one
+// a demo access signed in: all visitors of the public demo share that
+// account, so the cap would end the demo of an earlier visitor (#3462).
+func (s *AccountAuthentication) capSessionsUnlessDemo(ctx context.Context, accountID int64, portalScope string) error {
+	demo, err := s.store.DemoAccountExists(ctx, accountID)
+	if err != nil {
+		return fmt.Errorf("check demo account before session cap: %w", err)
+	}
+	if demo {
+		return nil
+	}
+	evicted, err := s.enforcePortalSessionCap(ctx, accountID, portalScope)
+	if err != nil {
+		return err
+	}
+	s.queuePushCleanup(ctx, accountID, evicted, "session_cap")
+	return nil
 }
 
 // enforcePortalSessionCap keeps at most five active sessions in this portal
@@ -622,7 +647,7 @@ func (s *AccountAuthentication) resolveAccountTenantDefault(ctx context.Context,
 	if len(tenantIDs) == 0 {
 		return 0, 0, failed("resolve tenant", domain.ErrTenantNotFound)
 	}
-	schools, err := s.schools.ListActiveSchoolsOfAccount(ctx, accountID)
+	schools, err := s.schools.ListActiveSchoolsByID(ctx, tenantIDs)
 	if err != nil {
 		return 0, 0, fmt.Errorf("resolve account schools: %w", err)
 	}

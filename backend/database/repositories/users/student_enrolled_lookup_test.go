@@ -64,7 +64,7 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday(t *testing.T) {
 
 	// Inactive student → false: the check targets currently enrolled
 	// children only.
-	_, err = db.NewRaw(`UPDATE users.students SET status = ? WHERE id = ?`, users.StudentStatusInactive, student.ID).
+	_, err = db.NewRaw(`UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, users.StudentStatusInactive, student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 	exists, err = repo.ExistsEnrolledByNameAndBirthday(ctx, tenantID, "Milan", "Eligibilitytest", birthday)
@@ -95,7 +95,7 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday_Pending(t *testing.T)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	// Flip the student to pending (approved-but-not-yet-activated).
-	_, err := db.NewRaw(`UPDATE users.students SET status = ? WHERE id = ?`, users.StudentStatusPending, student.ID).
+	_, err := db.NewRaw(`UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, users.StudentStatusPending, student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 

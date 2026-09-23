@@ -22,8 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -73,17 +72,10 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 	require.NoError(t, err)
 	settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	testpkg.SetTenantRuntime(t, settingsService, db)
-	pickup := careschedule.NewPickupScheduleServiceWithBulk(
-		repos.StudentPickupSchedule,
-		repos.StudentPickupException,
-		repos.StudentPickupNote,
-		repos.Student,
-		repos.Person,
-		nil,
-		carescheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferings, repos.CareOffering),
-		db,
-		slog.Default(),
-	)
+	carePlan, err := repositories.NewCarePlan(db, repositories.MustNewPeopleDirectory(db), repos.InstanceStudent)
+	require.NoError(t, err)
+	pickup, err := careplanCompose.NewPickupSchedules(db, carePlan, newPickupBaselineService(carePlan, approvedOfferings), nil, nil, nil)
+	require.NoError(t, err)
 	fleet, err := devicefleetCompose.New(devicefleetCompose.Dependencies{
 		DB:       db,
 		Rooms:    rooms,

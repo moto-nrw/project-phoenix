@@ -51,6 +51,8 @@ import {
 import {
   fetchArrivalSettings,
   type CareDaysSource,
+  type CareTimePresets,
+  type SchoolPeriod,
 } from "~/lib/student-arrival-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
@@ -224,6 +226,10 @@ export function StudentCreateModal({
   const [careDaysSource, setCareDaysSource] = useState<CareDaysSource | null>(
     null,
   );
+  const [schoolPeriods, setSchoolPeriods] = useState<readonly SchoolPeriod[]>(
+    [],
+  );
+  const [timePresets, setTimePresets] = useState<CareTimePresets>();
   const [arrivalSettingsLoading, setArrivalSettingsLoading] = useState(false);
   const [arrivalSettingsLoadError, setArrivalSettingsLoadError] =
     useState(false);
@@ -266,6 +272,8 @@ export function StudentCreateModal({
       setPickupSchedules([]);
       setCarePlanModalOpen(false);
       setCareDaysSource(null);
+      setSchoolPeriods([]);
+      setTimePresets(undefined);
       setArrivalSettingsLoading(false);
       setArrivalSettingsLoadError(false);
       setGuardianPickerOpen(false);
@@ -283,11 +291,20 @@ export function StudentCreateModal({
     setArrivalSettingsLoadError(false);
     void fetchArrivalSettings()
       .then((settings) => {
-        if (!cancelled) setCareDaysSource(settings.care_days_source);
+        if (!cancelled) {
+          setCareDaysSource(settings.care_days_source);
+          setSchoolPeriods(settings.school_periods ?? []);
+          setTimePresets({
+            arrival: settings.defaultArrivalTime ?? "",
+            pickup: settings.defaultPickupTime ?? "",
+          });
+        }
       })
       .catch(() => {
         if (!cancelled) {
           setCareDaysSource(null);
+          setSchoolPeriods([]);
+          setTimePresets(undefined);
           setArrivalSettingsLoadError(true);
         }
       })
@@ -464,7 +481,7 @@ export function StudentCreateModal({
           if (!open) onClose();
         }}
       >
-        <SlideOverContent widthClass="sm:w-[720px]">
+        <SlideOverContent widthClass="sm:w-[720px]" isBackdropDismissDisabled>
           <SlideOverHeader className="flex-row items-start justify-between gap-3">
             <div className="min-w-0">
               <SlideOverTitle>Neues Kind</SlideOverTitle>
@@ -902,6 +919,8 @@ export function StudentCreateModal({
         <CareWeeklyPlanModal
           isOpen={carePlanModalOpen}
           careDaysSource={careDaysSource}
+          schoolPeriods={schoolPeriods}
+          timePresets={timePresets}
           onClose={() => setCarePlanModalOpen(false)}
           initialArrivalSchedules={arrivalSchedules}
           initialPickupSchedules={pickupSchedules}

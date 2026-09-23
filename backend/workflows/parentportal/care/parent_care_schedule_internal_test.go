@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 )
 
 // MapCareRequestError is the boundary that translates schedule-domain sentinels
@@ -21,10 +20,10 @@ func TestMapCareRequestError(t *testing.T) {
 		in   error
 		want error
 	}{
-		{"not found", scheduleModels.ErrCareRequestNotFound, ErrCareRequestNotFound},
-		{"not pending", scheduleModels.ErrCareRequestNotPending, ErrCareRequestNotPending},
-		{"already pending", careschedule.ErrCareRequestAlreadyPending, ErrCareRequestAlreadyPending},
-		{"invalid payload", careschedule.ErrInvalidCareRequestPayload, ErrInvalidCareRequestPayload},
+		{"not found", carerequests.ErrNotFound, ErrCareRequestNotFound},
+		{"not pending", carerequests.ErrNotPending, ErrCareRequestNotPending},
+		{"already pending", carerequests.ErrAlreadyPending, ErrCareRequestAlreadyPending},
+		{"invalid payload", carerequests.ErrInvalidPayload, ErrInvalidCareRequestPayload},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

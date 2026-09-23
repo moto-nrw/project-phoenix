@@ -7,6 +7,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 )
 
+// EmailMessage and Mailer name the delivery contract a test double sends or
+// receives, so a behaviour suite outside the Delivery Platform can implement
+// a refusing or flaky transport without importing the transport package.
+type EmailMessage = email.Message
+type Mailer = email.Mailer
+
 // CapturingMailer records messages sent during tests.
 // It implements email.Mailer and captures all sent messages for verification.
 //
@@ -28,6 +34,13 @@ func NewCapturingMailer() *CapturingMailer {
 	return &CapturingMailer{
 		ch: make(chan struct{}, 16),
 	}
+}
+
+// InDemoEnvironment puts the mail lock of APP_ENV=demo (#3465) in front of
+// the capture, as the production transport carries it: the capture then
+// holds only what would leave the demo environment.
+func (m *CapturingMailer) InDemoEnvironment() email.Mailer {
+	return email.RestrictToDemoMails(m, "demo", nil)
 }
 
 // Send implements email.Mailer by capturing the message.
@@ -86,6 +99,16 @@ func (m *CapturingMailer) Templates() []string {
 		out[i] = msg.Template
 	}
 	return out
+}
+
+// MessageWithTemplate returns the first captured message of the template.
+func (m *CapturingMailer) MessageWithTemplate(template string) (email.Message, bool) {
+	for _, msg := range m.Messages() {
+		if msg.Template == template {
+			return msg, true
+		}
+	}
+	return email.Message{}, false
 }
 
 // Clear removes all captured messages.

@@ -5,14 +5,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 func TestPendingCareRequest_HidesAnotherGuardiansRequest(t *testing.T) {
 	t.Parallel()
 
-	pending := &scheduleModels.CareScheduleChangeRequest{SubmittedBy: 41}
+	pending := &carerequests.Request{SubmittedBy: 41}
 	assert.Nil(t, pendingCareRequest(pending, nil, 42, false))
 }
 

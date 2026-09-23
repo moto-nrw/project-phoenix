@@ -19,7 +19,7 @@ import (
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -286,14 +286,14 @@ func (s *instanceService) executeStaffMove(ctx context.Context, plan *staffMoveP
 			}
 		}
 		if !alreadySupervising {
-			newSup := &activeModel.GroupSupervisor{
+			newSup := &studentpresence.GroupSupervision{
 				StaffID:   plan.staffID,
 				GroupID:   *plan.target.ActiveGroupID,
 				Role:      "supervisor",
-				StartDate: timezone.DateFromTime(now),
+				StartDate: timezone.DateFromTime(now).String(),
 			}
-			newSup.SetTenantID(tenant.FromContext(ctx))
-			if err := s.deps.SupervisorRepo.Create(ctx, newSup); err != nil {
+			newSup.TenantID = tenant.FromContext(ctx)
+			if err := s.deps.SupervisorRepo.CreateSupervision(ctx, newSup); err != nil {
 				return nil, devErrInternal("start target supervision failed", err)
 			}
 		}

@@ -125,7 +125,7 @@ func TestCreateStudent_InvalidScheduleTimeRejected(t *testing.T) {
 			Where("first_name = ? AND last_name = ?", firstName, lastName).
 			Scan(ctx, &personIDs); err == nil {
 			for _, pid := range personIDs {
-				if _, err := tc.db.NewDelete().Table("users.students").Where("person_id = ?", pid).Exec(ctx); err != nil {
+				if _, err := tc.db.NewDelete().Table("users.student_profiles").Where("person_id = ?", pid).Exec(ctx); err != nil {
 					t.Logf("cleanup students: %v", err)
 				}
 				if _, err := tc.db.NewDelete().Table("users.persons").Where("id = ?", pid).Exec(ctx); err != nil {
@@ -246,7 +246,7 @@ func TestCreateStudent_GuardianFailureRollsBackSchedules(t *testing.T) {
 			Where("first_name = ? AND last_name = ?", firstName, lastName).
 			Scan(ctx, &personIDs); err == nil {
 			for _, pid := range personIDs {
-				if _, err := tc.db.NewDelete().Table("users.students").Where("person_id = ?", pid).Exec(ctx); err != nil {
+				if _, err := tc.db.NewDelete().Table("users.student_profiles").Where("person_id = ?", pid).Exec(ctx); err != nil {
 					t.Logf("cleanup students: %v", err)
 				}
 				if _, err := tc.db.NewDelete().Table("users.persons").Where("id = ?", pid).Exec(ctx); err != nil {
@@ -267,7 +267,7 @@ func TestCreateStudent_GuardianFailureRollsBackSchedules(t *testing.T) {
 	// would-be person name. Catches any regression where schedules are written
 	// outside the create transaction.
 	studentSubquery := tc.db.NewSelect().
-		Table("users.students").
+		Table("users.student_profiles").
 		Column("id").
 		Where("person_id IN (SELECT id FROM users.persons WHERE first_name = ? AND last_name = ?)", firstName, lastName)
 
@@ -329,7 +329,7 @@ func TestCreateStudent_InvalidPickupTimeRejected(t *testing.T) {
 			Where("first_name = ? AND last_name = ?", firstName, lastName).
 			Scan(ctx, &personIDs); err == nil {
 			for _, pid := range personIDs {
-				if _, err := tc.db.NewDelete().Table("users.students").Where("person_id = ?", pid).Exec(ctx); err != nil {
+				if _, err := tc.db.NewDelete().Table("users.student_profiles").Where("person_id = ?", pid).Exec(ctx); err != nil {
 					t.Logf("cleanup students: %v", err)
 				}
 				if _, err := tc.db.NewDelete().Table("users.persons").Where("id = ?", pid).Exec(ctx); err != nil {

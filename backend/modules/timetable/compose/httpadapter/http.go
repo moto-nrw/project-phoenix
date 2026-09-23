@@ -1,33 +1,43 @@
 package httpadapter
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	usercontextSvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
 
+// CallerContext is the slice of the Identity & Access caller context the
+// activity routes read. found is false, without an error, for a caller who
+// is no staff member.
+type CallerContext interface {
+	HasCurrentStaff(ctx context.Context) (bool, error)
+	CurrentStaffID(ctx context.Context) (staffID int64, found bool, err error)
+	CurrentPersonName(ctx context.Context) (firstName, lastName string, err error)
+}
+
 // Resource defines the activities API resource
 type Resource struct {
-	ActivityService    activitiesSvc.ActivityService
-	ScheduleService    timetableplanning.Service
+	ActivityService activitiesSvc.ActivityService
+	// Timeframes serves the time-span reads from the Timetable owner.
+	Timeframes         timetableModule.TimeframeQuery
 	UserService        usersSvc.PersonService
-	UserContextService usercontextSvc.UserContextService
+	UserContextService CallerContext
 	db                 *bun.DB
 }
 
 // NewResource creates a new activities resource
-func NewResource(activityService activitiesSvc.ActivityService, scheduleService timetableplanning.Service, userService usersSvc.PersonService, userContextService usercontextSvc.UserContextService, db *bun.DB) *Resource {
+func NewResource(activityService activitiesSvc.ActivityService, timeframes timetableModule.TimeframeQuery, userService usersSvc.PersonService, userContextService CallerContext, db *bun.DB) *Resource {
 	return &Resource{
 		ActivityService:    activityService,
-		ScheduleService:    scheduleService,
+		Timeframes:         timeframes,
 		UserService:        userService,
 		UserContextService: userContextService,
 		db:                 db,

@@ -2,11 +2,9 @@ package users
 
 import (
 	"context"
-	"strings"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // The contracts below are what the retained services call when they mutate an
@@ -62,12 +60,22 @@ type StudentAuditRecorder interface {
 	GetChangeHistory(ctx context.Context, studentID int64) ([]*auditModels.StudentFieldEdit, error)
 }
 
-type studentAuditActorPort struct{ recorder StudentAuditRecorder }
+// RequestAuditActor supplies the authenticated editor, without exposing the
+// transport's token or context representation to People Directory.
+type RequestAuditActor func(context.Context) (accountID int64, displayName string)
+
+type studentAuditActorPort struct {
+	recorder StudentAuditRecorder
+	actor    RequestAuditActor
+}
 
 // NewStudentAuditService resolves the authenticated editor and hands every
 // recorded change to the owner capability behind recorder.
-func NewStudentAuditService(recorder StudentAuditRecorder) StudentAuditService {
-	return &studentAuditActorPort{recorder: recorder}
+func NewStudentAuditService(actor RequestAuditActor, recorder StudentAuditRecorder) StudentAuditService {
+	if actor == nil {
+		panic("request audit actor is required")
+	}
+	return &studentAuditActorPort{recorder: recorder, actor: actor}
 }
 
 func (s *studentAuditActorPort) RecordChanges(
@@ -84,7 +92,7 @@ func (s *studentAuditActorPort) RecordChangesForActor(
 	before, after *userModels.Student,
 	editedBy int64,
 ) error {
-	return s.recorder.RecordChanges(ctx, before, after, editedBy, actorDisplayName(ctx, editedBy))
+	return s.recorder.RecordChanges(ctx, before, after, editedBy, s.actorDisplayName(ctx, editedBy))
 }
 
 func (s *studentAuditActorPort) RecordPickupPlanForActor(
@@ -94,7 +102,7 @@ func (s *studentAuditActorPort) RecordPickupPlanForActor(
 	editedBy int64,
 ) error {
 	return s.recorder.RecordPickupPlan(
-		ctx, studentID, before, after, result, reason, editedBy, actorDisplayName(ctx, editedBy))
+		ctx, studentID, before, after, result, reason, editedBy, s.actorDisplayName(ctx, editedBy))
 }
 
 func (s *studentAuditActorPort) RecordSystemStatusChange(
@@ -115,14 +123,10 @@ func (s *studentAuditActorPort) GetChangeHistory(
 // actorDisplayName resolves the editor's display name from the authenticated
 // caller. A mismatched context is attributed to nobody rather than to the
 // wrong person; the owner stores its own stand-in for that.
-func actorDisplayName(ctx context.Context, editedBy int64) string {
-	claims := jwt.ClaimsFromCtx(ctx)
-	if int64(claims.ID) != editedBy {
+func (s *studentAuditActorPort) actorDisplayName(ctx context.Context, editedBy int64) string {
+	accountID, name := s.actor(ctx)
+	if accountID != editedBy {
 		return ""
-	}
-	name := strings.TrimSpace(claims.FirstName + " " + claims.LastName)
-	if name == "" {
-		name = strings.TrimSpace(claims.Username)
 	}
 	return name
 }

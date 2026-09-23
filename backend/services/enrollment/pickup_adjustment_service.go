@@ -19,7 +19,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -31,13 +31,13 @@ const (
 )
 
 var (
-	ErrPickupAdjustmentInvalid            = errors.New("pickup adjustment: invalid input")
-	ErrPickupAdjustmentResolutionRequired = errors.New("pickup adjustment: explicit resolution is required")
-	ErrPickupAdjustmentStale              = errors.New("pickup adjustment: preview is stale")
-	ErrPickupAdjustmentFutureManualReset  = errors.New("pickup adjustment: manual pickup times can only be reset today")
-	ErrPickupAdjustmentBulkConfirmation   = errors.New("pickup adjustment: bulk exceptions require confirmation")
-	ErrPickupAdjustmentUnauthorized       = errors.New("pickup adjustment: student is not authorized")
-	ErrPickupAdjustmentStudentNotFound    = errors.New("pickup adjustment: student not found")
+	ErrPickupAdjustmentInvalid            = careplan.ErrPickupAdjustmentInvalid
+	ErrPickupAdjustmentResolutionRequired = careplan.ErrPickupAdjustmentResolutionRequired
+	ErrPickupAdjustmentStale              = careplan.ErrPickupAdjustmentStale
+	ErrPickupAdjustmentFutureManualReset  = careplan.ErrPickupAdjustmentFutureManualReset
+	ErrPickupAdjustmentBulkConfirmation   = careplan.ErrPickupAdjustmentBulkConfirmation
+	ErrPickupAdjustmentUnauthorized       = careplan.ErrPickupAdjustmentUnauthorized
+	ErrPickupAdjustmentStudentNotFound    = careplan.ErrPickupAdjustmentStudentNotFound
 )
 
 type PickupAdjustmentSchedule struct {
@@ -105,25 +105,25 @@ type PickupAdjustmentResult struct {
 
 type PickupAdjustmentBulkInput struct {
 	StudentIDs         []int64
-	Schedules          []careschedule.PickupScheduleInput
+	Schedules          []careplan.PickupScheduleInput
 	ConfirmedException bool
 	CreatedByStaffID   int64
 	ActorAccountID     int64
-	Authorize          func(context.Context, *usersModels.Student) (bool, error)
+	Authorize          func(context.Context, careplan.ScheduleStudent) (bool, error)
 }
 
 type PickupAdjustmentService interface {
 	Preview(ctx context.Context, input PickupAdjustmentPreviewInput) (*PickupAdjustmentPreview, error)
 	Apply(ctx context.Context, input PickupAdjustmentApplyInput) (*PickupAdjustmentResult, error)
-	ApplyBulkExceptions(ctx context.Context, input PickupAdjustmentBulkInput) (*careschedule.BulkUpsertResult, error)
+	ApplyBulkExceptions(ctx context.Context, input PickupAdjustmentBulkInput) (*careplan.BulkUpsertResult, error)
 }
 
 type PickupAdjustmentServiceConfig struct {
-	PickupSchedules     careschedule.PickupScheduleService
-	ArrivalSchedules    careschedule.ArrivalScheduleService
+	PickupSchedules     careplan.PickupScheduleService
+	ArrivalSchedules    careplan.ArrivalScheduleService
 	PickupScheduleRepo  scheduleModels.StudentPickupScheduleRepository
 	ArrivalScheduleRepo scheduleModels.StudentArrivalScheduleRepository
-	PickupBaselines     careschedule.PickupBaselineReader
+	PickupBaselines     careplan.PickupBaselineReader
 	Offerings           DirectOfferingAdjustmentCoordinator
 	Settings            DecisionSettingsResolver
 	Audit               usersService.StudentPickupPlanRecorder
@@ -182,7 +182,7 @@ func (s *pickupAdjustmentService) preview(
 func (s *pickupAdjustmentService) completePickupAdjustmentPreview(
 	ctx context.Context,
 	input PickupAdjustmentPreviewInput,
-	current, offering careschedule.PickupWeek,
+	current, offering careplan.PickupWeek,
 	proposed map[int]PickupAdjustmentSchedule,
 	preview *PickupAdjustmentPreview,
 ) (*PickupAdjustmentPreview, error) {
@@ -276,7 +276,7 @@ func (s *pickupAdjustmentService) projectPickupAdjustment(
 	ctx context.Context,
 	input PickupAdjustmentPreviewInput,
 	explicit map[int]PickupAdjustmentSchedule,
-) (careschedule.PickupWeek, careschedule.PickupWeek, map[int]PickupAdjustmentSchedule, error) {
+) (careplan.PickupWeek, careplan.PickupWeek, map[int]PickupAdjustmentSchedule, error) {
 	weekStart := input.EffectiveFrom.AddDays(scheduleModels.WeekdayMonday - isoWeekday(input.EffectiveFrom))
 	projection, err := s.PickupBaselines.Project(
 		ctx, []int64{input.StudentID}, weekStart, weekStart.AddDays(4),
@@ -292,7 +292,7 @@ func (s *pickupAdjustmentService) projectPickupAdjustment(
 func (s *pickupAdjustmentService) basePickupAdjustmentPreview(
 	ctx context.Context,
 	input PickupAdjustmentPreviewInput,
-	current, offering careschedule.PickupWeek,
+	current, offering careplan.PickupWeek,
 	proposed map[int]PickupAdjustmentSchedule,
 ) (*PickupAdjustmentPreview, error) {
 	reviewEnabled, err := s.Settings.ResolveBool(ctx, configModel.KeyRequirePickupOfferingReview)
@@ -528,7 +528,7 @@ func (s *pickupAdjustmentService) preflightPickupOffering(
 func (s *pickupAdjustmentService) ApplyBulkExceptions(
 	ctx context.Context,
 	input PickupAdjustmentBulkInput,
-) (*careschedule.BulkUpsertResult, error) {
+) (*careplan.BulkUpsertResult, error) {
 	if s.PickupSchedules == nil || s.Settings == nil {
 		return nil, fmt.Errorf("pickup adjustment: bulk dependencies are not configured")
 	}
@@ -537,7 +537,7 @@ func (s *pickupAdjustmentService) ApplyBulkExceptions(
 	if err != nil {
 		return nil, fmt.Errorf("pickup adjustment: resolve offering review setting: %w", err)
 	}
-	filter := careschedule.ArrivalScheduleBulkFilter{StudentIDs: input.StudentIDs, Authorize: input.Authorize}
+	filter := careplan.PickupBulkFilter{StudentIDs: input.StudentIDs, Authorize: input.Authorize}
 	if !reviewEnabled {
 		result, applyErr := s.PickupSchedules.BulkUpsertPickupSchedules(
 			ctx, filter, input.Schedules, input.CreatedByStaffID,
@@ -559,10 +559,10 @@ func (s *pickupAdjustmentService) ApplyBulkExceptions(
 func (s *pickupAdjustmentService) applyReviewedBulkExceptions(
 	ctx context.Context,
 	input PickupAdjustmentBulkInput,
-	filter careschedule.ArrivalScheduleBulkFilter,
+	filter careplan.PickupBulkFilter,
 	today timezone.Date,
-) (*careschedule.BulkUpsertResult, error) {
-	var result *careschedule.BulkUpsertResult
+) (*careplan.BulkUpsertResult, error) {
+	var result *careplan.BulkUpsertResult
 	err := tenant.WithTenantTx(ctx, s.DB, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
 		before, err := s.lockAndSnapshotBulkStudents(txCtx, input, today)
 		if err != nil {
@@ -596,12 +596,12 @@ func (s *pickupAdjustmentService) lockAndSnapshotBulkStudents(
 	for _, studentID := range studentIDs {
 		student := students[studentID]
 		if student == nil {
-			return nil, fmt.Errorf("%w: student %d", careschedule.ErrBulkStudentNotFound, studentID)
+			return nil, fmt.Errorf("%w: student %d", careplan.ErrBulkStudentNotFound, studentID)
 		}
 		if input.Authorize != nil {
-			allowed, authorizeErr := input.Authorize(ctx, student)
+			allowed, authorizeErr := input.Authorize(ctx, careplan.ScheduleStudent{ID: student.ID, TenantID: student.TenantID})
 			if authorizeErr != nil || !allowed {
-				return nil, fmt.Errorf("%w: student %d", careschedule.ErrBulkStudentUnauthorized, studentID)
+				return nil, fmt.Errorf("%w: student %d", careplan.ErrBulkStudentUnauthorized, studentID)
 			}
 		}
 	}
@@ -837,14 +837,14 @@ func normalizePickupArrivalSchedules(input *PickupAdjustmentPreviewInput) error 
 func pickupScheduleRows(
 	studentID, createdBy int64,
 	input []PickupAdjustmentSchedule,
-) ([]*scheduleModels.StudentPickupSchedule, error) {
-	rows := make([]*scheduleModels.StudentPickupSchedule, 0, len(input))
+) ([]*careplan.PickupSchedule, error) {
+	rows := make([]*careplan.PickupSchedule, 0, len(input))
 	for _, item := range input {
 		parsed, err := time.Parse("15:04", item.PickupTime)
 		if err != nil {
 			return nil, fmt.Errorf("%w: invalid pickup time", ErrPickupAdjustmentInvalid)
 		}
-		rows = append(rows, &scheduleModels.StudentPickupSchedule{
+		rows = append(rows, &careplan.PickupSchedule{
 			StudentID:  studentID,
 			Weekday:    item.Weekday,
 			PickupTime: parsed,
@@ -859,8 +859,8 @@ func pickupScheduleRows(
 func pickupArrivalScheduleRows(
 	studentID, createdBy int64,
 	input []PickupAdjustmentArrivalSchedule,
-) ([]*scheduleModels.StudentArrivalSchedule, error) {
-	rows := make([]*scheduleModels.StudentArrivalSchedule, 0, len(input))
+) ([]*careplan.ArrivalSchedule, error) {
+	rows := make([]*careplan.ArrivalSchedule, 0, len(input))
 	for _, item := range input {
 		var expectedArrival time.Time
 		if item.ExpectedArrival != "" {
@@ -870,7 +870,7 @@ func pickupArrivalScheduleRows(
 			}
 			expectedArrival = parsed
 		}
-		rows = append(rows, &scheduleModels.StudentArrivalSchedule{
+		rows = append(rows, &careplan.ArrivalSchedule{
 			StudentID:       studentID,
 			Weekday:         item.Weekday,
 			ExpectedArrival: expectedArrival,
@@ -998,7 +998,7 @@ func cloneOfferingSelections(input []OfferingChangeSelection) []OfferingChangeSe
 func pickupPlanDeviates(
 	careDays []int,
 	proposed map[int]PickupAdjustmentSchedule,
-	offering careschedule.PickupWeek,
+	offering careplan.PickupWeek,
 ) bool {
 	if !pickupPlanHasExactlyDays(proposed, careDays) {
 		return true
@@ -1036,7 +1036,7 @@ func pickupPlanHasExactlyDays(plan map[int]PickupAdjustmentSchedule, careDays []
 func effectiveProposedPickupPlan(
 	careDays []int,
 	explicit map[int]PickupAdjustmentSchedule,
-	offering careschedule.PickupWeek,
+	offering careplan.PickupWeek,
 ) map[int]PickupAdjustmentSchedule {
 	result := make(map[int]PickupAdjustmentSchedule, len(explicit)+len(careDays))
 	for weekday, row := range explicit {
@@ -1064,7 +1064,7 @@ func hasManualPickupRows(rows []*scheduleModels.StudentPickupSchedule) bool {
 	return false
 }
 
-func pickupPlanLabel(week careschedule.PickupWeek) string {
+func pickupPlanLabel(week careplan.PickupWeek) string {
 	rows := make([]PickupAdjustmentSchedule, 0, len(week))
 	for weekday, row := range week {
 		if row != nil {
@@ -1138,7 +1138,7 @@ func isoWeekday(date timezone.Date) int {
 func pickupAdjustmentToken(
 	input PickupAdjustmentPreviewInput,
 	preview *PickupAdjustmentPreview,
-	current, offering careschedule.PickupWeek,
+	current, offering careplan.PickupWeek,
 	currentArrival []PickupAdjustmentArrivalSchedule,
 	tenantID int64,
 ) (string, error) {
@@ -1146,8 +1146,8 @@ func pickupAdjustmentToken(
 		TenantID       int64
 		Input          PickupAdjustmentPreviewInput
 		Preview        *PickupAdjustmentPreview
-		Current        careschedule.PickupWeek
-		Offering       careschedule.PickupWeek
+		Current        careplan.PickupWeek
+		Offering       careplan.PickupWeek
 		CurrentArrival []PickupAdjustmentArrivalSchedule
 	}{tenantID, input, preview, current, offering, currentArrival}
 	encoded, err := json.Marshal(payload)

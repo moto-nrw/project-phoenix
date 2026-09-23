@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/guardianlinkview"
 	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
@@ -25,39 +27,16 @@ const (
 // GuardianProfileRepository implements the users.GuardianProfileRepository interface
 type GuardianProfileRepository struct {
 	*repoBase.Repository[*users.GuardianProfile]
-	db *bun.DB
-	// activeAccounts is the Identity & Access owner query "every active
-	// platform account". auth.accounts is not read by this repository; the
-	// portal reachability check joins the owner's query instead (#2720).
-	activeAccounts ActiveAccountQuery
-	// activeMemberships and guardianRoles are the Identity & Access owner
-	// queries for the school mapping and the guardian role assignment the
-	// portal reachability check filters through (#2721).
-	activeMemberships ActiveMembershipQuery
-	guardianRoles     GuardianRoleQuery
+	db                *bun.DB
+	portalMemberships PortalMembershipQuery
 }
-
-// ActiveAccountQuery returns the owner-built statement selecting the ids of
-// active platform accounts. It is a plain function type so this package does
-// not depend on the Identity & Access owner to state what it needs.
-type ActiveAccountQuery func(ctx context.Context) *bun.SelectQuery
 
 // GuardianProfileOption configures a GuardianProfileRepository at construction.
 type GuardianProfileOption func(*GuardianProfileRepository)
 
-// WithActiveAccounts installs the Identity & Access active-account query
-// FindActivePortalProfilesByIDs filters through (#2720).
-func WithActiveAccounts(query ActiveAccountQuery) GuardianProfileOption {
-	return func(r *GuardianProfileRepository) { r.activeAccounts = query }
-}
-
-// WithSchoolAccess installs the Identity & Access active-membership and
-// guardian-role queries FindActivePortalProfilesByIDs filters through (#2721).
-func WithSchoolAccess(memberships ActiveMembershipQuery, guardianRoles GuardianRoleQuery) GuardianProfileOption {
-	return func(r *GuardianProfileRepository) {
-		r.activeMemberships = memberships
-		r.guardianRoles = guardianRoles
-	}
+// WithPortalMemberships binds account reachability without exposing owner SQL.
+func WithPortalMemberships(query PortalMembershipQuery) GuardianProfileOption {
+	return func(r *GuardianProfileRepository) { r.portalMemberships = query }
 }
 
 // NewGuardianProfileRepository creates a new GuardianProfileRepository instance
@@ -152,23 +131,17 @@ func (r *GuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) 
 // treated as reachable — otherwise staff could target a parent who can never
 // see or answer the invitation.
 //
-// Runtime-role note: this runs under phoenix_tenant (the staff calendar routes
-// use TenantTxMiddleware). That role has SELECT on every auth table via the
-// "GRANT SELECT ON ALL TABLES IN SCHEMA auth TO phoenix_tenant" in migration
-// 1.14.1 (no later revoke). RLS scopes auth.account_roles to the current
-// tenant and lets auth.roles show tenant_id IS NULL (the guardian base role).
-// auth.account_tenants has NO RLS: the membership subquery lists every
-// school, so the row-value predicates below MUST keep pairing it with
-// "guardian_profile".tenant_id. No admin tx is needed.
+// The owner projection opens no transaction of its own: its store resolves the
+// caller's ambient transaction from the context and runs on the root connection
+// when there is none. Isolation therefore does not rest on it. Its result may
+// include several schools for one account, so each profile is matched against
+// its own school, never against membership in any school.
 func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
 	if len(ids) == 0 {
 		return make(map[int64]*users.GuardianProfile), nil
 	}
-	if r.activeAccounts == nil {
-		return nil, errors.New("find active portal guardian profiles: active account query is required")
-	}
-	if r.activeMemberships == nil || r.guardianRoles == nil {
-		return nil, errors.New("find active portal guardian profiles: school access queries are required")
+	if r.portalMemberships == nil {
+		return nil, errors.New("find active portal guardian profiles: portal membership query is required")
 	}
 
 	var profiles []*users.GuardianProfile
@@ -176,15 +149,7 @@ func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Co
 		Model(&profiles).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Where(`"guardian_profile".id IN (?)`, bun.List(ids)).
-		Where(`"guardian_profile".account_id IS NOT NULL`).
-		// The school mapping, the guardian role assignment and the global
-		// account switch belong to Identity & Access; the owner's queries keep
-		// this a single statement.
-		Where(`("guardian_profile".account_id, "guardian_profile".tenant_id) IN (?)`, r.activeMemberships(ctx)).
-		// The owner matches the role like the parent login guardian-role check
-		// (case-insensitive, mirrors strings.EqualFold in services/auth).
-		Where(`("guardian_profile".account_id, "guardian_profile".tenant_id) IN (?)`, r.guardianRoles(ctx)).
-		Where(`"guardian_profile".account_id IN (?)`, r.activeAccounts(ctx))
+		Where(`"guardian_profile".account_id IS NOT NULL`)
 
 	query = repoBase.WithTenantFilter(ctx, query, "guardian_profile")
 
@@ -193,8 +158,21 @@ func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Co
 	}
 
 	result := make(map[int64]*users.GuardianProfile, len(profiles))
+	if len(profiles) == 0 {
+		return result, nil
+	}
+	accountIDs := make([]int64, 0, len(profiles))
 	for _, profile := range profiles {
-		result[profile.ID] = profile
+		accountIDs = append(accountIDs, *profile.AccountID)
+	}
+	memberships, err := r.portalMemberships(ctx, accountIDs)
+	if err != nil {
+		return nil, fmt.Errorf("find active portal guardian memberships: %w", err)
+	}
+	for _, profile := range profiles {
+		if slices.Contains(memberships[*profile.AccountID], profile.GetTenantID()) {
+			result[profile.ID] = profile
+		}
 	}
 	return result, nil
 }
@@ -440,34 +418,6 @@ func (r *GuardianProfileRepository) Update(ctx context.Context, profile *users.G
 	return nil
 }
 
-// UpdatePortalLocaleByAccountID updates portal_locale for every profile linked
-// to the parent account. Parent accounts are cross-tenant, so callers run this
-// under an admin transaction.
-func (r *GuardianProfileRepository) UpdatePortalLocaleByAccountID(ctx context.Context, accountID int64, locale string) error {
-	result, err := repoBase.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.GuardianProfile)(nil)).
-		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
-		Set(`portal_locale = ?`, locale).
-		Set(`updated_at = NOW()`).
-		Where(`"guardian_profile".account_id = ?`, accountID).
-		Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to update guardian portal locale: %w", err)
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf(errRowsAffected, err)
-	}
-	// Fail loud when the account has no guardian_profiles row. Without this the
-	// UPDATE matches zero rows, silently succeeds, and the caller reports the
-	// preference as saved — but the next read returns NULL again. Surface it so
-	// a "saved" choice that never persisted can't masquerade as success.
-	if rowsAffected == 0 {
-		return users.ErrGuardianProfileNotFound
-	}
-	return nil
-}
-
 // Delete removes a guardian profile
 func (r *GuardianProfileRepository) Delete(ctx context.Context, id int64) error {
 	result, err := repoBase.GetDB(ctx, r.db).NewDelete().
@@ -492,13 +442,78 @@ func (r *GuardianProfileRepository) Delete(ctx context.Context, id int64) error 
 	return nil
 }
 
-// LinkAccount links a guardian profile to a parent account
+// LinkAccount links a guardian profile to a parent account. A removed contact
+// may leave that account attached to a childless profile (#3477). Move only
+// that orphaned association; retain both contacts and all relationship data.
 func (r *GuardianProfileRepository) LinkAccount(ctx context.Context, profileID int64, accountID int64) error {
-	result, err := repoBase.GetDB(ctx, r.db).NewUpdate().
+	if profileID <= 0 || accountID <= 0 {
+		return users.ErrGuardianAccountConflict
+	}
+	return tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		return tenant.WithSavepoint(txCtx, func(linkCtx context.Context) error {
+			return r.linkAccount(linkCtx, profileID, accountID)
+		})
+	})
+}
+
+func (r *GuardianProfileRepository) linkAccount(ctx context.Context, profileID, accountID int64) error {
+	tenantID, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	db := repoBase.GetDB(ctx, r.db)
+	// Serialize invitations for the same account, including when it has no
+	// profile yet. Row locks also stop concurrent child FK inserts until commit.
+	lockKey := fmt.Sprintf("guardian-account:%d:%d", tenantID.Int64(), accountID)
+	if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", lockKey); err != nil {
+		return fmt.Errorf("lock guardian account link: %w", err)
+	}
+	var profiles []*users.GuardianProfile
+	if err := db.NewSelect().Model(&profiles).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Where(`"guardian_profile".tenant_id = ?`, tenantID.Int64()).
+		Where(`("guardian_profile".id = ? OR "guardian_profile".account_id = ?)`, profileID, accountID).
+		OrderExpr(`"guardian_profile".id`).For("UPDATE").Scan(ctx); err != nil {
+		return fmt.Errorf("lock guardian profiles: %w", err)
+	}
+	var target, previous *users.GuardianProfile
+	for _, profile := range profiles {
+		if profile.ID == profileID {
+			target = profile
+		} else {
+			previous = profile
+		}
+	}
+	if target == nil {
+		return users.ErrGuardianProfileNotFound
+	}
+	if target.AccountID != nil && *target.AccountID != accountID {
+		return users.ErrGuardianAccountConflict
+	}
+	if previous != nil {
+		linked, err := db.NewSelect().TableExpr("users.student_guardian_relationships").
+			Where("tenant_id = ?", tenantID.Int64()).
+			Where("guardian_profile_id = ?", previous.ID).Exists(ctx)
+		if err != nil {
+			return fmt.Errorf("check previous guardian children: %w", err)
+		}
+		if linked {
+			return users.ErrGuardianAccountConflict
+		}
+		if _, err := db.NewUpdate().Model((*users.GuardianProfile)(nil)).
+			ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+			Set("account_id = NULL").Set("has_account = ?", false).
+			Where(`"guardian_profile".tenant_id = ?`, tenantID.Int64()).
+			Where(`"guardian_profile".id = ?`, previous.ID).Exec(ctx); err != nil {
+			return fmt.Errorf("unlink childless guardian profile: %w", err)
+		}
+	}
+	result, err := db.NewUpdate().
 		Model((*users.GuardianProfile)(nil)).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Set("account_id = ?", accountID).
 		Set("has_account = ?", true).
+		Where(`"guardian_profile".tenant_id = ?`, tenantID.Int64()).
 		Where(`"guardian_profile".id = ?`, profileID).
 		Exec(ctx)
 
@@ -520,7 +535,7 @@ func (r *GuardianProfileRepository) LinkAccount(ctx context.Context, profileID i
 
 // LoadProfileWithChildren returns the guardian profile linked to the
 // account plus the primary phone + active-student summaries. Multi-
-// schema join (users.students_guardians → users.students →
+// schema join (guardian relationships → users.students →
 // users.persons) lives here so handlers/services don't reach into the
 // schema directly. Returns (nil, nil) when no profile is linked under
 // the current tenant context.
@@ -565,8 +580,7 @@ func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 		EnrollmentSubmit bool   `bun:"enrollment_submit"`
 	}
 	var rows []childRow
-	childErr := repoBase.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`users.students_guardians AS "sg"`).
+	childErr := guardianlinkview.Query(repoBase.GetDB(ctx, r.db), tenant.FromContext(ctx)).
 		ColumnExpr(`"s".id AS student_id`).
 		ColumnExpr(`"p".first_name`).
 		ColumnExpr(`"p".last_name`).
@@ -576,11 +590,11 @@ func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 		ColumnExpr(`"s".status`).
 		// Per-relationship enrollment-submit permission, so the form can offer
 		// reuse only for children this guardian may actually re-enroll (#1663).
-		ColumnExpr(`COALESCE(("sg".permissions ->> ?)::boolean, false) AS enrollment_submit`, authorize.GuardianPermissionEnrollmentSubmit).
-		Join(`INNER JOIN (?) AS "s" ON "s".id = "sg".student_id`, studentdirectoryview.Query(repoBase.GetDB(ctx, r.db), tenant.FromContext(ctx))).
+		ColumnExpr(`COALESCE(("student_guardian".permissions ->> ?)::boolean, false) AS enrollment_submit`, authorize.GuardianPermissionEnrollmentSubmit).
+		Join(`INNER JOIN (?) AS "s" ON "s".id = "student_guardian".student_id`, studentdirectoryview.Query(repoBase.GetDB(ctx, r.db), tenant.FromContext(ctx))).
 		Join(`INNER JOIN users.persons AS "p" ON "p".id = "s".person_id`).
-		Where(`"sg".guardian_profile_id = ?`, profile.ID).
-		Where(`COALESCE(("sg".permissions ->> ?)::boolean, false) = TRUE`, authorize.GuardianPermissionPortalAccess).
+		Where(`"student_guardian".guardian_profile_id = ?`, profile.ID).
+		Where(`COALESCE(("student_guardian".permissions ->> ?)::boolean, false) = TRUE`, authorize.GuardianPermissionPortalAccess).
 		Where(`"s".status <> ?`, "alumnus").
 		OrderExpr(`"p".last_name ASC, "p".first_name ASC`).
 		Scan(ctx, &rows)

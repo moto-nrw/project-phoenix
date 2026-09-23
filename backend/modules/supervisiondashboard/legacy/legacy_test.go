@@ -7,38 +7,33 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // The retained interfaces are wide; the mocks embed them and override only
 // what a test calls — an unexpected call panics on the nil embedded interface.
 type mockActiveService struct {
-	activeService.Service
-	getActiveGroupsByIDsFn     func(ids []int64) (map[int64]*activeModels.Group, error)
-	getRoomsByIDsFn            func(ids []int64) ([]*activeModels.SessionRoom, error)
-	getUnclaimedActiveGroupsFn func() ([]*activeModels.Group, error)
-	getActiveGroupVisitsFn     func(activeGroupID int64) ([]*activeService.VisitWithStudentDisplay, error)
-	getAttendanceStatusesFn    func(studentIDs []int64) (map[int64]*activeService.AttendanceStatus, error)
+	studentpresence.Presence
+	getActiveGroupsByIDsFn     func(ids []int64) (map[int64]*studentpresence.SessionDetail, error)
+	getRoomsByIDsFn            func(ids []int64) ([]*studentpresence.SessionRoomSummary, error)
+	getUnclaimedActiveGroupsFn func() ([]*studentpresence.SessionDetail, error)
+	getActiveGroupVisitsFn     func(activeGroupID int64) ([]*studentpresence.VisitDisplay, error)
+	getAttendanceStatusesFn    func(studentIDs []int64) (map[int64]*studentpresence.DailyAttendanceStatus, error)
 }
 
 type mockRoomSessions struct {
@@ -55,43 +50,38 @@ func (m *mockRoomSessions) ListRunningSessionIDs(context.Context) ([]int64, erro
 	return m.list()
 }
 
-func (m *mockActiveService) GetActiveGroupsByIDs(_ context.Context, ids []int64) (map[int64]*activeModels.Group, error) {
+func (m *mockActiveService) GetActiveGroupsByIDs(_ context.Context, ids []int64) (map[int64]*studentpresence.SessionDetail, error) {
 	return m.getActiveGroupsByIDsFn(ids)
 }
 
-func (m *mockActiveService) GetRoomsByIDs(_ context.Context, ids []int64) ([]*activeModels.SessionRoom, error) {
+func (m *mockActiveService) GetRoomsByIDs(_ context.Context, ids []int64) ([]*studentpresence.SessionRoomSummary, error) {
 	return m.getRoomsByIDsFn(ids)
 }
 
-func (m *mockActiveService) GetUnclaimedActiveGroups(_ context.Context) ([]*activeModels.Group, error) {
+func (m *mockActiveService) GetUnclaimedActiveGroups(_ context.Context) ([]*studentpresence.SessionDetail, error) {
 	return m.getUnclaimedActiveGroupsFn()
 }
 
-func (m *mockActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, activeGroupID int64) ([]*activeService.VisitWithStudentDisplay, error) {
+func (m *mockActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, activeGroupID int64) ([]*studentpresence.VisitDisplay, error) {
 	return m.getActiveGroupVisitsFn(activeGroupID)
 }
 
-func (m *mockActiveService) GetStudentsAttendanceStatuses(_ context.Context, studentIDs []int64) (map[int64]*activeService.AttendanceStatus, error) {
+func (m *mockActiveService) GetStudentsAttendanceStatuses(_ context.Context, studentIDs []int64) (map[int64]*studentpresence.DailyAttendanceStatus, error) {
 	return m.getAttendanceStatusesFn(studentIDs)
 }
 
 type mockUserContextService struct {
-	userContextService.UserContextService
-	getCurrentStaffFn       func() (*usersModels.Staff, error)
-	getMySupervisedGroupsFn func() ([]*activeModels.Group, error)
-	getMyGroupsFn           func() ([]*educationModels.Group, error)
+	CallerContext
+	getMySupervisedGroupsFn func() ([]*studentpresence.SessionDetail, error)
+	myGroupsFn              func() ([]CallerGroup, error)
 }
 
-func (m *mockUserContextService) GetCurrentStaff(_ context.Context) (*usersModels.Staff, error) {
-	return m.getCurrentStaffFn()
-}
-
-func (m *mockUserContextService) GetMySupervisedGroups(_ context.Context) ([]*activeModels.Group, error) {
+func (m *mockUserContextService) GetMySupervisedGroups(_ context.Context) ([]*studentpresence.SessionDetail, error) {
 	return m.getMySupervisedGroupsFn()
 }
 
-func (m *mockUserContextService) GetMyGroups(_ context.Context) ([]*educationModels.Group, error) {
-	return m.getMyGroupsFn()
+func (m *mockUserContextService) MyGroups(_ context.Context) ([]CallerGroup, error) {
+	return m.myGroupsFn()
 }
 
 type mockEducationService struct {
@@ -132,20 +122,20 @@ func (m *mockOperationsService) ActiveSessions(_ context.Context, day timezone.D
 }
 
 type mockPickupService struct {
-	careschedule.PickupScheduleService
-	getBulkEffectivePickupTimesForDateFn func([]int64, timezone.Date) (map[int64]*careschedule.EffectivePickupTime, error)
+	careplan.BulkPickupTimes
+	getBulkEffectivePickupTimesForDateFn func([]int64, timezone.Date) (map[int64]*careplan.EffectivePickupTime, error)
 }
 
-func (m *mockPickupService) GetBulkEffectivePickupTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careschedule.EffectivePickupTime, error) {
+func (m *mockPickupService) GetBulkEffectivePickupTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectivePickupTime, error) {
 	return m.getBulkEffectivePickupTimesForDateFn(studentIDs, date)
 }
 
 type mockArrivalService struct {
-	careschedule.ArrivalScheduleService
-	getBulkEffectiveArrivalTimesForDateFn func([]int64, timezone.Date) (map[int64]*careschedule.EffectiveArrivalTime, error)
+	careplan.BulkArrivalTimes
+	getBulkEffectiveArrivalTimesForDateFn func([]int64, timezone.Date) (map[int64]*careplan.EffectiveArrivalTime, error)
 }
 
-func (m *mockArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careschedule.EffectiveArrivalTime, error) {
+func (m *mockArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectiveArrivalTime, error) {
 	return m.getBulkEffectiveArrivalTimesForDateFn(studentIDs, date)
 }
 
@@ -187,42 +177,6 @@ func TestNewRejectsMissingSourcesAtComposition(t *testing.T) {
 	query, err = New(fullSources())
 	require.NoError(t, err)
 	assert.NotNil(t, query)
-}
-
-func TestCurrentStaffIDBranches(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	staff := &usersModels.Staff{Model: base.Model{ID: 42}}
-
-	tests := []struct {
-		name    string
-		result  *usersModels.Staff
-		err     error
-		want    *int64
-		wantErr bool
-	}{
-		{name: "not linked to staff", err: userContextService.ErrUserNotLinkedToStaff},
-		{name: "not linked to person", err: userContextService.ErrUserNotLinkedToPerson},
-		{name: "lookup error", err: errors.New("db down"), wantErr: true},
-		{name: "nil staff", result: nil},
-		{name: "staff found", result: staff, want: int64Ptr(42)},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			a := access{userContext: &mockUserContextService{
-				getCurrentStaffFn: func() (*usersModels.Staff, error) { return tt.result, tt.err },
-			}}
-			got, err := a.CurrentStaffID(ctx)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
-		})
-	}
 }
 
 func TestCallerResolvesOverviewAndPermissions(t *testing.T) {
@@ -269,16 +223,16 @@ func TestRunningSessionsResolveRelationsAndRooms(t *testing.T) {
 	color := "#83CD2D"
 
 	active := &mockActiveService{
-		getRoomsByIDsFn: func(ids []int64) ([]*activeModels.SessionRoom, error) {
+		getRoomsByIDsFn: func(ids []int64) ([]*studentpresence.SessionRoomSummary, error) {
 			assert.Equal(t, []int64{22}, ids, "rooms are bulk-loaded once per missing relation")
-			return []*activeModels.SessionRoom{{ID: 22, Name: "Adler"}}, nil
+			return []*studentpresence.SessionRoomSummary{{ID: 22, Name: "Adler"}}, nil
 		},
-		getActiveGroupsByIDsFn: func(ids []int64) (map[int64]*activeModels.Group, error) {
+		getActiveGroupsByIDsFn: func(ids []int64) (map[int64]*studentpresence.SessionDetail, error) {
 			assert.Equal(t, []int64{11, 12, 13}, ids, "ended sessions are not re-read")
-			return map[int64]*activeModels.Group{
-				11: {Model: base.Model{ID: 11}, RoomID: 21, ActualGroup: &activeModels.SessionActivity{Name: "Malen"}, Room: &activeModels.SessionRoom{ID: 21, Name: "Zebra", Color: &color}},
-				12: {Model: base.Model{ID: 12}, RoomID: 22},
-				13: {Model: base.Model{ID: 13}, RoomID: 22},
+			return map[int64]*studentpresence.SessionDetail{
+				11: {ID: 11, RoomID: 21, Activity: &studentpresence.SessionActivitySummary{Name: "Malen"}, Room: &studentpresence.SessionRoomSummary{ID: 21, Name: "Zebra", Color: &color}},
+				12: {ID: 12, RoomID: 22},
+				13: {ID: 13, RoomID: 22},
 			}, nil
 		},
 	}
@@ -303,11 +257,11 @@ func TestRunningSessionsResolveRelationsAndRooms(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, map[int64]struct{}{12: {}}, owned)
 
-	active.getRoomsByIDsFn = func([]int64) ([]*activeModels.SessionRoom, error) { return nil, errors.New("boom") }
+	active.getRoomsByIDsFn = func([]int64) ([]*studentpresence.SessionRoomSummary, error) { return nil, errors.New("boom") }
 	_, err = s.Running(ctx)
 	require.ErrorContains(t, err, "bulk load rooms")
 
-	active.getActiveGroupsByIDsFn = func([]int64) (map[int64]*activeModels.Group, error) { return nil, errors.New("boom") }
+	active.getActiveGroupsByIDsFn = func([]int64) (map[int64]*studentpresence.SessionDetail, error) { return nil, errors.New("boom") }
 	_, err = s.Running(ctx)
 	require.ErrorContains(t, err, "load active group relations")
 
@@ -320,18 +274,18 @@ func TestSupervisedSessionsAndUnclaimed(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	userContext := &mockUserContextService{getMySupervisedGroupsFn: func() ([]*activeModels.Group, error) {
-		return []*activeModels.Group{{Model: base.Model{ID: 11}, RoomID: 21}, {Model: base.Model{ID: 12}}}, nil
+	userContext := &mockUserContextService{getMySupervisedGroupsFn: func() ([]*studentpresence.SessionDetail, error) {
+		return []*studentpresence.SessionDetail{{ID: 11, RoomID: 21}, {ID: 12}}, nil
 	}}
 	active := &mockActiveService{
-		getRoomsByIDsFn: func(ids []int64) ([]*activeModels.SessionRoom, error) {
+		getRoomsByIDsFn: func(ids []int64) ([]*studentpresence.SessionRoomSummary, error) {
 			assert.Equal(t, []int64{21}, ids)
-			return []*activeModels.SessionRoom{{ID: 21, Name: "Zebra"}}, nil
+			return []*studentpresence.SessionRoomSummary{{ID: 21, Name: "Zebra"}}, nil
 		},
-		getUnclaimedActiveGroupsFn: func() ([]*activeModels.Group, error) {
-			return []*activeModels.Group{
-				{Model: base.Model{ID: 11}, Room: &activeModels.SessionRoom{ID: 21, Name: "Adler"}},
-				{Model: base.Model{ID: 12}},
+		getUnclaimedActiveGroupsFn: func() ([]*studentpresence.SessionDetail, error) {
+			return []*studentpresence.SessionDetail{
+				{ID: 11, Room: &studentpresence.SessionRoomSummary{ID: 21, Name: "Adler"}},
+				{ID: 12},
 			}, nil
 		},
 	}
@@ -346,7 +300,7 @@ func TestSupervisedSessionsAndUnclaimed(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []supervisiondashboard.UnclaimedGroup{{ID: 11, RoomName: "Adler"}, {ID: 12}}, unclaimed)
 
-	userContext.getMySupervisedGroupsFn = func() ([]*activeModels.Group, error) { return nil, errors.New("boom") }
+	userContext.getMySupervisedGroupsFn = func() ([]*studentpresence.SessionDetail, error) { return nil, errors.New("boom") }
 	_, err = s.Supervised(ctx)
 	require.EqualError(t, err, "boom")
 }
@@ -356,16 +310,16 @@ func TestMyGroupsResolvesRoomsOnlyForGroupsWithRooms(t *testing.T) {
 
 	ctx := context.Background()
 	roomID := int64(31)
-	userContext := &mockUserContextService{getMyGroupsFn: func() ([]*educationModels.Group, error) {
-		return []*educationModels.Group{
-			{Model: base.Model{ID: 41}, Name: "Bären", RoomID: &roomID},
-			{Model: base.Model{ID: 42}, Name: "Füchse"},
+	userContext := &mockUserContextService{myGroupsFn: func() ([]CallerGroup, error) {
+		return []CallerGroup{
+			{ID: 41, Name: "Bären", RoomID: &roomID},
+			{ID: 42, Name: "Füchse"},
 		}, nil
 	}}
 	education := &mockEducationService{getGroupsWithRoomsByIDsFn: func(ids []int64) (map[int64]*educationModels.Group, error) {
 		assert.Equal(t, []int64{41}, ids)
 		return map[int64]*educationModels.Group{
-			41: {Model: base.Model{ID: 41}, Room: &facilitiesModels.Room{ID: 31, Name: "Igel"}},
+			41: {ID: 41, Room: &facilitiesModels.Room{ID: 31, Name: "Igel"}},
 			42: nil,
 		}, nil
 	}}
@@ -379,7 +333,7 @@ func TestMyGroupsResolvesRoomsOnlyForGroupsWithRooms(t *testing.T) {
 	_, err = g.MyGroups(ctx)
 	require.ErrorContains(t, err, "load education group rooms")
 
-	userContext.getMyGroupsFn = func() ([]*educationModels.Group, error) { return nil, nil }
+	userContext.myGroupsFn = func() ([]CallerGroup, error) { return nil, nil }
 	education.getGroupsWithRoomsByIDsFn = func([]int64) (map[int64]*educationModels.Group, error) {
 		t.Fatal("no groups with rooms, no room lookup")
 		return nil, nil
@@ -461,16 +415,16 @@ func TestPresenceMapsVisitsAndAttendance(t *testing.T) {
 	sick := true
 	photo := "/uploads/student-photos/p.jpg"
 	active := &mockActiveService{
-		getActiveGroupVisitsFn: func(activeGroupID int64) ([]*activeService.VisitWithStudentDisplay, error) {
+		getActiveGroupVisitsFn: func(activeGroupID int64) ([]*studentpresence.VisitDisplay, error) {
 			assert.Equal(t, int64(55), activeGroupID)
-			return []*activeService.VisitWithStudentDisplay{
+			return []*studentpresence.VisitDisplay{
 				{StudentID: 1, ActiveGroupID: 55, EntryTime: checkedIn, FirstName: "Erika", LastName: "Muster", SchoolClass: "4a", OGSGroupName: "Bären", Sick: &sick, SickSince: &checkedIn, PhotoPath: &photo},
 				{StudentID: 2, ActiveGroupID: 55, EntryTime: checkedIn, ExitTime: &checkedOut},
 				nil,
 			}, nil
 		},
-		getAttendanceStatusesFn: func([]int64) (map[int64]*activeService.AttendanceStatus, error) {
-			return map[int64]*activeService.AttendanceStatus{1: {CheckInTime: &checkedIn, CheckOutTime: &checkedOut}, 2: nil}, nil
+		getAttendanceStatusesFn: func([]int64) (map[int64]*studentpresence.DailyAttendanceStatus, error) {
+			return map[int64]*studentpresence.DailyAttendanceStatus{1: {CheckInTime: &checkedIn, CheckOutTime: &checkedOut}, 2: nil}, nil
 		},
 	}
 	p := presence{active: active}
@@ -495,17 +449,17 @@ func TestPlanningMapsEffectiveTimes(t *testing.T) {
 	pickup := timezone.NormalizeWallClock(time.Date(2026, time.August, 19, 15, 30, 0, 0, time.UTC))
 	arrival := timezone.NormalizeWallClock(time.Date(2026, time.August, 19, 11, 45, 0, 0, time.UTC))
 	p := planning{
-		pickups: &mockPickupService{getBulkEffectivePickupTimesForDateFn: func(studentIDs []int64, gotDate timezone.Date) (map[int64]*careschedule.EffectivePickupTime, error) {
+		pickups: &mockPickupService{getBulkEffectivePickupTimesForDateFn: func(studentIDs []int64, gotDate timezone.Date) (map[int64]*careplan.EffectivePickupTime, error) {
 			assert.Equal(t, []int64{42}, studentIDs)
 			assert.Equal(t, date, gotDate)
-			return map[int64]*careschedule.EffectivePickupTime{
-				42: {Date: date, PickupTime: &pickup, WeekdayName: "Mittwoch", IsException: true, Notes: "Oma", DayNotes: []careschedule.NoteData{{ID: 3, Content: "Klingeln"}}},
+			return map[int64]*careplan.EffectivePickupTime{
+				42: {Date: date, PickupTime: &pickup, WeekdayName: "Mittwoch", IsException: true, Notes: "Oma", DayNotes: []careplan.NoteData{{ID: 3, Content: "Klingeln"}}},
 				43: nil,
 			}, nil
 		}},
-		arrivals: &mockArrivalService{getBulkEffectiveArrivalTimesForDateFn: func([]int64, timezone.Date) (map[int64]*careschedule.EffectiveArrivalTime, error) {
-			return map[int64]*careschedule.EffectiveArrivalTime{
-				42: {Date: date, ArrivalTime: &arrival, WeekdayName: "Mittwoch", Notes: "Bus", DayNotes: []careschedule.ArrivalNoteData{{ID: 4, Content: "Verspätung"}}},
+		arrivals: &mockArrivalService{getBulkEffectiveArrivalTimesForDateFn: func([]int64, timezone.Date) (map[int64]*careplan.EffectiveArrivalTime, error) {
+			return map[int64]*careplan.EffectiveArrivalTime{
+				42: {Date: date, ArrivalTime: &arrival, WeekdayName: "Mittwoch", Notes: "Bus", DayNotes: []careplan.ArrivalNoteData{{ID: 4, Content: "Verspätung"}}},
 			}, nil
 		}},
 	}

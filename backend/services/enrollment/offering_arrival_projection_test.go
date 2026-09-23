@@ -2,104 +2,72 @@ package enrollment_test
 
 import (
 	"context"
-
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-
-	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // bookingModeArrivalBaseline mirrors projectedPickupReader: the arrival
 // projection with enrollment.bookings_authoritative switched on, so the
 // approved booking links decide which weekdays a child is in care (#2414).
-func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritative bool) careschedule.ArrivalBaselineReader {
+func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritative bool) careplan.ArrivalBaselineReader {
 	t.Helper()
-	return careschedule.NewArrivalBaselineService(
-		env.repos.StudentArrivalSchedule,
-		env.repos.Student,
-		env.repos.ClassArrivalTime,
-		env.repos.ClassArrivalException,
-		approvedOfferingTestProjection(env.repos),
-		env.repos.CareOffering,
-		bookingModeSettings(authoritative),
-	)
-}
-
-func bookingModeSettings(authoritative bool) configService.SettingsService {
-	return &configtest.Mock{
-		ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
-			if key == configModel.KeyEnrollmentBookingsAuthoritative {
-				return authoritative, nil
-			}
-			return false, nil
-		},
+	classArrivalQueries, err := arrivalTimetable.NewClassArrivalQueries(env.db, func(arrivalTimetable.Observation) {})
+	if err != nil {
+		panic(err)
 	}
+	baselines, err := newArrivalBaselinesFixture(env.repos.CarePlan(), repositories.MustNewPeopleDirectory(env.db), classArrivalQueries, approvedOfferingTestProjection(env.repos), func(context.Context) (bool, error) { return authoritative, nil })
+	if err != nil {
+		panic(err)
+	}
+	return baselines
 }
 
-func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool) careschedule.CareDayService {
+func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool) careplan.CareDayQuery {
 	t.Helper()
-	participation := carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
-		StudentRepo: repositories.NewCareStudents(env.repos.Student, env.repos.SchoolMembership()), PersonRepo: env.repos.Person,
-		CareExitRepo: env.repos.CareExit, CleanupRepo: env.repos.CareExitCleanup,
-		WithdrawalRepo: env.repos.CareWithdrawal, TagReleaser: env.repos.StudentTagReleaser(),
-		AuditService:          usersService.NewStudentAuditService(repositories.NewStudentAudit(env.db)),
+	participation := newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
 		BookingsAuthoritative: func(context.Context) (bool, error) { return authoritative, nil },
-		DB:                    env.db, Logger: slog.Default(),
 	})
-	return careschedule.NewCareDayService(careschedule.CareDayDependencies{
-		ArrivalBaselines:  bookingModeArrivalBaseline(t, env, authoritative),
-		ArrivalSchedules:  env.repos.StudentArrivalSchedule,
-		ArrivalExceptions: env.repos.StudentArrivalException,
-		PickupBaselines: carescheduletest.NewPickupBaselineService(
-			env.repos.StudentPickupSchedule,
-			approvedOfferingTestProjection(env.repos),
-			env.repos.CareOffering,
-		),
-		PickupExceptions:  env.repos.StudentPickupException,
+	return careplanCompose.NewCareDays(careplanCompose.CareDayDependencies{
+		ArrivalBaselines: bookingModeArrivalBaseline(t, env, authoritative),
+		Records:          env.repos.CarePlan(),
+
+		PickupBaselines: newPickupBaselineService(env.repos.CarePlan(), approvedOfferingTestProjection(env.repos)),
+
 		CareParticipation: participation,
 	})
 }
 
-func bookingModePickupBaseline(env *decisionTestEnv, authoritative bool) careschedule.PickupBaselineReader {
-	return careschedule.NewPickupBaselineServiceWithSettings(
-		env.repos.StudentPickupSchedule,
-		approvedOfferingTestProjection(env.repos),
-		env.repos.CareOffering,
-		bookingModeSettings(authoritative),
-	)
+func bookingModePickupBaseline(env *decisionTestEnv, authoritative bool) careplan.PickupBaselineReader {
+	baselines, err := careplanCompose.NewPickupBaselines(env.repos.CarePlan(), approvedOfferingTestProjection(env.repos),
+		func(context.Context) (bool, error) { return authoritative, nil })
+	if err != nil {
+		panic(err)
+	}
+	return baselines
 }
 
-func bookingModePickupService(env *decisionTestEnv, authoritative bool) careschedule.PickupScheduleService {
-	return careschedule.NewPickupScheduleServiceWithBulk(
-		env.repos.StudentPickupSchedule,
-		env.repos.StudentPickupException,
-		env.repos.StudentPickupNote,
-		env.repos.Student,
-		env.repos.Person,
-		nil,
-		bookingModePickupBaseline(env, authoritative),
-		env.db,
-		nil,
-	)
+func bookingModePickupService(env *decisionTestEnv, authoritative bool) careplan.PickupScheduleService {
+	result, err := careplanCompose.NewPickupSchedules(env.db, env.repos.CarePlan(), bookingModePickupBaseline(env, authoritative), nil, nil, nil)
+	if err != nil {
+		panic(err)
+	}
+	return result
 }
 
 func assertLegacyPickupRestored(t *testing.T, env *decisionTestEnv, studentID int64, date timezone.Date) {
@@ -123,7 +91,7 @@ func createArrivalOffering(t *testing.T, env *decisionTestEnv, name string, days
 		CountsAsCare:   true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, env.repos.CareOffering.Create(testpkg.Ctx(t), offering))
+	require.NoError(t, enrollmentSvc.NewCareOfferingRepository(env.repos.CarePlan()).Create(testpkg.Ctx(t), offering))
 	return offering
 }
 

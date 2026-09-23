@@ -19,6 +19,22 @@ const (
 	databaseStatsGradeTransitionsRead = "grade_transitions:read"
 )
 
+// DatabaseStatsPermissions lists every permission NewDatabaseStatsCapabilities
+// honours, so the route that serves the counts opens for exactly the callers
+// who would see at least one of them.
+func DatabaseStatsPermissions() []string {
+	return []string{
+		databaseStatsAdminWildcard, databaseStatsFullAccess,
+		databaseStatsUsersRead, databaseStatsUsersList,
+		databaseStatsRoomsRead, databaseStatsRoomsList,
+		databaseStatsActivitiesRead, databaseStatsActivitiesList,
+		databaseStatsGroupsRead, databaseStatsGroupsList,
+		databaseStatsAuthManage, databaseStatsIoTRead, databaseStatsIoTManage,
+		databaseStatsSchedulesRead, databaseStatsSchedulesList,
+		databaseStatsGradeTransitionsRead,
+	}
+}
+
 type DatabaseStatsCapabilities struct {
 	students, teachers, rooms, activities, groups bool
 	roles, devices, permissionCatalog             bool

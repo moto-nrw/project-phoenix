@@ -433,7 +433,7 @@ type AnnouncementRecipient struct {
 // no address, or one without portal access.
 //
 // HasPortalAccess is true when the guardian can actually see the announcement in
-// moto: a students_guardians link granting parent_portal.access on at least one
+// moto: a student-guardian relationship granting parent_portal.access on at least one
 // reached child, a linked account, and an active tenant membership. Only those
 // people can ever acknowledge.
 type AnnouncementDeliveryRecipient struct {

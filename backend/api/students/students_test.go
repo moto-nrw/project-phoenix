@@ -17,7 +17,7 @@ import (
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -49,14 +49,12 @@ func requireStudentsBusDaysColumn(t *testing.T, tc *testContext) {
 			SELECT 1
 			FROM information_schema.columns
 			WHERE table_schema = 'users'
-			  AND table_name = 'students'
+			  AND table_name = 'student_care_profiles'
 			  AND column_name = 'bus_days'
 		)
 	`).Scan(context.Background(), &exists)
 	require.NoError(t, err)
-	if !exists {
-		t.Skip("users.students.bus_days column is not present in this test database")
-	}
+	require.True(t, exists, "Care Plan bus_days column must exist")
 }
 
 // =============================================================================
@@ -290,9 +288,9 @@ func TestListStudents_DayPlanningStatus(t *testing.T) {
 	trueValue := true
 	_, err := tc.db.NewUpdate().
 		Model((*usersModel.Student)(nil)).
-		ModelTableExpr("users.students").
+		ModelTableExpr("users.student_care_profiles").
 		Set("sick = ?", trueValue).
-		Where("id = ?", sick.ID).
+		Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", sick.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 	testpkg.CreateTestArrivalException(t, tc.db, exceptionAbsent.ID, today, staff.ID, "", "Arzttermin")
@@ -519,9 +517,9 @@ func TestGetStudent(t *testing.T) {
 	t.Run("not_found_for_alumnus", func(t *testing.T) {
 		alumnus := testpkg.CreateTestStudent(t, tc.db, "Graduated", "Alumnus", "GS-Alum")
 		_, err := tc.db.NewUpdate().
-			TableExpr(`users.students`).
+			TableExpr(`users.student_school_memberships`).
 			Set("status = ?", string(usersModel.StudentStatusAlumnus)).
-			Where("id = ?", alumnus.ID).
+			Where("student_profile_id = ? AND deleted_at IS NULL", alumnus.ID).
 			Exec(t.Context())
 		require.NoError(t, err)
 
@@ -534,9 +532,9 @@ func TestGetStudent(t *testing.T) {
 	t.Run("not_found_for_ended_care_without_delete_permission", func(t *testing.T) {
 		ended := testpkg.CreateTestStudent(t, tc.db, "Care", "Ended", "GS-Ended")
 		_, err := tc.db.NewUpdate().
-			TableExpr(`users.students`).
+			TableExpr(`users.student_school_memberships`).
 			Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
-			Where("id = ?", ended.ID).
+			Where("student_profile_id = ? AND deleted_at IS NULL", ended.ID).
 			Exec(t.Context())
 		require.NoError(t, err)
 
@@ -555,7 +553,7 @@ func TestGetStudentIncludesConsentWithdrawalForStaff(t *testing.T) {
 	grantedAt := time.Date(2026, time.August, 20, 9, 0, 0, 0, time.UTC)
 	withdrawnAt := time.Date(2026, time.August, 31, 15, 0, 0, 0, time.UTC)
 	_, err := tc.db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_profiles`).
 		Set("agb_accepted_at = ?", grantedAt).
 		Set("photo_consent_given_at = NULL").
 		Where("id = ?", student.ID).
@@ -996,12 +994,12 @@ func TestUpdateStudent_SickStatusExtended(t *testing.T) {
 		assert.Equal(t, http.StatusOK, clearRR.Code, "Should clear sick status")
 		assert.Contains(t, clearRR.Body.String(), `"sick":false`)
 
-		var history activeModel.StudentStatusDay
+		var history testpkg.StudentStatusDayRow
 		err := tc.db.NewSelect().
 			Model(&history).
 			ModelTableExpr(`active.student_status_days AS "student_status_day"`).
 			Where(`"student_status_day".student_id = ?`, student.ID).
-			Where(`"student_status_day".status = ?`, activeModel.StudentStatusDaySick).
+			Where(`"student_status_day".status = ?`, absencerecords.StudentStatusDaySick).
 			Scan(context.Background())
 		require.NoError(t, err)
 		assert.NotNil(t, history.ClearedAt)
@@ -1045,12 +1043,12 @@ func TestUpdateStudent_WithExcusedStatus(t *testing.T) {
 		assert.Equal(t, http.StatusOK, clearRR.Code)
 		assert.Contains(t, clearRR.Body.String(), `"excused":false`)
 
-		var history activeModel.StudentStatusDay
+		var history testpkg.StudentStatusDayRow
 		err := tc.db.NewSelect().
 			Model(&history).
 			ModelTableExpr(`active.student_status_days AS "student_status_day"`).
 			Where(`"student_status_day".student_id = ?`, student.ID).
-			Where(`"student_status_day".status = ?`, activeModel.StudentStatusDayExcused).
+			Where(`"student_status_day".status = ?`, absencerecords.StudentStatusDayExcused).
 			Scan(context.Background())
 		require.NoError(t, err)
 		assert.NotNil(t, history.ClearedAt)
@@ -1241,9 +1239,9 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 			usersModel.BusDayWednesday: true,
 		}
 		_, err := tc.db.NewUpdate().
-			TableExpr(`users.students AS "student"`).
+			TableExpr(`users.student_care_profiles AS "student"`).
 			Set(`bus_days = ?`, existing).
-			Where(`"student".id = ?`, student.ID).
+			Where(`membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)`, student.ID).
 			Exec(testpkg.Ctx(t))
 		require.NoError(t, err)
 
@@ -1328,9 +1326,9 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 			usersModel.BusDayMonday: true,
 		}
 		_, err := tc.db.NewUpdate().
-			TableExpr(`users.students AS "student"`).
+			TableExpr(`users.student_care_profiles AS "student"`).
 			Set(`bus_days = ?`, existing).
-			Where(`"student".id = ?`, student.ID).
+			Where(`membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)`, student.ID).
 			Exec(testpkg.Ctx(t))
 		require.NoError(t, err)
 
@@ -1406,12 +1404,8 @@ func TestUpdateStudent_PersonFields(t *testing.T) {
 	t.Run("clear_guardian_fields", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Guardian", "Clear", "GCL1")
 
-		// First set guardian fields
-		ctx := testpkg.Ctx(t)
-		_, err := tc.db.ExecContext(ctx,
-			"UPDATE users.students SET guardian_name = ?, guardian_email = ? WHERE id = ?",
-			"Parent Name", "parent@test.com", student.ID)
-		require.NoError(t, err)
+		guardian := testpkg.CreateTestGuardianProfileNamed(t, tc.db, "Parent", "Name", "parent@test.com")
+		testpkg.CreateTestStudentGuardianLink(t, tc.db, student.ID, guardian.ID, "parent")
 
 		// Clear guardian name by setting empty string
 		body := map[string]interface{}{
@@ -1660,7 +1654,7 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 
 		// First set sick status
 		ctx := testpkg.Ctx(t)
-		_, err := tc.db.ExecContext(ctx, "UPDATE users.students SET sick = true WHERE id = ?", student.ID)
+		_, err := tc.db.ExecContext(ctx, "UPDATE users.student_care_profiles SET sick = true WHERE membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID)
 		require.NoError(t, err)
 
 		body := map[string]interface{}{
@@ -1839,9 +1833,9 @@ func TestListStudents_AlumniHidden(t *testing.T) {
 	hidden := testpkg.CreateTestStudent(t, tc.db, "Hidden", "Alumnus", alumniClass)
 
 	_, err := tc.db.NewUpdate().
-		TableExpr(`users.students`).
+		TableExpr(`users.student_school_memberships`).
 		Set("status = ?", string(usersModel.StudentStatusAlumnus)).
-		Where("id = ?", hidden.ID).
+		Where("student_profile_id = ? AND deleted_at IS NULL", hidden.ID).
 		Exec(t.Context())
 	require.NoError(t, err)
 
@@ -1884,9 +1878,9 @@ func TestListStudents_AlumniHidden(t *testing.T) {
 	t.Run("school-classes excludes alumni-only classes", func(t *testing.T) {
 		// Graduate the remaining active student too — class disappears entirely
 		_, err := tc.db.NewUpdate().
-			TableExpr(`users.students`).
+			TableExpr(`users.student_school_memberships`).
 			Set("status = ?", string(usersModel.StudentStatusAlumnus)).
-			Where("id = ?", visible.ID).
+			Where("student_profile_id = ? AND deleted_at IS NULL", visible.ID).
 			Exec(t.Context())
 		require.NoError(t, err)
 

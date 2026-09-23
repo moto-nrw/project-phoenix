@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -69,7 +68,7 @@ func TestStaffOffboardingAccessPreservesGuardianAndOtherTenant(t *testing.T) {
 	_, account := testpkg.CreateTestCalendarStaff(t, db, "Guardian", "Offboarding")
 	factory := setupAuthFactory(t, db)
 	access := factory.AccountAuthentication()
-	roles, err := access.ListRoles(ctx, identityaccess.RoleFilter{Name: authModels.BaseRoleGuardian})
+	roles, err := access.ListRoles(ctx, identityaccess.RoleFilter{Name: "guardian"})
 	require.NoError(t, err)
 	require.Len(t, roles, 1)
 	require.NoError(t, access.AssignRoleToAccount(ctx, account.ID, roles[0].ID))
@@ -83,7 +82,7 @@ func TestStaffOffboardingAccessPreservesGuardianAndOtherTenant(t *testing.T) {
 	remaining, err := access.GetAccountRoles(ctx, account.ID)
 	require.NoError(t, err)
 	require.Len(t, remaining, 1)
-	require.Equal(t, authModels.BaseRoleGuardian, remaining[0].Name)
+	require.Equal(t, "guardian", remaining[0].Name)
 	active, err := factory.Auth.VerifyAccountTenantMembership(ctx, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	require.True(t, active)

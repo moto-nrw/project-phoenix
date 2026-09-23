@@ -26,6 +26,9 @@ type Store interface {
 	FindRFIDCard(ctx context.Context, tag string, tenantID int64) (string, bool, domain.OperationStats, error)
 	FindAccount(ctx context.Context, id int64) (domain.Account, bool, domain.OperationStats, error)
 	FindAccountByEmail(ctx context.Context, email string) (domain.Account, bool, domain.OperationStats, error)
+	InsertAccount(ctx context.Context, email, passwordHash string) (domain.LoginAccount, domain.OperationStats, error)
+	// FindAccountsByEmails resolves the normalized addresses in one query.
+	FindAccountsByEmails(ctx context.Context, emails []string) (map[string]domain.Account, domain.OperationStats, error)
 	// EnsureActiveTenantMapping inserts the account's mapping for the tenant or
 	// reactivates an existing one, clearing its deactivation.
 	EnsureActiveTenantMapping(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)
@@ -257,6 +260,9 @@ type Observer func(Observation)
 // connection the caller's context carries; the locking variants require an
 // ambient transaction.
 type AccountLoginStore interface {
+	// DemoAccountExists reports whether a demo access of the public demo
+	// signed the account in (#3462). It needs the administrative transaction.
+	DemoAccountExists(ctx context.Context, accountID int64) (bool, error)
 	// HasActiveAccountTenant reports an active mapping of the account at the
 	// school.
 	HasActiveAccountTenant(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
@@ -292,9 +298,9 @@ type SchoolDirectory interface {
 	// LockSchoolShared reads the school under a FOR SHARE lock inside the
 	// caller's transaction.
 	LockSchoolShared(ctx context.Context, id int64) (domain.School, bool, error)
-	// ListActiveSchoolsOfAccount returns the live, active schools the
-	// account is actively mapped to.
-	ListActiveSchoolsOfAccount(ctx context.Context, accountID int64) ([]domain.School, error)
+	// ListActiveSchoolsByID returns the live, active schools among the supplied IDs.
+	// Identity has already selected the account's active memberships.
+	ListActiveSchoolsByID(ctx context.Context, schoolIDs []int64) ([]domain.School, error)
 }
 
 // PersonDirectory is the consumer-owned port over the People Directory name
@@ -389,6 +395,8 @@ type Runtime interface {
 	// so independent cleanup cannot join the caller's outcome.
 	Detach(ctx context.Context) context.Context
 	WithoutTransaction(ctx context.Context) context.Context
+	// AcquireLock takes a transaction-scoped advisory lock.
+	AcquireLock(ctx context.Context, key string) error
 }
 
 // AccountAccessStore is the persistence port over the identity-owned rows

@@ -7,39 +7,27 @@ import (
 
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
-	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
 
-type accountTenantSchoolRows interface {
-	ListAccountsBySchoolIDs(context.Context, []int64) ([]authModels.OrgAccountInfo, error)
-}
-
-type schoolAccountTenantRepository struct {
-	authModels.AccountTenantRepository
-	raw     accountTenantSchoolRows
-	schools organizationtenancy.Query
-}
-
-func (r schoolAccountTenantRepository) ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]authModels.OrgAccountInfo, error) {
+func (r operatorAccountDirectory) ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]OrgAccountInfo, error) {
 	schools, err := r.schools.ListSchoolsByOrganization(ctx, organizationID)
 	if err != nil {
 		return nil, fmt.Errorf("load organization schools for accounts: %w", err)
 	}
-	return r.listAccounts(ctx, activeSchoolIDs(schools, false))
+	return r.listAccounts(ctx, nonDeletedSchoolIDs(schools))
 }
 
-func (r schoolAccountTenantRepository) ListAllAccounts(ctx context.Context) ([]authModels.OrgAccountInfo, error) {
+func (r operatorAccountDirectory) ListAllAccounts(ctx context.Context) ([]OrgAccountInfo, error) {
 	schools, err := r.schools.ListNonDeletedSchools(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load schools for accounts: %w", err)
 	}
-	return r.listAccounts(ctx, activeSchoolIDs(schools, false))
+	return r.listAccounts(ctx, nonDeletedSchoolIDs(schools))
 }
 
-func (r schoolAccountTenantRepository) listAccounts(ctx context.Context, schoolIDs []int64) ([]authModels.OrgAccountInfo, error) {
-	rows, err := r.raw.ListAccountsBySchoolIDs(ctx, schoolIDs)
+func (r operatorAccountDirectory) listAccounts(ctx context.Context, schoolIDs []int64) ([]OrgAccountInfo, error) {
+	rows, err := r.accountsBySchoolIDs(ctx, schoolIDs)
 	if err != nil || len(rows) == 0 {
 		return rows, err
 	}
@@ -54,7 +42,7 @@ func (r schoolAccountTenantRepository) listAccounts(ctx context.Context, schoolI
 		}
 		rows[index].SchoolName = school.Name
 	}
-	slices.SortStableFunc(rows, func(left, right authModels.OrgAccountInfo) int {
+	slices.SortStableFunc(rows, func(left, right OrgAccountInfo) int {
 		if order := compareStrings(left.SchoolName, right.SchoolName); order != 0 {
 			return order
 		}
@@ -66,35 +54,10 @@ func (r schoolAccountTenantRepository) listAccounts(ctx context.Context, schoolI
 	return rows, nil
 }
 
-type schoolAccountRepository struct {
-	authModels.AccountRepository
-	schools organizationtenancy.Query
-}
-
-func (r schoolAccountRepository) FindManageableByID(ctx context.Context, id int64) (*authModels.Account, error) {
-	ctx, err := r.withSchoolScope(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return r.AccountRepository.FindManageableByID(ctx, id)
-}
-
-func (r schoolAccountRepository) withSchoolScope(ctx context.Context) (context.Context, error) {
-	organizationID, scoped := authRepo.OrganizationScope(ctx)
-	if !scoped {
-		return ctx, nil
-	}
-	schools, err := r.schools.ListSchoolsByOrganization(ctx, organizationID)
-	if err != nil {
-		return nil, fmt.Errorf("load manageable organization schools: %w", err)
-	}
-	return authRepo.WithManageableSchoolIDs(ctx, activeSchoolIDs(schools, true)), nil
-}
-
-func activeSchoolIDs(schools []organizationtenancy.School, activeOnly bool) []int64 {
+func nonDeletedSchoolIDs(schools []organizationtenancy.School) []int64 {
 	ids := make([]int64, 0, len(schools))
 	for _, school := range schools {
-		if school.IsDeleted() || (activeOnly && !school.Active) {
+		if school.IsDeleted() {
 			continue
 		}
 		ids = append(ids, school.ID)

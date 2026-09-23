@@ -14,32 +14,26 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
-	"github.com/stretchr/testify/assert"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCompanionPlanErrorRenderer(t *testing.T) {
 	t.Parallel()
 
 	t.Run("stranded companion is a client-fixable 400", func(t *testing.T) {
-		resp := rendererStatus(t, companionPlanErrorRenderer(carelifecycle.ErrCompanionWouldLoseDeparture))
+		resp := rendererStatus(t, companionPlanErrorRenderer(careplan.ErrCompanionWouldLoseDeparture))
 
 		assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
 		// The German sentinel text is the whole instruction the user gets.
-		assert.Equal(t, carelifecycle.ErrCompanionWouldLoseDeparture.Error(), resp.ErrorText)
+		assert.Equal(t, careplan.ErrCompanionWouldLoseDeparture.Error(), resp.ErrorText)
 	})
 
 	t.Run("busy companion lock is a retriable 409 with its code", func(t *testing.T) {
-		resp := rendererStatus(t, companionPlanErrorRenderer(carelifecycle.ErrCompanionLockBusy))
+		resp := rendererStatus(t, companionPlanErrorRenderer(careplan.ErrCompanionLockBusy))
 
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 		assert.Equal(t, CodeCompanionLockBusy, resp.Code)
@@ -70,8 +64,8 @@ func TestDecideMasterDataChangeRequest_MapsCompanionErrors(t *testing.T) {
 		err  error
 		want int
 	}{
-		{name: "stranded companion", err: carelifecycle.ErrCompanionWouldLoseDeparture, want: http.StatusBadRequest},
-		{name: "busy companion lock", err: carelifecycle.ErrCompanionLockBusy, want: http.StatusConflict},
+		{name: "stranded companion", err: careplan.ErrCompanionWouldLoseDeparture, want: http.StatusBadRequest},
+		{name: "busy companion lock", err: careplan.ErrCompanionLockBusy, want: http.StatusConflict},
 	}
 
 	for _, tt := range tests {
@@ -89,54 +83,18 @@ func TestDecideMasterDataChangeRequest_MapsCompanionErrors(t *testing.T) {
 }
 
 // companionErrCareRequestService fails every Decide with one companion
-// sentinel; the other methods exist only to satisfy the interface.
+// sentinel; MarkDone exists only to satisfy the native decision interface.
 type companionErrCareRequestService struct {
 	decideErr error
 }
 
-func (f *companionErrCareRequestService) CreateRequest(context.Context, int64, int64, map[string]any) (*scheduleModels.CareScheduleChangeRequest, error) {
-	return nil, nil
+func (f *companionErrCareRequestService) MarkDone(context.Context, int64, string, string, int64) error {
+	return nil
 }
 
-func (f *companionErrCareRequestService) WithdrawRequest(context.Context, int64, int64, int64) (*scheduleModels.CareScheduleChangeRequest, error) {
-	return nil, nil
-}
-
-func (f *companionErrCareRequestService) WithdrawPickupChangeRequest(context.Context, int64, int64, int64) (*scheduleModels.CareScheduleChangeRequest, error) {
-	return nil, nil
-}
-
-func (f *companionErrCareRequestService) GetPendingForStudent(context.Context, int64) (*scheduleModels.CareScheduleChangeRequest, []careschedule.RequestDiffEntry, error) {
-	return nil, nil, nil
-}
-
-func (f *companionErrCareRequestService) ListHistory(context.Context, modelBase.RequestQueueFilters) ([]*careschedule.CareRequestHistoryItem, *userService.HistoryCursor, error) {
-	return nil, nil, nil
-}
-
-func (f *companionErrCareRequestService) ListPending(context.Context, modelBase.RequestQueueFilters) ([]*careschedule.CareRequestReviewItem, *userService.HistoryCursor, error) {
-	return nil, nil, nil
-}
-
-func (f *companionErrCareRequestService) GetForReview(context.Context, int64) (*careschedule.CareRequestHistoryItem, error) {
-	return nil, nil
-}
-
-func (f *companionErrCareRequestService) CreatePickupChangeRequest(context.Context, int64, int64, timezone.Date, time.Time, string) (*scheduleModels.CareScheduleChangeRequest, error) {
-	return nil, nil
-}
-
-func (f *companionErrCareRequestService) ListPendingPickupChanges(context.Context) ([]*careschedule.CareRequestReviewItem, error) {
-	return nil, nil
-}
-
-func (f *companionErrCareRequestService) ListPickupChangeRequests(context.Context, int64, time.Time) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	return nil, nil
-}
-
-func (f *companionErrCareRequestService) Decide(_ context.Context, input careschedule.CareRequestDecideInput) (*careschedule.CareRequestReviewItem, error) {
+func (f *companionErrCareRequestService) Decide(_ context.Context, input carerequests.DecideInput) (*carerequests.ReviewItem, error) {
 	if f.decideErr == nil && input.RequireImpactToken && input.ExpectedImpactToken == nil {
-		return nil, careschedule.ErrPickupChangeImpactRequired
+		return nil, carerequests.ErrPickupChangeImpactRequired
 	}
 	return nil, f.decideErr
 }
@@ -152,10 +110,10 @@ func TestDecideCareScheduleChangeRequest_MapsCompanionErrors(t *testing.T) {
 		want     int
 		wantCode string
 	}{
-		{name: "stranded companion", err: carelifecycle.ErrCompanionWouldLoseDeparture, want: http.StatusBadRequest},
-		{name: "busy companion lock", err: carelifecycle.ErrCompanionLockBusy, want: http.StatusConflict},
-		{name: "stale pickup impact", err: careschedule.ErrPickupChangeImpactChanged, want: http.StatusConflict, wantCode: "pickup_change_impact_changed"},
-		{name: "care day belongs to booking", err: careschedule.ErrCareDayManagedByBooking, want: http.StatusConflict, wantCode: "care_day_managed_by_booking"},
+		{name: "stranded companion", err: careplan.ErrCompanionWouldLoseDeparture, want: http.StatusBadRequest},
+		{name: "busy companion lock", err: careplan.ErrCompanionLockBusy, want: http.StatusConflict},
+		{name: "stale pickup impact", err: carerequests.ErrPickupChangeImpactChanged, want: http.StatusConflict, wantCode: "pickup_change_impact_changed"},
+		{name: "care day belongs to booking", err: carerequests.ErrCareDayManagedByBooking, want: http.StatusConflict, wantCode: "care_day_managed_by_booking"},
 		{name: "missing pickup impact", want: http.StatusBadRequest},
 		{name: "unrelated error stays a server error", err: errors.New("boom"), want: http.StatusInternalServerError},
 	}
@@ -174,20 +132,4 @@ func TestDecideCareScheduleChangeRequest_MapsCompanionErrors(t *testing.T) {
 			}
 		})
 	}
-}
-
-// EditRequest is the guardian edit path (#2267); this staff-side double never
-// reaches it.
-func (f *companionErrCareRequestService) EditRequest(
-	context.Context, careschedule.CareRequestEditInput,
-) (*scheduleModels.CareScheduleChangeRequest, error) {
-	return nil, nil
-}
-
-// CreatePickupChange is the reason-policy-aware create path (#2267); this
-// staff-side double never reaches it.
-func (f *companionErrCareRequestService) CreatePickupChange(
-	context.Context, careschedule.PickupChangeCreateInput,
-) (*scheduleModels.CareScheduleChangeRequest, error) {
-	return nil, nil
 }

@@ -14,7 +14,6 @@ type StaffCredentials struct {
 	AccountID int64
 	Email     string
 	Password  string
-	PIN       string
 	Name      string
 	Position  string
 }
@@ -40,6 +39,8 @@ type FixedSeeder struct {
 	accountIDs       map[string]int64   // "firstName lastName" -> account id
 	guardianIDs      map[string]int64   // guardian "firstName lastName" -> id
 	staffCredentials []StaffCredentials // created staff credentials for summary
+	accountScope     string             // slug all account emails and usernames carry; empty for the local seed
+	visitorName      string             // prospect of the public demo shown as one caregiver and one parent
 }
 
 // FixedResult contains counts of created entities
@@ -102,6 +103,12 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 		return nil, fmt.Errorf("failed to fetch roles: %w", err)
 	}
 
+	// 1b. The reduced roles of the demo school (#3469); the demo role switch
+	//     of the public demo puts the visitor's account into one of them.
+	if err := s.seedDemoRoles(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed demo roles: %w", err)
+	}
+
 	// 2. Create rooms
 	if err := s.seedRooms(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed rooms: %w", err)
@@ -137,6 +144,12 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 	// 7. Create students
 	if err := s.seedStudents(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed students: %w", err)
+	}
+	if err := s.seedSchoolPeriods(); err != nil {
+		return nil, fmt.Errorf("failed to seed school periods: %w", err)
+	}
+	if err := s.seedCareTimePresets(); err != nil {
+		return nil, fmt.Errorf("failed to seed care time presets: %w", err)
 	}
 	if err := s.seedClassArrivalTimes(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed class arrival times: %w", err)
@@ -198,6 +211,41 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 
 	fmt.Println("✅ Fixed data creation complete!")
 	return result, nil
+}
+
+// seedSchoolPeriods maintains the lesson end times of the demo school (#3372),
+// so the arrival forms offer "nach der 5. Stunde". The 4th to 6th lesson end
+// where the seeded classes have their Unterrichtsschluss.
+func (s *FixedSeeder) seedSchoolPeriods() error {
+	endTimes := []string{"08:45", "09:30", "10:40", "11:45", "12:45", "13:30"}
+	for index, endTime := range endTimes {
+		path := fmt.Sprintf("/api/settings/values/school_periods.end_%d", index+1)
+		if _, err := s.client.Put(path, map[string]any{"value": endTime}); err != nil {
+			return fmt.Errorf("seed end of lesson %d: %w", index+1, err)
+		}
+	}
+	if s.verbose {
+		fmt.Printf("  ✓ %d school periods seeded\n", len(endTimes))
+	}
+	return nil
+}
+
+// seedCareTimePresets maintains the usual arrival and pickup time of the demo
+// school (#3371), so the weekly plan offers them for one-click adoption.
+func (s *FixedSeeder) seedCareTimePresets() error {
+	presets := map[string]string{
+		"care_times.default_arrival": "12:30",
+		"care_times.default_pickup":  "16:00",
+	}
+	for key, value := range presets {
+		if _, err := s.client.Put("/api/settings/values/"+key, map[string]any{"value": value}); err != nil {
+			return fmt.Errorf("seed %s: %w", key, err)
+		}
+	}
+	if s.verbose {
+		fmt.Printf("  ✓ %d care time presets seeded\n", len(presets))
+	}
+	return nil
 }
 
 func (s *FixedSeeder) seedClassArrivalTimes(_ context.Context, result *FixedResult) error {
@@ -719,15 +767,15 @@ func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) erro
 
 		// 1. Create guardian profile
 		body := map[string]any{
-			"first_name":               guardian.FirstName,
-			"last_name":                guardian.LastName,
 			"preferred_contact_method": "email",
 			"language_preference":      "de",
 		}
+		body["first_name"], body["last_name"] = visitorDisplayName(s.visitorName, index == visitorGuardianIndex,
+			guardian.FirstName, guardian.LastName, DemoGuardians[visitorGuardianIndex].FirstName, DemoGuardians[visitorGuardianIndex].LastName)
 
 		// Add contact methods
 		if guardian.Email != "" {
-			body["email"] = guardian.Email
+			body["email"] = scopedEmail(guardian.Email, s.accountScope)
 		}
 		if guardian.Phone != "" {
 			body["phone"] = guardian.Phone
@@ -1251,12 +1299,15 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 		// Email: demo{n}@mail.de where n = account number (1-20)
 		// Password: per-account defaults, or shared --staff-password when set
 		accountNum := i + 1
-		email := fmt.Sprintf("demo%d@mail.de", accountNum)
+		email := scopedEmail(fmt.Sprintf("demo%d@mail.de", accountNum), s.accountScope)
+		username := fmt.Sprintf("demo%d", accountNum)
+		if s.accountScope != "" {
+			username += "-" + s.accountScope
+		}
 		password := demoPasswords[i]
 		if s.staffPassword != "" {
 			password = s.staffPassword
 		}
-		pin := fmt.Sprintf("%04d", 1000+i)
 
 		// Assign role based on position:
 		// - OGS-Büro → admin (OGS leadership with full access)
@@ -1280,12 +1331,18 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 		// (tenant_id, account_id) against the person it just created.
 		registerBody := map[string]any{
 			"email":            email,
-			"username":         fmt.Sprintf("demo%d", accountNum),
+			"username":         username,
 			"password":         password,
 			"confirm_password": password,
 			"role_id":          roleID,
-			"first_name":       staff.FirstName,
-			"last_name":        staff.LastName,
+		}
+		registerBody["first_name"], registerBody["last_name"] = visitorDisplayName(s.visitorName, i == visitorStaffIndex,
+			staff.FirstName, staff.LastName, DemoStaff[visitorStaffIndex].FirstName, DemoStaff[visitorStaffIndex].LastName)
+		if s.visitorName != "" && i == visitorStaffIndex {
+			// The visitor enters with every function; the demo role chosen on
+			// the entry page replaces it with a reduced role of the school
+			// (#3469), so the seed itself needs no role for the visitor.
+			registerBody["role_id"] = adminRoleID
 		}
 
 		registerResp, err := s.client.Post("/auth/register", registerBody)
@@ -1320,7 +1377,6 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 			AccountID: account.Data.ID,
 			Email:     email,
 			Password:  password,
-			PIN:       pin,
 			Name:      personKey,
 			Position:  staff.Position,
 		})

@@ -5,10 +5,10 @@ import { CareOfferingsEditor } from "~/components/enrollment/care-offerings-edit
 import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
-import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
+import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
 export default function CareOfferingsPage() {
-  const { isReady } = useRequireAdmin();
+  const { isReady } = useRequirePermission("config:manage");
   // Statuszeile des Seitenkopfs: der Editor meldet die Zahlen seines
   // Katalogs, damit die Kopfkarte ohne zweiten Request auskommt.
   const [summary, setSummary] = useState<{

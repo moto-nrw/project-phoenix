@@ -5,72 +5,45 @@ import (
 	"time"
 )
 
-const (
-	InstanceAttendanceExpected = "expected"
-	InstanceAttendancePresent  = "present"
-	InstanceAttendanceAbsent   = "absent"
-)
-
+// InstanceStudent is one planned participant of an activity instance: the
+// child and the room the plan places them in (#2762). What was observed or
+// decided for the participant is Student Presence's session attendance,
+// keyed by this row's ID.
 type InstanceStudent struct {
-	ID                 int64
-	TenantID           int64
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
-	InstanceID         int64
-	StudentID          int64
-	RoomID             *int64
-	Status             string
-	Substatus          *string
-	Note               *string
-	CheckedInAt        *time.Time
-	CheckedOutAt       *time.Time
-	IsUnplanned        bool
-	NotScheduled       bool
-	ManualStatusAt     *time.Time
-	StudentStatusDayID *int64
-	PickupExceptionID  *int64
+	ID         int64
+	TenantID   int64
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	InstanceID int64
+	StudentID  int64
+	RoomID     *int64
 }
 
 type InstanceStudentInput struct {
-	InstanceID         int64
-	StudentID          int64
-	RoomID             *int64
-	Status             string
-	Substatus          *string
-	Note               *string
-	CheckedInAt        *time.Time
-	CheckedOutAt       *time.Time
-	IsUnplanned        bool
-	NotScheduled       bool
-	ManualStatusAt     *time.Time
-	StudentStatusDayID *int64
-	PickupExceptionID  *int64
+	InstanceID int64
+	StudentID  int64
+	RoomID     *int64
 }
 
+// InstanceStudentFilter selects planned participants. Date, FromDate and
+// ToDate name the instance's planning day; CurrentTime keeps the instances
+// whose block covers that clock on Date and are not cancelled.
 type InstanceStudentFilter struct {
 	IDs                        []int64
 	InstanceIDs                []int64
 	StudentIDs                 []int64
-	Status                     *string
 	Date                       *string
 	FromDate                   *string
 	ToDate                     *string
 	CurrentTime                *string
-	NotScheduledCandidatesOnly bool
+	FromClock                  *string
+	ExcludeCancelled           bool
 	OrderByCreated             bool
 	OrderByInstanceStudent     bool
 	OrderByStudentActivityTime bool
 	OrderByActivityDateTime    bool
 	Limit                      int
 	Offset                     int
-}
-
-type ParallelPresence struct {
-	StudentID  int64
-	InstanceID int64
-	Title      string
-	StartTime  time.Time
-	EndTime    time.Time
 }
 
 type InstanceStudentKey struct {
@@ -83,54 +56,48 @@ type StudentInstanceRef struct {
 	InstanceID int64
 }
 
-type ScheduledInstanceRow struct {
-	Instance   ActivityInstance
-	Attendance InstanceStudent
-}
-
-type PickupException struct {
-	ID            int64
-	StudentID     int64
-	ExceptionDate string
-	ExcusedFrom   *time.Time
-	ExcusedAuto   bool
-}
-
-type PickupExceptionFilter struct {
-	IDs        []int64
-	StudentIDs []int64
+// PlannedInstanceStudent is a participant together with the planning day and
+// block start of its instance, the shape the attendance rules of Student
+// Presence resolve their participants from.
+type PlannedInstanceStudent struct {
+	ID         int64
+	InstanceID int64
+	StudentID  int64
 	Date       string
-	From       string
+	StartTime  string
 }
 
-type StudentStatusDay struct {
-	ID        int64
-	StudentID int64
-	Date      string
-	Status    string
+// ArchivedAttendance is the attendance snapshot a grade transition keeps
+// beside a removed participant, so a restore can hand it back to Student
+// Presence. Timetable stores it verbatim and never interprets it.
+type ArchivedAttendance struct {
+	Status             string
+	Substatus          *string
+	Note               *string
+	IsUnplanned        bool
+	NotScheduled       bool
+	ManualStatusAt     *time.Time
+	StudentStatusDayID *int64
 }
 
-type StudentStatusDayFilter struct {
-	IDs        []int64
-	StudentIDs []int64
+// RosterArchiveEntry is one participant a grade transition removes together
+// with the attendance snapshot the caller read from its owner.
+type RosterArchiveEntry struct {
+	ParticipantID int64
+	Attendance    ArchivedAttendance
+}
+
+// RestoredInstanceStudent is one participant a grade transition restored,
+// with the planning facts and the archived attendance the caller hands back
+// to Student Presence.
+type RestoredInstanceStudent struct {
+	ID         int64
+	InstanceID int64
+	StudentID  int64
+	RoomID     *int64
 	Date       string
-	From       string
-	ActiveOnly bool
-	LatestOnly bool
-}
-
-type PartialAbsenceBlock struct {
-	ID        int64
-	Title     string
-	StartTime time.Time
-	EndTime   time.Time
-}
-
-type CarePlanDirectory interface {
-	FindPickupException(context.Context, int64) (*PickupException, error)
-	ListPickupExceptions(context.Context, PickupExceptionFilter) ([]PickupException, error)
-	FindStudentStatusDay(context.Context, int64, bool) (*StudentStatusDay, error)
-	ListStudentStatusDays(context.Context, StudentStatusDayFilter) ([]StudentStatusDay, error)
+	StartTime  string
+	Attendance ArchivedAttendance
 }
 
 type RoomRef struct {
@@ -148,89 +115,39 @@ func (f RoomDirectoryFunc) LockRoomsByID(ctx context.Context, ids []int64) ([]Ro
 	return f(ctx, ids)
 }
 
-type CareDayLocker interface {
-	LockStudentAndExceptionDay(context.Context, int64, string) error
-	LockExceptionDay(context.Context, int64, string) error
-}
-
-type careDayLockerFuncs struct {
-	lockStudentAndDay func(context.Context, int64, string) error
-	lockDay           func(context.Context, int64, string) error
-}
-
-func NewCareDayLocker(lockStudentAndDay, lockDay func(context.Context, int64, string) error) CareDayLocker {
-	if lockStudentAndDay == nil || lockDay == nil {
-		panic("timetable: care-day lock functions are required")
-	}
-	return careDayLockerFuncs{lockStudentAndDay: lockStudentAndDay, lockDay: lockDay}
-}
-
-func (f careDayLockerFuncs) LockStudentAndExceptionDay(ctx context.Context, studentID int64, date string) error {
-	return f.lockStudentAndDay(ctx, studentID, date)
-}
-
-func (f careDayLockerFuncs) LockExceptionDay(ctx context.Context, studentID int64, date string) error {
-	return f.lockDay(ctx, studentID, date)
-}
-
-type AttendanceFieldPatch struct {
-	Status         *string
-	Substatus      *string
-	SubstatusClear bool
-	Note           *string
-	NoteClear      bool
-}
-
-func (p AttendanceFieldPatch) HasChanges() bool {
-	return p.Status != nil || p.Substatus != nil || p.SubstatusClear || p.Note != nil || p.NoteClear
-}
-
 type InstanceStudentQuery interface {
-	ListOpenStudentAssignments(ctx context.Context, studentIDs []int64) ([]int64, error)
-	LatestStudentAssignmentAttendanceDate(ctx context.Context, studentID int64) (*string, error)
-	CountStudentAssignments(context.Context, int64) (int, error)
-	CountStudentRosterRemovals(context.Context, int64) (int, error)
 	FindInstanceStudent(context.Context, int64) (InstanceStudent, error)
 	ListInstanceStudents(context.Context, InstanceStudentFilter) ([]InstanceStudent, error)
-	CountNonAbsentInstanceStudents(context.Context, []int64) (map[int64]int, error)
-	ListParallelStudentPresence(context.Context, int64, string, []int64) ([]ParallelPresence, error)
+	// ListPlannedInstanceStudents lists participants with their instance's
+	// planning day and block start.
+	ListPlannedInstanceStudents(context.Context, InstanceStudentFilter) ([]PlannedInstanceStudent, error)
+	CountStudentAssignments(context.Context, int64) (int, error)
+	CountStudentRosterRemovals(context.Context, int64) (int, error)
 	ListStudentInstanceRefsBefore(context.Context, string) ([]StudentInstanceRef, error)
-	ListScheduledInstancesForStudent(context.Context, int64, string, string) ([]ScheduledInstanceRow, error)
-	HasPlannedStudentSlots(context.Context, string, string) (bool, error)
 	ListPlannedStudentIDs(context.Context, []int64, string) ([]int64, error)
-	ListPartialAbsenceBlocks(context.Context, int64, string, time.Time) ([]PartialAbsenceBlock, error)
 }
 
 type InstanceStudentCommand interface {
+	// LockInstanceStudentAssignments holds the participant rows of the
+	// instance until the caller's tenant transaction ends.
 	LockInstanceStudentAssignments(context.Context, int64) error
-	RestoreInstanceStudentAttendance(context.Context, int64, []CompletionAttendance) error
-	LockOpenStudentAssignments(ctx context.Context, studentIDs []int64) error
-	ReconnectCareExitAssignmentPickupExceptions(ctx context.Context, studentIDs, pickupExceptionIDs []int64, removals []InstanceStudent) error
-	CloseOpenStudentAssignments(ctx context.Context, studentIDs []int64, at time.Time) (int64, error)
 	DeleteStudentAssignments(context.Context, int64) (int64, error)
 	CreateInstanceStudent(context.Context, InstanceStudentInput) (InstanceStudent, error)
+	// EnsureInstanceStudent adds the child to the instance's roster when it is
+	// not on it yet and reports whether it inserted the participant.
+	EnsureInstanceStudent(context.Context, int64, int64) (InstanceStudent, bool, error)
 	UpdateInstanceStudent(context.Context, int64, InstanceStudentInput) (InstanceStudent, error)
 	DeleteInstanceStudent(context.Context, int64) error
 	DeleteInstanceStudentsByInstance(context.Context, int64) error
-	UpdateAttendanceFromCheckin(context.Context, int64, int64, time.Time) (bool, error)
-	UpdateAttendanceFromCheckinBatch(context.Context, []InstanceStudentKey, time.Time) error
-	UpdateAttendanceCheckout(context.Context, int64, int64, time.Time) error
-	UpdateAttendanceCheckoutBatch(context.Context, []InstanceStudentKey, time.Time) error
-	CreateUnplannedPresentIfAbsent(context.Context, int64, int64, time.Time) (InstanceStudent, error)
-	ReconcileAttendanceInterval(context.Context, int64, int64, time.Time, *time.Time, time.Time, *time.Time) (bool, error)
-	UpdateAttendanceFields(context.Context, int64, AttendanceFieldPatch) error
-	BulkUpdateStatus(context.Context, int64, string, string, []int64) (int, error)
-	MarkNotScheduled(context.Context, []StudentInstanceRef) error
-	MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time, []StudentInstanceRef) error
-	CloseOpenCheckoutsByActiveGroupIDs(context.Context, []int64, time.Time) (int, error)
-	ApplyStatusDay(context.Context, int64, string, int64, string) (int, error)
-	ReleaseStatusDay(context.Context, int64) (int, error)
-	ApplyActiveStatusDaysForInstance(context.Context, int64, string) (int, error)
-	ApplyPartialAbsence(context.Context, int64) (int, error)
-	ReleasePartialAbsence(context.Context, int64) (int, error)
-	ApplyActivePartialAbsencesForInstance(context.Context, int64, string) (int, error)
-	ArchivePlannedInstanceStudents(context.Context, int64, []int64, string, time.Time) (int, error)
-	RestoreArchivedInstanceStudents(context.Context, int64, []int64, string) (int, error)
+	// ArchivePlannedInstanceStudents removes the participants of a grade
+	// transition together with the attendance snapshots the caller read and
+	// keeps them for a restore.
+	ArchivePlannedInstanceStudents(context.Context, int64, []RosterArchiveEntry) (int, error)
+	// RestoreArchivedInstanceStudents puts the archived participants of the
+	// students back onto rosters from the date on, skipping instances that
+	// ended, were cancelled, or list the child again, and returns what it
+	// restored.
+	RestoreArchivedInstanceStudents(context.Context, int64, []int64, string) ([]RestoredInstanceStudent, error)
 }
 
 type InstanceStudentCapability interface {
@@ -239,25 +156,7 @@ type InstanceStudentCapability interface {
 }
 
 func validInstanceStudent(input InstanceStudentInput) bool {
-	return input.InstanceID > 0 && input.StudentID > 0 &&
-		(input.RoomID == nil || *input.RoomID > 0) && validInstanceAttendanceStatus(input.Status) &&
-		(input.Substatus == nil || validInstanceAttendanceSubstatus(*input.Substatus)) &&
-		(input.StudentStatusDayID == nil || *input.StudentStatusDayID > 0) &&
-		(input.PickupExceptionID == nil || *input.PickupExceptionID > 0) &&
-		(input.Note == nil || len(*input.Note) <= 500)
-}
-
-func validInstanceAttendanceSubstatus(value string) bool {
-	switch value {
-	case "late", "excused", "sick", "field_trip", "other":
-		return true
-	default:
-		return false
-	}
-}
-
-func validInstanceAttendanceStatus(value string) bool {
-	return value == InstanceAttendanceExpected || value == InstanceAttendancePresent || value == InstanceAttendanceAbsent
+	return input.InstanceID > 0 && input.StudentID > 0 && (input.RoomID == nil || *input.RoomID > 0)
 }
 
 func validInstanceStudentFilter(filter InstanceStudentFilter) bool {
@@ -270,31 +169,16 @@ func validInstanceStudentFilter(filter InstanceStudentFilter) bool {
 	}
 	return filter.Limit >= 0 && filter.Offset >= 0 && orders <= 1 &&
 		!hasInvalidID(filter.IDs) && !hasInvalidID(filter.InstanceIDs) && !hasInvalidID(filter.StudentIDs) &&
-		(filter.Status == nil || validInstanceAttendanceStatus(*filter.Status)) &&
 		validOptionalDate(filter.Date) && validOptionalDate(filter.FromDate) && validOptionalDate(filter.ToDate) &&
-		(filter.CurrentTime == nil || (filter.Date != nil && validClock(*filter.CurrentTime)))
+		(filter.CurrentTime == nil || (filter.Date != nil && validClock(*filter.CurrentTime))) &&
+		(filter.FromClock == nil || validClock(*filter.FromClock))
 }
 
-func validInstanceStudentKeys(keys []InstanceStudentKey) bool {
-	for _, key := range keys {
-		if key.InstanceID <= 0 || key.StudentID <= 0 {
+func validRosterArchiveEntries(entries []RosterArchiveEntry) bool {
+	for _, entry := range entries {
+		if entry.ParticipantID <= 0 || entry.Attendance.Status == "" {
 			return false
 		}
 	}
 	return true
-}
-
-func validStudentInstanceRefs(refs []StudentInstanceRef) bool {
-	for _, ref := range refs {
-		if ref.InstanceID <= 0 || ref.StudentID <= 0 {
-			return false
-		}
-	}
-	return true
-}
-
-func validAttendanceFieldPatch(patch AttendanceFieldPatch) bool {
-	return patch.HasChanges() && (patch.Status == nil || validInstanceAttendanceStatus(*patch.Status)) &&
-		(patch.Substatus == nil || validInstanceAttendanceSubstatus(*patch.Substatus)) &&
-		(patch.Note == nil || len(*patch.Note) <= 500)
 }

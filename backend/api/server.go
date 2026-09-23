@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 )
@@ -166,18 +167,22 @@ func newWorker(api *API, logger *slog.Logger) (*scheduler.Scheduler, error) {
 	if api == nil || api.Services == nil || api.repos == nil {
 		return nil, fmt.Errorf("worker API graph is required")
 	}
-	deps := workerRuntimeDependencies(api, logger)
+	billing, err := newOperatorBilling(logger)
+	if err != nil {
+		return nil, fmt.Errorf("compose worker billing: %w", err)
+	}
+	deps := workerRuntimeDependencies(api, logger, billing)
 	addWorkerServiceDependencies(&deps, api)
 	addWorkerRepositoryDependencies(&deps, api)
 	return scheduler.NewWorker(deps)
 }
 
-func workerRuntimeDependencies(api *API, logger *slog.Logger) scheduler.WorkerDependencies {
+func workerRuntimeDependencies(api *API, logger *slog.Logger, billing organizationModule.BillingReport) scheduler.WorkerDependencies {
 	return scheduler.WorkerDependencies{
 		Logger:                 logger.With("service", "scheduler"),
 		Getenv:                 os.Getenv,
 		DB:                     api.db,
-		SchoolRepo:             schedulerTenantDirectory{schools: api.Services.Schools},
+		SchoolRepo:             schedulerTenantDirectory{schools: api.Services.Schools, billing: billing},
 		TenantRuntime:          &api.tenantRuntime,
 		TenantRuntimeObserver:  observability.RecordTenantRuntimeEvent,
 		UnitOfWorkObserver:     observability.RecordUnitOfWorkEvent,
@@ -263,7 +268,7 @@ func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, api *AP
 		Notifier:     api.Services.Notifications,
 		Preferences:  api.Services.NotificationPreferences,
 		Staff:        api.repos.Staff,
-		Accounts:     api.repos.Account,
+		Accounts:     api.Services.Auth,
 		WorkSessions: api.repos.WorkSession,
 	}
 }

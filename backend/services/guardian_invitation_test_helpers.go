@@ -9,7 +9,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -52,7 +51,7 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 	if err != nil {
 		return nil, err
 	}
-	signer, err := authjwt.NewTokenAuth()
+	signer, err := configuredTokenAuth()
 	if err != nil {
 		return nil, err
 	}
@@ -68,10 +67,18 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 	if cfg.Enrollments != nil {
 		claims = cfg.Enrollments
 	}
+	codec, err := signedIdentityTokensOf(signer)
+	if err != nil {
+		return nil, err
+	}
+	caregivers, err := caregiverProfilesForTests(db)
+	if err != nil {
+		return nil, err
+	}
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos: sessionRepositoriesOf(repos, repos.School), tokenAuth: signer, audit: audit, logger: logger,
+		repos: sessionRepositoriesOf(repos, repos.School), codec: codec, audit: audit, logger: logger,
 		lifecycle: &lifecycleWiring{
-			audit: audit,
+			audit: audit, caregivers: caregivers,
 			guardianMail: &guardianInvitationWiring{
 				schools:     repos.School,
 				outbox:      func() platformModels.OutboxEnqueuer { return outbox },

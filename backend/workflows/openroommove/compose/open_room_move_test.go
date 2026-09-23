@@ -11,8 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -25,14 +24,14 @@ import (
 // owners in a real database. The retained Student Presence binding is a
 // recording stand-in: the presence rules behind it (source-side rights, no
 // destination supervision, activity end, daily close) are covered by the
-// modules/studentpresence/legacy/services/active tests with a real database.
+// modules/studentpresence/internal/application/presence tests with a real database.
 
 type ensuredSession struct{ roomID, activityID int64 }
 
 type recordedMove struct {
 	sessionID  int64
 	studentIDs []int64
-	auth       activeSvc.StudentMoveAuthorization
+	auth       studentpresence.StudentMoveAuthorization
 }
 
 type recordingPresence struct {
@@ -48,7 +47,7 @@ func newRecordingPresence() *recordingPresence {
 	return &recordingPresence{sessions: map[ensuredSession]int64{}}
 }
 
-func (p *recordingPresence) EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*active.Group, error) {
+func (p *recordingPresence) EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*studentpresence.SessionDetail, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	key := ensuredSession{roomID: roomID, activityID: activityID}
@@ -60,12 +59,12 @@ func (p *recordingPresence) EnsureOpenRoomSession(ctx context.Context, roomID, a
 	}
 	_, inTx := tenant.TransactionFromContext(ctx)
 	p.inTx = append(p.inTx, inTx)
-	group := &active.Group{RoomID: roomID, GroupID: &activityID}
+	group := &studentpresence.SessionDetail{RoomID: roomID, ActivityGroupID: &activityID}
 	group.ID = id
 	return group, nil
 }
 
-func (p *recordingPresence) MoveStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, sessionID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+func (p *recordingPresence) MoveStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, sessionID int64, auth studentpresence.StudentMoveAuthorization) (*studentpresence.StudentMoveResult, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.moveErr != nil {
@@ -74,7 +73,7 @@ func (p *recordingPresence) MoveStudentsToOpenRoomSessionAuthorized(ctx context.
 	p.moves = append(p.moves, recordedMove{sessionID: sessionID, studentIDs: studentIDs, auth: auth})
 	_, inTx := tenant.TransactionFromContext(ctx)
 	p.inTx = append(p.inTx, inTx)
-	return &activeSvc.StudentMoveResult{Moved: studentIDs}, nil
+	return &studentpresence.StudentMoveResult{Moved: studentIDs}, nil
 }
 
 type moveStack struct {

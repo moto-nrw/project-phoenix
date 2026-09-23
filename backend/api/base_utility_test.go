@@ -278,7 +278,7 @@ func setupCaregiverCompositionModule(api *API) *caregiverComposition {
 	return &caregiverComposition{
 		authWired:        api.Auth != nil,
 		operatorWired:    api.Operator != nil,
-		sharedCapability: api.Services.CaregiverCapability == api.Auth.CaregiverCapabilityService,
+		sharedCapability: api.Auth.CaregiverCapabilityService == any(api.Services.CaregiverCapabilityViews(api.db)),
 	}
 }
 
@@ -509,7 +509,7 @@ func TestIdentityRateLimitKey_ExpiredTokenFallsBack(t *testing.T) {
 func TestIdentityRateLimitKey_TamperedTokenFallsBack(t *testing.T) {
 	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
-	otherAuth, err := jwt.NewTokenAuthWithSecret("a-completely-different-32char-key!!")
+	otherAuth, err := jwt.NewTokenAuthWithDurations("a-completely-different-32char-key!!", 15*time.Minute, time.Hour)
 	require.NoError(t, err)
 
 	forged := mintRateLimitJWT(t, otherAuth, jwt.AppClaims{ID: 42, Sub: "user@example.com", TenantID: 7})
@@ -884,11 +884,11 @@ func TestRegisterRoutes_UsersRoutesRunThroughProtectedGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	people, err := repositories.NewPeopleDirectory(db)
 	require.NoError(t, err)
-	identity, err := repositories.NewRFIDTestRepositories(db)
+	identity, err := repositories.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
-	resource := newUsersResource(people, identity.Membership.Account.FindEmailsByAccountIDs, func(ctx context.Context, tagID string) (bool, error) {
-		cards, err := identity.RFID.List(ctx, map[string]any{"id": tagID})
-		return len(cards) > 0, err
+	resource := newUsersResource(people, identity.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
+		_, _, found, err := identity.LookupRFIDCard(ctx, tagID)
+		return found, err
 	}, db)
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))

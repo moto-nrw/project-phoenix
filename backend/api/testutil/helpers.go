@@ -42,6 +42,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -535,7 +536,7 @@ func WithJWTBearer(token string) RequestOption {
 func MintTestJWT(t testing.TB, claims jwt.AppClaims) string {
 	t.Helper()
 	claims.TenantID = testpkg.RebaseTenantID(t, claims.TenantID)
-	tokenAuth, err := jwt.NewTokenAuth()
+	tokenAuth, err := testpkg.ConfiguredTokenAuth()
 	require.NoError(t, err, "MintTestJWT: NewTokenAuth")
 	token, err := tokenAuth.CreateJWT(claims)
 	require.NoError(t, err, "MintTestJWT: CreateJWT")
@@ -557,20 +558,17 @@ func SeedTestJWTConfig() {
 }
 
 // NewDeviceAuthenticators composes the production device authentication
-// middleware for handler tests. staffPIN may be nil when a test never
-// presents a personal staff credential; settings may be nil to authenticate
-// with fallbackPIN alone.
+// middleware for handler tests. settings may be nil to authenticate with
+// fallbackPIN alone.
 func NewDeviceAuthenticators(
 	devices deviceauth.Fleet,
 	schools deviceauth.SchoolDirectory,
-	staffPIN func(ctx context.Context, tenantID, staffID int64, pin string) (*services.StaffPINPrincipal, error),
 	settings deviceauth.Settings,
 	fallbackPIN string,
 ) *deviceauth.Authenticators {
 	return deviceauth.New(deviceauth.Dependencies{
 		Devices:     devices,
 		Schools:     schools,
-		StaffPIN:    deviceauth.StaffPIN(staffPIN),
 		Settings:    settings,
 		FallbackPIN: fallbackPIN,
 	})
@@ -594,13 +592,22 @@ func DevicePrincipal(d *iot.Device) *device.AuthenticatedDevice {
 	}
 }
 
-// StaffPrincipal converts a staff row into the principal the device auth
-// middleware binds after a verified account PIN.
+// StaffPrincipal converts a staff row into the principal a verified web
+// boundary binds to a request.
 func StaffPrincipal(s *users.Staff) *device.AuthenticatedStaff {
 	if s == nil {
 		return nil
 	}
 	return &device.AuthenticatedStaff{ID: s.ID, TenantID: s.TenantID}
+}
+
+// WithDeviceActor binds the device and staff principals the device auth
+// middleware would bind for a verified kiosk request, so a scenario can call
+// a presence capability directly as that actor without naming the auth
+// context keys itself.
+func WithDeviceActor(ctx context.Context, d *iot.Device, s *users.Staff) context.Context {
+	ctx = context.WithValue(ctx, device.CtxDevice, DevicePrincipal(d))
+	return context.WithValue(ctx, device.CtxStaff, StaffPrincipal(s))
 }
 
 // WithDeviceContext adds an IoT device to the request context.
@@ -774,7 +781,7 @@ func ExecuteRequest(router chi.Router, req *http.Request) *httptest.ResponseReco
 		// production middleware order (runtime first, authentication second).
 		ctx = tenant.WithTenantID(ctx, tenantID)
 	}
-	router.ServeHTTP(rr, req.WithContext(ctx))
+	servedBy(ctx, router).ServeHTTP(rr, req.WithContext(ctx))
 	return rr
 }
 
@@ -805,7 +812,7 @@ func ExecuteRequestForTest(t *testing.T, router chi.Router, req *http.Request) *
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		ctx = tenant.WithTenantID(ctx, tenantID)
 	}
-	router.ServeHTTP(rr, req.WithContext(ctx))
+	servedBy(ctx, router).ServeHTTP(rr, req.WithContext(ctx))
 	return rr
 }
 
@@ -935,4 +942,48 @@ func AdminTestClaimsForTenant(accountID int, tenantID int64) jwt.AppClaims {
 		IsAdmin:     true,
 		TenantID:    tenantID,
 	}
+}
+
+// TenantUserTestClaims returns the claims of a regular (non-admin) staff
+// account on the given tenant that holds exactly the listed permissions.
+func TenantUserTestClaims(accountID int, tenantID int64, permissions ...string) jwt.AppClaims {
+	return jwt.AppClaims{
+		ID:          accountID,
+		Sub:         "user@example.com",
+		Roles:       []string{"user"},
+		TenantID:    tenantID,
+		Permissions: permissions,
+	}
+}
+
+// ParentTestClaims returns the claims of a guardian account in the
+// cross-tenant parent scope, as the parent portal mints them.
+func ParentTestClaims(accountID int) jwt.AppClaims {
+	return jwt.AppClaims{
+		ID:    accountID,
+		Sub:   "parent@example.com",
+		Roles: []string{"guardian"},
+		Scope: tenant.ScopeParent,
+	}
+}
+
+// WithSessionVerifier mounts the verifier the API root mounts once for every
+// route. A resource router served on its own has none and rejects each token.
+func WithSessionVerifier(next http.Handler) http.Handler { return testpkg.SessionVerifier(next) }
+
+// TestTokenAuth returns the signer of the seeded test configuration.
+func TestTokenAuth(tb testing.TB) *jwt.TokenAuth {
+	tb.Helper()
+	tokenAuth, err := testpkg.ConfiguredTokenAuth()
+	require.NoError(tb, err)
+	return tokenAuth
+}
+
+// servedBy mounts the session verifier unless the test already placed a
+// verified token on the context, which the verifier would overwrite.
+func servedBy(ctx context.Context, router http.Handler) http.Handler {
+	if token, _, _ := jwtauth.FromContext(ctx); token != nil {
+		return router
+	}
+	return WithSessionVerifier(router)
 }

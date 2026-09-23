@@ -27,14 +27,18 @@ import {
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
+import { buildHelpHref, type HelpRole } from "~/lib/help-topics";
 import type { SupervisedRoom } from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
+import { isDemoBannerShown } from "~/components/demo/demo-banner";
 import {
   hasEffectiveAdminScope,
   hasPermission,
   hasRole,
   isCaregiver,
+  leadsSchool,
 } from "~/lib/auth-utils";
+import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { operatorPath } from "~/lib/operator-url";
@@ -82,7 +86,10 @@ import {
   ENROLLMENT_SECTION,
   ENROLLMENT_SUB_PAGES,
   getActiveEnrollmentSubPageHref,
+  hasAnyDatabasePagePermission,
+  NFC_ONLY_DATABASE_HREFS,
   PARENT_SUB_PAGES,
+  PLANNING_CATALOG_HREFS,
   STAFF_FLAT_PAGES,
 } from "~/lib/section-navigation";
 import {
@@ -266,7 +273,9 @@ const NAV_ITEMS: NavItem[] = [
     concept: "settings",
     icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z",
     activeColor: "text-gray-500",
-    requiresAdmin: true,
+    // Die Einstellungen schreibt das Backend mit config:manage; dasselbe
+    // Recht öffnet den Eintrag für eine Leitungsrolle der Schule (#3469).
+    requiresPermission: "config:manage",
     bottomPinned: true,
   },
 ];
@@ -341,6 +350,19 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
     ],
   },
   {
+    label: "AUSWERTUNG",
+    items: [
+      {
+        href: "/operator/billing",
+        label: "Stichtagszahlen",
+        icon: navigationIcons.chart,
+        concept: "reports",
+        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
+        alwaysShow: true,
+      },
+    ],
+  },
+  {
     label: "KOMMUNIKATION",
     items: [
       {
@@ -370,33 +392,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
 
 const NFC_ONLY_HREFS = new Set<string>([
   "/activities",
-  "/database/activities",
-  "/database/devices",
-]);
-
-/**
- * Die Stammdaten-Kataloge der Datenverwaltung (#3114) und das Recht, das ihre
- * Route verlangt. Dieselbe Zuordnung steht im Guard der Route
- * (`database/layout.tsx`); hier entscheidet sie nur, ob der Eintrag sichtbar
- * ist.
- */
-const DATABASE_CATALOG_PERMISSIONS: Readonly<Record<string, string>> = {
-  "/database/categories": "activities:manage_categories",
-  "/database/planning-tracks": "schedules:manage",
-  "/database/shift-types": "time_tracking:manage",
-  "/database/absence-types": "time_tracking:manage",
-};
-
-/** Rechte, die den Personalbereich auch ohne Leitungsrolle öffnen. */
-const PERSONNEL_PAGE_PERMISSIONS = [
-  "staff:manage",
-  "staff:stammdaten",
-] as const;
-
-/** Kataloge, die ohne den Planungsbereich nichts zu ordnen haben. */
-const PLANNING_CATALOG_HREFS = new Set<string>([
-  "/database/planning-tracks",
-  "/database/shift-types",
+  ...NFC_ONLY_DATABASE_HREFS,
 ]);
 
 // Nav items hidden in binary-mode tenants. Rooms and Activities are room/visit
@@ -529,12 +525,10 @@ function asideClasses(collapsed: boolean, className: string): string {
 // Mitarbeiter-Vorschau (#2893): der feste Hinweisstreifen (h-12 = 48px)
 // schiebt die Kopfzeile nach unten. Die klebende Seitennavigation muss um
 // dieselbe Höhe mitwandern, sonst schiebt sich die Kopfzeile beim Scrollen
-// über ihre obersten Einträge.
-function stickyClasses(
-  collapsed: boolean,
-  isPreview: boolean | undefined,
-): string {
-  const offset = isPreview
+// über ihre obersten Einträge. Der Streifen der öffentlichen Demo (#3467)
+// hat dieselbe Höhe.
+function stickyClasses(collapsed: boolean, stripActive: boolean): string {
+  const offset = stripActive
     ? "top-[105px] h-[calc(100vh-105px)]"
     : "top-[57px] h-[calc(100vh-57px)]";
   return `sticky ${offset} flex flex-col ${
@@ -571,6 +565,7 @@ function SidebarContent({
   const tenantPath = useTenantAwarePath();
   const { data: session } = useSession();
   const { mode, isPreview } = useShellAuth();
+  const demoBannerShown = isDemoBannerShown({ mode, isPreview });
   const changeRequestAccess = useChangeRequestAccess();
   // Compare every active state against clean tenant-internal paths. The helper
   // only strips in path-routing mode, avoiding slug/route collisions on tenant
@@ -635,6 +630,10 @@ function SidebarContent({
   const userIsAdmin = hasRole(session, "admin");
   const userHasEffectiveAdminScope = hasEffectiveAdminScope(session);
   const userIsCaregiver = isCaregiver(session);
+  // Leitung der Einrichtung: Adminzuschnitt oder config:manage, das Recht
+  // hinter Anmeldungen und Einstellungen (#3469). Entscheidet über die
+  // Anmeldungen und die Rolle der Hilfe, nicht über einzelne Rechte.
+  const userLeadsSchool = leadsSchool(session);
   // Elternmitteilungen (#1669) authoring is ADMIN-ONLY in v1: every
   // /api/parent-announcements route is guarded by the admin:* wildcard
   // (backend api/announcement/api.go), because the service does no per-caller
@@ -706,6 +705,37 @@ function SidebarContent({
   // Berechtigten mit allen Kindern.
   const openCareGroupMode = useOpenCareGroupMode();
 
+  /**
+   * Die Adresse hinter dem Eintrag `Hilfe` ganz unten.
+   *
+   * Nackt auf `/help` fragte die Hilfe zuerst, fuer wen die Anleitung ist
+   * und wie die OGS arbeitet -- vier Fragen, deren Antworten die angemeldete
+   * Sitzung bereits kennt. Wer aus der App kommt, soll direkt bei seinen
+   * Themen landen. Dieselben Werte gibt schon das Fragezeichen im Seitenkopf
+   * mit (`ContextHelpLink`); beide bauen die Adresse jetzt mit demselben
+   * `buildHelpHref`.
+   */
+  const helpHref = useMemo(() => {
+    const role: HelpRole =
+      mode === "parent" ? "parent" : userLeadsSchool ? "lead" : "caregiver";
+    const currentQuery = searchParams.toString();
+    return buildHelpHref({
+      role,
+      nfcEnabled,
+      presenceMode: presenceMode === "binary" ? "binary" : "detailed",
+      groupMode: openCareGroupMode ? "open_care" : "fixed_groups",
+      returnTo: currentQuery ? `${rawPathname}?${currentQuery}` : rawPathname,
+    });
+  }, [
+    mode,
+    nfcEnabled,
+    openCareGroupMode,
+    presenceMode,
+    rawPathname,
+    searchParams,
+    userLeadsSchool,
+  ]);
+
   const formatGroupAttendanceCount = (groupId: string) => {
     if (!canShowGroupAttendanceCounts) return undefined;
     const count = groupAttendanceCounts[groupId.toString()];
@@ -716,39 +746,19 @@ function SidebarContent({
     () =>
       DATABASE_SUB_PAGES.filter((page) => {
         if (!nfcEnabled && NFC_ONLY_HREFS.has(page.href)) return false;
-        // Jahrgangswechsel is gated on grade_transitions:read so a user without
-        // it isn't sent to a page that only 403s.
-        if (page.href === "/database/grade-transitions") {
-          return (
-            userHasEffectiveAdminScope ||
-            hasPermission(session, "grade_transitions:read")
-          );
+        // Jede Seite trägt das Recht ihrer Route (`DATABASE_PAGE_PERMISSIONS`,
+        // derselbe Katalog wie im Guard der Route); ohne es führt der Eintrag
+        // nur auf ein 403. Der Adminzuschnitt öffnet alle.
+        if (
+          !userHasEffectiveAdminScope &&
+          !hasAnyDatabasePagePermission(session, page.href)
+        ) {
+          return false;
         }
-        if (page.href === "/database/personal") {
-          return (
-            userHasEffectiveAdminScope ||
-            PERSONNEL_PAGE_PERMISSIONS.some((permission) =>
-              hasPermission(session, permission),
-            )
-          );
-        }
-        // Die Stammdaten-Kataloge (#3114) tragen dasselbe Recht wie ihre
-        // Schreibzugriffe; ohne es führt der Eintrag nur auf ein 403.
-        const catalogPermission = DATABASE_CATALOG_PERMISSIONS[page.href];
-        if (catalogPermission !== undefined) {
-          if (
-            !userHasEffectiveAdminScope &&
-            !hasPermission(session, catalogPermission)
-          ) {
-            return false;
-          }
-          // Planungsspuren und Schichtarten gehören zum Planungsbereich; ist
-          // er ausgeschaltet, gibt es nichts zu ordnen.
-          if (PLANNING_CATALOG_HREFS.has(page.href)) return timetableEnabled;
-          return true;
-        }
-        // Alle übrigen Datenverwaltungsseiten bleiben der Leitungsbereich.
-        return userHasEffectiveAdminScope;
+        // Planungsspuren und Schichtarten gehören zum Planungsbereich; ist
+        // er ausgeschaltet, gibt es nichts zu ordnen.
+        if (PLANNING_CATALOG_HREFS.has(page.href)) return timetableEnabled;
+        return true;
       }),
     [nfcEnabled, userHasEffectiveAdminScope, session, timetableEnabled],
   );
@@ -763,7 +773,8 @@ function SidebarContent({
           case "messages":
             return true;
           case "approvals":
-            return userIsAdmin;
+            // Lesen users:manage, Entscheiden users:update (#3469).
+            return canReviewGuardianApprovals(session);
           case "announcements":
             return canAnnounce && parentNewsEnabled;
           case "bankDetails":
@@ -1125,9 +1136,11 @@ function SidebarContent({
         ) : (
           <NavLink
             href={
-              TENANT_SCOPED_HREFS.has(item.href)
-                ? tenantPath(item.href)
-                : item.href
+              item.href === "/help"
+                ? helpHref
+                : TENANT_SCOPED_HREFS.has(item.href)
+                  ? tenantPath(item.href)
+                  : item.href
             }
             className={getLinkClasses(item.href)}
             {...(collapsed
@@ -1347,12 +1360,13 @@ function SidebarContent({
   }, [areOpenRoomsExpanded, toggle, pathname, supervisedRooms, router]);
 
   const handleDatabaseToggle = useCallback(() => {
-    // Der Hub ist dem Leitungsbereich vorbehalten. Delegierte Personen haben
-    // nur einen oder mehrere Kataloge und starten deshalb beim ersten
-    // erreichbaren Unterpunkt statt auf einer gesperrten Hub-Seite.
-    const databaseLandingPath = userHasEffectiveAdminScope
-      ? "/database"
-      : databaseSubPages[0]?.href;
+    // Die Leitung landet auf dem Hub. Delegierte Personen haben nur einen
+    // oder mehrere Kataloge und starten deshalb beim ersten erreichbaren
+    // Unterpunkt statt auf einer fast leeren Hub-Seite.
+    const databaseLandingPath =
+      userHasEffectiveAdminScope || userLeadsSchool
+        ? "/database"
+        : databaseSubPages[0]?.href;
     if (!pathname.startsWith("/database")) {
       // Not on any database page, expand accordion and navigate to its
       // reachable landing page.
@@ -1369,7 +1383,14 @@ function SidebarContent({
       // On a sub-page like /database/rooms, navigate back to hub
       router.push("/database");
     }
-  }, [databaseSubPages, toggle, pathname, router, userHasEffectiveAdminScope]);
+  }, [
+    databaseSubPages,
+    toggle,
+    pathname,
+    router,
+    userHasEffectiveAdminScope,
+    userLeadsSchool,
+  ]);
 
   const activeEnrollmentSubPageHref = getActiveEnrollmentSubPageHref(pathname);
   const isOnEnrollmentsPage = activeEnrollmentSubPageHref !== null;
@@ -1429,7 +1450,12 @@ function SidebarContent({
 
     return (
       <aside className={asideClasses(collapsed, className)}>
-        <div className={stickyClasses(collapsed, isPreview)}>
+        <div
+          className={stickyClasses(
+            collapsed,
+            isPreview === true || demoBannerShown,
+          )}
+        >
           <nav
             className={`${collapsed ? "scrollbar-hidden" : ""} flex-1 overflow-y-auto ${SIDEBAR_NAV_PADDING}`}
           >
@@ -1758,10 +1784,11 @@ function SidebarContent({
       </SidebarAccordionSection>
     ) : null;
 
-  // Anmeldungen (admin only): the setup hub, enrollment periods, offers and
-  // enrollment forms. Sits in the Eltern group, below the parent pages.
+  // Anmeldungen: the setup hub, enrollment periods, offers and enrollment
+  // forms. Every route behind it needs config:manage, so the section follows
+  // the school lead (#3469). Sits in the Eltern group, below the parent pages.
   const renderEnrollmentsSection = () =>
-    userIsAdmin ? (
+    userLeadsSchool ? (
       <SidebarAccordionSection
         icon={ENROLLMENT_NAV_ICON}
         concept="enrollments"
@@ -1834,7 +1861,12 @@ function SidebarContent({
 
   return (
     <aside className={asideClasses(collapsed, className)}>
-      <div className={stickyClasses(collapsed, isPreview)}>
+      <div
+        className={stickyClasses(
+          collapsed,
+          isPreview === true || demoBannerShown,
+        )}
+      >
         {/* Main navigation, scrollable.
             Der Rollbalken bleibt ausgeklappt sichtbar — er ist dort der
             einzige Hinweis, dass unten noch Einträge folgen. Nur im

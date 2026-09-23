@@ -21,6 +21,12 @@ import {
 } from "~/lib/tenant-context";
 import { normalizeTenantPathname } from "~/lib/tenant-path";
 import { matchesPathPrefix } from "~/lib/section-navigation";
+import {
+  getHelpTopicForPath,
+  getParentHelpTopicForPath,
+  getSchoolHelpTopicForPath,
+} from "~/lib/help-topics";
+import { ContextHelpLink } from "~/components/help/context-help-link";
 
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
@@ -112,6 +118,7 @@ export function Header() {
     activeSupervisionName,
     ogsGroupName,
     pageTitle: customPageTitle,
+    helpTopic,
   } = breadcrumb;
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
@@ -206,6 +213,15 @@ export function Header() {
   const schoolPageTitle =
     mode === "school" ? schoolTitleForPath(pathname) : null;
   const displayedPageTitle = parentPageTitle ?? schoolPageTitle ?? pageTitle;
+  // Das Fragezeichen neben der Brotkrume. Jedes Portal hat seine eigenen
+  // Routen: `/messages` heisst im Personal-Portal etwas anderes als im
+  // Elternportal, deshalb zwei getrennte Nachschlagewege.
+  const contextualHelpTopic = (() => {
+    if (mode === "teacher") return helpTopic ?? getHelpTopicForPath(pathname);
+    if (mode === "parent") return getParentHelpTopicForPath(pathname);
+    if (mode === "school") return getSchoolHelpTopicForPath(pathname);
+    return null;
+  })();
 
   // Derive user info from ShellAuth context
   const userName = user?.name ?? "Benutzer";
@@ -334,21 +350,35 @@ export function Header() {
                 {mobileLocation}
               </span>
             )}
-            <HeaderBreadcrumb
-              pathname={pathname}
-              pageTitle={displayedPageTitle}
-              pageTypeInfo={pageTypeInfo}
-              sectionBreadcrumb={sectionBreadcrumb}
-              studentName={studentName}
-              staffName={staffName}
-              roomName={roomName}
-              announcementTitle={announcementTitle}
-              referrer={referrer}
-              breadcrumbLabel={breadcrumbLabel}
-              historyType={historyType}
-              ogsGroupName={ogsGroupName}
-              activeSupervisionName={activeSupervisionName}
-            />
+            <div className="flex min-w-0 items-center gap-1">
+              <HeaderBreadcrumb
+                pathname={pathname}
+                pageTitle={displayedPageTitle}
+                pageTypeInfo={pageTypeInfo}
+                sectionBreadcrumb={sectionBreadcrumb}
+                studentName={studentName}
+                staffName={staffName}
+                roomName={roomName}
+                announcementTitle={announcementTitle}
+                referrer={referrer}
+                breadcrumbLabel={breadcrumbLabel}
+                historyType={historyType}
+                ogsGroupName={ogsGroupName}
+                activeSupervisionName={activeSupervisionName}
+              />
+              {contextualHelpTopic ? (
+                <ContextHelpLink
+                  topic={contextualHelpTopic}
+                  // Eltern sind fast immer am Handy. Ein Fragezeichen, das
+                  // erst ab Tablet auftaucht, erreicht sie nie. Im
+                  // Personal-Portal bleibt die schmale Kopfzeile frei: dort
+                  // ist die Hilfe über die Seitenleiste erreichbar.
+                  containerClassName={
+                    mode === "parent" ? undefined : "hidden md:inline-flex"
+                  }
+                />
+              ) : null}
+            </div>
           </div>
 
           {/* Right section: Actions + Profile */}

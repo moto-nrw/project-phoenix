@@ -6,6 +6,7 @@
 import type { DepartureDayKey, Student } from "~/lib/student-helpers";
 import { accompaniedWeekdayKeys } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
+import { childQuotaMessage } from "~/lib/child-quota-error";
 
 const logger = createLogger({ component: "StudentFormValidation" });
 
@@ -26,6 +27,8 @@ const GENERIC_SUBMIT_ERROR =
  * technical and gets the generic message.
  */
 function toSubmitErrorMessage(error: unknown): string {
+  const quotaMessage = childQuotaMessage(error);
+  if (quotaMessage) return quotaMessage;
   if (error instanceof Error) {
     const status = (error as { status?: number }).status;
     const message = error.message.trim();

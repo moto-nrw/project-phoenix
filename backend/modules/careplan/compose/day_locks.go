@@ -29,6 +29,9 @@ func NewDayLocks(db *bun.DB, student func(context.Context, int64) error, notFoun
 }
 
 func (l dayLocks) LockStudentAndExceptionDay(ctx context.Context, id int64, date string) error {
+	if _, _, err := l.database(ctx); err != nil {
+		return fmt.Errorf("lock student for care exception day: %w", err)
+	}
 	if id <= 0 {
 		return errors.New("student id is required")
 	}

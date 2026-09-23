@@ -3,14 +3,13 @@ package repositories
 import (
 	"time"
 
-	workforceCapability "github.com/moto-nrw/project-phoenix/modules/workforce"
-
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	workforceCapability "github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
 )
@@ -19,13 +18,13 @@ type WorkforceTestRepositories struct {
 	WorkSessionTestRepositories
 	StaffDocument                   userModels.StaffDocumentRepository
 	StaffAbsenceType                workforceCapability.Capability
-	StaffAbsenceTypeAllowance       activeModels.StaffAbsenceTypeAllowanceRepository
-	StaffAbsenceTypeAllowanceChange activeModels.StaffAbsenceTypeAllowanceChangeRepository
-	StaffVacationQuota              activeModels.StaffVacationQuotaRepository
-	StaffVacationOpening            activeModels.StaffVacationOpeningRepository
-	StaffBalanceAdjust              activeModels.StaffBalanceAdjustmentRepository
+	StaffAbsenceTypeAllowance       timerecords.StaffAbsenceTypeAllowanceRepository
+	StaffAbsenceTypeAllowanceChange timerecords.StaffAbsenceTypeAllowanceChangeRepository
+	StaffVacationQuota              timerecords.StaffVacationQuotaRepository
+	StaffVacationOpening            timerecords.StaffVacationOpeningRepository
+	StaffBalanceAdjust              timerecords.StaffBalanceAdjustmentRepository
 	StaffMonthSnapshot              workforceCapability.MonthSnapshots
-	StaffAbsenceAudit               activeModels.StaffAbsenceAuditRepository
+	StaffAbsenceAudit               timerecords.StaffAbsenceAuditRepository
 	TimeTrackingDeletion            auditModels.TimeTrackingDeletionRepository
 	TimeTrackingAuditLog            auditModels.TimeTrackingAuditLogRepository
 	StaffMasterData                 userModels.StaffMasterDataRepository

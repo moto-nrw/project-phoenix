@@ -19,7 +19,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -174,7 +174,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 			Where("id = ?", offering.ID).Exec(t.Context())
 		require.NoError(t, err)
 	}
-	_, err := tc.db.NewDelete().TableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
+	_, err := tc.db.NewDelete().TableExpr(`enrollment.care_offering_bookings AS "care_offering_booking"`).
 		Where("request_child_id = ?", fixture.child.ID).
 		Where("care_offering_id = ?", fixture.mittag.ID).
 		Exec(t.Context())
@@ -374,7 +374,7 @@ func TestPickupAdjustmentProtectedRouterRollsBackKnownErrorAfterOfferingWrite(t 
 			}).Where("id = ?", offering.ID).Exec(t.Context())
 		require.NoError(t, err)
 	}
-	_, err := tc.db.NewDelete().TableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
+	_, err := tc.db.NewDelete().TableExpr(`enrollment.care_offering_bookings AS "care_offering_booking"`).
 		Where("request_child_id = ?", fixture.child.ID).
 		Where("care_offering_id = ?", fixture.mittag.ID).Exec(t.Context())
 	require.NoError(t, err)
@@ -477,9 +477,12 @@ func pickupAdjustmentServiceWithCoordinator(
 	if err != nil {
 		panic(err)
 	}
-	baselines := careschedule.NewPickupBaselineServiceWithSettings(
-		repos.StudentPickupSchedule, approvedOfferings, repos.CareOffering, tc.resource.SettingsService,
-	)
+	baselines, err := careplanCompose.NewPickupBaselines(repos.CarePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
+		return tc.resource.SettingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
+	})
+	if err != nil {
+		panic(err)
+	}
 	return enrollmentService.NewPickupAdjustmentService(enrollmentService.PickupAdjustmentServiceConfig{
 		PickupSchedules: tc.resource.PickupScheduleService, ArrivalSchedules: tc.resource.ArrivalScheduleService,
 		PickupScheduleRepo:  repos.StudentPickupSchedule,

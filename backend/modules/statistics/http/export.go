@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	statisticsService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/statistics"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
@@ -46,7 +46,7 @@ const exportConfidentialityNote = "Vertrauliche Anwesenheitsdaten"
 // buildSectionDocument picks the document for the requested export section
 // and the filename stem that goes with it. Every section has its own column
 // grid — mixing them under shared headers produced unreadable PDFs (#2606).
-func buildSectionDocument(report *statisticsService.Report, section string) (listexport.Document, string) {
+func buildSectionDocument(report *studentpresence.StatisticsReport, section string) (listexport.Document, string) {
 	switch section {
 	case sectionRooms:
 		return buildRoomExportDocument(report), "raumauslastung"
@@ -61,7 +61,7 @@ func buildSectionDocument(report *statisticsService.Report, section string) (lis
 
 // courseExportFilters states the definitions both course documents rest on,
 // in the same words the screen uses.
-func courseExportFilters(report *statisticsService.Report) []string {
+func courseExportFilters(report *studentpresence.StatisticsReport) []string {
 	// The window is already in the subtitle; repeating it here would just cost
 	// a line.
 	return []string{
@@ -72,7 +72,7 @@ func courseExportFilters(report *statisticsService.Report) []string {
 }
 
 // buildCourseExportDocument renders one row per course.
-func buildCourseExportDocument(report *statisticsService.Report) listexport.Document {
+func buildCourseExportDocument(report *studentpresence.StatisticsReport) listexport.Document {
 	doc := listexport.Document{
 		Title:       "Kursteilnahme",
 		Subtitle:    fmt.Sprintf("Teilnahme je Kurs vom %s bis %s", report.From.Format("02.01.2006"), report.To.Format("02.01.2006")),
@@ -113,7 +113,7 @@ func buildCourseExportDocument(report *statisticsService.Report) listexport.Docu
 
 // buildCourseStudentExportDocument renders one row per child and course,
 // grouped by child so a family sees its own block in one place.
-func buildCourseStudentExportDocument(report *statisticsService.Report) listexport.Document {
+func buildCourseStudentExportDocument(report *studentpresence.StatisticsReport) listexport.Document {
 	doc := listexport.Document{
 		Title:       "Kursteilnahme je Kind",
 		Subtitle:    fmt.Sprintf("Teilnahme je Kind vom %s bis %s", report.From.Format("02.01.2006"), report.To.Format("02.01.2006")),
@@ -153,7 +153,7 @@ func formatSeats(maxParticipants int) string {
 }
 
 // buildRoomExportDocument renders the room utilization table.
-func buildRoomExportDocument(report *statisticsService.Report) listexport.Document {
+func buildRoomExportDocument(report *studentpresence.StatisticsReport) listexport.Document {
 	doc := listexport.Document{
 		Title:       "Raumauslastung",
 		Subtitle:    fmt.Sprintf("Raumnutzung vom %s bis %s", report.From.Format("02.01.2006"), report.To.Format("02.01.2006")),
@@ -195,7 +195,7 @@ func buildRoomExportDocument(report *statisticsService.Report) listexport.Docume
 // buildExportDocument renders the child table grouped by education group
 // (GroupTitle marker rows). Rooms have their own column grid and therefore
 // their own document (buildRoomExportDocument, section=rooms).
-func buildExportDocument(report *statisticsService.Report) listexport.Document {
+func buildExportDocument(report *studentpresence.StatisticsReport) listexport.Document {
 	doc := listexport.Document{
 		Title:       "Statistik",
 		Subtitle:    fmt.Sprintf("Anwesenheit vom %s bis %s", report.From.Format("02.01.2006"), report.To.Format("02.01.2006")),
@@ -220,7 +220,7 @@ func buildExportDocument(report *statisticsService.Report) listexport.Document {
 		doc.Filters = append(doc.Filters, fmt.Sprintf("Gesamt: %s Anwesenheit", formatRate(report.Totals.AttendanceRate)))
 	}
 
-	byGroup := map[int64][]statisticsService.StudentRow{}
+	byGroup := map[int64][]studentpresence.StatisticsStudentRow{}
 	for _, st := range report.Students {
 		id := int64(0)
 		if st.GroupID != nil {

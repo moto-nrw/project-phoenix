@@ -9,7 +9,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
-	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 // StaffRecipientRequest describes a child-related staff notification. The
@@ -192,7 +192,7 @@ func (r *staffRecipientResolver) onDutyAccountIDs(ctx context.Context) (map[int6
 	}
 	onDutyStaffIDs := make([]int64, 0, len(presence))
 	for staffID, status := range presence {
-		if status == activeModel.WorkSessionStatusPresent || status == activeModel.WorkSessionStatusHomeOffice {
+		if status == workforce.WorkSessionStatusPresent || status == workforce.WorkSessionStatusHomeOffice {
 			onDutyStaffIDs = append(onDutyStaffIDs, staffID)
 		}
 	}

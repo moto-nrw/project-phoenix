@@ -19,14 +19,12 @@ func requireStudentsPickupDaysColumn(t *testing.T, db *bun.DB) {
 			SELECT 1
 			FROM information_schema.columns
 			WHERE table_schema = 'users'
-			  AND table_name = 'students'
+			  AND table_name = 'student_care_profiles'
 			  AND column_name = 'pickup_days'
 		)
 	`).Scan(testpkg.Ctx(t), &exists)
 	require.NoError(t, err)
-	if !exists {
-		t.Skip("users.students.pickup_days column is not present in this test database")
-	}
+	require.True(t, exists, "users.student_care_profiles.pickup_days column is not present in this test database")
 }
 
 // TestStudentRepository_PickupDaysRoundtrip exercises persistPickupDays (on both

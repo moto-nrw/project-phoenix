@@ -1,6 +1,10 @@
 package config
 
-import reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
+import (
+	"strconv"
+
+	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
+)
 
 // Settings key constants. Use these instead of string literals to ensure
 // compile-time safety when referencing settings keys across the codebase.
@@ -538,4 +542,28 @@ const (
 	// KeyFilesMaxStorageMB caps the total size of all stored files of a
 	// school. Uploads that would exceed it are refused.
 	KeyFilesMaxStorageMB = "files.max_storage_mb"
+)
+
+// School lesson end times (#3372). One optional clock time per lesson of the
+// school day; the team picks "nach der 5. Stunde" as an arrival time and the
+// form copies the clock time. A school is one tenant, so Burbach and Wahlbach
+// each keep their own values. Empty means the school has no such lesson.
+//
+// A fixed set of optional time settings instead of a list table: the registry
+// has no list type, and a primary school day does not outgrow eight lessons.
+const SchoolPeriodCount = 8
+
+// SchoolPeriodEndKey returns the setting key of one lesson's end time.
+// period is 1-based; values outside 1..SchoolPeriodCount have no definition.
+func SchoolPeriodEndKey(period int) string {
+	return "school_periods.end_" + strconv.Itoa(period)
+}
+
+// Care time presets (#3371). Most children of a school arrive and leave at the
+// same clock time; the weekly plan offers these two times for one-click
+// adoption into an empty field. A school is one tenant, so Burbach and
+// Wahlbach each keep their own pair. Empty means the forms offer nothing.
+const (
+	KeyCareDefaultArrivalTime = "care_times.default_arrival"
+	KeyCareDefaultPickupTime  = "care_times.default_pickup"
 )

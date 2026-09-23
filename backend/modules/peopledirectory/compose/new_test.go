@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -19,34 +20,74 @@ func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) *p
 	if len(observations) > 0 {
 		observe = observations[0]
 	}
-	module, err := NewWithGuardianMemberships(Dependencies{DB: db, Observe: observe}, testActiveMemberships(db), testActiveAccounts(db), testGuardianRoles(db))
+	module, err := NewWithGuardianMemberships(Dependencies{DB: db, Observe: observe, GuardianLinkOwners: testGuardianLinkOwners{db: db}}, testPortalMemberships(db))
 	require.NoError(t, err)
 	return module
 }
 
-func testActiveMemberships(db *bun.DB) GuardianMembershipQuery {
-	return func(context.Context) *bun.SelectQuery {
-		return db.NewSelect().
-			TableExpr(`auth.account_tenants AS "account_tenant"`).
-			ColumnExpr(`"account_tenant".account_id`).
-			ColumnExpr(`"account_tenant".tenant_id`).
-			Where(`"account_tenant".status = 'active'`)
+func testPortalMemberships(db *bun.DB) GuardianMembershipQuery {
+	return func(ctx context.Context, accountIDs []int64) (map[int64][]int64, error) {
+		queryDB := bun.IDB(db)
+		if transaction, ok := tenant.TransactionFromContext(ctx); ok {
+			queryDB = transaction.(bun.Tx)
+		}
+		var rows []struct {
+			AccountID int64 `bun:"account_id"`
+			TenantID  int64 `bun:"tenant_id"`
+		}
+		err := queryDB.NewRaw(`SELECT DISTINCT ar.account_id, ar.tenant_id FROM auth.account_roles ar
+			JOIN auth.roles r ON r.id = ar.role_id
+			JOIN auth.accounts a ON a.id = ar.account_id AND a.active = TRUE
+			JOIN auth.account_tenants at ON at.account_id = ar.account_id AND at.tenant_id = ar.tenant_id AND at.status = 'active'
+			WHERE ar.account_id IN (?) AND LOWER(r.name) = 'guardian'`, bun.List(accountIDs)).Scan(ctx, &rows)
+		if err != nil {
+			return nil, err
+		}
+		result := make(map[int64][]int64)
+		for _, row := range rows {
+			result[row.AccountID] = append(result[row.AccountID], row.TenantID)
+		}
+		return result, nil
 	}
 }
 
-func testActiveAccounts(db *bun.DB) GuardianMembershipQuery {
-	return func(context.Context) *bun.SelectQuery {
-		return db.NewSelect().TableExpr(`auth.accounts AS "account"`).ColumnExpr(`"account".id`).Where(`"account".active = true`)
+// testGuardianLinkOwners writes Care Plan's pickup permission and Identity &
+// Access's portal access of a link in the caller's transaction, as the
+// composition root's owner commands do (#2756). The module's own contracts are
+// under test here; the owners are tested with their modules.
+type testGuardianLinkOwners struct{ db *bun.DB }
+
+func (o testGuardianLinkOwners) queryDB(ctx context.Context) bun.IDB {
+	if transaction, ok := tenant.TransactionFromContext(ctx); ok {
+		return transaction.(bun.Tx)
 	}
+	return o.db
 }
 
-func testGuardianRoles(db *bun.DB) GuardianMembershipQuery {
-	return func(context.Context) *bun.SelectQuery {
-		return db.NewSelect().TableExpr(`auth.account_roles AS "account_role"`).
-			ColumnExpr(`"account_role".account_id`).ColumnExpr(`"account_role".tenant_id`).
-			Join(`JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
-			Where(`LOWER("role".name) = 'guardian'`)
+func (o testGuardianLinkOwners) CreateGuardianPickupPermission(ctx context.Context, tenantID, relationshipID int64, canPickup bool, notes *string) error {
+	_, err := o.queryDB(ctx).NewRaw(`INSERT INTO users.student_guardian_pickup_permissions (tenant_id, relationship_id, can_pickup, pickup_notes)
+		VALUES (?, ?, ?, ?)`, tenantID, relationshipID, canPickup, notes).Exec(ctx)
+	return err
+}
+
+func (o testGuardianLinkOwners) ChangeGuardianPickupPermission(ctx context.Context, tenantID, relationshipID int64, canPickup *bool, setNotes bool, notes *string) (bool, error) {
+	result, err := o.queryDB(ctx).NewRaw(`UPDATE users.student_guardian_pickup_permissions
+		SET can_pickup = COALESCE(?, can_pickup), pickup_notes = CASE WHEN ? THEN ? ELSE pickup_notes END
+		WHERE tenant_id = ? AND relationship_id = ?`, canPickup, setNotes, notes, tenantID, relationshipID).Exec(ctx)
+	if err != nil {
+		return false, err
 	}
+	affected, err := result.RowsAffected()
+	return affected > 0, err
+}
+
+func (o testGuardianLinkOwners) GrantGuardianStudentAccess(ctx context.Context, tenantID, relationshipID int64, accountID *int64, permissions json.RawMessage) error {
+	if len(permissions) == 0 {
+		permissions = json.RawMessage(`{}`)
+	}
+	_, err := o.queryDB(ctx).NewRaw(`INSERT INTO auth.guardian_student_access (tenant_id, relationship_id, account_id, permissions)
+		VALUES (?, ?, ?, ?::jsonb)`, tenantID, relationshipID, accountID, string(permissions)).Exec(ctx)
+	return err
 }
 
 func otherTenantContext(t *testing.T, db *bun.DB) (context.Context, int64) {

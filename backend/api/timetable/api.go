@@ -2,7 +2,6 @@ package timetable
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -13,15 +12,16 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
-	usercontextSvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -57,11 +57,11 @@ var errCalendarPeriodOverlapConflict = errors.New(
 )
 
 // calendarPeriodOverlapRenderer builds the 409 payload for the hard same-type
-// overlap rule. When the service exposes the conflicting periods, the message
+// overlap rule. When the calendar exposes the conflicting periods, the message
 // names the first one (mirroring the advisory warning wording) and the
 // details carry all IDs/names; a bare sentinel keeps the static text.
 func calendarPeriodOverlapRenderer(err error) render.Renderer {
-	var overlapErr *schedule.CalendarPeriodOverlapError
+	var overlapErr *schoolcalendar.CalendarPeriodOverlapError
 	if !errors.As(err, &overlapErr) || len(overlapErr.Overlaps) == 0 {
 		return common.ErrorConflictWithCode(errCalendarPeriodOverlapConflict, calendarPeriodOverlapConflictCode)
 	}
@@ -75,8 +75,8 @@ func calendarPeriodOverlapRenderer(err error) render.Renderer {
 	message := fmt.Errorf(
 		"es besteht bereits ein aktiver Zeitraum desselben Typs: „%s“ (%s – %s); bitte Datum, Typ oder Aktiv-Status anpassen",
 		first.Name,
-		first.StartDate.Format(germanDateLayout),
-		first.EndDate.Format(germanDateLayout),
+		germanCalendarDate(first.StartDate),
+		germanCalendarDate(first.EndDate),
 	)
 	return common.ErrorConflictWithDetails(message, calendarPeriodOverlapConflictCode, map[string]any{
 		"overlapping_period_ids":   ids,
@@ -98,8 +98,11 @@ type Resource struct {
 // subset — readable and lets us add future deps without churning every call
 // site.
 type Dependencies struct {
-	CalendarPeriodService   timetableplanning.CalendarPeriodService
-	ClosingDayService       timetableplanning.ClosingDayService
+	// CalendarPeriods and ClosingDays are the School Calendar owner; the
+	// period usage counts come from the planning owners (#3124).
+	CalendarPeriods         CalendarPeriods
+	ClosingDays             ClosingDays
+	CalendarPeriodUsage     CalendarPeriodUsage
 	MaterializationService  timetableplanning.MaterializationService
 	InstanceService         timetableplanning.InstanceService
 	InstanceSeriesConverter timetableplanning.InstanceSeriesConverter
@@ -107,8 +110,8 @@ type Dependencies struct {
 	TemplateSplitService    *timetableplanning.TemplateSplitService
 	PersonService           userSvc.PersonService
 	TimetableData           *timetableplanning.TimetableDataService
-	CareDayService          careschedule.CareDayService
-	UserContextService      usercontextSvc.UserContextService
+	CareDayService          careplan.CareDayQuery
+	UserContextService      authorize.StudentAccessUserContext
 	SettingsService         configSvc.SettingsService
 	SlotListsService        classday.SlotLists
 	// OfferingSourceOptions serves the offering-source editor support
@@ -504,20 +507,20 @@ type CalendarPeriodResponse struct {
 	ActivityInstanceCount  int `json:"activity_instance_count"`
 }
 
-func mapPeriodToResponse(p *schedule.CalendarPeriod) CalendarPeriodResponse {
+func mapPeriodToResponse(p schoolcalendar.CalendarPeriod) CalendarPeriodResponse {
 	resp := CalendarPeriodResponse{
 		ID:              p.ID,
 		Name:            p.Name,
 		PeriodType:      p.PeriodType,
-		StartDate:       p.StartDate.String(),
-		EndDate:         p.EndDate.String(),
+		StartDate:       p.StartDate,
+		EndDate:         p.EndDate,
 		WeekCycleLength: p.WeekCycleLength,
 		IsActive:        p.IsActive,
 		CreatedAt:       p.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:       p.UpdatedAt.Format(time.RFC3339),
 	}
-	if p.WeekCycleAnchor != nil {
-		anchor := p.WeekCycleAnchor.String()
+	if p.WeekCycleAnchor != "" {
+		anchor := p.WeekCycleAnchor
 		resp.WeekCycleAnchor = &anchor
 	}
 	return resp
@@ -551,12 +554,21 @@ func parseDates(w http.ResponseWriter, r *http.Request, req *CalendarPeriodReque
 	return startDate, endDate, anchor, true
 }
 
-func scheduleDatePointer(date *timezone.Date) *schedule.Date {
-	if date == nil {
-		return nil
+// periodFieldsFromRequest renders the validated request as the calendar's
+// writable period fields.
+func periodFieldsFromRequest(req *CalendarPeriodRequest, startDate, endDate timezone.Date, anchor *timezone.Date) schoolcalendar.CalendarPeriodFields {
+	fields := schoolcalendar.CalendarPeriodFields{
+		Name:            req.Name,
+		PeriodType:      req.PeriodType,
+		StartDate:       startDate.String(),
+		EndDate:         endDate.String(),
+		WeekCycleLength: req.WeekCycleLength,
+		IsActive:        req.IsActive,
 	}
-	value := schedule.Date(*date)
-	return &value
+	if anchor != nil {
+		fields.WeekCycleAnchor = anchor.String()
+	}
+	return fields
 }
 
 // validatePeriodRules checks business rules after dates have been parsed.
@@ -578,8 +590,8 @@ func validatePeriodRules(w http.ResponseWriter, r *http.Request, req *CalendarPe
 // runs after a successful save and must never turn the 2xx into an error:
 // lookup failures are logged at Warn and the response simply ships without
 // warnings.
-func (rs *Resource) attachOverlapWarnings(ctx context.Context, period *schedule.CalendarPeriod, resp *CalendarPeriodResponse) {
-	overlaps, err := rs.CalendarPeriodService.FindActiveOverlaps(ctx, period)
+func (rs *Resource) attachOverlapWarnings(ctx context.Context, period schoolcalendar.CalendarPeriod, resp *CalendarPeriodResponse) {
+	overlaps, err := rs.CalendarPeriods.ListActiveOverlaps(ctx, period)
 	if err != nil {
 		rs.getLogger().Warn("calendar period overlap check failed, omitting warnings",
 			slog.Int64("period_id", period.ID),
@@ -593,8 +605,8 @@ func (rs *Resource) attachOverlapWarnings(ctx context.Context, period *schedule.
 			Message: fmt.Sprintf(
 				"Überschneidet sich mit aktivem Zeitraum „%s“ (%s – %s). Termine werden im Zweifel dem älteren Zeitraum zugeordnet.",
 				o.Name,
-				o.StartDate.Format(germanDateLayout),
-				o.EndDate.Format(germanDateLayout),
+				germanCalendarDate(o.StartDate),
+				germanCalendarDate(o.EndDate),
 			),
 			OverlappingPeriodIDs:   []int64{o.ID},
 			OverlappingPeriodNames: []string{o.Name},
@@ -607,11 +619,14 @@ func (rs *Resource) attachOverlapWarnings(ctx context.Context, period *schedule.
 // periodUsageCounts loads the reference counts that drive deletion impact.
 // A failure is not advisory: rendering zeroes would falsely describe a used
 // period as unused and can lead an administrator into a destructive action.
-func (rs *Resource) periodUsageCounts(ctx context.Context) (map[int64]schedule.CalendarPeriodUsage, error) {
-	return rs.CalendarPeriodService.GetUsageCounts(ctx)
+func (rs *Resource) periodUsageCounts(ctx context.Context) (map[int64]CalendarPeriodUsageCounts, error) {
+	if rs.CalendarPeriodUsage == nil {
+		return nil, errors.New("calendar period usage not wired")
+	}
+	return rs.CalendarPeriodUsage.UsageCounts(ctx)
 }
 
-func applyPeriodUsage(resp *CalendarPeriodResponse, usage map[int64]schedule.CalendarPeriodUsage) {
+func applyPeriodUsage(resp *CalendarPeriodResponse, usage map[int64]CalendarPeriodUsageCounts) {
 	if u, ok := usage[resp.ID]; ok {
 		resp.EnrollmentPhaseCount = u.EnrollmentPhases
 		resp.ActivityGroupCount = u.ActivityGroups
@@ -623,7 +638,7 @@ func applyPeriodUsage(resp *CalendarPeriodResponse, usage map[int64]schedule.Cal
 }
 
 func (rs *Resource) listPeriods(w http.ResponseWriter, r *http.Request) {
-	periods, err := rs.CalendarPeriodService.GetAllPeriods(r.Context())
+	periods, err := rs.CalendarPeriods.ListCalendarPeriods(r.Context(), schoolcalendar.CalendarPeriodFilter{})
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodsLoadErrorMessage, err))
 		return
@@ -650,9 +665,9 @@ func (rs *Resource) getPeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	period, err := rs.CalendarPeriodService.GetPeriodByID(r.Context(), id)
+	period, err := rs.CalendarPeriods.FindCalendarPeriod(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, schoolcalendar.ErrCalendarPeriodNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht geladen werden", err))
@@ -685,23 +700,15 @@ func (rs *Resource) createPeriod(w http.ResponseWriter, r *http.Request) {
 	if !validatePeriodRules(w, r, req, startDate, endDate, anchor) {
 		return
 	}
-	scheduleAnchor := scheduleDatePointer(anchor)
 
-	period := &schedule.CalendarPeriod{
-		Name:            req.Name,
-		PeriodType:      req.PeriodType,
-		StartDate:       schedule.Date(startDate),
-		EndDate:         schedule.Date(endDate),
-		WeekCycleLength: req.WeekCycleLength,
-		WeekCycleAnchor: scheduleAnchor,
-		IsActive:        req.IsActive,
-	}
-
-	if err := rs.CalendarPeriodService.CreatePeriod(r.Context(), period); err != nil {
+	period, err := rs.CalendarPeriods.AddCalendarPeriod(r.Context(), schoolcalendar.CreateCalendarPeriod{
+		CalendarPeriodFields: periodFieldsFromRequest(req, startDate, endDate, anchor),
+	})
+	if err != nil {
 		switch {
-		case errors.Is(err, schedule.ErrCalendarPeriodNameConflict):
-			common.RenderError(w, r, common.ErrorConflict(schedule.ErrCalendarPeriodNameConflict))
-		case errors.Is(err, schedule.ErrCalendarPeriodOverlapConflict):
+		case errors.Is(err, schoolcalendar.ErrCalendarPeriodNameConflict):
+			common.RenderError(w, r, common.ErrorConflict(schoolcalendar.ErrCalendarPeriodNameConflict))
+		case errors.Is(err, schoolcalendar.ErrCalendarPeriodOverlapConflict):
 			common.RenderError(w, r, calendarPeriodOverlapRenderer(err))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodCreateErrorMessage, err))
@@ -726,7 +733,7 @@ type bootstrapPeriodsResponse struct {
 // is always 200 with the tenant's periods plus a created flag — repeated
 // calls and concurrent calls never yield a 409.
 func (rs *Resource) bootstrapPeriods(w http.ResponseWriter, r *http.Request) {
-	periods, created, err := rs.CalendarPeriodService.EnsureDefaultSchoolYear(r.Context())
+	periods, created, err := rs.CalendarPeriods.EnsureDefaultSchoolYear(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodsBootstrapErrorMessage, err))
 		return
@@ -756,9 +763,9 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existing, err := rs.CalendarPeriodService.GetPeriodByID(r.Context(), id)
+	existing, err := rs.CalendarPeriods.FindCalendarPeriod(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, schoolcalendar.ErrCalendarPeriodNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht geladen werden", err))
@@ -781,25 +788,20 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existing.Name = req.Name
-	existing.PeriodType = req.PeriodType
-	existing.StartDate = schedule.Date(startDate)
-	existing.EndDate = schedule.Date(endDate)
-	existing.WeekCycleLength = req.WeekCycleLength
-	existing.WeekCycleAnchor = scheduleDatePointer(anchor)
-	existing.IsActive = req.IsActive
-
-	if err := rs.CalendarPeriodService.UpdatePeriod(r.Context(), existing); err != nil {
+	updated, err := rs.CalendarPeriods.ChangeCalendarPeriod(r.Context(), schoolcalendar.UpdateCalendarPeriod{
+		ID: existing.ID, CalendarPeriodFields: periodFieldsFromRequest(req, startDate, endDate, anchor),
+	})
+	if err != nil {
 		switch {
-		case errors.Is(err, schedule.ErrCalendarPeriodNameConflict):
-			common.RenderError(w, r, common.ErrorConflict(schedule.ErrCalendarPeriodNameConflict))
-		case errors.Is(err, schedule.ErrCalendarPeriodCareOfferingConflict):
+		case errors.Is(err, schoolcalendar.ErrCalendarPeriodNameConflict):
+			common.RenderError(w, r, common.ErrorConflict(schoolcalendar.ErrCalendarPeriodNameConflict))
+		case errors.Is(err, schoolcalendar.ErrCalendarPeriodRequiredByCareOffering):
 			tenant.MarkRollback(r.Context())
 			common.RenderError(w, r, common.ErrorConflictWithCode(
 				errCalendarPeriodCareOfferingConflict,
 				calendarPeriodCareOfferingConflictCode,
 			))
-		case errors.Is(err, schedule.ErrCalendarPeriodOverlapConflict):
+		case errors.Is(err, schoolcalendar.ErrCalendarPeriodOverlapConflict):
 			tenant.MarkRollback(r.Context())
 			common.RenderError(w, r, calendarPeriodOverlapRenderer(err))
 		default:
@@ -808,8 +810,8 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := mapPeriodToResponse(existing)
-	rs.attachOverlapWarnings(r.Context(), existing, &resp)
+	resp := mapPeriodToResponse(updated)
+	rs.attachOverlapWarnings(r.Context(), updated, &resp)
 	common.Respond(w, r, http.StatusOK, resp, "Calendar period updated successfully")
 }
 
@@ -820,8 +822,8 @@ func (rs *Resource) deletePeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := rs.CalendarPeriodService.GetPeriodByID(r.Context(), id); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+	if _, err := rs.CalendarPeriods.FindCalendarPeriod(r.Context(), id); err != nil {
+		if errors.Is(err, schoolcalendar.ErrCalendarPeriodNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht geladen werden", err))
@@ -829,8 +831,8 @@ func (rs *Resource) deletePeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := rs.CalendarPeriodService.DeletePeriod(r.Context(), id); err != nil {
-		if errors.Is(err, schedule.ErrCalendarPeriodCareOfferingConflict) {
+	if err := rs.CalendarPeriods.RemoveCalendarPeriod(r.Context(), id); err != nil {
+		if errors.Is(err, schoolcalendar.ErrCalendarPeriodRequiredByCareOffering) {
 			tenant.MarkRollback(r.Context())
 			common.RenderError(w, r, common.ErrorConflictWithCode(
 				errCalendarPeriodCareOfferingConflict,

@@ -32,7 +32,10 @@ type School struct {
 	Phone          string
 	Email          string
 	DevicePinHash  string
-	Organization   *Organization
+	// ChildQuotaBundles is nil when the school has no Kinderkontingent (#3567).
+	ChildQuotaBundles    *int
+	ChildQuotaBundleSize int
+	Organization         *Organization
 }
 
 func (s School) IsDeleted() bool { return s.DeletedAt != nil }

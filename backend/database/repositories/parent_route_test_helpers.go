@@ -5,24 +5,27 @@ import (
 
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
-	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/uptrace/bun"
 )
 
+// NewStudentGuardianRepository binds relationship permission checks to native
+// Identity membership facts for tests that do not construct the serving graph.
+func NewStudentGuardianRepository(db *bun.DB) usersModels.StudentGuardianRepository {
+	return newGuardianRelationships(db, newIdentityAccess(db, nil).FindActiveSchoolMemberships, nil)
+}
+
 type ParentRouteTestRepositories struct {
-	ParentChild            parentModels.ChildRepository
-	Student                usersModels.StudentRepository
-	Person                 usersModels.PersonRepository
-	GuardianProfile        usersModels.GuardianProfileRepository
-	StudentGuardian        usersModels.StudentGuardianRepository
-	StudentStatusDay       activeModels.StudentStatusDayOverviewRepository
-	StudentPickupException scheduleModels.StudentPickupExceptionRepository
-	ExcusedAbsenceRequest  activeModels.ExcusedAbsenceRequestRepository
+	ParentChild           parentModels.ChildRepository
+	Student               usersModels.StudentRepository
+	Person                usersModels.PersonRepository
+	GuardianProfile       usersModels.GuardianProfileRepository
+	StudentGuardian       usersModels.StudentGuardianRepository
+	StudentStatusDay      *StudentStatusDayRepository
+	CareExceptions        careplan.Capability
+	ExcusedAbsenceRequest *ExcusedAbsenceRequestRepository
 	// ExcusedRequests is the Care Plan excused-absence workflow over the same
 	// graph, scoped school-wide because parent routes never decide requests.
 	ExcusedRequests careplan.ExcusedAbsenceRequests
@@ -40,13 +43,13 @@ func NewParentRouteTestRepositories(db *bun.DB) (ParentRouteTestRepositories, er
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
-	slots := timetableInstanceStudentRepository{timetable: NewUnobservedTimetableDependencies(db).Capability}
+	slots := newTimetableInstanceStudentRepository(db, NewUnobservedTimetableDependencies(db).Capability, newStudentPresence(db))
 	care, err := NewCarePlan(db, people, slots)
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
 	r := &Factory{db: db,
-		ParentChild: parentRepo.NewChildRepository(carePlanLegacy.NewParentRuntime(db), activeMembershipQuery(db)),
+		ParentChild: parentRepo.NewChildRepository(newIdentityAccess(db, nil).ListActiveAccountSchoolIDs),
 		Student:     NewStudentRepository(db), Person: NewPersonRepository(db),
 		GuardianProfile: NewGuardianProfileRepository(db), StudentGuardian: NewStudentGuardianRepository(db),
 	}
@@ -61,7 +64,7 @@ func NewParentRouteTestRepositories(db *bun.DB) (ParentRouteTestRepositories, er
 	return ParentRouteTestRepositories{
 		ParentChild: r.ParentChild, Student: r.Student, Person: r.Person,
 		GuardianProfile: r.GuardianProfile, StudentGuardian: r.StudentGuardian,
-		StudentStatusDay: r.StudentStatusDay, StudentPickupException: r.StudentPickupException, ExcusedAbsenceRequest: r.ExcusedAbsenceRequest,
+		StudentStatusDay: r.StudentStatusDay, CareExceptions: care, ExcusedAbsenceRequest: r.ExcusedAbsenceRequest,
 		ExcusedRequests: excusedRequests,
 	}, nil
 }

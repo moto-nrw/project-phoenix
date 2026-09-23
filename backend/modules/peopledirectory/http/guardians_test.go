@@ -23,17 +23,18 @@ import (
 // fake.
 type fakeGuardianDirectory struct {
 	peopledirectory.Capability
-	guardians    map[int64]peopledirectory.Guardian
-	students     map[int64]peopledirectory.Student
-	studentLinks map[int64][]peopledirectory.GuardianWithLink
-	guardianKids map[int64][]peopledirectory.StudentWithLink
-	impact       peopledirectory.GuardianDeleteImpact
-	evaluate     error
-	deleteErr    error
-	deleted      []peopledirectory.GuardianDelete
-	added        []peopledirectory.NewStudentGuardian
-	exportRows   []peopledirectory.GuardianPaymentRow
-	exportCalls  int
+	guardians      map[int64]peopledirectory.Guardian
+	students       map[int64]peopledirectory.Student
+	studentLinks   map[int64][]peopledirectory.GuardianWithLink
+	guardianKids   map[int64][]peopledirectory.StudentWithLink
+	impact         peopledirectory.GuardianDeleteImpact
+	evaluate       error
+	deleteErr      error
+	deleted        []peopledirectory.GuardianDelete
+	added          []peopledirectory.NewStudentGuardian
+	exportRows     []peopledirectory.GuardianPaymentRow
+	exportCalls    int
+	studentLookups int
 }
 
 func (f *fakeGuardianDirectory) FindGuardian(_ context.Context, id int64) (peopledirectory.Guardian, error) {
@@ -45,6 +46,7 @@ func (f *fakeGuardianDirectory) FindGuardian(_ context.Context, id int64) (peopl
 }
 
 func (f *fakeGuardianDirectory) ListStudentsByID(_ context.Context, ids []int64) ([]peopledirectory.Student, error) {
+	f.studentLookups++
 	result := []peopledirectory.Student{}
 	for _, id := range ids {
 		if student, ok := f.students[id]; ok {
@@ -98,6 +100,9 @@ type guardianHarness struct {
 	actorID     int64
 	exposeToken bool
 	rollbacks   int
+	bulkInvites []usersHTTP.GuardianBulkInvite
+	bulkResult  usersHTTP.GuardianBulkInviteResult
+	bulkErr     error
 	observed    []string
 	rendered    []string
 }
@@ -156,6 +161,10 @@ func newGuardianHarness(t *testing.T, directory *fakeGuardianDirectory) *guardia
 		ListPendingInvitations: func(context.Context) ([]usersHTTP.PendingGuardianInvitation, error) { return nil, nil },
 		InviteGuardianToStudent: func(context.Context, usersHTTP.GuardianInvite) (usersHTTP.GuardianInviteResult, error) {
 			return usersHTTP.GuardianInviteResult{}, errors.New("managed contact")
+		},
+		BulkInviteGuardians: func(_ context.Context, input usersHTTP.GuardianBulkInvite) (usersHTTP.GuardianBulkInviteResult, error) {
+			h.bulkInvites = append(h.bulkInvites, input)
+			return h.bulkResult, h.bulkErr
 		},
 		InviteFailureKind:          func(error) usersHTTP.FailureKind { return usersHTTP.FailureForbidden },
 		ListPendingApprovals:       func(context.Context) ([]usersHTTP.GuardianPendingApproval, error) { return nil, nil },
