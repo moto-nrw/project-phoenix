@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +25,7 @@ func (r *failingPlannedStatusRead) UpsertReported(context.Context, *absencerecor
 	return r.upsertErr
 }
 
-func (r *failingPlannedStatusRead) MarkCleared(context.Context, int64, string, timezone.Date, time.Time, string) error {
+func (r *failingPlannedStatusRead) MarkCleared(context.Context, int64, string, calendar.Date, time.Time, string) error {
 	return r.historyErr
 }
 
@@ -64,11 +64,11 @@ func (r *failingPlannedStatusRead) MarkClearedByID(context.Context, int64, time.
 	return r.clearErr
 }
 
-func (r *failingPlannedStatusRead) FindActiveByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
+func (r *failingPlannedStatusRead) FindActiveByStudentAndDateRange(context.Context, int64, calendar.Date, calendar.Date) ([]*absencerecords.StudentStatusDay, error) {
 	return nil, r.err
 }
 
-func (r *failingPlannedStatusRead) FindActiveByStudentIDsAndDate(context.Context, []int64, timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
+func (r *failingPlannedStatusRead) FindActiveByStudentIDsAndDate(context.Context, []int64, calendar.Date) ([]*absencerecords.StudentStatusDay, error) {
 	return nil, r.err
 }
 
@@ -106,7 +106,7 @@ func TestCheckinPlannedStatusReadFailuresPropagate(t *testing.T) {
 	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, StudentStatusRepo: &failingPlannedStatusRead{err: injected}}}
 	svc.settings = &fakeSettingsResolver{resolved: "manual"}
 	require.ErrorIs(t, svc.autoClearPlannedStudentStatuses(context.Background(), 42), injected)
-	require.ErrorIs(t, svc.autoClearOnBatchCheckin(context.Background(), []int64{42}, nil, time.Now(), timezone.TodayDate()), injected)
+	require.ErrorIs(t, svc.autoClearOnBatchCheckin(context.Background(), []int64{42}, nil, time.Now(), calendar.TodayDate()), injected)
 }
 
 // fakeSettingsResolver is a minimal stub that satisfies the SettingsResolver

@@ -37,6 +37,10 @@ const (
 	KeyStudentPhotosEnabled               = configModel.KeyStudentPhotosEnabled
 	KeyTimetableEnabled                   = configModel.KeyTimetableEnabled
 	KeyTimetableShowExpectedChildrenCount = configModel.KeyTimetableShowExpectedChildrenCount
+	KeyTrackingIndicatorsEnabled          = configModel.KeyTrackingIndicatorsEnabled
+	KeyTrackingIndicator1                 = configModel.KeyTrackingIndicator1
+	KeyTrackingIndicator2                 = configModel.KeyTrackingIndicator2
+	KeyTrackingIndicator3                 = configModel.KeyTrackingIndicator3
 )
 
 // Values of the enumerated settings above.
