@@ -330,7 +330,7 @@ func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
 		deps.RoomRepo == nil || deps.ActivityGroupRepo == nil || deps.StaffRepo == nil ||
 		deps.StudentRepo == nil || deps.ActiveService == nil || deps.Materialization == nil ||
 		deps.CalendarPeriodRepo == nil || deps.CareDayService == nil || deps.DeviationEventRepo == nil || deps.DB == nil ||
-		deps.RecoveryRepo == nil || (deps.EnforceTimePolicy && deps.Settings == nil) {
+		deps.RecoveryRepo == nil || deps.StartConflicts == nil || (deps.EnforceTimePolicy && deps.Settings == nil) {
 		panic("schedule.NewInstanceService: required dependency is nil")
 	}
 	return &instanceService{deps: deps}
