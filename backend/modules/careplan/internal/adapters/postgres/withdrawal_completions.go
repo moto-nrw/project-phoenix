@@ -9,17 +9,16 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
 	"github.com/uptrace/bun"
 )
 
-// The statements below moved unchanged from the retained People Directory
-// repository (#3221). The children's names and classes are no longer joined
-// from users.students and users.persons: the caller passes the People
-// Directory rows as a recordset with the same columns.
+// The statements below moved from the retained People Directory repository
+// (#3221). The list queries take the children's names and classes from the
+// named student directory projection, joined as a subquery, so the search,
+// the count and the page window each stay in one statement (#3412).
 
 const tableExprWithdrawalCompletions = `users.care_withdrawal_completions AS "care_withdrawal_completion"`
-
-const withdrawalStudentRecordset = `jsonb_to_recordset(?::jsonb) AS "student"(id bigint, first_name text, last_name text, school_class text)`
 
 type withdrawalCompletionRow struct {
 	bun.BaseModel           `bun:"table:care_withdrawal_completions,alias:care_withdrawal_completion"`
@@ -167,36 +166,11 @@ func (s *Store) FindWithdrawalCompletion(ctx context.Context, id int64, lock boo
 	return withdrawalCompletionToDomain(*row), true, stats, nil
 }
 
-// ListWithdrawalStudentIDs returns the distinct children named by the tasks in
-// state; the list queries hydrate exactly these children.
-func (s *Store) ListWithdrawalStudentIDs(ctx context.Context, state string, studentID int64) ([]int64, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return nil, domain.OperationStats{}, err
-	}
-	ids := make([]int64, 0)
-	query := withTenant(db.NewSelect().
-		TableExpr(tableExprWithdrawalCompletions).
-		ColumnExpr(`DISTINCT "care_withdrawal_completion".student_id`).
-		Where(`"care_withdrawal_completion".state = ?`, state).
-		Where(`"care_withdrawal_completion".student_id IS NOT NULL`), "care_withdrawal_completion", tenantID)
-	if studentID > 0 {
-		query = query.Where(`"care_withdrawal_completion".student_id = ?`, studentID)
-	}
-	stats := domain.OperationStats{Queries: 1}
-	started := time.Now()
-	err = query.OrderExpr(`"care_withdrawal_completion".student_id ASC`).Scan(ctx, &ids)
-	stats.StatementDuration = time.Since(started)
-	if err != nil {
-		return nil, stats, fmt.Errorf("care plan postgres: list care withdrawal student ids: %w", err)
-	}
-	stats.Rows = int64(len(ids))
-	return ids, stats, nil
-}
-
 // ListWithdrawals is the joined read model of the pending and the resolved
-// queue. Pending tasks require a directory row with a person, as the former
-// inner joins did; resolved tasks stay visible without one.
+// queue. Pending tasks require a directory row with a live person, as the
+// former inner joins did; resolved tasks stay visible without one. The search
+// and the page window apply inside the joined statement, so a request reads
+// one page of tasks and their children, never the tenant's whole queue.
 func (s *Store) ListWithdrawals(ctx context.Context, state string, filter domain.WithdrawalListFilter) ([]domain.WithdrawalCompletion, int, domain.OperationStats, error) {
 	if state != careplan.WithdrawalStatePending && state != careplan.WithdrawalStateResolved {
 		return nil, 0, domain.OperationStats{}, fmt.Errorf("care plan postgres: unsupported withdrawal list state %q", state)
@@ -205,21 +179,14 @@ func (s *Store) ListWithdrawals(ctx context.Context, state string, filter domain
 	if err != nil {
 		return nil, 0, domain.OperationStats{}, err
 	}
-	students := filter.Students
-	if students == nil {
-		students = []careplan.WithdrawalStudent{}
-	}
-	recordset, err := json.Marshal(students)
-	if err != nil {
-		return nil, 0, domain.OperationStats{}, fmt.Errorf("care plan postgres: encode withdrawal students: %w", err)
-	}
 	pending := state == careplan.WithdrawalStatePending
 	build := func() *bun.SelectQuery {
 		query := db.NewSelect().TableExpr(tableExprWithdrawalCompletions)
+		directory := studentdirectoryview.StudentDisplayQuery(db, tenantID)
 		if pending {
-			query = query.Join(`JOIN `+withdrawalStudentRecordset+` ON "student".id = "care_withdrawal_completion".student_id AND "student".first_name IS NOT NULL`, string(recordset))
+			query = query.Join(`JOIN (?) AS "student" ON "student".tenant_id = "care_withdrawal_completion".tenant_id AND "student".id = "care_withdrawal_completion".student_id AND "student".first_name IS NOT NULL`, directory)
 		} else {
-			query = query.Join(`LEFT JOIN `+withdrawalStudentRecordset+` ON "student".id = "care_withdrawal_completion".student_id`, string(recordset))
+			query = query.Join(`LEFT JOIN (?) AS "student" ON "student".tenant_id = "care_withdrawal_completion".tenant_id AND "student".id = "care_withdrawal_completion".student_id`, directory)
 		}
 		query = withTenant(query.Where(`"care_withdrawal_completion".state = ?`, state), "care_withdrawal_completion", tenantID)
 		if search := filter.Search; search != "" {
