@@ -16,8 +16,7 @@ import (
 // detection and staffing capability reads (#3550). The production factory
 // and the test compositions fill them from their own repository sets.
 // ArrivalBaselines is optional (the exception-conflict read fails without
-// it); Shifts, Staff, Exceptions, Schedules, CalendarPeriods and
-// ArrivalExceptions are needed by NewTimetableConflictDetection only.
+// it); every other reader is required.
 type TimetableConflictReaders struct {
 	Instances         timetableCompose.ConflictInstances
 	InstanceStaff     timetableCompose.ConflictInstanceStaff
@@ -41,12 +40,6 @@ type TimetableConflictReaders struct {
 // arrival baseline for the exception conflicts.
 func NewTimetableConflictDetection(readers TimetableConflictReaders) (timetable.ConflictDetectionCapability, error) {
 	return timetableCompose.NewConflictDetection(readers.dependencies())
-}
-
-// NewTimetableStartConflicts composes only the owner's start check, for the
-// compositions that start blocks but serve no planning reads.
-func NewTimetableStartConflicts(readers TimetableConflictReaders) (timetable.StartConflictQuery, error) {
-	return timetableCompose.NewStartConflicts(readers.dependencies())
 }
 
 func (r TimetableConflictReaders) dependencies() timetableCompose.ConflictDetectionDependencies {

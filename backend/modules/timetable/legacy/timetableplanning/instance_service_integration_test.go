@@ -161,17 +161,38 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 	}
 }
 
-// lifecycleStartConflicts composes the Timetable owner's start check over the
-// lifecycle's repositories and its (possibly fault-injecting) presence.
+// lifecycleStartConflicts composes the Timetable owner's conflict detection
+// over the lifecycle's repositories and its (possibly fault-injecting)
+// presence; the lifecycle only consumes its start check.
 func lifecycleStartConflicts(s *lifecycleSetup) timetable.StartConflictQuery {
-	startConflicts, err := services.NewTimetableStartConflicts(services.TimetableConflictReaders{
+	detection, err := services.NewTimetableConflictDetection(services.TimetableConflictReaders{
 		Instances: s.repos.ActivityInstance, InstanceStaff: s.repos.InstanceStaff, InstanceStudents: s.repos.InstanceStudent,
-		Sessions: s.repos.ActiveGroup, Presence: s.presence,
+		Exceptions: s.repos.ActivityException, Schedules: s.repos.ActivitySchedule, Staff: s.repos.Staff,
+		CalendarPeriods: s.repos.CalendarPeriod, ArrivalExceptions: s.repos.StudentArrivalException,
+		Sessions: s.repos.ActiveGroup, Shifts: unusedShiftRows{}, Presence: s.presence,
 	})
 	if err != nil {
 		panic(err)
 	}
-	return startConflicts
+	return detection
+}
+
+// unusedShiftRows stands in for the Dienstplan rows the start check never
+// reads.
+type unusedShiftRows struct{}
+
+var errShiftRowsNotUsed = errors.New("the start check reads no Dienstplan rows")
+
+func (unusedShiftRows) FindByDateRange(context.Context, scheduleModels.Date, scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
+	return nil, errShiftRowsNotUsed
+}
+
+func (unusedShiftRows) FindByStaffIDsAndDates(context.Context, []int64, []scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
+	return nil, errShiftRowsNotUsed
+}
+
+func (unusedShiftRows) FindUsedCalendarWeeks(context.Context, scheduleModels.Date, scheduleModels.Date) ([]scheduleModels.Date, error) {
+	return nil, errShiftRowsNotUsed
 }
 
 // seedInstance inserts one planned activity_instance plus optional staff

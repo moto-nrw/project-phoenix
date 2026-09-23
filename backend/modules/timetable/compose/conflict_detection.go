@@ -139,24 +139,10 @@ type conflictDetection struct {
 // capability. Every reader except ArrivalBaselines is required: the checks
 // cannot decide whether to warn without them.
 func NewConflictDetection(deps ConflictDetectionDependencies) (timetable.ConflictDetectionCapability, error) {
-	if deps.Exceptions == nil || deps.Schedules == nil || deps.Shifts == nil || deps.Staff == nil ||
-		deps.CalendarPeriods == nil || deps.ArrivalExceptions == nil || deps.ContentHash == nil {
+	if deps.Instances == nil || deps.InstanceStaff == nil || deps.InstanceStudents == nil || deps.Exceptions == nil ||
+		deps.Schedules == nil || deps.Shifts == nil || deps.Staff == nil || deps.CalendarPeriods == nil ||
+		deps.ArrivalExceptions == nil || deps.Presence == nil || deps.Sessions == nil || deps.ContentHash == nil {
 		return nil, errors.New("timetable conflict detection: all dependencies are required")
-	}
-	return newConflictDetection(deps)
-}
-
-// NewStartConflicts composes only the start check, for compositions that
-// start blocks but serve no planning reads. It needs the block rows and the
-// Student Presence readers.
-func NewStartConflicts(deps ConflictDetectionDependencies) (timetable.StartConflictQuery, error) {
-	return newConflictDetection(deps)
-}
-
-func newConflictDetection(deps ConflictDetectionDependencies) (*conflictDetection, error) {
-	if deps.Instances == nil || deps.InstanceStaff == nil || deps.InstanceStudents == nil ||
-		deps.Presence == nil || deps.Sessions == nil {
-		return nil, errors.New("timetable conflict detection: block and presence readers are required")
 	}
 	logger := deps.Logger
 	if logger == nil {
