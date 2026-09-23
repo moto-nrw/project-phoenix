@@ -1593,6 +1593,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		TemplateSplitService:    api.Services.TemplateSplit,
 		PersonService:           api.Services.Users,
 		TimetableData:           api.Services.TimetableData,
+		ConflictDetection:       api.Services.TimetableData.ConflictDetection(),
 		PlanningTrackService:    api.Services.PlanningTracks,
 		CareDayService:          api.Services.CareDay,
 		UserContextService:      api.Services.UserContext,
