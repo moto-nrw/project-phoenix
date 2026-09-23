@@ -258,6 +258,11 @@ func alignGuardianOwnerSequence(ctx context.Context, tx bun.Tx) error {
 // school has links but no completed backfill pass. Counts and checksums are
 // mechanical and are closed by the switch's own final delta; a rejected row
 // needs a data correction and a missing pass needs the backfill CLI.
+//
+// When the Backfill migration is pending in the same release, the pass does not
+// exist yet and cannot: the CLI needs the checkpoint columns that migration
+// adds. Its Up runs the pass, and the switch refuses without one, so only the
+// rejected rows are asked then.
 func guardianOwnerCutoverPrecondition(ctx context.Context, db *bun.DB) error {
 	if db == nil {
 		return errors.New("guardian owner cutover preflight: database is required")
@@ -282,6 +287,9 @@ func guardianOwnerCutoverPrecondition(ctx context.Context, db *bun.DB) error {
 				WHERE o.tenant_id = sg.tenant_id AND o.student_id = sg.student_id AND o.is_primary AND o.id <> sg.id))
 			ORDER BY sg.id`).Scan(ctx, &rejected); err != nil {
 			return err
+		}
+		if migrationPending(ctx, guardianOwnerBackfillVersion) {
+			return nil
 		}
 		return tx.NewRaw(`SELECT s.id FROM platform.schools AS s
 			WHERE EXISTS (SELECT 1 FROM users.students_guardians AS sg WHERE sg.tenant_id = s.id)

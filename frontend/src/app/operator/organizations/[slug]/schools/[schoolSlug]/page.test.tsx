@@ -205,6 +205,9 @@ const mockSchool = {
   kontenCount: 2,
   geraeteCount: 3,
   personenCount: 4,
+  childQuotaBundles: null as number | null,
+  childQuotaBundleSize: 50,
+  childQuotaCount: 37,
 };
 
 interface SetupOpts {
@@ -350,6 +353,89 @@ describe("OperatorSchoolDetailPage", () => {
       );
       expect(revalidateTenantCache).toHaveBeenCalledWith(["test-school"]);
     });
+  });
+
+  it("keeps the Kinderkontingent untouched when toggling the school", async () => {
+    setupSWR();
+    mockUpdateSchool.mockResolvedValue({ ...mockSchool, active: false });
+
+    await renderPage();
+
+    fireEvent.click(await screen.findByLabelText("Deaktivieren"));
+
+    await waitFor(() => expect(mockUpdateSchool).toHaveBeenCalled());
+    expect(mockUpdateSchool.mock.calls[0]?.[1]).not.toHaveProperty(
+      "child_quota",
+    );
+  });
+
+  // --- Kinderkontingent (#3568) ---
+
+  function headerStatValue(label: string): string | null {
+    const stat = screen.getByText(label, { selector: "p, span, div, dt" });
+    return stat.parentElement?.textContent?.replace(label, "") ?? null;
+  }
+
+  it("shows the Kinderkontingent next to the Kontingentzahl", async () => {
+    setupSWR({
+      schools: [{ ...mockSchool, childQuotaBundles: 2, childQuotaCount: 120 }],
+    });
+
+    await renderPage();
+
+    await screen.findByText("Test School");
+    const labels = screen
+      .getAllByText(/^(Kinderkontingent|Kontingentzahl)$/, {
+        selector: "p, span, div, dt",
+      })
+      .map((element) => element.textContent);
+    expect(labels).toEqual(["Kinderkontingent", "Kontingentzahl"]);
+    expect(headerStatValue("Kinderkontingent")).toBe("100");
+    expect(headerStatValue("Kontingentzahl")).toBe("120");
+  });
+
+  it("shows a school without Kinderkontingent as unlimited", async () => {
+    setupSWR();
+
+    await renderPage();
+
+    await screen.findByText("Test School");
+    expect(headerStatValue("Kinderkontingent")).toBe("Keine Grenze");
+    expect(headerStatValue("Kontingentzahl")).toBe("37");
+  });
+
+  it("sets the Kinderkontingent from the school view and refreshes it", async () => {
+    setupSWR();
+    mockUpdateSchool.mockResolvedValue(mockSchool);
+
+    await renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Kinderkontingent" }),
+    );
+    fireEvent.change(screen.getByLabelText("Anzahl Bundles"), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mockUpdateSchool).toHaveBeenCalledWith(
+        "10",
+        expect.objectContaining({
+          name: "Test School",
+          active: true,
+          child_quota: { bundles: 1, bundle_size: 50 },
+        }),
+      ),
+    );
+    await waitFor(() => expect(mockMutateSchools).toHaveBeenCalled());
+    expect(mockMutateSchools).toHaveBeenCalledWith(undefined, {
+      throwOnError: true,
+    });
+    expect(mockMutateOrgs).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Anzahl Bundles")).not.toBeInTheDocument(),
+    );
   });
 
   it("opens edit school modal when Bearbeiten is clicked", async () => {

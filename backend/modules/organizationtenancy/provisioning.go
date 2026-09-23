@@ -276,6 +276,12 @@ type SchoolSummary struct {
 	KontenCount      int        `json:"konten_count"`
 	GeraeteCount     int        `json:"geraete_count"`
 	PersonenCount    int        `json:"personen_count"`
+	// ChildQuotaBundles and ChildQuotaBundleSize are the Kinderkontingent
+	// (#3567); bundles are null when the school has none. ChildQuotaCount is
+	// the Kontingentzahl it is checked against (#3568).
+	ChildQuotaBundles    *int `json:"child_quota_bundles"`
+	ChildQuotaBundleSize int  `json:"child_quota_bundle_size"`
+	ChildQuotaCount      int  `json:"child_quota_count"`
 }
 
 // PWAPortalUsage is one portal's slice of a school's PWA standalone usage.

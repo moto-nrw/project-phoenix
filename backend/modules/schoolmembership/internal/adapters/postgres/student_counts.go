@@ -27,18 +27,27 @@ FROM users.student_school_memberships
 WHERE ` + activelyManagedPredicate + `
 GROUP BY tenant_id`
 
-// countChildQuotaSQL is the Kontingentzahl of one school (#3567): the
-// actively managed children of the Stichtagszahl plus the live pending ones,
-// whose care starts later. It extends the billing rule instead of restating
-// it, so the two numbers cannot drift apart.
-const countChildQuotaSQL = `SELECT COUNT(*)
-FROM users.student_school_memberships
-WHERE tenant_id = ?
-  AND ((` + activelyManagedPredicate + `)
+// childQuotaPredicate is the Kontingentzahl rule (#3567): the actively
+// managed children of the Stichtagszahl plus the live pending ones, whose
+// care starts later. It extends the billing rule instead of restating it, so
+// the two numbers cannot drift apart. Its three parameters are the count day.
+const childQuotaPredicate = `((` + activelyManagedPredicate + `)
     OR (deleted_at IS NULL
       AND status = 'pending'
       AND (enrolled_until IS NULL OR enrolled_until >= ?::date)
       AND enrolled_from > ?::date))`
+
+// countChildQuotaSQL is the Kontingentzahl of one school.
+const countChildQuotaSQL = `SELECT COUNT(*)
+FROM users.student_school_memberships
+WHERE tenant_id = ?
+  AND ` + childQuotaPredicate
+
+// countChildQuotaByTenantSQL is the Kontingentzahl of every school.
+const countChildQuotaByTenantSQL = `SELECT tenant_id, COUNT(*) AS count
+FROM users.student_school_memberships
+WHERE ` + childQuotaPredicate + `
+GROUP BY tenant_id`
 
 // childQuotaLockKey is the advisory-lock namespace of the counting writes
 // ("kont"); the second key is the tenant.
@@ -60,6 +69,27 @@ func CountActiveStudentsByTenant(ctx context.Context, db bun.IDB, capturedAt tim
 	}
 	if err := db.NewRaw(countActiveStudentsByTenantSQL, captureDate).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("school membership postgres: count active students by tenant: %w", err)
+	}
+	counts := make(map[int64]int, len(rows))
+	for _, row := range rows {
+		counts[row.TenantID] = row.Count
+	}
+	return counts, nil
+}
+
+// CountChildQuotaByTenant counts the Kontingentzahl of every school the
+// connection can see on the given calendar day (YYYY-MM-DD).
+func CountChildQuotaByTenant(ctx context.Context, db bun.IDB, on string) (map[int64]int, error) {
+	day, err := calendar.ParseDate(on)
+	if err != nil {
+		return nil, fmt.Errorf("school membership postgres: parse count day: %w", err)
+	}
+	var rows []struct {
+		TenantID int64 `bun:"tenant_id"`
+		Count    int   `bun:"count"`
+	}
+	if err := db.NewRaw(countChildQuotaByTenantSQL, day, day, day).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("school membership postgres: count child quota by tenant: %w", err)
 	}
 	counts := make(map[int64]int, len(rows))
 	for _, row := range rows {
