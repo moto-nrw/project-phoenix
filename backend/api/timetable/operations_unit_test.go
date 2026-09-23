@@ -1183,7 +1183,7 @@ func (r *fakeOperationActivityGroupRepo) FindByName(_ context.Context, name stri
 	if r.findByNameResult != nil {
 		return r.findByNameResult, nil
 	}
-	return nil, sql.ErrNoRows
+	return nil, activityModels.WrapNotFoundDatabaseError("find group by name")
 }
 
 func (r *fakeOperationActivityGroupRepo) Create(_ context.Context, group *activityModels.Group) error {
@@ -1216,7 +1216,7 @@ func (r *fakeOperationActivityCategoryRepo) findByName() (*activityModels.Catego
 	if r.findByNameResult != nil {
 		return r.findByNameResult, nil
 	}
-	return nil, sql.ErrNoRows
+	return nil, activityModels.WrapNotFoundDatabaseError("find by name")
 }
 
 func (r *fakeOperationActivityCategoryRepo) Create(_ context.Context, category *activityModels.Category) error {
