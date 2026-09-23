@@ -37,7 +37,9 @@ func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	slog.Default().Info("Password reset initiated", slog.String("email", req.Email))
+	// The address stays out of the log: a reset line naming it would record
+	// who reset an account and when (#2108).
+	slog.Default().Info("Password reset initiated")
 
 	common.Respond(w, r, http.StatusOK, nil, "If the email exists, a password reset link has been sent")
 }

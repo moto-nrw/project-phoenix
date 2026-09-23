@@ -131,18 +131,3 @@ type OperatorEmailChangeResult struct {
 	OldEmail    string
 	NewEmail    string
 }
-
-// MaskOperatorEmail masks an address for a log line or an audit entry: the
-// first character plus *** before the @. A local part of one or two
-// characters is hidden entirely, because one character of two would reveal
-// half the name.
-func MaskOperatorEmail(address string) string {
-	parts := strings.SplitN(address, "@", 2)
-	if len(parts) != 2 || parts[0] == "" {
-		return "***"
-	}
-	if len(parts[0]) <= 2 {
-		return "***@" + parts[1]
-	}
-	return string(parts[0][0]) + "***@" + parts[1]
-}

@@ -195,6 +195,31 @@ Rollbacks restore matching images, configuration, roles, database and uploads;
 an old image alone is not compatible with every newer schema.
 For env changes, read `.claude/rules/env-docker-sync.md` before editing.
 
+## Rollback window of a storage cutover
+
+A storage cutover leaves the old shape in place as a compatibility mirror so the
+previous image can be deployed again. The period until the matching Contract
+ticket drops that mirror is the rollback window. **It is not a waiting period,
+and it has no fixed length.** Sitting out hours or a school day proves nothing
+that the counters do not already say.
+
+The window ends as soon as all three hold:
+
+1. The cutover shipped in a production release, so the owner tables are filled
+   and in use there. This is ordering, not waiting: the Contract migration may
+   not drop columns the running image still needs.
+2. Both compatibility hit counters read zero and the cutover's caller-inventory
+   test is green. Together they answer who still uses the old path: the counters
+   at runtime, the test in the code.
+3. A restorable backup is verified, not merely present. After the Contract
+   migration, rolling the image back is no longer enough; recovery means
+   restoring that backup.
+
+Then the Contract ticket goes into the next release. Recording an observation
+day, a minimum duration or a separate evidence file is not required
+(decided 2026-09-23, same reasoning as the deployment gates removed in #3453
+and #3455).
+
 ## PR screenshots and QA evidence
 
 Upload images and videos with `gh --attach` (gh >= 2.99, pinned in

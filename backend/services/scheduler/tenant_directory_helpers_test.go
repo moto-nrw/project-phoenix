@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"time"
 
 	"github.com/uptrace/bun"
 )
@@ -17,6 +18,12 @@ func (d dbTenantDirectory) ListActiveTenantIDs(ctx context.Context) ([]int64, er
 
 func (d dbTenantDirectory) ListNonDeletedTenantIDs(ctx context.Context) ([]int64, error) {
 	return d.list(ctx, false)
+}
+
+// RecordDueBillingKeyDates captures nothing: the wired scheduler tests cover
+// the tenant loops, and the billing capture has its own owner tests.
+func (d dbTenantDirectory) RecordDueBillingKeyDates(context.Context, time.Time) (int, error) {
+	return 0, nil
 }
 
 func (d dbTenantDirectory) list(ctx context.Context, activeOnly bool) ([]int64, error) {
