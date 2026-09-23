@@ -11,8 +11,13 @@ React). The Phoenix backend runs on the server, never on the Pi. PRs target
 `development`.
 
 PyrePortal consumes `/api/iot/*` using a device API key and staff PIN.
-`../PyrePortal/src/services/api.ts` maps backend error strings to German UI
-text. Coordinate endpoint, error-string, and auth-header changes across repos.
+`../PyrePortal/src/services/apiErrors.ts` maps backend error strings and
+staff-clock error codes to German UI text. Coordinate endpoint, error-string,
+and auth-header changes across repos. Changing a mapped string or code is a
+two-repo change: `backend/api/testdata/iot_error_strings.golden`
+(`TestFullProductionRouterGolden`) and `TestPyrePortalErrorStringsGuard`
+(`backend/api/iot/pyreportal_error_strings_test.go`) fail until both sides
+and the golden move together.
 Backend header and attribution rules: `backend/CLAUDE.md` RFID/IoT Integration.
 
 ### Presence mode
