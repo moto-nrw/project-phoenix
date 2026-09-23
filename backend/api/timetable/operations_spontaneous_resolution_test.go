@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -93,6 +94,9 @@ func TestOperationsCreateAndStartSpontaneousResolvesActivityAgainstRealRepositor
 		require.NotNil(t, service.lastSpontaneousInput.ActivityGroupID)
 		return *service.lastSpontaneousInput.ActivityGroupID
 	}
+
+	_, err := repos.ActivityCategory.FindByNameIncludingArchivedForShare(testpkg.Ctx(t), "Spontan")
+	require.True(t, common.IsNotFound(err), "the tenant starts without a Spontan category: %v", err)
 
 	newTitle := fmt.Sprintf("Neue Werkstatt %d", time.Now().UnixNano())
 	createdGroupID := start(newTitle)

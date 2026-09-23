@@ -3,7 +3,6 @@ package timetable
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
@@ -1161,7 +1161,7 @@ func (r *fakeOperationRoomRepo) FindByID(_ context.Context, _ interface{}) (*fac
 		return nil, r.err
 	}
 	if r.room == nil {
-		return nil, sql.ErrNoRows
+		return nil, facilities.ErrRoomNotFound
 	}
 	return r.room, nil
 }
