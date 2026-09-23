@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/jwtauth/v5"
 
 	"github.com/moto-nrw/project-phoenix/analytics"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
@@ -19,8 +20,14 @@ func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *projectJWT.Toke
 	return analytics.CoreActionMiddleware(analytics.CoreActionConfig{
 		Tracker: tracker,
 		RequestActor: func(r *http.Request) (analytics.Actor, bool) {
-			claims, ok := projectJWT.VerifiedClaimsFromCtx(r.Context())
-			if !ok {
+			// The root verifier leaves a token only when its signature and
+			// expiry hold; ParseClaims rejects MFA interim tokens.
+			token, raw, err := jwtauth.FromContext(r.Context())
+			if err != nil || token == nil {
+				return analytics.Actor{}, false
+			}
+			var claims projectJWT.AppClaims
+			if claims.ParseClaims(raw) != nil {
 				return analytics.Actor{}, false
 			}
 			return analyticsActor(claims)
