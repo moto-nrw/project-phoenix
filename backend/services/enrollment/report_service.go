@@ -147,7 +147,7 @@ type ClassRosterFilters struct {
 	// OfferingDate pins the offering-link selection to a specific calendar
 	// day (#1772 class day view: paging to Monday must show Monday's
 	// selection, not today's). Nil keeps the export default
-	// reportOfferingDate(phase) — today clamped to the phase window.
+	// reportOfferingDate(today, phase) — today clamped to the phase window.
 	OfferingDate *timezone.Date `json:"offering_date,omitempty"`
 	// SkipGuardianData omits the guardian-facing enrichments (emergency
 	// contacts, request guardians, companion links). The class day view
@@ -379,8 +379,7 @@ func BookingViewDate(today, serviceEnd timezone.Date) timezone.Date {
 // reportOfferingDate selects the current point within a phase. Reports for a
 // future phase show the selection that will apply at its start; reports for a
 // completed phase show the final selection instead of mixing all intervals.
-func reportOfferingDate(phase *capability.Phase) timezone.Date {
-	today := timezone.TodayDate()
+func reportOfferingDate(today timezone.Date, phase *capability.Phase) timezone.Date {
 	if phase == nil || (timezone.Date(phase.ServiceStartDate).IsZero() && timezone.Date(phase.ServiceEndDate).IsZero()) {
 		return today
 	}
@@ -436,7 +435,7 @@ func (s *reportService) careUsage(ctx context.Context, filters CareUsageFilters,
 	for _, child := range children {
 		childIDs = append(childIDs, child.ID)
 	}
-	offeringDate := reportOfferingDate(phase)
+	offeringDate := reportOfferingDate(s.today(), phase)
 	values, err := s.Children.RequestChildOfferingsForChildrenAtDate(ctx, childIDs, capability.Date(offeringDate))
 	links := legacyOfferingSelections(values)
 	if err != nil {
@@ -796,7 +795,7 @@ func (s *reportService) classRosterForStudents(ctx context.Context, filters Clas
 	}
 
 	enrollmentsByStudent, approvedChildIDs := classRosterApprovedEnrollments(children, requestByID, studentByID)
-	offeringDate := reportOfferingDate(phase)
+	offeringDate := reportOfferingDate(s.today(), phase)
 	if filters.OfferingDate != nil {
 		offeringDate = *filters.OfferingDate
 	}
