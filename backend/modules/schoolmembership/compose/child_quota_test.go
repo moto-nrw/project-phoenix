@@ -165,8 +165,8 @@ func TestChildQuotaUnboundFailsClosed(t *testing.T) {
 }
 
 // TestChildQuotaLetsCountedChildrenChange pins what a full school may still
-// do: renew a child that already counts, and let a pending child start. It
-// may even be above a lowered Kinderkontingent.
+// do: renew a child that already counts, and let a pending child that already
+// counts start. It may even be above a lowered Kinderkontingent.
 func TestChildQuotaLetsCountedChildrenChange(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -178,7 +178,7 @@ func TestChildQuotaLetsCountedChildrenChange(t *testing.T) {
 
 	counted := testpkg.CreateTestStudent(t, db, "Schon", "Da", "1a")
 	pending := testpkg.CreateTestStudent(t, db, "Bald", "Da", "1a")
-	setMembership(t, db, tenantID, pending.ID, "status = 'pending'")
+	setMembership(t, db, tenantID, pending.ID, "status = 'pending', enrolled_from = '2099-08-01'")
 
 	renewal := enrollment(counted.ID)
 	renewal.SchoolClass = "2a"
@@ -188,10 +188,38 @@ func TestChildQuotaLetsCountedChildrenChange(t *testing.T) {
 
 	moved, err := module.TransitionStatus(ctx, pending.ID, "pending", "active")
 	require.NoError(t, err)
-	require.True(t, moved, "pending → active is never checked")
+	require.True(t, moved, "a transition that does not raise the Kontingentzahl passes")
 
 	_, err = module.Enroll(ctx, enrollment(unenrolledStudent(t, db, tenantID, "Neu")))
 	requireQuotaReached(t, err, 1, 2, 1)
+}
+
+// TestChildQuotaRejectsStartedPendingActivation pins the scheduler boundary:
+// a pending child with a started care interval does not count before the
+// transition, so pending → active must be checked atomically.
+func TestChildQuotaRejectsStartedPendingActivation(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	quotas := newChildQuotas()
+	quotas.set(tenantID, 1)
+	module := quotaModule(t, db, quotas)
+
+	testpkg.CreateTestStudent(t, db, "Voll", "Belegt", "1a")
+	pending := testpkg.CreateTestStudent(t, db, "Begonnen", "Vorgemerkt", "1a")
+	setMembership(t, db, tenantID, pending.ID, "status = 'pending', enrolled_from = '2020-07-31'")
+
+	moved, err := module.TransitionStatus(ctx, pending.ID, "pending", "active")
+	requireQuotaReached(t, err, 1, 1, 1)
+	require.False(t, moved)
+
+	var status string
+	err = db.NewSelect().TableExpr("users.student_school_memberships").
+		ColumnExpr("status").Where("tenant_id = ?", tenantID).
+		Where("student_profile_id = ?", pending.ID).Scan(ctx, &status)
+	require.NoError(t, err)
+	require.Equal(t, "pending", status, "a refused transition leaves the membership unchanged")
 }
 
 // TestChildQuotaChecksEveryWayBack pins the counting writes that bring a

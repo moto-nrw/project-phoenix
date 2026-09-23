@@ -12,8 +12,8 @@ import (
 // SetStatus, ResumeCare, Reactivate) is checked against the school's
 // Kinderkontingent in the same transaction and refused with
 // ChildQuotaReachedError when it would exceed it (#3567). TransitionStatus
-// is the scheduler's pending → active step and is not checked: a pending
-// child already counts.
+// checks the scheduler's pending → active step as well when a started
+// pending child becomes counted.
 type StudentEnrollmentCommands interface {
 	TransitionStatus(context.Context, int64, string, string) (bool, error)
 	SetStatus(context.Context, int64, string) (bool, error)

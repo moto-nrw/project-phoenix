@@ -14,12 +14,22 @@ func (s *Service) TransitionStudentStatus(ctx context.Context, id int64, expecte
 		if gateErr != nil {
 			return gateErr
 		}
-		var queryStats domain.OperationStats
-		changed, queryStats, err = s.store.TransitionStudentStatus(txCtx, id, expected, next)
-		stats.Add(queryStats)
+		transition := func(writeCtx context.Context) (bool, error) {
+			moved, queryStats, writeErr := s.store.TransitionStudentStatus(writeCtx, id, expected, next)
+			stats.Add(queryStats)
+			changed = moved
+			return moved, writeErr
+		}
+		if expected == "pending" && next == "active" {
+			return s.countingTransition(txCtx, stats, transition)
+		}
+		_, err := transition(txCtx)
 		return err
 	})
-	return changed, err
+	if err != nil {
+		return false, err
+	}
+	return changed, nil
 }
 
 // SetStudentStatus is the unconditional status change. Unlike the

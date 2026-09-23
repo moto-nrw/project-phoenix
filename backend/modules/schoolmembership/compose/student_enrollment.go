@@ -3,7 +3,8 @@ package compose
 import "context"
 
 func (e engine) TransitionStudentStatus(ctx context.Context, id int64, expected, next string) (bool, error) {
-	return e.service.TransitionStudentStatus(ctx, id, expected, next)
+	changed, err := e.service.TransitionStudentStatus(ctx, id, expected, next)
+	return changed, mapError(err)
 }
 
 func (e engine) SetStudentStatus(ctx context.Context, id int64, status string) (bool, error) {
