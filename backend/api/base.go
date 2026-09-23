@@ -314,6 +314,8 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		},
 		DB:           db,
 		LiveStaffIDs: repositories.WorkforceLiveStaffIDs(membership),
+		// A Sonderarbeitszeit never sets a target on a statutory holiday.
+		StatutoryHolidays: calendar.TenantHolidayDates,
 		Observe: func(observation workforceCompose.Observation) {
 			observability.ObserveWorkforceOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, workforceModule.ErrorCode(observation.Err), observation.Err)
 		},

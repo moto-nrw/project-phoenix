@@ -84,6 +84,9 @@ type createTemplateRequest struct {
 	// Notes is the optional durable Wochennotiz for the template; it shows on
 	// every materialized instance and survives Re-Plan/Split.
 	Notes *string `json:"notes,omitempty"`
+	// IncludeClosingDays plans the series on the school's closing days too,
+	// for example holiday care (#3594). Default: closing days are skipped.
+	IncludeClosingDays bool `json:"include_closing_days,omitempty"`
 	// StartDate is the optional series start (YYYY-MM-DD, #2135): no instances
 	// are materialized before it and the initial roster becomes valid from it.
 	// Must lie within the calendar period when one is pinned. Omitted = the
@@ -425,6 +428,7 @@ func buildCreateTemplateInput(
 		SourceSchoolClasses:   req.SourceSchoolClasses,
 		ListKind:              req.ListKind,
 		Notes:                 normalizeNotes(req.Notes),
+		IncludeClosingDays:    req.IncludeClosingDays,
 		StudentIDs:            req.StudentIDs,
 		StaffIDs:              req.StaffIDs,
 		PrimaryStaffID:        req.PrimaryStaffID,

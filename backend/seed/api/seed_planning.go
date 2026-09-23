@@ -328,6 +328,12 @@ func createSeedTargetVariants(rt *Runtime, roomID, categoryID, trackID int64, st
 			"targets":  []map[string]any{{"type": "klasse", "school_class": "Klasse 1a"}},
 			"weekdays": []int{2, 4}, "start_time": "14:00", "end_time": "15:00",
 		},
+		{
+			// Holiday care keeps running on the seeded closing day (#3594).
+			"name": "Ferienbetreuung", "type": "care",
+			"target_group_type": "none", "include_closing_days": true,
+			"weekdays": []int{1, 2, 3, 4, 5}, "start_time": "08:00", "end_time": "12:00",
+		},
 	}
 	for _, body := range variants {
 		body["room_id"], body["category_id"], body["planning_track_id"] = roomID, categoryID, trackID

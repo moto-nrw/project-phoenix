@@ -8,10 +8,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { CalendarX, Pencil, Plus, Trash2 } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { ClosingDayModal } from "~/components/planning/closing-day-modal";
+import { BulkCancelAppointmentsModal } from "~/components/timetable/bulk-cancel-appointments-modal";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -25,6 +27,7 @@ import {
   formatClosingDayRange,
 } from "~/lib/closing-day-helpers";
 import { useToast } from "~/contexts/ToastContext";
+import { hasPermission } from "~/lib/auth-utils";
 import { useInvalidateClosingDays } from "~/lib/hooks/use-closing-days";
 import { createLogger } from "~/lib/logger";
 
@@ -38,6 +41,14 @@ export function ClosingDaysEditor() {
   const [editing, setEditing] = useState<ClosingDay | null>(null);
   const [deleting, setDeleting] = useState<ClosingDay | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  // #3594: Termine eines Schließtags absagen, aus der Zeile oder direkt nach
+  // dem Speichern. Nur mit Planungsrecht, wie der Betreuungsplan selbst.
+  const [cancelRange, setCancelRange] = useState<{
+    startDate: string;
+    endDate: string;
+  } | null>(null);
+  const { data: session } = useSession();
+  const canManageSchedules = hasPermission(session, "schedules:manage");
   const { success: toastSuccess, error: toastError } = useToast();
   const invalidateClosingDays = useInvalidateClosingDays();
 
@@ -159,6 +170,19 @@ export function ClosingDaysEditor() {
                   icon: <Pencil className="h-4 w-4" aria-hidden />,
                   onClick: () => beginEdit(day),
                 },
+                ...(canManageSchedules
+                  ? [
+                      {
+                        label: "Termine absagen",
+                        icon: <CalendarX className="h-4 w-4" aria-hidden />,
+                        onClick: () =>
+                          setCancelRange({
+                            startDate: day.startDate,
+                            endDate: day.endDate,
+                          }),
+                      },
+                    ]
+                  : []),
                 { kind: "separator" },
                 {
                   label: "Löschen",
@@ -172,7 +196,7 @@ export function ClosingDaysEditor() {
         ),
       },
     ],
-    [beginEdit],
+    [beginEdit, canManageSchedules],
   );
 
   return (
@@ -183,7 +207,7 @@ export function ClosingDaysEditor() {
           freier Absatz und eigene Buttonzeile über der Tabelle zu stehen. */}
       <SectionCard
         title="Schließtage"
-        description="OGS-Schließtage (z. B. pädagogische Tage, Weihnachtswoche, Sommerschließung). An diesen Tagen gilt Soll = 0 wie an gesetzlichen Feiertagen."
+        description="OGS-Schließtage (z. B. pädagogische Tage, Ferien, Sommerschließung). An diesen Tagen plant moto keine Regeltermine. Es gilt Soll = 0 wie an gesetzlichen Feiertagen."
         actions={
           <Button
             type="button"
@@ -224,6 +248,14 @@ export function ClosingDaysEditor() {
         onClose={() => setModalOpen(false)}
         onSaved={refreshAfterMutation}
         initial={editing}
+        onOfferCancel={canManageSchedules ? setCancelRange : undefined}
+      />
+
+      <BulkCancelAppointmentsModal
+        isOpen={cancelRange !== null}
+        initialFrom={cancelRange?.startDate ?? ""}
+        initialTo={cancelRange?.endDate ?? ""}
+        onClose={() => setCancelRange(null)}
       />
 
       <ConfirmDeleteModal

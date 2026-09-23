@@ -35,6 +35,7 @@ const templateListSelect = `
 		COALESCE(g.source_school_classes::text, '') AS source_school_classes_json,
 		g.list_kind,
 		g.notes,
+		g.include_closing_days,
 		c.shift_type_id,
 		'' AS shift_type_name,
 		'' AS shift_type_color,

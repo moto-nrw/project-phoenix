@@ -53,10 +53,13 @@ type updateTemplateRequest struct {
 	// omitted/null/empty clears it.
 	ListKind *string `json:"list_kind,omitempty"`
 	// Notes is the durable Wochennotiz for the template; omitted/null clears it.
-	Notes          *string `json:"notes,omitempty"`
-	StudentIDs     []int64 `json:"student_ids,omitempty"`
-	StaffIDs       []int64 `json:"staff_ids,omitempty"`
-	PrimaryStaffID *int64  `json:"primary_staff_id,omitempty"`
+	Notes *string `json:"notes,omitempty"`
+	// IncludeClosingDays sets the series' closing-day opt-in (#3594);
+	// omitted keeps the stored value.
+	IncludeClosingDays *bool   `json:"include_closing_days,omitempty"`
+	StudentIDs         []int64 `json:"student_ids,omitempty"`
+	StaffIDs           []int64 `json:"staff_ids,omitempty"`
+	PrimaryStaffID     *int64  `json:"primary_staff_id,omitempty"`
 	// WeekdayAssignments overrides the shared roster for individual weekdays
 	// (#2129); omitted/empty resets the series to one shared roster.
 	WeekdayAssignments []weekdayAssignmentRequest `json:"weekday_assignments,omitempty"`
@@ -547,6 +550,7 @@ func buildUpdateTemplateInput(
 			SourceSchoolClasses:     req.SourceSchoolClasses.Value,
 			ListKind:                req.ListKind,
 			Notes:                   normalizeNotes(req.Notes),
+			IncludeClosingDays:      req.IncludeClosingDays,
 		},
 		Weekdays:           req.Weekdays,
 		TimeframeID:        timeframeID,

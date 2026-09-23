@@ -104,6 +104,19 @@ export function findFirstClosingDayConflict(
 }
 
 /**
+ * How many generated dates overlap a stored closing-day range (#3594). A
+ * series skips those dates unless it is planned for closing days too.
+ */
+export function countClosingDayConflicts(
+  ranges: readonly ClosingDayRange[] | null | undefined,
+  dates: readonly string[],
+): number {
+  return dates.filter(
+    (dateISO) => findClosingDayReason(ranges, dateISO) !== undefined,
+  ).length;
+}
+
+/**
  * Expands stored closure ranges into a per-day lookup (YYYY-MM-DD → Grund),
  * clamped to [from, to]. Shared by every surface that marks closing days:
  * the Zeiterfassung tables (#1418 3b) and the planning grids (#2032). The

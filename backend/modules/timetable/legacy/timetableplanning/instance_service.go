@@ -41,6 +41,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -175,6 +176,7 @@ type InstanceService interface {
 	// cancellation notice for the block would reach (#2601).
 	GuardianNoticeReachFor(ctx context.Context, instanceID int64) (*GuardianNoticeReach, error)
 	DeleteCancelled(ctx context.Context, instanceID int64) error
+	BulkCancelPlanned(ctx context.Context, from, to timezone.Date, dryRun bool, actorAccountID *int64) (*timetable.BulkCancelResult, error)
 	// SetUnderstaffedAck flips the "deliberately unstaffed" acknowledgement on a
 	// planned or active instance (Vertretungsplan, issue #1840). It only
 	// annotates the block — no lifecycle transition, no active-state change — so
@@ -1512,63 +1514,6 @@ func equalOptionalString(a, b *string) bool {
 		return a == b
 	}
 	return *a == *b
-}
-
-// DeleteCancelled permanently removes a planned or cancelled instance.
-// Historical name retained for compatibility with existing handlers. Active
-// and completed instances stay protected: deleting those would hide live
-// sessions or attendance history. For materialized template occurrences,
-// write a cancelled activity_exception first so materialization cannot
-// resurrect the deleted single occurrence.
-func (s *instanceService) DeleteCancelled(ctx context.Context, instanceID int64) error {
-	instance, err := s.loadForTransition(ctx, instanceID)
-	if err != nil {
-		return err
-	}
-	switch instance.Status {
-	case scheduleModel.InstanceStatusPlanned, scheduleModel.InstanceStatusCancelled:
-		// allowed
-	default:
-		return fmt.Errorf("%w: cannot delete instance in status %q", ErrInvalidInstanceTransition, instance.Status)
-	}
-
-	if instance.ActivityGroupID != nil && !instance.IsSpontaneous {
-		if err := s.rejectAmbiguousTemplateDelete(ctx, *instance.ActivityGroupID, timezone.Date(instance.Date)); err != nil {
-			return err
-		}
-		if err := s.ensureCancelledSlotException(ctx, *instance.ActivityGroupID, timezone.Date(instance.Date), deletedSlotReason); err != nil {
-			return err
-		}
-	}
-
-	if err := s.deps.InstanceRepo.Delete(ctx, instance.ID); err != nil {
-		return &ScheduleError{Op: "delete instance", Err: err}
-	}
-	s.getLogger().Info("instance deleted",
-		slog.Int64("tenant_id", tenant.FromContext(ctx)),
-		slog.Int64("instance_id", instance.ID),
-		slog.String("date", instance.Date.String()),
-		slog.String("status", instance.Status),
-	)
-	s.broadcastPlannedInstanceChanged(ctx, "instance_delete")
-	return nil
-}
-
-func (s *instanceService) rejectAmbiguousTemplateDelete(ctx context.Context, activityGroupID int64, date timezone.Date) error {
-	rows, err := s.deps.InstanceRepo.FindByActivityGroupAndDate(ctx, activityGroupID, scheduleModel.Date(date))
-	if err != nil {
-		return &ScheduleError{Op: "delete instance: check same-day template slots", Err: err}
-	}
-	templateBacked := 0
-	for _, row := range rows {
-		if row != nil && !row.IsSpontaneous {
-			templateBacked++
-		}
-	}
-	if templateBacked > 1 {
-		return fmt.Errorf("%w: template has %d same-day slots", ErrAmbiguousTemplateInstanceDelete, templateBacked)
-	}
-	return nil
 }
 
 // Create inserts a new activity instance and optionally pre-assigns staff.

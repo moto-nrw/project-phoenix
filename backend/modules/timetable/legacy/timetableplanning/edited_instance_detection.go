@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // Edited-field categories. These are the fields a "Nur diesen Termin" edit can
@@ -134,17 +135,17 @@ func (s *materializationService) DetectEditedInWindow(
 		if err != nil {
 			return nil, &ScheduleError{Op: "detect edited: load schedules", Err: err}
 		}
-		timeframes, err := s.timeframeRepo.ListAll(ctx)
+		timeframeByID, err := s.timeframeIndex(ctx, "detect edited: load timeframes")
 		if err != nil {
-			return nil, &ScheduleError{Op: "detect edited: load timeframes", Err: err}
-		}
-		timeframeByID := make(map[int64]*schedule.Timeframe, len(timeframes))
-		for _, tf := range timeframes {
-			timeframeByID[tf.ID] = tf
+			return nil, err
 		}
 		periods, err := s.periodRepo.FindActiveByTenantID(ctx)
 		if err != nil {
 			return nil, &ScheduleError{Op: "detect edited: load periods", Err: err}
+		}
+		days, err := timetable.LoadNonWorkingDays(ctx, s.nonWorkingDays, from.String(), to.String())
+		if err != nil {
+			return nil, &ScheduleError{Op: "detect edited: load non-working days", Err: err}
 		}
 		enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, activityGroupID)
 		if err != nil {
@@ -181,6 +182,7 @@ func (s *materializationService) DetectEditedInWindow(
 				schedules,
 				timeframeByID,
 				periods,
+				days,
 				exceptionIdx[exceptionKey{tmpl.ID, instanceDate}],
 				instanceDate,
 			)
@@ -221,19 +223,7 @@ func (s *materializationService) DetectEditedInWindow(
 	}
 
 	if includeDeletions {
-		for _, exc := range exceptions {
-			if exc == nil || exc.ExceptionType != schedule.ActivityExceptionCancelled {
-				continue
-			}
-			// No instance row (it was deleted); InstanceID 0 signals a deletion.
-			edited = append(edited, EditedOccurrence{
-				InstanceID: 0,
-				Date:       timezone.Date(exc.ExceptionDate),
-				StartTime:  "",
-				Title:      tmpl.Name,
-				Changes:    []string{EditedChangeDeleted},
-			})
-		}
+		edited = appendDeletedOccurrences(edited, exceptions, tmpl.Name)
 	}
 
 	sort.Slice(edited, func(i, j int) bool {
@@ -243,6 +233,25 @@ func (s *materializationService) DetectEditedInWindow(
 		return edited[i].StartTime < edited[j].StartTime
 	})
 	return edited, nil
+}
+
+// appendDeletedOccurrences reports every individually deleted occurrence (a
+// cancelled exception) as an edit. There is no instance row left, so
+// InstanceID 0 signals the deletion.
+func appendDeletedOccurrences(edited []EditedOccurrence, exceptions []*schedule.ActivityException, title string) []EditedOccurrence {
+	for _, exc := range exceptions {
+		if exc == nil || exc.ExceptionType != schedule.ActivityExceptionCancelled {
+			continue
+		}
+		edited = append(edited, EditedOccurrence{
+			InstanceID: 0,
+			Date:       timezone.Date(exc.ExceptionDate),
+			StartTime:  "",
+			Title:      title,
+			Changes:    []string{EditedChangeDeleted},
+		})
+	}
+	return edited
 }
 
 // expectedSlotsOn returns the start/end/room parameters the template would
@@ -259,6 +268,7 @@ func (s *materializationService) expectedSlotsOn(
 	schedules []*activities.Schedule,
 	timeframeByID map[int64]*schedule.Timeframe,
 	periods []*schedule.CalendarPeriod,
+	days timetable.NonWorkingDays,
 	exc *schedule.ActivityException,
 	date timezone.Date,
 ) []materialParams {
@@ -270,20 +280,9 @@ func (s *materializationService) expectedSlotsOn(
 		return nil
 	}
 
-	isoWd := isoWeekday(date)
 	out := make([]materialParams, 0, 1)
 	for _, sch := range schedules {
-		if sch.Weekday != isoWd {
-			continue
-		}
-		if scheduleEndedOn(sch, date) || scheduleNotStartedOn(sch, date) {
-			continue
-		}
-		period := selectPeriod(tmpl, sch, date, periods, s.getLogger())
-		if period == nil {
-			continue
-		}
-		if !shouldMaterializeWeekPattern(sch.WeekPattern, date, period) {
+		if s.candidatePeriod(tmpl, sch, date, periods, days, &MaterializationResult{}) == nil {
 			continue
 		}
 		tfID := int64(0)

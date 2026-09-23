@@ -1,4 +1,4 @@
-package timetableplanning
+package timetable
 
 import (
 	"testing"
@@ -132,10 +132,10 @@ func TestDetectSubstituteTimeConflicts_MultipleTargetsMultipleForeigns(t *testin
 	out := DetectSubstituteTimeConflicts(targets, foreigns)
 	if assert.Len(t, out, 2) {
 		// Iteration order: targets outer, foreigns inner → Tgt1 first.
-		assert.Equal(t, int64(1), out[0].InstanceID)
-		assert.Equal(t, int64(100), out[0].OtherID)
-		assert.Equal(t, int64(2), out[1].InstanceID)
-		assert.Equal(t, int64(101), out[1].OtherID)
+		assert.Equal(t, targets[0].ID, out[0].InstanceID)
+		assert.Equal(t, foreigns[0].ID, out[0].OtherID)
+		assert.Equal(t, targets[1].ID, out[1].InstanceID)
+		assert.Equal(t, foreigns[1].ID, out[1].OtherID)
 	}
 }
 

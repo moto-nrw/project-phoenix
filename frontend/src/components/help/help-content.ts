@@ -4055,9 +4055,61 @@ function staffRecordTopic(): HelpTopic {
       "Ein Bereich fehlt Ihnen? Dann fehlt Ihrer Rolle das Recht dafür.",
     ],
     related: [
+      HELP_TOPICS.leadTargetOverride,
       HELP_TOPICS.leadWorkTimeReview,
       HELP_TOPICS.leadInviteStaff,
       HELP_TOPICS.leadPayroll,
+    ],
+  };
+}
+
+/**
+ * `/staff/[id]`, Reiter `Arbeitszeitmodell`, Abschnitt `Sonderarbeitszeiten`
+ * (#3259). Der Fall aus der Praxis: die Herbstferien sind ein Schließtag,
+ * einige arbeiten trotzdem in der Ferienbetreuung. Ohne Sonderarbeitszeit
+ * bekämen sie Plusstunden.
+ */
+function targetOverrideTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadTargetOverride,
+    title: "Eine Sonderarbeitszeit eintragen",
+    question: "Wie trage ich andere Stunden für die Ferienbetreuung ein?",
+    summary:
+      "Für einen Zeitraum gelten andere Stunden pro Tag als im Arbeitszeitmodell.",
+    group: "personal",
+    audience: "lead",
+    icon: "CalendarPlus",
+    requirements: [
+      "Sie dürfen die Zeiterfassung aller Mitarbeitenden verwalten.",
+    ],
+    steps: [
+      "Öffnen Sie die Personalakte der Person.",
+      "Wählen Sie oben `Arbeitszeitmodell`.",
+      "Wählen Sie im Abschnitt `Sonderarbeitszeiten` den Knopf `Anlegen`.",
+      "Wählen Sie den ersten und den letzten Tag.",
+      "Tragen Sie die Stunden pro Tag ein, zum Beispiel `8,5`.",
+      "Wählen Sie `Speichern`.",
+    ],
+    result:
+      "An diesen Tagen gilt das neue Soll. Danach gilt wieder das Arbeitszeitmodell.",
+    notes: [
+      "Die Stunden gelten Montag bis Freitag, auch an Schließtagen.",
+      "Gesetzliche Feiertage bleiben frei.",
+      "Tragen Sie `0` ein, muss die Person an diesen Tagen nicht arbeiten.",
+      "In der Zeiterfassung steht unter dem Soll dann `Sonderarbeitszeit`.",
+      "Stimmt ein Eintrag nicht, löschen Sie ihn über die drei Punkte in seiner Zeile. Legen Sie ihn dann neu an.",
+    ],
+    differences: [
+      "Den Abschnitt ändern Sie nur mit dem Recht zur Zeiterfassung aller Mitarbeitenden. Sonst sehen Sie ihn nur.",
+    ],
+    troubleshootingDetails: [
+      "Es gibt schon eine Sonderarbeitszeit in dem Zeitraum? Löschen Sie diese zuerst. Legen Sie dann die neue an.",
+      "Der Monat ist abgeschlossen? Öffnen Sie ihn zuerst wieder im Reiter `Zeiterfassung`.",
+    ],
+    related: [
+      HELP_TOPICS.leadStaffRecord,
+      HELP_TOPICS.leadCalendarPeriods,
+      HELP_TOPICS.leadWorkTimeReview,
     ],
   };
 }
@@ -4298,17 +4350,33 @@ function calendarPeriodsTopic(): HelpTopic {
           "Wählen Sie `Schließtag anlegen`.",
           "Tragen Sie den Tag und den Grund ein.",
           "Speichern Sie den Schließtag.",
+          "Stehen an diesen Tagen schon Termine im Plan, fragt moto nach. Wählen Sie `Termine absagen`, damit der Plan leer wird.",
+        ],
+      },
+      {
+        title: "Termine an Schließtagen absagen",
+        description:
+          "Für Termine, die schon geplant waren, bevor der Schließtag eingetragen wurde.",
+        steps: [
+          "Öffnen Sie beim Schließtag das Menü mit den drei Punkten.",
+          "Wählen Sie `Termine absagen`.",
+          "Prüfen Sie die Zahl der Termine.",
+          "Wählen Sie `Termine absagen` und dann `Endgültig absagen`.",
         ],
       },
     ],
     result:
-      "Betreuungsplan und Dienstplan halten sich an diese Zeiträume und Schließtage.",
+      "An Schließtagen und gesetzlichen Feiertagen plant moto keine Regeltermine. Abgesagte Termine verschwinden aus dem Plan. Eltern bekommen dazu keine Nachricht.",
     notes: [
       "Die Seite heißt oben `Zeiträume`. In der Seitenleiste steht `Schuljahr und Ferien`.",
       "Ein Zeitraum, den noch nichts benutzt, trägt `Nicht verwendet`.",
+      "Ferienbetreuung an Schließtagen: Speichern Sie die Serie im Betreuungsplan. Bei der Rückfrage wählen Sie `Auch an Schließtagen planen`. Diese Termine bleiben beim Absagen erhalten.",
+      "Einen beliebigen Zeitraum sagen Sie im Betreuungsplan ab. Wählen Sie im Menü `Termine im Zeitraum absagen`.",
+      "An Schließtagen hat niemand Soll. Arbeitet jemand in der Ferienbetreuung, tragen Sie für die Person eine Sonderarbeitszeit ein.",
     ],
     differences: [
       "Legen Sie eine Schicht auf einen Schließtag, fragt moto vorher nach.",
+      "Sie sehen `Termine absagen` nicht? Dafür brauchen Sie das Recht, den Betreuungsplan zu bearbeiten.",
     ],
     troubleshootingDetails: [
       "Der Betreuungsplan sagt `Noch kein Planungszeitraum`? Dann fehlt für diese Woche ein Zeitraum.",
@@ -5117,6 +5185,7 @@ function leadTopics(
 
     // --- Personalverwaltung ---
     staffRecordTopic(),
+    targetOverrideTopic(),
     staffPermissionsTopic(),
     workTimeReviewTopic(),
     payrollTopic(),

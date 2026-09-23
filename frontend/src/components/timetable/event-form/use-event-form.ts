@@ -13,6 +13,7 @@ import {
   weekPatternForDate,
 } from "~/lib/calendar-period-helpers";
 import {
+  countClosingDayConflicts,
   findFirstClosingDayConflict,
   type ClosingDayConflict,
   type ClosingDayRange,
@@ -313,8 +314,17 @@ export function useEventForm({
   const [scopedSeries, setScopedSeries] = useState<TimetableTemplate | null>(
     null,
   );
+  // #3594: whether the saved series also runs on closing days. Set by the
+  // "Diese Serie trifft N Schließtage" prompt right before the save; null
+  // keeps the stored series flag.
+  const closingDayChoice = useRef<boolean | null>(null);
+  const setClosingDayChoice = useCallback((include: boolean | null) => {
+    closingDayChoice.current = include;
+  }, []);
   const [scopeClosingDayWarning, setScopeClosingDayWarning] = useState<{
     conflict: ClosingDayConflict;
+    /** How many dates of the edited series fall on closing days. */
+    closingDayCount: number;
     scope: "all" | "following";
     roomId: number;
     template: TimetableTemplate;
@@ -574,6 +584,7 @@ export function useEventForm({
     setSelectedInstanceScope(null);
     setScopedSeries(null);
     setScopeClosingDayWarning(null);
+    closingDayChoice.current = null;
     setLostEdits(null);
     setConflictWarnings([]);
     setCoverageWarnings([]);
@@ -1569,6 +1580,12 @@ export function useEventForm({
       ? Number(primaryStaffIDForSave)
       : undefined,
     weekday_assignments: weekdayAssignmentsBody(),
+    // #3594: the answer to "Diese Serie trifft N Schließtage" wins; without a
+    // prompt the stored series flag stays as it is.
+    include_closing_days:
+      closingDayChoice.current ??
+      (initialSeries ?? scopedSeries)?.includeClosingDays ??
+      false,
   });
 
   const findPeriod = (id?: string): CalendarPeriod | undefined =>
@@ -1949,6 +1966,9 @@ export function useEventForm({
         templateStudentIDs,
         primaryStaffId,
       ),
+      // #3594: the scope prompt's answer, otherwise the stored series flag.
+      include_closing_days:
+        closingDayChoice.current ?? template.includeClosingDays ?? false,
     };
   };
 
@@ -2445,7 +2465,7 @@ export function useEventForm({
     template: TimetableTemplate,
     body: UpdateTemplateBody,
     fromISO: string,
-  ): ClosingDayConflict | null => {
+  ): { conflict: ClosingDayConflict; count: number } | null => {
     const calendarPeriodId =
       resolveTemplateCalendarPeriodId(template) ?? form.calendarPeriodId;
     const period = findPeriod(calendarPeriodId);
@@ -2464,7 +2484,12 @@ export function useEventForm({
           : validity?.validFrom,
       validUntil: validity?.validUntil,
     });
-    return findFirstClosingDayConflict(closingDayRanges, dates);
+    const conflict = findFirstClosingDayConflict(closingDayRanges, dates);
+    if (!conflict) return null;
+    return {
+      conflict,
+      count: countClosingDayConflicts(closingDayRanges, dates),
+    };
   };
 
   const handleScopeError = (scope: string, err: unknown) => {
@@ -2857,7 +2882,8 @@ export function useEventForm({
       );
       if (closingConflict) {
         setScopeClosingDayWarning({
-          conflict: closingConflict,
+          conflict: closingConflict.conflict,
+          closingDayCount: closingConflict.count,
           scope: typedScope,
           roomId: pending.roomId,
           template,
@@ -2881,10 +2907,12 @@ export function useEventForm({
     }
   }
 
-  const confirmScopeClosingDay = async () => {
+  /** #3594: `includeClosingDays` is the answer to the series prompt. */
+  const confirmScopeClosingDay = async (includeClosingDays: boolean) => {
     if (submitting) return;
     const warning = scopeClosingDayWarning;
     if (!warning) return;
+    closingDayChoice.current = includeClosingDays;
     setScopeClosingDayWarning(null);
     setSubmitting(true);
     try {
@@ -3752,6 +3780,7 @@ export function useEventForm({
     scopeClosingDayWarning,
     setScopeClosingDayWarning,
     confirmScopeClosingDay,
+    setClosingDayChoice,
     lostEdits,
     setLostEdits,
     confirmLostEdits,

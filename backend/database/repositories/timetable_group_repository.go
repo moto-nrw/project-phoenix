@@ -242,7 +242,7 @@ func (r timetableActivityGroupRepository) UpdateTemplateFields(ctx context.Conte
 		TargetGroupType: fields.TargetGroupType, TargetGradeLevel: fields.TargetGradeLevel,
 		TargetSchoolClass: fields.TargetSchoolClass, ListKind: fields.ListKind, Notes: fields.Notes,
 		SourceCareOfferingIDs: fields.SourceCareOfferingIDs, SourceGradeLevels: fields.SourceGradeLevels,
-		SourceSchoolClasses: fields.SourceSchoolClasses,
+		SourceSchoolClasses: fields.SourceSchoolClasses, IncludeClosingDays: fields.IncludeClosingDays,
 	})
 }
 
@@ -358,7 +358,7 @@ func legacyGroup(group timetable.Group) *activitiesModels.Group {
 		CalendarPeriodID: group.CalendarPeriodID, TargetGroupType: group.TargetGroupType,
 		TargetGradeLevel: group.TargetGradeLevel, TargetSchoolClass: group.TargetSchoolClass,
 		SourceCareOfferingIDs: group.SourceCareOfferingIDs, SourceGradeLevels: group.SourceGradeLevels,
-		SourceSchoolClasses: group.SourceSchoolClasses, Notes: group.Notes,
+		SourceSchoolClasses: group.SourceSchoolClasses, Notes: group.Notes, IncludeClosingDays: group.IncludeClosingDays,
 	}
 	result.ID = group.ID
 	result.CreatedAt = group.CreatedAt
@@ -379,7 +379,7 @@ func publicGroupInput(group *activitiesModels.Group) timetable.GroupInput {
 		CalendarPeriodID: group.CalendarPeriodID, TargetGroupType: group.TargetGroupType,
 		TargetGradeLevel: group.TargetGradeLevel, TargetSchoolClass: group.TargetSchoolClass,
 		SourceCareOfferingIDs: group.SourceCareOfferingIDs, SourceGradeLevels: group.SourceGradeLevels,
-		SourceSchoolClasses: group.SourceSchoolClasses, Notes: group.Notes,
+		SourceSchoolClasses: group.SourceSchoolClasses, Notes: group.Notes, IncludeClosingDays: group.IncludeClosingDays,
 	}
 }
 

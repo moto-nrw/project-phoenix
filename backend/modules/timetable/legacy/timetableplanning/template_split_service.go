@@ -153,11 +153,12 @@ type TemplateSplitInput struct {
 	// otherwise the successor inherits the source template's list kind —
 	// without this a plain "this and following" edit would silently drop the
 	// series from its automatic Randstunden/Lernzeit/AG/Mensa list.
-	ListKind         *string
-	ListKindProvided bool
-	StudentIDs       []int64
-	StaffIDs         []int64
-	PrimaryStaffID   *int64
+	ListKind           *string
+	ListKindProvided   bool
+	IncludeClosingDays *bool // nil inherits the source series' flag (#3594)
+	StudentIDs         []int64
+	StaffIDs           []int64
+	PrimaryStaffID     *int64
 	// WeekdayAssignments carries the per-weekday roster deviations (#2129)
 	// onto the successor. It only applies to the explicit-roster path: a
 	// carried-over roster keeps each row's own weekday scope.
@@ -1385,7 +1386,7 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 		SourceGradeLevels:     sourceGradeLevels,
 		SourceSchoolClasses:   sourceSchoolClasses,
 		ListKind:              listKind,
-		Notes:                 notes,
+		Notes:                 notes, IncludeClosingDays: successorIncludesClosingDays(in.IncludeClosingDays, old.IncludeClosingDays),
 	}
 	group.SetTenantID(tenantID)
 	if err := s.deps.GroupRepo.Create(ctx, group); err != nil {
@@ -1768,14 +1769,6 @@ func earliestOptionalDate(left, right *timezone.Date) *timezone.Date {
 
 func earliestActivityDate(left *activitiesModel.Date, right *timezone.Date) *activitiesModel.Date {
 	return activityDatePtr(earliestOptionalDate(timezoneDatePtr(left), right))
-}
-
-func cloneOptionalInt64(value *int64) *int64 {
-	if value == nil {
-		return nil
-	}
-	cloned := *value
-	return &cloned
 }
 
 // unionSelectedWeekdays merges selected_weekdays across one student's carried

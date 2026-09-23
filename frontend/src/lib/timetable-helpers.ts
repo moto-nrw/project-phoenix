@@ -35,6 +35,7 @@ import type {
   BackendGuardianNoticeResult,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
+  BackendBulkCancelResult,
   BackendReplanWeekResult,
   BackendEditedInWindowResult,
   EditedInWindowResult,
@@ -64,6 +65,7 @@ import type {
   GuardianNoticeResult,
   InstanceStatusResult,
   MaterializeResult,
+  BulkCancelResult,
   ReplanWeekResult,
   ShiftCoverageCheckResult,
   SplitTemplateResult,
@@ -604,6 +606,8 @@ export function mapMaterializeResult(
     to: raw.to,
     instancesCreated: raw.instances_created,
     candidatesSkippedExisting: raw.candidates_skipped_existing,
+    skippedHolidays: raw.skipped_holidays ?? 0,
+    skippedClosingDays: raw.skipped_closing_days ?? 0,
     warnings: (raw.warnings ?? []).map((w) => ({
       // The codes the backend emits today are bounded; widening to string
       // here keeps the mapper forward-compatible if a new code lands without
@@ -612,6 +616,18 @@ export function mapMaterializeResult(
       message: w.message,
     })),
     durationMs: raw.duration_ms,
+  };
+}
+
+export function mapBulkCancelResult(
+  raw: BackendBulkCancelResult,
+): BulkCancelResult {
+  return {
+    from: raw.from,
+    to: raw.to,
+    dryRun: raw.dry_run,
+    count: raw.count,
+    days: (raw.days ?? []).map((day) => ({ date: day.date, count: day.count })),
   };
 }
 
@@ -1080,6 +1096,7 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       isOpen: template.is_open,
       maxParticipants: template.max_participants,
       notes: template.notes,
+      includeClosingDays: template.include_closing_days ?? false,
       shiftTypeName: template.shift_type_name,
       shiftTypeColor: template.shift_type_color,
       calendarPeriodId:

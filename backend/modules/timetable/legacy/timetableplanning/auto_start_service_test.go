@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -374,6 +375,9 @@ func (s *autoStartInstanceStarter) Cancel(context.Context, int64, *string, *int6
 }
 func (s *autoStartInstanceStarter) DeleteCancelled(context.Context, int64) error {
 	return nil
+}
+func (s *autoStartInstanceStarter) BulkCancelPlanned(context.Context, timezone.Date, timezone.Date, bool, *int64) (*timetable.BulkCancelResult, error) {
+	return nil, nil
 }
 func (s *autoStartInstanceStarter) CancelWithNotice(context.Context, CancelInstanceInput) (*CancelInstanceResult, error) {
 	return nil, nil

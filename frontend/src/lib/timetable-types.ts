@@ -461,6 +461,8 @@ export interface TimetableTemplate {
   maxParticipants: number | null;
   /** Durable Wochennotiz for the series (activities.groups.notes, #1837). */
   notes?: string;
+  /** The series is also planned on closing days, e.g. holiday care (#3594). */
+  includeClosingDays?: boolean;
   /** Category's mapped Dienstplan-Schichtart (#1836/#1837); empty = unmapped. */
   shiftTypeName?: string;
   shiftTypeColor?: string;
@@ -586,6 +588,7 @@ export interface BackendTimetableTemplate {
   is_open: boolean;
   max_participants: number | null;
   notes?: string;
+  include_closing_days?: boolean;
   shift_type_name?: string;
   shift_type_color?: string;
   calendar_period_id?: number;
@@ -646,8 +649,29 @@ export interface MaterializeResult {
   to: string;
   instancesCreated: number;
   candidatesSkippedExisting: number;
+  /** Occurrences not planned on statutory holidays (#3594). */
+  skippedHolidays: number;
+  /** Occurrences not planned on closing days (#3594). */
+  skippedClosingDays: number;
   warnings: MaterializeWarning[];
   durationMs: number;
+}
+
+/** Result of POST /instances/bulk-cancel (#3594). */
+export interface BulkCancelResult {
+  from: string;
+  to: string;
+  dryRun: boolean;
+  count: number;
+  days: { date: string; count: number }[];
+}
+
+export interface BackendBulkCancelResult {
+  from: string;
+  to: string;
+  dry_run: boolean;
+  count: number;
+  days?: { date: string; count: number }[] | null;
 }
 
 /**
@@ -664,6 +688,8 @@ export interface BackendMaterializeResult {
   to: string;
   instances_created: number;
   candidates_skipped_existing: number;
+  skipped_holidays?: number;
+  skipped_closing_days?: number;
   warnings?: { code: string; message: string }[];
   duration_ms: number;
 }
@@ -1109,6 +1135,9 @@ export interface CreateTemplateBody {
   planning_track_id?: number | null;
   /** Durable Wochennotiz for the series (#1837 follow-up); omitted = none. */
   notes?: string;
+  /** Also plan the series on closing days (#3594); the update keeps the
+   * stored value when omitted. */
+  include_closing_days?: boolean;
   education_group_id?: number;
   max_participants?: number | null;
   /** Manual Personalbedarf override (#1839); null/omitted = derive. */

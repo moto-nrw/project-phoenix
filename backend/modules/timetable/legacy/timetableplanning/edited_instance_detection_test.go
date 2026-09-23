@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // diffOccurrenceWithExpectedStudents is pure (no DB), so its truth table is exhaustively
@@ -222,6 +223,7 @@ func TestExpectedSlotsOn_LegacyWeekendScheduleIsNotMaterializable(t *testing.T) 
 		[]*activities.Schedule{{Weekday: 6}},
 		nil,
 		nil,
+		timetable.NonWorkingDays{},
 		nil,
 		saturday,
 	)

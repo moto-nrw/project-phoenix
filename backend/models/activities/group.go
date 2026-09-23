@@ -152,6 +152,11 @@ type Group struct {
 	// schedule.activity_instances.notes.
 	Notes *string `bun:"notes" json:"notes,omitempty"`
 
+	// IncludeClosingDays opts a recurring series into the school's closing
+	// days (#3594): materialization skips closing days unless this is set,
+	// e.g. for holiday care. Statutory holidays are skipped regardless.
+	IncludeClosingDays bool `bun:"include_closing_days,notnull,default:false" json:"-"`
+
 	// Relations - populated when using the ORM's relations
 	Category    *Category            `bun:"rel:belongs-to,join:category_id=id" json:"category,omitempty"`
 	Supervisors []*SupervisorPlanned `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`

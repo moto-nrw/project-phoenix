@@ -978,7 +978,7 @@ func groupToPublic(value domain.Group) timetable.Group {
 		CalendarPeriodID: value.CalendarPeriodID, TargetGroupType: value.TargetGroupType,
 		TargetGradeLevel: value.TargetGradeLevel, TargetSchoolClass: value.TargetSchoolClass,
 		SourceCareOfferingIDs: value.SourceCareOfferingIDs, SourceGradeLevels: value.SourceGradeLevels,
-		SourceSchoolClasses: value.SourceSchoolClasses, Notes: value.Notes,
+		SourceSchoolClasses: value.SourceSchoolClasses, Notes: value.Notes, IncludeClosingDays: value.IncludeClosingDays,
 	}
 	if value.Category != nil {
 		category := categoryToPublic(*value.Category)
@@ -996,7 +996,7 @@ func groupFields(value timetable.GroupInput) domain.GroupFields {
 		CalendarPeriodID: value.CalendarPeriodID, TargetGroupType: value.TargetGroupType,
 		TargetGradeLevel: value.TargetGradeLevel, TargetSchoolClass: value.TargetSchoolClass,
 		SourceCareOfferingIDs: value.SourceCareOfferingIDs, SourceGradeLevels: value.SourceGradeLevels,
-		SourceSchoolClasses: value.SourceSchoolClasses, Notes: value.Notes,
+		SourceSchoolClasses: value.SourceSchoolClasses, Notes: value.Notes, IncludeClosingDays: value.IncludeClosingDays,
 	}
 }
 
@@ -1010,7 +1010,7 @@ func templateFields(value timetable.TemplateUpdate) domain.TemplateFields {
 		TargetGroupType: value.TargetGroupType, TargetGradeLevel: value.TargetGradeLevel,
 		TargetSchoolClass: value.TargetSchoolClass, ListKind: value.ListKind, Notes: value.Notes,
 		SourceCareOfferingIDs: value.SourceCareOfferingIDs, SourceGradeLevels: value.SourceGradeLevels,
-		SourceSchoolClasses: value.SourceSchoolClasses,
+		SourceSchoolClasses: value.SourceSchoolClasses, IncludeClosingDays: value.IncludeClosingDays,
 	}
 }
 

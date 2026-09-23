@@ -9,12 +9,30 @@ const {
   mockInvalidate,
   mockToastSuccess,
   mockToastError,
+  mockUseSession,
+  mockBulkCancel,
+  mockRefreshPlan,
 } = vi.hoisted(() => ({
   mockList: vi.fn(),
   mockDelete: vi.fn(),
   mockInvalidate: vi.fn(),
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
+  mockUseSession: vi.fn(),
+  mockBulkCancel: vi.fn(),
+  mockRefreshPlan: vi.fn(),
+}));
+
+vi.mock("next-auth/react", () => ({
+  useSession: mockUseSession,
+}));
+
+vi.mock("~/lib/timetable-api", () => ({
+  timetableService: { bulkCancel: mockBulkCancel },
+}));
+
+vi.mock("~/lib/swr", () => ({
+  useTenantMutateMatching: () => mockRefreshPlan,
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
@@ -41,10 +59,12 @@ vi.mock("~/components/planning/closing-day-modal", () => ({
     isOpen,
     initial,
     onSaved,
+    onOfferCancel,
   }: {
     isOpen: boolean;
     initial?: ClosingDay | null;
     onSaved: () => void;
+    onOfferCancel?: (range: { startDate: string; endDate: string }) => void;
   }) =>
     isOpen ? (
       <div
@@ -54,6 +74,16 @@ vi.mock("~/components/planning/closing-day-modal", () => ({
         <button type="button" onClick={onSaved}>
           Mock speichern
         </button>
+        {onOfferCancel && (
+          <button
+            type="button"
+            onClick={() =>
+              onOfferCancel({ startDate: "2026-10-12", endDate: "2026-10-25" })
+            }
+          >
+            Mock Termine übrig
+          </button>
+        )}
       </div>
     ) : null,
 }));
@@ -74,6 +104,133 @@ describe("ClosingDaysEditor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockInvalidate.mockResolvedValue(undefined);
+    mockRefreshPlan.mockResolvedValue(undefined);
+    mockUseSession.mockReturnValue({
+      data: { user: { permissions: ["schedules:manage"] } },
+      status: "authenticated",
+    });
+  });
+
+  it("sagt die Termine eines Schließtags nach Bestätigung ab (#3594)", async () => {
+    mockList.mockResolvedValue([
+      makeClosingDay({
+        startDate: "2026-10-12",
+        endDate: "2026-10-25",
+        reason: "Herbstferien",
+      }),
+    ]);
+    mockBulkCancel.mockImplementation((from: string, to: string, dryRun) =>
+      Promise.resolve({
+        from,
+        to,
+        dryRun,
+        count: 83,
+        days: [{ date: "2026-10-12", count: 83 }],
+      }),
+    );
+
+    render(<ClosingDaysEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Aktionen für/ }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Termine absagen" }));
+
+    expect(
+      await screen.findByText(
+        /83 geplante Termine werden abgesagt und aus dem Plan entfernt\. Eltern bekommen keine Nachricht\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Zeitraum: 12.10.2026 bis 25.10.2026"),
+    ).toBeInTheDocument();
+    expect(mockBulkCancel).toHaveBeenCalledWith(
+      "2026-10-12",
+      "2026-10-25",
+      true,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Termine absagen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig absagen" }));
+
+    await waitFor(() =>
+      expect(mockBulkCancel).toHaveBeenCalledWith(
+        "2026-10-12",
+        "2026-10-25",
+        false,
+      ),
+    );
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith("83 Termine abgesagt"),
+    );
+    expect(mockRefreshPlan).toHaveBeenCalled();
+  });
+
+  it("sperrt das Absagen, wenn im Zeitraum nichts mehr geplant ist", async () => {
+    mockList.mockResolvedValue([makeClosingDay()]);
+    mockBulkCancel.mockResolvedValue({
+      from: "2026-12-24",
+      to: "2026-12-31",
+      dryRun: true,
+      count: 0,
+      days: [],
+    });
+
+    render(<ClosingDaysEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Aktionen für/ }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Termine absagen" }));
+
+    expect(
+      await screen.findByText(
+        "In diesem Zeitraum sind keine Termine mehr geplant.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Termine absagen" }),
+    ).toBeDisabled();
+  });
+
+  it("bietet das Absagen nach dem Speichern an, wenn Termine übrig sind", async () => {
+    mockList.mockResolvedValue([]);
+    mockBulkCancel.mockResolvedValue({
+      from: "2026-10-12",
+      to: "2026-10-25",
+      dryRun: true,
+      count: 5,
+      days: [],
+    });
+
+    render(<ClosingDaysEditor />);
+    const createButtons = await screen.findAllByRole("button", {
+      name: /Schließtag anlegen/,
+    });
+    fireEvent.click(createButtons[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Mock Termine übrig" }));
+
+    expect(
+      await screen.findByText(/5 geplante Termine werden abgesagt/),
+    ).toBeInTheDocument();
+  });
+
+  it("zeigt ohne Planungsrecht kein Absagen", async () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { permissions: ["schedules:read"] } },
+      status: "authenticated",
+    });
+    mockList.mockResolvedValue([makeClosingDay()]);
+
+    render(<ClosingDaysEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /^Aktionen für/ }),
+    );
+    expect(
+      screen.queryByRole("menuitem", { name: "Termine absagen" }),
+    ).not.toBeInTheDocument();
+    expect(mockBulkCancel).not.toHaveBeenCalled();
   });
 
   it("zeigt die Schließtage mit Zeitraum und Grund", async () => {

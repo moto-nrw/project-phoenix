@@ -26,6 +26,7 @@ type TemplateListRow struct {
 	SourceSchoolClassesJSON   string
 	ListKind                  *string
 	Notes                     *string
+	IncludeClosingDays        bool
 	ShiftTypeID               *int64
 	ShiftTypeName             string
 	ShiftTypeColor            string

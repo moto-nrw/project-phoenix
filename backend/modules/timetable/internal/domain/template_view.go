@@ -26,6 +26,7 @@ type TemplateListRow struct {
 	SourceSchoolClassesJSON   string  `bun:"source_school_classes_json"`
 	ListKind                  *string `bun:"list_kind"`
 	Notes                     *string `bun:"notes"`
+	IncludeClosingDays        bool    `bun:"include_closing_days"`
 	ShiftTypeID               *int64  `bun:"shift_type_id"`
 	ShiftTypeName             string  `bun:"shift_type_name"`
 	ShiftTypeColor            string  `bun:"shift_type_color"`
