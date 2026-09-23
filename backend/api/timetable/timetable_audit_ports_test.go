@@ -1,12 +1,13 @@
-package repositories
+package timetable
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
@@ -23,10 +24,10 @@ func TestTimetableAuditVocabularyMatchesTheAuditPlatform(t *testing.T) {
 	assert.Equal(t, auditModels.DeviationEventSickReported, timetableCompose.DeviationEventSickReported)
 	assert.Equal(t, auditModels.DeviationEventSickCleared, timetableCompose.DeviationEventSickCleared)
 
-	assert.Equal(t, auditModels.AttendanceFieldStatus, timetable.AttendanceCorrectionFieldStatus)
-	assert.Equal(t, auditModels.AttendanceFieldSubstatus, timetable.AttendanceCorrectionFieldSubstatus)
-	assert.Equal(t, auditModels.AttendanceFieldNote, timetable.AttendanceCorrectionFieldNote)
-	assert.Equal(t, auditModels.CorrectionReasonMaxLength, timetable.AttendanceCorrectionReasonMaxLength)
+	assert.Equal(t, auditModels.AttendanceFieldStatus, timetableModule.AttendanceCorrectionFieldStatus)
+	assert.Equal(t, auditModels.AttendanceFieldSubstatus, timetableModule.AttendanceCorrectionFieldSubstatus)
+	assert.Equal(t, auditModels.AttendanceFieldNote, timetableModule.AttendanceCorrectionFieldNote)
+	assert.Equal(t, auditModels.CorrectionReasonMaxLength, timetableModule.AttendanceCorrectionReasonMaxLength)
 }
 
 // A missing correction repository stays a nil trail, so the owner's
@@ -34,5 +35,5 @@ func TestTimetableAuditVocabularyMatchesTheAuditPlatform(t *testing.T) {
 func TestTimetableAttendanceCorrectionTrailKeepsAMissingRepositoryNil(t *testing.T) {
 	t.Parallel()
 
-	assert.Nil(t, TimetableAttendanceCorrectionTrail(nil))
+	assert.Nil(t, repositories.TimetableAttendanceCorrectionTrail(nil))
 }
