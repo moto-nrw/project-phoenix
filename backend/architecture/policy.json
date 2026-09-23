@@ -3401,6 +3401,14 @@
       "write_owner": "organization-tenancy"
     },
     {
+      "name": "platform.billing_settings",
+      "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "platform.billing_key_date_counts",
+      "write_owner": "organization-tenancy"
+    },
+    {
       "name": "active.presence_backfill_batches",
       "write_owner": "student-presence"
     },

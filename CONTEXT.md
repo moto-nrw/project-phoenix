@@ -564,3 +564,27 @@ Austritt die OGS-Betreuung.
 nicht, dass der Betreuungszeitraum gerade läuft; ein inaktives Kind bleibt
 angemeldet.
 _Vermeiden_: „angemeldet" für „im Betreuungszeitraum".
+
+## Stichtagszahl
+
+Die **Stichtagszahl** ist die Zahl, nach der moto einer Schule im Monat
+berechnet wird: die **aktiv verwalteten Kinder** und die **aktiven Terminals**
+am **Stichtag**. Der Stichtag ist ein Tag im Monat (1. bis 28.), einer für alle
+Schulen; der Betreiber legt ihn fest. Die Zahl wird am Stichtag ab 6 Uhr
+einmal festgehalten und danach nie geändert, auch wenn sich Kinder oder Geräte
+später ändern. Lief die Erfassung am Stichtag nicht, holt sie sie im selben
+Monat nach und nennt den tatsächlichen Zeitpunkt.
+
+**Aktiv verwaltet** ist ein Kind mit dem Status „aktiv“ und einer nicht
+gelöschten Schulzugehörigkeit, deren Betreuungsende nicht vor dem Tag der
+Erfassung liegt. Ein sofort aktiviertes Kind zählt auch vor seinem regulären
+Betreuungsbeginn. Nicht gezählt werden Kinder, deren Betreuung
+erst später beginnt, deren Betreuung beendet ist (inaktiv), Abgänger und
+gelöschte Kinder.
+
+Ein **aktives Terminal** ist ein Gerät mit dem Status „aktiv“, das nicht
+archiviert ist und nicht die Erfassung im Browser (virtuelles Gerät) ist. Ob es
+zuletzt online war, zählt nicht. Ein umgezogenes Gerät zählt nur bei der neuen
+Schule.
+_Vermeiden_: „Abrechnung“ für die Stichtagszahl (im OGS-Portal meint
+Abrechnung die Lohnabrechnung), Förderstichtag (15.10., eine andere Frage).

@@ -103,6 +103,7 @@ const mainRoutes: Record<string, string> = {
   "/operator/devices": "Geräte",
   "/operator/persons": "Personen",
   "/operator/unregistered-tags": "Unbekannte RFID",
+  "/operator/billing": "Stichtagszahlen",
   "/operator/operators": "Operatoren",
   // Elternportal: nur der deutsche Rückfallwert. Die Kopfzeile überschreibt
   // ihn im Elternmodus mit dem übersetzten parentNav-Eintrag.

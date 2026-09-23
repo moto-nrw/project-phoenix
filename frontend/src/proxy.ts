@@ -186,6 +186,7 @@ const OPERATOR_PUBLIC_PATHS = [
   "/devices",
   "/persons",
   "/unregistered-tags",
+  "/billing",
   "/operators",
   "/invite",
 ];

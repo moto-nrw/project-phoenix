@@ -75,6 +75,12 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 	}
 	m.nextID++
 	w.Header().Set("Content-Type", "application/json")
+	if r.Method == "POST" && r.URL.Path == "/operator/billing/key-date-counts/seed" {
+		require.Equal(t, "Bearer operator-token", r.Header.Get("Authorization"))
+		require.Equal(t, "true", r.Header.Get(seedTokenHeader))
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"written": 4}})
+		return true
+	}
 	var body map[string]any
 	if r.Method == "POST" || r.Method == "PUT" {
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
