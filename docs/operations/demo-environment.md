@@ -165,6 +165,22 @@ snapshot is rejected even when selected by absolute path. See
 [complete release backup and rollback](release-backup-rollback.md) for recovery
 and the data-loss boundary.
 
+## Availability alarm
+
+A failed deploy notifies by e-mail and Slack. A crashed container, a failed
+certificate renewal or an unreachable machine does not, and the demo answers
+visitors without anyone watching. The **Demo uptime** workflow probes
+`https://demo.moto-app.de/api/health` and `https://api.demo.moto-app.de/health`
+from outside, three attempts each, and reads the certificate's remaining days.
+On failure it posts to the deploy Slack webhook and the run turns red.
+
+It runs only when the repository variable `DEMO_MONITOR_ENABLED` is `true`, so
+it stays quiet until the demo answers; `workflow_dispatch` ignores the variable
+and always probes. Set the variable right after the first successful deploy.
+Scheduled runs can be delayed by several minutes under GitHub load, so this is
+a safety net rather than monitoring with a guaranteed interval. For event days,
+either tighten the cron schedule or add an external monitor that pages faster.
+
 ## Verification
 
 `scripts/env-check.sh` checks key parity across all three encrypted files,
