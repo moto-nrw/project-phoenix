@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	models "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
@@ -276,7 +276,7 @@ func TestPlanningOverviewAndExportRetainPublicResults(t *testing.T) {
 		Overview: planningOverview(func(_ context.Context, a, b timezone.Date) (*planning.StaffScheduleOverview, error) {
 			require.Equal(t, from, a)
 			require.Equal(t, to, b)
-			return &planning.StaffScheduleOverview{From: a, To: b, DienstplanInUse: true, UsedWeeks: []timezone.Date{a}, Assignments: []planning.StaffScheduleAssignment{{Date: a, ActivityTitle: "Betreuung", UncoveredIntervals: []timetableplanning.ShiftCoverageInterval{{}}}}, WeeklySummaries: []planning.StaffWeeklySummary{{WeekStart: a, PlannedMinutes: 300}}}, nil
+			return &planning.StaffScheduleOverview{From: a, To: b, DienstplanInUse: true, UsedWeeks: []timezone.Date{a}, Assignments: []planning.StaffScheduleAssignment{{Date: a, ActivityTitle: "Betreuung", UncoveredIntervals: []timetable.ShiftCoverageInterval{{}}}}, WeeklySummaries: []planning.StaffWeeklySummary{{WeekStart: a, PlannedMinutes: 300}}}, nil
 		}),
 		PlanExport: planningExport{export: func(context.Context, planexport.Params) (listexport.File, error) {
 			return listexport.File{Filename: "plan.pdf", ContentType: "application/pdf", Data: []byte("document")}, nil

@@ -1,4 +1,4 @@
-// Pure unit tests for DetectWindowConflicts — the #2139 conflict matrix the
+// Pure unit tests for conflictDetection.DetectWindowConflicts — the #2139 conflict matrix the
 // Betreuungsplan calendar runs over its visible window. No database: the
 // detection is a pure function over instances plus their assignment rows.
 //
@@ -16,15 +16,17 @@
 //
 // Plus the fingerprint contract: mirrored warnings share one fingerprint;
 // changing person, instance, time, or (for staff) room changes it.
-package timetableplanning_test
+package compose
 
 import (
+	"encoding/hex"
+	"hash/fnv"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,10 +65,51 @@ func studentRow(studentID int64, status string) *scheduleModels.InstanceStudent 
 	return &scheduleModels.InstanceStudent{StudentID: studentID, Status: status}
 }
 
+// windowConflictInput is one block with its retained rows, the shape the
+// calendar list holds before it asks the owner.
+type windowConflictInput struct {
+	Instance *scheduleModels.ActivityInstance
+	Staff    []*scheduleModels.InstanceStaff
+	Students []*scheduleModels.InstanceStudent
+}
+
+// testContentHash stands in for Security Runtime's SHA-256: deterministic and
+// collision-free for these payloads, which is all the fingerprint contract
+// under test needs. The production digest is pinned where the root binds it.
+func testContentHash(content []byte) string {
+	hash := fnv.New128a()
+	_, _ = hash.Write(content)
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func detectWindowConflicts(inputs []windowConflictInput) map[int64][]timetable.InstanceConflictWarning {
+	blocks := make([]timetable.WindowConflictBlock, 0, len(inputs))
+	for _, input := range inputs {
+		block := timetable.WindowConflictBlock{
+			InstanceID: input.Instance.ID,
+			Date:       timezone.Date(input.Instance.Date),
+			Title:      input.Instance.Title,
+			StartTime:  input.Instance.StartTime,
+			EndTime:    input.Instance.EndTime,
+			RoomID:     input.Instance.RoomID,
+			Status:     input.Instance.Status,
+		}
+		for _, row := range input.Staff {
+			block.Staff = append(block.Staff, timetable.WindowConflictStaff{StaffID: row.StaffID, RoomID: row.RoomID, IsAbsent: row.IsAbsent})
+		}
+		for _, row := range input.Students {
+			block.Students = append(block.Students, timetable.WindowConflictStudent{StudentID: row.StudentID, Status: row.Status})
+		}
+		blocks = append(blocks, block)
+	}
+	detection := &conflictDetection{deps: ConflictDetectionDependencies{ContentHash: testContentHash}}
+	return detection.DetectWindowConflicts(blocks)
+}
+
 func TestDetectWindowConflicts_ParallelWithoutSharedPersonIsClean(t *testing.T) {
 	t.Parallel()
 
-	out := timetableplanning.DetectWindowConflicts([]timetableplanning.WindowConflictInput{
+	out := detectWindowConflicts([]windowConflictInput{
 		{
 			Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned),
 			Staff:    []*scheduleModels.InstanceStaff{staffRow(100)},
@@ -84,7 +127,7 @@ func TestDetectWindowConflicts_ParallelWithoutSharedPersonIsClean(t *testing.T) 
 func TestDetectWindowConflicts_SharedRoomAloneIsClean(t *testing.T) {
 	t.Parallel()
 
-	out := timetableplanning.DetectWindowConflicts([]timetableplanning.WindowConflictInput{
+	out := detectWindowConflicts([]windowConflictInput{
 		{Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned)},
 		{Instance: windowInstance(2, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned)},
 	})
@@ -95,7 +138,7 @@ func TestDetectWindowConflicts_SharedStudentWarnsRegardlessOfRoom(t *testing.T) 
 	t.Parallel()
 
 	// Same room on purpose: the room never excuses a child double-booking.
-	out := timetableplanning.DetectWindowConflicts([]timetableplanning.WindowConflictInput{
+	out := detectWindowConflicts([]windowConflictInput{
 		{
 			Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned),
 			Students: []*scheduleModels.InstanceStudent{studentRow(200, scheduleModels.AttendanceStatusExpected)},
@@ -109,7 +152,7 @@ func TestDetectWindowConflicts_SharedStudentWarnsRegardlessOfRoom(t *testing.T) 
 	require.Len(t, out[1], 1)
 	require.Len(t, out[2], 1)
 	a, b := out[1][0], out[2][0]
-	assert.Equal(t, timetableplanning.ConflictKindStudent, a.Kind)
+	assert.Equal(t, timetable.ConflictKindStudent, a.Kind)
 	assert.EqualValues(t, 200, a.ResourceID)
 	assert.EqualValues(t, 2, a.ConflictingInstanceID)
 	assert.EqualValues(t, 1, b.ConflictingInstanceID)
@@ -123,7 +166,7 @@ func TestDetectWindowConflicts_SharedStudentWarnsRegardlessOfRoom(t *testing.T) 
 func TestDetectWindowConflicts_AbsentStudentDoesNotWarn(t *testing.T) {
 	t.Parallel()
 
-	out := timetableplanning.DetectWindowConflicts([]timetableplanning.WindowConflictInput{
+	out := detectWindowConflicts([]windowConflictInput{
 		{
 			Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned),
 			Students: []*scheduleModels.InstanceStudent{studentRow(200, scheduleModels.AttendanceStatusAbsent)},
@@ -139,7 +182,7 @@ func TestDetectWindowConflicts_AbsentStudentDoesNotWarn(t *testing.T) {
 func TestDetectWindowConflicts_SharedStaffDifferentRoomsWarns(t *testing.T) {
 	t.Parallel()
 
-	out := timetableplanning.DetectWindowConflicts([]timetableplanning.WindowConflictInput{
+	out := detectWindowConflicts([]windowConflictInput{
 		{
 			Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned),
 			Staff:    []*scheduleModels.InstanceStaff{staffRow(100)},
@@ -152,7 +195,7 @@ func TestDetectWindowConflicts_SharedStaffDifferentRoomsWarns(t *testing.T) {
 
 	require.Len(t, out[1], 1)
 	require.Len(t, out[2], 1)
-	assert.Equal(t, timetableplanning.ConflictKindStaff, out[1][0].Kind)
+	assert.Equal(t, timetable.ConflictKindStaff, out[1][0].Kind)
 	assert.EqualValues(t, 100, out[1][0].ResourceID)
 	assert.Equal(t, out[1][0].Fingerprint, out[2][0].Fingerprint)
 }
@@ -160,7 +203,7 @@ func TestDetectWindowConflicts_SharedStaffDifferentRoomsWarns(t *testing.T) {
 func TestDetectWindowConflicts_SharedStaffSameRoomIsClean(t *testing.T) {
 	t.Parallel()
 
-	out := timetableplanning.DetectWindowConflicts([]timetableplanning.WindowConflictInput{
+	out := detectWindowConflicts([]windowConflictInput{
 		{
 			Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned),
 			Staff:    []*scheduleModels.InstanceStaff{staffRow(100)},
@@ -181,7 +224,7 @@ func TestDetectWindowConflicts_StaffRoomOverrideDefinesEffectiveRoom(t *testing.
 	// Both instances share primary room 10, but instance 2 sends THIS staff
 	// member into room 12 via the per-row override → different effective
 	// rooms → warning.
-	out := timetableplanning.DetectWindowConflicts([]timetableplanning.WindowConflictInput{
+	out := detectWindowConflicts([]windowConflictInput{
 		{
 			Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned),
 			Staff:    []*scheduleModels.InstanceStaff{staffRow(100)},
@@ -197,7 +240,7 @@ func TestDetectWindowConflicts_StaffRoomOverrideDefinesEffectiveRoom(t *testing.
 
 	// And the mirror case: overrides on both sides pointing at the SAME room
 	// stay clean even though the primary rooms differ.
-	out = timetableplanning.DetectWindowConflicts([]timetableplanning.WindowConflictInput{
+	out = detectWindowConflicts([]windowConflictInput{
 		{
 			Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned),
 			Staff: []*scheduleModels.InstanceStaff{staffRow(100, func(r *scheduleModels.InstanceStaff) {
@@ -217,7 +260,7 @@ func TestDetectWindowConflicts_StaffRoomOverrideDefinesEffectiveRoom(t *testing.
 func TestDetectWindowConflicts_AbsentStaffDoesNotWarn(t *testing.T) {
 	t.Parallel()
 
-	out := timetableplanning.DetectWindowConflicts([]timetableplanning.WindowConflictInput{
+	out := detectWindowConflicts([]windowConflictInput{
 		{
 			Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned),
 			Staff: []*scheduleModels.InstanceStaff{staffRow(100, func(r *scheduleModels.InstanceStaff) {
@@ -235,7 +278,7 @@ func TestDetectWindowConflicts_AbsentStaffDoesNotWarn(t *testing.T) {
 func TestDetectWindowConflicts_TouchingEdgesAreClean(t *testing.T) {
 	t.Parallel()
 
-	out := timetableplanning.DetectWindowConflicts([]timetableplanning.WindowConflictInput{
+	out := detectWindowConflicts([]windowConflictInput{
 		{
 			Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned),
 			Students: []*scheduleModels.InstanceStudent{studentRow(200, scheduleModels.AttendanceStatusExpected)},
@@ -252,7 +295,7 @@ func TestDetectWindowConflicts_CancelledAndCompletedAreIgnored(t *testing.T) {
 	t.Parallel()
 
 	shared := []*scheduleModels.InstanceStudent{studentRow(200, scheduleModels.AttendanceStatusExpected)}
-	out := timetableplanning.DetectWindowConflicts([]timetableplanning.WindowConflictInput{
+	out := detectWindowConflicts([]windowConflictInput{
 		{Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusCancelled), Students: shared},
 		{Instance: windowInstance(2, 11, "14:00", "15:00", scheduleModels.InstanceStatusCompleted), Students: shared},
 		{Instance: windowInstance(3, 12, "14:00", "15:00", scheduleModels.InstanceStatusPlanned), Students: shared},
@@ -268,7 +311,7 @@ func TestDetectWindowConflicts_DifferentDaysNeverConflict(t *testing.T) {
 	b := windowInstance(2, 11, "14:00", "15:00", scheduleModels.InstanceStatusPlanned)
 	b.Date = scheduleModels.Date(windowTestDate.AddDays(1))
 
-	out := timetableplanning.DetectWindowConflicts([]timetableplanning.WindowConflictInput{
+	out := detectWindowConflicts([]windowConflictInput{
 		{Instance: a, Students: shared},
 		{Instance: b, Students: shared},
 	})
@@ -279,7 +322,7 @@ func TestDetectWindowConflicts_ActiveInstancesParticipate(t *testing.T) {
 	t.Parallel()
 
 	shared := []*scheduleModels.InstanceStudent{studentRow(200, scheduleModels.AttendanceStatusExpected)}
-	out := timetableplanning.DetectWindowConflicts([]timetableplanning.WindowConflictInput{
+	out := detectWindowConflicts([]windowConflictInput{
 		{Instance: windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusActive), Students: shared},
 		{Instance: windowInstance(2, 11, "14:00", "15:00", scheduleModels.InstanceStatusPlanned), Students: shared},
 	})
@@ -296,7 +339,7 @@ func windowStudentFingerprint(t *testing.T, mutate func(a, b *scheduleModels.Act
 		mutate(a, b)
 	}
 	shared := []*scheduleModels.InstanceStudent{studentRow(200, scheduleModels.AttendanceStatusExpected)}
-	out := timetableplanning.DetectWindowConflicts([]timetableplanning.WindowConflictInput{
+	out := detectWindowConflicts([]windowConflictInput{
 		{Instance: a, Students: shared},
 		{Instance: b, Students: shared},
 	})
@@ -350,7 +393,7 @@ func TestDetectWindowConflicts_StaffFingerprintTracksRooms(t *testing.T) {
 	run := func(roomB int64) string {
 		a := windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned)
 		b := windowInstance(2, roomB, "14:00", "15:00", scheduleModels.InstanceStatusPlanned)
-		out := timetableplanning.DetectWindowConflicts([]timetableplanning.WindowConflictInput{
+		out := detectWindowConflicts([]windowConflictInput{
 			{Instance: a, Staff: []*scheduleModels.InstanceStaff{staffRow(100)}},
 			{Instance: b, Staff: []*scheduleModels.InstanceStaff{staffRow(100)}},
 		})

@@ -13,7 +13,7 @@
 //
 // Permission: SchedulesRead. Max range 14 days. Only today/future (same
 // Berlin-local rule as /gaps). Empty list on no-conflict → 200, never 404.
-// Detection itself lives in the TimetableData facade — the handler only parses
+// Detection itself is the Timetable owner's — the handler only parses
 // the range, maps the result to the wire shape, and sorts.
 package timetable
 
@@ -24,14 +24,14 @@ import (
 	"sort"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
-// Conflict kinds — aliased to the schedule service so the detection logic and
+// Conflict kinds — aliased to the Timetable owner so the detection logic and
 // the wire strings stay in lockstep.
 const (
-	ConflictKindCancelledArrivals = timetableplanning.ConflictKindCancelledArrivals
-	ConflictKindModifiedMismatch  = timetableplanning.ConflictKindModifiedMismatch
+	ConflictKindCancelledArrivals = timetable.ConflictKindCancelledArrivals
+	ConflictKindModifiedMismatch  = timetable.ConflictKindModifiedMismatch
 )
 
 // ConflictEntry is a single row in the conflict response. The optional string
@@ -65,12 +65,12 @@ func (rs *Resource) getExceptionConflicts(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if rs.TimetableData == nil {
+	if rs.ConflictDetection == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
 
-	detected, err := rs.TimetableData.DetectExceptionConflicts(r.Context(), from, to, rs.getLogger())
+	detected, err := rs.ConflictDetection.DetectExceptionConflicts(r.Context(), from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("detect exception conflicts failed", err))
 		return
@@ -105,7 +105,7 @@ func (rs *Resource) getExceptionConflicts(w http.ResponseWriter, r *http.Request
 }
 
 // mapConflictEntry lifts a detected conflict into the wire shape.
-func mapConflictEntry(c timetableplanning.ExceptionConflict) ConflictEntry {
+func mapConflictEntry(c timetable.ExceptionConflict) ConflictEntry {
 	return ConflictEntry{
 		Kind:               c.Kind,
 		Date:               c.Date,

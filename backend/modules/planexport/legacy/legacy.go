@@ -20,7 +20,6 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
@@ -45,6 +44,11 @@ type PlanningTrackSource interface {
 	ListAll(ctx context.Context) ([]*scheduleModel.PlanningTrack, error)
 }
 
+// InstanceStaffSource is the slice of the retained instance-staff repository the adapter reads.
+type InstanceStaffSource interface {
+	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModel.InstanceStaff, error)
+}
+
 // InstanceStudentCountSource is the slice of the retained instance-student repository the adapter reads.
 type InstanceStudentCountSource interface {
 	CountNonAbsentByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error)
@@ -57,10 +61,10 @@ type Sources struct {
 	Overview       workforce.StaffScheduleOverviewQuery
 	ShiftTypes     ShiftTypeSource
 	Instances      ActivityInstanceSource
-	InstanceStaff  timetableplanning.InstanceStaffBatchReader
+	InstanceStaff  InstanceStaffSource
 	Students       InstanceStudentCountSource
 	Rooms          RoomSource
-	Staff          timetableplanning.StaffWithPersonBatchReader
+	Staff          planexport.StaffNameReader
 	ActivityGroups ActivityGroupSource
 	PlanningTracks PlanningTrackSource
 	ClosingDays    planexport.ClosingDayReader
@@ -94,7 +98,7 @@ func New(sources Sources) planexport.Service {
 		deps.Rooms = roomAdapter{source: sources.Rooms}
 	}
 	if sources.Staff != nil {
-		deps.Staff = staffAdapter{source: sources.Staff}
+		deps.Staff = sources.Staff
 	}
 	if sources.ActivityGroups != nil {
 		deps.ActivityGroups = activityGroupAdapter{source: sources.ActivityGroups}
@@ -251,7 +255,7 @@ func (a studentCountAdapter) CountNonAbsentByInstanceIDs(ctx context.Context, in
 }
 
 type instanceStaffAdapter struct {
-	source timetableplanning.InstanceStaffBatchReader
+	source InstanceStaffSource
 }
 
 func (a instanceStaffAdapter) InstanceStaffByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*planexport.InstanceStaff, error) {
@@ -290,32 +294,6 @@ func (a roomAdapter) RoomsByIDs(ctx context.Context, ids []int64) ([]*planexport
 			continue
 		}
 		out = append(out, &planexport.Room{ID: room.ID, Name: room.Name})
-	}
-	return out, nil
-}
-
-type staffAdapter struct {
-	source timetableplanning.StaffWithPersonBatchReader
-}
-
-func (a staffAdapter) StaffByIDs(ctx context.Context, ids []int64) (map[int64]*planexport.StaffMember, error) {
-	members, err := a.source.FindWithPersonByIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[int64]*planexport.StaffMember, len(members))
-	for id, member := range members {
-		if member == nil {
-			// A staff row without a record keeps its slot and prints as
-			// "Unbekannt", exactly as the retained service did.
-			out[id] = nil
-			continue
-		}
-		record := &planexport.StaffMember{ID: member.ID}
-		if member.Person != nil {
-			record.FirstName, record.LastName = member.Person.FirstName, member.Person.LastName
-		}
-		out[id] = record
 	}
 	return out, nil
 }

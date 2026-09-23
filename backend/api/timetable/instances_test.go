@@ -22,6 +22,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -250,8 +251,8 @@ func TestStartInstance_WithWarnings(t *testing.T) {
 		startResult: &timetableplanning.StartInstanceResult{
 			Instance:      &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusActive},
 			ActiveGroupID: 1,
-			Warnings: []timetableplanning.InstanceConflictWarning{
-				{Kind: timetableplanning.ConflictKindStaff, ResourceID: 5, Message: "Mitarbeiter doppelt eingeplant", CanOverride: true},
+			Warnings: []timetable.InstanceConflictWarning{
+				{Kind: timetable.ConflictKindStaff, ResourceID: 5, Message: "Mitarbeiter doppelt eingeplant", CanOverride: true},
 			},
 		},
 	}

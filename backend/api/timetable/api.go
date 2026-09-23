@@ -110,10 +110,13 @@ type Dependencies struct {
 	TemplateSplitService    *timetableplanning.TemplateSplitService
 	PersonService           userSvc.PersonService
 	TimetableData           *timetableplanning.TimetableDataService
-	CareDayService          careplan.CareDayQuery
-	UserContextService      authorize.StudentAccessUserContext
-	SettingsService         configSvc.SettingsService
-	SlotListsService        classday.SlotLists
+	// ConflictDetection serves the conflict warnings, the staff pool and the
+	// shift-coverage probe from the Timetable owner (#3550).
+	ConflictDetection  timetable.ConflictDetectionCapability
+	CareDayService     careplan.CareDayQuery
+	UserContextService authorize.StudentAccessUserContext
+	SettingsService    configSvc.SettingsService
+	SlotListsService   classday.SlotLists
 	// OfferingSourceOptions serves the offering-source editor support
 	// endpoint (#2137); implemented by the enrollment decision service.
 	OfferingSourceOptions enrollmentSvc.OfferingSourceOptionLister
@@ -874,7 +877,7 @@ func isCalendarPeriodRosterDeleteConflict(err error) bool {
 const defaultChildrenPerStaffRatio = 12
 
 // childrenPerStaffRatio resolves the Betreuungsschlüssel setting once per
-// request so per-instance/per-template capacity math (RequiredStaffForChildren)
+// request so per-instance/per-template capacity math (timetable.RequiredStaffForChildren)
 // can apply a single resolved value instead of re-querying the settings
 // service for every row. Takes a context rather than *http.Request so it can
 // be called from handlers and from context-only helpers alike (e.g.

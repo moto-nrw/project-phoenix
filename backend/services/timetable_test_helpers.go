@@ -7,6 +7,7 @@ import (
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -24,11 +25,14 @@ import (
 )
 
 type TimetableTestModule struct {
-	Instance        timetableplanning.InstanceService
-	SchoolCalendar  schoolcalendar.Calendar
-	TimetableData   *timetableplanning.TimetableDataService
-	Materialization timetableplanning.MaterializationService
-	RealtimeHub     *realtime.Hub
+	Instance       timetableplanning.InstanceService
+	SchoolCalendar schoolcalendar.Calendar
+	TimetableData  *timetableplanning.TimetableDataService
+	// ConflictDetection is the Timetable owner's conflict detection and
+	// staffing capability over the same repositories (#3550).
+	ConflictDetection timetable.ConflictDetectionCapability
+	Materialization   timetableplanning.MaterializationService
+	RealtimeHub       *realtime.Hub
 }
 
 func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (TimetableTestModule, error) {
@@ -117,9 +121,19 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		r.ActivityException, r.Timeframe, db, hub, logger,
 		timetableplanning.WithCareBoundReader(r.Student))
 	recovery := repositories.NewActivityRecoveryRepository(db, r.InstanceStudent)
+	conflicts, err := NewTimetableConflictDetection(TimetableConflictReaders{
+		Instances: r.ActivityInstance, InstanceStaff: r.InstanceStaff, InstanceStudents: r.InstanceStudent,
+		Exceptions: r.ActivityException, Schedules: r.ActivitySchedule, Staff: r.Staff, CalendarPeriods: r.CalendarPeriod,
+		ArrivalExceptions: r.StudentArrivalException, Sessions: r.ActiveGroup, Shifts: r.StaffShift,
+		Presence: newStudentPresence(db, logger), ArrivalBaselines: arrival, Logger: logger,
+	})
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
 	instance := timetableplanning.NewInstanceService(timetableplanning.InstanceServiceDependencies{
-		Presence:     newStudentPresence(db, logger),
-		InstanceRepo: r.ActivityInstance, IdempotencyRepo: r.InstanceIdempotency, InstanceStaffRepo: r.InstanceStaff,
+		StartConflicts: conflicts,
+		Presence:       newStudentPresence(db, logger),
+		InstanceRepo:   r.ActivityInstance, IdempotencyRepo: r.InstanceIdempotency, InstanceStaffRepo: r.InstanceStaff,
 		InstanceStudents: r.InstanceStudent, ExceptionRepo: r.ActivityException, ActiveGroupRepo: r.ActiveGroup,
 		SupervisorRepo: r.GroupSupervisor, RoomRepo: r.Room, ActivityGroupRepo: r.ActivityGroup,
 		StaffRepo: r.Staff, StudentRepo: r.Student, CalendarPeriodRepo: r.CalendarPeriod,
@@ -128,16 +142,16 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	})
 	data := timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{
 		InstanceStudentRepo: r.InstanceStudent, ActivityInstanceRepo: r.ActivityInstance, ActivityExceptionRepo: r.ActivityException,
-		ActivityScheduleRepo: r.ActivitySchedule, InstanceStaffRepo: r.InstanceStaff, StaffShiftRepo: r.StaffShift,
-		StaffRepo: r.Staff, CalendarPeriodRepo: r.CalendarPeriod, ActiveGroupRepo: r.ActiveGroup, SupervisorRepo: r.GroupSupervisor,
+		ActivityScheduleRepo: r.ActivitySchedule, InstanceStaffRepo: r.InstanceStaff,
+		ActiveGroupRepo: r.ActiveGroup, SupervisorRepo: r.GroupSupervisor,
 		ArrivalBaselines: arrival, ArrivalExceptionRepo: r.StudentArrivalException,
 		PickupScheduleRepo: r.StudentPickupSchedule, PickupBaselines: pickup, PickupExceptionRepo: r.StudentPickupException,
 		Presence: newStudentPresence(db, logger), RoomRepo: r.Room, ActivityCategoryRepo: r.ActivityCategory, PlanningTrackRepo: r.PlanningTrack,
 		ActivityGroupRepo: r.ActivityGroup, ActivitySupervisorRepo: r.ActivitySupervisor, StudentEnrollmentRepo: r.StudentEnrollment,
 		TimeframeRepo: r.Timeframe, EducationGroupRepo: r.Group,
 		ValidateCareOfferingSeries: series.ValidateTemplateSeries, ValidateOfferingSource: series.ValidateTemplateOfferingSource,
-		DeviationEventRepo: r.DeviationEvent, ConflictAcks: r.Timetable, RecoveryRepo: recovery,
+		DeviationEventRepo: r.DeviationEvent, ConflictAcks: r.Timetable, ConflictDetection: conflicts, RecoveryRepo: recovery,
 		Broadcaster: hub, Logger: logger, DB: db, Today: today,
 	})
-	return TimetableTestModule{Instance: instance, SchoolCalendar: calendar, TimetableData: data, Materialization: materialization, RealtimeHub: hub}, nil
+	return TimetableTestModule{Instance: instance, SchoolCalendar: calendar, TimetableData: data, ConflictDetection: conflicts, Materialization: materialization, RealtimeHub: hub}, nil
 }

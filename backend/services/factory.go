@@ -1373,7 +1373,29 @@ func newFactory(
 	// is built after the instance service; the lifecycle reaches it through
 	// this late-bound publisher.
 	var guardianNoticePublisher communication.CareCancellationPublisher
+	// Conflict detection and staffing are the Timetable owner's (#3550): the
+	// start check of the instance lifecycle and the auto-start tick, and the
+	// planning reads api/timetable serves.
+	timetableConflicts, err := NewTimetableConflictDetection(TimetableConflictReaders{
+		Instances:         repos.ActivityInstance,
+		InstanceStaff:     repos.InstanceStaff,
+		InstanceStudents:  repos.InstanceStudent,
+		Exceptions:        repos.ActivityException,
+		Schedules:         repos.ActivitySchedule,
+		Staff:             repos.Staff,
+		CalendarPeriods:   repos.CalendarPeriod,
+		ArrivalExceptions: repos.StudentArrivalException,
+		Sessions:          repos.ActiveGroup,
+		Shifts:            shiftRows,
+		Presence:          newStudentPresence(db, logger),
+		ArrivalBaselines:  arrivalBaselines,
+		Logger:            logger.With("service", "timetable-conflicts"),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose timetable conflict detection: %w", err)
+	}
 	instanceService := timetableplanning.NewInstanceService(timetableplanning.InstanceServiceDependencies{
+		StartConflicts:     timetableConflicts,
 		Presence:           newStudentPresence(db, logger),
 		GuardianNotices:    lateCareCancellationPublisher{resolve: func() communication.CareCancellationPublisher { return guardianNoticePublisher }},
 		CareDayService:     timetableplanning.NewInstanceCareDays(careDayService, repos.CarePlan()),
@@ -1474,11 +1496,9 @@ func newFactory(
 	autoStartService := timetableplanning.NewAutoStartService(timetableplanning.AutoStartDependencies{
 		InstanceRepo:      repos.ActivityInstance,
 		InstanceStaffRepo: repos.InstanceStaff,
-		InstanceStudents:  repos.InstanceStudent,
 		InstanceService:   instanceService,
 		RoomRepo:          repos.Room,
-		ActiveGroupRepo:   repos.ActiveGroup,
-		Presence:          newStudentPresence(db, logger),
+		Conflicts:         timetableConflicts,
 		Logger:            logger.With("service", "timetable-auto-start"),
 	})
 	autoEndService := timetableplanning.NewAutoEndService(repos.ActivityInstance, instanceService)
@@ -2635,7 +2655,7 @@ func newFactory(
 		InstanceStaff:  repos.InstanceStaff,
 		Students:       repos.InstanceStudent,
 		Rooms:          repos.Room,
-		Staff:          repos.Staff,
+		Staff:          planExportStaffNames{staff: repos.Staff},
 		ActivityGroups: repos.ActivityGroup,
 		PlanningTracks: repos.PlanningTrack,
 		ClosingDays:    planExportClosingDays{calendar: calendar},
@@ -2736,9 +2756,6 @@ func newFactory(
 		ActivityExceptionRepo:      repos.ActivityException,
 		ActivityScheduleRepo:       repos.ActivitySchedule,
 		InstanceStaffRepo:          repos.InstanceStaff,
-		StaffShiftRepo:             shiftRows,
-		StaffRepo:                  repos.Staff,
-		CalendarPeriodRepo:         repos.CalendarPeriod,
 		ActiveGroupRepo:            repos.ActiveGroup,
 		SupervisorRepo:             repos.GroupSupervisor,
 		ArrivalBaselines:           arrivalBaselines,
@@ -2762,6 +2779,7 @@ func newFactory(
 		AttendanceCorrectionRepo:   repositories.NewAttendanceCorrectionRepository(auditReadRuntime),
 		PersonRepo:                 repos.Person,
 		ConflictAcks:               timetableCapability,
+		ConflictDetection:          timetableConflicts,
 		RecoveryRepo:               recoveryRepo,
 		Broadcaster:                realtimeHub,
 		Logger:                     logger.With("service", "timetable-data"),

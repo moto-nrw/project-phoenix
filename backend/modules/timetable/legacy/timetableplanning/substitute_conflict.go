@@ -6,7 +6,7 @@
 // surface a "substitute_time_conflict" warning — informational only, never
 // blocks the write.
 //
-// Distinct from instance_conflict.go (WP-B9 start-time conflicts) because the
+// Distinct from the Timetable owner's start-time conflicts (WP-B9) because the
 // input and semantics differ: here we compare a set of target instances against
 // the substitute's OTHER same-day assignments, not against live active.groups.
 package timetableplanning

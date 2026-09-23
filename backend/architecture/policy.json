@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 25,
+  "policy_epoch": 26,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -21673,18 +21673,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "document-rendering.adapter.inbound-timetable-adapter",
-      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/planexport/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "enrollment.application.inbound-timetable-adapter",
       "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by services/enrollment. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -23067,6 +23055,61 @@
       "target_role": "public"
     },
     {
+      "id": "timetable-planning-cutover.workforce.application.timetable-activities.public",
+      "description": "The Dienstplan overview takes the shift-coverage interval math and the calendar-week helpers from the Timetable owner since slice S4 of #3424 (ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.calendar-view.adapter.timetable-activities.public",
+      "description": "The supervision dashboard maps the Timetable owner's start-conflict warnings since slice S4 of #3424 (ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.workforce.module-internal-test.timetable-activities.public",
+      "description": "The Dienstplan overview suites assert the Timetable owner's coverage intervals since slice S4 of #3424 (ADR 0038).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-internal-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.workforce.module-behavior-test.timetable-activities.public",
+      "description": "The Workforce planning contract suite builds overviews over the Timetable owner's coverage intervals since slice S4 of #3424 (ADR 0038).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-planning-cutover.inbound-timetable.module-behavior-test.timetable-activities.public",
+      "description": "The retained timetable lifecycle suites assert the Timetable owner's conflict kinds slice S4 of #3424 moved out of the nest (ADR 0038); the rule ends with the package.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
       "id": "workforce.application.legacy-shared-domain",
       "description": "The Workforce planning commands and queries (modules/workforce/internal/planning, #3418) speak the shared calendar-date and wall-clock helpers.",
       "scopes": [
@@ -23210,18 +23253,6 @@
       "source_role": "application",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "workforce.application.inbound-timetable-adapter",
-      "description": "The Dienstplan overview and the series materialization reach the coverage interval math, the calendar-week helpers and the week-pattern rule in the retained timetable services (#3418). Goes with the timetable nest.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "application",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "workforce.compose.timetable-domain",
@@ -23808,18 +23839,6 @@
       "target_role": "application"
     },
     {
-      "id": "workforce.behaviour-test.inbound-timetable-adapter",
-      "description": "The Dienstplan overview suites build the retained timetable services (#3418). Goes with the timetable nest.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "module-behavior-test",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "workforce.behaviour-test.tenant-runtime",
       "description": "The Workforce planning behaviour suites run inside a tenant context.",
       "scopes": [
@@ -23908,18 +23927,6 @@
       "target_owner": "people-directory",
       "target_role": "domain",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2729"
-    },
-    {
-      "id": "workforce.internal-test.inbound-timetable-adapter",
-      "description": "The Dienstplan overview unit suites use the retained coverage interval vocabulary (#3418). Goes with the timetable nest.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "module-internal-test",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "workforce.internal-test.delivery-public",

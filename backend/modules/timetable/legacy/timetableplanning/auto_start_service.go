@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // AutoStartService starts due planned timetable instances when a tenant opts
@@ -33,31 +33,20 @@ type AutoStartResult struct {
 	DurationMS          int64
 }
 
-// AutoStartConflictDetector is a test seam for the otherwise repo-heavy
-// DetectStartConflicts helper. Production wiring leaves it unset.
-type AutoStartConflictDetector func(
-	ctx context.Context,
-	deps ConflictDependencies,
-	instance *scheduleModel.ActivityInstance,
-	logger *slog.Logger,
-) ([]InstanceConflictWarning, error)
-
 // AutoStartDependencies groups the collaborators required for automatic starts.
+// Conflicts is the Timetable owner's start check (#3550), the same one the
+// manual start runs.
 type AutoStartDependencies struct {
 	InstanceRepo      scheduleModel.ActivityInstanceRepository
 	InstanceStaffRepo scheduleModel.InstanceStaffRepository
-	InstanceStudents  scheduleModel.InstanceStudentRepository
 	InstanceService   InstanceService
 	RoomRepo          facilitiesModel.RoomRepository
-	ActiveGroupRepo   studentpresence.SessionRecords
-	Presence          ConflictPresence
-	ConflictDetector  AutoStartConflictDetector
+	Conflicts         timetable.StartConflictQuery
 	Logger            *slog.Logger
 }
 
 type autoStartService struct {
 	AutoStartDependencies
-	conflictDeps ConflictDependencies
 }
 
 // NewAutoStartService creates the tenant-scoped auto-start service. It is
@@ -76,31 +65,13 @@ func NewAutoStartService(deps AutoStartDependencies) AutoStartService {
 	if deps.RoomRepo == nil {
 		panic("schedule auto-start: RoomRepo is required")
 	}
-	if deps.ConflictDetector == nil {
-		if deps.ActiveGroupRepo == nil {
-			panic("schedule auto-start: ActiveGroupRepo is required")
-		}
-		if deps.Presence == nil {
-			panic("schedule auto-start: Presence is required")
-		}
-		if deps.InstanceStudents == nil {
-			panic("schedule auto-start: InstanceStudents is required")
-		}
-		deps.ConflictDetector = DetectStartConflicts
+	if deps.Conflicts == nil {
+		panic("schedule auto-start: Conflicts is required")
 	}
 	if deps.Logger == nil {
 		deps.Logger = slog.Default()
 	}
-	return &autoStartService{
-		AutoStartDependencies: deps,
-		conflictDeps: ConflictDependencies{
-			GroupRepo:         deps.ActiveGroupRepo,
-			Presence:          deps.Presence,
-			InstanceRepo:      deps.InstanceRepo,
-			InstanceStaffRepo: deps.InstanceStaffRepo,
-			InstanceStudents:  deps.InstanceStudents,
-		},
-	}
+	return &autoStartService{AutoStartDependencies: deps}
 }
 
 func (s *autoStartService) RunForTenant(ctx context.Context, now time.Time) (*AutoStartResult, error) {
@@ -170,7 +141,7 @@ func (s *autoStartService) RunForTenant(ctx context.Context, now time.Time) (*Au
 			continue
 		}
 
-		warnings, err := s.ConflictDetector(ctx, s.conflictDeps, inst, s.Logger)
+		warnings, err := detectStartConflicts(ctx, s.Conflicts, inst)
 		if err != nil {
 			result.Failed++
 			return result, fmt.Errorf("auto-start instance %d: detect conflicts: %w", inst.ID, err)

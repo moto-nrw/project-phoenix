@@ -21,6 +21,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -642,10 +643,10 @@ func parseOperationID(w http.ResponseWriter, r *http.Request, key string) (int64
 }
 
 type startOperationResponse struct {
-	InstanceID    int64                                       `json:"instance_id"`
-	Status        string                                      `json:"status"`
-	ActiveGroupID int64                                       `json:"active_group_id"`
-	Warnings      []timetableplanning.InstanceConflictWarning `json:"warnings"`
+	InstanceID    int64                               `json:"instance_id"`
+	Status        string                              `json:"status"`
+	ActiveGroupID int64                               `json:"active_group_id"`
+	Warnings      []timetable.InstanceConflictWarning `json:"warnings"`
 }
 
 func appendUniquePositive(ids []int64, id int64) []int64 {

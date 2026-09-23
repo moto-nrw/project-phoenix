@@ -16,8 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // StaffPoolAssignmentResponse is one overlapping same-day assignment of a
@@ -60,14 +59,14 @@ func (rs *Resource) getStaffPool(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
 		return
 	}
-	if rs.TimetableData == nil {
+	if rs.ConflictDetection == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
 
-	pool, err := rs.TimetableData.GetStaffPoolForInstance(r.Context(), id)
+	pool, err := rs.ConflictDetection.StaffPoolForInstance(r.Context(), id)
 	if err != nil {
-		if base.IsNoRows(err) {
+		if errors.Is(err, timetable.ErrActivityInstanceNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
 			return
 		}
@@ -79,7 +78,7 @@ func (rs *Resource) getStaffPool(w http.ResponseWriter, r *http.Request) {
 }
 
 // staffPoolResponseOf maps the neutral service result onto the wire shape.
-func staffPoolResponseOf(pool *timetableplanning.StaffPoolResult) StaffPoolResponse {
+func staffPoolResponseOf(pool timetable.StaffPool) StaffPoolResponse {
 	entries := make([]StaffPoolEntryResponse, 0, len(pool.Entries))
 	for _, entry := range pool.Entries {
 		assignments := make([]StaffPoolAssignmentResponse, 0, len(entry.Assignments))
@@ -98,11 +97,11 @@ func staffPoolResponseOf(pool *timetableplanning.StaffPoolResult) StaffPoolRespo
 		})
 	}
 	return StaffPoolResponse{
-		InstanceID:      pool.Instance.ID,
-		Title:           pool.Instance.Title,
-		Date:            pool.Instance.Date.String(),
-		StartTime:       timezone.NormalizeWallClock(pool.Instance.StartTime).Format("15:04"),
-		EndTime:         timezone.NormalizeWallClock(pool.Instance.EndTime).Format("15:04"),
+		InstanceID:      pool.InstanceID,
+		Title:           pool.Title,
+		Date:            pool.Date.String(),
+		StartTime:       timezone.NormalizeWallClock(pool.StartTime).Format("15:04"),
+		EndTime:         timezone.NormalizeWallClock(pool.EndTime).Format("15:04"),
 		DienstplanInUse: pool.DienstplanInUse,
 		Entries:         entries,
 	}

@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -76,9 +77,11 @@ func buildListSetup(t *testing.T) *listSetup {
 	cleanup := func() {
 	}
 
+	data := testTimetableData(db)
 	res := NewResource(Dependencies{
-		TimetableData: testTimetableData(db),
-		DB:            db,
+		TimetableData:     data,
+		ConflictDetection: data.ConflictDetection(),
+		DB:                db,
 	})
 
 	return &listSetup{res: res, db: db, ctx: ctx, roomID: room.ID, cleanupFn: cleanup}
@@ -570,7 +573,7 @@ func TestListInstances_IncludesWindowConflictWarnings(t *testing.T) {
 	warningsB := byTitle["Window-Conflict-B"].ConflictWarnings
 	require.Len(t, warningsA, 1)
 	require.Len(t, warningsB, 1)
-	assert.Equal(t, timetableplanning.ConflictKindStudent, warningsA[0].Kind)
+	assert.Equal(t, timetable.ConflictKindStudent, warningsA[0].Kind)
 	assert.Equal(t, student.ID, warningsA[0].ResourceID)
 	assert.True(t, warningsA[0].CanOverride)
 	assert.Equal(t, instB.ID, warningsA[0].ConflictingInstanceID)

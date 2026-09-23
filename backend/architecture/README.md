@@ -616,10 +616,12 @@ converted; `inbound-staff-shifts.to.workforce` is the owner's only rule and
 `api/staff-shifts` its only package. `legacy.jsonl` is unchanged: the
 package never had a key, which is what the ticket set out to repair. The
 Dienstplan rows still speak the retained `models/schedule` structs inside
-the planning package, because the Timetable coverage probe and staff pool in
-`modules/timetable/legacy/timetableplanning` share that vocabulary; they go
-with #3424, together with the shift-coverage interval vocabulary
-(`shift_coverage_intervals.go`) the overview binds through its own aliases.
+the planning package, because the Timetable coverage probe and staff pool
+share that vocabulary; they go with #3424. Since slice S4 (#3550) the
+overview takes the shift-coverage interval math and the calendar-week
+helpers from the public Timetable contract (`timetable.UncoveredShiftIntervals`,
+`timetable.ContainingCalendarWeek`) and keeps its own indexing and ordering
+helpers.
 
 The retained timetable and instance services that `services/schedule` used to
 hold (templates, splits and updates, materialization, the instance lifecycle
@@ -1055,6 +1057,28 @@ epoch-gated exception in
 [ADR 0038](../../docs/adr/0038-timetable-planning-dissolution-replaces-legacy-permissions.md)
 (policy epoch 22 to 23), which every later slice of #3424 reuses and which
 ends when the last slice removes the package from the base.
+
+Slice S4 (#3550, policy epoch 25 to 26) moved conflict detection and
+staffing to the Timetable owner: the start and planning conflict checks,
+the window conflicts with their persisted acknowledgement fingerprints, the
+exception conflicts, the staff pool, the shift-coverage probe and the
+staffing rules. The public contract is `timetable.ConflictDetectionCapability`
+with the pure capacity, understaffing, slot-precedence and interval
+functions beside it; the implementation lives in `modules/timetable/compose`
+and still reads the retained repository rows, whose status carries the
+Student Presence session state the owner's own rows do not. Two collaborators
+the owner may not name are bound by the legacy composition
+(`services.NewTimetableConflictDetection`): Security Runtime's content
+fingerprint, of which the persisted fingerprint keeps the first 32 hex
+characters, and Care Plan's arrival baseline behind a consumer-owned port.
+`api/timetable` holds the capability directly; the retained
+`TimetableDataService` only carries it to the root (`ConflictDetection()`),
+because `services.Factory` may not grow a field. The instance lifecycle and
+the auto-start tick call the owner's start check, the Dienstplan overview
+and the supervision dashboard its public types, and the plan export reads
+staff names through a root-bound port instead of the nest's staff reader.
+Four emptied compatibility rules are deleted, five replacement permissions
+use the extended exception of ADR 0038, and `legacy.jsonl` is unchanged.
 
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`

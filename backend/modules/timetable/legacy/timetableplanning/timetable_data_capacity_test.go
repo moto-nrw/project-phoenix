@@ -181,3 +181,5 @@ func TestApplyWorstTemplateCapacity_MarksOccurrenceFound(t *testing.T) {
 	assert.True(t, rows[0].CapacityOccurrenceFound)
 	assert.False(t, rows[1].CapacityOccurrenceFound)
 }
+
+func intPtr(v int) *int { return &v }

@@ -41,6 +41,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -292,7 +293,7 @@ type UpdateInstanceInput struct {
 type StartInstanceResult struct {
 	Instance      *scheduleModel.ActivityInstance
 	ActiveGroupID int64
-	Warnings      []InstanceConflictWarning
+	Warnings      []timetable.InstanceConflictWarning
 }
 
 // ReplanWeekResult wraps the materialization result plus the delete count so
@@ -501,13 +502,7 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	}
 
 	// Conflicts are advisory; failed presence reads abort before any writes.
-	warnings, err := DetectStartConflicts(ctx, ConflictDependencies{
-		GroupRepo:         s.deps.ActiveGroupRepo,
-		Presence:          s.deps.Presence,
-		InstanceRepo:      s.deps.InstanceRepo,
-		InstanceStaffRepo: s.deps.InstanceStaffRepo,
-		InstanceStudents:  s.deps.InstanceStudents,
-	}, instance, s.getLogger())
+	warnings, err := detectStartConflicts(ctx, s.deps.StartConflicts, instance)
 	if err != nil {
 		return nil, err
 	}
@@ -1033,7 +1028,7 @@ func (s *instanceService) Reopen(ctx context.Context, instanceID, accountID int6
 	instance.CompletionSnapshot = nil
 	s.broadcastInstanceEvent(ctx, realtime.EventInstanceStarted, instance, nil, nil)
 	s.broadcastRestoredVisits(ctx, snapshot.ActiveGroupID, studentIDs)
-	return &StartInstanceResult{Instance: instance, ActiveGroupID: snapshot.ActiveGroupID, Warnings: []InstanceConflictWarning{}}, nil
+	return &StartInstanceResult{Instance: instance, ActiveGroupID: snapshot.ActiveGroupID, Warnings: []timetable.InstanceConflictWarning{}}, nil
 }
 
 // broadcastRestoredVisits emits the check-in-equivalent invalidation for
@@ -1459,7 +1454,7 @@ func (s *instanceService) setUnderstaffedAck(ctx context.Context, instanceID int
 		if err != nil {
 			return nil, &ScheduleError{Op: "set understaffed ack: load staff", Err: err}
 		}
-		if !IsUnderstaffed(rows) {
+		if !timetable.IsUnderstaffed(staffingRows(rows)) {
 			return nil, ErrUnderstaffedAckStillStaffed
 		}
 	}
@@ -1998,7 +1993,7 @@ func (s *instanceService) validateInstanceDateInActiveCalendarPeriod(ctx context
 // the block fully staffed (present >= planned). A still-understaffed block keeps
 // the acknowledgement: partial coverage must not silently reopen an
 // intentionally acknowledged gap, and the amber card would otherwise contradict
-// /gaps (#1840). This is the same IsUnderstaffed rule SetUnderstaffedAck
+// /gaps (#1840). This is the same timetable.IsUnderstaffed rule SetUnderstaffedAck
 // enforces at set time; it writes only when it actually clears the flag.
 func (s *instanceService) clearStaleAckIfStaffed(ctx context.Context, instance *scheduleModel.ActivityInstance, actorAccountID *int64) error {
 	if !instance.UnderstaffedAck {
@@ -2008,7 +2003,7 @@ func (s *instanceService) clearStaleAckIfStaffed(ctx context.Context, instance *
 	if err != nil {
 		return &ScheduleError{Op: "clear stale ack: load staff", Err: err}
 	}
-	if IsUnderstaffed(rows) {
+	if timetable.IsUnderstaffed(staffingRows(rows)) {
 		return nil // still short-staffed → keep the acknowledgement
 	}
 	previousNote := instance.UnderstaffedNote

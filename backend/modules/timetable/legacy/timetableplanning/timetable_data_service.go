@@ -33,9 +33,6 @@ type TimetableDataDependencies struct {
 	ActivityExceptionRepo scheduleModel.ActivityExceptionRepository
 	ActivityScheduleRepo  activitiesModel.ScheduleRepository
 	InstanceStaffRepo     scheduleModel.InstanceStaffRepository
-	StaffShiftRepo        StaffShiftCoverageReader
-	StaffRepo             usersModel.StaffRepository
-	CalendarPeriodRepo    scheduleModel.CalendarPeriodRepository
 	ActiveGroupRepo       studentpresence.SessionRecords
 	SupervisorRepo        studentpresence.SupervisionRecords
 	// ArrivalBaselines resolves the regular arrival plan the way every other
@@ -88,6 +85,9 @@ type TimetableDataDependencies struct {
 	// ConflictAcks is the Timetable & Activities owner capability for per-user
 	// conflict acknowledgements (#2139, #2686).
 	ConflictAcks timetable.ConflictAckCapability
+	// ConflictDetection is the Timetable owner's conflict detection and
+	// staffing capability (#3550), carried only for ConflictDetection.
+	ConflictDetection timetable.ConflictDetectionCapability
 	// RecoveryRepo serializes attendance writes with instance completion.
 	// Production always wires it; unit-test facades may leave it nil.
 	RecoveryRepo scheduleModel.ActivityRecoveryRepository
@@ -701,7 +701,7 @@ func applyWorstTemplateCapacity(
 }
 
 // requiredStaffOverrideOf converts a template row's nullable required_staff
-// column into the *int override EffectiveRequiredStaff expects (NULL -> nil).
+// column into the *int override timetable.EffectiveRequiredStaff expects (NULL -> nil).
 func requiredStaffOverrideOf(row activitiesModel.TemplateListRow) *int {
 	if !row.RequiredStaff.Valid {
 		return nil
@@ -717,7 +717,7 @@ func worstTemplateOccurrence(
 ) (activitiesModel.TemplateCapacityOccurrence, bool) {
 	hasPositiveDemand := false
 	for _, occurrence := range occurrences {
-		if EffectiveRequiredStaff(override, occurrence.EnrollmentCount, childrenPerStaffRatio) > 0 {
+		if timetable.EffectiveRequiredStaff(override, occurrence.EnrollmentCount, childrenPerStaffRatio) > 0 {
 			hasPositiveDemand = true
 			break
 		}
@@ -754,7 +754,7 @@ func scoreTemplateOccurrence(
 	override *int,
 	childrenPerStaffRatio int,
 ) templateCapacityScore {
-	required := EffectiveRequiredStaff(override, occurrence.EnrollmentCount, childrenPerStaffRatio)
+	required := timetable.EffectiveRequiredStaff(override, occurrence.EnrollmentCount, childrenPerStaffRatio)
 	assigned := occurrence.SupervisorCount
 	score := templateCapacityScore{required: required}
 	if assigned < required {
@@ -793,27 +793,14 @@ func templateOccurrenceIsWorse(
 	return candidate.OccurrenceDate.Before(current.OccurrenceDate)
 }
 
-func (s *TimetableDataService) DetectPlannedConflicts(ctx context.Context, query PlannedConflictQuery, logger *slog.Logger) []PlannedConflictWarning {
-	return DetectPlannedConflicts(ctx, PlannedConflictDependencies{
-		InstanceRepo:      s.deps.ActivityInstanceRepo,
-		InstanceStaffRepo: s.deps.InstanceStaffRepo,
-		InstanceStudents:  s.deps.InstanceStudentRepo,
-	}, query, logger)
-}
-
-func (s *TimetableDataService) DetectShiftCoverageWarnings(ctx context.Context, query ShiftCoverageQuery) (ShiftCoverageResult, error) {
-	if s.deps.StaffShiftRepo == nil || s.deps.ActivityInstanceRepo == nil || s.deps.ActivityExceptionRepo == nil || s.deps.ActivityScheduleRepo == nil || s.deps.InstanceStaffRepo == nil || s.deps.StaffRepo == nil || s.deps.CalendarPeriodRepo == nil {
-		return ShiftCoverageResult{}, errors.New("shift coverage dependencies are not wired")
-	}
-	return DetectShiftCoverage(ctx, ShiftCoverageDependencies{
-		Shifts:          s.deps.StaffShiftRepo,
-		Instances:       s.deps.ActivityInstanceRepo,
-		Exceptions:      s.deps.ActivityExceptionRepo,
-		Schedules:       s.deps.ActivityScheduleRepo,
-		InstanceStaff:   s.deps.InstanceStaffRepo,
-		Staff:           s.deps.StaffRepo,
-		CalendarPeriods: s.deps.CalendarPeriodRepo,
-	}, query)
+// ConflictDetection hands the composition root the Timetable owner's
+// conflict detection and staffing capability this facade was built with
+// (#3550). The facade itself serves none of it: api/timetable holds the
+// capability directly. The handle exists only because the retained
+// services.Factory may not grow a field for it; it goes when the facade
+// dissolves (#3424).
+func (s *TimetableDataService) ConflictDetection() timetable.ConflictDetectionCapability {
+	return s.deps.ConflictDetection
 }
 
 func (s *TimetableDataService) EducationGroupExists(ctx context.Context, id int64) (bool, error) {

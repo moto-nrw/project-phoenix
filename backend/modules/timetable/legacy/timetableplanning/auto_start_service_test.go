@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,12 +40,12 @@ func TestAutoStart_RunForTenant_StartsOnlyDueStaffedConflictFreeInstances(t *tes
 		InstanceStaffRepo: staffRepo,
 		InstanceService:   starter,
 		RoomRepo:          &autoStartRoomRepo{},
-		ConflictDetector: func(_ context.Context, _ ConflictDependencies, inst *scheduleModel.ActivityInstance, _ *slog.Logger) ([]InstanceConflictWarning, error) {
-			if inst.ID == 104 {
-				return []InstanceConflictWarning{{Kind: ConflictKindStaff, ResourceID: inst.RoomID, CanOverride: true}}, nil
+		Conflicts: startConflictsFunc(func(_ context.Context, subject timetable.StartConflictSubject) ([]timetable.InstanceConflictWarning, error) {
+			if subject.InstanceID == 104 {
+				return []timetable.InstanceConflictWarning{{Kind: timetable.ConflictKindStaff, ResourceID: subject.RoomID, CanOverride: true}}, nil
 			}
 			return nil, nil
-		},
+		}),
 		Logger: slog.Default(),
 	})
 
@@ -76,9 +77,9 @@ func TestAutoStart_RunForTenant_ReportsConflictReadFailureAndRetries(t *testing.
 		InstanceStaffRepo: &autoStartStaffRepo{counts: map[int64]int{201: 1}},
 		InstanceService:   starter,
 		RoomRepo:          &autoStartRoomRepo{},
-		ConflictDetector: func(context.Context, ConflictDependencies, *scheduleModel.ActivityInstance, *slog.Logger) ([]InstanceConflictWarning, error) {
+		Conflicts: startConflictsFunc(func(_ context.Context, subject timetable.StartConflictSubject) ([]timetable.InstanceConflictWarning, error) {
 			return nil, readErr
-		},
+		}),
 		Logger: slog.Default(),
 	})
 	result, err := svc.RunForTenant(context.Background(), now)
@@ -109,9 +110,9 @@ func TestAutoStart_RunForTenant_ReturnsStartError(t *testing.T) {
 		InstanceStaffRepo: staffRepo,
 		InstanceService:   starter,
 		RoomRepo:          &autoStartRoomRepo{},
-		ConflictDetector: func(context.Context, ConflictDependencies, *scheduleModel.ActivityInstance, *slog.Logger) ([]InstanceConflictWarning, error) {
+		Conflicts: startConflictsFunc(func(_ context.Context, subject timetable.StartConflictSubject) ([]timetable.InstanceConflictWarning, error) {
 			return nil, nil
-		},
+		}),
 		Logger: slog.Default(),
 	})
 
@@ -145,9 +146,9 @@ func TestAutoStart_RunForTenant_SkipsMovedAndContinues(t *testing.T) {
 		InstanceStaffRepo: staffRepo,
 		InstanceService:   starter,
 		RoomRepo:          &autoStartRoomRepo{},
-		ConflictDetector: func(context.Context, ConflictDependencies, *scheduleModel.ActivityInstance, *slog.Logger) ([]InstanceConflictWarning, error) {
+		Conflicts: startConflictsFunc(func(_ context.Context, subject timetable.StartConflictSubject) ([]timetable.InstanceConflictWarning, error) {
 			return nil, nil
-		},
+		}),
 		Logger: slog.Default(),
 	})
 
@@ -181,10 +182,10 @@ func TestAutoStart_RunForTenant_StartsSchulhofLikeAnyRoom(t *testing.T) {
 			401: {ID: 401, Name: constants.SchulhofRoomName},
 			402: {ID: 402, Name: "Lernraum"},
 		}},
-		ConflictDetector: func(_ context.Context, _ ConflictDependencies, inst *scheduleModel.ActivityInstance, _ *slog.Logger) ([]InstanceConflictWarning, error) {
-			conflictChecks = append(conflictChecks, inst.ID)
+		Conflicts: startConflictsFunc(func(_ context.Context, subject timetable.StartConflictSubject) ([]timetable.InstanceConflictWarning, error) {
+			conflictChecks = append(conflictChecks, subject.InstanceID)
 			return nil, nil
-		},
+		}),
 		Logger: slog.Default(),
 	})
 
@@ -195,6 +196,13 @@ func TestAutoStart_RunForTenant_StartsSchulhofLikeAnyRoom(t *testing.T) {
 	assert.Zero(t, result.Failed)
 	assert.Equal(t, []int64{311, 312}, conflictChecks)
 	assert.Equal(t, []int64{311, 312}, starter.startedIDs)
+}
+
+// startConflictsFunc adapts a function to the Timetable owner's start check.
+type startConflictsFunc func(context.Context, timetable.StartConflictSubject) ([]timetable.InstanceConflictWarning, error)
+
+func (f startConflictsFunc) DetectStartConflicts(ctx context.Context, subject timetable.StartConflictSubject) ([]timetable.InstanceConflictWarning, error) {
+	return f(ctx, subject)
 }
 
 func autoStartInstance(id int64, status string, startHour, startMinute, endHour, endMinute int) *scheduleModel.ActivityInstance {

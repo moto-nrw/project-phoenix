@@ -1066,13 +1066,7 @@ func reconcileSelectedAck(
 		newSubByInstance[instanceID],
 		removedByInstance[instanceID],
 	)
-	plannedBaseline := 0
-	for _, row := range thisRows {
-		if !row.IsSubstitute {
-			plannedBaseline++
-		}
-	}
-	projectedUnderstaffed := IsUnderstaffedCounts(projectedPresent, plannedBaseline)
+	projectedUnderstaffed := isProjectedUnderstaffed(thisRows, projectedPresent)
 
 	finalAck = instance.UnderstaffedAck
 	if in.UnderstaffedAck != nil {
