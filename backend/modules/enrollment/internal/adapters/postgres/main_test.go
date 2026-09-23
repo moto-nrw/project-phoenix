@@ -1,4 +1,4 @@
-package enrollment_test
+package postgres_test
 
 import (
 	"testing"

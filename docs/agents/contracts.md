@@ -253,6 +253,14 @@ sign-in waits for that code. A new mail that must leave the demo environment
 needs its template added there. `email.IsDemoEnvironment` decides for the
 routes, the capability and the lock alike.
 
+Because the lock drops the operator's sign-in code, the `APP_ENV=demo`
+composition leaves the operator login without a second factor
+(`DemoDependencies.OperatorWithoutSecondFactor`, #3460); otherwise the demo
+process could never sign in to seed a school. The demo host's Caddy answers
+404 for the operator host and every `/operator` and `/api/operator` path, so
+the operator surface stays internal. Every other environment keeps operator
+MFA mandatory.
+
 `SwitchTenant` refuses any account a demo access signed in
 (`403 demo_session`), through a mint guard inside the switch transaction.
 Such an account is exempt from the session cap (`capSessionsUnlessDemo`): in

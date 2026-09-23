@@ -7,8 +7,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ===== Supervisor Handlers =====
@@ -21,7 +21,7 @@ func (rs *Resource) listSupervisors(w http.ResponseWriter, r *http.Request) {
 	// Get active status filter
 	activeStr := r.URL.Query().Get("active")
 	if activeStr != "" {
-		day := timezone.TodayDate().String()
+		day := calendar.TodayDate().String()
 		if activeStr == "true" || activeStr == "1" {
 			filter.ActiveOn = &day
 		} else {
@@ -68,7 +68,7 @@ func (rs *Resource) getStaffSupervisions(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Get supervisions for staff
-	day := timezone.TodayDate().String()
+	day := calendar.TodayDate().String()
 	responses, err := rs.presenceSupervisionResponses(r.Context(), studentpresence.GroupSupervisionFilter{StaffID: &staffID, ActiveOn: &day}, "FindSupervisorsByStaffID")
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
@@ -88,7 +88,7 @@ func (rs *Resource) getStaffActiveSupervisions(w http.ResponseWriter, r *http.Re
 	}
 
 	// Get active supervisions for staff
-	day := timezone.TodayDate().String()
+	day := calendar.TodayDate().String()
 	responses, err := rs.presenceSupervisionResponses(r.Context(), studentpresence.GroupSupervisionFilter{StaffID: &staffID, ActiveOn: &day}, "GetStaffActiveSupervisions")
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
@@ -116,7 +116,7 @@ func (rs *Resource) getSupervisorsByGroup(w http.ResponseWriter, r *http.Request
 	}
 
 	// Get supervisors for active group
-	day := timezone.TodayDate().String()
+	day := calendar.TodayDate().String()
 	responses, err := rs.presenceSupervisionResponses(r.Context(), studentpresence.GroupSupervisionFilter{GroupIDs: []int64{groupID}, ActiveOn: &day}, "FindSupervisorsByActiveGroupID")
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
@@ -141,7 +141,7 @@ func (rs *Resource) createSupervisor(w http.ResponseWriter, r *http.Request) {
 		StaffID:   req.StaffID,
 		GroupID:   req.ActiveGroupID,
 		Role:      "Supervisor", // Default role
-		StartDate: timezone.DateFromTime(req.StartTime).String(),
+		StartDate: calendar.DateFromTime(req.StartTime).String(),
 		EndDate:   supervisorEndDate(req.EndTime),
 	}
 
@@ -190,7 +190,7 @@ func (rs *Resource) updateSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Update fields
 	existing.StaffID = req.StaffID
 	existing.GroupID = req.ActiveGroupID
-	existing.StartDate = timezone.DateFromTime(req.StartTime).String()
+	existing.StartDate = calendar.DateFromTime(req.StartTime).String()
 	existing.EndDate = supervisorEndDate(req.EndTime)
 
 	// Update supervisor
@@ -308,6 +308,6 @@ func supervisorEndDate(endTime *time.Time) *string {
 	if endTime == nil {
 		return nil
 	}
-	d := timezone.DateFromTime(*endTime).String()
+	d := calendar.DateFromTime(*endTime).String()
 	return &d
 }

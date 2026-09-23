@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ===== Active Group Handlers =====
@@ -104,13 +104,13 @@ func (rs *Resource) loadActiveSupervisorsMap(ctx context.Context, groups []stude
 	for i, group := range groups {
 		groupIDs[i] = group.ID
 	}
-	day := timezone.TodayDate().String()
+	day := calendar.TodayDate().String()
 	rows, err := rs.Presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: groupIDs, ActiveOn: &day})
 	if err != nil {
 		slog.Default().Error("failed to load supervisors", slog.String("error", err.Error()))
 		return supervisorMap
 	}
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	for _, row := range rows {
 		response, err := presenceSupervisionResponse(row, today)
 		if err != nil {
@@ -296,7 +296,7 @@ func (rs *Resource) extractStaffFromRequest(w http.ResponseWriter, r *http.Reque
 
 // verifyStaffSupervisionAccess verifies staff has permission to view an active group
 func (rs *Resource) verifyStaffSupervisionAccess(w http.ResponseWriter, r *http.Request, staffID int64, activeGroupID int64) error {
-	day := timezone.TodayDate().String()
+	day := calendar.TodayDate().String()
 	supervisions, err := rs.presenceSupervisionResponses(r.Context(), studentpresence.GroupSupervisionFilter{StaffID: &staffID, ActiveOn: &day}, "GetStaffActiveSupervisions")
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
@@ -387,8 +387,8 @@ func (rs *Resource) buildVisitDisplayResponses(results []studentpresence.VisitDi
 		var actualPickup *string
 		if access.HasFullAccess() {
 			if attendanceStatus, ok := attendanceStatuses[result.StudentID]; ok && attendanceStatus != nil {
-				actualArrival = timezone.FormatBerlinClock(attendanceStatus.CheckInTime)
-				actualPickup = timezone.FormatBerlinClock(attendanceStatus.CheckOutTime)
+				actualArrival = calendar.FormatBerlinClock(attendanceStatus.CheckInTime)
+				actualPickup = calendar.FormatBerlinClock(attendanceStatus.CheckOutTime)
 			}
 		}
 
@@ -449,7 +449,7 @@ func (rs *Resource) getActiveGroupSupervisors(w http.ResponseWriter, r *http.Req
 	}
 
 	// Get active group with supervisors
-	responses, err := rs.presenceSessionSupervisors(r.Context(), id, timezone.TodayDate())
+	responses, err := rs.presenceSessionSupervisors(r.Context(), id, calendar.TodayDate())
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return

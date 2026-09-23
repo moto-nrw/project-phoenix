@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 
-	"github.com/moto-nrw/project-phoenix/models/config"
+	tenantsettings "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -217,9 +217,9 @@ func TestGetTrackingIndicators_Success(t *testing.T) {
 	t.Parallel()
 
 	labelValues := map[string]string{
-		config.KeyTrackingIndicator1: "Hausaufgaben",
-		config.KeyTrackingIndicator2: "Mensa",
-		config.KeyTrackingIndicator3: "",
+		tenantsettings.KeyTrackingIndicator1: "Hausaufgaben",
+		tenantsettings.KeyTrackingIndicator2: "Mensa",
+		tenantsettings.KeyTrackingIndicator3: "",
 	}
 
 	settings := newTrackingMockSettingsService(
@@ -324,9 +324,9 @@ func TestGetTrackingIndicators_PartialLabelsConfigured(t *testing.T) {
 	t.Parallel()
 
 	labelValues := map[string]string{
-		config.KeyTrackingIndicator1: "Mensa",
-		config.KeyTrackingIndicator2: "",
-		config.KeyTrackingIndicator3: "Sport",
+		tenantsettings.KeyTrackingIndicator1: "Mensa",
+		tenantsettings.KeyTrackingIndicator2: "",
+		tenantsettings.KeyTrackingIndicator3: "Sport",
 	}
 
 	settings := newTrackingMockSettingsService(

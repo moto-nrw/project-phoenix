@@ -12,7 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	tenantsettings "github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -220,7 +220,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 
 	t.Run("all_staff visibility does not bypass move resource checks", func(t *testing.T) {
 		rs := resourceForTest(Resource{
-			SettingsService: scopeSettings(configModel.OverviewScopeAllStaff),
+			SettingsService: scopeSettings(tenantsettings.OverviewScopeAllStaff),
 			PersonService: moveAuthPersonService{
 				person: &PersonIdentity{ID: 10},
 				staff:  &StaffIdentity{ID: 20},

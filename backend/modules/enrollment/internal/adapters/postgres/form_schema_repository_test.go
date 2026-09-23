@@ -1,4 +1,4 @@
-package enrollment_test
+package postgres_test
 
 import (
 	"context"
@@ -16,8 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -54,9 +52,7 @@ func setupSchemaRepoTest(t *testing.T) (*bun.DB, *capability.Module, int64, int6
 // error from the closure unchanged.
 func runInTenantTx(t *testing.T, db *bun.DB, tenantID int64, fn func(ctx context.Context) error) error {
 	t.Helper()
-	return tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return fn(ctx)
-	})
+	return testpkg.WithinTenantContext(t, context.Background(), db, tenantID, fn)
 }
 
 // wipeSchemas removes every schema row created by the given account in
@@ -542,7 +538,7 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 		IsActive:  true,
 		CreatedBy: creator,
 		LegalBlocks: []capability.FormLegalBlock{{
-			Key:       enrollmentModels.ConsentKeyAGB,
+			Key:       capability.ConsentKeyAGB,
 			Kind:      capability.LegalBlockKindTerms,
 			Title:     "AGB",
 			Label:     "AGB akzeptieren",
@@ -564,7 +560,7 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 		IsActive:  true,
 		CreatedBy: creator,
 		LegalBlocks: []capability.FormLegalBlock{{
-			Key:       enrollmentModels.ConsentKeyAGB,
+			Key:       capability.ConsentKeyAGB,
 			Kind:      capability.LegalBlockKindTerms,
 			Title:     "AGB",
 			Label:     "AGB akzeptieren",
@@ -586,7 +582,7 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 		IsActive:  true,
 		CreatedBy: creator,
 		LegalBlocks: []capability.FormLegalBlock{{
-			Key:         enrollmentModels.ConsentKeyAGB,
+			Key:         capability.ConsentKeyAGB,
 			Kind:        capability.LegalBlockKindTerms,
 			Title:       "AGB",
 			Label:       "AGB akzeptieren",

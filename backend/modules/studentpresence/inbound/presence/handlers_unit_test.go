@@ -10,8 +10,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -51,7 +51,7 @@ func TestNewPresenceLiveGroupResponse_BasicFields(t *testing.T) {
 func TestLoadActiveGroupRelations_KeepsActiveSupervisorsAndRooms(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	yesterday := today.AddDays(-1).String()
 	groups := []studentpresence.LiveGroup{{ID: 1, ActivityGroupID: ptrtest.Ptr(int64(100)), RoomID: 200, StartTime: time.Now()}}
 	responses := []ActiveGroupResponse{newPresenceLiveGroupResponse(groups[0])}
@@ -132,13 +132,13 @@ func TestSupervisionRowResponse_BasicFields(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
-	endDate := timezone.TodayDate().AddDays(-1).String() // End date in the past = inactive
+	endDate := calendar.TodayDate().AddDays(-1).String() // End date in the past = inactive
 
 	supervisor := studentpresence.GroupSupervision{
 		ID: 1, CreatedAt: now, UpdatedAt: now,
 		StaffID:   100,
 		GroupID:   200,
-		StartDate: timezone.TodayDate().AddDays(-1).String(),
+		StartDate: calendar.TodayDate().AddDays(-1).String(),
 		EndDate:   &endDate,
 	}
 
@@ -158,7 +158,7 @@ func TestSupervisionRowResponse_ActiveSupervisor(t *testing.T) {
 		ID:        1,
 		StaffID:   100,
 		GroupID:   200,
-		StartDate: timezone.TodayDate().AddDays(-1).String(),
+		StartDate: calendar.TodayDate().AddDays(-1).String(),
 		EndDate:   nil, // Active
 	}
 
