@@ -124,8 +124,8 @@ type Dependencies struct {
 	// portal (#2527). Only SchoolSupervisionRouter consumes it.
 	ReportService enrollmentSvc.ReportService
 	// PlanExportService renders the printable Betreuungsplan week (#2079).
-	PlanExportService    planexport.Service
-	PlanningTrackService timetableplanning.PlanningTrackService
+	PlanExportService planexport.Service
+	PlanningTracks    timetable.PlanningTrackAdministration
 	// PickupExtensions serves the open block decisions for later pickup
 	// times (#3261).
 	PickupExtensions timetable.PickupExtensionCapability

@@ -25,6 +25,7 @@ import (
 	bookingFixtures "github.com/moto-nrw/project-phoenix/services"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
@@ -813,7 +814,7 @@ func TestTemplateSplitKeepsArchivedPlanningTrackAssignment(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
 
-	track, err := s.factory.PlanningTracks.CreatePlanningTrack(s.ctx, timetableplanning.PlanningTrackInput{
+	track, err := s.factory.PlanningTracks.AddPlanningTrack(s.ctx, timetable.PlanningTrackDraft{
 		Name: "Bestehende Spur", Color: "#5080D8", SortOrder: 0,
 	})
 	require.NoError(t, err)
@@ -857,7 +858,7 @@ func TestTemplateSplitPlanningTrackPresence(t *testing.T) {
 			s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 			defer s.runCleanup(t)
 
-			track, err := s.factory.PlanningTracks.CreatePlanningTrack(s.ctx, timetableplanning.PlanningTrackInput{
+			track, err := s.factory.PlanningTracks.AddPlanningTrack(s.ctx, timetable.PlanningTrackDraft{
 				Name: fmt.Sprintf("Spur-%d", time.Now().UnixNano()), Color: "#5080D8", SortOrder: 0,
 			})
 			require.NoError(t, err)
@@ -896,13 +897,13 @@ func TestTemplateMutationsRejectUnknownPlanningTrack(t *testing.T) {
 	split.PlanningTrackID = &missingTrackID
 	split.PlanningTrackIDProvided = true
 	_, err := s.factory.TemplateSplit.Split(s.ctx, split)
-	require.ErrorIs(t, err, timetableplanning.ErrPlanningTrackNotFound)
+	require.ErrorIs(t, err, timetable.ErrPlanningTrackNotFound)
 
 	update := linkedTemplateUpdateInput(t, s, &s.period.ID)
 	update.Fields.PlanningTrackID = &missingTrackID
 	update.Fields.PlanningTrackIDProvided = true
 	err = s.factory.TimetableData.UpdateTemplate(s.ctx, update)
-	require.ErrorIs(t, err, timetableplanning.ErrPlanningTrackNotFound)
+	require.ErrorIs(t, err, timetable.ErrPlanningTrackNotFound)
 }
 
 func TestTemplateEndFromDate_CapsTemplateAndProtectsHistory(t *testing.T) {

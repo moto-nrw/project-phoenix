@@ -175,7 +175,7 @@ type Factory struct {
 	StaffAssignments          workforceModule.StaffAssignmentQuery
 	StaffScheduleOverview     workforceModule.StaffScheduleOverviewQuery
 	ShiftTypes                workforceModule.ShiftTypeAdministration
-	PlanningTracks            timetableplanning.PlanningTrackService
+	PlanningTracks            timetable.PlanningTrackAdministration
 	PickupSchedule            careplan.PickupScheduleService
 	PartialAbsence            careplan.PartialAbsenceService
 	ArrivalSchedule           careplan.ArrivalScheduleService
@@ -1255,7 +1255,7 @@ func newFactory(
 		facilitiesLogger,
 	)
 
-	planningTrackService := timetableplanning.NewPlanningTrackService(repos.PlanningTrack, db)
+	planningTrackService := arrivalTimetable.NewPlanningTrackAdministration(timetableCapability, db)
 
 	// The Dienstplan side of Workforce (#3418): shifts, series, shift types,
 	// the self-service assignments ("Mein Tag", #1844) and the week overview,
@@ -1437,7 +1437,7 @@ func newFactory(
 	templateSplitService := timetableplanning.NewTemplateSplitService(timetableplanning.TemplateSplitDependencies{
 		GroupRepo:                  repos.ActivityGroup,
 		CategoryRepo:               repos.ActivityCategory,
-		PlanningTrackRepo:          repos.PlanningTrack,
+		PlanningTracks:             planningTrackService,
 		ScheduleRepo:               repos.ActivitySchedule,
 		EnrollmentRepo:             repos.StudentEnrollment,
 		SupervisorRepo:             repos.ActivitySupervisor,
@@ -2766,7 +2766,7 @@ func newFactory(
 		Presence:                   newStudentPresence(db, logger),
 		RoomRepo:                   repos.Room,
 		ActivityCategoryRepo:       repos.ActivityCategory,
-		PlanningTrackRepo:          repos.PlanningTrack,
+		PlanningTracks:             planningTrackService,
 		ActivityGroupRepo:          repos.ActivityGroup,
 		ActivitySupervisorRepo:     repos.ActivitySupervisor,
 		StudentEnrollmentRepo:      repos.StudentEnrollment,

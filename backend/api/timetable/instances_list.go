@@ -211,7 +211,7 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 	// rooms and templates per week — caching turns 30 lookups into ~10.
 	roomCache := make(map[int64]string)
 	typeCache := make(map[int64]templateMeta)
-	planningTrackCache := make(map[int64]*scheduleModel.PlanningTrack)
+	planningTrackCache := make(map[int64]*timetable.PlanningTrack)
 	offeringSourceCache := make(map[int64][]enrollmentSvc.OfferingSourceOption)
 
 	// Resolved once per request (not per instance) — the Betreuungsschlüssel
@@ -445,7 +445,7 @@ func (rs *Resource) enrichInstances(
 	instances []*scheduleModel.ActivityInstance,
 	roomCache map[int64]string,
 	metaCache map[int64]templateMeta,
-	planningTrackCache map[int64]*scheduleModel.PlanningTrack,
+	planningTrackCache map[int64]*timetable.PlanningTrack,
 	offeringSourceCache map[int64][]enrollmentSvc.OfferingSourceOption,
 	childrenPerStaffRatio int,
 	careDays map[int64]map[timezone.Date]careplan.CareDayStatus,
@@ -531,7 +531,7 @@ func (rs *Resource) enrichInstance(
 	rows *timetableplanning.InstanceRows,
 	roomCache map[int64]string,
 	metaCache map[int64]templateMeta,
-	planningTrackCache map[int64]*scheduleModel.PlanningTrack,
+	planningTrackCache map[int64]*timetable.PlanningTrack,
 	offeringSourceCache map[int64][]enrollmentSvc.OfferingSourceOption,
 	childrenPerStaffRatio int,
 	careDays map[int64]map[timezone.Date]careplan.CareDayStatus,
@@ -722,7 +722,7 @@ func (rs *Resource) lookupTemplateMeta(
 	ctx context.Context,
 	activityGroupID *int64,
 	cache map[int64]templateMeta,
-	planningTrackCache map[int64]*scheduleModel.PlanningTrack,
+	planningTrackCache map[int64]*timetable.PlanningTrack,
 ) templateMeta {
 	fallback := templateMeta{activityType: activitiesModel.GroupTypeActivity}
 	if activityGroupID == nil {
@@ -750,11 +750,13 @@ func (rs *Resource) lookupTemplateMeta(
 		planningTrackID:       group.PlanningTrackID,
 		sourceCareOfferingIDs: append([]int64(nil), group.SourceCareOfferingIDs...),
 	}
-	if group.PlanningTrackID != nil && rs.PlanningTrackService != nil {
+	if group.PlanningTrackID != nil && rs.PlanningTracks != nil {
 		track, cached := planningTrackCache[*group.PlanningTrackID]
 		if !cached {
-			var trackErr error
-			track, trackErr = rs.PlanningTrackService.GetPlanningTrack(ctx, *group.PlanningTrackID)
+			found, trackErr := rs.PlanningTracks.GetPlanningTrack(ctx, *group.PlanningTrackID)
+			if trackErr == nil {
+				track = &found
+			}
 			planningTrackCache[*group.PlanningTrackID] = track
 			if trackErr != nil {
 				rs.getLogger().Debug("instance list: planning track lookup failed",

@@ -443,7 +443,7 @@ func renderCreateTemplateError(w http.ResponseWriter, r *http.Request, err error
 	switch {
 	case errors.Is(err, timetableModule.ErrCategoryNotAssignable):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
-	case errors.Is(err, timetableplanning.ErrPlanningTrackNotFound), errors.Is(err, timetableplanning.ErrPlanningTrackArchived):
+	case errors.Is(err, timetableModule.ErrPlanningTrackNotFound), errors.Is(err, timetableModule.ErrPlanningTrackArchived):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
 	case errors.Is(err, timetableplanning.ErrOfferingSourceInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))

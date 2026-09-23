@@ -298,7 +298,7 @@ func (s *TimetableDataService) createTemplateLocked(
 	if err := validateAssignableCategory(ctx, s.deps.ActivityCategoryRepo, in.CategoryID, "create template: validate category"); err != nil {
 		return err
 	}
-	if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTrackRepo, in.PlanningTrackID, nil); err != nil {
+	if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTracks, in.PlanningTrackID, nil); err != nil {
 		return err
 	}
 	applyTargetMirrorToCreateInput(&in, targets)

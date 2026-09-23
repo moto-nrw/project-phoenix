@@ -106,3 +106,27 @@ func (s *TimetableDataService) FindOrCreateTimeframe(ctx context.Context, start,
 	}
 	return tf.ID, nil
 }
+
+// PlanningTrackAssignments is the slice of the Timetable owner's
+// planning-track administration (timetable.PlanningTrackAdministration) the
+// template writes check a track assignment against.
+type PlanningTrackAssignments interface {
+	ValidatePlanningTrackAssignment(ctx context.Context, id, allowedArchivedID *int64) error
+}
+
+// validateAssignablePlanningTrack rejects a missing or archived track unless
+// it is the one the template already carries. A composition without the
+// administration can assign no track at all.
+func validateAssignablePlanningTrack(ctx context.Context, tracks PlanningTrackAssignments, id, allowedArchivedID *int64) error {
+	if id == nil {
+		return nil
+	}
+	if tracks == nil {
+		return timetableModule.ErrPlanningTrackNotFound
+	}
+	return tracks.ValidatePlanningTrackAssignment(ctx, id, allowedArchivedID)
+}
+
+func samePlanningTrackID(left, right *int64) bool {
+	return left == nil && right == nil || left != nil && right != nil && *left == *right
+}

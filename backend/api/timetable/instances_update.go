@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
@@ -122,7 +123,7 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance rows failed", err))
 		return
 	}
-	enriched, _, _, err := rs.enrichInstance(r.Context(), inst, rows, roomCache, typeCache, make(map[int64]*scheduleModel.PlanningTrack), make(map[int64][]enrollmentSvc.OfferingSourceOption), rs.childrenPerStaffRatio(r.Context()), careDays)
+	enriched, _, _, err := rs.enrichInstance(r.Context(), inst, rows, roomCache, typeCache, make(map[int64]*timetable.PlanningTrack), make(map[int64][]enrollmentSvc.OfferingSourceOption), rs.childrenPerStaffRatio(r.Context()), careDays)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("enrich instance failed", err))
 		return

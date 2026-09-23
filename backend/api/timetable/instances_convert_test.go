@@ -141,7 +141,7 @@ func TestConvertInstanceToSeries_PreservesTemplateValidationErrorContract(t *tes
 	}{
 		{name: "inactive calendar period", err: timetableplanning.ErrInstanceOutsideActiveCalendarPeriod, wantMessage: "instance date must lie within an active calendar period"},
 		{name: "archived category", err: timetableModule.ErrCategoryNotAssignable, wantMessage: "category is archived or unavailable"},
-		{name: "archived planning track", err: timetableplanning.ErrPlanningTrackArchived, wantMessage: "planning track is archived or unavailable"},
+		{name: "archived planning track", err: timetableModule.ErrPlanningTrackArchived, wantMessage: "planning track is archived or unavailable"},
 		{name: "education group", err: &timetableplanning.TemplateEducationGroupError{Err: errors.New("education group is unavailable")}, wantMessage: "education group is unavailable"},
 		{name: "grade limit", err: timetableplanning.ErrTemplateTargetGradeExceedsLimit, wantMessage: "template target grade exceeds tenant limit"},
 	}

@@ -579,7 +579,7 @@ func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error
 		renderTemplateNotFound(w, r)
 	case errors.Is(err, timetableModule.ErrCategoryNotAssignable):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
-	case errors.Is(err, timetableplanning.ErrPlanningTrackNotFound), errors.Is(err, timetableplanning.ErrPlanningTrackArchived):
+	case errors.Is(err, timetableModule.ErrPlanningTrackNotFound), errors.Is(err, timetableModule.ErrPlanningTrackArchived):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
 	case errors.Is(err, timetableplanning.ErrTemplateWeekendWeekday):
 		common.RenderError(w, r, common.ErrorInvalidRequest(timetableplanning.ErrTemplateWeekendWeekday))

@@ -1594,7 +1594,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		PersonService:           api.Services.Users,
 		TimetableData:           api.Services.TimetableData,
 		ConflictDetection:       api.Services.TimetableData.ConflictDetection(),
-		PlanningTrackService:    api.Services.PlanningTracks,
+		PlanningTracks:          api.Services.PlanningTracks,
 		CareDayService:          api.Services.CareDay,
 		UserContextService:      api.Services.UserContext,
 		SettingsService:         api.Services.Settings,

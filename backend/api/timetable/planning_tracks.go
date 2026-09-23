@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 type planningTrackRequest struct {
@@ -45,7 +45,7 @@ func (rs *Resource) listPlanningTracks(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	tracks, err := service.ListPlanningTracks(r.Context())
+	tracks, err := service.ListAllPlanningTracks(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load planning tracks failed", err))
 		return
@@ -63,7 +63,7 @@ func (rs *Resource) createPlanningTrack(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	track, err := service.CreatePlanningTrack(r.Context(), timetableplanning.PlanningTrackInput{
+	track, err := service.AddPlanningTrack(r.Context(), timetable.PlanningTrackDraft{
 		Name: req.Name, Color: req.Color, SortOrder: req.SortOrder,
 	})
 	if err != nil {
@@ -87,7 +87,7 @@ func (rs *Resource) updatePlanningTrack(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	track, err := service.UpdatePlanningTrack(r.Context(), id, timetableplanning.PlanningTrackInput{
+	track, err := service.EditPlanningTrack(r.Context(), id, timetable.PlanningTrackDraft{
 		Name: req.Name, Color: req.Color, SortOrder: req.SortOrder,
 	})
 	if err != nil {
@@ -107,11 +107,11 @@ func (rs *Resource) reorderPlanningTracks(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if err := service.ReorderPlanningTracks(r.Context(), req.IDs); err != nil {
+	if err := service.OrderPlanningTracks(r.Context(), req.IDs); err != nil {
 		renderPlanningTrackError(w, r, err)
 		return
 	}
-	tracks, err := service.ListPlanningTracks(r.Context())
+	tracks, err := service.ListAllPlanningTracks(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("reload planning tracks failed", err))
 		return
@@ -153,12 +153,12 @@ func (rs *Resource) restorePlanningTrack(w http.ResponseWriter, r *http.Request)
 	common.Respond(w, r, http.StatusOK, track, "Planning track restored")
 }
 
-func (rs *Resource) planningTrackService(w http.ResponseWriter, r *http.Request) (timetableplanning.PlanningTrackService, bool) {
-	if rs.PlanningTrackService == nil {
+func (rs *Resource) planningTrackService(w http.ResponseWriter, r *http.Request) (timetable.PlanningTrackAdministration, bool) {
+	if rs.PlanningTracks == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("planning track service is not configured")))
 		return nil, false
 	}
-	return rs.PlanningTrackService, true
+	return rs.PlanningTracks, true
 }
 
 func planningTrackID(w http.ResponseWriter, r *http.Request) (int64, bool) {
@@ -172,11 +172,11 @@ func planningTrackID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 
 func renderPlanningTrackError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, timetableplanning.ErrPlanningTrackNotFound):
+	case errors.Is(err, timetable.ErrPlanningTrackNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, timetableplanning.ErrPlanningTrackInvalid), errors.Is(err, timetableplanning.ErrPlanningTrackArchived):
+	case errors.Is(err, timetable.ErrInvalidPlanningTrack), errors.Is(err, timetable.ErrPlanningTrackArchived):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, timetableplanning.ErrPlanningTrackNameTaken):
+	case errors.Is(err, timetable.ErrPlanningTrackNameTaken):
 		common.RenderError(w, r, common.ErrorConflict(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("planning track operation failed", err))

@@ -146,7 +146,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		ActiveGroupRepo: r.ActiveGroup, SupervisorRepo: r.GroupSupervisor,
 		ArrivalBaselines: arrival, ArrivalExceptionRepo: r.StudentArrivalException,
 		PickupScheduleRepo: r.StudentPickupSchedule, PickupBaselines: pickup, PickupExceptionRepo: r.StudentPickupException,
-		Presence: newStudentPresence(db, logger), RoomRepo: r.Room, ActivityCategoryRepo: r.ActivityCategory, PlanningTrackRepo: r.PlanningTrack,
+		Presence: newStudentPresence(db, logger), RoomRepo: r.Room, ActivityCategoryRepo: r.ActivityCategory, PlanningTracks: arrivalTimetable.NewPlanningTrackAdministration(r.Timetable, db),
 		ActivityGroupRepo: r.ActivityGroup, ActivitySupervisorRepo: r.ActivitySupervisor, StudentEnrollmentRepo: r.StudentEnrollment,
 		TimeframeRepo: r.Timeframe, EducationGroupRepo: r.Group,
 		ValidateCareOfferingSeries: series.ValidateTemplateSeries, ValidateOfferingSource: series.ValidateTemplateOfferingSource,

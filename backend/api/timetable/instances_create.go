@@ -18,6 +18,7 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
@@ -252,7 +253,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		rows, err = rs.TimetableData.GetInstanceRows(r.Context(), []*scheduleModel.ActivityInstance{inst})
 	}
 	if err == nil {
-		enriched, _, _, err = rs.enrichInstance(r.Context(), inst, rows, roomCache, typeCache, make(map[int64]*scheduleModel.PlanningTrack), make(map[int64][]enrollmentSvc.OfferingSourceOption), rs.childrenPerStaffRatio(r.Context()), careDays)
+		enriched, _, _, err = rs.enrichInstance(r.Context(), inst, rows, roomCache, typeCache, make(map[int64]*timetable.PlanningTrack), make(map[int64][]enrollmentSvc.OfferingSourceOption), rs.childrenPerStaffRatio(r.Context()), careDays)
 	}
 	if err == nil {
 		enriched.ConflictWarnings = rs.dayConflictWarningsFor(r.Context(), inst)

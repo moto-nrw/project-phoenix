@@ -202,15 +202,15 @@ type TemplateEndResult struct {
 // TemplateSplitDependencies aggregates wiring. All fields are required;
 // Logger may be nil (falls back to slog.Default).
 type TemplateSplitDependencies struct {
-	GroupRepo         activitiesModel.GroupRepository
-	CategoryRepo      activitiesModel.CategoryRepository
-	PlanningTrackRepo scheduleModel.PlanningTrackRepository
-	ScheduleRepo      activitiesModel.ScheduleRepository
-	EnrollmentRepo    activitiesModel.StudentEnrollmentRepository
-	SupervisorRepo    activitiesModel.SupervisorPlannedRepository
-	InstanceRepo      scheduleModel.ActivityInstanceRepository
-	TimeframeRepo     scheduleModel.TimeframeRepository
-	Materialization   MaterializationService
+	GroupRepo       activitiesModel.GroupRepository
+	CategoryRepo    activitiesModel.CategoryRepository
+	PlanningTracks  PlanningTrackAssignments
+	ScheduleRepo    activitiesModel.ScheduleRepository
+	EnrollmentRepo  activitiesModel.StudentEnrollmentRepository
+	SupervisorRepo  activitiesModel.SupervisorPlannedRepository
+	InstanceRepo    scheduleModel.ActivityInstanceRepository
+	TimeframeRepo   scheduleModel.TimeframeRepository
+	Materialization MaterializationService
 	// InstanceService supplies the existing deviation snapshot/reapply machinery.
 	// The constructor narrows it to the package-private capability used by Split.
 	InstanceService InstanceService
@@ -546,7 +546,7 @@ func (s *TemplateSplitService) splitInTransaction(
 		return nil, err
 	}
 	if in.PlanningTrackIDProvided && !samePlanningTrackID(in.PlanningTrackID, old.PlanningTrackID) {
-		if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTrackRepo, in.PlanningTrackID, old.PlanningTrackID); err != nil {
+		if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTracks, in.PlanningTrackID, old.PlanningTrackID); err != nil {
 			return nil, err
 		}
 	}
