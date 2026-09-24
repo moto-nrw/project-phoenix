@@ -171,7 +171,7 @@ const EXPAND_VISIBILITY_BODY: Record<string, string> = {
   [ATTENDANCE_SCOPE_KEY]:
     "Überall an- und abmelden geht nur mit schulweitem Überblick. Das Team sieht danach alle Gruppen und Blöcke.",
   [BLOCK_START_SCOPE_KEY]:
-    "Starten durch das ganze Team geht nur mit schulweitem Überblick. Das Team sieht danach alle Gruppen und Blöcke.",
+    "Das ganze Team darf nur starten, wenn es alle Blöcke sieht. Das Team sieht danach alle Gruppen und Blöcke.",
 };
 
 function attendanceScopePrerequisite(
@@ -207,7 +207,7 @@ function attendanceScopePrerequisite(
     return {
       ...restriction,
       title: "Auch Bearbeitung und Starten begrenzen?",
-      body: "Eigene Zuständigkeiten als Sichtbereich erfordern denselben Bereich für An- und Abmelden und für das Starten von Blöcken. Vorhandene Sonderzugänge bleiben erhalten.",
+      body: "Dann gelten eigene Zuständigkeiten auch beim An- und Abmelden. Blöcke starten dann nur eingeplante Kräfte. Vorhandene Sonderzugänge bleiben erhalten.",
       confirmText: "Alles begrenzen",
     };
   }

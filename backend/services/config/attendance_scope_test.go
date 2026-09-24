@@ -192,7 +192,7 @@ func TestBlockStartScopeRequiresSchoolWideVisibility(t *testing.T) {
 	require.NoError(t, settings.SetValue(ctx, visibilityKey, "own", nil, nil))
 	err := settings.SetValue(ctx, startKey, "all_staff", nil, nil)
 	require.ErrorIs(t, err, ErrInvalidValue)
-	require.ErrorContains(t, err, "Starten durch das ganze Team")
+	require.ErrorContains(t, err, "Das ganze Team darf nur starten")
 	read(startKey, "own")
 
 	// Expand visibility first, then starting. Restricting runs the other way,

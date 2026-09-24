@@ -184,3 +184,35 @@ func TestTimetableRosterReportsCanStart(t *testing.T) {
 		assert.False(t, roster.CanStart, "a running block cannot be started again")
 	})
 }
+
+// A school-wide scope only adds people: whoever the own rule admits keeps the
+// action, also where the school-wide rule does not reach (a planned block for
+// attendance, a personal overview, an unknown value).
+func TestTimetableSchoolWideScopeNeverAdmitsFewerThanOwn(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		change func(*timetableOpsTestDeps)
+	}{
+		{name: "planned block", change: func(*timetableOpsTestDeps) {}},
+		{name: "personal overview", change: func(d *timetableOpsTestDeps) { d.settings.scope = configModel.OverviewScopeOwn }},
+		{name: "unknown value", change: func(d *timetableOpsTestDeps) {
+			d.settings.attendanceScope, d.settings.startScope = "unknown", "unknown"
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			deps, ctx := newStartScopeDeps(t, configModel.BlockStartScopeAllStaff, startScopeActor{staff: []*scheduleModel.InstanceStaff{{StaffID: startScopeStaff}}})
+			deps.settings.attendanceScope = configModel.AttendanceEditScopeAllStaff
+			tc.change(deps)
+			service := deps.service.(*timetableOperationsService)
+
+			editor, err := service.requireCanEditAttendance(ctx, startScopeAccount, false, startScopeInstance)
+			require.NoError(t, err)
+			assert.Equal(t, startScopeStaff, editor)
+			starter, err := service.requireCanStart(ctx, startScopeAccount, false, startScopeInstance)
+			require.NoError(t, err)
+			assert.Equal(t, startScopeStaff, starter)
+		})
+	}
+}
