@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -37,10 +38,10 @@ func NewTimetableHTTPTestRows(db *bun.DB, clocks ...func() time.Time) (Timetable
 	return repositories.NewTimetableTestRepositories(db, clocks...)
 }
 
-// TimetableHTTPTestCareOfferingInvalid is what Enrollment's care-offering
+// TimetableHTTPTestCareOfferingInvalid is what Care Plan's care-offering
 // checks return for an offering a template change would invalidate; the
 // composition classifies it as the conflict.
-var TimetableHTTPTestCareOfferingInvalid = enrollment.ErrCareOfferingInvalid
+var TimetableHTTPTestCareOfferingInvalid = careplan.ErrCareOfferingConfigInvalid
 
 // TimetableHTTPTestOptions are the collaborators a suite replaces: the
 // Enrollment care-offering checks and roster resync (nil accepts), the
@@ -235,13 +236,13 @@ func newTimetableHTTPTestReads(db *bun.DB, r TimetableHTTPTestRows, rows reposit
 
 // timetableHTTPTestCareOfferingChecks binds the suite's care-offering
 // callbacks; an omitted callback accepts, and an invalid linked offering is
-// the conflict, as the composition root binds Enrollment.
+// the conflict, as the composition root binds the Care Plan catalog.
 func timetableHTTPTestCareOfferingChecks(options TimetableHTTPTestOptions) timetableCompose.CareOfferingChecks {
 	checks := timetableCompose.CareOfferingChecks{
 		ValidateSeries:         options.ValidateCareOfferingSeries,
 		ValidateOfferingSource: options.ValidateOfferingSource,
 		IsConflict: func(err error) bool {
-			return errors.Is(err, enrollment.ErrCareOfferingInvalid)
+			return isCareOfferingConfigInvalid(err)
 		},
 	}
 	if checks.ValidateSeries == nil {

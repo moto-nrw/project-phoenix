@@ -65,7 +65,8 @@ func (s *decisionService) ReconcileOfferingPickupForStudents(
 }
 
 // ReconcileOfferingPickupForOffering refreshes every current or future child
-// affected by an offering edit. CareOfferingService calls it after update.
+// affected by an offering edit. The Care Plan catalog calls it after an
+// update.
 func (s *decisionService) ReconcileOfferingPickupForOffering(ctx context.Context, offeringID int64) error {
 	studentIDs, err := s.offeringPickupAffectedStudents(ctx, offeringID)
 	if err != nil {

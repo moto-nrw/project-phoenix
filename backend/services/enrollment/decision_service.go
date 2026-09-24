@@ -422,8 +422,10 @@ type DecisionServiceConfig struct {
 	ActivityGroupRepo         activities.GroupRepository
 	ActivityScheduleRepo      activities.ScheduleRepository
 	CalendarPeriodRepo        scheduleModels.CalendarPeriodRepository
-	TimeframeRepo             scheduleModels.TimeframeRepository
-	ActivityExceptionRepo     scheduleModels.ActivityExceptionRepository
+	// OfferingLinks is the Care Plan catalog's timetable-link rules (#3559):
+	// the split-series expansion, the materializability check and the
+	// offering-source guard an approval and a roster resync apply.
+	OfferingLinks careplan.CareOfferingLinks
 	// GuardianAccess is the Identity & Access capability an approval uses to
 	// recognise a parent's existing portal account and grant it access to
 	// this school. Required: an approval without it fails instead of silently
@@ -2958,8 +2960,7 @@ func (s *decisionService) hasEnrollmentMaterializationDependencies() bool {
 		s.ActivityGroupRepo != nil &&
 		s.ActivityScheduleRepo != nil &&
 		s.CalendarPeriodRepo != nil &&
-		s.TimeframeRepo != nil &&
-		s.ActivityExceptionRepo != nil
+		s.OfferingLinks != nil
 }
 
 func (s *decisionService) careEnrollmentDraftsForChild(
@@ -3107,7 +3108,7 @@ func (s *decisionService) persistCareEnrollmentDrafts(
 	}
 	slices.Sort(groupIDs)
 	for _, groupID := range groupIDs {
-		row := studentEnrollmentFromCareDraft(requestChildID, studentID, phase, drafts[groupID], startFrom)
+		row := studentEnrollmentFromCareDraft(requestChildID, studentID, offeringPhaseOf(phase), drafts[groupID], startFrom)
 		if row.ValidUntil != nil && !row.ValidFrom.Before(*row.ValidUntil) {
 			// The draft's segment ended before the row would begin (approval
 			// after a split): the capped predecessor has nothing left to plan.
@@ -3125,12 +3126,12 @@ func (s *decisionService) persistCareEnrollmentDrafts(
 
 func studentEnrollmentFromCareDraft(
 	requestChildID, studentID int64,
-	phase *capability.Phase,
+	phase careplan.OfferingPhase,
 	draft *careEnrollmentDraft,
 	startFrom *timezone.Date,
 ) *activities.StudentEnrollment {
 	validUntil := careDraftValidUntil(draft, phase)
-	validFrom := timezone.Date(phase.ServiceStartDate)
+	validFrom := phase.ServiceStart
 	// A dated switch may start mid-phase; a phase that already began must not
 	// pull the new row back to its service start. Clamped so an effective date
 	// before the phase window cannot widen it either.
@@ -3169,8 +3170,8 @@ func studentEnrollmentFromCareDraft(
 // capped split predecessor back to the phase end would overlap its successor,
 // and extending past the link end would plan the child after leaving the
 // offering.
-func careDraftValidUntil(draft *careEnrollmentDraft, phase *capability.Phase) timezone.Date {
-	validUntil := timezone.Date(phase.ServiceEndDate).AddDays(1)
+func careDraftValidUntil(draft *careEnrollmentDraft, phase careplan.OfferingPhase) timezone.Date {
+	validUntil := phase.ServiceEnd.AddDays(1)
 	if draft.scheduleValidUntil != nil && draft.scheduleValidUntil.Before(validUntil) {
 		validUntil = *draft.scheduleValidUntil
 	}
@@ -3353,15 +3354,12 @@ func (s *decisionService) addLegacyLinkedGroupDrafts(
 	if offering.ActivityGroupID == nil || *offering.ActivityGroupID == 0 {
 		return nil
 	}
-	segments, err := resolveCareOfferingLinkedGroupsForPhase(ctx, careOfferingTemplateDeps{
-		activityGroupRepo:    s.ActivityGroupRepo,
-		activityScheduleRepo: s.ActivityScheduleRepo,
-		calendarPeriodRepo:   s.CalendarPeriodRepo,
-	}, *offering.ActivityGroupID, phase)
+	offeringPhase := offeringPhaseOf(phase)
+	segments, err := s.OfferingLinks.ResolveLinkedSegments(ctx, *offering.ActivityGroupID, offeringPhase)
 	if err != nil {
 		return fmt.Errorf("decision: validate linked activity group for care offering %d: %w", link.CareOfferingID, err)
 	}
-	isTemplate := len(segments) > 0 && segments[0].group.IsTemplate
+	isTemplate := len(segments) > 0 && segments[0].Group.IsTemplate
 	if isTemplate && len(offering.AvailableDays) == 0 && len(link.SelectedDays) == 0 {
 		return fmt.Errorf("decision: care offering %d links to a timetable template but has no selected or available days", link.CareOfferingID)
 	}
@@ -3369,20 +3367,7 @@ func (s *decisionService) addLegacyLinkedGroupDrafts(
 	if err != nil {
 		return fmt.Errorf("decision: resolve selected days for care offering %d: %w", link.CareOfferingID, err)
 	}
-	if err := validateCareOfferingTemplateSegments(segments, phase, days, true); err != nil {
-		return fmt.Errorf("decision: care offering %d is not materializable: %w", link.CareOfferingID, err)
-	}
-	if err := validateCareOfferingMaterializability(
-		ctx,
-		careOfferingMaterializationDeps{
-			timeframeRepo:         s.TimeframeRepo,
-			activityExceptionRepo: s.ActivityExceptionRepo,
-		},
-		segments,
-		phase,
-		days,
-		careOfferingMaterializationChange{},
-	); err != nil {
+	if err := s.OfferingLinks.ValidateMaterializable(ctx, segments, offeringPhase, days); err != nil {
 		return fmt.Errorf("decision: care offering %d is not materializable: %w", link.CareOfferingID, err)
 	}
 	for _, segment := range segments {
@@ -3390,15 +3375,15 @@ func (s *decisionService) addLegacyLinkedGroupDrafts(
 		// another link's sourced feed drafted it first, that draft is REPLACED,
 		// not merged: one row mixing both feeds' weekdays could never be told
 		// apart again by the resync's provenance check (#2147 review).
-		if draft := drafts[segment.group.ID]; draft != nil && !draft.legacyOwned {
-			delete(drafts, segment.group.ID)
+		if draft := drafts[segment.Group.ID]; draft != nil && !draft.legacyOwned {
+			delete(drafts, segment.Group.ID)
 		}
 		if err := mergeCareEnrollmentDraft(drafts, segment, days, link.CareOfferingID); err != nil {
 			return err
 		}
 		// The legacy feed plans phase-wide rows on every overlapping segment
 		// (pre-#2137 behavior).
-		if draft := drafts[segment.group.ID]; draft != nil {
+		if draft := drafts[segment.Group.ID]; draft != nil {
 			draft.legacyOwned = true
 			draft.scheduleValidFrom, draft.scheduleValidUntil = nil, nil
 			draft.linkValidFrom, draft.linkValidUntil = nil, nil
@@ -3438,11 +3423,7 @@ func (s *decisionService) addSourcedTemplateDrafts(
 	if err != nil {
 		return fmt.Errorf("decision: resolve selected days for care offering %d: %w", link.CareOfferingID, err)
 	}
-	deps := careOfferingTemplateDeps{
-		activityGroupRepo:    s.ActivityGroupRepo,
-		activityScheduleRepo: s.ActivityScheduleRepo,
-		calendarPeriodRepo:   s.CalendarPeriodRepo,
-	}
+	offeringPhase := offeringPhaseOf(phase)
 	for _, tmpl := range templates {
 		if tmpl == nil || !tmpl.MatchesSourceGradeFilter(gradeLevel) {
 			continue
@@ -3452,16 +3433,18 @@ func (s *decisionService) addSourcedTemplateDrafts(
 			continue
 		}
 		schedules := schedulesByGroup[tmpl.ID]
-		if len(schedules) == 0 || !schedulesOverlapEnrollmentPhase(schedules, phase) {
+		linkedSchedules := linkedSchedulesOf(schedules)
+		if len(schedules) == 0 || !careplan.SchedulesOverlapPhase(linkedSchedules, offeringPhase) {
 			s.logSkippedSourcedTemplate(tmpl.ID, []int64{offering.ID}, "no schedule overlaps the enrollment phase", nil)
 			continue
 		}
-		period, err := resolveTemplatePeriodForGroup(ctx, deps, tmpl)
+		group := linkedGroupOf(tmpl)
+		period, err := s.OfferingLinks.ResolveTemplatePeriod(ctx, group)
 		if err != nil {
 			s.logSkippedSourcedTemplate(tmpl.ID, []int64{offering.ID}, "calendar period not resolvable", err)
 			continue
 		}
-		if err := validatePhaseWithinTemplatePeriod(phase, period); err != nil {
+		if err := careplan.ValidatePhaseWithinPeriod(offeringPhase, &period); err != nil {
 			s.logSkippedSourcedTemplate(tmpl.ID, []int64{offering.ID}, "phase outside template period", err)
 			continue
 		}
@@ -3471,7 +3454,7 @@ func (s *decisionService) addSourcedTemplateDrafts(
 			// sourced feed never merges into it.
 			continue
 		}
-		segment := linkedCareOfferingGroup{group: tmpl, period: period, schedules: schedules}
+		segment := careplan.LinkedSegment{Group: group, Period: &period, Schedules: linkedSchedules}
 		_, existed := drafts[tmpl.ID]
 		if err := mergeCareEnrollmentDraft(drafts, segment, days, link.CareOfferingID); err != nil {
 			return err
@@ -3502,27 +3485,27 @@ func cloneOptionalDraftDate(date *timezone.Date) *timezone.Date {
 
 func mergeCareEnrollmentDraft(
 	drafts map[int64]*careEnrollmentDraft,
-	segment linkedCareOfferingGroup,
+	segment careplan.LinkedSegment,
 	days []string,
 	offeringID int64,
 ) error {
 	var periodID *int64
-	if segment.period != nil {
-		periodID = &segment.period.ID
+	if segment.Period != nil {
+		periodID = &segment.Period.ID
 	}
-	draft := drafts[segment.group.ID]
+	draft := drafts[segment.Group.ID]
 	if draft != nil && !sameOptionalInt64(draft.calendarPeriodID, periodID) {
 		return fmt.Errorf("decision: care offering %d resolves to conflicting calendar_period_id", offeringID)
 	}
 	if draft == nil {
 		draft = &careEnrollmentDraft{
-			activityGroupID:  segment.group.ID,
+			activityGroupID:  segment.Group.ID,
 			calendarPeriodID: periodID,
 			selectedWeekday:  make(map[int]bool),
 		}
-		drafts[segment.group.ID] = draft
+		drafts[segment.Group.ID] = draft
 	}
-	if !segment.group.IsTemplate || len(days) == 0 {
+	if !segment.Group.IsTemplate || len(days) == 0 {
 		draft.allWeekdays = true
 		return nil
 	}

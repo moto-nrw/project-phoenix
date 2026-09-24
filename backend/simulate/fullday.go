@@ -683,6 +683,46 @@ func (openRoomBlockAction) Run(_ context.Context, rt *Runtime) error {
 	return nil
 }
 
+type kioskOpenRoomStayAction struct{}
+
+func (kioskOpenRoomStayAction) Name() string { return "choose a released room at the kiosk" }
+
+// Run lets one more child leave its room at the kiosk and choose the released
+// Sporthalle as destination (#3067). The kiosk books the independent stay
+// itself; the Sporthalle needs no device and no second scan.
+func (kioskOpenRoomStayAction) Run(_ context.Context, rt *Runtime) error {
+	fmt.Println("\nPhase 5d: A released room chosen at the kiosk...")
+
+	sporthalle := rt.State.Rooms["Sporthalle"]
+	if sporthalle == 0 || len(rt.DeviceKeys) == 0 {
+		fmt.Println("  Skipped: no Sporthalle or no kiosk in this profile")
+		return nil
+	}
+	studentIDs := checkedInChildrenOutside(rt, sporthalle, independentRoomStayCount+openRoomBlockChildren, 1)
+	if len(studentIDs) == 0 {
+		fmt.Println("  Skipped: no checked-in child left outside the Sporthalle")
+		return nil
+	}
+	rfidTag, ok := rt.RFIDTags[studentIDs[0]]
+	if !ok {
+		return fmt.Errorf("RFID assignment missing for student %d", studentIDs[0])
+	}
+	primaryDevice, err := rt.primaryDevice()
+	if err != nil {
+		return err
+	}
+	if _, err := rt.Client.DevicePost("/api/iot/move-to-room", map[string]any{
+		"student_rfid": rfidTag,
+		"room_id":      sporthalle,
+	}, primaryDevice.APIKey, rt.State.DevicePIN); err != nil {
+		return fmt.Errorf("book the released Sporthalle at the kiosk: %w", err)
+	}
+	rt.Counts.IndependentStays++
+
+	fmt.Println("  1 child chose the Sporthalle at the kiosk")
+	return nil
+}
+
 // completeOpenRoomBlock ends the block the full-day run started, once its
 // children have gone home.
 func completeOpenRoomBlock(rt *Runtime) error {
@@ -831,6 +871,7 @@ func fullDayScenario(close bool) Scenario {
 		middayActivityAction{},
 		independentRoomStaysAction{},
 		openRoomBlockAction{},
+		kioskOpenRoomStayAction{},
 	}
 	if close {
 		actions = append(actions, endOfDayAction{})

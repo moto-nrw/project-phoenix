@@ -181,6 +181,12 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	if err != nil {
 		return StudentTestModule{}, err
 	}
+	offeringLinks, err := NewCareOfferingCatalogTestModule(db, unit, CareOfferingCatalogTestOptions{
+		Settings: settingsService, LockRecurrence: recurrenceLock.LockRecurrenceWrites,
+	})
+	if err != nil {
+		return StudentTestModule{}, err
+	}
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
 		Bookings:                  enrollmentCareBookingCommands{owner: repos.CarePlan},
 		Requests:                  repos.Enrollment(),
@@ -209,8 +215,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		ActivityGroupRepo:         repos.ActivityGroup,
 		ActivityScheduleRepo:      repos.ActivitySchedule,
 		CalendarPeriodRepo:        repos.CalendarPeriod,
-		TimeframeRepo:             repos.Timeframe,
-		ActivityExceptionRepo:     repos.ActivityException,
+		OfferingLinks:             offeringLinks.Catalog,
 		GuardianAccess:            guardianAccess,
 		StudentEnrollment:         persons,
 		DepartureCompanions:       repositories.NewStudentCompanionRepository(repos.CarePlan),

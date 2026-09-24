@@ -23,7 +23,7 @@ func NewTimetableRepositories(db *bun.DB, clocks ...func() time.Time) (services.
 	return services.NewTimetableHTTPTestRows(db, clocks...)
 }
 
-// ErrCareOfferingInvalid is what Enrollment's care-offering checks return for
+// ErrCareOfferingInvalid is what Care Plan's care-offering checks return for
 // an offering a template change would invalidate; wrap it in a validator to
 // make the check refuse.
 var ErrCareOfferingInvalid = services.TimetableHTTPTestCareOfferingInvalid
@@ -32,13 +32,13 @@ var ErrCareOfferingInvalid = services.TimetableHTTPTestCareOfferingInvalid
 // timetable route suites drive.
 type TimetableHTTPOption func(*services.TimetableHTTPTestOptions)
 
-// WithCareOfferingSeriesValidator replaces Enrollment's check of a template
+// WithCareOfferingSeriesValidator replaces Care Plan's check of a template
 // linked to a care offering.
 func WithCareOfferingSeriesValidator(validate func(context.Context, int64) error) TimetableHTTPOption {
 	return func(options *services.TimetableHTTPTestOptions) { options.ValidateCareOfferingSeries = validate }
 }
 
-// WithOfferingSourceValidator replaces Enrollment's check of a template's
+// WithOfferingSourceValidator replaces Care Plan's check of a template's
 // offering sources.
 func WithOfferingSourceValidator(validate func(context.Context, []int64, []int64, *int64) error) TimetableHTTPOption {
 	return func(options *services.TimetableHTTPTestOptions) { options.ValidateOfferingSource = validate }

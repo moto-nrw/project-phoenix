@@ -90,7 +90,7 @@ func (m *mockCareOfferingService) ListBookingStats(_ context.Context, phaseID in
 	return m.bookingStatsResult, m.bookingStatsErr
 }
 
-func buildCareOfferingRouter(svc enrollmentService.CareOfferingService) chi.Router {
+func buildCareOfferingRouter(svc CareOfferingCatalog) chi.Router {
 	rs := &Resource{CareOfferingService: svc}
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -322,7 +322,7 @@ func TestCreateCareOfferingHandler_MissingDaysReturnsStableCode(t *testing.T) {
 	// the renderer must still resolve the specific sentinel so the admin
 	// editor can show the localized "pick at least one day" message (#1885).
 	mock := &mockCareOfferingService{createErr: fmt.Errorf("%w: validate care offering: %w",
-		enrollmentService.ErrCareOfferingInvalid, enrollmentModels.ErrCareOfferingDaysRequired)}
+		enrollmentService.ErrCareOfferingInvalid, enrollmentService.ErrCareOfferingDaysRequired)}
 	router := buildCareOfferingRouter(mock)
 	w := executeCareJSON(t, router, http.MethodPost, "/enrollment/care-offerings",
 		validOfferingBody(5678, "OGS"))
@@ -335,7 +335,7 @@ func TestCreateCareOfferingHandler_MissingPickupTimesReturnsStableCode(t *testin
 	t.Parallel()
 
 	mock := &mockCareOfferingService{createErr: fmt.Errorf("%w: validate care offering: %w",
-		enrollmentService.ErrCareOfferingInvalid, enrollmentModels.ErrCareOfferingPickupTimesRequired)}
+		enrollmentService.ErrCareOfferingInvalid, enrollmentService.ErrCareOfferingPickupTimesRequired)}
 	router := buildCareOfferingRouter(mock)
 	w := executeCareJSON(t, router, http.MethodPost, "/enrollment/care-offerings",
 		validOfferingBody(5678, "OGS"))

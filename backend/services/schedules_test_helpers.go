@@ -1,14 +1,11 @@
 package services
 
 import (
-	"log/slog"
-
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -36,12 +33,12 @@ func NewScheduleTestModule(db *bun.DB, unit tenant.UnitOfWork) (ScheduleTestModu
 		return ScheduleTestModule{}, err
 	}
 	lock := recurrenceLock.LockRecurrenceWrites
-	offerings := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
-		Repo: enrollment.NewCareOfferingRepository(r.CarePlan), Bookings: r.Enrollment(), ActivityGroupRepo: r.ActivityGroup,
-		ActivityScheduleRepo: r.ActivitySchedule, CalendarPeriodRepo: r.CalendarPeriod, TimeframeRepo: r.Timeframe,
-		ActivityExceptionRepo: r.ActivityException, Phases: r.Enrollment(), Settings: settings.Settings,
-		Today: timezone.TodayDate, LockTemplateRecurrence: lock, Logger: slog.Default(),
+	offerings, err := newTestCareOfferingCatalog(r, settings.Settings, CareOfferingCatalogTestOptions{
+		LockRecurrence: lock, Today: timezone.TodayDate,
 	})
-	guard := TimeframeChangeGuard(lock, offerings.(enrollment.CareOfferingMaterializationResourceValidator).ValidateTimeframeReplacement)
+	if err != nil {
+		return ScheduleTestModule{}, err
+	}
+	guard := TimeframeChangeGuard(lock, offerings.ValidateTimeframeChange)
 	return ScheduleTestModule{Calendar: r.SchoolCalendar(), Timetable: r.Timetable, TimeframeGuard: guard}, nil
 }

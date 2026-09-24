@@ -121,7 +121,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 )
 
@@ -1469,7 +1468,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.AbsenceTypes = workforceInbound.NewAbsenceTypesResource(services.AbsenceTypeAdministration(workforce, logger.With("service", "active")), db, api.currentStaffID)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
-		api.Services.EnrollmentCareOffering,
+		api.Services.EnrollmentCareOfferingRows(),
 		api.Services.EnrollmentRequest,
 		api.Services.EnrollmentCaptcha,
 		api.Services.EnrollmentPhase,
@@ -1491,10 +1490,10 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Display = displayHTTPAdapter.NewResource(api.Services.IoT.Fleet(), api.Services.Settings)
 	// Dateframes belong to the School Calendar, timeframes and recurrence
 	// rules to the Timetable owner; timeframe changes stay guarded by the
-	// recurrence gate and Enrollment's care-offering check.
+	// recurrence gate and the Care Plan catalog's care-offering check.
 	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(modules.calendar, modules.timetable, services.TimeframeChangeGuard(
 		api.Services.TimetableData.RecurrenceLock.LockRecurrenceWrites,
-		api.Services.EnrollmentCareOffering.(enrollmentSvc.CareOfferingMaterializationResourceValidator).ValidateTimeframeReplacement,
+		api.Services.EnrollmentCareOffering.ValidateTimeframeChange,
 	), db)
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
 	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument, db)
@@ -1535,12 +1534,16 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Rosters:    repositories.SessionRosters{Sessions: presence, Roster: modules.timetable},
 		Education:  api.Services.Education,
 		Pickups:    api.Services.PickupSchedule,
-		Settings:   api.Services.Settings,
-		Logger:     logger.With("service", "device-scan"),
+		// A destination chosen at the kiosk runs the phone's open-room
+		// move (#3067).
+		OpenRooms: newDeviceOpenRoomMover(openRoomMove),
+		Settings:  api.Services.Settings,
+		Logger:    logger.With("service", "device-scan"),
 	})
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		Administration:   devicefleetCompose.NewAdministration(api.Services.IoT.Fleet()),
 		DeviceScan:       deviceScan,
+		OpenRooms:        deviceScan,
 		StaffClock:       api.Services.StaffClock,
 		Configuration:    devicescanCompose.NewConfiguration(api.Services.Settings),
 		Rooms:            devicescanCompose.NewRoomAvailability(api.Services.Facilities),

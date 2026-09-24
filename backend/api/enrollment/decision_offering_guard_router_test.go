@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 
@@ -131,7 +132,8 @@ func setupOfferingGuardRouterTest(
 	require.NoError(t, err)
 	studentEnrollment, err := repositories.NewPeopleDirectory(db)
 	require.NoError(t, err)
-	decision := newOfferingGuardDecisionService(repos, offeringsEnabled, children, approvedOfferings, guardianAccess, studentEnrollment)
+	offeringLinks := testutil.NewCareOfferingCatalog(t, db).Catalog
+	decision := newOfferingGuardDecisionService(repos, offeringsEnabled, children, approvedOfferings, guardianAccess, studentEnrollment, offeringLinks)
 	resource := enrollmentAPI.NewResource(
 		nil, nil, nil, nil, nil, decision, nil, nil, nil,
 		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil, db,
@@ -238,7 +240,7 @@ func datePointers(from, until timezone.Date) (*capability.Date, *capability.Date
 	return &start, &end
 }
 
-func newOfferingGuardDecisionService(repos repositories.EnrollmentTestRepositories, offeringsEnabled bool, children enrollmentService.DecisionChildren, approvedOfferings enrollmentService.ApprovedOfferingReader, guardianAccess enrollmentService.DecisionGuardianAccess, studentEnrollment enrollmentService.DecisionStudentEnrollment) enrollmentService.DecisionService {
+func newOfferingGuardDecisionService(repos repositories.EnrollmentTestRepositories, offeringsEnabled bool, children enrollmentService.DecisionChildren, approvedOfferings enrollmentService.ApprovedOfferingReader, guardianAccess enrollmentService.DecisionGuardianAccess, studentEnrollment enrollmentService.DecisionStudentEnrollment, offeringLinks careplan.CareOfferingLinks) enrollmentService.DecisionService {
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		Requests: repos.Enrollment(), Children: children, Guardians: repos.Enrollment(),
 		ApprovedOfferings: approvedOfferings,
@@ -248,7 +250,7 @@ func newOfferingGuardDecisionService(repos repositories.EnrollmentTestRepositori
 		GuardianPhoneRepo: repos.GuardianPhoneNumber, PickupScheduleRepo: repos.StudentPickupSchedule,
 		ArrivalScheduleRepo: repos.StudentArrivalSchedule, StudentEnrollmentRepo: repos.StudentEnrollment,
 		ActivityGroupRepo: repos.ActivityGroup, ActivityScheduleRepo: repos.ActivitySchedule,
-		CalendarPeriodRepo: repos.CalendarPeriod, TimeframeRepo: repos.Timeframe, ActivityExceptionRepo: repos.ActivityException,
+		CalendarPeriodRepo: repos.CalendarPeriod, OfferingLinks: offeringLinks,
 		GuardianAccess:    guardianAccess,
 		StudentEnrollment: studentEnrollment,
 		OutboxEnqueuer:    discardingOutbox{}, Settings: offeringGuardSettings(offeringsEnabled),
