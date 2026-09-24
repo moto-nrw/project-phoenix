@@ -40,6 +40,8 @@ type MaterializationResult struct {
 	CandidatesSkippedIncomplete int // template missing planned room or schedule missing timeframe/end_time
 	CandidatesSkippedEnded      int // schedule.valid_until reached (template split ended this recurrence)
 	CandidatesSkippedNotStarted int // schedule.valid_from not yet reached (successor schedule from a template split)
+	CandidatesSkippedHoliday    int // statutory holiday (#3594)
+	CandidatesSkippedClosingDay int // closing day of a series without include_closing_days (#3594)
 	CandidatesRaced             int // UNIQUE violation absorbed (concurrent run won the insert)
 	InstanceStudentsCreated     int
 	InstanceStaffCreated        int

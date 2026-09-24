@@ -14,6 +14,7 @@ import (
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/uptrace/bun"
 )
@@ -70,8 +71,9 @@ func NewOperatorProvisioningAdapters(deps OperatorProvisioningDependencies) (Ope
 	return OperatorProvisioningAdapters{
 		Devices: provisioningDevices{devices: deps.Devices},
 		People: provisioningPeople{
-			persons: deps.Persons, membership: deps.Membership, personRepo: deps.PersonRepo,
-			staffRepo: deps.StaffRepo, accounts: deps.Accounts, db: deps.DB,
+			persons: deps.Persons, membership: deps.Membership, childQuota: schoolMembershipCompose.NewChildQuotaCounts(),
+			personRepo: deps.PersonRepo,
+			staffRepo:  deps.StaffRepo, accounts: deps.Accounts, db: deps.DB,
 		},
 		Presence:            provisioningPresence{groups: deps.ActiveGroups, supervisors: deps.Supervisors},
 		Categories:          provisioningCategories{categories: deps.Categories},
@@ -180,6 +182,7 @@ func isForeignKeyViolation(err error) bool {
 type provisioningPeople struct {
 	persons    peopledirectory.Query
 	membership schoolmembership.Query
+	childQuota schoolmembership.ChildQuotaCounts
 	personRepo userModels.PersonRepository
 	staffRepo  userModels.StaffRepository
 	accounts   accountEmailQuery
@@ -188,6 +191,12 @@ type provisioningPeople struct {
 
 func (p provisioningPeople) CountPersonsByTenant(ctx context.Context) (map[int64]int, error) {
 	return p.persons.CountPersonsByTenant(ctx)
+}
+
+// CountChildQuotaByTenant asks School Membership, which owns the
+// Kontingentzahl rule (#3568).
+func (p provisioningPeople) CountChildQuotaByTenant(ctx context.Context) (map[int64]int, error) {
+	return p.childQuota.CountChildQuotaByTenant(ctx)
 }
 
 // ListPersons lists the persons of the schools with their staff, student and

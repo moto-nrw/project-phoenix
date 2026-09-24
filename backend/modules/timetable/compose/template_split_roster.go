@@ -178,7 +178,19 @@ func successorGroup(old *activitiesModel.Group, in TemplateSplitInput) *activiti
 		SourceSchoolClasses:   sourceSchoolClasses,
 		ListKind:              providedOrInherited(in.ListKindProvided, in.ListKind, old.ListKind),
 		Notes:                 providedOrInherited(in.NotesProvided, in.Notes, old.Notes),
+		IncludeClosingDays:    successorIncludesClosingDays(in.IncludeClosingDays, old.IncludeClosingDays),
+		SeriesLastDay:         old.SeriesLastDay,
 	}
+}
+
+// successorIncludesClosingDays resolves the closing-day opt-in a series split
+// carries to its successor (#3594): an explicit request value wins, an
+// omitted one inherits the source series' flag.
+func successorIncludesClosingDays(requested *bool, inherited bool) bool {
+	if requested != nil {
+		return *requested
+	}
+	return inherited
 }
 
 func successorMaxParticipants(old *activitiesModel.Group, in TemplateSplitInput) int {

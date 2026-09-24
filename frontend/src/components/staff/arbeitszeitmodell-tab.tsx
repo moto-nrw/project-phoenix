@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
 
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -20,14 +21,17 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import { staffScheduleService, workTimeModelService } from "~/lib/staff-api";
+import {
+  staffMonthSummaryService,
+  staffScheduleService,
+  workTimeModelService,
+} from "~/lib/staff-api";
 import type {
   StaffSchedule,
   UpdateScheduleRequest,
   WorkTimeModel,
 } from "~/lib/staff-api";
 import {
-  resolveTargetForDate,
   resolveWeekIndex,
   startOfWeek,
   toDateKey,
@@ -35,29 +39,20 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { formatDuration } from "~/lib/time-tracking-helpers";
 
-const logger = createLogger({ component: "ArbeitszeitmodellTab" });
+import {
+  formatDecimalHours,
+  isStaleAfterModelSave,
+  parseDecimalHours,
+} from "./arbeitszeit-hours";
+import { SonderarbeitszeitenSection } from "./sonderarbeitszeiten-section";
 
-// A work-time model save rewrites the contractual Soll, so every cache that
-// prices days against it goes stale. Two portals read the same staff member's
-// targets: the admin staff-detail tabs key them by staff id
-// (staff-schedule-targets- / staff-month-summary-), while a manager editing
-// their OWN model also has the own-service portal's caches open, which key
-// WITHOUT an id (time-tracking-schedule-targets- for the daily table and the
-// weekly KPI, time-tracking-month-summary- for the Monatskarte). Both sets must
-// be invalidated, or the self-service daily table keeps showing the old
-// Soll/Saldo while the monthly summary has already updated (#1842). Everything
-// is recomputed live on the server, so a plain invalidation suffices. useSWRAuth
-// prefixes keys with the tenant slug, so we match with includes, not startsWith
-// — the same convention as staff-session-table's handleSaved.
-export function isStaleAfterModelSave(key: unknown): boolean {
-  return (
-    typeof key === "string" &&
-    (key.includes("staff-schedule-targets-") ||
-      key.includes("staff-month-summary-") ||
-      key.includes("time-tracking-schedule-targets-") ||
-      key.includes("time-tracking-month-summary-"))
-  );
-}
+export {
+  formatDecimalHours,
+  isStaleAfterModelSave,
+  parseDecimalHours,
+} from "./arbeitszeit-hours";
+
+const logger = createLogger({ component: "ArbeitszeitmodellTab" });
 
 const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr"] as const;
 const dayNames = [
@@ -76,39 +71,6 @@ const ROTATION_OPTIONS = [
 ] as const;
 const WEEK_BADGE_LETTERS = ["A", "B", "C", "D"] as const;
 const PREVIEW_WEEKS = 4;
-const MAX_DAILY_HOURS = 12;
-const DECIMAL_HOURS_FORMAT = new Intl.NumberFormat("de-DE", {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 2,
-});
-
-export type DecimalHoursParseResult =
-  | { status: "empty" }
-  | { status: "invalid" }
-  | { status: "valid"; minutes: number };
-
-export function parseDecimalHours(value: string): DecimalHoursParseResult {
-  const normalized = value.trim().replace(",", ".");
-  if (normalized === "") return { status: "empty" };
-  if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) {
-    return { status: "invalid" };
-  }
-
-  const [wholePart = "0", fractionPart = ""] = normalized.split(".");
-  const scale = 10n ** BigInt(fractionPart.length);
-  const decimalUnits =
-    BigInt(wholePart || "0") * scale + BigInt(fractionPart || "0");
-  if (decimalUnits > BigInt(MAX_DAILY_HOURS) * scale) {
-    return { status: "invalid" };
-  }
-  const minutes = Number((decimalUnits * 60n * 2n + scale) / (scale * 2n));
-  return { status: "valid", minutes };
-}
-
-export function formatDecimalHours(minutes: number): string {
-  return DECIMAL_HOURS_FORMAT.format(minutes / 60);
-}
-
 type EditableScheduleEntry = {
   weekIndex: number;
   dayOfWeek: number;
@@ -268,51 +230,86 @@ export function ArbeitszeitmodellTab({
         </div>
       </SectionCard>
 
-      <FourWeekPreview schedule={schedule} today={today} />
+      <SonderarbeitszeitenSection staffId={staffId} canEdit={canEdit} />
+
+      <FourWeekPreview staffId={staffId} schedule={schedule} today={today} />
     </div>
   );
 }
 
+// Die Vorschau zeigt dasselbe Tages-Soll wie die Zeiterfassung (#3259): der
+// Server rechnet Feiertage, Schließtage und Sonderarbeitszeiten ein. Solange
+// es fehlt, steht kein erfundener Wert aus dem aktuellen Modell da (#1842).
 function FourWeekPreview({
+  staffId,
   schedule,
   today,
 }: {
+  readonly staffId: string;
   readonly schedule: StaffSchedule;
   readonly today: Date;
 }) {
+  const firstMonday = startOfWeek(today);
+  const lastDay = new Date(firstMonday);
+  lastDay.setDate(lastDay.getDate() + PREVIEW_WEEKS * 7 - 1);
+  const fromKey = toDateKey(firstMonday);
+  const toKey = toDateKey(lastDay);
+  const { data: projection, error: projectionError } = useSWRAuth(
+    `staff-schedule-targets-preview-${staffId}-${fromKey}-${toKey}`,
+    () => staffMonthSummaryService.getDailyProjection(staffId, fromKey, toKey),
+  );
+
   const weeks = useMemo(() => {
-    const monday = startOfWeek(today);
     const result: Array<{
       monday: Date;
       label: string;
       weekIndex: number;
-      total: number;
-      days: Array<{ date: Date; target: number }>;
+      total: number | null;
+      hasOverride: boolean;
+      days: Array<{ date: Date; target: number | null; isOverride: boolean }>;
       isCurrent: boolean;
     }> = [];
     for (let w = 0; w < PREVIEW_WEEKS; w++) {
-      const wMonday = new Date(monday);
+      const wMonday = startOfWeek(today);
       wMonday.setDate(wMonday.getDate() + w * 7);
       const days = WORK_DAYS.map((d) => {
         const date = new Date(wMonday);
         date.setDate(date.getDate() + d);
-        return { date, target: resolveTargetForDate(schedule, date) };
+        const day = projection?.get(toDateKey(date));
+        return {
+          date,
+          target: day ? day.targetMinutes : null,
+          isOverride: day?.isOverride === true,
+        };
       });
-      const total = days.reduce((s, d) => s + d.target, 0);
+      const total = days.every((d) => d.target !== null)
+        ? days.reduce((s, d) => s + (d.target ?? 0), 0)
+        : null;
       result.push({
         monday: wMonday,
         label: `KW ${getISOWeek(wMonday)}`,
         weekIndex: resolveWeekIndex(schedule, wMonday),
         total,
+        hasOverride: days.some((d) => d.isOverride),
         days,
         isCurrent: w === 0,
       });
     }
     return result;
-  }, [schedule, today]);
+  }, [schedule, projection, today]);
+  // Pending: "…"; unavailable: "–" with the reason in the alert above.
+  const pending = projectionError ? "–" : "…";
 
   return (
     <SectionCard title="Vorschau (nächste 4 Wochen)" headingLevel={3}>
+      {projectionError ? (
+        <div className="mb-3">
+          <Alert
+            type="error"
+            message="Das Soll der nächsten Wochen konnte nicht geladen werden. Bitte laden Sie die Seite neu."
+          />
+        </div>
+      ) : null}
       <div className="space-y-2">
         {weeks.map((week) => {
           const badge = WEEK_BADGE_LETTERS[week.weekIndex] ?? "?";
@@ -331,21 +328,34 @@ function FourWeekPreview({
               {schedule.rotationLength > 1 && (
                 <StatusBadge tone="gray" label={`Woche ${badge}`} />
               )}
+              {week.hasOverride && (
+                <StatusBadge tone="blue" label="Sonderarbeitszeit" />
+              )}
               <div className="flex flex-1 flex-wrap items-center gap-3 text-xs text-gray-600">
                 {week.days.map((d) => (
                   <span
-                    key={d.date.toISOString()}
-                    className={d.target > 0 ? "" : "text-gray-300"}
+                    key={toDateKey(d.date)}
+                    className={
+                      d.isOverride
+                        ? "font-semibold text-gray-900"
+                        : d.target !== null && d.target > 0
+                          ? ""
+                          : "text-gray-300"
+                    }
                   >
                     {dayLabels[(d.date.getDay() + 6) % 7]}{" "}
                     <span className="tabular-nums">
-                      {d.target > 0 ? formatDuration(d.target) : "-"}
+                      {d.target === null
+                        ? pending
+                        : d.target > 0 || d.isOverride
+                          ? formatDuration(d.target)
+                          : "–"}
                     </span>
                   </span>
                 ))}
               </div>
               <span className="ml-auto text-sm font-bold text-gray-700 tabular-nums">
-                {formatDuration(week.total)}
+                {week.total === null ? pending : formatDuration(week.total)}
               </span>
             </div>
           );

@@ -12,6 +12,7 @@ const exit = () => process.exit(9);
 const sidecar = existsSync('docker-compose.yml') && readFileSync('docker-compose.yml', 'utf8').includes('demo-runtime');
 if ((fail === 'stop' && isCompose && args.includes('stop')) ||
     (fail === 'pull' && (args[0] === 'pull' || args.includes('pull'))) ||
+    (fail === 'tag' && args[0] === 'tag') ||
     // The preflight and the migration are both `compose run migrate`; only the
     // trailing command separates them, so each failure mode names its own.
     (fail === 'migrate' && isCompose && args.includes('run') && !call.includes('migrate preflight')) ||
@@ -28,7 +29,11 @@ if (isCompose && args.includes('ps')) console.log(args.at(-1));
 else if (args[0] === 'inspect') {
   const format = args[2];
   console.log(format.includes('.State.Running') ? (fail === 'running' || (fail === 'running-sidecar' && args.at(-1) === 'demo-runtime') ? 'true' : 'false') :
-    format.includes('.Mounts') ? 'test-uploads' : `sha256:${'1'.repeat(64)}`);
+    format.includes('.Mounts') ? 'test-uploads' :
+    // Tag-created containers, and a frontend a rollback created from a digest.
+    format.includes('.Config.Image') ? ({ postgres: 'postgres:17-alpine',
+      frontend: `ghcr.io/moto-nrw/phoenix-frontend@sha256:${'2'.repeat(64)}` }[args.at(-1)] ?? 'ghcr.io/moto-nrw/phoenix-server:aaaaaaa') :
+    `sha256:${'1'.repeat(64)}`);
 } else if (args[0] === 'image' && args.includes('--format')) console.log(`postgres@sha256:${'1'.repeat(64)}`);
 else if (isCompose && args.includes('--services')) console.log(`postgres\nserver\nfrontend\nmigrate${sidecar ? '\ndemo-runtime' : ''}`);
 else if (isCompose && args.includes('--no-interpolate')) console.log(`services:\n  postgres:\n    image: postgres:test${sidecar ? '\n  demo-runtime:\n    image: server:test' : ''}`);

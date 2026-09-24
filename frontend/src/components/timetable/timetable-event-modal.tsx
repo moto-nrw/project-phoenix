@@ -7,6 +7,7 @@ import { useCatalogRefreshOnFocus } from "~/components/database/catalog/catalog-
 
 import { useModal } from "~/components/dashboard/modal-context";
 import { ClosingDayConfirmModal } from "~/components/planning/closing-day-marker";
+import { SeriesClosingDaysChoiceModal } from "~/components/planning/series-closing-days-choice-modal";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ChoiceModal } from "~/components/ui/choice-modal";
@@ -26,6 +27,7 @@ import {
 import { WizardStepper } from "~/components/ui/wizard-stepper";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import {
+  countClosingDayConflicts,
   findFirstClosingDayConflict,
   type ClosingDayConflict,
   type ClosingDayRange,
@@ -78,7 +80,7 @@ const STEP_FIELDS: readonly (readonly (keyof EventFormState)[])[] = [
     "roomId",
     "categoryId",
   ],
-  ["weekdays", "calendarPeriodId", "weekPattern"],
+  ["weekdays", "calendarPeriodId", "weekPattern", "seriesEndDate"],
   ["targetGradeLevel", "targetSchoolClass", "educationGroupId"],
 ];
 
@@ -87,13 +89,18 @@ const LAST_STEP = WIZARD_STEPS.length - 1;
 function getClosingDayWarningMessage(
   isSeriesFlow: boolean,
   conflict: ClosingDayConflict,
+  count: number,
 ): string {
   let reason = "";
   if (conflict.reason !== "") reason = ` (${conflict.reason})`;
 
   const date = formatDate(conflict.dateISO);
   if (isSeriesFlow) {
-    return `Hinweis: Der Regeltermin fällt am ${date} auf einen Schließtag${reason}. Planen ist weiterhin möglich.`;
+    const days =
+      count === 1
+        ? "1 Termin dieser Serie fällt auf einen Schließtag"
+        : `${count} Termine dieser Serie fallen auf Schließtage`;
+    return `Hinweis: ${days}, zuerst am ${date}${reason}. Beim Speichern wählen Sie, ob sie ausfallen.`;
   }
   return `Hinweis: Am ${date} ist ein Schließtag hinterlegt${reason}. Planen ist weiterhin möglich.`;
 }
@@ -218,6 +225,7 @@ export function TimetableEventModal({
     scopeClosingDayWarning,
     setScopeClosingDayWarning,
     confirmScopeClosingDay,
+    setClosingDayChoice,
     lostEdits,
     setLostEdits,
     confirmLostEdits,
@@ -327,9 +335,13 @@ export function TimetableEventModal({
   // dieselben Wochentag-/A-B-Regeln wie beim Materialisieren werden über den
   // gewählten Zeitraum gelegt. Bestätigt wird die aktuelle Konfiguration;
   // ändert sie sich danach, fragt der Dialog erneut.
-  const closingDayConflict = useMemo(() => {
+  const closingDayInfo = useMemo((): {
+    conflict: ClosingDayConflict;
+    count: number;
+  } | null => {
     if (!isSeriesFlow) {
-      return findFirstClosingDayConflict(closingDayRanges, [form.date]);
+      const single = findFirstClosingDayConflict(closingDayRanges, [form.date]);
+      return single === null ? null : { conflict: single, count: 1 };
     }
     const period = calendarPeriods.find(
       (candidate) => candidate.id === form.calendarPeriodId,
@@ -356,6 +368,8 @@ export function TimetableEventModal({
       weekPattern: form.weekPattern,
       validFrom: requestedValidFrom,
       validUntil: validity?.validUntil,
+      // #3594: only closing days up to the last day of the series count.
+      lastDay: form.seriesEndDate,
     });
     // Converting preserves the concrete seed occurrence even when its date is
     // outside the selected recurrence slots.
@@ -363,7 +377,12 @@ export function TimetableEventModal({
       dates.push(form.date);
       dates.sort((left, right) => left.localeCompare(right));
     }
-    return findFirstClosingDayConflict(closingDayRanges, dates);
+    const first = findFirstClosingDayConflict(closingDayRanges, dates);
+    if (first === null) return null;
+    return {
+      conflict: first,
+      count: countClosingDayConflicts(closingDayRanges, dates),
+    };
   }, [
     calendarPeriods,
     closingDayRanges,
@@ -371,11 +390,13 @@ export function TimetableEventModal({
     form.calendarPeriodId,
     form.date,
     form.seriesStartDate,
+    form.seriesEndDate,
     form.weekPattern,
     form.weekdays,
     initialSeries,
     isSeriesFlow,
   ]);
+  const closingDayConflict = closingDayInfo?.conflict ?? null;
   const closingDayConfirmationKey =
     closingDayConflict === null
       ? null
@@ -388,14 +409,18 @@ export function TimetableEventModal({
         });
   const [closingDayPrompt, setClosingDayPrompt] = useState<{
     conflict: ClosingDayConflict;
+    count: number;
     confirmationKey: string;
   } | null>(null);
   const confirmedClosingConflict = useRef<string | null>(null);
   // Nach der Bestätigung ganz normal absenden: die Serienkonfiguration steht
-  // dann im Ref, die Rückfrage greift also nicht erneut.
-  const submitAfterConfirm = () => {
+  // dann im Ref, die Rückfrage greift also nicht erneut. Bei Serien trägt
+  // `includeClosingDays` die Antwort auf „Diese Serie trifft N Schließtage“
+  // (#3594) in den Speicheraufruf.
+  const submitAfterConfirm = (includeClosingDays?: boolean) => {
     if (!closingDayPrompt) return;
     confirmedClosingConflict.current = closingDayPrompt.confirmationKey;
+    setClosingDayChoice(includeClosingDays ?? null);
     setClosingDayPrompt(null);
     formRef.current?.requestSubmit();
   };
@@ -551,6 +576,7 @@ export function TimetableEventModal({
                 event.preventDefault();
                 setClosingDayPrompt({
                   conflict: closingDayConflict,
+                  count: closingDayInfo?.count ?? 1,
                   confirmationKey: closingDayConfirmationKey,
                 });
                 return;
@@ -741,6 +767,7 @@ export function TimetableEventModal({
                 message={getClosingDayWarningMessage(
                   isSeriesFlow,
                   closingDayConflict,
+                  closingDayInfo?.count ?? 1,
                 )}
                 announce="off"
               />
@@ -903,23 +930,36 @@ export function TimetableEventModal({
 
         {/* #2032: bestätigbare Warnung, bevor ein Termin auf einem Schließtag
             gespeichert wird. */}
-        {closingDayPrompt !== null && (
+        {closingDayPrompt !== null && !isSeriesFlow && (
           <ClosingDayConfirmModal
             dateISO={closingDayPrompt.conflict.dateISO}
             reason={closingDayPrompt.conflict.reason}
             subject="termin"
             onCancel={() => setClosingDayPrompt(null)}
-            onConfirm={submitAfterConfirm}
+            onConfirm={() => submitAfterConfirm()}
+          />
+        )}
+
+        {/* #3594: a series skips closing days unless it is planned for them
+            on purpose, e.g. holiday care. */}
+        {closingDayPrompt !== null && isSeriesFlow && (
+          <SeriesClosingDaysChoiceModal
+            closingDayCount={closingDayPrompt.count}
+            currentChoice={initialSeries?.includeClosingDays}
+            onCancel={() => setClosingDayPrompt(null)}
+            onChoose={submitAfterConfirm}
           />
         )}
 
         {scopeClosingDayWarning !== null && (
-          <ClosingDayConfirmModal
-            dateISO={scopeClosingDayWarning.conflict.dateISO}
-            reason={scopeClosingDayWarning.conflict.reason}
-            subject="termin"
+          <SeriesClosingDaysChoiceModal
+            closingDayCount={scopeClosingDayWarning.closingDayCount}
+            currentChoice={
+              scopeClosingDayWarning.template.includeClosingDays ?? false
+            }
             onCancel={() => setScopeClosingDayWarning(null)}
-            onConfirm={() => void confirmScopeClosingDay()}
+            onChoose={(include) => void confirmScopeClosingDay(include)}
+            isBusy={submitting}
           />
         )}
 

@@ -285,7 +285,7 @@ Untersucht und bewusst ausgeschlossen:
 | Fehlerfall des Abrufs | Alle drei Ziel-Buttons erscheinen (Muster `!== false`), ohne Hinweis auf dem Tablet | `PyrePortal/src/hooks/pages/useActivityScanningPage.ts:332-335` |
 | Geräte-API-Schlüssel | Bestimmt Mandant und Schule des Tablets; fehlt er, erscheint „API-Schlüssel ungültig …" | `PyrePortal/src/platform/webAdapterBase.ts:108-117`; `PyrePortal/src/services/apiErrors.ts:96-97`; `backend/api/iot/config.go:44-54` |
 | `iot.devices.room_id` | **Ohne sichtbare Wirkung auf dem Tablet**: die Raumliste ist ungefiltert | `backend/models/iot/device.go:38`; `backend/api/iot/data/handlers.go:145-181` |
-| Zwei PIN-Wege | Entweder die gemeinsame OGS-Geräte-PIN oder eine persönliche Konto-PIN mit `X-Staff-ID`; heute meldet PyrePortal sich mit der gemeinsamen PIN an (`staffName: 'OGS Device'`) | `backend/auth/device/device_auth.go:248-265` (gemeinsame PIN) und `:268-306` (persönliche PIN); `PyrePortal/src/pages/PinPage.tsx:207-216` |
+| Ein PIN-Weg | Nur die gemeinsame OGS-Geräte-PIN; die persönliche Konto-PIN wurde mit #3310 entfernt. PyrePortal meldet sich mit der gemeinsamen PIN an (`staffName: 'OGS Device'`) | `backend/auth/device/device_auth.go` (`validateDevicePIN`); `PyrePortal/src/pages/PinPage.tsx:207-216` |
 | Kiosk-Ziel (GKT / Wedge / Browser) | Unterschiedliche NFC-Hardware und Fehlertexte; **Raspberry Pi/Balena und Tauri sind stillgelegt** | `PyrePortal/CLAUDE.md:33-41` |
 
 ### 4.4 Rollen und Berechtigungen (nicht Teil der Top 3)

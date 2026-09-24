@@ -98,12 +98,12 @@ func TestStudentDirectoryPromotesGraduatesAndReactivates(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, graduated, "graduating twice is idempotent")
 
-	reactivated, err := membership.Reactivate(ctx, []int64{promoted.ID, moved.ID}, "active")
+	reactivated, err := membership.Reactivate(ctx, []int64{promoted.ID, moved.ID}, "active", schoolmembership.EnforceChildQuota)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{promoted.ID}, reactivated, "only alumni are restored")
 	assert.Equal(t, "active", studentStatus(t, db, promoted.ID))
 
-	_, err = membership.Reactivate(ctx, []int64{promoted.ID}, peopledirectory.StudentStatusAlumnus)
+	_, err = membership.Reactivate(ctx, []int64{promoted.ID}, peopledirectory.StudentStatusAlumnus, schoolmembership.EnforceChildQuota)
 	require.ErrorIs(t, err, schoolmembership.ErrInvalidMembership)
 }
 

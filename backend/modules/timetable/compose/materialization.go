@@ -63,6 +63,7 @@ type CareBoundReader interface {
 // both so direct calls get an RLS-aware transaction and the recurrence gate;
 // a nil DB is reserved for pure repository-double unit tests. CareBounds is
 // the per-date care filter (#2487); nil means no child has an end of care.
+// NonWorkingDays answers holidays and closing days (#3594); nil skips none.
 // Staffing announces created instances to the staffing caches (#1844); nil
 // announces nothing.
 type MaterializationDependencies struct {
@@ -77,6 +78,7 @@ type MaterializationDependencies struct {
 	ExceptionRepo  schedule.ActivityExceptionRepository
 	TimeframeRepo  schedule.TimeframeRepository
 	CareBounds     CareBoundReader
+	NonWorkingDays timetable.NonWorkingDayCalendar
 	RecurrenceLock timetable.RecurrenceWriteLock
 	Staffing       StaffingAnnouncer
 	DB             *bun.DB
@@ -94,6 +96,7 @@ type materializationService struct {
 	staffRepo      schedule.InstanceStaffRepository
 	studentRepo    schedule.InstanceStudentRepository
 	careBounds     CareBoundReader
+	nonWorkingDays timetable.NonWorkingDayCalendar // nil skips no holidays or closing days (#3594)
 	exceptionRepo  schedule.ActivityExceptionRepository
 	timeframeRepo  schedule.TimeframeRepository
 	lock           timetable.RecurrenceWriteLock
@@ -122,6 +125,7 @@ func NewMaterialization(deps MaterializationDependencies) (timetable.Materializa
 		staffRepo:      deps.StaffRepo,
 		studentRepo:    deps.StudentRepo,
 		careBounds:     deps.CareBounds,
+		nonWorkingDays: deps.NonWorkingDays,
 		exceptionRepo:  deps.ExceptionRepo,
 		timeframeRepo:  deps.TimeframeRepo,
 		lock:           deps.RecurrenceLock,
@@ -214,6 +218,7 @@ func (s *materializationService) materializeForTenantInTransaction(
 type materializationWorld struct {
 	from, to      timezone.Date
 	periods       []*schedule.CalendarPeriod
+	days          timetable.NonWorkingDays
 	existingIdx   map[existingKey]struct{}
 	exceptionIdx  map[exceptionKey]*schedule.ActivityException
 	timeframeByID map[int64]*schedule.Timeframe
@@ -307,13 +312,17 @@ func (s *materializationService) loadMaterializationPreconditions(
 }
 
 // loadMaterializationWorld pre-fetches the window's existing instances (an
-// (activity_group_id, date, start_time) set for O(1) lookup), its exceptions
-// and every timeframe.
+// (activity_group_id, date, start_time) set for O(1) lookup), its holidays
+// and closing days, its exceptions and every timeframe.
 func (s *materializationService) loadMaterializationWorld(
 	ctx context.Context,
 	from, to timezone.Date,
 	periods []*schedule.CalendarPeriod,
 ) (*materializationWorld, error) {
+	days, err := timetable.LoadNonWorkingDays(ctx, s.nonWorkingDays, from.String(), to.String())
+	if err != nil {
+		return nil, &ScheduleError{Op: "materialize for tenant: load non-working days", Err: err}
+	}
 	existing, err := s.instanceRepo.FindByTenantAndDateRange(ctx, schedule.Date(from), schedule.Date(to))
 	if err != nil {
 		return nil, &ScheduleError{Op: "materialize for tenant: load existing instances", Err: err}
@@ -330,6 +339,7 @@ func (s *materializationService) loadMaterializationWorld(
 		from:          from,
 		to:            to,
 		periods:       periods,
+		days:          days,
 		existingIdx:   buildExistingIndex(existing),
 		exceptionIdx:  buildExceptionIndex(exceptions),
 		timeframeByID: timeframeByID,
@@ -364,6 +374,8 @@ func (s *materializationService) finishLog(tenantID int64, source timetable.Mate
 		slog.Int("skipped_incomplete", r.CandidatesSkippedIncomplete),
 		slog.Int("skipped_ended", r.CandidatesSkippedEnded),
 		slog.Int("skipped_not_started", r.CandidatesSkippedNotStarted),
+		slog.Int("skipped_holidays", r.CandidatesSkippedHoliday),
+		slog.Int("skipped_closing_days", r.CandidatesSkippedClosingDay),
 		slog.Int("raced", r.CandidatesRaced),
 		slog.Int("instance_students_created", r.InstanceStudentsCreated),
 		slog.Int("instance_staff_created", r.InstanceStaffCreated),
@@ -541,7 +553,7 @@ func (s *materializationService) materializeCandidate(
 	result *timetable.MaterializationResult,
 ) error {
 	exc := world.exceptionIdx[exceptionKey{tmpl.ID, date}]
-	effective, period, skip := candidateSlot(tmpl, sch, date, world.periods, exc, world.timeframeByID, s.getLogger())
+	effective, period, skip := candidateSlot(tmpl, sch, date, world.periods, world.days, exc, world.timeframeByID, s.getLogger())
 	if skip != candidateKept {
 		countSkippedCandidate(result, skip)
 		return nil

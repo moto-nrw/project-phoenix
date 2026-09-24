@@ -26,10 +26,11 @@ import {
 } from "react";
 import Link from "~/components/ui/navigation-link";
 import { useSession } from "next-auth/react";
-import { Printer } from "lucide-react";
+import { CalendarX, Printer } from "lucide-react";
 
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { PlanExportModal } from "~/components/planning/plan-export-modal";
+import { BulkCancelAppointmentsModal } from "~/components/timetable/bulk-cancel-appointments-modal";
 import { buildPlanningTrackLegend } from "~/components/timetable/planning-track-legend";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
@@ -243,6 +244,8 @@ function TimetablesContent() {
   const [eventModalOpen, setEventModalOpen] = useState(false);
   // Drucken/Exportieren der angezeigten Woche (#2079).
   const [exportOpen, setExportOpen] = useState(false);
+  // „Termine im Zeitraum absagen“ (#3594).
+  const [bulkCancelOpen, setBulkCancelOpen] = useState(false);
   // Personalpool (#1884): Zielblock, für den der Pool-SlideOver offen ist.
   // Solange er offen ist, wird das Detail-Modal suspendiert (Kit-Modal
   // z-9999 würde den SlideOver sonst verdecken; Muster aus PR #1962).
@@ -1363,6 +1366,15 @@ function TimetablesContent() {
           },
         ]
       : []),
+    ...(canManageSchedules
+      ? [
+          {
+            label: "Termine im Zeitraum absagen",
+            icon: <CalendarX className="h-4 w-4" aria-hidden />,
+            onClick: () => setBulkCancelOpen(true),
+          },
+        ]
+      : []),
   ];
 
   // Leerzustand (Kriterium 5): solange kein Planungszeitraum existiert, zeigt
@@ -1548,6 +1560,17 @@ function TimetablesContent() {
       {/* Erst bei Bedarf gemountet, wie die übrigen Dialoge dieser Fläche:
           ein dauerhaft eingehängter Dialog zieht seinen Kontext (Toasts) auch
           dann in jeden Test dieser Seite, wenn ihn niemand öffnet. */}
+      {/* #3594: geplante Termine eines Zeitraums absagen, z. B. Ferien, die
+          erst nach der Planung als Schließtag eingetragen wurden. */}
+      {canManageSchedules && bulkCancelOpen && (
+        <BulkCancelAppointmentsModal
+          isOpen
+          initialFrom={fetchFromISO < todayISO ? todayISO : fetchFromISO}
+          initialTo={fetchToISO < todayISO ? todayISO : fetchToISO}
+          onClose={() => setBulkCancelOpen(false)}
+        />
+      )}
+
       {canExportBetreuungsplan && exportOpen && (
         <PlanExportModal
           isOpen

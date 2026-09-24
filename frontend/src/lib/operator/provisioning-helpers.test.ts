@@ -11,6 +11,7 @@ import {
   mapOperatorPerson,
   mapUnregisteredTagScan,
   mapSchoolPWAUsage,
+  mapSchoolSummary,
   summaryToOrganization,
   summaryToSchool,
 } from "./provisioning-helpers";
@@ -19,6 +20,7 @@ import type {
   BackendSchool,
   BackendInvitation,
   BackendSchoolAccount,
+  BackendSchoolSummary,
   BackendOrgAccount,
   BackendOperatorDevice,
   BackendOperatorPerson,
@@ -424,6 +426,9 @@ describe("summary adapters", () => {
       kontenCount: 12,
       geraeteCount: 4,
       personenCount: 80,
+      childQuotaBundles: 2,
+      childQuotaBundleSize: 50,
+      childQuotaCount: 90,
     };
 
     expect(summaryToSchool(summary)).toEqual({
@@ -443,6 +448,49 @@ describe("summary adapters", () => {
       createdAt: "2026-01-01T00:00:00Z",
       updatedAt: "2026-01-02T00:00:00Z",
     });
+  });
+});
+
+describe("mapSchoolSummary", () => {
+  const backend: BackendSchoolSummary = {
+    id: 10,
+    organization_id: 5,
+    organization_name: "Stadt Köln",
+    name: "GGS Europaschule",
+    slug: "ggs-europa",
+    subdomain: "ggs-europa",
+    active: true,
+    hidden: false,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-02T00:00:00Z",
+    address: "",
+    city: "",
+    zip: "",
+    phone: "",
+    email: "",
+    settings: null,
+    konten_count: 12,
+    geraete_count: 4,
+    personen_count: 80,
+    child_quota_bundles: 2,
+    child_quota_bundle_size: 50,
+    child_quota_count: 120,
+  };
+
+  it("maps the Kinderkontingent next to the Kontingentzahl", () => {
+    expect(mapSchoolSummary(backend)).toMatchObject({
+      id: "10",
+      organizationId: "5",
+      childQuotaBundles: 2,
+      childQuotaBundleSize: 50,
+      childQuotaCount: 120,
+    });
+  });
+
+  it("keeps a school without Kinderkontingent unlimited", () => {
+    expect(
+      mapSchoolSummary({ ...backend, child_quota_bundles: null }),
+    ).toMatchObject({ childQuotaBundles: null, childQuotaCount: 120 });
   });
 });
 

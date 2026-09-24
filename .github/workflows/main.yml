@@ -179,6 +179,7 @@ jobs:
               - 'scripts/check-migration-evidence*'
               - 'scripts/release-backup*'
               - 'scripts/demo-environment.test.mjs'
+              - 'scripts/create-demo-env.py'
               - 'scripts/test-support/release-docker.mjs'
               - 'scripts/deploy-remote.sh'
               - 'scripts/rollback-remote.sh'

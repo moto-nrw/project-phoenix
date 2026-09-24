@@ -390,6 +390,30 @@ describe("CalendarPeriodModal", () => {
     expect(onToggle).not.toHaveBeenCalled();
   });
 
+  // #3594: „Ferien“ als Zeitraum sagt keine Termine ab; der Hinweis zeigt auf
+  // den Schließtag, und nur bei dieser Art.
+  it("points to a closing day when the period type is Ferien", () => {
+    const { unmount } = render(
+      <CalendarPeriodModal isOpen onClose={vi.fn()} onSaved={vi.fn()} />,
+    );
+    expect(screen.queryByText(/einen Schließtag an/)).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <CalendarPeriodModal
+        isOpen
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        createDefaults={{ name: "Herbstferien", periodType: "holiday" }}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "Ferien allein sagen keine Termine ab. Hat die OGS geschlossen? Dann legen Sie unten auf der Seite „Zeiträume“ einen Schließtag an.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("hides the phase link section in create mode", () => {
     render(
       <CalendarPeriodModal

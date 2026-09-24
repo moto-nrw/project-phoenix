@@ -19,6 +19,7 @@
 import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { analyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { canonicalForwardedFor } from "~/lib/client-headers.server";
 import {
   logger,
@@ -83,7 +84,9 @@ export const schoolAuthConfig = {
         // path exists for non-MFA accounts and programmatic sign-in.
         if (!creds?.email || !creds?.password) return null;
 
-        const forwardHeaders: Record<string, string> = {};
+        const forwardHeaders: Record<string, string> = analyticsSessionHeaders(
+          request?.headers,
+        );
         const forwardedFor = canonicalForwardedFor(request?.headers ?? null);
         if (forwardedFor) {
           forwardHeaders["X-Forwarded-For"] = forwardedFor;

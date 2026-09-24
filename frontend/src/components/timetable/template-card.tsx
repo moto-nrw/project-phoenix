@@ -13,9 +13,9 @@
  */
 
 import { Archive, Palette, Users } from "lucide-react";
-
 import { Button } from "~/components/ui/button";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
 import type { TimetableTemplate } from "~/lib/timetable-types";
 import { RosterMaintenanceBadge } from "./roster-maintenance-badge";
@@ -187,6 +187,11 @@ export function TemplateCard({
             <MotoConceptIcon concept="careTimes" size={14} />
             <span className="tabular-nums">
               {timeRange ?? "Keine Zeiten hinterlegt"}
+              {/* #3594: eine Serie kann vor dem Planungszeitraum enden. Danach
+                  bleibt sie in der Liste und heißt „beendet“. */}
+              {template.endDate
+                ? `, ${template.endDate < berlinTodayISO() ? "beendet am" : "bis"} ${formatDate(template.endDate)}`
+                : ""}
             </span>
           </div>
           {targetSummary ? (

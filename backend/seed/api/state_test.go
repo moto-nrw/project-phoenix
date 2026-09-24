@@ -38,10 +38,10 @@ func TestWriteAndLoadSeedState_Roundtrip(t *testing.T) {
 		},
 		Accounts: SeedStateAccounts{
 			Admin: []AccountCredentials{
-				{Email: "admin@test.de", Password: "pass1", PIN: "0001", Name: "Admin User", StaffID: 10},
+				{Email: "admin@test.de", Password: "pass1", Name: "Admin User", StaffID: 10},
 			},
 			Betreuer: []AccountCredentials{
-				{Email: "betreuer@test.de", Password: "pass2", PIN: "0002", Name: "Betreuer User", StaffID: 20, TeacherID: 30, Group: "sternengruppe"},
+				{Email: "betreuer@test.de", Password: "pass2", Name: "Betreuer User", StaffID: 20, TeacherID: 30, Group: "sternengruppe"},
 			},
 		},
 		Devices: map[string]SeedDevice{

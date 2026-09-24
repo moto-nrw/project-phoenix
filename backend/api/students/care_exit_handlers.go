@@ -612,6 +612,8 @@ var careExitErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: careplan.ErrCareExitNoteRequired, Render: common.ErrorInvalidRequest},
 	{Target: careplan.ErrCareExitNoteNotAllowed, Render: common.ErrorInvalidRequest},
 	{Target: careplan.ErrCareExitNoteTooLong, Render: common.ErrorInvalidRequest},
+	// Resuming care counts against the Kinderkontingent (#3567).
+	{Match: common.IsBusinessRejection, Render: common.ErrorBusinessRejection},
 }, func(cause error) render.Renderer {
 	// Alles Unerwartete (DB-Fehler, Sperren, Timeouts) bekommt EINEN ruhigen
 	// Satz. Der Dialog zeigt diese Meldung wörtlich an, und interne Details

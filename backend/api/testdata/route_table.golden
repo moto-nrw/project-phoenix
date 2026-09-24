@@ -54,6 +54,7 @@ DELETE /api/staff-shifts/{id}
 DELETE /api/staff/{id}
 DELETE /api/staff/{id}/absences/{absenceId}
 DELETE /api/staff/{id}/documents/{documentId}
+DELETE /api/staff/{id}/target-overrides/{overrideId}
 DELETE /api/staff/{id}/time-tracking/adjustments/{adjustmentId}
 DELETE /api/staff/{id}/vacation/opening
 DELETE /api/students/care-withdrawals/{completionId}
@@ -348,7 +349,6 @@ GET /api/staff/dashboard-summary
 GET /api/staff/documents-directory
 GET /api/staff/documents-profile/{id}
 GET /api/staff/financial-profile/{id}
-GET /api/staff/pin
 GET /api/staff/time-tracking/audit-log
 GET /api/staff/time-tracking/export
 GET /api/staff/time-tracking/export/datev-report
@@ -366,6 +366,7 @@ GET /api/staff/{id}/schedule
 GET /api/staff/{id}/school-classes
 GET /api/staff/{id}/stammdaten
 GET /api/staff/{id}/stammdaten/bank-steuer
+GET /api/staff/{id}/target-overrides
 GET /api/staff/{id}/time-tracking/adjustments
 GET /api/staff/{id}/time-tracking/comp-time-preview
 GET /api/staff/{id}/time-tracking/export
@@ -385,6 +386,7 @@ GET /api/students/change-requests
 GET /api/students/change-requests/access
 GET /api/students/change-requests/pending-count
 GET /api/students/change-requests/rss-feed/
+GET /api/students/child-quota
 GET /api/students/class-arrival-exceptions/{schoolClass}
 GET /api/students/class-arrival-times/{schoolClass}
 GET /api/students/day-log
@@ -762,6 +764,7 @@ POST /api/staff/{id}/absences
 POST /api/staff/{id}/absences/rebook
 POST /api/staff/{id}/documents
 POST /api/staff/{id}/stammdaten/bank-steuer/reveal
+POST /api/staff/{id}/target-overrides
 POST /api/staff/{id}/time-tracking/adjustments
 POST /api/staff/{id}/time-tracking/month-close/reopen
 POST /api/staff/{id}/time-tracking/opening
@@ -820,6 +823,7 @@ POST /api/time-tracking/vacation/request
 POST /api/timetable/betreuungsplan/export
 POST /api/timetable/closing-days/
 POST /api/timetable/instances/
+POST /api/timetable/instances/bulk-cancel
 POST /api/timetable/instances/re-plan-week
 POST /api/timetable/instances/{id}/acknowledge-understaffed
 POST /api/timetable/instances/{id}/cancel
@@ -1010,7 +1014,6 @@ PUT /api/staff-shifts/series/{id}/split
 PUT /api/staff-shifts/{id}
 PUT /api/staff-shifts/{id}/cancellation
 PUT /api/staff-shifts/{id}/move
-PUT /api/staff/pin
 PUT /api/staff/{id}
 PUT /api/staff/{id}/payroll-number
 PUT /api/staff/{id}/schedule

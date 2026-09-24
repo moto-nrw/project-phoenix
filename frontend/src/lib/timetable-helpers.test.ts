@@ -37,6 +37,7 @@ import {
   mapGaps,
   mapInstance,
   mapInstanceStatusResult,
+  mapBulkCancelResult,
   mapMaterializeResult,
   materializedRecurrenceDates,
   mapCombinedOfferingCounts,
@@ -215,6 +216,24 @@ describe("date and range helpers", () => {
         validUntil: "2026-06-01",
       }),
     ).toEqual(["2026-05-18"]);
+  });
+
+  it("stops materialized recurrence dates at the series' last day (#3594)", () => {
+    const period = {
+      id: "5",
+      startDate: "2026-05-01",
+      endDate: "2026-06-30",
+    } as CalendarPeriod;
+
+    expect(
+      materializedRecurrenceDates({
+        period,
+        fromISO: "2026-05-01",
+        weekdays: [1],
+        weekPattern: 0,
+        lastDay: "2026-05-18",
+      }),
+    ).toEqual(["2026-05-04", "2026-05-11", "2026-05-18"]);
   });
 
   it("snaps weekend dates to the following Monday, weekdays pass through", () => {
@@ -532,6 +551,38 @@ describe("backend mappers", () => {
     });
   });
 
+  it("maps a bulk cancellation result (#3594)", () => {
+    expect(
+      mapBulkCancelResult({
+        from: "2026-10-12",
+        to: "2026-10-16",
+        dry_run: true,
+        count: 3,
+        days: [{ date: "2026-10-12", count: 3 }],
+        kept: 2,
+        kept_series: [{ name: "Ferienbetreuung", count: 2 }],
+      }),
+    ).toEqual({
+      from: "2026-10-12",
+      to: "2026-10-16",
+      dryRun: true,
+      count: 3,
+      days: [{ date: "2026-10-12", count: 3 }],
+      kept: 2,
+      keptSeries: [{ name: "Ferienbetreuung", count: 2 }],
+    });
+    const empty = mapBulkCancelResult({
+      from: "2026-10-12",
+      to: "2026-10-16",
+      dry_run: false,
+      count: 0,
+      days: null,
+      kept_series: null,
+    });
+    expect(empty.days).toEqual([]);
+    expect(empty.keptSeries).toEqual([]);
+  });
+
   it("maps materialization and re-plan results", () => {
     expect(
       mapMaterializeResult({
@@ -539,6 +590,7 @@ describe("backend mappers", () => {
         to: "2026-05-08",
         instances_created: 3,
         candidates_skipped_existing: 1,
+        skipped_holidays: 1,
         warnings: [{ code: "period_missing", message: "keine Periode" }],
         duration_ms: 12,
       }),
@@ -547,6 +599,9 @@ describe("backend mappers", () => {
       to: "2026-05-08",
       instancesCreated: 3,
       candidatesSkippedExisting: 1,
+      // #3594: an older backend without the counter reads as 0.
+      skippedHolidays: 1,
+      skippedClosingDays: 0,
       warnings: [{ code: "period_missing", message: "keine Periode" }],
       durationMs: 12,
     });
@@ -1342,6 +1397,7 @@ describe("backend mappers", () => {
       maxParticipants: undefined,
       listKind: undefined,
       notes: undefined,
+      includeClosingDays: false,
       shiftTypeName: undefined,
       shiftTypeColor: undefined,
       calendarPeriodId: undefined,

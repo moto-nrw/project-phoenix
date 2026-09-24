@@ -144,8 +144,7 @@ func (s *Service) confirmDailyCheckout(ctx context.Context, device *ports.Device
 	return result, nil
 }
 
-// toggleAttendance flips today's row. Staff attribution comes from the
-// verified account PIN; a plain device scan stays device-attributed.
+// toggleAttendance flips today's row. The scan stays device-attributed.
 func (s *Service) toggleAttendance(ctx context.Context, device *ports.Device, tag string) (*devicescan.AttendanceToggleResult, error) {
 	person, err := s.people.FindPersonByTag(ctx, tag)
 	if err != nil {
@@ -163,11 +162,7 @@ func (s *Service) toggleAttendance(ctx context.Context, device *ports.Device, ta
 		return nil, devicescan.NotFound(devicescan.MessagePersonNotStudent)
 	}
 
-	var staffID int64
-	if staff, ok := s.principals.Staff(ctx); ok && staff != nil {
-		staffID = staff.ID
-	}
-	action, err := s.attendance.Toggle(ctx, student.ID, staffID, device.ID, false)
+	action, err := s.attendance.Toggle(ctx, student.ID, deviceAttributed, device.ID, false)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to toggle attendance",
 			slog.Int64("student_id", student.ID),

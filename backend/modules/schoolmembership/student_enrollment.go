@@ -7,6 +7,13 @@ import (
 
 // StudentEnrollmentCommands is the lifecycle capability, separate from staff
 // and group administration.
+//
+// Every write that can raise the Kontingentzahl (Enroll, RenewEnrollment,
+// SetStatus, ResumeCare, Reactivate) is checked against the school's
+// Kinderkontingent in the same transaction and refused with
+// ChildQuotaReachedError when it would exceed it (#3567). TransitionStatus
+// checks the scheduler's pending → active step as well when a started
+// pending child becomes counted.
 type StudentEnrollmentCommands interface {
 	TransitionStatus(context.Context, int64, string, string) (bool, error)
 	SetStatus(context.Context, int64, string) (bool, error)
@@ -17,7 +24,7 @@ type StudentEnrollmentCommands interface {
 	EndCare(context.Context, []int64, string) (int64, error)
 	ResumeCare(context.Context, int64, string, string, string) (bool, error)
 	Graduate(context.Context, []int64) (int64, error)
-	Reactivate(context.Context, []int64, string) ([]int64, error)
+	Reactivate(context.Context, []int64, string, ChildQuotaCheck) ([]int64, error)
 	ChangeClass(context.Context, []int64, string, string) (int64, error)
 }
 
@@ -59,19 +66,25 @@ func (m *Module) SetStatus(ctx context.Context, id int64, status string) (bool, 
 	if status != "active" && status != "pending" && status != "inactive" {
 		return false, invalid("status change requires a non-alumni lifecycle state")
 	}
-	return m.engine.TransitionStudentStatus(ctx, id, "", status)
+	return m.engine.SetStudentStatus(ctx, id, status)
 }
 
-func (m *Module) Reactivate(ctx context.Context, ids []int64, status string) ([]int64, error) {
+// Reactivate brings graduated children back. The whole batch is checked
+// against the Kinderkontingent as one write unless the caller reverts a grade
+// transition and says so.
+func (m *Module) Reactivate(ctx context.Context, ids []int64, status string, check ChildQuotaCheck) ([]int64, error) {
 	ids = uniquePositive(ids)
 	status = strings.TrimSpace(status)
 	if status != "active" && status != "pending" && status != "inactive" {
 		return nil, invalid("reactivation requires a non-alumni lifecycle status")
 	}
+	if !check.valid() {
+		return nil, invalid("reactivation requires an explicit child quota check")
+	}
 	if len(ids) == 0 {
 		return []int64{}, nil
 	}
-	return m.engine.ReactivateStudents(ctx, ids, status)
+	return m.engine.ReactivateStudents(ctx, ids, status, check == EnforceChildQuota)
 }
 
 func validateStudentIDs(ids []int64) error {

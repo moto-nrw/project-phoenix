@@ -50,11 +50,13 @@ type CreateTemplateInput struct {
 	SourceSchoolClasses   []string
 	// ListKind classifies the template for printable daily lists (#1565);
 	// nil = no list kind.
-	ListKind       *string
-	Notes          *string
-	StudentIDs     []int64
-	StaffIDs       []int64
-	PrimaryStaffID *int64
+	ListKind           *string
+	Notes              *string
+	IncludeClosingDays bool                  // also plan on closing days (#3594)
+	SeriesLastDay      *activitiesModel.Date // inclusive last day of the series (#3594)
+	StudentIDs         []int64
+	StaffIDs           []int64
+	PrimaryStaffID     *int64
 	// WeekdayAssignments carries the per-weekday deviations from the shared
 	// roster above (issue #2129). Empty = the roster is identical on every
 	// weekday of the series, which is the pre-#2129 shape.
@@ -364,7 +366,7 @@ func (s *TemplateService) createTemplateGroup(
 		SourceGradeLevels:     in.SourceGradeLevels,
 		SourceSchoolClasses:   in.SourceSchoolClasses,
 		ListKind:              in.ListKind,
-		Notes:                 in.Notes,
+		Notes:                 in.Notes, IncludeClosingDays: in.IncludeClosingDays, SeriesLastDay: in.SeriesLastDay,
 	}
 	group.SetTenantID(tenantID)
 	if err := s.deps.ActivityGroupRepo.Create(ctx, group); err != nil {

@@ -270,6 +270,7 @@ func templateListEntryOf(row activitiesModels.TemplateListRow) timetable.Templat
 		TargetGradeLevel: nullInt16(row.TargetGradeLevel), TargetSchoolClass: nullString(row.TargetSchoolClass),
 		SourceCareOfferingIDsJSON: row.SourceCareOfferingIDsJSON, SourceGradeLevelsJSON: row.SourceGradeLevelsJSON,
 		SourceSchoolClassesJSON: row.SourceSchoolClassesJSON, ListKind: nullString(row.ListKind), Notes: nullString(row.Notes),
+		IncludeClosingDays: row.IncludeClosingDays, SeriesLastDay: nullString(row.SeriesLastDay),
 		ShiftTypeID: nullInt64(row.ShiftTypeID), ShiftTypeName: row.ShiftTypeName, ShiftTypeColor: row.ShiftTypeColor,
 		EnrollmentCount: row.EnrollmentCount, SupervisorCount: row.SupervisorCount,
 		CapacityEnrollmentCount: row.CapacityEnrollmentCount, CapacitySupervisorCount: row.CapacitySupervisorCount,

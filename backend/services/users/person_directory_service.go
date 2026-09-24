@@ -24,10 +24,6 @@ import (
 // moving. The staff and teacher half lives in staff_directory_service.go,
 // because School Membership owns those tables.
 
-// PIN brute-force lockout policy (issue #586 — extracted from the model).
-// After PINLockoutThreshold failed PIN entries the account is locked for
-// PINLockoutDuration. These mirror the MFA lockout policy in services/auth.
-// Per-tenant overrides live behind security.account_lockout_* settings keys.
 const (
 	// opGetPerson is the operation name for Get operations
 	opGetPerson = "get person"
