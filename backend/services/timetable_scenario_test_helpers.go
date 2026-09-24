@@ -21,6 +21,9 @@ type TimetableScenarioTestModule struct {
 	UserContext      *repositories.CallerRows
 	Settings         config.SettingsService
 	TimetableCleanup timetable.TimetableCleanup
+	// People serves the People port of the timetable routes from Users, as
+	// the root binds it.
+	People TimetablePeople
 }
 
 func NewTimetableScenarioTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (TimetableScenarioTestModule, error) {
@@ -47,5 +50,5 @@ func NewTimetableScenarioTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks .
 	if err != nil {
 		return TimetableScenarioTestModule{}, err
 	}
-	return TimetableScenarioTestModule{TimetableTestModule: timetable, Active: live.Active, Users: live.Users, UserContext: live.UserContext, Settings: live.Settings, TimetableCleanup: cleanup}, nil
+	return TimetableScenarioTestModule{TimetableTestModule: timetable, Active: live.Active, Users: live.Users, UserContext: live.UserContext, Settings: live.Settings, TimetableCleanup: cleanup, People: NewTimetablePeople(live.Users)}, nil
 }
