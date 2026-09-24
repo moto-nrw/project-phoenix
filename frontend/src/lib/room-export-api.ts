@@ -1,4 +1,3 @@
-import { trackEvent } from "~/lib/analytics";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 export type RoomSnapshotExportFormat = "pdf" | "docx" | "xlsx";
@@ -27,11 +26,6 @@ export async function exportRoomSnapshot(
   if (!response.ok) {
     throw new Error(await response.text());
   }
-
-  trackEvent("data_exported", {
-    export_type: "rooms",
-    format: request.format,
-  });
 
   const blob = await response.blob();
   downloadBlob(

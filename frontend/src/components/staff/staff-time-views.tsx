@@ -57,6 +57,26 @@ export function KpiCard({
   );
 }
 
+// Herkunfts-Chip am Soll-Wert (Planung-Redesign, docs/04 6.2). Gilt in der
+// laufenden Woche eine Sonderarbeitszeit (#3259), nennt er auch sie.
+export function TargetOriginChip({
+  hasTargetOverride,
+}: {
+  readonly hasTargetOverride?: boolean;
+}) {
+  return hasTargetOverride ? (
+    <OriginChip
+      label="Soll mit Sonderarbeitszeit"
+      title="An manchen Tagen dieser Woche gilt eine Sonderarbeitszeit statt des Arbeitszeitmodells."
+    />
+  ) : (
+    <OriginChip
+      label="Soll aus Arbeitszeitmodell"
+      title="Wochensaldo und Stundenkonto rechnen gegen das im Arbeitszeitmodell hinterlegte Soll."
+    />
+  );
+}
+
 export function KpiCards({
   metrics,
 }: {
@@ -95,10 +115,7 @@ export function KpiCards({
       {/* Herkunfts-Chip am Soll-Wert (Planung-Redesign, docs/04 6.2): genau
           einer pro Oberfläche, solange die Soll-Quellen-Frage offen ist. */}
       <div className="flex justify-end">
-        <OriginChip
-          label="Soll aus Arbeitszeitmodell"
-          title="Wochensaldo und Stundenkonto rechnen gegen das im Arbeitszeitmodell hinterlegte Soll."
-        />
+        <TargetOriginChip hasTargetOverride={metrics.hasTargetOverride} />
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard

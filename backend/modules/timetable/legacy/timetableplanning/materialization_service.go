@@ -46,6 +46,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -90,6 +91,8 @@ type MaterializationResult struct {
 	CandidatesSkippedIncomplete int // template missing planned room or schedule missing timeframe/end_time
 	CandidatesSkippedEnded      int // schedule.valid_until reached (template split ended this recurrence)
 	CandidatesSkippedNotStarted int // schedule.valid_from not yet reached (successor schedule from a template split)
+	CandidatesSkippedHoliday    int // statutory holiday (#3594)
+	CandidatesSkippedClosingDay int // closing day of a series without include_closing_days (#3594)
 	CandidatesRaced             int // UNIQUE violation absorbed (concurrent run won the insert)
 	InstanceStudentsCreated     int
 	InstanceStaffCreated        int
@@ -156,12 +159,13 @@ type materializationService struct {
 	// careBounds answers "until which day is this child in care" for the
 	// per-date roster filter (#2487). Optional: nil means no child has an end
 	// of care, which is what a bare unit-test service should assume.
-	careBounds    CareBoundReader
-	exceptionRepo schedule.ActivityExceptionRepository
-	timeframeRepo schedule.TimeframeRepository
-	db            *bun.DB
-	broadcaster   realtime.Broadcaster
-	logger        *slog.Logger
+	careBounds     CareBoundReader
+	nonWorkingDays timetable.NonWorkingDayCalendar // nil skips no holidays or closing days (#3594)
+	exceptionRepo  schedule.ActivityExceptionRepository
+	timeframeRepo  schedule.TimeframeRepository
+	db             *bun.DB
+	broadcaster    realtime.Broadcaster
+	logger         *slog.Logger
 }
 
 // NewMaterializationService constructs a MaterializationService with all
@@ -350,6 +354,10 @@ func (s *materializationService) materializeForTenantLocked(
 		return result, nil
 	}
 
+	days, err := timetable.LoadNonWorkingDays(ctx, s.nonWorkingDays, from.String(), to.String())
+	if err != nil {
+		return nil, &ScheduleError{Op: "materialize for tenant: load non-working days", Err: err}
+	}
 	// Pre-fetch existing instances for the whole window. Builds an
 	// (activity_group_id, date, start_time) → bool set for O(1) lookup.
 	existing, err := s.instanceRepo.FindByTenantAndDateRange(ctx, schedule.Date(from), schedule.Date(to))
@@ -365,20 +373,15 @@ func (s *materializationService) materializeForTenantLocked(
 	}
 	exceptionIdx := buildExceptionIndex(exceptions)
 
-	// Load timeframes in one query and cache by ID.
-	timeframes, err := s.timeframeRepo.ListAll(ctx)
+	timeframeByID, err := s.timeframeIndex(ctx, "materialize for tenant: load timeframes")
 	if err != nil {
-		return nil, &ScheduleError{Op: "materialize for tenant: load timeframes", Err: err}
-	}
-	timeframeByID := make(map[int64]*schedule.Timeframe, len(timeframes))
-	for _, tf := range timeframes {
-		timeframeByID[tf.ID] = tf
+		return nil, err
 	}
 
 	// Iterate templates. Per template: load schedules, enrollments, supervisors
 	// once; loop over the date window; produce candidates.
 	for _, tmpl := range templates {
-		if err := s.materializeTemplate(ctx, tmpl, from, to, periods, existingIdx, exceptionIdx, timeframeByID, result); err != nil {
+		if err := s.materializeTemplate(ctx, tmpl, from, to, periods, days, existingIdx, exceptionIdx, timeframeByID, result); err != nil {
 			return result, err
 		}
 	}
@@ -410,6 +413,8 @@ func (s *materializationService) finishLog(tenantID int64, source Materializatio
 		slog.Int("skipped_incomplete", r.CandidatesSkippedIncomplete),
 		slog.Int("skipped_ended", r.CandidatesSkippedEnded),
 		slog.Int("skipped_not_started", r.CandidatesSkippedNotStarted),
+		slog.Int("skipped_holidays", r.CandidatesSkippedHoliday),
+		slog.Int("skipped_closing_days", r.CandidatesSkippedClosingDay),
 		slog.Int("raced", r.CandidatesRaced),
 		slog.Int("instance_students_created", r.InstanceStudentsCreated),
 		slog.Int("instance_staff_created", r.InstanceStaffCreated),
@@ -506,6 +511,7 @@ func (s *materializationService) materializeTemplate(
 	tmpl *activities.Group,
 	from, to timezone.Date,
 	periods []*schedule.CalendarPeriod,
+	days timetable.NonWorkingDays,
 	existingIdx map[existingKey]struct{},
 	exceptionIdx map[exceptionKey]*schedule.ActivityException,
 	timeframeByID map[int64]*schedule.Timeframe,
@@ -546,30 +552,9 @@ func (s *materializationService) materializeTemplate(
 		if date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
 			continue
 		}
-		isoWd := isoWeekday(date)
 		for _, sch := range schedules {
-			if sch.Weekday != isoWd {
-				continue
-			}
-
-			if scheduleEndedOn(sch, date) {
-				result.CandidatesSkippedEnded++
-				continue
-			}
-
-			if scheduleNotStartedOn(sch, date) {
-				result.CandidatesSkippedNotStarted++
-				continue
-			}
-
-			period := selectPeriod(tmpl, sch, date, periods, s.getLogger())
+			period := s.candidatePeriod(tmpl, sch, date, periods, days, result)
 			if period == nil {
-				result.CandidatesSkippedNoPeriod++
-				continue
-			}
-
-			if !shouldMaterializeWeekPattern(sch.WeekPattern, date, period) {
-				result.CandidatesSkippedABWeek++
 				continue
 			}
 

@@ -27,6 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -1274,7 +1275,7 @@ func (s *instanceService) buildSubstituteTimeConflicts(
 
 type substitutionWarningProbe struct {
 	staffID   int64
-	targets   []SubstituteConflictInstance
+	targets   []timetable.SubstituteConflictInstance
 	targetIDs map[int64]bool
 }
 
@@ -1325,14 +1326,14 @@ func mergeSubstitutionWarnings(
 	warnings := make([]SubstituteTimeConflict, 0)
 	seenConflict := make(map[[3]int64]bool)
 	for _, probe := range probes {
-		foreigns := make([]SubstituteConflictInstance, 0)
+		foreigns := make([]timetable.SubstituteConflictInstance, 0)
 		for _, row := range rowsByStaff[probe.staffID] {
 			if row.IsAbsent || probe.targetIDs[row.InstanceID] || foreignByID[row.InstanceID] == nil {
 				continue
 			}
 			foreigns = append(foreigns, toConflictInstance(foreignByID[row.InstanceID]))
 		}
-		for _, conflict := range DetectSubstituteTimeConflicts(probe.targets, foreigns) {
+		for _, conflict := range timetable.DetectSubstituteTimeConflicts(probe.targets, foreigns) {
 			key := [3]int64{probe.staffID, conflict.InstanceID, conflict.OtherID}
 			if seenConflict[key] {
 				continue
@@ -1450,17 +1451,6 @@ func classifySubstitute(
 		return SubstituteActionAlreadyOnInstance, 0, true
 	}
 	return SubstituteActionSubstituted, 0, true
-}
-
-// toConflictInstance converts an ActivityInstance's TIME columns into the
-// minutes-since-midnight form expected by the conflict helper.
-func toConflictInstance(inst *scheduleModel.ActivityInstance) SubstituteConflictInstance {
-	return SubstituteConflictInstance{
-		ID:        inst.ID,
-		StartMin:  MinutesOfTime(inst.StartTime.Hour(), inst.StartTime.Minute()),
-		EndMin:    MinutesOfTime(inst.EndTime.Hour(), inst.EndTime.Minute()),
-		StartHHMM: inst.StartTime.Format("15:04"),
-	}
 }
 
 // projectAbsent returns a shallow-copied view of rows with the given staff ids

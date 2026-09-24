@@ -2,15 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { DemoSetupScreen } from "~/components/demo/demo-setup-screen";
-import { Button, ButtonLink } from "~/components/ui/button";
-import { EmptyState } from "~/components/ui/empty-state";
-import { Loading } from "~/components/ui/loading";
+import { DemoOpening, DemoProblem } from "~/components/demo/demo-shell";
 import {
-  DEMO_ENTRY_OPENING,
-  DEMO_ENTRY_NEW_LINK,
-  DEMO_ENTRY_PROBLEMS,
-  DEMO_ENTRY_RETRY,
-  DEMO_WEBSITE_URL,
   type DemoEntryPhase,
   type DemoLink,
   type DemoSetupProgress,
@@ -82,32 +75,15 @@ export default function DemoWaitingRoomPage() {
     };
   }, [attempt]);
 
-  if (phase === "opening") return <Loading message={DEMO_ENTRY_OPENING} />;
+  if (phase === "opening") return <DemoOpening />;
   if (phase === "preparing") return <DemoSetupScreen {...setup} />;
-  const problem = DEMO_ENTRY_PROBLEMS[phase];
   return (
-    <main className="flex min-h-dvh items-center justify-center px-4">
-      <EmptyState
-        title={problem.title}
-        description={problem.description}
-        action={
-          phase === "failed" ? (
-            <Button
-              type="button"
-              onClick={() => {
-                setPhase("opening");
-                setAttempt((current) => current + 1);
-              }}
-            >
-              {DEMO_ENTRY_RETRY}
-            </Button>
-          ) : (
-            <ButtonLink href={DEMO_WEBSITE_URL}>
-              {DEMO_ENTRY_NEW_LINK}
-            </ButtonLink>
-          )
-        }
-      />
-    </main>
+    <DemoProblem
+      phase={phase}
+      onRetry={() => {
+        setPhase("opening");
+        setAttempt((current) => current + 1);
+      }}
+    />
   );
 }

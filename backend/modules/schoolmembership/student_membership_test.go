@@ -17,7 +17,7 @@ func TestStudentLifecycleCommandsNormalizeAndValidate(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(engine.studentIDs, []int64{4, 7}) || engine.fromClass != "1a" || engine.toClass != "2a" {
 		t.Fatalf("class command lost normalization or comparison: %+v, %v", engine, err)
 	}
-	_, err = module.Reactivate(ctx, []int64{7, 7, 0}, " active ")
+	_, err = module.Reactivate(ctx, []int64{7, 7, 0}, " active ", schoolmembership.EnforceChildQuota)
 	if err != nil || !reflect.DeepEqual(engine.studentIDs, []int64{7}) || engine.studentStatus != "active" {
 		t.Fatalf("reactivation lost normalization: %+v, %v", engine, err)
 	}
@@ -27,7 +27,12 @@ func TestStudentLifecycleCommandsNormalizeAndValidate(t *testing.T) {
 	}
 	for _, run := range []func() error{
 		func() error { _, err := module.ChangeClass(ctx, []int64{1}, " ", "2a"); return err },
-		func() error { _, err := module.Reactivate(ctx, []int64{1}, "alumnus"); return err },
+		func() error {
+			_, err := module.Reactivate(ctx, []int64{1}, "alumnus", schoolmembership.EnforceChildQuota)
+			return err
+		},
+		// Skipping the Kinderkontingent is never a silent default (#3567).
+		func() error { _, err := module.Reactivate(ctx, []int64{1}, "active", 0); return err },
 		func() error { _, err := module.TransitionStatus(ctx, 1, "alumnus", "active"); return err },
 		func() error { _, err := module.SetStatus(ctx, 1, "alumnus"); return err },
 		func() error { _, err := module.EndCare(ctx, []int64{1}, "not-a-date"); return err },
@@ -43,6 +48,10 @@ func TestStudentLifecycleCommandsNormalizeAndValidate(t *testing.T) {
 }
 
 func (e *recordingEngine) TransitionStudentStatus(context.Context, int64, string, string) (bool, error) {
+	return false, nil
+}
+
+func (e *recordingEngine) SetStudentStatus(context.Context, int64, string) (bool, error) {
 	return false, nil
 }
 

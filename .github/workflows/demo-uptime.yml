@@ -1,0 +1,78 @@
+name: Demo uptime
+
+# A failed deploy notifies by e-mail and Slack. A crashed container, a failed
+# certificate renewal or an unreachable machine does not: the public demo runs
+# on its own VM and nothing watches it from outside. This probe is that alarm.
+#
+# It stays silent until the repository variable DEMO_MONITOR_ENABLED is "true",
+# so it does not fail before the demo answers. Scheduled runs can be delayed by
+# several minutes under GitHub load, so this is a safety net, not monitoring
+# with a guaranteed interval. Tighten the schedule for event days if needed.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-uptime
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Probe the public demo
+    if: github.event_name == 'workflow_dispatch' || vars.DEMO_MONITOR_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe health endpoints and certificate
+        id: probe
+        env:
+          FRONTEND_HOST: demo.moto-app.de
+          API_HOST: api.demo.moto-app.de
+          CERT_WARN_DAYS: '5'
+        run: |
+          failures=''
+          for probe in "frontend https://$FRONTEND_HOST/api/health" "api https://$API_HOST/health"; do
+            name="${probe%% *}"
+            url="${probe#* }"
+            code='000'
+            for attempt in 1 2 3; do
+              code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$url" 2>/dev/null || echo 000)"
+              if [ "$code" = 200 ]; then break; fi
+              if [ "$attempt" != 3 ]; then sleep 20; fi
+            done
+            if [ "$code" != 200 ]; then failures="$failures $name=$code"; fi
+          done
+          expiry="$(printf '' | openssl s_client -connect "$FRONTEND_HOST:443" -servername "$FRONTEND_HOST" 2>/dev/null \
+            | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)"
+          end_seconds="$(date -u -d "$expiry" +%s 2>/dev/null || echo 0)"
+          if [ "$end_seconds" -gt 0 ]; then
+            days=$(( (end_seconds - $(date -u +%s)) / 86400 ))
+            echo "certificate valid for $days more days"
+            if [ "$days" -lt "$CERT_WARN_DAYS" ]; then failures="$failures certificate=${days}d"; fi
+          else
+            failures="$failures certificate=unreadable"
+          fi
+          if [ -n "$failures" ]; then
+            echo "detail=${failures# }" >> "$GITHUB_OUTPUT"
+            echo "demo unreachable:$failures" >&2
+            exit 1
+          fi
+          echo 'demo reachable, certificate valid'
+
+      - name: Notify Slack
+        if: failure() && steps.probe.outputs.detail != ''
+        env:
+          WEBHOOK: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}
+          DETAIL: ${{ steps.probe.outputs.detail }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo 'no Slack webhook configured, skipping'
+            exit 0
+          fi
+          printf '{"text":":rotating_light: Demo nicht erreichbar (%s) — %s"}' "$DETAIL" "$RUN_URL" \
+            | curl -sS -X POST -H 'Content-Type: application/json' --data @- "$WEBHOOK" > /dev/null

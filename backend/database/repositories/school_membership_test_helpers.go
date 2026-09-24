@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -20,5 +21,6 @@ func NewSchoolMembership(db *bun.DB) (schoolmembership.Capability, error) {
 		DB:         db,
 		Observe:    func(schoolMembershipCompose.Observation) {},
 		Employment: MembershipStaffEmployment(employment),
+		ChildQuota: organizationCompose.NewChildQuotaLimits(),
 	})
 }

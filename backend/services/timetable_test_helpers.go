@@ -120,7 +120,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	materialization := timetableplanning.NewMaterializationService(r.ActivityGroup, r.ActivitySchedule, r.StudentEnrollment,
 		r.ActivitySupervisor, r.CalendarPeriod, r.ActivityInstance, r.InstanceStaff, r.InstanceStudent,
 		r.ActivityException, r.Timeframe, db, hub, logger,
-		timetableplanning.WithCareBoundReader(r.Student))
+		timetableplanning.WithCareBoundReader(r.Student), timetableplanning.WithNonWorkingDays(calendar))
 	recovery := repositories.NewActivityRecoveryRepository(db, r.InstanceStudent)
 	conflicts, err := NewTimetableConflictDetection(TimetableConflictReaders{
 		Instances: r.ActivityInstance, InstanceStaff: r.InstanceStaff, InstanceStudents: r.InstanceStudent,

@@ -17,7 +17,7 @@ import (
 // The account lifecycle flows (#3225) and the role administration (#3314)
 // need facts other owners hold and seams the composition root binds: persons,
 // staff and caregiver profiles, guardian profiles and relationships, the
-// audit evidence, the PIN and password hashers, the retained role storage and
+// audit evidence, the password hasher, the retained role storage and
 // account management and the retained guardian invitation delivery. The
 // seams below are expressed in public values; this package adapts them to the
 // consumer-owned ports.
@@ -74,18 +74,6 @@ type StaffDirectory interface {
 	// HasLiveCaregiverProfile reports whether the account's live person at the
 	// school carries a live staff record with a live caregiver profile.
 	HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error)
-}
-
-// PINHasher hashes and verifies staff PINs.
-type PINHasher interface {
-	HashPIN(pin string) (string, error)
-	VerifyPIN(pin, hash string) bool
-}
-
-// LockoutPolicy resolves the tenant's PIN lockout threshold and duration;
-// zero values fall back to the module defaults.
-type LockoutPolicy interface {
-	PINLockout(ctx context.Context) (threshold int, duration time.Duration)
 }
 
 // StaffPreviewEvent is the audit evidence of one preview start or end.
@@ -198,8 +186,6 @@ type FinancialAudit interface {
 // beyond the database and the session dependencies.
 type LifecycleDependencies struct {
 	Staff     StaffDirectory
-	PINs      PINHasher
-	Lockout   LockoutPolicy
 	Audit     PreviewAudit
 	Passwords PasswordPolicy
 	Guardians GuardianDirectory
@@ -222,7 +208,7 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 		return nil, nil, errors.New("identity access compose: the lifecycle flows require the session dependencies")
 	}
 	switch {
-	case deps.Staff == nil, deps.PINs == nil, deps.Lockout == nil, deps.Audit == nil,
+	case deps.Staff == nil, deps.Audit == nil,
 		deps.Passwords == nil, deps.Guardians == nil, deps.Delivery == nil, deps.Financial == nil:
 		return nil, nil, errors.New("identity access compose: every lifecycle dependency is required")
 	case administration == nil:
@@ -243,8 +229,6 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 		Staff:       staffDirectory{deps.Staff},
 		Profiles:    staffDirectory{deps.Staff},
 		Roles:       rolePolicy{},
-		PINs:        deps.PINs,
-		Lockout:     deps.Lockout,
 		Audit:       previewAudit{deps.Audit},
 		Codec:       tokenCodec{sessions.Codec},
 		Admin:       accountAdministration{roles: roles, accounts: administration},
@@ -534,36 +518,6 @@ func roleFacts(role *identityaccess.RoleFacts) *domain.RoleFacts {
 	}
 	facts := domain.RoleFacts(*role)
 	return &facts
-}
-
-func (e engine) AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (identityaccess.AuthenticatedStaff, error) {
-	if e.lifecycle == nil {
-		return identityaccess.AuthenticatedStaff{}, errAccountLifecycleUnavailable
-	}
-	staff, err := e.lifecycle.AuthenticateStaffPIN(e.attach(ctx), tenantID, staffID, pin)
-	return identityaccess.AuthenticatedStaff(staff), lifecycleError(err)
-}
-
-func (e engine) StaffPINStatus(ctx context.Context, accountID int64) (bool, *time.Time, error) {
-	if e.lifecycle == nil {
-		return false, nil, errAccountLifecycleUnavailable
-	}
-	hasPIN, lastChanged, err := e.lifecycle.StaffPINStatus(e.attach(ctx), accountID)
-	return hasPIN, lastChanged, lifecycleError(err)
-}
-
-func (e engine) StaffPINPreflight(ctx context.Context, accountID int64) error {
-	if e.lifecycle == nil {
-		return errAccountLifecycleUnavailable
-	}
-	return lifecycleError(e.lifecycle.StaffPINPreflight(e.attach(ctx), accountID))
-}
-
-func (e engine) ChangeStaffPIN(ctx context.Context, accountID int64, currentPIN *string, newPIN string) error {
-	if e.lifecycle == nil {
-		return errAccountLifecycleUnavailable
-	}
-	return lifecycleError(e.lifecycle.ChangeStaffPIN(e.attach(ctx), accountID, currentPIN, newPIN))
 }
 
 func (e engine) StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previousToken, ipAddress, userAgent string) (*identityaccess.StaffPreviewSession, error) {
@@ -862,12 +816,6 @@ var lifecycleSentinels = []struct {
 	internal error
 	public   error
 }{
-	{domain.ErrInvalidStaffPINCredentials, identityaccess.ErrInvalidStaffPINCredentials},
-	{domain.ErrStaffPINLocked, identityaccess.ErrStaffPINLocked},
-	{domain.ErrStaffPINAccountNotFound, identityaccess.ErrStaffPINAccountNotFound},
-	{domain.ErrStaffPINSelfServiceLocked, identityaccess.ErrStaffPINSelfServiceLocked},
-	{domain.ErrStaffPINCurrentRequired, identityaccess.ErrStaffPINCurrentRequired},
-	{domain.ErrStaffPINCurrentWrong, identityaccess.ErrStaffPINCurrentWrong},
 	{domain.ErrPreviewSelf, identityaccess.ErrPreviewSelf},
 	{domain.ErrPreviewTargetNotStaff, identityaccess.ErrPreviewTargetNotStaff},
 	{domain.ErrPreviewTokenInvalid, identityaccess.ErrPreviewTokenInvalid},

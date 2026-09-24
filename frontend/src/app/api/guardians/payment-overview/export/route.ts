@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
+import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "GuardianPaymentExportRoute" });
@@ -33,6 +34,7 @@ async function proxyExport(body: string, token: string) {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        ...(await incomingAnalyticsSessionHeaders()),
       },
       body,
       cache: "no-store",

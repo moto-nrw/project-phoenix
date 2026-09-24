@@ -113,8 +113,8 @@ type UpdateStaffResult struct {
 // group, permission middleware, response rendering, and every foreign lookup
 // or business flow that still lives outside the School Membership capability.
 //
-// The three delegated renderers (WriteFailure, SchoolClassFailure,
-// PINFailure) both render AND observe the response — the adapter cannot know
+// The two delegated renderers (WriteFailure, SchoolClassFailure) both render
+// AND observe the response — the adapter cannot know
 // which status the root's error rules produce for a sentinel it may not
 // import. Every failure the adapter classifies itself goes through Failure
 // and is observed here.
@@ -140,10 +140,6 @@ type Runtime struct {
 	// SchoolClassFailure renders (and observes) the class-teacher sentinels:
 	// unknown staff -> 404, empty class name -> 400, else 500.
 	SchoolClassFailure func(http.ResponseWriter, *http.Request, error)
-	// PINFailure renders (and observes) the PIN sentinels: account not found
-	// -> 404, locked -> 403, missing current PIN -> 400, wrong current PIN
-	// -> 401, else 500.
-	PINFailure func(http.ResponseWriter, *http.Request, error)
 
 	// Permissions returns the caller's granted permissions; HasPermission is
 	// the wildcard-aware matcher (admin:* matches every tier).
@@ -157,8 +153,6 @@ type Runtime struct {
 	Person         func(context.Context, int64) (Person, error)
 	PersonNotFound func(error) bool
 	Persons        func(context.Context, []int64) ([]Person, error)
-	// PersonIDByAccount reports the person linked to an account, if any.
-	PersonIDByAccount func(context.Context, int64) (int64, bool, error)
 
 	// The presence and account enrichments below are non-critical: an error
 	// is logged and the field stays empty.
@@ -188,14 +182,6 @@ type Runtime struct {
 	UpdateStaff func(context.Context, UpdateStaffInput) (UpdateStaffResult, error)
 	Offboard    func(context.Context, int64, string) error
 
-	PINStatus func(context.Context, int64) (bool, *time.Time, error)
-	// PINPreflight runs the account-state checks that must answer BEFORE the
-	// staff-only check, so a locked account keeps reading "account is
-	// temporarily locked due to failed PIN attempts" instead of the
-	// staff-only message. Its error goes to PINFailure.
-	PINPreflight func(context.Context, int64) error
-	UpdatePIN    func(context.Context, int64, *string, string) error
-
 	Log *slog.Logger
 }
 
@@ -211,9 +197,9 @@ func NewResource(membership schoolmembership.Capability, runtime Runtime) *Resou
 	if membership == nil || runtime.Protected == nil || runtime.Permission == nil ||
 		runtime.Success == nil || runtime.Failure == nil || runtime.ObserveResponse == nil ||
 		runtime.ServeAvatar == nil || runtime.WriteFailure == nil || runtime.SchoolClassFailure == nil ||
-		runtime.PINFailure == nil || runtime.Permissions == nil || runtime.HasPermission == nil ||
+		runtime.Permissions == nil || runtime.HasPermission == nil ||
 		runtime.CurrentAccountID == nil || runtime.CurrentUsername == nil ||
-		runtime.Person == nil || runtime.PersonNotFound == nil || runtime.Persons == nil || runtime.PersonIDByAccount == nil ||
+		runtime.Person == nil || runtime.PersonNotFound == nil || runtime.Persons == nil ||
 		runtime.PresentStaffIDs == nil || runtime.WorkStatusMap == nil || runtime.AbsenceMap == nil ||
 		runtime.AbsenceLabelMap == nil || runtime.AccountRoles == nil || runtime.AccountEmails == nil ||
 		runtime.AccountAvatars == nil || runtime.AccountHasRole == nil ||
@@ -221,7 +207,7 @@ func NewResource(membership schoolmembership.Capability, runtime Runtime) *Resou
 		runtime.TeacherGroups == nil || runtime.SchoolClasses == nil || runtime.SetSchoolClasses == nil ||
 		runtime.ActiveCaregivers == nil || runtime.StaffByRoles == nil ||
 		runtime.CreateStaff == nil || runtime.UpdateStaff == nil || runtime.Offboard == nil ||
-		runtime.PINStatus == nil || runtime.PINPreflight == nil || runtime.UpdatePIN == nil || runtime.Log == nil {
+		runtime.Log == nil {
 		panic("staff HTTP: all dependencies are required")
 	}
 	return &Resource{membership: membership, runtime: runtime}
@@ -267,9 +253,4 @@ func (rs *Resource) Register(r chi.Router, withTx Middleware) {
 	r.With(rs.runtime.Permission(permissions.UsersCreate), withTx).Post("/", rs.createStaff)
 	r.With(rs.runtime.Permission(permissions.StaffManage), withTx).Put("/{id}", rs.updateStaff)
 	r.With(rs.runtime.Permission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStaff)
-
-	// PIN management: every authenticated staff member manages their own PIN,
-	// so the protected group is the only gate.
-	r.With(withTx).Get("/pin", rs.getPINStatus)
-	r.With(withTx).Put("/pin", rs.updatePIN)
 }

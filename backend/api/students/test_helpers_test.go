@@ -42,6 +42,8 @@ type testContext struct {
 	db           *bun.DB
 	resource     *studentsAPI.Resource
 	broadcaster  *testpkg.RecordingBroadcaster
+	// clock is the fixed clock the services run on; nil means the real one.
+	clock func() time.Time
 }
 
 func newStudentTestRepositories(db *bun.DB) repositories.StudentTestRepositories {
@@ -189,7 +191,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		UserContextService:     svc.UserContext,
 		ActiveService:          svc.Active,
 		IoTService:             svc.IoT,
-		DeviceAuthenticator:    testutil.NewDeviceAuthenticators(svc.IoT.Fleet(), testutil.DeviceSchools(t, db), nil, svc.Settings, testDevicePIN).Device(),
+		DeviceAuthenticator:    testutil.NewDeviceAuthenticators(svc.IoT.Fleet(), testutil.DeviceSchools(t, db), svc.Settings, testDevicePIN).Device(),
 		PickupScheduleService:  svc.PickupSchedule,
 		WeekdayPickupNotes:     repoFactory.CarePlan,
 		PartialAbsenceService:  svc.PartialAbsence,
@@ -226,6 +228,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		PickupAdjustmentService:  svc.PickupAdjustments,
 		ParentRequestBulkService: svc.ParentRequests,
 		FamilyProtection:         svc.PeopleDirectory,
+		ChildQuota:               newChildQuotaReader(t, db),
 		RequestReview:            requestReview,
 		Broadcaster:              broadcaster,
 		ParentEventEmitter:       parentEventEmitter,
@@ -242,6 +245,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		db:           db,
 		resource:     resource,
 		broadcaster:  broadcaster,
+		clock:        firstClock(clocks),
 	}
 }
 

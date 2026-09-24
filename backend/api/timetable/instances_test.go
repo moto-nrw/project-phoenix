@@ -122,6 +122,13 @@ func (m *mockInstanceService) DeleteCancelled(_ context.Context, _ int64) error 
 	return m.deleteErr
 }
 
+func (m *mockInstanceService) BulkCancelPlanned(ctx context.Context, from, to timezone.Date, opts timetable.BulkCancelOptions, actor *int64) (*timetable.BulkCancelResult, error) {
+	if m.real != nil {
+		return m.real.BulkCancelPlanned(ctx, from, to, opts, actor)
+	}
+	return nil, nil
+}
+
 func (m *mockInstanceService) SetUnderstaffedAck(_ context.Context, instanceID int64, ack bool, note *string, _ *int64) (*scheduleModel.ActivityInstance, error) {
 	m.lastAckID = instanceID
 	m.lastAckValue = ack

@@ -105,6 +105,8 @@ type StaffScheduleOverviewDependencies struct {
 	// Holidays reduces the weekly targets by the non-working-day Soll (#1418
 	// 3a/3b), bound to the School Calendar. Optional: nil skips the reduction.
 	Holidays planning.HolidayDatesReader
+	// TargetOverrides re-prices Sonderarbeitszeit days (#3259). Optional.
+	TargetOverrides planning.TargetOverrideDaysReader
 }
 
 // newStaffScheduleOverview builds the public query and the getter the
@@ -122,6 +124,9 @@ func newStaffScheduleOverviewService(deps StaffScheduleOverviewDependencies) pla
 		Rooms:         deps.Rooms,
 		Staff:         deps.Staff,
 		Holidays:      deps.Holidays,
+	}
+	if deps.TargetOverrides != nil {
+		overview.TargetOverrides = deps.TargetOverrides
 	}
 	// A typed nil reader in an interface field is not nil, so only a set
 	// reader is forwarded; the overview's own optional handling does the rest.
@@ -232,7 +237,7 @@ func NewShiftPlanning(deps ShiftPlanningDependencies) (*ShiftPlanning, error) {
 	overviewQuery, overview := newStaffScheduleOverview(StaffScheduleOverviewDependencies{
 		Shifts: shiftRows, ShiftWeeks: shiftRows, Instances: deps.Instances, InstanceStaff: deps.InstanceStaff,
 		Rooms: deps.Rooms, Staff: deps.Staff, WorkSchedules: deps.WorkSchedules, WorkModels: deps.WorkModels,
-		Holidays: deps.Holidays,
+		Holidays: deps.Holidays, TargetOverrides: deps.Workforce,
 	})
 
 	return &ShiftPlanning{

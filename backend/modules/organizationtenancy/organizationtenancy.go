@@ -39,7 +39,7 @@ var (
 		"eltern": true, "schule": true, "school": true, "grafana": true,
 		"pyreportal": true, "help": true, "admin": true, "app": true,
 		"dashboard": true, "analytics": true, "status": true, "mail": true,
-		"staging": true, "demo": true,
+		"staging": true, "demo": true, "ingest": true,
 	}
 
 	ErrOrganizationNotFound       = errors.New("organization not found")
@@ -106,6 +106,7 @@ type Command interface {
 	RestoreOrganization(context.Context, int64) (Organization, error)
 	CreateSchool(context.Context, CreateSchool) (School, error)
 	UpdateSchool(context.Context, UpdateSchool) (School, error)
+	SetSchoolChildQuota(context.Context, int64, *ChildQuota) (School, error)
 	SoftDeleteSchool(context.Context, int64) (School, error)
 	RestoreSchool(context.Context, int64) (School, error)
 }
@@ -129,6 +130,7 @@ type engine interface {
 	FindForSchoolMutation(context.Context, int64) (Organization, error)
 	CreateSchool(context.Context, CreateSchool) (School, error)
 	UpdateSchool(context.Context, UpdateSchool) (School, error)
+	SetSchoolChildQuota(context.Context, int64, *ChildQuota) (School, error)
 	SoftDeleteSchool(context.Context, int64) (School, error)
 	RestoreSchool(context.Context, int64) (School, error)
 	FindSchoolByID(context.Context, int64, string) (School, error)

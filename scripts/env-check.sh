@@ -207,7 +207,6 @@ if [[ -f "$ENV_JS" && -f "$ENV_VALIDATION_JS" ]]; then
       | grep -v 'const optionalUrl' \
       | grep -v 'const optionalString' \
       | grep -v 'NEXT_PUBLIC_POSTHOG_KEY' \
-      | grep -v 'NEXT_PUBLIC_POSTHOG_HOST' \
       | grep -v 'NEXT_PUBLIC_SENTRY_DSN' \
       | grep -v 'NEXT_PUBLIC_SENTRY_ENVIRONMENT' || true
   )

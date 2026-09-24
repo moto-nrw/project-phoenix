@@ -2,6 +2,14 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ParentDemoEntryPage from "./page";
 
+// next/image resolves its src against the stubbed location, which has no href.
+vi.mock("next/image", () => ({
+  default: (props: Record<string, unknown>) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img {...props} alt={props.alt as string} />
+  ),
+}));
+
 const signIn = vi.fn();
 vi.mock("next-auth/react", () => ({
   signIn: (...args: unknown[]) => signIn(...args) as unknown,

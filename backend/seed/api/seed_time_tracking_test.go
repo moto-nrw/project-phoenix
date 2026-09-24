@@ -195,6 +195,7 @@ func TestSeedTimeTrackingCoverageCreatesQuotaOpeningAndBreak(t *testing.T) {
 		"/api/staff/17/time-tracking/opening",
 		"/api/staff/17/time-tracking/adjustments",
 		"/api/staff/17/time-tracking/adjustments/91",
+		"/api/staff/17/target-overrides",
 	}, paths)
 
 	paths = nil

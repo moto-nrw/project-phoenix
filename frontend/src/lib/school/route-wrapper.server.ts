@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { schoolAuth } from "~/server/auth/school";
 import { withSchoolAuth } from "~/server/auth/school-route";
+import { incomingAnalyticsSessionHeaders } from "../analytics-session-header.server";
 import { handleApiError } from "../api-helpers.server";
 import { makeProxyFactories } from "../route-proxy-factory.server";
 import {
@@ -54,6 +55,7 @@ async function schoolServerFetch<T>(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      ...(await incomingAnalyticsSessionHeaders()),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });

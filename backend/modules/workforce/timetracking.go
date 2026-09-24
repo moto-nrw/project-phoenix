@@ -566,21 +566,6 @@ type MonthSummary struct {
 	CarryInFrozenFromMonth      *string    `json:"carry_in_frozen_from_month,omitempty"`
 }
 
-// DailyProjection is the priced work-time picture of one calendar day.
-type DailyProjection struct {
-	Date           string `json:"date"`
-	TargetMinutes  int    `json:"target_minutes"`
-	CreditMinutes  int    `json:"credit_minutes"`
-	ActualMinutes  int    `json:"actual_minutes"`
-	BalanceMinutes int    `json:"balance_minutes"`
-}
-
-// DailyTarget is the contractual Soll of one calendar day.
-type DailyTarget struct {
-	Date          string `json:"date"`
-	TargetMinutes int    `json:"target_minutes"`
-}
-
 // WorkTimeMonths is the Monatskarte read model.
 type WorkTimeMonths interface {
 	MonthSummary(ctx context.Context, staffID int64, year, month int) (*MonthSummary, error)

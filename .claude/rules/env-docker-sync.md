@@ -22,8 +22,9 @@ fallbacks via `??`, `||`, Zod defaults, or Compose `${VAR:-default}`.
 The explicit env-default exceptions are `NODE_ENV`, backend `LOG_LEVEL`, and
 frontend `NEXT_PUBLIC_LOG_LEVEL`. The frontend's optional PostHog/Sentry
 integration fields remain optional under `frontend/src/lib/env-validation.js`;
-PostHog's host is required when its key is set. Optional does not mean a
-fallback endpoint or credential may be invented.
+PostHog has no host variable, because the browser reaches it through the
+same-origin `/ingest` proxy. Optional does not mean a fallback endpoint or
+credential may be invented.
 
 Tenant settings resolve only from tenant overrides or registry defaults;
 environment fallbacks are not allowed, including legacy compatibility chains.

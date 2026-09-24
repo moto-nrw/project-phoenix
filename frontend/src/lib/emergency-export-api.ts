@@ -1,4 +1,3 @@
-import { trackEvent } from "~/lib/analytics";
 import {
   downloadBlob,
   filenameFromDisposition,
@@ -17,8 +16,6 @@ export async function exportEmergencySnapshot(
   if (!response.ok) {
     throw new Error(await response.text());
   }
-
-  trackEvent("data_exported", { export_type: "emergency", format: "pdf" });
 
   const blob = await response.blob();
   if (mode === "print") {
