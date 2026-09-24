@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 
-	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -1002,8 +1001,9 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *h
 		},
 	}))
 	router.Use(middleware.Recoverer)
-	sentryMiddleware := sentryhttp.New(sentryhttp.Options{Repanic: true})
-	router.Use(sentryMiddleware.Handle)
+	// Inside the Recoverer: sentryhttp reports a panic and repanics to it, and
+	// every 5xx answer becomes one Sentry event (#3639).
+	router.Use(apiCommon.ServerErrorReporting)
 	router.Use(customMiddleware.SecurityHeaders)
 	// Request-scoped settings memo cache (issue #2065). Router-wide so routes
 	// outside ProtectedTenantGroup (/auth incl. /auth/tenant/resolve,

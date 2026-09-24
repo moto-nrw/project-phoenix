@@ -11,15 +11,14 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // RenderError renders an error response and logs any render failures.
-// For server errors (5xx), it also logs the root cause to slog and reports
-// the error to Sentry so that failures are visible in both Grafana and Sentry.
+// For server errors (5xx), it also logs the root cause to slog and hands it to
+// ServerErrorReporting, which reports the answer to Sentry once.
 func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
 	// A business rejection is never a server error, even where a handler
 	// does not classify it yet: it keeps its 409, code and details (ADR 0006).
@@ -37,11 +36,7 @@ func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 			slog.Int("status", errResp.HTTPStatusCode),
 			slog.String("error", errResp.Err.Error()),
 		)
-		if hub := sentry.GetHubFromContext(r.Context()); hub != nil {
-			hub.CaptureException(errResp.Err)
-		} else {
-			sentry.CaptureException(errResp.Err)
-		}
+		noteServerError(r.Context(), errResp.Err)
 	}
 	if err := render.Render(w, r, renderer); err != nil {
 		slog.Default().Error("error rendering error response", slog.String("error", err.Error()))
