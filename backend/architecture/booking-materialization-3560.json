@@ -29,7 +29,10 @@
     "schedule.student_pickup_schedules",
     "users.care_withdrawal_completions"
   ],
-  "exact_ratchet_keys": [],
+  "exact_ratchet_keys": [
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/realtime",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/activities"
+  ],
   "atomic_cutover": "One PR moves the booking materialization into the Care Plan application behind its own ports, binds the ports in services over the Timetable owner's StudentEnrollmentCommand and roster maintenance, Enrollment's requests, children, phases, booked selections and approved-booking projection, People Directory's students and locks, the School Calendar periods, the settings and Audit Platform's adjustment trail, and switches every consumer: the Timetable roster resync hook, the grade transition, the catalog's offering-edit resync, the phase service, the Regeltermin editor, the direct school_class resync, the pickup reset route and the retained decision, change-request and offering-change services through a translating port. The five services/enrollment files and the carved-in materializer are deleted, as are the legacy repository methods only they called. No statement, table access, transaction boundary or error text changes, and no import rule or baseline key is added; two resolved keys are removed.",
   "tests": [
     "scripts/test-changed.sh origin/development without --fast: the full suites of every changed package and their importers, including services/enrollment, services, api/students, api/enrollment, modules/careplan and the timetable integration suites.",
