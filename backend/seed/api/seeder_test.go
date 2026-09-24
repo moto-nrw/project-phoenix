@@ -345,9 +345,9 @@ func TestCollectSeedState_BasicFields(t *testing.T) {
 
 	// Populate FixedSeeder internal maps
 	fs.staffCredentials = []StaffCredentials{
-		{Email: "demo1@mail.de", Password: "pass1", PIN: "1000", Name: "Anna Müller", Position: "OGS-Büro"},
-		{Email: "demo11@mail.de", Password: "pass11", PIN: "1010", Name: "Julia Klein", Position: "Pädagogische Fachkraft"},
-		{Email: "demo12@mail.de", Password: "pass12", PIN: "1011", Name: "Markus Wolf", Position: "Pädagogische Fachkraft"},
+		{Email: "demo1@mail.de", Password: "pass1", Name: "Anna Müller", Position: "OGS-Büro"},
+		{Email: "demo11@mail.de", Password: "pass11", Name: "Julia Klein", Position: "Pädagogische Fachkraft"},
+		{Email: "demo12@mail.de", Password: "pass12", Name: "Markus Wolf", Position: "Pädagogische Fachkraft"},
 	}
 	fs.staffIDs = map[string]int64{
 		"Anna Müller": 11,
@@ -841,7 +841,7 @@ func TestPrintSuccessSummary_DoesNotPanic(t *testing.T) {
 			ActivityCount: 10,
 			DeviceCount:   10,
 			StaffCredentials: []StaffCredentials{
-				{Name: "Anna Müller", Position: "OGS-Büro", Email: "demo1@mail.de", Password: "pass1", PIN: "1000"},
+				{Name: "Anna Müller", Position: "OGS-Büro", Email: "demo1@mail.de", Password: "pass1"},
 			},
 		},
 	}
@@ -1341,6 +1341,14 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 
 		case "/operator/schools":
+			// The Kinderkontingent step (#3567) reads the school back.
+			if r.Method == seedHTTPMethodGet {
+				_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []map[string]any{{
+					"id": 1, "organization_id": 1, "name": "Demo-Schule Vollbetrieb",
+					"slug": "vollbetrieb", "subdomain": "vollbetrieb", "active": true,
+				}}})
+				return
+			}
 			var body struct {
 				Slug string `json:"slug"`
 			}

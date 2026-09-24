@@ -314,6 +314,32 @@ func TestProjection_SchoolSummaries_Global(t *testing.T) {
 	assert.Equal(t, 0, del.AccountCount)
 }
 
+// TestProjection_SchoolSummaries_ChildQuota pins that both listings carry
+// the Kinderkontingent (#3568): the bundles and bundle size of a limited
+// school, and no bundles next to the default size for one without.
+func TestProjection_SchoolSummaries_ChildQuota(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	projection := newProjection()
+	fix := setupSummariesFixture(t, db)
+	_, err := db.ExecContext(context.Background(),
+		"UPDATE platform.schools SET child_quota_bundles = 3, child_quota_bundle_size = 40 WHERE id = ?", fix.SchoolA1)
+	require.NoError(t, err)
+
+	for name, organizationID := range map[string]*int64{"global": nil, "by organization": &fix.OrgA.ID} {
+		byID := map[int64]domain.SchoolSummary{}
+		for _, s := range schoolSummaries(t, db, projection, organizationID) {
+			byID[s.ID] = s
+		}
+		limited, unlimited := byID[fix.SchoolA1], byID[fix.SchoolA2]
+		require.NotNil(t, limited.ChildQuotaBundles, name)
+		assert.Equal(t, 3, *limited.ChildQuotaBundles, name)
+		assert.Equal(t, 40, limited.ChildQuotaBundleSize, name)
+		assert.Nil(t, unlimited.ChildQuotaBundles, name)
+		assert.Equal(t, 50, unlimited.ChildQuotaBundleSize, name)
+	}
+}
+
 func TestProjection_SchoolSummaries_ByOrganization(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

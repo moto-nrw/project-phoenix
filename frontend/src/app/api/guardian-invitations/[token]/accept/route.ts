@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { analyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...analyticsSessionHeaders(request.headers),
         },
         body: JSON.stringify(payload),
       },

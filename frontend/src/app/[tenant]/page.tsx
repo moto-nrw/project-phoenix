@@ -140,7 +140,7 @@ function LoginForm() {
   const analyticsSchoolId = tenant?.tenantId?.toString() ?? null;
 
   const trackLoginEvent = (
-    event: "login_success" | "login_failed",
+    event: "login_failed",
     props?: Record<string, string | number | boolean>,
   ) => {
     if (!analyticsSchoolId) return;
@@ -282,7 +282,7 @@ function LoginForm() {
       trackLoginEvent("login_failed", { reason: "error" });
       return;
     }
-    trackLoginEvent("login_success");
+    // login_success comes from the backend once it mints the session (#3602).
     setAwaitingRedirect(true);
     router.refresh();
   };

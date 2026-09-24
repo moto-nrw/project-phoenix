@@ -71,6 +71,13 @@ func RestoreStaffStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 		COMMENT ON TABLE users.staff IS NULL;
 		ALTER TABLE users.staff ADD CONSTRAINT fk_staff_work_time_model
 			FOREIGN KEY (work_time_model_id) REFERENCES config.work_time_models(id) ON DELETE RESTRICT;
+		-- Tables created after the cutover (1.15.419, #3259) never referenced
+		-- users.staff. The restored pre-cutover world must not give them that
+		-- reference, or the cutover's repoint guard sees an unknown staff key.
+		ALTER TABLE config.staff_target_overrides
+			DROP CONSTRAINT fk_staff_target_overrides_staff,
+			DROP CONSTRAINT fk_staff_target_overrides_created_by;
+		TRUNCATE config.staff_target_overrides;
 		DO $$
 		DECLARE constraint_row RECORD;
 		        previous_path text := current_setting('search_path');

@@ -11,47 +11,43 @@
 
 import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { usePathname } from "next/navigation";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { useGlobalSSE } from "~/lib/hooks/use-global-sse";
 import { createLogger } from "~/lib/logger";
-import { trackPageView } from "~/lib/analytics";
-import { analyticsDeployment } from "~/lib/analytics-deployment";
-import { resolveAnalyticsViewId } from "~/lib/analytics-routes";
-import { clearPostHogContext, setPostHogContext } from "~/lib/posthog-client";
+import {
+  clearPortalSession,
+  ogsAnalyticsRole,
+  registerPortalSession,
+} from "~/lib/analytics";
 import { useTenant } from "~/lib/tenant-context";
-import { normalizeTenantPathname } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "TenantAuthWrapper" });
 
 function TeacherSpecificHooks() {
   const { data: session, status } = useSession();
-  const rawPathname = usePathname();
-  const { tenantSlug, tenant, routingMode } = useTenant();
-  const pathname = normalizeTenantPathname(
-    rawPathname,
-    tenantSlug,
-    routingMode,
-  );
-  const viewId = resolveAnalyticsViewId(pathname);
+  const { tenant } = useTenant();
   const schoolId = session?.user?.tenantId?.toString() ?? null;
   const urlSchoolId = tenant?.tenantId?.toString() ?? null;
   const tenantMatchesSession =
     schoolId !== null && urlSchoolId !== null && schoolId === urlSchoolId;
+  const role = session?.user ? ogsAnalyticsRole(session.user) : null;
   const registeredSchoolIdRef = useRef<string | null>(null);
 
   const { isReady: contextReady } = useUserContext();
   const { status: sseStatus } = useGlobalSSE();
 
   useEffect(() => {
-    if (status === "authenticated" && tenantMatchesSession && schoolId) {
-      // School-level context only. Never send an account/person identifier.
-      setPostHogContext(
-        {
-          school_id: schoolId,
-          $groups: { school: schoolId },
-          deployment: analyticsDeployment(),
-        },
+    if (
+      status === "authenticated" &&
+      tenantMatchesSession &&
+      schoolId &&
+      role
+    ) {
+      // School and role only. Never send an account/person identifier. Page
+      // views come from the SDK; the analytics filter rewrites their URL to
+      // the route template (analytics-policy.ts).
+      registerPortalSession(
+        { surface: "ogs", schoolId, role },
         registeredSchoolIdRef.current !== null &&
           registeredSchoolIdRef.current !== schoolId,
       );
@@ -60,24 +56,10 @@ function TeacherSpecificHooks() {
       status === "unauthenticated" ||
       (status === "authenticated" && !tenantMatchesSession)
     ) {
-      clearPostHogContext();
+      clearPortalSession();
       registeredSchoolIdRef.current = null;
     }
-  }, [status, schoolId, tenantMatchesSession]);
-
-  useEffect(() => {
-    if (
-      status === "authenticated" &&
-      tenantMatchesSession &&
-      schoolId &&
-      viewId
-    ) {
-      trackPageView(viewId, schoolId);
-    }
-    // `pathname` is intentionally a dependency: navigating between two
-    // resources with the same template (for example /students/1 ->
-    // /students/2) is a new page view, while only `viewId` leaves the browser.
-  }, [status, schoolId, tenantMatchesSession, viewId, pathname]);
+  }, [status, schoolId, tenantMatchesSession, role]);
 
   useEffect(() => {
     if (process.env.NODE_ENV === "development" && status === "authenticated") {

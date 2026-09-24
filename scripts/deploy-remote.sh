@@ -23,6 +23,10 @@ frontend_tag="$DEPLOY_SHA"
 if [[ "$DEPLOY_DIR" = demo ]]; then frontend_tag="demo-$DEPLOY_SHA"; fi
 sed "s|phoenix-server:[^ ]*|phoenix-server:${DEPLOY_SHA}|; s|phoenix-frontend:[^ ]*|phoenix-frontend:${frontend_tag}|" docker-compose.yml.new > docker-compose.yml.pinned
 mv docker-compose.yml.pinned docker-compose.yml.new
+if ! bash "$script_dir/release-backup.sh" keep-images; then
+  echo 'Keeping the running images failed; the running release was not touched' >&2
+  exit 1
+fi
 docker compose --env-file .env.new -f docker-compose.yml.new pull
 
 # Ask the new image whether the pending migrations' data preconditions hold,

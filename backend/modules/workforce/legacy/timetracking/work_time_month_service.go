@@ -164,6 +164,8 @@ type DailyProjection struct {
 	CreditMinutes  int           `json:"credit_minutes"`
 	ActualMinutes  int           `json:"actual_minutes"`
 	BalanceMinutes int           `json:"balance_minutes"`
+	// TargetSource is "override" on a Sonderarbeitszeit day (#3259).
+	TargetSource string `json:"target_source,omitempty"`
 }
 
 // DailyTarget is the contractual Soll of one calendar day, resolved against
@@ -255,6 +257,7 @@ type workTimeMonthService struct {
 	shiftRepo      monthShiftReader
 	settings       monthSettingsResolver
 	holidayReader  HolidayDatesReader
+	overrideReader TargetOverrideReader
 	adjustmentRepo monthAdjustmentReader
 	snapshotRepo   monthSnapshotReader
 	logger         *slog.Logger
@@ -430,88 +433,6 @@ func (a *monthAggregates) balance() int {
 	return a.actual + a.creditedTotal() + a.adjustment - a.targetToDate
 }
 
-// dailyTargetResolver resolves the contractual Soll for single days: a
-// date-valid staff_work_schedules row set wins, the assigned work-time model
-// is the fallback — the same two-tier resolution the weekly summaries use.
-type dailyTargetResolver struct {
-	entries     WorkScheduleTargets
-	staffAnchor *timezone.Date
-	model       *WorkTimeTargetModel
-	modelAnchor timezone.Date
-	holidays    map[timezone.Date]bool
-}
-
-func (r *dailyTargetResolver) targetFor(d timezone.Date) int {
-	// Public holidays zero the Soll regardless of the schedule (§2 EntgFG:
-	// the contractual hours of that day simply fall away, #1418 3a). This
-	// also keeps absence credits at 0 on holidays — no double counting.
-	if r.holidays[d] {
-		return 0
-	}
-	if r.entries.HasEntries {
-		target, _ := r.entries.DailyTarget(r.staffAnchor, d)
-		return target
-	}
-	if r.model != nil {
-		target, _ := r.model.DailyTarget(r.modelAnchor, d)
-		return target
-	}
-	return 0
-}
-
-func (s *workTimeMonthService) buildTargetResolver(ctx context.Context, staffID int64, from, to timezone.Date) (*dailyTargetResolver, error) {
-	resolver := &dailyTargetResolver{}
-
-	if s.holidayReader != nil {
-		holidaySet, err := s.holidayReader.HolidayDates(ctx, from, to)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load public holidays: %w", err)
-		}
-		resolver.holidays = holidaySet
-	}
-
-	staff, err := s.staffRepo.ScheduleAssignment(ctx, staffID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load staff for month summary: %w", err)
-	}
-	resolver.staffAnchor = staff.RotationAnchorDate
-
-	entries, err := s.scheduleRepo.TargetsForStaff(ctx, staffID, from, to)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load work schedules: %w", err)
-	}
-	resolver.entries = entries
-	if entries.HasEntries || staff.WorkTimeModelID == nil {
-		return resolver, nil
-	}
-
-	// No snapshot is valid in this range. The assigned work-time model may only
-	// stand in when the staff member has NO snapshot at all: if versions exist
-	// but none covers these days, the range lies before the first one (or after
-	// the schedule was emptied) and the Soll is genuinely zero. Applying the
-	// current model there would charge Soll for days the schedule didn't exist
-	// yet — and would make the answer depend on the query window, since a range
-	// that also touches the first snapshot resolves the very same days to zero.
-	hasHistory, err := s.scheduleRepo.HasScheduleHistory(ctx, staffID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check schedule history: %w", err)
-	}
-	if hasHistory {
-		return resolver, nil
-	}
-
-	model, err := s.workModelRepo.FindByID(ctx, *staff.WorkTimeModelID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load work time model: %w", err)
-	}
-	resolver.model = model
-	resolver.modelAnchor = model.RotationAnchorDate
-	if staff.RotationAnchorDate != nil {
-		resolver.modelAnchor = *staff.RotationAnchorDate
-	}
-	return resolver, nil
-}
-
 // computeAggregates builds the raw per-month numbers for every month from
 // `first`'s month up to toKey with one set of range queries. `first` is a
 // date, not a month: the account start may fall mid-month, and then the
@@ -532,7 +453,7 @@ func (s *workTimeMonthService) computeAggregates(ctx context.Context, staffID in
 		return nil, err
 	}
 	for d := first; !d.After(last); d = d.AddDays(1) {
-		target := resolver.targetFor(d)
+		target := resolver.TargetFor(d)
 		agg := aggregates[monthOf(d)]
 		agg.target += target
 		if !d.After(today) {
@@ -686,7 +607,7 @@ func (s *workTimeMonthService) addAbsenceCredits(ctx context.Context, staffID in
 	if today.Before(through) {
 		through = today
 	}
-	walkCreditedAbsenceDays(absences, first, through, resolver.targetFor,
+	walkCreditedAbsenceDays(absences, first, through, resolver.TargetFor,
 		func(d timezone.Date, absence *StaffAbsence, credit int, fraction float64) {
 			creditAbsenceDay(absence, credit, fraction, aggregates[monthOf(d)])
 		})
@@ -930,7 +851,7 @@ func (s *workTimeMonthService) GetRangeAggregate(ctx context.Context, staffID in
 		if excludedByAccountStart(d, targetAnchor) {
 			continue
 		}
-		aggregate.TargetMinutes += resolver.targetFor(d)
+		aggregate.TargetMinutes += resolver.TargetFor(d)
 	}
 	actual, err := s.getDailyActualMinutes(ctx, staffID, from, to)
 	if err != nil {
@@ -1340,7 +1261,7 @@ func (s *workTimeMonthService) getDailyBalanceDeltas(
 	}
 	deltas := make(map[timezone.Date]int, from.DaysUntil(to)+1)
 	for d := from; !d.After(to); d = d.AddDays(1) {
-		deltas[d] = -resolver.targetFor(d)
+		deltas[d] = -resolver.TargetFor(d)
 	}
 	if err := s.addDailyActualMinutes(ctx, staffID, from, to, deltas); err != nil {
 		return nil, err
@@ -1434,7 +1355,7 @@ func (s *workTimeMonthService) getDailyAbsenceCredits(
 		return nil, fmt.Errorf("failed to load absences for daily credits: %w", err)
 	}
 	credits := make(map[timezone.Date]int)
-	walkCreditedAbsenceDays(absences, from, through, resolver.targetFor,
+	walkCreditedAbsenceDays(absences, from, through, resolver.TargetFor,
 		func(d timezone.Date, _ *StaffAbsence, credit int, _ float64) {
 			credits[d] += credit
 		})
@@ -1529,7 +1450,7 @@ func compTimeDeductionMinutes(
 ) int {
 	total := 0
 	for d := start; !d.After(end); d = d.AddDays(1) {
-		target := resolver.targetFor(d)
+		target := resolver.TargetFor(d)
 		if target <= 0 {
 			continue
 		}
@@ -1780,7 +1701,7 @@ func (s *workTimeMonthService) GetDailyProjection(ctx context.Context, staffID i
 		if excludedByAccountStart(d, anchor) {
 			return 0
 		}
-		return resolver.targetFor(d)
+		return resolver.TargetFor(d)
 	}
 
 	credits := map[timezone.Date]int{}
@@ -1796,7 +1717,7 @@ func (s *workTimeMonthService) GetDailyProjection(ctx context.Context, staffID i
 
 	projection := make([]DailyProjection, 0, from.DaysUntil(to)+1)
 	for d := from; !d.After(to); d = d.AddDays(1) {
-		day := DailyProjection{Date: d, TargetMinutes: targetFor(d)}
+		day := DailyProjection{Date: d, TargetMinutes: targetFor(d), TargetSource: resolver.SourceFor(d)}
 		if excludedByAccountStart(d, anchor) || d.After(today) {
 			projection = append(projection, day)
 			continue
@@ -1829,7 +1750,7 @@ func (s *workTimeMonthService) GetDailyTargets(ctx context.Context, staffID int6
 	}
 	targets := make([]DailyTarget, 0, from.DaysUntil(to)+1)
 	for d := from; !d.After(to); d = d.AddDays(1) {
-		target := resolver.targetFor(d)
+		target := resolver.TargetFor(d)
 		if excludedByAccountStart(d, anchor) {
 			target = 0
 		}

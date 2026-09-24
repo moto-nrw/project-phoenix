@@ -213,13 +213,18 @@ type Directory interface {
 	RestoreTag(context.Context, int64, string) (bool, error)
 }
 
+// RevertChildQuotaCheck is how a revert reactivates its graduates: past a
+// full Kinderkontingent, so a wrong grade transition can always be undone
+// (#3567).
+const RevertChildQuotaCheck = schoolmembership.SkipChildQuotaForGradeTransitionRevert
+
 // Membership is the School Membership port: class-teacher assignments,
 // class-list entries and the staff liveness the revert consults.
 type Membership interface {
 	// The tenant-wide class-writes gate is acquired before any row lock.
 	LockStudentClassWrites(context.Context, bool) error
 	Graduate(context.Context, []int64) (int64, error)
-	Reactivate(context.Context, []int64, string) ([]int64, error)
+	Reactivate(context.Context, []int64, string, schoolmembership.ChildQuotaCheck) ([]int64, error)
 	ChangeClass(context.Context, []int64, string, string) (int64, error)
 	ListClassAssignments(context.Context, schoolmembership.ClassAssignmentFilter) ([]schoolmembership.ClassAssignment, error)
 	CreateClassAssignment(context.Context, schoolmembership.CreateClassAssignment) (schoolmembership.ClassAssignment, error)

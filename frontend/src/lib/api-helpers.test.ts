@@ -14,6 +14,7 @@ import {
   extractParams,
   handleApiError,
   apiGet,
+  apiPost,
   checkAuth,
   ApiResponseError as ServerApiResponseError,
 } from "./api-helpers.server";
@@ -1000,6 +1001,31 @@ describe("apiGet (server-side)", () => {
           "Content-Type": "application/json",
           "X-Forwarded-For": "172.20.0.4",
           "User-Agent": "Mozilla/5.0 Test Browser",
+        }) as HeadersInit,
+      }),
+    );
+  });
+
+  // The backend links its core-action events to the browser session (#3602).
+  it("forwards the browser's analytics session to the backend", async () => {
+    mockNextHeaders.mockResolvedValueOnce(
+      new Headers({
+        "x-posthog-session-id": "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
+      }),
+    );
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ result: "ok" }),
+    } as Response);
+
+    await apiPost<{ result: string }>("/api/groups", "token", {});
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://backend.test/api/groups",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "X-POSTHOG-SESSION-ID": "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
         }) as HeadersInit,
       }),
     );

@@ -8,6 +8,14 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import DemoWaitingRoomPage from "./page";
 
+// next/image resolves its src against the stubbed location, which has no href.
+vi.mock("next/image", () => ({
+  default: (props: Record<string, unknown>) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img {...props} alt={props.alt as string} />
+  ),
+}));
+
 const fetchMock = vi.fn();
 const assign = vi.fn();
 

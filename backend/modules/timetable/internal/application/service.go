@@ -382,7 +382,10 @@ func (s *Service) UpdateTemplate(ctx context.Context, id int64, fields domain.Te
 		rows, queryStats, updateErr := s.store.UpdateTemplate(txCtx, id, fields)
 		stats.Add(queryStats)
 		result = rows
-		return updateErr
+		if updateErr != nil || rows != 1 {
+			return updateErr
+		}
+		return s.dropOccurrencesAfterSeriesEnd(txCtx, id, fields, stats)
 	})
 	return result, err
 }

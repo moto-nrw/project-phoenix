@@ -3,6 +3,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   resetAndCapture: vi.fn(),
+  setSurface: vi.fn(),
+  setContext: vi.fn(),
+  clearContext: vi.fn(),
 }));
 const mockEnv = vi.hoisted(() => ({
   NEXT_PUBLIC_TENANT_DOMAIN: "localhost",
@@ -11,11 +14,20 @@ const mockEnv = vi.hoisted(() => ({
 vi.mock("~/lib/posthog-client", () => ({
   capturePostHog: mocks.capture,
   resetAndCapturePostHog: mocks.resetAndCapture,
+  setAnalyticsSurface: mocks.setSurface,
+  setPostHogContext: mocks.setContext,
+  clearPostHogContext: mocks.clearContext,
 }));
 
 vi.mock("~/env.client", () => ({ clientEnv: mockEnv }));
 
-import { trackEvent, trackPageView, trackTenantEvent } from "./analytics";
+import {
+  clearPortalSession,
+  ogsAnalyticsRole,
+  registerPortalSession,
+  trackEvent,
+  trackTenantEvent,
+} from "./analytics";
 
 describe("trackEvent", () => {
   beforeEach(() => {
@@ -23,24 +35,10 @@ describe("trackEvent", () => {
   });
 
   it("forwards event name and props to the PostHog client", () => {
-    trackEvent("data_exported", { format: "xlsx" });
+    trackEvent("login_failed", { reason: "error" });
 
-    expect(mocks.capture).toHaveBeenCalledWith("data_exported", {
-      format: "xlsx",
-    });
-  });
-
-  it("captures allowlisted page views without an account identifier", () => {
-    trackPageView("/students/:id", "42");
-
-    expect(mocks.capture).toHaveBeenCalledWith("page_viewed", {
-      view_id: "/students/:id",
-      portal: "tenant",
-      deployment: "localhost",
-      school_id: "42",
-      $groups: { school: "42" },
-      $geoip_disable: true,
-      $process_person_profile: false,
+    expect(mocks.capture).toHaveBeenCalledWith("login_failed", {
+      reason: "error",
     });
   });
 
@@ -53,12 +51,11 @@ describe("trackEvent", () => {
       reason: "invalid_credentials",
       deployment: "localhost",
       school_id: "42",
-      $groups: { school: "42" },
     });
   });
 
   it("rejects tenant events without a numeric school ID", () => {
-    trackTenantEvent("login_success", "school-a");
+    trackTenantEvent("login_failed", "school-a");
 
     expect(mocks.capture).not.toHaveBeenCalled();
   });
@@ -69,8 +66,49 @@ describe("trackEvent", () => {
     expect(mocks.resetAndCapture).toHaveBeenCalledWith("tenant_switched", {
       deployment: "localhost",
       school_id: "42",
-      $groups: { school: "42" },
     });
     expect(mocks.capture).not.toHaveBeenCalled();
+  });
+});
+
+describe("portal sessions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("registers surface, school, and role, never an account", () => {
+    registerPortalSession(
+      { surface: "school", schoolId: "42", role: "lehrkraft" },
+      false,
+    );
+
+    expect(mocks.setSurface).toHaveBeenCalledWith("school");
+    expect(mocks.setContext).toHaveBeenCalledWith(
+      { school_id: "42", role: "lehrkraft" },
+      false,
+    );
+  });
+
+  it("registers a parents session without a school", () => {
+    registerPortalSession(
+      { surface: "parents", schoolId: null, role: "guardian" },
+      true,
+    );
+
+    expect(mocks.setContext).toHaveBeenCalledWith({ role: "guardian" }, true);
+  });
+
+  it("clears the context at logout", () => {
+    clearPortalSession();
+
+    expect(mocks.clearContext).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    [{}, "staff"],
+    [{ isAdmin: true }, "admin"],
+    [{ isAdmin: false, isPreview: true }, "admin"],
+  ])("maps the OGS user %o to the role %s", (user, role) => {
+    expect(ogsAnalyticsRole(user)).toBe(role);
   });
 });

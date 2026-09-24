@@ -94,8 +94,9 @@ func newTimeTrackingResource(svc *services.Factory, calendar schoolcalendar.Cale
 
 // newStaffAdminResource composes the workforce half of /api/staff over the
 // adapted capabilities; schedules is the Workforce query the schedule views
-// read from.
-func newStaffAdminResource(capabilities services.WorkforceAdminCapabilities, schedules workforceModule.Query, exportTransfer *exportTransferModule.Module, db *bun.DB, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
+// read from and the Sonderarbeitszeiten are written through; notifyChanged
+// invalidates the time-account views after such a write.
+func newStaffAdminResource(capabilities services.WorkforceAdminCapabilities, schedules workforceModule.Capability, notifyChanged func(context.Context), exportTransfer *exportTransferModule.Module, db *bun.DB, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
 	cleanup, err := workforceCompose.NewDocumentCleanup(db, nil)
 	if err != nil {
 		panic(err)
@@ -113,6 +114,8 @@ func newStaffAdminResource(capabilities services.WorkforceAdminCapabilities, sch
 		AuditLog:           capabilities.AuditLog,
 		TimeExport:         capabilities.TimeExport,
 		Schedules:          schedules,
+		TargetOverrides:    schedules,
+		NotifyChanged:      notifyChanged,
 		ExportTransfer:     newExportTransferPort(exportTransfer),
 		Identity:           timeTrackingIdentity,
 		DB:                 db,

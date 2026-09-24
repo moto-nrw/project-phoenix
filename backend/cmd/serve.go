@@ -101,7 +101,7 @@ func scrubSentryEvent(event *sentry.Event) *sentry.Event {
 		event.Request.QueryString = appmiddleware.RedactFeedToken(event.Request.QueryString)
 		event.Request.Data = ""
 		for key := range event.Request.Headers {
-			for _, sensitive := range []string{"Authorization", "X-Staff-PIN", "X-Staff-Id", "X-Staff-Auth-PIN", "X-Device-Key"} {
+			for _, sensitive := range []string{"Authorization", "X-Staff-PIN", "X-Staff-Auth-PIN", "X-Staff-Id", "X-Device-Key"} {
 				if strings.EqualFold(key, sensitive) {
 					event.Request.Headers[key] = "[filtered]"
 					break

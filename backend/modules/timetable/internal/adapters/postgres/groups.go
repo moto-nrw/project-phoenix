@@ -41,6 +41,8 @@ type groupRow struct {
 	SourceGradeLevels     []int      `bun:"source_grade_levels,type:jsonb,nullzero"`
 	SourceSchoolClasses   []string   `bun:"source_school_classes,type:jsonb,nullzero"`
 	Notes                 *string    `bun:"notes"`
+	IncludeClosingDays    bool       `bun:"include_closing_days,notnull"`
+	SeriesLastDay         *string    `bun:"series_last_day"`
 	CategoryName          string     `bun:"category_name,scanonly"`
 	CategoryCreatedAt     time.Time  `bun:"category_created_at,scanonly"`
 	CategoryUpdatedAt     time.Time  `bun:"category_updated_at,scanonly"`
@@ -330,6 +332,12 @@ func templateUpdateQuery(db bun.IDB, tenantID, id int64, fields domain.TemplateF
 		}
 		query = query.Set("max_participants = ?", limit)
 	}
+	if fields.IncludeClosingDays != nil {
+		query = query.Set("include_closing_days = ?", *fields.IncludeClosingDays)
+	}
+	if fields.SeriesLastDayProvided {
+		query = query.Set("series_last_day = ?", fields.SeriesLastDay)
+	}
 	return query
 }
 
@@ -495,6 +503,7 @@ func applyGroupFields(row *groupRow, fields domain.GroupFields) {
 	row.TargetGradeLevel, row.TargetSchoolClass = fields.TargetGradeLevel, fields.TargetSchoolClass
 	row.SourceCareOfferingIDs, row.SourceGradeLevels = fields.SourceCareOfferingIDs, fields.SourceGradeLevels
 	row.SourceSchoolClasses, row.Notes = fields.SourceSchoolClasses, fields.Notes
+	row.IncludeClosingDays, row.SeriesLastDay = fields.IncludeClosingDays, fields.SeriesLastDay
 }
 
 func groupUpdateQuery(db bun.IDB, row *groupRow, tenantID, id int64) *bun.UpdateQuery {
@@ -503,8 +512,18 @@ func groupUpdateQuery(db bun.IDB, row *groupRow, tenantID, id int64) *bun.Update
 		Column("planned_room_id", "created_by", "type", "education_group_id", "list_kind", "is_template").
 		Column("is_system", "archived_at", "series_root_id", "calendar_period_id", "target_group_type").
 		Column("target_grade_level", "target_school_class", "source_care_offering_ids", "source_grade_levels").
-		Column("source_school_classes", "notes").
+		Column("source_school_classes", "notes", "include_closing_days", "series_last_day").
 		Where("id = ?", id).Where("tenant_id = ?", tenantID)
+}
+
+// dateOnlyPtr keeps the "YYYY-MM-DD" part of a DATE column read as text, in
+// case the driver hands it back with a time suffix.
+func dateOnlyPtr(value *string) *string {
+	if value == nil || len(*value) <= 10 {
+		return value
+	}
+	day := (*value)[:10]
+	return &day
 }
 
 func groupToDomain(row groupRow, withCategory bool) domain.Group {
@@ -517,7 +536,8 @@ func groupToDomain(row groupRow, withCategory bool) domain.Group {
 		CalendarPeriodID: row.CalendarPeriodID, TargetGroupType: row.TargetGroupType,
 		TargetGradeLevel: row.TargetGradeLevel, TargetSchoolClass: row.TargetSchoolClass,
 		SourceCareOfferingIDs: row.SourceCareOfferingIDs, SourceGradeLevels: row.SourceGradeLevels,
-		SourceSchoolClasses: row.SourceSchoolClasses, Notes: row.Notes,
+		SourceSchoolClasses: row.SourceSchoolClasses, Notes: row.Notes, IncludeClosingDays: row.IncludeClosingDays,
+		SeriesLastDay: dateOnlyPtr(row.SeriesLastDay),
 	}
 	if withCategory {
 		group.Category = &domain.Category{ID: row.CategoryID, TenantID: row.TenantID,

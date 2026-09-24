@@ -443,6 +443,16 @@ func seedTimeTrackingCoverage(rt *Runtime, staffID int64, year int) error {
 	if _, err := rt.Client.Delete(fmt.Sprintf("/api/staff/%d/time-tracking/adjustments/%d", staffID, adjustmentID)); err != nil {
 		return fmt.Errorf("delete demo balance adjustment for staff %d: %w", staffID, err)
 	}
+	// Sonderarbeitszeit (#3259): a holiday-care week in the future with 8.5h
+	// per day, so the Arbeitszeitmodell tab and the daily table show one.
+	careStart := nextWeekday(todaySeedDate().UTCMidnight().AddDate(0, 0, 14), time.Monday)
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/staff/%d/target-overrides", staffID), map[string]any{
+		"start_date":    toDateKey(careStart),
+		"end_date":      toDateKey(careStart.AddDate(0, 0, 4)),
+		"daily_minutes": 510,
+	}); err != nil {
+		return fmt.Errorf("seed target override for staff %d: %w", staffID, err)
+	}
 	return nil
 }
 

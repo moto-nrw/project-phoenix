@@ -293,6 +293,11 @@ export interface EventFormState {
    * else — creates and instance edits use `date` instead.
    */
   seriesStartDate: string;
+  /**
+   * Inclusive last day of the series (#3594), "YYYY-MM-DD"; "" = the series
+   * runs until its Planungszeitraum ends. Prefilled from the stored series.
+   */
+  seriesEndDate: string;
   startTime: string;
   endTime: string;
   roomId: string;
@@ -447,6 +452,7 @@ export function emptyForm(
     title: "",
     date: defaultDate,
     seriesStartDate: "",
+    seriesEndDate: "",
     startTime: defaultStartTime,
     endTime: defaultEndTime,
     roomId: "",
@@ -492,6 +498,7 @@ export function formFromInstance(
     title: instance.title,
     date: instance.date,
     seriesStartDate: "",
+    seriesEndDate: "",
     startTime: instance.startTime,
     endTime: instance.endTime,
     roomId: instance.roomId,
@@ -556,6 +563,7 @@ export function formFromSeries(
     title: series.name,
     date: defaultDate,
     seriesStartDate: firstSchedule?.validFrom ?? "",
+    seriesEndDate: series.endDate ?? "",
     startTime: firstSchedule?.startTime ?? "12:00",
     endTime: firstSchedule?.endTime ?? "13:00",
     roomId: series.roomId ?? "",
