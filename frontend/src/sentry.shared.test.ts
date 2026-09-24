@@ -184,8 +184,100 @@ describe("scrubEvent", () => {
       "/api/calendar-feed/[REDACTED]",
     );
     expect(result.breadcrumbs?.[0]?.data?.url).toBe(
-      "http://server:8080/public/calendar/[REDACTED]?x=1",
+      "http://server:8080/public/calendar/[REDACTED]",
     );
+  });
+
+  it("strips query strings and fragments from request and breadcrumbs, keeping paths with IDs", () => {
+    const event = makeEvent({
+      request: {
+        url: "https://schule-a.moto-app.de/students/42?search=Mia%20Muster#details",
+        query_string: "search=Mia%20Muster",
+        headers: {
+          Referer: "https://schule-a.moto-app.de/students?search=Mia",
+        },
+      },
+      transaction: "/students/42?search=Mia",
+      contexts: { nextjs: { request_path: "/students/42?search=Mia" } },
+      breadcrumbs: [
+        {
+          category: "navigation",
+          data: { from: "/students?search=Mia", to: "/students/42?tab=notes" },
+        },
+        {
+          category: "fetch",
+          data: {
+            method: "GET",
+            url: "/api/students?search=Mia%20Muster",
+            status_code: 500,
+          },
+        },
+        {
+          category: "log.StudentSearch",
+          message: "search failed for /api/students?search=Mia",
+        },
+        {
+          category: "log.DemoEntry",
+          message: "entry https://demo.moto-app.de/demo#token=secret-demo",
+        },
+      ],
+    });
+
+    const result = scrubEvent(event);
+    if (result === null) throw new Error("expected event to be kept");
+
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain("Mia");
+    expect(serialized).not.toContain("secret-demo");
+    expect(result.request?.url).toBe(
+      "https://schule-a.moto-app.de/students/42",
+    );
+    expect(result.request?.query_string).toBeUndefined();
+    expect(result.request?.headers?.Referer).toBe(
+      "https://schule-a.moto-app.de/students",
+    );
+    expect(result.transaction).toBe("/students/42");
+    expect(result.contexts?.nextjs?.request_path).toBe("/students/42");
+    expect(result.breadcrumbs?.[0]?.data).toEqual({
+      from: "/students",
+      to: "/students/42",
+    });
+    expect(result.breadcrumbs?.[1]?.data).toEqual({
+      method: "GET",
+      url: "/api/students",
+      status_code: 500,
+    });
+    expect(result.breadcrumbs?.[2]?.message).toBe(
+      "search failed for /api/students",
+    );
+    expect(result.breadcrumbs?.[3]?.message).toBe(
+      "entry https://demo.moto-app.de/demo",
+    );
+  });
+
+  it("keeps a question mark that ends a sentence in a breadcrumb", () => {
+    const result = scrubEvent(
+      makeEvent({ breadcrumbs: [{ message: "Speichern fehlgeschlagen?" }] }),
+    );
+
+    expect(result?.breadcrumbs?.[0]?.message).toBe("Speichern fehlgeschlagen?");
+  });
+
+  it("keeps only the account ID of the user: no name, e-mail or IP", () => {
+    const result = scrubEvent(
+      makeEvent({
+        user: {
+          id: "17",
+          name: "Mia Muster",
+          email: "mia@example.com",
+          ip_address: "203.0.113.7",
+          username: "mia",
+          geo: { city: "Münster" },
+        },
+      }),
+    );
+
+    expect(result?.user).toStrictEqual({ id: "17" });
   });
 
   it("redacts request-feed tokens from frontend and backend paths", () => {
