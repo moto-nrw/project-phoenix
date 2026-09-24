@@ -76,16 +76,18 @@ func TestBookOpenRoom_RepeatedBookingReportsNoMove(t *testing.T) {
 	assert.Equal(t, int64(250), result.RoomSessionID)
 }
 
-func TestBookOpenRoom_RoomNameLookupFailureKeepsTheBooking(t *testing.T) {
+func TestBookOpenRoom_RoomNameLookupFailureRollsBack(t *testing.T) {
 	t.Parallel()
 	h := newOpenRoomHarness(t)
 	h.rooms.findErr = errBoom
 
 	result, err := bookOpenRoom(h)
 
-	require.NoError(t, err)
-	assert.Empty(t, result.RoomName)
-	assert.Equal(t, "Max ist jetzt im offenen Raum.", result.Message)
+	requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageInternalServerError)
+	require.ErrorIs(t, err, errBoom)
+	assert.Nil(t, result)
+	assert.Len(t, h.openRooms.moves, 1)
+	assert.Equal(t, 1, h.unit.rollbacks)
 }
 
 func TestBookOpenRoom_Refusals(t *testing.T) {

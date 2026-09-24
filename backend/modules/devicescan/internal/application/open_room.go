@@ -42,10 +42,12 @@ func (s *Service) BookOpenRoom(ctx context.Context, command devicescan.OpenRoomC
 		return nil, s.classifyOpenRoomFailure(ctx, err)
 	}
 
-	roomName := ""
-	if room, roomErr := s.rooms.FindRoom(ctx, command.RoomID); roomErr == nil {
-		roomName = room.Name
+	room, err := s.rooms.FindRoom(ctx, command.RoomID)
+	if err != nil {
+		s.unit.MarkRollback(ctx)
+		return nil, devicescan.Internal(devicescan.MessageInternalServerError, fmt.Errorf("find booked room %d: %w", command.RoomID, err))
 	}
+	roomName := room.Name
 	s.logger.InfoContext(ctx, "open room stay booked at device",
 		slog.String("device_id", device.DeviceID),
 		slog.Int64("student_id", student.ID),
