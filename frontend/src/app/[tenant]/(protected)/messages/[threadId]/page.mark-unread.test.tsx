@@ -2,10 +2,18 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockPush, mockMarkThreadUnread, mockMutate } = vi.hoisted(() => ({
+const {
+  mockPush,
+  mockMarkThreadUnread,
+  mockFetchThread,
+  mockMutate,
+  mockUseSWR,
+} = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockMarkThreadUnread: vi.fn(),
+  mockFetchThread: vi.fn(),
   mockMutate: vi.fn(),
+  mockUseSWR: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -17,31 +25,37 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("swr", () => ({
-  default: () => ({
-    data: {
-      thread_id: "t1",
-      student_id: "42",
-      student_name: "Max Muster",
-      guardian_name: "Anna Muster",
-      messages: [
-        {
-          id: "m1",
-          sender_kind: "guardian",
-          sender_name: "Anna Muster",
-          body: "Hallo",
-          created_at: "2026-09-09T10:00:00Z",
-          kind: "message",
-        },
-      ],
+  default: (...args: unknown[]) => mockUseSWR(...args),
+  unstable_serialize: (key: unknown) => JSON.stringify(key),
+  useSWRConfig: () => ({ cache: new Map() }),
+}));
+
+const loadedThread = {
+  thread_id: "t1",
+  student_id: "42",
+  student_name: "Max Muster",
+  guardian_name: "Anna Muster",
+  messages: [
+    {
+      id: "m1",
+      sender_kind: "guardian",
+      sender_name: "Anna Muster",
+      body: "Hallo",
+      created_at: "2026-09-09T10:00:00Z",
+      kind: "message",
     },
+  ],
+};
+
+function swrResult() {
+  return {
+    data: loadedThread,
     error: undefined,
     isLoading: false,
     isValidating: false,
     mutate: mockMutate,
-  }),
-  unstable_serialize: (key: unknown) => JSON.stringify(key),
-  useSWRConfig: () => ({ cache: new Map() }),
-}));
+  };
+}
 
 vi.mock("~/lib/tenant-context", () => ({
   useTenant: () => ({ tenant: { messagingEnabled: true } }),
@@ -91,6 +105,7 @@ vi.mock("~/components/ui/tenant-page", () => ({
 
 vi.mock("~/lib/parent-messages-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/parent-messages-api")>()),
+  fetchThread: mockFetchThread,
   markThreadUnread: mockMarkThreadUnread,
 }));
 
@@ -111,6 +126,7 @@ describe("Als ungelesen markieren", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSWR.mockImplementation(swrResult);
     unreadRefreshes = 0;
     window.addEventListener("messages-unread-refresh", countRefresh);
   });
@@ -143,5 +159,32 @@ describe("Als ungelesen markieren", () => {
       ),
     ).toBeInTheDocument();
     expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("waits for a pending thread read before marking unread", async () => {
+    let finishLoad!: (value: typeof loadedThread) => void;
+    mockFetchThread.mockReturnValue(
+      new Promise((resolve) => {
+        finishLoad = resolve;
+      }),
+    );
+    let started = false;
+    mockUseSWR.mockImplementation((_key, fetcher: () => Promise<unknown>) => {
+      if (!started) {
+        started = true;
+        void fetcher();
+      }
+      return swrResult();
+    });
+    mockMarkThreadUnread.mockResolvedValue(undefined);
+
+    render(<MessageThreadPage />);
+    await chooseMarkUnread();
+
+    expect(mockFetchThread).toHaveBeenCalledWith("t1");
+    expect(mockMarkThreadUnread).not.toHaveBeenCalled();
+    finishLoad(loadedThread);
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/messages"));
+    expect(mockMarkThreadUnread).toHaveBeenCalledWith("t1");
   });
 });

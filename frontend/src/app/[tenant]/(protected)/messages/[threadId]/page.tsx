@@ -101,6 +101,8 @@ function MessageThreadContent() {
   const messagingEnabled = tenant?.messagingEnabled === true;
 
   const { cache } = useSWRConfig();
+  const leavingAsUnreadRef = useRef(false);
+  const pendingThreadLoadsRef = useRef(new Set<Promise<ThreadDetail>>());
 
   // Seed the header instantly from the inbox SWR cache (subject, guardian,
   // child) so opening a chat shows its structure immediately instead of a
@@ -135,9 +137,18 @@ function MessageThreadContent() {
     mutate,
   } = useSWR(
     [`${tenantSlug ?? ""}:message-thread`, threadId],
-    () => fetchThread(threadId),
+    async () => {
+      const load = fetchThread(threadId);
+      pendingThreadLoadsRef.current.add(load);
+      try {
+        return await load;
+      } finally {
+        pendingThreadLoadsRef.current.delete(load);
+      }
+    },
     {
       revalidateOnFocus: false,
+      isPaused: () => leavingAsUnreadRef.current,
       fallbackData: seed,
       onError: (err: unknown) =>
         logger.error("thread_load_failed", {
@@ -230,7 +241,6 @@ function MessageThreadContent() {
   // After "Als ungelesen markieren" the page is on its way to the inbox. A
   // refetch now would open the thread again and end the mark at once, so the
   // SSE refresh stands down while leaving.
-  const leavingAsUnreadRef = useRef(false);
   const refreshThread = useCallback(() => {
     if (!leavingAsUnreadRef.current) void mutate();
   }, [mutate]);
@@ -308,6 +318,9 @@ function MessageThreadContent() {
     leavingAsUnreadRef.current = true;
     setMarkUnreadError(null);
     try {
+      // A GET already in flight can mark the thread read after the POST.
+      // Let every started read finish before creating the new unread mark.
+      await Promise.allSettled([...pendingThreadLoadsRef.current]);
       await markThreadUnread(threadId);
       window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
       router.push("/messages");
