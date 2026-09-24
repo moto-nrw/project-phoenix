@@ -107,7 +107,7 @@ func TestTimetableOperationsSessionBlocksMirrorCanOperate(t *testing.T) {
 
 	// The bulk verdict never drifts from the single-block check.
 	for _, block := range blocks {
-		single, err := deps.service.(*timetableOperationsService).canOperate(context.Background(), 3281, false, block.InstanceID)
+		single, err := actionAllowed(deps.service.(*timetableOperationsService).requireCanOperate(context.Background(), 3281, false, block.InstanceID))
 		require.NoError(t, err)
 		assert.Equal(t, single, block.CanOperate, "block %d", block.InstanceID)
 	}

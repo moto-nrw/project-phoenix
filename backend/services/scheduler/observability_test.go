@@ -131,6 +131,60 @@ func TestPollingJobsReportPanicsAndDrain(t *testing.T) {
 	}
 }
 
+func TestRunJobCheckContainsPanicToCurrentRun(t *testing.T) {
+	t.Parallel()
+
+	scheduler := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.New(slog.DiscardHandler))
+	var gotOutcome string
+	scheduler.workerTracer.Run = func(_ JobID, outcome string, _ time.Duration) {
+		gotOutcome = outcome
+	}
+
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("runJobCheck re-panicked: %v", r)
+			}
+		}()
+		scheduler.runJobCheck(&ScheduledTask{Name: "panic-job"}, func(context.Context, *ScheduledTask) { panic("boom") })
+	}()
+
+	if gotOutcome != "panic" {
+		t.Fatalf("run outcome = %q, want panic", gotOutcome)
+	}
+}
+
+func TestIntervalPollingKeepsTickingAfterPanic(t *testing.T) {
+	t.Parallel()
+
+	scheduler := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.New(slog.DiscardHandler))
+	ran := make(chan struct{}, 3)
+	var calls int
+	check := func(context.Context, *ScheduledTask) {
+		calls++
+		select {
+		case ran <- struct{}{}:
+		default:
+		}
+		if calls == 1 {
+			panic("boom")
+		}
+	}
+	scheduler.wg.Add(1)
+	go scheduler.runIntervalPolling(&ScheduledTask{Name: "panic-job"}, "interval panic", "interval start", 0,
+		func() time.Duration { return time.Millisecond }, check)
+
+	for i := range 2 {
+		select {
+		case <-ran:
+		case <-time.After(time.Second):
+			scheduler.Stop()
+			t.Fatalf("run %d after panic did not happen", i+1)
+		}
+	}
+	scheduler.Stop()
+}
+
 func TestRunJobCheckRecordsDurationByStableID(t *testing.T) {
 	t.Parallel()
 

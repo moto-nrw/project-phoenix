@@ -131,6 +131,8 @@ const (
 	KeySessionInactivityTimeoutMin           = "operations.session_inactivity_timeout_minutes"
 	KeyOperationalOverviewScope              = "operations.operational_overview_scope"
 	KeyAttendanceEditScope                   = "operations.attendance_edit_scope"
+	KeyBlockStartScope                       = "operations.block_start_scope"
+	KeyBlockCompleteScope                    = "operations.block_complete_scope"
 	KeyStudentAbsenceEditScope               = "operations.student_absence_edit_scope"
 	KeyClassArrivalExceptionEditors          = "operations.class_arrival_exception_editors"
 	KeySchoolPortalWriteScope                = "operations.school_portal_write_scope"
@@ -258,6 +260,16 @@ const (
 const (
 	AttendanceEditScopeOwn      = "own"
 	AttendanceEditScopeAllStaff = "all_staff"
+)
+
+// BlockStartScope lets the whole team start planned blocks (#3622). It shares
+// the attendance scope's values and, like it, changes no supervision or plan.
+const (
+	BlockStartScopeOwn      = AttendanceEditScopeOwn
+	BlockStartScopeAllStaff = AttendanceEditScopeAllStaff
+	// BlockCompleteScope does the same for ending a running block.
+	BlockCompleteScopeOwn      = AttendanceEditScopeOwn
+	BlockCompleteScopeAllStaff = AttendanceEditScopeAllStaff
 )
 
 // StudentAbsenceEditScope controls direct sick and excused reports, not parent review.
