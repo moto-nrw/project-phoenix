@@ -266,7 +266,7 @@ type Factory struct {
 
 	// Enrollment domain (parent-enrollment PR 5+).
 	EnrollmentFormSchema      enrollment.FormSchemaService
-	EnrollmentCareOffering    enrollment.CareOfferingService
+	EnrollmentCareOffering    careplan.CareOfferingCatalogCapability
 	EnrollmentCaptcha         *enrollment.CaptchaService
 	EnrollmentRequest         enrollment.RequestService
 	EnrollmentPhase           enrollment.PhaseService
@@ -1215,34 +1215,26 @@ func newFactory(
 	// recurrence resources. Room/timeframe FKs use ON DELETE SET NULL, so those
 	// delete services must preflight the same materializability invariant as
 	// template and calendar-period mutations.
-	enrollmentCareOfferingService := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
-		Repo:                   enrollment.NewCareOfferingRepository(repos.CarePlan()),
-		Bookings:               repos.Enrollment(),
-		ActivityGroupRepo:      repos.ActivityGroup,
-		ActivityScheduleRepo:   repos.ActivitySchedule,
-		CalendarPeriodRepo:     repos.CalendarPeriod,
-		TimeframeRepo:          repos.Timeframe,
-		ActivityExceptionRepo:  repos.ActivityException,
-		Phases:                 repos.Enrollment(),
-		Settings:               settingsService,
-		Today:                  today,
-		LockTemplateRecurrence: recurrenceLock.LockRecurrenceWrites,
-		Logger:                 logger.With("service", "enrollment-care-offering"),
+	// The decision service that keeps offering-sourced rosters and the pickup
+	// projection in step is composed later; the catalog resolves it on every
+	// edit (#2147 review).
+	var careOfferingResyncer careOfferingResync
+	resyncSourcedTemplates, resyncPickup := lateCareOfferingResync(&careOfferingResyncer)
+	enrollmentCareOfferingService, err := newCareOfferingCatalog(careOfferingCatalogInputs{
+		Records:          repos.CarePlan(),
+		Phases:           repos.Enrollment(),
+		Bookings:         repos.Enrollment(),
+		Timetable:        timetableCapability,
+		Calendar:         calendar,
+		Settings:         settingsService,
+		SourcedTemplates: resyncSourcedTemplates,
+		Pickup:           resyncPickup,
+		LockRecurrence:   recurrenceLock.LockRecurrenceWrites,
+		Today:            today,
+		Logger:           logger.With("service", "enrollment-care-offering"),
 	})
-	careOfferingSeriesValidator, ok := enrollmentCareOfferingService.(enrollment.CareOfferingSeriesValidator)
-	if !ok {
-		return nil, fmt.Errorf("enrollment care offering service does not implement series validation")
-	}
-	if _, ok := enrollmentCareOfferingService.(enrollment.CareOfferingCalendarPeriodValidator); !ok {
-		return nil, fmt.Errorf("enrollment care offering service does not implement calendar period validation")
-	}
-	careOfferingResourceValidator, ok := enrollmentCareOfferingService.(enrollment.CareOfferingMaterializationResourceValidator)
-	if !ok {
-		return nil, fmt.Errorf("enrollment care offering service does not implement materialization resource validation")
-	}
-	careOfferingPhaseValidator, ok := enrollmentCareOfferingService.(enrollment.CareOfferingPhaseValidator)
-	if !ok {
-		return nil, fmt.Errorf("enrollment care offering service does not implement phase validation")
+	if err != nil {
+		return nil, fmt.Errorf("compose care offering catalog: %w", err)
 	}
 
 	// Initialize facilities service
@@ -1258,8 +1250,8 @@ func newFactory(
 			if len(activeGroups) > 0 {
 				return facilitiesModule.ErrRoomInUse
 			}
-			if err := careOfferingResourceValidator.ValidateRoomDeletion(ctx, roomID); err != nil {
-				if errors.Is(err, enrollment.ErrCareOfferingInvalid) {
+			if err := enrollmentCareOfferingService.ValidateRoomDeletion(ctx, roomID); err != nil {
+				if errors.Is(err, careplan.ErrCareOfferingConfigInvalid) {
 					return facilitiesModule.ErrRoomRequiredByOffering
 				}
 				return err
@@ -1925,7 +1917,7 @@ func newFactory(
 		CareOfferingRepo:                enrollment.NewCareOfferingRepository(repos.CarePlan()),
 		CalendarPeriods:                 calendar,
 		LockTemplateRecurrence:          recurrenceLock.LockRecurrenceWrites,
-		ValidateCareOfferingPhaseChange: careOfferingPhaseValidator.ValidatePhaseChange,
+		ValidateCareOfferingPhaseChange: careOfferingPhaseGuard(enrollmentCareOfferingService),
 		Settings:                        settingsService,
 		Responses:                       newPhaseResponseSources(repos.Enrollment(), persons, repos.CarePlan()),
 		DB:                              db,
@@ -1986,8 +1978,7 @@ func newFactory(
 		ActivityGroupRepo:         repos.ActivityGroup,
 		ActivityScheduleRepo:      repos.ActivitySchedule,
 		CalendarPeriodRepo:        repos.CalendarPeriod,
-		TimeframeRepo:             repos.Timeframe,
-		ActivityExceptionRepo:     repos.ActivityException,
+		OfferingLinks:             enrollmentCareOfferingService,
 		GuardianAccess:            guardianAccess,
 		OutboxEnqueuer:            outboxEnqueuer{outbox: emailOutboxService},
 		StudentAudit:              studentAuditService,
@@ -2069,26 +2060,13 @@ func newFactory(
 		return nil, fmt.Errorf("compose grade transition workflow: %w", err)
 	}
 	// A care-offering edit changes the wanted roster of every template sourcing
-	// it (#2147 review). Wired late because the decision service is constructed
-	// after the care-offering service.
-	careOfferingSourceBinder, ok := enrollmentCareOfferingService.(enrollment.CareOfferingSourceResyncBinder)
+	// it and the pickup projection (#2147 review). The catalog resolves the
+	// decision service composed here on every edit.
+	careOfferingSourcedResyncer, ok := enrollmentDecisionService.(careOfferingResync)
 	if !ok {
-		return nil, fmt.Errorf("enrollment care offering service does not accept the sourced-template resyncer")
+		return nil, fmt.Errorf("enrollment decision service does not implement the offering-update and pickup resync")
 	}
-	careOfferingSourcedResyncer, ok := enrollmentDecisionService.(enrollment.CareOfferingSourcedTemplateResyncer)
-	if !ok {
-		return nil, fmt.Errorf("enrollment decision service does not implement the offering-update resync")
-	}
-	careOfferingSourceBinder.SetSourcedTemplateResyncer(careOfferingSourcedResyncer)
-	pickupResyncBinder, ok := enrollmentCareOfferingService.(enrollment.CareOfferingPickupResyncBinder)
-	if !ok {
-		return nil, fmt.Errorf("enrollment care offering service does not accept the pickup resyncer")
-	}
-	pickupResyncer, ok := enrollmentDecisionService.(enrollment.CareOfferingPickupResyncer)
-	if !ok {
-		return nil, fmt.Errorf("enrollment decision service does not implement pickup resync")
-	}
-	pickupResyncBinder.SetPickupResyncer(pickupResyncer)
+	careOfferingResyncer = careOfferingSourcedResyncer
 	// A phase service-window change re-bounds every roster row derived from
 	// the phase's offerings, so the templates sourcing them must resync too
 	// (#2147 review). Same late binding as above.
@@ -2198,16 +2176,12 @@ func newFactory(
 
 	// Rollover service depends on DecisionService for the
 	// rollover_auto_approve=true deadline path.
-	enrollmentRolloverCatalogCloner, ok := enrollmentCareOfferingService.(enrollment.RolloverOfferingCatalogCloner)
-	if !ok {
-		return nil, fmt.Errorf("enrollment care offering service does not implement rollover catalog cloning")
-	}
 	enrollmentRolloverService := enrollment.NewRolloverService(enrollment.RolloverServiceConfig{
 		Bookings:              enrollmentCareBookingCommands{owner: repos.CarePlan()},
 		Phases:                repos.Enrollment(),
 		Requests:              repos.Enrollment(),
 		Children:              repos.Enrollment(),
-		OfferingCatalogCloner: enrollmentRolloverCatalogCloner,
+		OfferingCatalogCloner: enrollmentCareOfferingService,
 		SchoolRepo:            enrollmentSchoolDirectory{schools: organizations},
 		OutboxEnqueuer:        outboxEnqueuer{outbox: emailOutboxService},
 		Settings:              settingsService,
@@ -2774,7 +2748,7 @@ func newFactory(
 		PlanningTracks:       planningTrackService,
 		Materialization:      materializationService,
 		Deviations:           instanceService.SeriesDeviations(),
-		CareOfferings:        careOfferingSeriesValidator,
+		CareOfferings:        enrollmentCareOfferingService,
 		ResyncOfferingRoster: offeringRosterResyncer.ResyncTemplateOfferingRoster,
 		RecurrenceLock:       recurrenceLock,
 		Broadcaster:          realtimeHub,

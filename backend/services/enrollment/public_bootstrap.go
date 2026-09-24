@@ -200,3 +200,20 @@ func (s *requestService) LoadManualEnrollmentBootstrap(ctx context.Context, phas
 			},
 		})
 }
+
+// validateLoadedAvailabilityRules refuses an offering whose persisted
+// availability rule no longer validates, so the parent form never offers a
+// choice the submission would reject.
+func validateLoadedAvailabilityRules(offerings []*enrollmentModels.CareOffering, loadErr error) ([]*enrollmentModels.CareOffering, error) {
+	if loadErr != nil {
+		return nil, loadErr
+	}
+	for _, offering := range offerings {
+		if offering.AvailabilityRule != nil {
+			if err := offering.AvailabilityRule.NormalizeAndValidate(); err != nil {
+				return nil, fmt.Errorf("care offering %d has an invalid persisted availability rule: %w", offering.ID, err)
+			}
+		}
+	}
+	return offerings, nil
+}

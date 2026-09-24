@@ -71,7 +71,7 @@ func createSourceCareOfferingOnDays(
 	var created *testpkg.CareOffering
 	require.NoError(t, testpkg.WithTenantTx(t, s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var createErr error
-		created, createErr = s.factory.EnrollmentCareOffering.Create(txCtx, offering)
+		created, createErr = s.factory.EnrollmentCareOfferingRows().Create(txCtx, offering)
 		return createErr
 	}))
 

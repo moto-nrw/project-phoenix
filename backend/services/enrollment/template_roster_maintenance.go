@@ -281,7 +281,7 @@ func (s *decisionService) TemplateRosterMaintenanceFeeds(ctx context.Context, te
 				if sourcePhaseID == 0 {
 					sourcePhaseID = offering.PhaseID
 				}
-				if !invalid && period != nil && validatePhaseWithinTemplatePeriod(phasesByID[offering.PhaseID], period) != nil {
+				if !invalid && phaseWithinTemplatePeriod(phasesByID[offering.PhaseID], period) != nil {
 					invalid = true
 				}
 				if invalid {
@@ -353,7 +353,7 @@ func (s *decisionService) TemplateRosterMaintenanceFeeds(ctx context.Context, te
 			if offering == nil {
 				continue
 			}
-			if phasesByID[offering.PhaseID] == nil || (period != nil && validatePhaseWithinTemplatePeriod(phasesByID[offering.PhaseID], period) != nil) {
+			if phasesByID[offering.PhaseID] == nil || phaseWithinTemplatePeriod(phasesByID[offering.PhaseID], period) != nil {
 				if invalidOfferings[query.TemplateID] == nil {
 					invalidOfferings[query.TemplateID] = make(map[int64]bool)
 				}
