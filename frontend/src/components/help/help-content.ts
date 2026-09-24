@@ -2779,6 +2779,7 @@ function createStudentTopic(): HelpTopic {
       "Ein Auge neben einer Angabe heißt: Eltern sehen sie.",
       "In der Vorlage erklärt das Blatt `Hinweise` jede Spalte.",
       "`Nur bestehende aktualisieren` und `Beides` brauchen Sie erst, wenn Sie Angaben nachträglich ändern. Leere Zellen ändern nie etwas.",
+      "Hat Ihre Schule ein Kinderkontingent, steht es oben in `Kinderdaten`. Zum Beispiel `Kinderkontingent: 48 von 50 belegt`. Es zählen aktive Kinder und Kinder, deren Betreuung später beginnt. Das Info-Symbol daneben erklärt es auch.",
     ],
     differences: [
       "`Vorname`, `Nachname` und `Klasse` tragen einen roten Stern. Sie sind Pflicht.",
@@ -2789,7 +2790,7 @@ function createStudentTopic(): HelpTopic {
       "Fehlt die passende `Gruppe`? Legen Sie sie zuerst in der `Datenverwaltung` unter `Gruppen` an.",
       "Der grüne Knopf ist grau? Dann hat die Vorschau noch Fehler. Beheben Sie sie in der Datei und laden Sie erneut hoch.",
       "moto erkennt eine Zeile an Vorname, Nachname und Klasse. Bei einem Klassenwechsel an der Spalte `RFID-Karte` oder am Geburtstag.",
-      "moto meldet, das Kinderkontingent ist voll? Dann ist die Kontingentzahl erreicht. Ihre Eingaben bleiben im Fenster. Für weitere Kinder melden Sie sich beim moto-Team.",
+      "moto meldet, das Kinderkontingent ist voll? Dann ist die Kontingentzahl erreicht. Wie viel belegt ist, steht oben in `Kinderdaten`. Ihre Eingaben bleiben im Fenster. Für weitere Kinder melden Sie sich beim moto-Team.",
     ],
     related: [
       HELP_TOPICS.leadCareTimes,

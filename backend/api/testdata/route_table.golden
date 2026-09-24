@@ -386,6 +386,7 @@ GET /api/students/change-requests
 GET /api/students/change-requests/access
 GET /api/students/change-requests/pending-count
 GET /api/students/change-requests/rss-feed/
+GET /api/students/child-quota
 GET /api/students/class-arrival-exceptions/{schoolClass}
 GET /api/students/class-arrival-times/{schoolClass}
 GET /api/students/day-log

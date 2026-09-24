@@ -71,6 +71,11 @@ func (e *recordingEngine) ReactivateStudents(_ context.Context, ids []int64, sta
 	return nil, nil
 }
 
+func (e *recordingEngine) ChildQuotaUsage(context.Context) (schoolmembership.ChildQuotaUsage, bool, error) {
+	e.calls++
+	return schoolmembership.ChildQuotaUsage{}, false, nil
+}
+
 func (e *recordingEngine) FindStaff(_ context.Context, _ int64, lock string) (schoolmembership.Staff, error) {
 	e.calls++
 	e.staffLock = lock

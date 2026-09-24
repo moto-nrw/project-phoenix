@@ -1397,6 +1397,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		StudentService:               api.Services.Students.Directory,
 		CompanionService:             api.Services.Students.Companions,
 		ClassListEntries:             classListEntryStudentsReader{entries: api.membership},
+		ChildQuota:                   childQuotaStudentsReader{usages: api.membership},
 		StudentDeletion:              api.Services.StudentDeletion,
 		CareLifecycleService:         api.Services.CareLifecycle,
 		StudentAuditService:          api.Services.StudentAudit,
