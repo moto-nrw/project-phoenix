@@ -279,7 +279,7 @@ export function Modal({
         <div
           className={`relative flex transform flex-col overflow-hidden overscroll-contain border border-gray-200/50 shadow-2xl ${
             mobileSheet
-              ? "max-h-[calc(100dvh-3rem)] w-full max-w-none rounded-t-2xl sm:mx-4 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:max-w-lg sm:rounded-2xl"
+              ? "max-h-[calc(100dvh-3rem-env(safe-area-inset-top))] w-full max-w-none rounded-t-2xl sm:mx-4 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:max-w-lg sm:rounded-2xl"
               : `${widthClass} max-h-[calc(100dvh-2rem)] rounded-2xl`
           } ${getModalAnimationClass(isAnimating, isExiting)}`}
           {...dialogAriaProps}
