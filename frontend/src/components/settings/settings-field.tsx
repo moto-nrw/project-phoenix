@@ -153,54 +153,77 @@ const HIGHLIGHT_FLASH_MS = 2200;
 const EMPTY_CATEGORY_ITEMS: ResolvedSetting[] = [];
 
 interface AttendanceScopeChange {
-  readonly key: string;
-  readonly value: string;
+  /** Written in this order before the chosen value. */
+  readonly changes: readonly { key: string; value: string }[];
   readonly writable: boolean;
   readonly title: string;
   readonly body: string;
   readonly confirmText: string;
 }
 
+const VISIBILITY_SCOPE_KEY = "operations.operational_overview_scope";
+const ATTENDANCE_SCOPE_KEY = "operations.attendance_edit_scope";
+const BLOCK_START_SCOPE_KEY = "operations.block_start_scope";
+
+// "Das ganze Team" for attendance or starting needs the school-wide view;
+// the backend rejects any other order (#3180, #3622).
+const EXPAND_VISIBILITY_BODY: Record<string, string> = {
+  [ATTENDANCE_SCOPE_KEY]:
+    "Überall an- und abmelden geht nur mit schulweitem Überblick. Das Team sieht danach alle Gruppen und Blöcke.",
+  [BLOCK_START_SCOPE_KEY]:
+    "Starten durch das ganze Team geht nur mit schulweitem Überblick. Das Team sieht danach alle Gruppen und Blöcke.",
+};
+
 function attendanceScopePrerequisite(
   key: string,
   value: unknown,
   items: ResolvedSetting[],
 ): AttendanceScopeChange | null {
-  const visibility = items.find(
-    (item) => item.key === "operations.operational_overview_scope",
-  );
-  const attendance = items.find(
-    (item) => item.key === "operations.attendance_edit_scope",
-  );
-  if (
-    key === attendance?.key &&
-    value === "all_staff" &&
-    visibility?.value === "own"
-  ) {
+  const visibility = items.find((item) => item.key === VISIBILITY_SCOPE_KEY);
+  const expandBody = EXPAND_VISIBILITY_BODY[key];
+  if (expandBody && value === "all_staff" && visibility?.value === "own") {
     return {
-      key: visibility.key,
-      value: "all_staff",
+      changes: [{ key: visibility.key, value: "all_staff" }],
       writable: visibility.writable,
       title: "Auch den Sichtbereich erweitern?",
-      body: "Überall an- und abmelden geht nur mit schulweitem Überblick. Das Team sieht danach alle Gruppen und Blöcke.",
+      body: expandBody,
       confirmText: "Beides erweitern",
     };
   }
-  if (
-    key === visibility?.key &&
-    value === "own" &&
-    attendance?.value === "all_staff"
-  ) {
+  if (key !== visibility?.key || value !== "own") return null;
+  const widened = items.filter(
+    (item) =>
+      (item.key === ATTENDANCE_SCOPE_KEY ||
+        item.key === BLOCK_START_SCOPE_KEY) &&
+      item.value === "all_staff",
+  );
+  const [first] = widened;
+  if (!first) return null;
+  const restriction = {
+    changes: widened.map((item) => ({ key: item.key, value: "own" })),
+    writable: widened.every((item) => item.writable),
+  };
+  if (widened.length > 1) {
     return {
-      key: attendance.key,
-      value: "own",
-      writable: attendance.writable,
-      title: "Auch die Bearbeitung begrenzen?",
-      body: "Eigene Zuständigkeiten als Sichtbereich erfordern denselben Bereich für An- und Abmelden. Vorhandene Sonderzugänge bleiben erhalten.",
-      confirmText: "Beides begrenzen",
+      ...restriction,
+      title: "Auch Bearbeitung und Starten begrenzen?",
+      body: "Eigene Zuständigkeiten als Sichtbereich erfordern denselben Bereich für An- und Abmelden und für das Starten von Blöcken. Vorhandene Sonderzugänge bleiben erhalten.",
+      confirmText: "Alles begrenzen",
     };
   }
-  return null;
+  return first.key === ATTENDANCE_SCOPE_KEY
+    ? {
+        ...restriction,
+        title: "Auch die Bearbeitung begrenzen?",
+        body: "Eigene Zuständigkeiten als Sichtbereich erfordern denselben Bereich für An- und Abmelden. Vorhandene Sonderzugänge bleiben erhalten.",
+        confirmText: "Beides begrenzen",
+      }
+    : {
+        ...restriction,
+        title: "Auch das Starten begrenzen?",
+        body: "Mit eigenen Zuständigkeiten als Sichtbereich dürfen nur eingeplante Kräfte Blöcke starten.",
+        confirmText: "Beides begrenzen",
+      };
 }
 
 interface SettingsFieldProps {
@@ -663,8 +686,8 @@ export function SettingsField({
     pendingValueRef.current = null;
     pendingScopeChangeRef.current = null;
     if (value != null) {
-      if (prerequisite) {
-        const failure = await onSave(prerequisite.key, prerequisite.value);
+      for (const change of prerequisite?.changes ?? []) {
+        const failure = await onSave(change.key, change.value);
         if (failure) {
           setError(failure);
           toastError(failure);

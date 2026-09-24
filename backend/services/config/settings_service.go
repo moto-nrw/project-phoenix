@@ -929,7 +929,7 @@ func validateValue(def *config.Definition, value any) error {
 // order — never blocks a reachable configuration.
 func (s *settingsService) validateCrossField(ctx context.Context, key string, value any) error {
 	switch key {
-	case config.KeyOperationalOverviewScope, config.KeyAttendanceEditScope:
+	case config.KeyOperationalOverviewScope, config.KeyAttendanceEditScope, config.KeyBlockStartScope:
 		return s.validateAttendanceScopePair(ctx, key, value)
 	case config.KeySlotListShortDayCutoff, config.KeySlotListLongDayCutoff:
 		return s.validateSlotListCutoffPair(ctx, key, value)

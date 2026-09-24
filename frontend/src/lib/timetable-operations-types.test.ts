@@ -34,6 +34,9 @@ describe("timetable operation mappers", () => {
       canEditAttendance: true,
       canReportAbsence: false,
     });
+    expect(mapRoster({ ...base, can_start: true }).canStart).toBe(true);
+    expect(mapRoster({ ...base, can_start: false }).canStart).toBe(false);
+    expect(mapRoster(base)).not.toHaveProperty("canStart");
     expect(mapRoster(base)).not.toHaveProperty("canEditAttendance");
     expect(mapRoster(base)).not.toHaveProperty("canReportAbsence");
   });

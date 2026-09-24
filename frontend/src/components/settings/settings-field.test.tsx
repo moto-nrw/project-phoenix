@@ -192,6 +192,126 @@ describe("SettingsField", () => {
     );
   });
 
+  const startKey = "operations.block_start_scope";
+
+  function pickOption(
+    getByRole: ReturnType<typeof renderWithProviders>["getByRole"],
+    name: string,
+  ) {
+    fireEvent.click(getByRole("combobox"));
+    fireEvent.click(getByRole("option", { name }));
+  }
+
+  it("expands visibility before the whole team may start blocks", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const setting = scopeSetting(startKey, "own");
+    const { getByRole, getByText } = renderWithProviders(
+      <SettingsField
+        setting={setting}
+        categoryItems={[
+          setting,
+          scopeSetting(visibilityKey, "own"),
+          scopeSetting(attendanceKey, "own"),
+        ]}
+        onSave={onSave}
+        onReset={vi.fn()}
+      />,
+    );
+    pickOption(getByRole, "Alle Gruppen und Blöcke");
+    expect(onSave).not.toHaveBeenCalled();
+    expect(getByText("Auch den Sichtbereich erweitern?")).toBeInTheDocument();
+    fireEvent.click(getByRole("button", { name: "Beides erweitern" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect(onSave.mock.calls).toEqual([
+      [visibilityKey, "all_staff"],
+      [startKey, "all_staff"],
+    ]);
+  });
+
+  it.each([
+    ["starting only", "own", "all_staff", [startKey], "Beides begrenzen"],
+    [
+      "attendance and starting",
+      "all_staff",
+      "all_staff",
+      [attendanceKey, startKey],
+      "Alles begrenzen",
+    ],
+  ])(
+    "restricts %s before visibility",
+    async (_name, attendance, starting, restricted, confirmText) => {
+      const onSave = vi.fn().mockResolvedValue(null);
+      const setting = scopeSetting(visibilityKey, "all_staff");
+      const { getByRole } = renderWithProviders(
+        <SettingsField
+          setting={setting}
+          categoryItems={[
+            setting,
+            scopeSetting(attendanceKey, attendance),
+            scopeSetting(startKey, starting),
+          ]}
+          onSave={onSave}
+          onReset={vi.fn()}
+        />,
+      );
+      pickOption(getByRole, "Eigene Zuständigkeiten");
+      expect(onSave).not.toHaveBeenCalled();
+      fireEvent.click(getByRole("button", { name: confirmText }));
+      await waitFor(() =>
+        expect(onSave).toHaveBeenCalledTimes(restricted.length + 1),
+      );
+      expect(onSave.mock.calls).toEqual([
+        ...restricted.map((key) => [key, "own"]),
+        [visibilityKey, "own"],
+      ]);
+    },
+  );
+
+  it("stops the restriction at the first failed dependent write", async () => {
+    const onSave = vi.fn().mockResolvedValue("Speichern fehlgeschlagen.");
+    const setting = scopeSetting(visibilityKey, "all_staff");
+    const { getByRole } = renderWithProviders(
+      <SettingsField
+        setting={setting}
+        categoryItems={[
+          setting,
+          scopeSetting(attendanceKey, "all_staff"),
+          scopeSetting(startKey, "all_staff"),
+        ]}
+        onSave={onSave}
+        onReset={vi.fn()}
+      />,
+    );
+    pickOption(getByRole, "Eigene Zuständigkeiten");
+    fireEvent.click(getByRole("button", { name: "Alles begrenzen" }));
+    await waitFor(() =>
+      expect(document.body.textContent).toContain("Speichern fehlgeschlagen."),
+    );
+    expect(onSave).toHaveBeenCalledExactlyOnceWith(attendanceKey, "own");
+  });
+
+  it("does not restrict visibility when the start setting is read-only", () => {
+    const onSave = vi.fn();
+    const setting = scopeSetting(visibilityKey, "all_staff");
+    const { getByRole } = renderWithProviders(
+      <SettingsField
+        setting={setting}
+        categoryItems={[
+          setting,
+          scopeSetting(attendanceKey, "own"),
+          scopeSetting(startKey, "all_staff", false),
+        ]}
+        onSave={onSave}
+        onReset={vi.fn()}
+      />,
+    );
+    pickOption(getByRole, "Eigene Zuständigkeiten");
+    expect(onSave).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain(
+      "Dafür muss zuerst die andere Einstellung geändert werden.",
+    );
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });

@@ -231,14 +231,14 @@ func sortedProfileSettingKeys(settings map[string]SeedSetting) []string {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-	// A rerun may start from either valid scope pair. Expanding visibility
-	// first and restricting attendance first keeps every intermediate pair valid.
-	first := profileSettingAttendanceScope
-	if setting, ok := settings[profileSettingAttendanceScope]; ok && bytes.Equal(setting.Value, []byte(`"all_staff"`)) {
-		first = profileSettingOverviewScope
+	// A rerun may start from any valid scope set. Expanding visibility first
+	// and restricting it last keeps every intermediate set valid; the sorted
+	// order already puts the overview scope after attendance and block starts.
+	if setting, ok := settings[profileSettingOverviewScope]; !ok || !bytes.Equal(setting.Value, []byte(`"all_staff"`)) {
+		return keys
 	}
 	for index, key := range keys {
-		if key == first {
+		if key == profileSettingOverviewScope {
 			copy(keys[1:index+1], keys[:index])
 			keys[0] = key
 			break

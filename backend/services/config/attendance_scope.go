@@ -7,8 +7,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/config"
 )
 
+// schoolWideActionScopes are the action scopes whose all_staff value needs
+// the all_staff overview, with the reason a rejected write shows.
+var schoolWideActionScopes = []struct{ key, reason string }{
+	{config.KeyAttendanceEditScope, "Überall an- und abmelden geht nur mit Sicht auf alle Gruppen und Blöcke. Erweitern Sie zuerst den Sichtbereich. Oder beschränken Sie zuerst das An- und Abmelden auf eigene Zuständigkeiten."},
+	{config.KeyBlockStartScope, "Starten durch das ganze Team geht nur mit Sicht auf alle Gruppen und Blöcke. Erweitern Sie zuerst den Sichtbereich. Oder erlauben Sie das Starten zuerst nur eingeplanten Kräften."},
+}
+
 func isAttendanceScopeKey(key string) bool {
-	return key == config.KeyAttendanceEditScope || key == config.KeyOperationalOverviewScope
+	if key == config.KeyOperationalOverviewScope {
+		return true
+	}
+	for _, scope := range schoolWideActionScopes {
+		if scope.key == key {
+			return true
+		}
+	}
+	return false
 }
 
 // Both write directions hold the same lock until commit. Direct service
@@ -29,23 +44,39 @@ func (s *settingsService) validateAttendanceScopePair(ctx context.Context, key s
 	if err := s.lockAttendanceScopePair(ctx); err != nil {
 		return err
 	}
-	sibling := config.KeyOperationalOverviewScope
-	if key == config.KeyOperationalOverviewScope {
-		sibling = config.KeyAttendanceEditScope
-	}
 	// Bypass immutable read-path snapshots as well as the request cache.
-	current, err := s.ResolveStringForTenantInTx(ctx, s.tenantID(ctx), sibling)
-	if err != nil {
-		return fmt.Errorf("resolve paired attendance scope: %w", err)
+	resolve := func(key string) (string, error) {
+		current, err := s.ResolveStringForTenantInTx(ctx, s.tenantID(ctx), key)
+		if err != nil {
+			return "", fmt.Errorf("resolve paired attendance scope: %w", err)
+		}
+		return current, nil
 	}
-	visibility, editing := current, value
-	if key == config.KeyOperationalOverviewScope {
-		visibility, editing = value.(string), current
+	visibility := value
+	if key != config.KeyOperationalOverviewScope {
+		current, err := resolve(config.KeyOperationalOverviewScope)
+		if err != nil {
+			return err
+		}
+		visibility = current
 	}
-	if editing == config.AttendanceEditScopeAllStaff && visibility != config.OverviewScopeAllStaff {
-		return &InvalidValueError{
-			Key:    key,
-			Reason: "Überall an- und abmelden geht nur mit Sicht auf alle Gruppen und Blöcke. Erweitern Sie zuerst den Sichtbereich. Oder beschränken Sie zuerst das An- und Abmelden auf eigene Zuständigkeiten.",
+	if visibility == config.OverviewScopeAllStaff {
+		return nil
+	}
+	for _, scope := range schoolWideActionScopes {
+		if key != config.KeyOperationalOverviewScope && key != scope.key {
+			continue
+		}
+		action := value
+		if key == config.KeyOperationalOverviewScope {
+			current, err := resolve(scope.key)
+			if err != nil {
+				return err
+			}
+			action = current
+		}
+		if action == config.AttendanceEditScopeAllStaff {
+			return &InvalidValueError{Key: key, Reason: scope.reason}
 		}
 	}
 	return nil

@@ -534,6 +534,27 @@ func TestOperationalOverviewScopeSetting(t *testing.T) {
 	assert.Nil(t, config.GetDefinition("operations.admin_supervision_overview"))
 }
 
+// TestBlockStartScopeSetting pins who may start a planned block (#3622):
+// existing schools keep the assignment-bound default.
+func TestBlockStartScopeSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyBlockStartScope)
+	require.NotNil(t, def, "operations.block_start_scope should be registered")
+	assert.Equal(t, config.FieldSelect, def.Type)
+	assert.Equal(t, config.BlockStartScopeOwn, def.Default)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "sehen-und-bearbeiten", def.Category)
+	assert.Equal(t, "config:read", def.ReadPermission)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Options)
+	require.Equal(t, []config.SelectOption{
+		{Label: "Nur eingeplante Kräfte", Value: config.BlockStartScopeOwn},
+		{Label: "Das ganze Team", Value: config.BlockStartScopeAllStaff},
+	}, def.Options.Static)
+}
+
 // TestClassArrivalExceptionEditorsSetting pins who may set a class-wide
 // arrival day exception (#2962): admins only unless a school opens it up.
 func TestClassArrivalExceptionEditorsSetting(t *testing.T) {

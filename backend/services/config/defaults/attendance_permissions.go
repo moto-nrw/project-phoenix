@@ -65,4 +65,20 @@ func init() {
 			{Label: "Überall", Value: config.AttendanceEditScopeAllStaff},
 		}},
 	})
+	config.Register(config.Definition{
+		Key:             config.KeyBlockStartScope,
+		Label:           "Wer darf Blöcke starten?",
+		Description:     "Das ganze Team geht nur, wenn das Team alle Gruppen und Blöcke sieht. Wer startet, wird nicht zur Aufsicht. Beenden dürfen weiter nur Eingeplante.",
+		Type:            config.FieldSelect,
+		Default:         config.BlockStartScopeOwn,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "sehen-und-bearbeiten",
+		SortOrder:       6,
+		Options: &config.SelectOptions{Static: []config.SelectOption{
+			{Label: "Nur eingeplante Kräfte", Value: config.BlockStartScopeOwn},
+			{Label: "Das ganze Team", Value: config.BlockStartScopeAllStaff},
+		}},
+	})
 }
