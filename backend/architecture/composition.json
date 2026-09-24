@@ -2965,7 +2965,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        4026
+        4044
       ],
       "tables": []
     },

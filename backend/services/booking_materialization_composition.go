@@ -353,9 +353,8 @@ func (e bookingEnrollment) Child(ctx context.Context, id int64) (careplanCompose
 func (e bookingEnrollment) Phase(ctx context.Context, id int64) (careplanCompose.BookingPhase, error) {
 	phase, err := e.owner.Phase(ctx, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return careplanCompose.BookingPhase{}, careplanCompose.BookingRowNotFound(err)
-		}
+		// The owner reports a missing row as a plain error, which the
+		// materialization has always treated as a failure.
 		return careplanCompose.BookingPhase{}, err
 	}
 	if phase == nil {
@@ -466,6 +465,13 @@ func (s bookingStudents) Student(ctx context.Context, id int64, lock bool) (care
 		return careplanCompose.BookingStudent{}, err
 	}
 	student := careplanCompose.BookingStudent{ID: row.ID, GradeLevel: enrollment.SchoolClassGradeLevel(row.SchoolClass)}
+	// Both enrollment dates are validated, as the decision's student read
+	// always did; only the care end bounds the rosters.
+	if row.EnrolledFrom != "" {
+		if _, err := calendar.ParseDate(row.EnrolledFrom); err != nil {
+			return careplanCompose.BookingStudent{}, fmt.Errorf("decision: invalid owner enrollment date: %w", err)
+		}
+	}
 	if row.EnrolledUntil != "" {
 		until, err := calendar.ParseDate(row.EnrolledUntil)
 		if err != nil {
