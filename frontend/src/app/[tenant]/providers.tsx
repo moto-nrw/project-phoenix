@@ -7,6 +7,7 @@ import { SessionProvider, useSession } from "next-auth/react";
 import { SWRConfig } from "swr";
 import { ProfileProvider } from "~/lib/profile-context";
 import { SupervisionProvider } from "~/lib/supervision-context";
+import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 import { TenantAuthWrapper } from "~/components/auth/tenant-auth-wrapper";
 import { PushSubscriptionSync } from "~/components/notifications/service-worker-registrar";
 import { ANNOUNCEMENTS_UNREAD_SWR_KEY } from "~/lib/hooks/use-announcements";
@@ -117,6 +118,7 @@ export function TenantProviders({
     >
       <SessionCachePrimer />
       <PushSubscriptionSync portal="tenant" />
+      <SentrySessionContext portal="tenant" />
       {swrConfig ? (
         <SWRConfig value={swrConfig}>{providers}</SWRConfig>
       ) : (

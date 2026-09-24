@@ -239,6 +239,30 @@ describe("proxy", () => {
     );
   });
 
+  it("gives every API request a fresh Vorgangskennung instead of the client's", () => {
+    const makeApiRequest = () => {
+      const req = new NextRequest("http://school.localhost:3000/api/students");
+      req.headers.set("host", "school.localhost:3000");
+      req.headers.set("x-request-id", "client-chosen");
+      return req;
+    };
+
+    const first = getForwardedRequestHeader(
+      proxy(makeApiRequest()),
+      "x-request-id",
+    );
+    const second = getForwardedRequestHeader(
+      proxy(makeApiRequest()),
+      "x-request-id",
+    );
+
+    const uuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+    expect(first).toMatch(uuid);
+    expect(second).toMatch(uuid);
+    expect(first).not.toBe(second);
+  });
+
   describe("operator subdomain", () => {
     it("rewrites / to /operator", () => {
       const res = proxy(
