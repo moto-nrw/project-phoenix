@@ -18,7 +18,6 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -112,17 +111,15 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		AttendanceSyncer:         attendanceMirror,
 		TimetableBridgeCompleter: bridge,
 	}, presenceservice.WithPresenceSettings(PresenceSettings(settings.Settings)))
-	offerings := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
-		Repo: enrollment.NewCareOfferingRepository(r.CarePlan), Bookings: r.Enrollment(), ActivityGroupRepo: r.ActivityGroup,
-		ActivityScheduleRepo: r.ActivitySchedule, CalendarPeriodRepo: r.CalendarPeriod, TimeframeRepo: r.Timeframe,
-		ActivityExceptionRepo: r.ActivityException, Phases: r.Enrollment(), Settings: settings.Settings, Today: today,
-		LockTemplateRecurrence: recurrenceLock.LockRecurrenceWrites,
-		Logger:                 logger,
+	offerings, err := newTestCareOfferingCatalog(r, settings.Settings, CareOfferingCatalogTestOptions{
+		LockRecurrence: recurrenceLock.LockRecurrenceWrites, Today: today,
 	})
-	series := offerings.(enrollment.CareOfferingSeriesValidator)
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
 	calendarAdministration := schoolCalendarAdministration(settings.Settings,
 		recurrenceLock.LockRecurrenceWrites,
-		offerings.(enrollment.CareOfferingCalendarPeriodValidator))
+		offerings)
 	calendar, err := repositories.NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
 	if err != nil {
 		return TimetableTestModule{}, err
@@ -174,7 +171,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	}
 	templates, err := newTimetableTemplates(timetableTemplateInputs{
 		Rows: rows, PlanningTracks: arrivalTimetable.NewPlanningTrackAdministration(r.Timetable, db),
-		Materialization: materialization, Deviations: instance.SeriesDeviations(), CareOfferings: series,
+		Materialization: materialization, Deviations: instance.SeriesDeviations(), CareOfferings: offerings,
 		RecurrenceLock: recurrenceLock, Broadcaster: hub, DB: db, Logger: logger, Today: today,
 	})
 	if err != nil {

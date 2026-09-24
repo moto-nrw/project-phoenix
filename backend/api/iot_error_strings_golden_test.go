@@ -52,6 +52,7 @@ const (
 	presenceOperations = "modules/studentpresence/operations.go"
 	deviceScanErrors   = "modules/devicescan/devicescan.go"
 	deviceScanMessages = "modules/devicescan/scan.go"
+	deviceScanOpenRoom = "modules/devicescan/open_room.go"
 	deviceScanSessions = "modules/devicescan/internal/application/session_lifecycle.go"
 	deviceScanTags     = "modules/devicescan/internal/application/tag_commands.go"
 )
@@ -135,6 +136,12 @@ var iotErrorCodes = []iotErrorContract{
 	{"planned_start_not_reached", staffClockErrors},
 	{"deviation_reason_required", staffClockErrors},
 	{"invalid_staff_clock_state", staffClockErrors},
+
+	// Destination booking into a released room (POST /move-to-room, #3067).
+	{"room_not_found", deviceScanOpenRoom},
+	{"room_not_released", deviceScanOpenRoom},
+	{"student_not_present", deviceScanOpenRoom},
+	{"open_room_binary_mode", deviceScanOpenRoom},
 }
 
 // iotErrorExclusions are PyrePortal mappings the backend deliberately does not

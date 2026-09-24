@@ -35,6 +35,9 @@ type ServiceDependencies struct {
 	// DeviceScan is the public device-scan workflow the kiosk scans, pickup
 	// queries, heartbeats and attendance toggles go through (#2698).
 	DeviceScan devicescan.DeviceScan
+	// OpenRooms is the destination booking into released rooms behind
+	// POST /move-to-room (#3067). Nil leaves the route unmounted.
+	OpenRooms devicescan.OpenRoomBooking
 	// StaffClock is the public device-scan staff clock the kiosk stamps
 	// through (#2690).
 	StaffClock               devicescan.StaffClock
@@ -130,6 +133,13 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/pickup-query", checkinHandler)
 		r.Post("/ping", checkinHandler)
 		r.Get("/status", checkinHandler)
+
+		// Destination booking into a released room, chosen at the device
+		// the child leaves (#3067).
+		if rs.OpenRooms != nil {
+			openRoomResource := checkinAPI.NewOpenRoomResource(rs.OpenRooms, checkinRuntime(), rs.getLogger().With(slog.String("sub", "open-room")))
+			r.Post("/move-to-room", delegateHandler(openRoomResource.Router()))
+		}
 
 		// Pure staff time tracking, independent of activities or groups.
 		staffClockResource := staffclockAPI.NewResource(rs.StaffClock, staffClockRuntime())

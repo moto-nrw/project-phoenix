@@ -195,7 +195,7 @@ func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(
 			validatorCalls++
 			assert.Equal(t, created.ID, phaseID)
 			assert.Equal(t, enrollmentOwner.Date(timezone.Date(originalEnd).AddDays(7)), enrollmentOwner.Date(replacement.ServiceEndDate))
-			return fmt.Errorf("%w: synthetic uncovered occurrence", enrollmentModels.ErrCareOfferingInvalid)
+			return fmt.Errorf("%w: synthetic uncovered occurrence", enrollmentService.ErrCareOfferingInvalid)
 		},
 		DB:     db,
 		Logger: slog.Default(),

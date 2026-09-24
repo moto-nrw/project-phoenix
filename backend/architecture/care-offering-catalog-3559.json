@@ -1,0 +1,102 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3020",
+    "#3558"
+  ],
+  "owner_and_capability": "Care Plan — the care-offering catalog: administration, timetable-link and materializability validation, the guards of templates, rooms, timeframes, phases and calendar periods, the offering-source guard and the rollover clone, published as careplan.CareOfferingCatalog, CareOfferingGuards, CareOfferingRollover and CareOfferingLinks (#3559)",
+  "affected_packages": [
+    "modules/careplan",
+    "modules/careplan/compose",
+    "modules/careplan/internal/application",
+    "modules/careplan/internal/ports",
+    "services/enrollment",
+    "services",
+    "api/enrollment",
+    "api"
+  ],
+  "affected_tables": [
+    "enrollment.care_offerings",
+    "enrollment.care_offering_auto_triggers"
+  ],
+  "exact_ratchet_keys": [],
+  "atomic_cutover": "One PR moves the catalog into the Care Plan application behind its own ports, binds the ports in services over the Timetable, School Calendar and Enrollment public contracts, and switches every consumer: the enrollment routes through their own row port, the Timetable template guards, the School Calendar period guard, the schedules timeframe guard, the room deletion guard, the phase service, the rollover and the booking materialization. The seven services/enrollment catalog files are deleted except the enrollment-row translation, which only Enrollment packages may hold. The two catalog setters are replaced by a resolver read at call time. No statement, table access, transaction boundary or error text changes, and no import rule or baseline key is added.",
+  "tests": [
+    "scripts/test-changed.sh origin/development without --fast: the full suites of every changed package and their importers, including services/enrollment, services, api/enrollment, modules/careplan and the timetable integration suites.",
+    "services/enrollment/care_offering_catalog_test.go and care_offering_catalog_guards_test.go port the 45 catalog behaviour tests of the deleted services/enrollment suites against the composed owner, with unchanged assertions.",
+    "modules/careplan/internal/application/care_offering_catalog_internal_test.go ports the booking-stats and availability tests against fakes and pins the invalid-configuration texts of the translation port.",
+    "scripts/backend-architecture.sh check against the parent SHA: no new violation, no stale entry, composition surface 620 -> 618.",
+    "go test ./test -run Ratchet, TestCompositionInventory, TestHermeticTestPatterns and the module ratchets."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the PR branch stacked on the #2732 branch (aa76d4c725). The move rebinds the catalog's reads to the owner queries the retained repositories delegated to, so the evidence is the unchanged behaviour and query-budget suites plus the architecture check, not a benchmark rerun.",
+    "sources": [
+      "backend/services/enrollment/care_offering_catalog_test.go",
+      "backend/services/enrollment/care_offering_catalog_guards_test.go",
+      "backend/modules/careplan/internal/application/care_offering_catalog_internal_test.go",
+      "backend/test/query_budgets.go"
+    ],
+    "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The suites pass with an unchanged query-budget register, the ported catalog tests keep their assertions, and the architecture check reports no new violation and no stale baseline entry.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "The catalog writes enrollment.care_offerings and enrollment.care_offering_auto_triggers through the same Care Plan records operations as before; no statement on them changes."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The query-budget tests passed with test/query_budgets.go unchanged; each port calls the same owner query with the same filter the retained repository issued."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "The move adds no statement or round trip to a request path; the port translation is in-memory."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "The move adds no statement or round trip to a request path; the port translation is in-memory."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "The ported catalog suites assert the unchanged error texts and sentinels; the enrollment handler suites pin the unchanged status codes and error codes."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection is acquired differently; every read joins the ambient tenant transaction as before."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "The recurrence lock and its order are unchanged; the catalog still takes it before reading the timetable link."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No transaction boundary or lock order changes."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The rollover deadline worker calls the same clone operation; its statements are unchanged."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No worker retry path changes."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No worker queue changes."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The ported suites cover rejected links, periods, timeframes, rooms, phases and offering sources, and the rejected update that marks the tenant transaction for rollback."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data or schema change. Reverting the PR restores the services/enrollment catalog, its setters and the model sentinels together."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally: 542 legacy violations remain, composition surface 620 -> 618."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR; the services/enrollment catalog, its setter binding, the model sentinels and the consumers' old types return together. No data cleanup.",
+  "exit_criterion": "No care-offering catalog rule remains in services/enrollment; every consumer reaches the catalog through modules/careplan (the enrollment routes through their row port bound to the owner); scripts/backend-architecture.sh check adds no key and no rule."
+}

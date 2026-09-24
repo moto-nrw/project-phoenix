@@ -1215,6 +1215,102 @@ in the public contract and pinned against the models. Every rule that named
 0038's exception ends with them; fifteen of its replacement rules remain as
 ordinary permissions to the owners' public contracts.
 
+#2732 closed the carrier of `api/timetable`: its 27 remaining keys, the
+root's `api -> api/timetable` key (#2750) and the end-to-end fixture's
+`test/e2e/timetable -> api/timetable` key (#2748) are gone (571 -> 542). No
+route path, status code, error body, middleware chain or authorization check
+changed; the middleware golden only renames the package and the spelling of
+two inlined closures.
+
+- The routes moved file for file to `modules/timetable/http` (package
+  `timetablehttp`), classified `timetable-activities`/`http` with
+  `adapter-test` for both test roles. PR mode rejects an owner change of an
+  existing path and a new permission on the existing `inbound-timetable`/`http`
+  point, so the `inbound-timetable` owner is deleted with its package entry.
+  Its six production rules and the adapter tests' compose rule moved to the
+  new point, the school portal's two rules now target it, and the two
+  test-construction rules to Student Presence and Care Plan compose had no
+  import left and are deleted. The new point's other target
+  dependencies are the ones the other owners' HTTP adapters hold: `api/common`,
+  the session token adapter (ADR 0031, also for the internal tests), the
+  permission registry, the public contracts of Security Runtime and Settings
+  Platform, and the tenant runtime. The root, the school portal and its tests,
+  and the timetable end-to-end fixture mount the new point.
+- The legacy imports became public contracts or consumer-owned ports.
+  `modules/settings` gains the timetable setting keys, the request-scoped
+  `Resolver` and the `Resolve*OrDefault` helpers; `modules/securityruntime`
+  gains `CanReadStudent`; the class-day projection and the plan export name
+  their file formats; `common.ProtectedTenantRoutes` and the new
+  `common.ProtectedSchoolRoutes` replace the route groups that took a
+  `*bun.DB` they never used. The People Directory reads are the routes' own
+  `People` port in builtin types, the Enrollment support of the Regeltermin
+  editor is `timetable.OfferingSourceSupport` in the owner's public contract,
+  and the school portal's supervision sheet is the `SupervisionSheets` port,
+  whose refusal the route recognises by a marker method.
+  `services/timetable_http_ports.go` binds the three over the retained
+  services at the root.
+- The route suites import neither repositories nor retained models. Their
+  composition of the owner moved to `services/timetable_http_test_helpers.go`
+  behind `api/testutil`, rollback probes use `test.TransactionProbe`,
+  correction trails are read through the owner's `GetAttendanceCorrections`,
+  deviation events through a row type of the suite, and the database-free
+  suites fake the ports. The pin of the Audit Platform vocabulary the owner
+  mirrors became a compile-time guard in
+  `database/repositories/timetable_audit_ports.go`, the one package that
+  binds both vocabularies.
+- The move put the handlers under the module ratchets (Rule 16): `Router`
+  and fourteen handlers were split into named steps, and `api.go` and
+  `instances_list.go` fell below 800 lines. No allowlist entry was added.
+
+#3559 (G1 of the `services/enrollment` dissolution under #2733) moved the
+care-offering catalog to its owner. The admin catalog, the timetable-link
+validation, the materializability, calendar-period, room, timeframe and phase
+guards, the offering-source guard and the rollover clone now live in
+`modules/careplan/internal/application/care_offering_*.go` behind the ports in
+`internal/ports/care_offering_catalog.go`, composed by
+`compose.NewCareOfferingCatalog`. The public contract is
+`careplan.CareOfferingCatalog`, `CareOfferingGuards`, `CareOfferingRollover`
+and `CareOfferingLinks` (`care_offering_catalog.go`, `care_offering_links.go`),
+with capability-specific method names because `contracts.generic-crud` refuses
+`List`/`Create`/`Update`/`Delete`/`GetByID` on a public contract. Error texts,
+statements and transaction boundaries are unchanged; the key count stays at
+542 and no rule was added.
+
+- The catalog reads the Timetable, the School Calendar and Enrollment only
+  through its own ports; `services/care_offering_catalog_composition.go` binds
+  them over the owners' public contracts, the settings service, Enrollment's
+  translation rules and the Timetable owner's offering-source refusal
+  (`timetable.ErrOfferingSourceInvalid`), which the catalog therefore never
+  imports. The ports call the same owner queries the retained activity,
+  schedule, calendar-period, timeframe and exception repositories delegated
+  to, with the same filters. Tenant rollback on a rejected update comes from the tenant runtime
+  in Care Plan's compose.
+- The decision service that resyncs sourced rosters and the pickup projection
+  is still composed after the catalog. Instead of the two setters the catalog
+  had, it resolves the service through a factory-local variable at call time,
+  so the composition surface fell from 620 to 618.
+- The enrollment routes and the retained enrollment services still speak
+  enrollment rows. Only Enrollment's own packages may name `models/enrollment`,
+  and `inbound-enrollment`/`http` has no permission to `care-plan`/`public`
+  (PR mode rejects adding one on an existing point), so `api/enrollment`
+  declares its own `CareOfferingCatalog` port in rows, bound at the root to
+  `services/enrollment.CareOfferingRows` over the owner. For the same reason
+  the row translation of care offerings and offering-change requests
+  (`services/enrollment/care_plan_offering_records.go`) stays with its
+  consumers until G2 to E4 move them. `services/enrollment` keeps its error
+  names pointed at the owner values, as #3558 did.
+- Booking materialization in `services/enrollment` calls the moved link rules
+  through `careplan.CareOfferingLinks` and the pure
+  `careplan.SchedulesOverlapPhase` / `ValidatePhaseWithinPeriod`, instead of
+  a second copy. The unused legacy sentinels
+  `models/enrollment.ErrCareOfferingInvalid`,
+  `ErrCareOfferingPickupTimesRequired` and
+  `models/schedule.ErrCalendarPeriodCareOfferingConflict` are gone.
+- The catalog's behaviour suites stay in the `services/enrollment` test
+  package, which already reaches the retained fixtures, and compose the owner
+  through `api/testutil.NewCareOfferingCatalog`; the pure booking-stats and
+  availability tests run against fakes in the application package.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).

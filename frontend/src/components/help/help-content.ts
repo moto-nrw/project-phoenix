@@ -2173,16 +2173,18 @@ function nfcCheckInTopic(
         steps: [
           "Das bereits eingecheckte Kind hält sein Armband erneut an den Sensor.",
           "Das Kind wählt unter `Wohin geht ...?` das passende Ziel.",
-          "Wählen Sie `Raumwechsel` für einen anderen betreuten Raum.",
+          "Wählen Sie `Raumwechsel` für einen anderen betreuten Raum. Dort hält das Kind sein Armband erneut an.",
+          "Offene Räume stehen mit ihrem Namen da, zum Beispiel `Turnhalle`. Ein Tipp trägt das Kind sofort dort ein.",
           "Wählen Sie `nach Hause`, wenn das Kind die OGS verlässt.",
           "Je nach Einstellung können auch `Schulhof` oder `Toilette` erscheinen.",
         ],
       },
     ],
     result:
-      "moto aktualisiert Anwesenheit und Aufenthaltsort. Nach `nach Hause` ist das Kind abgemeldet.",
+      "moto aktualisiert den Aufenthaltsort. Bei einem Ortswechsel bleibt das Kind angemeldet. Erst nach `nach Hause` ist es abgemeldet.",
     differences: [
       "Welche Ziele angezeigt werden, legt Ihre OGS fest.",
+      "Ein offener Raum erscheint nur, wenn die Leitung ihn unter `Räume` als `Offener Raum` freigegeben hat. Dort braucht es kein Tablet und keine Aufsicht.",
       "Eine tägliche Abmeldezeit kann verhindern, dass `nach Hause` zu früh gewählt wird.",
       "Nach dem Abmelden kann ein freiwilliges Tages-Feedback erscheinen.",
     ],

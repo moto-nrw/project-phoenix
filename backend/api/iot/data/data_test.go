@@ -540,3 +540,30 @@ func TestCheckRFIDTagAssignment_GraduatedStudentReadsAsUnassigned(t *testing.T) 
 	assert.Equal(t, false, data["assigned"], "a graduate's leftover tag must read as free")
 	assert.Nil(t, data["person"], "and must not name the departed child")
 }
+
+// The kiosk builds its destination buttons from these flags (#3067): every
+// released room is offered, the Schulhof keeps its own check-in flow.
+func TestGetAvailableRooms_FlagsReleasedRoomsAndSchulhof(t *testing.T) {
+	t.Parallel()
+	ctx := setupDataRoute(t)
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-open-rooms")
+	plain := testpkg.CreateTestRoom(t, ctx.db, "Klassenraum")
+	released := testpkg.CreateTestOpenRoom(t, ctx.db, "Turnhalle")
+	yard := testpkg.CreateTestSystemRoom(t, ctx.db, "Schulhof", true)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/rooms/available", nil, testutil.WithDeviceContext(testDevice))
+	rr := testutil.ExecuteRequest(ctx.resource.Router(), req)
+
+	testutil.AssertSuccessResponse(t, rr, 200)
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	rooms, ok := response["data"].([]any)
+	require.True(t, ok, "data should be a list: %s", rr.Body.String())
+	flags := map[float64][2]any{}
+	for _, entry := range rooms {
+		room := entry.(map[string]any)
+		flags[room["id"].(float64)] = [2]any{room["is_open_room"], room["is_schulhof"]}
+	}
+	assert.Equal(t, [2]any{false, false}, flags[float64(plain.ID)])
+	assert.Equal(t, [2]any{true, false}, flags[float64(released.ID)])
+	assert.Equal(t, [2]any{true, true}, flags[float64(yard.ID)])
+}
