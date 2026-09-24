@@ -2,12 +2,15 @@ import type { Properties } from "posthog-js";
 import { clientEnv } from "~/env.client";
 import { analyticsDeployment } from "~/lib/analytics-deployment";
 import {
+  analyticsIdentity,
   analyticsInitOptions,
+  analyticsRuntimeOptions,
   analyticsSurfaceForHost,
   filterAnalyticsEvent,
   type AnalyticsContext,
   type AnalyticsSurface,
 } from "~/lib/analytics-policy";
+import { isPseudonym } from "~/lib/analytics-pseudonym";
 import { createLogger } from "~/lib/logger";
 
 type PostHog = (typeof import("posthog-js"))["default"];
@@ -96,14 +99,38 @@ export function resetAndCapturePostHog(
 }
 
 /**
- * Sets the portal of the analytics context. The filter reads the context for
- * every event, so the change applies to the next event, before and after the
- * SDK has loaded.
+ * Brings the running SDK in line with the context: recorder and masking
+ * through `set_config`, and the pseudonymous person. The session identifies
+ * only while the context names a person (OGS with Analyse-Freigabe); any other
+ * context drops a pseudonymous ID for a new anonymous one.
  */
-export function setAnalyticsSurface(surface: AnalyticsSurface): void {
+function applyContext(posthog: PostHog, active: AnalyticsContext): void {
+  posthog.set_config(analyticsRuntimeOptions(active));
+  const identity = analyticsIdentity(active);
+  const current = posthog.get_distinct_id();
+  if (identity) {
+    if (current !== identity) {
+      posthog.identify(identity, active.role ? { role: active.role } : {});
+    }
+  } else if (isPseudonym(current)) {
+    posthog.reset();
+  }
+}
+
+/**
+ * Updates the analytics context: the portal, and on the OGS portal the
+ * school's Analyse-Freigabe with its person. The filter reads the context for
+ * every event, so the change applies to the next event, before and after the
+ * SDK has loaded; the recorder follows at once.
+ */
+export function setAnalyticsContext(
+  update: Partial<Omit<AnalyticsContext, "deployment">>,
+): void {
   const current = currentContext();
   if (!current) return;
-  context = { ...current, surface };
+  const next: AnalyticsContext = { ...current, ...update };
+  context = next;
+  execute("apply_context", (posthog) => applyContext(posthog, next));
 }
 
 export function setPostHogContext(
@@ -118,10 +145,13 @@ export function setPostHogContext(
 
 export function clearPostHogContext(): void {
   if (currentContext()) context = startContext();
+  const cleared = context;
   execute("clear_context", (posthog) => {
     posthog.unregister("school_id");
     posthog.unregister("role");
     posthog.reset();
+    // Stops a school recording at logout or school change.
+    if (cleared) posthog.set_config(analyticsRuntimeOptions(cleared));
   });
 }
 
@@ -142,6 +172,12 @@ export function initializePostHog(): Promise<void> {
         },
       });
       instance = posthog;
+      // The context may have moved on while the SDK loaded (login with
+      // Analyse-Freigabe); the buffered operations below apply it as well.
+      const active = currentContext();
+      if (active) {
+        execute("apply_context", (loaded) => applyContext(loaded, active));
+      }
 
       for (const operation of pendingOperations.splice(0)) {
         execute(operation.name, operation.run);

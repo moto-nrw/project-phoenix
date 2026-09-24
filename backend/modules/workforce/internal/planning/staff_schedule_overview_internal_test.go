@@ -9,9 +9,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,17 +22,17 @@ func testClock(t *testing.T, value string) time.Time {
 	return timezone.NormalizeWallClock(parsed)
 }
 
-func testShift(t *testing.T, staffID int64, date timezone.Date, start, end string) *scheduleModel.StaffShift {
+func testShift(t *testing.T, staffID int64, date timezone.Date, start, end string) *StaffShift {
 	t.Helper()
-	return &scheduleModel.StaffShift{
+	return &StaffShift{
 		StaffID:   staffID,
-		Date:      scheduleModel.Date(date),
+		Date:      timezone.Date(date),
 		StartTime: testClock(t, start),
 		EndTime:   testClock(t, end),
 	}
 }
 
-func formattedGaps(gaps []timetableplanning.ShiftCoverageInterval) [][2]string {
+func formattedGaps(gaps []timetable.ShiftCoverageInterval) [][2]string {
 	out := make([][2]string, 0, len(gaps))
 	for _, gap := range gaps {
 		out = append(out, [2]string{
@@ -45,7 +44,7 @@ func formattedGaps(gaps []timetableplanning.ShiftCoverageInterval) [][2]string {
 }
 
 type fakeShiftReader struct {
-	rows      []*scheduleModel.StaffShift
+	rows      []*StaffShift
 	err       error
 	calls     int
 	from      timezone.Date
@@ -55,7 +54,7 @@ type fakeShiftReader struct {
 	usedWeeks []timezone.Date
 }
 
-func (f *fakeShiftReader) FindByStaffIDsAndDates(_ context.Context, staffIDs []int64, dates []scheduleModel.Date) ([]*scheduleModel.StaffShift, error) {
+func (f *fakeShiftReader) FindByStaffIDsAndDates(_ context.Context, staffIDs []int64, dates []timezone.Date) ([]*StaffShift, error) {
 	f.calls++
 	f.staffIDs = append([]int64(nil), staffIDs...)
 	f.dates = make([]timezone.Date, len(dates))
@@ -65,16 +64,16 @@ func (f *fakeShiftReader) FindByStaffIDsAndDates(_ context.Context, staffIDs []i
 	return f.rows, f.err
 }
 
-func (f *fakeShiftReader) FindUsedCalendarWeeks(_ context.Context, from, to scheduleModel.Date) ([]scheduleModel.Date, error) {
+func (f *fakeShiftReader) FindUsedCalendarWeeks(_ context.Context, from, to timezone.Date) ([]timezone.Date, error) {
 	f.calls++
 	f.from, f.to = timezone.Date(from), timezone.Date(to)
 	if f.err != nil {
 		return nil, f.err
 	}
 	if f.usedWeeks != nil {
-		weeks := make([]scheduleModel.Date, len(f.usedWeeks))
+		weeks := make([]timezone.Date, len(f.usedWeeks))
 		for index, week := range f.usedWeeks {
-			weeks[index] = scheduleModel.Date(week)
+			weeks[index] = timezone.Date(week)
 		}
 		return weeks, nil
 	}
@@ -90,21 +89,21 @@ func (f *fakeShiftReader) FindUsedCalendarWeeks(_ context.Context, from, to sche
 			weeks = append(weeks, week)
 		}
 	}
-	converted := make([]scheduleModel.Date, len(weeks))
+	converted := make([]timezone.Date, len(weeks))
 	for index, week := range weeks {
-		converted[index] = scheduleModel.Date(week)
+		converted[index] = timezone.Date(week)
 	}
 	return converted, nil
 }
 
-func (f *fakeShiftReader) FindByDateRange(_ context.Context, from, to scheduleModel.Date) ([]*scheduleModel.StaffShift, error) {
+func (f *fakeShiftReader) FindByDateRange(_ context.Context, from, to timezone.Date) ([]*StaffShift, error) {
 	f.calls++
 	f.from, f.to = timezone.Date(from), timezone.Date(to)
 	return f.rows, f.err
 }
 
 type fakeInstanceReader struct {
-	rows       []*scheduleModel.ActivityInstance
+	rows       []*timetable.ScheduledInstance
 	err        error
 	calls      int
 	groupCalls int
@@ -113,25 +112,25 @@ type fakeInstanceReader struct {
 	to         timezone.Date
 }
 
-func (f *fakeInstanceReader) FindByTenantAndDateRange(_ context.Context, _, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceReader) FindByTenantAndDateRange(_ context.Context, _, _ timezone.Date) ([]*timetable.ScheduledInstance, error) {
 	f.calls++
 	return f.rows, f.err
 }
 
-func (f *fakeInstanceReader) FindByActivityGroupAndDateRange(_ context.Context, groupID int64, from, to scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceReader) FindByActivityGroupAndDateRange(_ context.Context, groupID int64, from, to timezone.Date) ([]*timetable.ScheduledInstance, error) {
 	f.groupCalls++
 	f.groupID, f.from, f.to = groupID, timezone.Date(from), timezone.Date(to)
 	return f.rows, f.err
 }
 
 type fakeInstanceStaffReader struct {
-	rows  []*scheduleModel.InstanceStaff
+	rows  []*timetable.InstanceStaff
 	err   error
 	calls int
 	ids   []int64
 }
 
-func (f *fakeInstanceStaffReader) FindByInstanceIDs(_ context.Context, ids []int64) ([]*scheduleModel.InstanceStaff, error) {
+func (f *fakeInstanceStaffReader) FindByInstanceIDs(_ context.Context, ids []int64) ([]*timetable.InstanceStaff, error) {
 	f.calls++
 	f.ids = append([]int64(nil), ids...)
 	return f.rows, f.err
@@ -291,20 +290,20 @@ func TestStaffScheduleOverview_BatchesAndProjectsEffectiveDailyAssignments(t *te
 
 	date := timezone.NewDate(2026, time.July, 6)
 	mainRoomID, overrideRoomID := int64(21), int64(22)
-	instances := &fakeInstanceReader{rows: []*scheduleModel.ActivityInstance{
-		{Date: scheduleModel.Date(date), Title: "Lernzeit", StartTime: testClock(t, "08:00"), EndTime: testClock(t, "12:00"), RoomID: mainRoomID, Status: scheduleModel.InstanceStatusPlanned},
-		{Date: scheduleModel.Date(date), Title: "Abgesagt", StartTime: testClock(t, "13:00"), EndTime: testClock(t, "14:00"), RoomID: mainRoomID, Status: scheduleModel.InstanceStatusCancelled},
+	instances := &fakeInstanceReader{rows: []*timetable.ScheduledInstance{
+		{Date: timezone.Date(date), Title: "Lernzeit", StartTime: testClock(t, "08:00"), EndTime: testClock(t, "12:00"), RoomID: mainRoomID, Status: timetable.InstanceStatusPlanned},
+		{Date: timezone.Date(date), Title: "Abgesagt", StartTime: testClock(t, "13:00"), EndTime: testClock(t, "14:00"), RoomID: mainRoomID, Status: timetable.InstanceStatusCancelled},
 	}}
 	instances.rows[0].ID = 31
 	instances.rows[1].ID = 32
 	reason := "krank"
-	assignmentRows := &fakeInstanceStaffReader{rows: []*scheduleModel.InstanceStaff{
+	assignmentRows := &fakeInstanceStaffReader{rows: []*timetable.InstanceStaff{
 		{InstanceID: 31, StaffID: 1, RoomID: &overrideRoomID, IsAbsent: true, AbsenceReason: &reason},
 		{InstanceID: 31, StaffID: 2, IsSubstitute: true},
 		{InstanceID: 31, StaffID: 3},
 		{InstanceID: 32, StaffID: 1},
 	}}
-	shifts := &fakeShiftReader{rows: []*scheduleModel.StaffShift{
+	shifts := &fakeShiftReader{rows: []*StaffShift{
 		testShift(t, 2, date, "08:00", "12:00"),
 		testShift(t, 3, date, "08:00", "10:00"),
 		testShift(t, 3, date, "10:00", "12:00"),
@@ -360,9 +359,9 @@ func TestStaffScheduleOverview_UsesTenantShiftWeeksPerISOWeek(t *testing.T) {
 
 	monday := timezone.NewDate(2026, time.July, 6)
 	nextMonday := monday.AddDays(7)
-	instances := &fakeInstanceReader{rows: []*scheduleModel.ActivityInstance{
-		{Date: scheduleModel.Date(monday), Title: "Mensa", StartTime: testClock(t, "12:00"), EndTime: testClock(t, "13:00"), Status: scheduleModel.InstanceStatusPlanned},
-		{Date: scheduleModel.Date(nextMonday), Title: "Lernzeit", StartTime: testClock(t, "12:00"), EndTime: testClock(t, "13:00"), Status: scheduleModel.InstanceStatusPlanned},
+	instances := &fakeInstanceReader{rows: []*timetable.ScheduledInstance{
+		{Date: timezone.Date(monday), Title: "Mensa", StartTime: testClock(t, "12:00"), EndTime: testClock(t, "13:00"), Status: timetable.InstanceStatusPlanned},
+		{Date: timezone.Date(nextMonday), Title: "Lernzeit", StartTime: testClock(t, "12:00"), EndTime: testClock(t, "13:00"), Status: timetable.InstanceStatusPlanned},
 	}}
 	instances.rows[0].ID = 41
 	instances.rows[1].ID = 42
@@ -372,7 +371,7 @@ func TestStaffScheduleOverview_UsesTenantShiftWeeksPerISOWeek(t *testing.T) {
 	service := NewStaffScheduleOverviewService(StaffScheduleOverviewDependencies{
 		Shifts:    shifts,
 		Instances: instances,
-		InstanceStaff: &fakeInstanceStaffReader{rows: []*scheduleModel.InstanceStaff{
+		InstanceStaff: &fakeInstanceStaffReader{rows: []*timetable.InstanceStaff{
 			{InstanceID: 41, StaffID: 1}, {InstanceID: 42, StaffID: 1},
 		}},
 		Rooms: &fakeRoomReader{},
@@ -393,14 +392,14 @@ func TestStaffScheduleOverview_TenantWeekWithoutAnyShiftSuppressesWarnings(t *te
 	t.Parallel()
 
 	date := timezone.NewDate(2026, time.July, 6)
-	instance := &scheduleModel.ActivityInstance{
-		Date: scheduleModel.Date(date), Title: "AG", StartTime: testClock(t, "09:00"), EndTime: testClock(t, "10:00"), RoomID: 2, Status: scheduleModel.InstanceStatusPlanned,
+	instance := &timetable.ScheduledInstance{
+		Date: timezone.Date(date), Title: "AG", StartTime: testClock(t, "09:00"), EndTime: testClock(t, "10:00"), RoomID: 2, Status: timetable.InstanceStatusPlanned,
 	}
 	instance.ID = 8
 	service := NewStaffScheduleOverviewService(StaffScheduleOverviewDependencies{
 		Shifts:        &fakeShiftReader{},
-		Instances:     &fakeInstanceReader{rows: []*scheduleModel.ActivityInstance{instance}},
-		InstanceStaff: &fakeInstanceStaffReader{rows: []*scheduleModel.InstanceStaff{{InstanceID: 8, StaffID: 4}}},
+		Instances:     &fakeInstanceReader{rows: []*timetable.ScheduledInstance{instance}},
+		InstanceStaff: &fakeInstanceStaffReader{rows: []*timetable.InstanceStaff{{InstanceID: 8, StaffID: 4}}},
 		Rooms:         &fakeRoomReader{rows: []*facilities.Room{{Name: "Raum"}}},
 		Staff:         &fakeStaffReader{},
 	})

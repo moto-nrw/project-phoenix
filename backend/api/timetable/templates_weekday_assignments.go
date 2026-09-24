@@ -14,8 +14,7 @@ import (
 	"errors"
 	"fmt"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // weekdayAssignmentRequest is one weekday's roster deviation. It is a full
@@ -43,7 +42,7 @@ func validateWeekdayAssignments(assignments []weekdayAssignmentRequest, weekdays
 	}
 	seen := make(map[int]struct{}, len(assignments))
 	for _, assignment := range assignments {
-		if !activitiesModel.IsValidWeekday(assignment.Weekday) {
+		if !timetable.IsValidWeekday(assignment.Weekday) {
 			return fmt.Errorf("invalid weekday %d in weekday_assignments (must be 1=Mon … 7=Sun)", assignment.Weekday)
 		}
 		if _, ok := scheduled[assignment.Weekday]; !ok {
@@ -70,13 +69,13 @@ func containsID(ids []int64, want int64) bool {
 }
 
 // toServiceWeekdayAssignments maps the wire shape onto the service input.
-func toServiceWeekdayAssignments(assignments []weekdayAssignmentRequest) []timetableplanning.WeekdayRosterAssignment {
+func toServiceWeekdayAssignments(assignments []weekdayAssignmentRequest) []timetable.WeekdayRosterAssignment {
 	if len(assignments) == 0 {
 		return nil
 	}
-	out := make([]timetableplanning.WeekdayRosterAssignment, 0, len(assignments))
+	out := make([]timetable.WeekdayRosterAssignment, 0, len(assignments))
 	for _, assignment := range assignments {
-		out = append(out, timetableplanning.WeekdayRosterAssignment{
+		out = append(out, timetable.WeekdayRosterAssignment{
 			Weekday:        assignment.Weekday,
 			StudentIDs:     assignment.StudentIDs,
 			StaffIDs:       assignment.StaffIDs,
@@ -107,14 +106,14 @@ type templateProtectedStudentAssignmentResponse struct {
 // buildTemplateWeekdayAssignments groups the flat, kind-tagged roster rows the
 // repository returns into one entry per weekday, keyed by template id.
 func buildTemplateWeekdayAssignments(
-	rows []activitiesModel.TemplateWeekdayRosterRow,
+	rows []timetable.TemplateWeekdayRosterRow,
 ) map[int64][]templateWeekdayAssignmentResponse {
 	// The repository orders by (template, weekday, kind, is_primary, person),
 	// so appending in scan order already yields stable, sorted output.
 	byTemplate := make(map[int64][]templateWeekdayAssignmentResponse)
 	index := make(map[int64]map[int]int)
 	for _, row := range rows {
-		if row.Kind == activitiesModel.TemplateWeekdayRosterKindProtectedStudent {
+		if row.Kind == timetable.TemplateWeekdayRosterKindProtectedStudent {
 			continue
 		}
 		perWeekday, ok := index[row.TemplateID]
@@ -134,15 +133,15 @@ func buildTemplateWeekdayAssignments(
 		}
 		entry := &byTemplate[row.TemplateID][position]
 		switch row.Kind {
-		case activitiesModel.TemplateWeekdayRosterKindEmpty:
+		case timetable.TemplateWeekdayRosterKindEmpty:
 			// The entry itself is the payload: no person belongs to this day.
-		case activitiesModel.TemplateWeekdayRosterKindStaff:
+		case timetable.TemplateWeekdayRosterKindStaff:
 			entry.StaffIDs = append(entry.StaffIDs, row.PersonID)
 			if row.IsPrimary && entry.PrimaryStaffID == nil {
 				staffID := row.PersonID
 				entry.PrimaryStaffID = &staffID
 			}
-		case activitiesModel.TemplateWeekdayRosterKindStudent:
+		case timetable.TemplateWeekdayRosterKindStudent:
 			entry.StudentIDs = append(entry.StudentIDs, row.PersonID)
 		}
 	}
@@ -150,12 +149,12 @@ func buildTemplateWeekdayAssignments(
 }
 
 func buildTemplateProtectedStudentAssignments(
-	rows []activitiesModel.TemplateWeekdayRosterRow,
+	rows []timetable.TemplateWeekdayRosterRow,
 ) map[int64][]templateProtectedStudentAssignmentResponse {
 	byTemplate := make(map[int64][]templateProtectedStudentAssignmentResponse)
 	index := make(map[int64]map[int]int)
 	for _, row := range rows {
-		if row.Kind != activitiesModel.TemplateWeekdayRosterKindProtectedStudent {
+		if row.Kind != timetable.TemplateWeekdayRosterKindProtectedStudent {
 			continue
 		}
 		perWeekday, ok := index[row.TemplateID]

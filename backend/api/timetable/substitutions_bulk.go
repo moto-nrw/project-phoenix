@@ -8,8 +8,9 @@
 // semantics per date, same all-or-nothing atomicity (Phase A classifies every
 // day before Phase B writes a row), same DeviationError wire mapping.
 //
-// All business rules live in InstanceService.ApplyBulkSubstitution
-// (modules/timetable/legacy/timetableplanning/bulk_substitution.go). The handler parses the body,
+// All business rules live in the Timetable owner's
+// timetable.StaffDeviations.ApplyBulkSubstitution (#3424 slice S3,
+// modules/timetable/compose/bulk_substitution.go). The handler parses the body,
 // calls the service once, and fires the post-save SSE signals.
 //
 // Permission: SchedulesManage. Same tenant tx as the other /instances routes.
@@ -22,9 +23,9 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // bulkSubstitutionRequest is the POST body. substitute_staff_id omitted/null
@@ -38,9 +39,9 @@ type bulkSubstitutionRequest struct {
 
 // BulkSubstitutionDayResponse is the per-day slice of the 200 body.
 type BulkSubstitutionDayResponse struct {
-	Date              string                                     `json:"date"`
-	AffectedInstances []AffectedInstance                         `json:"affected_instances"`
-	Warnings          []timetableplanning.SubstituteTimeConflict `json:"warnings"`
+	Date              string                             `json:"date"`
+	AffectedInstances []AffectedInstance                 `json:"affected_instances"`
+	Warnings          []timetable.SubstituteTimeConflict `json:"warnings"`
 }
 
 // BulkSubstitutionResponse is the 200 body.
@@ -53,7 +54,7 @@ type BulkSubstitutionResponse struct {
 func (rs *Resource) applyBulkSubstitution(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if rs.InstanceService == nil {
+	if rs.Deviations == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
@@ -64,9 +65,9 @@ func (rs *Resource) applyBulkSubstitution(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	dates := make([]timezone.Date, 0, len(req.Dates))
+	dates := make([]calendar.Date, 0, len(req.Dates))
 	for _, raw := range req.Dates {
-		date, err := timezone.ParseDate(raw)
+		date, err := calendar.ParseDate(raw)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("dates must be YYYY-MM-DD")))
 			return
@@ -74,7 +75,7 @@ func (rs *Resource) applyBulkSubstitution(w http.ResponseWriter, r *http.Request
 		dates = append(dates, date)
 	}
 
-	result, err := rs.InstanceService.ApplyBulkSubstitution(ctx, timetableplanning.BulkSubstitutionInput{
+	result, err := rs.Deviations.ApplyBulkSubstitution(ctx, timetable.BulkSubstitutionInput{
 		AbsentStaffID:     req.AbsentStaffID,
 		SubstituteStaffID: req.SubstituteStaffID,
 		Dates:             dates,
@@ -99,7 +100,7 @@ func (rs *Resource) applyBulkSubstitution(w http.ResponseWriter, r *http.Request
 
 // bulkSubstitutionResponseOf shapes the service result into the wire response,
 // defaulting nil slices to empty ones so the JSON always carries arrays.
-func bulkSubstitutionResponseOf(result *timetableplanning.BulkSubstitutionResult) BulkSubstitutionResponse {
+func bulkSubstitutionResponseOf(result *timetable.BulkSubstitutionResult) BulkSubstitutionResponse {
 	days := make([]BulkSubstitutionDayResponse, 0, len(result.Days))
 	for _, day := range result.Days {
 		affected := make([]AffectedInstance, 0, len(day.Affected))
@@ -113,7 +114,7 @@ func bulkSubstitutionResponseOf(result *timetableplanning.BulkSubstitutionResult
 		}
 		warnings := day.Warnings
 		if warnings == nil {
-			warnings = []timetableplanning.SubstituteTimeConflict{}
+			warnings = []timetable.SubstituteTimeConflict{}
 		}
 		days = append(days, BulkSubstitutionDayResponse{
 			Date:              day.Date.String(),

@@ -3,10 +3,8 @@ package timetable
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // SlotResponse describes an arrival or pickup slot for a single day.
@@ -24,9 +22,9 @@ type SlotResponse struct {
 // service so the wire strings and the shared ResolveSlotSource precedence rule
 // stay in lockstep — one source of truth.
 const (
-	SlotSourceSchedule  = timetableplanning.SlotSourceSchedule
-	SlotSourceException = timetableplanning.SlotSourceException
-	SlotSourceNone      = timetableplanning.SlotSourceNone
+	SlotSourceSchedule  = timetable.SlotSourceSchedule
+	SlotSourceException = timetable.SlotSourceException
+	SlotSourceNone      = timetable.SlotSourceNone
 )
 
 // AttendanceDayResponse is the per-student attendance payload on a day
@@ -81,7 +79,7 @@ type StudentWeekResponse struct {
 // wire shape. The attendance row is authoritative — status/substatus/note/
 // checked_in_at come from it directly. A persisted unplanned visit also has an
 // instance_students row, so the row's is_unplanned flag stays authoritative.
-func mapEnrolledInstance(row *scheduleModel.ScheduledInstanceRow) InstanceDayResponse {
+func mapEnrolledInstance(row timetable.StudentWeekEntry) InstanceDayResponse {
 	att := row.Attendance
 	resp := InstanceDayResponse{
 		ID:            row.Instance.ID,
@@ -107,7 +105,7 @@ func mapEnrolledInstance(row *scheduleModel.ScheduledInstanceRow) InstanceDayRes
 // instance_students row. Status is synthesized as "present" (the visit
 // proves they were there), substatus/note stay nil, checked_in_at comes
 // from the visit's entry_time.
-func mapUnplannedInstance(inst *scheduleModel.ActivityInstance, visit studentpresence.Visit) InstanceDayResponse {
+func mapUnplannedInstance(inst timetable.ScheduledInstance, visit timetable.StudentWeekVisit) InstanceDayResponse {
 	checkedIn := formatOptionalRFC3339(&visit.EntryTime)
 	return InstanceDayResponse{
 		ID:            inst.ID,
@@ -118,7 +116,7 @@ func mapUnplannedInstance(inst *scheduleModel.ActivityInstance, visit studentpre
 		Status:        inst.Status,
 		ActiveGroupID: inst.ActiveGroupID,
 		Attendance: AttendanceDayResponse{
-			Status:       scheduleModel.AttendanceStatusPresent,
+			Status:       timetable.SlotAttendancePresent,
 			Substatus:    nil,
 			Note:         nil,
 			CheckedInAt:  checkedIn,
@@ -140,21 +138,6 @@ func mapArrivalScheduleSlot(expectedArrival time.Time) SlotResponse {
 	return resp
 }
 
-// mapArrivalExceptionSlot maps a date-specific exception. A nil time means
-// absence on this date; we surface source=exception with ExpectedTime=nil.
-func mapArrivalExceptionSlot(e *scheduleModel.StudentArrivalException) SlotResponse {
-	resp := SlotResponse{Source: SlotSourceException}
-	if e.ExpectedArrival != nil {
-		t := e.ExpectedArrival.Format("15:04")
-		resp.ExpectedTime = &t
-	}
-	if e.Reason != nil && *e.Reason != "" {
-		r := *e.Reason
-		resp.Reason = &r
-	}
-	return resp
-}
-
 // mapPickupScheduleSlot mirrors mapArrivalScheduleSlot for pickup.
 func mapPickupScheduleSlot(pickupTime time.Time) SlotResponse {
 	t := pickupTime.Format("15:04")
@@ -162,20 +145,6 @@ func mapPickupScheduleSlot(pickupTime time.Time) SlotResponse {
 		ExpectedTime: &t,
 		Source:       SlotSourceSchedule,
 	}
-}
-
-// mapPickupExceptionSlot mirrors mapArrivalExceptionSlot for pickup.
-func mapPickupExceptionSlot(e *scheduleModel.StudentPickupException) SlotResponse {
-	resp := SlotResponse{Source: SlotSourceException}
-	if e.PickupTime != nil {
-		t := e.PickupTime.Format("15:04")
-		resp.ExpectedTime = &t
-	}
-	if e.Reason != nil && *e.Reason != "" {
-		r := *e.Reason
-		resp.Reason = &r
-	}
-	return resp
 }
 
 // formatOptionalRFC3339 renders an optional timestamp in Berlin-local time
@@ -186,6 +155,22 @@ func formatOptionalRFC3339(t *time.Time) *string {
 	if t == nil {
 		return nil
 	}
-	s := t.In(timezone.Berlin).Format(time.RFC3339)
+	s := t.In(calendar.Berlin).Format(time.RFC3339)
 	return &s
+}
+
+// mapExceptionSlot maps a date-specific arrival or pickup exception. A nil
+// time means absence on this date; we surface source=exception with
+// ExpectedTime=nil.
+func mapExceptionSlot(e *timetable.StudentDayException) SlotResponse {
+	resp := SlotResponse{Source: SlotSourceException}
+	if e.Time != nil {
+		t := e.Time.Format("15:04")
+		resp.ExpectedTime = &t
+	}
+	if e.Reason != nil && *e.Reason != "" {
+		r := *e.Reason
+		resp.Reason = &r
+	}
+	return resp
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
@@ -40,18 +39,18 @@ var (
 // StaffShiftService manages planned per-date staff shifts (Dienstplan).
 type StaffShiftService interface {
 	// ListShifts returns all staff shifts in the range (admin week view).
-	ListShifts(ctx context.Context, start, end timezone.Date) ([]*scheduleModels.StaffShift, error)
+	ListShifts(ctx context.Context, start, end timezone.Date) ([]*StaffShift, error)
 	// ListShiftsForStaff returns one staff member's shifts in the range.
-	ListShiftsForStaff(ctx context.Context, staffID int64, start, end timezone.Date) ([]*scheduleModels.StaffShift, error)
+	ListShiftsForStaff(ctx context.Context, staffID int64, start, end timezone.Date) ([]*StaffShift, error)
 	// CreateShift validates and persists a new shift.
-	CreateShift(ctx context.Context, shift *scheduleModels.StaffShift) (*scheduleModels.StaffShift, error)
+	CreateShift(ctx context.Context, shift *StaffShift) (*StaffShift, error)
 	// UpdateShift validates and persists changes to an existing shift.
-	UpdateShift(ctx context.Context, shift *scheduleModels.StaffShift) (*scheduleModels.StaffShift, error)
+	UpdateShift(ctx context.Context, shift *StaffShift) (*StaffShift, error)
 	// UpdateShiftWithOptions validates and persists changes with update-specific merge options.
-	UpdateShiftWithOptions(ctx context.Context, shift *scheduleModels.StaffShift, opts StaffShiftUpdateOptions) (*scheduleModels.StaffShift, error)
+	UpdateShiftWithOptions(ctx context.Context, shift *StaffShift, opts StaffShiftUpdateOptions) (*StaffShift, error)
 	// MoveShift atomically and retry-safely moves one concrete shift to another
 	// person and/or slot while preserving its identity and metadata.
-	MoveShift(ctx context.Context, input MoveShiftInput) (*scheduleModels.StaffShift, error)
+	MoveShift(ctx context.Context, input MoveShiftInput) (*StaffShift, error)
 	// DeleteShift removes a shift.
 	DeleteShift(ctx context.Context, id int64) error
 	// ApplyCancellation atomically cancels (or reactivates) a shift and replaces
@@ -221,11 +220,11 @@ func validateShiftRange(start, end timezone.Date) error {
 	return nil
 }
 
-func (s *staffShiftService) ListShifts(ctx context.Context, start, end timezone.Date) ([]*scheduleModels.StaffShift, error) {
+func (s *staffShiftService) ListShifts(ctx context.Context, start, end timezone.Date) ([]*StaffShift, error) {
 	if err := validateShiftRange(start, end); err != nil {
 		return nil, err
 	}
-	shifts, err := s.repo.FindByDateRange(ctx, scheduleModels.Date(start), scheduleModels.Date(end))
+	shifts, err := s.repo.FindByDateRange(ctx, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -235,14 +234,14 @@ func (s *staffShiftService) ListShifts(ctx context.Context, start, end timezone.
 	return shifts, nil
 }
 
-func (s *staffShiftService) ListShiftsForStaff(ctx context.Context, staffID int64, start, end timezone.Date) ([]*scheduleModels.StaffShift, error) {
+func (s *staffShiftService) ListShiftsForStaff(ctx context.Context, staffID int64, start, end timezone.Date) ([]*StaffShift, error) {
 	if staffID <= 0 {
 		return nil, fmt.Errorf("%w: staff ID is required", ErrShiftInvalid)
 	}
 	if err := validateShiftRange(start, end); err != nil {
 		return nil, err
 	}
-	shifts, err := s.repo.FindByStaffAndDateRange(ctx, staffID, scheduleModels.Date(start), scheduleModels.Date(end))
+	shifts, err := s.repo.FindByStaffAndDateRange(ctx, staffID, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +259,7 @@ func (s *staffShiftService) ListShiftsForStaff(ctx context.Context, staffID int6
 // lookup error propagates — these reads run inside TenantTxMiddleware, where a
 // failed statement can abort the transaction, so swallowing it would return a
 // 200 whose commit then fails after the response was written.
-func (s *staffShiftService) attachShiftTypes(ctx context.Context, shifts []*scheduleModels.StaffShift) error {
+func (s *staffShiftService) attachShiftTypes(ctx context.Context, shifts []*StaffShift) error {
 	if s.shiftTypes == nil || len(shifts) == 0 {
 		return nil
 	}
@@ -278,7 +277,7 @@ func (s *staffShiftService) attachShiftTypes(ctx context.Context, shifts []*sche
 	if err != nil {
 		return fmt.Errorf("failed to resolve shift types: %w", err)
 	}
-	byID := make(map[int64]*scheduleModels.ShiftType, len(types))
+	byID := make(map[int64]*ShiftType, len(types))
 	for _, t := range types {
 		byID[t.ID] = t
 	}
@@ -295,7 +294,7 @@ func (s *staffShiftService) attachShiftTypes(ctx context.Context, shifts []*sche
 // shift does not take place, so it neither blocks other shifts nor is blocked
 // by them (#1841): a replacement or a shortened return can reuse the freed
 // window.
-func (s *staffShiftService) checkOverlap(ctx context.Context, shift *scheduleModels.StaffShift) error {
+func (s *staffShiftService) checkOverlap(ctx context.Context, shift *StaffShift) error {
 	if shift.Cancelled {
 		return nil
 	}
@@ -317,7 +316,7 @@ func (s *staffShiftService) checkOverlap(ctx context.Context, shift *scheduleMod
 // loadOriginShift reads a replacement's origin shift, mapping a missing row
 // (FindByID is tenant-scoped, so a cross-tenant origin also reads as not found)
 // to ErrShiftInvalid.
-func (s *staffShiftService) loadOriginShift(ctx context.Context, originID int64) (*scheduleModels.StaffShift, error) {
+func (s *staffShiftService) loadOriginShift(ctx context.Context, originID int64) (*StaffShift, error) {
 	origin, err := s.repo.FindByID(ctx, originID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
@@ -372,7 +371,7 @@ func (s *staffShiftService) lockStaffWritesOrdered(ctx context.Context, staffIDs
 // lock means a reactivation that committed before we acquired the lock is now
 // visible, so a stale "cancelled" read cannot slip through. A nil origin is a
 // normal shift and needs no check.
-func (s *staffShiftService) validateOriginLink(ctx context.Context, shift *scheduleModels.StaffShift) error {
+func (s *staffShiftService) validateOriginLink(ctx context.Context, shift *StaffShift) error {
 	if shift.OriginShiftID == nil {
 		return nil
 	}
@@ -406,7 +405,7 @@ func (s *staffShiftService) validateOriginLink(ctx context.Context, shift *sched
 	return nil
 }
 
-func (s *staffShiftService) CreateShift(ctx context.Context, shift *scheduleModels.StaffShift) (*scheduleModels.StaffShift, error) {
+func (s *staffShiftService) CreateShift(ctx context.Context, shift *StaffShift) (*StaffShift, error) {
 	// A create always assigns the type fresh, so no deactivated type is
 	// grandfathered in (nil allowlist).
 	created, err := s.createShift(ctx, shift, nil)
@@ -421,7 +420,7 @@ func (s *staffShiftService) CreateShift(ctx context.Context, shift *scheduleMode
 // of deactivated shift-type ids (a rebuilt cover set re-sends each cover's own,
 // possibly since-deactivated, type — see ApplyCancellation); pass nil for an
 // ordinary create, where every assigned type must still be active (#1841).
-func (s *staffShiftService) createShift(ctx context.Context, shift *scheduleModels.StaffShift, allowedInactiveTypes map[int64]bool) (*scheduleModels.StaffShift, error) {
+func (s *staffShiftService) createShift(ctx context.Context, shift *StaffShift, allowedInactiveTypes map[int64]bool) (*StaffShift, error) {
 	if err := shift.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrShiftInvalid, err.Error())
 	}
@@ -480,11 +479,11 @@ func (s *staffShiftService) createShift(ctx context.Context, shift *scheduleMode
 	return shift, nil
 }
 
-func (s *staffShiftService) UpdateShift(ctx context.Context, shift *scheduleModels.StaffShift) (*scheduleModels.StaffShift, error) {
+func (s *staffShiftService) UpdateShift(ctx context.Context, shift *StaffShift) (*StaffShift, error) {
 	return s.UpdateShiftWithOptions(ctx, shift, StaffShiftUpdateOptions{})
 }
 
-func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *scheduleModels.StaffShift, opts StaffShiftUpdateOptions) (*scheduleModels.StaffShift, error) {
+func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *StaffShift, opts StaffShiftUpdateOptions) (*StaffShift, error) {
 	updated, err := s.updateShiftWithOptions(ctx, shift, opts)
 	if err != nil {
 		return nil, err
@@ -495,7 +494,7 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 	return updated, nil
 }
 
-func (s *staffShiftService) updateShiftWithOptions(ctx context.Context, shift *scheduleModels.StaffShift, opts StaffShiftUpdateOptions) (*scheduleModels.StaffShift, error) {
+func (s *staffShiftService) updateShiftWithOptions(ctx context.Context, shift *StaffShift, opts StaffShiftUpdateOptions) (*StaffShift, error) {
 	if shift.ID <= 0 {
 		return nil, ErrShiftNotFound
 	}

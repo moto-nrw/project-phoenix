@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 const (
@@ -34,12 +34,12 @@ type ShiftCoverageRequest struct {
 // ShiftCoverageResponse deliberately contains no shift rows; callers receive
 // only advisory uncovered intervals after passing both permissions.
 type ShiftCoverageResponse struct {
-	CoverageWarnings     []timetableplanning.ShiftCoverageWarning `json:"coverage_warnings"`
-	CoverageWarningCount int                                      `json:"coverage_warning_count"`
+	CoverageWarnings     []timetable.ShiftCoverageWarning `json:"coverage_warnings"`
+	CoverageWarningCount int                              `json:"coverage_warning_count"`
 }
 
 func (rs *Resource) checkShiftCoverage(w http.ResponseWriter, r *http.Request) {
-	if rs.TimetableData == nil {
+	if rs.ConflictDetection == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New(shiftCoverageLoadErrorMessage)))
 		return
 	}
@@ -50,9 +50,9 @@ func (rs *Resource) checkShiftCoverage(w http.ResponseWriter, r *http.Request) {
 		renderShiftCoverageBadRequest(w, r)
 		return
 	}
-	dates := make([]timezone.Date, 0, len(request.Dates))
+	dates := make([]calendar.Date, 0, len(request.Dates))
 	for _, rawDate := range request.Dates {
-		date, err := timezone.ParseDate(rawDate)
+		date, err := calendar.ParseDate(rawDate)
 		if err != nil {
 			renderShiftCoverageBadRequest(w, r)
 			return
@@ -69,9 +69,9 @@ func (rs *Resource) checkShiftCoverage(w http.ResponseWriter, r *http.Request) {
 		renderShiftCoverageBadRequest(w, r)
 		return
 	}
-	var concreteInstanceDate *timezone.Date
+	var concreteInstanceDate *calendar.Date
 	if request.ConcreteInstanceDate != nil {
-		date, parseErr := timezone.ParseDate(*request.ConcreteInstanceDate)
+		date, parseErr := calendar.ParseDate(*request.ConcreteInstanceDate)
 		if parseErr != nil {
 			renderShiftCoverageBadRequest(w, r)
 			return
@@ -79,7 +79,7 @@ func (rs *Resource) checkShiftCoverage(w http.ResponseWriter, r *http.Request) {
 		concreteInstanceDate = &date
 	}
 
-	result, err := rs.TimetableData.DetectShiftCoverageWarnings(r.Context(), timetableplanning.ShiftCoverageQuery{
+	result, err := rs.ConflictDetection.DetectShiftCoverage(r.Context(), timetable.ShiftCoverageProbe{
 		Dates:                 dates,
 		StartTime:             start,
 		EndTime:               end,
@@ -91,7 +91,7 @@ func (rs *Resource) checkShiftCoverage(w http.ResponseWriter, r *http.Request) {
 		WeekPattern:           request.WeekPattern,
 	})
 	if err != nil {
-		if errors.Is(err, timetableplanning.ErrInvalidShiftCoverageQuery) {
+		if errors.Is(err, timetable.ErrInvalidShiftCoverageQuery) {
 			renderShiftCoverageBadRequest(w, r)
 			return
 		}
@@ -99,7 +99,7 @@ func (rs *Resource) checkShiftCoverage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if result.Warnings == nil {
-		result.Warnings = make([]timetableplanning.ShiftCoverageWarning, 0)
+		result.Warnings = make([]timetable.ShiftCoverageWarning, 0)
 	}
 	common.Respond(w, r, http.StatusOK, ShiftCoverageResponse{
 		CoverageWarnings:     result.Warnings,

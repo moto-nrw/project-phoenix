@@ -23,9 +23,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,19 +37,19 @@ type splitSeriesSetup struct {
 	router    chi.Router
 	oldID     int64
 	newID     int64
-	effective timezone.Date
+	effective calendar.Date
 	periodID  int64
 }
 
 func buildSplitSeriesSetup(t *testing.T, name string) *splitSeriesSetup {
 	t.Helper()
-	mat := &mockMaterializationService{result: &timetableplanning.MaterializationResult{}}
+	mat := &mockMaterializationService{result: &timetableModule.MaterializationResult{}}
 	s := buildTemplateModule(t, mat, fixedTemplateClock)
 	attachSplitService(s, mat)
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 
 	created := createSourceTemplate(t, router, s, name+"-Quelle")
-	effective := timezone.NewDate(2099, 1, 12)
+	effective := calendar.NewDate(2099, 1, 12)
 	w := doTemplateJSON(t, router, http.MethodPost,
 		fmt.Sprintf("/templates/%d/split", created.TemplateID),
 		splitBody(s, name+"-Nachfolger", effective))
@@ -164,20 +163,19 @@ func TestUpdateTemplate_SeriesRosterFromReachesPredecessor(t *testing.T) {
 	w := doTemplateJSON(t, s.router, http.MethodPut, fmt.Sprintf("/templates/%d", s.newID), body)
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
-	rows, err := s.enrollments.FindByGroupID(s.ctx, s.oldID)
-	require.NoError(t, err)
+	rows := templateEnrollments(t, s.templateSetup, s.oldID)
 	weekdays := make([]int, 0, 2)
 	for _, row := range rows {
 		if row.StudentID != latecomer.ID {
 			continue
 		}
-		assert.Equal(t, activitiesModel.Date(anchor), row.ValidFrom, "the predecessor row starts at the anchor")
+		assert.Equal(t, anchor.String(), row.ValidFrom, "the predecessor row starts at the anchor")
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, activitiesModel.Date(s.effective), *row.ValidUntil, "and ends with the predecessor segment")
+		assert.Equal(t, s.effective.String(), *row.ValidUntil, "and ends with the predecessor segment")
 		require.NotNil(t, row.Weekday, "predecessor rows are written weekday-explicit")
 		weekdays = append(weekdays, *row.Weekday)
 	}
 	assert.ElementsMatch(t,
-		[]int{activitiesModel.WeekdayMonday, activitiesModel.WeekdayWednesday}, weekdays,
+		[]int{timetableModule.WeekdayMonday, timetableModule.WeekdayWednesday}, weekdays,
 		"one bounded predecessor row per scheduled weekday")
 }

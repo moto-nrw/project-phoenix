@@ -926,3 +926,16 @@ type settingsCallbackRoute struct {
 	router chi.Router
 	hub    *realtime.Hub
 }
+
+// checkTimetableConflictWiring pins that the timetable routes reach the
+// Timetable owner's conflict detection and staffing capability (#3550): the
+// conflict probes, the staff pool and the shift-coverage probe answer 500
+// when it is unwired, and the calendar list silently drops its warnings.
+func checkTimetableConflictWiring(t *testing.T, api *API) {
+	t.Parallel()
+
+	require.NotNil(t, api.Timetable)
+	require.NotNil(t, api.Timetable.ConflictDetection, "api/timetable must hold the owner's conflict detection")
+	assert.Same(t, api.Services.TimetableData.ConflictDetection, api.Timetable.ConflictDetection,
+		"the routes and the instance lifecycle share one composed capability")
+}

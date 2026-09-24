@@ -9,10 +9,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -177,7 +175,7 @@ func (req *updateTemplateRequest) normalizeTargetAndSourceFields() error {
 	// above (the source is merged in later), so the class list is trimmed and
 	// duplicate-checked here — otherwise " 1b " would be stored with its
 	// padding and shown back to the school that way (#2482).
-	normalized, err := activitiesModel.NormalizeSourceSchoolClasses(req.SourceSchoolClasses.Value)
+	normalized, err := timetableModule.NormalizeSourceSchoolClasses(req.SourceSchoolClasses.Value)
 	if err != nil {
 		return err
 	}
@@ -194,10 +192,10 @@ type parsedUpdateTemplate struct {
 	weekPattern             int
 	maxParticipants         int
 	maxParticipantsProvided bool
-	seriesRosterFrom        *timezone.Date
-	startDate               *timezone.Date
+	seriesRosterFrom        *calendar.Date
+	startDate               *calendar.Date
 	// endDate moves the last day of the series earlier (#3594); nil keeps it.
-	endDate *timezone.Date
+	endDate *calendar.Date
 }
 
 // parseUpdateTemplateRequest binds and format-validates the request. Format
@@ -217,16 +215,16 @@ func parseUpdateTemplateRequest(w http.ResponseWriter, r *http.Request) (*parsed
 	if !ok {
 		return nil, false
 	}
-	var seriesRosterFrom *timezone.Date
+	var seriesRosterFrom *calendar.Date
 	if req.SeriesRosterFrom != nil {
-		parsedDate, err := timezone.ParseDate(*req.SeriesRosterFrom)
+		parsedDate, err := calendar.ParseDate(*req.SeriesRosterFrom)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid series_roster_from format, expected YYYY-MM-DD")))
 			return nil, false
 		}
 		seriesRosterFrom = &parsedDate
 	}
-	var startDate *timezone.Date
+	var startDate *calendar.Date
 	if req.StartDate != nil {
 		parsedDate, err := berlinDate(*req.StartDate)
 		if err != nil {
@@ -307,9 +305,9 @@ func (rs *Resource) resolveTemplateForRead(
 	requestedID int64,
 	periodID *int64,
 ) ([]templateResponse, bool) {
-	resolvedID, changed, err := rs.TimetableData.ResolveLivingTemplateSegment(r.Context(), requestedID)
+	resolvedID, changed, err := rs.Templates.ResolveLivingTemplateSegment(r.Context(), requestedID)
 	if err != nil {
-		if errors.Is(err, timetableplanning.ErrTemplateSeriesFullyEnded) {
+		if errors.Is(err, timetableModule.ErrTemplateSeriesFullyEnded) {
 			renderTemplateNotFound(w, r)
 			return nil, false
 		}
@@ -378,16 +376,16 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := rs.TimetableData.ValidateTemplateEducationGroup(ctx, parsed.req.EducationGroupID); err != nil {
+	if err := rs.Templates.ValidateTemplateEducationGroup(ctx, parsed.req.EducationGroupID); err != nil {
 		renderTemplateEducationGroupError(w, r, err)
 		return
 	}
-	timeframeID, err := rs.TimetableData.FindOrCreateTimeframe(ctx, parsed.startTime, parsed.endTime, parsed.req.Name)
+	timeframeID, err := rs.Templates.FindOrCreateTimeframe(ctx, parsed.startTime, parsed.endTime, parsed.req.Name)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve timeframe failed", err))
 		return
 	}
-	updateErr := rs.TimetableData.UpdateTemplate(ctx, buildUpdateTemplateInput(id, parsed, timeframeID, gradeLevelMax, rosterValidFrom))
+	updateErr := rs.Templates.UpdateTemplate(ctx, buildUpdateTemplateInput(id, parsed, timeframeID, gradeLevelMax, rosterValidFrom))
 	if updateErr != nil {
 		// findOrCreateTimeframe runs before the recurrence service. Tenant
 		// middleware commits 4xx responses unless explicitly marked, so every
@@ -410,7 +408,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 // both enforces its bounds and prevents the replacement update from clearing
 // it. Updates without start_date preserve the existing omission semantics.
 func updateCalendarPeriodID(
-	startDate *timezone.Date,
+	startDate *calendar.Date,
 	requestedPeriodID *int64,
 	existing templateResponse,
 ) *int64 {
@@ -434,7 +432,7 @@ func updateCalendarPeriodID(
 // conflicts loudly (400) with submitted student_ids or weekday_assignments
 // instead of being half-applied.
 func applyOfferingSourcePresence(req *updateTemplateRequest, existing templateResponse) {
-	if req.TargetGroupType != activitiesModel.TargetGroupTypeAngebot {
+	if req.TargetGroupType != timetableModule.TargetGroupTypeOffering {
 		return
 	}
 	if !req.SourceCareOfferingIDs.Set && len(existing.SourceCareOfferingIDs) > 0 {
@@ -504,12 +502,12 @@ func inheritSourceSchoolClasses(req *updateTemplateRequest, existing templateRes
 func validateLegacyTemplateWorkdays(existing []templateScheduleResponse, requested []int) error {
 	legacy := make(map[int]struct{})
 	for _, schedule := range existing {
-		if schedule.Weekday > activitiesModel.WeekdayFriday {
+		if schedule.Weekday > timetableModule.WeekdayFriday {
 			legacy[schedule.Weekday] = struct{}{}
 		}
 	}
 	for _, weekday := range requested {
-		if weekday > activitiesModel.WeekdayFriday {
+		if weekday > timetableModule.WeekdayFriday {
 			if _, ok := legacy[weekday]; !ok {
 				return errors.New("timetable templates can only be scheduled from Monday to Friday")
 			}
@@ -520,7 +518,7 @@ func validateLegacyTemplateWorkdays(existing []templateScheduleResponse, request
 
 func hasWeekendTemplateWeekday(weekdays []int) bool {
 	for _, weekday := range weekdays {
-		if weekday > activitiesModel.WeekdayFriday {
+		if weekday > timetableModule.WeekdayFriday {
 			return true
 		}
 	}
@@ -534,12 +532,12 @@ func buildUpdateTemplateInput(
 	parsed *parsedUpdateTemplate,
 	timeframeID int64,
 	gradeLevelMax int,
-	rosterValidFrom timezone.Date,
-) timetableplanning.TemplateUpdateInput {
+	rosterValidFrom calendar.Date,
+) timetableModule.UpdateTemplateCommand {
 	req := parsed.req
-	return timetableplanning.TemplateUpdateInput{
+	return timetableModule.UpdateTemplateCommand{
 		TemplateID: id,
-		Fields: activitiesModel.TemplateFieldsUpdate{
+		Fields: timetableModule.TemplateFields{
 			Name:                    req.Name,
 			Type:                    req.Type,
 			CategoryID:              req.CategoryID,
@@ -571,7 +569,7 @@ func buildUpdateTemplateInput(
 		StudentIDs:         req.StudentIDs,
 		StaffIDs:           req.StaffIDs,
 		PrimaryStaffID:     req.PrimaryStaffID,
-		Targets:            targetModels(req.Targets),
+		Targets:            targetInputs(req.Targets),
 		WeekdayAssignments: toServiceWeekdayAssignments(req.WeekdayAssignments),
 		GradeLevelMax:      gradeLevelMax,
 		SeriesRosterFrom:   parsed.seriesRosterFrom,
@@ -590,15 +588,15 @@ func buildUpdateTemplateInput(
 // conflicts each carry their own status and code; everything else is a 500.
 func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, timetableplanning.ErrTemplateSegmentNotEditable):
+	case errors.Is(err, timetableModule.ErrTemplateSegmentNotEditable):
 		renderTemplateNotFound(w, r)
 	case errors.Is(err, timetableModule.ErrCategoryNotAssignable):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
-	case errors.Is(err, timetableplanning.ErrPlanningTrackNotFound), errors.Is(err, timetableplanning.ErrPlanningTrackArchived):
+	case errors.Is(err, timetableModule.ErrPlanningTrackNotFound), errors.Is(err, timetableModule.ErrPlanningTrackArchived):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
-	case errors.Is(err, timetableplanning.ErrTemplateWeekendWeekday):
-		common.RenderError(w, r, common.ErrorInvalidRequest(timetableplanning.ErrTemplateWeekendWeekday))
-	case errors.Is(err, timetableplanning.ErrOfferingSourceInvalid):
+	case errors.Is(err, timetableModule.ErrTemplateWeekendWeekday):
+		common.RenderError(w, r, common.ErrorInvalidRequest(timetableModule.ErrTemplateWeekendWeekday))
+	case errors.Is(err, timetableModule.ErrOfferingSourceInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case renderTemplateStartPullError(w, r, err):
 	case renderTemplateEducationGroupError(w, r, err):
@@ -623,19 +621,19 @@ const (
 // itself is user-facing German — the planner shows it verbatim.
 func renderTemplateStartPullError(w http.ResponseWriter, r *http.Request, err error) bool {
 	switch {
-	case errors.Is(err, timetableplanning.ErrTemplateStartNotEarlier):
+	case errors.Is(err, timetableModule.ErrTemplateStartNotEarlier):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
 			//nolint:staticcheck // ST1005: user-facing German message
 			errors.New("Der Serienbeginn kann nur auf ein früheres Datum vorgezogen werden."),
 			ErrCodeTemplateStartNotEarlier,
 		))
-	case errors.Is(err, timetableplanning.ErrTemplateStartInPast):
+	case errors.Is(err, timetableModule.ErrTemplateStartInPast):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
 			//nolint:staticcheck // ST1005: user-facing German message
 			errors.New("Der neue Serienbeginn darf nicht in der Vergangenheit liegen."),
 			ErrCodeTemplateStartInPast,
 		))
-	case errors.Is(err, timetableplanning.ErrTemplateStartPredecessorOverlap):
+	case errors.Is(err, timetableModule.ErrTemplateStartPredecessorOverlap):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
 			//nolint:staticcheck // ST1005: user-facing German message
 			errors.New("Der neue Serienbeginn überschneidet sich mit dem vorherigen Serienteil. Bitte wählen Sie ein Datum ab dessen Ende."),
@@ -661,7 +659,7 @@ func (rs *Resource) archiveTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("no tenant in context")))
 		return
 	}
-	n, err := rs.TimetableData.ArchiveTemplate(r.Context(), id)
+	n, err := rs.Templates.ArchiveTemplate(r.Context(), id)
 	if err != nil {
 		if renderTemplateCareOfferingConflict(w, r, err) {
 			return

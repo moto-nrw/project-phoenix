@@ -616,10 +616,12 @@ converted; `inbound-staff-shifts.to.workforce` is the owner's only rule and
 `api/staff-shifts` its only package. `legacy.jsonl` is unchanged: the
 package never had a key, which is what the ticket set out to repair. The
 Dienstplan rows still speak the retained `models/schedule` structs inside
-the planning package, because the Timetable coverage probe and staff pool in
-`modules/timetable/legacy/timetableplanning` share that vocabulary; they go
-with #3424, together with the shift-coverage interval vocabulary
-(`shift_coverage_intervals.go`) the overview binds through its own aliases.
+the planning package, because the Timetable coverage probe and staff pool
+share that vocabulary; they go with #3424. Since slice S4 (#3550) the
+overview takes the shift-coverage interval math and the calendar-week
+helpers from the public Timetable contract (`timetable.UncoveredShiftIntervals`,
+`timetable.ContainingCalendarWeek`) and keeps its own indexing and ordering
+helpers.
 
 The retained timetable and instance services that `services/schedule` used to
 hold (templates, splits and updates, materialization, the instance lifecycle
@@ -627,7 +629,8 @@ and deviation pipeline, conflict detection, the timetable data and operations
 reads, calendar periods, holidays and closing days, planning tracks, the
 roster reconciler, cleanup and the attendance mirror) are retained as the
 `inbound-timetable`/`adapter` compatibility package
-`modules/timetable/legacy/timetableplanning` (#3218), moved file for file with
+`modules/timetable/legacy/timetableplanning` (#3218; dissolved slice by slice
+under #3424 and deleted by slice S1, #3554), moved file for file with
 their behaviour tests. No HTTP path, status code, error string, authorization
 check, tenant scoping, recurrence, exception or materialization semantics
 changed. The care, arrival and pickup services stayed behind for #3220 (below),
@@ -718,12 +721,16 @@ unused generic CRUD methods. The pure query-option translations and listing
 adapters the legacy composition uses moved to `modules/timetable/compose`
 (`legacy_repository_options.go`, `legacy_composition_support.go`,
 `calendar_period_usage.go`), which may already import their models. The SQL
-test providers the cross-package tests build and the repository behaviour
-tests are the test-only root `modules/timetable/legacy/timetablesqltest`
-(`inbound-timetable`/`test-support`, `e2e-test` in both test scopes, as
-`modules/workforce/contracttest`); its `inbound-timetable.test-support.*`,
+test providers the cross-package tests built went to the test-only root
+`modules/timetable/legacy/timetablesqltest`, which #3554 deleted with its
+package entry and its `inbound-timetable.test-support.*`,
 `inbound-timetable.e2e-test.*` and `<consumer>.<role>.inbound-timetable-test-support`
-rules are compatibility permissions of the same kind. With both packages gone,
+compatibility rules: the consumer suites read through the repositories the
+composition root binds to the Timetable owner, the repository behaviour tests
+of those bound repositories moved to `modules/timetable/compose/httpintegration`
+(`legacy_*_test.go`) and the staff-notice and listing-adapter tests to
+`modules/timetable/compose`, and the tests of the providers themselves were
+dropped. With both packages gone,
 all #2730 entries left `legacy.jsonl`, together with the other resolved
 imports of the two packages, and the 25 rules that only those imports used
 (for example `parent-portal.adapter.timetable-application` and
@@ -1055,6 +1062,158 @@ epoch-gated exception in
 [ADR 0038](../../docs/adr/0038-timetable-planning-dissolution-replaces-legacy-permissions.md)
 (policy epoch 22 to 23), which every later slice of #3424 reuses and which
 ends when the last slice removes the package from the base.
+
+Slice S4 (#3550, policy epoch 25 to 26) moved conflict detection and
+staffing to the Timetable owner: the start and planning conflict checks,
+the window conflicts with their persisted acknowledgement fingerprints, the
+exception conflicts, the staff pool, the shift-coverage probe and the
+staffing rules. The public contract is `timetable.ConflictDetectionCapability`
+with the pure capacity, understaffing, slot-precedence and interval
+functions beside it; the implementation lives in `modules/timetable/compose`
+and still reads the retained repository rows, whose status carries the
+Student Presence session state the owner's own rows do not. Two collaborators
+the owner may not name are bound by the legacy composition
+(`services.NewTimetableConflictDetection`): Security Runtime's content
+fingerprint, of which the persisted fingerprint keeps the first 32 hex
+characters, and Care Plan's arrival baseline behind a consumer-owned port.
+`api/timetable` holds the capability directly; the retained
+`TimetableDataService` only carries it to the root (`ConflictDetection()`),
+because `services.Factory` may not grow a field. The instance lifecycle and
+the auto-start tick call the owner's start check, the Dienstplan overview
+and the supervision dashboard its public types, and the plan export reads
+staff names through a root-bound port instead of the nest's staff reader.
+Four emptied compatibility rules are deleted, five replacement permissions
+use the extended exception of ADR 0038, and `legacy.jsonl` is unchanged.
+
+Slice S5 (#3551, policy epoch 26 to 27) moved the planner's reads, the
+operational day, the retention cleanup, the ended-session completion and the
+planning-track administration to the Timetable owner. The public contracts
+are `timetable.TimetableDataCapability` (blocks with their rows, staffing
+gaps, a child's week, the Vorlagen list, the Änderungsprotokoll, the
+spontaneous-start preparation and the conflict acknowledgements),
+`timetable.OperationCapability`, `timetable.TimetableCleanup`,
+`timetable.EndedSessionCompletion` and `timetable.PlanningTrackAdministration`,
+with the lifecycle clock policy, the attendance-patch rules and the reopen
+gate as pure functions beside them; the retained lifecycle and template
+services delegate to those functions. The implementation lives in
+`modules/timetable/compose` and still reads the retained repository rows.
+The collaborators the owner may not name are consumer-owned ports bound at
+the root: `repositories.TimetableOwnerRows` hands over the retained rows,
+the Facilities room names, the School Structure group names and the Audit
+Platform's Änderungsprotokoll; `services` binds Care Plan's care days,
+baselines and effective times, Student Presence's attendance writes, the
+settings, the retained instance lifecycle (until slice S1) and the tenant
+runtime's advisory locks. The retained `TemplateService` (template writes
+and the attendance correction, slices S2 and S3) carries the planner reads
+to the root beside the conflict detection (`TimetableData()`), because
+`services.Factory` may not grow a field. The scheduler, the command line,
+the supervision dashboard, the kiosk session mirror, the sick cascade and
+the timetable end-to-end flows no longer name the nest. `careplan.ScheduleError`
+stays the one operation-wrapping error type (decision on #3551). Seventeen
+emptied compatibility rules are deleted, three replacement permissions use
+the exception of ADR 0038, and three resolved `legacy.jsonl` entries are
+removed; no key is added.
+
+Slice S2 (#3552, policy epoch 27 to 28) moved the template writes (create,
+update, split, end, the weekday rosters, the offering source and the
+grade-limit checks), the materialization with its edited-occurrence
+detection, the roster maintenance and the tenant recurrence gate to the
+Timetable owner. The public contracts are `timetable.TemplateAdministration`,
+`timetable.MaterializationCapability`, `timetable.RosterMaintenance` and
+`timetable.RecurrenceWriteLock` (one capability for both gates, recurrence
+first and grade transitions second), with `timetable.OfferingRosterResyncInput`,
+`timetable.ErrOfferingSourceInvalid` and the template errors beside them. The
+implementation lives in `modules/timetable/compose`, takes the advisory
+locks through the owner's Postgres adapter and asks the School Calendar for
+the A/B-week decision directly. The collaborators the owner may not name are
+consumer-owned ports bound at the root: `repositories.TimetableTemplateRows`
+hands over the retained rows, `services` binds School Structure's grade
+range and class-name identity, Enrollment's care-offering checks and roster
+resync, the instance lifecycle's deviation snapshot for the split and the
+realtime staffing announcement. `services.Factory.TimetableData` carries the
+template administration, the recurrence gate, the planner reads, the
+conflict detection and the retained attendance correction (slice S3) to the
+root, and `TemplateSplit` is gone, because the factory may not grow a field.
+Enrollment, the scheduler, `api/timetable` and the composition root no
+longer name the nest for these paths; the retained instance lifecycle and
+the conversion of one occurrence into a series (slice S1) consume the public
+contract. The moved code wraps its steps in a compose-local `ScheduleError`
+with the unchanged message format, because the owner may not name Care Plan.
+Thirteen emptied compatibility rules are deleted, one replacement permission
+uses the exception of ADR 0038, and `legacy.jsonl` is unchanged.
+
+Slice S3 (#3553, policy epoch 28 to 29) moved the deviation, substitution and
+sick-report writes (the single-day Vertretungsplan save, the
+Sammel-Vertretung and the #1843 sick stamps), the substitute time-overlap
+advisory, the attendance correction of completed blocks and the Student
+Presence attendance mirror to the Timetable owner. The public contracts are
+`timetable.StaffDeviations` (with `timetable.SubstituteConflictQuery`),
+`timetable.AttendanceCorrections` and `timetable.AttendanceMirror`, over the
+owner's own types (`timetable.DeviationError`, `timetable.TouchedActivities`,
+`timetable.AttendanceVisit`, the correction sentinels); the implementation
+sits in `modules/timetable/compose` and takes the day-wide staffing lock
+through the owner's Postgres adapter. The attendance mirror has exactly one
+runtime write owner: Student Presence's `studentpresence.AttendanceSyncer`
+port is bound at the root (`services.NewTimetableAttendanceMirror`) to the
+Timetable command, which runs inside Presence's tenant transaction with the
+lock order unchanged, so a failing mirror still rolls the visit write back.
+Collaborators the owner may not name are consumer-owned ports bound at the
+root: the Audit Platform's Änderungsprotokoll and correction trail
+(`repositories.TimetableDeviationProtocol`,
+`repositories.TimetableAttendanceCorrectionTrail`), the retained instance
+lifecycle for the cancel branch and the understaffed acknowledgement, and the
+realtime activity update. `services.Factory.TimetableData` carries the
+deviation writes and the correction to `api/timetable`; the shift-plan-sync
+workflow's sick cascade and Terminvertretung write through its own ports onto
+`timetable.StaffDeviations`. The standalone understaffed acknowledgement, the
+staff move and the Änderungsprotokoll entries of lifecycle writes stay with
+the retained lifecycle (slice S1), which asks the owner for the substitute
+advisory. Five emptied compatibility rules are deleted, one replacement
+permission uses the exception of ADR 0038, and `legacy.jsonl` is unchanged.
+
+Slice S1 (#3554, policy epoch 29 to 30) moved the instance lifecycle and
+deleted the nest. The transitions (start with the absorption of
+unsupervised sessions, completion with its snapshot, reopen, cancellation
+with the guardian notice, delete), the planning writes (create with its
+idempotency key, planned edit, re-plan with the deviation snapshot and
+reapply), the staff move, the standalone understaffed acknowledgement, the
+series conversion and the scheduler's automatic start and end are the
+public contracts `timetable.InstanceLifecycle`, `timetable.InstancePlanning`,
+`timetable.InstanceStaffing` (together `timetable.InstanceLifecycleCapability`),
+`timetable.InstanceSeriesConversion`, `timetable.InstanceAutoStart` and
+`timetable.InstanceAutoEnd`, over the owner's own types
+(`timetable.LifecycleInstance` and the lifecycle inputs, results and
+sentinels). The implementation lives in `modules/timetable/compose`
+(`instance_*.go`) and still writes the retained repository rows; it serves
+the lifecycle ports of the operational day and the deviation writes and the
+template split's deviation machinery itself, so those bindings left
+`services`. The collaborators the owner may not name are consumer-owned
+ports bound at the root (`services/timetable_lifecycle_composition.go`): the
+Facilities rooms through `repositories.TimetableOwnerRows.LifecycleRooms`,
+Care Plan's care days and day locks, Communication's cancellation notice
+(`compose.GuardianNotices`, whose refusals arrive wrapped in the owner's
+notice sentinels), the Settings Platform's clock policy, the Audit
+Platform's Änderungsprotokoll, Security Runtime's content fingerprint for the
+idempotency key and the realtime hub (`compose.LifecycleBroadcaster`, whose
+event types mirror the Delivery Platform's vocabulary). School Structure's
+class rules reach the root through `modules/schoolstructure/compose`
+instead of the nest. The group live view and the students inbound read the
+planned-student lookup through consumer-owned ports. `services.Factory`
+keeps its four lifecycle fields with owner types. The nest's behaviour tests
+moved to `modules/timetable/compose` and `compose/httpintegration`; the SQL
+test providers of `modules/timetable/legacy/timetablesqltest` were deleted
+with their tests, and the tests of the bound repositories moved beside
+them. The Dienstplan services and the shift-plan-sync workflow no longer
+speak the retained `models/schedule` rows, so the seven Workforce and
+shift-plan-sync rules to them fell too. `api/timetable` no longer imports
+`models/schedule`, `models/activities`, `models/base`, `internal/timezone`,
+`internal/schoolclass` or `realtime`: the thirteen #2732 keys left
+`legacy.jsonl` (the fourteenth, the internal-test `models/education` import,
+had gone with slice S5), and the vocabulary the handlers borrow is mirrored
+in the public contract and pinned against the models. Every rule that named
+#3424 is deleted, the package entries of both packages are gone, and ADR
+0038's exception ends with them; fifteen of its replacement rules remain as
+ordinary permissions to the owners' public contracts.
 
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
@@ -1461,12 +1620,10 @@ announcement data while the tenant role is still set, and queues every SSE
 event and guardian wake for after the commit. Its `ports` name the four owner
 capabilities it consumes (`session-end.port.*`, `session-end.application.*`);
 `compose` binds the tenant runtime and the realtime broadcaster. The root
-still satisfies `InstanceCompletion` with the retained
-`TimetableBridgeService` in `modules/timetable/legacy/timetableplanning`
-(#3218; the attendance finalization that #1747 requires before an instance
-may close); that binding is a legacy edge
-of the root composition tracked by #2762, and the port is rebound to the
-Timetable owner's public capability when that cutover lands. The kiosk
+satisfies `InstanceCompletion` with the Timetable owner's
+`timetable.EndedSessionCompletion` since slice S5 of #3424 (#3551; the
+attendance finalization that #1747 requires before an instance may close),
+which replaced the retained `TimetableBridgeService`. The kiosk
 endpoint (`api/iot/sessions`, `inbound-iot-sessions.to.session-end`) calls
 exactly this facade and no longer orchestrates the Timetable bridge and the
 active service itself. The other session-ending paths of the retained active

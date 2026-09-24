@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,41 +16,27 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func coverageClock(t *testing.T, value string) time.Time {
-	t.Helper()
-	parsed, err := time.Parse("15:04", value)
-	require.NoError(t, err)
-	return timezone.NormalizeWallClock(parsed)
-}
-
 func setupShiftCoverageRoute(t *testing.T) chi.Router {
 	t.Helper()
 	db, services := testutil.SetupTimetableModule(t)
-	resource := NewResource(Dependencies{TimetableData: services.TimetableData, DB: db})
+	resource := NewResource(Dependencies{Templates: services.TimetableData.Templates, TimetableData: services.TimetableData.Data, ConflictDetection: services.ConflictDetection, DB: db})
 	router := chi.NewRouter()
 	router.Mount("/timetable", resource.Router())
 	return router
 }
 
-func createCoverageShift(t *testing.T, s *plannedConflictsSetup, staffID int64, date timezone.Date, start, end string) *scheduleModel.StaffShift {
+func createCoverageShift(t *testing.T, s *plannedConflictsSetup, staffID int64, date calendar.Date, start, end string) {
 	t.Helper()
-	shift := &scheduleModel.StaffShift{
-		StaffID: staffID, Date: scheduleModel.Date(date),
-		StartTime: coverageClock(t, start), EndTime: coverageClock(t, end),
-		CreatedBy: staffID,
-	}
-	shift.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, mustTimetableTestRepositories(s.db).StaffShift.Create(s.ctx, shift))
-	return shift
+	testpkg.CreateTestStaffShift(t, s.db, staffID, date, testpkg.StaffShiftOpts{StartHHMM: start, EndHHMM: end})
 }
 
 func shiftCoverageRouter(parentCtx context.Context, resource *Resource) chi.Router {
@@ -92,7 +79,7 @@ func TestShiftCoverage_ExactWarningAndConcreteDeviationSemantics(t *testing.T) {
 	t.Parallel()
 
 	s := buildPlannedConflictsSetup(t)
-	s.date = timezone.NewDate(2064, time.November, 3) // Monday
+	s.date = calendar.NewDate(2064, time.November, 3) // Monday
 	router := shiftCoverageRouter(s.ctx, s.res)
 	planned := testpkg.CreateTestStaff(t, s.db, "Absent", fmt.Sprintf("Planned-%d", time.Now().UnixNano()))
 	substitute := testpkg.CreateTestStaff(t, s.db, "Active", fmt.Sprintf("Sub-%d", time.Now().UnixNano()))
@@ -133,7 +120,7 @@ func TestShiftCoverage_MultiDatePeriodAndABFiltering(t *testing.T) {
 	t.Parallel()
 
 	s := buildPlannedConflictsSetup(t)
-	weekA := timezone.NewDate(2065, time.November, 2) // Monday
+	weekA := calendar.NewDate(2065, time.November, 2) // Monday
 	weekB := weekA.AddDays(7)
 	router := shiftCoverageRouter(s.ctx, s.res)
 	target := testpkg.CreateTestStaff(t, s.db, "Series", fmt.Sprintf("Target-%d", time.Now().UnixNano()))
@@ -141,13 +128,15 @@ func TestShiftCoverage_MultiDatePeriodAndABFiltering(t *testing.T) {
 	createCoverageShift(t, s, activator.ID, weekA, "07:00", "08:00")
 	createCoverageShift(t, s, activator.ID, weekB, "07:00", "08:00")
 
-	anchor := scheduleModel.Date(weekA)
-	period := &scheduleModel.CalendarPeriod{
-		Name: fmt.Sprintf("Coverage Period %d", time.Now().UnixNano()), PeriodType: scheduleModel.PeriodTypeSchoolYear,
-		StartDate: scheduleModel.Date(weekA), EndDate: scheduleModel.Date(weekB.AddDays(6)), WeekCycleLength: 2, WeekCycleAnchor: &anchor, IsActive: true,
-	}
-	period.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, mustTimetableTestRepositories(s.db).CalendarPeriod.Create(s.ctx, period))
+	period := testpkg.CreateTestCalendarPeriod(t, s.db, fmt.Sprintf("Coverage Period %d", time.Now().UnixNano()), weekA, weekB.AddDays(6))
+	_, err := s.db.NewUpdate().TableExpr("schedule.calendar_periods").
+		Set("period_type = ?", schoolcalendar.PeriodTypeSchoolYear).
+		Set("week_cycle_length = 2").
+		Set("week_cycle_anchor = ?", weekA.String()).
+		Set("is_active = TRUE").
+		Where("id = ?", period.ID).
+		Exec(s.ctx)
+	require.NoError(t, err)
 	weekPattern := 1
 
 	recorder := postShiftCoverage(t, router, ShiftCoverageRequest{
@@ -169,7 +158,7 @@ func TestShiftCoverage_SuppressesEachUnusedWorkWeekIndependently(t *testing.T) {
 	t.Parallel()
 
 	s := buildPlannedConflictsSetup(t)
-	usedMonday := timezone.NewDate(2066, time.November, 1)
+	usedMonday := calendar.NewDate(2066, time.November, 1)
 	unusedMonday := usedMonday.AddDays(7)
 	router := shiftCoverageRouter(s.ctx, s.res)
 	target := testpkg.CreateTestStaff(t, s.db, "Weekly", fmt.Sprintf("Target-%d", time.Now().UnixNano()))
@@ -192,7 +181,7 @@ func TestShiftCoverage_ValidationAndStableErrors(t *testing.T) {
 
 	s := buildPlannedConflictsSetup(t)
 	router := shiftCoverageRouter(s.ctx, s.res)
-	validDate := timezone.NewDate(2067, time.November, 7)
+	validDate := calendar.NewDate(2067, time.November, 7)
 	periodID := int64(77)
 	weekPattern := 1
 	excludeID := int64(88)
@@ -228,7 +217,7 @@ func TestShiftCoverage_ValidationAndStableErrors(t *testing.T) {
 	}
 
 	t.Run("internal cause is hidden", func(t *testing.T) {
-		resource := NewResource(Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{})})
+		resource := NewResource(Dependencies{ConflictDetection: failingShiftCoverage{err: errors.New("dependencies are not wired")}})
 		failureRouter := shiftCoverageRouter(s.ctx, resource)
 		recorder := postShiftCoverage(t, failureRouter, ShiftCoverageRequest{
 			Dates: []string{validDate.String()}, StartTime: "09:00", EndTime: "10:00", StaffIDs: []int64{99},
@@ -274,4 +263,15 @@ func TestShiftCoverage_RouteRequiresAllPermissionsAndLegacyConflictsStaysReadOnl
 	legacy := testutil.ExecuteWithAuthPermissions(t, router, legacyRequest, claims, []string{permissions.SchedulesRead})
 	require.Equal(t, http.StatusOK, legacy.Code, legacy.Body.String())
 	assert.NotContains(t, legacy.Body.String(), "coverage_warnings")
+}
+
+// failingShiftCoverage fails the probe with an internal cause the response
+// must not leak.
+type failingShiftCoverage struct {
+	timetable.ConflictDetectionCapability
+	err error
+}
+
+func (f failingShiftCoverage) DetectShiftCoverage(context.Context, timetable.ShiftCoverageProbe) (timetable.ShiftCoverageResult, error) {
+	return timetable.ShiftCoverageResult{}, f.err
 }

@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -9,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -33,7 +31,11 @@ func NewScheduleTestModule(db *bun.DB, unit tenant.UnitOfWork) (ScheduleTestModu
 	if err != nil {
 		return ScheduleTestModule{}, err
 	}
-	lock := func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) }
+	recurrenceLock, err := repositories.NewTimetableRecurrenceLock(db)
+	if err != nil {
+		return ScheduleTestModule{}, err
+	}
+	lock := recurrenceLock.LockRecurrenceWrites
 	offerings := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
 		Repo: enrollment.NewCareOfferingRepository(r.CarePlan), Bookings: r.Enrollment(), ActivityGroupRepo: r.ActivityGroup,
 		ActivityScheduleRepo: r.ActivitySchedule, CalendarPeriodRepo: r.CalendarPeriod, TimeframeRepo: r.Timeframe,

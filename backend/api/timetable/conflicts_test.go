@@ -14,8 +14,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +28,7 @@ type plannedConflictsSetup struct {
 	db     *bun.DB
 	ctx    context.Context
 	roomID int64
-	date   timezone.Date
+	date   calendar.Date
 }
 
 func buildPlannedConflictsSetup(t *testing.T) *plannedConflictsSetup {
@@ -38,9 +38,12 @@ func buildPlannedConflictsSetup(t *testing.T) *plannedConflictsSetup {
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Conf-Room-%d", suffix))
 
+	data := testTimetableData(db)
 	res := NewResource(Dependencies{
-		TimetableData: testTimetableData(db),
-		DB:            db,
+		Templates:         data,
+		TimetableData:     data.TimetableData(),
+		ConflictDetection: data.ConflictDetection(),
+		DB:                db,
 	})
 
 	return &plannedConflictsSetup{
@@ -48,7 +51,7 @@ func buildPlannedConflictsSetup(t *testing.T) *plannedConflictsSetup {
 		db:     db,
 		ctx:    testpkg.Ctx(t),
 		roomID: room.ID,
-		date:   timezone.NewDate(2026, time.June, 22),
+		date:   calendar.NewDate(2026, time.June, 22),
 	}
 }
 
@@ -191,7 +194,7 @@ func TestConflicts_StaffWarning(t *testing.T) {
 
 	got := decodePlannedConflicts(t, w)
 	require.Len(t, got.Warnings, 1)
-	assert.Equal(t, timetableplanning.ConflictKindStaff, got.Warnings[0].Kind)
+	assert.Equal(t, timetable.ConflictKindStaff, got.Warnings[0].Kind)
 	assert.Equal(t, staff.ID, got.Warnings[0].ResourceID)
 	assert.Equal(t, inst.ID, got.Warnings[0].ConflictingInstanceID)
 }
@@ -212,7 +215,7 @@ func TestConflicts_StudentWarning(t *testing.T) {
 
 	got := decodePlannedConflicts(t, w)
 	require.Len(t, got.Warnings, 1)
-	assert.Equal(t, timetableplanning.ConflictKindStudent, got.Warnings[0].Kind)
+	assert.Equal(t, timetable.ConflictKindStudent, got.Warnings[0].Kind)
 	assert.Equal(t, student.ID, got.Warnings[0].ResourceID)
 	assert.Equal(t, inst.ID, got.Warnings[0].ConflictingInstanceID)
 }

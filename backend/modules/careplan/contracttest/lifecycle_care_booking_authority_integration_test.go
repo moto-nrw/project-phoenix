@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -32,9 +31,7 @@ func bookingAuthorityService(t *testing.T, db *bun.DB, authoritative bool) carep
 
 func lockedBookingAuthorityService(t *testing.T, db *bun.DB) careplan.CareLifecycle {
 	t.Helper()
-	return newBookingAuthorityLifecycle(t, db, true, func(ctx context.Context) error {
-		return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
-	})
+	return newBookingAuthorityLifecycle(t, db, true, repositories.MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites)
 }
 
 func newBookingAuthorityLifecycle(t *testing.T, db *bun.DB, authoritative bool, lock func(context.Context) error) careplan.CareLifecycle {

@@ -13,7 +13,7 @@ import (
 	apiTest "github.com/moto-nrw/project-phoenix/api/testutil"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -36,11 +36,12 @@ func setupIdempotentCreateRoute(t *testing.T) *idempotentCreateSetup {
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Create-Idempotent-Room-%d", suffix))
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("create-idempotent-%d", suffix))
-	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Create-Idempotent-Period-%d", suffix), timezone.TodayDate().AddDays(-1), timezone.TodayDate().AddDays(7))
+	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Create-Idempotent-Period-%d", suffix), calendar.TodayDate().AddDays(-1), calendar.TodayDate().AddDays(7))
 	testpkg.SetCalendarPeriodActive(t, db, period, true)
 	resource := timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriods: serviceFactory.SchoolCalendar,
-		TimetableData:   serviceFactory.TimetableData,
+		Templates:       serviceFactory.TimetableData.Templates,
+		TimetableData:   serviceFactory.TimetableData.Data,
 		InstanceService: serviceFactory.Instance,
 		DB:              db,
 	})
@@ -52,8 +53,8 @@ func setupIdempotentCreateRoute(t *testing.T) *idempotentCreateSetup {
 	}
 }
 
-func nextCreateWorkday() timezone.Date {
-	date := timezone.TodayDate().AddDays(1)
+func nextCreateWorkday() calendar.Date {
+	date := calendar.TodayDate().AddDays(1)
 	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
 		date = date.AddDays(1)
 	}

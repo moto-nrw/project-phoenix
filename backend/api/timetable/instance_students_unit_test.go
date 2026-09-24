@@ -2,8 +2,8 @@
 // database. The DB-backed tests in instance_students_test.go cover the happy
 // path and cross-field rule end-to-end; these tests close the remaining
 // branches: repo-not-wired guard, path parsing errors, body decode errors,
-// response mapping, and the DatabaseError-wrapped not-found branch in
-// isNotFoundDBError.
+// response mapping, and the missing-slot branch. They drive the handler
+// through a capability-level fake of the Timetable owner's planner reads.
 package timetable
 
 import (
@@ -20,29 +20,34 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	modelsBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // -----------------------------------------------------------------------------
-// Fake InstanceStudentRepository
+// Fake slot reads and attendance patch of the Timetable owner
 // -----------------------------------------------------------------------------
 
+// fakeRepo answers the owner's slot read (FindBlockParticipant), records the
+// attendance patch the handler forwards (PatchSlotAttendance) and serves the
+// attendance lock. A missing slot is (nil, nil): that is what the owner
+// returns when its repository reports the not-found sentinel, plain or
+// wrapped; TestPatchInstanceStudent_404_Unknown covers that mapping against
+// the database.
 type fakeRepo struct {
-	findByInstanceAndStudent func(ctx context.Context, instanceID, studentID int64) (*schedule.InstanceStudent, error)
-	updateAttendanceFields   func(ctx context.Context, id int64, patch schedule.AttendanceFieldPatch) error
+	findByInstanceAndStudent func(ctx context.Context, instanceID, studentID int64) (*timetable.ScheduledParticipant, error)
+	updateAttendanceFields   func(ctx context.Context, id int64, patch timetable.AttendancePatch) error
+	lockAttendance           func(ctx context.Context, instanceID int64) error
 
 	findCalls    int
 	updateCalls  int
 	recentID     int64
-	recentPatch  schedule.AttendanceFieldPatch
-	currentState *schedule.InstanceStudent
+	recentPatch  timetable.AttendancePatch
+	currentState *timetable.ScheduledParticipant
 }
 
-func (f *fakeRepo) FindByInstanceAndStudent(ctx context.Context, instanceID, studentID int64) (*schedule.InstanceStudent, error) {
+func (f *fakeRepo) FindBlockParticipant(ctx context.Context, instanceID, studentID int64) (*timetable.ScheduledParticipant, error) {
 	f.findCalls++
 	if f.findByInstanceAndStudent != nil {
 		return f.findByInstanceAndStudent(ctx, instanceID, studentID)
@@ -50,7 +55,7 @@ func (f *fakeRepo) FindByInstanceAndStudent(ctx context.Context, instanceID, stu
 	return f.currentState, nil
 }
 
-func (f *fakeRepo) UpdateAttendanceFields(ctx context.Context, id int64, patch schedule.AttendanceFieldPatch) error {
+func (f *fakeRepo) PatchSlotAttendance(ctx context.Context, id int64, patch timetable.AttendancePatch) error {
 	f.updateCalls++
 	f.recentID = id
 	f.recentPatch = patch
@@ -60,107 +65,27 @@ func (f *fakeRepo) UpdateAttendanceFields(ctx context.Context, id int64, patch s
 	return nil
 }
 
-// Unused interface methods — panic so accidental dependence fails loudly.
-func (f *fakeRepo) Create(context.Context, *schedule.InstanceStudent) error { panic("unused") }
-func (f *fakeRepo) FindByID(context.Context, interface{}) (*schedule.InstanceStudent, error) {
-	panic("unused")
-}
-func (f *fakeRepo) Update(context.Context, *schedule.InstanceStudent) error { panic("unused") }
-func (f *fakeRepo) Delete(context.Context, interface{}) error               { panic("unused") }
-func (f *fakeRepo) List(context.Context, *modelsBase.QueryOptions) ([]*schedule.InstanceStudent, error) {
-	panic("unused")
-}
-func (f *fakeRepo) FindByInstanceID(context.Context, int64) ([]*schedule.InstanceStudent, error) {
-	panic("unused")
-}
-func (f *fakeRepo) FindPresentInOtherActiveInstances(context.Context, int64, schedule.Date, []int64) ([]schedule.ParallelPresence, error) {
-	panic("unused")
-}
-func (f *fakeRepo) FindByInstanceIDs(context.Context, []int64) ([]*schedule.InstanceStudent, error) {
-	panic("unused")
-}
-func (f *fakeRepo) FindExpectedByInstanceIDs(context.Context, []int64) ([]*schedule.InstanceStudent, error) {
-	panic("unused")
-}
-func (f *fakeRepo) FindNotScheduledCandidatesByInstanceIDs(context.Context, []int64) ([]*schedule.InstanceStudent, error) {
-	panic("unused")
-}
-func (f *fakeRepo) CountNonAbsentByInstanceIDs(context.Context, []int64) (map[int64]int, error) {
-	panic("unused")
-}
-func (f *fakeRepo) FindByStudentIDsAndDate(context.Context, []int64, schedule.Date) ([]*schedule.InstanceStudent, error) {
-	panic("unused")
-}
-func (f *fakeRepo) FindCurrentCandidatesByStudentIDs(context.Context, []int64, schedule.Date, time.Time) ([]*schedule.InstanceStudent, error) {
-	panic("unused")
-}
-func (f *fakeRepo) UpdateAttendanceFromCheckinBatch(context.Context, []schedule.InstanceStudentKey, time.Time) error {
-	panic("unused")
-}
-func (f *fakeRepo) UpdateAttendanceCheckoutBatch(context.Context, []schedule.InstanceStudentKey, time.Time) error {
-	panic("unused")
-}
-func (f *fakeRepo) FindByStudentAndDateRange(context.Context, int64, schedule.Date, schedule.Date) ([]*schedule.InstanceStudent, error) {
-	panic("unused")
-}
-func (f *fakeRepo) FindPlannedStudentIDsByDate(context.Context, []int64, schedule.Date) ([]int64, error) {
-	panic("unused")
-}
-func (f *fakeRepo) DeleteByInstanceID(context.Context, int64) error { panic("unused") }
-func (f *fakeRepo) ArchivePlannedByStudentIDsFrom(context.Context, int64, []int64, schedule.Date, time.Time) (int, error) {
-	panic("unused")
-}
-func (f *fakeRepo) RestoreArchivedByTransition(context.Context, int64, []int64, schedule.Date) (int, error) {
-	panic("unused")
-}
-func (f *fakeRepo) BulkUpdateStatus(context.Context, int64, string, string, []int64) (int, error) {
-	panic("unused")
+// LockBlockAttendance succeeds unless the test injects a lock failure, like
+// the owner composed without attendance locks.
+func (f *fakeRepo) LockBlockAttendance(ctx context.Context, instanceID int64) error {
+	if f.lockAttendance != nil {
+		return f.lockAttendance(ctx, instanceID)
+	}
+	return nil
 }
 
-func (f *fakeRepo) MarkNotScheduled(context.Context, []schedule.StudentInstanceRef) error {
-	panic("unused")
-}
-
-func (f *fakeRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, schedule.Date, schedule.Date) ([]*schedule.ScheduledInstanceRow, error) {
-	panic("unused")
-}
-
-func (f *fakeRepo) HasPlannedSlotsInRange(context.Context, schedule.Date, schedule.Date) (bool, error) {
-	panic("unused")
-}
-
-func (f *fakeRepo) UpdateAttendanceFromCheckin(context.Context, int64, int64, time.Time) (bool, error) {
-	panic("unused")
-}
-func (f *fakeRepo) CreateUnplannedPresentIfAbsent(context.Context, int64, int64, time.Time) (*schedule.InstanceStudent, error) {
-	panic("unused")
-}
-func (f *fakeRepo) UpdateAttendanceCheckout(context.Context, int64, int64, time.Time) error {
-	panic("unused")
-}
-func (f *fakeRepo) ReconcileAttendanceInterval(context.Context, int64, int64, time.Time, *time.Time, time.Time, *time.Time) (bool, error) {
-	panic("unused")
-}
-func (f *fakeRepo) FindCurrentCandidates(context.Context, int64, schedule.Date, time.Time) ([]*schedule.InstanceStudent, error) {
-	panic("unused")
-}
-func (f *fakeRepo) ApplyStatusDay(context.Context, int64, schedule.Date, int64, string) (int, error) {
-	panic("unused")
-}
-func (f *fakeRepo) ReleaseStatusDay(context.Context, int64) (int, error) {
-	panic("unused")
-}
-func (f *fakeRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, schedule.Date) (int, error) {
-	panic("unused")
-}
-func (f *fakeRepo) ApplyPartialAbsence(context.Context, int64) (int, error) {
-	panic("unused")
-}
-func (f *fakeRepo) ReleasePartialAbsence(context.Context, int64) (int, error) {
-	panic("unused")
-}
-func (f *fakeRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, schedule.Date) (int, error) {
-	panic("unused")
+// unitAttendanceData serves the attendance PATCH from repo. Every block
+// reads as planned, so the attendance freeze check lets a write through;
+// every other planner read panics when reached.
+func unitAttendanceData(repo *fakeRepo) timetable.TimetableDataCapability {
+	return &fakeTimetableData{
+		FindBlockParticipantFn: repo.FindBlockParticipant,
+		PatchSlotAttendanceFn:  repo.PatchSlotAttendance,
+		LockBlockAttendanceFn:  repo.LockBlockAttendance,
+		FindScheduledInstanceFn: func(_ context.Context, id int64) (timetable.ScheduledInstance, error) {
+			return timetable.ScheduledInstance{ID: id, Status: timetable.InstanceStatusPlanned}, nil
+		},
+	}
 }
 
 // -----------------------------------------------------------------------------
@@ -221,7 +146,7 @@ func TestPatchHandler_500_RepoNotWired(t *testing.T) {
 func TestPatchHandler_400_InvalidInstanceID(t *testing.T) {
 	t.Parallel()
 
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(&fakeRepo{})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/abc/students/2", map[string]any{"status": "absent"}))
@@ -232,7 +157,7 @@ func TestPatchHandler_400_InvalidInstanceID(t *testing.T) {
 func TestPatchHandler_400_InvalidStudentID(t *testing.T) {
 	t.Parallel()
 
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(&fakeRepo{})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/xyz", map[string]any{"status": "absent"}))
@@ -243,7 +168,7 @@ func TestPatchHandler_400_InvalidStudentID(t *testing.T) {
 func TestPatchHandler_400_ZeroInstanceID(t *testing.T) {
 	t.Parallel()
 
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(&fakeRepo{})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/0/students/2", map[string]any{"status": "absent"}))
@@ -253,7 +178,7 @@ func TestPatchHandler_400_ZeroInstanceID(t *testing.T) {
 func TestPatchHandler_400_NegativeIDs(t *testing.T) {
 	t.Parallel()
 
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(&fakeRepo{})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/-1/students/2", map[string]any{"status": "absent"}))
@@ -267,7 +192,7 @@ func TestPatchHandler_400_NegativeIDs(t *testing.T) {
 func TestPatchHandler_400_MalformedJSON(t *testing.T) {
 	t.Parallel()
 
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(&fakeRepo{})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", "{not json"))
@@ -278,7 +203,7 @@ func TestPatchHandler_400_MalformedJSON(t *testing.T) {
 func TestPatchHandler_400_EmptyBody_MeansNoChanges(t *testing.T) {
 	t.Parallel()
 
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(&fakeRepo{})}}
 	router := unitRouter(res)
 
 	// Empty body → parser returns zero patch → HasChanges false → 400.
@@ -293,7 +218,7 @@ func TestPatchHandler_400_BodyReadError(t *testing.T) {
 
 	// A broken reader forces io.ReadAll to return an error, exercising the
 	// "failed to read request body" branch.
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(&fakeRepo{})}}
 	router := unitRouter(res)
 
 	req := httptest.NewRequest(http.MethodPatch, "/instances/1/students/2", brokenReader{})
@@ -306,7 +231,7 @@ func TestPatchHandler_400_BodyReadError(t *testing.T) {
 func TestPatchHandler_400_NonStringNote(t *testing.T) {
 	t.Parallel()
 
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(&fakeRepo{})}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", `{"note": 5}`))
@@ -327,12 +252,14 @@ func (brokenReader) Close() error               { return nil }
 func TestPatchHandler_404_NotFound(t *testing.T) {
 	t.Parallel()
 
+	// The owner answers a slot its repository reports as not found with no
+	// slot and no error.
 	repo := &fakeRepo{
-		findByInstanceAndStudent: func(context.Context, int64, int64) (*schedule.InstanceStudent, error) {
-			return nil, modelsBase.ErrNotFound
+		findByInstanceAndStudent: func(context.Context, int64, int64) (*timetable.ScheduledParticipant, error) {
+			return nil, nil
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(repo)}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -343,13 +270,15 @@ func TestPatchHandler_404_NotFound(t *testing.T) {
 func TestPatchHandler_404_NotFound_WrappedDatabaseError(t *testing.T) {
 	t.Parallel()
 
-	// Repositories expose the model-level sentinel through their error wrapper.
+	// Repositories expose the model-level sentinel through their error
+	// wrapper; the owner unwraps it to no slot and no error, which is all the
+	// handler sees.
 	repo := &fakeRepo{
-		findByInstanceAndStudent: func(context.Context, int64, int64) (*schedule.InstanceStudent, error) {
-			return nil, &modelsBase.DatabaseError{Op: "find", Err: modelsBase.ErrNotFound}
+		findByInstanceAndStudent: func(context.Context, int64, int64) (*timetable.ScheduledParticipant, error) {
+			return nil, nil
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(repo)}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -361,11 +290,11 @@ func TestPatchHandler_404_NotFound_NilRowNilError(t *testing.T) {
 
 	// Repo returns (nil, nil) — row genuinely absent rather than DB error.
 	repo := &fakeRepo{
-		findByInstanceAndStudent: func(context.Context, int64, int64) (*schedule.InstanceStudent, error) {
+		findByInstanceAndStudent: func(context.Context, int64, int64) (*timetable.ScheduledParticipant, error) {
 			return nil, nil
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(repo)}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -376,11 +305,11 @@ func TestPatchHandler_500_FindError_NotNotFound(t *testing.T) {
 	t.Parallel()
 
 	repo := &fakeRepo{
-		findByInstanceAndStudent: func(context.Context, int64, int64) (*schedule.InstanceStudent, error) {
+		findByInstanceAndStudent: func(context.Context, int64, int64) (*timetable.ScheduledParticipant, error) {
 			return nil, errors.New("connection reset")
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(repo)}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -388,43 +317,18 @@ func TestPatchHandler_500_FindError_NotNotFound(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "load instance student failed")
 }
 
-type fakeRecoveryRepo struct {
-	lockAttendance func(ctx context.Context, instanceID int64) error
-}
-
-func (*fakeRecoveryRepo) CompletionTimestamp(context.Context) (time.Time, error) { panic("unused") }
-
-func (f *fakeRecoveryRepo) LockAttendance(ctx context.Context, instanceID int64) error {
-	if f.lockAttendance != nil {
-		return f.lockAttendance(ctx, instanceID)
-	}
-	return nil
-}
-
-func (f *fakeRecoveryRepo) LockOpenVisits(context.Context, int64) error { panic("unused") }
-func (f *fakeRecoveryRepo) LockOpenSupervisors(context.Context, int64) error {
-	panic("unused")
-}
-func (f *fakeRecoveryRepo) LockSupervisors(context.Context, []int64) error { panic("unused") }
-func (f *fakeRecoveryRepo) Restore(context.Context, int64, schedule.ActivityCompletionSnapshot, time.Time) error {
-	panic("unused")
-}
-
 func TestPatchHandler_500_LockAttendanceFails(t *testing.T) {
 	t.Parallel()
 
-	current := &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}
+	current := &timetable.ScheduledParticipant{Status: timetable.SlotAttendancePresent}
 	current.ID = 7
-	repo := &fakeRepo{currentState: current}
-	recovery := &fakeRecoveryRepo{
+	repo := &fakeRepo{
+		currentState: current,
 		lockAttendance: func(context.Context, int64) error {
 			return errors.New("could not acquire lock")
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{
-		InstanceStudentRepo: repo,
-		RecoveryRepo:        recovery,
-	})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(repo)}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -436,17 +340,17 @@ func TestPatchHandler_500_LockAttendanceFails(t *testing.T) {
 func TestPatchHandler_500_UpdateError(t *testing.T) {
 	t.Parallel()
 
-	current := &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}
+	current := &timetable.ScheduledParticipant{Status: timetable.SlotAttendancePresent}
 	current.ID = 7
 	updateErr := errors.New("FK violation")
 
 	repo := &fakeRepo{
 		currentState: current,
-		updateAttendanceFields: func(context.Context, int64, schedule.AttendanceFieldPatch) error {
+		updateAttendanceFields: func(context.Context, int64, timetable.AttendancePatch) error {
 			return updateErr
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(repo)}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -459,12 +363,12 @@ func TestPatchHandler_500_ReloadAfterUpdateFails(t *testing.T) {
 
 	// The handler re-reads after update so the response body reflects post-
 	// write state. If that second read fails, the handler must return 500.
-	current := &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}
+	current := &timetable.ScheduledParticipant{Status: timetable.SlotAttendancePresent}
 	current.ID = 7
 
 	callCount := 0
 	repo := &fakeRepo{
-		findByInstanceAndStudent: func(context.Context, int64, int64) (*schedule.InstanceStudent, error) {
+		findByInstanceAndStudent: func(context.Context, int64, int64) (*timetable.ScheduledParticipant, error) {
 			callCount++
 			if callCount == 1 {
 				return current, nil
@@ -472,7 +376,7 @@ func TestPatchHandler_500_ReloadAfterUpdateFails(t *testing.T) {
 			return nil, errors.New("reload failure")
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(repo)}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -486,12 +390,12 @@ func TestPatchHandler_500_ReloadReturnsNil(t *testing.T) {
 
 	// Reload returns (nil, nil) — the handler guards against this edge case
 	// because mapAttendanceToResponse would panic on a nil row.
-	current := &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}
+	current := &timetable.ScheduledParticipant{Status: timetable.SlotAttendancePresent}
 	current.ID = 7
 
 	callCount := 0
 	repo := &fakeRepo{
-		findByInstanceAndStudent: func(context.Context, int64, int64) (*schedule.InstanceStudent, error) {
+		findByInstanceAndStudent: func(context.Context, int64, int64) (*timetable.ScheduledParticipant, error) {
 			callCount++
 			if callCount == 1 {
 				return current, nil
@@ -499,7 +403,7 @@ func TestPatchHandler_500_ReloadReturnsNil(t *testing.T) {
 			return nil, nil
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(repo)}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
@@ -515,11 +419,11 @@ func TestPatchHandler_400_CrossFieldRuleAfterFind(t *testing.T) {
 	// rule against the loaded current row. Seeding an 'expected' row and
 	// patching just a substatus triggers the "substatus cannot be set when
 	// status is expected" response path without any parse-level rejection.
-	current := &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected}
+	current := &timetable.ScheduledParticipant{Status: timetable.SlotAttendanceExpected}
 	current.ID = 11
 
 	repo := &fakeRepo{currentState: current}
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(repo)}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"substatus": "late"}))
@@ -534,19 +438,19 @@ func TestPatchHandler_200_HappyPath(t *testing.T) {
 	// First read returns "present". Second read reflects the applied patch —
 	// mimicking the repo writing fields then re-reading them.
 	checkedInAt := time.Date(2026, 4, 20, 14, 0, 0, 0, time.UTC)
-	current := &schedule.InstanceStudent{
+	current := &timetable.ScheduledParticipant{
 		InstanceID:  100,
 		StudentID:   200,
-		Status:      schedule.AttendanceStatusPresent,
+		Status:      timetable.SlotAttendancePresent,
 		CheckedInAt: &checkedInAt,
 	}
 	current.ID = 7
 
-	absent := schedule.AttendanceStatusAbsent
-	sick := schedule.AttendanceSubstatusSick
+	absent := timetable.SlotAttendanceAbsent
+	sick := timetable.SlotSubstatusSick
 	note := "Arztbesuch"
 
-	updated := &schedule.InstanceStudent{
+	updated := &timetable.ScheduledParticipant{
 		InstanceID:  100,
 		StudentID:   200,
 		Status:      absent,
@@ -558,7 +462,7 @@ func TestPatchHandler_200_HappyPath(t *testing.T) {
 
 	callCount := 0
 	repo := &fakeRepo{
-		findByInstanceAndStudent: func(context.Context, int64, int64) (*schedule.InstanceStudent, error) {
+		findByInstanceAndStudent: func(context.Context, int64, int64) (*timetable.ScheduledParticipant, error) {
 			callCount++
 			if callCount == 1 {
 				return current, nil
@@ -566,7 +470,7 @@ func TestPatchHandler_200_HappyPath(t *testing.T) {
 			return updated, nil
 		},
 	}
-	res := &Resource{Dependencies: Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{InstanceStudentRepo: repo})}}
+	res := &Resource{Dependencies: Dependencies{TimetableData: unitAttendanceData(repo)}}
 	router := unitRouter(res)
 
 	w := run(router, patchRequest(t, "/instances/100/students/200", map[string]any{
@@ -595,25 +499,25 @@ func TestMapAttendanceToResponse_WithCheckedInAt(t *testing.T) {
 	t.Parallel()
 
 	ts := time.Date(2026, 4, 20, 14, 15, 30, 0, time.UTC)
-	excused := schedule.AttendanceSubstatusExcused
+	excused := timetable.SlotSubstatusExcused
 	note := "Bus-Verspätung"
-	row := &schedule.InstanceStudent{
+	row := &timetable.ScheduledParticipant{
+		ID:          99,
 		InstanceID:  11,
 		StudentID:   22,
-		Status:      schedule.AttendanceStatusPresent,
+		Status:      timetable.SlotAttendancePresent,
 		Substatus:   &excused,
 		Note:        &note,
 		CheckedInAt: &ts,
 	}
-	row.ID = 99
 
 	resp := mapAttendanceToResponse(row)
 	assert.Equal(t, int64(99), resp.ID)
 	assert.Equal(t, int64(11), resp.InstanceID)
 	assert.Equal(t, int64(22), resp.StudentID)
-	assert.Equal(t, schedule.AttendanceStatusPresent, resp.Status)
+	assert.Equal(t, timetable.SlotAttendancePresent, resp.Status)
 	require.NotNil(t, resp.Substatus)
-	assert.Equal(t, schedule.AttendanceSubstatusExcused, *resp.Substatus)
+	assert.Equal(t, timetable.SlotSubstatusExcused, *resp.Substatus)
 	require.NotNil(t, resp.CheckedInAt)
 	assert.Equal(t, "2026-04-20T14:15:30Z", *resp.CheckedInAt)
 }
@@ -621,7 +525,7 @@ func TestMapAttendanceToResponse_WithCheckedInAt(t *testing.T) {
 func TestMapAttendanceToResponse_WithoutCheckedInAt(t *testing.T) {
 	t.Parallel()
 
-	row := &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected}
+	row := &timetable.ScheduledParticipant{Status: timetable.SlotAttendanceExpected}
 	resp := mapAttendanceToResponse(row)
 	assert.Nil(t, resp.CheckedInAt)
 	assert.Nil(t, resp.Substatus)
@@ -635,7 +539,7 @@ func TestMapAttendanceToResponse_WithoutCheckedInAt(t *testing.T) {
 func TestParseAttendancePatchRequest_AllFields(t *testing.T) {
 	t.Parallel()
 
-	status := schedule.AttendanceStatusAbsent
+	status := timetable.SlotAttendanceAbsent
 	req := &PatchAttendanceRequest{
 		Status:    &status,
 		Substatus: json.RawMessage(`"sick"`),
@@ -644,9 +548,9 @@ func TestParseAttendancePatchRequest_AllFields(t *testing.T) {
 	patch, errs := parseAttendancePatchRequest(req)
 	require.Empty(t, errs)
 	require.NotNil(t, patch.Status)
-	assert.Equal(t, schedule.AttendanceStatusAbsent, *patch.Status)
+	assert.Equal(t, timetable.SlotAttendanceAbsent, *patch.Status)
 	require.NotNil(t, patch.Substatus)
-	assert.Equal(t, schedule.AttendanceSubstatusSick, *patch.Substatus)
+	assert.Equal(t, timetable.SlotSubstatusSick, *patch.Substatus)
 	require.NotNil(t, patch.Note)
 	assert.Equal(t, "note text", *patch.Note)
 	assert.False(t, patch.SubstatusClear)
@@ -723,18 +627,4 @@ func TestDecodePatchBody_Direct(t *testing.T) {
 		_, ok := decodePatchBody(w, req)
 		assert.False(t, ok)
 	})
-}
-
-// Stubs for the issue #585 cleanup refactor interface additions — unused by
-// these tests.
-func (f *fakeRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time, []schedule.StudentInstanceRef) error {
-	panic("unused")
-}
-
-func (f *fakeRepo) CloseOpenCheckoutsByActiveGroupIDs(context.Context, []int64, time.Time) (int, error) {
-	panic("unused")
-}
-
-func (f *fakeRepo) ListStudentInstanceRefsBefore(context.Context, schedule.Date) ([]schedule.StudentInstanceRef, error) {
-	panic("unused")
 }

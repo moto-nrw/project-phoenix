@@ -15,14 +15,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -76,9 +74,12 @@ func buildListSetup(t *testing.T) *listSetup {
 	cleanup := func() {
 	}
 
+	data := testTimetableData(db)
 	res := NewResource(Dependencies{
-		TimetableData: testTimetableData(db),
-		DB:            db,
+		Templates:         data,
+		TimetableData:     data.TimetableData(),
+		ConflictDetection: data.ConflictDetection(),
+		DB:                db,
 	})
 
 	return &listSetup{res: res, db: db, ctx: ctx, roomID: room.ID, cleanupFn: cleanup}
@@ -119,8 +120,8 @@ func decodeList(t *testing.T, w *httptest.ResponseRecorder) weeklyInstancesRespo
 	return out
 }
 
-func listFutureDate(offsetDays int) (string, timezone.Date) {
-	d := timezone.NewDate(2026, 8, 24).AddDays(offsetDays)
+func listFutureDate(offsetDays int) (string, calendar.Date) {
+	d := calendar.NewDate(2026, 8, 24).AddDays(offsetDays)
 	return d.String(), d
 }
 
@@ -146,7 +147,7 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 	t.Parallel()
 
 	sourceID := time.Now().UnixNano()
-	serviceStart := timezone.NewDate(2026, 8, 13)
+	serviceStart := calendar.NewDate(2026, 8, 13)
 	resource := NewResource(Dependencies{OfferingSourceOptions: &stubOfferingSourceLister{
 		options: []enrollmentSvc.OfferingSourceOption{{
 			ID:                sourceID,
@@ -159,15 +160,15 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 
 	tests := []struct {
 		name     string
-		date     timezone.Date
+		date     calendar.Date
 		wantKind string
 	}{
-		{name: "before service start", date: timezone.NewDate(2026, 8, 10), wantKind: enrollmentSvc.EmptyOfferingRosterBeforeServiceStart},
-		{name: "after start with empty offering source", date: timezone.NewDate(2026, 8, 14), wantKind: enrollmentSvc.EmptyOfferingRosterSourceEmpty},
+		{name: "before service start", date: calendar.NewDate(2026, 8, 10), wantKind: enrollmentSvc.EmptyOfferingRosterBeforeServiceStart},
+		{name: "after start with empty offering source", date: calendar.NewDate(2026, 8, 14), wantKind: enrollmentSvc.EmptyOfferingRosterSourceEmpty},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			instance := &schedule.ActivityInstance{Date: schedule.Date(tt.date), CalendarPeriodID: &periodID}
+			instance := timetable.ScheduledInstance{Date: tt.date, CalendarPeriodID: &periodID}
 			reason := resource.resolveEmptyRosterReason(
 				context.Background(), instance, meta, nil,
 				make(map[int64][]enrollmentSvc.OfferingSourceOption),
@@ -181,9 +182,9 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 
 	populated := resource.resolveEmptyRosterReason(
 		context.Background(),
-		&schedule.ActivityInstance{Date: schedule.NewDate(2026, 8, 10), CalendarPeriodID: &periodID},
+		timetable.ScheduledInstance{Date: calendar.NewDate(2026, 8, 10), CalendarPeriodID: &periodID},
 		meta,
-		[]*schedule.InstanceStudent{{StudentID: sourceID + 2}},
+		[]timetable.ScheduledParticipant{{StudentID: sourceID + 2}},
 		make(map[int64][]enrollmentSvc.OfferingSourceOption),
 	)
 	assert.Nil(t, populated, "a populated occurrence must not carry an empty-roster explanation")
@@ -197,7 +198,8 @@ func TestListInstances_ReportsOfferingEmptyRosterReason(t *testing.T) {
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Empty-Reason-Period")
 	roomID := s.roomID
 	sourceID := time.Now().UnixNano()
-	group := &activitiesModels.Group{
+	repoFactory := mustTimetableTestRepositories(s.db)
+	group, err := repoFactory.Timetable.CreateGroup(s.ctx, timetable.GroupInput{
 		Name:                  fmt.Sprintf("Tpl-Empty-Reason-%d", time.Now().UnixNano()),
 		MaxParticipants:       25,
 		IsOpen:                true,
@@ -205,16 +207,14 @@ func TestListInstances_ReportsOfferingEmptyRosterReason(t *testing.T) {
 		CategoryID:            s.category.ID,
 		CreatedBy:             &s.staffA,
 		PlannedRoomID:         &roomID,
-		Type:                  activitiesModels.GroupTypeCare,
+		Type:                  timetable.GroupTypeCare,
 		CalendarPeriodID:      &period.ID,
-		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		TargetGroupType:       timetable.TargetGroupTypeOffering,
 		SourceCareOfferingIDs: []int64{sourceID},
-	}
-	group.SetTenantID(testpkg.Tenant(t))
-	repoFactory := mustTimetableTestRepositories(s.db)
-	require.NoError(t, repoFactory.ActivityGroup.Create(s.ctx, group))
+	})
+	require.NoError(t, err)
 
-	date := timezone.NewDate(2026, 8, 10)
+	date := calendar.NewDate(2026, 8, 10)
 	testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title:            group.Name,
 		ActivityGroupID:  &group.ID,
@@ -223,7 +223,7 @@ func TestListInstances_ReportsOfferingEmptyRosterReason(t *testing.T) {
 	s.res.OfferingSourceOptions = &stubOfferingSourceLister{options: []enrollmentSvc.OfferingSourceOption{{
 		ID:                sourceID,
 		PhaseName:         "Schuljahr 2026/27",
-		PhaseServiceStart: timezone.NewDate(2026, 8, 13),
+		PhaseServiceStart: calendar.NewDate(2026, 8, 13),
 	}}}
 
 	router := conversionRouter(s.ctx, s.res)
@@ -263,7 +263,7 @@ func TestListInstances_HappyPath(t *testing.T) {
 	assert.Equal(t, "Mensa-List-Test", item.Title)
 	assert.Equal(t, "12:00", item.StartTime)
 	assert.Equal(t, "12:50", item.EndTime)
-	assert.Equal(t, schedule.InstanceStatusPlanned, item.Status)
+	assert.Equal(t, timetable.InstanceStatusPlanned, item.Status)
 	assert.False(t, item.IsLive, "no active group bridged → not live")
 	assert.False(t, item.IsSpontaneous)
 	// Spontaneous instances without an activity_group fall back to "activity"
@@ -292,7 +292,7 @@ func TestListInstances_CompletedBridgeIsNotLive(t *testing.T) {
 	testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID: &template.ID,
 		ActiveGroupID:   &activeGroup.ID,
-		Status:          schedule.InstanceStatusCompleted,
+		Status:          timetable.InstanceStatusCompleted,
 		StartHHMM:       "12:00",
 		EndHHMM:         "13:00",
 		Title:           "Completed historical bridge",
@@ -304,7 +304,7 @@ func TestListInstances_CompletedBridgeIsNotLive(t *testing.T) {
 
 	got := decodeList(t, w)
 	require.Len(t, got.Instances, 1)
-	assert.Equal(t, schedule.InstanceStatusCompleted, got.Instances[0].Status)
+	assert.Equal(t, timetable.InstanceStatusCompleted, got.Instances[0].Status)
 	assert.False(t, got.Instances[0].IsLive)
 }
 
@@ -332,8 +332,8 @@ func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 	sickAbsenceID := sickRow.ID
 	sickRow.SickAbsenceID = &sickAbsenceID
 	require.NoError(t, mustTimetableTestRepositories(s.db).InstanceStaff.Update(s.ctx, sickRow))
-	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, schedule.AttendanceStatusExpected)
-	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student2.ID, schedule.AttendanceStatusPresent)
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, timetable.SlotAttendanceExpected)
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student2.ID, timetable.SlotAttendancePresent)
 
 	router := listRouter(s.ctx, s.res)
 	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
@@ -366,8 +366,8 @@ func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 	}
 	require.Contains(t, studentByID, student1.ID)
 	require.Contains(t, studentByID, student2.ID)
-	assert.Equal(t, schedule.AttendanceStatusExpected, studentByID[student1.ID].Status)
-	assert.Equal(t, schedule.AttendanceStatusPresent, studentByID[student2.ID].Status)
+	assert.Equal(t, timetable.SlotAttendanceExpected, studentByID[student1.ID].Status)
+	assert.Equal(t, timetable.SlotAttendancePresent, studentByID[student2.ID].Status)
 }
 
 // Completion flips every genuinely expected row to 'absent' and stamps the
@@ -390,7 +390,7 @@ func TestListInstances_CompletedExpectedRowStaysNotScheduled(t *testing.T) {
 	to, _ := listFutureDate(7)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
-		Status:    schedule.InstanceStatusCompleted,
+		Status:    timetable.InstanceStatusCompleted,
 		StartHHMM: "12:00", EndHHMM: "13:00", Title: "Completed-Freeze-Test",
 	})
 
@@ -398,10 +398,10 @@ func TestListInstances_CompletedExpectedRowStaysNotScheduled(t *testing.T) {
 	student1 := testpkg.CreateTestStudent(t, s.db, "Frozen", fmt.Sprintf("Marker-%d-A", suffix), "2b")
 	student2 := testpkg.CreateTestStudent(t, s.db, "Was", fmt.Sprintf("There-%d-B", suffix), "2b")
 	student3 := testpkg.CreateTestStudent(t, s.db, "Reset", fmt.Sprintf("Expected-%d-C", suffix), "2b")
-	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, schedule.AttendanceStatusExpected,
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, timetable.SlotAttendanceExpected,
 		testpkg.InstanceStudentOpts{NotScheduled: true})
-	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student2.ID, schedule.AttendanceStatusPresent)
-	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student3.ID, schedule.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student2.ID, timetable.SlotAttendancePresent)
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student3.ID, timetable.SlotAttendanceExpected)
 
 	router := listRouter(s.ctx, s.res)
 	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
@@ -435,7 +435,7 @@ func TestListInstances_CompletedExpectedRowStaysNotScheduled(t *testing.T) {
 type stubListCareDays struct{ notScheduled map[int64]bool }
 
 func (s stubListCareDays) ResolveForDate(
-	_ context.Context, studentIDs []int64, date timezone.Date,
+	_ context.Context, studentIDs []int64, date calendar.Date,
 ) (map[int64]careplan.CareDayStatus, error) {
 	out := map[int64]careplan.CareDayStatus{}
 	for _, id := range studentIDs {
@@ -447,11 +447,11 @@ func (s stubListCareDays) ResolveForDate(
 }
 
 func (s stubListCareDays) ResolveForRange(
-	_ context.Context, studentIDs []int64, from, to timezone.Date,
-) (map[int64]map[timezone.Date]careplan.CareDayStatus, error) {
-	out := map[int64]map[timezone.Date]careplan.CareDayStatus{}
+	_ context.Context, studentIDs []int64, from, to calendar.Date,
+) (map[int64]map[calendar.Date]careplan.CareDayStatus, error) {
+	out := map[int64]map[calendar.Date]careplan.CareDayStatus{}
 	for _, id := range studentIDs {
-		byDate := map[timezone.Date]careplan.CareDayStatus{}
+		byDate := map[calendar.Date]careplan.CareDayStatus{}
 		for date := from; !date.After(to); date = date.AddDays(1) {
 			if s.notScheduled[id] {
 				byDate[date] = careplan.CareDayNotScheduled
@@ -493,10 +493,10 @@ func TestListInstances_StatusDayAbsenceOnUnbookedDayReadsAsNotScheduled(t *testi
 
 	statusDay := testpkg.CreateTestStudentStatusDay(t, s.db, sickUnbooked.ID, fromDate, absencerecords.StudentStatusDaySick)
 	bookedStatusDay := testpkg.CreateTestStudentStatusDay(t, s.db, sickBooked.ID, fromDate, absencerecords.StudentStatusDaySick)
-	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, sickUnbooked.ID, schedule.AttendanceStatusAbsent,
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, sickUnbooked.ID, timetable.SlotAttendanceAbsent,
 		testpkg.InstanceStudentOpts{StudentStatusDayID: &statusDay.ID})
-	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, manualUnbooked.ID, schedule.AttendanceStatusAbsent)
-	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, sickBooked.ID, schedule.AttendanceStatusAbsent,
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, manualUnbooked.ID, timetable.SlotAttendanceAbsent)
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, sickBooked.ID, timetable.SlotAttendanceAbsent,
 		testpkg.InstanceStudentOpts{StudentStatusDayID: &bookedStatusDay.ID})
 
 	s.res.CareDayService = stubListCareDays{notScheduled: map[int64]bool{
@@ -570,7 +570,7 @@ func TestListInstances_IncludesWindowConflictWarnings(t *testing.T) {
 	warningsB := byTitle["Window-Conflict-B"].ConflictWarnings
 	require.Len(t, warningsA, 1)
 	require.Len(t, warningsB, 1)
-	assert.Equal(t, timetableplanning.ConflictKindStudent, warningsA[0].Kind)
+	assert.Equal(t, timetable.ConflictKindStudent, warningsA[0].Kind)
 	assert.Equal(t, student.ID, warningsA[0].ResourceID)
 	assert.True(t, warningsA[0].CanOverride)
 	assert.Equal(t, instB.ID, warningsA[0].ConflictingInstanceID)
@@ -631,7 +631,7 @@ func TestEnforcePlannedEndPropagatesResolveError(t *testing.T) {
 		},
 	})
 	_, err := res.enforcePlannedEnd(context.Background())
-	require.ErrorIs(t, err, timetableplanning.ErrLifecycleSettings)
+	require.ErrorIs(t, err, timetable.ErrLifecycleSettings)
 }
 
 func TestListInstances_IsLive(t *testing.T) {
@@ -644,28 +644,15 @@ func TestListInstances_IsLive(t *testing.T) {
 	to, _ := listFutureDate(7)
 
 	suffix := time.Now().UnixNano()
-	category := testpkg.CreateTestActivityCategory(t, s.db, fmt.Sprintf("Live-Category-%d", suffix))
-	staff := testpkg.CreateTestStaff(t, s.db, "Live", fmt.Sprintf("Creator-%d", suffix))
-	group := &activitiesModels.Group{
-		Name:            fmt.Sprintf("Live-Group-%d", suffix),
-		MaxParticipants: 20,
-		IsOpen:          true,
-		CategoryID:      category.ID,
-		CreatedBy:       &staff.ID,
-	}
-	group.SetTenantID(testpkg.Tenant(t))
-	_, err := s.db.NewInsert().
-		Model(group).
-		ModelTableExpr(`activities.groups AS "group"`).
-		Exec(s.ctx)
-	require.NoError(t, err)
+	// An open activity group with its own category and creator (max 20).
+	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("Live-Group-%d", suffix))
 
 	activeGroup := testpkg.CreateTestActiveGroup(t, s.db, group.ID, s.roomID)
 	testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM:     "10:00",
 		EndHHMM:       "11:00",
 		Title:         "Live-Test",
-		Status:        schedule.InstanceStatusActive,
+		Status:        timetable.InstanceStatusActive,
 		ActiveGroupID: &activeGroup.ID,
 	})
 
@@ -676,7 +663,7 @@ func TestListInstances_IsLive(t *testing.T) {
 	got := decodeList(t, w)
 	require.Len(t, got.Instances, 1)
 	assert.True(t, got.Instances[0].IsLive, "instance with active_group_id should be live")
-	assert.Equal(t, schedule.InstanceStatusActive, got.Instances[0].Status)
+	assert.Equal(t, timetable.InstanceStatusActive, got.Instances[0].Status)
 	assert.NotEmpty(t, got.Instances[0].CompleteAvailableAt)
 }
 
@@ -744,9 +731,9 @@ func TestListInstances_CapacityFields(t *testing.T) {
 	// required staff, against 1 actually assigned (staff2 is absent) -> understaffed.
 	personIDs := []int64{staff1.ID, staff2.ID}
 	for i := 0; i < 5; i++ {
-		status := schedule.AttendanceStatusExpected
+		status := timetable.SlotAttendanceExpected
 		if i%2 == 0 {
-			status = schedule.AttendanceStatusPresent
+			status = timetable.SlotAttendancePresent
 		}
 		student := testpkg.CreateTestStudent(t, s.db, "Cap", fmt.Sprintf("Cap-%d-%d", suffix, i), "1a")
 		testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, status)
@@ -777,20 +764,17 @@ func TestListInstances_SeriesNotesJoinedFromTemplate(t *testing.T) {
 	to, _ := listFutureDate(7)
 
 	suffix := time.Now().UnixNano()
-	category := testpkg.CreateTestActivityCategory(t, s.db, fmt.Sprintf("SeriesNote-Cat-%d", suffix))
-	staff := testpkg.CreateTestStaff(t, s.db, "SeriesNote", fmt.Sprintf("Creator-%d", suffix))
 	seriesNote := "Raum erst ab 14 Uhr offen"
-	group := &activitiesModels.Group{
-		Name:            fmt.Sprintf("SeriesNote-Template-%d", suffix),
-		MaxParticipants: 20,
-		IsOpen:          true,
-		CategoryID:      category.ID,
-		CreatedBy:       &staff.ID,
-		IsTemplate:      true,
-		Notes:           &seriesNote,
-	}
-	group.SetTenantID(testpkg.Tenant(t))
-	_, err := s.db.NewInsert().Model(group).ModelTableExpr(`activities.groups AS "group"`).Exec(s.ctx)
+	// An open template group (own category and creator, max 20) carrying the
+	// durable Wochennotiz.
+	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("SeriesNote-Template-%d", suffix))
+	_, err := s.db.NewUpdate().
+		TableExpr("activities.groups").
+		Set("is_template = TRUE").
+		Set("notes = ?", seriesNote).
+		Where("id = ?", group.ID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(s.ctx)
 	require.NoError(t, err)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
@@ -803,8 +787,7 @@ func TestListInstances_SeriesNotesJoinedFromTemplate(t *testing.T) {
 	// Give the occurrence its own one-off Tagesnotiz to prove independence.
 	dayNote := "Heute ohne Herrn Müller"
 	_, err = s.db.NewUpdate().
-		Model((*schedule.ActivityInstance)(nil)).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
+		TableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Set("notes = ?", dayNote).
 		Where(`"activity_instance".id = ?`, inst.ID).
 		Where(`"activity_instance".tenant_id = ?`, testpkg.Tenant(t)).

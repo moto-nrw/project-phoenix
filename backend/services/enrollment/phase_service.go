@@ -15,7 +15,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -589,7 +589,7 @@ func (s *phaseService) resyncPhaseSourcedTemplates(ctx context.Context, phaseID 
 			continue
 		}
 		if err := s.sourcedTemplateResyncer.ResyncTemplatesSourcedFromOffering(ctx, offering.ID, today); err != nil {
-			if errors.Is(err, timetableplanning.ErrOfferingSourceInvalid) {
+			if errors.Is(err, timetable.ErrOfferingSourceInvalid) {
 				// TenantTxMiddleware commits ordinary 4xx responses. Mark the
 				// ambient transaction so the already-written phase update is
 				// discarded together with the rejection.

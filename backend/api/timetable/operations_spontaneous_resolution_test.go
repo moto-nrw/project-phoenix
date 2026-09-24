@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -13,10 +14,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -39,17 +38,10 @@ func TestOperationsCreateAndStartSpontaneousResolvesActivityAgainstRealRepositor
 	staff := testpkg.CreateTestStaff(t, db, "Spontan", "Starter")
 	existingGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Bestehende AG %d", time.Now().UnixNano()))
 
-	instance := &schedule.ActivityInstance{Status: schedule.InstanceStatusActive}
-	service := &fakeOperationsService{start: &timetableplanning.StartInstanceResult{Instance: instance}}
+	service := &fakeOperationsService{start: &timetable.StartedOperation{Status: timetable.InstanceStatusActive}}
 	res := NewResource(Dependencies{
 		OperationsService: service,
-		TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{
-			ActiveGroupRepo:      &fakeOperationActiveGroupRepo{},
-			RoomRepo:             repos.Room,
-			ActivityGroupRepo:    repos.ActivityGroup,
-			ActivityCategoryRepo: repos.ActivityCategory,
-			DB:                   db,
-		}),
+		TimetableData:     testTimetableData(db).TimetableData(),
 		PersonService: &userstest.PersonServiceMock{
 			FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 				person := &userModels.Person{}
@@ -96,7 +88,8 @@ func TestOperationsCreateAndStartSpontaneousResolvesActivityAgainstRealRepositor
 	}
 
 	_, err := repos.ActivityCategory.FindByNameIncludingArchivedForShare(testpkg.Ctx(t), "Spontan")
-	require.ErrorIs(t, err, activityModels.ErrNotFound, "the tenant starts without a Spontan category")
+	var notFound interface{ RepositoryNotFound() }
+	require.True(t, errors.As(err, &notFound), "the tenant starts without a Spontan category: %v", err)
 
 	newTitle := fmt.Sprintf("Neue Werkstatt %d", time.Now().UnixNano())
 	createdGroupID := start(newTitle)

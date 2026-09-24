@@ -17,7 +17,7 @@ import (
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // editedOccurrenceItem is one individually-adjusted occurrence.
@@ -110,7 +110,7 @@ func (rs *Resource) editedInWindow(w http.ResponseWriter, r *http.Request) {
 
 // toEditedItems maps the service result to the wire shape (never nil so the
 // JSON array is always present).
-func toEditedItems(occurrences []timetableplanning.EditedOccurrence) []editedOccurrenceItem {
+func toEditedItems(occurrences []timetableModule.EditedOccurrence) []editedOccurrenceItem {
 	items := make([]editedOccurrenceItem, 0, len(occurrences))
 	for _, o := range occurrences {
 		items = append(items, editedOccurrenceItem{

@@ -11,9 +11,18 @@
  * route templates without IDs or query, no IP and no GeoIP, no person
  * profile. A surface this module does not know gets the strictest rules
  * (those of the parents portal).
+ *
+ * Session recording (#3603) runs in two places only: the public demo, with
+ * inputs masked and the `/start` form blocked, and the OGS portal of a school
+ * with Analyse-Freigabe, with every text, input, image, and attribute masked
+ * and a pseudonymous user ID. Both guards hold on their own: the client never
+ * starts the recorder elsewhere, and the filter drops every `$snapshot` and
+ * every person event outside those contexts, even if the PostHog project
+ * switches recording on for all.
  */
 
 import type { CaptureResult, PostHogConfig, Properties } from "posthog-js";
+import { isPseudonym } from "~/lib/analytics-pseudonym";
 import {
   resolveAnalyticsRoute,
   UNKNOWN_ANALYTICS_PATH,
@@ -44,6 +53,18 @@ export interface AnalyticsContext {
   readonly surface: string;
   /** Analyse-Freigabe of the school; only effective on `ogs`. */
   readonly analyseFreigabe: boolean;
+  /**
+   * Share of sessions recorded with the Analyse-Freigabe, 0 to 100. Missing
+   * or 0 records nothing.
+   */
+  readonly recordingSamplePercent?: number;
+  /**
+   * Pseudonymous ID of the signed-in OGS account (`analytics-pseudonym.ts`).
+   * Only effective with the Analyse-Freigabe on `ogs`.
+   */
+  readonly person?: string | null;
+  /** Role of the signed-in session, the only person property. */
+  readonly role?: AnalyticsRole;
 }
 
 /** Values of the `role` property: the role model, never a free-text name. */
@@ -53,22 +74,86 @@ export type AnalyticsRole = (typeof ANALYTICS_ROLES)[number];
 
 type Tier = "demo" | "ogs" | "ogs_freigabe" | "strict";
 
+type Recording = "demo" | "school" | null;
+
 interface TierRules {
   /** Autocapture may send the text of the clicked element. */
   readonly elementText: boolean;
+  /** Which session recording the tier runs, if any. */
+  readonly recording: Recording;
+  /** The session may be a pseudonymous person. */
+  readonly person: boolean;
 }
 
-// Session recording (demo, OGS with Analyse-Freigabe) and pseudonymous IDs
-// follow in #3603. Until then no tier records and the filter drops every
-// `$snapshot`, even if the PostHog project switches recording on for all.
 const TIER_RULES: Readonly<Record<Tier, TierRules>> = {
   // The demo shows invented data only; the element text makes the funnel
-  // readable. URLs stay templates there as well.
-  demo: { elementText: true },
-  ogs: { elementText: false },
-  ogs_freigabe: { elementText: false },
-  strict: { elementText: false },
+  // readable, and every session is recorded. URLs stay templates there as
+  // well. The visitor is the demo access, never a person profile.
+  demo: { elementText: true, recording: "demo", person: false },
+  ogs: { elementText: false, recording: null, person: false },
+  ogs_freigabe: { elementText: false, recording: "school", person: true },
+  strict: { elementText: false, recording: null, person: false },
 };
+
+/**
+ * Marks an element the recorder replaces with an empty box of the same size,
+ * in every recording. The `/start` form carries it: names, addresses, and
+ * organisations of prospects are never recorded, not even masked.
+ */
+export const ANALYTICS_BLOCK_ATTRIBUTE = "data-analytics-block";
+const BLOCK_SELECTOR = `[${ANALYTICS_BLOCK_ATTRIBUTE}]`;
+
+/**
+ * With the Analyse-Freigabe every image, video, and embedded document is
+ * blocked as well: a child's photo must not reach a recording in any form.
+ */
+const SCHOOL_BLOCK_SELECTOR = [
+  "img",
+  "picture",
+  "video",
+  "audio",
+  "canvas",
+  "svg image",
+  "iframe",
+  "object",
+  "embed",
+  BLOCK_SELECTOR,
+].join(", ");
+
+/**
+ * Attributes a school recording keeps: layout and state, never content.
+ * Everything else (`alt`, `title`, `aria-label`, `id`, `src`, `style`, `data-*`
+ * ...) is masked, because a name or a photo URL can hide in any of them.
+ * `href` keeps its route template.
+ */
+const SCHOOL_KEPT_ATTRIBUTES: ReadonlySet<string> = new Set([
+  "class",
+  "type",
+  "role",
+  "rel",
+  "width",
+  "height",
+  "viewBox",
+  "d",
+  "fill",
+  "stroke",
+  "stroke-width",
+  "stroke-linecap",
+  "stroke-linejoin",
+  "fill-rule",
+  "clip-rule",
+  "xmlns",
+  "aria-hidden",
+  "aria-expanded",
+  "aria-selected",
+  "aria-checked",
+  "aria-disabled",
+  "data-state",
+  "disabled",
+  "hidden",
+]);
+
+const MASKED_ATTRIBUTE = "*";
 
 const KNOWN_SURFACES: ReadonlySet<string> = new Set(ANALYTICS_SURFACES);
 
@@ -121,12 +206,141 @@ export function analyticsSurfaceForHost(
   return "public";
 }
 
+function recordingSampleRate(context: AnalyticsContext): number {
+  const percent = context.recordingSamplePercent ?? 0;
+  return Number.isFinite(percent)
+    ? Math.min(Math.max(percent, 0), 100) / 100
+    : 0;
+}
+
+/** The recording a context runs; null records nothing. */
+function recordingOf(context: AnalyticsContext): Recording {
+  const recording = TIER_RULES[tierOf(context)].recording;
+  if (recording === "school" && recordingSampleRate(context) === 0) return null;
+  return recording;
+}
+
+/**
+ * The pseudonymous ID the session identifies with, or null. Only the OGS
+ * portal of a school with Analyse-Freigabe has one.
+ */
+export function analyticsIdentity(context: AnalyticsContext): string | null {
+  return TIER_RULES[tierOf(context)].person && isPseudonym(context.person)
+    ? context.person
+    : null;
+}
+
+type SessionRecordingOptions = NonNullable<PostHogConfig["session_recording"]>;
+type CapturedNetworkRequest = Parameters<
+  NonNullable<SessionRecordingOptions["maskCapturedNetworkRequestFn"]>
+>[0];
+
+function recordingOptions(
+  context: AnalyticsContext,
+  recording: "demo" | "school",
+): SessionRecordingOptions {
+  const scope = urlScopeOf(context);
+  // The recorder passes the page URL of the recording (and of each network
+  // entry, if network capture ever runs) through this function: it leaves as
+  // the route template on the deployment host, without headers or bodies.
+  const maskRequest = (
+    request: CapturedNetworkRequest,
+  ): CapturedNetworkRequest => ({
+    ...request,
+    name: templateUrl(scope, request.name) ?? `https://${scope.host}/unknown`,
+    requestHeaders: undefined,
+    responseHeaders: undefined,
+    requestBody: undefined,
+    responseBody: undefined,
+  });
+  // Relative link targets resolve against a placeholder; templateUrl swaps
+  // the host for the deployment either way.
+  const templateHref = (value: string) => {
+    try {
+      return (
+        templateUrl(
+          scope,
+          new URL(value, "https://placeholder.invalid").href,
+        ) ?? MASKED_ATTRIBUTE
+      );
+    } catch {
+      return MASKED_ATTRIBUTE;
+    }
+  };
+
+  const common: SessionRecordingOptions = {
+    maskAllInputs: true,
+    recordHeaders: false,
+    recordBody: false,
+    // Canvas recording is the only part of the recorder that starts a Blob
+    // worker; with it off the CSP needs no `worker-src blob:`.
+    captureCanvas: { recordCanvas: false },
+    maskCapturedNetworkRequestFn: maskRequest,
+  };
+
+  if (recording === "demo") {
+    return {
+      ...common,
+      maskTextSelector: null,
+      blockSelector: BLOCK_SELECTOR,
+      // Links in the demo show invented data, but their paths still carry
+      // IDs; they leave as route templates like every other URL.
+      maskAttributeFn: (name, value) =>
+        name === "href" ? templateHref(value) : value,
+      sampleRate: 1,
+    };
+  }
+  return {
+    ...common,
+    maskTextSelector: "*",
+    blockSelector: SCHOOL_BLOCK_SELECTOR,
+    maskAttributeFn: (name, value) => {
+      if (name === "href") return templateHref(value);
+      return SCHOOL_KEPT_ATTRIBUTES.has(name) ? value : MASKED_ATTRIBUTE;
+    },
+    sampleRate: recordingSampleRate(context),
+  };
+}
+
+/**
+ * The options that follow the context while the page runs: login, logout,
+ * and a school change apply them through `set_config`, so the recorder stops
+ * the moment the Analyse-Freigabe is gone from the context.
+ */
+export function analyticsRuntimeOptions(
+  context: AnalyticsContext,
+): Partial<PostHogConfig> {
+  const rules = TIER_RULES[tierOf(context)];
+  const recording = recordingOf(context);
+  return {
+    mask_all_text: !rules.elementText,
+    disable_session_recording: recording === null,
+    enable_recording_console_log: false,
+    session_recording: recording ? recordingOptions(context, recording) : {},
+  };
+}
+
+/**
+ * `identified_only` on the OGS portal of a real school, where the
+ * Analyse-Freigabe can arrive after the SDK started; `never` everywhere else.
+ * The SDK resets this value to the init option when its remote config loads,
+ * so it is set once, here. Without an `identify` call `identified_only` sends
+ * no person either, and the filter forces `$process_person_profile: false`
+ * outside the Freigabe.
+ */
+function personProfilesOf(
+  context: AnalyticsContext,
+): PostHogConfig["person_profiles"] {
+  return context.surface === "ogs" && context.deployment !== DEMO_DEPLOYMENT
+    ? "identified_only"
+    : "never";
+}
+
 /** PostHog init options for a context. `before_send` comes from the client. */
 export function analyticsInitOptions(
   context: AnalyticsContext,
   ownHostname: string,
 ): Partial<PostHogConfig> {
-  const rules = TIER_RULES[tierOf(context)];
   return {
     api_host: POSTHOG_PROXY_PATH,
     ui_host: POSTHOG_UI_HOST,
@@ -134,7 +348,7 @@ export function analyticsInitOptions(
     // No cookies, no local or session storage: no consent banner needed.
     persistence: "memory",
     disable_persistence: true,
-    person_profiles: "never",
+    person_profiles: personProfilesOf(context),
     save_referrer: false,
     save_campaign_params: false,
     // The default marks localhost as test user and processes a person.
@@ -149,16 +363,16 @@ export function analyticsInitOptions(
     capture_pageleave: true,
     disable_scroll_properties: false,
     autocapture: true,
-    mask_all_text: !rules.elementText,
     mask_all_element_attributes: true,
     capture_heatmaps: true,
     capture_dead_clicks: true,
     rageclick: true,
+    // No network timing and no web vitals, in recordings neither.
     capture_performance: false,
     capture_exceptions: false,
-    disable_session_recording: true,
     // The backend links its events to the browser session (#3602).
     tracing_headers: [ownHostname],
+    ...analyticsRuntimeOptions(context),
   };
 }
 
@@ -171,6 +385,9 @@ const ELEMENT_EVENTS: ReadonlySet<string> = new Set([
   "$dead_click",
 ]);
 const HEATMAP_EVENT = "$$heatmap";
+const SNAPSHOT_EVENT = "$snapshot";
+// `identify` sends `$identify`, a later change of person properties `$set`.
+const PERSON_EVENTS: ReadonlySet<string> = new Set(["$identify", "$set"]);
 
 // Core actions that end in a successful write (login_success, group_created,
 // data_exported, ...) come from the backend after the write (#3602); the
@@ -508,18 +725,95 @@ function sanitizeEventSpecific(
   if (event === HEATMAP_EVENT && key === "$heatmap_data") {
     return sanitizeHeatmapData(scope, value);
   }
+  if (event === SNAPSHOT_EVENT) {
+    return sanitizeSnapshotProperty(scope, key, value);
+  }
+  // The anonymous ID the page had before `identify`, never another person.
+  if (event === "$identify" && key === "$anon_distinct_id") {
+    return isSafeId(value) && !isPseudonym(value) ? value : undefined;
+  }
   return undefined;
+}
+
+// --- $snapshot ---------------------------------------------------------------
+//
+// The recorder masks the page itself (recordingOptions) and passes its page
+// URLs through `maskCapturedNetworkRequestFn`. The filter checks the URLs of
+// the rrweb meta and custom page events once more; the DOM data passes as the
+// recorder masked it, compressed or not.
+
+const RRWEB_META = 4;
+const RRWEB_CUSTOM = 5;
+
+function templateHrefOf(scope: UrlScope, value: unknown): string {
+  return templateUrl(scope, value) ?? `https://${scope.host}/unknown`;
+}
+
+function sanitizeSnapshotEvent(scope: UrlScope, entry: unknown): unknown {
+  if (typeof entry !== "object" || entry === null) return entry;
+  const { type, data } = entry as { type?: unknown; data?: unknown };
+  if (typeof data !== "object" || data === null) return entry;
+
+  if (type === RRWEB_META && "href" in data) {
+    return {
+      ...entry,
+      data: { ...data, href: templateHrefOf(scope, data.href) },
+    };
+  }
+  const payload = (data as { payload?: unknown }).payload;
+  if (
+    type === RRWEB_CUSTOM &&
+    typeof payload === "object" &&
+    payload !== null &&
+    "href" in payload
+  ) {
+    return {
+      ...entry,
+      data: {
+        ...data,
+        payload: { ...payload, href: templateHrefOf(scope, payload.href) },
+      },
+    };
+  }
+  return entry;
+}
+
+function sanitizeSnapshotProperty(
+  scope: UrlScope,
+  key: string,
+  value: unknown,
+): unknown {
+  switch (key) {
+    case "$snapshot_data":
+      return Array.isArray(value)
+        ? value.map((entry) => sanitizeSnapshotEvent(scope, entry))
+        : undefined;
+    case "$snapshot_bytes":
+      return isFiniteNumber(value) ? value : undefined;
+    // The hostname of the recorded page; the OGS portal's names the school.
+    case "$snapshot_host":
+      return typeof value === "string" ? scope.host : undefined;
+    default:
+      return undefined;
+  }
+}
+
+// --- properties and person ---------------------------------------------------
+
+function urlScopeOf(context: AnalyticsContext): UrlScope {
+  return {
+    surface: routeSurfaceOf(context),
+    host: analyticsHost(context.deployment),
+  };
 }
 
 function sanitizeProperties(
   context: AnalyticsContext,
   event: string,
   properties: Properties,
+  person: boolean,
 ): Properties {
-  const scope: UrlScope = {
-    surface: routeSurfaceOf(context),
-    host: analyticsHost(context.deployment),
-  };
+  const scope = urlScopeOf(context);
   const rules = TIER_RULES[tierOf(context)];
   const safe: Properties = {};
 
@@ -535,11 +829,26 @@ function sanitizeProperties(
   safe.deployment = scope.host;
   safe.surface = isKnownSurface(context.surface) ? context.surface : "unknown";
   safe.$geoip_disable = true;
-  safe.$process_person_profile = false;
+  safe.$process_person_profile = person;
   return safe;
 }
 
-function isAllowedEvent(event: string): boolean {
+/** The only person property is the role; never a name or an address. */
+function sanitizePersonProperties(value: unknown): Properties | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const { role } = value as { role?: unknown };
+  return typeof role === "string" && SAFE_VALUES.role?.has(role)
+    ? { role }
+    : undefined;
+}
+
+function isAllowedEvent(
+  context: AnalyticsContext,
+  event: string,
+  identity: string | null,
+): boolean {
+  if (event === SNAPSHOT_EVENT) return recordingOf(context) !== null;
+  if (PERSON_EVENTS.has(event)) return identity !== null;
   return (
     PAGE_EVENTS.has(event) ||
     ELEMENT_EVENTS.has(event) ||
@@ -551,21 +860,37 @@ function isAllowedEvent(event: string): boolean {
 /**
  * Final defense before any browser event leaves the application. Builds a
  * new event from allowlisted properties only; everything else is dropped.
+ * A pseudonymous ID leaves only in the context that owns it: an event that
+ * carries another one, or one outside the Analyse-Freigabe, is dropped whole.
  */
 export function filterAnalyticsEvent(
   context: AnalyticsContext,
   captureResult: CaptureResult | null,
 ): CaptureResult | null {
-  if (!captureResult || !isAllowedEvent(captureResult.event)) return null;
+  if (!captureResult) return null;
+  const { event } = captureResult;
+  const identity = analyticsIdentity(context);
+  if (!isAllowedEvent(context, event, identity)) return null;
 
-  return {
+  const distinctId: unknown = captureResult.properties.distinct_id;
+  if (isPseudonym(distinctId) && distinctId !== identity) return null;
+  const person = identity !== null && distinctId === identity;
+  if (PERSON_EVENTS.has(event) && !person) return null;
+
+  const filtered: CaptureResult = {
     uuid: captureResult.uuid,
-    event: captureResult.event,
+    event,
     timestamp: captureResult.timestamp,
     properties: sanitizeProperties(
       context,
-      captureResult.event,
+      event,
       captureResult.properties,
+      person,
     ),
   };
+  if (PERSON_EVENTS.has(event)) {
+    const personProperties = sanitizePersonProperties(captureResult.$set);
+    if (personProperties) filtered.$set = personProperties;
+  }
+  return filtered;
 }

@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -42,7 +41,7 @@ type cleanupContext struct {
 	AuthCleanupService         authCleanupService
 	InvitationCleanupService   invitationCleanupService
 	SessionCleanupService      sessionCleanupService
-	TimetableCleanupService    timetableplanning.TimetableCleanupService
+	TimetableCleanupService    services.TimetableCleanup
 	TimeTrackingCleanupService services.TimeTrackingCleanupService
 	TenantRuntime              tenant.UnitOfWork
 	Output                     io.Writer
@@ -68,7 +67,7 @@ type sessionCleanupService interface {
 }
 
 type retentionCleanupService = studentpresence.PresenceCleanup
-type timetableCleanupService = timetableplanning.TimetableCleanupService
+type timetableCleanupService = services.TimetableCleanup
 type timeTrackingCleanupService = services.TimeTrackingCleanupService
 
 type cleanupRoot struct {
@@ -77,7 +76,7 @@ type cleanupRoot struct {
 	invitationCleanup   func(*cleanupContext) invitationCleanupService
 	sessionCleanup      func(*cleanupContext) sessionCleanupService
 	retentionCleanup    func(*cleanupContext) studentpresence.PresenceCleanup
-	timetableCleanup    func(*cleanupContext) timetableplanning.TimetableCleanupService
+	timetableCleanup    func(*cleanupContext) services.TimetableCleanup
 	timeTrackingCleanup func(*cleanupContext) services.TimeTrackingCleanupService
 }
 
@@ -312,8 +311,15 @@ func newCleanupContextWithTimetableCleanup() (*cleanupContext, error) {
 	return ctx, nil
 }
 
-func buildTimetableCleanupService(ctx *cleanupContext) timetableplanning.TimetableCleanupService {
-	return services.NewTimetableCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, ctx.Timetable, slog.Default().With("service", "timetable-cleanup-cli"), ctx.Audit)
+func buildTimetableCleanupService(ctx *cleanupContext) services.TimetableCleanup {
+	logger := slog.Default().With("service", "timetable-cleanup-cli")
+	cleanup, err := services.NewTimetableCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, ctx.Timetable, logger, ctx.Audit)
+	if err != nil {
+		// buildCleanupDependency reports the missing service to the caller.
+		logger.Error("compose timetable cleanup", slog.String("error", err.Error()))
+		return nil
+	}
+	return cleanup
 }
 
 // newCleanupContextWithTimeTrackingCleanup initializes database + time-tracking

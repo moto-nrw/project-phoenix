@@ -14,7 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -2238,12 +2238,12 @@ type fakeMaterializer struct {
 	lastFrom         timezone.Date
 	lastTo           timezone.Date
 	lastWeeksAhead   int
-	lastSource       timetableplanning.MaterializationSource
+	lastSource       timetable.MaterializationSource
 	returnErr        error
-	returnResult     *timetableplanning.MaterializationResult
+	returnResult     *timetable.MaterializationResult
 }
 
-func (f *fakeMaterializer) MaterializeForTenant(_ context.Context, from, to timezone.Date, source timetableplanning.MaterializationSource) (*timetableplanning.MaterializationResult, error) {
+func (f *fakeMaterializer) MaterializeForTenant(_ context.Context, from, to timezone.Date, source timetable.MaterializationSource) (*timetable.MaterializationResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.materializeCalls++
@@ -2256,7 +2256,7 @@ func (f *fakeMaterializer) MaterializeForTenant(_ context.Context, from, to time
 	if f.returnResult != nil {
 		return f.returnResult, nil
 	}
-	return &timetableplanning.MaterializationResult{From: from, To: to}, nil
+	return &timetable.MaterializationResult{From: from, To: to}, nil
 }
 
 func (f *fakeMaterializer) ResolveWindow(baseDate timezone.Date, weeksAhead int) (timezone.Date, timezone.Date) {
@@ -2270,7 +2270,7 @@ func (f *fakeMaterializer) ResolveWindow(baseDate timezone.Date, weeksAhead int)
 	return from, to
 }
 
-func (f *fakeMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _ timezone.Date, _ bool) ([]timetableplanning.EditedOccurrence, error) {
+func (f *fakeMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _ timezone.Date, _ bool) ([]timetable.EditedOccurrence, error) {
 	return nil, nil
 }
 
@@ -2469,7 +2469,7 @@ func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	m := &fakeMaterializer{
-		returnResult: &timetableplanning.MaterializationResult{
+		returnResult: &timetable.MaterializationResult{
 			InstancesCreated: 7,
 			CandidatesRaced:  2,
 			DurationMS:       123,
@@ -2496,7 +2496,7 @@ func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
 	assert.Equal(t, 1, m.materializeCalls, "materializer must be called exactly once")
 	assert.Equal(t, 1, m.resolveCalls, "ResolveWindow must be called exactly once")
 	assert.Equal(t, 3, m.lastWeeksAhead, "weeks-ahead setting must propagate to ResolveWindow")
-	assert.Equal(t, timetableplanning.MaterializationSourceScheduler, m.lastSource,
+	assert.Equal(t, timetable.MaterializationSourceScheduler, m.lastSource,
 		"source tag must be scheduler (not manual) for scheduled runs")
 
 	// Verify lastMaterialization was stamped so the next poll skips.
@@ -2510,7 +2510,7 @@ func TestCheckAndRunMaterialization_ZeroCounters(t *testing.T) {
 	// When the result has zero created and zero raced, the success info log
 	// is suppressed — but the call still counts and the today-mark is set.
 	m := &fakeMaterializer{
-		returnResult: &timetableplanning.MaterializationResult{
+		returnResult: &timetable.MaterializationResult{
 			InstancesCreated: 0,
 			CandidatesRaced:  0,
 		},
@@ -2568,7 +2568,7 @@ func TestCheckAndRunMaterialization_OnlyRacedCounter(t *testing.T) {
 	// Triggers the "successful completion" info log branch where
 	// InstancesCreated==0 but CandidatesRaced>0.
 	m := &fakeMaterializer{
-		returnResult: &timetableplanning.MaterializationResult{
+		returnResult: &timetable.MaterializationResult{
 			CandidatesRaced: 4,
 			DurationMS:      55,
 		},

@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func setupEditedInWindowRouter(rs *Resource) chi.Router {
@@ -26,25 +26,25 @@ func TestEditedInWindow_Success(t *testing.T) {
 	t.Parallel()
 
 	var gotGroup int64
-	var gotFrom, gotTo timezone.Date
+	var gotFrom, gotTo calendar.Date
 	var gotInclude bool
 	mat := &mockMaterializationService{
-		detectFn: func(activityGroupID int64, from, to timezone.Date, includeDeletions bool) ([]timetableplanning.EditedOccurrence, error) {
+		detectFn: func(activityGroupID int64, from, to calendar.Date, includeDeletions bool) ([]timetableModule.EditedOccurrence, error) {
 			gotGroup, gotFrom, gotTo, gotInclude = activityGroupID, from, to, includeDeletions
-			return []timetableplanning.EditedOccurrence{
+			return []timetableModule.EditedOccurrence{
 				{
 					InstanceID: 101,
-					Date:       timezone.NewDate(2026, 4, 20),
+					Date:       calendar.NewDate(2026, 4, 20),
 					StartTime:  "15:00:00",
 					Title:      "Fußball AG",
-					Changes:    []string{timetableplanning.EditedChangeRoom, timetableplanning.EditedChangeTitle},
+					Changes:    []string{timetableModule.EditedChangeRoom, timetableModule.EditedChangeTitle},
 				},
 				{
 					InstanceID: 102,
-					Date:       timezone.NewDate(2026, 4, 27),
+					Date:       calendar.NewDate(2026, 4, 27),
 					StartTime:  "15:00:00",
 					Title:      "Fußball AG",
-					Changes:    []string{timetableplanning.EditedChangeStaff},
+					Changes:    []string{timetableModule.EditedChangeStaff},
 				},
 			}, nil
 		},
@@ -56,8 +56,8 @@ func TestEditedInWindow_Success(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
 	assert.Equal(t, int64(77), gotGroup)
-	assert.Equal(t, timezone.NewDate(2026, 4, 20), gotFrom)
-	assert.Equal(t, timezone.NewDate(2026, 5, 3), gotTo)
+	assert.Equal(t, calendar.NewDate(2026, 4, 20), gotFrom)
+	assert.Equal(t, calendar.NewDate(2026, 5, 3), gotTo)
 	assert.False(t, gotInclude, "include_deletions defaults to false")
 
 	var resp map[string]any
@@ -86,7 +86,7 @@ func TestEditedInWindow_IncludeDeletionsForwarded(t *testing.T) {
 
 	var gotInclude bool
 	mat := &mockMaterializationService{
-		detectFn: func(_ int64, _, _ timezone.Date, includeDeletions bool) ([]timetableplanning.EditedOccurrence, error) {
+		detectFn: func(_ int64, _, _ calendar.Date, includeDeletions bool) ([]timetableModule.EditedOccurrence, error) {
 			gotInclude = includeDeletions
 			return nil, nil
 		},
@@ -103,7 +103,7 @@ func TestEditedInWindow_EmptyResultIsArray(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{
-		detectFn: func(_ int64, _, _ timezone.Date, _ bool) ([]timetableplanning.EditedOccurrence, error) {
+		detectFn: func(_ int64, _, _ calendar.Date, _ bool) ([]timetableModule.EditedOccurrence, error) {
 			return nil, nil
 		},
 	}
@@ -176,7 +176,7 @@ func TestEditedInWindow_LongWindowNotCapped(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{
-		detectFn: func(_ int64, _, _ timezone.Date, _ bool) ([]timetableplanning.EditedOccurrence, error) {
+		detectFn: func(_ int64, _, _ calendar.Date, _ bool) ([]timetableModule.EditedOccurrence, error) {
 			return nil, nil
 		},
 	}
@@ -192,7 +192,7 @@ func TestEditedInWindow_ServiceError(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{
-		detectFn: func(_ int64, _, _ timezone.Date, _ bool) ([]timetableplanning.EditedOccurrence, error) {
+		detectFn: func(_ int64, _, _ calendar.Date, _ bool) ([]timetableModule.EditedOccurrence, error) {
 			return nil, errors.New("boom")
 		},
 	}

@@ -12,55 +12,52 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
-	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-type dayTransitionRoomRepo struct {
-	facilitiesModels.RoomRepository
-	onFind func()
+// dayTransitionSpontaneousStart is the owner's spontaneous-start preparation
+// for the day-transition tests: the room exists and is free, the room lock
+// succeeds, and the activity resolution returns activityID. onRoomExists and
+// onResolve observe the two steps; resolveCalls counts the resolutions.
+type dayTransitionSpontaneousStart struct {
+	activityID   *int64
+	onRoomExists func()
+	onResolve    func()
+	resolveCalls int
 }
 
-func (r dayTransitionRoomRepo) FindByID(context.Context, interface{}) (*facilitiesModels.Room, error) {
-	r.onFind()
-	return &facilitiesModels.Room{Name: "Lernraum"}, nil
-}
-
-type dayTransitionActivityGroupRepo struct {
-	*fakeOperationActivityGroupRepo
-	onFind func()
-}
-
-func (r dayTransitionActivityGroupRepo) FindByName(ctx context.Context, name string) (*activityModels.Group, error) {
-	group, err := r.fakeOperationActivityGroupRepo.FindByName(ctx, name)
-	r.onFind()
-	return group, err
+func (s *dayTransitionSpontaneousStart) data() timetable.TimetableDataCapability {
+	return &fakeTimetableData{
+		SpontaneousRoomExistsFn: func(context.Context, int64) (bool, error) {
+			if s.onRoomExists != nil {
+				s.onRoomExists()
+			}
+			return true, nil
+		},
+		LockSpontaneousStartRoomFn: func(context.Context, int64) error { return nil },
+		SpontaneousRoomOccupiedFn:  func(context.Context, int64) (bool, error) { return false, nil },
+		ResolveSpontaneousActivityFn: func(context.Context, string, *int64, int64) (*int64, error) {
+			s.resolveCalls++
+			if s.onResolve != nil {
+				s.onResolve()
+			}
+			return s.activityID, nil
+		},
+	}
 }
 
 func TestOperationsCreateAndStartSpontaneousRechecksWorkdayAfterRequestValidation(t *testing.T) {
 	t.Parallel()
 
 	roomChecked := false
-	activityGroupRepo := &fakeOperationActivityGroupRepo{}
-	activityCategoryRepo := &fakeOperationActivityCategoryRepo{}
-	service := &fakeOperationsService{start: &timetableplanning.StartInstanceResult{
-		Instance: &schedule.ActivityInstance{Status: schedule.InstanceStatusActive},
-	}}
+	spontaneous := &dayTransitionSpontaneousStart{onRoomExists: func() { roomChecked = true }}
+	service := &fakeOperationsService{start: &timetable.StartedOperation{Status: timetable.InstanceStatusActive}}
 	res := NewResource(Dependencies{
-		TimetableData: operationTimetableData(timetableplanning.TimetableDataDependencies{
-			ActiveGroupRepo:      &fakeOperationActiveGroupRepo{},
-			ActivityGroupRepo:    activityGroupRepo,
-			ActivityCategoryRepo: activityCategoryRepo,
-			RoomRepo: dayTransitionRoomRepo{
-				onFind: func() { roomChecked = true },
-			},
-		}),
+		TimetableData:     spontaneous.data(),
 		OperationsService: service,
 		PersonService: &userstest.PersonServiceMock{
 			FindByAccountIDFn: func(context.Context, int64) (*userModels.Person, error) {
@@ -77,9 +74,9 @@ func TestOperationsCreateAndStartSpontaneousRechecksWorkdayAfterRequestValidatio
 		SettingsService: &fakeOperationSettingsService{hasOverride: true, boolValue: true},
 		Now: func() time.Time {
 			if roomChecked {
-				return time.Date(2026, time.May, 9, 0, 0, 0, 0, timezone.Berlin)
+				return time.Date(2026, time.May, 9, 0, 0, 0, 0, calendar.Berlin)
 			}
-			return time.Date(2026, time.May, 8, 23, 59, 59, 0, timezone.Berlin)
+			return time.Date(2026, time.May, 8, 23, 59, 59, 0, calendar.Berlin)
 		},
 	})
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
@@ -92,9 +89,9 @@ func TestOperationsCreateAndStartSpontaneousRechecksWorkdayAfterRequestValidatio
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 	assert.True(t, roomChecked)
-	assert.Empty(t, activityGroupRepo.lastFindByName, "the weekend recheck must run before activity resolution")
-	assert.Nil(t, activityGroupRepo.createdGroup)
-	assert.Nil(t, activityCategoryRepo.createdCategory)
+	// The activity resolution is the step that finds or creates the activity
+	// and its category; it must not be reached at all.
+	assert.Zero(t, spontaneous.resolveCalls, "the weekend recheck must run before activity resolution")
 	assert.Nil(t, service.lastSpontaneousInput, "a request crossing into Saturday must not mutate")
 }
 
@@ -102,21 +99,14 @@ func TestOperationsCreateAndStartSpontaneousRechecksWorkdayBeforeInstanceCreatio
 	t.Parallel()
 
 	activityResolved := false
-	activityGroup := &activityModels.Group{}
-	activityGroup.ID = 71
-	activityGroupRepo := &fakeOperationActivityGroupRepo{findByNameResult: activityGroup}
-	service := &fakeOperationsService{start: &timetableplanning.StartInstanceResult{
-		Instance: &schedule.ActivityInstance{Status: schedule.InstanceStatusActive},
-	}}
+	activityGroupID := int64(71)
+	spontaneous := &dayTransitionSpontaneousStart{
+		activityID: &activityGroupID,
+		onResolve:  func() { activityResolved = true },
+	}
+	service := &fakeOperationsService{start: &timetable.StartedOperation{Status: timetable.InstanceStatusActive}}
 	res := NewResource(Dependencies{
-		TimetableData: operationTimetableData(timetableplanning.TimetableDataDependencies{
-			ActiveGroupRepo: &fakeOperationActiveGroupRepo{},
-			ActivityGroupRepo: dayTransitionActivityGroupRepo{
-				fakeOperationActivityGroupRepo: activityGroupRepo,
-				onFind:                         func() { activityResolved = true },
-			},
-			RoomRepo: &fakeOperationRoomRepo{room: &facilitiesModels.Room{Name: "Lernraum"}},
-		}),
+		TimetableData:     spontaneous.data(),
 		OperationsService: service,
 		PersonService: &userstest.PersonServiceMock{
 			FindByAccountIDFn: func(context.Context, int64) (*userModels.Person, error) {
@@ -133,9 +123,9 @@ func TestOperationsCreateAndStartSpontaneousRechecksWorkdayBeforeInstanceCreatio
 		SettingsService: &fakeOperationSettingsService{hasOverride: true, boolValue: true},
 		Now: func() time.Time {
 			if activityResolved {
-				return time.Date(2026, time.May, 9, 0, 0, 0, 0, timezone.Berlin)
+				return time.Date(2026, time.May, 9, 0, 0, 0, 0, calendar.Berlin)
 			}
-			return time.Date(2026, time.May, 8, 23, 59, 59, 0, timezone.Berlin)
+			return time.Date(2026, time.May, 8, 23, 59, 59, 0, calendar.Berlin)
 		},
 	})
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)

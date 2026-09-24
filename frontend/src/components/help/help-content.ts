@@ -1088,7 +1088,7 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
  * Tagesbetrieb und hatte bisher keine Hilfeseite. Inhalt belegt aus
  * `components/timetable/tagesplan-view.tsx`: chronologische Blockliste,
  * Jetzt-Linie, Tippen auf einen laufenden Block oeffnet dessen Kinderliste,
- * eigener Block startet ueber `Starten`. Bei einfacher Anwesenheit greift
+ * ein startbarer Block startet ueber `Starten` (#3622). Bei einfacher Anwesenheit greift
  * der BinaryModeGuard, deshalb steht das Thema in DETAILED_ONLY_TOPIC_IDS.
  */
 function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
@@ -1110,7 +1110,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Sie sehen die Blöcke des Tages von früh nach spät.",
       "Eine Linie zeigt, wo Sie gerade im Tag stehen.",
       "Tippen Sie auf einen laufenden Block. Das öffnet seine Kinderliste.",
-      "Hat Ihr eigener Block noch nicht begonnen? Wählen Sie `Starten`.",
+      "Hat Ihr Block noch nicht begonnen? Wählen Sie `Starten`.",
     ],
     result:
       "Nach `Starten` öffnet moto die Kinderliste des Blocks in `Aktuelle Aufsicht`.",
@@ -1118,6 +1118,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "`Läuft` heißt: der Block ist gerade aktiv. `Beendet` und `Nicht gestartet` können Sie nur ansehen.",
       "`Fällt aus` zeigt zusätzlich den Grund.",
       "Welche Blöcke Sie sehen, legt Ihre OGS fest. Manche sehen den ganzen Tag der Schule, andere nur die eigene Einteilung.",
+      "Ob Sie nur eigene oder alle Blöcke starten dürfen, legt Ihre OGS fest. Wer einen fremden Block startet, wird nicht zur Aufsicht.",
       ...(presenceMode === "unknown"
         ? ["Bei einfacher Anwesenheit gibt es den Tagesplan nicht."]
         : []),
@@ -1307,6 +1308,9 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
     differences: [
       "Bei einem laufenden Termin können weitere Betreuungskräfte der Aufsicht beitreten.",
       "Ein geplanter Termin hat feste Zeiten. Vorher sind Start oder Ende möglicherweise gesperrt.",
+      "Steht am Termin `Nur für Eingeplante`? Dann dürfen hier nur eingeplante Kräfte starten. Ihre OGS kann das Starten für das ganze Team freigeben.",
+      "Sie starten einen Termin, für den Sie nicht eingeplant sind? Dann werden Sie nicht zur Aufsicht. Wer beenden darf, legt Ihre OGS fest.",
+      "Fehlt `Beenden`? Dann dürfen hier nur eingeplante Kräfte beenden. Ihre OGS kann das Beenden für das ganze Team freigeben.",
       "Welche freien Räume Sie übernehmen können, legt Ihre OGS fest.",
     ],
     troubleshooting: HELP_TOPICS.attendanceProblem,
@@ -4798,6 +4802,8 @@ function settingsTopic(): HelpTopic {
     notes: [
       "Oben steht, wie viele Einstellungen von der Vorgabe abweichen.",
       "Jede Einstellung hat einen Satz darunter, der sagt, was sie bewirkt.",
+      "Wer Blöcke starten oder beenden darf, legen Sie unter `Betrieb` fest: bei `Wer darf Blöcke starten?` und `Wer darf Blöcke beenden?`.",
+      "`Das ganze Team` geht dort nur, wenn das Team alle Gruppen und Blöcke sieht.",
     ],
     differences: [
       "Welche Bereiche Sie sehen, hängt von Ihren Rechten und den Funktionen Ihrer OGS ab.",

@@ -176,3 +176,135 @@ func TestAttendanceScopeKeepsTenantAndPermissionBoundaries(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "all_staff", got)
 }
+
+func TestBlockStartScopeRequiresSchoolWideVisibility(t *testing.T) {
+	t.Parallel()
+	settings := attendanceScopeSettings(t)
+	ctx := testpkg.Ctx(t)
+	const startKey, visibilityKey = configModel.KeyBlockStartScope, configModel.KeyOperationalOverviewScope
+	read := func(key, want string) {
+		t.Helper()
+		got, err := settings.ResolveString(ctx, key)
+		require.NoError(t, err)
+		require.Equal(t, want, got)
+	}
+	read(startKey, "own")
+	require.NoError(t, settings.SetValue(ctx, visibilityKey, "own", nil, nil))
+	err := settings.SetValue(ctx, startKey, "all_staff", nil, nil)
+	require.ErrorIs(t, err, ErrInvalidValue)
+	require.ErrorContains(t, err, "Das ganze Team darf nur starten")
+	read(startKey, "own")
+
+	// Expand visibility first, then starting. Restricting runs the other way,
+	// including resets to the registry default.
+	require.NoError(t, settings.ResetValue(ctx, visibilityKey, nil, nil))
+	require.NoError(t, settings.SetValue(ctx, startKey, "all_staff", nil, nil))
+	require.ErrorIs(t, settings.SetValue(ctx, visibilityKey, "own", nil, nil), ErrInvalidValue)
+	require.ErrorIs(t, settings.SetValue(ctx, visibilityKey, configModel.OverviewScopeAdmins, nil, nil), ErrInvalidValue)
+	read(visibilityKey, "all_staff")
+
+	// Each widened action blocks a restriction until it is back to own.
+	require.NoError(t, settings.SetValue(ctx, configModel.KeyAttendanceEditScope, "all_staff", nil, nil))
+	require.NoError(t, settings.ResetValue(ctx, startKey, nil, nil))
+	require.ErrorIs(t, settings.SetValue(ctx, visibilityKey, "own", nil, nil), ErrInvalidValue)
+	require.NoError(t, settings.SetValue(ctx, configModel.KeyAttendanceEditScope, "own", nil, nil))
+	require.NoError(t, settings.SetValue(ctx, visibilityKey, "own", nil, nil))
+	read(startKey, "own")
+	read(visibilityKey, "own")
+}
+
+func TestBlockCompleteScopeRequiresSchoolWideVisibility(t *testing.T) {
+	t.Parallel()
+	settings := attendanceScopeSettings(t)
+	ctx := testpkg.Ctx(t)
+	const endKey, visibilityKey = configModel.KeyBlockCompleteScope, configModel.KeyOperationalOverviewScope
+	got, err := settings.ResolveString(ctx, endKey)
+	require.NoError(t, err)
+	require.Equal(t, "own", got)
+	require.NoError(t, settings.SetValue(ctx, visibilityKey, "own", nil, nil))
+	err = settings.SetValue(ctx, endKey, "all_staff", nil, nil)
+	require.ErrorIs(t, err, ErrInvalidValue)
+	require.ErrorContains(t, err, "Das ganze Team darf nur beenden")
+
+	require.NoError(t, settings.ResetValue(ctx, visibilityKey, nil, nil))
+	require.NoError(t, settings.SetValue(ctx, endKey, "all_staff", nil, nil))
+	require.ErrorIs(t, settings.SetValue(ctx, visibilityKey, "own", nil, nil), ErrInvalidValue)
+	require.NoError(t, settings.ResetValue(ctx, endKey, nil, nil))
+	require.NoError(t, settings.SetValue(ctx, visibilityKey, "own", nil, nil))
+}
+
+func TestBlockStartScopeConcurrentWritersRejectStaleValues(t *testing.T) {
+	t.Parallel()
+	for _, firstKey := range []string{configModel.KeyBlockStartScope, configModel.KeyOperationalOverviewScope} {
+		t.Run(firstKey, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(testpkg.OwnCtx(t), 10*time.Second)
+			defer cancel()
+			settings := attendanceScopeSettings(t)
+			batch, ok := settings.(BatchSettingsService)
+			require.True(t, ok)
+			runtime := testpkg.SettingsRuntime(t, testpkg.SetupTestDB(t))
+			firstValue, secondKey, secondValue := "all_staff", configModel.KeyOperationalOverviewScope, "own"
+			if firstKey == configModel.KeyOperationalOverviewScope {
+				firstValue, secondKey, secondValue = "own", configModel.KeyBlockStartScope, "all_staff"
+			}
+			firstWritten, secondReading, releaseFirst := make(chan struct{}), make(chan struct{}), make(chan struct{})
+			firstResult, secondResult := make(chan error, 1), make(chan error, 1)
+			go func() {
+				firstResult <- runtime.WithinTenant(ctx, testpkg.Tenant(t), func(txCtx context.Context) error {
+					select {
+					case <-secondReading:
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+					if err := settings.SetValue(txCtx, firstKey, firstValue, nil, nil); err != nil {
+						return err
+					}
+					close(firstWritten)
+					select {
+					case <-releaseFirst:
+						return nil
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				})
+			}()
+			go func() {
+				secondResult <- runtime.WithinTenant(ctx, testpkg.Tenant(t), func(txCtx context.Context) error {
+					txCtx = WithSettingsRequestCache(txCtx)
+					snapshot, err := batch.ResolveMany(txCtx, []string{configModel.KeyOperationalOverviewScope, configModel.KeyBlockStartScope})
+					if err != nil {
+						return err
+					}
+					txCtx = WithSettingsSnapshot(txCtx, snapshot)
+					close(secondReading)
+					select {
+					case <-firstWritten:
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+					return settings.SetValue(txCtx, secondKey, secondValue, nil, nil)
+				})
+			}()
+			select {
+			case <-firstWritten:
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			select {
+			case err := <-secondResult:
+				close(releaseFirst)
+				t.Fatalf("second writer finished before first transaction committed: %v", err)
+			case <-time.After(100 * time.Millisecond):
+			}
+			close(releaseFirst)
+			require.NoError(t, <-firstResult)
+			require.ErrorIs(t, <-secondResult, ErrInvalidValue)
+			visibility, err := settings.ResolveString(ctx, configModel.KeyOperationalOverviewScope)
+			require.NoError(t, err)
+			starting, err := settings.ResolveString(ctx, configModel.KeyBlockStartScope)
+			require.NoError(t, err)
+			require.False(t, starting == "all_staff" && visibility != "all_staff")
+		})
+	}
+}

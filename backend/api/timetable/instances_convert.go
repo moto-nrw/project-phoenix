@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -81,7 +80,7 @@ func (rs *Resource) convertInstanceToSeries(w http.ResponseWriter, r *http.Reque
 
 	result, err := rs.InstanceSeriesConverter.ConvertInstanceToSeries(
 		r.Context(),
-		timetableplanning.ConvertInstanceToSeriesInput{
+		timetableModule.ConvertInstanceToSeriesInput{
 			InstanceID: instanceID,
 			Template: buildCreateTemplateInput(
 				parsed, tenantID, gradeLevelMax, rosterValidFrom, rs.resolveStartedByStaffID(r.Context()),
@@ -108,11 +107,11 @@ func (rs *Resource) convertInstanceToSeries(w http.ResponseWriter, r *http.Reque
 }
 
 var convertInstanceToSeriesErrorRules = []common.ErrorRule{
-	{Target: timetableplanning.ErrInstanceNotFound, Render: common.ErrorNotFound},
+	{Target: timetableModule.ErrInstanceNotFound, Render: common.ErrorNotFound},
 	{
 		Match: func(err error) bool {
-			return errors.Is(err, timetableplanning.ErrInvalidInstanceTransition) ||
-				errors.Is(err, timetableplanning.ErrInstanceAlreadyInSeries)
+			return errors.Is(err, timetableModule.ErrInvalidInstanceTransition) ||
+				errors.Is(err, timetableModule.ErrInstanceAlreadyInSeries)
 		},
 		Render: func(err error) render.Renderer {
 			return common.ErrorConflictWithCode(err, "instance_not_convertible")
@@ -120,10 +119,10 @@ var convertInstanceToSeriesErrorRules = []common.ErrorRule{
 	},
 	{
 		Match: func(err error) bool {
-			return errors.Is(err, timetableplanning.ErrInstanceWeekend) ||
-				errors.Is(err, timetableplanning.ErrInstanceOutsideActiveCalendarPeriod) ||
-				errors.Is(err, timetableplanning.ErrOfferingSourceInvalid) ||
-				errors.Is(err, timetableplanning.ErrTemplateTargetGradeExceedsLimit)
+			return errors.Is(err, timetableModule.ErrInstanceWeekend) ||
+				errors.Is(err, timetableModule.ErrInstanceOutsideActiveCalendarPeriod) ||
+				errors.Is(err, timetableModule.ErrOfferingSourceInvalid) ||
+				errors.Is(err, timetableModule.ErrTemplateTargetGradeExceedsLimit)
 		},
 		Render: common.ErrorInvalidRequest,
 	},
@@ -135,8 +134,8 @@ var convertInstanceToSeriesErrorRules = []common.ErrorRule{
 	},
 	{
 		Match: func(err error) bool {
-			return errors.Is(err, timetableplanning.ErrPlanningTrackNotFound) ||
-				errors.Is(err, timetableplanning.ErrPlanningTrackArchived)
+			return errors.Is(err, timetableModule.ErrPlanningTrackNotFound) ||
+				errors.Is(err, timetableModule.ErrPlanningTrackArchived)
 		},
 		Render: func(error) render.Renderer {
 			return common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable"))
@@ -144,7 +143,7 @@ var convertInstanceToSeriesErrorRules = []common.ErrorRule{
 	},
 	{
 		Match: func(err error) bool {
-			var educationGroupErr *timetableplanning.TemplateEducationGroupError
+			var educationGroupErr *timetableModule.TemplateEducationGroupError
 			return errors.As(err, &educationGroupErr)
 		},
 		Render: common.ErrorInvalidRequest,

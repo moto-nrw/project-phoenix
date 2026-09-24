@@ -9,11 +9,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -21,15 +20,15 @@ import (
 )
 
 type stubInstanceSeriesConverter struct {
-	result *timetableplanning.ConvertInstanceToSeriesResult
+	result *timetableModule.ConvertInstanceToSeriesResult
 	err    error
-	input  *timetableplanning.ConvertInstanceToSeriesInput
+	input  *timetableModule.ConvertInstanceToSeriesInput
 }
 
 func (s *stubInstanceSeriesConverter) ConvertInstanceToSeries(
 	_ context.Context,
-	in timetableplanning.ConvertInstanceToSeriesInput,
-) (*timetableplanning.ConvertInstanceToSeriesResult, error) {
+	in timetableModule.ConvertInstanceToSeriesInput,
+) (*timetableModule.ConvertInstanceToSeriesResult, error) {
 	s.input = &in
 	return s.result, s.err
 }
@@ -70,7 +69,7 @@ func TestConvertInstanceToSeries_MapsRequestAndResponse(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	converter := &stubInstanceSeriesConverter{result: &timetableplanning.ConvertInstanceToSeriesResult{
+	converter := &stubInstanceSeriesConverter{result: &timetableModule.ConvertInstanceToSeriesResult{
 		TemplateID:       81,
 		TimeframeID:      91,
 		ScheduleIDs:      []int64{101, 102},
@@ -139,11 +138,11 @@ func TestConvertInstanceToSeries_PreservesTemplateValidationErrorContract(t *tes
 		err         error
 		wantMessage string
 	}{
-		{name: "inactive calendar period", err: timetableplanning.ErrInstanceOutsideActiveCalendarPeriod, wantMessage: "instance date must lie within an active calendar period"},
+		{name: "inactive calendar period", err: timetableModule.ErrInstanceOutsideActiveCalendarPeriod, wantMessage: "instance date must lie within an active calendar period"},
 		{name: "archived category", err: timetableModule.ErrCategoryNotAssignable, wantMessage: "category is archived or unavailable"},
-		{name: "archived planning track", err: timetableplanning.ErrPlanningTrackArchived, wantMessage: "planning track is archived or unavailable"},
-		{name: "education group", err: &timetableplanning.TemplateEducationGroupError{Err: errors.New("education group is unavailable")}, wantMessage: "education group is unavailable"},
-		{name: "grade limit", err: timetableplanning.ErrTemplateTargetGradeExceedsLimit, wantMessage: "template target grade exceeds tenant limit"},
+		{name: "archived planning track", err: timetableModule.ErrPlanningTrackArchived, wantMessage: "planning track is archived or unavailable"},
+		{name: "education group", err: &timetableModule.TemplateEducationGroupError{Err: errors.New("education group is unavailable")}, wantMessage: "education group is unavailable"},
+		{name: "grade limit", err: timetableModule.ErrTemplateTargetGradeExceedsLimit, wantMessage: "template target grade exceeds tenant limit"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -161,7 +160,7 @@ func TestConvertInstanceToSeries_LinksExistingOccurrenceAndRejectsRetry(t *testi
 
 	s := buildTemplateModule(t, &mockMaterializationService{})
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Atomic-Period")
-	date := timezone.NewDate(2026, 8, 10) // Monday, matching createTemplateBody.
+	date := calendar.NewDate(2026, 8, 10) // Monday, matching createTemplateBody.
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title:         "Tpl-Convert-Atomic-Seed",
 		StartHHMM:     "12:00",
@@ -173,7 +172,7 @@ func TestConvertInstanceToSeries_LinksExistingOccurrenceAndRejectsRetry(t *testi
 	body := createTemplateBody(s, "Tpl-Convert-Atomic")
 	body["calendar_period_id"] = period.ID
 	body["start_date"] = date.String()
-	body["weekdays"] = []int{activitiesModel.WeekdayMonday}
+	body["weekdays"] = []int{timetableModule.WeekdayMonday}
 
 	createdW := doTemplateJSON(t, router, http.MethodPost,
 		fmt.Sprintf("/instances/%d/convert-to-series", instance.ID), body)
@@ -221,7 +220,7 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 
 	s := buildTemplateModule(t, &mockMaterializationService{})
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Source-Period")
-	date := timezone.NewDate(2026, 8, 10) // Monday.
+	date := calendar.NewDate(2026, 8, 10) // Monday.
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title:         "Tpl-Convert-Source-Seed",
 		StartHHMM:     "12:00",
@@ -234,46 +233,48 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 		s.db,
 		nil,
 		func(context.Context, []int64, []int64, *int64) error { return nil },
-		func(ctx context.Context, in timetableplanning.OfferingRosterResyncInput) error {
-			for _, enrollment := range []*activitiesModel.StudentEnrollment{
+		func(ctx context.Context, in timetableModule.OfferingRosterResyncInput) error {
+			for _, enrollment := range []timetableModule.StudentEnrollmentInput{
 				{
 					StudentID:        s.studentA,
 					ActivityGroupID:  in.TemplateID,
-					ValidFrom:        activitiesModel.Date(in.EffectiveFrom),
+					ValidFrom:        in.EffectiveFrom.String(),
 					CalendarPeriodID: in.CalendarPeriodID,
-					SelectedWeekdays: []int{activitiesModel.WeekdayMonday},
+					SelectedWeekdays: []int{timetableModule.WeekdayMonday},
 				},
 				{
 					StudentID:        s.studentB,
 					ActivityGroupID:  in.TemplateID,
-					ValidFrom:        activitiesModel.Date(in.EffectiveFrom),
+					ValidFrom:        in.EffectiveFrom.String(),
 					CalendarPeriodID: in.CalendarPeriodID,
-					SelectedWeekdays: []int{activitiesModel.WeekdayTuesday},
+					SelectedWeekdays: []int{timetableModule.WeekdayTuesday},
 				},
 			} {
-				enrollment.SetTenantID(testpkg.Tenant(t))
-				if err := repoFactory.StudentEnrollment.Create(ctx, enrollment); err != nil {
+				if _, err := repoFactory.Timetable.CreateStudentEnrollment(ctx, enrollment); err != nil {
 					return err
 				}
 			}
 			return nil
 		},
 	)
-	s.res.TimetableData = timetableData
-	s.res.InstanceSeriesConverter = timetableplanning.NewInstanceSeriesConversionService(
-		timetableplanning.InstanceSeriesConversionDependencies{
-			DB:              s.db,
-			InstanceRepo:    repoFactory.ActivityInstance,
-			InstanceService: s.res.InstanceService,
-			TimetableData:   timetableData,
+	s.res.Templates = timetableData
+	converter, err := timetableCompose.NewInstanceSeriesConversion(
+		timetableCompose.InstanceSeriesConversionDependencies{
+			DB:             s.db,
+			InstanceRepo:   repoFactory.ActivityInstance,
+			Lifecycle:      s.res.InstanceService,
+			Templates:      timetableData,
+			RecurrenceLock: timetableData.RecurrenceLock(),
 		},
 	)
+	require.NoError(t, err)
+	s.res.InstanceSeriesConverter = converter
 	router := conversionRouter(s.ctx, s.res)
 	body := createTemplateBody(s, "Tpl-Convert-Source")
 	body["calendar_period_id"] = period.ID
 	body["start_date"] = date.String()
-	body["weekdays"] = []int{activitiesModel.WeekdayMonday}
-	body["target_group_type"] = activitiesModel.TargetGroupTypeAngebot
+	body["weekdays"] = []int{timetableModule.WeekdayMonday}
+	body["target_group_type"] = timetableModule.TargetGroupTypeOffering
 	body["source_care_offering_ids"] = []int64{17}
 	body["student_ids"] = []int64{}
 
@@ -296,7 +297,7 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 
 	s := buildTemplateModule(t, &mockMaterializationService{})
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Rollback-Period")
-	date := timezone.NewDate(2026, 8, 10)
+	date := calendar.NewDate(2026, 8, 10)
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title:         "Tpl-Convert-Rollback-Seed",
 		StartHHMM:     "12:00",
@@ -306,19 +307,22 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 
 	failingInstanceService := &mockInstanceService{updateErr: errors.New("link failed")}
 	repoFactory := mustTimetableTestRepositories(s.db)
-	s.res.InstanceSeriesConverter = timetableplanning.NewInstanceSeriesConversionService(
-		timetableplanning.InstanceSeriesConversionDependencies{
-			DB:              s.db,
-			InstanceRepo:    repoFactory.ActivityInstance,
-			InstanceService: failingInstanceService,
-			TimetableData:   s.res.TimetableData,
+	converter, err := timetableCompose.NewInstanceSeriesConversion(
+		timetableCompose.InstanceSeriesConversionDependencies{
+			DB:             s.db,
+			InstanceRepo:   repoFactory.ActivityInstance,
+			Lifecycle:      failingInstanceService,
+			Templates:      s.res.Templates,
+			RecurrenceLock: repositories.MustNewTimetableRecurrenceLock(s.db),
 		},
 	)
+	require.NoError(t, err)
+	s.res.InstanceSeriesConverter = converter
 	router := conversionRouter(s.ctx, s.res)
 	body := createTemplateBody(s, "Tpl-Convert-Rollback")
 	body["calendar_period_id"] = period.ID
 	body["start_date"] = date.String()
-	body["weekdays"] = []int{activitiesModel.WeekdayMonday}
+	body["weekdays"] = []int{timetableModule.WeekdayMonday}
 
 	w := doTemplateJSON(t, router, http.MethodPost,
 		fmt.Sprintf("/instances/%d/convert-to-series", instance.ID), body)
@@ -342,8 +346,8 @@ func TestConvertInstanceToSeries_RollsBackOrphanSeriesOn4xxLinkFailure(t *testin
 	// Existing seed is a weekday; conversion start_date moves it onto a
 	// different weekend day → UpdatePlanned returns ErrInstanceWeekend (400)
 	// after CreateTemplate has already written the series graph.
-	seedDate := timezone.NewDate(2026, 8, 10)     // Monday
-	weekendStart := timezone.NewDate(2026, 8, 15) // Saturday
+	seedDate := calendar.NewDate(2026, 8, 10)     // Monday
+	weekendStart := calendar.NewDate(2026, 8, 15) // Saturday
 	instance := testpkg.CreateTestActivityInstance(t, s.db, seedDate, s.roomID, testpkg.ActivityInstanceOpts{
 		Title:         "Tpl-Convert-4xx-Seed",
 		StartHHMM:     "12:00",
@@ -355,7 +359,7 @@ func TestConvertInstanceToSeries_RollsBackOrphanSeriesOn4xxLinkFailure(t *testin
 	body := createTemplateBody(s, "Tpl-Convert-4xx-Orphan")
 	body["calendar_period_id"] = period.ID
 	body["start_date"] = weekendStart.String()
-	body["weekdays"] = []int{activitiesModel.WeekdayMonday}
+	body["weekdays"] = []int{timetableModule.WeekdayMonday}
 
 	w := doTemplateJSON(t, router, http.MethodPost,
 		fmt.Sprintf("/instances/%d/convert-to-series", instance.ID), body)
@@ -375,7 +379,7 @@ func TestConvertInstanceToSeries_RollsBackOrphanSeriesOn4xxLinkFailure(t *testin
 	require.NoError(t, err)
 	assert.Nil(t, seed.ActivityGroupID, "seed must stay unlinked when convert rolls back")
 	assert.True(t, seed.IsSpontaneous)
-	assert.Equal(t, scheduleModels.Date(seedDate), seed.Date)
+	assert.Equal(t, seedDate.String(), seed.Date.String())
 }
 
 func TestConvertInstanceToSeries_MarksRollbackOnServiceError(t *testing.T) {
@@ -389,7 +393,7 @@ func TestConvertInstanceToSeries_MarksRollbackOnServiceError(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	s.res.InstanceSeriesConverter = &stubInstanceSeriesConverter{err: timetableplanning.ErrInstanceAlreadyInSeries}
+	s.res.InstanceSeriesConverter = &stubInstanceSeriesConverter{err: timetableModule.ErrInstanceAlreadyInSeries}
 	body := createTemplateBody(s, "Tpl-Convert-MarkRollback")
 	body["calendar_period_id"] = period.ID
 	body["start_date"] = "2026-05-04"

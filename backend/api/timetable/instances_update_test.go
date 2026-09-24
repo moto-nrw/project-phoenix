@@ -11,8 +11,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -48,7 +48,8 @@ func TestUpdateInstance_Success(t *testing.T) {
 		Title:         "Updated Basteln",
 		IsSpontaneous: true,
 	})
-	s.mock.updateRes = persisted
+	s.mock.updateRes = lifecycleInstanceOf(persisted.ID, targetDate, persisted.StartTime, persisted.EndTime,
+		persisted.Title, persisted.RoomID, persisted.ActivityGroupID, persisted.Status, persisted.IsSpontaneous)
 
 	body := map[string]any{
 		"date":       targetDate.String(),
@@ -65,7 +66,7 @@ func TestUpdateInstance_Success(t *testing.T) {
 	assert.Equal(t, persisted.ID, got.ID)
 	assert.Equal(t, "Updated Basteln", got.Title)
 	assert.Equal(t, "09:00", got.StartTime)
-	assert.Equal(t, scheduleModel.InstanceStatusPlanned, got.Status)
+	assert.Equal(t, timetable.InstanceStatusPlanned, got.Status)
 
 	require.NotNil(t, s.mock.lastUpdate)
 	assert.Equal(t, "Updated Basteln", s.mock.lastUpdate.Title)
@@ -101,7 +102,7 @@ func TestUpdateInstance_Validation(t *testing.T) {
 		{name: "missing time", path: "/instances/50", mutate: func(b map[string]any) { b["start_time"] = "" }, want: http.StatusBadRequest},
 		{name: "missing room", path: "/instances/50", mutate: func(b map[string]any) { b["room_id"] = 0 }, want: http.StatusBadRequest},
 		{name: "invalid date", path: "/instances/50", mutate: func(b map[string]any) { b["date"] = "tomorrow" }, want: http.StatusBadRequest},
-		{name: "weekend date on unknown instance", path: "/instances/50", mutate: func(b map[string]any) { b["date"] = "2026-05-09" }, updateErr: timetableplanning.ErrInstanceNotFound, want: http.StatusNotFound},
+		{name: "weekend date on unknown instance", path: "/instances/50", mutate: func(b map[string]any) { b["date"] = "2026-05-09" }, updateErr: timetable.ErrInstanceNotFound, want: http.StatusNotFound},
 		{name: "invalid start", path: "/instances/50", mutate: func(b map[string]any) { b["start_time"] = "soon" }, want: http.StatusBadRequest},
 		{name: "invalid end", path: "/instances/50", mutate: func(b map[string]any) { b["end_time"] = "later" }, want: http.StatusBadRequest},
 		{name: "end before start", path: "/instances/50", mutate: func(b map[string]any) { b["end_time"] = "10:30" }, want: http.StatusBadRequest},
@@ -136,20 +137,23 @@ func TestUpdateInstance_ServiceErrors(t *testing.T) {
 		"room_id":    s.roomID,
 	}
 
-	s.mock.updateErr = timetableplanning.ErrInstanceNotFound
+	s.mock.updateErr = timetable.ErrInstanceNotFound
 	notFound := doTemplateJSON(t, router, http.MethodPut, "/instances/50", body)
 	assert.Equal(t, http.StatusNotFound, notFound.Code)
 
-	s.mock.updateErr = &wrappedErr{inner: timetableplanning.ErrInvalidInstanceTransition}
+	s.mock.updateErr = &wrappedErr{inner: timetable.ErrInvalidInstanceTransition}
 	conflict := doTemplateJSON(t, router, http.MethodPut, "/instances/50", body)
 	assert.Equal(t, http.StatusConflict, conflict.Code)
 	assert.Contains(t, conflict.Body.String(), "invalid_transition")
 
-	s.mock.updateErr = fmt.Errorf("wrapped: %w", timetableplanning.ErrInvalidInstanceReference)
+	s.mock.updateErr = fmt.Errorf("wrapped: %w", timetable.ErrInvalidInstanceReference)
 	badReference := doTemplateJSON(t, router, http.MethodPut, "/instances/50", body)
 	assert.Equal(t, http.StatusBadRequest, badReference.Code)
 
-	s.mock.updateErr = timetablePgErrorWithConstraint("23505", "idx_activity_instances_template_unique")
+	// The owner classifies the unique violation on the template slot as
+	// ErrDuplicateTemplateInstance and keeps the storage error in the chain.
+	s.mock.updateErr = fmt.Errorf("update instance: %w: %w", timetable.ErrDuplicateTemplateInstance,
+		timetablePgErrorWithConstraint("23505", "idx_activity_instances_template_unique"))
 	duplicate := doTemplateJSON(t, router, http.MethodPut, "/instances/50", body)
 	assert.Equal(t, http.StatusConflict, duplicate.Code)
 	assert.Contains(t, duplicate.Body.String(), "duplicate_instance")
@@ -182,13 +186,13 @@ func TestUpdateInstance_UnwiredAndEnrichmentFailure(t *testing.T) {
 		"title":      "Valid",
 		"room_id":    s.roomID,
 	}
-	s.mock.updateRes = &scheduleModel.ActivityInstance{
-		Date:          scheduleModel.NewDate(2026, 5, 6),
+	s.mock.updateRes = &timetable.LifecycleInstance{
+		Date:          calendar.NewDate(2026, 5, 6),
 		StartTime:     time.Date(2000, 1, 1, 11, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC),
 		Title:         "Valid",
 		RoomID:        s.roomID,
-		Status:        scheduleModel.InstanceStatusPlanned,
+		Status:        timetable.InstanceStatusPlanned,
 		IsSpontaneous: true,
 	}
 	s.mock.updateRes.ID = 777

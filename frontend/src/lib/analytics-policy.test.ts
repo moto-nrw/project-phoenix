@@ -1,7 +1,10 @@
 import type { CaptureResult, Properties } from "posthog-js";
 import { describe, expect, it } from "vitest";
 import {
+  ANALYTICS_BLOCK_ATTRIBUTE,
+  analyticsIdentity,
   analyticsInitOptions,
+  analyticsRuntimeOptions,
   analyticsSurfaceForHost,
   filterAnalyticsEvent,
   type AnalyticsContext,
@@ -25,11 +28,19 @@ function capture(event: string, properties: Properties): CaptureResult {
   };
 }
 
-// Every context the analytics module knows, plus an unknown surface.
+// Every context the analytics module knows, plus an unknown surface. Only the
+// demo and the OGS portal with Analyse-Freigabe record (#3603); a person
+// exists only in the latter.
+const PERSON = "pseudo_4b9630678fc1afce76ce690721aaf949";
+const OTHER_PERSON = "pseudo_0123456789abcdef0123456789abcdef";
+
 const CONTEXTS: ReadonlyArray<{
   readonly name: string;
   readonly context: AnalyticsContext;
   readonly elementText: boolean;
+  readonly recording: "demo" | "school" | null;
+  readonly person: boolean;
+  readonly personProfiles: "never" | "identified_only";
   readonly surface: string;
   readonly origin: string;
   readonly page: string;
@@ -39,6 +50,9 @@ const CONTEXTS: ReadonlyArray<{
     name: "demo",
     context: { deployment: "demo", surface: "ogs", analyseFreigabe: false },
     elementText: true,
+    recording: "demo",
+    person: false,
+    personProfiles: "never",
     surface: "ogs",
     origin: "https://ogs-demo.demo.moto-app.de",
     page: "/students/4711/room-history",
@@ -50,8 +64,13 @@ const CONTEXTS: ReadonlyArray<{
       deployment: "moto-app.de",
       surface: "ogs",
       analyseFreigabe: false,
+      recordingSamplePercent: 100,
+      person: PERSON,
     },
     elementText: false,
+    recording: null,
+    person: false,
+    personProfiles: "identified_only",
     surface: "ogs",
     origin: "https://school-a.moto-app.de",
     page: "/students/4711",
@@ -63,8 +82,14 @@ const CONTEXTS: ReadonlyArray<{
       deployment: "moto-app.de",
       surface: "ogs",
       analyseFreigabe: true,
+      recordingSamplePercent: 100,
+      person: PERSON,
+      role: "staff",
     },
     elementText: false,
+    recording: "school",
+    person: true,
+    personProfiles: "identified_only",
     surface: "ogs",
     origin: "https://school-a.moto-app.de",
     page: "/messages/88",
@@ -76,8 +101,13 @@ const CONTEXTS: ReadonlyArray<{
       deployment: "moto-app.de",
       surface: "parents",
       analyseFreigabe: true,
+      recordingSamplePercent: 100,
+      person: PERSON,
     },
     elementText: false,
+    recording: null,
+    person: false,
+    personProfiles: "never",
     surface: "parents",
     origin: "https://eltern.moto-app.de",
     page: "/children/4711",
@@ -89,8 +119,13 @@ const CONTEXTS: ReadonlyArray<{
       deployment: "moto-app.de",
       surface: "school",
       analyseFreigabe: true,
+      recordingSamplePercent: 100,
+      person: PERSON,
     },
     elementText: false,
+    recording: null,
+    person: false,
+    personProfiles: "never",
     surface: "school",
     origin: "https://schule.moto-app.de",
     page: "/nachrichten/88",
@@ -102,8 +137,13 @@ const CONTEXTS: ReadonlyArray<{
       deployment: "demo",
       surface: "kiosk",
       analyseFreigabe: true,
+      recordingSamplePercent: 100,
+      person: PERSON,
     },
     elementText: false,
+    recording: null,
+    person: false,
+    personProfiles: "never",
     surface: "unknown",
     origin: "https://school-a.moto-app.de",
     page: "/students/4711",
@@ -113,12 +153,22 @@ const CONTEXTS: ReadonlyArray<{
 
 describe.each(CONTEXTS)(
   "analytics rules: $name",
-  ({ context, elementText, surface, origin, page, template }) => {
+  ({
+    context,
+    elementText,
+    recording,
+    person,
+    personProfiles,
+    surface,
+    origin,
+    page,
+    template,
+  }) => {
     // Sent URLs name the deployment; the origin of the OGS portal carries the
     // school slug and must never leave the browser.
     const sentOrigin = `https://${context.deployment}`;
 
-    it("configures anonymous capture without recording or persistence", () => {
+    it("configures capture, recording, and persistence for the context", () => {
       const options = analyticsInitOptions(context, "school-a.moto-app.de");
 
       expect(options).toMatchObject({
@@ -126,7 +176,7 @@ describe.each(CONTEXTS)(
         ui_host: "https://eu.posthog.com",
         persistence: "memory",
         disable_persistence: true,
-        person_profiles: "never",
+        person_profiles: personProfiles,
         advanced_disable_feature_flags: true,
         capture_pageview: "history_change",
         capture_pageleave: true,
@@ -137,20 +187,113 @@ describe.each(CONTEXTS)(
         capture_dead_clicks: true,
         rageclick: true,
         capture_exceptions: false,
-        disable_session_recording: true,
+        capture_performance: false,
+        disable_session_recording: recording === null,
+        enable_recording_console_log: false,
         disable_surveys: true,
         tracing_headers: ["school-a.moto-app.de"],
       });
       expect(options).not.toHaveProperty("advanced_disable_flags");
+      expect(analyticsRuntimeOptions(context)).toMatchObject({
+        disable_session_recording: recording === null,
+      });
     });
 
-    it("drops every session recording snapshot", () => {
+    it(
+      recording
+        ? "keeps its recording snapshots with template URLs"
+        : "drops every session recording snapshot",
+      () => {
+        const result = filterAnalyticsEvent(
+          context,
+          capture("$snapshot", {
+            $snapshot_data: [
+              {
+                type: 4,
+                data: { href: `${origin}${page}?tab=akte`, width: 1 },
+              },
+              { type: 2, data: { node: { id: 1 } }, cv: "2024-10" },
+              {
+                type: 5,
+                data: {
+                  tag: "$pageview",
+                  payload: { href: `${origin}${page}` },
+                },
+              },
+            ],
+            $snapshot_bytes: 1200,
+            $snapshot_host: new URL(origin).hostname,
+            $lib: "web",
+          }),
+        );
+
+        if (!recording) {
+          expect(result).toBeNull();
+          return;
+        }
+        expect(result?.properties).toMatchObject({
+          $snapshot_data: [
+            { type: 4, data: { href: `${sentOrigin}${template}`, width: 1 } },
+            { type: 2, data: { node: { id: 1 } }, cv: "2024-10" },
+            {
+              type: 5,
+              data: {
+                tag: "$pageview",
+                payload: { href: `${sentOrigin}${template}` },
+              },
+            },
+          ],
+          $snapshot_bytes: 1200,
+          $snapshot_host: context.deployment,
+          $session_id: SESSION_ID,
+          $window_id: WINDOW_ID,
+        });
+        expect(JSON.stringify(result)).not.toContain(new URL(origin).host);
+      },
+    );
+
+    it(
+      person
+        ? "identifies the pseudonymous person with the role only"
+        : "never sends a person",
+      () => {
+        const identify = filterAnalyticsEvent(context, {
+          ...capture("$identify", {
+            distinct_id: PERSON,
+            $anon_distinct_id: "0199aa2b-anon",
+          }),
+          $set: { role: "staff", email: "kim@example.org" },
+          $set_once: { $initial_referrer: "https://example.org" },
+        });
+        const pageview = filterAnalyticsEvent(
+          context,
+          capture("$pageview", { distinct_id: PERSON }),
+        );
+
+        if (!person) {
+          expect(identify).toBeNull();
+          expect(pageview).toBeNull();
+          return;
+        }
+        expect(identify?.$set).toEqual({ role: "staff" });
+        expect(identify).not.toHaveProperty("$set_once");
+        expect(identify?.properties).toMatchObject({
+          distinct_id: PERSON,
+          $anon_distinct_id: "0199aa2b-anon",
+          $process_person_profile: true,
+        });
+        expect(pageview?.properties).toMatchObject({
+          distinct_id: PERSON,
+          $process_person_profile: true,
+        });
+      },
+    );
+
+    it("drops an event of another pseudonymous person", () => {
       expect(
         filterAnalyticsEvent(
           context,
-          capture("$snapshot", {
-            $snapshot_data: [{ type: 2, data: { href: `${origin}${page}` } }],
-          }),
+          capture("$pageview", { distinct_id: OTHER_PERSON }),
         ),
       ).toBeNull();
     });
@@ -462,6 +605,112 @@ describe("filterAnalyticsEvent", () => {
 
   it("drops a null event", () => {
     expect(filterAnalyticsEvent(ogs, null)).toBeNull();
+  });
+});
+
+describe("session recording", () => {
+  const freigabe: AnalyticsContext = {
+    deployment: "moto-app.de",
+    surface: "ogs",
+    analyseFreigabe: true,
+    recordingSamplePercent: 30,
+    person: PERSON,
+  };
+  const demo: AnalyticsContext = {
+    deployment: "demo",
+    surface: "public",
+    analyseFreigabe: false,
+  };
+  const recordingOf = (context: AnalyticsContext) =>
+    analyticsRuntimeOptions(context).session_recording ?? {};
+
+  it("masks every text, input, image, and content attribute with the Freigabe", () => {
+    const options = recordingOf(freigabe);
+
+    expect(options).toMatchObject({
+      maskAllInputs: true,
+      maskTextSelector: "*",
+      recordHeaders: false,
+      recordBody: false,
+      captureCanvas: { recordCanvas: false },
+      sampleRate: 0.3,
+    });
+    for (const blocked of ["img", "video", "canvas", "svg image", "iframe"]) {
+      expect(options.blockSelector).toContain(blocked);
+    }
+    const maskAttribute = options.maskAttributeFn;
+    expect(maskAttribute?.("alt", "Kim Beispiel")).toBe("*");
+    expect(maskAttribute?.("title", "Kim Beispiel")).toBe("*");
+    expect(maskAttribute?.("aria-label", "Kim Beispiel")).toBe("*");
+    expect(maskAttribute?.("src", "/api/students/4711/photo")).toBe("*");
+    expect(maskAttribute?.("class", "flex gap-2")).toBe("flex gap-2");
+    expect(maskAttribute?.("href", "/students/4711?tab=akte")).toBe(
+      "https://moto-app.de/students/:id",
+    );
+  });
+
+  it("masks inputs and blocks the /start form in the demo", () => {
+    const options = recordingOf(demo);
+
+    expect(options).toMatchObject({
+      maskAllInputs: true,
+      maskTextSelector: null,
+      captureCanvas: { recordCanvas: false },
+      sampleRate: 1,
+    });
+    expect(options.blockSelector).toContain(`[${ANALYTICS_BLOCK_ATTRIBUTE}]`);
+    expect(options.maskAttributeFn?.("alt", "Demo-Kind")).toBe("Demo-Kind");
+    expect(options.maskAttributeFn?.("href", "/students/12")).toBe(
+      "https://demo/students/:id",
+    );
+  });
+
+  it("rewrites the recording's page and network URLs without headers or bodies", () => {
+    for (const context of [freigabe, demo]) {
+      const masked = recordingOf(context).maskCapturedNetworkRequestFn?.({
+        name: "https://school-a.moto-app.de/students/4711?tab=akte",
+        entryType: "resource",
+        startTime: 10,
+        duration: 5,
+        requestHeaders: { authorization: "Bearer x" },
+        responseBody: "Kim Beispiel",
+      });
+
+      expect(masked).toEqual({
+        name: `https://${context.deployment}/students/:id`,
+        entryType: "resource",
+        startTime: 10,
+        duration: 5,
+        requestHeaders: undefined,
+        responseHeaders: undefined,
+        requestBody: undefined,
+        responseBody: undefined,
+      });
+    }
+  });
+
+  it("records nothing with the Freigabe but no sample", () => {
+    const context = { ...freigabe, recordingSamplePercent: 0 };
+
+    expect(analyticsRuntimeOptions(context)).toMatchObject({
+      disable_session_recording: true,
+    });
+    expect(
+      filterAnalyticsEvent(
+        context,
+        capture("$snapshot", { $snapshot_data: [] }),
+      ),
+    ).toBeNull();
+  });
+
+  it("names a person only for a pseudonymous ID with the Freigabe", () => {
+    expect(analyticsIdentity(freigabe)).toBe(PERSON);
+    expect(analyticsIdentity({ ...freigabe, person: "4711" })).toBeNull();
+    expect(analyticsIdentity({ ...freigabe, person: null })).toBeNull();
+    expect(
+      analyticsIdentity({ ...freigabe, analyseFreigabe: false }),
+    ).toBeNull();
+    expect(analyticsIdentity({ ...freigabe, deployment: "demo" })).toBeNull();
   });
 });
 

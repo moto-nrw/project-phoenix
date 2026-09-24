@@ -9,12 +9,16 @@ import {
   DEMO_ENTRY_OPENING,
   DEMO_ENTRY_PROBLEMS,
   DEMO_ENTRY_RETRY,
+  DEMO_PRIVACY_URL,
+  DEMO_RECORDING_NOTICE,
+  DEMO_RECORDING_PRIVACY_LINK,
   DEMO_WEBSITE_URL,
 } from "~/lib/demo-access";
 
 // Page frame of every public demo screen (opening, setup lines, role cards,
 // problems): the dotted app background with the moto mark above the card, as
-// on the 404 page, so the demo opens in the look of the app.
+// on the 404 page, so the demo opens in the look of the app. Below the card
+// the visitor reads that the demo is recorded (#3603).
 export function DemoShell({ children }: { readonly children: ReactNode }) {
   return (
     <main className="moto-dotted-background moto-dotted-background--fullscreen flex min-h-dvh flex-col items-center justify-center px-4 py-10">
@@ -22,6 +26,17 @@ export function DemoShell({ children }: { readonly children: ReactNode }) {
       <div className="relative flex w-full max-w-md flex-col items-center gap-8">
         <MotoBrand />
         {children}
+        <p className="text-center text-xs leading-5 text-gray-500">
+          {DEMO_RECORDING_NOTICE}{" "}
+          <a
+            href={DEMO_PRIVACY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-gray-700"
+          >
+            {DEMO_RECORDING_PRIVACY_LINK}
+          </a>
+        </p>
       </div>
     </main>
   );

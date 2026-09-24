@@ -20,7 +20,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -51,9 +50,10 @@ func buildPickupExtensionSetup(t *testing.T, db *bun.DB) *pickupExtensionSetup {
 	freePlay := testpkg.CreateTestActivityInstance(t, db, testpkg.Date(2099, time.March, 3), room.ID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:45", EndHHMM: "16:00", Title: "Freies Spiel",
 	})
-	testpkg.CreateTestInstanceStudent(t, db, freePlay.ID, other.ID, schedule.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, db, freePlay.ID, other.ID, timetable.SlotAttendanceExpected)
 	res := NewResource(Dependencies{
 		PickupExtensions: module,
+		RecurrenceLock:   repositories.MustNewTimetableRecurrenceLock(db),
 		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
 			StudentRepo: repositories.NewStudentRepository(db),
 			PersonRepo:  usersRepo.NewPersonRepository(db),

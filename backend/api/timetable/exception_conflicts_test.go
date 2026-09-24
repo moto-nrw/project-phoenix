@@ -14,9 +14,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -49,11 +48,14 @@ func buildConflictsSetup(t *testing.T) *conflictsSetup {
 	cleanup := func() {
 	}
 
-	clock := func() time.Time { return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour) }
+	clock := func() time.Time { return calendar.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour) }
+	data := testTimetableData(db, clock)
 	res := NewResource(Dependencies{
-		TimetableData: testTimetableData(db, clock),
-		Now:           clock,
-		DB:            db,
+		Templates:         data,
+		TimetableData:     data.TimetableData(),
+		ConflictDetection: data.ConflictDetection(),
+		Now:               clock,
+		DB:                db,
 	})
 
 	return &conflictsSetup{
@@ -102,12 +104,12 @@ func decodeConflicts(t *testing.T, w *httptest.ResponseRecorder) ConflictsRespon
 }
 
 // nextMonday returns a Berlin-local Monday >= tomorrow, as both a YYYY-MM-DD
-// string and a timezone.Date. Test fixtures that exercise weekday rules need
+// string and a calendar.Date. Test fixtures that exercise weekday rules need
 // a concrete weekday, and Monday is ISO 1 — the simplest to reason about.
 // The base date is deterministic across the week so the test never crosses a
 // Saturday/Sunday boundary where arrival_schedules don't apply.
-func nextMonday() (string, timezone.Date) {
-	d := timezone.NewDate(2026, 8, 24).AddDays(1)
+func nextMonday() (string, calendar.Date) {
+	d := calendar.NewDate(2026, 8, 24).AddDays(1)
 	for d.Weekday() != time.Monday {
 		d = d.AddDays(1)
 	}
@@ -116,8 +118,8 @@ func nextMonday() (string, timezone.Date) {
 
 // nextTuesday mirrors nextMonday for tests that exercise a different weekday
 // relative to the materialised instance and the arrival schedule.
-func nextTuesday() (string, timezone.Date) {
-	d := timezone.NewDate(2026, 8, 24).AddDays(1)
+func nextTuesday() (string, calendar.Date) {
+	d := calendar.NewDate(2026, 8, 24).AddDays(1)
 	for d.Weekday() != time.Tuesday {
 		d = d.AddDays(1)
 	}
@@ -126,45 +128,59 @@ func nextTuesday() (string, timezone.Date) {
 
 // createTestActivityException is a local fixture — no helper exists in
 // test/fixtures.go yet and WP-B13 is the first consumer, so keeping it scoped
-// to this test file avoids churn. Mirrors the existing pattern for local
-// fixtures (see e.g. the raw timeframe insert in student_day_test.go).
+// to this test file avoids churn. It inserts the schedule.activity_exceptions
+// row with raw SQL so the test does not depend on the storage model type.
 func createTestActivityException(
 	t *testing.T,
 	db *bun.DB,
 	activityGroupID int64,
-	date timezone.Date,
+	date calendar.Date,
 	excType string,
 	startHHMM, endHHMM string,
 	reason string,
-) *schedule.ActivityException {
+) int64 {
 	t.Helper()
-	row := &schedule.ActivityException{
-		ActivityGroupID: activityGroupID,
-		ExceptionDate:   schedule.Date(date),
-		ExceptionType:   excType,
-	}
-	row.SetTenantID(testpkg.Tenant(t))
+	return insertTestActivityException(t, db, activityGroupID, date, excType, startHHMM, endHHMM, reason, nil)
+}
+
+// insertTestActivityException writes one schedule.activity_exceptions row;
+// empty strings and a nil room store NULL.
+func insertTestActivityException(
+	t *testing.T,
+	db *bun.DB,
+	activityGroupID int64,
+	date calendar.Date,
+	excType string,
+	startHHMM, endHHMM string,
+	reason string,
+	roomID *int64,
+) int64 {
+	t.Helper()
+	var start, end, reasonValue any
 	if startHHMM != "" {
-		st := parseHHMM(t, startHHMM)
-		row.StartTime = &st
+		start = parseHHMM(t, startHHMM).Format("15:04:05")
 	}
 	if endHHMM != "" {
-		et := parseHHMM(t, endHHMM)
-		row.EndTime = &et
+		end = parseHHMM(t, endHHMM).Format("15:04:05")
 	}
 	if reason != "" {
-		row.Reason = &reason
+		reasonValue = reason
+	}
+	var room any
+	if roomID != nil {
+		room = *roomID
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_, err := db.NewInsert().
-		Model(row).
-		ModelTableExpr(`schedule.activity_exceptions`).
-		Exec(ctx)
+	var id int64
+	err := db.NewRaw(`INSERT INTO schedule.activity_exceptions
+		(tenant_id, activity_group_id, exception_date, exception_type, start_time, end_time, room_id, reason)
+		VALUES (?, ?, ?, ?, ?::time, ?::time, ?, ?) RETURNING id`,
+		testpkg.Tenant(t), activityGroupID, date.String(), excType, start, end, room, reasonValue,
+	).Scan(ctx, &id)
 	require.NoError(t, err, "failed to insert activity_exception fixture")
-
-	return row
+	return id
 }
 
 // createTestActivitySchedule inserts an activities.schedules row. Optional
@@ -176,49 +192,44 @@ func createTestActivitySchedule(
 	activityGroupID int64,
 	weekday int,
 	timeframeID *int64,
-) *activities.Schedule {
+) int64 {
 	t.Helper()
-	row := &activities.Schedule{
-		ActivityGroupID: activityGroupID,
-		Weekday:         weekday,
-		TimeframeID:     timeframeID,
+	var timeframe any
+	if timeframeID != nil {
+		timeframe = *timeframeID
 	}
-	row.SetTenantID(testpkg.Tenant(t))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_, err := db.NewInsert().
-		Model(row).
-		ModelTableExpr(`activities.schedules AS "schedule"`).
-		Exec(ctx)
+	var id int64
+	err := db.NewRaw(`INSERT INTO activities.schedules
+		(tenant_id, weekday, timeframe_id, activity_group_id, week_pattern)
+		VALUES (?, ?, ?, ?, 0) RETURNING id`,
+		testpkg.Tenant(t), weekday, timeframe, activityGroupID,
+	).Scan(ctx, &id)
 	require.NoError(t, err, "failed to insert activities.schedules fixture")
-
-	return row
+	return id
 }
 
 // createTestTimeframeRow inserts a schedule.timeframes row at the given
-// timezone-free wall-clock. Mirrors the production flow where admins submit
-// HH:MM strings and the backend stores them as SQL TIME.
-func createTestTimeframeRow(t *testing.T, db *bun.DB, startHHMM, endHHMM string) *schedule.Timeframe {
+// timezone-free wall-clock and returns its id. Mirrors the production flow
+// where admins submit HH:MM strings and the backend stores them as SQL TIME.
+func createTestTimeframeRow(t *testing.T, db *bun.DB, startHHMM, endHHMM string) int64 {
 	t.Helper()
 	start := parseHHMM(t, startHHMM)
 	end := parseHHMM(t, endHHMM)
-	row := &schedule.Timeframe{
-		StartTime:   start,
-		EndTime:     &end,
-		IsActive:    true,
-		Description: fmt.Sprintf("tf-%s-%s-%d", startHHMM, endHHMM, time.Now().UnixNano()),
-	}
-	row.SetTenantID(testpkg.Tenant(t))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_, err := db.NewInsert().
-		Model(row).
-		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
-		Exec(ctx)
+	var id int64
+	err := db.NewRaw(`INSERT INTO schedule.timeframes
+		(tenant_id, start_time, end_time, is_active, description)
+		VALUES (?, ?::time, ?::time, TRUE, ?) RETURNING id`,
+		testpkg.Tenant(t), start.Format("15:04:05"), end.Format("15:04:05"),
+		fmt.Sprintf("tf-%s-%s-%d", startHHMM, endHHMM, time.Now().UnixNano()),
+	).Scan(ctx, &id)
 	require.NoError(t, err, "failed to insert timeframe fixture")
-	return row
+	return id
 }
 
 func parseHHMM(t *testing.T, hhmm string) time.Time {
@@ -250,9 +261,9 @@ func TestExceptionConflicts_CancelledInstance_EmitsWarningPerExpectedStudent(t *
 
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
-	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:00")
+	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, timetable.WeekdayMonday, s.staffID, "13:00")
 
-	createTestActivityException(t, s.db, group.ID, date, schedule.ActivityExceptionCancelled, "", "", "Feueralarm-Uebung")
+	createTestActivityException(t, s.db, group.ID, date, timetable.ActivityExceptionCancelled, "", "", "Feueralarm-Uebung")
 
 	router := conflictsRouter(s.ctx, s.res)
 	w := doConflicts(t, router, fmt.Sprintf("/exception-conflicts?date=%s", dateStr))
@@ -291,11 +302,11 @@ func TestExceptionConflicts_CancelledInstance_ArrivalExceptionOverridesSchedule(
 	student := testpkg.CreateTestStudent(t, s.db, "Ben", fmt.Sprintf("C-%d", time.Now().UnixNano()), "3a")
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
-	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:00")
+	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, timetable.WeekdayMonday, s.staffID, "13:00")
 	// Arrival exception for the date — 12:30, which must win over the schedule.
 	testpkg.CreateTestArrivalException(t, s.db, student.ID, date, s.staffID, "12:30", "Arzttermin vormittags")
 
-	createTestActivityException(t, s.db, group.ID, date, schedule.ActivityExceptionCancelled, "", "", "Klassen-Kuchenverkauf")
+	createTestActivityException(t, s.db, group.ID, date, timetable.ActivityExceptionCancelled, "", "", "Klassen-Kuchenverkauf")
 
 	router := conflictsRouter(s.ctx, s.res)
 	w := doConflicts(t, router, fmt.Sprintf("/exception-conflicts?date=%s", dateStr))
@@ -326,9 +337,9 @@ func TestExceptionConflicts_CancelledInstance_NoArrivalInfo_OmitsTime(t *testing
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
 	// Monday schedule only — nothing for the Tuesday exception date.
-	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:00")
+	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, timetable.WeekdayMonday, s.staffID, "13:00")
 
-	createTestActivityException(t, s.db, group.ID, date, schedule.ActivityExceptionCancelled, "", "", "Ferien")
+	createTestActivityException(t, s.db, group.ID, date, timetable.ActivityExceptionCancelled, "", "", "Ferien")
 
 	router := conflictsRouter(s.ctx, s.res)
 	w := doConflicts(t, router, fmt.Sprintf("/exception-conflicts?date=%s", dateStr))
@@ -358,15 +369,15 @@ func TestExceptionConflicts_CancelledInstance_SkipsNonExpectedAttendance(t *test
 	stuPresent := testpkg.CreateTestStudent(t, s.db, "Pres", fmt.Sprintf("S-%d", suffix+1), "3a")
 	stuAbsent := testpkg.CreateTestStudent(t, s.db, "Abso", fmt.Sprintf("S-%d", suffix+2), "3a")
 
-	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, stuExpected.ID, schedule.AttendanceStatusExpected)
-	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, stuPresent.ID, schedule.AttendanceStatusPresent)
-	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, stuAbsent.ID, schedule.AttendanceStatusAbsent)
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, stuExpected.ID, timetable.SlotAttendanceExpected)
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, stuPresent.ID, timetable.SlotAttendancePresent)
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, stuAbsent.ID, timetable.SlotAttendanceAbsent)
 
 	for _, stu := range []*struct{ ID int64 }{{stuExpected.ID}, {stuPresent.ID}, {stuAbsent.ID}} {
-		testpkg.CreateTestArrivalSchedule(t, s.db, stu.ID, schedule.WeekdayMonday, s.staffID, "13:00")
+		testpkg.CreateTestArrivalSchedule(t, s.db, stu.ID, timetable.WeekdayMonday, s.staffID, "13:00")
 	}
 
-	createTestActivityException(t, s.db, group.ID, date, schedule.ActivityExceptionCancelled, "", "", "")
+	createTestActivityException(t, s.db, group.ID, date, timetable.ActivityExceptionCancelled, "", "", "")
 
 	router := conflictsRouter(s.ctx, s.res)
 	w := doConflicts(t, router, fmt.Sprintf("/exception-conflicts?date=%s", dateStr))
@@ -387,7 +398,7 @@ func TestExceptionConflicts_ModifiedEarlier_EmitsWarning(t *testing.T) {
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("ModEarly-%d", time.Now().UnixNano()))
 
 	tf := createTestTimeframeRow(t, s.db, "14:00", "15:00")
-	createTestActivitySchedule(t, s.db, group.ID, schedule.WeekdayMonday, &tf.ID)
+	createTestActivitySchedule(t, s.db, group.ID, timetable.WeekdayMonday, &tf)
 
 	// Instance materialised AFTER the exception, so inst.start_time matches
 	// the modified 13:30 (still works when instance pre-dates the exception
@@ -401,9 +412,9 @@ func TestExceptionConflicts_ModifiedEarlier_EmitsWarning(t *testing.T) {
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
 	// Student arrives at 13:45 — that is AFTER the new 13:30 start: conflict.
-	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:45")
+	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, timetable.WeekdayMonday, s.staffID, "13:45")
 
-	createTestActivityException(t, s.db, group.ID, date, schedule.ActivityExceptionModified, "13:30", "15:00", "vorverlegt")
+	createTestActivityException(t, s.db, group.ID, date, timetable.ActivityExceptionModified, "13:30", "15:00", "vorverlegt")
 
 	router := conflictsRouter(s.ctx, s.res)
 	w := doConflicts(t, router, fmt.Sprintf("/exception-conflicts?date=%s", dateStr))
@@ -430,7 +441,7 @@ func TestExceptionConflicts_ModifiedLater_NoWarning(t *testing.T) {
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("ModLate-%d", time.Now().UnixNano()))
 
 	tf := createTestTimeframeRow(t, s.db, "14:00", "15:00")
-	createTestActivitySchedule(t, s.db, group.ID, schedule.WeekdayMonday, &tf.ID)
+	createTestActivitySchedule(t, s.db, group.ID, timetable.WeekdayMonday, &tf)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:30", EndHHMM: "15:00", ActivityGroupID: &group.ID,
@@ -439,10 +450,10 @@ func TestExceptionConflicts_ModifiedLater_NoWarning(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, s.db, "Emil", fmt.Sprintf("M-%d", time.Now().UnixNano()), "3a")
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
-	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:45")
+	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, timetable.WeekdayMonday, s.staffID, "13:45")
 
 	// Activity pushed back 14:00 → 14:30 — the 13:45 arrival still precedes.
-	createTestActivityException(t, s.db, group.ID, date, schedule.ActivityExceptionModified, "14:30", "15:00", "verschoben")
+	createTestActivityException(t, s.db, group.ID, date, timetable.ActivityExceptionModified, "14:30", "15:00", "verschoben")
 
 	router := conflictsRouter(s.ctx, s.res)
 	w := doConflicts(t, router, fmt.Sprintf("/exception-conflicts?date=%s", dateStr))
@@ -470,24 +481,11 @@ func TestExceptionConflicts_ModifiedRoomOnly_NoWarning(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, s.db, "Finn", fmt.Sprintf("M-%d", time.Now().UnixNano()), "3a")
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
-	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "14:30")
+	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, timetable.WeekdayMonday, s.staffID, "14:30")
 
 	// room-only modified — start_time stays NULL on the exception row.
 	roomID := altRoom.ID
-	row := &schedule.ActivityException{
-		ActivityGroupID: group.ID,
-		ExceptionDate:   schedule.Date(date),
-		ExceptionType:   schedule.ActivityExceptionModified,
-		RoomID:          &roomID,
-	}
-	row.SetTenantID(testpkg.Tenant(t))
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err := s.db.NewInsert().
-		Model(row).
-		ModelTableExpr(`schedule.activity_exceptions`).
-		Exec(ctx)
-	require.NoError(t, err)
+	insertTestActivityException(t, s.db, group.ID, date, timetable.ActivityExceptionModified, "", "", "", &roomID)
 
 	router := conflictsRouter(s.ctx, s.res)
 	w := doConflicts(t, router, fmt.Sprintf("/exception-conflicts?date=%s", dateStr))
@@ -508,7 +506,7 @@ func TestExceptionConflicts_ModifiedEarlier_ArrivalSourceNone_NoWarning(t *testi
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("ModNone-%d", time.Now().UnixNano()))
 
 	tf := createTestTimeframeRow(t, s.db, "14:00", "15:00")
-	createTestActivitySchedule(t, s.db, group.ID, schedule.WeekdayTuesday, &tf.ID)
+	createTestActivitySchedule(t, s.db, group.ID, timetable.WeekdayTuesday, &tf)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "13:30", EndHHMM: "15:00", ActivityGroupID: &group.ID,
@@ -519,7 +517,7 @@ func TestExceptionConflicts_ModifiedEarlier_ArrivalSourceNone_NoWarning(t *testi
 
 	// No arrival data for this student on Tuesday → source=none.
 
-	createTestActivityException(t, s.db, group.ID, date, schedule.ActivityExceptionModified, "13:30", "15:00", "")
+	createTestActivityException(t, s.db, group.ID, date, timetable.ActivityExceptionModified, "13:30", "15:00", "")
 
 	router := conflictsRouter(s.ctx, s.res)
 	w := doConflicts(t, router, fmt.Sprintf("/exception-conflicts?date=%s", dateStr))
@@ -539,14 +537,14 @@ func TestExceptionConflicts_ArrivalExceptionAbsence_SkipsBothKinds(t *testing.T)
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("AbsSkip-%d", time.Now().UnixNano()))
 
 	tf := createTestTimeframeRow(t, s.db, "14:00", "15:00")
-	createTestActivitySchedule(t, s.db, group.ID, schedule.WeekdayMonday, &tf.ID)
+	createTestActivitySchedule(t, s.db, group.ID, timetable.WeekdayMonday, &tf)
 
 	// Two instances: one cancelled, one modified — both on the same day, same
 	// group is not allowed (unique per template+date), so split across two
 	// templates.
 	group2 := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("AbsSkip2-%d", time.Now().UnixNano()))
 	tf2 := createTestTimeframeRow(t, s.db, "14:00", "15:00")
-	createTestActivitySchedule(t, s.db, group2.ID, schedule.WeekdayMonday, &tf2.ID)
+	createTestActivitySchedule(t, s.db, group2.ID, timetable.WeekdayMonday, &tf2)
 
 	instCancelled := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", ActivityGroupID: &group.ID,
@@ -559,12 +557,12 @@ func TestExceptionConflicts_ArrivalExceptionAbsence_SkipsBothKinds(t *testing.T)
 	testpkg.CreateTestInstanceStudent(t, s.db, instCancelled.ID, student.ID, "")
 	testpkg.CreateTestInstanceStudent(t, s.db, instModified.ID, student.ID, "")
 
-	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:00")
+	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, timetable.WeekdayMonday, s.staffID, "13:00")
 	// Absence exception — expected_arrival nil, source=exception + IsZero time.
 	testpkg.CreateTestArrivalException(t, s.db, student.ID, date, s.staffID, "", "Krank")
 
-	createTestActivityException(t, s.db, group.ID, date, schedule.ActivityExceptionCancelled, "", "", "Ausgefallen")
-	createTestActivityException(t, s.db, group2.ID, date, schedule.ActivityExceptionModified, "13:30", "15:00", "vorverlegt")
+	createTestActivityException(t, s.db, group.ID, date, timetable.ActivityExceptionCancelled, "", "", "Ausgefallen")
+	createTestActivityException(t, s.db, group2.ID, date, timetable.ActivityExceptionModified, "13:30", "15:00", "vorverlegt")
 
 	router := conflictsRouter(s.ctx, s.res)
 	w := doConflicts(t, router, fmt.Sprintf("/exception-conflicts?date=%s", dateStr))
@@ -594,9 +592,9 @@ func TestExceptionConflicts_ModifiedNoTemplateSchedule_EmitsWithoutOriginal(t *t
 	student := testpkg.CreateTestStudent(t, s.db, "Ida", fmt.Sprintf("MNT-%d", time.Now().UnixNano()), "3a")
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
-	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:45")
+	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, timetable.WeekdayMonday, s.staffID, "13:45")
 
-	createTestActivityException(t, s.db, group.ID, date, schedule.ActivityExceptionModified, "13:30", "15:00", "")
+	createTestActivityException(t, s.db, group.ID, date, timetable.ActivityExceptionModified, "13:30", "15:00", "")
 
 	router := conflictsRouter(s.ctx, s.res)
 	w := doConflicts(t, router, fmt.Sprintf("/exception-conflicts?date=%s", dateStr))
@@ -620,8 +618,8 @@ func TestExceptionConflicts_ModifiedAmbiguousTemplate_EmitsWithoutOriginal(t *te
 
 	tfA := createTestTimeframeRow(t, s.db, "09:00", "10:00")
 	tfB := createTestTimeframeRow(t, s.db, "14:00", "15:00")
-	createTestActivitySchedule(t, s.db, group.ID, schedule.WeekdayMonday, &tfA.ID)
-	createTestActivitySchedule(t, s.db, group.ID, schedule.WeekdayMonday, &tfB.ID)
+	createTestActivitySchedule(t, s.db, group.ID, timetable.WeekdayMonday, &tfA)
+	createTestActivitySchedule(t, s.db, group.ID, timetable.WeekdayMonday, &tfB)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "13:30", EndHHMM: "15:00", ActivityGroupID: &group.ID,
@@ -630,9 +628,9 @@ func TestExceptionConflicts_ModifiedAmbiguousTemplate_EmitsWithoutOriginal(t *te
 	student := testpkg.CreateTestStudent(t, s.db, "Jake", fmt.Sprintf("MA-%d", time.Now().UnixNano()), "3a")
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
-	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:45")
+	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, timetable.WeekdayMonday, s.staffID, "13:45")
 
-	createTestActivityException(t, s.db, group.ID, date, schedule.ActivityExceptionModified, "13:30", "15:00", "")
+	createTestActivityException(t, s.db, group.ID, date, timetable.ActivityExceptionModified, "13:30", "15:00", "")
 
 	router := conflictsRouter(s.ctx, s.res)
 	w := doConflicts(t, router, fmt.Sprintf("/exception-conflicts?date=%s", dateStr))
@@ -676,7 +674,7 @@ func TestExceptionConflicts_ExceptionWithoutInstance_SkipsSilently(t *testing.T)
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("Orphan-%d", time.Now().UnixNano()))
 
 	// Exception exists but no materialised instance.
-	createTestActivityException(t, s.db, group.ID, date, schedule.ActivityExceptionCancelled, "", "", "Geplant")
+	createTestActivityException(t, s.db, group.ID, date, timetable.ActivityExceptionCancelled, "", "", "Geplant")
 
 	router := conflictsRouter(s.ctx, s.res)
 	w := doConflicts(t, router, fmt.Sprintf("/exception-conflicts?date=%s", dateStr))
@@ -703,8 +701,8 @@ func TestExceptionConflicts_TenantIsolation(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, s.db, "Kim", fmt.Sprintf("ISO-%d", time.Now().UnixNano()), "3a")
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
-	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:00")
-	createTestActivityException(t, s.db, group.ID, date, schedule.ActivityExceptionCancelled, "", "", "")
+	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, timetable.WeekdayMonday, s.staffID, "13:00")
+	createTestActivityException(t, s.db, group.ID, date, timetable.ActivityExceptionCancelled, "", "", "")
 
 	// Querying tenant 2 must see nothing.
 	tenant2Ctx := testpkg.TenantContext(2)
@@ -740,11 +738,11 @@ func TestExceptionConflicts_SortOrder(t *testing.T) {
 	stu2 := testpkg.CreateTestStudent(t, s.db, "Beta", fmt.Sprintf("Sort-%d", suffix+1), "3a")
 
 	// Attach both students to both instances.
-	rows := []*schedule.InstanceStudent{
-		testpkg.CreateTestInstanceStudent(t, s.db, instA.ID, stu1.ID, ""),
-		testpkg.CreateTestInstanceStudent(t, s.db, instA.ID, stu2.ID, ""),
-		testpkg.CreateTestInstanceStudent(t, s.db, instB.ID, stu1.ID, ""),
-		testpkg.CreateTestInstanceStudent(t, s.db, instB.ID, stu2.ID, ""),
+	rows := []struct{ ID int64 }{
+		{testpkg.CreateTestInstanceStudent(t, s.db, instA.ID, stu1.ID, "").ID},
+		{testpkg.CreateTestInstanceStudent(t, s.db, instA.ID, stu2.ID, "").ID},
+		{testpkg.CreateTestInstanceStudent(t, s.db, instB.ID, stu1.ID, "").ID},
+		{testpkg.CreateTestInstanceStudent(t, s.db, instB.ID, stu2.ID, "").ID},
 	}
 	t.Cleanup(func() {
 		ids := make([]int64, len(rows))
@@ -753,11 +751,11 @@ func TestExceptionConflicts_SortOrder(t *testing.T) {
 		}
 	})
 
-	testpkg.CreateTestArrivalSchedule(t, s.db, stu1.ID, schedule.WeekdayMonday, s.staffID, "13:00")
-	testpkg.CreateTestArrivalSchedule(t, s.db, stu2.ID, schedule.WeekdayMonday, s.staffID, "13:00")
+	testpkg.CreateTestArrivalSchedule(t, s.db, stu1.ID, timetable.WeekdayMonday, s.staffID, "13:00")
+	testpkg.CreateTestArrivalSchedule(t, s.db, stu2.ID, timetable.WeekdayMonday, s.staffID, "13:00")
 
-	createTestActivityException(t, s.db, groupA.ID, date, schedule.ActivityExceptionCancelled, "", "", "")
-	createTestActivityException(t, s.db, groupB.ID, date, schedule.ActivityExceptionCancelled, "", "", "")
+	createTestActivityException(t, s.db, groupA.ID, date, timetable.ActivityExceptionCancelled, "", "", "")
+	createTestActivityException(t, s.db, groupB.ID, date, timetable.ActivityExceptionCancelled, "", "", "")
 
 	router := conflictsRouter(s.ctx, s.res)
 	w := doConflicts(t, router, fmt.Sprintf("/exception-conflicts?date=%s", dateStr))
@@ -835,7 +833,7 @@ func TestExceptionConflicts_ValidationErrors(t *testing.T) {
 	})
 
 	t.Run("date in the past → 400", func(t *testing.T) {
-		past := timezone.NewDate(2026, 8, 24).AddDays(-2).String()
+		past := calendar.NewDate(2026, 8, 24).AddDays(-2).String()
 		w := doConflicts(t, router, fmt.Sprintf("/exception-conflicts?date=%s", past))
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
