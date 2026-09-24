@@ -194,9 +194,16 @@ type deviationEventInput struct {
 }
 
 // logDeviationEvent appends one Änderungsprotokoll entry inside the caller's
-// tenant tx. Fail closed: an error here must abort the surrounding mutation —
-// the protocol is the compliance artifact, not a best-effort side channel.
+// tenant tx.
 func (s *staffDeviations) logDeviationEvent(ctx context.Context, in deviationEventInput) error {
+	return recordDeviationEvent(ctx, s.deps.Protocol, in)
+}
+
+// recordDeviationEvent appends one Änderungsprotokoll entry inside the
+// caller's tenant tx. Fail closed: an error here must abort the surrounding
+// mutation — the protocol is the compliance artifact, not a best-effort side
+// channel.
+func recordDeviationEvent(ctx context.Context, protocol DeviationProtocol, in deviationEventInput) error {
 	event := DeviationEventRecord{
 		ActivityGroupID: in.instance.ActivityGroupID,
 		OccurrenceDate:  timezone.Date(in.instance.Date),
@@ -215,7 +222,7 @@ func (s *staffDeviations) logDeviationEvent(ctx context.Context, in deviationEve
 	if event.NewValue, err = marshalDeviationValue(in.newValue); err != nil {
 		return &ScheduleError{Op: "log deviation event: marshal new value", Err: err}
 	}
-	if err := s.deps.Protocol.RecordDeviationEvent(ctx, event); err != nil {
+	if err := protocol.RecordDeviationEvent(ctx, event); err != nil {
 		return &ScheduleError{Op: "log deviation event", Err: fmt.Errorf("event_type %s: %w", in.eventType, err)}
 	}
 	return nil

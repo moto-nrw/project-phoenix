@@ -14,8 +14,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -42,7 +42,7 @@ func buildGapsSetup(t *testing.T) *gapsSetup {
 	cleanup := func() {
 	}
 
-	clock := func() time.Time { return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour) }
+	clock := func() time.Time { return calendar.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour) }
 	res := NewResource(Dependencies{
 		TimetableData: testTimetableData(db, clock).TimetableData(),
 		Now:           clock,
@@ -89,8 +89,8 @@ func decodeGaps(t *testing.T, w *httptest.ResponseRecorder) GapsResponse {
 
 // futureDate produces a Berlin-local YYYY-MM-DD always in the future so the
 // "past dates rejected" check does not flake. offsetDays=0 returns today.
-func futureDate(offsetDays int) (string, timezone.Date) {
-	d := timezone.NewDate(2026, 8, 24).AddDays(offsetDays)
+func futureDate(offsetDays int) (string, calendar.Date) {
+	d := calendar.NewDate(2026, 8, 24).AddDays(offsetDays)
 	return d.String(), d
 }
 
@@ -252,10 +252,10 @@ func TestGaps_CompletedAndCancelled_Excluded(t *testing.T) {
 
 	dateStr, date := futureDate(1)
 	testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
-		Status: schedule.InstanceStatusCompleted, StartHHMM: "14:00", EndHHMM: "15:00",
+		Status: timetable.InstanceStatusCompleted, StartHHMM: "14:00", EndHHMM: "15:00",
 	})
 	testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
-		Status: schedule.InstanceStatusCancelled, StartHHMM: "15:00", EndHHMM: "16:00",
+		Status: timetable.InstanceStatusCancelled, StartHHMM: "15:00", EndHHMM: "16:00",
 	})
 
 	router := gapsRouter(s.ctx, s.res)
@@ -283,7 +283,7 @@ func TestGaps_UnderstaffedAck_MovedToAcknowledged(t *testing.T) {
 
 	// Mark the second instance as deliberately unstaffed.
 	_, err := s.db.NewUpdate().
-		Model((*schedule.ActivityInstance)(nil)).
+		TableExpr("schedule.activity_instances").
 		Set("understaffed_ack = TRUE").
 		Set("understaffed_note = ?", "bewusst ohne Personal").
 		Where("id = ?", ack.ID).

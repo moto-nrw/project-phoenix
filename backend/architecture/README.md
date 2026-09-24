@@ -629,7 +629,8 @@ and deviation pipeline, conflict detection, the timetable data and operations
 reads, calendar periods, holidays and closing days, planning tracks, the
 roster reconciler, cleanup and the attendance mirror) are retained as the
 `inbound-timetable`/`adapter` compatibility package
-`modules/timetable/legacy/timetableplanning` (#3218), moved file for file with
+`modules/timetable/legacy/timetableplanning` (#3218; dissolved slice by slice
+under #3424 and deleted by slice S1, #3554), moved file for file with
 their behaviour tests. No HTTP path, status code, error string, authorization
 check, tenant scoping, recurrence, exception or materialization semantics
 changed. The care, arrival and pickup services stayed behind for #3220 (below),
@@ -720,12 +721,16 @@ unused generic CRUD methods. The pure query-option translations and listing
 adapters the legacy composition uses moved to `modules/timetable/compose`
 (`legacy_repository_options.go`, `legacy_composition_support.go`,
 `calendar_period_usage.go`), which may already import their models. The SQL
-test providers the cross-package tests build and the repository behaviour
-tests are the test-only root `modules/timetable/legacy/timetablesqltest`
-(`inbound-timetable`/`test-support`, `e2e-test` in both test scopes, as
-`modules/workforce/contracttest`); its `inbound-timetable.test-support.*`,
+test providers the cross-package tests built went to the test-only root
+`modules/timetable/legacy/timetablesqltest`, which #3554 deleted with its
+package entry and its `inbound-timetable.test-support.*`,
 `inbound-timetable.e2e-test.*` and `<consumer>.<role>.inbound-timetable-test-support`
-rules are compatibility permissions of the same kind. With both packages gone,
+compatibility rules: the consumer suites read through the repositories the
+composition root binds to the Timetable owner, the repository behaviour tests
+of those bound repositories moved to `modules/timetable/compose/httpintegration`
+(`legacy_*_test.go`) and the staff-notice and listing-adapter tests to
+`modules/timetable/compose`, and the tests of the providers themselves were
+dropped. With both packages gone,
 all #2730 entries left `legacy.jsonl`, together with the other resolved
 imports of the two packages, and the 25 rules that only those imports used
 (for example `parent-portal.adapter.timetable-application` and
@@ -1165,6 +1170,50 @@ staff move and the Änderungsprotokoll entries of lifecycle writes stay with
 the retained lifecycle (slice S1), which asks the owner for the substitute
 advisory. Five emptied compatibility rules are deleted, one replacement
 permission uses the exception of ADR 0038, and `legacy.jsonl` is unchanged.
+
+Slice S1 (#3554, policy epoch 29 to 30) moved the instance lifecycle and
+deleted the nest. The transitions (start with the absorption of
+unsupervised sessions, completion with its snapshot, reopen, cancellation
+with the guardian notice, delete), the planning writes (create with its
+idempotency key, planned edit, re-plan with the deviation snapshot and
+reapply), the staff move, the standalone understaffed acknowledgement, the
+series conversion and the scheduler's automatic start and end are the
+public contracts `timetable.InstanceLifecycle`, `timetable.InstancePlanning`,
+`timetable.InstanceStaffing` (together `timetable.InstanceLifecycleCapability`),
+`timetable.InstanceSeriesConversion`, `timetable.InstanceAutoStart` and
+`timetable.InstanceAutoEnd`, over the owner's own types
+(`timetable.LifecycleInstance` and the lifecycle inputs, results and
+sentinels). The implementation lives in `modules/timetable/compose`
+(`instance_*.go`) and still writes the retained repository rows; it serves
+the lifecycle ports of the operational day and the deviation writes and the
+template split's deviation machinery itself, so those bindings left
+`services`. The collaborators the owner may not name are consumer-owned
+ports bound at the root (`services/timetable_lifecycle_composition.go`): the
+Facilities rooms through `repositories.TimetableOwnerRows.LifecycleRooms`,
+Care Plan's care days and day locks, Communication's cancellation notice
+(`compose.GuardianNotices`, whose refusals arrive wrapped in the owner's
+notice sentinels), the Settings Platform's clock policy, the Audit
+Platform's Änderungsprotokoll, Security Runtime's content fingerprint for the
+idempotency key and the realtime hub (`compose.LifecycleBroadcaster`, whose
+event types mirror the Delivery Platform's vocabulary). School Structure's
+class rules reach the root through `modules/schoolstructure/compose`
+instead of the nest. The group live view and the students inbound read the
+planned-student lookup through consumer-owned ports. `services.Factory`
+keeps its four lifecycle fields with owner types. The nest's behaviour tests
+moved to `modules/timetable/compose` and `compose/httpintegration`; the SQL
+test providers of `modules/timetable/legacy/timetablesqltest` were deleted
+with their tests, and the tests of the bound repositories moved beside
+them. The Dienstplan services and the shift-plan-sync workflow no longer
+speak the retained `models/schedule` rows, so the seven Workforce and
+shift-plan-sync rules to them fell too. `api/timetable` no longer imports
+`models/schedule`, `models/activities`, `models/base`, `internal/timezone`,
+`internal/schoolclass` or `realtime`: the thirteen #2732 keys left
+`legacy.jsonl` (the fourteenth, the internal-test `models/education` import,
+had gone with slice S5), and the vocabulary the handlers borrow is mirrored
+in the public contract and pinned against the models. Every rule that named
+#3424 is deleted, the package entries of both packages are gone, and ADR
+0038's exception ends with them; fifteen of its replacement rules remain as
+ordinary permissions to the owners' public contracts.
 
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`

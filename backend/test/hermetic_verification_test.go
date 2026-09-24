@@ -520,15 +520,15 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"setupCareTest",                    // services/enrollment care-offering integration tests — wraps SetupTestDB
 		"setupAutoApproveIntegrationEnv",   // services/enrollment auto-approve integration tests — wraps setupRolloverTest
 		"setupGuardianInvitationTest",      // services/auth guardian invitation + related-accounts tests — wraps SetupTestDB
-		"makeScenario",                     // modules/timetable/legacy/timetableplanning materialization/split integration tests — wraps SetupTestDB
-		"makeRosterChain",                  // modules/timetable/legacy/timetableplanning split-series roster tests (#2187) — wraps makeSeriesChain → makeScenario
-		"makeMoveSetup",                    // modules/timetable/legacy/timetableplanning staff-pool/move tests (#1884) — wraps SetupTestDB
+		"makeScenario",                     // modules/timetable/compose/httpintegration materialization/split/lifecycle integration tests — wraps SetupTestDB
+		"makeRosterChain",                  // modules/timetable/compose/httpintegration split-series roster tests (#2187) — wraps makeSeriesChain → makeScenario
+		"makeMoveSetup",                    // modules/timetable/compose/httpintegration staff-move tests (#1884) — wraps SetupTestDB
 		"buildDevSetup",                    // api/timetable deviations/protocol tests — wraps SetupTestDB
 		"setupAbsenceAdminTest",            // api/staff absence question tests (#1419) — wraps setupTestContext
 		"newOverviewFixture",               // modules/studentpresence/internal/application/presence overview/export integration tests (#1417) — wraps SetupTestDB
 		"setupOverviewAPI",                 // api/staff overview/export tests (#1417) — wraps setupTestContext
 		"newTransitionFixture",             // services/education grade-transition workflow tests — wraps SetupTestDB
-		"buildLifecycle",                   // modules/timetable/legacy/timetableplanning instance-lifecycle tests — wraps SetupTestDB
+		"buildLifecycle",                   // modules/timetable/compose/httpintegration instance-lifecycle tests — wraps SetupTestDB
 		"newCareFixture",                   // modules/careplan/contracttest care-request tests — wraps SetupTestDB
 		"setupDashboardContext",            // api/active supervision-dashboard tests — wraps SetupActiveModule → SetupTestDB
 		"setupStudentStorageBeforeCutover", // database/migrations student-owner cutover + preflight tests — wraps SetupTestDB
@@ -561,19 +561,18 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 
 		// Skip files that reference DB types but don't perform real DB operations
 		skipFiles := []string{
-			"http_middleware_test.go",                                      // Uses nil *bun.DB for unit testing middleware
-			"parent_message_hooks_test.go",                                 // Pure base.Model accessor unit test; no real DB
-			"parent_announcement_model_test.go",                            // Pure validator/derivation unit tests; no real DB
-			"role_management_internal_test.go",                             // Uses hand-rolled stub repos injected via repositories.Factory, no real DB
-			"modules/timetable/legacy/timetablesqltest/created_by_test.go", // Shared fixture helper; caller tests own DB setup
-			"test/architecture_ratchet_test.go",                            // Source-scanning ratchet; regex literals look like DB ops but no DB is used
-			"test/handler_layer_ratchet_test.go",                           // Source-scanning ratchet (issue #584); same as above, no DB is used
-			"api/timetable/timetable_data_test_helpers_test.go",            // Shared fixture helper; caller tests own DB setup (mirrors created_by_test.go)
-			"services/messaging/apply_export_internal_test.go",             // Test-support wrappers exposing unexported apply funcs; the *bun.DB is injected, caller (requests_test.go) owns SetupTestDB
-			"test/module_file_size_ratchet_test.go",                        // Source-scanning ratchet (#2580); allowlist keys name *_repositories.go files, no DB is used
-			"test/module_complexity_ratchet_test.go",                       // Source-scanning ratchet (#2580); same as above, no DB is used
-			"test/module_http_orm_ratchet_test.go",                         // Source-scanning ratchet (#2580); the rule text names *bun.DB, which is the thing it forbids, no DB is used
-			"modules/identityaccess/behavior/owner_contracts_test.go",      // Shared row readers of the behaviour suites (#3446); caller tests own DB setup
+			"http_middleware_test.go",                                 // Uses nil *bun.DB for unit testing middleware
+			"parent_message_hooks_test.go",                            // Pure base.Model accessor unit test; no real DB
+			"parent_announcement_model_test.go",                       // Pure validator/derivation unit tests; no real DB
+			"role_management_internal_test.go",                        // Uses hand-rolled stub repos injected via repositories.Factory, no real DB
+			"test/architecture_ratchet_test.go",                       // Source-scanning ratchet; regex literals look like DB ops but no DB is used
+			"test/handler_layer_ratchet_test.go",                      // Source-scanning ratchet (issue #584); same as above, no DB is used
+			"api/timetable/timetable_data_test_helpers_test.go",       // Shared fixture helper; caller tests own DB setup
+			"services/messaging/apply_export_internal_test.go",        // Test-support wrappers exposing unexported apply funcs; the *bun.DB is injected, caller (requests_test.go) owns SetupTestDB
+			"test/module_file_size_ratchet_test.go",                   // Source-scanning ratchet (#2580); allowlist keys name *_repositories.go files, no DB is used
+			"test/module_complexity_ratchet_test.go",                  // Source-scanning ratchet (#2580); same as above, no DB is used
+			"test/module_http_orm_ratchet_test.go",                    // Source-scanning ratchet (#2580); the rule text names *bun.DB, which is the thing it forbids, no DB is used
+			"modules/identityaccess/behavior/owner_contracts_test.go", // Shared row readers of the behaviour suites (#3446); caller tests own DB setup
 		}
 		skip := false
 		for _, sf := range skipFiles {

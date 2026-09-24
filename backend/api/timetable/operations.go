@@ -15,13 +15,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -94,7 +93,7 @@ func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request)
 	today := rs.todayDate()
 	date := today
 	if raw := r.URL.Query().Get("date"); raw != "" {
-		parsed, err := timezone.ParseDate(raw)
+		parsed, err := calendar.ParseDate(raw)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date")))
 			return
@@ -106,7 +105,7 @@ func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request)
 		date = parsed
 	}
 	accountID, isAdmin := operationActor(r.Context())
-	result, err := rs.OperationsService.PlannedNow(r.Context(), accountID, isAdmin, date, timezone.Now(), opts)
+	result, err := rs.OperationsService.PlannedNow(r.Context(), accountID, isAdmin, date, calendar.Now(), opts)
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
@@ -333,7 +332,7 @@ func (rs *Resource) validateSpontaneousRoom(w http.ResponseWriter, r *http.Reque
 }
 
 type spontaneousActivityWindow struct {
-	date      timezone.Date
+	date      calendar.Date
 	startTime time.Time
 	endTime   time.Time
 }
@@ -348,12 +347,12 @@ func bindSpontaneousStartRequest(w http.ResponseWriter, r *http.Request) (*spont
 }
 
 func serverSpontaneousActivityWindow(now time.Time) spontaneousActivityWindow {
-	now = now.In(timezone.Berlin)
+	now = now.In(calendar.Berlin)
 	currentMinutes := now.Hour()*60 + now.Minute()
 	startMinutes := min(currentMinutes, 23*60+30)
 	endMinutes := min(startMinutes+60, 23*60+59)
 	return spontaneousActivityWindow{
-		date:      timezone.DateFromTime(now),
+		date:      calendar.DateFromTime(now),
 		startTime: clockTimeFromMinutes(startMinutes),
 		endTime:   clockTimeFromMinutes(endMinutes),
 	}
@@ -409,7 +408,7 @@ func (rs *Resource) operationsComplete(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("confirmed_present_student_ids is required")))
 		return
 	}
-	r = r.WithContext(timetableplanning.WithCompletionConfirmation(r.Context(), body.ConfirmedPresentStudentIDs))
+	r = r.WithContext(timetable.WithCompletionConfirmation(r.Context(), body.ConfirmedPresentStudentIDs))
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
 		accountID, isAdmin := operationActor(r.Context())
 		return rs.OperationsService.Complete(r.Context(), accountID, isAdmin, instanceID)
@@ -593,15 +592,15 @@ func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, timetable.ErrTimetableOperationNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, timetable.ErrTimetableOperationConflict), errors.Is(err, timetableplanning.ErrInvalidInstanceTransition),
-		errors.Is(err, timetableplanning.ErrInstanceStartTooEarly), errors.Is(err, timetableplanning.ErrInstanceStartExpired),
-		errors.Is(err, timetableplanning.ErrInstanceCompleteEarly):
+	case errors.Is(err, timetable.ErrTimetableOperationConflict), errors.Is(err, timetable.ErrInvalidInstanceTransition),
+		errors.Is(err, timetable.ErrInstanceStartTooEarly), errors.Is(err, timetable.ErrInstanceStartExpired),
+		errors.Is(err, timetable.ErrInstanceCompleteEarly):
 		common.RenderError(w, r, common.ErrorConflict(err))
-	case errors.Is(err, timetableplanning.ErrInstanceWeekend):
+	case errors.Is(err, timetable.ErrInstanceWeekend):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, timetableplanning.ErrCompletionConfirmationStale):
+	case errors.Is(err, timetable.ErrCompletionConfirmationStale):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "completion_confirmation_stale"))
-	case errors.Is(err, timetableplanning.ErrInstanceNotFound):
+	case errors.Is(err, timetable.ErrInstanceNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, studentpresence.ErrStudentAlreadyActive), errors.Is(err, studentpresence.ErrRoomConflict),
 		errors.Is(err, studentpresence.ErrRoomCapacityExceeded), errors.Is(err, studentpresence.ErrStudentsNotPresent),

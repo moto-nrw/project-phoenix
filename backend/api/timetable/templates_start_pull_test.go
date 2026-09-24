@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Issue #2226: PUT /timetable/templates/{id} accepts an optional start_date
@@ -20,8 +20,8 @@ import (
 // futureMondayForPull returns a Monday at least eight days ahead so the old
 // and the pulled-forward start both stay strictly in the future on every
 // weekday the suite runs.
-func futureMondayForPull() timezone.Date {
-	today := timezone.NewDate(2030, 8, 26)
+func futureMondayForPull() calendar.Date {
+	today := calendar.NewDate(2030, 8, 26)
 	daysAhead := (int(time.Monday) - int(today.Weekday()) + 7) % 7
 	if daysAhead == 0 {
 		daysAhead = 7
@@ -33,7 +33,7 @@ func TestTemplateUpdateStartDatePullForward(t *testing.T) {
 	t.Parallel()
 
 	clock := func() time.Time {
-		return timezone.NewDate(2030, 8, 26).BerlinMidnight().Add(12 * time.Hour)
+		return calendar.NewDate(2030, 8, 26).BerlinMidnight().Add(12 * time.Hour)
 	}
 	s := buildTemplateModule(t, nil, clock)
 	defer s.cleanupFn()
@@ -45,7 +45,7 @@ func TestTemplateUpdateStartDatePullForward(t *testing.T) {
 	// The period must span both starts; widen it a year past the old start.
 	period := createTemplateTestPeriodRange(
 		t, s.db, "TplStartPullPeriod",
-		timezone.NewDate(newStart.Year(), 1, 1),
+		calendar.NewDate(newStart.Year(), 1, 1),
 		oldStart.AddDays(365),
 		1, nil,
 	)
@@ -76,13 +76,13 @@ func TestTemplateUpdateStartDatePullForward(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "vorgezogen")
 
 	// In the past → German rejection with a stable code.
-	w = doTemplateJSON(t, router, http.MethodPut, putPath, updateBody(timezone.NewDate(2030, 1, 1).String()))
+	w = doTemplateJSON(t, router, http.MethodPut, putPath, updateBody(calendar.NewDate(2030, 1, 1).String()))
 	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
 	assert.Contains(t, w.Body.String(), ErrCodeTemplateStartInPast)
 	assert.Contains(t, w.Body.String(), "Vergangenheit")
 
 	// Outside the pinned period → the shared create/update preflight rejects.
-	outsideWithoutPeriod := updateBody(timezone.NewDate(newStart.Year()-1, 12, 31).String())
+	outsideWithoutPeriod := updateBody(calendar.NewDate(newStart.Year()-1, 12, 31).String())
 	delete(outsideWithoutPeriod, "calendar_period_id")
 	w = doTemplateJSON(t, router, http.MethodPut, putPath, outsideWithoutPeriod)
 	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())

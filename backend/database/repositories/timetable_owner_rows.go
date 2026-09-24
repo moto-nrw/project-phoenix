@@ -81,6 +81,12 @@ func (r TimetableOwnerRows) RoomNames() timetableCompose.RoomNames {
 	return timetableRoomNames{rooms: r.Rooms}
 }
 
+// LifecycleRooms serves the instance lifecycle's Facilities rooms: the
+// reference check, the start's room lock and the auto-start's room names.
+func (r TimetableOwnerRows) LifecycleRooms() timetableCompose.LifecycleRooms {
+	return timetableRoomNames{rooms: r.Rooms}
+}
+
 // EducationGroupNames names School Structure's education groups.
 func (r TimetableOwnerRows) EducationGroupNames() timetableCompose.EducationGroupNames {
 	return timetableEducationGroupNames{groups: r.EducationGroups}
@@ -94,14 +100,16 @@ func (r TimetableOwnerRows) DeviationEventReader() timetableCompose.DeviationEve
 // SickCascadeRows are the Betreuungsplan rows the #1843 sick cascade reads,
 // with the day-wide staffing lock (#1840) the caller supplies.
 func (r TimetableOwnerRows) SickCascadeRows(dayLock func(context.Context, calendar.Date) error) SickCascadeTimetableRows {
-	return SickCascadeTimetableRows{instances: r.Instances, staff: r.InstanceStaff, dayLock: dayLock}
+	return SickCascadeTimetableRows{
+		instances: TimetableInstanceReads{instances: r.Instances}, staff: TimetableInstanceStaffReads{staff: r.InstanceStaff}, dayLock: dayLock,
+	}
 }
 
 // SickCascadeTimetableRows serves the shift-plan-sync workflow's timetable
-// port from the retained rows.
+// port from the retained rows, in the Timetable owner's public vocabulary.
 type SickCascadeTimetableRows struct {
-	instances scheduleModels.ActivityInstanceRepository
-	staff     scheduleModels.InstanceStaffRepository
+	instances TimetableInstanceReads
+	staff     TimetableInstanceStaffReads
 	dayLock   func(context.Context, calendar.Date) error
 }
 
@@ -111,25 +119,15 @@ func (r SickCascadeTimetableRows) AcquireSubstituteDayLock(ctx context.Context, 
 	return r.dayLock(ctx, date)
 }
 
-func (r SickCascadeTimetableRows) GetInstanceStaffByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) ([]*scheduleModels.InstanceStaff, error) {
-	return r.staff.FindByStaffAndDate(ctx, staffID, scheduleModels.Date(date))
+func (r SickCascadeTimetableRows) GetInstanceStaffByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) ([]*timetable.InstanceStaff, error) {
+	return r.staff.FindByStaffAndDate(ctx, staffID, date)
 }
 
-func (r SickCascadeTimetableRows) GetActivityInstancesByID(ctx context.Context, ids []int64) (map[int64]*scheduleModels.ActivityInstance, error) {
-	instances, err := r.instances.FindByIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	byID := make(map[int64]*scheduleModels.ActivityInstance, len(instances))
-	for _, instance := range instances {
-		if instance != nil {
-			byID[instance.ID] = instance
-		}
-	}
-	return byID, nil
+func (r SickCascadeTimetableRows) GetActivityInstancesByID(ctx context.Context, ids []int64) (map[int64]*timetable.ScheduledInstance, error) {
+	return r.instances.GetActivityInstancesByID(ctx, ids)
 }
 
-func (r SickCascadeTimetableRows) GetInstanceStaff(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStaff, error) {
+func (r SickCascadeTimetableRows) GetInstanceStaff(ctx context.Context, instanceID int64) ([]*timetable.InstanceStaff, error) {
 	return r.staff.FindByInstanceID(ctx, instanceID)
 }
 
@@ -175,6 +173,28 @@ func (r timetableRoomNames) RoomName(ctx context.Context, id int64) (string, boo
 		return "", false, err
 	}
 	return room.Name, true, nil
+}
+
+func (r timetableRoomNames) RoomNamesByID(ctx context.Context, ids []int64) (map[int64]string, error) {
+	rooms, err := r.rooms.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[int64]string, len(rooms))
+	for _, room := range rooms {
+		if room != nil {
+			names[room.ID] = room.Name
+		}
+	}
+	return names, nil
+}
+
+func (r timetableRoomNames) LockRoom(ctx context.Context, id int64) (*int, bool, error) {
+	room, err := r.rooms.FindByIDForUpdate(ctx, id)
+	if err != nil || room == nil {
+		return nil, false, err
+	}
+	return room.Capacity, true, nil
 }
 
 type timetableDeviationEvents struct {

@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -31,9 +30,22 @@ type ScheduleDeviations interface {
 	QueueActivityUpdates(ctx context.Context, touched timetable.TouchedActivities)
 }
 
+// ScheduleInstances reads the appointments of a period with the execution
+// state of their sessions, which decides whether one is still changeable.
+type ScheduleInstances interface {
+	FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*timetable.ScheduledInstance, error)
+}
+
+// ScheduleInstanceStaff reads the staff assignments of appointments. A
+// missing assignment is reported as the repository no-rows error.
+type ScheduleInstanceStaff interface {
+	FindByID(ctx context.Context, id int64) (*timetable.InstanceStaff, error)
+	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*timetable.InstanceStaff, error)
+}
+
 type SubstitutionAdapterDependencies struct {
-	Instances     scheduleModel.ActivityInstanceRepository
-	InstanceStaff scheduleModel.InstanceStaffRepository
+	Instances     ScheduleInstances
+	InstanceStaff ScheduleInstanceStaff
 	Staff         userModels.StaffRepository
 	Engine        ScheduleDeviations
 	Broadcaster   realtime.Broadcaster
@@ -80,7 +92,7 @@ func (a *SubstitutionAdapter) overview(
 	if from.IsZero() || to.IsZero() || to.Before(from) || from.DaysUntil(to) >= 56 {
 		return nil, errSubstitutionInvalidPeriod
 	}
-	instances, err := a.deps.Instances.FindByTenantAndDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
+	instances, err := a.deps.Instances.FindByTenantAndDateRange(ctx, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +110,7 @@ func (a *SubstitutionAdapter) overview(
 	}, nil
 }
 
-func (a *SubstitutionAdapter) loadOverviewStaff(ctx context.Context, instances []*scheduleModel.ActivityInstance) (map[int64][]*scheduleModel.InstanceStaff, map[int64]*userModels.Staff, error) {
+func (a *SubstitutionAdapter) loadOverviewStaff(ctx context.Context, instances []*timetable.ScheduledInstance) (map[int64][]*timetable.InstanceStaff, map[int64]*userModels.Staff, error) {
 	instanceIDs := make([]int64, 0, len(instances))
 	for _, instance := range instances {
 		if instance != nil {
@@ -111,7 +123,7 @@ func (a *SubstitutionAdapter) loadOverviewStaff(ctx context.Context, instances [
 	}
 	staffIDs := make([]int64, 0, len(rows))
 	seenStaff := make(map[int64]bool, len(rows))
-	deviationsByInstance := make(map[int64][]*scheduleModel.InstanceStaff)
+	deviationsByInstance := make(map[int64][]*timetable.InstanceStaff)
 	for _, row := range rows {
 		if row == nil || (!row.IsAbsent && !row.IsSubstitute) {
 			continue
@@ -129,7 +141,7 @@ func (a *SubstitutionAdapter) loadOverviewStaff(ctx context.Context, instances [
 	return deviationsByInstance, staffByID, nil
 }
 
-func projectSubstitutionAppointments(instances []*scheduleModel.ActivityInstance, deviations map[int64][]*scheduleModel.InstanceStaff, staffByID map[int64]*userModels.Staff, canManage bool) []education.ScheduleAppointmentOverview {
+func projectSubstitutionAppointments(instances []*timetable.ScheduledInstance, deviations map[int64][]*timetable.InstanceStaff, staffByID map[int64]*userModels.Staff, canManage bool) []education.ScheduleAppointmentOverview {
 	appointments := make([]education.ScheduleAppointmentOverview, 0, len(deviations))
 	for _, instance := range instances {
 		rows := deviations[instance.ID]
@@ -154,7 +166,7 @@ func projectSubstitutionAppointments(instances []*scheduleModel.ActivityInstance
 		}
 		appointments = append(appointments, education.ScheduleAppointmentOverview{
 			ID: instance.ID, Type: education.TargetScheduleSubstitution,
-			Date:      timezone.Date(instance.Date),
+			Date:      instance.Date,
 			StartTime: instance.StartTime.Format("15:04"), EndTime: instance.EndTime.Format("15:04"),
 			Title: instance.Title, Status: instance.Status, Staff: staff,
 		})

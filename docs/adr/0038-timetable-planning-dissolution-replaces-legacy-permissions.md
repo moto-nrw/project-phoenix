@@ -223,6 +223,43 @@ bind the mirror through the root) and the two reach rules of the nest's
 behaviour suites the moved attendance tests needed
 (`inbound-timetable.module-behavior-test.{inbound-timetable-test-support,transaction-runtime-domain}`).
 
+### Slice S1: instance lifecycle, series conversion and package removal (#3554)
+
+Slice S1 moves the instance lifecycle (start, completion, reopen,
+cancellation with its guardian notice, delete, create, planned edit and
+re-plan), the staff move, the standalone understaffed acknowledgement, the
+series conversion and the scheduler's automatic start and end to the
+Timetable & Activities owner. The public contracts are
+`timetable.InstanceLifecycle`, `timetable.InstancePlanning`,
+`timetable.InstanceStaffing` (together `timetable.InstanceLifecycleCapability`),
+`timetable.InstanceSeriesConversion`, `timetable.InstanceAutoStart` and
+`timetable.InstanceAutoEnd`; the implementation sits in
+`modules/timetable/compose`. The slice then deletes the nest and the SQL test
+providers of `modules/timetable/legacy/timetablesqltest`.
+
+Epoch 30 uses the exception for no rule. `api/timetable`, the scheduler and
+the composition root already held a permission to the Timetable contract; the
+group live view and the students inbound read the one lifecycle answer they
+need (which children have a planned block) through consumer-owned ports bound
+at the root. The same epoch deletes the package entries of both packages,
+every rule that still named #3424 (the nest's own reach and suites, the
+consumers' `<consumer>.<role>.inbound-timetable-adapter` rules, and the seven
+Workforce and shift-plan-sync rules to the retained `models/schedule` rows,
+whose imports left with the slice), the sixteen `inbound-timetable`
+`test-support` and `e2e-test` rules of the SQL providers and the four
+`care-schedule-cutover` and `care-plan.contracttest` rules that only reached
+the nest, and the two Workforce integration-test rules
+(`workforce.integration-test.{facilities,people}-domain`) its composition
+suite no longer uses after moving to the external test package.
+
+With the nest gone from the base, the anchor of this exception no longer
+holds and it grants nothing from the next epoch on. Fifteen of its sixteen
+replacement rules stand on their own: each lets a consumer name the public
+contract of the owner that holds the moved behaviour, which is the target
+dependency shape. The rule for the nest's own behaviour suites
+(`timetable-planning-cutover.inbound-timetable.module-behavior-test.timetable-activities.public`)
+is deleted with the suites.
+
 ## Verification
 
 `internal/architecture/timetableplanning_cutover_test.go` covers the

@@ -21,7 +21,6 @@ import (
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -180,8 +179,8 @@ type Scheduler struct {
 	staffMessageCleanup        StaffMessageCleanup
 	bookingConsistency         auditModel.BookingConsistencyRepository
 	enrollmentRejectedCleanup  enrollmentSvc.RejectedEnrollmentCleaner
-	autoStart                  timetableplanning.AutoStartService
-	autoEnd                    timetableplanning.AutoEndService
+	autoStart                  timetable.InstanceAutoStart
+	autoEnd                    timetable.InstanceAutoEnd
 	settings                   SettingsResolver
 	db                         *bun.DB
 	schoolRepo                 TenantDirectory

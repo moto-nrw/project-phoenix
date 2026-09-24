@@ -255,8 +255,8 @@ func firstFutureWeekdayInPeriods(periods []calendarPeriodWindow, today time.Time
 	return date, nil
 }
 
-// schoolYearBounds mirrors defaultSchoolYearBounds in
-// backend/modules/timetable/legacy/timetableplanning/calendar_period_service.go: a German school year
+// schoolYearBounds mirrors DefaultSchoolYear in
+// backend/modules/schoolcalendar/week_cycle.go: a German school year
 // runs from August 1st to July 31st of the following year. The simulate
 // package must not import internal/timezone (scripts/backend-architecture.sh),
 // so the bounds are recomputed here on plain time values.

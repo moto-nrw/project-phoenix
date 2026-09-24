@@ -65,7 +65,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
@@ -184,9 +183,9 @@ type Factory struct {
 	TimetableCleanup          timetable.TimetableCleanup
 	TimeTrackingCleanup       timetracking.TimeTrackingCleanupService
 	StudentChangeLogCleanup   users.StudentChangeLogCleanupService
-	Instance                  timetableplanning.InstanceService
-	AutoStart                 timetableplanning.AutoStartService
-	AutoEnd                   timetableplanning.AutoEndService
+	Instance                  timetable.InstanceLifecycleCapability
+	AutoStart                 timetable.InstanceAutoStart
+	AutoEnd                   timetable.InstanceAutoEnd
 	TimetableOperations       timetable.OperationCapability
 	Users                     users.PersonService
 	Birthdays                 users.BirthdayService
@@ -255,7 +254,7 @@ type Factory struct {
 	OGSGroupLive            grouplive.Query
 	SupervisionDashboard    supervisiondashboard.Query
 	TimetableData           TimetablePlanning
-	InstanceSeriesConverter timetableplanning.InstanceSeriesConverter
+	InstanceSeriesConverter timetable.InstanceSeriesConversion
 	OperatorMFA             identityaccess.OperatorMFAFlows
 	OperatorPasskey         identityaccess.OperatorPasskeyFlows
 	UnregisteredTagScans    auditService.UnregisteredTagScanService
@@ -1288,23 +1287,24 @@ func newFactory(
 
 	// The Dienstplan side of Workforce (#3418): shifts, series, shift types,
 	// the self-service assignments ("Mein Tag", #1844) and the week overview,
-	// composed by the owner over its native rows. The timetable, room, staff
-	// and work-time facts arrive through the retained owner repositories; the
-	// shift_moved Änderungsprotokoll entry (#1884) and the SSE invalidation
-	// are bound here as well.
+	// composed by the owner over its native rows. The calendar period comes
+	// from the School Calendar; the timetable blocks, their staffing and the
+	// Angebote arrive in the Timetable owner's public vocabulary over the
+	// retained repositories (#3424); the shift_moved Änderungsprotokoll entry
+	// (#1884) and the SSE invalidation are bound here as well.
 	shiftPlanning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
 		Workforce:       workTime,
 		Staff:           repos.Staff,
-		CalendarPeriods: repos.CalendarPeriod,
+		CalendarPeriods: calendar,
 		DeviationEvents: repos.DeviationEvent,
-		Instances:       repos.ActivityInstance,
-		InstanceStaff:   repos.InstanceStaff,
+		Instances:       repositories.NewTimetableInstanceReads(repos.ActivityInstance),
+		InstanceStaff:   repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 		Rooms:           repos.Room,
-		ActivityGroups:  repos.ActivityGroup,
+		ActivityGroups:  repositories.NewTimetableGroupReads(repos.ActivityGroup),
 		WorkSchedules:   repos.StaffWorkSchedule,
 		WorkModels:      repos.WorkTimeModel,
 		Holidays:        nonWorkingDayService,
-		CategoryLinker:  activitiesService.SetCategoryShiftTypeLinks,
+		CategoryLinker:  repositories.ShiftTypeCategoryLinker(activitiesService.SetCategoryShiftTypeLinks),
 		DB:              db,
 		Broadcaster:     realtimeHub,
 		Logger:          logger.With("service", "shift_planning"),
@@ -1315,9 +1315,9 @@ func newFactory(
 	}
 	// The retained-row readers the Timetable coverage probe, the staff
 	// calendar feed and the plan export still speak, served over the same
-	// facade (#3418).
-	shiftRows := workforceCompose.NewShiftRows(workTime)
-	shiftTypeRows := workforceCompose.NewShiftTypeRows(workTime)
+	// facade by the legacy row adapters (#3418, #3424).
+	shiftRows := repositories.NewWorkforceShiftRows(workTime)
+	shiftTypeRows := repositories.NewWorkforceShiftTypeRows(workTime)
 
 	// Couples pulled-forward day pickup times with the per-block partial
 	// absences (#2360). Shared by the staff pickup-exception writers and the
@@ -1429,43 +1429,40 @@ func newFactory(
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable substitute conflicts: %w", err)
 	}
-	instanceService := timetableplanning.NewInstanceService(timetableplanning.InstanceServiceDependencies{
-		StartConflicts:      timetableConflicts,
-		SubstituteConflicts: substituteConflicts,
+	instanceService, err := newTimetableLifecycle(timetableLifecycleInputs{
+		Rows: timetableRows,
+		Planning: arrivalTimetable.InstanceLifecycleDependencies{
+			IdempotencyRepo: repos.InstanceIdempotency, ExceptionRepo: repos.ActivityException, CalendarPeriodRepo: repos.CalendarPeriod,
+		},
+		Staff:               repos.Staff,
+		Sessions:            repos.ActiveGroup,
+		Supervisions:        repos.GroupSupervisor,
 		Presence:            newStudentPresence(db, logger),
+		SessionEnder:        activeService,
+		CareDays:            careDayService,
+		CareDayLocks:        repos.CarePlan(),
 		GuardianNotices:     lateCareCancellationPublisher{resolve: func() communication.CareCancellationPublisher { return guardianNoticePublisher }},
-		CareDayService:      timetableplanning.NewInstanceCareDays(careDayService, repos.CarePlan()),
-		InstanceRepo:        repos.ActivityInstance,
-		IdempotencyRepo:     repos.InstanceIdempotency,
-		InstanceStaffRepo:   repos.InstanceStaff,
-		InstanceStudents:    repos.InstanceStudent,
-		ExceptionRepo:       repos.ActivityException,
-		ActiveGroupRepo:     repos.ActiveGroup,
-		SupervisorRepo:      repos.GroupSupervisor,
-		RoomRepo:            repos.Room,
-		ActivityGroupRepo:   repos.ActivityGroup,
-		StaffRepo:           repos.Staff,
-		StudentRepo:         repos.Student,
-		CalendarPeriodRepo:  repos.CalendarPeriod,
-		ActiveService:       activeService,
+		Settings:            settingsService,
 		Materialization:     materializationService,
 		RecurrenceLock:      recurrenceLock,
-		DeviationEventRepo:  repos.DeviationEvent,
+		StartConflicts:      timetableConflicts,
+		SubstituteConflicts: substituteConflicts,
 		Broadcaster:         realtimeHub,
 		DB:                  db,
 		Logger:              logger.With("service", "instance-lifecycle"),
-		Settings:            settingsService,
-		RecoveryRepo:        recoveryRepo,
 		Now:                 now,
 		// Development and test seed profiles create completed instances at the
 		// current clock time. Lifecycle policy remains covered by dedicated tests.
 		EnforceTimePolicy: enforceInstanceTimePolicy(cfg.AppEnv),
 	})
+	if err != nil {
+		return nil, fmt.Errorf("compose timetable instance lifecycle: %w", err)
+	}
 	// The Timetable owner's deviation writes (Vertretungsplan, #3424 slice S3)
 	// hand the cancel branch and the understaffed acknowledgement to the
-	// retained lifecycle.
+	// lifecycle.
 	staffDeviations, err := newTimetableStaffDeviations(timetableDeviationInputs{
-		Rows: timetableRows, Staff: repos.Staff, Supervisions: repos.GroupSupervisor, Lifecycle: instanceService,
+		Rows: timetableRows, Staff: repos.Staff, Supervisions: repos.GroupSupervisor, Lifecycle: instanceService.DeviationLifecycle(),
 		Broadcaster: realtimeHub, DB: db, Logger: logger.With("service", "timetable-deviations"), Now: now,
 	})
 	if err != nil {
@@ -1512,15 +1509,12 @@ func newFactory(
 		logger.With("service", "student-change-log-cleanup"),
 	)
 
-	autoStartService := timetableplanning.NewAutoStartService(timetableplanning.AutoStartDependencies{
-		InstanceRepo:      repos.ActivityInstance,
-		InstanceStaffRepo: repos.InstanceStaff,
-		InstanceService:   instanceService,
-		RoomRepo:          repos.Room,
-		Conflicts:         timetableConflicts,
-		Logger:            logger.With("service", "timetable-auto-start"),
-	})
-	autoEndService := timetableplanning.NewAutoEndService(repos.ActivityInstance, instanceService)
+	autoStartService, autoEndService, err := newTimetableLifecycleSchedulers(
+		timetableRows, instanceService, timetableConflicts, logger.With("service", "timetable-auto-start"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("compose timetable auto start and end: %w", err)
+	}
 
 	classExceptions, err := NewClassArrivalExceptions(classArrivalQueries, persons)
 	if err != nil {
@@ -1544,7 +1538,7 @@ func newFactory(
 		CareDays:       careDayService,
 		Arrivals:       arrivalScheduleService,
 		Pickups:        pickupScheduleService,
-		Lifecycle:      instanceService,
+		Lifecycle:      instanceService.OperationLifecycle(),
 		Broadcaster:    realtimeHub,
 		Logger:         logger.With("service", "timetable-operations"),
 		Now:            now,
@@ -1787,8 +1781,9 @@ func newFactory(
 	// Timetable line: the shift-plan-sync workflow serves the substitution
 	// module's schedule port (#3418).
 	scheduleSubstitution, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
-		Deviations: staffDeviations, ActivityInstances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
-		Staff: repos.Staff, Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
+		Deviations: staffDeviations, Staff: repos.Staff, Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
+		ActivityInstances: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
+		InstanceStaff:     repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 	})
 	if err != nil {
 		return nil, err
@@ -2725,7 +2720,7 @@ func newFactory(
 		Settings:          settingsService,
 		Pickups:           pickupScheduleService,
 		Arrivals:          arrivalScheduleService,
-		Instances:         instanceService,
+		PlannedStudentIDs: instanceService.GetPlannedStudentIDsByDate,
 		CareDays:          careDayService,
 		CareParticipation: careLifecycleService,
 		ExcusedRequests:   excusedRequestService,
@@ -2778,7 +2773,7 @@ func newFactory(
 		Rows:                 timetableTemplateRows,
 		PlanningTracks:       planningTrackService,
 		Materialization:      materializationService,
-		Instances:            instanceService,
+		Deviations:           instanceService.SeriesDeviations(),
 		CareOfferings:        careOfferingSeriesValidator,
 		ResyncOfferingRoster: offeringRosterResyncer.ResyncTemplateOfferingRoster,
 		RecurrenceLock:       recurrenceLock,
@@ -2790,13 +2785,16 @@ func newFactory(
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable templates: %w", err)
 	}
-	instanceSeriesConverter := timetableplanning.NewInstanceSeriesConversionService(timetableplanning.InstanceSeriesConversionDependencies{
-		DB:              db,
-		InstanceRepo:    repos.ActivityInstance,
-		InstanceService: instanceService,
-		Templates:       timetableTemplates,
-		RecurrenceLock:  recurrenceLock,
+	instanceSeriesConverter, err := arrivalTimetable.NewInstanceSeriesConversion(arrivalTimetable.InstanceSeriesConversionDependencies{
+		DB:             db,
+		InstanceRepo:   repos.ActivityInstance,
+		Lifecycle:      instanceService,
+		Templates:      timetableTemplates,
+		RecurrenceLock: recurrenceLock,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("compose timetable series conversion: %w", err)
+	}
 	attendanceCorrections, err := newTimetableAttendanceCorrections(timetableCorrectionInputs{
 		Rows:   timetableRows,
 		Trail:  repositories.NewAttendanceCorrectionRepository(auditReadRuntime),
@@ -3047,7 +3045,7 @@ func newFactory(
 		LockStaffShifts: workforceCompose.NewStaffShiftLock(db),
 		Deviations:      timetablePlanning.Deviations,
 		TimetableData:   NewSickCascadeTimetableRows(timetableRows, db),
-		InstanceStaff:   repos.InstanceStaff,
+		InstanceStaff:   repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 		Broadcaster:     factory.RealtimeHub,
 		Logger:          logger.With("service", "shift_plan_sync"),
 		Today:           today,

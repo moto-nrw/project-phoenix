@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
@@ -23,18 +22,18 @@ import (
 // attendance mirror (#3424 slice S3), bound to the collaborators the owner
 // may not name: the Audit Platform's protocol and correction trail
 // (repositories.TimetableDeviationProtocol and
-// repositories.TimetableAttendanceCorrectionTrail), the retained instance
-// lifecycle, the realtime hub and Student Presence's attendance syncer port.
+// repositories.TimetableAttendanceCorrectionTrail), the realtime hub and
+// Student Presence's attendance syncer port.
 
 // timetableDeviationInputs compose the deviation writes over the retained
 // rows (Instances, InstanceStaff and the Audit Platform's DeviationEvents).
-// Lifecycle is the retained instance lifecycle the cancel branch and the
+// Lifecycle is the instance lifecycle the cancel branch and the
 // "deliberately unstaffed" acknowledgement hand over to.
 type timetableDeviationInputs struct {
 	Rows         repositories.TimetableOwnerRows
 	Staff        usersModels.StaffRepository
 	Supervisions studentpresence.SupervisionRecords
-	Lifecycle    timetableplanning.InstanceService
+	Lifecycle    timetableCompose.DeviationLifecycle
 	Broadcaster  realtime.Broadcaster
 	DB           *bun.DB
 	Logger       *slog.Logger
@@ -50,7 +49,7 @@ func newTimetableStaffDeviations(in timetableDeviationInputs) (timetable.StaffDe
 		InstanceStaff:   in.Rows.InstanceStaff,
 		Staff:           in.Staff,
 		Supervisions:    in.Supervisions,
-		Lifecycle:       timetableDeviationLifecycle{instances: in.Lifecycle},
+		Lifecycle:       in.Lifecycle,
 		Protocol:        repositories.TimetableDeviationProtocol(in.Rows.DeviationEvents),
 		ActivityUpdates: timetableActivityUpdates{broadcaster: in.Broadcaster},
 		DB:              in.DB,
@@ -60,7 +59,7 @@ func newTimetableStaffDeviations(in timetableDeviationInputs) (timetable.StaffDe
 }
 
 // newTimetableSubstituteConflicts composes the substitute time-overlap
-// advisories the retained staff move asks the owner for.
+// advisories the instance lifecycle's staff move asks for.
 func newTimetableSubstituteConflicts(rows repositories.TimetableOwnerRows) (timetable.SubstituteConflictQuery, error) {
 	return timetableCompose.NewSubstituteConflicts(timetableCompose.SubstituteConflictDependencies{
 		Instances: rows.Instances, InstanceStaff: rows.InstanceStaff,
@@ -176,33 +175,6 @@ func (m presenceAttendanceMirror) MirrorCheckOutForVisits(ctx context.Context, v
 		}
 	}
 	return m.mirror.MirrorCheckOutForVisits(ctx, mapped, at)
-}
-
-// timetableDeviationLifecycle serves the deviation writes' lifecycle port from
-// the retained instance lifecycle; its errors pass through unchanged.
-type timetableDeviationLifecycle struct {
-	instances timetableplanning.InstanceService
-}
-
-func (l timetableDeviationLifecycle) CancelBlock(ctx context.Context, in timetableCompose.DeviationCancellation) (timetableCompose.CancelledBlock, error) {
-	cancelled, err := l.instances.CancelWithNotice(ctx, timetableplanning.CancelInstanceInput{
-		InstanceID: in.InstanceID, Reason: in.Reason, ActorAccountID: in.ActorAccountID, GuardianNotice: in.GuardianNotice,
-	})
-	if err != nil {
-		return timetableCompose.CancelledBlock{}, err
-	}
-	return timetableCompose.CancelledBlock{
-		InstanceID: cancelled.Instance.ID, UnderstaffedAck: cancelled.Instance.UnderstaffedAck, GuardianNotice: cancelled.GuardianNotice,
-	}, nil
-}
-
-func (l timetableDeviationLifecycle) SetUnderstaffedAck(ctx context.Context, instanceID int64, ack bool, note *string, actorAccountID *int64) error {
-	_, err := l.instances.SetUnderstaffedAck(ctx, instanceID, ack, note, actorAccountID)
-	return err
-}
-
-func (l timetableDeviationLifecycle) ClearUnderstaffedAckIfStaffed(ctx context.Context, instanceID int64, actorAccountID *int64) error {
-	return l.instances.ClearUnderstaffedAckIfStaffed(ctx, instanceID, actorAccountID)
 }
 
 // timetableActivityUpdates delivers the owner's activity updates through the

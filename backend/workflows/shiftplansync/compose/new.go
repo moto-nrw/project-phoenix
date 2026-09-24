@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -27,6 +26,18 @@ import (
 // cascade reads through; the composition root binds them.
 type TimetableRows = application.TimetableRows
 
+// SickStamps are the sick-report provenance stamps on block assignments the
+// cascade lists and releases; the composition root binds them.
+type SickStamps = application.SickStamps
+
+// ScheduleInstances and ScheduleInstanceStaff are the appointment and
+// assignment reads of a Terminvertretung, in the Timetable owner's public
+// vocabulary; the composition root binds them.
+type (
+	ScheduleInstances     = application.ScheduleInstances
+	ScheduleInstanceStaff = application.ScheduleInstanceStaff
+)
+
 type SickCascadeDependencies struct {
 	// Planning is the shift write that rebuilds a cancelled shift's cover set
 	// atomically; Workforce serves the rows and the provenance stamp.
@@ -38,7 +49,7 @@ type SickCascadeDependencies struct {
 	// (timetable.StaffDeviations satisfies them).
 	Deviations    application.SickDeviations
 	TimetableData TimetableRows
-	InstanceStaff scheduleModels.InstanceStaffRepository
+	InstanceStaff SickStamps
 
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger
@@ -84,8 +95,8 @@ type SubstitutionDependencies struct {
 	// (timetable.StaffDeviations); ActivityInstances, InstanceStaff and Staff
 	// serve the overview the planner reads.
 	Deviations        application.ScheduleDeviations
-	ActivityInstances scheduleModels.ActivityInstanceRepository
-	InstanceStaff     scheduleModels.InstanceStaffRepository
+	ActivityInstances ScheduleInstances
+	InstanceStaff     ScheduleInstanceStaff
 	Staff             usersModels.StaffRepository
 
 	Broadcaster realtime.Broadcaster

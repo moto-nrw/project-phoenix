@@ -14,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -43,7 +42,7 @@ func validateWeekdayAssignments(assignments []weekdayAssignmentRequest, weekdays
 	}
 	seen := make(map[int]struct{}, len(assignments))
 	for _, assignment := range assignments {
-		if !activitiesModel.IsValidWeekday(assignment.Weekday) {
+		if !timetable.IsValidWeekday(assignment.Weekday) {
 			return fmt.Errorf("invalid weekday %d in weekday_assignments (must be 1=Mon … 7=Sun)", assignment.Weekday)
 		}
 		if _, ok := scheduled[assignment.Weekday]; !ok {
@@ -114,7 +113,7 @@ func buildTemplateWeekdayAssignments(
 	byTemplate := make(map[int64][]templateWeekdayAssignmentResponse)
 	index := make(map[int64]map[int]int)
 	for _, row := range rows {
-		if row.Kind == activitiesModel.TemplateWeekdayRosterKindProtectedStudent {
+		if row.Kind == timetable.TemplateWeekdayRosterKindProtectedStudent {
 			continue
 		}
 		perWeekday, ok := index[row.TemplateID]
@@ -134,15 +133,15 @@ func buildTemplateWeekdayAssignments(
 		}
 		entry := &byTemplate[row.TemplateID][position]
 		switch row.Kind {
-		case activitiesModel.TemplateWeekdayRosterKindEmpty:
+		case timetable.TemplateWeekdayRosterKindEmpty:
 			// The entry itself is the payload: no person belongs to this day.
-		case activitiesModel.TemplateWeekdayRosterKindStaff:
+		case timetable.TemplateWeekdayRosterKindStaff:
 			entry.StaffIDs = append(entry.StaffIDs, row.PersonID)
 			if row.IsPrimary && entry.PrimaryStaffID == nil {
 				staffID := row.PersonID
 				entry.PrimaryStaffID = &staffID
 			}
-		case activitiesModel.TemplateWeekdayRosterKindStudent:
+		case timetable.TemplateWeekdayRosterKindStudent:
 			entry.StudentIDs = append(entry.StudentIDs, row.PersonID)
 		}
 	}
@@ -155,7 +154,7 @@ func buildTemplateProtectedStudentAssignments(
 	byTemplate := make(map[int64][]templateProtectedStudentAssignmentResponse)
 	index := make(map[int64]map[int]int)
 	for _, row := range rows {
-		if row.Kind != activitiesModel.TemplateWeekdayRosterKindProtectedStudent {
+		if row.Kind != timetable.TemplateWeekdayRosterKindProtectedStudent {
 			continue
 		}
 		perWeekday, ok := index[row.TemplateID]

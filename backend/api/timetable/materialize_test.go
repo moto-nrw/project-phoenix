@@ -12,8 +12,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,13 +28,13 @@ import (
 type mockMaterializer struct {
 	result   *timetableModule.MaterializationResult
 	err      error
-	lastFrom timezone.Date
-	lastTo   timezone.Date
+	lastFrom calendar.Date
+	lastTo   calendar.Date
 	lastSrc  timetableModule.MaterializationSource
 	called   int
 }
 
-func (m *mockMaterializer) MaterializeForTenant(_ context.Context, from, to timezone.Date, source timetableModule.MaterializationSource) (*timetableModule.MaterializationResult, error) {
+func (m *mockMaterializer) MaterializeForTenant(_ context.Context, from, to calendar.Date, source timetableModule.MaterializationSource) (*timetableModule.MaterializationResult, error) {
 	m.called++
 	m.lastFrom = from
 	m.lastTo = to
@@ -50,7 +50,7 @@ func (m *mockMaterializer) MaterializeForTenant(_ context.Context, from, to time
 	return &timetableModule.MaterializationResult{From: from, To: to}, nil
 }
 
-func (m *mockMaterializer) ResolveWindow(baseDate timezone.Date, weeksAhead int) (timezone.Date, timezone.Date) {
+func (m *mockMaterializer) ResolveWindow(baseDate calendar.Date, weeksAhead int) (calendar.Date, calendar.Date) {
 	// Not used by the handler; provide a sensible default so any accidental
 	// caller still gets a non-zero window.
 	if weeksAhead < 1 {
@@ -59,7 +59,7 @@ func (m *mockMaterializer) ResolveWindow(baseDate timezone.Date, weeksAhead int)
 	return baseDate, baseDate.AddDays(weeksAhead*7 - 1)
 }
 
-func (m *mockMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _ timezone.Date, _ bool) ([]timetableModule.EditedOccurrence, error) {
+func (m *mockMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _ calendar.Date, _ bool) ([]timetableModule.EditedOccurrence, error) {
 	return nil, nil
 }
 

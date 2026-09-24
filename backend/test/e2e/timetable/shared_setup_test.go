@@ -82,7 +82,7 @@ func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *sce
 		ConflictDetection:      factory.TimetableData.ConflictDetection,
 		UserContextService:     factory.UserContext,
 		SettingsService:        factory.Settings,
-		Broadcaster:            factory.RealtimeHub,
+		Staffing:               factory.Instance,
 		Logger:                 slog.Default(), DB: db,
 	})
 	s := &scenario{

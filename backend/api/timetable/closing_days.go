@@ -9,8 +9,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ClosingDayRequest represents a create/update request for a closing day
@@ -64,23 +64,23 @@ func mapClosingDayToResponse(d schoolcalendar.ClosingDay) ClosingDayResponse {
 // Returns parsed calendar dates and true on success, or renders an error and
 // returns false. A single closed day is a range with start_date = end_date,
 // hence Before (not !After) in the order check.
-func parseClosingDayDates(w http.ResponseWriter, r *http.Request, req *ClosingDayRequest) (startDate, endDate timezone.Date, ok bool) {
+func parseClosingDayDates(w http.ResponseWriter, r *http.Request, req *ClosingDayRequest) (startDate, endDate calendar.Date, ok bool) {
 	var err error
-	startDate, err = timezone.ParseDate(req.StartDate)
+	startDate, err = calendar.ParseDate(req.StartDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid start_date format, expected YYYY-MM-DD")))
-		return timezone.Date(""), timezone.Date(""), false
+		return calendar.Date(""), calendar.Date(""), false
 	}
 
-	endDate, err = timezone.ParseDate(req.EndDate)
+	endDate, err = calendar.ParseDate(req.EndDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid end_date format, expected YYYY-MM-DD")))
-		return timezone.Date(""), timezone.Date(""), false
+		return calendar.Date(""), calendar.Date(""), false
 	}
 
 	if endDate.Before(startDate) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("end_date must not be before start_date")))
-		return timezone.Date(""), timezone.Date(""), false
+		return calendar.Date(""), calendar.Date(""), false
 	}
 
 	return startDate, endDate, true

@@ -21,8 +21,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // DeviationHistoryEvent is one protocol row in the response.
@@ -52,7 +52,7 @@ type DeviationHistoryResponse struct {
 
 // deviationHistoryQuery is the parsed filter set of GET /deviations/history.
 type deviationHistoryQuery struct {
-	from, to        timezone.Date
+	from, to        calendar.Date
 	activityGroupID *int64
 	startTime       *string
 }

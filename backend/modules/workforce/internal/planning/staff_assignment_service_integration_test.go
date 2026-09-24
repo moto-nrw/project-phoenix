@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,7 +44,7 @@ func TestStaffAssignmentServiceListForStaff(t *testing.T) {
 		StartHHMM: "14:00",
 		EndHHMM:   "15:00",
 		Title:     "Fußball-AG",
-		Status:    scheduleModel.InstanceStatusCancelled,
+		Status:    timetable.InstanceStatusCancelled,
 	})
 
 	testpkg.CreateTestInstanceStaff(t, db, lernzeit.ID, staff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
@@ -54,10 +54,10 @@ func TestStaffAssignmentServiceListForStaff(t *testing.T) {
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := planning.NewStaffAssignmentService(planning.StaffAssignmentDependencies{
-		InstanceStaffRepo:    repos.InstanceStaff,
-		ActivityInstanceRepo: repos.ActivityInstance,
+		InstanceStaffRepo:    repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
+		ActivityInstanceRepo: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
 		RoomRepo:             repos.Room,
-		ActivityGroupRepo:    repos.ActivityGroup,
+		ActivityGroupRepo:    repositories.NewTimetableGroupReads(repos.ActivityGroup),
 	}, nil)
 	ctx := testpkg.TenantContext(tenantID)
 

@@ -23,7 +23,7 @@ import (
 
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -92,9 +92,9 @@ func loadTrail(t *testing.T, s *patchSetup) []*auditModel.AttendanceCorrection {
 	return rows
 }
 
-func loadRow(t *testing.T, s *patchSetup) *schedule.InstanceStudent {
+func loadRow(t *testing.T, s *patchSetup) *timetable.ScheduledParticipant {
 	t.Helper()
-	row, err := s.repo.FindByInstanceAndStudent(s.ctx, s.instanceID, s.studentID)
+	row, err := s.data.FindBlockParticipant(s.ctx, s.instanceID, s.studentID)
 	require.NoError(t, err)
 	require.NotNil(t, row)
 	return row
@@ -104,7 +104,7 @@ func TestCorrectAttendance_CompletedInstance_WritesRowAndTrail(t *testing.T) {
 	t.Parallel()
 
 	s := buildPatchSetup(t)
-	completeInstance(t, s, schedule.InstanceStatusCompleted)
+	completeInstance(t, s, timetable.InstanceStatusCompleted)
 	router := correctionRouter(testpkg.Ctx(t), s.res)
 
 	w := doJSON(t, router, http.MethodPost, correctionPath(s), map[string]any{
@@ -115,7 +115,7 @@ func TestCorrectAttendance_CompletedInstance_WritesRowAndTrail(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
 
 	row := loadRow(t, s)
-	assert.Equal(t, schedule.AttendanceStatusAbsent, row.Status)
+	assert.Equal(t, timetable.SlotAttendanceAbsent, row.Status)
 	require.NotNil(t, row.Note)
 	assert.Equal(t, "war doch nicht da", *row.Note)
 
@@ -131,9 +131,9 @@ func TestCorrectAttendance_CompletedInstance_WritesRowAndTrail(t *testing.T) {
 	statusEntry := byField[auditModel.AttendanceFieldStatus]
 	require.NotNil(t, statusEntry)
 	require.NotNil(t, statusEntry.OldValue)
-	assert.Equal(t, schedule.AttendanceStatusPresent, *statusEntry.OldValue, "the before value must be preserved")
+	assert.Equal(t, timetable.SlotAttendancePresent, *statusEntry.OldValue, "the before value must be preserved")
 	require.NotNil(t, statusEntry.NewValue)
-	assert.Equal(t, schedule.AttendanceStatusAbsent, *statusEntry.NewValue)
+	assert.Equal(t, timetable.SlotAttendanceAbsent, *statusEntry.NewValue)
 
 	noteEntry := byField[auditModel.AttendanceFieldNote]
 	require.NotNil(t, noteEntry)
@@ -152,17 +152,17 @@ func TestCorrectAttendance_NoteOnlyPreservesAttendanceProvenance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	_, err := db.NewUpdate().
 		TableExpr("schedule.instance_students").
-		Set("status = ?", schedule.AttendanceStatusExpected).
+		Set("status = ?", timetable.SlotAttendanceExpected).
 		Set("not_scheduled = TRUE").
 		Set("manual_status_at = NULL").
-		Where("id = ?", s.row.ID).
+		Where("id = ?", s.rowID).
 		Exec(s.ctx)
 	require.NoError(t, err)
-	completeInstance(t, s, schedule.InstanceStatusCompleted)
+	completeInstance(t, s, timetable.InstanceStatusCompleted)
 	router := correctionRouter(testpkg.Ctx(t), s.res)
 
 	w := doJSON(t, router, http.MethodPost, correctionPath(s), map[string]any{
-		"status":    schedule.AttendanceStatusExpected,
+		"status":    timetable.SlotAttendanceExpected,
 		"substatus": nil,
 		"note":      "nachgetragen",
 		"reason":    "Nachtrag aus dem Papierprotokoll",
@@ -190,7 +190,7 @@ func TestCorrectAttendance_LeavesCompletionSnapshotUntouched(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	_, err := db.NewUpdate().
 		TableExpr("schedule.activity_instances").
-		Set("status = ?", schedule.InstanceStatusCompleted).
+		Set("status = ?", timetable.InstanceStatusCompleted).
 		Set("completion_snapshot = ?::jsonb", snapshot).
 		Where("id = ?", s.instanceID).
 		Exec(s.ctx)
@@ -223,7 +223,7 @@ func TestCorrectAttendance_RejectsMissingReason(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			s := buildPatchSetup(t)
-			completeInstance(t, s, schedule.InstanceStatusCompleted)
+			completeInstance(t, s, timetable.InstanceStatusCompleted)
 			router := correctionRouter(testpkg.Ctx(t), s.res)
 
 			body := map[string]any{"note": "ohne Grund"}
@@ -244,7 +244,7 @@ func TestCorrectAttendance_RejectsOverlongReason(t *testing.T) {
 	t.Parallel()
 
 	s := buildPatchSetup(t)
-	completeInstance(t, s, schedule.InstanceStatusCompleted)
+	completeInstance(t, s, timetable.InstanceStatusCompleted)
 	router := correctionRouter(testpkg.Ctx(t), s.res)
 
 	long := make([]rune, auditModel.CorrectionReasonMaxLength+1)
@@ -283,7 +283,7 @@ func TestCorrectAttendance_RejectsCancelledInstance(t *testing.T) {
 	t.Parallel()
 
 	s := buildPatchSetup(t)
-	completeInstance(t, s, schedule.InstanceStatusCancelled)
+	completeInstance(t, s, timetable.InstanceStatusCancelled)
 	router := correctionRouter(testpkg.Ctx(t), s.res)
 
 	w := doJSON(t, router, http.MethodPost, correctionPath(s), map[string]any{
@@ -299,7 +299,7 @@ func TestCorrectAttendance_UnknownStudentIs404(t *testing.T) {
 	t.Parallel()
 
 	s := buildPatchSetup(t)
-	completeInstance(t, s, schedule.InstanceStatusCompleted)
+	completeInstance(t, s, timetable.InstanceStatusCompleted)
 	router := correctionRouter(testpkg.Ctx(t), s.res)
 
 	other := testpkg.CreateTestStudent(t, testpkg.SetupTestDB(t), "C-Stu", "Unrelated", "4b")
@@ -315,11 +315,11 @@ func TestCorrectAttendance_NoOpWritesNoTrail(t *testing.T) {
 	t.Parallel()
 
 	s := buildPatchSetup(t)
-	completeInstance(t, s, schedule.InstanceStatusCompleted)
+	completeInstance(t, s, timetable.InstanceStatusCompleted)
 	router := correctionRouter(testpkg.Ctx(t), s.res)
 
 	w := doJSON(t, router, http.MethodPost, correctionPath(s), map[string]any{
-		"status": schedule.AttendanceStatusPresent, // already the current value
+		"status": timetable.SlotAttendancePresent, // already the current value
 		"reason": "versehentlich abgeschickt",
 	})
 	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
@@ -333,7 +333,7 @@ func TestCorrectAttendance_PatchRouteStaysFrozenAfterCompletion(t *testing.T) {
 	t.Parallel()
 
 	s := buildPatchSetup(t)
-	completeInstance(t, s, schedule.InstanceStatusCompleted)
+	completeInstance(t, s, timetable.InstanceStatusCompleted)
 	router := correctionRouter(testpkg.Ctx(t), s.res)
 
 	w := doJSON(t, router, http.MethodPatch,
@@ -350,7 +350,7 @@ func TestGetAttendanceCorrections_ReturnsTrailNewestFirst(t *testing.T) {
 	t.Parallel()
 
 	s := buildPatchSetup(t)
-	completeInstance(t, s, schedule.InstanceStatusCompleted)
+	completeInstance(t, s, timetable.InstanceStatusCompleted)
 	router := correctionRouter(testpkg.Ctx(t), s.res)
 
 	first := doJSON(t, router, http.MethodPost, correctionPath(s), map[string]any{
