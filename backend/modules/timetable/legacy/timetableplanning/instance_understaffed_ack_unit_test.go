@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -174,6 +175,6 @@ func TestIsUnderstaffed_SkipsNilRows(t *testing.T) {
 		nil,
 		{StaffID: 11, IsAbsent: false, IsSubstitute: false},
 	}
-	assert.False(t, IsUnderstaffed(rows))
-	assert.True(t, IsUnderstaffed([]*scheduleModel.InstanceStaff{nil}))
+	assert.False(t, timetable.IsUnderstaffed(staffingRows(rows)))
+	assert.True(t, timetable.IsUnderstaffed(staffingRows([]*scheduleModel.InstanceStaff{nil})))
 }

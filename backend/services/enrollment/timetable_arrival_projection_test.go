@@ -1,11 +1,15 @@
 package enrollment_test
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,6 +49,71 @@ func timetableDataWithArrivalBaseline(
 		Logger:                slog.Default(),
 		DB:                    env.db,
 	})
+}
+
+// exceptionConflictsWithArrivalBaseline composes the Timetable owner's
+// conflict detection over the same retained rows and the arrival projection
+// in booking mode (#2414, #3550). Only the readers the exception-conflict read
+// touches are real; the rest only have to exist.
+func exceptionConflictsWithArrivalBaseline(
+	t *testing.T,
+	env *decisionTestEnv,
+	authoritative bool,
+) timetable.ConflictDetectionCapability {
+	t.Helper()
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: env.db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	detection, err := arrivalTimetable.NewConflictDetection(arrivalTimetable.ConflictDetectionDependencies{
+		Instances:         timetablesqltest.NewActivityInstanceRepository(env.db),
+		InstanceStaff:     env.repos.InstanceStaff,
+		InstanceStudents:  env.repos.InstanceStudent,
+		Exceptions:        timetablesqltest.NewActivityExceptionRepository(env.db),
+		Schedules:         env.repos.ActivitySchedule,
+		Shifts:            unusedConflictShifts{},
+		Staff:             env.repos.Staff,
+		CalendarPeriods:   env.repos.CalendarPeriod,
+		ArrivalExceptions: env.repos.StudentArrivalException,
+		ArrivalBaselines:  arrivalBaselineProjector{reader: bookingModeArrivalBaseline(t, env, authoritative)},
+		Presence:          presence,
+		Sessions:          env.repos.ActiveGroup,
+		// Exception conflicts carry no fingerprint; the digest is never used.
+		ContentHash: func([]byte) string { return "" },
+		Logger:      slog.Default(),
+	})
+	require.NoError(t, err)
+	return detection
+}
+
+// unusedConflictShifts stands in for the Dienstplan rows the exception read
+// never touches.
+type unusedConflictShifts struct {
+	arrivalTimetable.ConflictShifts
+}
+
+// arrivalBaselineProjector serves the conflict detection's arrival port from
+// Care Plan's baseline projection, the way the composition root does.
+type arrivalBaselineProjector struct {
+	reader careplan.ArrivalBaselineReader
+}
+
+func (p arrivalBaselineProjector) ProjectArrivals(ctx context.Context, studentIDs []int64, from, to timezone.Date) (arrivalTimetable.ArrivalBaselines, error) {
+	projection, err := p.reader.Project(ctx, studentIDs, from, to)
+	if err != nil {
+		return nil, err
+	}
+	return arrivalBaselineProjection{projection: projection}, nil
+}
+
+type arrivalBaselineProjection struct {
+	projection *careplan.ArrivalBaselineProjection
+}
+
+func (p arrivalBaselineProjection) ExpectedArrival(studentID int64, date timezone.Date) (time.Time, bool) {
+	row := p.projection.ForDate(studentID, date)
+	if row == nil {
+		return time.Time{}, false
+	}
+	return row.ExpectedArrival, true
 }
 
 // TestTimetableRead_StudentWeekAppliesTheBookingMode closes the last read gap
@@ -143,10 +212,10 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 	require.NoError(t, exception.Validate())
 	require.NoError(t, timetablesqltest.NewActivityExceptionRepository(env.db).Create(ctx, exception))
 
-	conflicts, err := data.DetectExceptionConflicts(ctx, monday, monday, slog.Default())
+	conflicts, err := exceptionConflictsWithArrivalBaseline(t, env, true).DetectExceptionConflicts(ctx, monday, monday)
 	require.NoError(t, err)
 	require.Len(t, conflicts, 1)
-	assert.Equal(t, timetableplanning.SlotSourceSchedule, conflicts[0].ArrivalSource,
+	assert.Equal(t, timetable.SlotSourceSchedule, conflicts[0].ArrivalSource,
 		"a timeless care day remains scheduled even without an arrival time")
 	assert.Empty(t, conflicts[0].ExpectedArrival,
 		"a timeless care day must not render as 00:00 in a cancellation warning")
@@ -190,8 +259,8 @@ func TestTimetableRead_ExceptionConflictsApplyTheBookingMode(t *testing.T) {
 		createModifiedException(t, env, activity.ID, date, staff.ID, movedStart)
 	}
 
-	conflicts, err := timetableDataWithArrivalBaseline(t, env, true).
-		DetectExceptionConflicts(ctx, monday, thursday, slog.Default())
+	conflicts, err := exceptionConflictsWithArrivalBaseline(t, env, true).
+		DetectExceptionConflicts(ctx, monday, thursday)
 	require.NoError(t, err)
 
 	dates := make(map[string]bool, len(conflicts))

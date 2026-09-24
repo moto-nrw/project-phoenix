@@ -74,7 +74,7 @@ const moduleLegacyBudgetCheck = "legacy LOC budget"
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 43132
+const moduleLegacyBudgetTotal = 40375
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.
 // The comment on each entry names the ticket that is supposed to dissolve the
@@ -96,11 +96,11 @@ var moduleLegacyBudgets = map[string]int{
 	// request memo slot stayed in the session adapter (legacy/jwt).
 	"modules/identityaccess/legacy": 1363,
 	// No ticket today.
-	"modules/planexport/legacy": 359,
+	"modules/planexport/legacy": 337,
 	// No ticket today.
-	"modules/supervisiondashboard/legacy": 729,
+	"modules/supervisiondashboard/legacy": 722,
 	// No ticket today — and the largest tree of the twelve.
-	"modules/timetable/legacy": 23088,
+	"modules/timetable/legacy": 20360,
 	// No ticket today — grew from 15,402 LOC at creation to this.
 	"modules/workforce/legacy": 15944,
 	// No ticket today.

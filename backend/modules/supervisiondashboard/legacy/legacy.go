@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
@@ -475,18 +476,10 @@ func rosterRow(row timetableplanning.OperationRosterRow) supervisiondashboard.Ro
 	}
 }
 
-func conflictWarning(warning timetableplanning.InstanceConflictWarning) supervisiondashboard.ConflictWarning {
-	return supervisiondashboard.ConflictWarning{
-		Kind:                  warning.Kind,
-		ResourceID:            warning.ResourceID,
-		Message:               warning.Message,
-		CanOverride:           warning.CanOverride,
-		Fingerprint:           warning.Fingerprint,
-		ConflictingInstanceID: warning.ConflictingInstanceID,
-		ConflictingTitle:      warning.ConflictingTitle,
-		OverlapStart:          warning.OverlapStart,
-		OverlapEnd:            warning.OverlapEnd,
-	}
+// conflictWarning carries the Timetable owner's warning onto the page; the
+// two shapes are field for field the same wire contract.
+func conflictWarning(warning timetable.InstanceConflictWarning) supervisiondashboard.ConflictWarning {
+	return supervisiondashboard.ConflictWarning(warning)
 }
 
 type presence struct {

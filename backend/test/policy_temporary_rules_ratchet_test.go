@@ -72,7 +72,10 @@ import (
 // Calendar handover emptied; this prose counter remains as an independent
 // guard. #3421 converted the 27 `inbound-parent.*` permissions of the
 // guardian portal HTTP adapter into 29 exact `legacy.jsonl` entries under the
-// same issue, removing the family and lowering the totals by 27 each.
+// same issue, removing the family and lowering the totals by 27 each. Slice
+// S4 of #3424 (#3550) moved conflict detection and staffing to the Timetable
+// owner and retired the four grants it emptied, one of them a conversion
+// promise (document-rendering), lowering the totals to 95 and 153.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -122,12 +125,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 96
+	policyTempRulesTotal = 95
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 154
+	policyTempRulesCompatTotal = 153
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -156,7 +159,7 @@ var policyTempRulesFamilies = map[string]int{
 	"calendar-view": 2,
 
 	// #3218, #3219, #3220 — closed.
-	"document-rendering": 2,
+	"document-rendering": 1,
 
 	// #3214, #3218, #3220 — closed; #3427 removed the three #3350 (PR #3408)
 	// had added.
