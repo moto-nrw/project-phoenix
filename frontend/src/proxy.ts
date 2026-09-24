@@ -49,37 +49,62 @@ const TENANT_DOMAIN: string = (() => {
   return val;
 })();
 
-const POSTHOG_INGESTION_ORIGIN: string | null = (() => {
-  const configuredKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
-  const configuredHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
-  if (!configuredKey) return null;
-  if (!configuredHost) {
-    throw new Error(
-      "NEXT_PUBLIC_POSTHOG_HOST is required when NEXT_PUBLIC_POSTHOG_KEY is set.",
-    );
-  }
-
-  const url = new URL(configuredHost);
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error(
-      "NEXT_PUBLIC_POSTHOG_HOST must use the http or https protocol.",
-    );
-  }
-  return url.origin;
-})();
-
 // --- CSP Headers ---
 
+// PostHog runs behind the same-origin /ingest rewrite (next.config.js), so
+// the policy names no analytics host.
 const CSP_HEADER = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
-  `connect-src 'self'${POSTHOG_INGESTION_ORIGIN ? ` ${POSTHOG_INGESTION_ORIGIN}` : ""}`,
+  "connect-src 'self'",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
 ].join("; ");
+
+// --- PostHog reverse proxy (#3601) ---
+
+const POSTHOG_PROXY_PREFIX = "/ingest";
+const POSTHOG_INGESTION_ORIGIN = "https://eu.i.posthog.com";
+const POSTHOG_ASSETS_ORIGIN = "https://eu-assets.i.posthog.com";
+
+// An external rewrite forwards every request header unless the proxy names
+// the ones it keeps. Cookies carry the session tokens, Referer the raw URL
+// with IDs, X-Forwarded-For the client IP: none of them may reach PostHog.
+const POSTHOG_FORWARDED_HEADERS = [
+  "accept",
+  "accept-encoding",
+  "content-length",
+  "content-type",
+] as const;
+
+function isPostHogProxyPath(pathname: string): boolean {
+  return (
+    pathname === POSTHOG_PROXY_PREFIX ||
+    pathname.startsWith(`${POSTHOG_PROXY_PREFIX}/`)
+  );
+}
+
+function proxyPostHog(request: NextRequest): NextResponse {
+  const path =
+    request.nextUrl.pathname.slice(POSTHOG_PROXY_PREFIX.length) || "/";
+  const origin = /^\/(static|array)\//.test(path)
+    ? POSTHOG_ASSETS_ORIGIN
+    : POSTHOG_INGESTION_ORIGIN;
+  const target = new URL(`${origin}${path}${request.nextUrl.search}`);
+  if (target.origin !== origin) {
+    return new NextResponse(null, { status: 404 });
+  }
+
+  const headers = new Headers();
+  for (const name of POSTHOG_FORWARDED_HEADERS) {
+    const value = request.headers.get(name);
+    if (value !== null) headers.set(name, value);
+  }
+  return NextResponse.rewrite(target, { request: { headers } });
+}
 
 const ORIGINAL_HOST_HEADER = "X-Moto-Original-Host";
 const ORIGINAL_PROTO_HEADER = "X-Moto-Original-Proto";
@@ -661,6 +686,33 @@ function redirectLegacySelection(request: NextRequest): NextResponse | null {
 // --- Main proxy ---
 
 export function proxy(request: NextRequest): NextResponse {
+  const { pathname } = request.nextUrl;
+
+  if (isPostHogProxyPath(pathname)) {
+    return proxyPostHog(request);
+  }
+
+  const response = routeRequest(request);
+
+  // next.config.js sets skipTrailingSlashRedirect so the PostHog proxy
+  // keeps the trailing slash its endpoints need (/ingest/e/). A path the
+  // routing would serve as it is keeps the Next.js default and loses its
+  // trailing slash; routing redirects such as old bookmarks win. Relative
+  // Location: the browser resolves it against the host it asked.
+  const servedAsIs =
+    !pathname.startsWith("/_next") &&
+    (response.headers.has("x-middleware-next") ||
+      response.headers.has("x-middleware-rewrite"));
+  if (servedAsIs && pathname.length > 1 && pathname.endsWith("/")) {
+    const target = `${pathname.replace(/\/+$/, "") || "/"}${request.nextUrl.search}`;
+    return withSecurityHeaders(
+      new NextResponse(null, { status: 308, headers: { Location: target } }),
+    );
+  }
+  return response;
+}
+
+function routeRequest(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
   // /_next/*: Next.js internals; skip entirely (static assets).
