@@ -120,3 +120,28 @@ func TestTemplateSplitRejectsSeriesEndDate(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
 	assert.Contains(t, w.Body.String(), "end_date is not supported on a split")
 }
+
+// The stored schedule rows arrive in weekday order, so a series whose
+// weekdays start on different days must still be bounded by its earliest
+// recurrence start — otherwise a valid last day between the two starts is
+// rejected (#3594).
+func TestUpdateSeriesFirstDayUsesEarliestValidFrom(t *testing.T) {
+	t.Parallel()
+
+	stored := templateResponse{Schedules: []templateScheduleResponse{
+		{Weekday: 1, ValidFrom: "2026-10-19"},
+		{Weekday: 3, ValidFrom: "2026-09-01"},
+	}}
+	assert.Equal(t, timezone.Date("2026-09-01"), updateSeriesFirstDay(nil, stored))
+
+	pulled := timezone.Date("2026-08-17")
+	assert.Equal(t, pulled, updateSeriesFirstDay(&pulled, stored),
+		"a pulled forward start stays the lower bound")
+
+	withPeriodStart := templateResponse{Schedules: []templateScheduleResponse{
+		{Weekday: 1, ValidFrom: "2026-10-19"},
+		{Weekday: 3},
+	}}
+	assert.True(t, updateSeriesFirstDay(nil, withPeriodStart).IsZero(),
+		"a row without valid_from starts with the planning period, so no split bounds the last day")
+}

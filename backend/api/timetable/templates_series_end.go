@@ -82,17 +82,26 @@ func seriesLastDayActivityDate(lastDay *timezone.Date) *activitiesModel.Date {
 
 // updateSeriesFirstDay is the lower bound for an edited last day: the pulled
 // forward start when the edit moves it, otherwise the stored series start
-// (zero when the series starts with its planning period).
+// (zero when the series starts with its planning period). The stored rows
+// arrive in weekday order, not by valid_from, so the earliest of them is the
+// series start; a later split day must not reject a valid last day. A row
+// without valid_from starts with the planning period and so precedes every
+// split — it leaves no lower bound beyond the period itself.
 func updateSeriesFirstDay(start *timezone.Date, stored templateResponse) timezone.Date {
 	if start != nil {
 		return *start
 	}
+	earliest := timezone.Date("")
 	for _, schedule := range stored.Schedules {
-		if schedule.ValidFrom != "" {
-			return timezone.Date(schedule.ValidFrom)
+		if schedule.ValidFrom == "" {
+			return timezone.Date("")
+		}
+		validFrom := timezone.Date(schedule.ValidFrom)
+		if earliest.IsZero() || validFrom.Before(earliest) {
+			earliest = validFrom
 		}
 	}
-	return timezone.Date("")
+	return earliest
 }
 
 // prepareTemplateUpdate checks the edit against the stored series and fills in
