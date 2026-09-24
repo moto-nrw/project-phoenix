@@ -26,11 +26,21 @@ commit. Terms: `CONTEXT.md`, section „Nutzungsanalyse"; spec #3598.
 | Core actions: writing route → backend event | `backend/analytics/core_actions.go` |
 | Backend tracker (batching, `deployment`, `$session_id`) | `backend/analytics/analytics.go` |
 | Browser session to the backend (`X-POSTHOG-SESSION-ID`) | `frontend/src/lib/analytics-session-header.server.ts` |
+| Analyse-Freigabe settings (`analytics.*`, operator-only) | `backend/services/config/defaults/analytics.go`; reaches the OGS portal through tenant resolve |
+| Pseudonymous user ID (same hash on both sides) | `frontend/src/lib/analytics-pseudonym.ts`, `backend/analytics/pseudonym.go` |
+| PostHog project settings, privacy text draft | `docs/operations/nutzungsanalyse.md` |
 
 The floor for real schools: route templates instead of URLs, the deployment
 instead of the real host (the OGS portal runs on `{slug}.TENANT_DOMAIN`), no
 element text, no person profile, no IP. A privacy rule belongs in
 `analytics-policy.ts` and its table test, never in a component.
+
+Session recording runs only in the public demo and in the OGS portal of a
+school with Analyse-Freigabe; a person (pseudonymous ID) exists only in the
+latter. Both are guarded twice: the client starts nothing elsewhere, and the
+filter drops `$snapshot` and person events outside those contexts. Never
+widen a tier without the table test covering it. An element that must never
+appear in any recording carries `data-analytics-block`.
 
 ## New page
 

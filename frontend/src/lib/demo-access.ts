@@ -11,6 +11,15 @@ export const DEMO_WEBSITE_URL = "https://moto-ogs.de/demo";
 /** Get-to-know page of the website behind „Kostenlos starten" (#3467). */
 export const DEMO_START_URL = "https://moto-ogs.de/start/?src=demo";
 
+/** Privacy policy of the website; it describes the demo recording (#3603). */
+export const DEMO_PRIVACY_URL = "https://moto-ogs.de/datenschutz";
+
+// Every demo session is recorded (#3603). The visitor reads that on every
+// screen of the way in, before the first click inside the demo school.
+export const DEMO_RECORDING_NOTICE =
+  "Wir zeichnen Besuche der Demo auf, um moto zu verbessern. Ihre Eingaben sind dabei unkenntlich.";
+export const DEMO_RECORDING_PRIVACY_LINK = "Mehr zum Datenschutz";
+
 /**
  * True in the image built for the public demo only. Next.js inlines the
  * value at build time, so no other build ever shows the demo banner.

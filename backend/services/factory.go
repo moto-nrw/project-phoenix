@@ -684,6 +684,9 @@ func newFactory(
 		cfg.PostHogHost,
 		analyticsDeployment(cfg.AppEnv, cfg.TenantDomain),
 		logger.With("component", "analytics"),
+		// The pseudonymous user ID under Analyse-Freigabe (#3603) hashes with
+		// the Security Runtime's SHA-256 fingerprint, like the browser.
+		analytics.WithFingerprint(securityruntime.Fingerprint),
 	)
 	if err != nil {
 		return nil, err

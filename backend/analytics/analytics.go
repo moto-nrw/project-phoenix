@@ -72,7 +72,7 @@ const (
 // deployment is stamped on every event: the tenant domain of this instance,
 // or "demo" for the public demo. It keeps demo and school events apart in
 // the one PostHog project, which is why the demo may send too.
-func New(apiKey, host, deployment string, logger *slog.Logger) (Tracker, error) {
+func New(apiKey, host, deployment string, logger *slog.Logger, opts ...Option) (Tracker, error) {
 	if apiKey == "" {
 		return NewNoop(), nil
 	}
@@ -87,14 +87,28 @@ func New(apiKey, host, deployment string, logger *slog.Logger) (Tracker, error) 
 		return nil, fmt.Errorf("the analytics deployment (TENANT_DOMAIN, or APP_ENV=demo) is required when POSTHOG_API_KEY is set")
 	}
 
-	return newHTTPTracker(
+	tracker := newHTTPTracker(
 		strings.TrimRight(host, "/")+"/batch/",
 		apiKey,
 		strings.TrimSpace(deployment),
 		httpSender{client: &http.Client{Timeout: sendTimeout}},
 		logger,
 		flushInterval,
-	), nil
+	)
+	for _, opt := range opts {
+		opt(tracker)
+	}
+	return tracker, nil
+}
+
+// Option configures the PostHog-backed tracker.
+type Option func(*httpTracker)
+
+// WithFingerprint gives the tracker the hash of the pseudonymous user ID
+// (#3603). Without it every event stays anonymous, even under
+// Analyse-Freigabe.
+func WithFingerprint(fingerprint Fingerprint) Option {
+	return func(t *httpTracker) { t.fingerprint = fingerprint }
 }
 
 type batchSender interface {
@@ -120,6 +134,9 @@ type httpTracker struct {
 	sender     batchSender
 	logger     *slog.Logger
 	interval   time.Duration
+	// fingerprint hashes the pseudonymous user ID; nil keeps every event
+	// anonymous.
+	fingerprint Fingerprint
 
 	queue     chan batchMessage
 	done      chan struct{}
@@ -170,10 +187,20 @@ func (t *httpTracker) CaptureContext(ctx context.Context, distinctID, event stri
 	if sessionID := SessionIDFromContext(ctx); sessionID != "" {
 		properties["$session_id"] = sessionID
 	}
-	// Product analytics is aggregated by school. Disable IP enrichment and
-	// person-profile processing for every backend event, regardless of caller.
+	// Product analytics is aggregated by school. Disable IP enrichment for
+	// every backend event, and person-profile processing regardless of the
+	// caller. The one exception is an OGS request of a school with
+	// Analyse-Freigabe (#3603): the core-action middleware marks its account,
+	// and the event goes out under the same pseudonymous ID the browser
+	// identifies with.
 	properties["$geoip_disable"] = true
 	properties["$process_person_profile"] = false
+	if p, ok := personFromContext(ctx); ok {
+		if pseudonym := pseudonymousID(t.fingerprint, p.schoolID, p.accountID); pseudonym != "" {
+			distinctID = pseudonym
+			properties["$process_person_profile"] = true
+		}
+	}
 
 	// Unmarshalable properties fail here, per event, not for the whole batch.
 	if _, err := json.Marshal(properties); err != nil {

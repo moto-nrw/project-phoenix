@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
   register: vi.fn(),
   reset: vi.fn(),
   unregister: vi.fn(),
+  setConfig: vi.fn(),
+  identify: vi.fn(),
+  distinctId: vi.fn(() => "0199aa2b-anon"),
 }));
 
 vi.mock("~/env.client", () => ({ clientEnv: mocks.env }));
@@ -24,6 +27,9 @@ vi.mock("posthog-js", () => ({
     register: mocks.register,
     reset: mocks.reset,
     unregister: mocks.unregister,
+    set_config: mocks.setConfig,
+    identify: mocks.identify,
+    get_distinct_id: mocks.distinctId,
   },
 }));
 
@@ -44,6 +50,7 @@ describe("posthog-client", () => {
     vi.resetModules();
     vi.clearAllMocks();
     mocks.env.NEXT_PUBLIC_POSTHOG_KEY = "phc_test_key_123";
+    mocks.distinctId.mockReturnValue("0199aa2b-anon");
     stubHost("school-a.localhost:3000");
   });
 
@@ -88,7 +95,9 @@ describe("posthog-client", () => {
         disable_session_recording: true,
         persistence: "memory",
         disable_persistence: true,
-        person_profiles: "never",
+        // The OGS portal may learn the Analyse-Freigabe after the start
+        // (#3603); without identify no person is processed either.
+        person_profiles: "identified_only",
         advanced_disable_feature_flags: true,
         tracing_headers: ["school-a.localhost"],
         before_send: expect.any(Function),
@@ -101,7 +110,7 @@ describe("posthog-client", () => {
   });
 
   it("filters with the context the portal registered last", async () => {
-    const { initializePostHog, setAnalyticsSurface, clearPostHogContext } =
+    const { initializePostHog, setAnalyticsContext, clearPostHogContext } =
       await import("./posthog-client");
     await initializePostHog();
     const beforeSend = initOptions().before_send as BeforeSendFn;
@@ -121,7 +130,7 @@ describe("posthog-client", () => {
       $pathname: "/unknown",
     });
 
-    setAnalyticsSurface("parents");
+    setAnalyticsContext({ surface: "parents" });
     expect(pageview()?.properties).toMatchObject({
       surface: "parents",
       $pathname: "/children/:id",
@@ -142,6 +151,55 @@ describe("posthog-client", () => {
     expect(mocks.unregister).toHaveBeenCalledWith("school_id");
     expect(mocks.unregister).toHaveBeenCalledWith("role");
     expect(mocks.reset).toHaveBeenCalledOnce();
+  });
+
+  it("records and identifies only while the context has the Analyse-Freigabe", async () => {
+    const person = "pseudo_4b9630678fc1afce76ce690721aaf949";
+    const { initializePostHog, setAnalyticsContext, clearPostHogContext } =
+      await import("./posthog-client");
+    await initializePostHog();
+    const lastConfig = () =>
+      mocks.setConfig.mock.lastCall?.[0] as Partial<PostHogConfig>;
+    expect(lastConfig()).toMatchObject({ disable_session_recording: true });
+
+    setAnalyticsContext({
+      surface: "ogs",
+      role: "staff",
+      analyseFreigabe: true,
+      recordingSamplePercent: 25,
+      person,
+    });
+
+    expect(lastConfig()).toMatchObject({
+      disable_session_recording: false,
+      enable_recording_console_log: false,
+      session_recording: {
+        maskAllInputs: true,
+        maskTextSelector: "*",
+        sampleRate: 0.25,
+      },
+    });
+    expect(mocks.identify).toHaveBeenCalledWith(person, { role: "staff" });
+
+    mocks.distinctId.mockReturnValue(person);
+    clearPostHogContext();
+
+    expect(mocks.reset).toHaveBeenCalled();
+    expect(lastConfig()).toMatchObject({ disable_session_recording: true });
+  });
+
+  it("drops a pseudonymous identity when the Freigabe is revoked", async () => {
+    const person = "pseudo_4b9630678fc1afce76ce690721aaf949";
+    mocks.distinctId.mockReturnValue(person);
+    const { initializePostHog, setAnalyticsContext } =
+      await import("./posthog-client");
+    await initializePostHog();
+    mocks.reset.mockClear();
+
+    setAnalyticsContext({ analyseFreigabe: false, person });
+
+    expect(mocks.reset).toHaveBeenCalledOnce();
+    expect(mocks.identify).not.toHaveBeenCalled();
   });
 
   it("never loads the SDK on the operator host", async () => {
