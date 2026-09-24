@@ -112,7 +112,6 @@ type CareOfferingCatalogCapability interface {
 	CareOfferingCatalog
 	CareOfferingGuards
 	CareOfferingRollover
-	CareOfferingLinks
 }
 
 // TimeframeReplacement is the proposed state of a timeframe an edit would

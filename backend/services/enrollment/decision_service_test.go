@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -50,6 +51,10 @@ import (
 type decisionTestEnv struct {
 	*rolloverTestEnv
 	decision enrollmentService.DecisionService
+	// bookings is Care Plan's booking materialization the decision drives
+	// (#3560): the roster resyncs, the offering-source editor and the pickup
+	// reset the suites call directly.
+	bookings careplan.BookingMaterializationCapability
 }
 
 // stubActivationSettings is a fake DecisionSettingsResolver returning a
@@ -99,8 +104,9 @@ func setupDecisionTestWithSettings(
 ) (*decisionTestEnv, func()) {
 	t.Helper()
 	env, cleanup := setupRolloverTest(t)
-	decision := newDecisionServiceForTest(env, settings, nil)
-	return &decisionTestEnv{rolloverTestEnv: env, decision: decision}, cleanup
+	bookings := newBookingsForTest(env, settings, nil, nil)
+	decision := newDecisionServiceForTestWithBookings(nil, env, bookings, settings, nil, nil, nil)
+	return &decisionTestEnv{rolloverTestEnv: env, decision: decision, bookings: bookings}, cleanup
 }
 
 func newDecisionServiceForTest(
@@ -147,6 +153,81 @@ func newDecisionServiceForTestWithPickupExtensions(
 	studentConsents enrollmentService.StudentConsentAuditor,
 	outboxes ...platformModels.OutboxEnqueuer,
 ) enrollmentService.DecisionService {
+	if careWithdrawal == nil {
+		careWithdrawal = newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
+			BookingsAuthoritative: testBookingsAuthority(settings),
+		})
+	}
+	bookings := newBookingsForTest(env, settings, lockTemplateRecurrence, careWithdrawal)
+	return newDecisionServiceForTestWithBookings(t, env, bookings, settings, lockTemplateRecurrence, careWithdrawal, studentConsents, outboxes...)
+}
+
+// newBookingsForTest composes Care Plan's booking materialization (#3560)
+// with the collaborators the decision suites used to hand the decision
+// service: the env's catalog, the settings, the recurrence lock, the
+// withdrawal follow-up and the fixed decision day.
+func newBookingsForTest(
+	env *rolloverTestEnv,
+	settings enrollmentService.DecisionSettingsResolver,
+	lockTemplateRecurrence func(context.Context) error,
+	careWithdrawal enrollmentService.CareWithdrawalReconciler,
+) careplan.BookingMaterializationCapability {
+	if careWithdrawal == nil {
+		careWithdrawal = newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
+			BookingsAuthoritative: testBookingsAuthority(settings),
+		})
+	}
+	var bookingSettings enrollmentService.DecisionSettingsResolver = registryDefaultDecisionSettings{}
+	if settings != nil {
+		bookingSettings = settings
+	}
+	options := []testutil.BookingMaterializationOption{
+		testutil.WithBookingCatalog(env.offeringCatalog),
+		testutil.WithBookingToday(func() timezone.Date { return decisionTestToday }),
+		testutil.WithBookingSettings(bookingSettings),
+		testutil.WithBookingWithdrawals(careWithdrawal),
+	}
+	if lockTemplateRecurrence != nil {
+		options = append(options, testutil.WithBookingRecurrenceLock(lockTemplateRecurrence))
+	}
+	return testutil.NewBookingMaterialization(env.tb, env.db, options...).Bookings
+}
+
+// registryDefaultDecisionSettings answers the registry defaults a decision
+// service without settings always applied: care offerings on, bookings not
+// authoritative.
+type registryDefaultDecisionSettings struct{}
+
+func (registryDefaultDecisionSettings) ResolveString(context.Context, string) (string, error) {
+	return "", nil
+}
+
+func (registryDefaultDecisionSettings) ResolveBool(_ context.Context, key string) (bool, error) {
+	return key == configModel.KeyEnrollmentCareOfferingsEnabled, nil
+}
+
+// testBookings composes the booking materialization over the env's catalog
+// with the suite's settings, on the real calendar day, for suites that build
+// their own decision service.
+func testBookings(t *testing.T, env *rolloverTestEnv, settings enrollmentService.DecisionSettingsResolver) careplan.BookingMaterializationCapability {
+	t.Helper()
+	options := []testutil.BookingMaterializationOption{testutil.WithBookingCatalog(env.offeringCatalog)}
+	if settings != nil {
+		options = append(options, testutil.WithBookingSettings(settings))
+	}
+	return testutil.NewBookingMaterialization(t, env.db, options...).Bookings
+}
+
+func newDecisionServiceForTestWithBookings(
+	t *testing.T,
+	env *rolloverTestEnv,
+	bookings enrollmentService.DecisionBookings,
+	settings enrollmentService.DecisionSettingsResolver,
+	lockTemplateRecurrence func(context.Context) error,
+	careWithdrawal enrollmentService.CareWithdrawalReconciler,
+	studentConsents enrollmentService.StudentConsentAuditor,
+	outboxes ...platformModels.OutboxEnqueuer,
+) enrollmentService.DecisionService {
 	repoFactory := env.repos
 	var outbox platformModels.OutboxEnqueuer = env.outbox
 	if len(outboxes) > 0 {
@@ -157,55 +238,42 @@ func newDecisionServiceForTestWithPickupExtensions(
 			BookingsAuthoritative: testBookingsAuthority(settings),
 		})
 	}
-	pickupBaselines := newPickupBaselineService(repoFactory.CarePlan(), approvedOfferingTestProjection(repoFactory))
 	var pickupAutoExcusal careplan.PickupAutoExcusal
 	if t != nil {
+		pickupBaselines := newPickupBaselineService(repoFactory.CarePlan(), approvedOfferingTestProjection(repoFactory))
 		pickupAutoExcusal = newPickupExcusal(t, env.db, repoFactory.CarePlan(), pickupBaselines, env.timetable, true)
 	}
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
-		Bookings:                  requestTestBookingCommands(),
-		Requests:                  repoFactory.Enrollment(),
-		Children:                  repoFactory.Enrollment(),
-		Guardians:                 repoFactory.Enrollment(),
-		LateInviteRepo:            repoFactory.Enrollment(),
-		ApprovedOfferings:         enrollmentService.NewApprovedOfferingProjection(repoFactory.Enrollment(), offeringStudentTestDirectory{repoFactory.Student}),
-		CareOfferingRepo:          enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
-		Phases:                    repoFactory.Enrollment(),
-		Schemas:                   repoFactory.Enrollment(),
-		OfferingAdjustmentRepo:    repoFactory.EnrollmentOfferingAdjustment,
-		RestorationAuditRepo:      repoFactory.EnrollmentRestorationAudit,
-		PersonRepo:                repoFactory.Person,
-		StaffRepo:                 repoFactory.Staff,
-		StudentRepo:               repoFactory.Student,
-		StudentGuardianRepo:       repoFactory.StudentGuardian,
-		GuardianProfileRepo:       repoFactory.GuardianProfile,
-		GuardianPhoneRepo:         repoFactory.GuardianPhoneNumber,
-		PickupScheduleRepo:        repoFactory.StudentPickupSchedule,
-		PickupBaselines:           pickupBaselines,
-		ArrivalScheduleRepo:       repoFactory.StudentArrivalSchedule,
-		StudentEnrollmentRepo:     repoFactory.StudentEnrollment,
-		ActivityGroupRepo:         repoFactory.ActivityGroup,
-		ActivityScheduleRepo:      repoFactory.ActivitySchedule,
-		CalendarPeriodRepo:        repoFactory.CalendarPeriod,
-		OfferingLinks:             env.offeringCatalog,
-		GuardianAccess:            testGuardianAccess(env.db),
-		StudentEnrollment:         testStudentEnrollment(env.db),
-		DepartureCompanions:       repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
-		DeleteDepartureCompanions: repoFactory.CarePlan().DeleteCompanionEdges,
-		OutboxEnqueuer:            outbox,
-		StudentAudit:              usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
-		StudentConsents:           studentConsents,
-		CareWithdrawal:            careWithdrawal,
-		FrontendURL:               "http://localhost:3000",
-		ParentsURL:                "http://parents.localhost:3000",
-		Settings:                  settings,
-		LockTemplateRecurrence:    lockTemplateRecurrence,
-		InstanceRosters: repositories.NewTimetableRosterMaintenance(
-			repoFactory.ActivityInstance,
-			repoFactory.InstanceStudent,
-			repoFactory.StudentEnrollment,
-			slog.Default(),
-		),
+		Requests:                     repoFactory.Enrollment(),
+		Children:                     repoFactory.Enrollment(),
+		Guardians:                    repoFactory.Enrollment(),
+		LateInviteRepo:               repoFactory.Enrollment(),
+		CareOfferingRepo:             enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
+		Phases:                       repoFactory.Enrollment(),
+		Schemas:                      repoFactory.Enrollment(),
+		OfferingAdjustmentRepo:       repoFactory.EnrollmentOfferingAdjustment,
+		RestorationAuditRepo:         repoFactory.EnrollmentRestorationAudit,
+		PersonRepo:                   repoFactory.Person,
+		StaffRepo:                    repoFactory.Staff,
+		StudentRepo:                  repoFactory.Student,
+		StudentGuardianRepo:          repoFactory.StudentGuardian,
+		GuardianProfileRepo:          repoFactory.GuardianProfile,
+		GuardianPhoneRepo:            repoFactory.GuardianPhoneNumber,
+		PickupScheduleRepo:           repoFactory.StudentPickupSchedule,
+		ArrivalScheduleRepo:          repoFactory.StudentArrivalSchedule,
+		CareBookings:                 bookings,
+		GuardianAccess:               testGuardianAccess(env.db),
+		StudentEnrollment:            testStudentEnrollment(env.db),
+		DepartureCompanions:          repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
+		DeleteDepartureCompanions:    repoFactory.CarePlan().DeleteCompanionEdges,
+		OutboxEnqueuer:               outbox,
+		StudentAudit:                 usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
+		StudentConsents:              studentConsents,
+		CareWithdrawal:               careWithdrawal,
+		FrontendURL:                  "http://localhost:3000",
+		ParentsURL:                   "http://parents.localhost:3000",
+		Settings:                     settings,
+		LockTemplateRecurrence:       lockTemplateRecurrence,
 		SnapshotPickupWeekdayChanges: snapshotPickupWeekdayChanges(pickupAutoExcusal),
 		RecordPickupWeekdayChanges:   recordPickupWeekdayChanges(pickupAutoExcusal),
 		Logger:                       slog.Default(),
@@ -3975,11 +4043,10 @@ func TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure(t *testing.
 
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	degraded := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
-		Requests:          repoFactory.Enrollment(),
-		Children:          repoFactory.Enrollment(),
-		ApprovedOfferings: enrollmentService.NewApprovedOfferingProjection(repoFactory.Enrollment(), offeringStudentTestDirectory{repoFactory.Student}),
-		CareOfferingRepo:  catalogFailureRepo{enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan())},
-		Phases:            repoFactory.Enrollment(),
+		Requests:         repoFactory.Enrollment(),
+		Children:         repoFactory.Enrollment(),
+		CareOfferingRepo: catalogFailureRepo{enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan())},
+		Phases:           repoFactory.Enrollment(),
 	})
 
 	rows, err := degraded.ListChildOfferings(ctx, reqID)

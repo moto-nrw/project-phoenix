@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -127,7 +128,7 @@ func directCorrectionDiff(row *auditModels.EnrollmentOfferingAdjustment, logger 
 
 	ids := make([]int64, 0, len(before)+len(after))
 	labels := make(map[int64]string, len(before)+len(after))
-	for _, side := range []map[int64]offeringAdjustmentSnapshot{before, after} {
+	for _, side := range []map[int64]careplan.OfferingAdjustmentSnapshot{before, after} {
 		for id, snapshot := range side {
 			if !slices.Contains(ids, id) {
 				ids = append(ids, id)
@@ -163,12 +164,12 @@ func directCorrectionDiff(row *auditModels.EnrollmentOfferingAdjustment, logger 
 	return diff
 }
 
-func decodeAdjustmentSnapshot(raw json.RawMessage) (map[int64]offeringAdjustmentSnapshot, error) {
-	out := map[int64]offeringAdjustmentSnapshot{}
+func decodeAdjustmentSnapshot(raw json.RawMessage) (map[int64]careplan.OfferingAdjustmentSnapshot, error) {
+	out := map[int64]careplan.OfferingAdjustmentSnapshot{}
 	if len(raw) == 0 {
 		return out, nil
 	}
-	var entries []offeringAdjustmentSnapshot
+	var entries []careplan.OfferingAdjustmentSnapshot
 	if err := json.Unmarshal(raw, &entries); err != nil {
 		return nil, err
 	}

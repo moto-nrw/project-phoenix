@@ -187,13 +187,37 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	if err != nil {
 		return StudentTestModule{}, err
 	}
+	resyncPickupAutoExcusals := func(ctx context.Context, studentIDs []int64) error {
+		return tenant.WithTenantTx(ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+			for _, studentID := range studentIDs {
+				if err := pickupAutoExcusal.ResyncFutureExceptions(txCtx, studentID); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+	}
+	careBookings, err := newBookingMaterialization(bookingMaterializationInputs{
+		Catalog: offeringLinks.Catalog, Timetable: repos.Timetable, Rosters: rosterReconciler, Students: persons,
+		Periods: repos.SchoolCalendar(), Enrollment: repos.Enrollment(), Approved: approvedOfferings,
+		Settings: settingsService, Bookings: repos.CarePlan, Withdrawals: careLifecycleService,
+		Adjustments: repos.EnrollmentOfferingAdjustment, Persons: repos.Person, Accounts: guardianAccess,
+		Pickup: pickupBaselines, PickupRows: repos.CarePlan,
+		LockRecurrence:           recurrenceLock.LockRecurrenceWrites,
+		ResyncPickupAutoExcusals: resyncPickupAutoExcusals,
+		Broadcaster:              realtimeHub,
+		GuardianNotifier:         pillEmitter,
+		Today:                    today,
+		Logger:                   logger.With("service", "care-plan-bookings"),
+	})
+	if err != nil {
+		return StudentTestModule{}, err
+	}
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
-		Bookings:                  enrollmentCareBookingCommands{owner: repos.CarePlan},
 		Requests:                  repos.Enrollment(),
 		Children:                  repos.Enrollment(),
 		Guardians:                 repos.Enrollment(),
 		LateInviteRepo:            repos.Enrollment(),
-		ApprovedOfferings:         approvedOfferings,
 		CareOfferingRepo:          enrollment.NewCareOfferingRepository(repos.CarePlan),
 		Phases:                    repos.Enrollment(),
 		Schemas:                   repos.Enrollment(),
@@ -209,13 +233,8 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		GuardianProfileRepo:       repos.GuardianProfile,
 		GuardianPhoneRepo:         repos.GuardianPhoneNumber,
 		PickupScheduleRepo:        repos.StudentPickupSchedule,
-		PickupBaselines:           pickupBaselines,
 		ArrivalScheduleRepo:       repos.StudentArrivalSchedule,
-		StudentEnrollmentRepo:     repos.StudentEnrollment,
-		ActivityGroupRepo:         repos.ActivityGroup,
-		ActivityScheduleRepo:      repos.ActivitySchedule,
-		CalendarPeriodRepo:        repos.CalendarPeriod,
-		OfferingLinks:             offeringLinks.Catalog,
+		CareBookings:              careBookings,
 		GuardianAccess:            guardianAccess,
 		StudentEnrollment:         persons,
 		DepartureCompanions:       repositories.NewStudentCompanionRepository(repos.CarePlan),
@@ -225,22 +244,11 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		StudentConsents:           studentConsentService,
 		CareWithdrawal:            careLifecycleService,
 		Broadcaster:               realtimeHub,
-		PickupGuardianNotifier:    pillEmitter,
 		FrontendURL:               frontendURL,
 		ParentsURL:                parentsURL,
 		Settings:                  settingsService,
 		LockTemplateRecurrence:    recurrenceLock.LockRecurrenceWrites,
-		InstanceRosters:           rosterReconciler,
-		ResyncPickupAutoExcusals: func(ctx context.Context, studentIDs []int64) error {
-			return tenant.WithTenantTx(ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
-				for _, studentID := range studentIDs {
-					if err := pickupAutoExcusal.ResyncFutureExceptions(txCtx, studentID); err != nil {
-						return err
-					}
-				}
-				return nil
-			})
-		},
+		ResyncPickupAutoExcusals:  resyncPickupAutoExcusals,
 		LockPickupStudents: func(ctx context.Context, studentIDs []int64) error {
 			for _, studentID := range studentIDs {
 				if err := persons.LockStudent(ctx, studentID); err != nil {
@@ -255,7 +263,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		Logger: logger.With("service", "enrollment-decision"),
 		Today:  today,
 	})
-	offeringResync = enrollmentDecisionService.(education.OfferingSourceResyncer)
+	offeringResync = careBookings
 	enrollmentDecisionApplier := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
 	directOfferingApplier := enrollmentDecisionService.(enrollment.DirectOfferingAdjustmentApplier)
 	requestReviewPolicy := NewParentRequestReviewPolicy(userContextService.Caller().ParentRequestReviews)

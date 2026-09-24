@@ -19,16 +19,18 @@ import (
 
 type approvalOutboxFunc func(context.Context, platformModels.OutboxEnqueueRequest) error
 
-type accountBeforeRosterGroups struct {
-	activitiesModels.GroupRepository
+// accountBeforeRosterBookings runs the check when the decision asks Care
+// Plan's booking materialization to resync the class-filtered rosters.
+type accountBeforeRosterBookings struct {
+	enrollmentService.DecisionBookings
 	check func(context.Context) error
 }
 
-func (r accountBeforeRosterGroups) FindTemplatesWithOfferingSource(ctx context.Context) ([]*activitiesModels.Group, error) {
-	if err := r.check(ctx); err != nil {
-		return nil, err
+func (b accountBeforeRosterBookings) ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom timezone.Date) error {
+	if err := b.check(ctx); err != nil {
+		return err
 	}
-	return r.GroupRepository.FindTemplatesWithOfferingSource(ctx)
+	return b.DecisionBookings.ResyncOfferingSourcedTemplates(ctx, effectiveFrom)
 }
 
 func TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync(t *testing.T) {
@@ -44,7 +46,7 @@ func TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync(t *testing.
 	require.NoError(t, err)
 	var txDB bun.IDB
 	checked := false
-	env.repos.ActivityGroup = accountBeforeRosterGroups{GroupRepository: env.repos.ActivityGroup, check: func(txCtx context.Context) error {
+	bookings := accountBeforeRosterBookings{DecisionBookings: newBookingsForTest(env.rolloverTestEnv, nil, nil, nil), check: func(txCtx context.Context) error {
 		checked = true
 		var granted bool
 		if err := txDB.NewRaw("SELECT EXISTS (SELECT 1 FROM auth.account_roles ar JOIN auth.roles r ON r.id = ar.role_id WHERE ar.account_id = ? AND ar.tenant_id = ? AND LOWER(r.name) = 'guardian')", account.ID, testpkg.Tenant(t)).Scan(txCtx, &granted); err != nil {
@@ -55,7 +57,7 @@ func TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync(t *testing.
 		}
 		return nil
 	}}
-	decision := newDecisionServiceForTest(env.rolloverTestEnv, nil, nil)
+	decision := newDecisionServiceForTestWithBookings(nil, env.rolloverTestEnv, bookings, nil, nil, nil, nil)
 	err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
 		txDB = tx
 		_, err := decision.Decide(txCtx, enrollmentService.DecideInput{RequestID: requestID, ChildID: childID, Status: enrollmentService.DecisionApproved, ReviewedBy: env.creatorID})

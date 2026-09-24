@@ -1311,6 +1311,63 @@ statements and transaction boundaries are unchanged; the key count stays at
   through `api/testutil.NewCareOfferingCatalog`; the pure booking-stats and
   availability tests run against fakes in the application package.
 
+#3560 (G2 of the `services/enrollment` dissolution under #2733) moved the
+booking materialization to Care Plan. The roster rows an approval derives
+from a child's bookings, the offering-sourced Regeltermin resync, detach and
+editor support, the Regeltermin roster indicator, the dated offering
+adjustments and the offering pickup times now live in
+`modules/careplan/internal/application` (`booking_*.go`, `sourced_*.go`,
+`offering_adjustment*.go`, `offering_pickup_times.go`,
+`offering_source_editor.go`, `template_roster_feeds.go`) behind the ports in
+`internal/ports/booking_materialization.go`, composed by
+`compose.NewBookingMaterialization` over the catalog of #3559. The public
+contract is `careplan.SourcedRosters`, `OfferingSourceEditor`,
+`BookingMaterializer`, `OfferingAdjustments` and `OfferingPickupTimes`
+(`booking_materialization.go`), plus the pure rules
+`DeriveTemplateRosterMaintenance`, `ExplainEmptyOfferingRoster` and
+`ExcludedAutoTargetOverrides`. `careplan.CareOfferingLinks`, which only
+served the materialization while it lived in `services/enrollment`, is gone.
+Error texts, statements and transaction boundaries are unchanged; the key
+count falls from 542 to 540 and no rule was added.
+
+- The materialization writes `activities.student_enrollments` and reconciles
+  `schedule.instance_students` through ports that
+  `services/booking_materialization_composition.go` binds to the Timetable
+  owner's `StudentEnrollmentCommand` and roster maintenance, the way
+  `NewCareLifecycle` already works. It reads Enrollment's requests, children,
+  phases, booked selections and the approved-booking projection, People
+  Directory students and locks, the School Calendar periods, the settings and
+  Audit Platform's adjustment trail through the same binding; Care Plan's own
+  bookings, pickup rows and withdrawal follow-up are passed in directly.
+  Every write joins the ambient tenant transaction. The recurrence gate is
+  the Timetable owner's; the class-writes gate and the student lock are People
+  Directory's, in the order every care writer takes them. The pickup
+  announcement is deferred to commit in Care Plan's compose; the services
+  binding only broadcasts.
+- The Jahrgang of a child comes from Enrollment's rule
+  (`enrollment.SchoolClassGradeLevel`) through the ports, because Care Plan's
+  application may not import School Structure's class grammar.
+- The decision, change-request and offering-change services still speak
+  enrollment rows. They drive the owner through
+  `services/enrollment.DecisionBookings` and translate its results in
+  `care_plan_bookings.go`; `services.Factory.EnrollmentCareOffering` now
+  carries the catalog together with the materialization
+  (`careplan.CareOfferingCapability`), so the Timetable hook, the grade
+  transition, the phase service, the Regeltermin editor, the student class
+  resync and the pickup reset route reach it without a new field. The
+  intake-side selection helpers the retained request, change-request and
+  offering-change services share with enrollment rows
+  (`intake_offering_rules.go`, `changeCareBookings`) and the decision's own
+  targeted-field pickup hooks stay with those services until E3, E4 and G3
+  move them. The offering-change decision validates excluded co-booking
+  targets through `careplan.ExcludedAutoTargetOverrides` instead of its own
+  copy.
+- The legacy repository methods only the materialization called
+  (`FindTemplatesBySourceOffering(s)`, `FindTemplatesWithOfferingSource`,
+  `BackfillEnrollmentRequestChildSource`, `DeleteByEnrollmentRequestChild`)
+  are deleted. The behaviour suites stay in the `services/enrollment` test
+  package and compose the owner through `api/testutil.NewBookingMaterialization`.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).

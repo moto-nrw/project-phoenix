@@ -1086,8 +1086,8 @@ func (rs *Resource) resetStudentPickupToOffering(w http.ResponseWriter, r *http.
 	if student == nil {
 		return
 	}
-	svc, ok := rs.EnrollmentDecision.(enrollmentService.OfferingPickupTimeService)
-	if rs.EnrollmentDecision == nil || !ok {
+	svc := rs.OfferingPickupTimes
+	if svc == nil {
 		renderError(w, r, common.ErrorInternalServer(errors.New("offering pickup service not configured")))
 		return
 	}

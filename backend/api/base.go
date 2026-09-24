@@ -1363,13 +1363,12 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Logger:       logger.With("service", "student-photo"),
 	})
 	// A direct school_class edit must resync Jahrgang-filtered offering-sourced
-	// Regeltermine like a grade transition does (#2147 review round 10). The
-	// factory already fails startup when the decision service stops
-	// implementing the resync, so the assertion cannot silently miss here.
+	// Regeltermine like a grade transition does (#2147 review round 10); Care
+	// Plan's booking materialization provides the resync (#3560).
 	// One Student Presence owner for this entry point; it also serves the
 	// students resource's privacy-consent routes (#3349).
 	presence := newStudentPresence(db, logger)
-	studentClassResyncer, _ := api.Services.EnrollmentDecision.(educationSvc.OfferingSourceResyncer)
+	var studentClassResyncer educationSvc.OfferingSourceResyncer = api.Services.EnrollmentCareOffering
 	reviewDependencies, careReviews, err := requestReviewDependencies(api, modules, db)
 	if err != nil {
 		return err
@@ -1418,6 +1417,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		OGSGroupLiveService:          api.Services.OGSGroupLive,
 		ActivityService:              api.Services.Activities,
 		EnrollmentDecision:           api.Services.EnrollmentDecision,
+		OfferingPickupTimes:          api.Services.EnrollmentCareOffering,
 		EnrollmentFormSchema:         api.Services.EnrollmentFormSchema,
 		OfferingSourceResyncer:       studentClassResyncer,
 		LockTemplateRecurrence:       api.Services.TimetableData.RecurrenceLock.LockRecurrenceWrites,
@@ -1602,7 +1602,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		UserContextService:      api.Services.UserContext,
 		SettingsService:         api.Services.Settings,
 		SlotListsService:        api.Services.SlotLists,
-		OfferingSourceOptions:   services.NewTimetableOfferingSources(api.Services.EnrollmentDecision),
+		OfferingSourceOptions:   services.NewTimetableOfferingSources(api.Services.EnrollmentCareOffering),
 		SupervisionSheets:       services.NewTimetableSupervisionSheets(api.Services.EnrollmentReport),
 		PlanExportService:       api.Services.PlanExport,
 		PickupExtensions:        pickupExtensions,
