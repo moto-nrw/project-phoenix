@@ -175,11 +175,17 @@ export function StudentExportModal({
   if (!isOpen) return null;
 
   // "Alle Kinder" would contradict the Gesundheitsliste's default scope,
-  // which leaves children without a note off the list.
-  const scopeWithoutCount =
-    isHealthList && !includeWithoutHealthInfo
+  // which leaves children without a note off the list. The Kindersuche only
+  // knows its general result count, so it must not report that count for
+  // the narrower health-list scope.
+  const isDefaultHealthListScope = isHealthList && !includeWithoutHealthInfo;
+  const scopeWithoutCount = isDefaultHealthListScope
+    ? resultCount === undefined
       ? "Kinder der Schule mit hinterlegten Gesundheitsinformationen."
-      : "Alle Kinder der Schule.";
+      : "Kinder aus der aktuellen Filterung mit hinterlegten Gesundheitsinformationen."
+    : "Alle Kinder der Schule.";
+  const showsResultCount =
+    resultCount !== undefined && !isDefaultHealthListScope;
 
   const toggleColumn = (column: StudentExportColumn) => {
     setColumns((current) =>
@@ -268,9 +274,9 @@ export function StudentExportModal({
           <div className="min-w-0">
             <SlideOverTitle>{heading}</SlideOverTitle>
             <SlideOverDescription>
-              {resultCount === undefined
-                ? scopeWithoutCount
-                : `${resultCount} Kinder aus der aktuellen Filterung.`}
+              {showsResultCount
+                ? `${resultCount} Kinder aus der aktuellen Filterung.`
+                : scopeWithoutCount}
             </SlideOverDescription>
           </div>
           <SlideOverCloseButton

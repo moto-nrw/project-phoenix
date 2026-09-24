@@ -4722,7 +4722,9 @@ function exportsTopic(): HelpTopic {
     notes: [
       "Die Listen sind in `Kinderlisten`, `Personallisten` und `Momentaufnahmen` geordnet.",
       "Eine `Momentaufnahme` wie die `Notfallliste` zeigt den Stand von jetzt.",
-      "Die `Gesundheitsliste` zeigt Allergien, Medikamente und andere Gesundheitsinformationen aller Kinder.",
+      "Die `Gesundheitsliste` zeigt Allergien, Medikamente und andere Gesundheitsinformationen.",
+      "Sie enthält zuerst nur Kinder mit einem Eintrag.",
+      "`Auch Kinder ohne Eintrag` nimmt alle Kinder auf.",
       "Jeder Export der `Gesundheitsliste` wird protokolliert.",
       "Jede Datei enthält personenbezogene Daten. Behandeln Sie sie wie jede andere Unterlage dieser Art.",
     ],

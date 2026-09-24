@@ -635,8 +635,9 @@ describe("StudentExportModal", () => {
     });
 
     // Picked in the Kindersuche's template grid, the list keeps its own
-    // columns and carries the current filters.
-    it("is offered in the template grid with its own columns", async () => {
+    // columns and carries the current filters. Its default scope is narrower
+    // than the search result, so the general result count must stay hidden.
+    it("describes its narrower default scope in the template grid", async () => {
       await openModal();
 
       fireEvent.click(
@@ -647,8 +648,23 @@ describe("StudentExportModal", () => {
         expect(screen.getByLabelText("Titel")).toHaveValue("Gesundheitsliste");
       });
       expect(
+        screen.getByText(
+          "Kinder aus der aktuellen Filterung mit hinterlegten Gesundheitsinformationen.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("12 Kinder aus der aktuellen Filterung."),
+      ).not.toBeInTheDocument();
+      expect(
         screen.queryByRole("checkbox", { name: /Montag/ }),
       ).not.toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Auch Kinder ohne Eintrag/ }),
+      );
+      expect(
+        screen.getByText("12 Kinder aus der aktuellen Filterung."),
+      ).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
 
       await waitFor(() => {
@@ -658,7 +674,7 @@ describe("StudentExportModal", () => {
             filters: {
               search: "mila",
               group_id: "5",
-              include_without_health_info: false,
+              include_without_health_info: true,
             },
           }),
         );
