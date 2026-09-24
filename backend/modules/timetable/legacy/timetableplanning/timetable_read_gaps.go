@@ -5,10 +5,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // UnderstaffedInstance is one instance in the requested window that is
-// understaffed (see IsUnderstaffed), with its staff-row counts already
+// understaffed (see timetable.IsUnderstaffed), with its staff-row counts already
 // computed. The instance carries its own UnderstaffedAck flag and note, so the
 // caller partitions open gaps from acknowledged ones without another lookup.
 type UnderstaffedInstance struct {
@@ -53,7 +54,7 @@ func (s *TimetableDataService) ComputeGaps(ctx context.Context, from, to timezon
 	gaps := make([]UnderstaffedInstance, 0)
 	for _, inst := range candidates {
 		rows := rowsByInstance[inst.ID]
-		if !IsUnderstaffed(rows) {
+		if !timetable.IsUnderstaffed(staffingRows(rows)) {
 			continue
 		}
 		gap := UnderstaffedInstance{Instance: inst, AssignedStaffCount: len(rows)}

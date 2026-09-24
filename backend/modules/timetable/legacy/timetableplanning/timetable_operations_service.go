@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -168,19 +169,19 @@ type OperationPlannedInstance struct {
 	// They are excluded from ExpectedStudentsCount; this field keeps the
 	// reduction visible instead of silently shrinking the number the
 	// supervisor knows.
-	NotScheduledCount   int                       `json:"not_scheduled_students_count"`
-	AssignedStaffIDs    []int64                   `json:"assigned_staff_ids"`
-	IsAssigned          bool                      `json:"is_assigned"`
-	IsPrimary           bool                      `json:"is_primary"`
-	IsSubstitute        bool                      `json:"is_substitute"`
-	IsAbsent            bool                      `json:"is_absent"`
-	RosterPreview       []OperationRosterRow      `json:"roster_preview,omitempty"`
-	PickupTimesLoaded   bool                      `json:"pickup_times_loaded"`
-	PickupTimesRedacted bool                      `json:"pickup_times_redacted,omitempty"`
-	Warnings            []InstanceConflictWarning `json:"warnings"`
-	CanStart            bool                      `json:"can_start"`
-	StartAvailableAt    string                    `json:"start_available_at"`
-	StartExpiresAt      string                    `json:"start_expires_at"`
+	NotScheduledCount   int                                 `json:"not_scheduled_students_count"`
+	AssignedStaffIDs    []int64                             `json:"assigned_staff_ids"`
+	IsAssigned          bool                                `json:"is_assigned"`
+	IsPrimary           bool                                `json:"is_primary"`
+	IsSubstitute        bool                                `json:"is_substitute"`
+	IsAbsent            bool                                `json:"is_absent"`
+	RosterPreview       []OperationRosterRow                `json:"roster_preview,omitempty"`
+	PickupTimesLoaded   bool                                `json:"pickup_times_loaded"`
+	PickupTimesRedacted bool                                `json:"pickup_times_redacted,omitempty"`
+	Warnings            []timetable.InstanceConflictWarning `json:"warnings"`
+	CanStart            bool                                `json:"can_start"`
+	StartAvailableAt    string                              `json:"start_available_at"`
+	StartExpiresAt      string                              `json:"start_expires_at"`
 	// ActiveGroupID is the live session behind a running block, so the
 	// Tagesplan (#2383) can jump straight into its supervision list.
 	ActiveGroupID *int64 `json:"active_group_id,omitempty"`
@@ -456,30 +457,6 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		}
 	}
 	return out, nil
-}
-
-func activityInstanceIDs(instances []*scheduleModel.ActivityInstance) []int64 {
-	ids := make([]int64, 0, len(instances))
-	for _, instance := range instances {
-		ids = append(ids, instance.ID)
-	}
-	return ids
-}
-
-func indexInstanceStaffRows(rows []*scheduleModel.InstanceStaff) map[int64][]*scheduleModel.InstanceStaff {
-	byInstance := make(map[int64][]*scheduleModel.InstanceStaff)
-	for _, row := range rows {
-		byInstance[row.InstanceID] = append(byInstance[row.InstanceID], row)
-	}
-	return byInstance
-}
-
-func indexInstanceStudentRows(rows []*scheduleModel.InstanceStudent) map[int64][]*scheduleModel.InstanceStudent {
-	byInstance := make(map[int64][]*scheduleModel.InstanceStudent)
-	for _, row := range rows {
-		byInstance[row.InstanceID] = append(byInstance[row.InstanceID], row)
-	}
-	return byInstance
 }
 
 // enrichDayPlan decorates whole-day-scope blocks (#2383) with what the
@@ -2025,7 +2002,7 @@ func mapPlannedInstance(inst *scheduleModel.ActivityInstance, staffRows []*sched
 		IsPrimary:             isPrimary,
 		IsSubstitute:          isSubstitute,
 		IsAbsent:              isAbsent,
-		Warnings:              []InstanceConflictWarning{},
+		Warnings:              []timetable.InstanceConflictWarning{},
 		ActiveGroupID:         inst.ActiveGroupID,
 		CancelReason:          inst.CancelReason,
 	}

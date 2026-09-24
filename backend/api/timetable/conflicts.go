@@ -23,15 +23,15 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // PlannedConflictsResponse is the 200 body for GET /conflicts.
 type PlannedConflictsResponse struct {
-	Date      string                                     `json:"date"`
-	StartTime string                                     `json:"start_time"`
-	EndTime   string                                     `json:"end_time"`
-	Warnings  []timetableplanning.PlannedConflictWarning `json:"warnings"`
+	Date      string                             `json:"date"`
+	StartTime string                             `json:"start_time"`
+	EndTime   string                             `json:"end_time"`
+	Warnings  []timetable.PlannedConflictWarning `json:"warnings"`
 }
 
 // plannedConflictParams is the parsed query string of GET /conflicts.
@@ -47,7 +47,7 @@ type plannedConflictParams struct {
 
 // getPlannedConflicts handles GET /api/timetable/conflicts.
 func (rs *Resource) getPlannedConflicts(w http.ResponseWriter, r *http.Request) {
-	if rs.TimetableData == nil {
+	if rs.ConflictDetection == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
@@ -57,7 +57,7 @@ func (rs *Resource) getPlannedConflicts(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	warnings := rs.TimetableData.DetectPlannedConflicts(r.Context(), timetableplanning.PlannedConflictQuery{
+	warnings := rs.ConflictDetection.DetectPlannedConflicts(r.Context(), timetable.PlannedConflictProbe{
 		Date:              params.date,
 		StartTime:         params.startTime,
 		EndTime:           params.endTime,
@@ -65,7 +65,7 @@ func (rs *Resource) getPlannedConflicts(w http.ResponseWriter, r *http.Request) 
 		StaffIDs:          params.staffIDs,
 		StudentIDs:        params.studentIDs,
 		ExcludeInstanceID: params.excludeInstanceID,
-	}, rs.getLogger())
+	})
 
 	rs.getLogger().Info("planned conflicts probed",
 		slog.String("date", params.date.String()),

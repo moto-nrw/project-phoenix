@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
@@ -505,7 +506,7 @@ func TestScheduleForwardsQueryAndPreservesWireShape(t *testing.T) {
 			CareDayStatus:     "scheduled",
 		}},
 		PickupTimesLoaded: true, PickupTimesRedacted: false,
-		Warnings: []timetableplanning.InstanceConflictWarning{{Kind: "staff", ResourceID: 7, Message: "doppelt", CanOverride: true, Fingerprint: "abc", ConflictingInstanceID: 6, ConflictingTitle: "Basteln", OverlapStart: "14:00", OverlapEnd: "14:30"}},
+		Warnings: []timetable.InstanceConflictWarning{{Kind: "staff", ResourceID: 7, Message: "doppelt", CanOverride: true, Fingerprint: "abc", ConflictingInstanceID: 6, ConflictingTitle: "Basteln", OverlapStart: "14:00", OverlapEnd: "14:30"}},
 		CanStart: true, StartAvailableAt: "13:45", StartExpiresAt: "15:00", ActiveGroupID: &activeGroupID, CancelReason: &note,
 		PlanningTrackName: &note, PlanningTrackColor: &note, GroupName: &note,
 		StaffNames: []timetableplanning.OperationStaffName{{StaffID: 7, DisplayName: "Erika", IsSubstitute: true}},

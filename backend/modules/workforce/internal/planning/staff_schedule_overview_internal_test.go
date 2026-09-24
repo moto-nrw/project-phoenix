@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +33,7 @@ func testShift(t *testing.T, staffID int64, date timezone.Date, start, end strin
 	}
 }
 
-func formattedGaps(gaps []timetableplanning.ShiftCoverageInterval) [][2]string {
+func formattedGaps(gaps []timetable.ShiftCoverageInterval) [][2]string {
 	out := make([][2]string, 0, len(gaps))
 	for _, gap := range gaps {
 		out = append(out, [2]string{

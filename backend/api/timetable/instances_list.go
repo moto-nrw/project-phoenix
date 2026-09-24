@@ -29,7 +29,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
@@ -129,7 +129,7 @@ type enrichedInstance struct {
 	// frontend derives "understaffed" as assigned < required, the same
 	// pattern already used for every other count on this payload — this is
 	// intentionally not modeled as a ConflictWarning (see
-	// modules/timetable/legacy/timetableplanning/capacity_service.go).
+	// modules/timetable/staffing.go).
 	RequiredStaffCount int `json:"required_staff_count"`
 	AssignedStaffCount int `json:"assigned_staff_count"`
 	// RequiredStaffOverride is the raw per-occurrence Personalbedarf pin
@@ -137,11 +137,11 @@ type enrichedInstance struct {
 	// back to the template's override, then to the Betreuungsschlüssel. The
 	// edit form needs the raw value to distinguish "inherit" from a pinned
 	// number; RequiredStaffCount above already folds the inheritance in.
-	RequiredStaffOverride *int                                        `json:"required_staff_override,omitempty"`
-	ConflictWarnings      []timetableplanning.InstanceConflictWarning `json:"conflict_warnings"`
-	CanReopen             bool                                        `json:"can_reopen,omitempty"`
-	CanComplete           bool                                        `json:"can_complete"`
-	CompleteAvailableAt   string                                      `json:"complete_available_at"`
+	RequiredStaffOverride *int                                `json:"required_staff_override,omitempty"`
+	ConflictWarnings      []timetable.InstanceConflictWarning `json:"conflict_warnings"`
+	CanReopen             bool                                `json:"can_reopen,omitempty"`
+	CanComplete           bool                                `json:"can_complete"`
+	CompleteAvailableAt   string                              `json:"complete_available_at"`
 }
 
 type emptyRosterReason struct {
@@ -236,7 +236,7 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 	// "diesen Monat" claim holds because detection covers exactly the
 	// requested window, not just today. The rows were already loaded for
 	// enrichment, so this adds no queries.
-	conflictsByInstance := timetableplanning.DetectWindowConflicts(conflictInputs)
+	conflictsByInstance := rs.detectWindowConflicts(conflictInputs)
 	for i := range enriched {
 		if warnings, ok := conflictsByInstance[enriched[i].ID]; ok {
 			enriched[i].ConflictWarnings = warnings
@@ -449,26 +449,54 @@ func (rs *Resource) enrichInstances(
 	offeringSourceCache map[int64][]enrollmentSvc.OfferingSourceOption,
 	childrenPerStaffRatio int,
 	careDays map[int64]map[timezone.Date]careplan.CareDayStatus,
-) ([]enrichedInstance, []timetableplanning.WindowConflictInput, error) {
+) ([]enrichedInstance, []timetable.WindowConflictBlock, error) {
 	rows, err := rs.TimetableData.GetInstanceRows(ctx, instances)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load instance rows: %w", err)
 	}
 	enriched := make([]enrichedInstance, 0, len(instances))
-	conflictInputs := make([]timetableplanning.WindowConflictInput, 0, len(instances))
+	conflictInputs := make([]timetable.WindowConflictBlock, 0, len(instances))
 	for _, inst := range instances {
 		item, staffRows, studentRows, err := rs.enrichInstance(ctx, inst, rows, roomCache, metaCache, planningTrackCache, offeringSourceCache, childrenPerStaffRatio, careDays)
 		if err != nil {
 			return nil, nil, err
 		}
 		enriched = append(enriched, item)
-		conflictInputs = append(conflictInputs, timetableplanning.WindowConflictInput{
-			Instance: inst,
-			Staff:    staffRows,
-			Students: studentRows,
-		})
+		conflictInputs = append(conflictInputs, windowConflictBlock(inst, staffRows, studentRows))
 	}
 	return enriched, conflictInputs, nil
+}
+
+// windowConflictBlock maps one listed block and its rows onto the input of
+// the Timetable owner's window conflict detection (#2139).
+func windowConflictBlock(inst *scheduleModel.ActivityInstance, staffRows []*scheduleModel.InstanceStaff, studentRows []*scheduleModel.InstanceStudent) timetable.WindowConflictBlock {
+	block := timetable.WindowConflictBlock{
+		InstanceID: inst.ID,
+		Date:       timezone.Date(inst.Date),
+		Title:      inst.Title,
+		StartTime:  inst.StartTime,
+		EndTime:    inst.EndTime,
+		RoomID:     inst.RoomID,
+		Status:     inst.Status,
+		Staff:      make([]timetable.WindowConflictStaff, 0, len(staffRows)),
+		Students:   make([]timetable.WindowConflictStudent, 0, len(studentRows)),
+	}
+	for _, row := range staffRows {
+		block.Staff = append(block.Staff, timetable.WindowConflictStaff{StaffID: row.StaffID, RoomID: row.RoomID, IsAbsent: row.IsAbsent})
+	}
+	for _, row := range studentRows {
+		block.Students = append(block.Students, timetable.WindowConflictStudent{StudentID: row.StudentID, Status: row.Status})
+	}
+	return block
+}
+
+// detectWindowConflicts asks the Timetable owner for the window's person
+// double-bookings. Conflicts are advisory: an unwired detection yields none.
+func (rs *Resource) detectWindowConflicts(blocks []timetable.WindowConflictBlock) map[int64][]timetable.InstanceConflictWarning {
+	if rs.ConflictDetection == nil {
+		return map[int64][]timetable.InstanceConflictWarning{}
+	}
+	return rs.ConflictDetection.DetectWindowConflicts(blocks)
 }
 
 // earlyPickupWithin reports the child's pickup cutoff as HH:MM when it falls
@@ -580,10 +608,10 @@ func (rs *Resource) enrichInstance(
 		PresentStudentsCount:   attendance.present,
 		EmptyRosterReason:      emptyRosterReason,
 		NotScheduledCount:      attendance.notScheduled,
-		RequiredStaffCount:     timetableModule.EffectiveRequiredStaff(instanceRequiredStaffOverride(inst.RequiredStaff, meta.requiredStaff), childrenCount, childrenPerStaffRatio),
+		RequiredStaffCount:     timetable.EffectiveRequiredStaff(instanceRequiredStaffOverride(inst.RequiredStaff, meta.requiredStaff), childrenCount, childrenPerStaffRatio),
 		AssignedStaffCount:     assignedStaff,
 		RequiredStaffOverride:  inst.RequiredStaff,
-		ConflictWarnings:       []timetableplanning.InstanceConflictWarning{},
+		ConflictWarnings:       []timetable.InstanceConflictWarning{},
 		CanReopen:              reopenEligibility(ctx, inst, studentRows),
 		CanComplete:            availability.CanComplete,
 		CompleteAvailableAt:    availability.CompleteAvailableAt.Format(time.RFC3339),
@@ -605,9 +633,9 @@ func reopenEligibility(ctx context.Context, inst *scheduleModel.ActivityInstance
 func (rs *Resource) dayConflictWarningsFor(
 	ctx context.Context,
 	inst *scheduleModel.ActivityInstance,
-) []timetableplanning.InstanceConflictWarning {
-	empty := []timetableplanning.InstanceConflictWarning{}
-	if inst == nil || rs.TimetableData == nil {
+) []timetable.InstanceConflictWarning {
+	empty := []timetable.InstanceConflictWarning{}
+	if inst == nil || rs.TimetableData == nil || rs.ConflictDetection == nil {
 		return empty
 	}
 	date := timezone.Date(inst.Date)
@@ -620,7 +648,7 @@ func (rs *Resource) dayConflictWarningsFor(
 		)
 		return empty
 	}
-	inputs := make([]timetableplanning.WindowConflictInput, 0, len(dayInstances))
+	inputs := make([]timetable.WindowConflictBlock, 0, len(dayInstances))
 	for _, dayInst := range dayInstances {
 		staffRows, err := rs.TimetableData.GetInstanceStaff(ctx, dayInst.ID)
 		if err != nil {
@@ -638,13 +666,9 @@ func (rs *Resource) dayConflictWarningsFor(
 			)
 			return empty
 		}
-		inputs = append(inputs, timetableplanning.WindowConflictInput{
-			Instance: dayInst,
-			Staff:    staffRows,
-			Students: studentRows,
-		})
+		inputs = append(inputs, windowConflictBlock(dayInst, staffRows, studentRows))
 	}
-	if warnings, ok := timetableplanning.DetectWindowConflicts(inputs)[inst.ID]; ok {
+	if warnings, ok := rs.ConflictDetection.DetectWindowConflicts(inputs)[inst.ID]; ok {
 		return warnings
 	}
 	return empty

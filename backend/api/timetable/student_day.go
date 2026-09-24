@@ -27,6 +27,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
@@ -306,7 +307,7 @@ func resolveArrivalSlotFromPreload(pre *timetableplanning.StudentWeekPreload, da
 	sched, hasSched := pre.ArrivalSchedByDate[dateKey(date)]
 	hasSched = hasSched && sched != nil
 
-	switch timetableplanning.ResolveSlotSource(hasExc, hasSched, wd) {
+	switch timetable.ResolveSlotSource(hasExc, hasSched, wd) {
 	case SlotSourceException:
 		return mapArrivalExceptionSlot(exc)
 	case SlotSourceSchedule:
@@ -324,7 +325,7 @@ func resolvePickupSlotFromPreload(pre *timetableplanning.StudentWeekPreload, dat
 	sched, hasSched := pre.PickupSchedByDate[dateKey(date)]
 	hasSched = hasSched && sched != nil
 
-	switch timetableplanning.ResolveSlotSource(hasExc, hasSched, wd) {
+	switch timetable.ResolveSlotSource(hasExc, hasSched, wd) {
 	case SlotSourceException:
 		return mapPickupExceptionSlot(exc)
 	case SlotSourceSchedule:

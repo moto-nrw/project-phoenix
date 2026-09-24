@@ -19,6 +19,8 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 )
@@ -78,15 +80,30 @@ func testTimetableDataWithOfferingCallbacks(
 	if err != nil {
 		panic(err)
 	}
+	conflicts, err := arrivalTimetable.NewConflictDetection(arrivalTimetable.ConflictDetectionDependencies{
+		Instances:         activityInstanceRepo,
+		InstanceStaff:     timetablesqltest.NewInstanceStaffRepository(db),
+		InstanceStudents:  boundRepos.InstanceStudent,
+		Exceptions:        timetablesqltest.NewActivityExceptionRepository(db),
+		Schedules:         boundRepos.ActivitySchedule,
+		Shifts:            boundRepos.StaffShift,
+		Staff:             boundRepos.Staff,
+		CalendarPeriods:   boundRepos.CalendarPeriod,
+		ArrivalExceptions: boundRepos.StudentArrivalException,
+		ArrivalBaselines:  testArrivalBaselines{reader: arrivalBaselines},
+		Presence:          presence,
+		Sessions:          boundRepos.ActiveGroup,
+		ContentHash:       securityruntime.Fingerprint,
+	})
+	if err != nil {
+		panic(err)
+	}
 	deps := timetableplanning.TimetableDataDependencies{
 		InstanceStudentRepo:        boundRepos.InstanceStudent,
 		ActivityInstanceRepo:       activityInstanceRepo,
 		ActivityExceptionRepo:      timetablesqltest.NewActivityExceptionRepository(db),
 		ActivityScheduleRepo:       boundRepos.ActivitySchedule,
 		InstanceStaffRepo:          timetablesqltest.NewInstanceStaffRepository(db),
-		StaffShiftRepo:             boundRepos.StaffShift,
-		StaffRepo:                  boundRepos.Staff,
-		CalendarPeriodRepo:         boundRepos.CalendarPeriod,
 		ActiveGroupRepo:            boundRepos.ActiveGroup,
 		SupervisorRepo:             supervisorRepo,
 		ArrivalBaselines:           arrivalBaselines,
@@ -109,11 +126,38 @@ func testTimetableDataWithOfferingCallbacks(
 		AttendanceCorrectionRepo:   auditRepo.NewAttendanceCorrectionRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
 		PersonRepo:                 usersRepo.NewPersonRepository(db),
 		ConflictAcks:               boundRepos.Timetable,
+		ConflictDetection:          conflicts,
 		RecoveryRepo:               repositories.NewActivityRecoveryRepository(db, boundRepos.InstanceStudent),
 		DB:                         db,
 		Today:                      today,
 	}
 	return timetableplanning.NewTimetableDataService(deps)
+}
+
+// testArrivalBaselines serves the conflict detection's arrival port from Care
+// Plan's baseline projection, the way the composition root does.
+type testArrivalBaselines struct {
+	reader careplan.ArrivalBaselineReader
+}
+
+func (b testArrivalBaselines) ProjectArrivals(ctx context.Context, studentIDs []int64, from, to timezone.Date) (arrivalTimetable.ArrivalBaselines, error) {
+	projection, err := b.reader.Project(ctx, studentIDs, from, to)
+	if err != nil {
+		return nil, err
+	}
+	return testArrivalProjection{projection: projection}, nil
+}
+
+type testArrivalProjection struct {
+	projection *careplan.ArrivalBaselineProjection
+}
+
+func (p testArrivalProjection) ExpectedArrival(studentID int64, date timezone.Date) (time.Time, bool) {
+	row := p.projection.ForDate(studentID, date)
+	if row == nil {
+		return time.Time{}, false
+	}
+	return row.ExpectedArrival, true
 }
 
 type panicTestTB struct{}

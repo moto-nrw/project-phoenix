@@ -22,7 +22,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -122,7 +122,7 @@ func (m *mockInstanceService) DeleteCancelled(_ context.Context, _ int64) error 
 	return m.deleteErr
 }
 
-func (m *mockInstanceService) BulkCancelPlanned(ctx context.Context, from, to timezone.Date, opts timetableModule.BulkCancelOptions, actor *int64) (*timetableModule.BulkCancelResult, error) {
+func (m *mockInstanceService) BulkCancelPlanned(ctx context.Context, from, to timezone.Date, opts timetable.BulkCancelOptions, actor *int64) (*timetable.BulkCancelResult, error) {
 	if m.real != nil {
 		return m.real.BulkCancelPlanned(ctx, from, to, opts, actor)
 	}
@@ -258,8 +258,8 @@ func TestStartInstance_WithWarnings(t *testing.T) {
 		startResult: &timetableplanning.StartInstanceResult{
 			Instance:      &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusActive},
 			ActiveGroupID: 1,
-			Warnings: []timetableplanning.InstanceConflictWarning{
-				{Kind: timetableplanning.ConflictKindStaff, ResourceID: 5, Message: "Mitarbeiter doppelt eingeplant", CanOverride: true},
+			Warnings: []timetable.InstanceConflictWarning{
+				{Kind: timetable.ConflictKindStaff, ResourceID: 5, Message: "Mitarbeiter doppelt eingeplant", CanOverride: true},
 			},
 		},
 	}
