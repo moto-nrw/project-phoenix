@@ -47,6 +47,25 @@ ensure_stopped() {
   done
 }
 
+# A rebuild of the same revision, or an upstream postgres update, moves the tag
+# a running container was created from. Pulling it would leave the running
+# image nameless, and the containerd image store then reports no RepoDigests,
+# so create could not snapshot the previous release. A local tag in the same
+# repository keeps its registry digest resolvable. Run before pulling.
+keep_images() {
+  local service container image_id name
+  [ -f docker-compose.yml ] || return 0
+  while IFS= read -r service; do
+    container=$(compose ps -a -q "$service")
+    [ -n "$container" ] || continue
+    image_id=$(docker inspect --format '{{.Image}}' "$container")
+    name=$(docker inspect --format '{{.Config.Image}}' "$container")
+    name=${name%@*}
+    [[ "${name##*/}" != *:* ]] || name=${name%:*}
+    docker tag "$image_id" "$name:moto-release-$service"
+  done < <(compose --profile '*' config --services)
+}
+
 postgres_image() {
   awk -F '\t' '$1 == "postgres" {print $2}' "$bundle/images.tsv"
 }
@@ -225,5 +244,6 @@ case "${1:-}" in
     if [ "$1" = verify-files ]; then verify_files; else "$1"; fi
     ;;
   app-services) app_services;;
+  keep-images) keep_images;;
   *) fail 'Expected create, verify or restore';;
 esac
