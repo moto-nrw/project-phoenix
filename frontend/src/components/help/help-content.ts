@@ -2710,6 +2710,7 @@ function activitiesCatalogTopic(): HelpTopic {
     troubleshootingDetails: [
       "Fehlt `Datenverwaltung` in der Seitenleiste? Dann fehlen Ihnen die Leitungsrechte. Fragen Sie Ihre Leitung.",
       "Fehlt die passende `Kategorie`? Legen Sie sie in der `Datenverwaltung` unter `Terminkategorien` an.",
+      "Nimmt das Tablet keine Kinder mehr an? Dann ist die Aktivität voll. Steht bei ihr `Überbucht`, sind sogar mehr Kinder da als erlaubt. Es kommen erst wieder Kinder dazu, wenn es weniger als `Maximale Teilnehmer` sind. Oder Sie erhöhen die Zahl.",
     ],
     related: [
       HELP_TOPICS.leadRooms,

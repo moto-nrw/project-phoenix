@@ -209,8 +209,10 @@ type ActiveGroupSummary struct {
 	Name         string `json:"name"`
 	Type         string `json:"type"`
 	StudentCount int    `json:"student_count"`
-	Location     string `json:"location"`
-	Status       string `json:"status"`
+	// MaxCapacity is the activity's limit; absent without one (#3634).
+	MaxCapacity *int   `json:"max_capacity,omitempty"`
+	Location    string `json:"location"`
+	Status      string `json:"status"`
 }
 
 // TrackingIndicatorsResponse returns labels and per-student match results
