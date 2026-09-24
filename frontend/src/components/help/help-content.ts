@@ -1439,7 +1439,7 @@ function parentMessageTopic(): HelpTopic {
       {
         title: "Alle Nachrichten für sich als gelesen markieren",
         description:
-          "So sehen Sie keine Zahl mehr bei `Nachrichten`. Für Ihr Team ändert sich nichts.",
+          "Ihre Zahl bei `Nachrichten` kann bleiben. Vom Team als ungelesen markierte Unterhaltungen bleiben ungelesen. Für Ihr Team ändert sich nichts.",
         steps: [
           "Öffnen Sie den Posteingang unter `Nachrichten`.",
           "Öffnen Sie oben das Menü mit den drei Punkten.",
