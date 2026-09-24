@@ -548,6 +548,15 @@ describe("StudentExportModal", () => {
           "Nur Kinder mit hinterlegten Gesundheitsinformationen.",
         ),
       ).toBeInTheDocument();
+      // The header must not claim "Alle Kinder" for the default scope.
+      expect(
+        screen.getByText(
+          "Kinder der Schule mit hinterlegten Gesundheitsinformationen.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Alle Kinder der Schule."),
+      ).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
 
       await waitFor(() => {

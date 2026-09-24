@@ -174,6 +174,13 @@ export function StudentExportModal({
 
   if (!isOpen) return null;
 
+  // "Alle Kinder" would contradict the Gesundheitsliste's default scope,
+  // which leaves children without a note off the list.
+  const scopeWithoutCount =
+    isHealthList && !includeWithoutHealthInfo
+      ? "Kinder der Schule mit hinterlegten Gesundheitsinformationen."
+      : "Alle Kinder der Schule.";
+
   const toggleColumn = (column: StudentExportColumn) => {
     setColumns((current) =>
       current.includes(column)
@@ -262,7 +269,7 @@ export function StudentExportModal({
             <SlideOverTitle>{heading}</SlideOverTitle>
             <SlideOverDescription>
               {resultCount === undefined
-                ? "Alle Kinder der Schule."
+                ? scopeWithoutCount
                 : `${resultCount} Kinder aus der aktuellen Filterung.`}
             </SlideOverDescription>
           </div>
@@ -423,7 +430,7 @@ export function StudentExportModal({
                     : `${activePreset?.label ?? "Vorlage"} kann angepasst werden.`}
                 </p>
               </div>
-              <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">
+              <span className="shrink-0 rounded-full bg-gray-100 px-2 py-1 text-xs font-medium whitespace-nowrap text-gray-600">
                 {columns.length} aktiv
               </span>
             </div>
