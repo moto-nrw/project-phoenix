@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/uptrace/bun"
@@ -37,11 +38,13 @@ type correctionFixture struct {
 
 func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID int64, lastName string) *correctionFixture {
 	t.Helper()
-	// This package runs on fixedCalendarClock, so the service window has to
-	// cover studentsTestToday instead of the real calendar day.
-	phase := testpkg.CreateTestEnrollmentPhaseForServiceWindow(
-		t, tc.db, studentsTestToday.AddDays(-30), studentsTestToday.AddDays(300),
-	)
+	// The phase has to cover the day the services see as today.
+	var phase *capability.Phase
+	if tc.clock != nil {
+		phase = testpkg.CreateTestEnrollmentPhaseAround(t, tc.db, timezone.DateFromTime(tc.clock()))
+	} else {
+		phase = testpkg.CreateTestEnrollmentPhase(t, tc.db)
+	}
 	ganztag := testpkg.CreateTestCareOffering(t, tc.db, phase.ID, "Ganztag")
 	mittag := testpkg.CreateTestCareOffering(t, tc.db, phase.ID, "Mittagessen")
 

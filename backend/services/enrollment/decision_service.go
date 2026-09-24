@@ -852,7 +852,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		childIDs = append(childIDs, c.ID)
 	}
 
-	links, err := readOwnerOfferingBatchSelections(ctx, s.Children, childIDs, reportOfferingDate(phase))
+	links, err := readOwnerOfferingBatchSelections(ctx, s.Children, childIDs, reportOfferingDate(s.todayDate(), phase))
 	if err != nil {
 		return nil, fmt.Errorf("decision: export load offerings: %w", err)
 	}
@@ -992,7 +992,7 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 	for _, request := range requests {
 		requestsByID[request.ID] = request
 	}
-	links = filterOfferingsAtPhaseDate(links, childrenByID, requestsByID, phases)
+	links = filterOfferingsAtPhaseDate(s.todayDate(), links, childrenByID, requestsByID, phases)
 	offeringsByChild := groupOfferingsByChild(links, offeringByID, len(childIDs))
 
 	schemas, err := loadFormSchemasByRequests(ctx, s.Schemas, requests)
@@ -1030,6 +1030,7 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 // one.
 
 func filterOfferingsAtPhaseDate(
+	today timezone.Date,
 	links []*RequestChildOffering,
 	childrenByID map[int64]*RequestChild,
 	requestsByID map[int64]*enrollmentModels.Request,
@@ -1052,7 +1053,7 @@ func filterOfferingsAtPhaseDate(
 		if phase == nil {
 			continue
 		}
-		onDate := reportOfferingDate(phase)
+		onDate := reportOfferingDate(today, phase)
 		if (link.ValidFrom == nil || !timezone.Date(*link.ValidFrom).After(onDate)) &&
 			(link.ValidUntil == nil || timezone.Date(*link.ValidUntil).After(onDate)) {
 			filtered = append(filtered, link)
