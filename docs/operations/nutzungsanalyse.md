@@ -23,6 +23,27 @@ that.
 | Discard client IP data | on | No IP, no GeoIP |
 | PostHog AI | off | No further subprocessor |
 
+## Dashboards (#3604)
+
+`scripts/posthog-dashboards.mjs` creates and updates the five dashboards; how
+to add one is in `.claude/rules/usage-analytics.md`. The script needs a
+personal API key in `POSTHOG_PERSONAL_API_KEY`, kept in the local
+environment only (for example `~/.config/project-phoenix/local.env`), scoped
+to the project with `query:read`, `insight:read`, `insight:write`,
+`dashboard:read`, and `dashboard:write`.
+
+| Dashboard | Deployment | Link |
+| --- | --- | --- |
+| Demo-Funnel | `demo` | <https://eu.posthog.com/project/140838/dashboard/972368> |
+| Nutzung pro Rolle und Oberfläche | `moto-app.de` | <https://eu.posthog.com/project/140838/dashboard/972369> |
+| Seiten (meistbesucht, kaum genutzt) | `moto-app.de` | <https://eu.posthog.com/project/140838/dashboard/972370> |
+| Reibung (Dead und Rage Clicks, Heatmaps) | `moto-app.de` and `demo`, separate tables | <https://eu.posthog.com/project/140838/dashboard/972371> |
+| Aktive Schulen | `moto-app.de` | <https://eu.posthog.com/project/140838/dashboard/972372> |
+
+The demo funnel starts with the link request (`demo_link_requested` from the
+backend). The click on „Demo starten" before it happens on the website,
+which measures with Umami, not PostHog.
+
 ## Privacy policy (website, `moto-ogs.de/datenschutz`)
 
 The website lives in `moto-nrw/website`, not in this repository. The demo

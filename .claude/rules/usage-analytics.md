@@ -7,6 +7,7 @@ paths:
   - "backend/analytics/**"
   - "backend/api/base.go"
   - "backend/api/testdata/route_table.golden"
+  - "scripts/posthog-dashboards*"
 ---
 
 # Usage analytics (Nutzungsanalyse)
@@ -29,6 +30,7 @@ commit. Terms: `CONTEXT.md`, section „Nutzungsanalyse"; spec #3598.
 | Analyse-Freigabe settings (`analytics.*`, operator-only) | `backend/services/config/defaults/analytics.go`; reaches the OGS portal through tenant resolve |
 | Pseudonymous user ID (same hash on both sides) | `frontend/src/lib/analytics-pseudonym.ts`, `backend/analytics/pseudonym.go` |
 | PostHog project settings, privacy text draft | `docs/operations/nutzungsanalyse.md` |
+| The five PostHog dashboards and their insights | `scripts/posthog-dashboards.mjs` |
 
 The floor for real schools: route templates instead of URLs, the deployment
 instead of the real host (the OGS portal runs on `{slug}.TENANT_DOMAIN`), no
@@ -94,3 +96,27 @@ Name it in `CUSTOM_EVENTS` and give each property an allowlisted value in
 `analytics-policy.ts`; the filter drops everything else. A core action that
 ends in a successful write is no custom event: it comes from the backend (see
 above), and the browser filter drops the backend's event names.
+
+## New dashboard or insight
+
+The PostHog dashboards exist only as `scripts/posthog-dashboards.mjs`; an
+insight built by hand in the PostHog UI is not reproducible. The script needs
+`POSTHOG_PERSONAL_API_KEY` in the local environment (never in the repository)
+and calls only the EU API.
+
+1. Add the insight to its dashboard in `dashboards()`, or add a dashboard
+   with its insights. Build the query with `hogql()`, `trends()`, or
+   `funnel()` and pass `production` or `demo`: they add the deployment
+   filter. A HogQL query uses the given condition in every `from events`.
+2. Aggregate by role, surface, or school at the finest. Never break down by
+   `distinct_id` or a person, and never count people: the usage analytics
+   does not rate staff members.
+3. Run `node --test scripts/posthog-dashboards.test.mjs`. It fails for an
+   insight without a deployment filter, with staging, or with a person.
+4. Run `node scripts/posthog-dashboards.mjs --check` (every query runs once
+   in PostHog), then `node scripts/posthog-dashboards.mjs`. It creates or
+   updates by exact name; a second run prints `Everything is current.`
+
+The script reads the route templates from `analytics-routes.ts` and the
+browser events from `analytics-policy.ts`. After a new page or a new custom
+event, run it once so the dashboards know them.
