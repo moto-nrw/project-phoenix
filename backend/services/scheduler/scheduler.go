@@ -715,7 +715,11 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 				slog.String("job_id", task.Name),
 				slog.Duration("duration", duration),
 			)
-			panic(recovered)
+			// Report and swallow the panic so only this run fails; re-panicking
+			// would end the polling loop until the next restart (#3597).
+			sentry.CurrentHub().Recover(recovered)
+			sentry.Flush(2 * time.Second)
+			return
 		}
 		if commandErr := failures.result(); commandErr != nil {
 			s.observeWorkerRun(JobID(task.Name), "failed", duration)
