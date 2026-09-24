@@ -233,16 +233,3 @@ func snapshotOfferingsOf(values []careplan.OfferingOverride) []enrollmentModels.
 	}
 	return offerings
 }
-
-// offeringSelectionsOf hands a materialized selection to Care Plan's booking
-// rules.
-func offeringSelectionsOf(values []materializedOfferingSelection) []careplan.OfferingSelection {
-	selections := make([]careplan.OfferingSelection, 0, len(values))
-	for _, value := range values {
-		selections = append(selections, careplan.OfferingSelection{
-			OfferingID: value.OfferingID, SelectedDays: value.SelectedDays,
-			ManualSelectedDays: value.ManualSelectedDays, AutomaticSelectedDays: value.AutomaticSelectedDays,
-		})
-	}
-	return selections
-}

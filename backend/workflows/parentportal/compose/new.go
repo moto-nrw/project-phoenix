@@ -64,7 +64,7 @@ type Dependencies struct {
 	CarePeriods      enrollmentSvc.StudentCarePeriodReader
 	OfferingHistory  enrollmentSvc.OfferingHistoryReader
 	CareOfferingRepo enrollmentModels.CareOfferingRepository
-	OfferingChanges  enrollmentSvc.OfferingChangeRequestService
+	OfferingChanges  care.OfferingChangeRequests
 
 	// CareProfiles writes the child's care profile (health information, live
 	// absence flags).

@@ -185,8 +185,8 @@ type ResourceConfig struct {
 	CareRequestReviews      careplan.CareScheduleReviewQuery
 	// OfferingChangeService backs the post-enrollment offering-change queue
 	// (#1665).
-	OfferingChangeService    enrollmentService.OfferingChangeRequestService
-	PickupAdjustmentService  enrollmentService.PickupAdjustmentService
+	OfferingChangeService    careplan.OfferingChangeRequests
+	PickupAdjustmentService  careplan.PickupAdjustments
 	ExcusedRequestService    excusedrequests.Service
 	ParentRequestBulkService userService.ParentRequestBulkService
 	// ParentRequestConflictService resolves a whole conflict group at once

@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -262,7 +261,7 @@ func (rs *Resource) editOfferingChangeRequest(w http.ResponseWriter, r *http.Req
 			errors.New("effective_from must be a date in YYYY-MM-DD form"), "offering_change_invalid"))
 		return
 	}
-	selections := make([]enrollmentService.OfferingChangeSelection, 0, len(body.Offerings))
+	selections := make([]careplan.OfferingChangeSelection, 0, len(body.Offerings))
 	for _, entry := range body.Offerings {
 		offeringID, convErr := strconv.ParseInt(strings.TrimSpace(entry.OfferingID), 10, 64)
 		if convErr != nil || offeringID <= 0 {
@@ -270,7 +269,7 @@ func (rs *Resource) editOfferingChangeRequest(w http.ResponseWriter, r *http.Req
 				errors.New("offering_id must be a numeric id"), "offering_change_invalid"))
 			return
 		}
-		selections = append(selections, enrollmentService.OfferingChangeSelection{
+		selections = append(selections, careplan.OfferingChangeSelection{
 			OfferingID:   offeringID,
 			SelectedDays: entry.SelectedDays,
 		})

@@ -40,6 +40,16 @@ func offeringSelectionDateOn(phase *enrollmentOwner.Phase, today timezone.Date) 
 	return today
 }
 
+func offeringsByID(offerings []*enrollmentModels.CareOffering) map[int64]*enrollmentModels.CareOffering {
+	byID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
+	for _, offering := range offerings {
+		if offering != nil {
+			byID[offering.ID] = offering
+		}
+	}
+	return byID
+}
+
 func offeringIDsFromLinks(links []*RequestChildOffering) []int64 {
 	ids := make([]int64, 0, len(links))
 	seen := make(map[int64]bool, len(links))
@@ -74,42 +84,6 @@ func requestChildOfferingLinksHaveCareDays(
 		}
 	}
 	return false
-}
-
-// grandfatheredOfferingsFromLinks classifies the bookings a child already
-// holds for the Bestandsschutz exemption (#2186): an availability rule
-// tightened after the fact does not revoke what is already on file for THIS
-// child, even when the grade rule now excludes it. Newly added blocked
-// offerings are not on file and are still rejected with
-// ErrCareOfferingUnavailable.
-//
-// The split follows the DAYS on each link, not the link as a whole: manual
-// days are what the admin ticked and can untick, automatic days are derived
-// from a trigger and never appear in a payload at all. A link can carry both,
-// so the two buckets deliberately OVERLAP (#2186 review) — unticking such a
-// booking withdraws only its manual half, and its automatic half must still be
-// re-derived while the trigger stays selected. Classifying a mixed link as
-// manual only dropped it out of the auto-materialization catalog on that very
-// save and deleted its automatic days.
-func grandfatheredOfferingsFromLinks(links []*RequestChildOffering) GrandfatheredOfferings {
-	grandfathered := GrandfatheredOfferings{
-		Manual:    make(map[int64]bool, len(links)),
-		Automatic: make(map[int64]bool, len(links)),
-	}
-	for _, link := range links {
-		if link == nil {
-			continue
-		}
-		if len(link.AutomaticSelectedDays) > 0 {
-			grandfathered.Automatic[link.CareOfferingID] = true
-		}
-		// Legacy links carry neither breakdown, only SelectedDays. Nothing
-		// derived those, so they are manual by construction.
-		if len(link.ManualSelectedDays) > 0 || len(link.AutomaticSelectedDays) == 0 {
-			grandfathered.Manual[link.CareOfferingID] = true
-		}
-	}
-	return grandfathered
 }
 
 // SchoolClassGradeLevel derives the numeric Jahrgang from the free-text

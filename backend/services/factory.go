@@ -236,12 +236,8 @@ type Factory struct {
 	StudentAudit         users.StudentAuditService
 	MasterDataReview     users.MasterDataReviewService
 	CareRequests         carerequests.Service
-	// OfferingChanges is the post-enrollment offering change-request lifecycle
-	// (#1665), shared by the parents portal and the staff review queue.
-	OfferingChanges   enrollment.OfferingChangeRequestService
-	PickupAdjustments enrollment.PickupAdjustmentService
-	ExcusedRequests   careplan.ExcusedAbsenceRequests
-	ParentRequests    *users.ParentRequestCoordinator
+	ExcusedRequests      careplan.ExcusedAbsenceRequests
+	ParentRequests       *users.ParentRequestCoordinator
 	// RequestReviewPolicy is the one cross-domain decision about WHO may see
 	// and decide parent requests. The API layer reads it to explain an empty
 	// queue; the four request services enforce it per child.
@@ -2229,50 +2225,30 @@ func newFactory(
 		WithCareRequestToday(today),
 	)
 
-	// Post-enrollment offering changes (#1665): the parents portal submits them,
-	// staff decide them on the same review page, and an approval applies the
-	// switch through the decision service's dated adjustment path.
-	directOfferingApplier, ok := enrollmentDecisionService.(enrollment.DirectOfferingAdjustmentApplier)
-	if !ok {
-		return nil, fmt.Errorf("enrollment decision service does not implement direct offering adjustment")
-	}
-	offeringChangeRequestService := enrollment.NewOfferingChangeRequestServiceWithPolicy(enrollment.OfferingChangeRequestServiceConfig{
-		ChangeRepo:             enrollment.NewOfferingChangeRepository(repos.CarePlan(), offeringChangeStudentSearch{people: persons}),
-		Children:               repos.Enrollment(),
-		Requests:               repos.Enrollment(),
-		Phases:                 repos.Enrollment(),
-		CareOfferingRepo:       enrollment.NewCareOfferingRepository(repos.CarePlan()),
-		ImpactRepo:             manualPlanningReader{db: db, courseGroups: timetableCapability},
-		StudentRepo:            repos.Student,
-		PersonRepo:             repos.Person,
-		CareWithdrawalRepo:     repos.CareWithdrawal,
-		OfferingAdjustmentRepo: repos.EnrollmentOfferingAdjustment,
-		UserContext:            userContextService.Caller(),
-		Applier:                enrollmentDecisionApplier,
-		DirectApplier:          directOfferingApplier,
-		Settings:               settingsService,
-		Emitter:                pillEmitter,
-		Logger:                 logger.With("service", "offering-change-requests"),
-		Today:                  today,
-		EventRecorder:          parentRequestEvents,
-	}, requestReviewPolicy)
-	pickupOfferingCoordinator, ok := offeringChangeRequestService.(enrollment.DirectOfferingAdjustmentCoordinator)
-	if !ok {
-		return nil, fmt.Errorf("offering change service does not implement direct pickup adjustment coordination")
-	}
-	pickupAdjustmentService := enrollment.NewPickupAdjustmentService(enrollment.PickupAdjustmentServiceConfig{
-		PickupSchedules:     pickupScheduleService,
-		ArrivalSchedules:    arrivalScheduleService,
-		PickupScheduleRepo:  repos.StudentPickupSchedule,
-		ArrivalScheduleRepo: repos.StudentArrivalSchedule,
-		PickupBaselines:     pickupBaselines,
-		Offerings:           pickupOfferingCoordinator,
-		Settings:            settingsService,
-		Audit:               studentAuditService,
-		Students:            repos.Student,
-		DB:                  db,
-		Today:               today,
+	// Post-enrollment offering changes (#1665, #3561): the parents portal
+	// submits them, staff decide them on the same review page, and an
+	// approval applies the switch through Care Plan's dated offering
+	// adjustment. Permanent pickup-time changes switch to a matching offering
+	// through the same review.
+	offeringChanges, err := newOfferingChanges(offeringChangeInputs{
+		CarePlan: repos.CarePlan(), Enrollment: repos.Enrollment(), Students: repos.Student,
+		Withdrawals: repos.CareWithdrawal, Settings: settingsService,
+		Planning: manualPlanningReader{db: db, courseGroups: timetableCapability},
+		Bookings: careBookings, Reviews: requestReviewPolicy, Emitter: pillEmitter,
+		Events: parentRequestEvents, Shares: requestShares, Today: today,
+		Logger: logger.With("service", "offering-change-requests"),
 	})
+	if err != nil {
+		return nil, fmt.Errorf("compose care plan offering changes: %w", err)
+	}
+	pickupAdjustments, err := newPickupAdjustments(pickupAdjustmentInputs{
+		CarePlan: repos.CarePlan(), PickupSchedules: pickupScheduleService, ArrivalSchedules: arrivalScheduleService,
+		Baselines: pickupBaselines, Offerings: offeringChanges, Settings: settingsService,
+		Audit: studentAuditService, Students: repos.Student, Today: today,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose care plan pickup adjustments: %w", err)
+	}
 
 	// Review access is one cross-domain policy: admins remain school-wide;
 	// group leaders are opt-in and limited to their current groups. Attach it
@@ -2491,7 +2467,7 @@ func newFactory(
 		CarePeriods:      repos.Enrollment(),
 		OfferingHistory:  repos.Enrollment(),
 		CareOfferingRepo: enrollment.NewCareOfferingRepository(repos.CarePlan()),
-		OfferingChanges:  offeringChangeRequestService,
+		OfferingChanges:  offeringChanges,
 		Logger:           logger.With("service", "parent"),
 		Now:              now,
 	})
@@ -2805,13 +2781,12 @@ func newFactory(
 	// Bound deliberately AFTER the request services and parentService exist:
 	// the sharing rules live in the parents domain, and the request domains
 	// must not import it just to ask who a request was shared with. The
-	// offering and master-data services take it by setter; the care and
-	// excused requests read it lazily through requestShares.
+	// master-data service takes it by setter; the care, excused and offering
+	// requests read it lazily through requestShares.
 	var _ parentmessaging.ShareVisibilityResolver = parentService
 	if resolver, ok := any(parentService).(parentmessaging.ShareVisibilityResolver); ok {
 		requestShareVisibility = resolver
 		for _, service := range []any{
-			offeringChangeRequestService,
 			masterDataReviewService,
 		} {
 			if sink, ok := service.(interface {
@@ -2834,7 +2809,7 @@ func newFactory(
 	parentRequestCoordinator.SetMasterDataConflictPort(masterDataReviewService.(users.ParentRequestConflictPort))
 	parentRequestCoordinator.SetExcusedConflictPort(excusedCoordinatorPort)
 	parentRequestCoordinator.SetCareConflictPort(careRequestService.(users.ParentRequestConflictPort))
-	parentRequestCoordinator.SetOfferingConflictPort(offeringChangeRequestService.(users.ParentRequestConflictPort))
+	parentRequestCoordinator.SetOfferingConflictPort(offeringChangeConflictPort{changes: offeringChanges})
 	// The resolver records ONLY the staff-entered result. Every verdict it
 	// takes goes through a domain Decide, which writes its own decided event.
 	parentRequestCoordinator.SetEventRecorder(parentRequestEvents)
@@ -2941,8 +2916,6 @@ func newFactory(
 		StudentConsents:      studentConsentService,
 		MasterDataReview:     masterDataReviewService,
 		CareRequests:         careRequestService,
-		OfferingChanges:      offeringChangeRequestService,
-		PickupAdjustments:    pickupAdjustmentService,
 		ExcusedRequests:      excusedRequestService,
 		ParentRequests:       parentRequestCoordinator,
 		RequestReviewPolicy:  requestReviewPolicy,
@@ -2974,7 +2947,7 @@ func newFactory(
 		Delivery:          deliveryRuntime.Module,
 
 		EnrollmentFormSchema:      enrollmentFormSchemaService,
-		EnrollmentCareOffering:    carePlanCareOfferings{enrollmentCareOfferingService, careBookings},
+		EnrollmentCareOffering:    carePlanCareOfferings{enrollmentCareOfferingService, careBookings, offeringChanges, pickupAdjustments},
 		EnrollmentCaptcha:         enrollmentCaptchaService,
 		EnrollmentRequest:         enrollmentRequestService,
 		EnrollmentPhase:           enrollmentPhaseService,

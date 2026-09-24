@@ -58,7 +58,7 @@ type Config struct {
 	CarePeriods      enrollmentSvc.StudentCarePeriodReader
 	OfferingHistory  enrollmentSvc.OfferingHistoryReader
 	CareOfferingRepo CareOfferingReads
-	OfferingChanges  enrollmentSvc.OfferingChangeRequestService
+	OfferingChanges  OfferingChangeRequests
 
 	// People Directory: the child's change history, consent projection and
 	// photo lifecycle, and the parent-request ledger.

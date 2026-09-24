@@ -3,10 +3,11 @@ package enrollment_test
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
@@ -24,32 +25,32 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "History")
 
-	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+	row, err := svc.SubmitOfferingChange(ctx, careplan.CreateOfferingChangeInput{
 		StudentID:     fx.studentID,
 		AccountID:     env.creatorID,
 		EffectiveFrom: fx.switchDate,
-		Selections: []enrollmentService.OfferingChangeSelection{
+		Selections: []careplan.OfferingChangeSelection{
 			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
 		},
 	})
 	require.NoError(t, err)
 
 	// While pending, the history is empty.
-	items, next, err := svc.ListHistory(ctx, modelBase.RequestQueueFilters{Limit: 25})
+	items, next, err := offeringReviewQueueForTest(t, env).ListHistory(ctx, careplan.RequestQueueFilter{Limit: 25})
 	require.NoError(t, err)
 	assert.Nil(t, next)
 	for _, item := range items {
 		assert.NotEqual(t, row.ID, item.Request.ID, "pending rows must never appear in the history")
 	}
 
-	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+	require.NoError(t, svc.Decide(ctx, careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: false, Reason: "Kapazität erschöpft", ReviewedBy: env.creatorID,
 	}))
 
-	items, next, err = svc.ListHistory(ctx, modelBase.RequestQueueFilters{Limit: 25})
+	items, next, err = offeringReviewQueueForTest(t, env).ListHistory(ctx, careplan.RequestQueueFilter{Limit: 25})
 	require.NoError(t, err)
 	assert.Nil(t, next)
-	var got *enrollmentService.OfferingChangeHistoryItem
+	var got *careplan.OfferingHistoryItem
 	for _, item := range items {
 		if item.Request.ID == row.ID {
 			got = item
@@ -68,11 +69,11 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 	}
 	assert.Contains(t, labels, fx.newOffering.Name)
 
-	withdrawn, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+	withdrawn, err := svc.SubmitOfferingChange(ctx, careplan.CreateOfferingChangeInput{
 		StudentID:     fx.studentID,
 		AccountID:     env.creatorID,
 		EffectiveFrom: fx.switchDate,
-		Selections: []enrollmentService.OfferingChangeSelection{
+		Selections: []careplan.OfferingChangeSelection{
 			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"tue"}},
 		},
 	})
@@ -83,9 +84,9 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 		ctx, withdrawn.ID, enrollmentModels.OfferingChangeStatusWithdrawn, nil, nil, false,
 	))
 
-	items, _, err = svc.ListHistory(ctx, modelBase.RequestQueueFilters{Limit: 25})
+	items, _, err = offeringReviewQueueForTest(t, env).ListHistory(ctx, careplan.RequestQueueFilter{Limit: 25})
 	require.NoError(t, err)
-	var withdrawnHistory *enrollmentService.OfferingChangeHistoryItem
+	var withdrawnHistory *careplan.OfferingHistoryItem
 	for _, item := range items {
 		if item.Request.ID == withdrawn.ID {
 			withdrawnHistory = item
@@ -94,7 +95,7 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 	}
 	require.NotNil(t, withdrawnHistory)
 	assert.Empty(t, withdrawnHistory.Diff, "withdrawn rows have no decision snapshot")
-	require.Equal(t, []enrollmentService.OfferingChangeRequestedItem{{
+	require.Equal(t, []careplan.OfferingChangeRequestedItem{{
 		OfferingID: fx.newOffering.ID, Name: fx.newOffering.Name, Days: []string{"tue"},
 	}}, withdrawnHistory.Requested)
 }
