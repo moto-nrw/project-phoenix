@@ -69,6 +69,10 @@ type ParentMessageThread struct {
 	// covered by a staff reply. Personal read cursors stay per account.
 	StaffHandledUpToAt        *time.Time
 	StaffHandledUpToMessageID *int64
+	// StaffMarkedUnread* is the team-wide "als ungelesen markiert" state. It is
+	// cleared when a staff member opens or answers the conversation.
+	StaffMarkedUnreadAt          *time.Time
+	StaffMarkedUnreadByAccountID *int64
 	// LastStaffMessageNotificationAt is the database-clock claim that collapses
 	// a burst of guardian messages into one staff notification.
 	LastStaffMessageNotificationAt *time.Time

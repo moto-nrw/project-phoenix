@@ -727,6 +727,7 @@ POST /api/me/profile/avatar
 POST /api/messages/threads
 POST /api/messages/threads/open
 POST /api/messages/threads/{threadId}
+POST /api/messages/threads/{threadId}/unread
 POST /api/notifications/push/subscriptions
 POST /api/notifications/test
 POST /api/parent-announcements/

@@ -40,6 +40,14 @@ func (r *ParentMessageReads) MarkStaffHandledUpTo(ctx context.Context, tenantID,
 	return r.threads.MarkStaffHandledUpTo(ctx, tenantID, threadID, handledAt, handledMessageID)
 }
 
+func (r *ParentMessageReads) MarkStaffUnread(ctx context.Context, tenantID, threadID, accountID int64) error {
+	return r.threads.MarkStaffUnread(ctx, tenantID, threadID, accountID)
+}
+
+func (r *ParentMessageReads) ClearStaffUnreadMark(ctx context.Context, tenantID, threadID int64, observedAt time.Time) (bool, error) {
+	return r.threads.ClearStaffUnreadMark(ctx, tenantID, threadID, observedAt)
+}
+
 func (r *ParentMessageReads) UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error) {
 	return r.inbox.UnreadMessageCountForStaff(ctx, accountID, allStudents)
 }
