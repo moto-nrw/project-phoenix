@@ -54,6 +54,7 @@ func buildPickupExtensionSetup(t *testing.T, db *bun.DB) *pickupExtensionSetup {
 	testpkg.CreateTestInstanceStudent(t, db, freePlay.ID, other.ID, schedule.AttendanceStatusExpected)
 	res := NewResource(Dependencies{
 		PickupExtensions: module,
+		RecurrenceLock:   repositories.MustNewTimetableRecurrenceLock(db),
 		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
 			StudentRepo: repositories.NewStudentRepository(db),
 			PersonRepo:  usersRepo.NewPersonRepository(db),

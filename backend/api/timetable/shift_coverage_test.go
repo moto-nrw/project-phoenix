@@ -35,7 +35,7 @@ func coverageClock(t *testing.T, value string) time.Time {
 func setupShiftCoverageRoute(t *testing.T) chi.Router {
 	t.Helper()
 	db, services := testutil.SetupTimetableModule(t)
-	resource := NewResource(Dependencies{Templates: services.TimetableData, TimetableData: services.TimetableData.TimetableData(), ConflictDetection: services.ConflictDetection, DB: db})
+	resource := NewResource(Dependencies{Templates: services.TimetableData.Templates, TimetableData: services.TimetableData.Data, ConflictDetection: services.ConflictDetection, DB: db})
 	router := chi.NewRouter()
 	router.Mount("/timetable", resource.Router())
 	return router

@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,7 +64,7 @@ func applyDeviation(t *testing.T, s *scenarioSetup, instanceID, absentStaffID, s
 // deviation. Returns the substitute staff id.
 func seedDeviatedOccurrence(t *testing.T, s *scenarioSetup, date timezone.Date) (substituteStaffID int64) {
 	t.Helper()
-	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, date, date, timetableplanning.MaterializationSourceManual)
+	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, date, date, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	instances := listInstancesForDate(t, s.db, s.template.ID, date)
 	require.Len(t, instances, 1, "one occurrence materialized")
@@ -173,7 +173,7 @@ func TestInstance_ReplanWeek_CapsRecreatedSubstitutesToSurvivingAbsences(t *test
 	})
 
 	// Materialize the single Monday occurrence — now with two planned staff.
-	_, err = s.factory.Materialization.MaterializeForTenant(s.ctx, date, date, timetableplanning.MaterializationSourceManual)
+	_, err = s.factory.Materialization.MaterializeForTenant(s.ctx, date, date, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	instances := listInstancesForDate(t, s.db, s.template.ID, date)
 	require.Len(t, instances, 1, "one occurrence, two planned staff")
@@ -242,7 +242,7 @@ func TestInstance_ReplanWeek_DoesNotMoveDeletedSlotDeviationToSurvivor(t *testin
 	require.NoError(t, err)
 
 	// Materialize both slots.
-	_, err = s.factory.Materialization.MaterializeForTenant(s.ctx, date, date, timetableplanning.MaterializationSourceManual)
+	_, err = s.factory.Materialization.MaterializeForTenant(s.ctx, date, date, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	instances := listInstancesForDate(t, s.db, s.template.ID, date)
 	require.Len(t, instances, 2, "two slots materialized")
@@ -316,7 +316,7 @@ func TestInstance_ReplanWeek_PreservesRequiredStaffPin(t *testing.T) {
 		Exec(s.ctx)
 	require.NoError(t, err)
 
-	_, err = s.factory.Materialization.MaterializeForTenant(s.ctx, date, date, timetableplanning.MaterializationSourceManual)
+	_, err = s.factory.Materialization.MaterializeForTenant(s.ctx, date, date, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	instances := listInstancesForDate(t, s.db, s.template.ID, date)
 	require.Len(t, instances, 1, "one occurrence materialized")

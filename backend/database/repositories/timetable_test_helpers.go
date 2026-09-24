@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"log/slog"
 	"time"
 
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -202,5 +203,45 @@ func (r TimetableTestRepositories) OwnerRows() TimetableOwnerRows {
 		Templates: r.ActivityGroup, Categories: r.ActivityCategory, Students: r.Student,
 		EducationGroups: r.Group, Rooms: r.Room, PickupExceptions: r.StudentPickupException,
 		ArrivalExceptions: r.StudentArrivalException, DeviationEvents: r.DeviationEvent,
+	}
+}
+
+// RosterMaintenance is the Timetable owner's roster maintenance over the test
+// repository set (#3424 slice S2), for suites that compose a grade
+// transition or the Enrollment resync.
+func (r TimetableTestRepositories) RosterMaintenance(logger *slog.Logger, now func() time.Time) timetable.RosterMaintenance {
+	return NewTimetableRosterMaintenance(r.ActivityInstance, r.InstanceStudent, r.StudentEnrollment, logger, now)
+}
+
+// MustNewTimetableRecurrenceLock is NewTimetableRecurrenceLock for test
+// fixtures; it panics on a nil database.
+func MustNewTimetableRecurrenceLock(db *bun.DB) timetable.RecurrenceWriteLock {
+	lock, err := NewTimetableRecurrenceLock(db)
+	if err != nil {
+		panic(err)
+	}
+	return lock
+}
+
+// NewTimetableRosterMaintenance is the Timetable owner's roster maintenance
+// (#3424 slice S2) over the retained instance, participant and enrollment
+// rows. logger may be nil; now defaults to the Berlin clock.
+func NewTimetableRosterMaintenance(
+	instances scheduleModels.ActivityInstanceRepository,
+	participants scheduleModels.InstanceStudentRepository,
+	enrollments activitiesModels.StudentEnrollmentRepository,
+	logger *slog.Logger,
+	now ...func() time.Time,
+) timetable.RosterMaintenance {
+	return timetableCompose.NewRosterReconciler(instances, participants, enrollments, logger, now...)
+}
+
+// TimetableTemplateRows fills the template rows from the test repository set.
+func (r TimetableTestRepositories) TimetableTemplateRows() TimetableTemplateRows {
+	return TimetableTemplateRows{
+		Groups: r.ActivityGroup, Categories: r.ActivityCategory, Schedules: r.ActivitySchedule,
+		Enrollments: r.StudentEnrollment, Supervisors: r.ActivitySupervisor, Instances: r.ActivityInstance,
+		InstanceStaff: r.InstanceStaff, Participants: r.InstanceStudent, Timeframes: r.Timeframe,
+		CalendarPeriods: r.CalendarPeriod, Exceptions: r.ActivityException, EducationGroups: r.Group,
 	}
 }

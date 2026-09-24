@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,16 +25,17 @@ const sourcedOfferingID int64 = 17
 
 func buildSourcedTemplateModule(t *testing.T) *templateSetup {
 	t.Helper()
-	mat := &mockMaterializationService{result: &timetableplanning.MaterializationResult{}}
+	mat := &mockMaterializationService{result: &timetableModule.MaterializationResult{}}
 	s := buildTemplateModule(t, mat, fixedTemplateClock)
-	s.res.Templates = testTimetableDataWithOfferingCallbacks(
-		s.db,
-		nil,
-		func(context.Context, []int64, []int64, *int64) error { return nil },
-		func(context.Context, timetableplanning.OfferingRosterResyncInput) error { return nil },
-		fixedTemplateClock,
-	)
-	attachSplitService(s, mat)
+	// One template administration serves create, update and split, so the
+	// offering callbacks and the split's materialization share its options.
+	s.res.Templates = testTimetableWith(s.db, testTimetableOptions{
+		validateCareOfferingSeries: func(context.Context, int64) error { return nil },
+		validateOfferingSource:     func(context.Context, []int64, []int64, *int64) error { return nil },
+		resyncOfferingRoster:       func(context.Context, timetableModule.OfferingRosterResyncInput) error { return nil },
+		materialization:            mat,
+		instances:                  s.res.InstanceService,
+	}, fixedTemplateClock)
 	return s
 }
 

@@ -1,6 +1,7 @@
 package timetableplanning
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -46,6 +48,45 @@ var (
 	ErrCorrectionTrailUnavailable = errors.New("schedule: correction trail is not available")
 )
 
+// AttendanceCorrectionDependencies wires the correction of a completed
+// block's attendance (#2898) until #3424 slice S3 moves it to the Timetable
+// owner. AttendanceCorrectionRepo records the append-only trail; without it
+// every correction fails closed. PersonRepo snapshots the actor's name and
+// RecoveryRepo serializes the write with the block's completion; both are
+// optional in read-only test facades.
+type AttendanceCorrectionDependencies struct {
+	InstanceStudentRepo      scheduleModel.InstanceStudentRepository
+	ActivityInstanceRepo     scheduleModel.ActivityInstanceRepository
+	AttendanceCorrectionRepo auditModel.AttendanceCorrectionRepository
+	PersonRepo               usersModel.PersonRepository
+	RecoveryRepo             scheduleModel.ActivityRecoveryRepository
+	Logger                   *slog.Logger
+}
+
+// AttendanceCorrectionService corrects the attendance of completed blocks.
+type AttendanceCorrectionService struct {
+	deps AttendanceCorrectionDependencies
+}
+
+// NewAttendanceCorrectionService creates the attendance correction.
+func NewAttendanceCorrectionService(deps AttendanceCorrectionDependencies) *AttendanceCorrectionService {
+	return &AttendanceCorrectionService{deps: deps}
+}
+
+func (s *AttendanceCorrectionService) getLogger() *slog.Logger {
+	return cmp.Or(s.deps.Logger, slog.Default())
+}
+
+// lockInstanceAttendance takes FOR UPDATE on every participant row so a
+// concurrent Complete cannot flip the instance between the status check and
+// the attendance write. No-op without the recovery repository.
+func (s *AttendanceCorrectionService) lockInstanceAttendance(ctx context.Context, instanceID int64) error {
+	if s.deps.RecoveryRepo == nil {
+		return nil
+	}
+	return s.deps.RecoveryRepo.LockAttendance(ctx, instanceID)
+}
+
 // CorrectInstanceStudentAttendance changes a child's attendance in a COMPLETED
 // activity instance and records every changed field in the append-only trail
 // audit.attendance_corrections.
@@ -63,7 +104,7 @@ var (
 // activity_instances.completion_snapshot is never touched. It records what the
 // day meant at the moment it was closed; the correction changes the live row
 // and leaves the snapshot as evidence of the original state.
-func (s *TemplateService) CorrectInstanceStudentAttendance(
+func (s *AttendanceCorrectionService) CorrectInstanceStudentAttendance(
 	ctx context.Context,
 	instanceID, studentID int64,
 	patch scheduleModel.AttendanceFieldPatch,
@@ -201,7 +242,7 @@ func changedAttendancePatch(patch scheduleModel.AttendanceFieldPatch, current *s
 // buildAttendanceCorrections turns a patch into one audit row per field that
 // actually changes value. A patch that sets a field to what it already holds
 // produces no row: the trail records changes, not requests.
-func (s *TemplateService) buildAttendanceCorrections(
+func (s *AttendanceCorrectionService) buildAttendanceCorrections(
 	ctx context.Context,
 	instanceID, studentID int64,
 	patch scheduleModel.AttendanceFieldPatch,
@@ -255,7 +296,7 @@ func (s *TemplateService) buildAttendanceCorrections(
 // later account deletion. A missing name is not an error: the account id still
 // identifies the actor while the account exists, and the correction itself
 // matters more than its label.
-func (s *TemplateService) resolveActorName(ctx context.Context, accountID int64) *string {
+func (s *AttendanceCorrectionService) resolveActorName(ctx context.Context, accountID int64) *string {
 	if accountID <= 0 || s.deps.PersonRepo == nil {
 		return nil
 	}
@@ -284,7 +325,7 @@ func equalStringPtr(a, b *string) bool {
 // GetAttendanceCorrections returns one child's correction trail for one
 // instance, newest first. Returns an empty slice when the trail repository is
 // not wired (read-only test facades).
-func (s *TemplateService) GetAttendanceCorrections(ctx context.Context, instanceID, studentID int64) ([]*auditModel.AttendanceCorrection, error) {
+func (s *AttendanceCorrectionService) GetAttendanceCorrections(ctx context.Context, instanceID, studentID int64) ([]*auditModel.AttendanceCorrection, error) {
 	if s.deps.AttendanceCorrectionRepo == nil {
 		return []*auditModel.AttendanceCorrection{}, nil
 	}

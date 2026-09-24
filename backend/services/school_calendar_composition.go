@@ -12,7 +12,6 @@ import (
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 )
@@ -75,7 +74,10 @@ func (f *Factory) SchoolCalendarAdministration() schoolCalendarCompose.Administr
 // lockTenantRecurrence is the tenant-wide recurrence gate every
 // recurrence-derived write of this factory serializes on.
 func (f *Factory) lockTenantRecurrence(ctx context.Context) error {
-	return timetableplanning.LockTenantRecurrenceWrites(ctx, f.settingsRuntimeDB)
+	if f.TimetableData.RecurrenceLock == nil {
+		return errors.New("timetable recurrence lock is not configured")
+	}
+	return f.TimetableData.RecurrenceLock.LockRecurrenceWrites(ctx)
 }
 
 // nonWorkingDays serves the retained Soll consumers (time tracking, the

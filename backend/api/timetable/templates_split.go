@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -213,7 +212,7 @@ const ErrCodeTemplateCareOfferingConflict = "timetable.template_care_offering_co
 const ErrCodeTemplateRosterRebaseConflict = "timetable.template_roster_rebase_conflict"
 
 func renderTemplateCareOfferingConflict(w http.ResponseWriter, r *http.Request, err error) bool {
-	if !errors.Is(err, timetableplanning.ErrTemplateCareOfferingConflict) {
+	if !errors.Is(err, timetableModule.ErrTemplateCareOfferingConflict) {
 		return false
 	}
 	common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
@@ -225,7 +224,7 @@ func renderTemplateCareOfferingConflict(w http.ResponseWriter, r *http.Request, 
 }
 
 func renderTemplateRosterRebaseConflict(w http.ResponseWriter, r *http.Request, err error) bool {
-	if !errors.Is(err, timetableplanning.ErrTemplateRosterRebaseConflict) {
+	if !errors.Is(err, timetableModule.ErrTemplateRosterRebaseConflict) {
 		return false
 	}
 	tenant.MarkRollback(r.Context())
@@ -243,7 +242,7 @@ func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if rs.TemplateSplitService == nil {
+	if rs.Templates == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("template split service not wired")))
 		return
 	}
@@ -283,7 +282,7 @@ func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	result, err := rs.TemplateSplitService.Split(r.Context(), in)
+	result, err := rs.Templates.SplitTemplate(r.Context(), in)
 	if err != nil {
 		renderTemplateSplitError(w, r, err)
 		return
@@ -303,29 +302,29 @@ func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 
 // buildTemplateSplitInput parses the wire shape into the service input.
 // Reuses the shared HH:MM / YYYY-MM-DD parse helpers.
-func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (timetableplanning.TemplateSplitInput, error) {
+func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (timetableModule.SplitTemplateCommand, error) {
 	startTime, err := parseClockTime(req.StartTime)
 	if err != nil {
-		return timetableplanning.TemplateSplitInput{}, errors.New("invalid start_time format, expected HH:MM")
+		return timetableModule.SplitTemplateCommand{}, errors.New("invalid start_time format, expected HH:MM")
 	}
 	endTime, err := parseClockTime(req.EndTime)
 	if err != nil {
-		return timetableplanning.TemplateSplitInput{}, errors.New("invalid end_time format, expected HH:MM")
+		return timetableModule.SplitTemplateCommand{}, errors.New("invalid end_time format, expected HH:MM")
 	}
 	effectiveDate, err := timezone.ParseDate(req.EffectiveDate)
 	if err != nil {
-		return timetableplanning.TemplateSplitInput{}, errors.New("invalid effective_date format, expected YYYY-MM-DD")
+		return timetableModule.SplitTemplateCommand{}, errors.New("invalid effective_date format, expected YYYY-MM-DD")
 	}
 	materializeFrom, err := parseOptionalSplitDate(req.MaterializeFrom)
 	if err != nil {
-		return timetableplanning.TemplateSplitInput{}, errors.New("invalid materialize_from format, expected YYYY-MM-DD")
+		return timetableModule.SplitTemplateCommand{}, errors.New("invalid materialize_from format, expected YYYY-MM-DD")
 	}
 	materializeTo, err := parseOptionalSplitDate(req.MaterializeTo)
 	if err != nil {
-		return timetableplanning.TemplateSplitInput{}, errors.New("invalid materialize_to format, expected YYYY-MM-DD")
+		return timetableModule.SplitTemplateCommand{}, errors.New("invalid materialize_to format, expected YYYY-MM-DD")
 	}
 
-	return timetableplanning.TemplateSplitInput{
+	return timetableModule.SplitTemplateCommand{
 		TemplateID:              id,
 		EffectiveDate:           effectiveDate,
 		Name:                    req.Name,
@@ -370,7 +369,7 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (timetableplan
 		SourceGradeLevelsProvided:     req.SourceGradeLevels.Set,
 		SourceSchoolClasses:           req.SourceSchoolClasses.Value,
 		SourceSchoolClassesProvided:   req.SourceSchoolClasses.Set,
-		Targets:                       targetModels(req.Targets),
+		Targets:                       targetInputs(req.Targets),
 		StudentIDs:                    req.StudentIDs,
 		StaffIDs:                      req.StaffIDs,
 		PrimaryStaffID:                req.PrimaryStaffID,
@@ -403,15 +402,15 @@ func renderTemplateSplitError(w http.ResponseWriter, r *http.Request, err error)
 		return
 	}
 	switch {
-	case errors.Is(err, timetableplanning.ErrSplitTemplateNotFound):
+	case errors.Is(err, timetableModule.ErrSplitTemplateNotFound):
 		renderTemplateNotFound(w, r)
 	case errors.Is(err, timetableModule.ErrCategoryNotAssignable):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
 	case errors.Is(err, timetableModule.ErrPlanningTrackNotFound), errors.Is(err, timetableModule.ErrPlanningTrackArchived):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
-	case errors.Is(err, timetableplanning.ErrSplitInvalidInput):
+	case errors.Is(err, timetableModule.ErrSplitInvalidInput):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, timetableplanning.ErrOfferingSourceInvalid):
+	case errors.Is(err, timetableModule.ErrOfferingSourceInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("split template failed", err))

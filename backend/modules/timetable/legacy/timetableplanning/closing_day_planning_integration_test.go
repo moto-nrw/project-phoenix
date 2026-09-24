@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -73,7 +74,7 @@ func TestMaterializeForTenant_SkipsHolidaysAndClosingDays(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, regularMonday)
 	insertScenarioClosingDay(t, s, closingMonday, closingMonday.AddDays(4))
 
-	result, err := s.factory.Materialization.MaterializeForTenant(s.ctx, easterMonday, regularMonday, timetableplanning.MaterializationSourceManual)
+	result, err := s.factory.Materialization.MaterializeForTenant(s.ctx, easterMonday, regularMonday, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, result.InstancesCreated, "only the regular Monday is planned")
@@ -95,7 +96,7 @@ func TestMaterializeForTenant_SeriesIncludingClosingDaysStillSkipsHolidays(t *te
 	insertScenarioClosingDay(t, s, easterMonday, closingMonday)
 	setSeriesIncludesClosingDays(t, s, true)
 
-	result, err := s.factory.Materialization.MaterializeForTenant(s.ctx, easterMonday, regularMonday, timetableplanning.MaterializationSourceManual)
+	result, err := s.factory.Materialization.MaterializeForTenant(s.ctx, easterMonday, regularMonday, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 
 	assert.Equal(t, 2, result.InstancesCreated, "closing day and regular Monday are planned")
@@ -116,9 +117,9 @@ func TestDetectEditedInWindow_FollowsClosingDaySkip(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, regularMonday)
 	insertScenarioClosingDay(t, s, closingMonday, closingMonday)
 
-	detect := func() []timetableplanning.EditedOccurrence {
+	detect := func() []timetable.EditedOccurrence {
 		t.Helper()
-		var edited []timetableplanning.EditedOccurrence
+		var edited []timetable.EditedOccurrence
 		err := tenant.WithTenantTx(s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			var err error
 			edited, err = s.factory.Materialization.DetectEditedInWindow(txCtx, s.template.ID, closingMonday, regularMonday, false)
@@ -128,12 +129,12 @@ func TestDetectEditedInWindow_FollowsClosingDaySkip(t *testing.T) {
 		return edited
 	}
 
-	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, closingMonday, regularMonday, timetableplanning.MaterializationSourceManual)
+	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, closingMonday, regularMonday, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	assert.Empty(t, detect(), "skipping the closing day is not an edit")
 
 	setSeriesIncludesClosingDays(t, s, true)
-	_, err = s.factory.Materialization.MaterializeForTenant(s.ctx, closingMonday, regularMonday, timetableplanning.MaterializationSourceManual)
+	_, err = s.factory.Materialization.MaterializeForTenant(s.ctx, closingMonday, regularMonday, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Len(t, listInstancesForDate(t, s.db, s.template.ID, closingMonday), 1)
 	assert.Empty(t, detect(), "the closing-day occurrence of holiday care is expected")
@@ -149,12 +150,12 @@ func TestDetectEditedInWindow_OccurrencePlannedBeforeClosureIsNoEdit(t *testing.
 	regularMonday := timezone.NewDate(2026, time.April, 20)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, closingMonday)
 
-	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, closingMonday, regularMonday, timetableplanning.MaterializationSourceManual)
+	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, closingMonday, regularMonday, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Len(t, listInstancesForDate(t, s.db, s.template.ID, closingMonday), 1)
 	insertScenarioClosingDay(t, s, closingMonday, closingMonday)
 
-	var edited []timetableplanning.EditedOccurrence
+	var edited []timetable.EditedOccurrence
 	err = tenant.WithTenantTx(s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
 		edited, err = s.factory.Materialization.DetectEditedInWindow(txCtx, s.template.ID, closingMonday, regularMonday, false)
@@ -177,7 +178,7 @@ func bulkCancelScenario(t *testing.T) (*scenarioSetup, []timezone.Date) {
 	for week := range 6 {
 		mondays = append(mondays, first.AddDays(7*week))
 	}
-	result, err := s.factory.Materialization.MaterializeForTenant(s.ctx, mondays[0], mondays[5], timetableplanning.MaterializationSourceManual)
+	result, err := s.factory.Materialization.MaterializeForTenant(s.ctx, mondays[0], mondays[5], timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Equal(t, 6, result.InstancesCreated)
 	return s, mondays
@@ -221,7 +222,7 @@ func TestBulkCancelPlanned_CancelsAndRemovesPlannedOccurrences(t *testing.T) {
 	assert.Equal(t, scheduleModels.InstanceStatusActive, kept[0].Status)
 	assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, outside), 1, "occurrences outside the range stay")
 
-	again, err := s.factory.Materialization.MaterializeForTenant(s.ctx, mondays[0], mondays[5], timetableplanning.MaterializationSourceManual)
+	again, err := s.factory.Materialization.MaterializeForTenant(s.ctx, mondays[0], mondays[5], timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	assert.Zero(t, again.InstancesCreated, "materialization does not bring cancelled occurrences back")
 	assert.Equal(t, 3, again.CandidatesSkippedException)
@@ -315,7 +316,7 @@ func TestReplanWeek_FollowsTheSeriesClosingDayFlag(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, first)
 	insertScenarioClosingDay(t, s, closing, closing)
 	setSeriesIncludesClosingDays(t, s, true)
-	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, first, last, timetableplanning.MaterializationSourceManual)
+	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, first, last, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Len(t, listInstancesForDate(t, s.db, s.template.ID, closing), 1)
 

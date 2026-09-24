@@ -17,7 +17,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -26,7 +26,7 @@ import (
 // injects it into the schedule layer's TemplateServiceDependencies as a func
 // hook to avoid an enrollment→schedule package cycle.
 type OfferingRosterResyncer interface {
-	ResyncTemplateOfferingRoster(ctx context.Context, in timetableplanning.OfferingRosterResyncInput) error
+	ResyncTemplateOfferingRoster(ctx context.Context, in timetable.OfferingRosterResyncInput) error
 }
 
 // sourcedRosterTarget is one wanted roster row of an offering-sourced
@@ -79,18 +79,18 @@ type sourcedRosterTarget struct {
 //
 // Runs atomically in a tenant transaction, joining the template save's
 // transaction when present. The caller holds the tenant recurrence lock.
-func (s *decisionService) ResyncTemplateOfferingRoster(ctx context.Context, in timetableplanning.OfferingRosterResyncInput) error {
+func (s *decisionService) ResyncTemplateOfferingRoster(ctx context.Context, in timetable.OfferingRosterResyncInput) error {
 	return tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
 		return s.resyncTemplateOfferingRoster(txCtx, in)
 	})
 }
 
-func (s *decisionService) resyncTemplateOfferingRoster(ctx context.Context, in timetableplanning.OfferingRosterResyncInput) error {
+func (s *decisionService) resyncTemplateOfferingRoster(ctx context.Context, in timetable.OfferingRosterResyncInput) error {
 	if in.TemplateID <= 0 {
-		return fmt.Errorf("%w: template id is required", timetableplanning.ErrOfferingSourceInvalid)
+		return fmt.Errorf("%w: template id is required", timetable.ErrOfferingSourceInvalid)
 	}
 	if in.EffectiveFrom.IsZero() {
-		return fmt.Errorf("%w: effective_from is required", timetableplanning.ErrOfferingSourceInvalid)
+		return fmt.Errorf("%w: effective_from is required", timetable.ErrOfferingSourceInvalid)
 	}
 	if !s.hasEnrollmentMaterializationDependencies() {
 		return fmt.Errorf("offering roster resync: enrollment repositories are not configured")
@@ -240,21 +240,45 @@ func (s *decisionService) reconcileSourcedInstanceRosters(
 		studentIDs = append(studentIDs, studentID)
 	}
 	sort.Slice(studentIDs, func(i, j int) bool { return studentIDs[i] < studentIDs[j] })
-	if _, _, err := s.InstanceRosters.ReconcileSourcedTemplateRosters(ctx, templateID, studentIDs, effectiveFrom, priorEnrollments); err != nil {
+	if _, _, err := s.InstanceRosters.ReconcileSourcedTemplateRosters(ctx, templateID, studentIDs, effectiveFrom, rosterEnrollments(priorEnrollments)); err != nil {
 		return fmt.Errorf("offering roster resync: reconcile materialized occurrences: %w", err)
 	}
 	return nil
 }
 
 // SourcedInstanceRosterReconciler propagates sourced-roster changes onto
-// already-materialized future timetable occurrences (#2147 review).
-// Implemented by timetableplanning.RosterReconciler; injected here to avoid
-// widening the decision service's repo surface. priorEnrollments is the
+// already-materialized future timetable occurrences (#2147 review). It is the
+// Timetable owner's roster maintenance (timetable.RosterMaintenance); injected
+// here to avoid widening the decision service's repo surface. prior is the
 // template's enrollment state before the caller's writes (nil = coverage is
-// being established from scratch); see the implementation's doc for how it
-// preserves per-occurrence hand removals.
+// being established from scratch); see the owner's doc for how it preserves
+// per-occurrence hand removals.
 type SourcedInstanceRosterReconciler interface {
-	ReconcileSourcedTemplateRosters(ctx context.Context, templateID int64, studentIDs []int64, from timezone.Date, priorEnrollments []*activities.StudentEnrollment) (int, int, error)
+	ReconcileSourcedTemplateRosters(ctx context.Context, templateID int64, studentIDs []int64, from timezone.Date, prior []timetable.RosterEnrollment) (int, int, error)
+}
+
+// rosterEnrollments hands the pre-write enrollment rows to the Timetable
+// owner's roster decision. nil stays nil.
+func rosterEnrollments(rows []*activities.StudentEnrollment) []timetable.RosterEnrollment {
+	if rows == nil {
+		return nil
+	}
+	out := make([]timetable.RosterEnrollment, 0, len(rows))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		out = append(out, timetable.RosterEnrollment{
+			StudentID:        row.StudentID,
+			ValidFrom:        timezone.Date(row.ValidFrom),
+			ValidUntil:       enrollmentTimezoneDatePtr(row.ValidUntil),
+			CalendarPeriodID: row.CalendarPeriodID,
+			Weekday:          row.Weekday,
+			SelectedWeekdays: row.SelectedWeekdays,
+			StudentAlumnus:   row.StudentAlumnus,
+		})
+	}
+	return out
 }
 
 func enrollmentActivityDatePtr(date *timezone.Date) *activities.Date {
@@ -385,7 +409,7 @@ func (s *decisionService) DetachTemplatesSourcedFromOffering(ctx context.Context
 			gradeLevels = nil
 			schoolClasses = nil
 		}
-		err := s.ResyncTemplateOfferingRoster(ctx, timetableplanning.OfferingRosterResyncInput{
+		err := s.ResyncTemplateOfferingRoster(ctx, timetable.OfferingRosterResyncInput{
 			TemplateID:       tmpl.ID,
 			OfferingIDs:      remaining,
 			GradeLevels:      gradeLevels,
@@ -394,7 +418,7 @@ func (s *decisionService) DetachTemplatesSourcedFromOffering(ctx context.Context
 			EffectiveFrom:    effectiveFrom,
 		})
 		if err != nil {
-			if len(remaining) > 0 && errors.Is(err, timetableplanning.ErrOfferingSourceInvalid) {
+			if len(remaining) > 0 && errors.Is(err, timetable.ErrOfferingSourceInvalid) {
 				// A remaining source drifted invalid (e.g. it turned inactive or
 				// its phase no longer fits the period pin). The delete must not
 				// be blocked, and the remaining sources are valid data — only
@@ -463,7 +487,7 @@ func (s *decisionService) retireDepartingSourcedRows(
 		return nil
 	}
 	slices.Sort(scope)
-	return s.ResyncTemplateOfferingRoster(ctx, timetableplanning.OfferingRosterResyncInput{
+	return s.ResyncTemplateOfferingRoster(ctx, timetable.OfferingRosterResyncInput{
 		TemplateID:             tmpl.ID,
 		OfferingIDs:            remaining,
 		GradeLevels:            gradeLevels,
@@ -500,7 +524,7 @@ func (s *decisionService) resyncSourcedTemplateList(ctx context.Context, templat
 		if tmpl == nil || len(tmpl.SourceCareOfferingIDs) == 0 {
 			continue
 		}
-		err := s.ResyncTemplateOfferingRoster(ctx, timetableplanning.OfferingRosterResyncInput{
+		err := s.ResyncTemplateOfferingRoster(ctx, timetable.OfferingRosterResyncInput{
 			TemplateID:       tmpl.ID,
 			OfferingIDs:      tmpl.SourceCareOfferingIDs,
 			GradeLevels:      tmpl.SourceGradeLevels,
@@ -509,7 +533,7 @@ func (s *decisionService) resyncSourcedTemplateList(ctx context.Context, templat
 			EffectiveFrom:    effectiveFrom,
 		})
 		if err != nil {
-			if errors.Is(err, timetableplanning.ErrOfferingSourceInvalid) {
+			if errors.Is(err, timetable.ErrOfferingSourceInvalid) {
 				if skipInvalid {
 					s.logSkippedSourcedTemplate(tmpl.ID, tmpl.SourceCareOfferingIDs, "tenant-wide resync: source invalid", err)
 					continue
@@ -585,12 +609,12 @@ func loadValidatedOfferingSources(
 	tolerateDrift bool,
 ) (offerings []*enrollmentModels.CareOffering, phase *enrollmentOwner.Phase, droppedIDs []int64, err error) {
 	if len(offeringIDs) == 0 {
-		return nil, nil, nil, fmt.Errorf("%w: at least one care offering is required", timetableplanning.ErrOfferingSourceInvalid)
+		return nil, nil, nil, fmt.Errorf("%w: at least one care offering is required", timetable.ErrOfferingSourceInvalid)
 	}
-	if len(offeringIDs) > timetableplanning.MaxOfferingSourcesPerTemplate {
+	if len(offeringIDs) > timetable.MaxOfferingSourcesPerTemplate {
 		return nil, nil, nil, fmt.Errorf(
 			"%w: at most %d source offerings are supported (%d given)",
-			timetableplanning.ErrOfferingSourceInvalid, timetableplanning.MaxOfferingSourcesPerTemplate, len(offeringIDs),
+			timetable.ErrOfferingSourceInvalid, timetable.MaxOfferingSourcesPerTemplate, len(offeringIDs),
 		)
 	}
 	var period *scheduleModels.CalendarPeriod
@@ -598,7 +622,7 @@ func loadValidatedOfferingSources(
 		period, err = periodRepo.FindByID(ctx, *calendarPeriodID)
 		if err != nil {
 			if modelBase.IsNoRows(err) {
-				return nil, nil, nil, fmt.Errorf("%w: calendar period %d not found", timetableplanning.ErrOfferingSourceInvalid, *calendarPeriodID)
+				return nil, nil, nil, fmt.Errorf("%w: calendar period %d not found", timetable.ErrOfferingSourceInvalid, *calendarPeriodID)
 			}
 			return nil, nil, nil, fmt.Errorf("offering roster resync: load calendar period: %w", err)
 		}
@@ -606,7 +630,7 @@ func loadValidatedOfferingSources(
 	seen := make(map[int64]bool, len(offeringIDs))
 	for _, offeringID := range offeringIDs {
 		if seen[offeringID] {
-			return nil, nil, nil, fmt.Errorf("%w: care offering %d is listed twice", timetableplanning.ErrOfferingSourceInvalid, offeringID)
+			return nil, nil, nil, fmt.Errorf("%w: care offering %d is listed twice", timetable.ErrOfferingSourceInvalid, offeringID)
 		}
 		seen[offeringID] = true
 	}
@@ -623,12 +647,12 @@ func loadValidatedOfferingSources(
 			continue
 		}
 		if !offering.IsActive && !tolerateDrift {
-			return nil, nil, nil, fmt.Errorf("%w: care offering %d is inactive", timetableplanning.ErrOfferingSourceInvalid, offeringID)
+			return nil, nil, nil, fmt.Errorf("%w: care offering %d is inactive", timetable.ErrOfferingSourceInvalid, offeringID)
 		}
 		if phase != nil && offering.PhaseID != phase.ID {
 			return nil, nil, nil, fmt.Errorf(
 				"%w: all source offerings must belong to the same enrollment phase (offering %d belongs to %q)",
-				timetableplanning.ErrOfferingSourceInvalid, offeringID, offeringPhaseName(ctx, phaseRepo, offering.PhaseID),
+				timetable.ErrOfferingSourceInvalid, offeringID, offeringPhaseName(ctx, phaseRepo, offering.PhaseID),
 			)
 		}
 		if phase == nil {
@@ -637,13 +661,13 @@ func loadValidatedOfferingSources(
 			phase, err = phaseRepo.Phase(ctx, offering.PhaseID)
 			if err != nil {
 				if modelBase.IsNoRows(err) {
-					return nil, nil, nil, fmt.Errorf("%w: enrollment phase of care offering %d not found", timetableplanning.ErrOfferingSourceInvalid, offeringID)
+					return nil, nil, nil, fmt.Errorf("%w: enrollment phase of care offering %d not found", timetable.ErrOfferingSourceInvalid, offeringID)
 				}
 				return nil, nil, nil, fmt.Errorf("offering roster resync: load phase: %w", err)
 			}
 			if period != nil && !tolerateDrift {
 				if err := validatePhaseWithinTemplatePeriod(phase, period); err != nil {
-					return nil, nil, nil, fmt.Errorf("%w: %s", timetableplanning.ErrOfferingSourceInvalid, err.Error())
+					return nil, nil, nil, fmt.Errorf("%w: %s", timetable.ErrOfferingSourceInvalid, err.Error())
 				}
 			}
 		}
@@ -674,7 +698,7 @@ func (s *decisionService) unionWantedSourcedRosterTargets(
 	ctx context.Context,
 	offerings []*enrollmentModels.CareOffering,
 	phase *enrollmentOwner.Phase,
-	in timetableplanning.OfferingRosterResyncInput,
+	in timetable.OfferingRosterResyncInput,
 	envelopeFrom, envelopeUntil *timezone.Date,
 ) (map[int64][]*sourcedRosterTarget, error) {
 	wanted := make(map[int64][]*sourcedRosterTarget)
@@ -731,7 +755,7 @@ func (s *decisionService) wantedSourcedRosterTargets(
 	ctx context.Context,
 	offering *enrollmentModels.CareOffering,
 	phase *enrollmentOwner.Phase,
-	in timetableplanning.OfferingRosterResyncInput,
+	in timetable.OfferingRosterResyncInput,
 	envelopeFrom, envelopeUntil *timezone.Date,
 ) (map[int64][]*sourcedRosterTarget, error) {
 	children, err := s.ApprovedOfferings.ListApprovedChildrenByCareOfferingIDs(ctx, []int64{offering.ID}, in.EffectiveFrom)
@@ -1528,7 +1552,7 @@ func (s *decisionService) CombinedOfferingSourceCounts(ctx context.Context, offe
 		period, err := s.CalendarPeriodRepo.FindByID(ctx, *calendarPeriodID)
 		if err != nil {
 			if modelBase.IsNoRows(err) {
-				return nil, fmt.Errorf("%w: calendar period %d not found", timetableplanning.ErrOfferingSourceInvalid, *calendarPeriodID)
+				return nil, fmt.Errorf("%w: calendar period %d not found", timetable.ErrOfferingSourceInvalid, *calendarPeriodID)
 			}
 			return nil, fmt.Errorf("offering source counts: load calendar period: %w", err)
 		}
@@ -1676,7 +1700,7 @@ func (s *decisionService) offeringSourcePhases(ctx context.Context, calendarPeri
 		period, err = s.CalendarPeriodRepo.FindByID(ctx, *calendarPeriodID)
 		if err != nil {
 			if modelBase.IsNoRows(err) {
-				return nil, nil, fmt.Errorf("%w: calendar period %d not found", timetableplanning.ErrOfferingSourceInvalid, *calendarPeriodID)
+				return nil, nil, fmt.Errorf("%w: calendar period %d not found", timetable.ErrOfferingSourceInvalid, *calendarPeriodID)
 			}
 			return nil, nil, fmt.Errorf("offering source options: load calendar period: %w", err)
 		}

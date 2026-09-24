@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 type endTemplateRequest struct {
@@ -37,7 +37,7 @@ func (rs *Resource) endTemplate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if rs.TemplateSplitService == nil {
+	if rs.Templates == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("template split service not wired")))
 		return
 	}
@@ -52,7 +52,7 @@ func (rs *Resource) endTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := rs.TemplateSplitService.EndFromDate(r.Context(), timetableplanning.TemplateEndInput{
+	result, err := rs.Templates.EndTemplateFromDate(r.Context(), timetableModule.EndTemplateCommand{
 		TemplateID:    id,
 		EffectiveDate: effectiveDate,
 	})
@@ -73,9 +73,9 @@ func renderTemplateEndError(w http.ResponseWriter, r *http.Request, err error) {
 		return
 	}
 	switch {
-	case errors.Is(err, timetableplanning.ErrSplitTemplateNotFound):
+	case errors.Is(err, timetableModule.ErrSplitTemplateNotFound):
 		renderTemplateNotFound(w, r)
-	case errors.Is(err, timetableplanning.ErrSplitInvalidInput):
+	case errors.Is(err, timetableModule.ErrSplitInvalidInput):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("end template failed", err))

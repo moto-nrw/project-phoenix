@@ -2,6 +2,7 @@ package timetable
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,19 +18,58 @@ import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 )
 
-// testTimetableData builds the retained template writes over the Timetable
-// owner's planner reads (TimetableData()) and conflict detection
-// (ConflictDetection()) against the test database — the test-side
-// equivalent of the factory wiring.
-func testTimetableData(db *bun.DB, clocks ...func() time.Time) *timetableplanning.TemplateService {
+// testTimetable bundles what the composition root hands api/timetable from
+// the Timetable owner: the template writes (embedded, so the value serves
+// Dependencies.Templates directly), the planner reads, the conflict
+// detection and the retained attendance correction.
+type testTimetable struct {
+	timetableModule.TemplateAdministration
+	data        timetableModule.TimetableDataCapability
+	conflicts   timetableModule.ConflictDetectionCapability
+	corrections *timetableplanning.AttendanceCorrectionService
+	lock        timetableModule.RecurrenceWriteLock
+}
+
+func (t *testTimetable) TimetableData() timetableModule.TimetableDataCapability { return t.data }
+
+func (t *testTimetable) ConflictDetection() timetableModule.ConflictDetectionCapability {
+	return t.conflicts
+}
+
+func (t *testTimetable) AttendanceCorrections() *timetableplanning.AttendanceCorrectionService {
+	return t.corrections
+}
+
+func (t *testTimetable) RecurrenceLock() timetableModule.RecurrenceWriteLock { return t.lock }
+
+// testTimetableOptions are the collaborators a suite replaces: Enrollment's
+// care-offering checks and roster resync, the materialization (nil = the
+// owner's real engine over the test database) and the instance lifecycle
+// whose deviation machinery a split preserves (nil = no deviations).
+type testTimetableOptions struct {
+	validateCareOfferingSeries func(context.Context, int64) error
+	validateOfferingSource     func(context.Context, []int64, []int64, *int64) error
+	resyncOfferingRoster       func(context.Context, timetableModule.OfferingRosterResyncInput) error
+	materialization            timetableModule.MaterializationCapability
+	instances                  timetableplanning.InstanceService
+}
+
+// testTimetableData builds the Timetable owner's template writes, planner
+// reads (TimetableData()) and conflict detection (ConflictDetection())
+// against the test database — the test-side equivalent of the factory
+// wiring.
+func testTimetableData(db *bun.DB, clocks ...func() time.Time) *testTimetable {
 	return testTimetableDataWithCareValidator(db, nil, clocks...)
 }
 
@@ -37,7 +77,7 @@ func testTimetableDataWithCareValidator(
 	db *bun.DB,
 	validateCareOfferingSeries func(context.Context, int64) error,
 	clocks ...func() time.Time,
-) *timetableplanning.TemplateService {
+) *testTimetable {
 	return testTimetableDataWithOfferingCallbacks(db, validateCareOfferingSeries, nil, nil, clocks...)
 }
 
@@ -45,9 +85,17 @@ func testTimetableDataWithOfferingCallbacks(
 	db *bun.DB,
 	validateCareOfferingSeries func(context.Context, int64) error,
 	validateOfferingSource func(context.Context, []int64, []int64, *int64) error,
-	resyncOfferingRoster func(context.Context, timetableplanning.OfferingRosterResyncInput) error,
+	resyncOfferingRoster func(context.Context, timetableModule.OfferingRosterResyncInput) error,
 	clocks ...func() time.Time,
-) *timetableplanning.TemplateService {
+) *testTimetable {
+	return testTimetableWith(db, testTimetableOptions{
+		validateCareOfferingSeries: validateCareOfferingSeries,
+		validateOfferingSource:     validateOfferingSource,
+		resyncOfferingRoster:       resyncOfferingRoster,
+	}, clocks...)
+}
+
+func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func() time.Time) *testTimetable {
 	boundRepos := mustTimetableTestRepositories(db, clocks...)
 	people, err := repositories.NewPeopleDirectory(db)
 	if err != nil {
@@ -127,29 +175,125 @@ func testTimetableDataWithOfferingCallbacks(
 	if err != nil {
 		panic(err)
 	}
-	return timetableplanning.NewTemplateService(timetableplanning.TemplateServiceDependencies{
-		InstanceStudentRepo:        boundRepos.InstanceStudent,
-		ActivityInstanceRepo:       activityInstanceRepo,
-		ActivityScheduleRepo:       boundRepos.ActivitySchedule,
-		InstanceStaffRepo:          timetablesqltest.NewInstanceStaffRepository(db),
-		ActivityCategoryRepo:       boundRepos.ActivityCategory,
-		ActivityGroupRepo:          boundRepos.ActivityGroup,
-		ActivitySupervisorRepo:     boundRepos.ActivitySupervisor,
-		StudentEnrollmentRepo:      boundRepos.StudentEnrollment,
-		TimeframeRepo:              boundRepos.Timeframe,
-		EducationGroupRepo:         educationRepo.NewGroupRepository(db),
-		ValidateCareOfferingSeries: validateCareOfferingSeries,
-		ValidateOfferingSource:     validateOfferingSource,
-		ResyncOfferingRoster:       resyncOfferingRoster,
-		AttendanceCorrectionRepo:   auditRepo.NewAttendanceCorrectionRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
-		PersonRepo:                 usersRepo.NewPersonRepository(db),
-		ConflictDetection:          conflicts,
-		TimetableData:              timetableData,
-		RecoveryRepo:               recovery,
-		DB:                         db,
-		Today:                      today,
+	lock := repositories.MustNewTimetableRecurrenceLock(db)
+	instanceStaff := timetablesqltest.NewInstanceStaffRepository(db)
+	materialization := options.materialization
+	if materialization == nil {
+		materialization, err = arrivalTimetable.NewMaterialization(arrivalTimetable.MaterializationDependencies{
+			GroupRepo: boundRepos.ActivityGroup, ScheduleRepo: boundRepos.ActivitySchedule,
+			EnrollmentRepo: boundRepos.StudentEnrollment, SupervisorRepo: boundRepos.ActivitySupervisor,
+			PeriodRepo: boundRepos.CalendarPeriod, InstanceRepo: activityInstanceRepo, StaffRepo: instanceStaff,
+			StudentRepo: boundRepos.InstanceStudent, ExceptionRepo: timetablesqltest.NewActivityExceptionRepository(db),
+			TimeframeRepo: boundRepos.Timeframe, CareBounds: boundRepos.Student, RecurrenceLock: lock, DB: db,
+		})
+		if err != nil {
+			panic(err)
+		}
+	}
+	templateWrites, err := arrivalTimetable.NewTemplateAdministration(arrivalTimetable.TemplateAdministrationDependencies{
+		Groups:               boundRepos.ActivityGroup,
+		Categories:           boundRepos.ActivityCategory,
+		Schedules:            boundRepos.ActivitySchedule,
+		Enrollments:          boundRepos.StudentEnrollment,
+		Supervisors:          boundRepos.ActivitySupervisor,
+		Instances:            activityInstanceRepo,
+		InstanceStaff:        instanceStaff,
+		Participants:         boundRepos.InstanceStudent,
+		Timeframes:           boundRepos.Timeframe,
+		EducationGroups:      educationRepo.NewGroupRepository(db),
+		Materialization:      materialization,
+		Deviations:           testSeriesDeviations(options.instances),
+		CareOfferings:        testCareOfferingChecks(options),
+		ResyncOfferingRoster: options.resyncOfferingRoster,
+		RecurrenceLock:       lock,
+		SchoolClasses: arrivalTimetable.SchoolClassRules{
+			MinGradeLevel: schoolclass.MinGradeLevel, MaxGradeLevel: schoolclass.MaxGradeLevel, Normalize: schoolclass.Normalize,
+		},
+		DB:    db,
+		Today: today,
 	})
+	if err != nil {
+		panic(err)
+	}
+	return &testTimetable{
+		TemplateAdministration: templateWrites,
+		data:                   timetableData,
+		conflicts:              conflicts,
+		lock:                   lock,
+		corrections: timetableplanning.NewAttendanceCorrectionService(timetableplanning.AttendanceCorrectionDependencies{
+			InstanceStudentRepo:      boundRepos.InstanceStudent,
+			ActivityInstanceRepo:     activityInstanceRepo,
+			AttendanceCorrectionRepo: auditRepo.NewAttendanceCorrectionRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
+			PersonRepo:               usersRepo.NewPersonRepository(db),
+			RecoveryRepo:             recovery,
+		}),
+	}
 }
+
+// testCareOfferingChecks binds the suite's care-offering callbacks; an
+// omitted callback accepts, and an invalid linked offering is the conflict,
+// as the composition root binds Enrollment.
+func testCareOfferingChecks(options testTimetableOptions) arrivalTimetable.CareOfferingChecks {
+	checks := arrivalTimetable.CareOfferingChecks{
+		ValidateSeries:         options.validateCareOfferingSeries,
+		ValidateOfferingSource: options.validateOfferingSource,
+		IsConflict: func(err error) bool {
+			return errors.Is(err, enrollmentModels.ErrCareOfferingInvalid)
+		},
+	}
+	if checks.ValidateSeries == nil {
+		checks.ValidateSeries = func(context.Context, int64) error { return nil }
+	}
+	if checks.ValidateOfferingSource == nil {
+		checks.ValidateOfferingSource = func(context.Context, []int64, []int64, *int64) error { return nil }
+	}
+	return checks
+}
+
+// testSeriesDeviations binds the split's deviation port to the suite's
+// instance lifecycle, or to one that preserves nothing.
+func testSeriesDeviations(instances timetableplanning.InstanceService) arrivalTimetable.SeriesDeviations {
+	if instances == nil {
+		return noSeriesDeviations{}
+	}
+	preserver, err := timetableplanning.NewSeriesDeviationPreserver(instances)
+	if err != nil {
+		panic(err)
+	}
+	return lifecycleSeriesDeviations{preserver: preserver}
+}
+
+type lifecycleSeriesDeviations struct {
+	preserver *timetableplanning.SeriesDeviationPreserver
+}
+
+func (d lifecycleSeriesDeviations) LockDeviationDays(ctx context.Context, tenantID int64, from, to timezone.Date) error {
+	return d.preserver.LockDeviationDays(ctx, tenantID, from, to)
+}
+
+func (d lifecycleSeriesDeviations) SnapshotDeviations(ctx context.Context, from, to timezone.Date, templateID int64) (arrivalTimetable.PreservedDeviations, error) {
+	snapshot, err := d.preserver.SnapshotDeviations(ctx, from, to, templateID)
+	if err != nil {
+		return nil, err
+	}
+	return snapshot, nil
+}
+
+type noSeriesDeviations struct{}
+
+func (noSeriesDeviations) LockDeviationDays(context.Context, int64, timezone.Date, timezone.Date) error {
+	return nil
+}
+
+func (noSeriesDeviations) SnapshotDeviations(context.Context, timezone.Date, timezone.Date, int64) (arrivalTimetable.PreservedDeviations, error) {
+	return noPreservedDeviations{}, nil
+}
+
+type noPreservedDeviations struct{}
+
+func (noPreservedDeviations) Count() int { return 0 }
+
+func (noPreservedDeviations) Reapply(context.Context, int64, *int64) (int, error) { return 0, nil }
 
 // testArrivalBaselines serves the conflict detection's arrival port from Care
 // Plan's baseline projection, the way the composition root does.
@@ -176,11 +320,6 @@ func (p testArrivalProjection) ExpectedArrival(studentID int64, date timezone.Da
 	}
 	return row.ExpectedArrival, true
 }
-
-type panicTestTB struct{}
-
-func (panicTestTB) Helper()                           {}
-func (panicTestTB) Fatalf(format string, args ...any) { panic(fmt.Sprintf(format, args...)) }
 
 func mustTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) repositories.TimetableTestRepositories {
 	repos, err := repositories.NewTimetableTestRepositories(db, clocks...)

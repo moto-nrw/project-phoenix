@@ -46,7 +46,7 @@ type WorkerDependencies struct {
 	StaffDocumentCleaner      StaffDocumentFileCleaner
 	StudentDocumentCleaner    StudentDocumentFileCleaner
 	FileStoreCleaner          FileStoreCleaner
-	Materializer              timetableplanning.MaterializationService
+	Materializer              timetable.MaterializationCapability
 	TimetableCleanup          timetable.TimetableCleanup
 	CalendarFeedCleanup       CalendarFeedCleaner
 	TimeTrackingCleanup       TimeTrackingCleanupService

@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // A series may end before its planning period (#3594), e.g. a holiday-care
@@ -38,7 +38,7 @@ func TestMaterializeForTenant_StopsAfterTheSeriesLastDay(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, first)
 	setSeriesLastDay(t, s, &lastDay)
 
-	result, err := s.factory.Materialization.MaterializeForTenant(s.ctx, first, after, timetableplanning.MaterializationSourceManual)
+	result, err := s.factory.Materialization.MaterializeForTenant(s.ctx, first, after, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 
 	assert.Equal(t, 2, result.InstancesCreated, "the first Monday and the last day itself")
@@ -57,7 +57,7 @@ func TestUpdateTemplateFields_DropsOccurrencesAfterTheNewLastDay(t *testing.T) {
 	lastDay := first.AddDays(7)
 	after := first.AddDays(14)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, first)
-	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, first, after, timetableplanning.MaterializationSourceManual)
+	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, first, after, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Len(t, listInstancesForDate(t, s.db, s.template.ID, after), 1)
 
@@ -86,7 +86,7 @@ func TestReplanWeek_FollowsTheSeriesLastDay(t *testing.T) {
 	lastDay := first.AddDays(7)
 	after := first.AddDays(14)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, first)
-	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, first, after, timetableplanning.MaterializationSourceManual)
+	_, err := s.factory.Materialization.MaterializeForTenant(s.ctx, first, after, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Len(t, listInstancesForDate(t, s.db, s.template.ID, after), 1)
 

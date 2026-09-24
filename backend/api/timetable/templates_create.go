@@ -29,7 +29,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -121,13 +120,19 @@ func (target templateTargetRequest) model() *activitiesModel.GroupTarget {
 	}
 }
 
-func targetModels(targets []templateTargetRequest) []*activitiesModel.GroupTarget {
+// targetInputs maps the requested dynamic targets onto the Timetable
+// owner's command. nil stays nil: the commands tell an omitted target list
+// from an empty one.
+func targetInputs(targets []templateTargetRequest) []timetableModule.GroupTargetInput {
 	if targets == nil {
 		return nil
 	}
-	result := make([]*activitiesModel.GroupTarget, 0, len(targets))
+	result := make([]timetableModule.GroupTargetInput, 0, len(targets))
 	for _, target := range targets {
-		result = append(result, target.model())
+		result = append(result, timetableModule.GroupTargetInput{
+			TargetGroupType: target.Type, TargetGradeLevel: target.GradeLevel,
+			TargetSchoolClass: target.SchoolClass, EducationGroupID: target.EducationGroupID,
+		})
 	}
 	return result
 }
@@ -413,14 +418,14 @@ func buildCreateTemplateInput(
 	gradeLevelMax int,
 	rosterValidFrom timezone.Date,
 	createdBy int64,
-) timetableplanning.CreateTemplateInput {
+) timetableModule.CreateTemplateCommand {
 	req := parsed.req
 	var createdByPtr *int64
 	if createdBy > 0 {
 		c := createdBy
 		createdByPtr = &c
 	}
-	return timetableplanning.CreateTemplateInput{
+	return timetableModule.CreateTemplateCommand{
 		Name:                  req.Name,
 		Type:                  req.Type,
 		Weekdays:              req.Weekdays,
@@ -437,14 +442,14 @@ func buildCreateTemplateInput(
 		TargetGroupType:       req.TargetGroupType,
 		TargetGradeLevel:      req.TargetGradeLevel,
 		TargetSchoolClass:     req.TargetSchoolClass,
-		Targets:               targetModels(req.Targets),
+		Targets:               targetInputs(req.Targets),
 		SourceCareOfferingIDs: req.SourceCareOfferingIDs,
 		SourceGradeLevels:     req.SourceGradeLevels,
 		SourceSchoolClasses:   req.SourceSchoolClasses,
 		ListKind:              req.ListKind,
 		Notes:                 normalizeNotes(req.Notes),
 		IncludeClosingDays:    req.IncludeClosingDays,
-		SeriesLastDay:         seriesLastDayActivityDate(parsed.endDate),
+		SeriesLastDay:         parsed.endDate,
 		StudentIDs:            req.StudentIDs,
 		StaffIDs:              req.StaffIDs,
 		PrimaryStaffID:        req.PrimaryStaffID,
@@ -465,7 +470,7 @@ func renderCreateTemplateError(w http.ResponseWriter, r *http.Request, err error
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
 	case errors.Is(err, timetableModule.ErrPlanningTrackNotFound), errors.Is(err, timetableModule.ErrPlanningTrackArchived):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
-	case errors.Is(err, timetableplanning.ErrOfferingSourceInvalid):
+	case errors.Is(err, timetableModule.ErrOfferingSourceInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case renderTemplateEducationGroupError(w, r, err):
 	case renderTemplateTargetGradeLimit(w, r, err):
@@ -492,7 +497,7 @@ func (rs *Resource) materializeTemplateWindow(
 		return
 	}
 	mat, mErr := rs.MaterializationService.MaterializeForTenant(
-		ctx, from, to, timetableplanning.MaterializationSourceManual,
+		ctx, from, to, timetableModule.MaterializationSourceManual,
 	)
 	if mErr != nil {
 		rs.getLogger().Warn("template create: materialize failed (template still saved)",

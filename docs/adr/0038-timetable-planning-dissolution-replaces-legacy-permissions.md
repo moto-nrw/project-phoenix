@@ -154,6 +154,44 @@ and the ten reach rules of the nest itself the moved files needed
 `inbound-timetable.module-behavior-test.{audit-platform-postgres,settings-platform-application,settings-platform-domain}`,
 `inbound-timetable.module-internal-test.{people-directory-application,settings-platform-domain}`).
 
+### Slice S2: templates, materialization and roster maintenance (#3552)
+
+Slice S2 moves the template writes (create, update, split, end, the
+weekday rosters, the offering source and the grade-limit checks), the
+materialization with its edited-occurrence detection, the roster
+maintenance and the tenant recurrence gate to the Timetable & Activities
+owner. The public contracts are `timetable.TemplateAdministration`,
+`timetable.MaterializationCapability`, `timetable.RosterMaintenance` and
+`timetable.RecurrenceWriteLock`, with `timetable.OfferingRosterResyncInput`,
+`timetable.ErrOfferingSourceInvalid` and the template errors beside them;
+the implementation sits in `modules/timetable/compose`. The recurrence gate
+keeps its lock order: the recurrence key first, the grade-transition key
+second. The replacement point stays the Timetable owner's `public` role.
+
+Epoch 28 uses the exception for exactly this rule:
+
+| Scope | Source owner/role | Target owner/role |
+|---|---|---|
+| production | enrollment/application | timetable-activities/public |
+
+`api/timetable`, the scheduler, the nest and the timetable end-to-end flows
+already held a permission to the Timetable contract; the root binds School
+Structure's class rules, Enrollment's care-offering checks and the realtime
+announcement through consumer-owned ports. The same epoch deletes the
+thirteen rules slice S2 emptied:
+`enrollment.application.inbound-timetable-adapter`,
+`enrollment.module-behavior-test.inbound-timetable-adapter`,
+`inbound-students.adapter-test.inbound-timetable-adapter`,
+`people-directory.module-behavior-test.inbound-timetable-adapter`,
+`root-composition.compose.inbound-timetable-adapter`,
+`school-structure.module-behavior-test.inbound-timetable-adapter`,
+`timetable-planning-cutover.inbound-timetable.adapter.school-calendar.public`
+(the week-pattern decision left the nest with the materialization) and the
+six reach rules of the nest itself the moved files needed
+(`inbound-timetable.adapter.enrollment-domain`,
+`inbound-timetable.module-behavior-test.{enrollment-application,enrollment-domain,enrollment-public,school-structure-application}`,
+`inbound-timetable.module-internal-test.school-structure-domain`).
+
 ## Verification
 
 `internal/architecture/timetableplanning_cutover_test.go` covers the
@@ -165,6 +203,7 @@ extended to other roles of the same owner), the slice S4 replacement by the
 Timetable contract for the Workforce, supervision dashboard and nest points
 (public only; the other Timetable roles refused), the slice S5 replacement
 for the scheduler and the timetable end-to-end flows (public only, each in
-its own scope) and the anchor (same or
+its own scope), the slice S2 replacement for Enrollment (public only, in
+production only) and the anchor (same or
 lower epoch, a reclassified or missing nest and a foreign module all
 refuse).

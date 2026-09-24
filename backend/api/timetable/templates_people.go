@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // errTemplateStartDateOutsidePeriod marks a create request whose start_date
@@ -92,7 +92,7 @@ func (rs *Resource) templateWritePreflight(
 // to a 400, preserving the precise message. Returns false for other errors so
 // callers can fall through to their next classification.
 func renderTemplateEducationGroupError(w http.ResponseWriter, r *http.Request, err error) bool {
-	var egErr *timetableplanning.TemplateEducationGroupError
+	var egErr *timetableModule.TemplateEducationGroupError
 	if !errors.As(err, &egErr) {
 		return false
 	}

@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 func (rs *Resource) resolveTemplateGradeLevelMax(ctx context.Context) (int, error) {
@@ -33,7 +33,7 @@ func (rs *Resource) resolveTemplateGradeLevelMax(ctx context.Context) (int, erro
 }
 
 func renderTemplateTargetGradeLimit(w http.ResponseWriter, r *http.Request, err error) bool {
-	if !errors.Is(err, timetableplanning.ErrTemplateTargetGradeExceedsLimit) {
+	if !errors.Is(err, timetableModule.ErrTemplateTargetGradeExceedsLimit) {
 		return false
 	}
 	common.RenderError(w, r, common.ErrorInvalidRequest(err))

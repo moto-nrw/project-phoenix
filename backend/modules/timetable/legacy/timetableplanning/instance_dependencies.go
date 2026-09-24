@@ -42,7 +42,11 @@ type InstanceServiceDependencies struct {
 	StudentRepo        usersModel.StudentRepository
 	CalendarPeriodRepo scheduleModel.CalendarPeriodRepository
 	ActiveService      ActiveSessionEnder
-	Materialization    MaterializationService
+	// Materialization re-plans a window through the Timetable owner's
+	// recurrence engine; RecurrenceLock is the owner's tenant recurrence gate
+	// every template-derived write takes first (#3424 slice S2).
+	Materialization timetable.MaterializationCapability
+	RecurrenceLock  timetable.RecurrenceWriteLock
 	// CareDayService decides which still-expected children may be stamped
 	// absent when an instance ends (#1747) — required.
 	CareDayService InstanceCareDays
@@ -187,6 +191,21 @@ func indexInstanceStaffRows(rows []*scheduleModel.InstanceStaff) map[int64][]*sc
 	}
 	return byInstance
 }
+
+// formatTimeOfDay formats the time-of-day component of t as "15:04:05", the
+// location-independent key the materializer dedupes occurrences by.
+func formatTimeOfDay(t time.Time) string {
+	return fmt.Sprintf("%02d:%02d:%02d", t.Hour(), t.Minute(), t.Second())
+}
+
+// MinSchoolGradeLevel and MaxSchoolGradeLevel are School Structure's
+// supported grade range, which the Timetable owner's template writes
+// validate Jahrgang targets and filters against (#3424 slice S2). The
+// composition root binds them from here, beside NormalizeSchoolClass.
+const (
+	MinSchoolGradeLevel = schoolclass.MinGradeLevel
+	MaxSchoolGradeLevel = schoolclass.MaxGradeLevel
+)
 
 // NormalizeSchoolClass is School Structure's class-name normalization, which
 // the Timetable owner's class-block read compares with (#2970); the retained

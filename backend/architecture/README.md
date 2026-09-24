@@ -1109,6 +1109,34 @@ emptied compatibility rules are deleted, three replacement permissions use
 the exception of ADR 0038, and three resolved `legacy.jsonl` entries are
 removed; no key is added.
 
+Slice S2 (#3552, policy epoch 27 to 28) moved the template writes (create,
+update, split, end, the weekday rosters, the offering source and the
+grade-limit checks), the materialization with its edited-occurrence
+detection, the roster maintenance and the tenant recurrence gate to the
+Timetable owner. The public contracts are `timetable.TemplateAdministration`,
+`timetable.MaterializationCapability`, `timetable.RosterMaintenance` and
+`timetable.RecurrenceWriteLock` (one capability for both gates, recurrence
+first and grade transitions second), with `timetable.OfferingRosterResyncInput`,
+`timetable.ErrOfferingSourceInvalid` and the template errors beside them. The
+implementation lives in `modules/timetable/compose`, takes the advisory
+locks through the owner's Postgres adapter and asks the School Calendar for
+the A/B-week decision directly. The collaborators the owner may not name are
+consumer-owned ports bound at the root: `repositories.TimetableTemplateRows`
+hands over the retained rows, `services` binds School Structure's grade
+range and class-name identity, Enrollment's care-offering checks and roster
+resync, the instance lifecycle's deviation snapshot for the split and the
+realtime staffing announcement. `services.Factory.TimetableData` carries the
+template administration, the recurrence gate, the planner reads, the
+conflict detection and the retained attendance correction (slice S3) to the
+root, and `TemplateSplit` is gone, because the factory may not grow a field.
+Enrollment, the scheduler, `api/timetable` and the composition root no
+longer name the nest for these paths; the retained instance lifecycle and
+the conversion of one occurrence into a series (slice S1) consume the public
+contract. The moved code wraps its steps in a compose-local `ScheduleError`
+with the unchanged message format, because the owner may not name Care Plan.
+Thirteen emptied compatibility rules are deleted, one replacement permission
+uses the exception of ADR 0038, and `legacy.jsonl` is unchanged.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).

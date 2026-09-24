@@ -171,7 +171,7 @@ type Scheduler struct {
 	staffDocumentFileCleaner   StaffDocumentFileCleaner
 	studentDocumentFileCleaner StudentDocumentFileCleaner
 	fileStoreCleaner           FileStoreCleaner
-	materializer               timetableplanning.MaterializationService
+	materializer               timetable.MaterializationCapability
 	timetableCleanup           timetable.TimetableCleanup
 	calendarFeedCleanup        CalendarFeedCleaner
 	timeTrackingCleanup        TimeTrackingCleanupService
@@ -1866,7 +1866,7 @@ func (s *Scheduler) checkAndRunMaterializationWithContext(ctx context.Context, t
 			slog.String("to", to.String()),
 		)
 
-		result, err := s.materializer.MaterializeForTenant(tenantCtx, from, to, timetableplanning.MaterializationSourceScheduler)
+		result, err := s.materializer.MaterializeForTenant(tenantCtx, from, to, timetable.MaterializationSourceScheduler)
 		if err != nil {
 			// Keep the today-mark so every subsequent minute does not retry a
 			// known-failing run. It naturally expires on the next scheduler day.

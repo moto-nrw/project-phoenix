@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -316,7 +315,7 @@ func TestOfferingPickupProjection_ResetWaitsForOfferingSourceGate(t *testing.T) 
 	monday := nextWeekday(decisionTestToday, time.Monday)
 
 	lockedDecision := newDecisionServiceForTest(env.rolloverTestEnv, nil, func(ctx context.Context) error {
-		return timetableplanning.LockTenantRecurrenceWrites(ctx, env.db)
+		return repositories.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(ctx)
 	})
 	resetter, ok := lockedDecision.(enrollmentService.OfferingPickupTimeService)
 	require.True(t, ok)
@@ -336,7 +335,7 @@ func holdOfferingSourceGate(t *testing.T, env *decisionTestEnv) (chan struct{}, 
 	acquired, release, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
 	go func() {
 		done <- testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
-			if err := timetableplanning.LockTenantRecurrenceWrites(ctx, env.db); err != nil {
+			if err := repositories.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(ctx); err != nil {
 				return err
 			}
 			close(acquired)

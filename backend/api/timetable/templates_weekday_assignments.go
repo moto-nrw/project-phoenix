@@ -16,7 +16,6 @@ import (
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // weekdayAssignmentRequest is one weekday's roster deviation. It is a full
@@ -71,13 +70,13 @@ func containsID(ids []int64, want int64) bool {
 }
 
 // toServiceWeekdayAssignments maps the wire shape onto the service input.
-func toServiceWeekdayAssignments(assignments []weekdayAssignmentRequest) []timetableplanning.WeekdayRosterAssignment {
+func toServiceWeekdayAssignments(assignments []weekdayAssignmentRequest) []timetable.WeekdayRosterAssignment {
 	if len(assignments) == 0 {
 		return nil
 	}
-	out := make([]timetableplanning.WeekdayRosterAssignment, 0, len(assignments))
+	out := make([]timetable.WeekdayRosterAssignment, 0, len(assignments))
 	for _, assignment := range assignments {
-		out = append(out, timetableplanning.WeekdayRosterAssignment{
+		out = append(out, timetable.WeekdayRosterAssignment{
 			Weekday:        assignment.Weekday,
 			StudentIDs:     assignment.StudentIDs,
 			StaffIDs:       assignment.StaffIDs,

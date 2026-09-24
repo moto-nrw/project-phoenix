@@ -984,7 +984,7 @@ func TestReplanWeek_NoBody_DefaultsToNextWeek(t *testing.T) {
 			From:             timezone.NewDate(2026, 4, 27),
 			To:               timezone.NewDate(2026, 5, 3),
 			DeletedInstances: 5,
-			Materialization: &timetableplanning.MaterializationResult{
+			Materialization: &timetable.MaterializationResult{
 				InstancesCreated:          8,
 				CandidatesSkippedExisting: 0,
 				InstanceStaffCreated:      4,
@@ -1019,7 +1019,7 @@ func TestReplanWeek_ValidBody(t *testing.T) {
 			From:             timezone.NewDate(2026, 4, 27),
 			To:               timezone.NewDate(2026, 5, 3),
 			DeletedInstances: 2,
-			Materialization:  &timetableplanning.MaterializationResult{InstancesCreated: 3},
+			Materialization:  &timetable.MaterializationResult{InstancesCreated: 3},
 		},
 	}
 	rs := NewResource(Dependencies{InstanceService: mock})

@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // A series may end before its planning period (#3594): the planner names the
@@ -107,7 +107,7 @@ func TestTemplateSeriesEndDateValidation(t *testing.T) {
 func TestTemplateSplitRejectsSeriesEndDate(t *testing.T) {
 	t.Parallel()
 
-	mat := &mockMaterializationService{result: &timetableplanning.MaterializationResult{}}
+	mat := &mockMaterializationService{result: &timetableModule.MaterializationResult{}}
 	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	attachSplitService(s, mat)

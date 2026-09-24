@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -68,15 +67,6 @@ func seriesLastDayString(lastDay *timezone.Date) *string {
 		return nil
 	}
 	day := lastDay.String()
-	return &day
-}
-
-// seriesLastDayActivityDate is the create-input form of a validated last day.
-func seriesLastDayActivityDate(lastDay *timezone.Date) *activitiesModel.Date {
-	if lastDay == nil {
-		return nil
-	}
-	day := activitiesModel.Date(lastDay.String())
 	return &day
 }
 
