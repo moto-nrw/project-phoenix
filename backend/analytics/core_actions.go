@@ -565,9 +565,11 @@ var coreActions = map[RouteKey]CoreAction{
 
 	// Public demo (#3462), mounted under APP_ENV=demo only. A redeemed
 	// access enters a demo school that is ready, so the entry is the proof
-	// that the school was provided. Link request and restart are counted by
-	// the entry page (demo_start_clicked, demo_restarted).
-	{http.MethodPost, "/demo/access-requests"}: notCaptured,
+	// that the school was provided. The website's form requests the link
+	// without a session, so that step counts on the public surface; it is
+	// the demo funnel's first step in PostHog (#3604). A restart is counted
+	// by the entry page (demo_restarted).
+	{http.MethodPost, "/demo/access-requests"}: public("demo_link_requested"),
 	{http.MethodPost, "/demo/access/sessions"}: session("demo_started"),
 	{http.MethodPost, "/demo/access/reset"}:    notCaptured,
 }
