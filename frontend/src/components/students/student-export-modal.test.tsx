@@ -532,4 +532,153 @@ describe("StudentExportModal", () => {
       expect(screen.getByText("Alle Kinder der Schule.")).toBeInTheDocument();
     });
   });
+
+  describe("Gesundheitsliste (#3323)", () => {
+    it("exports only children with a note by default", async () => {
+      renderModal({
+        filters: {},
+        resultCount: undefined,
+        lockedPreset: "health_list",
+      });
+      await screen.findByRole("dialog");
+
+      expect(screen.getByLabelText("Titel")).toHaveValue("Gesundheitsliste");
+      expect(
+        screen.getByText(
+          "Nur Kinder mit hinterlegten Gesundheitsinformationen.",
+        ),
+      ).toBeInTheDocument();
+      // The header must not claim "Alle Kinder" for the default scope.
+      expect(
+        screen.getByText(
+          "Kinder der Schule mit hinterlegten Gesundheitsinformationen.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Alle Kinder der Schule."),
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+
+      await waitFor(() => {
+        expect(mockExportStudents).toHaveBeenCalledWith({
+          format: "pdf",
+          preset: "health_list",
+          title: "Gesundheitsliste",
+          filters: { include_without_health_info: false },
+          columns: ["name", "school_class", "group", "health_info"],
+        });
+      });
+    });
+
+    it("includes children without a note on request", async () => {
+      renderModal({
+        filters: {},
+        resultCount: undefined,
+        lockedPreset: "health_list",
+      });
+      await screen.findByRole("dialog");
+
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Auch Kinder ohne Eintrag/ }),
+      );
+      expect(
+        screen.getByText(
+          "Alle Kinder. Ohne Eintrag steht „Nicht hinterlegt“ in der Liste.",
+        ),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+
+      await waitFor(() => {
+        expect(mockExportStudents).toHaveBeenCalledWith(
+          expect.objectContaining({
+            preset: "health_list",
+            filters: { include_without_health_info: true },
+          }),
+        );
+      });
+    });
+
+    // Name and note are always printed, so they get no checkbox that could
+    // be unticked without effect; class and group stay optional.
+    it("offers only class and group as optional columns", async () => {
+      renderModal({
+        filters: {},
+        resultCount: undefined,
+        lockedPreset: "health_list",
+      });
+      await screen.findByRole("dialog");
+
+      expect(
+        screen.getByText(
+          "Name und Gesundheitsinformationen sind immer enthalten.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: /Klasse/ })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: /Gruppe/ })).toBeChecked();
+      expect(
+        screen.queryByRole("checkbox", { name: /^Name/ }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("checkbox", { name: /Montag/ }),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("checkbox", { name: /Gruppe/ }));
+      fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+
+      await waitFor(() => {
+        expect(mockExportStudents).toHaveBeenCalledWith(
+          expect.objectContaining({
+            columns: ["name", "school_class", "health_info"],
+          }),
+        );
+      });
+    });
+
+    // Picked in the Kindersuche's template grid, the list keeps its own
+    // columns and carries the current filters. Its default scope is narrower
+    // than the search result, so the general result count must stay hidden.
+    it("describes its narrower default scope in the template grid", async () => {
+      await openModal();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: /^Gesundheitsliste/ }),
+      );
+
+      await waitFor(() => {
+        expect(screen.getByLabelText("Titel")).toHaveValue("Gesundheitsliste");
+      });
+      expect(
+        screen.getByText(
+          "Kinder aus der aktuellen Filterung mit hinterlegten Gesundheitsinformationen.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("12 Kinder aus der aktuellen Filterung."),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("checkbox", { name: /Montag/ }),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Auch Kinder ohne Eintrag/ }),
+      );
+      expect(
+        screen.getByText("12 Kinder aus der aktuellen Filterung."),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+
+      await waitFor(() => {
+        expect(mockExportStudents).toHaveBeenCalledWith(
+          expect.objectContaining({
+            preset: "health_list",
+            filters: {
+              search: "mila",
+              group_id: "5",
+              include_without_health_info: true,
+            },
+          }),
+        );
+      });
+    });
+  });
 });
