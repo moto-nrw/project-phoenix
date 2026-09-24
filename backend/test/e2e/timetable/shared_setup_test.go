@@ -75,6 +75,7 @@ func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *sce
 		InstanceService:        factory.Instance,
 		PersonService:          factory.Users,
 		TimetableData:          factory.TimetableData,
+		ConflictDetection:      factory.TimetableData.ConflictDetection(),
 		UserContextService:     factory.UserContext,
 		SettingsService:        factory.Settings,
 		Broadcaster:            factory.RealtimeHub,

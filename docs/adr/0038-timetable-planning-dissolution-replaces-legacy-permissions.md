@@ -88,13 +88,45 @@ The same epoch deletes the three rules slice S6 emptied:
 `timetable-activities.workflow-integration-test.inbound-timetable-adapter`
 and `care-schedule-cutover.inbound-timetable.module-behavior-test.timetable-activities.public`.
 
+### Slice S4: conflict detection and staffing (#3550)
+
+Slice S4 moves the start and planning conflict checks, the exception
+conflicts, the staff availability pool, the shift-coverage probe and the
+staffing rules (capacity, understaffing, slot precedence) to the Timetable &
+Activities owner. The public contract is `timetable.ConflictDetectionCapability`
+(`StartConflictQuery`, `PlanningConflictQuery`, `StaffingQuery`) plus the
+pure staffing and interval functions in `modules/timetable`; the
+implementation sits in `modules/timetable/compose`. The replacement point of
+condition 3 and 4 therefore extends to the Timetable owner's `public` role,
+and only to it: its composition, application, port, Postgres and domain
+roles stay closed to former consumers of the nest.
+
+Epoch 26 uses the extended exception for exactly these rules:
+
+| Scope | Source owner/role | Target owner/role |
+|---|---|---|
+| production | workforce/application | timetable-activities/public |
+| production | calendar-view/adapter | timetable-activities/public |
+| internal_test | workforce/module-internal-test | timetable-activities/public |
+| external_test | workforce/module-behavior-test | timetable-activities/public |
+| external_test | inbound-timetable/module-behavior-test | timetable-activities/public |
+
+`api/timetable` and the nest itself already held a permission to the
+Timetable contract. The same epoch deletes the four rules slice S4 emptied:
+`document-rendering.adapter.inbound-timetable-adapter`,
+`workforce.application.inbound-timetable-adapter`,
+`workforce.internal-test.inbound-timetable-adapter` and
+`workforce.behaviour-test.inbound-timetable-adapter`.
+
 ## Verification
 
 `internal/architecture/timetableplanning_cutover_test.go` covers the
 consumer replacement (public granted; the composition and implementation
 roles refused; no lending between scopes; unrelated owners and sources
-without the historical permission refused; the Timetable owner deliberately
-not granted by this slice), the nest's own reach (granted in all three
-scopes, refused for the composition and for unrelated owners, not extended
-to other roles of the same owner) and the anchor (same or lower epoch, a
-reclassified or missing nest and a foreign module all refuse).
+without the historical permission refused), the nest's own reach (granted in
+all three scopes, refused for the composition and for unrelated owners, not
+extended to other roles of the same owner), the slice S4 replacement by the
+Timetable contract for the Workforce, supervision dashboard and nest points
+(public only; the other Timetable roles refused) and the anchor (same or
+lower epoch, a reclassified or missing nest and a foreign module all
+refuse).

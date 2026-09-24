@@ -12,7 +12,7 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 const (
@@ -46,7 +46,7 @@ type StaffScheduleAssignment struct {
 	AbsenceReason      *string
 	CoverageStatus     string
 	CoverageReason     *string
-	UncoveredIntervals []timetableplanning.ShiftCoverageInterval
+	UncoveredIntervals []timetable.ShiftCoverageInterval
 }
 
 // StaffWeeklySummary aggregates one staff member's planned shift minutes for
@@ -109,11 +109,16 @@ type WorkTimeModelBatchReader interface {
 	FindByIDs(ctx context.Context, ids []int64) ([]*configModel.WorkTimeModel, error)
 }
 
+// InstanceStaffBatchReader reads the staff rows of timetable blocks.
+type InstanceStaffBatchReader interface {
+	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModel.InstanceStaff, error)
+}
+
 type StaffScheduleOverviewDependencies struct {
 	Shifts        StaffShiftRangeReader
 	ShiftWeeks    StaffShiftWeekUsageReader
 	Instances     ActivityInstanceRangeReader
-	InstanceStaff timetableplanning.InstanceStaffBatchReader
+	InstanceStaff InstanceStaffBatchReader
 	Rooms         RoomBatchReader
 	Staff         StaffOverviewReader
 	// WorkSchedules and WorkModels feed the contractual weekly-target side of
@@ -348,7 +353,7 @@ func newStaffScheduleAssignment(
 		IsAbsent:           row.IsAbsent,
 		IsSubstitute:       row.IsSubstitute,
 		AbsenceReason:      row.AbsenceReason,
-		UncoveredIntervals: make([]timetableplanning.ShiftCoverageInterval, 0),
+		UncoveredIntervals: make([]timetable.ShiftCoverageInterval, 0),
 	}
 }
 
