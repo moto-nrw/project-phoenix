@@ -5146,17 +5146,6 @@
       "target_role": "public"
     },
     {
-      "id": "care-schedule-cutover.inbound-students.adapter-test.care-plan.compose.test-construction",
-      "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-students",
-      "source_role": "adapter-test",
-      "target_owner": "care-plan",
-      "target_role": "compose"
-    },
-    {
       "id": "care-schedule-cutover.enrollment.module-behavior-test.care-plan.compose.test-construction",
       "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
       "scopes": [

@@ -22,26 +22,9 @@ func TestCarePlanDecisionErrorContract(t *testing.T) {
 		owner    error
 		legacy   error
 	}{
-		{"offering change disabled", ErrOfferingChangeDisabled, careplan.ErrOfferingChangeDisabled, ErrOfferingChangeDisabled},
-		{"offering change invalid", ErrOfferingChangeInvalid, careplan.ErrOfferingChangeInvalid, ErrOfferingChangeInvalid},
-		{"offering change no enrollment", ErrOfferingChangeNoEnrollment, careplan.ErrOfferingChangeNoEnrollment, ErrOfferingChangeNoEnrollment},
-		{"offering change forbidden", ErrOfferingChangeForbidden, careplan.ErrOfferingChangeForbidden, ErrOfferingChangeForbidden},
-		{"offering change capacity full", ErrOfferingChangeCapacityFull, careplan.ErrOfferingChangeCapacityFull, ErrOfferingChangeCapacityFull},
-		{"offering change date out of range", ErrOfferingChangeDateOutOfRange, careplan.ErrOfferingChangeDateOutOfRange, ErrOfferingChangeDateOutOfRange},
 		{"care offerings disabled", ErrCareOfferingsDisabled, careplan.ErrCareOfferingsDisabled, ErrCareOfferingsDisabled},
 		{"offering adjustment invalid", ErrOfferingAdjustmentInvalid, careplan.ErrOfferingAdjustmentInvalid, ErrOfferingAdjustmentInvalid},
 		{"complete withdrawal confirmation", ErrCompleteWithdrawalConfirmationRequired, careplan.ErrCompleteWithdrawalConfirmationRequired, ErrCompleteWithdrawalConfirmationRequired},
-		{"course requests disabled", ErrCourseRequestsDisabled, careplan.ErrCourseRequestsDisabled, ErrCourseRequestsDisabled},
-		{"course not found", ErrCourseNotFound, careplan.ErrCourseNotFound, ErrCourseNotFound},
-		{"course already booked", ErrCourseAlreadyBooked, careplan.ErrCourseAlreadyBooked, ErrCourseAlreadyBooked},
-		{"course request not own", ErrCourseRequestNotOwn, careplan.ErrCourseRequestNotOwn, ErrCourseRequestNotOwn},
-		{"pickup adjustment invalid", ErrPickupAdjustmentInvalid, careplan.ErrPickupAdjustmentInvalid, ErrPickupAdjustmentInvalid},
-		{"pickup adjustment resolution required", ErrPickupAdjustmentResolutionRequired, careplan.ErrPickupAdjustmentResolutionRequired, ErrPickupAdjustmentResolutionRequired},
-		{"pickup adjustment stale", ErrPickupAdjustmentStale, careplan.ErrPickupAdjustmentStale, ErrPickupAdjustmentStale},
-		{"pickup adjustment future manual reset", ErrPickupAdjustmentFutureManualReset, careplan.ErrPickupAdjustmentFutureManualReset, ErrPickupAdjustmentFutureManualReset},
-		{"pickup adjustment bulk confirmation", ErrPickupAdjustmentBulkConfirmation, careplan.ErrPickupAdjustmentBulkConfirmation, ErrPickupAdjustmentBulkConfirmation},
-		{"pickup adjustment unauthorized", ErrPickupAdjustmentUnauthorized, careplan.ErrPickupAdjustmentUnauthorized, ErrPickupAdjustmentUnauthorized},
-		{"pickup adjustment student not found", ErrPickupAdjustmentStudentNotFound, careplan.ErrPickupAdjustmentStudentNotFound, ErrPickupAdjustmentStudentNotFound},
 		// models/enrollment cannot alias the owner; this package returns a
 		// value that matches both names instead.
 		{"offering change not found", errOfferingChangeNotFound, careplan.ErrOfferingChangeNotFound, enrollmentModels.ErrOfferingChangeNotFound},

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -48,7 +50,7 @@ type PendingOfferingChange struct {
 	CreatedAt       time.Time
 	EffectiveFrom   timezone.Date
 	Note            string
-	Diff            []enrollmentSvc.OfferingChangeDiffEntry
+	Diff            []careplan.OfferingChangeDiffEntry
 	SubmittedBySelf bool
 }
 
@@ -71,7 +73,7 @@ type ChildCareOfferings struct {
 	PendingRequest *PendingOfferingChange
 	// LastDecision is the most recent decided request inside the recency window,
 	// so the outcome of a request is visible where it was submitted.
-	LastDecision *enrollmentSvc.OfferingChangeDecision
+	LastDecision *careplan.OfferingChangeDecision
 	// EarliestEffectiveFrom is the first date a new request may take effect
 	// under the school's notice period — the date picker's lower bound. Zero
 	// when requesting is not possible anyway.
@@ -178,10 +180,10 @@ func (s *Service) loadOfferingChangeState(
 }
 
 func visibleOfferingDecision(
-	decision *enrollmentSvc.OfferingChangeDecision,
+	decision *careplan.OfferingChangeDecision,
 	accountID int64,
 	visibility RequestShareVisibility,
-) *enrollmentSvc.OfferingChangeDecision {
+) *careplan.OfferingChangeDecision {
 	if decision == nil || !visibility.Allows(RequestShareOffering, decision.ID, accountID, decision.SubmittedBy) {
 		return nil
 	}
@@ -189,7 +191,7 @@ func visibleOfferingDecision(
 	return decision
 }
 
-func pendingOfferingChange(view *enrollmentSvc.OfferingChangeView, accountID int64, visible bool) *PendingOfferingChange {
+func pendingOfferingChange(view *careplan.OfferingChangeView, accountID int64, visible bool) *PendingOfferingChange {
 	if view.Request == nil || !visible {
 		return nil
 	}
@@ -212,7 +214,7 @@ func pendingOfferingChange(view *enrollmentSvc.OfferingChangeView, accountID int
 func (s *Service) GetChildOfferingCatalog(
 	ctx context.Context,
 	accountID, studentID int64,
-) (*enrollmentSvc.OfferingChangeCatalog, error) {
+) (*careplan.OfferingChangeCatalog, error) {
 	return s.GetChildOfferingCatalogAt(ctx, accountID, studentID, timezone.Date(""))
 }
 
@@ -220,7 +222,7 @@ func (s *Service) GetChildOfferingCatalogAt(
 	ctx context.Context,
 	accountID, studentID int64,
 	effectiveFrom timezone.Date,
-) (*enrollmentSvc.OfferingChangeCatalog, error) {
+) (*careplan.OfferingChangeCatalog, error) {
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
 	if err != nil {
 		return nil, err
@@ -229,9 +231,9 @@ func (s *Service) GetChildOfferingCatalogAt(
 		return nil, err
 	}
 	if s.OfferingChanges == nil {
-		return nil, enrollmentSvc.ErrOfferingChangeDisabled
+		return nil, careplan.ErrOfferingChangeDisabled
 	}
-	var catalog *enrollmentSvc.OfferingChangeCatalog
+	var catalog *careplan.OfferingChangeCatalog
 	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		resolved, resolveErr := s.OfferingChanges.CatalogAt(txCtx, studentID, effectiveFrom)
 		if resolveErr != nil {
@@ -251,7 +253,7 @@ func (s *Service) GetChildOfferingCatalogAt(
 func (s *Service) CreateOfferingChangeRequest(
 	ctx context.Context,
 	accountID, studentID int64,
-	selections []enrollmentSvc.OfferingChangeSelection,
+	selections []careplan.OfferingChangeSelection,
 	effectiveFrom timezone.Date,
 	note string,
 	completeWithdrawalConfirmed bool,
@@ -267,7 +269,7 @@ func (s *Service) CreateOfferingChangeRequest(
 		return nil, err
 	}
 	if s.OfferingChanges == nil {
-		return nil, enrollmentSvc.ErrOfferingChangeDisabled
+		return nil, careplan.ErrOfferingChangeDisabled
 	}
 	// The note is mandatory only while the school asks the family for a
 	// reason (#2267, story 28).
@@ -282,7 +284,7 @@ func (s *Service) CreateOfferingChangeRequest(
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		created, createErr := s.OfferingChanges.Create(txCtx, enrollmentSvc.CreateOfferingChangeInput{
+		created, createErr := s.OfferingChanges.SubmitOfferingChange(txCtx, careplan.CreateOfferingChangeInput{
 			StudentID:                   studentID,
 			AccountID:                   accountID,
 			Selections:                  selections,
@@ -316,7 +318,7 @@ func (s *Service) CreateOfferingChangeRequest(
 func (s *Service) EditOfferingChangeRequest(
 	ctx context.Context,
 	accountID, studentID, requestID int64,
-	selections []enrollmentSvc.OfferingChangeSelection,
+	selections []careplan.OfferingChangeSelection,
 	effectiveFrom timezone.Date,
 	note string,
 	completeWithdrawalConfirmed bool,
@@ -330,7 +332,7 @@ func (s *Service) EditOfferingChangeRequest(
 		return nil, err
 	}
 	if s.OfferingChanges == nil {
-		return nil, enrollmentSvc.ErrOfferingChangeDisabled
+		return nil, careplan.ErrOfferingChangeDisabled
 	}
 	// The note is mandatory only while the school asks the family for a
 	// reason (#2267, story 28).
@@ -345,7 +347,7 @@ func (s *Service) EditOfferingChangeRequest(
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		_, editErr := s.OfferingChanges.Edit(txCtx, requestID, enrollmentSvc.CreateOfferingChangeInput{
+		_, editErr := s.OfferingChanges.Edit(txCtx, requestID, careplan.CreateOfferingChangeInput{
 			StudentID:                   studentID,
 			AccountID:                   accountID,
 			Selections:                  selections,

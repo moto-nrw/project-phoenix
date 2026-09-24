@@ -88,8 +88,23 @@ func TestValidateServeConfig_SentryEnvironmentPasses(t *testing.T) {
 	config := validServeConfig()
 	config.SentryDSN = "https://example@sentry.io/123"
 	config.SentryEnvironment = "staging"
+	config.SentryPyrePortalDSN = "https://kiosk@sentry.io/456"
 
 	require.NoError(t, validateServeConfig(config))
+}
+
+// #3645: a backend that reports to Sentry relays the kiosks' reports too, so
+// it refuses to start without the pyreportal DSN.
+func TestValidateServeConfig_SentryDSNRequiresPyrePortalDSN(t *testing.T) {
+	t.Parallel()
+	config := validServeConfig()
+	config.SentryDSN = "https://example@sentry.io/123"
+	config.SentryEnvironment = "staging"
+
+	err := validateServeConfig(config)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SENTRY_PYREPORTAL_DSN")
 }
 
 func TestScrubSentryEvent_RemovesRequestDataAndSensitiveHeaders(t *testing.T) {

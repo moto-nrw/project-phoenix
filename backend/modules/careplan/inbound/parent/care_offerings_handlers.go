@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -97,7 +97,7 @@ func toCareOfferingsResponse(v *parentService.ChildCareOfferings) CareOfferingsR
 	return resp
 }
 
-func offeringDecisionResponse(decision *enrollmentService.OfferingChangeDecision) *OfferingDecisionResponse {
+func offeringDecisionResponse(decision *careplan.OfferingChangeDecision) *OfferingDecisionResponse {
 	resp := &OfferingDecisionResponse{
 		ID:                 strconv.FormatInt(decision.ID, 10),
 		Status:             decision.Status,
@@ -149,7 +149,7 @@ func careOfferingItemResponse(offering parentService.CareOfferingSelection) Care
 	return item
 }
 
-func offeringDiffResponse(entry enrollmentService.OfferingChangeDiffEntry) OfferingDiffResponse {
+func offeringDiffResponse(entry careplan.OfferingChangeDiffEntry) OfferingDiffResponse {
 	resp := OfferingDiffResponse{
 		Label:    entry.Label,
 		OldState: entry.OldState,
@@ -365,7 +365,7 @@ func (rs *Resource) createOfferingChangeRequest(w http.ResponseWriter, r *http.R
 			errors.New("effective_from must be a date in YYYY-MM-DD form"), "offering_change_invalid"))
 		return
 	}
-	selections := make([]enrollmentService.OfferingChangeSelection, 0, len(body.Offerings))
+	selections := make([]careplan.OfferingChangeSelection, 0, len(body.Offerings))
 	for _, entry := range body.Offerings {
 		offeringID, convErr := strconv.ParseInt(strings.TrimSpace(entry.OfferingID), 10, 64)
 		if convErr != nil || offeringID <= 0 {
@@ -373,7 +373,7 @@ func (rs *Resource) createOfferingChangeRequest(w http.ResponseWriter, r *http.R
 				errors.New("offering_id must be a numeric id"), "offering_change_invalid"))
 			return
 		}
-		selections = append(selections, enrollmentService.OfferingChangeSelection{
+		selections = append(selections, careplan.OfferingChangeSelection{
 			OfferingID:   offeringID,
 			SelectedDays: entry.SelectedDays,
 		})
@@ -392,7 +392,7 @@ func (rs *Resource) createOfferingChangeRequest(w http.ResponseWriter, r *http.R
 	common.Respond(w, r, http.StatusCreated, toCareOfferingsResponse(view), "Care offering change requested")
 }
 
-func toOfferingCatalogResponse(catalog *enrollmentService.OfferingChangeCatalog) OfferingCatalogResponse {
+func toOfferingCatalogResponse(catalog *careplan.OfferingChangeCatalog) OfferingCatalogResponse {
 	resp := OfferingCatalogResponse{
 		PhaseName:     catalog.PhaseName,
 		SelectionMode: catalog.SelectionMode,

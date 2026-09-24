@@ -202,7 +202,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/timetable/internal/adapters/postgres/calendar_period_references.go:(*Store).CountCalendarPeriodReferences":              62,
 	"modules/timetable/internal/adapters/postgres/groups.go:(*Store).ListCourseGroups":                                               71,
 	"modules/timetable/internal/adapters/postgres/pickup_extensions.go:(*Store).ListPickupExtensionWeekdayBlocks":                    70,
-	"modules/timetableprojection/projection.go:CourseGroupsForOfferings":                                                             62,
 	"modules/workforce/inbound/timetracking/errors.go:classifyServiceError":                                                          63,
 	"modules/workforce/inbound/timetracking/staff_admin_document_cleanup.go:(*StaffAdminResource).CleanupOrphanedStaffDocumentFiles": 70,
 	"modules/workforce/inbound/timetracking/staff_admin_documents.go:(*StaffAdminResource).uploadStaffDocument":                      71,

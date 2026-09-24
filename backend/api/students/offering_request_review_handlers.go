@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // OfferingRequestResponse is the staff-facing projection of one parent
@@ -203,7 +202,7 @@ func (rs *Resource) decideOfferingChangeRequest(w http.ResponseWriter, r *http.R
 	if actorRole == "" {
 		actorRole = "unknown"
 	}
-	if err := rs.OfferingChangeService.Decide(r.Context(), enrollmentService.DecideOfferingChangeInput{
+	if err := rs.OfferingChangeService.Decide(r.Context(), careplan.OfferingChangeDecisionInput{
 		RequestID:                   requestID,
 		Approve:                     *body.Approve,
 		Reason:                      body.Reason,

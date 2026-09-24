@@ -11,7 +11,7 @@ import (
 
 // renderError writes an error response to the HTTP response writer.
 // Delegates to common.RenderError which logs 5xx root causes to slog
-// and captures them to Sentry.
+// and hands them to the central Sentry reporting.
 func renderError(w http.ResponseWriter, r *http.Request, errorResponse render.Renderer) {
 	common.RenderError(w, r, errorResponse)
 }

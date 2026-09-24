@@ -1,20 +1,22 @@
-package enrollment
+package application
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 // The classification that feeds the Bestandsschutz exemption (#2186). The
 // mixed case is the review blocker: a booking holding manual AND automatic
 // days must land in BOTH buckets, or unticking it deletes the automatic days
 // its still-selected trigger keeps deriving.
-func TestGrandfatheredOfferingsFromLinks(t *testing.T) {
+func TestGrandfatheredBookings(t *testing.T) {
 	t.Parallel()
 
-	link := func(id int64, selected, manual, automatic []string) *RequestChildOffering {
-		return &RequestChildOffering{
+	link := func(id int64, selected, manual, automatic []string) *careplan.BookedOffering {
+		return &careplan.BookedOffering{
 			CareOfferingID:        id,
 			SelectedDays:          selected,
 			ManualSelectedDays:    manual,
@@ -24,7 +26,7 @@ func TestGrandfatheredOfferingsFromLinks(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		link          *RequestChildOffering
+		link          *careplan.BookedOffering
 		wantManual    bool
 		wantAutomatic bool
 	}{
@@ -52,14 +54,14 @@ func TestGrandfatheredOfferingsFromLinks(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := grandfatheredOfferingsFromLinks([]*RequestChildOffering{tc.link})
+			got := grandfatheredBookings([]*careplan.BookedOffering{tc.link})
 			require.Equal(t, tc.wantManual, got.Manual[tc.link.CareOfferingID])
 			require.Equal(t, tc.wantAutomatic, got.Automatic[tc.link.CareOfferingID])
 		})
 	}
 
 	t.Run("nil links are skipped", func(t *testing.T) {
-		got := grandfatheredOfferingsFromLinks([]*RequestChildOffering{nil})
+		got := grandfatheredBookings([]*careplan.BookedOffering{nil})
 		require.Empty(t, got.Manual)
 		require.Empty(t, got.Automatic)
 	})

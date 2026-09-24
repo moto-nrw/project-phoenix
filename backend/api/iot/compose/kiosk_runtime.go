@@ -20,6 +20,36 @@ func infoRuntime() iotAPI.Runtime {
 	return iotAPI.Runtime{Authenticated: func(ctx context.Context) bool { return device.DeviceFromCtx(ctx) != nil }, Success: common.Respond, Failure: renderDataFailure}
 }
 
+func errorReportsRuntime() iotAPI.ErrorReportsRuntime {
+	return iotAPI.ErrorReportsRuntime{
+		Device: func(ctx context.Context) (int64, string, int64, bool) {
+			principal := device.DeviceFromCtx(ctx)
+			if principal == nil {
+				return 0, "", 0, false
+			}
+			return principal.ID, principal.DeviceID, principal.TenantID, true
+		},
+		Failure:               renderErrorReportFailure,
+		SkipServerErrorReport: common.SkipServerErrorReport,
+	}
+}
+
+// renderErrorReportFailure renders the relay's rejections in the IoT error
+// envelope. A 502 answers a stable text and keeps Sentry's failure as the
+// logged cause.
+func renderErrorReportFailure(w http.ResponseWriter, r *http.Request, status int, err error) {
+	switch status {
+	case http.StatusTooManyRequests:
+		common.RenderError(w, r, common.ErrorTooManyRequests(err))
+	case http.StatusServiceUnavailable:
+		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
+	case http.StatusBadGateway:
+		common.RenderError(w, r, common.ErrorBadGatewayWrap(iotAPI.ErrErrorReportUndelivered.Error(), err))
+	default:
+		renderDataFailure(w, r, status, err, "")
+	}
+}
+
 func devicesRuntime() devicesAPI.Runtime {
 	return devicesAPI.Runtime{ParseID: common.ParseIDParam, Permission: common.RequiresPermission, Success: common.Respond, Failure: renderDataFailure, ConstraintViolation: common.IsConstraintViolation}
 }

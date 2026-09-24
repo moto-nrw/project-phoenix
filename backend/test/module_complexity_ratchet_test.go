@@ -268,8 +268,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/timetable/internal/application/pickup_extensions.go:(*Service).pickupExtensionBlocks":         23,
 	"modules/timetable/internal/application/recurrence_events.go:(*Service).GenerateRecurrenceEvents":      21,
 
-	"modules/timetableprojection/projection.go:CourseGroupsForOfferings": 21,
-
 	"modules/workforce/inbound/timetracking/staff_admin_document_cleanup.go:(*StaffAdminResource).CleanupOrphanedStaffDocumentFiles": 19,
 	"modules/workforce/internal/adapters/postgres/shift_store.go:applyStaffShiftFilter":                                              25,
 	"modules/workforce/internal/adapters/postgres/substitution_store.go:(*Store).ListGroupSubstitutions":                             19,

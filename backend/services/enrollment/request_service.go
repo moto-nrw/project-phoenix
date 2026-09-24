@@ -1332,18 +1332,6 @@ func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 	selectionMode string,
 	grandfathered GrandfatheredOfferings,
 ) ([][]materializedOfferingSelection, error) {
-	return materializeAndValidateChildrenOfferingSelectionsForAdjustment(
-		children, openByID, selectionMode, grandfathered, false,
-	)
-}
-
-func materializeAndValidateChildrenOfferingSelectionsForAdjustment(
-	children []SubmitChild,
-	openByID map[int64]*enrollmentModels.CareOffering,
-	selectionMode string,
-	grandfathered GrandfatheredOfferings,
-	allowCompleteWithdrawal bool,
-) ([][]materializedOfferingSelection, error) {
 	nativeChildren := make([]selection.Child, len(children))
 	for i, child := range children {
 		nativeChildren[i] = selection.Child{TargetGradeLevel: child.TargetGradeLevel, OfferingIDs: child.OfferingIDs, ExcludedAutoAddTargetIDs: child.ExcludedAutoAddTargetIDs}
@@ -1354,7 +1342,7 @@ func materializeAndValidateChildrenOfferingSelectionsForAdjustment(
 			}
 		}
 	}
-	result, err := selection.MaterializeAdjustments(nativeChildren, nativeOfferingCatalog(openByID), selectionMode, selection.Grandfathered{Manual: grandfathered.Manual, Automatic: grandfathered.Automatic}, allowCompleteWithdrawal)
+	result, err := selection.MaterializeAdjustments(nativeChildren, nativeOfferingCatalog(openByID), selectionMode, selection.Grandfathered{Manual: grandfathered.Manual, Automatic: grandfathered.Automatic}, false)
 	for i, child := range nativeChildren {
 		children[i].OfferingIDs = child.OfferingIDs
 		if child.OfferingDays == nil {
@@ -1367,26 +1355,6 @@ func materializeAndValidateChildrenOfferingSelectionsForAdjustment(
 		}
 	}
 	return result, err
-}
-
-func materializedSelectionsHaveCareDays(
-	selections []materializedOfferingSelection,
-	offerings map[int64]*enrollmentModels.CareOffering,
-) bool {
-	for _, selection := range selections {
-		offering := offerings[selection.OfferingID]
-		if offering == nil || !offering.CountsAsCare {
-			continue
-		}
-		hasCareDays := len(selection.SelectedDays) > 0
-		if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
-			hasCareDays = len(offering.AvailableDays) > 0
-		}
-		if hasCareDays {
-			return true
-		}
-	}
-	return false
 }
 
 // GrandfatheredOfferings splits the bookings a child already holds by how an

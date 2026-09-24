@@ -12,6 +12,7 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  HeartPulse,
   Printer,
 } from "lucide-react";
 import { CollectionGrid } from "~/components/ui/collection-grid";
@@ -74,6 +75,9 @@ const STUDENT_LIST_ICONS: Record<StudentExportPreset, ReactNode> = {
   pickup_list: <MotoConceptIcon concept="pickup" size={20} />,
   blank_checklist: <MotoConceptIcon concept="activities" size={20} />,
   birthday_list: <MotoConceptIcon concept="birthdays" size={20} />,
+  // No moto concept names health data; "sick" is the Krank status and would
+  // read as a list of sick children.
+  health_list: <HeartPulse className="h-5 w-5" />,
 };
 
 /**
