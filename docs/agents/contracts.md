@@ -30,6 +30,30 @@ values default to `detailed` for older kiosks. This wire-compatibility rule is
 not permission to default missing infrastructure configuration.
 Backend check-in semantics adapt transparently; the kiosk UI branches per mode.
 
+### Destination choice into released rooms (#3067)
+
+`GET /api/iot/rooms/available` flags each room with `is_open_room` (released
+by the administration) and `is_schulhof` (the system Schulhof room). After a
+checkout scan the kiosk offers every released room as a destination. The
+Schulhof keeps its `POST /api/iot/checkin` flow (ADR 0019 block rosters and
+yard state). Every other released room goes through
+`POST /api/iot/move-to-room` with `{student_rfid, room_id}`. That route runs
+the phone's open-room move (ADR 0018), with the kiosk's device trust: it
+records an independent stay in the room's own session and needs no device,
+second scan or supervision in the destination. It never joins an activity
+that runs in that room. A repeated booking answers `moved: false`.
+
+Refusals carry stable codes PyrePortal maps:
+- `room_not_found` (404, also a foreign tenant's room)
+- `room_not_released` (409)
+- `student_not_present` (409)
+- `open_room_binary_mode` (409)
+- the check-in capacity and `STUDENT_ALREADY_ACTIVE` bodies
+
+`backend/api/iot/pyreportal_error_strings_test.go` pins the codes. Deploy the
+backend first. A kiosk that finds neither flag nor route (404) keeps the old
+Schulhof/WC buttons.
+
 ## Tenant boundary
 
 Platform operator → organization (`platform.organizations`) → school

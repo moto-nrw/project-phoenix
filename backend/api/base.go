@@ -1535,12 +1535,16 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Rosters:    repositories.SessionRosters{Sessions: presence, Roster: modules.timetable},
 		Education:  api.Services.Education,
 		Pickups:    api.Services.PickupSchedule,
-		Settings:   api.Services.Settings,
-		Logger:     logger.With("service", "device-scan"),
+		// A destination chosen at the kiosk runs the phone's open-room
+		// move (#3067).
+		OpenRooms: newDeviceOpenRoomMover(openRoomMove),
+		Settings:  api.Services.Settings,
+		Logger:    logger.With("service", "device-scan"),
 	})
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		Administration:   devicefleetCompose.NewAdministration(api.Services.IoT.Fleet()),
 		DeviceScan:       deviceScan,
+		OpenRooms:        deviceScan,
 		StaffClock:       api.Services.StaffClock,
 		Configuration:    devicescanCompose.NewConfiguration(api.Services.Settings),
 		Rooms:            devicescanCompose.NewRoomAvailability(api.Services.Facilities),
