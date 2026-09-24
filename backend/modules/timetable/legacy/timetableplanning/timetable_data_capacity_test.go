@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func intPtr(v int) *int { return &v }
+
 func capacityOccurrence(date timezone.Date, children, staff int) activities.TemplateCapacityOccurrence {
 	return activities.TemplateCapacityOccurrence{
 		TemplateID:      42,

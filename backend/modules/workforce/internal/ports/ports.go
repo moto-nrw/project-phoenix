@@ -44,6 +44,7 @@ type Store interface {
 	ShiftStore
 	WorkSessionStore
 	StaffRecordStore
+	TargetOverrideStore
 }
 
 // WorkSessionStore is the persistence port over active.work_sessions,

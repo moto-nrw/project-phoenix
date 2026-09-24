@@ -22,6 +22,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -119,6 +120,13 @@ func (m *mockInstanceService) Cancel(_ context.Context, _ int64, reason *string,
 
 func (m *mockInstanceService) DeleteCancelled(_ context.Context, _ int64) error {
 	return m.deleteErr
+}
+
+func (m *mockInstanceService) BulkCancelPlanned(ctx context.Context, from, to timezone.Date, opts timetableModule.BulkCancelOptions, actor *int64) (*timetableModule.BulkCancelResult, error) {
+	if m.real != nil {
+		return m.real.BulkCancelPlanned(ctx, from, to, opts, actor)
+	}
+	return nil, nil
 }
 
 func (m *mockInstanceService) SetUnderstaffedAck(_ context.Context, instanceID int64, ack bool, note *string, _ *int64) (*scheduleModel.ActivityInstance, error) {

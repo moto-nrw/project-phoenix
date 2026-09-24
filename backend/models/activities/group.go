@@ -152,6 +152,17 @@ type Group struct {
 	// schedule.activity_instances.notes.
 	Notes *string `bun:"notes" json:"notes,omitempty"`
 
+	// IncludeClosingDays opts a recurring series into the school's closing
+	// days (#3594): materialization skips closing days unless this is set,
+	// e.g. for holiday care. Statutory holidays are skipped regardless.
+	IncludeClosingDays bool `bun:"include_closing_days,notnull,default:false" json:"-"`
+
+	// SeriesLastDay is the inclusive last day of a recurring series (#3594),
+	// e.g. a holiday-care week; materialization plans nothing after it. NULL
+	// = the series runs until its planning period ends. Unlike a schedule's
+	// valid_until it does not mark a capped split segment.
+	SeriesLastDay *Date `bun:"series_last_day" json:"-"`
+
 	// Relations - populated when using the ORM's relations
 	Category    *Category            `bun:"rel:belongs-to,join:category_id=id" json:"category,omitempty"`
 	Supervisors []*SupervisorPlanned `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`

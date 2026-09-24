@@ -242,10 +242,6 @@ func (s *TimetableDataService) GetCareDayCandidateStudentsByInstanceIDs(ctx cont
 	return s.deps.InstanceStudentRepo.FindNotScheduledCandidatesByInstanceIDs(ctx, instanceIDs)
 }
 
-func (s *TimetableDataService) GetStudentInstancesWithAttendance(ctx context.Context, studentID int64, from, to timezone.Date) ([]*scheduleModel.ScheduledInstanceRow, error) {
-	return s.deps.InstanceStudentRepo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, scheduleModel.Date(from), scheduleModel.Date(to))
-}
-
 func (s *TimetableDataService) GetInstanceStudent(ctx context.Context, instanceID, studentID int64) (*scheduleModel.InstanceStudent, error) {
 	return s.deps.InstanceStudentRepo.FindByInstanceAndStudent(ctx, instanceID, studentID)
 }
@@ -294,10 +290,6 @@ func (s *TimetableDataService) CreateActivityInstance(ctx context.Context, insta
 	return s.deps.ActivityInstanceRepo.Create(ctx, instance)
 }
 
-func (s *TimetableDataService) MarkInstanceCompleted(ctx context.Context, id int64, completedAt time.Time) error {
-	return s.deps.ActivityInstanceRepo.MarkCompleted(ctx, id, completedAt)
-}
-
 // ErrInvalidConflictFingerprint rejects malformed conflict fingerprints
 // before they reach the database (#2139).
 var ErrInvalidConflictFingerprint = errors.New("invalid conflict fingerprint")
@@ -344,16 +336,8 @@ func (s *TimetableDataService) UnacknowledgeConflict(ctx context.Context, accoun
 	return s.deps.ConflictAcks.UnacknowledgeConflict(ctx, accountID, fingerprint)
 }
 
-func (s *TimetableDataService) GetActivityExceptionsByDateRange(ctx context.Context, from, to timezone.Date) ([]*scheduleModel.ActivityException, error) {
-	return s.deps.ActivityExceptionRepo.FindByDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
-}
-
 func (s *TimetableDataService) CreateActivitySchedule(ctx context.Context, schedule *activitiesModel.Schedule) error {
 	return s.deps.ActivityScheduleRepo.Create(ctx, schedule)
-}
-
-func (s *TimetableDataService) GetTemplateStartTimesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*activitiesModel.TemplateStartTime, error) {
-	return s.deps.ActivityScheduleRepo.FindTemplateStartTimesByGroupIDs(ctx, groupIDs)
 }
 
 func (s *TimetableDataService) GetInstanceStaffByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*scheduleModel.InstanceStaff, error) {
@@ -362,10 +346,6 @@ func (s *TimetableDataService) GetInstanceStaffByStaffAndDate(ctx context.Contex
 
 func (s *TimetableDataService) GetInstanceStaff(ctx context.Context, instanceID int64) ([]*scheduleModel.InstanceStaff, error) {
 	return s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
-}
-
-func (s *TimetableDataService) GetInstanceStaffByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModel.InstanceStaff, error) {
-	return s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, instanceIDs)
 }
 
 func (s *TimetableDataService) UpdateInstanceStaff(ctx context.Context, staff *scheduleModel.InstanceStaff) error {
@@ -403,36 +383,12 @@ func substituteDayLockKey(tenantID int64, date timezone.Date) string {
 	return fmt.Sprintf("timetable:substitute-day:%d:%s", tenantID, date.String())
 }
 
-func (s *TimetableDataService) CountNonAbsentInstanceStaffByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error) {
-	return s.deps.InstanceStaffRepo.CountNonAbsentByInstanceIDs(ctx, instanceIDs)
-}
-
 func (s *TimetableDataService) CheckRoomConflict(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *studentpresence.LiveGroup, error) {
 	return s.deps.ActiveGroupRepo.CheckRoomConflict(ctx, roomID, excludeGroupID)
 }
 
-func (s *TimetableDataService) EndGroupSupervisor(ctx context.Context, activeGroupID, staffID int64) (int, error) {
-	return s.deps.SupervisorRepo.EndByActiveGroupAndStaffID(ctx, activeGroupID, staffID)
-}
-
 func (s *TimetableDataService) CreateGroupSupervisor(ctx context.Context, supervisor *studentpresence.GroupSupervision) error {
 	return s.deps.SupervisorRepo.CreateSupervision(ctx, supervisor)
-}
-
-func (s *TimetableDataService) GetArrivalExceptionsByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*scheduleModel.StudentArrivalException, error) {
-	return s.deps.ArrivalExceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, scheduleModel.Date(date))
-}
-
-func (s *TimetableDataService) GetArrivalExceptionsByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*scheduleModel.StudentArrivalException, error) {
-	return s.deps.ArrivalExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, scheduleModel.Date(from), scheduleModel.Date(to))
-}
-
-func (s *TimetableDataService) GetPickupSchedulesByStudent(ctx context.Context, studentID int64) ([]*scheduleModel.StudentPickupSchedule, error) {
-	return s.deps.PickupScheduleRepo.FindByStudentID(ctx, studentID)
-}
-
-func (s *TimetableDataService) GetPickupExceptionsByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*scheduleModel.StudentPickupException, error) {
-	return s.deps.PickupExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, scheduleModel.Date(from), scheduleModel.Date(to))
 }
 
 func (s *TimetableDataService) GetRoom(ctx context.Context, id int64) (*facilitiesModel.Room, error) {
@@ -465,14 +421,6 @@ func (s *TimetableDataService) CreateStudentEnrollment(ctx context.Context, enro
 
 func (s *TimetableDataService) CreatePlannedSupervisor(ctx context.Context, supervisor *activitiesModel.SupervisorPlanned) error {
 	return s.deps.ActivitySupervisorRepo.Create(ctx, supervisor)
-}
-
-func (s *TimetableDataService) CloseOpenEnrollmentsByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom timezone.Date) error {
-	return s.deps.StudentEnrollmentRepo.CloseOpenByGroupAndPeriod(ctx, groupID, calendarPeriodID, activitiesModel.Date(validFrom))
-}
-
-func (s *TimetableDataService) CloseOpenSupervisorsByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom timezone.Date) error {
-	return s.deps.ActivitySupervisorRepo.CloseOpenByGroupAndPeriod(ctx, groupID, calendarPeriodID, activitiesModel.Date(validFrom))
 }
 
 func (s *TimetableDataService) GetTimeframesByTimeRange(ctx context.Context, startTime, endTime time.Time) ([]*scheduleModel.Timeframe, error) {
@@ -717,7 +665,7 @@ func worstTemplateOccurrence(
 ) (activitiesModel.TemplateCapacityOccurrence, bool) {
 	hasPositiveDemand := false
 	for _, occurrence := range occurrences {
-		if EffectiveRequiredStaff(override, occurrence.EnrollmentCount, childrenPerStaffRatio) > 0 {
+		if timetable.EffectiveRequiredStaff(override, occurrence.EnrollmentCount, childrenPerStaffRatio) > 0 {
 			hasPositiveDemand = true
 			break
 		}
@@ -754,7 +702,7 @@ func scoreTemplateOccurrence(
 	override *int,
 	childrenPerStaffRatio int,
 ) templateCapacityScore {
-	required := EffectiveRequiredStaff(override, occurrence.EnrollmentCount, childrenPerStaffRatio)
+	required := timetable.EffectiveRequiredStaff(override, occurrence.EnrollmentCount, childrenPerStaffRatio)
 	assigned := occurrence.SupervisorCount
 	score := templateCapacityScore{required: required}
 	if assigned < required {
@@ -814,10 +762,6 @@ func (s *TimetableDataService) DetectShiftCoverageWarnings(ctx context.Context, 
 		Staff:           s.deps.StaffRepo,
 		CalendarPeriods: s.deps.CalendarPeriodRepo,
 	}, query)
-}
-
-func (s *TimetableDataService) EducationGroupExists(ctx context.Context, id int64) (bool, error) {
-	return s.deps.EducationGroupRepo.Exists(ctx, id)
 }
 
 // acquireSpontaneousLock takes a transaction-scoped advisory lock. Mirrors

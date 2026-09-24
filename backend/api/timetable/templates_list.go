@@ -13,7 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -137,6 +137,8 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		SourceSchoolClasses:         sourceSchoolClasses,
 		ListKind:                    nullableTemplateString(row.ListKind.Valid, row.ListKind.String),
 		Notes:                       nullableTemplateString(row.Notes.Valid, row.Notes.String),
+		IncludeClosingDays:          row.IncludeClosingDays,
+		EndDate:                     nullableTemplateString(row.SeriesLastDay.Valid, row.SeriesLastDay.String),
 		ShiftTypeName:               row.ShiftTypeName,
 		ShiftTypeColor:              row.ShiftTypeColor,
 		EnrollmentCount:             row.EnrollmentCount,
@@ -179,7 +181,7 @@ func templateRequiredStaffCount(row templateRow, childrenPerStaffRatio int) int 
 	if !row.CapacityOccurrenceFound {
 		override = nil
 	}
-	return timetableplanning.EffectiveRequiredStaff(override, row.CapacityEnrollmentCount, childrenPerStaffRatio)
+	return timetableModule.EffectiveRequiredStaff(override, row.CapacityEnrollmentCount, childrenPerStaffRatio)
 }
 
 // templateRequiredStaffOverride converts the nullable required_staff column
@@ -281,6 +283,11 @@ type templateResponse struct {
 	// Notes is the template's durable Wochennotiz (#1837 follow-up), nil when
 	// no series note is set. Lets the planner prefill the field on a series edit.
 	Notes *string `json:"notes,omitempty"`
+	// IncludeClosingDays: the series is planned on closing days too (#3594).
+	IncludeClosingDays bool `json:"include_closing_days"`
+	// EndDate is the inclusive last day of the series (#3594); nil = the
+	// series runs until its planning period ends.
+	EndDate *string `json:"end_date,omitempty"`
 	// ShiftTypeName/ShiftTypeColor reflect the category's optional
 	// Kategorie↔Schichtart mapping (#1836/#1837 follow-up); empty when unmapped.
 	ShiftTypeName   string `json:"shift_type_name,omitempty"`

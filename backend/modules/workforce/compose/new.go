@@ -36,6 +36,11 @@ type Dependencies struct {
 	// Now is the clock the live work-session window and the calendar day
 	// are measured against; nil means the wall clock. Tests pin it.
 	Now func() time.Time
+	// StatutoryHolidays answers the tenant's statutory holidays from the
+	// School Calendar; a Sonderarbeitszeit sets no target on them. Optional
+	// for compositions that never resolve a Soll: nil treats no day as a
+	// statutory holiday.
+	StatutoryHolidays func(ctx context.Context, from, to string) (map[string]bool, error)
 }
 
 // New composes the Workforce work-time module. Every operation runs on the
@@ -72,6 +77,7 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 		clock{now: now},
 		allowanceUses,
 		observe,
+		dependencies.StatutoryHolidays,
 	)
 	return service, nil
 }
@@ -346,6 +352,9 @@ func mapError(err error) error {
 		return &workforce.ConflictError{Kind: workforce.ErrAbsenceTypeNameTaken, Cause: conflictCause(err)}
 	case errors.Is(err, domain.ErrGroupSubstitutionExists):
 		return &workforce.ConflictError{Kind: workforce.ErrGroupSubstitutionExists, Cause: conflictCause(err)}
+	case errors.Is(err, domain.ErrStaffTargetOverrideNotFound), errors.Is(err, domain.ErrInvalidStaffTargetOverride),
+		errors.Is(err, domain.ErrStaffTargetOverrideRejected):
+		return targetOverrideError(err)
 	default:
 		return err
 	}

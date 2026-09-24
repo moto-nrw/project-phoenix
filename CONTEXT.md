@@ -584,6 +584,16 @@ Beschäftigung bleibt als solche bestehen und wird nicht fortgeführt. Eine
 Person hat danach mehrere Beschäftigungen an derselben Schule, aber weiterhin
 nur einen Personensatz.
 
+## Sonderarbeitszeit
+
+Eine **Sonderarbeitszeit** legt für eine Person und einen Zeitraum ein
+eigenes Tagessoll fest, typisch für die Ferienbetreuung an Schließtagen.
+Sie gilt Montag bis Freitag und geht Schließtag und Arbeitszeitmodell vor;
+gesetzliche Feiertage bleiben Soll 0. Danach gilt wieder das
+Arbeitszeitmodell. Zeiträume einer Person überschneiden sich nicht; in einem
+abgeschlossenen Monat lässt sie sich nicht ändern.
+_Vermeiden_: Override (nur im Code), Ferienmodell, Ausnahme-Soll.
+
 ## Schulzugehörigkeit
 
 Die **Schulzugehörigkeit** ist die Zugehörigkeit eines Kindes zu einer Schule

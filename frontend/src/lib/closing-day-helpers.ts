@@ -48,7 +48,9 @@ export function mapClosingDays(data: BackendClosingDay[]): ClosingDay[] {
 }
 
 /** "24.12.2026 – 31.12.2026", collapsed to one date for single-day ranges. */
-export function formatClosingDayRange(day: ClosingDay): string {
+export function formatClosingDayRange<
+  T extends Pick<ClosingDay, "startDate" | "endDate">,
+>(day: T): string {
   if (day.startDate === day.endDate) {
     return formatDate(day.startDate);
   }
@@ -101,6 +103,19 @@ export function findFirstClosingDayConflict(
     if (reason !== undefined) return { dateISO, reason };
   }
   return null;
+}
+
+/**
+ * How many generated dates overlap a stored closing-day range (#3594). A
+ * series skips those dates unless it is planned for closing days too.
+ */
+export function countClosingDayConflicts(
+  ranges: readonly ClosingDayRange[] | null | undefined,
+  dates: readonly string[],
+): number {
+  return dates.filter(
+    (dateISO) => findClosingDayReason(ranges, dateISO) !== undefined,
+  ).length;
 }
 
 /**

@@ -29,6 +29,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
@@ -579,7 +580,7 @@ func (rs *Resource) enrichInstance(
 		PresentStudentsCount:   attendance.present,
 		EmptyRosterReason:      emptyRosterReason,
 		NotScheduledCount:      attendance.notScheduled,
-		RequiredStaffCount:     timetableplanning.EffectiveRequiredStaff(instanceRequiredStaffOverride(inst.RequiredStaff, meta.requiredStaff), childrenCount, childrenPerStaffRatio),
+		RequiredStaffCount:     timetableModule.EffectiveRequiredStaff(instanceRequiredStaffOverride(inst.RequiredStaff, meta.requiredStaff), childrenCount, childrenPerStaffRatio),
 		AssignedStaffCount:     assignedStaff,
 		RequiredStaffOverride:  inst.RequiredStaff,
 		ConflictWarnings:       []timetableplanning.InstanceConflictWarning{},
