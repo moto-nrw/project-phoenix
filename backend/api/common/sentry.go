@@ -96,17 +96,21 @@ func requestEventProcessor(r *http.Request) sentry.EventProcessor {
 			event.Request.QueryString = ""
 		}
 		for _, crumb := range event.Breadcrumbs {
-			if crumb == nil {
-				continue
-			}
-			crumb.Message = stripQueryStrings(crumb.Message)
-			for key, value := range crumb.Data {
-				if s, ok := value.(string); ok {
-					crumb.Data[key] = stripQueryStrings(s)
-				}
-			}
+			stripBreadcrumbQueryStrings(crumb)
 		}
 		return event
+	}
+}
+
+func stripBreadcrumbQueryStrings(crumb *sentry.Breadcrumb) {
+	if crumb == nil {
+		return
+	}
+	crumb.Message = stripQueryStrings(crumb.Message)
+	for key, value := range crumb.Data {
+		if s, ok := value.(string); ok {
+			crumb.Data[key] = stripQueryStrings(s)
+		}
 	}
 }
 
