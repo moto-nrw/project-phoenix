@@ -40,6 +40,8 @@ type parentThreadRow struct {
 	LastMessageBody                string     `bun:"last_message_body"`
 	StaffHandledUpToAt             *time.Time `bun:"staff_handled_up_to_at"`
 	StaffHandledUpToMessageID      *int64     `bun:"staff_handled_up_to_message_id"`
+	StaffMarkedUnreadAt            *time.Time `bun:"staff_marked_unread_at"`
+	StaffMarkedUnreadByAccountID   *int64     `bun:"staff_marked_unread_by_account_id"`
 	LastStaffMessageNotificationAt *time.Time `bun:"last_staff_message_notification_at"`
 }
 
@@ -53,6 +55,8 @@ func (r *parentThreadRow) value() *domain.ParentMessageThread {
 		LastMessageID: r.LastMessageID, LastSenderKind: r.LastSenderKind,
 		LastMessageBody: r.LastMessageBody, StaffHandledUpToAt: r.StaffHandledUpToAt,
 		StaffHandledUpToMessageID:      r.StaffHandledUpToMessageID,
+		StaffMarkedUnreadAt:            r.StaffMarkedUnreadAt,
+		StaffMarkedUnreadByAccountID:   r.StaffMarkedUnreadByAccountID,
 		LastStaffMessageNotificationAt: r.LastStaffMessageNotificationAt,
 		CreatedAt:                      r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
@@ -66,6 +70,8 @@ func threadRow(value *domain.ParentMessageThread) *parentThreadRow {
 		LastMessageID: value.LastMessageID, LastSenderKind: value.LastSenderKind,
 		LastMessageBody: value.LastMessageBody, StaffHandledUpToAt: value.StaffHandledUpToAt,
 		StaffHandledUpToMessageID:      value.StaffHandledUpToMessageID,
+		StaffMarkedUnreadAt:            value.StaffMarkedUnreadAt,
+		StaffMarkedUnreadByAccountID:   value.StaffMarkedUnreadByAccountID,
 		LastStaffMessageNotificationAt: value.LastStaffMessageNotificationAt,
 	}
 }
@@ -300,4 +306,58 @@ func (s *ThreadStore) MarkStaffHandledUpTo(ctx context.Context, tenantID, thread
 		return fmt.Errorf("mark parent message thread handled for staff: %w", err)
 	}
 	return nil
+}
+
+// MarkStaffUnread records that a staff member marked the conversation unread for
+// the whole team. PostgreSQL stamps the time with clock_timestamp(), so the mark
+// is ordered on the database clock. An existing mark is kept: repeating the
+// action changes nothing.
+func (s *ThreadStore) MarkStaffUnread(ctx context.Context, tenantID, threadID, accountID int64) error {
+	db, contextTenantID, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	query := db.NewUpdate().
+		Model((*parentThreadRow)(nil)).
+		ModelTableExpr(`users.parent_message_threads AS "thread"`).
+		Set("staff_marked_unread_at = clock_timestamp()").
+		Set("staff_marked_unread_by_account_id = ?", accountID).
+		Where(`"thread".id = ?`, threadID).
+		Where(`"thread".tenant_id = ?`, tenantID).
+		Where(`"thread".staff_marked_unread_at IS NULL`)
+	query = withTenant(query, "thread", contextTenantID)
+	if _, err := query.Exec(ctx); err != nil {
+		return fmt.Errorf("mark parent message thread unread for staff: %w", err)
+	}
+	return nil
+}
+
+// ClearStaffUnreadMark removes the team-wide unread mark the caller saw when it
+// loaded the thread. The observedAt guard is a compare-and-swap: a mark set
+// after that load carries a later timestamp and survives, so a colleague who
+// marks the conversation while someone else opens it keeps the mark. It
+// reports whether a mark was removed.
+func (s *ThreadStore) ClearStaffUnreadMark(ctx context.Context, tenantID, threadID int64, observedAt time.Time) (bool, error) {
+	db, contextTenantID, err := s.database(ctx)
+	if err != nil {
+		return false, err
+	}
+	query := db.NewUpdate().
+		Model((*parentThreadRow)(nil)).
+		ModelTableExpr(`users.parent_message_threads AS "thread"`).
+		Set("staff_marked_unread_at = NULL").
+		Set("staff_marked_unread_by_account_id = NULL").
+		Where(`"thread".id = ?`, threadID).
+		Where(`"thread".tenant_id = ?`, tenantID).
+		Where(`"thread".staff_marked_unread_at <= ?`, observedAt)
+	query = withTenant(query, "thread", contextTenantID)
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return false, fmt.Errorf("clear parent message thread staff unread mark: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("count cleared parent message thread staff unread marks: %w", err)
+	}
+	return rows == 1, nil
 }

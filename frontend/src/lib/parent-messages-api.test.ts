@@ -19,6 +19,7 @@ import {
   fetchUnreadCount,
   fetchThread,
   postMessage,
+  markThreadUnread,
   openThread,
   fetchGuardians,
   type InboxThread,
@@ -363,6 +364,28 @@ describe("postMessage", () => {
 // ---------------------------------------------------------------------------
 // openThread
 // ---------------------------------------------------------------------------
+
+describe("markThreadUnread", () => {
+  it("POSTs to the thread's unread route", async () => {
+    let seenURL = "";
+    let seenMethod = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method ?? "";
+      return jsonOk({ data: null });
+    });
+    await markThreadUnread("t42");
+    expect(seenURL).toBe("/api/messages/threads/t42/unread");
+    expect(seenMethod).toBe("POST");
+  });
+
+  it("throws the backend error on failure", async () => {
+    mockFetch(async () => jsonOk({ error: "messaging: forbidden" }, 403));
+    await expect(markThreadUnread("t42")).rejects.toThrow(
+      "messaging: forbidden",
+    );
+  });
+});
 
 describe("openThread", () => {
   it("POSTs to /api/messages/threads/open and returns the ThreadDetail", async () => {

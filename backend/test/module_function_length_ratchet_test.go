@@ -96,7 +96,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/communication/internal/adapters/staffinbox/projection.go:(*Projection).ListInbox":                                       61,
 	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":                                         176,
 	"modules/communication/internal/parentmessages/message_email.go:messageEmailCopy":                                                84,
-	"modules/communication/internal/parentmessages/service.go:(*Service).PostMessage":                                                79,
+	"modules/communication/internal/parentmessages/service.go:(*Service).PostMessage":                                                69,
 	"modules/communication/internal/parentmessages/service.go:(*Service).notifyGuardianDevice":                                       61,
 	"modules/communication/internal/staffannouncements/care_cancellation.go:(*service).PublishCareCancellation":                      83,
 	"modules/communication/internal/staffannouncements/email.go:NewAnnouncementRenderer":                                             61,

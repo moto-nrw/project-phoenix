@@ -108,6 +108,14 @@ type ParentMessageReadRepository interface {
 	// MarkStaffHandledUpTo advances the team-wide handled boundary to the newest
 	// guardian activity covered by a staff reply. It never moves backward.
 	MarkStaffHandledUpTo(ctx context.Context, tenantID, threadID int64, handledAt time.Time, handledMessageID int64) error
+	// MarkStaffUnread marks the conversation unread for every staff member who
+	// may read the child. It leaves the read cursors and the handled boundary
+	// alone and keeps an existing mark (idempotent).
+	MarkStaffUnread(ctx context.Context, tenantID, threadID, accountID int64) error
+	// ClearStaffUnreadMark removes a mark no later than observedAt, the mark the
+	// caller loaded before opening or answering the conversation. A mark set
+	// after that load stays. It reports whether a mark was removed.
+	ClearStaffUnreadMark(ctx context.Context, tenantID, threadID int64, observedAt time.Time) (bool, error)
 	// UnreadMessageCountForStaff counts unread guardian MESSAGES the staff reader
 	// has not seen (sent by the other side) — the sidebar badge source. Counts
 	// messages, not threads, so the badge matches the per-thread unread pills.

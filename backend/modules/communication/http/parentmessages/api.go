@@ -50,6 +50,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(read, withTx).Post("/threads/open", rs.openThread)
 		r.With(read, withTx).Get("/threads/{threadId}", rs.getThread)
 		r.With(read, withTx).Post("/threads/{threadId}", rs.postMessage)
+		r.With(read, withTx).Post("/threads/{threadId}/unread", rs.markThreadUnread)
 		r.With(read, withTx).Get("/students/{studentId}/guardians", rs.listGuardians)
 		r.With(read, withTx).Get("/students/{studentId}/threads", rs.listStudentThreads)
 	})
@@ -238,6 +239,19 @@ func (rs *Resource) getThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, toThreadDetail(detail), "Thread retrieved")
+}
+
+// markThreadUnread marks the conversation unread for the whole team (#3654).
+func (rs *Resource) markThreadUnread(w http.ResponseWriter, r *http.Request) {
+	threadID, ok := parseInt64Param(w, r, "threadId", "thread")
+	if !ok {
+		return
+	}
+	if err := rs.Service.MarkParentMessageThreadUnread(r.Context(), threadID); err != nil {
+		renderMessagingError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "Thread marked unread")
 }
 
 func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {

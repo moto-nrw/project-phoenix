@@ -12,6 +12,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { BackButton } from "~/components/ui/back-button";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
 import { PickupRequestDetailModal } from "~/components/messaging/pickup-request-detail-modal";
@@ -25,6 +26,7 @@ import {
   type Message,
   type ThreadDetail,
   fetchThread,
+  markThreadUnread,
   postMessage,
   relationshipLabel,
 } from "~/lib/parent-messages-api";
@@ -39,6 +41,10 @@ import { formatChatDateTime } from "~/lib/date-helpers";
 import { ThreadSkeleton, ThreadMessagesSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "MessageThreadPage" });
+
+const MARK_UNREAD_LABEL = "Als ungelesen markieren";
+const MARK_UNREAD_ERROR =
+  "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
 
 export function isMessageSnapshotUnavailable(
   isLoading: boolean,
@@ -221,7 +227,13 @@ function MessageThreadContent() {
   // refetchOnFocus: this view's only refresh path is SSE (revalidateOnFocus is off
   // above), so if the connection dropped while the tab slept a message could have
   // been missed entirely — refetch on return to heal in lockstep with the badge.
-  const refreshThread = useCallback(() => void mutate(), [mutate]);
+  // After "Als ungelesen markieren" the page is on its way to the inbox. A
+  // refetch now would open the thread again and end the mark at once, so the
+  // SSE refresh stands down while leaving.
+  const leavingAsUnreadRef = useRef(false);
+  const refreshThread = useCallback(() => {
+    if (!leavingAsUnreadRef.current) void mutate();
+  }, [mutate]);
   useMessagesActivity({
     onMatch: refreshThread,
     threadId,
@@ -287,6 +299,28 @@ function MessageThreadContent() {
     }
   };
 
+  // Marks the conversation unread for the whole team and returns to the inbox.
+  // Staying here is not an option: this page reloads the thread on every SSE
+  // event, and loading it would mark it read again right away.
+  const [markUnreadError, setMarkUnreadError] = useState<string | null>(null);
+  const handleMarkUnread = async () => {
+    if (leavingAsUnreadRef.current) return;
+    leavingAsUnreadRef.current = true;
+    setMarkUnreadError(null);
+    try {
+      await markThreadUnread(threadId);
+      window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
+      router.push("/messages");
+    } catch (err) {
+      leavingAsUnreadRef.current = false;
+      logger.error("thread_mark_unread_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        thread_id: threadId,
+      });
+      setMarkUnreadError(MARK_UNREAD_ERROR);
+    }
+  };
+
   // Pin the chat to the viewport and lock page scroll (only the message list
   // scrolls). Measured once the thread renders so the layout is final.
   const containerRef = useChatViewportLock<HTMLDivElement>(
@@ -334,22 +368,43 @@ function MessageThreadContent() {
       statsLoading={showSkeleton}
       actions={
         thread ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={() =>
-              router.push(`/students/${thread.student_id}?from=/messages`)
-            }
-            className="flex-shrink-0"
-          >
-            <MotoConceptIcon concept="children" size={18} className="mr-1.5" />
-            Zum Kinderprofil
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() =>
+                router.push(`/students/${thread.student_id}?from=/messages`)
+              }
+              className="flex-shrink-0"
+            >
+              <MotoConceptIcon
+                concept="children"
+                size={18}
+                className="mr-1.5"
+              />
+              Zum Kinderprofil
+            </Button>
+            <OverflowMenu
+              ariaLabel="Weitere Aktionen"
+              items={[
+                {
+                  label: MARK_UNREAD_LABEL,
+                  onClick: () => void handleMarkUnread(),
+                },
+              ]}
+            />
+          </>
         ) : null
       }
     >
       <MessagesBackNav />
+
+      {markUnreadError && (
+        <div className="mb-3">
+          <Alert type="error" message={markUnreadError} />
+        </div>
+      )}
 
       <div
         ref={containerRef}

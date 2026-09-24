@@ -148,6 +148,13 @@ func (m *parentMessaging) PostParentMessage(ctx context.Context, threadID int64,
 	})
 }
 
+func (m *parentMessaging) MarkParentMessageThreadUnread(ctx context.Context, threadID int64) error {
+	_, err := observeResult(ctx, m.observe, "parent_messages.mark_unread", func(runCtx context.Context) (struct{}, error) {
+		return struct{}{}, mapParentMessagingError(m.service.MarkUnread(runCtx, threadID))
+	})
+	return err
+}
+
 type StaffMessagingConfig struct {
 	ThreadRepo  usersModels.StaffMessageThreadRepository
 	MessageRepo usersModels.StaffMessageRepository

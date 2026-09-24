@@ -185,6 +185,19 @@ export async function postMessage(
 }
 
 /**
+ * Mark the conversation unread for the whole team. Every staff member who may
+ * read the child sees it as unread again until someone opens or answers it.
+ * Parents see no change.
+ */
+export async function markThreadUnread(threadId: string): Promise<void> {
+  await postEnvelope<null>(
+    `/api/messages/threads/${encodeURIComponent(threadId)}/unread`,
+    {},
+    "Die Unterhaltung wurde nicht als ungelesen markiert.",
+  );
+}
+
+/**
  * Get-or-create the conversation for a (child, guardian) pair and return it
  * (with history if any) WITHOUT sending a message — opens the chat window
  * directly from the recipient picker, WhatsApp-style. The empty thread stays
