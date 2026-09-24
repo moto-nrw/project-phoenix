@@ -108,6 +108,8 @@ type ParentInboxThread struct {
 	LastMessagePayload     map[string]any
 	LastMessageReadByStaff bool
 	UnreadCount            int
+	ReadBoundAt            *time.Time
+	ReadBoundMessageID     *int64
 }
 
 // ParentReadCursor is a reader's position in a thread: the read instant and its
@@ -116,6 +118,13 @@ type ParentInboxThread struct {
 type ParentReadCursor struct {
 	LastReadAt        time.Time
 	LastReadMessageID int64
+}
+
+// ReadCursorBound is a counterpart message selected in the inbox snapshot.
+type ReadCursorBound struct {
+	ThreadID  int64
+	ReadAt    time.Time
+	MessageID int64
 }
 
 // ParentThreadHeader is the chat window's header: the child and guardian

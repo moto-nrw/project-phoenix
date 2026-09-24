@@ -7,6 +7,8 @@ package messaging_test
 
 import (
 	"context"
+	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -211,6 +213,53 @@ func TestMarkAllRead_LaterGuardianMessageIsUnreadAgain(t *testing.T) {
 	view := readUnreadView(t, f, f.staffAccount, f.chain.StudentID)
 	assert.Equal(t, 1, view.badge)
 	assert.Equal(t, map[int64]int{threadID: 1}, view.onlyUnread)
+}
+
+type inboxThenMessage struct {
+	usersModels.ParentMessageReadRepository
+	afterList func()
+	once      *sync.Once
+}
+
+func (r inboxThenMessage) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*usersModels.InboxThread, error) {
+	rows, err := r.ParentMessageReadRepository.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
+	if err == nil {
+		r.once.Do(r.afterList)
+	}
+	return rows, err
+}
+
+func TestMarkAllRead_MessageCommittedAfterInboxSnapshotStaysUnread(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, true)
+	threadID, first := startThreadWithQuestions(t, f, f.chain, "Frage")
+	readRepo := f.svc.ReadRepo
+	f.svc.ReadRepo = inboxThenMessage{ParentMessageReadRepository: readRepo, once: &sync.Once{}, afterList: func() {
+		createGuardianMessage(t, f.db, f.chain, threadID, "Neue Frage")
+	}}
+
+	assert.Equal(t, 1, markAllRead(t, f, adminCtx(t, f.staffAccount)))
+	cursor := cursorOf(t, threadID, f.staffAccount)
+	require.NotNil(t, cursor)
+	assert.Equal(t, first.ID, cursor.LastReadMessageID)
+	assert.Equal(t, map[int64]int{threadID: 1}, readUnreadView(t, f, f.staffAccount).onlyUnread)
+}
+
+func TestMarkAllRead_DisabledDoesNotAdvanceOrBroadcast(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, true)
+	threadID, _ := startThreadWithQuestions(t, f, f.chain, "Frage")
+	f.svc.Settings = stubSettings{messagingEnabled: false}
+	f.svc.Logger = slog.Default()
+	f.bc.Reset()
+
+	count, err := f.svc.MarkAllRead(adminCtx(t, f.staffAccount))
+	require.ErrorIs(t, err, messaging.ErrMessagingDisabled)
+	assert.Zero(t, count)
+	assert.Nil(t, cursorOf(t, threadID, f.staffAccount))
+	assert.Zero(t, parentEventCount(f.bc, realtime.EventParentMessageRead))
 }
 
 // TestMarkAllRead_LeavesChildrenOutsideScope: a former child's conversation is

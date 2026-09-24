@@ -22,19 +22,24 @@ import (
 // It returns the caller's unread count afterwards. It is above zero only when
 // team-marked conversations remain, so the client can say why.
 func (s *Service) MarkAllRead(ctx context.Context) (int, error) {
+	if err := s.requireEnabled(ctx); err != nil {
+		return 0, err
+	}
 	accountID := accountIDFromCtx(ctx)
 	rows, err := s.ReadRepo.ListInboxForStaff(ctx, accountID, s.scope(ctx), true)
 	if err != nil {
 		return 0, fmt.Errorf("messaging: list unread inbox: %w", err)
 	}
-	threadsByTenant := map[int64][]int64{}
+	threadsByTenant := map[int64][]usersModels.ReadCursorBound{}
 	byID := make(map[int64]*usersModels.InboxThread, len(rows))
 	for _, row := range rows {
-		threadsByTenant[row.TenantID] = append(threadsByTenant[row.TenantID], row.ThreadID)
+		if row.ReadBound != nil {
+			threadsByTenant[row.TenantID] = append(threadsByTenant[row.TenantID], *row.ReadBound)
+		}
 		byID[row.ThreadID] = row
 	}
-	for tenantID, threadIDs := range threadsByTenant {
-		advanced, err := s.ReadRepo.MarkThreadsReadForStaff(ctx, tenantID, accountID, threadIDs)
+	for tenantID, bounds := range threadsByTenant {
+		advanced, err := s.ReadRepo.MarkThreadsReadForStaff(ctx, tenantID, accountID, bounds)
 		if err != nil {
 			return 0, fmt.Errorf("messaging: mark all read: %w", err)
 		}

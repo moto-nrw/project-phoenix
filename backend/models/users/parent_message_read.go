@@ -69,6 +69,16 @@ type InboxThread struct {
 	LastMessagePayload     map[string]any `bun:"last_message_payload" json:"-"`
 	LastMessageReadByStaff bool           `bun:"last_message_read_by_staff" json:"-"`
 	UnreadCount            int            `bun:"unread_count" json:"unread_count"`
+	// Mark-all-read uses the counterpart message selected with this inbox row,
+	// never a newer message committed before the cursor write.
+	ReadBound *ReadCursorBound `bun:"-" json:"-"`
+}
+
+// ReadCursorBound is the exact counterpart message observed in an inbox snapshot.
+type ReadCursorBound struct {
+	ThreadID  int64
+	ReadAt    time.Time
+	MessageID int64
 }
 
 // ReadCursor is the composite position of a read cursor: the read instant and
@@ -105,11 +115,10 @@ type ParentMessageReadRepository interface {
 	// advanced, so the read-receipt SSE push can fire only on a real move and not
 	// ping-pong with the refetch it triggers on the counterpart.
 	MarkReadUpTo(ctx context.Context, tenantID, threadID, accountID int64, readAt time.Time, readMessageID int64) (bool, error)
-	// MarkThreadsReadForStaff advances the staff reader's cursor in each given
-	// thread to the newest guardian-side message the reader did not author, by
-	// the same rules as a single open, in one statement. The cursor never moves
-	// backward. It returns the threads whose cursor actually advanced.
-	MarkThreadsReadForStaff(ctx context.Context, tenantID, accountID int64, threadIDs []int64) ([]int64, error)
+	// MarkThreadsReadForStaff advances each cursor only to the counterpart
+	// message selected with the inbox snapshot, in one statement. The cursor
+	// never moves backward. It returns threads whose cursor actually advanced.
+	MarkThreadsReadForStaff(ctx context.Context, tenantID, accountID int64, bounds []ReadCursorBound) ([]int64, error)
 	// MarkStaffHandledUpTo advances the team-wide handled boundary to the newest
 	// guardian activity covered by a staff reply. It never moves backward.
 	MarkStaffHandledUpTo(ctx context.Context, tenantID, threadID int64, handledAt time.Time, handledMessageID int64) error

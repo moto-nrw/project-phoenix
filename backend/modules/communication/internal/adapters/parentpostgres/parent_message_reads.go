@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 const parentReadTable = "users.parent_message_reads"
@@ -76,42 +78,34 @@ func (s *ReadCursorStore) MarkReadUpTo(ctx context.Context, tenantID, threadID, 
 	return affected > 0, nil
 }
 
-// markThreadsReadForStaffSQL advances one staff reader's cursor in many threads
-// at once. Per thread it picks the newest message in the reader's unread set,
-// the same bound MarkReadToNewest applies to a single open: a guardian-side
-// message (a system event counts by the side that triggered it), never a
-// request_created notice, never the reader's own plain message. The counterpart
-// test mirrors usersModels.IsCounterpartMessage for a staff reader and the
-// unread predicates of the inbox projection.
-//
-// The statement reads the messages committed when it starts, so a guardian
-// message that arrives later stays unread. The ON CONFLICT guard compares the
-// composite, so the cursor never moves backward and an unchanged row is not
-// returned.
-//
-// Bind args: accountID, tenantID, threadIDs, accountID.
+// markThreadsReadForStaffSQL writes only the exact counterpart messages chosen
+// by the inbox snapshot. Re-reading parent_messages here could include a
+// guardian message that committed after that snapshot. The conflict guard
+// prevents a cursor from moving backward or reporting an unchanged row.
+// Bind args: tenantID, accountID, threadIDs, readAt values, messageIDs.
 const markThreadsReadForStaffSQL = `
 INSERT INTO users.parent_message_reads AS pmr (tenant_id, thread_id, account_id, last_read_at, last_read_message_id)
-SELECT DISTINCT ON (m.thread_id) m.tenant_id, m.thread_id, ?, m.created_at, m.id
-FROM users.parent_messages m
-WHERE m.tenant_id = ?
-  AND m.thread_id IN (?)
-  AND (m.sender_kind = 'guardian' OR (m.sender_kind = 'system' AND m.event_actor_kind = 'guardian'))
-  AND m.event_type IS DISTINCT FROM 'request_created'
-  AND (m.sender_kind = 'system' OR m.sender_account_id <> ?)
-ORDER BY m.thread_id, m.created_at DESC, m.id DESC
+SELECT ?, bound.thread_id, ?, bound.read_at, bound.message_id
+FROM unnest(?::bigint[], ?::timestamptz[], ?::bigint[]) AS bound(thread_id, read_at, message_id)
 ON CONFLICT (thread_id, account_id) DO UPDATE
 SET last_read_at = EXCLUDED.last_read_at,
     last_read_message_id = EXCLUDED.last_read_message_id
 WHERE (EXCLUDED.last_read_at, EXCLUDED.last_read_message_id) > (pmr.last_read_at, pmr.last_read_message_id)
 RETURNING pmr.thread_id`
 
-// MarkThreadsReadForStaff advances the staff reader's cursor in each thread to
-// the newest guardian-side message they did not author, never to NOW() and
-// never backward. It returns the threads whose cursor moved.
-func (s *ReadCursorStore) MarkThreadsReadForStaff(ctx context.Context, tenantID, accountID int64, threadIDs []int64) ([]int64, error) {
-	if len(threadIDs) == 0 {
+// MarkThreadsReadForStaff advances each cursor to its selected inbox bound,
+// never to NOW() and never backward. It returns threads whose cursor moved.
+func (s *ReadCursorStore) MarkThreadsReadForStaff(ctx context.Context, tenantID, accountID int64, bounds []domain.ReadCursorBound) ([]int64, error) {
+	if len(bounds) == 0 {
 		return nil, nil
+	}
+	threadIDs := make([]int64, 0, len(bounds))
+	readAt := make([]time.Time, 0, len(bounds))
+	messageIDs := make([]int64, 0, len(bounds))
+	for _, bound := range bounds {
+		threadIDs = append(threadIDs, bound.ThreadID)
+		readAt = append(readAt, bound.ReadAt)
+		messageIDs = append(messageIDs, bound.MessageID)
 	}
 	db, _, err := s.database(ctx)
 	if err != nil {
@@ -119,7 +113,7 @@ func (s *ReadCursorStore) MarkThreadsReadForStaff(ctx context.Context, tenantID,
 	}
 	var advanced []int64
 	if err := db.NewRaw(markThreadsReadForStaffSQL,
-		accountID, tenantID, bun.List(threadIDs), accountID,
+		tenantID, accountID, pgdialect.Array(threadIDs), pgdialect.Array(readAt), pgdialect.Array(messageIDs),
 	).Scan(ctx, &advanced); err != nil {
 		return nil, fmt.Errorf("mark parent message threads read for staff: %w", err)
 	}
