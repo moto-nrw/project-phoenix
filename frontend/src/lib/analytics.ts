@@ -19,13 +19,8 @@ import {
 } from "~/lib/posthog-client";
 
 export type AnalyticsEvent =
-  | "login_success"
   | "login_failed"
   | "tenant_switched"
-  | "group_created"
-  | "group_updated"
-  | "user_invited"
-  | "data_exported"
   | "pwa_install_prompt_shown"
   | "pwa_install_prompt_accepted"
   | "pwa_install_prompt_dismissed"

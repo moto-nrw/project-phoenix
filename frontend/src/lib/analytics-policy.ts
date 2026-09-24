@@ -172,14 +172,12 @@ const ELEMENT_EVENTS: ReadonlySet<string> = new Set([
 ]);
 const HEATMAP_EVENT = "$$heatmap";
 
+// Core actions that end in a successful write (login_success, group_created,
+// data_exported, ...) come from the backend after the write (#3602); the
+// browser sends only what the backend cannot see.
 const CUSTOM_EVENTS: ReadonlySet<string> = new Set([
-  "login_success",
   "login_failed",
   "tenant_switched",
-  "group_created",
-  "group_updated",
-  "user_invited",
-  "data_exported",
   "pwa_install_prompt_shown",
   "pwa_install_prompt_accepted",
   "pwa_install_prompt_dismissed",
@@ -195,8 +193,6 @@ const SAFE_VALUES: Readonly<Record<string, ReadonlySet<string>>> = {
   role: new Set(ANALYTICS_ROLES),
   demo_role: new Set(["caregiver", "lead", "parent", "all"]),
   direction: new Set(["up", "down"]),
-  export_type: new Set(["rooms", "emergency", "students"]),
-  format: new Set(["pdf", "docx", "xlsx"]),
   reason: new Set(["error", "invalid_credentials"]),
   $device_type: new Set(["Desktop", "Mobile", "Tablet", "Console", "Wearable"]),
   $event_type: new Set(["click", "submit", "change", "touch"]),

@@ -683,6 +683,7 @@ func newFactory(
 	tracker, err := analytics.New(
 		cfg.PostHogAPIKey,
 		cfg.PostHogHost,
+		analyticsDeployment(cfg.AppEnv, cfg.TenantDomain),
 		logger.With("component", "analytics"),
 	)
 	if err != nil {
@@ -3108,4 +3109,14 @@ type unconfiguredFeedbackCounter struct{}
 
 func (unconfiguredFeedbackCounter) CountForStudent(context.Context, int64) (int, error) {
 	return 0, errors.New("student deletion: feedback counter is not configured")
+}
+
+// analyticsDeployment is the deployment property of every analytics event:
+// "demo" for the public demo, otherwise the tenant domain of this instance.
+// The frontend sends the same value (frontend/src/lib/analytics-deployment.ts).
+func analyticsDeployment(appEnv, tenantDomain string) string {
+	if IsDemoEnvironment(appEnv) {
+		return "demo"
+	}
+	return strings.TrimSpace(tenantDomain)
 }

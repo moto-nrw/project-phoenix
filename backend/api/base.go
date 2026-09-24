@@ -907,6 +907,9 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	// each protected group still rejects through the Authenticator and its
 	// scope gate. A group mounted without it fails closed.
 	api.Router.Use(sessionAuth.Verifier())
+	// Core actions of the portals reach the usage analytics once their
+	// response is 2xx (#3602). After the verifier, which names the session.
+	api.Router.Use(coreActionAnalytics(serviceFactory.Tracker, sessionAuth))
 
 	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, modules, db, logger, frontendURL, sessionAuth)
 	if err != nil {
@@ -925,6 +928,9 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	api.rateLimiting = os.Getenv("RATE_LIMIT_ENABLED") == "true"
 	api.authRateLimit = os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE")
 	api.registerRoutesWithRateLimiting(requestFeedResource)
+	if err := requireCoreActionClassification(api.Router); err != nil {
+		return nil, err
+	}
 
 	buildResources.released = true
 	return api, nil

@@ -20795,12 +20795,12 @@
         },
         {
           "file": "api/base.go",
-          "line": 933,
+          "line": 939,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1344,
+          "line": 1350,
           "declaration": "initializeAPIResources"
         }
       ]
