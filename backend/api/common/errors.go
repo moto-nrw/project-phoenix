@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
@@ -19,6 +21,17 @@ import (
 // For server errors (5xx), it also logs the root cause to slog and reports
 // the error to Sentry so that failures are visible in both Grafana and Sentry.
 func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
+	// A business rejection is never a server error, even where a handler
+	// does not classify it yet: it keeps its 409, code and details (ADR 0006).
+	if errResp, ok := renderer.(*ErrResponse); ok && errResp.HTTPStatusCode >= 500 && IsBusinessRejection(errResp.Err) {
+		renderer = ErrorBusinessRejection(errResp.Err)
+	}
+	// A rejected operation may already have written its first rows (a person
+	// before the refused membership). The request transaction commits every
+	// non-5xx answer, so the rejection asks for its rollback explicitly.
+	if errResp, ok := renderer.(*ErrResponse); ok && IsBusinessRejection(errResp.Err) {
+		tenant.MarkRollback(r.Context())
+	}
 	if errResp, ok := renderer.(*ErrResponse); ok && errResp.HTTPStatusCode >= 500 && errResp.Err != nil {
 		slog.Default().ErrorContext(r.Context(), "server error",
 			slog.Int("status", errResp.HTTPStatusCode),
@@ -240,6 +253,54 @@ func ErrorConflictWithDetails(err error, code string, details map[string]any) re
 		Code:           code,
 		Details:        details,
 	}
+}
+
+// BusinessRejection is an error a module raises when a valid request cannot
+// be carried out right now (Fehlerklasse "Fachliche Ablehnung", ADR 0006):
+// its stable code and the values its message names travel as code and
+// details. Modules implement it without importing this package, so an
+// adapter maps it without depending on the module that raised it.
+type BusinessRejection interface {
+	error
+	ErrorCode() string
+	// ErrorDetails is a JSON object in wire form, typically a tagged struct.
+	ErrorDetails() any
+}
+
+// IsBusinessRejection reports whether err's chain holds a BusinessRejection.
+func IsBusinessRejection(err error) bool {
+	var rejection BusinessRejection
+	return errors.As(err, &rejection)
+}
+
+// ErrorBusinessRejection answers the BusinessRejection in err's chain with
+// 409, its code and its details. Any other error is a server error.
+func ErrorBusinessRejection(err error) render.Renderer {
+	var rejection BusinessRejection
+	if !errors.As(err, &rejection) {
+		return ErrorInternalServer(err)
+	}
+	details, detailErr := detailsObject(rejection.ErrorDetails())
+	if detailErr != nil {
+		return ErrorInternalServer(fmt.Errorf("encode %s details: %w", rejection.ErrorCode(), detailErr))
+	}
+	return ErrorConflictWithDetails(rejection, rejection.ErrorCode(), details)
+}
+
+// detailsObject turns a rejection's typed details into the wire map.
+func detailsObject(value any) (map[string]any, error) {
+	if value == nil {
+		return nil, nil
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	details := map[string]any{}
+	if err := json.Unmarshal(encoded, &details); err != nil {
+		return nil, err
+	}
+	return details, nil
 }
 
 // ErrorConflictMessage returns a 409 Conflict with a user-facing message string.

@@ -343,7 +343,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/workforce/legacy/timetracking/staff_overview_service.go:(*staffOverviewService).GetDashboardSummary":                    18,
 	"modules/workforce/legacy/timetracking/staff_overview_service.go:(*staffOverviewService).GetTimeTrackingOverview":                31,
 	"modules/workforce/legacy/timetracking/staff_overview_service.go:(*staffOverviewService).addTodayCounters":                       18,
-	"modules/workforce/legacy/timetracking/staff_overview_service.go:(*staffOverviewService).buildPrefetch":                          28,
+	"modules/workforce/legacy/timetracking/staff_overview_service.go:(*staffOverviewService).buildPrefetch":                          26,
 	"modules/workforce/legacy/timetracking/staff_time_export_datev.go:buildDatevLines":                                               22,
 	"modules/workforce/legacy/timetracking/staff_time_export_rows.go:(*staffOverviewService).GetMonthExportRows":                     20,
 	"modules/workforce/legacy/timetracking/work_session_service.go:(*workSessionService).AutoCheckoutDueSessions":                    53,

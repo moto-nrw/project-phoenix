@@ -90,6 +90,7 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	capabilities := testCapabilities(svc)
 	cleanup, err := repositories.NewStaffDocumentCleanup(db, nil)
 	require.NoError(t, err)
+	workforceCapability := newWorkforceCapability(t, db, clocks...)
 
 	resource := NewStaffAdminResource(StaffAdminDependencies{
 		OffboardingCleanup: cleanup,
@@ -103,7 +104,8 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		Overview:           capabilities.Overview,
 		AuditLog:           capabilities.AuditLog,
 		TimeExport:         capabilities.TimeExport,
-		Schedules:          newWorkforceCapability(t, db, clocks...),
+		Schedules:          workforceCapability,
+		TargetOverrides:    workforceCapability,
 		ExportTransfer:     stubExportTransfer{},
 		Identity:           testIdentity,
 		DB:                 db,

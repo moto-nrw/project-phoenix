@@ -8,6 +8,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/migrate"
 )
 
 // The Expand and Backfill contracts describe a world in which
@@ -162,6 +163,27 @@ func TestGuardianOwnerCutoverPreflightNamesBlockingRows(t *testing.T) {
 	installed, err := guardianCompatibilityInstalled(ctx, db)
 	require.NoError(t, err)
 	require.False(t, installed, "a refused switch installs nothing")
+}
+
+// A release that carries Backfill and Cutover together is preflighted before
+// the Backfill's Up has run the pass the Cutover needs.
+func TestGuardianOwnerCutoverPreflightLeavesThePassToAPendingBackfill(t *testing.T) {
+	t.Parallel()
+	db := setupGuardianStorageBeforeCutover(t)
+	ctx := t.Context()
+	ids := guardianOwnerFixture(t, db, testpkg.Tenant(t), 3)
+	require.ErrorContains(t, guardianOwnerCutoverPrecondition(ctx, db), "no completed guardian owner backfill pass")
+
+	backfillPending := withPendingMigrations(ctx, migrate.MigrationSlice{{Name: "001015413"}})
+	require.True(t, migrationPending(backfillPending, guardianOwnerBackfillVersion))
+	require.NoError(t, guardianOwnerCutoverPrecondition(backfillPending, db))
+
+	var childID int64
+	require.NoError(t, db.NewRaw(`SELECT student_id FROM users.students_guardians WHERE id = ?`, ids[0]).Scan(ctx, &childID))
+	_, err := db.ExecContext(ctx, `UPDATE users.students_guardians SET student_id = ? WHERE id = ?`, childID, ids[2])
+	require.NoError(t, err)
+	require.ErrorContains(t, guardianOwnerCutoverPrecondition(backfillPending, db), "cannot be copied",
+		"no later Up can correct a rejected row")
 }
 
 func TestGuardianOwnerCutoverAppliesTheFinalDelta(t *testing.T) {

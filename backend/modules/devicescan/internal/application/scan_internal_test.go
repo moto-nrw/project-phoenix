@@ -230,7 +230,6 @@ func TestScan_BinaryModeTogglesAttendance(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	h.settings.mode = presenceModeBinary
-	h.principals.staff = &ports.Staff{ID: testStaffID}
 	h.attendance.toggleAction = devicescan.ScanActionCheckedIn
 
 	result, err := h.service().Scan(context.Background(), scanCommand(ptr(testRoomID)))
@@ -241,7 +240,7 @@ func TestScan_BinaryModeTogglesAttendance(t *testing.T) {
 	assert.Equal(t, "Willkommen, Max!", result.Message)
 	assert.Equal(t, testStudentID, result.PersonID)
 	require.Len(t, h.attendance.toggles, 1)
-	assert.Equal(t, toggleCall{StudentID: testStudentID, StaffID: testStaffID, DeviceID: testDeviceID, SkipAuthCheck: true}, h.attendance.toggles[0])
+	assert.Equal(t, toggleCall{StudentID: testStudentID, StaffID: 0, DeviceID: testDeviceID, SkipAuthCheck: true}, h.attendance.toggles[0], "kiosk scans stay device-attributed")
 	assert.Empty(t, h.visits.recorded, "binary mode opens no visit")
 }
 

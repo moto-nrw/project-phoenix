@@ -279,6 +279,9 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 			observability.ObserveSchoolMembershipOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolMembershipModule.ErrorCode(observation.Err), observation.Err)
 		},
 		Employment: repositories.MembershipStaffEmployment(staffEmployment),
+		// Every counting membership write is checked against the school's
+		// Kinderkontingent, which Organisation & Tenancy owns (#3567).
+		ChildQuota: organizationCompose.NewChildQuotaLimits(),
 	})
 	if err != nil {
 		return moduleServices{}, err
@@ -310,6 +313,8 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		},
 		DB:           db,
 		LiveStaffIDs: repositories.WorkforceLiveStaffIDs(membership),
+		// A Sonderarbeitszeit never sets a target on a statutory holiday.
+		StatutoryHolidays: calendar.TenantHolidayDates,
 		Observe: func(observation workforceCompose.Observation) {
 			observability.ObserveWorkforceOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, workforceModule.ErrorCode(observation.Err), observation.Err)
 		},
@@ -903,6 +908,9 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	// each protected group still rejects through the Authenticator and its
 	// scope gate. A group mounted without it fails closed.
 	api.Router.Use(sessionAuth.Verifier())
+	// Core actions of the portals reach the usage analytics once their
+	// response is 2xx (#3602). After the verifier, which names the session.
+	api.Router.Use(coreActionAnalytics(serviceFactory.Tracker, sessionAuth))
 
 	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, modules, db, logger, frontendURL, sessionAuth)
 	if err != nil {
@@ -921,6 +929,9 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	api.rateLimiting = os.Getenv("RATE_LIMIT_ENABLED") == "true"
 	api.authRateLimit = os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE")
 	api.registerRoutesWithRateLimiting(requestFeedResource)
+	if err := requireCoreActionClassification(api.Router); err != nil {
+		return nil, err
+	}
 
 	buildResources.released = true
 	return api, nil
@@ -1032,7 +1043,7 @@ func corsHandler(allowedOrigins string) func(http.Handler) http.Handler {
 
 	opts := cors.Options{
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Staff-PIN", "X-Staff-ID", "X-Staff-Auth-PIN", "X-Device-Key"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Staff-PIN", "X-Staff-ID", "X-Device-Key"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
 		MaxAge:           300,
@@ -1345,7 +1356,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	deviceAuth := deviceauth.New(deviceauth.Dependencies{
 		Devices:     api.Services.IoT.Fleet(),
 		Schools:     deviceSchoolDirectory{schools: api.Services.Schools},
-		StaffPIN:    deviceauth.StaffPIN(api.Services.StaffPINAuth.AuthenticateStaffPIN),
 		Settings:    api.Services.Settings,
 		FallbackPIN: os.Getenv("OGS_DEVICE_PIN"),
 	})
@@ -1388,6 +1398,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		StudentService:               api.Services.Students.Directory,
 		CompanionService:             api.Services.Students.Companions,
 		ClassListEntries:             classListEntryStudentsReader{entries: api.membership},
+		ChildQuota:                   childQuotaStudentsReader{usages: api.membership},
 		StudentDeletion:              api.Services.StudentDeletion,
 		CareLifecycleService:         api.Services.CareLifecycle,
 		StudentAuditService:          api.Services.StudentAudit,

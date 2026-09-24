@@ -31,11 +31,13 @@ type TimetablePlanning struct {
 }
 
 // timetableMaterializationInputs compose the recurrence engine. CareBounds
-// is the per-date care filter (#2487); Broadcaster announces created
+// is the per-date care filter (#2487); NonWorkingDays skips holidays and
+// closing days (#3594); Broadcaster announces created
 // occurrences to the staffing caches (#1844).
 type timetableMaterializationInputs struct {
 	Rows           repositories.TimetableTemplateRows
 	CareBounds     timetableCompose.CareBoundReader
+	NonWorkingDays timetable.NonWorkingDayCalendar
 	RecurrenceLock timetable.RecurrenceWriteLock
 	Broadcaster    realtime.Broadcaster
 	DB             *bun.DB
@@ -55,6 +57,7 @@ func newTimetableMaterialization(in timetableMaterializationInputs) (timetable.M
 		ExceptionRepo:  in.Rows.Exceptions,
 		TimeframeRepo:  in.Rows.Timeframes,
 		CareBounds:     in.CareBounds,
+		NonWorkingDays: in.NonWorkingDays,
 		RecurrenceLock: in.RecurrenceLock,
 		Staffing:       newStaffingAnnouncer(in.Broadcaster),
 		DB:             in.DB,

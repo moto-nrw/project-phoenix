@@ -20,6 +20,13 @@ type Store interface {
 	GraduateStudents(context.Context, []int64) (int64, domain.OperationStats, error)
 	ReactivateStudents(context.Context, []int64, string) ([]int64, domain.OperationStats, error)
 	ChangeStudentClass(context.Context, []int64, string, string) (int64, domain.OperationStats, error)
+	// LockChildQuota serializes the counting writes of the tenant in
+	// context. The lock is exclusive and held until the transaction ends.
+	LockChildQuota(context.Context) (domain.OperationStats, error)
+	// CountChildQuota is the Kontingentzahl of the tenant in context on the
+	// given Berlin calendar day: the actively managed children of the
+	// Stichtagszahl plus the pending ones.
+	CountChildQuota(ctx context.Context, on string) (int, domain.OperationStats, error)
 	FindStaff(ctx context.Context, id int64, lock string, includeDeleted bool) (domain.Staff, bool, domain.OperationStats, error)
 	FindStaffByPerson(context.Context, int64) (domain.Staff, bool, domain.OperationStats, error)
 	ListStaff(context.Context, domain.StaffFilter) ([]domain.Staff, domain.OperationStats, error)
@@ -100,6 +107,17 @@ type StaffEmployment interface {
 	SaveStaffEmployment(context.Context, domain.StaffEmployment) error
 	ClearStaffWorkTimeModel(context.Context, int64) error
 }
+
+// ChildQuota is the consumer-owned port over Organisation & Tenancy's
+// Kinderkontingent (#3567). It answers for the tenant in context on the
+// caller's transaction; limited is false when the school has none.
+type ChildQuota interface {
+	ChildQuotaLimit(ctx context.Context) (limit int, limited bool, err error)
+}
+
+// Clock returns the Berlin calendar day (YYYY-MM-DD) the Kontingentzahl is
+// counted on.
+type Clock func() string
 
 type Transaction interface {
 	// RunWrite joins the caller's transaction or opens one for the tenant

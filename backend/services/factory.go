@@ -135,9 +135,8 @@ type Factory struct {
 	// Auth is the composed Identity & Access module: the sessions, the
 	// account lifecycle, the role administration, the invitations and the
 	// operator flows the surfaces consume (#3364).
-	Auth         *identityaccess.Module
-	Audit        auditModels.Command
-	StaffPINAuth StaffPINAuthenticator
+	Auth  *identityaccess.Module
+	Audit auditModels.Command
 	// MFA and Passkey are the Identity & Access second factor and the
 	// school-portal WebAuthn ceremonies (#3331).
 	MFA                  identityaccess.AccountMFA
@@ -683,6 +682,7 @@ func newFactory(
 	tracker, err := analytics.New(
 		cfg.PostHogAPIKey,
 		cfg.PostHogHost,
+		analyticsDeployment(cfg.AppEnv, cfg.TenantDomain),
 		logger.With("component", "analytics"),
 	)
 	if err != nil {
@@ -915,6 +915,9 @@ func newFactory(
 	// absence service; the deferred binding resolves it on every call and the
 	// assignment below happens once those services exist.
 	var shiftPlanSyncer shiftplansync.SickCascade
+	// The weekly history summaries re-price Sonderarbeitszeit weeks (#3259)
+	// through the month service built below.
+	var overrideMonths timetracking.WorkTimeMonthService
 
 	// Initialize work session service (before active service - needed for NFC auto-check-in)
 	workSessionService := timetracking.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff, repositories.MustNewStaffEmployment(db)), NewWorkSessionSchedules(repos.StaffWorkSchedule), NewWorkSessionTimeModels(repos.WorkTimeModel), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
@@ -924,6 +927,7 @@ func newFactory(
 		// The session service's weekly summaries reduce their Soll by holidays too.
 		timetracking.WithWorkSessionHolidays(nonWorkingDayService),
 		timetracking.WithWorkSessionAbsenceTypes(staffAbsenceTypeService),
+		timetracking.WithWorkSessionTargetOverrides(staffTargetOverrideWeeks{overrides: workTime, months: func() timetracking.WorkTimeMonthService { return overrideMonths }}),
 	)
 	staffClockService := newStaffClockService(usersService, repos.RFIDCard, workSessionService)
 
@@ -940,12 +944,15 @@ func newFactory(
 		PresenceSettings(settingsService),
 		activeLogger,
 		timetracking.WithMonthHolidays(nonWorkingDayService),
+		// Sonderarbeitszeiten (#3259) win over closing days and the schedule.
+		timetracking.WithMonthTargetOverrides(workTime),
 		// Stundenkonto transactions (#1420) enter the carry chain by effective date.
 		timetracking.WithMonthAdjustments(repos.StaffBalanceAdjust),
 		// Frozen months (#1417) short-circuit the carry chain so a retroactive
 		// correction can no longer rewrite a closed month's Übertrag.
 		timetracking.WithMonthSnapshots(MonthSnapshotCapability(repos.StaffMonthSnapshot)),
 	)
+	overrideMonths = workTimeMonthService
 
 	// Initialize staff absence service
 	staffAbsenceService := timetracking.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, PresenceSettings(settingsService), workTimeMonthService,
@@ -1013,6 +1020,7 @@ func newFactory(
 		PresenceSettings(settingsService),
 		activeLogger,
 		timetracking.WithOverviewHolidays(nonWorkingDayService),
+		timetracking.WithOverviewTargetOverrides(workTime),
 		// Vacation takeover (#2132): the Resturlaub column subtracts
 		// pre-introduction days exactly like the /staff/{id} detail view.
 		timetracking.WithOverviewVacationOpenings(repos.StaffVacationOpening),
@@ -1368,8 +1376,11 @@ func newFactory(
 		CalendarPeriods: repos.CalendarPeriod, Exceptions: repos.ActivityException, EducationGroups: repos.Group,
 	}
 	materializationService, err := newTimetableMaterialization(timetableMaterializationInputs{
-		Rows:           timetableTemplateRows,
-		CareBounds:     repos.Student,
+		Rows:       timetableTemplateRows,
+		CareBounds: repos.Student,
+		// Holidays and closing days carry no series occurrences unless the
+		// series opts into closing days (#3594); the School Calendar answers.
+		NonWorkingDays: calendar,
 		RecurrenceLock: recurrenceLock,
 		Broadcaster:    realtimeHub,
 		DB:             db,
@@ -2837,7 +2848,6 @@ func newFactory(
 		settingsRuntimeDB:       db,
 		Auth:                    identityAccess,
 		Audit:                   auditCommand,
-		StaffPINAuth:            NewStaffPINAuthenticator(identityAccess),
 		MFA:                     identityAccess,
 		Passkey:                 identityAccess,
 		Active:                  activeService,
@@ -3103,4 +3113,14 @@ type unconfiguredFeedbackCounter struct{}
 
 func (unconfiguredFeedbackCounter) CountForStudent(context.Context, int64) (int, error) {
 	return 0, errors.New("student deletion: feedback counter is not configured")
+}
+
+// analyticsDeployment is the deployment property of every analytics event:
+// "demo" for the public demo, otherwise the tenant domain of this instance.
+// The frontend sends the same value (frontend/src/lib/analytics-deployment.ts).
+func analyticsDeployment(appEnv, tenantDomain string) string {
+	if IsDemoEnvironment(appEnv) {
+		return "demo"
+	}
+	return strings.TrimSpace(tenantDomain)
 }

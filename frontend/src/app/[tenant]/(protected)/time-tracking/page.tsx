@@ -42,7 +42,6 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
-import { OriginChip } from "~/components/ui/origin-chip";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import {
   SegmentedControl,
@@ -56,6 +55,7 @@ import { Textarea } from "~/components/ui/textarea";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import {
   formatSignedDuration,
+  TargetOriginChip,
   ViewToggle,
   type ViewMode,
 } from "~/components/staff/staff-time-views";
@@ -1231,10 +1231,7 @@ function ClockInCard({
                 genau einer pro Oberfläche, solange die Soll-Quellen-Frage
                 offen ist. */}
             <div className="mt-3 flex justify-end">
-              <OriginChip
-                label="Soll aus Arbeitszeitmodell"
-                title="Wochensaldo und Stundenkonto rechnen gegen das im Arbeitszeitmodell hinterlegte Soll."
-              />
+              <TargetOriginChip hasTargetOverride={metrics.hasTargetOverride} />
             </div>
           </div>
         ) : (

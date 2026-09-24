@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { analyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { canonicalForwardedFor } from "~/lib/client-headers.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
@@ -30,6 +31,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         headers: {
           "Content-Type": "application/json",
           ...(forwardedFor && { "X-Forwarded-For": forwardedFor }),
+          ...analyticsSessionHeaders(request.headers),
         },
         body: JSON.stringify(body),
       },

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({
@@ -23,6 +24,7 @@ async function proxyExport(studentId: string, body: string, token: string) {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        ...(await incomingAnalyticsSessionHeaders()),
       },
       body,
       cache: "no-store",

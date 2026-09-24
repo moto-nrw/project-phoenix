@@ -395,11 +395,13 @@ type workSessionService struct {
 	settings       settingsResolver
 	staffShiftRepo WorkSessionShifts
 	holidayReader  HolidayDatesReader
-	broadcaster    EventPublisher
-	logger         *slog.Logger
-	nowFunc        func() time.Time
-	renderPDF      TimeTrackingPDFRenderer
-	renderWorkbook TimeTrackingWorkbookRenderer
+	// weeklyOverrides re-prices Sonderarbeitszeit weeks; nil keeps them.
+	weeklyOverrides WeeklyTargetOverrides
+	broadcaster     EventPublisher
+	logger          *slog.Logger
+	nowFunc         func() time.Time
+	renderPDF       TimeTrackingPDFRenderer
+	renderWorkbook  TimeTrackingWorkbookRenderer
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
@@ -1785,7 +1787,7 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 		}
 	}
 
-	targetsByWeek := s.getWeeklyTargetsForSummaries(ctx, staffID, responses)
+	targetsByWeek := s.withTargetOverrides(ctx, staffID, responses, s.getWeeklyTargetsForSummaries(ctx, staffID, responses))
 
 	// Build weekly summaries
 	weeklySummaries := s.buildWeeklySummaries(responses, targetsByWeek, from, to)
@@ -1931,36 +1933,6 @@ func (s *workSessionService) holidayDatesForWeeks(ctx context.Context, weekStart
 		return nil, false
 	}
 	return set, true
-}
-
-// holidayScheduleMinutes sums the schedule Soll of the week's holiday days —
-// the amount a holiday week's target shrinks by.
-func holidayScheduleMinutes(entries []*WorkScheduleRow, staffAnchor *timezone.Date, weekStart timezone.Date, holidaySet map[timezone.Date]bool) int {
-	total := 0
-	for offset := 0; offset < 7; offset++ {
-		day := weekStart.AddDays(offset)
-		if !holidaySet[day] {
-			continue
-		}
-		dayTarget, _ := DailyTargetFromSchedule(entries, staffAnchor, day)
-		total += dayTarget
-	}
-	return total
-}
-
-// holidayTemplateMinutes is holidayScheduleMinutes for the work-time-template
-// fallback path.
-func holidayTemplateMinutes(template *WorkTimeTemplate, anchor timezone.Date, weekStart timezone.Date, holidaySet map[timezone.Date]bool) int {
-	total := 0
-	for offset := 0; offset < 7; offset++ {
-		day := weekStart.AddDays(offset)
-		if !holidaySet[day] {
-			continue
-		}
-		dayTarget, _ := DailyTargetFromTemplate(template, anchor, day)
-		total += dayTarget
-	}
-	return total
 }
 
 func (s *workSessionService) resolveStaffForTargets(ctx context.Context, staffID int64) *StaffScheduleAssignment {

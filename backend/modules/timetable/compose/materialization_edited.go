@@ -264,7 +264,10 @@ func (p *templateProjection) expectedSlotsOn(
 		if sch.Weekday != isoWd {
 			continue
 		}
-		effective, _, skip := candidateSlot(tmpl, sch, date, p.periods, exc, p.timeframeByID, p.logger)
+		// Occurrences on closing days and holidays are compared with the series
+		// pattern as if the day were open: an untouched occurrence planned before
+		// the closure is not an edit (#3594), and a re-plan drops it anyway.
+		effective, _, skip := candidateSlot(tmpl, sch, date, p.periods, timetable.NonWorkingDays{}, exc, p.timeframeByID, p.logger)
 		if skip == candidateKept {
 			out = append(out, effective)
 		}
