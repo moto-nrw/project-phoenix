@@ -24,6 +24,7 @@ import {
 } from "@phosphor-icons/react";
 import {
   getStudentTimeStatus,
+  type StudentDayTimes,
   type StudentTimeStatus,
 } from "~/lib/student-time-status";
 import {
@@ -435,6 +436,7 @@ function TimeStatusRow({
   notes,
   now,
   kind,
+  day,
 }: Readonly<{
   label: string;
   plannedTime?: string;
@@ -443,8 +445,15 @@ function TimeStatusRow({
   notes?: string;
   now: Date;
   kind: "arrival" | "pickup";
+  day?: StudentDayTimes;
 }>) {
-  const status = getStudentTimeStatus({ plannedTime, actualTime, now });
+  const status = getStudentTimeStatus({
+    plannedTime,
+    actualTime,
+    now,
+    kind,
+    day,
+  });
 
   if (!status.displayTime) {
     const fallbackIcon =
@@ -471,6 +480,9 @@ function TimeStatusRow({
       ) : (
         fullText
       )}
+      {status.state === "only-if-lesson-cancelled" && (
+        <span className="ml-1 text-gray-500">({status.detailAnnotation})</span>
+      )}
       {notes && <span className="ml-1 text-gray-500">({notes})</span>}
     </StudentInfoRow>
   );
@@ -482,6 +494,7 @@ export function PickupTimeRow({
   isException,
   notes,
   now,
+  day,
 }: Readonly<{
   pickupTime?: string;
   actualTime?: string;
@@ -489,6 +502,8 @@ export function PickupTimeRow({
   notes?: string;
   /** Omit inside a `StudentCardClockProvider` — see `useRowClock` (#2975). */
   now?: Date;
+  /** The whole day; without a check-in the pickup cannot be late (#3373). */
+  day?: StudentDayTimes;
 }>) {
   const rowNow = useRowClock(now);
 
@@ -509,6 +524,7 @@ export function PickupTimeRow({
       notes={notes}
       now={rowNow}
       kind="pickup"
+      day={day}
     />
   );
 }
@@ -607,6 +623,7 @@ export function ArrivalTimeRow({
   notes,
   now,
   absentWording = "Kommt heute nicht",
+  day,
 }: Readonly<{
   arrivalTime?: string;
   actualTime?: string;
@@ -617,6 +634,8 @@ export function ArrivalTimeRow({
   now?: Date;
   /** See StudentAbsenceRow — date-neutral phrase for non-today views (#1939). */
   absentWording?: string;
+  /** The whole day; arrival not before pickup means no care time (#3373). */
+  day?: StudentDayTimes;
 }>) {
   const rowNow = useRowClock(now);
 
@@ -645,6 +664,7 @@ export function ArrivalTimeRow({
       notes={notes}
       now={rowNow}
       kind="arrival"
+      day={day}
     />
   );
 }

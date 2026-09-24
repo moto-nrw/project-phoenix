@@ -103,6 +103,7 @@ import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import { createLogger } from "~/lib/logger";
 import {
   getStudentAbsence,
+  getStudentDayTimes,
   getStudentTimeStatus,
   getTimeStatusSortRank,
 } from "~/lib/student-time-status";
@@ -898,6 +899,8 @@ function compareByPickupTime(a: Student, b: Student, now: Date) {
     plannedTime: a.pickup_time,
     actualTime: a.actual_pickup_time,
     now,
+    kind: "pickup",
+    day: getStudentDayTimes(a),
     sick: a.sick,
     classTrip: a.class_trip,
     excused: a.excused,
@@ -906,6 +909,8 @@ function compareByPickupTime(a: Student, b: Student, now: Date) {
     plannedTime: b.pickup_time,
     actualTime: b.actual_pickup_time,
     now,
+    kind: "pickup",
+    day: getStudentDayTimes(b),
     sick: b.sick,
     classTrip: b.class_trip,
     excused: b.excused,
@@ -2702,6 +2707,8 @@ function SearchPageContent() {
         plannedTime: a.arrival_time,
         actualTime: a.actual_arrival_time,
         now: planningNow,
+        kind: "arrival",
+        day: getStudentDayTimes(a),
         sick: a.sick,
         classTrip: a.class_trip,
         excused: a.excused,
@@ -2710,6 +2717,8 @@ function SearchPageContent() {
         plannedTime: b.arrival_time,
         actualTime: b.actual_arrival_time,
         now: planningNow,
+        kind: "arrival",
+        day: getStudentDayTimes(b),
         sick: b.sick,
         classTrip: b.class_trip,
         excused: b.excused,
@@ -3558,6 +3567,7 @@ function SearchPageContent() {
                                     notes={student.arrival_notes}
                                     now={planningNow}
                                     absentWording={absenceWording}
+                                    day={getStudentDayTimes(student)}
                                   />
                                   <PickupTimeRow
                                     pickupTime={
@@ -3569,6 +3579,7 @@ function SearchPageContent() {
                                     }
                                     notes={student.pickup_notes}
                                     now={planningNow}
+                                    day={getStudentDayTimes(student)}
                                   />
                                 </>
                               );

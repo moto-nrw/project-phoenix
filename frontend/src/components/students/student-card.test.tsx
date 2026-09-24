@@ -633,6 +633,57 @@ describe("ArrivalTimeRow", () => {
   });
 });
 
+// #3373: Unterricht und Betreuung enden beide um 13:20. Das Kind kommt nur
+// bei Unterrichtsausfall; keine der beiden Zeilen darf als überfällig warnen.
+describe("time rows for a day without care time (#3373)", () => {
+  const now = new Date("2026-09-09T14:30:00");
+  const day = { plannedArrival: "13:20", plannedPickup: "13:20" };
+
+  it("explains the arrival and shows neither row as overdue", () => {
+    const { container } = render(
+      <>
+        <ArrivalTimeRow
+          arrivalTime="13:20"
+          isException={false}
+          isAbsent={false}
+          now={now}
+          day={day}
+        />
+        <PickupTimeRow
+          pickupTime="13:20"
+          isException={false}
+          now={now}
+          day={day}
+        />
+      </>,
+    );
+
+    expect(screen.getByText("Ankunftszeit: 13:20 Uhr")).toBeInTheDocument();
+    expect(
+      screen.getByText("(nur bei Unterrichtsausfall)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Gehzeit: 13:20 Uhr")).toBeInTheDocument();
+    expect(
+      container.querySelector("svg.lucide-triangle-alert"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("still warns about an overdue pickup once the child is here", () => {
+    const { container } = render(
+      <PickupTimeRow
+        pickupTime="13:20"
+        isException={false}
+        now={now}
+        day={{ ...day, actualArrival: "12:30" }}
+      />,
+    );
+
+    expect(
+      container.querySelector("svg.lucide-triangle-alert"),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("StudentAbsenceRow", () => {
   it("renders a single neutral 'not coming' line for a sick student", () => {
     const { container } = render(<StudentAbsenceRow label="krank gemeldet" />);

@@ -12,6 +12,7 @@ import { useMinuteClock } from "~/lib/pickup-helpers";
 import {
   getStudentAbsence,
   getStudentTimeStatus,
+  type StudentDayTimes,
 } from "~/lib/student-time-status";
 import {
   getDayPlanningNotComingLabel,
@@ -440,6 +441,12 @@ export function StudentHeaderStats({
   });
   const dayPlanningNotComingLabel = getDayPlanningNotComingLabel(student);
   const notComingLabel = absence?.label ?? dayPlanningNotComingLabel;
+  const todayDay: StudentDayTimes = {
+    plannedArrival: todayArrivalPlannedTime,
+    actualArrival: todayArrivalActualTime,
+    plannedPickup: todayPickupPlannedTime,
+    actualPickup: todayPickupActualTime,
+  };
 
   return (
     <span className="block">
@@ -483,6 +490,7 @@ export function StudentHeaderStats({
       ) : (
         <>
           <TodayTimeStatusInlineRow
+            day={todayDay}
             kind="arrival"
             label="Heutige Ankunft"
             plannedTime={todayArrivalPlannedTime}
@@ -493,6 +501,7 @@ export function StudentHeaderStats({
             absentReason={todayArrivalNote}
           />
           <TodayTimeStatusInlineRow
+            day={todayDay}
             kind="pickup"
             label="Heutige Abholung"
             plannedTime={todayPickupPlannedTime}
@@ -536,7 +545,9 @@ function TodayTimeStatusInlineRow({
   note,
   isAbsent = false,
   absentReason,
+  day,
 }: Readonly<{
+  day: StudentDayTimes;
   kind: "arrival" | "pickup";
   label: string;
   plannedTime?: string;
@@ -570,6 +581,8 @@ function TodayTimeStatusInlineRow({
     plannedTime,
     actualTime,
     now,
+    kind,
+    day,
   });
 
   const plannedDisplay = plannedTime?.slice(0, 5);

@@ -52,8 +52,17 @@ export function MyGroupBlock() {
   const tenantPath = useTenantAwarePath();
   const now = useBerlinClock();
   const snapshot = useHomeGroup(true, now);
-  const { group, present, total, away, missing, pickups, isLoading, error } =
-    snapshot;
+  const {
+    group,
+    present,
+    total,
+    away,
+    missing,
+    onlyIfLessonCancelled,
+    pickups,
+    isLoading,
+    error,
+  } = snapshot;
   const missingIds = new Set(missing.map((entry) => entry.student.id));
   const rows: GroupRow[] = [
     ...missing.map((arrival): GroupRow => ({ kind: "missing", arrival })),
@@ -159,6 +168,9 @@ export function MyGroupBlock() {
                           <AwayRow
                             key={`away-${row.student.id}`}
                             student={row.student}
+                            onlyIfLessonCancelled={onlyIfLessonCancelled.has(
+                              row.student.id,
+                            )}
                             href={href}
                           />
                         );
@@ -290,9 +302,11 @@ function PickupRow({
 
 function AwayRow({
   student,
+  onlyIfLessonCancelled,
   href,
 }: {
   readonly student: OgsLiveWireStudent;
+  readonly onlyIfLessonCancelled: boolean;
   readonly href: string;
 }) {
   return (
@@ -306,15 +320,28 @@ function AwayRow({
           student={student}
           note={student.arrival_notes || undefined}
         />
-        <AwayBadge student={student} />
+        <AwayBadge
+          student={student}
+          onlyIfLessonCancelled={onlyIfLessonCancelled}
+        />
       </Link>
     </li>
   );
 }
 
 /** Warum das Kind fehlt — dieselben Wörter wie auf „Meine Gruppen". */
-function AwayBadge({ student }: { readonly student: OgsLiveWireStudent }) {
+function AwayBadge({
+  student,
+  onlyIfLessonCancelled,
+}: {
+  readonly student: OgsLiveWireStudent;
+  readonly onlyIfLessonCancelled: boolean;
+}) {
   if (student.sick) return <StatusBadge tone="red" label="Krank" />;
+  // Unterricht bis zur Abholzeit: kommt nur, wenn eine Stunde ausfällt (#3373).
+  if (onlyIfLessonCancelled && isExpectedToday(student)) {
+    return <StatusBadge tone="gray" label="Nur bei Unterrichtsausfall" />;
+  }
   // Noch nicht da, aber angekündigt: das ist kein Fehlen, das ist Warten.
   if (isExpectedToday(student)) {
     return <StatusBadge tone="gray" label={`Kommt ${student.arrival_time}`} />;
