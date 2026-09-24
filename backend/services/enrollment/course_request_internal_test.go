@@ -543,3 +543,5 @@ func TestCourseGroupsForCompetingRequestsLoadsUnavailableOffering(t *testing.T) 
 	require.NoError(t, err)
 	assert.Equal(t, []enrollmentModels.CourseGroup{{ID: groupID, Active: true}}, groups[8])
 }
+
+func intPtr(v int) *int { return &v }

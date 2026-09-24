@@ -128,6 +128,20 @@ type PhaseServiceConfig struct {
 	Today func() timezone.Date
 }
 
+// CareOfferingSourcedTemplateResyncer re-reconciles the rosters of every
+// template sourcing an offering (#2137/#2147 review) and retires them before
+// the offering or its phase is deleted. The decision service implements it.
+type CareOfferingSourcedTemplateResyncer interface {
+	ResyncTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom timezone.Date) error
+	DetachTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom timezone.Date) error
+}
+
+// CareOfferingSourceResyncBinder late-binds the sourced-template resyncer:
+// the decision service is constructed after the phase service.
+type CareOfferingSourceResyncBinder interface {
+	SetSourcedTemplateResyncer(resyncer CareOfferingSourcedTemplateResyncer)
+}
+
 type phaseService struct {
 	owner                           PhaseOwner
 	careOfferingRepo                enrollmentModels.CareOfferingRepository
@@ -137,7 +151,7 @@ type phaseService struct {
 	// sourcedTemplateResyncer re-reconciles templates sourcing this phase's
 	// offerings after a service-window change (#2147 review). Late-bound via
 	// SetSourcedTemplateResyncer because the decision service is constructed
-	// after this one, mirroring the care-offering service.
+	// after this one.
 	sourcedTemplateResyncer CareOfferingSourcedTemplateResyncer
 	settings                PhaseSettingsResolver
 	responses               *PhaseResponseSources

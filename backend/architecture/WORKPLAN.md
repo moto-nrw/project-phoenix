@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 24.09.2026 · Ratchet 542 · Composition 620 · Policy-Epoche 30 · 4 Regeln mit
+Stand 24.09.2026 · Ratchet 542 · Composition 618 · Policy-Epoche 30 · 4 Regeln mit
 `convert it to exact debt` · 20.013 LOC unter `modules/*/legacy`
 
 Summenprobe: 243 + 29 + 4 + 60 + 28 + 19 + 159 = 542 = `wc -l backend/architecture/legacy.jsonl`.
@@ -18,7 +18,7 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Jetzt vergebbar · 243 Keys
 
-- [ ] [#2733](https://github.com/moto-nrw/project-phoenix/issues/2733) services/enrollment, repositories/enrollment — 60 (`database/repositories/enrollment` gelöscht, 7 Keys weg; die 60 `services/enrollment`-Keys fallen über #3558 bis #3565)
+- [ ] [#2733](https://github.com/moto-nrw/project-phoenix/issues/2733) services/enrollment, repositories/enrollment — 60 (`database/repositories/enrollment` gelöscht, 7 Keys weg; die 60 `services/enrollment`-Keys fallen über #3558 bis #3565; #3559 hat den Care-Offering-Katalog nach `modules/careplan` verschoben, ohne Key)
 - [ ] [#2742](https://github.com/moto-nrw/project-phoenix/issues/2742) services/education, repositories/education, api/groups, api/admin — 63
 - [ ] [#2728](https://github.com/moto-nrw/project-phoenix/issues/2728) services/users — 42
 - [ ] [#2734](https://github.com/moto-nrw/project-phoenix/issues/2734) api/enrollment — 32

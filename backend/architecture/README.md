@@ -1262,6 +1262,55 @@ two inlined closures.
   and fourteen handlers were split into named steps, and `api.go` and
   `instances_list.go` fell below 800 lines. No allowlist entry was added.
 
+#3559 (G1 of the `services/enrollment` dissolution under #2733) moved the
+care-offering catalog to its owner. The admin catalog, the timetable-link
+validation, the materializability, calendar-period, room, timeframe and phase
+guards, the offering-source guard and the rollover clone now live in
+`modules/careplan/internal/application/care_offering_*.go` behind the ports in
+`internal/ports/care_offering_catalog.go`, composed by
+`compose.NewCareOfferingCatalog`. The public contract is
+`careplan.CareOfferingCatalog`, `CareOfferingGuards`, `CareOfferingRollover`
+and `CareOfferingLinks` (`care_offering_catalog.go`, `care_offering_links.go`),
+with capability-specific method names because `contracts.generic-crud` refuses
+`List`/`Create`/`Update`/`Delete`/`GetByID` on a public contract. Error texts,
+statements and transaction boundaries are unchanged; the key count stays at
+542 and no rule was added.
+
+- The catalog reads the Timetable, the School Calendar and Enrollment only
+  through its own ports; `services/care_offering_catalog_composition.go` binds
+  them over the owners' public contracts, the settings service, Enrollment's
+  translation rules and the Timetable owner's offering-source refusal
+  (`timetable.ErrOfferingSourceInvalid`), which the catalog therefore never
+  imports. The ports call the same owner queries the retained activity,
+  schedule, calendar-period, timeframe and exception repositories delegated
+  to, with the same filters. Tenant rollback on a rejected update comes from the tenant runtime
+  in Care Plan's compose.
+- The decision service that resyncs sourced rosters and the pickup projection
+  is still composed after the catalog. Instead of the two setters the catalog
+  had, it resolves the service through a factory-local variable at call time,
+  so the composition surface fell from 620 to 618.
+- The enrollment routes and the retained enrollment services still speak
+  enrollment rows. Only Enrollment's own packages may name `models/enrollment`,
+  and `inbound-enrollment`/`http` has no permission to `care-plan`/`public`
+  (PR mode rejects adding one on an existing point), so `api/enrollment`
+  declares its own `CareOfferingCatalog` port in rows, bound at the root to
+  `services/enrollment.CareOfferingRows` over the owner. For the same reason
+  the row translation of care offerings and offering-change requests
+  (`services/enrollment/care_plan_offering_records.go`) stays with its
+  consumers until G2 to E4 move them. `services/enrollment` keeps its error
+  names pointed at the owner values, as #3558 did.
+- Booking materialization in `services/enrollment` calls the moved link rules
+  through `careplan.CareOfferingLinks` and the pure
+  `careplan.SchedulesOverlapPhase` / `ValidatePhaseWithinPeriod`, instead of
+  a second copy. The unused legacy sentinels
+  `models/enrollment.ErrCareOfferingInvalid`,
+  `ErrCareOfferingPickupTimesRequired` and
+  `models/schedule.ErrCalendarPeriodCareOfferingConflict` are gone.
+- The catalog's behaviour suites stay in the `services/enrollment` test
+  package, which already reaches the retained fixtures, and compose the owner
+  through `api/testutil.NewCareOfferingCatalog`; the pure booking-stats and
+  availability tests run against fakes in the application package.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).
