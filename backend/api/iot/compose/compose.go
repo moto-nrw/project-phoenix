@@ -49,6 +49,9 @@ type ServiceDependencies struct {
 	FeedbackService          dataAPI.Feedback
 	FeedbackResponseObserver func(int, string)
 	SchoolName               devicescan.SchoolNameQuery
+	// ErrorReports forwards kiosk Sentry envelopes (#3645); nil when the
+	// backend runs without Sentry.
+	ErrorReports iotAPI.ErrorReportRelay
 	// SessionEnd is the application workflow behind POST /session/end
 	// (#2697): one UnitOfWork over the Presence and Timetable commands.
 	SessionEnd       sessionend.Command
@@ -110,6 +113,17 @@ func (rs *Resource) Router() chi.Router {
 
 		// Device configuration endpoint (checkout buttons, feedback settings)
 		r.Get("/config", info.Router().ServeHTTP)
+	})
+
+	// Sentry tunnel of the kiosks: API key only, like the group above, but
+	// without a tenant transaction. The relay reads no table and must not
+	// hold a database connection while it waits for Sentry.
+	r.Group(func(r chi.Router) {
+		r.Use(device.Required("DeviceOnlyAuthenticator", rs.DeviceOnlyAuthenticator))
+		r.Use(iotMetricsMiddleware)
+
+		errorReports := iotAPI.NewErrorReports(rs.ErrorReports, errorReportsRuntime(), rs.getLogger().With(slog.String("sub", "error-reports")))
+		r.Post("/error-reports", errorReports.Post)
 	})
 
 	// Device-authenticated routes for RFID devices.

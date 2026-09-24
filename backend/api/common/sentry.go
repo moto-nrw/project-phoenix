@@ -19,6 +19,8 @@ type serverErrorKey struct{}
 // wrote, so the Sentry event carries the cause instead of a bare status.
 type serverErrorCause struct {
 	err error
+	// unreported marks the one 5xx answer that must not reach Sentry.
+	unreported bool
 }
 
 // noteServerError records err as the cause of the 5xx answer the current
@@ -26,6 +28,17 @@ type serverErrorCause struct {
 func noteServerError(ctx context.Context, err error) {
 	if cause, ok := ctx.Value(serverErrorKey{}).(*serverErrorCause); ok && err != nil {
 		cause.err = err
+	}
+}
+
+// SkipServerErrorReport keeps the 5xx answer the current request is about to
+// write out of Sentry. It is the single exception to the 5xx rule: the
+// error-report relay answers 502 when Sentry itself is unreachable, and
+// reporting that to Sentry could only loop (#3645). Outside
+// ServerErrorReporting it does nothing.
+func SkipServerErrorReport(ctx context.Context) {
+	if cause, ok := ctx.Value(serverErrorKey{}).(*serverErrorCause); ok {
+		cause.unreported = true
 	}
 }
 
@@ -58,7 +71,7 @@ func reportServerErrors(next http.Handler) http.Handler {
 		next.ServeHTTP(ww, r.WithContext(context.WithValue(r.Context(), serverErrorKey{}, cause)))
 
 		status := ww.Status()
-		if status < http.StatusInternalServerError || clientCanceled(r, cause.err) {
+		if status < http.StatusInternalServerError || cause.unreported || clientCanceled(r, cause.err) {
 			return
 		}
 		hub.WithScope(func(scope *sentry.Scope) {

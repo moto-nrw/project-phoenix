@@ -65,7 +65,7 @@
       "declaration": "newRuntime",
       "target": "api.New",
       "lines": [
-        106
+        110
       ],
       "tables": []
     },
@@ -75,7 +75,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        177
+        181
       ],
       "tables": []
     },
@@ -125,7 +125,7 @@
       "declaration": "TestFullProductionRouterGolden",
       "target": "api.WithRuntime",
       "lines": [
-        297
+        302
       ],
       "tables": []
     },
