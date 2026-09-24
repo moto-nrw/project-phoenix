@@ -64,6 +64,10 @@ type studentExportFilters struct {
 	// Empty means every month. A birthday recurs annually, so this matches on
 	// month alone and never on the birth year.
 	Months []string `json:"months"`
+	// IncludeWithoutHealthInfo keeps children without a stored health note
+	// on the Gesundheitsliste (#3323); they print "Nicht hinterlegt". Other
+	// presets ignore it.
+	IncludeWithoutHealthInfo bool `json:"include_without_health_info"`
 }
 
 type weeklySchedule struct {
@@ -159,8 +163,9 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	}
 	// Re-check the cap on the FINAL merged source set: the class-list entries
 	// joined after the student-side check above, and the document limit is a
-	// limit on rows in the file, not on students alone.
-	if errResp := exportSelectionCapError(len(sources)); errResp != nil {
+	// limit on rows in the file, not on students alone. The Gesundheitsliste
+	// also fills and audits its health column here (finalizeExportSources).
+	if errResp := rs.finalizeExportSources(r, req, responses, sources); errResp != nil {
 		renderError(w, r, errResp)
 		return
 	}
@@ -169,7 +174,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		Title:       exportTitle(req),
 		Subtitle:    rs.exportSubtitle(r, len(sources)),
 		GeneratedAt: time.Now(),
-		Filters:     exportFilterLabelsForDate(req.Filters, planningDate, isToday),
+		Filters:     exportDocumentFilterLabels(req, planningDate, isToday),
 		Columns:     columns,
 		Rows:        rows,
 	}
@@ -461,8 +466,12 @@ func applyExportFilters(students []StudentResponse, filters studentExportFilters
 	// The birthday preset demands a birthday even without a month filter, so a
 	// child with no stored date is dropped rather than printed as a blank row.
 	byBirthday := preset == listexport.PresetBirthdayList || len(months) > 0
+	withHealthInfoOnly := preset == listexport.PresetHealthList && !filters.IncludeWithoutHealthInfo
 	filtered := make([]StudentResponse, 0, len(students))
 	for _, student := range students {
+		if withHealthInfoOnly && !hasHealthInfo(student) {
+			continue
+		}
 		if exportStudentMatchesFilters(student, filters, byBirthday, months, planningDate) {
 			filtered = append(filtered, student)
 		}
@@ -688,11 +697,10 @@ func ageExportCell(birthday string, onDate timezone.Date) string {
 
 // buildExportRow renders one child into the generic list document.
 //
-// It deliberately carries NO health note: whether a child's allergies land on
-// paper is decided by operations.emergency_list_health_info, and that switch is
-// asked once, by the Notfallliste (#2609). The generic export never resolves
-// ColumnHealthInfo (see listexport.ColumnCatalog), so a value here could only
-// reach a document past that switch.
+// It deliberately carries NO health note. The generic export never resolves
+// ColumnHealthInfo (see listexport.ColumnCatalog); the one child list that
+// prints it, the Gesundheitsliste, fills the cell afterwards together with its
+// audit record (finalizeExportSources), so no other preset can reach it.
 func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) listexport.Row {
 	return listexport.Row{Values: map[listexport.ColumnID]string{
 		listexport.ColumnName:              strings.TrimSpace(student.FirstName + " " + student.LastName),
@@ -934,6 +942,8 @@ func exportTitle(req studentExportRequest) string {
 		return "Checkliste"
 	case listexport.PresetBirthdayList:
 		return "Geburtstagsliste"
+	case listexport.PresetHealthList:
+		return "Gesundheitsliste"
 	default:
 		return "OGS Wochenliste"
 	}

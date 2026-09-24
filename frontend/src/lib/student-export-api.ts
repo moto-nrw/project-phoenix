@@ -10,7 +10,8 @@ export type StudentExportPreset =
   | "attendance_snapshot"
   | "pickup_list"
   | "blank_checklist"
-  | "birthday_list";
+  | "birthday_list"
+  | "health_list";
 
 export type StudentExportColumn =
   | "name"
@@ -30,7 +31,8 @@ export type StudentExportColumn =
   | "daily_notes"
   | "current_location"
   | "birthday"
-  | "age";
+  | "age"
+  | "health_info";
 
 export interface StudentExportFilters {
   search?: string;
@@ -58,6 +60,11 @@ export interface StudentExportFilters {
    * never on the birth year.
    */
   months?: string[];
+  /**
+   * Keeps children without a stored health note on the Gesundheitsliste
+   * (#3323); they print "Nicht hinterlegt". Other lists ignore it.
+   */
+  include_without_health_info?: boolean;
 }
 
 export interface BirthdayMonthOption {
@@ -316,7 +323,26 @@ export const STUDENT_EXPORT_PRESETS: Array<{
       "Geburtstage nach Kalender sortiert. Kinder ohne hinterlegtes Geburtsdatum fehlen in dieser Liste.",
     columns: ["name", "school_class", "group", "birthday", "age"],
   },
+  {
+    id: "health_list",
+    label: "Gesundheitsliste",
+    description:
+      "Allergien, Medikamente und andere Gesundheitsinformationen der Kinder. Jeder Export wird protokolliert.",
+    columns: ["name", "school_class", "group", "health_info"],
+  },
 ];
+
+/**
+ * Columns the Gesundheitsliste (#3323) always prints: a note without its
+ * child, or the list without its note, is not the list that was asked for.
+ * The backend adds both whatever the request says, so the dialog names them
+ * as fixed instead of offering a checkbox that would change nothing.
+ *
+ * "health_info" is deliberately not part of {@link STUDENT_EXPORT_COLUMNS}:
+ * no other list may pick the health note as a column.
+ */
+export const HEALTH_LIST_FIXED_COLUMNS: ReadonlySet<StudentExportColumn> =
+  new Set<StudentExportColumn>(["name", "health_info"]);
 
 // The day-scoped columns and presets describe a single evaluated day. That day
 // is "today" for a live export and a chosen calendar day for a planning-date

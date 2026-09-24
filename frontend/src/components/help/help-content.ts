@@ -4713,12 +4713,15 @@ function exportsTopic(): HelpTopic {
     notes: [
       "Die Listen sind in `Kinderlisten`, `Personallisten` und `Momentaufnahmen` geordnet.",
       "Eine `Momentaufnahme` wie die `Notfallliste` zeigt den Stand von jetzt.",
+      "Die `Gesundheitsliste` zeigt Allergien, Medikamente und andere Gesundheitsinformationen aller Kinder.",
+      "Jeder Export der `Gesundheitsliste` wird protokolliert.",
       "Jede Datei enthält personenbezogene Daten. Behandeln Sie sie wie jede andere Unterlage dieser Art.",
     ],
     differences: [
       "Sie sehen weniger Listen als eine Kollegin? Jede Liste hängt an einem eigenen Recht.",
     ],
     troubleshootingDetails: [
+      "Fehlt ein Kind auf der `Gesundheitsliste`? Dann ist bei ihm nichts eingetragen. Haken Sie `Auch Kinder ohne Eintrag` an.",
       "Brauchen Sie Zahlen statt Namen? Nutzen Sie die `Statistik`.",
       "Brauchen Sie eine Liste für einen bestimmten Tag? Nutzen Sie die `Tageslisten`.",
     ],
