@@ -155,11 +155,11 @@ func (m *parentMessaging) MarkParentMessageThreadUnread(ctx context.Context, thr
 	return err
 }
 
-func (m *parentMessaging) MarkAllParentMessagesRead(ctx context.Context) error {
-	_, err := observeResult(ctx, m.observe, "parent_messages.mark_all_read", func(runCtx context.Context) (struct{}, error) {
-		return struct{}{}, mapParentMessagingError(m.service.MarkAllRead(runCtx))
+func (m *parentMessaging) MarkAllParentMessagesRead(ctx context.Context) (int, error) {
+	return observeResult(ctx, m.observe, "parent_messages.mark_all_read", func(runCtx context.Context) (int, error) {
+		count, err := m.service.MarkAllRead(runCtx)
+		return count, mapParentMessagingError(err)
 	})
-	return err
 }
 
 type StaffMessagingConfig struct {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // MarkAllRead marks every conversation the staff member sees as unread in the
@@ -19,11 +18,14 @@ import (
 // marked until someone opens or answers it. The parent-facing "Von der OGS
 // gelesen" receipt follows the staff cursors, so it appears on the messages
 // read here. Repeating the call changes nothing.
-func (s *Service) MarkAllRead(ctx context.Context) error {
+//
+// It returns the caller's unread count afterwards. It is above zero only when
+// team-marked conversations remain, so the client can say why.
+func (s *Service) MarkAllRead(ctx context.Context) (int, error) {
 	accountID := accountIDFromCtx(ctx)
 	rows, err := s.ReadRepo.ListInboxForStaff(ctx, accountID, s.scope(ctx), true)
 	if err != nil {
-		return fmt.Errorf("messaging: list unread inbox: %w", err)
+		return 0, fmt.Errorf("messaging: list unread inbox: %w", err)
 	}
 	threadsByTenant := map[int64][]int64{}
 	byID := make(map[int64]*usersModels.InboxThread, len(rows))
@@ -34,23 +36,23 @@ func (s *Service) MarkAllRead(ctx context.Context) error {
 	for tenantID, threadIDs := range threadsByTenant {
 		advanced, err := s.ReadRepo.MarkThreadsReadForStaff(ctx, tenantID, accountID, threadIDs)
 		if err != nil {
-			return fmt.Errorf("messaging: mark all read: %w", err)
+			return 0, fmt.Errorf("messaging: mark all read: %w", err)
 		}
 		for _, threadID := range advanced {
 			if row := byID[threadID]; row != nil {
-				s.broadcastInboxReadAfterCommit(ctx, row)
+				// Wake the guardian's open chat so its "Gelesen" receipt updates,
+				// the same push a single open sends when the cursor advanced.
+				s.broadcastReadAfterCommit(ctx, inboxThreadRef(row))
 			}
 		}
 	}
-	return nil
+	return s.UnreadMessageCount(ctx)
 }
 
-// broadcastInboxReadAfterCommit wakes the guardian's open chat so its
-// "Gelesen" receipt updates, the same push a single open sends when the
-// cursor advanced. It fires only after the request transaction commits.
-func (s *Service) broadcastInboxReadAfterCommit(ctx context.Context, row *usersModels.InboxThread) {
-	tenantID, guardianAccountID, threadID, studentID := row.TenantID, row.GuardianAccountID, row.ThreadID, row.StudentID
-	tenant.RegisterAfterCommit(ctx, func() {
-		BroadcastRead(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID)
-	})
+// inboxThreadRef carries the identity of an inbox row the read broadcast needs.
+func inboxThreadRef(row *usersModels.InboxThread) *usersModels.ParentMessageThread {
+	thread := &usersModels.ParentMessageThread{StudentID: row.StudentID, GuardianAccountID: row.GuardianAccountID}
+	thread.ID = row.ThreadID
+	thread.SetTenantID(row.TenantID)
+	return thread
 }

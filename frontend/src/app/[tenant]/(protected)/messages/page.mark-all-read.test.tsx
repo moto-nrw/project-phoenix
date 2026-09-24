@@ -105,7 +105,7 @@ describe("Alle als gelesen markieren", () => {
   });
 
   it("marks all read, refreshes the badge and the inbox and confirms", async () => {
-    mockMarkAllMessagesRead.mockResolvedValue(undefined);
+    mockMarkAllMessagesRead.mockResolvedValue(0);
     render(<MessagesPage />);
 
     fireEvent.click(await findMarkAllRead());
@@ -118,6 +118,20 @@ describe("Alle als gelesen markieren", () => {
     expect(mockMarkAllMessagesRead).toHaveBeenCalledTimes(1);
     expect(unreadRefreshes).toBe(1);
     expect(mockMutate).toHaveBeenCalled();
+  });
+
+  it("says why team-marked conversations stay unread", async () => {
+    mockMarkAllMessagesRead.mockResolvedValue(1);
+    render(<MessagesPage />);
+
+    fireEvent.click(await findMarkAllRead());
+
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Gelesen. Vom Team als ungelesen markierte Unterhaltungen bleiben ungelesen.",
+      ),
+    );
+    expect(unreadRefreshes).toBe(1);
   });
 
   it("is disabled without unread messages", async () => {

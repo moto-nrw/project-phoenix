@@ -4,11 +4,16 @@ import { createPostHandler } from "~/lib/route-wrapper.server";
 
 /**
  * Proxy POST /api/messages/mark-all-read → backend. Marks every conversation
- * the caller sees as unread as read for the caller's own account.
+ * the caller sees as unread as read for the caller's own account and returns
+ * the caller's new unread count.
  */
 export const POST = createPostHandler(
   async (_request: NextRequest, _body: unknown, token: string) => {
-    await apiPost("/api/messages/mark-all-read", token, {});
-    return null;
+    const response = await apiPost<{ data: { unread_count: number } }>(
+      "/api/messages/mark-all-read",
+      token,
+      {},
+    );
+    return response.data;
   },
 );

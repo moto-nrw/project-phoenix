@@ -100,8 +100,9 @@ type ParentMessagingCommand interface {
 	// team until a staff member opens or answers it.
 	MarkParentMessageThreadUnread(context.Context, int64) error
 	// MarkAllParentMessagesRead marks every conversation the caller sees as
-	// unread as read for the caller's own account. Colleagues see no change.
-	MarkAllParentMessagesRead(context.Context) error
+	// unread as read for the caller's own account and returns the caller's new
+	// unread count. Colleagues see no change.
+	MarkAllParentMessagesRead(context.Context) (int, error)
 }
 
 type ParentMessagingCapability interface {

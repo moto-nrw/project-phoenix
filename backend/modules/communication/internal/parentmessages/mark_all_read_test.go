@@ -71,6 +71,14 @@ func startThreadWithQuestions(t *testing.T, f *fixture, chain testpkg.ParentChai
 	return started.ThreadID, newest
 }
 
+// markAllRead runs the action and returns the unread count it reports.
+func markAllRead(t *testing.T, f *fixture, ctx context.Context) int {
+	t.Helper()
+	count, err := f.svc.MarkAllRead(ctx)
+	require.NoError(t, err)
+	return count
+}
+
 type readCursor struct {
 	LastReadAt        time.Time `bun:"last_read_at"`
 	LastReadMessageID int64     `bun:"last_read_message_id"`
@@ -127,7 +135,7 @@ func TestMarkAllRead_OnlyForOwnAccount(t *testing.T) {
 	}
 
 	f.bc.Reset()
-	require.NoError(t, f.svc.MarkAllRead(adminCtx(t, f.staffAccount)))
+	assert.Zero(t, markAllRead(t, f, adminCtx(t, f.staffAccount)), "reported unread count")
 
 	after := readUnreadView(t, f, f.staffAccount, students...)
 	assert.Zero(t, after.badge, "badge")
@@ -157,12 +165,12 @@ func TestMarkAllRead_RepeatChangesNothing(t *testing.T) {
 	threadID, _ := startThreadWithQuestions(t, f, f.chain, "Frage")
 	ctx := adminCtx(t, f.staffAccount)
 
-	require.NoError(t, f.svc.MarkAllRead(ctx))
+	markAllRead(t, f, ctx)
 	first := cursorOf(t, f.db, threadID, f.staffAccount)
 	require.NotNil(t, first)
 
 	f.bc.Reset()
-	require.NoError(t, f.svc.MarkAllRead(ctx))
+	markAllRead(t, f, ctx)
 	second := cursorOf(t, f.db, threadID, f.staffAccount)
 	require.NotNil(t, second)
 	assert.Equal(t, first.LastReadMessageID, second.LastReadMessageID)
@@ -183,7 +191,7 @@ func TestMarkAllRead_CursorNeverMovesBackward(t *testing.T) {
 	`, f.chain.TenantID, threadID, f.staffAccount, ahead, question.ID+1000)
 	require.NoError(t, err)
 
-	require.NoError(t, f.svc.MarkAllRead(adminCtx(t, f.staffAccount)))
+	markAllRead(t, f, adminCtx(t, f.staffAccount))
 	cursor := cursorOf(t, f.db, threadID, f.staffAccount)
 	require.NotNil(t, cursor)
 	assert.Equal(t, question.ID+1000, cursor.LastReadMessageID)
@@ -195,7 +203,7 @@ func TestMarkAllRead_LaterGuardianMessageIsUnreadAgain(t *testing.T) {
 
 	f := newFixture(t, true)
 	threadID, _ := startThreadWithQuestions(t, f, f.chain, "Frage")
-	require.NoError(t, f.svc.MarkAllRead(adminCtx(t, f.staffAccount)))
+	markAllRead(t, f, adminCtx(t, f.staffAccount))
 	require.Zero(t, readUnreadView(t, f, f.staffAccount).badge)
 
 	createGuardianMessage(t, f.db, f.chain, threadID, "Noch eine Frage")
@@ -223,7 +231,7 @@ func TestMarkAllRead_LeavesChildrenOutsideScope(t *testing.T) {
 	}
 
 	setStudentStatus(usersModels.StudentStatusAlumnus)
-	require.NoError(t, f.svc.MarkAllRead(adminCtx(t, f.staffAccount)))
+	markAllRead(t, f, adminCtx(t, f.staffAccount))
 	setStudentStatus(usersModels.StudentStatusActive)
 
 	assert.NotNil(t, cursorOf(t, f.db, visibleThread, f.staffAccount))
@@ -240,11 +248,8 @@ func TestMarkAllRead_WithoutReadScopeTouchesNothing(t *testing.T) {
 	f := newFixture(t, true)
 	threadID, _ := startThreadWithQuestions(t, f, f.chain, "Frage")
 	outsider := testpkg.CreateTestAccount(t, f.db, "outsider-mark-all")
-	t.Cleanup(func() {
-		_, _ = f.db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, outsider.ID)
-	})
 
-	require.NoError(t, f.svc.MarkAllRead(claimsCtx(t, outsider.ID, []string{"users:read"})))
+	markAllRead(t, f, claimsCtx(t, outsider.ID, []string{"users:read"}))
 	assert.Nil(t, cursorOf(t, f.db, threadID, outsider.ID))
 }
 
@@ -256,7 +261,7 @@ func TestMarkAllRead_OtherSchoolUntouched(t *testing.T) {
 
 	t.Run("other school", func(t *testing.T) {
 		testpkg.OwnTenant(t)
-		require.NoError(t, f.svc.MarkAllRead(adminCtx(t, f.staffAccount)))
+		markAllRead(t, f, adminCtx(t, f.staffAccount))
 	})
 	assert.Nil(t, cursorOf(t, f.db, threadID, f.staffAccount))
 	assert.Equal(t, 1, readUnreadView(t, f, f.staffAccount).badge)
@@ -273,7 +278,8 @@ func TestMarkAllRead_KeepsTeamMark(t *testing.T) {
 	require.NoError(t, f.svc.MarkUnread(adminCtx(t, colleague.ID), threadID))
 	createGuardianMessage(t, f.db, f.chain, threadID, "Noch eine Frage")
 
-	require.NoError(t, f.svc.MarkAllRead(adminCtx(t, f.staffAccount)))
+	assert.Equal(t, 1, markAllRead(t, f, adminCtx(t, f.staffAccount)),
+		"the reported count keeps the team mark, so the client can explain it")
 
 	repos := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db))
 	thread, err := repos.ParentMessageThread.FindByID(adminCtx(t, f.staffAccount), threadID)
@@ -303,6 +309,6 @@ func TestMarkAllRead_SetsParentReadReceipt(t *testing.T) {
 	}
 
 	require.False(t, readByStaff())
-	require.NoError(t, f.svc.MarkAllRead(adminCtx(t, f.staffAccount)))
+	markAllRead(t, f, adminCtx(t, f.staffAccount))
 	assert.True(t, readByStaff())
 }

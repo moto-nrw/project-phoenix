@@ -28,6 +28,10 @@ const logger = createLogger({ component: "MessagesInboxPage" });
 const MARK_ALL_READ_LABEL = "Alle als gelesen markieren";
 const MARK_ALL_READ_SUCCESS =
   "Alle Nachrichten sind für Sie als gelesen markiert.";
+// Shown when team-marked conversations (#3654) keep the badge above zero, so
+// the remaining number does not read as a failed click.
+const MARK_ALL_READ_TEAM_MARKED =
+  "Gelesen. Vom Team als ungelesen markierte Unterhaltungen bleiben ungelesen.";
 const MARK_ALL_READ_ERROR =
   "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
 
@@ -93,10 +97,12 @@ function MessagesInboxContent() {
     setMarkingAllRead(true);
     setMarkAllReadError(null);
     try {
-      await markAllMessagesRead();
+      const remaining = await markAllMessagesRead();
       window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
       void mutate();
-      toast.success(MARK_ALL_READ_SUCCESS);
+      toast.success(
+        remaining > 0 ? MARK_ALL_READ_TEAM_MARKED : MARK_ALL_READ_SUCCESS,
+      );
     } catch (err) {
       logger.error("inbox_mark_all_read_failed", {
         error: err instanceof Error ? err.message : String(err),

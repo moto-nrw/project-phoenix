@@ -243,13 +243,15 @@ func (rs *Resource) getThread(w http.ResponseWriter, r *http.Request) {
 }
 
 // markAllRead marks every conversation the caller sees as unread as read for
-// the caller's own account (#3663).
+// the caller's own account (#3663). It answers with the caller's new unread
+// count, which stays above zero while team-marked conversations remain.
 func (rs *Resource) markAllRead(w http.ResponseWriter, r *http.Request) {
-	if err := rs.Service.MarkAllParentMessagesRead(r.Context()); err != nil {
+	count, err := rs.Service.MarkAllParentMessagesRead(r.Context())
+	if err != nil {
 		renderMessagingError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, nil, "Messages marked read")
+	common.Respond(w, r, http.StatusOK, map[string]int{"unread_count": count}, "Messages marked read")
 }
 
 // markThreadUnread marks the conversation unread for the whole team (#3654).

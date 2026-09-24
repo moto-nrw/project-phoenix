@@ -395,9 +395,9 @@ describe("markAllMessagesRead", () => {
     mockFetch(async (input, init) => {
       seenURL = typeof input === "string" ? input : input.toString();
       seenMethod = init?.method ?? "";
-      return jsonOk({ data: null });
+      return jsonOk({ data: { unread_count: 2 } });
     });
-    await markAllMessagesRead();
+    await expect(markAllMessagesRead()).resolves.toBe(2);
     expect(seenURL).toBe("/api/messages/mark-all-read");
     expect(seenMethod).toBe("POST");
   });
