@@ -1,4 +1,4 @@
-import { LOCATION_COLORS } from "./location-helper";
+import { isNotCheckedInLocation, LOCATION_COLORS } from "./location-helper";
 
 const APPROACHING_THRESHOLD_MINUTES = 30;
 
@@ -36,21 +36,41 @@ export interface StudentDayTimes {
   actualArrival?: string | null;
   plannedPickup?: string | null;
   actualPickup?: string | null;
+  /**
+   * The child is here right now by its live location. Counts like a recorded
+   * check-in, so a missing arrival time never hides a due pickup.
+   */
+  checkedIn?: boolean;
 }
 
-/** Reads the day from the flat student shape most surfaces carry. */
-export function getStudentDayTimes(student: {
-  arrival_time?: string | null;
-  actual_arrival_time?: string | null;
-  pickup_time?: string | null;
-  actual_pickup_time?: string | null;
-}): StudentDayTimes {
+/**
+ * Reads the day from the flat student shape most surfaces carry. For a date
+ * other than today the live location says nothing about that day.
+ */
+export function getStudentDayTimes(
+  student: {
+    arrival_time?: string | null;
+    actual_arrival_time?: string | null;
+    pickup_time?: string | null;
+    actual_pickup_time?: string | null;
+    current_location?: string | null;
+  },
+  { ignoreCurrentAttendance = false } = {},
+): StudentDayTimes {
   return {
     plannedArrival: student.arrival_time,
     actualArrival: student.actual_arrival_time,
     plannedPickup: student.pickup_time,
     actualPickup: student.actual_pickup_time,
+    checkedIn:
+      !ignoreCurrentAttendance &&
+      !isNotCheckedInLocation(student.current_location),
   };
+}
+
+/** A recorded check-in or check-out, or the child is here right now. */
+function hasArrived(day: StudentDayTimes): boolean {
+  return Boolean(day.actualArrival || day.actualPickup || day.checkedIn);
 }
 
 interface StudentTimeStatusInput {
@@ -147,11 +167,11 @@ function toMinutes(time?: string | null): number | null {
  * The child is booked for the day, but the planned arrival (usually the end of
  * lessons) is not before the planned pickup: the regular day has no care time.
  * Such a child only comes when a lesson is cancelled, so the missing check-in
- * is not an alarm (#3373). A recorded check-in or check-out ends the special
- * case, because then the child did come and the ordinary rules apply.
+ * is not an alarm (#3373). Once the child is here (see `hasArrived`), the
+ * special case ends and the ordinary rules apply.
  */
 export function comesOnlyIfLessonCancelled(day: StudentDayTimes): boolean {
-  if (day.actualArrival || day.actualPickup) {
+  if (hasArrived(day)) {
     return false;
   }
   const arrival = toMinutes(day.plannedArrival);
@@ -282,7 +302,7 @@ export function getStudentTimeStatus({
 
   // A pickup can only be late for a child who is here. Without a check-in
   // there is nobody to pick up, whatever the clock says (#3373).
-  if (kind === "pickup" && day && !day.actualArrival) {
+  if (kind === "pickup" && day && !hasArrived(day)) {
     return {
       state: "awaiting-arrival",
       displayTime: displayPlannedTime,

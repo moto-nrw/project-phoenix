@@ -8,6 +8,7 @@ import useSWR from "swr";
 import { AlertTriangle, Check, Clock, Info } from "lucide-react";
 import { LocationBadge } from "@/components/ui/location-badge";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
+import { isNotCheckedInLocation } from "~/lib/location-helper";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import {
   getStudentAbsence,
@@ -446,6 +447,7 @@ export function StudentHeaderStats({
     actualArrival: todayArrivalActualTime,
     plannedPickup: todayPickupPlannedTime,
     actualPickup: todayPickupActualTime,
+    checkedIn: !isNotCheckedInLocation(student.current_location),
   };
 
   return (

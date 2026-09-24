@@ -4,6 +4,7 @@ import {
   combineTimeNotes,
   comesOnlyIfLessonCancelled,
   getStudentAbsence,
+  getStudentDayTimes,
   getStudentTimeStatus,
   getTimeStatusSortRank,
 } from "./student-time-status";
@@ -510,6 +511,24 @@ describe("getStudentTimeStatus with the whole day (#3373)", () => {
     expect(status.state).toBe("very-overdue");
   });
 
+  it("counts a checked-in child without a recorded arrival as here", () => {
+    const pickup = getStudentTimeStatus({
+      kind: "pickup",
+      plannedTime: "13:20",
+      day: { plannedArrival: "13:20", plannedPickup: "13:20", checkedIn: true },
+      now: afterBothTimes,
+    });
+    const arrival = getStudentTimeStatus({
+      kind: "arrival",
+      plannedTime: "13:20",
+      day: { plannedArrival: "13:20", plannedPickup: "13:20", checkedIn: true },
+      now: afterBothTimes,
+    });
+
+    expect(pickup.state).toBe("very-overdue");
+    expect(arrival.state).toBe("very-overdue");
+  });
+
   it("keeps the overdue arrival of an ordinary day", () => {
     const status = getStudentTimeStatus({
       kind: "arrival",
@@ -596,6 +615,24 @@ describe("getStudentTimeStatus with the whole day (#3373)", () => {
     });
 
     expect(status.state).toBe("very-overdue");
+  });
+});
+
+describe("getStudentDayTimes", () => {
+  it("reads check-in from the live location, only for today", () => {
+    const student = {
+      arrival_time: "13:20",
+      pickup_time: "13:20",
+      current_location: "Anwesend - OGS-Raum 1",
+    };
+
+    expect(getStudentDayTimes(student).checkedIn).toBe(true);
+    expect(
+      getStudentDayTimes({ ...student, current_location: "Zuhause" }).checkedIn,
+    ).toBe(false);
+    expect(
+      getStudentDayTimes(student, { ignoreCurrentAttendance: true }).checkedIn,
+    ).toBe(false);
   });
 });
 

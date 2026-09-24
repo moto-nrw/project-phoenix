@@ -213,14 +213,18 @@ function SearchStudentCardImpl({
                     }
                     notes={student.arrival_notes}
                     absentWording={absenceWording}
-                    day={getStudentDayTimes(student)}
+                    day={getStudentDayTimes(student, {
+                      ignoreCurrentAttendance: !isToday,
+                    })}
                   />
                   <PickupTimeRow
                     pickupTime={student.pickup_time ?? undefined}
                     actualTime={student.actual_pickup_time}
                     isException={student.pickup_is_exception ?? false}
                     notes={student.pickup_notes}
-                    day={getStudentDayTimes(student)}
+                    day={getStudentDayTimes(student, {
+                      ignoreCurrentAttendance: !isToday,
+                    })}
                   />
                 </>
               );

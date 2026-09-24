@@ -226,6 +226,7 @@ function getOgsStudentDay(
     actualArrival: student.actual_arrival_time,
     plannedPickup: pickupTimes.get(student.id.toString())?.pickupTime,
     actualPickup: student.actual_pickup_time,
+    checkedIn: !isNotCheckedInLocation(student.current_location),
   };
 }
 
