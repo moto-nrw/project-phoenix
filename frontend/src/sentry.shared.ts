@@ -129,18 +129,27 @@ type TracesSamplingContext = Parameters<
 // SEMANTIC_ATTRIBUTE_SENTRY_OP, spelled out so this module stays type-only.
 const spanOpAttribute = "sentry.op";
 
+// Ops of the Web Vital spans the SDK sends on their own, after the page load
+// ended: ui.webvital.lcp, ui.webvital.cls and ui.interaction.<click|keyboard|
+// pointer|drag> for INP.
+const webVitalOpPrefixes = ["ui.webvital.", "ui.interaction."];
+
 /**
  * Browser tracesSampler: 5 % of page loads and navigations, each decided in
- * the browser because the server never samples. Any other root span is kept
- * only inside a page view that was already sampled: the INP Web Vital arrives
- * as such a span after the page load ended. Everything else stays unmeasured.
+ * the browser because the server never samples. A Web Vital span is kept only
+ * inside a page view that was already sampled, because the SDK sends LCP, CLS
+ * and INP as root spans of their own after the page load ended. Every other
+ * root span stays unmeasured, also inside a sampled page view.
  */
 export function sampleBrowserTrace(context: TracesSamplingContext): number {
   const op = context.attributes?.[spanOpAttribute];
   if (op === "pageload" || op === "navigation") {
     return pageViewTraceSampleRate;
   }
-  return context.parentSampled === true ? 1 : 0;
+  const isWebVitalSpan =
+    typeof op === "string" &&
+    webVitalOpPrefixes.some((prefix) => op.startsWith(prefix));
+  return isWebVitalSpan && context.parentSampled === true ? 1 : 0;
 }
 
 /**

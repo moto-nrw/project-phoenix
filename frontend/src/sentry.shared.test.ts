@@ -475,14 +475,31 @@ describe("sampleBrowserTrace", () => {
     expect(sampleBrowserTrace(samplingContext(op, false))).toBe(0);
   });
 
-  it("samples no span without an operation", () => {
-    expect(sampleBrowserTrace(samplingContext(undefined))).toBe(0);
+  it.each([
+    "http.client",
+    "ui.long-animation-frame",
+    "resource.script",
+    "resource.css",
+    "resource.img",
+    "function",
+  ])("samples no %s span inside a sampled page view", (op) => {
+    expect(sampleBrowserTrace(samplingContext(op, true))).toBe(0);
   });
 
-  it("keeps the INP Web Vital of a page view that was sampled", () => {
-    expect(
-      sampleBrowserTrace(samplingContext("ui.interaction.click", true)),
-    ).toBe(1);
+  it("samples no span without an operation", () => {
+    expect(sampleBrowserTrace(samplingContext(undefined))).toBe(0);
+    expect(sampleBrowserTrace(samplingContext(undefined, true))).toBe(0);
+  });
+
+  it.each([
+    "ui.interaction.click",
+    "ui.interaction.keyboard",
+    "ui.interaction.pointer",
+    "ui.interaction.drag",
+    "ui.webvital.lcp",
+    "ui.webvital.cls",
+  ])("keeps the %s Web Vital of a page view that was sampled", (op) => {
+    expect(sampleBrowserTrace(samplingContext(op, true))).toBe(1);
   });
 });
 
