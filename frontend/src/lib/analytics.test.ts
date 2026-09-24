@@ -35,10 +35,10 @@ describe("trackEvent", () => {
   });
 
   it("forwards event name and props to the PostHog client", () => {
-    trackEvent("data_exported", { format: "xlsx" });
+    trackEvent("login_failed", { reason: "error" });
 
-    expect(mocks.capture).toHaveBeenCalledWith("data_exported", {
-      format: "xlsx",
+    expect(mocks.capture).toHaveBeenCalledWith("login_failed", {
+      reason: "error",
     });
   });
 
@@ -55,7 +55,7 @@ describe("trackEvent", () => {
   });
 
   it("rejects tenant events without a numeric school ID", () => {
-    trackTenantEvent("login_success", "school-a");
+    trackTenantEvent("login_failed", "school-a");
 
     expect(mocks.capture).not.toHaveBeenCalled();
   });
