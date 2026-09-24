@@ -11,15 +11,11 @@ type StudentVisitReader interface {
 	ListVisits(context.Context, studentpresence.VisitFilter) ([]studentpresence.Visit, error)
 }
 
-// ConflictPresence supplies current visits and staff supervision facts.
-type ConflictPresence interface {
+// InstancePresence supplies authoritative presence state for lifecycle
+// transitions: current visits, staff supervision facts and the session moves.
+type InstancePresence interface {
 	StudentVisitReader
 	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
-}
-
-// InstancePresence supplies authoritative presence state for lifecycle transitions.
-type InstancePresence interface {
-	ConflictPresence
 	TransferOpenVisits(context.Context, int64, int64) (int64, error)
 	// EndGroup releases an absorbed unsupervised group after its visits moved
 	// to the started instance's group (#2697).

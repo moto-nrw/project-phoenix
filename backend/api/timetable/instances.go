@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
@@ -32,11 +33,11 @@ import (
 // is always present (empty array when clean) so clients can iterate without a
 // nil check.
 type StartInstanceResponse struct {
-	InstanceID    int64                                       `json:"instance_id"`
-	Status        string                                      `json:"status"`
-	ActiveGroupID int64                                       `json:"active_group_id"`
-	StartedAt     string                                      `json:"started_at"`
-	Warnings      []timetableplanning.InstanceConflictWarning `json:"warnings"`
+	InstanceID    int64                               `json:"instance_id"`
+	Status        string                              `json:"status"`
+	ActiveGroupID int64                               `json:"active_group_id"`
+	StartedAt     string                              `json:"started_at"`
+	Warnings      []timetable.InstanceConflictWarning `json:"warnings"`
 }
 
 // InstanceStatusResponse is the 200 body for complete and cancel — minimal
@@ -151,7 +152,7 @@ func (rs *Resource) startInstance(w http.ResponseWriter, r *http.Request) {
 		Warnings:      result.Warnings,
 	}
 	if result.Warnings == nil {
-		resp.Warnings = []timetableplanning.InstanceConflictWarning{}
+		resp.Warnings = []timetable.InstanceConflictWarning{}
 	}
 	if result.Instance.StartedAt != nil {
 		resp.StartedAt = result.Instance.StartedAt.UTC().Format("2006-01-02T15:04:05Z")

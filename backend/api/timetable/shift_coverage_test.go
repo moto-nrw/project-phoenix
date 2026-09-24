@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -17,7 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -34,7 +35,7 @@ func coverageClock(t *testing.T, value string) time.Time {
 func setupShiftCoverageRoute(t *testing.T) chi.Router {
 	t.Helper()
 	db, services := testutil.SetupTimetableModule(t)
-	resource := NewResource(Dependencies{TimetableData: services.TimetableData, DB: db})
+	resource := NewResource(Dependencies{TimetableData: services.TimetableData, ConflictDetection: services.ConflictDetection, DB: db})
 	router := chi.NewRouter()
 	router.Mount("/timetable", resource.Router())
 	return router
@@ -228,7 +229,7 @@ func TestShiftCoverage_ValidationAndStableErrors(t *testing.T) {
 	}
 
 	t.Run("internal cause is hidden", func(t *testing.T) {
-		resource := NewResource(Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{})})
+		resource := NewResource(Dependencies{ConflictDetection: failingShiftCoverage{err: errors.New("dependencies are not wired")}})
 		failureRouter := shiftCoverageRouter(s.ctx, resource)
 		recorder := postShiftCoverage(t, failureRouter, ShiftCoverageRequest{
 			Dates: []string{validDate.String()}, StartTime: "09:00", EndTime: "10:00", StaffIDs: []int64{99},
@@ -274,4 +275,15 @@ func TestShiftCoverage_RouteRequiresAllPermissionsAndLegacyConflictsStaysReadOnl
 	legacy := testutil.ExecuteWithAuthPermissions(t, router, legacyRequest, claims, []string{permissions.SchedulesRead})
 	require.Equal(t, http.StatusOK, legacy.Code, legacy.Body.String())
 	assert.NotContains(t, legacy.Body.String(), "coverage_warnings")
+}
+
+// failingShiftCoverage fails the probe with an internal cause the response
+// must not leak.
+type failingShiftCoverage struct {
+	timetable.ConflictDetectionCapability
+	err error
+}
+
+func (f failingShiftCoverage) DetectShiftCoverage(context.Context, timetable.ShiftCoverageProbe) (timetable.ShiftCoverageResult, error) {
+	return timetable.ShiftCoverageResult{}, f.err
 }

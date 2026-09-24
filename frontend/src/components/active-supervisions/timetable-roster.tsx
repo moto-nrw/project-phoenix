@@ -513,7 +513,7 @@ function confirmExpectedLabel(
 
 interface TimetableRosterHeaderProps {
   readonly attendanceWebEnabled: boolean;
-  readonly lifecycleEnabled: boolean;
+  readonly endEnabled: boolean;
   readonly confirmableExpectedRows: TimetableRosterRow[];
   readonly isCompletingInstance: boolean;
   readonly isConfirmingExpected: boolean;
@@ -539,7 +539,7 @@ interface TimetableRosterHeaderProps {
 
 function TimetableRosterHeader({
   attendanceWebEnabled,
-  lifecycleEnabled,
+  endEnabled,
   confirmableExpectedRows,
   isCompletingInstance,
   isConfirmingExpected,
@@ -633,7 +633,7 @@ function TimetableRosterHeader({
               {confirmLabel}
             </Button>
           ) : null}
-          {lifecycleEnabled ? (
+          {endEnabled ? (
             <Button
               type="button"
               disabled={isCompletingInstance || !completeEnabled}
@@ -901,6 +901,9 @@ export function TimetableRosterContent({
   // see it through the all_staff overview get the list without actions and a
   // line that says why. Older backends omit the flag and keep the actions.
   const lifecycleEnabled = attendanceWebEnabled && roster.canOperate !== false;
+  // Ending has its own school setting (#3622); older backends omit the flag.
+  const endEnabled =
+    attendanceWebEnabled && (roster.canEnd ?? roster.canOperate) !== false;
   const actionsEnabled =
     attendanceWebEnabled &&
     (roster.canEditAttendance ?? roster.canOperate ?? true);
@@ -914,6 +917,7 @@ export function TimetableRosterContent({
     attendanceWebEnabled &&
     !actionsEnabled &&
     !lifecycleEnabled &&
+    !endEnabled &&
     !actionAccess.absence;
   const note = viewOnly
     ? [TIMETABLE_VIEW_ONLY_NOTICE, headerNote].filter(Boolean).join(" ")
@@ -1026,7 +1030,7 @@ export function TimetableRosterContent({
     <div className="space-y-4">
       <TimetableRosterHeader
         attendanceWebEnabled={actionsEnabled}
-        lifecycleEnabled={lifecycleEnabled}
+        endEnabled={endEnabled}
         confirmableExpectedRows={confirmableExpectedRows}
         isCompletingInstance={isCompletingInstance}
         isConfirmingExpected={isConfirmingExpected}

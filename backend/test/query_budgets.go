@@ -22,7 +22,7 @@ type queryBudget struct {
 //
 //   - Never raise a number. A scenario that needs more statements is an N+1
 //     regression until proven otherwise; the fix is a batch load keyed by an
-//     ID set (modules/timetable/legacy/timetableplanning/timetable_read_exception_conflicts.go, the
+//     ID set (modules/timetable/compose/exception_conflicts.go, the
 //     FindByStudentIDsAndDate calls, is the reference shape).
 //   - Lower a number when a fix removes statements, so the win cannot regress.
 //   - Every new list endpoint gets an entry plus a test calling
@@ -278,7 +278,7 @@ func AssertQueryBudget(tb testing.TB, scenario string, queries []string) {
 	case got > budget.max:
 		tb.Errorf("query budget exceeded: scenario %q issued %d statements, budget %d.\n"+
 			"  Likely an N+1: a query inside a loop over rows. Batch-load by ID set instead\n"+
-			"  (reference: modules/timetable/legacy/timetableplanning/timetable_read_exception_conflicts.go, FindByStudentIDsAndDate).\n"+
+			"  (reference: modules/timetable/compose/exception_conflicts.go, FindByStudentIDsAndDate).\n"+
 			"  Never raise the register entry.\n%s",
 			scenario, got, budget.max, indentQueries(queries))
 	case budget.exact && got < budget.max:

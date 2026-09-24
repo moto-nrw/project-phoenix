@@ -27,6 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -135,6 +136,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		recoveryRepo = recovery[0]
 	}
 	return timetableplanning.InstanceServiceDependencies{
+		StartConflicts:     lifecycleStartConflicts(s),
 		Presence:           s.presence,
 		InstanceRepo:       s.repos.ActivityInstance,
 		IdempotencyRepo:    s.repos.InstanceIdempotency,
@@ -157,6 +159,40 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		Logger:             slog.Default(),
 		RecoveryRepo:       recoveryRepo,
 	}
+}
+
+// lifecycleStartConflicts composes the Timetable owner's conflict detection
+// over the lifecycle's repositories and its (possibly fault-injecting)
+// presence; the lifecycle only consumes its start check.
+func lifecycleStartConflicts(s *lifecycleSetup) timetable.StartConflictQuery {
+	detection, err := services.NewTimetableConflictDetection(services.TimetableConflictReaders{
+		Instances: s.repos.ActivityInstance, InstanceStaff: s.repos.InstanceStaff, InstanceStudents: s.repos.InstanceStudent,
+		Exceptions: s.repos.ActivityException, Schedules: s.repos.ActivitySchedule, Staff: s.repos.Staff,
+		CalendarPeriods: s.repos.CalendarPeriod, ArrivalExceptions: s.repos.StudentArrivalException,
+		Sessions: s.repos.ActiveGroup, Shifts: unusedShiftRows{}, Presence: s.presence,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return detection
+}
+
+// unusedShiftRows stands in for the Dienstplan rows the start check never
+// reads.
+type unusedShiftRows struct{}
+
+var errShiftRowsNotUsed = errors.New("the start check reads no Dienstplan rows")
+
+func (unusedShiftRows) FindByDateRange(context.Context, scheduleModels.Date, scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
+	return nil, errShiftRowsNotUsed
+}
+
+func (unusedShiftRows) FindByStaffIDsAndDates(context.Context, []int64, []scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
+	return nil, errShiftRowsNotUsed
+}
+
+func (unusedShiftRows) FindUsedCalendarWeeks(context.Context, scheduleModels.Date, scheduleModels.Date) ([]scheduleModels.Date, error) {
+	return nil, errShiftRowsNotUsed
 }
 
 // seedInstance inserts one planned activity_instance plus optional staff
@@ -1401,7 +1437,7 @@ func TestInstance_Start_StaffSameRoomIsNotAConflict(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, w := range result.Warnings {
-		assert.NotEqual(t, timetableplanning.ConflictKindStaff, w.Kind,
+		assert.NotEqual(t, timetable.ConflictKindStaff, w.Kind,
 			"same-room supervision must not warn (#2139); got %+v", result.Warnings)
 	}
 }
@@ -1463,7 +1499,7 @@ func TestInstance_Start_StaffBridgedOverrideSameRoom_NoConflict(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, w := range result.Warnings {
-		assert.NotEqual(t, timetableplanning.ConflictKindStaff, w.Kind,
+		assert.NotEqual(t, timetable.ConflictKindStaff, w.Kind,
 			"bridged same-room override must not warn (#2151 review); got %+v", result.Warnings)
 	}
 }
@@ -1496,7 +1532,7 @@ func TestInstance_Start_StaffBridgedOverrideDifferentRoom_Conflict(t *testing.T)
 
 	hasStaffWarning := false
 	for _, w := range result.Warnings {
-		if w.Kind == timetableplanning.ConflictKindStaff && w.ResourceID == s.staffID {
+		if w.Kind == timetable.ConflictKindStaff && w.ResourceID == s.staffID {
 			hasStaffWarning = true
 			assert.Contains(t, w.Message, "anderen Raum")
 		}
@@ -1530,7 +1566,7 @@ func TestInstance_Start_StaffBridgedWithoutRosterRow_Conflict(t *testing.T) {
 
 	hasStaffWarning := false
 	for _, w := range result.Warnings {
-		if w.Kind == timetableplanning.ConflictKindStaff && w.ResourceID == s.staffID {
+		if w.Kind == timetable.ConflictKindStaff && w.ResourceID == s.staffID {
 			hasStaffWarning = true
 			assert.Contains(t, w.Message, "nicht eindeutig bestimmbar")
 		}
@@ -1562,7 +1598,7 @@ func TestInstance_Start_ConflictWarning_Staff(t *testing.T) {
 
 	hasStaffWarning := false
 	for _, w := range result.Warnings {
-		if w.Kind == timetableplanning.ConflictKindStaff && w.ResourceID == s.staffID {
+		if w.Kind == timetable.ConflictKindStaff && w.ResourceID == s.staffID {
 			hasStaffWarning = true
 		}
 	}
@@ -1591,7 +1627,7 @@ func TestInstance_Start_ConflictWarning_Student(t *testing.T) {
 
 	hasStudentWarning := false
 	for _, w := range result.Warnings {
-		if w.Kind == timetableplanning.ConflictKindStudent && w.ResourceID == s.student1 {
+		if w.Kind == timetable.ConflictKindStudent && w.ResourceID == s.student1 {
 			hasStudentWarning = true
 		}
 	}
@@ -1944,6 +1980,7 @@ func TestInstance_Start_TimePolicyAppliesToNoOfferingPlannedBlock(t *testing.T) 
 	// 08:00 Berlin — far before the 14:00 start minus the 15-minute lead.
 	now := time.Date(2026, 4, 22, 8, 0, 0, 0, timezone.Berlin)
 	guarded := timetableplanning.NewInstanceService(timetableplanning.InstanceServiceDependencies{
+		StartConflicts:     lifecycleStartConflicts(s),
 		Presence:           s.presence,
 		InstanceRepo:       s.repos.ActivityInstance,
 		IdempotencyRepo:    s.repos.InstanceIdempotency,
@@ -2406,22 +2443,21 @@ func TestInstance_Cancel_FromActive_DoesNotTouchAttendance(t *testing.T) {
 		"Cancel(active) must not flip expected → absent")
 }
 
-// --- Conflict-detection pure unit (nil-safe + empty happy path) ------------
-
-func TestDetectStartConflicts_EmptyInstance_NoWarnings(t *testing.T) {
+// The real start records an unplanned starter without making them a
+// supervisor: only planned, present staff supervise (#3622).
+func TestInstance_StartByUnplannedStaffAddsNoSupervisor(t *testing.T) {
 	t.Parallel()
-
 	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, false)
+	starter := testpkg.CreateTestStaff(t, s.db, "LC-Starter", fmt.Sprintf("Start-%d", ai.ID))
 
-	ai := seedInstance(t, s, false, false)
-	repoFactory := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
-	warnings, err := timetableplanning.DetectStartConflicts(s.ctx, timetableplanning.ConflictDependencies{
-		GroupRepo:         repoFactory.ActiveGroup,
-		Presence:          s.presence,
-		InstanceRepo:      repoFactory.ActivityInstance,
-		InstanceStaffRepo: repoFactory.InstanceStaff,
-		InstanceStudents:  repoFactory.InstanceStudent,
-	}, ai, slog.Default())
+	result, err := s.svc.Start(s.ctx, ai.ID, starter.ID)
+
 	require.NoError(t, err)
-	assert.Empty(t, warnings, "clean-room, no staff, no students → no warnings")
+	require.NotNil(t, result.Instance.StartedBy)
+	assert.Equal(t, starter.ID, *result.Instance.StartedBy)
+	sups, err := s.presence.QueryGroupSupervisions(s.ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{result.ActiveGroupID}})
+	require.NoError(t, err)
+	require.Len(t, sups, 1)
+	assert.Equal(t, s.staffID, sups[0].StaffID)
 }

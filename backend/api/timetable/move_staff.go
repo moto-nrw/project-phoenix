@@ -30,6 +30,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
@@ -49,7 +50,7 @@ type MoveStaffResponse struct {
 	// Both advisory — the writes have already landed in the request's tenant
 	// tx and are never rolled back because of a warning.
 	TimeConflicts    []timetableplanning.SubstituteTimeConflict `json:"time_conflicts"`
-	CoverageWarnings []timetableplanning.ShiftCoverageWarning   `json:"coverage_warnings"`
+	CoverageWarnings []timetable.ShiftCoverageWarning           `json:"coverage_warnings"`
 }
 
 // moveStaff handles POST /api/timetable/instances/{id}/move-staff.
@@ -111,15 +112,15 @@ func moveStaffResponseOf(rs *Resource, ctx context.Context, result *timetablepla
 		TargetInstanceID: result.Target.ID,
 		Action:           result.Action,
 		TimeConflicts:    result.Warnings,
-		CoverageWarnings: []timetableplanning.ShiftCoverageWarning{},
+		CoverageWarnings: []timetable.ShiftCoverageWarning{},
 	}
 	if result.Source != nil {
 		resp.SourceInstanceID = &result.Source.ID
 	}
-	if rs.TimetableData == nil || result.Action == timetableplanning.MoveStaffActionAlreadyApplied {
+	if rs.ConflictDetection == nil || result.Action == timetableplanning.MoveStaffActionAlreadyApplied {
 		return resp, nil
 	}
-	coverage, err := rs.TimetableData.DetectShiftCoverageWarnings(ctx, timetableplanning.ShiftCoverageQuery{
+	coverage, err := rs.ConflictDetection.DetectShiftCoverage(ctx, timetable.ShiftCoverageProbe{
 		Dates:     []timezone.Date{timezone.Date(result.Target.Date)},
 		StartTime: result.Target.StartTime,
 		EndTime:   result.Target.EndTime,
