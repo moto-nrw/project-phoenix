@@ -2048,3 +2048,33 @@ func TestParentCourseRequestsSetting(t *testing.T) {
 	require.NotNil(t, parent)
 	assert.Greater(t, def.SortOrder, parent.SortOrder, "sits below the setting it depends on")
 }
+
+// TestAnalyticsFreigabeSettings guards the Analyse-Freigabe (#3603): off by
+// default and operator-only, because the moto team switches it after the
+// school or its Träger agreed in writing. A school admin can neither grant
+// it nor widen the recording share.
+func TestAnalyticsFreigabeSettings(t *testing.T) {
+	t.Parallel()
+
+	freigabe := config.GetDefinition(config.KeyAnalyticsFreigabe)
+	require.NotNil(t, freigabe)
+	assert.Equal(t, config.FieldBoolean, freigabe.Type)
+	assert.Equal(t, false, freigabe.Default, "no school records without written consent")
+	assert.Equal(t, config.AccessOperatorOnly, freigabe.AccessPolicy)
+	assert.Equal(t, "config:manage", freigabe.WritePermission)
+	assert.Equal(t, "system", freigabe.Tab)
+
+	sample := config.GetDefinition(config.KeyAnalyticsRecordingSamplePercent)
+	require.NotNil(t, sample)
+	assert.Equal(t, config.FieldNumber, sample.Type)
+	assert.Equal(t, 100, sample.Default)
+	assert.Equal(t, config.AccessOperatorOnly, sample.AccessPolicy)
+	assert.Equal(t, "config:manage", sample.WritePermission)
+	require.NotNil(t, sample.Validation)
+	require.NotNil(t, sample.Validation.Min)
+	require.NotNil(t, sample.Validation.Max)
+	assert.Equal(t, float64(1), *sample.Validation.Min)
+	assert.Equal(t, float64(100), *sample.Validation.Max)
+	require.NotNil(t, sample.DependsOn)
+	assert.Equal(t, config.KeyAnalyticsFreigabe, sample.DependsOn.Key)
+}

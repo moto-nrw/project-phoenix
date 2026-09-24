@@ -567,3 +567,13 @@ const (
 	KeyCareDefaultArrivalTime = "care_times.default_arrival"
 	KeyCareDefaultPickupTime  = "care_times.default_pickup"
 )
+
+// Analyse-Freigabe (#3603, spec #3598). The moto team switches it on for one
+// school once the school or its Träger has agreed in writing. Only then does
+// the OGS portal of that school record masked sessions and send pseudonymous
+// user IDs; the parents and school portals never do. The sample percentage
+// has no effect without the Freigabe. Both are operator-only.
+const (
+	KeyAnalyticsFreigabe               = "analytics.freigabe"
+	KeyAnalyticsRecordingSamplePercent = "analytics.recording_sample_percent"
+)

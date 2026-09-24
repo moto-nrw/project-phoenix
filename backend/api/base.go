@@ -909,7 +909,7 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	api.Router.Use(sessionAuth.Verifier())
 	// Core actions of the portals reach the usage analytics once their
 	// response is 2xx (#3602). After the verifier, which names the session.
-	api.Router.Use(coreActionAnalytics(serviceFactory.Tracker, sessionAuth))
+	api.Router.Use(coreActionAnalytics(serviceFactory.Tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(serviceFactory.Settings, logger)))
 
 	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, modules, db, logger, frontendURL, sessionAuth)
 	if err != nil {
