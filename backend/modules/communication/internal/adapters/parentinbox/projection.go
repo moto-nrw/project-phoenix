@@ -179,13 +179,8 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool, staffAcc
 func unreadMessageCountSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.SelectQuery {
 	query := q.
 		TableExpr("users.parent_messages AS um").
-		Join("JOIN users.parent_message_threads AS t ON t.id = um.thread_id AND t.tenant_id = um.tenant_id").
-		Join("JOIN users.student_profiles AS s ON s.id = t.student_id AND s.tenant_id = t.tenant_id").
-		Join("JOIN users.student_school_memberships AS sm ON sm.student_profile_id = s.id AND sm.tenant_id = s.tenant_id AND sm.deleted_at IS NULL").
-		Join("JOIN users.student_care_profiles AS sc ON sc.membership_id = sm.id AND sc.tenant_id = sm.tenant_id").
-		Join("JOIN users.persons AS pn ON pn.id = s.person_id AND pn.deleted_at IS NULL").
-		Join("LEFT JOIN users.parent_message_reads AS r ON r.thread_id = t.id AND r.account_id = ? AND r.tenant_id = t.tenant_id", accountID).
-		Where("sm.status <> ?", studentStatusAlumnus).
+		Join("JOIN users.parent_message_threads AS t ON t.id = um.thread_id AND t.tenant_id = um.tenant_id")
+	query = withVisibleChildAndCursor(query, accountID).
 		Where(afterReadCursorUM).
 		Where(notReaderAuthoredUM, accountID)
 	if staffReader {
@@ -297,27 +292,24 @@ func (p *Projection) ListThreadsForGuardianTenants(ctx context.Context, accountI
 // reader's visible scope. It counts messages, not threads, so the sidebar badge
 // matches the per-thread pills: a thread with three unread messages adds 3.
 // A thread marked unread for the team without a real unread message adds 1,
-// the same floor its pill shows.
+// the same floor its pill shows. Both counts run as one statement, so the
+// badge stays a single query.
 func (p *Projection) UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error) {
 	db, tenantID, err := p.database(ctx)
 	if err != nil {
 		return 0, err
 	}
-	query := unreadMessageCountSelect(db.NewSelect(), accountID, true)
-	query = applyStaffScope(query, allStudents)
-	query = withTenant(query, "t", tenantID)
-	count, err := query.Count(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("count unread parent messages for staff: %w", err)
-	}
+	messages := unreadMessageCountSelect(db.NewSelect(), accountID, true)
+	messages = applyStaffScope(messages, allStudents)
+	messages = withTenant(messages, "t", tenantID).ColumnExpr("COUNT(*)")
 	marked := markedThreadsWithoutUnreadSelect(db.NewSelect(), accountID)
 	marked = applyStaffScope(marked, allStudents)
-	marked = withTenant(marked, "t", tenantID)
-	markedCount, err := marked.Count(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("count marked-unread parent threads for staff: %w", err)
+	marked = withTenant(marked, "t", tenantID).ColumnExpr("COUNT(*)")
+	var count int
+	if err := db.NewSelect().ColumnExpr("(?) + (?)", messages, marked).Scan(ctx, &count); err != nil {
+		return 0, fmt.Errorf("count unread parent messages for staff: %w", err)
 	}
-	return count + markedCount, nil
+	return count, nil
 }
 
 // markedThreadsWithoutUnreadSelect builds a query whose ROWS are the threads
@@ -325,16 +317,24 @@ func (p *Projection) UnreadMessageCountForStaff(ctx context.Context, accountID i
 // The joins and filters mirror unreadMessageCountSelect, so a hidden child's
 // thread cannot add to the badge either.
 func markedThreadsWithoutUnreadSelect(q *bun.SelectQuery, accountID int64) *bun.SelectQuery {
+	query := q.TableExpr("users.parent_message_threads AS t")
+	return withVisibleChildAndCursor(query, accountID).
+		Where(threadHasMessages).
+		Where(staffMarkedWithoutUnread, accountID)
+}
+
+// withVisibleChildAndCursor joins a thread query (alias t) to its child and the
+// reader's cursor row r, and drops offboarded and graduated children. Both
+// badge counts share it, so a hidden child's thread can add to neither. The r
+// LEFT JOIN is unique per (thread, account), so no row fans out.
+func withVisibleChildAndCursor(q *bun.SelectQuery, accountID int64) *bun.SelectQuery {
 	return q.
-		TableExpr("users.parent_message_threads AS t").
 		Join("JOIN users.student_profiles AS s ON s.id = t.student_id AND s.tenant_id = t.tenant_id").
 		Join("JOIN users.student_school_memberships AS sm ON sm.student_profile_id = s.id AND sm.tenant_id = s.tenant_id AND sm.deleted_at IS NULL").
 		Join("JOIN users.student_care_profiles AS sc ON sc.membership_id = sm.id AND sc.tenant_id = sm.tenant_id").
 		Join("JOIN users.persons AS pn ON pn.id = s.person_id AND pn.deleted_at IS NULL").
 		Join("LEFT JOIN users.parent_message_reads AS r ON r.thread_id = t.id AND r.account_id = ? AND r.tenant_id = t.tenant_id", accountID).
-		Where("sm.status <> ?", studentStatusAlumnus).
-		Where(threadHasMessages).
-		Where(staffMarkedWithoutUnread, accountID)
+		Where("sm.status <> ?", studentStatusAlumnus)
 }
 
 // UnreadMessageCountForGuardianTenants counts the guardian's unread staff

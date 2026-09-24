@@ -310,8 +310,9 @@ func (s *ThreadStore) MarkStaffHandledUpTo(ctx context.Context, tenantID, thread
 
 // MarkStaffUnread records that a staff member marked the conversation unread for
 // the whole team. PostgreSQL stamps the time with clock_timestamp(), so the mark
-// is ordered on the database clock. An existing mark is kept: repeating the
-// action changes nothing.
+// is ordered on the database clock. Marking again keeps the thread marked and
+// renews the stamp: an open that loaded the older mark then no longer matches
+// ClearStaffUnreadMark's guard, so the newer mark survives it.
 func (s *ThreadStore) MarkStaffUnread(ctx context.Context, tenantID, threadID, accountID int64) error {
 	db, contextTenantID, err := s.database(ctx)
 	if err != nil {
@@ -323,8 +324,7 @@ func (s *ThreadStore) MarkStaffUnread(ctx context.Context, tenantID, threadID, a
 		Set("staff_marked_unread_at = clock_timestamp()").
 		Set("staff_marked_unread_by_account_id = ?", accountID).
 		Where(`"thread".id = ?`, threadID).
-		Where(`"thread".tenant_id = ?`, tenantID).
-		Where(`"thread".staff_marked_unread_at IS NULL`)
+		Where(`"thread".tenant_id = ?`, tenantID)
 	query = withTenant(query, "thread", contextTenantID)
 	if _, err := query.Exec(ctx); err != nil {
 		return fmt.Errorf("mark parent message thread unread for staff: %w", err)

@@ -187,6 +187,7 @@ export function useSSE(
           "instance_overdue",
           "parent_message",
           "parent_message_read",
+          "parent_message_unread_changed",
           // OGS-internal Team-Chat (#2598). Named event like the two above, so
           // it has to be registered here or its useGlobalSSE branch is dead and
           // the team badge only refreshes on focus.

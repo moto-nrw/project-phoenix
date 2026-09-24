@@ -110,7 +110,7 @@ type ParentMessageReadRepository interface {
 	MarkStaffHandledUpTo(ctx context.Context, tenantID, threadID int64, handledAt time.Time, handledMessageID int64) error
 	// MarkStaffUnread marks the conversation unread for every staff member who
 	// may read the child. It leaves the read cursors and the handled boundary
-	// alone and keeps an existing mark (idempotent).
+	// alone. Marking again keeps the thread marked and renews the mark.
 	MarkStaffUnread(ctx context.Context, tenantID, threadID, accountID int64) error
 	// ClearStaffUnreadMark removes a mark no later than observedAt, the mark the
 	// caller loaded before opening or answering the conversation. A mark set

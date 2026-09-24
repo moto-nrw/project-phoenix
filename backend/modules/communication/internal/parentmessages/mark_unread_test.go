@@ -78,7 +78,8 @@ func TestMarkUnread_IsTeamWideUntilOpened(t *testing.T) {
 	require.NoError(t, f.svc.MarkUnread(adminCtx(t, f.staffAccount), threadID))
 	calls := f.bc.CallsByMethod("parent")
 	require.Len(t, calls, 1, "marking wakes the staff tabs")
-	assert.Equal(t, realtime.EventParentMessage, calls[0].Event.Type)
+	assert.Equal(t, realtime.EventParentMessageUnreadChanged, calls[0].Event.Type,
+		"its own event type, so an open conversation does not reload and end the mark")
 	assert.Zero(t, calls[0].GuardianID, "the guardian is not woken: parents see no change")
 
 	assertTeamUnread(t, f, f.staffAccount, 1)
@@ -87,14 +88,14 @@ func TestMarkUnread_IsTeamWideUntilOpened(t *testing.T) {
 	f.bc.Reset()
 	_, err := f.svc.GetThread(adminCtx(t, colleague.ID), threadID)
 	require.NoError(t, err)
-	assert.Equal(t, 1, parentEventCount(f.bc, realtime.EventParentMessage), "a cleared mark wakes the other staff tabs")
+	assert.Equal(t, 1, parentEventCount(f.bc, realtime.EventParentMessageUnreadChanged), "a cleared mark wakes the other staff tabs")
 	assertTeamUnread(t, f, f.staffAccount, 0)
 	assertTeamUnread(t, f, colleague.ID, 0)
 
 	f.bc.Reset()
 	_, err = f.svc.GetThread(adminCtx(t, colleague.ID), threadID)
 	require.NoError(t, err)
-	assert.Zero(t, parentEventCount(f.bc, realtime.EventParentMessage), "opening an unmarked thread broadcasts nothing new")
+	assert.Zero(t, parentEventCount(f.bc, realtime.EventParentMessageUnreadChanged), "opening an unmarked thread broadcasts no mark change")
 }
 
 func TestMarkUnread_ClearedByReply(t *testing.T) {
@@ -146,10 +147,14 @@ func TestMarkUnread_NewGuardianMessageCountsRealNumber(t *testing.T) {
 	assertTeamUnread(t, f, colleague.ID, 2)
 }
 
-func TestMarkUnread_IsIdempotent(t *testing.T) {
+// TestMarkUnread_RepeatKeepsSameVisibleState: marking twice leaves every
+// unread number exactly as after the first mark. The stored mark is renewed,
+// never moved backward.
+func TestMarkUnread_RepeatKeepsSameVisibleState(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, true)
+	_, colleague := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
 	threadID := startReadThread(t, f)
 	repos := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db))
 	ctx := adminCtx(t, f.staffAccount)
@@ -165,7 +170,33 @@ func TestMarkUnread_IsIdempotent(t *testing.T) {
 	second, err := repos.ParentMessageThread.FindByID(ctx, threadID)
 	require.NoError(t, err)
 	require.NotNil(t, second.StaffMarkedUnreadAt)
-	assert.True(t, first.StaffMarkedUnreadAt.Equal(*second.StaffMarkedUnreadAt), "a repeated mark keeps the first one")
+	assert.False(t, second.StaffMarkedUnreadAt.Before(*first.StaffMarkedUnreadAt), "a repeated mark never moves backward")
+	assertTeamUnread(t, f, f.staffAccount, 1)
+	assertTeamUnread(t, f, colleague.ID, 1)
+}
+
+// TestMarkUnread_RepeatDuringOpenSurvives: B loads a marked thread, C marks it
+// again, then B's open clears what it loaded. C marked after B opened, so the
+// thread must stay marked ("Eine Markierung, die nach dem Öffnen gesetzt
+// wurde, bleibt bestehen").
+func TestMarkUnread_RepeatDuringOpenSurvives(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, true)
+	threadID := startReadThread(t, f)
+	repos := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db))
+	ctx := adminCtx(t, f.staffAccount)
+
+	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
+	loadedByOpen, err := repos.ParentMessageThread.FindByID(ctx, threadID)
+	require.NoError(t, err)
+	require.NotNil(t, loadedByOpen.StaffMarkedUnreadAt)
+
+	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
+
+	cleared, err := repos.ParentMessageRead.ClearStaffUnreadMark(ctx, loadedByOpen.TenantID, threadID, *loadedByOpen.StaffMarkedUnreadAt)
+	require.NoError(t, err)
+	assert.False(t, cleared, "the open only removes the mark it loaded")
 	assertTeamUnread(t, f, f.staffAccount, 1)
 }
 
