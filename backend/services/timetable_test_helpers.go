@@ -115,7 +115,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	materialization := timetableplanning.NewMaterializationService(r.ActivityGroup, r.ActivitySchedule, r.StudentEnrollment,
 		r.ActivitySupervisor, r.CalendarPeriod, r.ActivityInstance, r.InstanceStaff, r.InstanceStudent,
 		r.ActivityException, r.Timeframe, db, hub, logger,
-		timetableplanning.WithCareBoundReader(r.Student))
+		timetableplanning.WithCareBoundReader(r.Student), timetableplanning.WithNonWorkingDays(calendar))
 	recovery := repositories.NewActivityRecoveryRepository(db, r.InstanceStudent)
 	instance := timetableplanning.NewInstanceService(timetableplanning.InstanceServiceDependencies{
 		Presence:     newStudentPresence(db, logger),

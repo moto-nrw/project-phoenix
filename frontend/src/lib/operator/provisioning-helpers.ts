@@ -113,6 +113,11 @@ export interface BackendSchoolSummary {
   konten_count: number;
   geraete_count: number;
   personen_count: number;
+  // Kinderkontingent (#3567): null bundles means no limit.
+  child_quota_bundles: number | null;
+  child_quota_bundle_size: number;
+  // Kontingentzahl the Kinderkontingent is checked against (#3568).
+  child_quota_count: number;
 }
 
 export interface SchoolSummary {
@@ -135,6 +140,9 @@ export interface SchoolSummary {
   kontenCount: number;
   geraeteCount: number;
   personenCount: number;
+  childQuotaBundles: number | null;
+  childQuotaBundleSize: number;
+  childQuotaCount: number;
 }
 
 export function mapSchoolSummary(data: BackendSchoolSummary): SchoolSummary {
@@ -158,6 +166,9 @@ export function mapSchoolSummary(data: BackendSchoolSummary): SchoolSummary {
     kontenCount: data.konten_count,
     geraeteCount: data.geraete_count,
     personenCount: data.personen_count,
+    childQuotaBundles: data.child_quota_bundles,
+    childQuotaBundleSize: data.child_quota_bundle_size,
+    childQuotaCount: data.child_quota_count,
   };
 }
 
@@ -483,6 +494,9 @@ export interface UpdateSchoolRequest {
   email: string;
   active: boolean;
   hidden: boolean;
+  // Kinderkontingent (#3567): absent keeps it, null removes it, an object
+  // sets it.
+  child_quota?: { bundles: number; bundle_size: number } | null;
 }
 
 // Device creation / API key management

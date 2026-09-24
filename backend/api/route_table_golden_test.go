@@ -310,6 +310,7 @@ func TestFullProductionRouterGolden(t *testing.T) {
 		// Wait for parallel contract subtests before WithRuntime closes its resources.
 		t.Run("contracts", func(t *testing.T) {
 			t.Run("route table", func(t *testing.T) { checkRouteTableGolden(t, api) })
+			t.Run("core action classification", func(t *testing.T) { checkCoreActionClassification(t, api) })
 			t.Run("IoT auth matrix", func(t *testing.T) { checkIoTAuthMatrixGolden(t, api) })
 			t.Run("IoT error strings", checkIoTErrorStringsGolden)
 			t.Run("school scope matrix", func(t *testing.T) { checkSchoolScopeMatrix(t, api) })

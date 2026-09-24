@@ -22,6 +22,9 @@ type Service struct {
 	clock               ports.Clock
 	allowanceUses       func(domain.StaffAbsence) ([]domain.AllowanceUse, error)
 	observe             ports.Observer
+	// holidays is optional: without it no day counts as a statutory holiday
+	// when a Sonderarbeitszeit is expanded into days.
+	holidays ports.StatutoryHolidays
 }
 
 func New(
@@ -32,11 +35,12 @@ func New(
 	clock ports.Clock,
 	allowanceUses func(domain.StaffAbsence) ([]domain.AllowanceUse, error),
 	observe ports.Observer,
+	holidays ports.StatutoryHolidays,
 ) *Service {
 	if store == nil || transaction == nil || assignments == nil || lockStaffAssignment == nil || clock == nil || allowanceUses == nil || observe == nil {
 		panic("workforce application: all dependencies are required")
 	}
-	return &Service{store: store, transaction: transaction, assignments: assignments, lockStaffAssignment: lockStaffAssignment, clock: clock, allowanceUses: allowanceUses, observe: observe}
+	return &Service{store: store, transaction: transaction, assignments: assignments, lockStaffAssignment: lockStaffAssignment, clock: clock, allowanceUses: allowanceUses, observe: observe, holidays: holidays}
 }
 
 // --- work-time templates ---

@@ -124,6 +124,8 @@ type StaffScheduleOverviewDependencies struct {
 	// Holidays reduces the weekly targets by the non-working-day Soll (#1418
 	// 3a/3b), bound to the School Calendar; nil skips it (unit fixtures).
 	Holidays HolidayDatesReader
+	// TargetOverrides re-prices Sonderarbeitszeit days (#3259); nil skips it.
+	TargetOverrides TargetOverrideDaysReader
 }
 
 // HolidayDatesReader answers the tenant's non-working days as a date set.
@@ -428,7 +430,7 @@ func (s *staffScheduleOverviewService) buildWeeklySummaries(ctx context.Context,
 	}
 
 	planned := plannedShiftMinutes(data.weekShifts)
-	targets, err := s.resolveWeeklyTargets(ctx, data.staff, data.workSchedules, weekStarts)
+	targets, err := s.weeklyTargets(ctx, data.staff, data.workSchedules, weekStarts)
 	if err != nil {
 		return nil, err
 	}

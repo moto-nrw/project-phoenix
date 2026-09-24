@@ -1,4 +1,3 @@
-import { trackEvent } from "~/lib/analytics";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 
 export type StudentExportFormat = "pdf" | "docx" | "xlsx";
@@ -403,11 +402,6 @@ export async function exportStudents(
   if (!response.ok) {
     throw new Error(await readExportError(response));
   }
-
-  trackEvent("data_exported", {
-    export_type: "students",
-    format: request.format,
-  });
 
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);

@@ -211,6 +211,10 @@ func (rs *Resource) Router() chi.Router {
 				Delete("/{id}", rs.deleteInstance)
 			r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/re-plan-week", rs.replanWeek)
+			// #3594: cancel and remove the planned occurrences of a range
+			// (a closure entered after planning); dry_run counts them.
+			r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+				Post("/bulk-cancel", rs.bulkCancelInstances)
 			r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/{id}/start", rs.startInstance)
 			r.With(common.RequiresPermission(permissions.SchedulesManage), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).

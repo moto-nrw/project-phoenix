@@ -1,4 +1,4 @@
-// Package timetableplanning — WP-B12 substitute time-conflict detection.
+// WP-B12 substitute time-conflict detection.
 //
 // Soft warnings for the POST /substitute flow. A substitute carries no implicit
 // guarantee that their day is otherwise free; if they are already scheduled on
@@ -6,10 +6,11 @@
 // surface a "substitute_time_conflict" warning — informational only, never
 // blocks the write.
 //
-// Distinct from instance_conflict.go (WP-B9 start-time conflicts) because the
+// Distinct from the legacy instance_conflict.go (WP-B9 start-time conflicts) because the
 // input and semantics differ: here we compare a set of target instances against
 // the substitute's OTHER same-day assignments, not against live active.groups.
-package timetableplanning
+
+package timetable
 
 import (
 	"fmt"

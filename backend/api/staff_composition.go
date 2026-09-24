@@ -109,14 +109,14 @@ func toStaffHTTPRoleRows(rows []services.StaffRoleRow) []staffHTTP.StaffWithRole
 // newStaffComposition builds both halves of the /api/staff surface: the
 // workforce admin resource of the Workforce module and the School Membership
 // adapter bound over it.
-func newStaffComposition(module schoolMembershipModule.Capability, workforce workforceModule.Query, svc *services.Factory, db *bun.DB, logger *slog.Logger) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
+func newStaffComposition(module schoolMembershipModule.Capability, workforce workforceModule.Capability, svc *services.Factory, db *bun.DB, logger *slog.Logger) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
 	exportTransfer, err := newExportTransferModule(svc, db, logger)
 	if err != nil {
 		return nil, nil, err
 	}
 	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth,
 		svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport)
-	staffAdmin := newStaffAdminResource(capabilities, workforce, exportTransfer, db, logger)
+	staffAdmin := newStaffAdminResource(capabilities, workforce, services.StaffTimeTrackingNotifier(svc.RealtimeHub), exportTransfer, db, logger)
 	return newStaffResource(module, func(hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
 		return svc.NewStaffMembershipRuntime(db, logger, hooks)
 	}, staffAdmin, db, logger), staffAdmin, nil

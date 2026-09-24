@@ -42,6 +42,8 @@ type testContext struct {
 	db           *bun.DB
 	resource     *studentsAPI.Resource
 	broadcaster  *testpkg.RecordingBroadcaster
+	// clock is the fixed clock the services run on; nil means the real one.
+	clock func() time.Time
 }
 
 func newStudentTestRepositories(db *bun.DB) repositories.StudentTestRepositories {
@@ -243,6 +245,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		db:           db,
 		resource:     resource,
 		broadcaster:  broadcaster,
+		clock:        firstClock(clocks),
 	}
 }
 

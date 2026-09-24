@@ -1,12 +1,13 @@
-// Package timetableplanning — Betreuungsplan capacity computation (issue #1838).
+// Betreuungsplan capacity computation (issue #1838).
 //
 // Computes the Betreuungsschlüssel-derived staffing requirement for a
 // materialized Betreuungsplan block (activity instance). The list endpoints
-// (instances_list.go, templates_list.go) already have instance_staff/
+// (api/timetable instances_list.go, templates_list.go) already have instance_staff/
 // instance_students rows loaded per row, so they call RequiredStaffForChildren
 // directly on the counts they already hold instead of a dedicated service —
 // that would mean an extra DB round-trip per list request for no benefit.
-package timetableplanning
+
+package timetable
 
 // RequiredStaffForChildren returns the number of staff required to supervise
 // childrenCount children at the given ratio (max children per staff member),
