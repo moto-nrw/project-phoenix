@@ -16,6 +16,9 @@ type plannedNowAccess struct {
 	hasStaff       bool
 	allOperational bool
 	adminActions   bool
+	// startsAny opens starting today's planned blocks to the whole team
+	// (#3622).
+	startsAny bool
 }
 
 // plannedNowCandidate is one block that survived the planned-now filters,
@@ -25,7 +28,7 @@ type plannedNowCandidate struct {
 	staffRows   []*scheduleModels.InstanceStaff
 	studentRows []*scheduleModels.InstanceStudent
 	roomName    *string
-	canOperate  bool
+	canStart    bool
 }
 
 func (s *operations) PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date timezone.Date, now time.Time, opts timetable.PlannedNowOptions) ([]timetable.OperationPlannedInstance, error) {
@@ -87,6 +90,10 @@ func (s *operations) plannedNowAccess(ctx context.Context, accountID int64, isAd
 	}
 	if !hasStaff && !access.allOperational {
 		return plannedNowAccess{}, timetable.ErrTimetableOperationForbidden
+	}
+	access.startsAny, err = s.schoolWideScope(ctx, accountID, isAdmin, ScopedBlockStart)
+	if err != nil {
+		return plannedNowAccess{}, err
 	}
 	return access, nil
 }
@@ -154,13 +161,13 @@ func (s *operations) plannedNowCandidates(
 	studentsByInstance := indexInstanceStudentRows(studentRows)
 	candidates := make([]plannedNowCandidate, 0, len(visible))
 	for _, inst := range visible {
-		assigned := staffAssigned(staffByInstance[inst.ID], access.staffID)
 		candidates = append(candidates, plannedNowCandidate{
 			instance:    inst,
 			staffRows:   staffByInstance[inst.ID],
 			studentRows: studentsByInstance[inst.ID],
 			roomName:    roomNames[inst.RoomID],
-			canOperate:  access.hasStaff && (access.adminActions || assigned),
+			canStart: access.hasStaff && (access.adminActions || staffAssigned(staffByInstance[inst.ID], access.staffID) ||
+				access.startsAny && s.scopeAdmits(ScopedBlockStart, inst)),
 		})
 	}
 	return candidates, nil
@@ -195,7 +202,7 @@ func (s *operations) plannedNowEntry(
 	mapped := s.mapPlannedInstance(candidate, now, staffID, careDay)
 	past := opts.Scope == timetable.PlannedNowScopePast
 	wholeDay := opts.Scope == timetable.PlannedNowScopeDay
-	if candidate.canOperate && !past && (!wholeDay || candidate.instance.Status == scheduleModels.InstanceStatusPlanned) {
+	if candidate.canStart && !past && (!wholeDay || candidate.instance.Status == scheduleModels.InstanceStatusPlanned) {
 		availability := timetable.EvaluateLifecycleAvailability(lifecycleWindow(candidate.instance), now, startLead, true)
 		mapped.CanStart = availability.CanStart
 		mapped.StartAvailableAt = availability.StartAvailableAt.Format(time.RFC3339)

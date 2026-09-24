@@ -1162,8 +1162,8 @@ func (testOperationSettings) StartLeadMinutes(context.Context) (int, error) { re
 
 func (testOperationSettings) EnforcePlannedEnd(context.Context) (bool, error) { return false, nil }
 
-func (testOperationSettings) AttendanceEditScope(context.Context) (timetableCompose.AttendanceEditScope, error) {
-	return timetableCompose.AttendanceEditUnset, nil
+func (testOperationSettings) ActionScopeAllStaff(context.Context, timetableCompose.ScopedAction) (bool, error) {
+	return false, nil
 }
 
 func (s testOperationSettings) StudentAbsenceEditAllStaff(ctx context.Context) (bool, error) {

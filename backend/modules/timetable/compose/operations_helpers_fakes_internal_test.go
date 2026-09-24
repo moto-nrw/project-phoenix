@@ -148,8 +148,8 @@ func (s *helperSettings) StartLeadMinutes(context.Context) (int, error) { return
 
 func (s *helperSettings) EnforcePlannedEnd(context.Context) (bool, error) { return false, nil }
 
-func (s *helperSettings) AttendanceEditScope(context.Context) (AttendanceEditScope, error) {
-	return AttendanceEditUnset, s.stringErr
+func (s *helperSettings) ActionScopeAllStaff(context.Context, ScopedAction) (bool, error) {
+	return false, s.stringErr
 }
 
 func (s *helperSettings) StudentAbsenceEditAllStaff(context.Context) (bool, error) {
