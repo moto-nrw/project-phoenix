@@ -23,9 +23,9 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // bulkSubstitutionRequest is the POST body. substitute_staff_id omitted/null
@@ -65,9 +65,9 @@ func (rs *Resource) applyBulkSubstitution(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	dates := make([]timezone.Date, 0, len(req.Dates))
+	dates := make([]calendar.Date, 0, len(req.Dates))
 	for _, raw := range req.Dates {
-		date, err := timezone.ParseDate(raw)
+		date, err := calendar.ParseDate(raw)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("dates must be YYYY-MM-DD")))
 			return

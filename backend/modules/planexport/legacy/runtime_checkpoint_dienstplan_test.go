@@ -13,7 +13,6 @@ import (
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -40,8 +39,8 @@ func TestDienstplanRuntimeEvidence(t *testing.T) {
 		service := New(Sources{
 			Overview: workforceCompose.NewStaffScheduleOverview(workforceCompose.StaffScheduleOverviewDependencies{
 				Shifts:        reads,
-				Instances:     timetablesqltest.NewActivityInstanceRepository(db),
-				InstanceStaff: timetablesqltest.NewInstanceStaffRepository(db),
+				Instances:     newOverviewInstances(t, db),
+				InstanceStaff: newOverviewInstanceStaff(t, db),
 				Rooms:         rooms,
 				Staff:         reads,
 			}),

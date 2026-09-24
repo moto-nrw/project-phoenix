@@ -3937,7 +3937,7 @@
       "declaration": "TestCompleteTimetableInstancesForEndedSessions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        51
+        49
       ],
       "tables": [
         "schedule.activity_instances",
@@ -20905,12 +20905,12 @@
         },
         {
           "file": "services/factory.go",
-          "line": 456,
+          "line": 455,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 506,
+          "line": 505,
           "declaration": "newFactory"
         },
         {

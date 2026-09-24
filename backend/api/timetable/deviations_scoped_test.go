@@ -14,9 +14,8 @@ import (
 	apiTest "github.com/moto-nrw/project-phoenix/api/testutil"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,16 +76,18 @@ func doScopedDev(t *testing.T, setup *scopedDevSetup, instanceID int64, body any
 	return apiTest.ExecuteWithAuthPermissions(t, setup.router, req, apiTest.AdminTestClaims(setup.claimsID), []string{permissions.SchedulesManage})
 }
 
-func scopedInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, instanceID int64) []*scheduleModel.InstanceStaff {
+func scopedInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, instanceID int64) []timetable.InstanceStaff {
 	t.Helper()
-	rows, err := timetablesqltest.NewInstanceStaffRepository(db).FindByInstanceID(ctx, instanceID)
+	rows, err := timetableAPI.BoundTimetableRepositories(db).Timetable.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{
+		InstanceIDs: []int64{instanceID}, OrderByCreated: true,
+	})
 	require.NoError(t, err)
 	return rows
 }
 
-func readScopedInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, id int64) *scheduleModel.InstanceStaff {
+func readScopedInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, id int64) timetable.InstanceStaff {
 	t.Helper()
-	row, err := timetablesqltest.NewInstanceStaffRepository(db).FindByID(ctx, id)
+	row, err := timetableAPI.BoundTimetableRepositories(db).Timetable.FindInstanceStaff(ctx, id)
 	require.NoError(t, err)
 	return row
 }
@@ -95,7 +96,7 @@ func TestApplyDeviations_SubstitutionTargetsSelectedInstances(t *testing.T) {
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 
 	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title: "Randstunde", StartHHMM: "08:00", EndHHMM: "09:00",
@@ -133,7 +134,7 @@ func TestApplyDeviations_AbsenceTargetsSelectedInstances(t *testing.T) {
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 
 	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title: "Randstunde", StartHHMM: "08:00", EndHHMM: "09:00",
@@ -160,7 +161,7 @@ func TestApplyDeviations_SelectedCoverageWithAllDayAbsence(t *testing.T) {
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 
 	covered := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title: "Randstunde", StartHHMM: "08:00", EndHHMM: "09:00",
@@ -202,7 +203,7 @@ func TestApplyDeviations_PartiallyAbsentStaffCanCoverAnotherAppointment(t *testi
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 
 	target := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title: "Randstunde", StartHHMM: "08:00", EndHHMM: "09:00",
@@ -230,7 +231,7 @@ func TestApplyDeviations_SameSaveCanAbsenceAndSubstituteStaffOnDifferentAppointm
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 
 	target := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title: "Randstunde", StartHHMM: "08:00", EndHHMM: "09:00",
@@ -262,7 +263,7 @@ func TestApplyDeviations_PresenceTargetsSelectedInstances(t *testing.T) {
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 
 	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title: "Randstunde", StartHHMM: "08:00", EndHHMM: "09:00",
@@ -289,7 +290,7 @@ func TestApplyDeviations_SameStaffCanBePresentAndAbsentOnDifferentAppointments(t
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 
 	restored := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title: "Randstunde", StartHHMM: "08:00", EndHHMM: "09:00",
@@ -320,7 +321,7 @@ func TestApplyDeviations_CannotClearSickAbsence(t *testing.T) {
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title: "Randstunde", StartHHMM: "08:00", EndHHMM: "09:00",
@@ -328,7 +329,7 @@ func TestApplyDeviations_CannotClearSickAbsence(t *testing.T) {
 	row := testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
 	sickAbsenceID := row.ID
 	row.SickAbsenceID = &sickAbsenceID
-	require.NoError(t, timetablesqltest.NewInstanceStaffRepository(s.db).Update(s.ctx, row))
+	require.NoError(t, timetableAPI.BoundTimetableRepositories(s.db).InstanceStaff.Update(s.ctx, row))
 
 	w := doScopedDev(t, s, instance.ID, map[string]any{
 		"presences": []map[string]any{{
@@ -349,7 +350,7 @@ func TestApplyDeviations_RemovesSubstituteOnlyFromSelectedInstances(t *testing.T
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 
 	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title: "Randstunde", StartHHMM: "08:00", EndHHMM: "09:00",
@@ -388,13 +389,13 @@ func TestApplyDeviations_CannotRemoveSickSubstitute(t *testing.T) {
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
 	row := testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffX, testpkg.InstanceStaffOpts{IsSubstitute: true, IsAbsent: true})
 	sickAbsenceID := row.ID
 	row.SickAbsenceID = &sickAbsenceID
-	require.NoError(t, timetablesqltest.NewInstanceStaffRepository(s.db).Update(s.ctx, row))
+	require.NoError(t, timetableAPI.BoundTimetableRepositories(s.db).InstanceStaff.Update(s.ctx, row))
 
 	w := doScopedDev(t, s, instance.ID, map[string]any{
 		"substitution_removals": []map[string]any{{
@@ -416,7 +417,7 @@ func TestApplyDeviations_RejectsSubstituteRemovalWithoutSelectedAssignment(t *te
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	other := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	testpkg.CreateTestInstanceStaff(t, s.db, selected.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
@@ -436,7 +437,7 @@ func TestApplyDeviations_DeduplicatesOverlappingSubstituteRemovals(t *testing.T)
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
 	testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffX, testpkg.InstanceStaffOpts{IsSubstitute: true})
@@ -461,7 +462,7 @@ func TestApplyDeviations_ReplacesSubstituteInOneScopedSave(t *testing.T) {
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
 	testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffX, testpkg.InstanceStaffOpts{IsSubstitute: true})
@@ -485,7 +486,7 @@ func TestApplyDeviations_PartialAbsenceElsewhereDoesNotMakeSelectedBlockUndersta
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 
 	target := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title: "Randstunde", StartHHMM: "08:00", EndHHMM: "09:00",
@@ -521,7 +522,7 @@ func TestApplyDeviations_RejectsEmptyAppointmentScope(t *testing.T) {
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	row := testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffA, testpkg.InstanceStaffOpts{})
 
@@ -539,10 +540,10 @@ func TestApplyDeviations_RejectsTerminalAppointmentInExplicitScope(t *testing.T)
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	terminal := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
-		Status: scheduleModel.InstanceStatusCancelled,
+		Status: timetable.InstanceStatusCancelled,
 	})
 	selectedRow := testpkg.CreateTestInstanceStaff(t, s.db, selected.ID, s.staffA, testpkg.InstanceStaffOpts{})
 	testpkg.CreateTestInstanceStaff(t, s.db, terminal.ID, s.staffA, testpkg.InstanceStaffOpts{})
@@ -562,10 +563,10 @@ func TestApplyDeviations_RejectsAlreadyAbsentTerminalAppointmentInExplicitScope(
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	terminal := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
-		Status: scheduleModel.InstanceStatusCompleted,
+		Status: timetable.InstanceStatusCompleted,
 	})
 	selectedRow := testpkg.CreateTestInstanceStaff(t, s.db, selected.ID, s.staffA, testpkg.InstanceStaffOpts{})
 	testpkg.CreateTestInstanceStaff(t, s.db, terminal.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
@@ -585,10 +586,10 @@ func TestApplyDeviations_RejectsAlreadyPresentTerminalAppointmentInExplicitScope
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	terminal := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
-		Status: scheduleModel.InstanceStatusCancelled,
+		Status: timetable.InstanceStatusCancelled,
 	})
 	selectedRow := testpkg.CreateTestInstanceStaff(t, s.db, selected.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
 	testpkg.CreateTestInstanceStaff(t, s.db, terminal.ID, s.staffA, testpkg.InstanceStaffOpts{})
@@ -608,16 +609,16 @@ func TestApplyDeviations_DayWidePresenceSkipsTerminalSickAbsence(t *testing.T) {
 	t.Parallel()
 
 	s := setupScopedDeviationsRoute(t)
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	planned := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	terminal := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
-		Status: scheduleModel.InstanceStatusCompleted,
+		Status: timetable.InstanceStatusCompleted,
 	})
 	plannedRow := testpkg.CreateTestInstanceStaff(t, s.db, planned.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
 	terminalRow := testpkg.CreateTestInstanceStaff(t, s.db, terminal.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
 	sickAbsenceID := terminalRow.ID
 	terminalRow.SickAbsenceID = &sickAbsenceID
-	require.NoError(t, timetablesqltest.NewInstanceStaffRepository(s.db).Update(s.ctx, terminalRow))
+	require.NoError(t, timetableAPI.BoundTimetableRepositories(s.db).InstanceStaff.Update(s.ctx, terminalRow))
 
 	w := doScopedDev(t, s, planned.ID, map[string]any{
 		"presences": []map[string]any{{"staff_id": s.staffA}},
@@ -627,7 +628,7 @@ func TestApplyDeviations_DayWidePresenceSkipsTerminalSickAbsence(t *testing.T) {
 	assert.True(t, readScopedInstanceStaff(t, s.db, s.ctx, terminalRow.ID).IsAbsent)
 }
 
-func assertStaffState(t *testing.T, rows []*scheduleModel.InstanceStaff, staffID int64, absent, substitute bool) {
+func assertStaffState(t *testing.T, rows []timetable.InstanceStaff, staffID int64, absent, substitute bool) {
 	t.Helper()
 	for _, row := range rows {
 		if row.StaffID == staffID {
@@ -639,7 +640,7 @@ func assertStaffState(t *testing.T, rows []*scheduleModel.InstanceStaff, staffID
 	t.Fatalf("staff %d missing", staffID)
 }
 
-func assertStaffMissing(t *testing.T, rows []*scheduleModel.InstanceStaff, staffID int64) {
+func assertStaffMissing(t *testing.T, rows []timetable.InstanceStaff, staffID int64) {
 	t.Helper()
 	for _, row := range rows {
 		if row.StaffID == staffID {

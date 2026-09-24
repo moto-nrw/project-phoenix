@@ -16,10 +16,10 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -57,7 +57,7 @@ func buildParticipantsSetup(t *testing.T) *participantsSetup {
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("PT-Room-%d", suffix))
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("PT-Act-%d", suffix))
 
-	inst := testpkg.CreateTestActivityInstance(t, db, timezone.NewDate(2026, 4, 22), room.ID, testpkg.ActivityInstanceOpts{
+	inst := testpkg.CreateTestActivityInstance(t, db, calendar.NewDate(2026, 4, 22), room.ID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID: &activity.ID,
 		StartHHMM:       "14:00",
 		EndHHMM:         "15:00",
@@ -78,7 +78,7 @@ func buildParticipantsSetup(t *testing.T) *participantsSetup {
 
 	for i, name := range []struct{ first, last string }{{"Anna", "Alpha"}, {"Ben", "Beta"}} {
 		student := testpkg.CreateTestStudent(t, db, name.first, fmt.Sprintf("%s-%d", name.last, suffix), fmt.Sprintf("%da", i+1))
-		row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, student.ID, schedule.AttendanceStatusExpected)
+		row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, student.ID, timetable.SlotAttendanceExpected)
 		setup.students = append(setup.students, &participantFixture{
 			studentID: student.ID,
 			rowID:     row.ID,

@@ -15,8 +15,8 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // StaffPoolAssignmentResponse is one overlapping same-day assignment of a
@@ -100,8 +100,8 @@ func staffPoolResponseOf(pool timetable.StaffPool) StaffPoolResponse {
 		InstanceID:      pool.InstanceID,
 		Title:           pool.Title,
 		Date:            pool.Date.String(),
-		StartTime:       timezone.NormalizeWallClock(pool.StartTime).Format("15:04"),
-		EndTime:         timezone.NormalizeWallClock(pool.EndTime).Format("15:04"),
+		StartTime:       calendar.NormalizeWallClock(pool.StartTime).Format("15:04"),
+		EndTime:         calendar.NormalizeWallClock(pool.EndTime).Format("15:04"),
 		DienstplanInUse: pool.DienstplanInUse,
 		Entries:         entries,
 	}

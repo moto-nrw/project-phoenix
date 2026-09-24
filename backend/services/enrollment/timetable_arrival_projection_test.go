@@ -16,7 +16,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -33,7 +32,7 @@ func timetableDataWithArrivalBaseline(
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: env.db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	data, err := arrivalTimetable.NewTimetableData(arrivalTimetable.TimetableDataDependencies{
-		Instances:         timetablesqltest.NewActivityInstanceRepository(env.db),
+		Instances:         env.repos.ActivityInstance,
 		InstanceStaff:     env.repos.InstanceStaff,
 		Participants:      env.repos.InstanceStudent,
 		PickupExceptions:  env.repos.StudentPickupException,
@@ -113,10 +112,10 @@ func exceptionConflictsWithArrivalBaseline(
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: env.db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	detection, err := arrivalTimetable.NewConflictDetection(arrivalTimetable.ConflictDetectionDependencies{
-		Instances:         timetablesqltest.NewActivityInstanceRepository(env.db),
+		Instances:         env.repos.ActivityInstance,
 		InstanceStaff:     env.repos.InstanceStaff,
 		InstanceStudents:  env.repos.InstanceStudent,
-		Exceptions:        timetablesqltest.NewActivityExceptionRepository(env.db),
+		Exceptions:        env.repos.ActivityException,
 		Schedules:         env.repos.ActivitySchedule,
 		Shifts:            unusedConflictShifts{},
 		Staff:             env.repos.Staff,
@@ -265,7 +264,7 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 	}
 	exception.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, exception.Validate())
-	require.NoError(t, timetablesqltest.NewActivityExceptionRepository(env.db).Create(ctx, exception))
+	require.NoError(t, env.repos.ActivityException.Create(ctx, exception))
 
 	conflicts, err := exceptionConflictsWithArrivalBaseline(t, env, true).DetectExceptionConflicts(ctx, monday, monday)
 	require.NoError(t, err)
@@ -347,5 +346,5 @@ func createModifiedException(
 	}
 	exception.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, exception.Validate())
-	require.NoError(t, timetablesqltest.NewActivityExceptionRepository(env.db).Create(testpkg.Ctx(t), exception))
+	require.NoError(t, env.repos.ActivityException.Create(testpkg.Ctx(t), exception))
 }

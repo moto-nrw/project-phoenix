@@ -14,20 +14,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -104,8 +100,8 @@ type Dependencies struct {
 	ClosingDays             ClosingDays
 	CalendarPeriodUsage     CalendarPeriodUsage
 	MaterializationService  timetable.MaterializationCapability
-	InstanceService         timetableplanning.InstanceService
-	InstanceSeriesConverter timetableplanning.InstanceSeriesConverter
+	InstanceService         timetable.InstanceLifecycleCapability
+	InstanceSeriesConverter timetable.InstanceSeriesConversion
 	OperationsService       timetable.OperationCapability
 	PersonService           userSvc.PersonService
 	// Templates are the Timetable owner's template writes including split
@@ -137,10 +133,12 @@ type Dependencies struct {
 	// PickupExtensions serves the open block decisions for later pickup
 	// times (#3261).
 	PickupExtensions timetable.PickupExtensionCapability
-	Broadcaster      realtime.Broadcaster
-	Logger           *slog.Logger
-	DB               *bun.DB
-	Now              func() time.Time
+	// Staffing wakes the tenant's open staff pages after a staffing save
+	// commits (#1844); nil sends nothing.
+	Staffing StaffingAnnouncer
+	Logger   *slog.Logger
+	DB       *bun.DB
+	Now      func() time.Time
 }
 
 // NewResource creates a new timetable resource from the given Dependencies.
@@ -148,13 +146,13 @@ type Dependencies struct {
 // 500 at request time if one of its deps is unset.
 func NewResource(deps Dependencies) *Resource {
 	if deps.Now == nil {
-		deps.Now = timezone.Now
+		deps.Now = calendar.Now
 	}
 	return &Resource{Dependencies: deps}
 }
 
-func (rs *Resource) todayDate() timezone.Date {
-	return timezone.DateFromTime(rs.Now())
+func (rs *Resource) todayDate() calendar.Date {
+	return calendar.DateFromTime(rs.Now())
 }
 
 // Router returns a configured router for timetable endpoints
@@ -466,7 +464,7 @@ func (req *CalendarPeriodRequest) Bind(_ *http.Request) error {
 	if req.PeriodType == "" {
 		return errors.New("period_type is required")
 	}
-	if !schedule.IsValidPeriodType(req.PeriodType) {
+	if !schoolcalendar.IsValidPeriodType(req.PeriodType) {
 		return errors.New("invalid period_type, must be one of: school_year, semester, holiday, custom")
 	}
 	if req.StartDate == "" {
@@ -543,25 +541,25 @@ func mapPeriodToResponse(p schoolcalendar.CalendarPeriod) CalendarPeriodResponse
 
 // parseDates extracts start_date, end_date, and optional week_cycle_anchor from a request.
 // Returns parsed calendar dates and true on success, or renders an error and returns false.
-func parseDates(w http.ResponseWriter, r *http.Request, req *CalendarPeriodRequest) (startDate, endDate timezone.Date, anchor *timezone.Date, ok bool) {
+func parseDates(w http.ResponseWriter, r *http.Request, req *CalendarPeriodRequest) (startDate, endDate calendar.Date, anchor *calendar.Date, ok bool) {
 	var err error
-	startDate, err = timezone.ParseDate(req.StartDate)
+	startDate, err = calendar.ParseDate(req.StartDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid start_date format, expected YYYY-MM-DD")))
-		return timezone.Date(""), timezone.Date(""), nil, false
+		return calendar.Date(""), calendar.Date(""), nil, false
 	}
 
-	endDate, err = timezone.ParseDate(req.EndDate)
+	endDate, err = calendar.ParseDate(req.EndDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid end_date format, expected YYYY-MM-DD")))
-		return timezone.Date(""), timezone.Date(""), nil, false
+		return calendar.Date(""), calendar.Date(""), nil, false
 	}
 
 	if req.WeekCycleAnchor != nil {
-		a, err := timezone.ParseDate(*req.WeekCycleAnchor)
+		a, err := calendar.ParseDate(*req.WeekCycleAnchor)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid week_cycle_anchor format, expected YYYY-MM-DD")))
-			return timezone.Date(""), timezone.Date(""), nil, false
+			return calendar.Date(""), calendar.Date(""), nil, false
 		}
 		anchor = &a
 	}
@@ -571,7 +569,7 @@ func parseDates(w http.ResponseWriter, r *http.Request, req *CalendarPeriodReque
 
 // periodFieldsFromRequest renders the validated request as the calendar's
 // writable period fields.
-func periodFieldsFromRequest(req *CalendarPeriodRequest, startDate, endDate timezone.Date, anchor *timezone.Date) schoolcalendar.CalendarPeriodFields {
+func periodFieldsFromRequest(req *CalendarPeriodRequest, startDate, endDate calendar.Date, anchor *calendar.Date) schoolcalendar.CalendarPeriodFields {
 	fields := schoolcalendar.CalendarPeriodFields{
 		Name:            req.Name,
 		PeriodType:      req.PeriodType,
@@ -588,7 +586,7 @@ func periodFieldsFromRequest(req *CalendarPeriodRequest, startDate, endDate time
 
 // validatePeriodRules checks business rules after dates have been parsed.
 // Returns true on success, or renders an error and returns false.
-func validatePeriodRules(w http.ResponseWriter, r *http.Request, req *CalendarPeriodRequest, startDate, endDate timezone.Date, anchor *timezone.Date) bool {
+func validatePeriodRules(w http.ResponseWriter, r *http.Request, req *CalendarPeriodRequest, startDate, endDate calendar.Date, anchor *calendar.Date) bool {
 	if !endDate.After(startDate) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("end_date must be after start_date")))
 		return false
@@ -872,8 +870,7 @@ func isCalendarPeriodRosterDeleteConflict(err error) bool {
 		return false
 	}
 
-	if base.IsUniqueViolationOn(err, "idx_student_enrollments_active") ||
-		base.IsUniqueViolationOn(err, "idx_supervisors_active") {
+	if errors.Is(err, schoolcalendar.ErrCalendarPeriodRosterConflict) {
 		return true
 	}
 
@@ -913,7 +910,7 @@ func (rs *Resource) enforcePlannedEnd(ctx context.Context) (bool, error) {
 	}
 	enforce, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyTimetableEnforcePlannedEnd)
 	if err != nil {
-		return false, fmt.Errorf("%w: resolve planned end policy: %v", timetableplanning.ErrLifecycleSettings, err)
+		return false, fmt.Errorf("%w: resolve planned end policy: %v", timetable.ErrLifecycleSettings, err)
 	}
 	return enforce, nil
 }

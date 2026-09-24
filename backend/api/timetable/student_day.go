@@ -22,21 +22,19 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // isoWeekday returns 1..7 (Mon..Sun) for the weekday of d.
-func isoWeekday(d timezone.Date) int {
+func isoWeekday(d calendar.Date) int {
 	return int((int(d.Weekday())+6)%7 + 1)
 }
 
 // dateKey formats a calendar date as YYYY-MM-DD for use as a map key.
-func dateKey(d timezone.Date) string { return d.String() }
+func dateKey(d calendar.Date) string { return d.String() }
 
 // getStudentDay handles GET /api/timetable/student/{id}/day.
 func (rs *Resource) getStudentDay(w http.ResponseWriter, r *http.Request) {
@@ -112,9 +110,9 @@ func (rs *Resource) getStudentWeek(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rangeDays := inclusiveDayCount(from, to)
-	if rangeDays > scheduleModel.MaxTimetableReadRangeDays {
+	if rangeDays > timetable.MaxTimetableReadRangeDays {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
-			fmt.Errorf("date range exceeds maximum of %d days", scheduleModel.MaxTimetableReadRangeDays)))
+			fmt.Errorf("date range exceeds maximum of %d days", timetable.MaxTimetableReadRangeDays)))
 		return
 	}
 
@@ -170,7 +168,7 @@ func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request
 
 	student, err := rs.PersonService.GetStudentByID(ctx, studentID)
 	if err != nil {
-		if base.IsNoRows(err) {
+		if common.IsNotFound(err) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 			return nil, false
 		}
@@ -221,7 +219,7 @@ func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request
 //
 // Query count (constant in range length): 1 enrolled + 1 all-instances +
 // 1 visits (if any active groups) + 2 schedules + 2 exceptions = max 7.
-func (rs *Resource) buildStudentDays(ctx context.Context, studentID int64, from, to timezone.Date) ([]StudentDayResponse, error) {
+func (rs *Resource) buildStudentDays(ctx context.Context, studentID int64, from, to calendar.Date) ([]StudentDayResponse, error) {
 	if rs.TimetableData == nil {
 		return nil, errors.New("timetable data service not wired")
 	}
@@ -241,7 +239,7 @@ func (rs *Resource) buildStudentDays(ctx context.Context, studentID int64, from,
 
 // buildStudentDayFromPreload assembles a single day's response from the
 // already-preloaded data. No DB calls.
-func buildStudentDayFromPreload(pre *timetable.StudentWeek, studentID int64, date timezone.Date) StudentDayResponse {
+func buildStudentDayFromPreload(pre *timetable.StudentWeek, studentID int64, date calendar.Date) StudentDayResponse {
 	k := dateKey(date)
 
 	enrolledRows := pre.EnrolledByDate[k]
@@ -299,7 +297,7 @@ func appendUnplannedInstances(
 // resolveArrivalSlotFromPreload applies the shared exception-over-schedule rule
 // (ResolveSlotSource) against already-loaded data. An exception on the date
 // wins even when its time is nil (absence signal).
-func resolveArrivalSlotFromPreload(pre *timetable.StudentWeek, date timezone.Date) SlotResponse {
+func resolveArrivalSlotFromPreload(pre *timetable.StudentWeek, date calendar.Date) SlotResponse {
 	times := pre.ArrivalByDate[dateKey(date)]
 	switch timetable.ResolveSlotSource(times.Exception != nil, times.HasSchedule, isoWeekday(date)) {
 	case SlotSourceException:
@@ -312,7 +310,7 @@ func resolveArrivalSlotFromPreload(pre *timetable.StudentWeek, date timezone.Dat
 }
 
 // resolvePickupSlotFromPreload mirrors resolveArrivalSlotFromPreload.
-func resolvePickupSlotFromPreload(pre *timetable.StudentWeek, date timezone.Date) SlotResponse {
+func resolvePickupSlotFromPreload(pre *timetable.StudentWeek, date calendar.Date) SlotResponse {
 	times := pre.PickupByDate[dateKey(date)]
 	switch timetable.ResolveSlotSource(times.Exception != nil, times.HasSchedule, isoWeekday(date)) {
 	case SlotSourceException:

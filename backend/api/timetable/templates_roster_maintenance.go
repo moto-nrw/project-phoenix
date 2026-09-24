@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -100,7 +100,7 @@ func templateHasDynamicTargets(template templateResponse) bool {
 		return true
 	}
 	switch template.TargetGroupType {
-	case activities.TargetGroupTypeJahrgang, activities.TargetGroupTypeKlasse, activities.TargetGroupTypeGruppe:
+	case timetable.TargetGroupTypeGrade, timetable.TargetGroupTypeSchoolClass, timetable.TargetGroupTypeEducationGroup:
 		return true
 	}
 	return false

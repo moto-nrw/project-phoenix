@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -47,7 +46,7 @@ type ActiveTestModule struct {
 	ArrivalSchedule     careplan.ArrivalScheduleService
 	TimetableOperations timetable.OperationCapability
 	CareDay             careplan.CareDayQuery
-	Instance            timetableplanning.InstanceService
+	Instance            *arrivalTimetable.InstanceLifecycleService
 	// Deviations are the Timetable owner's deviation writes over the same
 	// repositories (#3424 slice S3).
 	Deviations           timetable.StaffDeviations
@@ -200,7 +199,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	operationRows := r.OwnerRows()
 	operationRows.Locks = repositories.NewActivityRecoveryRepository(db, r.InstanceStudent)
 	operations, err := newTimetableOperations(timetableOperationInputs{
-		Rows: operationRows, Lifecycle: tt.Instance,
+		Rows: operationRows, Lifecycle: tt.Instance.OperationLifecycle(),
 		Sessions: r.ActiveGroup, Presence: presence,
 		Arrivals: arrivals, Pickups: pickups, CareDays: careDay, Supervisions: r.GroupSupervisor, Visits: newStudentPresence(db, logger),
 		People: timetableOperationPeople{OperationPeople: data.Users, membership: membership}, PlanningTracks: r.Timetable,

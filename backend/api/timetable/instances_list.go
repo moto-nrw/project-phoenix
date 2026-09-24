@@ -24,11 +24,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // maxInstanceListRangeDays caps the /instances list window. 56 days = 8 weeks
@@ -275,9 +275,9 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) resolveCareDays(
 	ctx context.Context,
 	instances []timetable.ScheduledInstance,
-	from, to timezone.Date,
-) (map[int64]map[timezone.Date]careplan.CareDayStatus, error) {
-	empty := map[int64]map[timezone.Date]careplan.CareDayStatus{}
+	from, to calendar.Date,
+) (map[int64]map[calendar.Date]careplan.CareDayStatus, error) {
+	empty := map[int64]map[calendar.Date]careplan.CareDayStatus{}
 	if rs.CareDayService == nil || rs.TimetableData == nil || len(instances) == 0 {
 		return empty, nil
 	}
@@ -352,7 +352,7 @@ func (rs *Resource) enrichWrittenInstance(ctx context.Context, instanceID int64)
 func instanceStudentCareDay(
 	inst timetable.ScheduledInstance,
 	row timetable.ScheduledParticipant,
-	careDays map[int64]map[timezone.Date]careplan.CareDayStatus,
+	careDays map[int64]map[calendar.Date]careplan.CareDayStatus,
 ) careplan.CareDayStatus {
 	return careplan.AttendanceRowCareDay(
 		inst.Status == timetable.InstanceStatusCompleted, &careplan.CareDayAttendance{Expected: row.Status == timetable.SlotAttendanceExpected, NotScheduled: row.NotScheduled, ManuallyDecided: row.ManualStatusAt != nil, PlanOwnedAbsence: row.StudentStatusDayID != nil || row.PickupExceptionID != nil},
@@ -376,7 +376,7 @@ type instanceAttendanceSummary struct {
 func summarizeInstanceStudents(
 	inst timetable.ScheduledInstance,
 	studentRows []timetable.ScheduledParticipant,
-	careDays map[int64]map[timezone.Date]careplan.CareDayStatus,
+	careDays map[int64]map[calendar.Date]careplan.CareDayStatus,
 	pickupCutoffs map[int64]time.Time,
 ) instanceAttendanceSummary {
 	out := instanceAttendanceSummary{
@@ -453,7 +453,7 @@ func (rs *Resource) enrichInstances(
 	planningTrackCache map[int64]*timetable.PlanningTrack,
 	offeringSourceCache map[int64][]enrollmentSvc.OfferingSourceOption,
 	childrenPerStaffRatio int,
-	careDays map[int64]map[timezone.Date]careplan.CareDayStatus,
+	careDays map[int64]map[calendar.Date]careplan.CareDayStatus,
 ) ([]enrichedInstance, []timetable.WindowConflictBlock, error) {
 	rows, err := rs.TimetableData.ListScheduledInstanceRows(ctx, instances)
 	if err != nil {
@@ -518,8 +518,8 @@ func earlyPickupWithin(
 	if !ok {
 		return nil
 	}
-	start := timezone.NormalizeWallClock(inst.StartTime)
-	end := timezone.NormalizeWallClock(inst.EndTime)
+	start := calendar.NormalizeWallClock(inst.StartTime)
+	end := calendar.NormalizeWallClock(inst.EndTime)
 	if cutoff.After(start) && cutoff.Before(end) {
 		formatted := cutoff.Format("15:04")
 		return &formatted
@@ -539,7 +539,7 @@ func (rs *Resource) enrichInstance(
 	planningTrackCache map[int64]*timetable.PlanningTrack,
 	offeringSourceCache map[int64][]enrollmentSvc.OfferingSourceOption,
 	childrenPerStaffRatio int,
-	careDays map[int64]map[timezone.Date]careplan.CareDayStatus,
+	careDays map[int64]map[calendar.Date]careplan.CareDayStatus,
 ) (enrichedInstance, []timetable.InstanceStaff, []timetable.ScheduledParticipant, error) {
 	roomName := rs.lookupRoomName(ctx, inst.RoomID, roomCache)
 	meta := rs.lookupTemplateMeta(ctx, inst.ActivityGroupID, metaCache, planningTrackCache)

@@ -23,51 +23,48 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/uptrace/bun"
 )
 
 type TimetableTestRepositories struct {
-	enrollment                *enrollmentCapability.Module
-	schoolCalendar            schoolcalendar.Calendar
-	calendarPeriodUsage       *timetableCompose.CalendarPeriodUsageRepository
-	Timetable                 timetable.Capability
-	ActivityGroup             activitiesModels.GroupRepository
-	ActivityCategory          activitiesModels.CategoryRepository
-	ActivitySchedule          activitiesModels.ScheduleRepository
-	ActivitySupervisor        activitiesModels.SupervisorPlannedRepository
-	StudentEnrollment         activitiesModels.StudentEnrollmentRepository
-	StaffShift                *workforceCompose.ShiftRows
-	StaffShiftSeries          *workforceCompose.ShiftSeriesRows
-	StaffShiftSeriesException *workforceCompose.ShiftSeriesExceptionRows
-	ShiftType                 *workforceCompose.ShiftTypeRows
-	PlanningTrack             scheduleModels.PlanningTrackRepository
-	ActivityInstance          scheduleModels.ActivityInstanceRepository
-	InstanceIdempotency       scheduleModels.InstanceIdempotencyRepository
-	InstanceStaff             scheduleModels.InstanceStaffRepository
-	InstanceStudent           scheduleModels.InstanceStudentRepository
-	ActivityException         scheduleModels.ActivityExceptionRepository
-	Timeframe                 scheduleModels.TimeframeRepository
-	RecurrenceRule            scheduleModels.RecurrenceRuleRepository
-	CalendarPeriod            scheduleModels.CalendarPeriodRepository
-	ClosingDay                scheduleModels.ClosingDayRepository
-	Dateframe                 scheduleModels.DateframeRepository
-	Staff                     usersModels.StaffRepository
-	Teacher                   usersModels.TeacherRepository
-	ClassTeacher              educationModels.ClassTeacherRepository
-	GroupTeacher              educationModels.GroupTeacherRepository
-	Person                    usersModels.PersonRepository
-	Student                   usersModels.StudentRepository
-	Group                     educationModels.GroupRepository
-	ActiveGroup               studentpresence.SessionRecords
-	GroupSupervisor           studentpresence.SupervisionRecords
-	StudentArrivalSchedule    scheduleModels.StudentArrivalScheduleRepository
-	StudentArrivalException   scheduleModels.StudentArrivalExceptionRepository
-	StudentArrivalNote        scheduleModels.StudentArrivalNoteRepository
-	StudentPickupSchedule     scheduleModels.StudentPickupScheduleRepository
-	StudentPickupException    scheduleModels.StudentPickupExceptionRepository
-	StudentPickupNote         scheduleModels.StudentPickupNoteRepository
-	StudentStatusDay          *StudentStatusDayRepository
+	enrollment              *enrollmentCapability.Module
+	schoolCalendar          schoolcalendar.Calendar
+	calendarPeriodUsage     *timetableCompose.CalendarPeriodUsageRepository
+	Timetable               timetable.Capability
+	ActivityGroup           activitiesModels.GroupRepository
+	ActivityCategory        activitiesModels.CategoryRepository
+	ActivitySchedule        activitiesModels.ScheduleRepository
+	ActivitySupervisor      activitiesModels.SupervisorPlannedRepository
+	StudentEnrollment       activitiesModels.StudentEnrollmentRepository
+	StaffShift              *WorkforceShiftRows
+	ShiftType               *WorkforceShiftTypeRows
+	PlanningTrack           scheduleModels.PlanningTrackRepository
+	ActivityInstance        scheduleModels.ActivityInstanceRepository
+	InstanceIdempotency     scheduleModels.InstanceIdempotencyRepository
+	InstanceStaff           scheduleModels.InstanceStaffRepository
+	InstanceStudent         scheduleModels.InstanceStudentRepository
+	ActivityException       scheduleModels.ActivityExceptionRepository
+	Timeframe               scheduleModels.TimeframeRepository
+	RecurrenceRule          scheduleModels.RecurrenceRuleRepository
+	CalendarPeriod          scheduleModels.CalendarPeriodRepository
+	ClosingDay              scheduleModels.ClosingDayRepository
+	Dateframe               scheduleModels.DateframeRepository
+	Staff                   usersModels.StaffRepository
+	Teacher                 usersModels.TeacherRepository
+	ClassTeacher            educationModels.ClassTeacherRepository
+	GroupTeacher            educationModels.GroupTeacherRepository
+	Person                  usersModels.PersonRepository
+	Student                 usersModels.StudentRepository
+	Group                   educationModels.GroupRepository
+	ActiveGroup             studentpresence.SessionRecords
+	GroupSupervisor         studentpresence.SupervisionRecords
+	StudentArrivalSchedule  scheduleModels.StudentArrivalScheduleRepository
+	StudentArrivalException scheduleModels.StudentArrivalExceptionRepository
+	StudentArrivalNote      scheduleModels.StudentArrivalNoteRepository
+	StudentPickupSchedule   scheduleModels.StudentPickupScheduleRepository
+	StudentPickupException  scheduleModels.StudentPickupExceptionRepository
+	StudentPickupNote       scheduleModels.StudentPickupNoteRepository
+	StudentStatusDay        *StudentStatusDayRepository
 	// CarePlan is the owner capability the schedule adapters above delegate to.
 	CarePlan              careplan.Capability
 	Room                  facilitiesModels.RoomRepository
@@ -150,12 +147,10 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	result := timetableTestRepositories(repos)
 	result.Timetable = bookings
 	// The Dienstplan rows belong to Workforce (#2689); suites that still
-	// speak the retained rows reach them through the compose adapters
+	// speak the retained rows reach them through the legacy row adapters
 	// over the one facade (#3418).
-	result.StaffShift = workforceCompose.NewShiftRows(workTime)
-	result.StaffShiftSeries = workforceCompose.NewShiftSeriesRows(workTime)
-	result.StaffShiftSeriesException = workforceCompose.NewShiftSeriesExceptionRows(workTime)
-	result.ShiftType = workforceCompose.NewShiftTypeRows(workTime)
+	result.StaffShift = NewWorkforceShiftRows(workTime)
+	result.ShiftType = NewWorkforceShiftTypeRows(workTime)
 	return result, nil
 }
 

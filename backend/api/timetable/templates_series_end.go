@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Optional series end (#3594): a series may stop before its planning period
@@ -15,7 +15,7 @@ import (
 // after it. It is not a schedule valid_until, which marks a capped segment.
 
 // parseSeriesEndDate reads an end_date value (YYYY-MM-DD).
-func parseSeriesEndDate(w http.ResponseWriter, r *http.Request, raw *string) (*timezone.Date, bool) {
+func parseSeriesEndDate(w http.ResponseWriter, r *http.Request, raw *string) (*calendar.Date, bool) {
 	if raw == nil || *raw == "" {
 		return nil, true
 	}
@@ -33,14 +33,14 @@ func parseSeriesEndDate(w http.ResponseWriter, r *http.Request, raw *string) (*t
 func (rs *Resource) validateSeriesEnd(
 	w http.ResponseWriter,
 	r *http.Request,
-	lastDay *timezone.Date,
-	firstDay timezone.Date,
+	lastDay *calendar.Date,
+	firstDay calendar.Date,
 	calendarPeriodID *int64,
 ) bool {
 	if lastDay == nil {
 		return true
 	}
-	var periodEnd *timezone.Date
+	var periodEnd *calendar.Date
 	if calendarPeriodID != nil {
 		if rs.CalendarPeriods == nil {
 			common.RenderError(w, r, common.ErrorInternalServer(errors.New("calendar period service not wired")))
@@ -51,7 +51,7 @@ func (rs *Resource) validateSeriesEnd(
 			renderTemplatePeriodLookupError(w, r, err)
 			return false
 		}
-		end := timezone.Date(period.EndDate)
+		end := calendar.Date(period.EndDate)
 		periodEnd = &end
 	}
 	if err := timetableModule.ValidateSeriesLastDay(*lastDay, firstDay, periodEnd); err != nil {
@@ -62,7 +62,7 @@ func (rs *Resource) validateSeriesEnd(
 }
 
 // seriesLastDayString is the stored form of a validated last day.
-func seriesLastDayString(lastDay *timezone.Date) *string {
+func seriesLastDayString(lastDay *calendar.Date) *string {
 	if lastDay == nil {
 		return nil
 	}
@@ -77,16 +77,16 @@ func seriesLastDayString(lastDay *timezone.Date) *string {
 // series start; a later split day must not reject a valid last day. A row
 // without valid_from starts with the planning period and so precedes every
 // split — it leaves no lower bound beyond the period itself.
-func updateSeriesFirstDay(start *timezone.Date, stored templateResponse) timezone.Date {
+func updateSeriesFirstDay(start *calendar.Date, stored templateResponse) calendar.Date {
 	if start != nil {
 		return *start
 	}
-	earliest := timezone.Date("")
+	earliest := calendar.Date("")
 	for _, schedule := range stored.Schedules {
 		if schedule.ValidFrom == "" {
-			return timezone.Date("")
+			return calendar.Date("")
 		}
-		validFrom := timezone.Date(schedule.ValidFrom)
+		validFrom := calendar.Date(schedule.ValidFrom)
 		if earliest.IsZero() || validFrom.Before(earliest) {
 			earliest = validFrom
 		}

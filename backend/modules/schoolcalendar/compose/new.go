@@ -442,6 +442,9 @@ func mapError(err error) error {
 		// The cause stays in the chain on purpose: callers that classify the
 		// collision by constraint name keep working.
 		return fmt.Errorf("%w: %w", schoolcalendar.ErrCalendarPeriodNameConflict, err)
+	case errors.Is(err, domain.ErrCalendarPeriodRosterConflict):
+		// The storage error stays in the chain, as for the name conflict.
+		return fmt.Errorf("%w: %w", schoolcalendar.ErrCalendarPeriodRosterConflict, err)
 	case errors.Is(err, domain.ErrCalendarPeriodOverlapConflict):
 		var overlap *domain.CalendarPeriodOverlapError
 		if errors.As(err, &overlap) {

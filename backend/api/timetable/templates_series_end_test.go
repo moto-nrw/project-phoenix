@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // A series may end before its planning period (#3594): the planner names the
@@ -114,7 +114,7 @@ func TestTemplateSplitRejectsSeriesEndDate(t *testing.T) {
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 	created := createSourceTemplate(t, router, s, "Tpl-Split-Serienende")
 
-	b := splitBody(s, "Tpl-Split-Serienende-Neu", timezone.TodayDate().AddDays(7))
+	b := splitBody(s, "Tpl-Split-Serienende-Neu", calendar.TodayDate().AddDays(7))
 	b["end_date"] = "2099-01-01"
 	w := doTemplateJSON(t, router, http.MethodPost, fmt.Sprintf("/templates/%d/split", created.TemplateID), b)
 	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
@@ -132,9 +132,9 @@ func TestUpdateSeriesFirstDayUsesEarliestValidFrom(t *testing.T) {
 		{Weekday: 1, ValidFrom: "2026-10-19"},
 		{Weekday: 3, ValidFrom: "2026-09-01"},
 	}}
-	assert.Equal(t, timezone.Date("2026-09-01"), updateSeriesFirstDay(nil, stored))
+	assert.Equal(t, calendar.Date("2026-09-01"), updateSeriesFirstDay(nil, stored))
 
-	pulled := timezone.Date("2026-08-17")
+	pulled := calendar.Date("2026-08-17")
 	assert.Equal(t, pulled, updateSeriesFirstDay(&pulled, stored),
 		"a pulled forward start stays the lower bound")
 

@@ -20,9 +20,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -135,18 +135,18 @@ func TestGetStudentDay_HappyPath_WithScheduleAndEnrolledInstance(t *testing.T) {
 	s := buildStudentDaySetup(t)
 
 	// Create a planned instance on Wed 2026-04-22.
-	inst := testpkg.CreateTestActivityInstance(t, s.db, timezone.NewDate(2026, 4, 22), s.roomID, testpkg.ActivityInstanceOpts{
+	inst := testpkg.CreateTestActivityInstance(t, s.db, calendar.NewDate(2026, 4, 22), s.roomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID: &s.activityID,
 		StartHHMM:       "14:00",
 		EndHHMM:         "15:00",
 		Title:           "Lernzeit-3a",
 	})
 
-	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, s.studentID, schedule.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, s.studentID, timetable.SlotAttendanceExpected)
 
 	// Wednesday is weekday 3 (ISO).
-	testpkg.CreateTestArrivalSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "13:00")
-	testpkg.CreateTestPickupSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "16:00")
+	testpkg.CreateTestArrivalSchedule(t, s.db, s.studentID, timetable.WeekdayWednesday, s.staffID, "13:00")
+	testpkg.CreateTestPickupSchedule(t, s.db, s.studentID, timetable.WeekdayWednesday, s.staffID, "16:00")
 
 	router := adminRouter(t, s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
@@ -177,9 +177,9 @@ func TestGetStudentDay_HappyPath_WithScheduleAndEnrolledInstance(t *testing.T) {
 	assert.Equal(t, "Lernzeit-3a", i.Title)
 	assert.Equal(t, "14:00", i.StartTime)
 	assert.Equal(t, "15:00", i.EndTime)
-	assert.Equal(t, schedule.InstanceStatusPlanned, i.Status)
+	assert.Equal(t, timetable.InstanceStatusPlanned, i.Status)
 	assert.False(t, i.Attendance.IsUnplanned)
-	assert.Equal(t, schedule.AttendanceStatusExpected, i.Attendance.Status)
+	assert.Equal(t, timetable.SlotAttendanceExpected, i.Attendance.Status)
 }
 
 func TestGetStudentDay_ExceptionOverridesSchedule(t *testing.T) {
@@ -187,9 +187,9 @@ func TestGetStudentDay_ExceptionOverridesSchedule(t *testing.T) {
 
 	s := buildStudentDaySetup(t)
 
-	testpkg.CreateTestArrivalSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "13:00")
+	testpkg.CreateTestArrivalSchedule(t, s.db, s.studentID, timetable.WeekdayWednesday, s.staffID, "13:00")
 	testpkg.CreateTestArrivalException(t, s.db, s.studentID,
-		timezone.NewDate(2026, 4, 22), s.staffID, "10:30", "Wandertag")
+		calendar.NewDate(2026, 4, 22), s.staffID, "10:30", "Wandertag")
 
 	router := adminRouter(t, s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
@@ -213,7 +213,7 @@ func TestGetStudentDay_PickupException_NilTimeMeansAbsence(t *testing.T) {
 	// A pickup exception with empty HHMM → PickupTime=NULL = absence for
 	// the day. Source must still be "exception", ExpectedTime must be nil.
 	testpkg.CreateTestPickupException(t, s.db, s.studentID,
-		timezone.NewDate(2026, 4, 22), s.staffID, "", "Krank")
+		calendar.NewDate(2026, 4, 22), s.staffID, "", "Krank")
 
 	router := adminRouter(t, s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/day?date=2026-04-22", s.studentID))
@@ -263,18 +263,18 @@ func TestGetStudentDay_EnrolledPlusVisit_NoDuplicate(t *testing.T) {
 
 	agID := ag.ID
 	inst := testpkg.CreateTestActivityInstance(t, s.db,
-		timezone.NewDate(2026, 4, 22), s.roomID,
+		calendar.NewDate(2026, 4, 22), s.roomID,
 		testpkg.ActivityInstanceOpts{
 			ActivityGroupID: &s.activityID,
 			ActiveGroupID:   &agID,
-			Status:          schedule.InstanceStatusActive,
+			Status:          timetable.InstanceStatusActive,
 			StartHHMM:       "14:00",
 			EndHHMM:         "15:00",
 			Title:           "Enrolled-And-Present",
 		})
 
 	// Both signals: enrolled row AND a visit on the same active_group.
-	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, s.studentID, schedule.AttendanceStatusPresent)
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, s.studentID, timetable.SlotAttendancePresent)
 
 	testpkg.CreateTestVisit(t, s.db, s.studentID, ag.ID,
 		time.Date(2026, 4, 22, 14, 5, 0, 0, time.UTC), nil)
@@ -292,7 +292,7 @@ func TestGetStudentDay_EnrolledPlusVisit_NoDuplicate(t *testing.T) {
 	assert.Equal(t, inst.ID, entry.ID)
 	assert.False(t, entry.Attendance.IsUnplanned,
 		"enrolled row must win over the visit-side path (is_unplanned=false)")
-	assert.Equal(t, schedule.AttendanceStatusPresent, entry.Attendance.Status)
+	assert.Equal(t, timetable.SlotAttendancePresent, entry.Attendance.Status)
 }
 
 // Unplanned scenario: active.visit exists for student on an active
@@ -307,11 +307,11 @@ func TestGetStudentDay_UnplannedStudent(t *testing.T) {
 
 	agID := ag.ID
 	inst := testpkg.CreateTestActivityInstance(t, s.db,
-		timezone.NewDate(2026, 4, 22), s.roomID,
+		calendar.NewDate(2026, 4, 22), s.roomID,
 		testpkg.ActivityInstanceOpts{
 			ActivityGroupID: &s.activityID,
 			ActiveGroupID:   &agID,
-			Status:          schedule.InstanceStatusActive,
+			Status:          timetable.InstanceStatusActive,
 			StartHHMM:       "14:00",
 			EndHHMM:         "15:00",
 			Title:           "Unplanned-Session",
@@ -333,7 +333,7 @@ func TestGetStudentDay_UnplannedStudent(t *testing.T) {
 	entry := got.Instances[0]
 	assert.Equal(t, inst.ID, entry.ID)
 	assert.True(t, entry.Attendance.IsUnplanned, "must flag is_unplanned")
-	assert.Equal(t, schedule.AttendanceStatusPresent, entry.Attendance.Status)
+	assert.Equal(t, timetable.SlotAttendancePresent, entry.Attendance.Status)
 	assert.Nil(t, entry.Attendance.Substatus)
 	assert.Nil(t, entry.Attendance.Note)
 	require.NotNil(t, entry.Attendance.CheckedInAt)

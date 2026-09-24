@@ -11,9 +11,8 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,14 +42,14 @@ func buildSourcedTemplateModule(t *testing.T) *templateSetup {
 // with a different supervisor on each day.
 func sourcedWeekdayStaffBody(s *templateSetup, name string) map[string]any {
 	body := createTemplateBody(s, name)
-	body["target_group_type"] = activitiesModel.TargetGroupTypeAngebot
+	body["target_group_type"] = timetableModule.TargetGroupTypeOffering
 	body["source_care_offering_ids"] = []int64{sourcedOfferingID}
 	body["student_ids"] = []int64{}
 	body["staff_ids"] = []int64{}
 	delete(body, "primary_staff_id")
 	body["weekday_assignments"] = []map[string]any{
-		{"weekday": activitiesModel.WeekdayMonday, "staff_ids": []int64{s.staffA}, "student_ids": []int64{}, "primary_staff_id": s.staffA},
-		{"weekday": activitiesModel.WeekdayWednesday, "staff_ids": []int64{s.staffB}, "student_ids": []int64{}},
+		{"weekday": timetableModule.WeekdayMonday, "staff_ids": []int64{s.staffA}, "student_ids": []int64{}, "primary_staff_id": s.staffA},
+		{"weekday": timetableModule.WeekdayWednesday, "staff_ids": []int64{s.staffB}, "student_ids": []int64{}},
 	}
 	return body
 }
@@ -79,11 +78,11 @@ func TestTemplateOfferingSource_WeekdayStaffRoundTripsThroughCreateUpdateSplit(t
 	got := decodeTemplateData[templateResponse](t, getW)
 	assert.Equal(t, []int64{sourcedOfferingID}, got.SourceCareOfferingIDs)
 	require.Len(t, got.WeekdayAssignments, 2, "reopening the editor must show the per-weekday staffing")
-	assert.Equal(t, activitiesModel.WeekdayMonday, got.WeekdayAssignments[0].Weekday)
+	assert.Equal(t, timetableModule.WeekdayMonday, got.WeekdayAssignments[0].Weekday)
 	assert.Equal(t, []int64{s.staffA}, got.WeekdayAssignments[0].StaffIDs)
 	require.NotNil(t, got.WeekdayAssignments[0].PrimaryStaffID)
 	assert.Equal(t, s.staffA, *got.WeekdayAssignments[0].PrimaryStaffID)
-	assert.Equal(t, activitiesModel.WeekdayWednesday, got.WeekdayAssignments[1].Weekday)
+	assert.Equal(t, timetableModule.WeekdayWednesday, got.WeekdayAssignments[1].Weekday)
 	assert.Equal(t, []int64{s.staffB}, got.WeekdayAssignments[1].StaffIDs)
 
 	updateW := doTemplateJSON(t, router, http.MethodPut,
@@ -91,7 +90,7 @@ func TestTemplateOfferingSource_WeekdayStaffRoundTripsThroughCreateUpdateSplit(t
 	require.Equal(t, http.StatusOK, updateW.Code, "body=%s", updateW.Body.String())
 
 	splitReq := sourcedWeekdayStaffBody(s, "Tpl-Randstunde")
-	splitReq["effective_date"] = timezone.NewDate(2026, 8, 31).String()
+	splitReq["effective_date"] = calendar.NewDate(2026, 8, 31).String()
 	splitW := doTemplateJSON(t, router, http.MethodPost,
 		fmt.Sprintf("/templates/%d/split", created.TemplateID), splitReq)
 	require.Equal(t, http.StatusOK, splitW.Code, "body=%s", splitW.Body.String())
@@ -109,7 +108,7 @@ func TestTemplateOfferingSource_WeekdayChildrenAreRejected(t *testing.T) {
 	created := decodeTemplateData[createTemplateResponse](t, createW)
 
 	splitReq := withWeekdayChild(sourcedWeekdayStaffBody(s, "Tpl-Randstunde-Kinder"), s.studentA)
-	splitReq["effective_date"] = timezone.NewDate(2026, 8, 31).String()
+	splitReq["effective_date"] = calendar.NewDate(2026, 8, 31).String()
 
 	for _, tc := range []struct {
 		name   string

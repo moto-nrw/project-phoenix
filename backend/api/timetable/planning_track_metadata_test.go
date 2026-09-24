@@ -3,8 +3,6 @@ package timetable
 import (
 	"testing"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -18,7 +16,7 @@ func TestTemplateResponseIncludesPlanningTrackMetadata(t *testing.T) {
 	response := templateResponseFromRow(templateRow{TemplateListRow: timetable.TemplateListRow{
 		TemplateID:         41,
 		Name:               "Lernzeit",
-		Type:               activitiesModel.GroupTypeCare,
+		Type:               timetable.GroupTypeCare,
 		CategoryID:         9,
 		CategoryName:       "Lernzeit",
 		PlanningTrackID:    testpkg.Int64Ptr(7),
@@ -41,9 +39,9 @@ func TestInstanceMetadataResolvesPlanningTrackThroughTemplate(t *testing.T) {
 	scope := testpkg.NewTenantScope(t, db)
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, scope.TenantID, "Track metadata")
 	repos := mustTimetableTestRepositories(db)
-	track := &scheduleModel.PlanningTrack{Name: "Mittag", Color: "#F78C10", SortOrder: 3}
-	require.NoError(t, repos.PlanningTrack.Create(scope.Context(), track))
-	_, err := db.NewUpdate().Table("activities.groups").
+	track, err := repos.Timetable.CreatePlanningTrack(scope.Context(), timetable.PlanningTrackInput{Name: "Mittag", Color: "#F78C10", SortOrder: 3})
+	require.NoError(t, err)
+	_, err = db.NewUpdate().Table("activities.groups").
 		Set("planning_track_id = ?", track.ID).
 		Where("tenant_id = ?", scope.TenantID).
 		Where("id = ?", group.ID).

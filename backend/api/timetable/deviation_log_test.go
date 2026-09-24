@@ -11,10 +11,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -156,7 +156,7 @@ func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Active-Inst",
-		Status:        scheduleModel.InstanceStatusActive,
+		Status:        timetable.InstanceStatusActive,
 		ActiveGroupID: &ag.ID,
 	})
 
@@ -166,7 +166,7 @@ func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 		StaffID:   s.staffA,
 		GroupID:   ag.ID,
 		Role:      "supervisor",
-		StartDate: timezone.DateFromTime(now).String(),
+		StartDate: calendar.DateFromTime(now).String(),
 	}
 	require.NoError(t, sessions.CreateSupervision(s.ctx, absentSup))
 

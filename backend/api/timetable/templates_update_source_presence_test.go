@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // These tests pin the presence contract of the offering-source fields on the
@@ -96,7 +96,7 @@ func TestUpdateTemplateBind_DefersSourceValidationUntilMerge(t *testing.T) {
 
 func sourcedExistingTemplate(offeringIDs []int64, gradeLevels []int) templateResponse {
 	return templateResponse{
-		TargetGroupType:       activitiesModel.TargetGroupTypeAngebot,
+		TargetGroupType:       timetableModule.TargetGroupTypeOffering,
 		SourceCareOfferingIDs: offeringIDs,
 		SourceGradeLevels:     gradeLevels,
 	}
@@ -108,7 +108,7 @@ func TestApplyOfferingSourcePresence(t *testing.T) {
 	storedOfferingIDs := []int64{41, 43}
 
 	t.Run("omitted fields carry the stored sources and filter", func(t *testing.T) {
-		req := &updateTemplateRequest{TargetGroupType: activitiesModel.TargetGroupTypeAngebot}
+		req := &updateTemplateRequest{TargetGroupType: timetableModule.TargetGroupTypeOffering}
 		applyOfferingSourcePresence(req, sourcedExistingTemplate(storedOfferingIDs, []int{1, 2}))
 		assert.Equal(t, storedOfferingIDs, req.SourceCareOfferingIDs.Value)
 		assert.Equal(t, []int{1, 2}, req.SourceGradeLevels.Value)
@@ -116,7 +116,7 @@ func TestApplyOfferingSourcePresence(t *testing.T) {
 
 	t.Run("explicit null clears sources and drags the omitted filter along", func(t *testing.T) {
 		req := &updateTemplateRequest{
-			TargetGroupType:       activitiesModel.TargetGroupTypeAngebot,
+			TargetGroupType:       timetableModule.TargetGroupTypeOffering,
 			SourceCareOfferingIDs: nullableInt64Slice{Set: true, Value: nil},
 		}
 		applyOfferingSourcePresence(req, sourcedExistingTemplate(storedOfferingIDs, []int{1, 2}))
@@ -127,7 +127,7 @@ func TestApplyOfferingSourcePresence(t *testing.T) {
 
 	t.Run("provided values win over the stored ones", func(t *testing.T) {
 		req := &updateTemplateRequest{
-			TargetGroupType:       activitiesModel.TargetGroupTypeAngebot,
+			TargetGroupType:       timetableModule.TargetGroupTypeOffering,
 			SourceCareOfferingIDs: nullableInt64Slice{Set: true, Value: []int64{44}},
 			SourceGradeLevels:     nullableIntSlice{Set: true, Value: []int{4}},
 		}
@@ -138,7 +138,7 @@ func TestApplyOfferingSourcePresence(t *testing.T) {
 
 	t.Run("omitted filter follows a provided source", func(t *testing.T) {
 		req := &updateTemplateRequest{
-			TargetGroupType:       activitiesModel.TargetGroupTypeAngebot,
+			TargetGroupType:       timetableModule.TargetGroupTypeOffering,
 			SourceCareOfferingIDs: nullableInt64Slice{Set: true, Value: []int64{44}},
 		}
 		applyOfferingSourcePresence(req, sourcedExistingTemplate(storedOfferingIDs, []int{1, 2}))
@@ -146,7 +146,7 @@ func TestApplyOfferingSourcePresence(t *testing.T) {
 	})
 
 	t.Run("leaving the angebot Zielgruppe drops the rule instead of carrying it", func(t *testing.T) {
-		req := &updateTemplateRequest{TargetGroupType: activitiesModel.TargetGroupTypeKlasse}
+		req := &updateTemplateRequest{TargetGroupType: timetableModule.TargetGroupTypeSchoolClass}
 		applyOfferingSourcePresence(req, sourcedExistingTemplate(storedOfferingIDs, []int{1, 2}))
 		assert.Nil(t, req.SourceCareOfferingIDs.Value,
 			"a source cannot exist outside 'angebot' (DB CHECK); the type switch removes it like a split does")
@@ -154,8 +154,8 @@ func TestApplyOfferingSourcePresence(t *testing.T) {
 	})
 
 	t.Run("no stored source stays no source", func(t *testing.T) {
-		req := &updateTemplateRequest{TargetGroupType: activitiesModel.TargetGroupTypeAngebot}
-		applyOfferingSourcePresence(req, templateResponse{TargetGroupType: activitiesModel.TargetGroupTypeAngebot})
+		req := &updateTemplateRequest{TargetGroupType: timetableModule.TargetGroupTypeOffering}
+		applyOfferingSourcePresence(req, templateResponse{TargetGroupType: timetableModule.TargetGroupTypeOffering})
 		assert.Nil(t, req.SourceCareOfferingIDs.Value)
 		assert.Nil(t, req.SourceGradeLevels.Value)
 	})
@@ -177,7 +177,7 @@ func TestApplyOfferingSourcePresenceClassFilter(t *testing.T) {
 	}
 
 	t.Run("omitted class filter inherits the stored one", func(t *testing.T) {
-		req := &updateTemplateRequest{TargetGroupType: activitiesModel.TargetGroupTypeAngebot}
+		req := &updateTemplateRequest{TargetGroupType: timetableModule.TargetGroupTypeOffering}
 		applyOfferingSourcePresence(req, storedClasses)
 		assert.Equal(t, []string{"1b"}, req.SourceSchoolClasses.Value)
 		assert.Empty(t, req.SourceGradeLevels.Value)
@@ -185,7 +185,7 @@ func TestApplyOfferingSourcePresenceClassFilter(t *testing.T) {
 
 	t.Run("submitted class filter drops the stored grade filter", func(t *testing.T) {
 		req := &updateTemplateRequest{
-			TargetGroupType:     activitiesModel.TargetGroupTypeAngebot,
+			TargetGroupType:     timetableModule.TargetGroupTypeOffering,
 			SourceSchoolClasses: nullableStringSlice{Set: true, Value: []string{"1b"}},
 		}
 		applyOfferingSourcePresence(req, stored)
@@ -196,7 +196,7 @@ func TestApplyOfferingSourcePresenceClassFilter(t *testing.T) {
 
 	t.Run("submitted grade filter drops the stored class filter", func(t *testing.T) {
 		req := &updateTemplateRequest{
-			TargetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			TargetGroupType:   timetableModule.TargetGroupTypeOffering,
 			SourceGradeLevels: nullableIntSlice{Set: true, Value: []int{2}},
 		}
 		applyOfferingSourcePresence(req, storedClasses)
@@ -206,7 +206,7 @@ func TestApplyOfferingSourcePresenceClassFilter(t *testing.T) {
 
 	t.Run("clearing the source clears both filters", func(t *testing.T) {
 		req := &updateTemplateRequest{
-			TargetGroupType:       activitiesModel.TargetGroupTypeAngebot,
+			TargetGroupType:       timetableModule.TargetGroupTypeOffering,
 			SourceCareOfferingIDs: nullableInt64Slice{Set: true, Value: nil},
 		}
 		applyOfferingSourcePresence(req, storedClasses)
@@ -216,10 +216,10 @@ func TestApplyOfferingSourcePresenceClassFilter(t *testing.T) {
 
 	t.Run("submitted class filter without a source remains for validation", func(t *testing.T) {
 		req := &updateTemplateRequest{
-			TargetGroupType:     activitiesModel.TargetGroupTypeAngebot,
+			TargetGroupType:     timetableModule.TargetGroupTypeOffering,
 			SourceSchoolClasses: nullableStringSlice{Set: true, Value: []string{"1b"}},
 		}
-		applyOfferingSourcePresence(req, templateResponse{TargetGroupType: activitiesModel.TargetGroupTypeAngebot})
+		applyOfferingSourcePresence(req, templateResponse{TargetGroupType: timetableModule.TargetGroupTypeOffering})
 		assert.Equal(t, []string{"1b"}, req.SourceSchoolClasses.Value,
 			"the model must reject a submitted class filter without an offering source")
 	})

@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 const (
@@ -50,9 +50,9 @@ func (rs *Resource) checkShiftCoverage(w http.ResponseWriter, r *http.Request) {
 		renderShiftCoverageBadRequest(w, r)
 		return
 	}
-	dates := make([]timezone.Date, 0, len(request.Dates))
+	dates := make([]calendar.Date, 0, len(request.Dates))
 	for _, rawDate := range request.Dates {
-		date, err := timezone.ParseDate(rawDate)
+		date, err := calendar.ParseDate(rawDate)
 		if err != nil {
 			renderShiftCoverageBadRequest(w, r)
 			return
@@ -69,9 +69,9 @@ func (rs *Resource) checkShiftCoverage(w http.ResponseWriter, r *http.Request) {
 		renderShiftCoverageBadRequest(w, r)
 		return
 	}
-	var concreteInstanceDate *timezone.Date
+	var concreteInstanceDate *calendar.Date
 	if request.ConcreteInstanceDate != nil {
-		date, parseErr := timezone.ParseDate(*request.ConcreteInstanceDate)
+		date, parseErr := calendar.ParseDate(*request.ConcreteInstanceDate)
 		if parseErr != nil {
 			renderShiftCoverageBadRequest(w, r)
 			return

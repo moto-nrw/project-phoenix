@@ -210,7 +210,8 @@ func (s *Store) DeleteCalendarPeriod(ctx context.Context, id int64) (domain.Oper
 	query := withTenant(db.NewDelete().Model((*calendarPeriodRow)(nil)).
 		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`).
 		Where(`"calendar_period".id = ?`, id), "calendar_period", tenantID)
-	return execDelete(ctx, query, "delete calendar period", domain.ErrCalendarPeriodNotFound)
+	stats, err := execDelete(ctx, query, "delete calendar period", domain.ErrCalendarPeriodNotFound)
+	return stats, wrapCalendarPeriodRosterConflict(err)
 }
 
 // --- closing days ---
@@ -585,6 +586,26 @@ func execDelete(ctx context.Context, query *bun.DeleteQuery, operation string, n
 	}
 	stats.Rows = rows
 	return stats, nil
+}
+
+// calendarPeriodRosterConstraints are the one-active-row indexes a period
+// removal can collide with while the rows scoped to the period lose it.
+var calendarPeriodRosterConstraints = []string{"idx_student_enrollments_active", "idx_supervisors_active"}
+
+// wrapCalendarPeriodRosterConflict classifies a removal that would
+// duplicate an active enrollment or supervision but keeps the driver error
+// in the chain.
+func wrapCalendarPeriodRosterConflict(err error) error {
+	var postgresError pgdriver.Error
+	if !errors.As(err, &postgresError) || !postgresError.IntegrityViolation() {
+		return err
+	}
+	for _, constraint := range calendarPeriodRosterConstraints {
+		if postgresError.Field('n') == constraint {
+			return fmt.Errorf("%w: %w", domain.ErrCalendarPeriodRosterConflict, err)
+		}
+	}
+	return err
 }
 
 // wrapCalendarPeriodWriteError classifies the per-tenant name collision but

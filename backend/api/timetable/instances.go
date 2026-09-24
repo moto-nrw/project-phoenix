@@ -22,11 +22,9 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // StartInstanceResponse is the 200 body for POST /instances/{id}/start. Warnings
@@ -74,17 +72,17 @@ type GuardianNoticeReachResponse struct {
 	FamilyCount int  `json:"family_count"`
 }
 
-func (req *GuardianNoticeRequest) toServiceInput() *timetableplanning.GuardianNoticeInput {
+func (req *GuardianNoticeRequest) toServiceInput() *timetable.GuardianNoticeInput {
 	if req == nil {
 		return nil
 	}
-	return &timetableplanning.GuardianNoticeInput{
+	return &timetable.GuardianNoticeInput{
 		Title:   strings.TrimSpace(req.Title),
 		Message: strings.TrimSpace(req.Message),
 	}
 }
 
-func guardianNoticeResponseOf(result *timetableplanning.GuardianNoticeResult) *GuardianNoticeResponse {
+func guardianNoticeResponseOf(result *timetable.GuardianNoticeResult) *GuardianNoticeResponse {
 	if result == nil {
 		return nil
 	}
@@ -173,7 +171,7 @@ func (rs *Resource) completeInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
-	ctx := timetableplanning.WithLifecycleActor(r.Context(), int64(claims.ID))
+	ctx := timetable.WithLifecycleActor(r.Context(), int64(claims.ID))
 	// Planner complete has no live visit roster. An empty body (the historic
 	// e2e contract) is accepted; confirmation stays on the operations path.
 	instance, err := rs.InstanceService.Complete(ctx, id)
@@ -241,7 +239,7 @@ func (rs *Resource) cancelInstance(w http.ResponseWriter, r *http.Request) {
 		notice = body.GuardianNotice
 	}
 
-	result, err := rs.InstanceService.CancelWithNotice(r.Context(), timetableplanning.CancelInstanceInput{
+	result, err := rs.InstanceService.CancelWithNotice(r.Context(), timetable.CancelInstanceInput{
 		InstanceID:     id,
 		Reason:         reason,
 		ActorAccountID: jwt.ActorAccountIDFromCtx(r.Context()),
@@ -301,26 +299,26 @@ func staticConflict(message, code string) func(error) render.Renderer {
 // status codes. Unknown errors fall through to 500 to avoid leaking a
 // potentially wrong 4xx for a real database failure.
 var instanceLifecycleErrorRules = []common.ErrorRule{
-	{Target: timetableplanning.ErrInstanceNotFound, Render: common.ErrorNotFound},
+	{Target: timetable.ErrInstanceNotFound, Render: common.ErrorNotFound},
 	{
 		Match: func(err error) bool {
-			return errors.Is(err, timetableplanning.ErrInvalidInstanceReference) ||
-				errors.Is(err, timetableplanning.ErrInstanceWeekend) ||
-				errors.Is(err, timetableplanning.ErrInstanceOutsideActiveCalendarPeriod) ||
-				errors.Is(err, timetableplanning.ErrGuardianNoticeInvalid)
+			return errors.Is(err, timetable.ErrInvalidInstanceReference) ||
+				errors.Is(err, timetable.ErrInstanceWeekend) ||
+				errors.Is(err, timetable.ErrInstanceOutsideActiveCalendarPeriod) ||
+				errors.Is(err, timetable.ErrGuardianNoticeInvalid)
 		},
 		Render: common.ErrorInvalidRequest,
 	},
-	{Target: timetableplanning.ErrGuardianNoticeDisabled, Render: conflictCode("guardian_notice_disabled")},
+	{Target: timetable.ErrGuardianNoticeDisabled, Render: conflictCode("guardian_notice_disabled")},
 	{
-		Target: timetableplanning.ErrInstanceMoved,
+		Target: timetable.ErrInstanceMoved,
 		Render: staticConflict("block was changed concurrently; reopen it and try again", "instance_moved"),
 	},
-	{Target: timetableplanning.ErrInvalidInstanceTransition, Render: conflictCode("invalid_transition")},
-	{Target: timetableplanning.ErrInstanceStartTooEarly, Render: conflictCode("start_too_early")},
-	{Target: timetableplanning.ErrInstanceStartExpired, Render: conflictCode("start_window_expired")},
-	{Target: timetableplanning.ErrInstanceCompleteEarly, Render: conflictCode("complete_too_early")},
-	{Target: timetableplanning.ErrCompletionConfirmationStale, Render: conflictCode("completion_confirmation_stale")},
+	{Target: timetable.ErrInvalidInstanceTransition, Render: conflictCode("invalid_transition")},
+	{Target: timetable.ErrInstanceStartTooEarly, Render: conflictCode("start_too_early")},
+	{Target: timetable.ErrInstanceStartExpired, Render: conflictCode("start_window_expired")},
+	{Target: timetable.ErrInstanceCompleteEarly, Render: conflictCode("complete_too_early")},
+	{Target: timetable.ErrCompletionConfirmationStale, Render: conflictCode("completion_confirmation_stale")},
 	{Target: timetable.ErrTimetableOperationForbidden, Render: common.ErrorForbidden},
 	{
 		Match: func(err error) bool {
@@ -332,23 +330,21 @@ var instanceLifecycleErrorRules = []common.ErrorRule{
 		Render: common.ErrorConflict,
 	},
 	{
-		Target: timetableplanning.ErrUnderstaffedAckStillStaffed,
+		Target: timetable.ErrUnderstaffedAckStillStaffed,
 		Render: staticConflict(
 			"dieser Block kann nicht als bewusst unbesetzt markiert werden, solange noch Personal eingeteilt ist",
 			"understaffed_still_staffed",
 		),
 	},
 	{
-		Target: timetableplanning.ErrAmbiguousTemplateInstanceDelete,
+		Target: timetable.ErrAmbiguousTemplateInstanceDelete,
 		Render: staticConflict(
 			"dieser Termin kann nicht einzeln gelöscht werden, weil die Vorlage an diesem Tag mehrere Termine hat",
 			"ambiguous_template_instance_delete",
 		),
 	},
 	{
-		Match: func(err error) bool {
-			return base.IsUniqueViolationOn(err, "idx_activity_instances_template_unique")
-		},
+		Target: timetable.ErrDuplicateTemplateInstance,
 		Render: staticConflict("instance already exists for this template/date/start_time", "duplicate_instance"),
 	},
 }
