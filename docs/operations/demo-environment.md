@@ -105,8 +105,8 @@ secrets are independently generated. Frontend analytics use the shared PostHog
 project (free plan, one project); demo events carry `deployment=demo`, so they
 filter apart from schools. They need the build secret
 `DEMO_NEXT_PUBLIC_POSTHOG_KEY` besides the SOPS value. Backend analytics
-(`POSTHOG_API_KEY`) stay empty because backend events carry no `deployment`
-property and would mix with production. Sentry and Web Push are disabled;
+(`POSTHOG_API_KEY`) use the same project token; the backend stamps
+`deployment=demo` on every event, so they stay apart from schools too. Sentry and Web Push are disabled;
 configure their demo destinations before enabling them. Frontend Sentry also
 needs the build secret `DEMO_NEXT_PUBLIC_SENTRY_DSN`; absent demo keys disable
 the integrations without falling back to production keys.
