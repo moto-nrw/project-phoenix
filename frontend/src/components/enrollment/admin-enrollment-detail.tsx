@@ -560,7 +560,7 @@ function ChildInformationCard({
         </div>
         {/* Aktionen des Kindes rechts im Kartenkopf statt als eigene
             Buttonzeile im Karteninhalt. */}
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex max-w-full min-w-0 flex-wrap items-center gap-2">
           {child.status === "approved" && child.created_student_id ? (
             <>
               <NavigationLink
@@ -738,11 +738,13 @@ function ReviewSidebar({
                       : "Keine Klassenstufe"}
                 </p>
               </div>
-              <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                <ChildStatusBadge status={child.status} />
-                {isHeldForChildQuota(child) ? <ChildQuotaHeldBadge /> : null}
-              </div>
+              <ChildStatusBadge status={child.status} />
             </div>
+            {isHeldForChildQuota(child) ? (
+              <div className="mt-2">
+                <ChildQuotaHeldBadge />
+              </div>
+            ) : null}
             <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm text-gray-600">
               {TERMINAL.has(child.status)
                 ? "Entscheidung abgeschlossen"

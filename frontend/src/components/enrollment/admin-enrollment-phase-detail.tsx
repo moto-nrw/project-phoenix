@@ -420,7 +420,6 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const handleQuickDecision = useCallback(
     async (row: CareUsageRow, status: DecisionStatus) => {
       setBusyChildId(row.child_id);
-      setError(null);
       try {
         await decideAdminChild(row.request_id, row.child_id, status);
         toast.success(
@@ -437,7 +436,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           child_id: row.child_id,
           status,
         });
-        setError(message);
+        // Nur als Toast: der Seitenfehler ersetzt die ganze Tabelle und ist
+        // Ladefehlern vorbehalten (#3570).
         toast.error(message);
       } finally {
         setBusyChildId(null);
