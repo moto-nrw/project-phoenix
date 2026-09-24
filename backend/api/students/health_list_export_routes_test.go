@@ -4,17 +4,19 @@
 package students_test
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
-	"github.com/xuri/excelize/v2"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -55,24 +57,36 @@ func healthListAuditCount(t *testing.T, db *bun.DB, accountID int64) int {
 	return count
 }
 
-// healthListSheetRows returns every non-empty row of the exported workbook,
-// cells joined by " | ", so a test can look for a child's line.
-func healthListSheetRows(t *testing.T, data []byte) []string {
+var (
+	docxTag = regexp.MustCompile(`<[^>]+>`)
+	// xmlEntities undoes the escaping the DOCX writer applies to cell text.
+	xmlEntities = strings.NewReplacer("&lt;", "<", "&gt;", ">", "&quot;", `"`, "&apos;", "'", "&#39;", "'", "&#34;", `"`, "&amp;", "&")
+)
+
+// healthListDocument reads the exported DOCX with the standard library (the
+// architecture policy keeps rendering libraries out of this package's tests).
+// It returns every table row, cells joined by " | ", so a test can look for a
+// child's line, and the whole document text for the paragraphs around it.
+func healthListDocument(t *testing.T, data []byte) (rows []string, text string) {
 	t.Helper()
-	book, err := excelize.OpenReader(bytes.NewReader(data))
+	archive, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	require.NoError(t, err)
-	defer func() { _ = book.Close() }()
-	sheets := book.GetSheetList()
-	require.NotEmpty(t, sheets)
-	rows, err := book.GetRows(sheets[0])
+	file, err := archive.Open("word/document.xml")
 	require.NoError(t, err)
-	lines := make([]string, 0, len(rows))
-	for _, row := range rows {
-		if line := strings.Join(row, " | "); strings.TrimSpace(line) != "" {
-			lines = append(lines, line)
+	defer func() { _ = file.Close() }()
+	raw, err := io.ReadAll(file)
+	require.NoError(t, err)
+
+	plain := func(fragment string) string {
+		fragment = strings.ReplaceAll(fragment, "</w:tc>", " | ")
+		return xmlEntities.Replace(docxTag.ReplaceAllString(fragment, ""))
+	}
+	for _, row := range strings.Split(string(raw), "</w:tr>") {
+		if start := strings.LastIndex(row, "<w:tr>"); start >= 0 {
+			rows = append(rows, strings.TrimSuffix(plain(row[start:]), " | "))
 		}
 	}
-	return lines
+	return rows, plain(string(raw))
 }
 
 func rowsMentioning(lines []string, needle string) []string {
@@ -111,30 +125,32 @@ func TestHealthListExportPrintsNotesAndWritesAudit(t *testing.T) {
 	setStudentHealthInfo(t, tc.db, withNote.ID, "Nussallergie, Notfallset im Gruppenraum")
 
 	t.Run("default lists only children with a note", func(t *testing.T) {
-		body := fmt.Sprintf(`{"format":"xlsx","preset":"health_list","filters":{"search":%q}}`, surname)
+		body := fmt.Sprintf(`{"format":"docx","preset":"health_list","filters":{"search":%q}}`, surname)
 		rr := authExec(t, tc, birthdayExportRequest(t, body), healthListClaims(t, account.ID),
 			[]string{permissions.UsersRead})
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-		assert.Contains(t, rr.Header().Get("Content-Disposition"), "gesundheitsliste.xlsx")
+		assert.Contains(t, rr.Header().Get("Content-Disposition"), "gesundheitsliste.docx")
 
-		lines := healthListSheetRows(t, rr.Body.Bytes())
+		lines, text := healthListDocument(t, rr.Body.Bytes())
 		mila := rowsMentioning(lines, "Mila "+surname)
 		require.Len(t, mila, 1, "the child with a note belongs on the list: %v", lines)
 		assert.Contains(t, mila[0], "Nussallergie, Notfallset im Gruppenraum")
 		assert.Empty(t, rowsMentioning(lines, "Jonas "+surname),
 			"a child without a note stays off the default list")
 		assert.NotEmpty(t, rowsMentioning(lines, "Gesundheitsinformationen"), "the health column needs its heading")
-		assert.NotEmpty(t, rowsMentioning(lines, "Nur Kinder mit hinterlegten Gesundheitsinformationen"),
+		assert.Contains(t, text, "Nur Kinder mit hinterlegten Gesundheitsinformationen",
 			"the document must say that children without a note are left out")
 	})
 
 	t.Run("children without a note on request", func(t *testing.T) {
-		body := fmt.Sprintf(`{"format":"xlsx","preset":"health_list","filters":{"search":%q,"include_without_health_info":true}}`, surname)
+		body := fmt.Sprintf(`{"format":"docx","preset":"health_list","filters":{"search":%q,"include_without_health_info":true}}`, surname)
 		rr := authExec(t, tc, birthdayExportRequest(t, body), healthListClaims(t, account.ID),
 			[]string{permissions.UsersRead})
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
-		lines := healthListSheetRows(t, rr.Body.Bytes())
+		lines, text := healthListDocument(t, rr.Body.Bytes())
+		assert.NotContains(t, text, "Nur Kinder mit hinterlegten Gesundheitsinformationen",
+			"with every child listed the scope note must go")
 		jonas := rowsMentioning(lines, "Jonas "+surname)
 		require.Len(t, jonas, 1, "the child without a note must be listed: %v", lines)
 		assert.Contains(t, jonas[0], "Nicht hinterlegt", "an empty cell would read as \"no allergies\"")
