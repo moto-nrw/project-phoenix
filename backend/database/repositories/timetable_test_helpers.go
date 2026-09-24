@@ -27,46 +27,44 @@ import (
 )
 
 type TimetableTestRepositories struct {
-	enrollment                *enrollmentCapability.Module
-	schoolCalendar            schoolcalendar.Calendar
-	calendarPeriodUsage       *timetableCompose.CalendarPeriodUsageRepository
-	Timetable                 timetable.Capability
-	ActivityGroup             activitiesModels.GroupRepository
-	ActivityCategory          activitiesModels.CategoryRepository
-	ActivitySchedule          activitiesModels.ScheduleRepository
-	ActivitySupervisor        activitiesModels.SupervisorPlannedRepository
-	StudentEnrollment         activitiesModels.StudentEnrollmentRepository
-	StaffShift                *WorkforceShiftRows
-	StaffShiftSeries          *WorkforceShiftSeriesRows
-	StaffShiftSeriesException *WorkforceShiftSeriesExceptionRows
-	ShiftType                 *WorkforceShiftTypeRows
-	PlanningTrack             scheduleModels.PlanningTrackRepository
-	ActivityInstance          scheduleModels.ActivityInstanceRepository
-	InstanceIdempotency       scheduleModels.InstanceIdempotencyRepository
-	InstanceStaff             scheduleModels.InstanceStaffRepository
-	InstanceStudent           scheduleModels.InstanceStudentRepository
-	ActivityException         scheduleModels.ActivityExceptionRepository
-	Timeframe                 scheduleModels.TimeframeRepository
-	RecurrenceRule            scheduleModels.RecurrenceRuleRepository
-	CalendarPeriod            scheduleModels.CalendarPeriodRepository
-	ClosingDay                scheduleModels.ClosingDayRepository
-	Dateframe                 scheduleModels.DateframeRepository
-	Staff                     usersModels.StaffRepository
-	Teacher                   usersModels.TeacherRepository
-	ClassTeacher              educationModels.ClassTeacherRepository
-	GroupTeacher              educationModels.GroupTeacherRepository
-	Person                    usersModels.PersonRepository
-	Student                   usersModels.StudentRepository
-	Group                     educationModels.GroupRepository
-	ActiveGroup               studentpresence.SessionRecords
-	GroupSupervisor           studentpresence.SupervisionRecords
-	StudentArrivalSchedule    scheduleModels.StudentArrivalScheduleRepository
-	StudentArrivalException   scheduleModels.StudentArrivalExceptionRepository
-	StudentArrivalNote        scheduleModels.StudentArrivalNoteRepository
-	StudentPickupSchedule     scheduleModels.StudentPickupScheduleRepository
-	StudentPickupException    scheduleModels.StudentPickupExceptionRepository
-	StudentPickupNote         scheduleModels.StudentPickupNoteRepository
-	StudentStatusDay          *StudentStatusDayRepository
+	enrollment              *enrollmentCapability.Module
+	schoolCalendar          schoolcalendar.Calendar
+	calendarPeriodUsage     *timetableCompose.CalendarPeriodUsageRepository
+	Timetable               timetable.Capability
+	ActivityGroup           activitiesModels.GroupRepository
+	ActivityCategory        activitiesModels.CategoryRepository
+	ActivitySchedule        activitiesModels.ScheduleRepository
+	ActivitySupervisor      activitiesModels.SupervisorPlannedRepository
+	StudentEnrollment       activitiesModels.StudentEnrollmentRepository
+	StaffShift              *WorkforceShiftRows
+	ShiftType               *WorkforceShiftTypeRows
+	PlanningTrack           scheduleModels.PlanningTrackRepository
+	ActivityInstance        scheduleModels.ActivityInstanceRepository
+	InstanceIdempotency     scheduleModels.InstanceIdempotencyRepository
+	InstanceStaff           scheduleModels.InstanceStaffRepository
+	InstanceStudent         scheduleModels.InstanceStudentRepository
+	ActivityException       scheduleModels.ActivityExceptionRepository
+	Timeframe               scheduleModels.TimeframeRepository
+	RecurrenceRule          scheduleModels.RecurrenceRuleRepository
+	CalendarPeriod          scheduleModels.CalendarPeriodRepository
+	ClosingDay              scheduleModels.ClosingDayRepository
+	Dateframe               scheduleModels.DateframeRepository
+	Staff                   usersModels.StaffRepository
+	Teacher                 usersModels.TeacherRepository
+	ClassTeacher            educationModels.ClassTeacherRepository
+	GroupTeacher            educationModels.GroupTeacherRepository
+	Person                  usersModels.PersonRepository
+	Student                 usersModels.StudentRepository
+	Group                   educationModels.GroupRepository
+	ActiveGroup             studentpresence.SessionRecords
+	GroupSupervisor         studentpresence.SupervisionRecords
+	StudentArrivalSchedule  scheduleModels.StudentArrivalScheduleRepository
+	StudentArrivalException scheduleModels.StudentArrivalExceptionRepository
+	StudentArrivalNote      scheduleModels.StudentArrivalNoteRepository
+	StudentPickupSchedule   scheduleModels.StudentPickupScheduleRepository
+	StudentPickupException  scheduleModels.StudentPickupExceptionRepository
+	StudentPickupNote       scheduleModels.StudentPickupNoteRepository
+	StudentStatusDay        *StudentStatusDayRepository
 	// CarePlan is the owner capability the schedule adapters above delegate to.
 	CarePlan              careplan.Capability
 	Room                  facilitiesModels.RoomRepository
@@ -152,8 +150,6 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	// speak the retained rows reach them through the legacy row adapters
 	// over the one facade (#3418).
 	result.StaffShift = NewWorkforceShiftRows(workTime)
-	result.StaffShiftSeries = NewWorkforceShiftSeriesRows(workTime)
-	result.StaffShiftSeriesException = NewWorkforceShiftSeriesExceptionRows(workTime)
 	result.ShiftType = NewWorkforceShiftTypeRows(workTime)
 	return result, nil
 }
