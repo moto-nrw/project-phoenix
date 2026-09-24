@@ -209,6 +209,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/messages/threads"}:                                                             notCaptured,
 	{http.MethodPost, "/api/messages/threads/open"}:                                                        notCaptured,
 	{http.MethodPost, "/api/messages/threads/{threadId}"}:                                                  notCaptured,
+	{http.MethodPost, "/api/messages/threads/{threadId}/unread"}:                                           event("parent_message_marked_unread"),
 	{http.MethodDelete, "/api/notifications/preferences/"}:                                                 notCaptured,
 	{http.MethodPut, "/api/notifications/preferences/{type}"}:                                              notCaptured,
 	{http.MethodDelete, "/api/notifications/push/subscriptions"}:                                           notCaptured,

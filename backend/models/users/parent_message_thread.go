@@ -44,6 +44,11 @@ type ParentMessageThread struct {
 	// covered by a staff reply. Personal read cursors remain account-specific.
 	StaffHandledUpToAt        *time.Time `bun:"staff_handled_up_to_at" json:"-"`
 	StaffHandledUpToMessageID *int64     `bun:"staff_handled_up_to_message_id" json:"-"`
+	// StaffMarkedUnread* is the team-wide "als ungelesen markiert" state (#3654).
+	// It lifts the staff unread count to at least one without touching the read
+	// cursors or the handled boundary above, so the parent-facing receipt stays.
+	StaffMarkedUnreadAt          *time.Time `bun:"staff_marked_unread_at" json:"-"`
+	StaffMarkedUnreadByAccountID *int64     `bun:"staff_marked_unread_by_account_id" json:"-"`
 	// LastStaffMessageNotificationAt is the database-clock claim used to
 	// collapse a short burst of guardian messages into one staff notification.
 	LastStaffMessageNotificationAt *time.Time `bun:"last_staff_message_notification_at" json:"-"`

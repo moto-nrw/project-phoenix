@@ -95,7 +95,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/classday/internal/application/slotlists.go:slotHeadingDisambiguation":      29,
 
 	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":                    43,
-	"modules/communication/internal/parentmessages/service.go:(*Service).PostMessage":                           21,
 	"modules/communication/internal/staffannouncements/care_cancellation.go:(*service).PublishCareCancellation": 16,
 	"modules/communication/internal/staffannouncements/letter.go:(*service).ResendFailedEmails":                 37,
 	"modules/communication/internal/staffannouncements/letter.go:(*service).queueLetterMailsAs":                 22,

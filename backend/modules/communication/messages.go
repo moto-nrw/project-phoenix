@@ -96,6 +96,9 @@ type ParentMessagingCommand interface {
 	StartParentMessageThread(context.Context, int64, int64, string) (*ParentMessageThread, error)
 	OpenParentMessageThread(context.Context, int64, int64) (*ParentMessageThread, error)
 	PostParentMessage(context.Context, int64, string, int64) ([]ParentMessage, error)
+	// MarkParentMessageThreadUnread marks the conversation unread for the whole
+	// team until a staff member opens or answers it.
+	MarkParentMessageThreadUnread(context.Context, int64) error
 }
 
 type ParentMessagingCapability interface {
