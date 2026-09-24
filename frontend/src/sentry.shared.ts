@@ -1,4 +1,4 @@
-import type { ErrorEvent } from "@sentry/nextjs";
+import type { BrowserOptions, ErrorEvent, Event } from "@sentry/nextjs";
 
 const routerStateParseMessage =
   "The router state header was sent but could not be parsed.";
@@ -48,6 +48,26 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent | null {
     return null;
   }
 
+  scrubRequestAndUser(event);
+
+  return event;
+}
+
+type TransactionEvent = Parameters<
+  NonNullable<BrowserOptions["beforeSendTransaction"]>
+>[0];
+
+/**
+ * beforeSendTransaction: a sampled page view carries the page URL and the
+ * referrer in its request data, which beforeSendSpan does not see. They get
+ * the same scrubbing as an error event.
+ */
+export function scrubTransaction(event: TransactionEvent): TransactionEvent {
+  scrubRequestAndUser(event);
+  return event;
+}
+
+function scrubRequestAndUser(event: Event): void {
   // Strip auth headers and cookies
   if (event.request?.headers) {
     delete event.request.headers["Authorization"];
@@ -66,8 +86,71 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent | null {
   }
 
   scrubUrls(event);
+}
 
-  return event;
+type SpanJSON = Parameters<NonNullable<BrowserOptions["beforeSendSpan"]>>[0];
+
+// Span data keys that hold nothing but a query string or a fragment.
+const querySpanDataKeys = [
+  "http.query",
+  "http.fragment",
+  "url.query",
+  "url.fragment",
+];
+
+/**
+ * beforeSendSpan: removes query strings, fragments and feed tokens from a
+ * span's name and data (url, http.url, url.full, lcp.url, …), the same data
+ * boundary as for error events. Paths with IDs stay.
+ */
+export function scrubSpan(span: SpanJSON): SpanJSON {
+  if (span.description) {
+    span.description = scrubText(span.description);
+  }
+  const data = span.data;
+  for (const key of querySpanDataKeys) {
+    delete data[key];
+  }
+  for (const [key, value] of Object.entries(data)) {
+    if (typeof value === "string") {
+      data[key] = scrubText(value);
+    }
+  }
+  return span;
+}
+
+/** Share of page loads and navigations the browser measures. */
+export const pageViewTraceSampleRate = 0.05;
+
+type TracesSamplingContext = Parameters<
+  NonNullable<BrowserOptions["tracesSampler"]>
+>[0];
+
+// SEMANTIC_ATTRIBUTE_SENTRY_OP, spelled out so this module stays type-only.
+const spanOpAttribute = "sentry.op";
+
+/**
+ * Browser tracesSampler: 5 % of page loads and navigations, each decided in
+ * the browser because the server never samples. Any other root span is kept
+ * only inside a page view that was already sampled: the INP Web Vital arrives
+ * as such a span after the page load ended. Everything else stays unmeasured.
+ */
+export function sampleBrowserTrace(context: TracesSamplingContext): number {
+  const op = context.attributes?.[spanOpAttribute];
+  if (op === "pageload" || op === "navigation") {
+    return pageViewTraceSampleRate;
+  }
+  return context.parentSampled === true ? 1 : 0;
+}
+
+/**
+ * Server and edge tracesSampler: never record a span. A plain
+ * tracesSampleRate of 0 would still follow a sampled browser trace and send
+ * BFF spans. Tracing stays enabled, so trace headers still reach the backend
+ * and error events keep the trace ID.
+ */
+export function sampleNoTrace(): number {
+  return 0;
 }
 
 /**
@@ -75,7 +158,7 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent | null {
  * redacts feed tokens in them: request, referrer, transaction name, the
  * Next.js request path, and breadcrumbs (navigation, fetch, xhr, log).
  */
-function scrubUrls(event: ErrorEvent): void {
+function scrubUrls(event: Event): void {
   if (event.request) {
     if (event.request.url) {
       event.request.url = scrubUrl(event.request.url);
