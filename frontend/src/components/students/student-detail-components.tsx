@@ -8,10 +8,12 @@ import useSWR from "swr";
 import { AlertTriangle, Check, Clock, Info } from "lucide-react";
 import { LocationBadge } from "@/components/ui/location-badge";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
+import { isNotCheckedInLocation } from "~/lib/location-helper";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import {
   getStudentAbsence,
   getStudentTimeStatus,
+  type StudentDayTimes,
 } from "~/lib/student-time-status";
 import {
   getDayPlanningNotComingLabel,
@@ -440,6 +442,13 @@ export function StudentHeaderStats({
   });
   const dayPlanningNotComingLabel = getDayPlanningNotComingLabel(student);
   const notComingLabel = absence?.label ?? dayPlanningNotComingLabel;
+  const todayDay: StudentDayTimes = {
+    plannedArrival: todayArrivalPlannedTime,
+    actualArrival: todayArrivalActualTime,
+    plannedPickup: todayPickupPlannedTime,
+    actualPickup: todayPickupActualTime,
+    checkedIn: !isNotCheckedInLocation(student.current_location),
+  };
 
   return (
     <span className="block">
@@ -483,6 +492,7 @@ export function StudentHeaderStats({
       ) : (
         <>
           <TodayTimeStatusInlineRow
+            day={todayDay}
             kind="arrival"
             label="Heutige Ankunft"
             plannedTime={todayArrivalPlannedTime}
@@ -493,6 +503,7 @@ export function StudentHeaderStats({
             absentReason={todayArrivalNote}
           />
           <TodayTimeStatusInlineRow
+            day={todayDay}
             kind="pickup"
             label="Heutige Abholung"
             plannedTime={todayPickupPlannedTime}
@@ -536,7 +547,9 @@ function TodayTimeStatusInlineRow({
   note,
   isAbsent = false,
   absentReason,
+  day,
 }: Readonly<{
+  day: StudentDayTimes;
   kind: "arrival" | "pickup";
   label: string;
   plannedTime?: string;
@@ -570,6 +583,8 @@ function TodayTimeStatusInlineRow({
     plannedTime,
     actualTime,
     now,
+    kind,
+    day,
   });
 
   const plannedDisplay = plannedTime?.slice(0, 5);

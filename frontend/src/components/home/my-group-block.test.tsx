@@ -64,6 +64,7 @@ function withGroup(
     total: 22,
     away: [],
     missing: [],
+    onlyIfLessonCancelled: new Set(),
     pickups: [],
     nextPickup: null,
     isLoading: false,
@@ -162,6 +163,19 @@ describe("MyGroupBlock (#2180)", () => {
     expect(links[2]).toHaveAccessibleName("Mia Berger: Gruppe öffnen");
     expect(screen.getByText("Fehlt noch")).toBeInTheDocument();
     expect(screen.getByText("Arzttermin, kommt danach")).toBeInTheDocument();
+  });
+
+  // Unterricht bis zur Abholzeit: kein „Kommt 13:20", das nie eintritt (#3373).
+  it("sagt bei Unterricht bis zur Abholzeit, dass das Kind nur bei Ausfall kommt", () => {
+    snapshot.current = withGroup({
+      away: [student({ id: "1", arrival_time: "13:20" })],
+      onlyIfLessonCancelled: new Set(["1"]),
+    });
+
+    render(<MyGroupBlock />);
+
+    expect(screen.getByText("Nur bei Unterrichtsausfall")).toBeInTheDocument();
+    expect(screen.queryByText("Kommt 13:20")).not.toBeInTheDocument();
   });
 
   // Vor der Ankunftszeit ist ein Kind nicht „zuhause", es wird erwartet.
