@@ -2861,6 +2861,9 @@ function careTimesTopic(): HelpTopic {
       "Die Zeiten gelten sofort. Eine Notiz ohne Abholzeit steht auf der Kinderkarte unter `Kommt heute nicht`. Eine Ausnahme ändert den Wochenplan nicht.",
     notes: [
       "Ohne eigene Zeit gilt die Klassenzeit des Kindes.",
+      // #3373: Ankunft nicht vor Abholung (comesOnlyIfLessonCancelled in
+      // student-time-status.ts) warnt nicht mehr als überfällig.
+      "Endet der Unterricht erst zur Abholzeit? Dann steht auf der Kinderkarte `Nur bei Unterrichtsausfall`. Das Kind gilt nicht als verspätet. Kommt es doch, checken Sie es wie gewohnt ein.",
       "Den Wochenplan können Sie schon beim Anlegen des Kindes mitgeben.",
       // #3372: Die Auswahl erscheint nur mit gepflegten Schulstunden
       // (school-period-select.tsx) und kopiert die Uhrzeit ins Zeitfeld.
