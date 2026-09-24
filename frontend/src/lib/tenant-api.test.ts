@@ -171,6 +171,10 @@ describe("tenant-api", () => {
         // disabled because those backends do not print the health column.
         emergencyHealthInfoEnabled: false,
         gradeLevelMax: 13,
+        // Older backends omit the Analyse-Freigabe (#3603): off, and nothing
+        // is recorded.
+        analyticsFreigabe: false,
+        analyticsRecordingSamplePercent: 0,
       });
     });
 
@@ -245,6 +249,49 @@ describe("tenant-api", () => {
         showTimetableCounts: false,
         waitlistEnabled: false,
         emergencyHealthInfoEnabled: false,
+      });
+    });
+
+    it("maps the Analyse-Freigabe and never widens an unreadable sample", async () => {
+      const tenantData = {
+        tenant_id: 3,
+        slug: "analyse-school",
+        name: "Analyse School",
+        subdomain: "analyse",
+        organization_id: 12,
+        organization_name: "Org C",
+        settings: {},
+        grade_level_max: 4,
+      };
+      const respond = (data: Record<string, unknown>) =>
+        new Response(
+          JSON.stringify({
+            status: "success",
+            data: { ...tenantData, ...data },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      vi.mocked(global.fetch)
+        .mockResolvedValueOnce(
+          respond({
+            analytics_freigabe: true,
+            analytics_recording_sample_percent: 25,
+          }),
+        )
+        .mockResolvedValueOnce(
+          respond({
+            analytics_freigabe: "yes",
+            analytics_recording_sample_percent: 250,
+          }),
+        );
+
+      await expect(resolveTenant("analyse")).resolves.toMatchObject({
+        analyticsFreigabe: true,
+        analyticsRecordingSamplePercent: 25,
+      });
+      await expect(resolveTenant("analyse")).resolves.toMatchObject({
+        analyticsFreigabe: false,
+        analyticsRecordingSamplePercent: 0,
       });
     });
 

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // StaffAssignment is one Betreuungsplan block a staff member is planned into on
@@ -56,10 +56,10 @@ type StaffAssignmentService interface {
 
 // StaffAssignmentDependencies wires the narrow reads behind the service.
 type StaffAssignmentDependencies struct {
-	InstanceStaffRepo    assignmentInstanceStaffReader
-	ActivityInstanceRepo activityInstanceBatchReader
+	InstanceStaffRepo    AssignmentInstanceStaffReader
+	ActivityInstanceRepo ActivityInstanceBatchReader
 	RoomRepo             RoomBatchReader
-	ActivityGroupRepo    activityGroupBatchReader
+	ActivityGroupRepo    ActivityGroupBatchReader
 }
 
 type staffAssignmentService struct {
@@ -89,7 +89,7 @@ func (s *staffAssignmentService) ListAssignmentsForStaff(ctx context.Context, st
 	// instances those rows reference are loaded. Any time_tracking:own user
 	// can request the full 62-day range, so the cost must stay proportional
 	// to one person's plan — never the whole tenant timetable.
-	mine, err := s.deps.InstanceStaffRepo.FindByStaffAndDateRange(ctx, staffID, scheduleModels.Date(from), scheduleModels.Date(to))
+	mine, err := s.deps.InstanceStaffRepo.FindByStaffAndDateRange(ctx, staffID, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func (s *staffAssignmentService) ListAssignmentsForStaff(ctx context.Context, st
 	if err != nil {
 		return nil, err
 	}
-	instanceByID := make(map[int64]*scheduleModels.ActivityInstance, len(instances))
+	instanceByID := make(map[int64]*timetable.ScheduledInstance, len(instances))
 	for _, inst := range instances {
 		instanceByID[inst.ID] = inst
 	}
@@ -136,11 +136,11 @@ func (s *staffAssignmentService) ListAssignmentsForStaff(ctx context.Context, st
 			Title:           inst.Title,
 			GroupName:       groupNameFor(inst.ActivityGroupID, groupNames),
 			RoomName:        roomNames[roomID],
-			Date:            timezone.Date(inst.Date),
+			Date:            inst.Date,
 			StartTime:       timezone.NormalizeWallClock(inst.StartTime),
 			EndTime:         timezone.NormalizeWallClock(inst.EndTime),
 			Status:          inst.Status,
-			Cancelled:       inst.Status == scheduleModels.InstanceStatusCancelled,
+			Cancelled:       inst.Status == timetable.InstanceStatusCancelled,
 			IsPrimary:       row.IsPrimary,
 			IsSubstitute:    row.IsSubstitute,
 			IsAbsent:        row.IsAbsent,
@@ -165,7 +165,7 @@ func (s *staffAssignmentService) ListAssignmentsForStaff(ctx context.Context, st
 // lookup failure propagates: the room is the "Ort" this feature exists to show,
 // and these reads run inside TenantTxMiddleware, where a failed statement can
 // abort the transaction and make the commit fail after a 200 was written.
-func (s *staffAssignmentService) resolveRoomNames(ctx context.Context, rows []*scheduleModels.InstanceStaff, instanceByID map[int64]*scheduleModels.ActivityInstance) (map[int64]string, error) {
+func (s *staffAssignmentService) resolveRoomNames(ctx context.Context, rows []*timetable.InstanceStaff, instanceByID map[int64]*timetable.ScheduledInstance) (map[int64]string, error) {
 	idSet := make(map[int64]struct{})
 	for _, row := range rows {
 		if inst := instanceByID[row.InstanceID]; inst != nil {
@@ -198,7 +198,7 @@ func (s *staffAssignmentService) resolveRoomNames(ctx context.Context, rows []*s
 // mirroring resolveRoomNames. A row that is genuinely gone (deleted group) is
 // tolerated as "no name"; a lookup failure propagates for the same
 // transaction-abort reason as resolveRoomNames.
-func (s *staffAssignmentService) resolveGroupNames(ctx context.Context, rows []*scheduleModels.InstanceStaff, instanceByID map[int64]*scheduleModels.ActivityInstance) (map[int64]string, error) {
+func (s *staffAssignmentService) resolveGroupNames(ctx context.Context, rows []*timetable.InstanceStaff, instanceByID map[int64]*timetable.ScheduledInstance) (map[int64]string, error) {
 	idSet := make(map[int64]struct{})
 	for _, row := range rows {
 		inst := instanceByID[row.InstanceID]

@@ -137,10 +137,10 @@ var queryBudgets = map[string]queryBudget{
 	// the number of periods. Pinned exact so an owner-boundary move fails
 	// here instead of at a runtime checkpoint (#3020).
 	"api.timetable.periods.list": {max: 7, exact: true},
-	// modules/timetable/legacy/timetableplanning — GET /planned-now backing list, 8 eligible instances:
+	// modules/timetable/compose operational day (#3551) — GET /planned-now backing list, 8 eligible instances:
 	// instance list + rooms + staff batch + student batch (#2941).
 	"services.schedule.planned_now": {max: 4},
-	// modules/timetable/legacy/timetableplanning — POST /instances/bulk-cancel
+	// modules/timetable/compose — POST /instances/bulk-cancel
 	// dry run (#3594): tenant transaction (BEGIN, SET LOCAL ROLE, set_config,
 	// COMMIT) + one instance range read + one series read for the closing-day
 	// flag. Flat from 2 to 5 occurrences. The execution reuses Cancel and

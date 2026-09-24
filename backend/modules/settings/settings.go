@@ -17,6 +17,8 @@ import (
 
 // Keys of the tenant settings other owners read.
 const (
+	KeyAnalyticsFreigabe                  = configModel.KeyAnalyticsFreigabe
+	KeyAnalyticsRecordingSamplePercent    = configModel.KeyAnalyticsRecordingSamplePercent
 	KeyAttendanceEditScope                = configModel.KeyAttendanceEditScope
 	KeyAttendanceLogEnabled               = configModel.KeyAttendanceLogEnabled
 	KeyAttendanceNFCEnabled               = configModel.KeyAttendanceNFCEnabled

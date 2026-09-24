@@ -4,11 +4,11 @@ import (
 	"context"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type arrivalFixtureStudents interface {
@@ -43,7 +43,7 @@ func newArrivalBaselinesFixture(records careplanCompose.ArrivalBaselineRecords, 
 			}
 			return out, nil
 		},
-		ClassExceptions: func(ctx context.Context, names []string, from, to timezone.Date) (map[string]careplan.ClassArrivalExceptionsByDate, error) {
+		ClassExceptions: func(ctx context.Context, names []string, from, to calendar.Date) (map[string]careplan.ClassArrivalExceptionsByDate, error) {
 			if len(names) == 0 {
 				return nil, nil
 			}
@@ -57,7 +57,7 @@ func newArrivalBaselinesFixture(records careplanCompose.ArrivalBaselineRecords, 
 				if out[key] == nil {
 					out[key] = make(careplan.ClassArrivalExceptionsByDate)
 				}
-				out[key][timezone.Date(row.Date)] = &careplan.ArrivalBaselineException{SchoolClass: row.SchoolClass, ArrivalTime: row.ArrivalTime, Label: (&careplan.ClassArrivalException{SchoolClass: row.SchoolClass, Reason: row.Reason}).Label()}
+				out[key][calendar.Date(row.Date)] = &careplan.ArrivalBaselineException{SchoolClass: row.SchoolClass, ArrivalTime: row.ArrivalTime, Label: (&careplan.ClassArrivalException{SchoolClass: row.SchoolClass, Reason: row.Reason}).Label()}
 			}
 			return out, nil
 		},

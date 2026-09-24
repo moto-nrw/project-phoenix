@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
 // ShiftReplacementInput is one person covering part of a cancelled shift's gap.
@@ -45,8 +44,8 @@ type CancelShiftInput struct {
 
 // CancelShiftResult reports the updated origin and the freshly created covers.
 type CancelShiftResult struct {
-	Shift        *scheduleModels.StaffShift
-	Replacements []*scheduleModels.StaffShift
+	Shift        *StaffShift
+	Replacements []*StaffShift
 }
 
 // ApplyCancellation cancels/reactivates a shift and rebuilds its replacement set
@@ -191,7 +190,7 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 	// stored values but are overwritten with the caller's edits when supplied,
 	// so an edit made in the same save is honoured and a reactivation's overlap
 	// check runs against the edited window (#1841).
-	originUpdate := &scheduleModels.StaffShift{
+	originUpdate := &StaffShift{
 		Date:         existing.Date,
 		StartTime:    existing.StartTime,
 		EndTime:      existing.EndTime,
@@ -257,7 +256,7 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 				break
 			}
 		}
-		replacement := &scheduleModels.StaffShift{
+		replacement := &StaffShift{
 			StaffID:       r.StaffID,
 			Date:          existing.Date,
 			StartTime:     r.StartTime,

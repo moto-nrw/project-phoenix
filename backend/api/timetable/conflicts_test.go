@@ -14,8 +14,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +28,7 @@ type plannedConflictsSetup struct {
 	db     *bun.DB
 	ctx    context.Context
 	roomID int64
-	date   timezone.Date
+	date   calendar.Date
 }
 
 func buildPlannedConflictsSetup(t *testing.T) *plannedConflictsSetup {
@@ -40,7 +40,8 @@ func buildPlannedConflictsSetup(t *testing.T) *plannedConflictsSetup {
 
 	data := testTimetableData(db)
 	res := NewResource(Dependencies{
-		TimetableData:     data,
+		Templates:         data,
+		TimetableData:     data.TimetableData(),
 		ConflictDetection: data.ConflictDetection(),
 		DB:                db,
 	})
@@ -50,7 +51,7 @@ func buildPlannedConflictsSetup(t *testing.T) *plannedConflictsSetup {
 		db:     db,
 		ctx:    testpkg.Ctx(t),
 		roomID: room.ID,
-		date:   timezone.NewDate(2026, time.June, 22),
+		date:   calendar.NewDate(2026, time.June, 22),
 	}
 }
 

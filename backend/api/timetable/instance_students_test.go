@@ -26,7 +26,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -41,61 +42,61 @@ import (
 func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
 	t.Parallel()
 
-	excused := schedule.AttendanceSubstatusExcused
+	excused := timetable.SlotSubstatusExcused
 	tests := []struct {
 		name         string
-		current      *schedule.InstanceStudent
-		patch        schedule.AttendanceFieldPatch
+		current      *timetable.ScheduledParticipant
+		patch        timetable.AttendancePatch
 		wantErrField string
 		wantOK       bool
 	}{
 		{
 			name:    "expected + new substatus without status change → reject",
-			current: &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected},
-			patch: schedule.AttendanceFieldPatch{
-				Substatus: testpkg.StrPtr(schedule.AttendanceSubstatusLate),
+			current: &timetable.ScheduledParticipant{Status: timetable.SlotAttendanceExpected},
+			patch: timetable.AttendancePatch{
+				Substatus: testpkg.StrPtr(timetable.SlotSubstatusLate),
 			},
 			wantErrField: "substatus",
 		},
 		{
 			name:    "expected → present + substatus → ok",
-			current: &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected},
-			patch: schedule.AttendanceFieldPatch{
-				Status:    testpkg.StrPtr(schedule.AttendanceStatusPresent),
-				Substatus: testpkg.StrPtr(schedule.AttendanceSubstatusLate),
+			current: &timetable.ScheduledParticipant{Status: timetable.SlotAttendanceExpected},
+			patch: timetable.AttendancePatch{
+				Status:    testpkg.StrPtr(timetable.SlotAttendancePresent),
+				Substatus: testpkg.StrPtr(timetable.SlotSubstatusLate),
 			},
 			wantOK: true,
 		},
 		{
 			name:    "expected → absent + substatus → ok",
-			current: &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected},
-			patch: schedule.AttendanceFieldPatch{
-				Status:    testpkg.StrPtr(schedule.AttendanceStatusAbsent),
-				Substatus: testpkg.StrPtr(schedule.AttendanceSubstatusSick),
+			current: &timetable.ScheduledParticipant{Status: timetable.SlotAttendanceExpected},
+			patch: timetable.AttendancePatch{
+				Status:    testpkg.StrPtr(timetable.SlotAttendanceAbsent),
+				Substatus: testpkg.StrPtr(timetable.SlotSubstatusSick),
 			},
 			wantOK: true,
 		},
 		{
 			name:    "present + substatus → ok (status unchanged)",
-			current: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent},
-			patch: schedule.AttendanceFieldPatch{
-				Substatus: testpkg.StrPtr(schedule.AttendanceSubstatusLate),
+			current: &timetable.ScheduledParticipant{Status: timetable.SlotAttendancePresent},
+			patch: timetable.AttendancePatch{
+				Substatus: testpkg.StrPtr(timetable.SlotSubstatusLate),
 			},
 			wantOK: true,
 		},
 		{
 			name:    "present → expected with substatus still set → reject",
-			current: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent, Substatus: &excused},
-			patch: schedule.AttendanceFieldPatch{
-				Status: testpkg.StrPtr(schedule.AttendanceStatusExpected),
+			current: &timetable.ScheduledParticipant{Status: timetable.SlotAttendancePresent, Substatus: &excused},
+			patch: timetable.AttendancePatch{
+				Status: testpkg.StrPtr(timetable.SlotAttendanceExpected),
 			},
 			wantErrField: "substatus",
 		},
 		{
 			name:    "present → expected clearing substatus → ok",
-			current: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent, Substatus: &excused},
-			patch: schedule.AttendanceFieldPatch{
-				Status:         testpkg.StrPtr(schedule.AttendanceStatusExpected),
+			current: &timetable.ScheduledParticipant{Status: timetable.SlotAttendancePresent, Substatus: &excused},
+			patch: timetable.AttendancePatch{
+				Status:         testpkg.StrPtr(timetable.SlotAttendanceExpected),
 				SubstatusClear: true,
 			},
 			wantOK: true,
@@ -125,30 +126,30 @@ func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
 func TestValidateAttendancePatch_PerFieldErrors(t *testing.T) {
 	t.Parallel()
 
-	cur := &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}
+	cur := &timetable.ScheduledParticipant{Status: timetable.SlotAttendancePresent}
 
 	t.Run("invalid status", func(t *testing.T) {
-		errs := validateAttendancePatch(schedule.AttendanceFieldPatch{Status: testpkg.StrPtr("ghost")}, cur)
+		errs := validateAttendancePatch(timetable.AttendancePatch{Status: testpkg.StrPtr("ghost")}, cur)
 		require.Len(t, errs, 1)
 		assert.Equal(t, "status", errs[0].Field)
 	})
 
 	t.Run("invalid substatus", func(t *testing.T) {
-		errs := validateAttendancePatch(schedule.AttendanceFieldPatch{Substatus: testpkg.StrPtr("banana")}, cur)
+		errs := validateAttendancePatch(timetable.AttendancePatch{Substatus: testpkg.StrPtr("banana")}, cur)
 		require.Len(t, errs, 1)
 		assert.Equal(t, "substatus", errs[0].Field)
 	})
 
 	t.Run("note too long", func(t *testing.T) {
-		tooLong := strings.Repeat("x", schedule.InstanceStudentNoteMaxLength+1)
-		errs := validateAttendancePatch(schedule.AttendanceFieldPatch{Note: &tooLong}, cur)
+		tooLong := strings.Repeat("x", timetable.SlotAttendanceNoteMaxLength+1)
+		errs := validateAttendancePatch(timetable.AttendancePatch{Note: &tooLong}, cur)
 		require.Len(t, errs, 1)
 		assert.Equal(t, "note", errs[0].Field)
 	})
 
 	t.Run("two per-field errors returned together", func(t *testing.T) {
-		tooLong := strings.Repeat("y", schedule.InstanceStudentNoteMaxLength+1)
-		errs := validateAttendancePatch(schedule.AttendanceFieldPatch{
+		tooLong := strings.Repeat("y", timetable.SlotAttendanceNoteMaxLength+1)
+		errs := validateAttendancePatch(timetable.AttendancePatch{
 			Status: testpkg.StrPtr("ghost"),
 			Note:   &tooLong,
 		}, cur)
@@ -194,10 +195,10 @@ type patchSetup struct {
 	res        *Resource
 	db         *bun.DB
 	ctx        context.Context
-	row        *schedule.InstanceStudent
+	rowID      int64
 	instanceID int64
 	studentID  int64
-	repo       schedule.InstanceStudentRepository
+	data       timetable.TimetableDataCapability
 }
 
 func buildPatchSetup(t *testing.T) *patchSetup {
@@ -212,38 +213,28 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 	student := testpkg.CreateTestStudent(t, db, "P-Stu", fmt.Sprintf("One-%d", suffix), "3a")
 
 	// Insert a planned instance for this tenant.
-	inst := &schedule.ActivityInstance{
-		Date:            schedule.NewDate(2026, 4, 22),
+	inst := testpkg.CreateTestActivityInstance(t, db, calendar.NewDate(2026, 4, 22), room.ID, testpkg.ActivityInstanceOpts{
+		Status:          timetable.InstanceStatusPlanned,
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("P-Inst-%d", suffix),
-		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
-		EndTime:         time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
-		RoomID:          room.ID,
-		Status:          schedule.InstanceStatusPlanned,
-	}
-	inst.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(inst).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+		StartHHMM:       "14:00",
+		EndHHMM:         "15:00",
+	})
 
-	isRepo := mustTimetableTestRepositories(db).InstanceStudent
-	row := &schedule.InstanceStudent{
-		InstanceID: inst.ID,
-		StudentID:  student.ID,
-		Status:     schedule.AttendanceStatusPresent, // start in 'present' so PATCH can mutate freely
-	}
-	row.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, isRepo.Create(ctx, row))
+	// start in 'present' so PATCH can mutate freely
+	row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, student.ID, timetable.SlotAttendancePresent)
 
-	res := NewResource(Dependencies{TimetableData: testTimetableData(db), DB: db})
+	data := testTimetableData(db)
+	res := NewResource(Dependencies{Templates: data, AttendanceCorrections: data.AttendanceCorrections(), TimetableData: data.TimetableData(), DB: db})
 
 	return &patchSetup{
 		res:        res,
 		db:         db,
 		ctx:        ctx,
-		row:        row,
+		rowID:      row.ID,
 		instanceID: inst.ID,
 		studentID:  student.ID,
-		repo:       isRepo,
+		data:       data.TimetableData(),
 	}
 }
 
@@ -316,11 +307,9 @@ func TestPatchInstanceStudent_ClearNoteWithExplicitNull(t *testing.T) {
 	s := buildPatchSetup(t)
 	// Pre-populate note so the clear is observable.
 	initial := "pre"
-	s.row.Note = &initial
-	s.row.Status = schedule.AttendanceStatusPresent
-	_, _ = s.repo.UpdateAttendanceFromCheckin(s.ctx, s.instanceID, s.studentID, time.Now())
-	// Directly set note via the repo's update-fields path to be sure.
-	require.NoError(t, s.repo.UpdateAttendanceFields(s.ctx, s.row.ID, schedule.AttendanceFieldPatch{
+	_, _ = mustTimetableTestRepositories(s.db).InstanceStudent.UpdateAttendanceFromCheckin(s.ctx, s.instanceID, s.studentID, time.Now())
+	// Directly set note via the owner's update-fields path to be sure.
+	require.NoError(t, s.data.PatchSlotAttendance(s.ctx, s.rowID, timetable.AttendancePatch{
 		Note: &initial,
 	}))
 
@@ -393,7 +382,7 @@ func TestPatchInstanceStudent_400_NoteTooLong(t *testing.T) {
 	s := buildPatchSetup(t)
 	router := patchRouter(testpkg.Ctx(t), s.res)
 
-	tooLong := strings.Repeat("x", schedule.InstanceStudentNoteMaxLength+1)
+	tooLong := strings.Repeat("x", timetable.SlotAttendanceNoteMaxLength+1)
 	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), map[string]any{
 		"note": tooLong,
 	})
@@ -406,8 +395,8 @@ func TestPatchInstanceStudent_400_SubstatusOnExpected(t *testing.T) {
 
 	s := buildPatchSetup(t)
 	// Move the row into expected so the cross-field rule fires.
-	require.NoError(t, s.repo.UpdateAttendanceFields(s.ctx, s.row.ID, schedule.AttendanceFieldPatch{
-		Status: testpkg.StrPtr(schedule.AttendanceStatusExpected),
+	require.NoError(t, s.data.PatchSlotAttendance(s.ctx, s.rowID, timetable.AttendancePatch{
+		Status: testpkg.StrPtr(timetable.SlotAttendanceExpected),
 	}))
 	router := patchRouter(testpkg.Ctx(t), s.res)
 
@@ -424,7 +413,7 @@ func TestPatchInstanceStudent_409_CompletedInstance(t *testing.T) {
 	s := buildPatchSetup(t)
 	_, err := s.db.NewUpdate().
 		TableExpr("schedule.activity_instances").
-		Set("status = ?", schedule.InstanceStatusCompleted).
+		Set("status = ?", timetable.InstanceStatusCompleted).
 		Where("id = ?", s.instanceID).
 		Exec(s.ctx)
 	require.NoError(t, err)
@@ -436,7 +425,7 @@ func TestPatchInstanceStudent_409_CompletedInstance(t *testing.T) {
 	require.Equal(t, http.StatusConflict, w.Code, "body: %s", w.Body.String())
 	assert.Contains(t, w.Body.String(), "frozen")
 
-	row, err := s.repo.FindByInstanceAndStudent(s.ctx, s.instanceID, s.studentID)
+	row, err := s.data.FindBlockParticipant(s.ctx, s.instanceID, s.studentID)
 	require.NoError(t, err)
 	require.NotNil(t, row)
 	assert.Nil(t, row.Note, "completed instance must not accept a late attendance write")

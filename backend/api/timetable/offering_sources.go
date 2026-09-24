@@ -16,7 +16,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 type offeringSourcesResponse struct {
@@ -63,7 +63,7 @@ func (rs *Resource) listOfferingSources(w http.ResponseWriter, r *http.Request) 
 	}
 	options, err := rs.OfferingSourceOptions.ListOfferingSourceOptions(r.Context(), calendarPeriodID)
 	if err != nil {
-		if errors.Is(err, timetableplanning.ErrOfferingSourceInvalid) {
+		if errors.Is(err, timetableModule.ErrOfferingSourceInvalid) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
@@ -149,7 +149,7 @@ func (rs *Resource) getCombinedOfferingSourceCounts(w http.ResponseWriter, r *ht
 	}
 	counts, err := rs.OfferingSourceOptions.CombinedOfferingSourceCounts(r.Context(), offeringIDs, calendarPeriodID)
 	if err != nil {
-		if errors.Is(err, timetableplanning.ErrOfferingSourceInvalid) {
+		if errors.Is(err, timetableModule.ErrOfferingSourceInvalid) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
@@ -182,8 +182,8 @@ func (rs *Resource) getCombinedOfferingSourceCounts(w http.ResponseWriter, r *ht
 // tenant transaction.
 func parseOfferingIDList(raw string) ([]int64, error) {
 	segments := strings.Split(raw, ",")
-	if len(segments) > timetableplanning.MaxOfferingSourcesPerTemplate {
-		return nil, fmt.Errorf("at most %d ids are supported", timetableplanning.MaxOfferingSourcesPerTemplate)
+	if len(segments) > timetableModule.MaxOfferingSourcesPerTemplate {
+		return nil, fmt.Errorf("at most %d ids are supported", timetableModule.MaxOfferingSourcesPerTemplate)
 	}
 	offeringIDs := make([]int64, 0, len(segments))
 	for _, segment := range segments {

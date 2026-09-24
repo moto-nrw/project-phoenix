@@ -28,7 +28,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	importsvc "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -3074,7 +3074,7 @@ func (s *decisionService) resyncMultiSourceTemplates(
 	slices.Sort(templateIDs)
 	for _, templateID := range templateIDs {
 		tmpl := templates[templateID]
-		err := s.ResyncTemplateOfferingRoster(ctx, timetableplanning.OfferingRosterResyncInput{
+		err := s.ResyncTemplateOfferingRoster(ctx, timetable.OfferingRosterResyncInput{
 			TemplateID:           tmpl.ID,
 			OfferingIDs:          tmpl.SourceCareOfferingIDs,
 			GradeLevels:          tmpl.SourceGradeLevels,
@@ -3084,7 +3084,7 @@ func (s *decisionService) resyncMultiSourceTemplates(
 			ScopeRequestChildIDs: scopeRequestChildIDs,
 		})
 		if err != nil {
-			if errors.Is(err, timetableplanning.ErrOfferingSourceInvalid) {
+			if errors.Is(err, timetable.ErrOfferingSourceInvalid) {
 				s.logSkippedSourcedTemplate(tmpl.ID, tmpl.SourceCareOfferingIDs, "decision fan-out: multi-source template invalid", err)
 				continue
 			}

@@ -14,12 +14,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // createInstanceRequest is the JSON body accepted by POST /instances.
@@ -73,7 +69,7 @@ func normalizeNotes(v *string) *string {
 
 type parsedCreateInstanceRequest struct {
 	req       *createInstanceRequest
-	date      timezone.Date
+	date      calendar.Date
 	startTime time.Time
 	endTime   time.Time
 }
@@ -87,7 +83,7 @@ func createInstanceIdempotencyKey(r *http.Request) (*string, error) {
 	if key == "" {
 		return nil, errors.New("Idempotency-Key cannot be blank")
 	}
-	if len(key) > scheduleModel.ActivityInstanceIdempotencyKeyMaxLength {
+	if len(key) > timetable.ActivityInstanceIdempotencyKeyMaxLength {
 		return nil, errors.New("Idempotency-Key is too long")
 	}
 	return &key, nil
@@ -137,7 +133,7 @@ func normalizeInstanceListKind(raw *string) (*string, error) {
 	if kind == "" {
 		return nil, nil
 	}
-	if !activitiesModel.IsValidListKind(kind) {
+	if !timetable.IsValidListKind(kind) {
 		return nil, fmt.Errorf("invalid list_kind %q", kind)
 	}
 	return &kind, nil
@@ -216,7 +212,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		createdByCopy := createdBy
 		createdByPtr = &createdByCopy
 	}
-	inst, err := rs.InstanceService.Create(r.Context(), timetableplanning.CreateInstanceInput{
+	inst, err := rs.InstanceService.CreateInstance(r.Context(), timetable.CreateInstanceInput{
 		Date:             parsed.date,
 		StartTime:        parsed.startTime,
 		EndTime:          parsed.endTime,
@@ -238,25 +234,12 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Re-fetch as enriched payload so the frontend can drop the fresh row
-	// straight into its SWR cache without a round-trip refetch.
-	roomCache := make(map[int64]string)
-	typeCache := make(map[int64]templateMeta)
-	// A failed care-day derivation takes the same route as any other failed
+	// straight into its SWR cache without a round-trip refetch. A failed
+	// care-day derivation takes the same route as any other failed
 	// enrichment: the payload is announced as incomplete instead of carrying
 	// counts that quietly read every assigned child as expected again (#1747
 	// review).
-	var enriched enrichedInstance
-	var rows *timetableplanning.InstanceRows
-	careDays, err := rs.careDaysForInstance(r.Context(), inst)
-	if err == nil {
-		rows, err = rs.TimetableData.GetInstanceRows(r.Context(), []*scheduleModel.ActivityInstance{inst})
-	}
-	if err == nil {
-		enriched, _, _, err = rs.enrichInstance(r.Context(), inst, rows, roomCache, typeCache, make(map[int64]*scheduleModel.PlanningTrack), make(map[int64][]enrollmentSvc.OfferingSourceOption), rs.childrenPerStaffRatio(r.Context()), careDays)
-	}
-	if err == nil {
-		enriched.ConflictWarnings = rs.dayConflictWarningsFor(r.Context(), inst)
-	}
+	enriched, err := rs.enrichWrittenInstance(r.Context(), inst.ID)
 	if err != nil {
 		// Insert succeeded; enrichment is informational. Fall through with
 		// a partial response rather than failing the whole request.
@@ -280,16 +263,14 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 var createInstanceErrorRules = []common.ErrorRule{
 	{
 		Match: func(err error) bool {
-			return errors.Is(err, timetableplanning.ErrInvalidInstanceReference) ||
-				errors.Is(err, timetableplanning.ErrInstanceOutsideActiveCalendarPeriod)
+			return errors.Is(err, timetable.ErrInvalidInstanceReference) ||
+				errors.Is(err, timetable.ErrInstanceOutsideActiveCalendarPeriod)
 		},
 		Render: common.ErrorInvalidRequest,
 	},
-	{Target: timetableplanning.ErrIdempotencyKeyReuse, Render: conflictCode("idempotency_key_reused")},
+	{Target: timetable.ErrIdempotencyKeyReuse, Render: conflictCode("idempotency_key_reused")},
 	{
-		Match: func(err error) bool {
-			return base.IsUniqueViolationOn(err, "idx_activity_instances_template_unique")
-		},
+		Target: timetable.ErrDuplicateTemplateInstance,
 		Render: staticConflict("instance already exists for this template/date/start_time", "duplicate_instance"),
 	},
 }

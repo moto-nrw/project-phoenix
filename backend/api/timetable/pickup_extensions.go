@@ -20,7 +20,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -145,7 +144,11 @@ func (rs *Resource) resolvePickupExtension(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("pickup extension not found"), pickupExtensionNotFoundCode))
 		return
 	}
-	if err := timetableplanning.LockTenantRecurrenceWrites(ctx, rs.DB); err != nil {
+	if rs.RecurrenceLock == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("template recurrence lock not wired")))
+		return
+	}
+	if err := rs.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("lock template recurrence failed", err))
 		return
 	}

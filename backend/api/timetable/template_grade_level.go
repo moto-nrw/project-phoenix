@@ -7,9 +7,8 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 func (rs *Resource) resolveTemplateGradeLevelMax(ctx context.Context) (int, error) {
@@ -20,20 +19,20 @@ func (rs *Resource) resolveTemplateGradeLevelMax(ctx context.Context) (int, erro
 	if err != nil {
 		return 0, fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentGradeLevelMax, err)
 	}
-	if value < schoolclass.MinGradeLevel || value > schoolclass.MaxGradeLevel {
+	if value < timetableModule.MinSchoolGradeLevel || value > timetableModule.MaxSchoolGradeLevel {
 		return 0, fmt.Errorf(
 			"resolve %s: value %d is outside %d..%d",
 			configModel.KeyEnrollmentGradeLevelMax,
 			value,
-			schoolclass.MinGradeLevel,
-			schoolclass.MaxGradeLevel,
+			timetableModule.MinSchoolGradeLevel,
+			timetableModule.MaxSchoolGradeLevel,
 		)
 	}
 	return value, nil
 }
 
 func renderTemplateTargetGradeLimit(w http.ResponseWriter, r *http.Request, err error) bool {
-	if !errors.Is(err, timetableplanning.ErrTemplateTargetGradeExceedsLimit) {
+	if !errors.Is(err, timetableModule.ErrTemplateTargetGradeExceedsLimit) {
 		return false
 	}
 	common.RenderError(w, r, common.ErrorInvalidRequest(err))

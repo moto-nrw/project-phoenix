@@ -15,22 +15,22 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // bulkCancelStub records the bulk cancellation the handler asks for (#3594).
 type bulkCancelStub struct {
 	*mockInstanceService
 	calls  int
-	from   timezone.Date
-	to     timezone.Date
+	from   calendar.Date
+	to     calendar.Date
 	opts   timetableModule.BulkCancelOptions
 	result *timetableModule.BulkCancelResult
 	err    error
 }
 
-func (s *bulkCancelStub) BulkCancelPlanned(_ context.Context, from, to timezone.Date, opts timetableModule.BulkCancelOptions, _ *int64) (*timetableModule.BulkCancelResult, error) {
+func (s *bulkCancelStub) BulkCancelPlanned(_ context.Context, from, to calendar.Date, opts timetableModule.BulkCancelOptions, _ *int64) (*timetableModule.BulkCancelResult, error) {
 	s.calls++
 	s.from, s.to, s.opts = from, to, opts
 	return s.result, s.err
@@ -81,8 +81,8 @@ func TestBulkCancelRoute_DryRunReturnsCounts(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, response.Code, "body=%s", response.Body.String())
 	assert.Equal(t, 1, stub.calls)
-	assert.Equal(t, timezone.NewDate(2026, 10, 12), stub.from)
-	assert.Equal(t, timezone.NewDate(2026, 10, 16), stub.to)
+	assert.Equal(t, calendar.NewDate(2026, 10, 12), stub.from)
+	assert.Equal(t, calendar.NewDate(2026, 10, 16), stub.to)
 	assert.True(t, stub.opts.DryRun)
 	assert.False(t, stub.opts.IncludeClosingDaySeries, "series planned on closing days stay by default")
 

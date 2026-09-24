@@ -11,50 +11,45 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	model "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 type planningTrackServiceStub struct {
-	created timetableplanning.PlanningTrackInput
+	created timetable.PlanningTrackDraft
 	ordered []int64
 }
 
-func (s *planningTrackServiceStub) ListPlanningTracks(context.Context) ([]*model.PlanningTrack, error) {
-	return []*model.PlanningTrack{{
-		Model: model.Model{ID: 4}, Name: "Früh", Color: "#5080D8", SortOrder: 0,
-	}}, nil
+func (s *planningTrackServiceStub) ListAllPlanningTracks(context.Context) ([]timetable.PlanningTrack, error) {
+	return []timetable.PlanningTrack{{ID: 4, Name: "Früh", Color: "#5080D8", SortOrder: 0}}, nil
 }
 
-func (s *planningTrackServiceStub) GetPlanningTrack(context.Context, int64) (*model.PlanningTrack, error) {
-	return nil, timetableplanning.ErrPlanningTrackNotFound
+func (s *planningTrackServiceStub) GetPlanningTrack(context.Context, int64) (timetable.PlanningTrack, error) {
+	return timetable.PlanningTrack{}, timetable.ErrPlanningTrackNotFound
 }
 
-func (s *planningTrackServiceStub) CreatePlanningTrack(_ context.Context, input timetableplanning.PlanningTrackInput) (*model.PlanningTrack, error) {
-	s.created = input
-	return &model.PlanningTrack{
-		Model: model.Model{ID: 5}, Name: input.Name, Color: input.Color, SortOrder: input.SortOrder,
-	}, nil
+func (s *planningTrackServiceStub) AddPlanningTrack(_ context.Context, draft timetable.PlanningTrackDraft) (timetable.PlanningTrack, error) {
+	s.created = draft
+	return timetable.PlanningTrack{ID: 5, Name: draft.Name, Color: draft.Color, SortOrder: draft.SortOrder}, nil
 }
 
-func (s *planningTrackServiceStub) UpdatePlanningTrack(context.Context, int64, timetableplanning.PlanningTrackInput) (*model.PlanningTrack, error) {
-	return nil, timetableplanning.ErrPlanningTrackNotFound
+func (s *planningTrackServiceStub) EditPlanningTrack(context.Context, int64, timetable.PlanningTrackDraft) (timetable.PlanningTrack, error) {
+	return timetable.PlanningTrack{}, timetable.ErrPlanningTrackNotFound
 }
 
-func (s *planningTrackServiceStub) ReorderPlanningTracks(_ context.Context, ids []int64) error {
+func (s *planningTrackServiceStub) OrderPlanningTracks(_ context.Context, ids []int64) error {
 	s.ordered = ids
 	return nil
 }
 
-func (s *planningTrackServiceStub) ArchivePlanningTrack(context.Context, int64) (*model.PlanningTrack, error) {
-	return nil, timetableplanning.ErrPlanningTrackNotFound
+func (s *planningTrackServiceStub) ArchivePlanningTrack(context.Context, int64) (timetable.PlanningTrack, error) {
+	return timetable.PlanningTrack{}, timetable.ErrPlanningTrackNotFound
 }
 
-func (s *planningTrackServiceStub) RestorePlanningTrack(context.Context, int64) (*model.PlanningTrack, error) {
-	return nil, timetableplanning.ErrPlanningTrackNotFound
+func (s *planningTrackServiceStub) RestorePlanningTrack(context.Context, int64) (timetable.PlanningTrack, error) {
+	return timetable.PlanningTrack{}, timetable.ErrPlanningTrackNotFound
 }
 
-func (s *planningTrackServiceStub) ValidatePlanningTrackAssignment(context.Context, *int64) error {
+func (s *planningTrackServiceStub) ValidatePlanningTrackAssignment(context.Context, *int64, *int64) error {
 	return nil
 }
 
@@ -63,8 +58,8 @@ func TestPlanningTrackListRouteAllowsSchedulesManage(t *testing.T) {
 
 	db, _ := testutil.SetupTimetableModule(t)
 	resource := NewResource(Dependencies{
-		DB:                   db,
-		PlanningTrackService: new(planningTrackServiceStub),
+		DB:             db,
+		PlanningTracks: new(planningTrackServiceStub),
 	})
 	router := chi.NewRouter()
 	router.Mount("/timetable", resource.Router())
@@ -84,7 +79,7 @@ func TestPlanningTrackHandlersCreateAndReorder(t *testing.T) {
 	t.Parallel()
 
 	service := new(planningTrackServiceStub)
-	resource := NewResource(Dependencies{PlanningTrackService: service})
+	resource := NewResource(Dependencies{PlanningTracks: service})
 
 	createRequest := httptest.NewRequest(http.MethodPost, "/planning-tracks", strings.NewReader(`{"name":"Mittag","color":"#F78C10","sort_order":2}`))
 	createRequest.Header.Set("Content-Type", "application/json")
@@ -112,7 +107,7 @@ func TestPlanningTrackHandlersCreateAndReorder(t *testing.T) {
 func TestPlanningTrackHandlerMapsNotFound(t *testing.T) {
 	t.Parallel()
 
-	resource := NewResource(Dependencies{PlanningTrackService: new(planningTrackServiceStub)})
+	resource := NewResource(Dependencies{PlanningTracks: new(planningTrackServiceStub)})
 	request := httptest.NewRequest(http.MethodDelete, "/planning-tracks/99", nil)
 	routeContext := chi.NewRouteContext()
 	routeContext.URLParams.Add("id", "99")

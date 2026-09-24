@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -47,21 +47,21 @@ func TestSummarizeInstanceStudentsEarlyPickupRequiresExpectedCareDay(t *testing.
 	t.Parallel()
 
 	const studentID = int64(4711)
-	day := timezone.NewDate(2030, time.March, 4)
-	inst := &scheduleModel.ActivityInstance{
-		Date:      scheduleModel.Date(day),
-		StartTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)),
-		EndTime:   timezone.NormalizeWallClock(time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)),
-		Status:    scheduleModel.InstanceStatusPlanned,
+	day := calendar.NewDate(2030, time.March, 4)
+	inst := timetable.ScheduledInstance{
+		Date:      day,
+		StartTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)),
+		EndTime:   calendar.NormalizeWallClock(time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)),
+		Status:    timetable.InstanceStatusPlanned,
 	}
-	rows := []*scheduleModel.InstanceStudent{
-		{StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected},
+	rows := []timetable.ScheduledParticipant{
+		{StudentID: studentID, Status: timetable.SlotAttendanceExpected},
 	}
 	cutoffs := map[int64]time.Time{
-		studentID: timezone.NormalizeWallClock(time.Date(1, 1, 1, 14, 45, 0, 0, time.UTC)),
+		studentID: calendar.NormalizeWallClock(time.Date(1, 1, 1, 14, 45, 0, 0, time.UTC)),
 	}
-	verdicts := func(v careplan.CareDayStatus) map[int64]map[timezone.Date]careplan.CareDayStatus {
-		return map[int64]map[timezone.Date]careplan.CareDayStatus{studentID: {day: v}}
+	verdicts := func(v careplan.CareDayStatus) map[int64]map[calendar.Date]careplan.CareDayStatus {
+		return map[int64]map[calendar.Date]careplan.CareDayStatus{studentID: {day: v}}
 	}
 
 	scheduled := summarizeInstanceStudents(inst, rows, verdicts(careplan.CareDayScheduled), cutoffs)

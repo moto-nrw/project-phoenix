@@ -28,7 +28,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // conflictAcksResponse is the 200 body for GET /conflict-acks.
@@ -120,7 +119,7 @@ func conflictAckFingerprintParam(w http.ResponseWriter, r *http.Request) (string
 
 // renderConflictAckError maps service errors: validation → 400, rest → 500.
 func renderConflictAckError(w http.ResponseWriter, r *http.Request, err error) {
-	if errors.Is(err, timetableplanning.ErrInvalidConflictFingerprint) {
+	if errors.Is(err, timetable.ErrInvalidConflictAck) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}

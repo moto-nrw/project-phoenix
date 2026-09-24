@@ -99,3 +99,28 @@ func TestAnalyticsActorFollowsTheTokenScope(t *testing.T) {
 		assert.Equal(t, tc.schoolID, actor.SchoolID, tc.name)
 	}
 }
+
+// The account leaves the session only for the pseudonymous ID of an OGS
+// account under Analyse-Freigabe (#3603): never from the parents or school
+// portal, and never from the staff preview, where an admin looks at someone
+// else's view.
+func TestAnalyticsActorNamesTheAccountOnlyForOGS(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		claims    projectJWT.AppClaims
+		accountID int64
+	}{
+		{"OGS staff", projectJWT.AppClaims{ID: 7, TenantID: 12}, 7},
+		{"OGS admin", projectJWT.AppClaims{ID: 7, TenantID: 12, IsAdmin: true, Scope: "tenant"}, 7},
+		{"staff preview", projectJWT.AppClaims{ID: 7, TenantID: 12, ReadOnly: true, ActingAdminID: 3}, 0},
+		{"parents portal", projectJWT.AppClaims{ID: 7, Scope: "parent", TenantID: 12}, 0},
+		{"school portal", projectJWT.AppClaims{ID: 7, Scope: "school", TenantID: 12}, 0},
+	}
+	for _, tc := range cases {
+		actor, ok := analyticsActor(tc.claims)
+		require.True(t, ok, tc.name)
+		assert.Equal(t, tc.accountID, actor.AccountID, tc.name)
+	}
+}

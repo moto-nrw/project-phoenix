@@ -109,7 +109,7 @@ Disposable PostgreSQL clones, 2026-09-22, PR branch:
 | --- | --- |
 | Migration tests | `TestPresenceCutover*` and `TestPresenceCompatibility*` in `backend/database/migrations`: final delta, rollback with a failing switch, unequal targets refused, mirror and routing in both directions, tenant isolation of the routing. |
 | Owner tests | `TestActivitySessionStartsOncePerBlock`, `TestSessionStorageIsTenantIsolated`, `TestSessionStorageWritesRollBackWithTheCallerTransaction` in `backend/modules/studentpresence/compose`. |
-| Composition tests | `TestActivityInstanceCreateInExecutionStateJoinsTheCallerTransaction`, `TestActivityInstanceCreateRollsBackThePlanWhenTheSessionCannotStart` in `backend/modules/timetable/legacy/timetablesqltest`. |
+| Composition tests | `TestActivityInstanceCreateInExecutionStateJoinsTheCallerTransaction`, `TestActivityInstanceCreateRollsBackThePlanWhenTheSessionCannotStart` in `backend/modules/timetable/compose/httpintegration/legacy_presence_cutover_composition_test.go`. |
 | Caller inventory | `TestPresenceStorageCallerInventory`: zero application literals name a mirrored column or the counter. |
 | Query budgets | Unchanged register; the retained lists read the plan and the owner rows in one joined statement each. |
 | Architecture ratchet | `scripts/backend-architecture.sh check` passes with the 568 baseline violations unchanged (no key removed or added) and no policy loosening. |

@@ -2,7 +2,7 @@
 //
 // The former POST /api/timetable/substitute endpoint was consolidated into
 // POST /instances/{id}/deviations (#1886), and the plan/classify/write logic
-// moved into modules/timetable/legacy/timetableplanning (InstanceService.ApplyDeviations, #1840). What
+// moved to the Timetable owner (timetable.StaffDeviations, #1840, #3424). What
 // remains here is the wire response row (AffectedInstance), the shared reason
 // normalizer, and the post-save SSE broadcast helpers the handlers drive.
 package timetable
@@ -13,10 +13,16 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
+
+// StaffingAnnouncer sends the tenant-wide staffing_deviation_changed event
+// whose Source names the emitting flow. The composition root binds it to
+// the realtime hub.
+type StaffingAnnouncer interface {
+	AnnounceStaffingChanged(tenantID int64, source string) error
+}
 
 // AffectedInstance is one row in the affected_instances list of the response.
 type AffectedInstance struct {
@@ -53,13 +59,19 @@ func trimReason(reason *string) *string {
 // invalidation (#1844).
 func (rs *Resource) broadcastDeviationSaveEvents(
 	ctx context.Context,
-	touched map[int64]*scheduleModel.ActivityInstance,
+	touched timetable.TouchedActivities,
 	appliedWrites int,
 	ackChanged bool,
 	clearedAcks int,
 ) {
-	rs.InstanceService.QueueActivityUpdates(ctx, touched)
-	if appliedWrites > 0 || ackChanged || clearedAcks > 0 {
+	rs.Deviations.QueueActivityUpdates(ctx, touched)
+	rs.broadcastStaffingIfChanged(ctx, appliedWrites > 0 || ackChanged || clearedAcks > 0)
+}
+
+// broadcastStaffingIfChanged sends the tenant-wide invalidation of a staffing
+// save that changed staffing state.
+func (rs *Resource) broadcastStaffingIfChanged(ctx context.Context, changed bool) {
+	if changed {
 		rs.broadcastStaffingDeviationChanged(ctx, "deviations")
 	}
 }
@@ -72,13 +84,12 @@ func (rs *Resource) broadcastDeviationSaveEvents(
 // (Betreuungsplan card, planner) stays stale until reload (#1844). source names
 // the emitting flow for log review.
 func (rs *Resource) broadcastStaffingDeviationChanged(ctx context.Context, source string) {
-	if rs.Broadcaster == nil {
+	if rs.Staffing == nil {
 		return
 	}
 	tenantID := tenant.FromContext(ctx)
-	event := realtime.NewEvent(realtime.EventStaffingDeviationChanged, "", realtime.EventData{Source: &source})
 	tenant.RegisterAfterCommit(ctx, func() {
-		if err := rs.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+		if err := rs.Staffing.AnnounceStaffingChanged(tenantID, source); err != nil {
 			rs.getLogger().Warn("SSE staffing deviation broadcast failed",
 				slog.String("source", source),
 				slog.Int64("tenant_id", tenantID),

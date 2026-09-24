@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
@@ -37,7 +36,7 @@ type staffDateKey struct {
 
 // uncoveredShiftIntervals returns the gaps of the assignment window the
 // shifts leave uncovered (timetable.UncoveredShiftIntervals).
-func uncoveredShiftIntervals(start, end time.Time, shifts []*scheduleModel.StaffShift) []timetable.ShiftCoverageInterval {
+func uncoveredShiftIntervals(start, end time.Time, shifts []*StaffShift) []timetable.ShiftCoverageInterval {
 	windows := make([]timetable.ShiftWindow, 0, len(shifts))
 	for _, shift := range shifts {
 		if shift != nil {
@@ -48,11 +47,11 @@ func uncoveredShiftIntervals(start, end time.Time, shifts []*scheduleModel.Staff
 }
 
 // indexShifts groups shifts by staff member and calendar day.
-func indexShifts(shifts []*scheduleModel.StaffShift) map[staffDateKey][]*scheduleModel.StaffShift {
-	index := make(map[staffDateKey][]*scheduleModel.StaffShift)
+func indexShifts(shifts []*StaffShift) map[staffDateKey][]*StaffShift {
+	index := make(map[staffDateKey][]*StaffShift)
 	for _, shift := range shifts {
 		if shift != nil {
-			key := staffDateKey{shift.StaffID, timezone.Date(shift.Date)}
+			key := staffDateKey{shift.StaffID, shift.Date}
 			index[key] = append(index[key], shift)
 		}
 	}

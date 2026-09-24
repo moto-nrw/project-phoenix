@@ -23,12 +23,11 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // PatchAttendanceRequest is the wire shape. Status uses *string (nullable-ish
@@ -94,12 +93,8 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	current, err := rs.TimetableData.GetInstanceStudent(ctx, instanceID, studentID)
+	current, err := rs.TimetableData.FindBlockParticipant(ctx, instanceID, studentID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance student not found")))
-			return
-		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance student failed", err))
 		return
 	}
@@ -117,14 +112,14 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := rs.TimetableData.UpdateInstanceStudentAttendance(ctx, current.ID, patch); err != nil {
+	if err := rs.TimetableData.PatchSlotAttendance(ctx, current.ID, patch); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("update attendance failed", err))
 		return
 	}
 
 	// Re-read so the response body reflects the post-write state (including
 	// the bumped updated_at). One extra SELECT is worth the response fidelity.
-	updated, err := rs.TimetableData.GetInstanceStudent(ctx, instanceID, studentID)
+	updated, err := rs.TimetableData.FindBlockParticipant(ctx, instanceID, studentID)
 	if err != nil || updated == nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("reload updated attendance failed", err))
 		return
@@ -140,20 +135,20 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 
 func (rs *Resource) rejectFrozenAttendanceWrite(w http.ResponseWriter, r *http.Request, instanceID int64) bool {
 	ctx := r.Context()
-	if err := rs.TimetableData.LockInstanceAttendance(ctx, instanceID); err != nil {
+	if err := rs.TimetableData.LockBlockAttendance(ctx, instanceID); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("lock attendance failed", err))
 		return true
 	}
-	inst, err := rs.TimetableData.GetActivityInstance(ctx, instanceID)
+	inst, err := rs.TimetableData.FindScheduledInstance(ctx, instanceID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if errors.Is(err, timetable.ErrActivityInstanceNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
 			return true
 		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance failed", err))
 		return true
 	}
-	if inst != nil && (inst.Status == scheduleModel.InstanceStatusCompleted || inst.Status == scheduleModel.InstanceStatusCancelled) {
+	if inst.Status == timetable.InstanceStatusCompleted || inst.Status == timetable.InstanceStatusCancelled {
 		common.RenderError(w, r, common.ErrorConflict(errors.New("attendance is frozen after completion")))
 		return true
 	}
@@ -202,9 +197,9 @@ func decodePatchBody(w http.ResponseWriter, r *http.Request) (*PatchAttendanceRe
 // fields into AttendanceFieldPatch. Returns parse-level errors (type
 // mismatches) only; business-rule validation happens in validateAttendancePatch
 // once the current row is known.
-func parseAttendancePatchRequest(req *PatchAttendanceRequest) (scheduleModel.AttendanceFieldPatch, []fieldError) {
+func parseAttendancePatchRequest(req *PatchAttendanceRequest) (timetable.AttendancePatch, []fieldError) {
 	var errs []fieldError
-	patch := scheduleModel.AttendanceFieldPatch{}
+	patch := timetable.AttendancePatch{}
 
 	if req.Status != nil {
 		s := *req.Status
@@ -283,8 +278,8 @@ func decodeNullableString(raw json.RawMessage) (nullableString, error) {
 // "Final substatus non-null" means: existing substatus stays set AND patch
 // did not clear it, OR patch sets a non-null value. Cleared substatus (with
 // SubstatusClear) is treated as nil regardless of context.
-func validateAttendancePatch(patch scheduleModel.AttendanceFieldPatch, current *scheduleModel.InstanceStudent) []fieldError {
-	return attendancePatchFieldErrors(timetableplanning.ValidateAttendancePatch(patch, current))
+func validateAttendancePatch(patch timetable.AttendancePatch, current *timetable.ScheduledParticipant) []fieldError {
+	return attendancePatchFieldErrors(timetable.ValidateAttendancePatch(patch, timetable.SlotAttendance{Status: current.Status, Substatus: current.Substatus}))
 }
 
 // renderValidationErrors emits the 400 body with the full errors slice.
@@ -294,7 +289,7 @@ func renderValidationErrors(w http.ResponseWriter, r *http.Request, errs []field
 	common.RenderError(w, r, common.ErrorValidation("validation failed", errs))
 }
 
-func attendancePatchFieldErrors(errs []scheduleModel.AttendancePatchFieldError) []fieldError {
+func attendancePatchFieldErrors(errs []timetable.AttendanceFieldError) []fieldError {
 	if len(errs) == 0 {
 		return nil
 	}
@@ -316,17 +311,21 @@ type AttendanceResponse struct {
 	CheckedInAt *string `json:"checked_in_at"`
 }
 
-func mapAttendanceToResponse(row *scheduleModel.InstanceStudent) AttendanceResponse {
+func mapAttendanceToResponse(row *timetable.ScheduledParticipant) AttendanceResponse {
+	return attendanceResponse(row.ID, row.InstanceID, row.StudentID, row.Status, row.Substatus, row.Note, row.CheckedInAt)
+}
+
+func attendanceResponse(id, instanceID, studentID int64, status string, substatus, note *string, checkedInAt *time.Time) AttendanceResponse {
 	resp := AttendanceResponse{
-		ID:         row.ID,
-		InstanceID: row.InstanceID,
-		StudentID:  row.StudentID,
-		Status:     row.Status,
-		Substatus:  row.Substatus,
-		Note:       row.Note,
+		ID:         id,
+		InstanceID: instanceID,
+		StudentID:  studentID,
+		Status:     status,
+		Substatus:  substatus,
+		Note:       note,
 	}
-	if row.CheckedInAt != nil {
-		t := row.CheckedInAt.UTC().Format("2006-01-02T15:04:05Z")
+	if checkedInAt != nil {
+		t := checkedInAt.UTC().Format("2006-01-02T15:04:05Z")
 		resp.CheckedInAt = &t
 	}
 	return resp

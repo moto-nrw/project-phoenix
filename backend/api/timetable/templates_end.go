@@ -11,8 +11,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type endTemplateRequest struct {
@@ -37,7 +37,7 @@ func (rs *Resource) endTemplate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if rs.TemplateSplitService == nil {
+	if rs.Templates == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("template split service not wired")))
 		return
 	}
@@ -46,13 +46,13 @@ func (rs *Resource) endTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	effectiveDate, err := timezone.ParseDate(req.EffectiveDate)
+	effectiveDate, err := calendar.ParseDate(req.EffectiveDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid effective_date format, expected YYYY-MM-DD")))
 		return
 	}
 
-	result, err := rs.TemplateSplitService.EndFromDate(r.Context(), timetableplanning.TemplateEndInput{
+	result, err := rs.Templates.EndTemplateFromDate(r.Context(), timetableModule.EndTemplateCommand{
 		TemplateID:    id,
 		EffectiveDate: effectiveDate,
 	})
@@ -73,9 +73,9 @@ func renderTemplateEndError(w http.ResponseWriter, r *http.Request, err error) {
 		return
 	}
 	switch {
-	case errors.Is(err, timetableplanning.ErrSplitTemplateNotFound):
+	case errors.Is(err, timetableModule.ErrSplitTemplateNotFound):
 		renderTemplateNotFound(w, r)
-	case errors.Is(err, timetableplanning.ErrSplitInvalidInput):
+	case errors.Is(err, timetableModule.ErrSplitInvalidInput):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("end template failed", err))

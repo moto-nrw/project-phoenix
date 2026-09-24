@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"sort"
@@ -15,10 +16,13 @@ import (
 
 // coreActionAnalytics binds the core-action middleware (#3602) to the
 // session model: the request's verified session, or the session a login
-// response mints. The root mounts it after the session verifier.
-func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *projectJWT.TokenAuth) func(http.Handler) http.Handler {
+// response mints. The root mounts it after the session verifier. The school's
+// Analyse-Freigabe (#3603, settings compose NewAnalyseFreigabe) decides
+// whether an OGS account is a pseudonymous person.
+func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *projectJWT.TokenAuth, analyseFreigabe func(ctx context.Context, schoolID int64) bool) func(http.Handler) http.Handler {
 	return analytics.CoreActionMiddleware(analytics.CoreActionConfig{
-		Tracker: tracker,
+		Tracker:         tracker,
+		AnalyseFreigabe: analyseFreigabe,
 		RequestActor: func(r *http.Request) (analytics.Actor, bool) {
 			// The root verifier leaves a token only when its signature and
 			// expiry hold; ParseClaims rejects MFA interim tokens.
@@ -44,7 +48,10 @@ func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *projectJWT.Toke
 
 // analyticsActor maps the token scope to the analytics surface and role, the
 // same values the frontend registers. Role names are school data, so the OGS
-// portal reports only the admin flag. Operator tokens are no portal.
+// portal reports only the admin flag. Operator tokens are no portal. Only an
+// OGS session names its account, for the pseudonymous ID under
+// Analyse-Freigabe; the read-only staff preview (#2893) is an admin looking
+// at someone else's view, so it names none.
 func analyticsActor(claims projectJWT.AppClaims) (analytics.Actor, bool) {
 	switch {
 	case claims.IsPlatformScope():
@@ -55,10 +62,12 @@ func analyticsActor(claims projectJWT.AppClaims) (analytics.Actor, bool) {
 		return analytics.Actor{Surface: analytics.SurfaceSchool, Role: analytics.RoleLehrkraft, SchoolID: claims.TenantID}, true
 	case claims.TenantID == 0:
 		return analytics.Actor{}, false
-	case claims.IsAdmin || claims.IsReadOnlyPreview():
+	case claims.IsReadOnlyPreview():
 		return analytics.Actor{Surface: analytics.SurfaceOGS, Role: analytics.RoleAdmin, SchoolID: claims.TenantID}, true
+	case claims.IsAdmin:
+		return analytics.Actor{Surface: analytics.SurfaceOGS, Role: analytics.RoleAdmin, SchoolID: claims.TenantID, AccountID: int64(claims.ID)}, true
 	default:
-		return analytics.Actor{Surface: analytics.SurfaceOGS, Role: analytics.RoleStaff, SchoolID: claims.TenantID}, true
+		return analytics.Actor{Surface: analytics.SurfaceOGS, Role: analytics.RoleStaff, SchoolID: claims.TenantID, AccountID: int64(claims.ID)}, true
 	}
 }
 

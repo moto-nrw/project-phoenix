@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   resetAndCapture: vi.fn(),
-  setSurface: vi.fn(),
+  setAnalyticsContext: vi.fn(),
   setContext: vi.fn(),
   clearContext: vi.fn(),
 }));
@@ -14,7 +14,7 @@ const mockEnv = vi.hoisted(() => ({
 vi.mock("~/lib/posthog-client", () => ({
   capturePostHog: mocks.capture,
   resetAndCapturePostHog: mocks.resetAndCapture,
-  setAnalyticsSurface: mocks.setSurface,
+  setAnalyticsContext: mocks.setAnalyticsContext,
   setPostHogContext: mocks.setContext,
   clearPostHogContext: mocks.clearContext,
 }));
@@ -82,9 +82,44 @@ describe("portal sessions", () => {
       false,
     );
 
-    expect(mocks.setSurface).toHaveBeenCalledWith("school");
+    // Outside the OGS portal no Freigabe and no person reach the context.
+    expect(mocks.setAnalyticsContext).toHaveBeenCalledWith({
+      surface: "school",
+      role: "lehrkraft",
+      analyseFreigabe: false,
+      recordingSamplePercent: 0,
+      person: null,
+    });
     expect(mocks.setContext).toHaveBeenCalledWith(
       { school_id: "42", role: "lehrkraft" },
+      false,
+    );
+  });
+
+  it("hands the OGS portal's Analyse-Freigabe and person to the context", () => {
+    registerPortalSession(
+      {
+        surface: "ogs",
+        schoolId: "42",
+        role: "staff",
+        analyseFreigabe: true,
+        recordingSamplePercent: 50,
+        person: "pseudo_4b9630678fc1afce76ce690721aaf949",
+      },
+      false,
+    );
+
+    expect(mocks.setAnalyticsContext).toHaveBeenCalledWith({
+      surface: "ogs",
+      role: "staff",
+      analyseFreigabe: true,
+      recordingSamplePercent: 50,
+      person: "pseudo_4b9630678fc1afce76ce690721aaf949",
+    });
+    // The registered properties stay school and role; the person is the
+    // distinct ID, never a property.
+    expect(mocks.setContext).toHaveBeenCalledWith(
+      { school_id: "42", role: "staff" },
       false,
     );
   });

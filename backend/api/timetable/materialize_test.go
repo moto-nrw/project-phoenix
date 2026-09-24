@@ -12,8 +12,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,15 +26,15 @@ import (
 // -----------------------------------------------------------------------------
 
 type mockMaterializer struct {
-	result   *timetableplanning.MaterializationResult
+	result   *timetableModule.MaterializationResult
 	err      error
-	lastFrom timezone.Date
-	lastTo   timezone.Date
-	lastSrc  timetableplanning.MaterializationSource
+	lastFrom calendar.Date
+	lastTo   calendar.Date
+	lastSrc  timetableModule.MaterializationSource
 	called   int
 }
 
-func (m *mockMaterializer) MaterializeForTenant(_ context.Context, from, to timezone.Date, source timetableplanning.MaterializationSource) (*timetableplanning.MaterializationResult, error) {
+func (m *mockMaterializer) MaterializeForTenant(_ context.Context, from, to calendar.Date, source timetableModule.MaterializationSource) (*timetableModule.MaterializationResult, error) {
 	m.called++
 	m.lastFrom = from
 	m.lastTo = to
@@ -47,10 +47,10 @@ func (m *mockMaterializer) MaterializeForTenant(_ context.Context, from, to time
 		m.result.To = to
 		return m.result, nil
 	}
-	return &timetableplanning.MaterializationResult{From: from, To: to}, nil
+	return &timetableModule.MaterializationResult{From: from, To: to}, nil
 }
 
-func (m *mockMaterializer) ResolveWindow(baseDate timezone.Date, weeksAhead int) (timezone.Date, timezone.Date) {
+func (m *mockMaterializer) ResolveWindow(baseDate calendar.Date, weeksAhead int) (calendar.Date, calendar.Date) {
 	// Not used by the handler; provide a sensible default so any accidental
 	// caller still gets a non-zero window.
 	if weeksAhead < 1 {
@@ -59,7 +59,7 @@ func (m *mockMaterializer) ResolveWindow(baseDate timezone.Date, weeksAhead int)
 	return baseDate, baseDate.AddDays(weeksAhead*7 - 1)
 }
 
-func (m *mockMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _ timezone.Date, _ bool) ([]timetableplanning.EditedOccurrence, error) {
+func (m *mockMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _ calendar.Date, _ bool) ([]timetableModule.EditedOccurrence, error) {
 	return nil, nil
 }
 
@@ -145,7 +145,7 @@ func TestMaterialize_NoBody_DefaultsToNextWeek(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockMaterializer{
-		result: &timetableplanning.MaterializationResult{
+		result: &timetableModule.MaterializationResult{
 			InstancesCreated:        3,
 			InstanceStudentsCreated: 9,
 			InstanceStaffCreated:    2,
@@ -160,7 +160,7 @@ func TestMaterialize_NoBody_DefaultsToNextWeek(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, 1, mock.called)
-	assert.Equal(t, timetableplanning.MaterializationSourceManual, mock.lastSrc)
+	assert.Equal(t, timetableModule.MaterializationSourceManual, mock.lastSrc)
 	assert.Equal(t, time.Monday, mock.lastFrom.Weekday(),
 		"default window must start on a Monday")
 	assert.Equal(t, time.Sunday, mock.lastTo.Weekday(),
@@ -171,7 +171,7 @@ func TestMaterialize_ValidBody_ParsesAndForwards(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockMaterializer{
-		result: &timetableplanning.MaterializationResult{InstancesCreated: 1},
+		result: &timetableModule.MaterializationResult{InstancesCreated: 1},
 	}
 	rs := NewResource(Dependencies{MaterializationService: mock})
 	router := setupMaterializeRouter(rs)

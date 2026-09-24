@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import { Camera, Pencil } from "lucide-react";
+import { AnalyseFreigabeNotice } from "~/components/analytics/analyse-freigabe-notice";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { updateProfile, uploadAvatar } from "~/lib/profile-api";
@@ -299,6 +300,8 @@ function ProfileContent() {
       <PushNotificationSection />
       <PasskeySettingsSection />
       <TrustedDevicesSection />
+      {/* Nur solange die Schule die Analyse-Freigabe erteilt hat (#3603). */}
+      <AnalyseFreigabeNotice />
 
       {showPasswordModal && (
         <PasswordChangeModal

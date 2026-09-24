@@ -22,7 +22,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -56,14 +56,14 @@ func doBulk(t *testing.T, router chi.Router, body any) *httptest.ResponseRecorde
 }
 
 // bulkStaffState summarizes one instance's staff rows for assertions.
-func bulkStaffState(t *testing.T, s *devSetup, instanceID int64) (absentA bool, subRowY *scheduleModel.InstanceStaff, extraIDs []int64) {
+func bulkStaffState(t *testing.T, s *devSetup, instanceID int64) (absentA bool, subRowY *timetable.InstanceStaff, extraIDs []int64) {
 	t.Helper()
 	for _, r := range devInstanceStaff(t, s.db, s.ctx, instanceID) {
 		if r.StaffID == s.staffA && !r.IsSubstitute {
 			absentA = r.IsAbsent
 		}
 		if r.StaffID == s.staffY && r.IsSubstitute {
-			subRowY = r
+			subRowY = &r
 			extraIDs = append(extraIDs, r.ID)
 		}
 	}

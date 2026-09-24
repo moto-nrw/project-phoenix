@@ -23,9 +23,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -55,7 +54,7 @@ func buildCreateSetup(t *testing.T) *createSetup {
 
 	mock := &mockInstanceService{}
 	res := NewResource(Dependencies{
-		TimetableData:   testTimetableData(db),
+		TimetableData:   testTimetableData(db).TimetableData(),
 		InstanceService: mock,
 		DB:              db,
 	})
@@ -88,12 +87,24 @@ func doCreate(t *testing.T, router chi.Router, body any) *httptest.ResponseRecor
 	return w
 }
 
-func nextTimetableWorkday() timezone.Date {
-	date := timezone.TodayDate().AddDays(1)
+func nextTimetableWorkday() calendar.Date {
+	date := calendar.TodayDate().AddDays(1)
 	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
 		date = date.AddDays(1)
 	}
 	return date
+}
+
+// lifecycleInstanceOf is the owner's lifecycle view of a persisted fixture
+// block, the shape CreateInstance and UpdatePlanned hand back.
+func lifecycleInstanceOf(
+	id int64, date calendar.Date, start, end time.Time, title string,
+	roomID int64, activityGroupID *int64, status string, isSpontaneous bool,
+) *timetable.LifecycleInstance {
+	return &timetable.LifecycleInstance{
+		ID: id, Date: date, StartTime: start, EndTime: end, Title: title,
+		RoomID: roomID, ActivityGroupID: activityGroupID, Status: status, IsSpontaneous: isSpontaneous,
+	}
 }
 
 func decodeCreate(t *testing.T, w *httptest.ResponseRecorder) enrichedInstance {
@@ -128,7 +139,8 @@ func TestCreateInstance_WithoutTemplateIsPlanned(t *testing.T) {
 		Title:         "Geplante Bastelstunde",
 		IsSpontaneous: false,
 	})
-	s.mock.createRes = persisted
+	s.mock.createRes = lifecycleInstanceOf(persisted.ID, tomorrow, persisted.StartTime, persisted.EndTime,
+		persisted.Title, persisted.RoomID, persisted.ActivityGroupID, persisted.Status, persisted.IsSpontaneous)
 
 	body := map[string]any{
 		"date":       tomorrow.String(),
@@ -146,7 +158,7 @@ func TestCreateInstance_WithoutTemplateIsPlanned(t *testing.T) {
 	assert.Equal(t, "Geplante Bastelstunde", got.Title)
 	assert.Equal(t, "14:00", got.StartTime)
 	assert.Equal(t, "15:00", got.EndTime)
-	assert.Equal(t, scheduleModel.InstanceStatusPlanned, got.Status)
+	assert.Equal(t, timetable.InstanceStatusPlanned, got.Status)
 	assert.False(t, got.IsSpontaneous, "is_spontaneous is serialized from the service result")
 	assert.False(t, got.IsLive)
 	assert.Equal(t, s.roomID, got.RoomID)
@@ -168,7 +180,7 @@ func TestCreateInstance_Validation(t *testing.T) {
 	router := createRouter(s.ctx, s.res)
 
 	tomorrow := nextTimetableWorkday().String()
-	weekend := timezone.NewDate(2026, 8, 24)
+	weekend := calendar.NewDate(2026, 8, 24)
 	for weekend.Weekday() != time.Saturday {
 		weekend = weekend.AddDays(1)
 	}
@@ -237,7 +249,8 @@ func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
 		EndHHMM:         "11:00",
 		Title:           "Template-bound extra slot",
 	})
-	s.mock.createRes = persisted
+	s.mock.createRes = lifecycleInstanceOf(persisted.ID, tomorrow, persisted.StartTime, persisted.EndTime,
+		persisted.Title, persisted.RoomID, persisted.ActivityGroupID, persisted.Status, persisted.IsSpontaneous)
 
 	body := map[string]any{
 		"date":              tomorrow.String(),
@@ -260,11 +273,11 @@ func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
 	errW := doCreate(t, router, body)
 	assert.Equal(t, http.StatusInternalServerError, errW.Code)
 
-	s.mock.createErr = fmt.Errorf("wrapped: %w", timetableplanning.ErrInvalidInstanceReference)
+	s.mock.createErr = fmt.Errorf("wrapped: %w", timetable.ErrInvalidInstanceReference)
 	refW := doCreate(t, router, body)
 	assert.Equal(t, http.StatusBadRequest, refW.Code)
 
-	s.mock.createErr = fmt.Errorf("wrapped: %w", timetableplanning.ErrInstanceOutsideActiveCalendarPeriod)
+	s.mock.createErr = fmt.Errorf("wrapped: %w", timetable.ErrInstanceOutsideActiveCalendarPeriod)
 	periodW := doCreate(t, router, body)
 	assert.Equal(t, http.StatusBadRequest, periodW.Code)
 }
@@ -273,8 +286,8 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	clock := func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, timezone.Berlin) }
-	instanceDate := timezone.DateFromTime(clock()).AddDays(1)
+	clock := func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, calendar.Berlin) }
+	instanceDate := calendar.DateFromTime(clock()).AddDays(1)
 
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -317,7 +330,7 @@ func setupDuplicateInstanceRoute(
 
 	_, serviceFactory := testutil.SetupTimetableModule(t)
 	resource := NewResource(Dependencies{
-		TimetableData:   testTimetableData(db, clock),
+		TimetableData:   testTimetableData(db, clock).TimetableData(),
 		InstanceService: serviceFactory.Instance,
 		DB:              db,
 	})

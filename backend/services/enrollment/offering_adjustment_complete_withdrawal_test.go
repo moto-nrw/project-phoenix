@@ -16,7 +16,6 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -287,7 +286,7 @@ func newWithdrawalRaceFixture(t *testing.T) *withdrawalRaceFixture {
 
 func (f *withdrawalRaceFixture) wireRaceServices(authoritative *bool) {
 	f.recurrenceGate = func(ctx context.Context) error {
-		return timetableplanning.LockTenantRecurrenceWrites(ctx, f.env.db)
+		return repositories.MustNewTimetableRecurrenceLock(f.env.db).LockRecurrenceWrites(ctx)
 	}
 	f.lifecycle = newTestCareLifecycle(f.env.db, repositories.CareLifecycleTestConfig{
 		LockCareBookingWrites: func(ctx context.Context) error {

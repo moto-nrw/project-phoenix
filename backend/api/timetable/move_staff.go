@@ -28,10 +28,9 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // moveStaffRequest is the POST body.
@@ -49,8 +48,8 @@ type MoveStaffResponse struct {
 	// target window; CoverageWarnings the Dienstplan gaps for it (#1873).
 	// Both advisory — the writes have already landed in the request's tenant
 	// tx and are never rolled back because of a warning.
-	TimeConflicts    []timetableplanning.SubstituteTimeConflict `json:"time_conflicts"`
-	CoverageWarnings []timetable.ShiftCoverageWarning           `json:"coverage_warnings"`
+	TimeConflicts    []timetable.SubstituteTimeConflict `json:"time_conflicts"`
+	CoverageWarnings []timetable.ShiftCoverageWarning   `json:"coverage_warnings"`
 }
 
 // moveStaff handles POST /api/timetable/instances/{id}/move-staff.
@@ -72,7 +71,7 @@ func (rs *Resource) moveStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := rs.InstanceService.MoveStaffBetweenBlocks(ctx, id, timetableplanning.MoveStaffInput{
+	result, err := rs.InstanceService.MoveStaffBetweenBlocks(ctx, id, timetable.MoveStaffInput{
 		StaffID:          req.StaffID,
 		SourceInstanceID: req.SourceInstanceID,
 		ActorAccountID:   jwt.ActorAccountIDFromCtx(ctx),
@@ -83,10 +82,11 @@ func (rs *Resource) moveStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	appliedWrites := 1
-	if result.Action == timetableplanning.MoveStaffActionAlreadyApplied {
+	if result.Action == timetable.MoveStaffActionAlreadyApplied {
 		appliedWrites = 0
 	}
-	rs.broadcastDeviationSaveEvents(ctx, result.ActiveTouched, appliedWrites, false, 0)
+	rs.InstanceService.QueueActivityUpdates(ctx, result.ActiveTouched)
+	rs.broadcastStaffingIfChanged(ctx, appliedWrites > 0)
 	rs.getLogger().Info("staff moved between blocks",
 		slog.Int64("target_instance_id", id),
 		slog.Int64("staff_id", req.StaffID),
@@ -107,7 +107,7 @@ func (rs *Resource) moveStaff(w http.ResponseWriter, r *http.Request) {
 // tx, and a PostgreSQL error aborts that tx, so the eventual commit would fail
 // after the client already saw a 200 — the request must 5xx (and roll back)
 // instead of reporting a move that never lands.
-func moveStaffResponseOf(rs *Resource, ctx context.Context, result *timetableplanning.MoveStaffResult, staffID int64) (MoveStaffResponse, error) {
+func moveStaffResponseOf(rs *Resource, ctx context.Context, result *timetable.MoveStaffResult, staffID int64) (MoveStaffResponse, error) {
 	resp := MoveStaffResponse{
 		TargetInstanceID: result.Target.ID,
 		Action:           result.Action,
@@ -117,11 +117,11 @@ func moveStaffResponseOf(rs *Resource, ctx context.Context, result *timetablepla
 	if result.Source != nil {
 		resp.SourceInstanceID = &result.Source.ID
 	}
-	if rs.ConflictDetection == nil || result.Action == timetableplanning.MoveStaffActionAlreadyApplied {
+	if rs.ConflictDetection == nil || result.Action == timetable.MoveStaffActionAlreadyApplied {
 		return resp, nil
 	}
 	coverage, err := rs.ConflictDetection.DetectShiftCoverage(ctx, timetable.ShiftCoverageProbe{
-		Dates:     []timezone.Date{timezone.Date(result.Target.Date)},
+		Dates:     []calendar.Date{calendar.Date(result.Target.Date)},
 		StartTime: result.Target.StartTime,
 		EndTime:   result.Target.EndTime,
 		StaffIDs:  []int64{staffID},

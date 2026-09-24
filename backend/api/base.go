@@ -113,7 +113,6 @@ import (
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	worktimemodelsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/httpadapter"
@@ -466,11 +465,13 @@ func observeDataImport(observation services.DataImportObservation) {
 func composeFacilities(db *bun.DB, legacyFacilities *interface {
 	ValidateRoomDeletion(context.Context, int64) error
 }) (*facilitiesModule.Module, error) {
+	recurrenceLock, err := repositories.NewTimetableRecurrenceLock(db)
+	if err != nil {
+		return nil, err
+	}
 	return facilitiesCompose.New(facilitiesCompose.Dependencies{
-		DB: db,
-		DeletionLock: func(ctx context.Context) error {
-			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
-		},
+		DB:           db,
+		DeletionLock: recurrenceLock.LockRecurrenceWrites,
 		DeletionGuard: func(ctx context.Context, roomID int64) error {
 			if *legacyFacilities == nil {
 				return facilitiesModule.ErrRoomDeletionGuardUnavailable
@@ -909,7 +910,7 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	api.Router.Use(sessionAuth.Verifier())
 	// Core actions of the portals reach the usage analytics once their
 	// response is 2xx (#3602). After the verifier, which names the session.
-	api.Router.Use(coreActionAnalytics(serviceFactory.Tracker, sessionAuth))
+	api.Router.Use(coreActionAnalytics(serviceFactory.Tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(serviceFactory.Settings, logger)))
 
 	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, modules, db, logger, frontendURL, sessionAuth)
 	if err != nil {
@@ -1433,19 +1434,17 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		EnrollmentDecision:           api.Services.EnrollmentDecision,
 		EnrollmentFormSchema:         api.Services.EnrollmentFormSchema,
 		OfferingSourceResyncer:       studentClassResyncer,
-		LockTemplateRecurrence: func(ctx context.Context) error {
-			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
-		},
-		Broadcaster:            api.Services.RealtimeHub,
-		ParentEventEmitter:     api.Services.ParentEventEmitter,
-		AbsenceNotifier:        api.Services.AbsenceNotifier,
-		StudentPhotos:          api.Services.StudentPhotos,
-		StudentConsents:        api.Services.StudentConsents,
-		PrivacyConsents:        presence,
-		StudentDocumentService: api.Services.StudentDocuments,
-		ListExportService:      api.Services.ListExport,
-		Logger:                 logger.With("handler", "students"),
-		DB:                     db,
+		LockTemplateRecurrence:       api.Services.TimetableData.RecurrenceLock.LockRecurrenceWrites,
+		Broadcaster:                  api.Services.RealtimeHub,
+		ParentEventEmitter:           api.Services.ParentEventEmitter,
+		AbsenceNotifier:              api.Services.AbsenceNotifier,
+		StudentPhotos:                api.Services.StudentPhotos,
+		StudentConsents:              api.Services.StudentConsents,
+		PrivacyConsents:              presence,
+		StudentDocumentService:       api.Services.StudentDocuments,
+		ListExportService:            api.Services.ListExport,
+		Logger:                       logger.With("handler", "students"),
+		DB:                           db,
 	})
 	api.Statistics = statisticsAPI.NewResource(api.Services.Statistics, api.Services.ListExport, db, logger.With("handler", "statistics"))
 	api.Messaging = messagingAPI.NewResource(api.Services.Messaging, db)
@@ -1507,7 +1506,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// rules to the Timetable owner; timeframe changes stay guarded by the
 	// recurrence gate and Enrollment's care-offering check.
 	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(modules.calendar, modules.timetable, services.TimeframeChangeGuard(
-		func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) },
+		api.Services.TimetableData.RecurrenceLock.LockRecurrenceWrites,
 		api.Services.EnrollmentCareOffering.(enrollmentSvc.CareOfferingMaterializationResourceValidator).ValidateTimeframeReplacement,
 	), db)
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
@@ -1567,7 +1566,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		},
 		SchoolName:              devicescanCompose.NewSchoolName(schoolName(api.Services.Schools)),
 		SessionEnd:              sessionEnd,
-		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(api.Services.Active, devicescanCompose.NewSupervisionQuery(presence), api.Services.Users, api.Services.IoT, devicescanCompose.NewSessionMirror(api.Services.TimetableData, api.Services.Activities, services.KioskMirrorPublisher(api.Services.RealtimeHub, logger), logger), logger),
+		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(api.Services.Active, devicescanCompose.NewSupervisionQuery(presence), api.Services.Users, api.Services.IoT, devicescanCompose.NewSessionMirror(repoFactory.ActivityInstance, repoFactory.InstanceStaff, api.Services.Activities, services.KioskMirrorPublisher(api.Services.RealtimeHub, logger), logger), logger),
 		Logger:                  logger.With("handler", "iot"),
 		DB:                      db,
 		DeviceAuthenticator:     deviceAuth.Device(),
@@ -1601,11 +1600,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		InstanceService:         api.Services.Instance,
 		InstanceSeriesConverter: api.Services.InstanceSeriesConverter,
 		OperationsService:       api.Services.TimetableOperations,
-		TemplateSplitService:    api.Services.TemplateSplit,
 		PersonService:           api.Services.Users,
-		TimetableData:           api.Services.TimetableData,
-		ConflictDetection:       api.Services.TimetableData.ConflictDetection(),
-		PlanningTrackService:    api.Services.PlanningTracks,
+		Templates:               api.Services.TimetableData.Templates,
+		RecurrenceLock:          api.Services.TimetableData.RecurrenceLock,
+		AttendanceCorrections:   api.Services.TimetableData.AttendanceCorrections,
+		Deviations:              api.Services.TimetableData.Deviations,
+		TimetableData:           api.Services.TimetableData.Data,
+		ConflictDetection:       api.Services.TimetableData.ConflictDetection,
+		PlanningTracks:          api.Services.PlanningTracks,
 		CareDayService:          api.Services.CareDay,
 		UserContextService:      api.Services.UserContext,
 		SettingsService:         api.Services.Settings,
@@ -1614,7 +1616,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		ReportService:           api.Services.EnrollmentReport,
 		PlanExportService:       api.Services.PlanExport,
 		PickupExtensions:        pickupExtensions,
-		Broadcaster:             api.Services.RealtimeHub,
+		Staffing:                timetableStaffingAnnouncer(api.Services.Instance),
 		Logger:                  logger.With("handler", "timetable"),
 		DB:                      db,
 	})

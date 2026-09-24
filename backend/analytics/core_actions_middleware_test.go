@@ -123,6 +123,7 @@ func newCoreActionRouter(tracker Tracker, requestActor *Actor) http.Handler {
 		})
 		r.Post("/guardian-invitations/{token}/accept", answer(`{"accepted":true}`))
 	})
+	root.Post("/demo/access-requests", answer(`{"link_sent":true}`))
 	root.Get("/api/groups/{id}", answer(`{}`))
 	return root
 }
@@ -269,6 +270,25 @@ func TestCoreActionMiddlewarePublicRouteUsesItsSurface(t *testing.T) {
 	assert.Equal(t, "enrollment_submitted", events[0].event)
 	assert.Equal(t, map[string]any{"surface": SurfacePublic}, events[0].props)
 	assert.NotContains(t, events[0].distinctID, "grundschule-nord")
+}
+
+// The demo link request is the first step of the demo funnel (#3604). The
+// website's form has no session; nothing it sends reaches the event.
+func TestCoreActionMiddlewareCountsTheDemoLinkRequest(t *testing.T) {
+	t.Parallel()
+
+	tracker := &recordingTracker{}
+	router := newCoreActionRouter(tracker, nil)
+
+	serve(router, http.MethodPost, "/demo/access-requests",
+		`{"email":"interessent@example.org","school_name":"OGS Nord","person_name":"Kim Muster","src":"messe"}`, nil)
+	serve(router, http.MethodPost, "/demo/access-requests?status=400", `{}`, nil)
+
+	events := tracker.captured()
+	require.Len(t, events, 1)
+	assert.Equal(t, "demo_link_requested", events[0].event)
+	assert.Equal(t, map[string]any{"surface": SurfacePublic}, events[0].props)
+	assert.Equal(t, "surface:"+SurfacePublic, events[0].distinctID)
 }
 
 // A login counts once the response mints a session, flat or enveloped. The

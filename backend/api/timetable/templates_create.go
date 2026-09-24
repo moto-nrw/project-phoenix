@@ -26,10 +26,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -57,10 +55,10 @@ type createTemplateRequest struct {
 	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`
 	EducationGroupID *int64 `json:"education_group_id,omitempty"`
 	// Zielgruppe (target-group) fields. TargetGroupType is one of
-	// activitiesModel.TargetGroupType* ("jahrgang" | "klasse" | "gruppe" |
+	// timetableModule.TargetGroupType* ("jahrgang" | "klasse" | "gruppe" |
 	// "angebot" | "none"/omitted). "gruppe" reuses EducationGroupID above
 	// rather than a separate field. Cross-field validity is checked via
-	// activitiesModel.Group.ValidateTargetGroup() in Bind() below.
+	// timetableModule.TemplateTargetGroup.Validate() in Bind() below.
 	TargetGroupType   string                  `json:"target_group_type,omitempty"`
 	TargetGradeLevel  *int16                  `json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string                 `json:"target_school_class,omitempty"`
@@ -78,7 +76,7 @@ type createTemplateRequest struct {
 	// payload carrying both is rejected with 400.
 	SourceSchoolClasses []string `json:"source_school_classes,omitempty"`
 	// ListKind classifies the template for printable daily lists (#1565):
-	// one of activitiesModel.ListKind* ("edge_hours" | "learning_time" |
+	// one of timetableModule.ListKind* ("edge_hours" | "learning_time" |
 	// "activity" | "mensa") or omitted/empty for none.
 	ListKind *string `json:"list_kind,omitempty"`
 	// Notes is the optional durable Wochennotiz for the template; it shows on
@@ -114,20 +112,26 @@ type templateTargetRequest struct {
 	EducationGroupID *int64  `json:"education_group_id,omitempty"`
 }
 
-func (target templateTargetRequest) model() *activitiesModel.GroupTarget {
-	return &activitiesModel.GroupTarget{
+func (target templateTargetRequest) model() *timetableModule.GroupTargetInput {
+	return &timetableModule.GroupTargetInput{
 		TargetGroupType: target.Type, TargetGradeLevel: target.GradeLevel,
 		TargetSchoolClass: target.SchoolClass, EducationGroupID: target.EducationGroupID,
 	}
 }
 
-func targetModels(targets []templateTargetRequest) []*activitiesModel.GroupTarget {
+// targetInputs maps the requested dynamic targets onto the Timetable
+// owner's command. nil stays nil: the commands tell an omitted target list
+// from an empty one.
+func targetInputs(targets []templateTargetRequest) []timetableModule.GroupTargetInput {
 	if targets == nil {
 		return nil
 	}
-	result := make([]*activitiesModel.GroupTarget, 0, len(targets))
+	result := make([]timetableModule.GroupTargetInput, 0, len(targets))
 	for _, target := range targets {
-		result = append(result, target.model())
+		result = append(result, timetableModule.GroupTargetInput{
+			TargetGroupType: target.Type, TargetGradeLevel: target.GradeLevel,
+			TargetSchoolClass: target.SchoolClass, EducationGroupID: target.EducationGroupID,
+		})
 	}
 	return result
 }
@@ -141,7 +145,7 @@ func validateTargetRequests(targetType string, targets []templateTargetRequest) 
 		if target.TargetGroupType != targetType {
 			return errors.New("all targets must match target_group_type")
 		}
-		if err := target.Validate(); err != nil {
+		if err := target.ValidateDynamicTarget(); err != nil {
 			return err
 		}
 	}
@@ -163,7 +167,7 @@ func normalizeTemplateTargetFields(
 	if (len(sourceCareOfferingIDs) > 0 || len(sourceGradeLevels) > 0 || len(sourceSchoolClasses) > 0) && len(targets) > 0 {
 		return "", nil, nil, nil, errors.New("source_care_offering_ids cannot be combined with targets")
 	}
-	target := &activitiesModel.Group{
+	target := &timetableModule.TemplateTargetGroup{
 		TargetGroupType:       targetType,
 		TargetGradeLevel:      gradeLevel,
 		TargetSchoolClass:     schoolClass,
@@ -172,7 +176,7 @@ func normalizeTemplateTargetFields(
 		SourceGradeLevels:     sourceGradeLevels,
 		SourceSchoolClasses:   sourceSchoolClasses,
 	}
-	if err := target.ValidateTargetGroup(); err != nil && len(targets) == 0 {
+	if err := target.Validate(); err != nil && len(targets) == 0 {
 		return "", nil, nil, nil, err
 	}
 	if err := validateTargetRequests(target.TargetGroupType, targets); err != nil {
@@ -238,7 +242,7 @@ func validateTemplateWorkdays(weekdays []int) error {
 		return err
 	}
 	for _, weekday := range weekdays {
-		if weekday > activitiesModel.WeekdayFriday {
+		if weekday > timetableModule.WeekdayFriday {
 			return errors.New("timetable templates can only be scheduled from Monday to Friday")
 		}
 	}
@@ -247,7 +251,7 @@ func validateTemplateWorkdays(weekdays []int) error {
 
 func validateTemplateWeekdays(weekdays []int) error {
 	for _, weekday := range weekdays {
-		if !activitiesModel.IsValidWeekday(weekday) {
+		if !timetableModule.IsValidWeekday(weekday) {
 			return fmt.Errorf("invalid weekday %d (must be 1=Mon … 7=Sun)", weekday)
 		}
 	}
@@ -264,7 +268,7 @@ func normalizeTemplateListKind(raw *string) (*string, error) {
 	if kind == "" {
 		return nil, nil
 	}
-	if !activitiesModel.IsValidListKind(kind) {
+	if !timetableModule.IsValidListKind(kind) {
 		return nil, fmt.Errorf("invalid list_kind %q", kind)
 	}
 	return &kind, nil
@@ -292,10 +296,10 @@ type parsedCreateTemplate struct {
 	maxParticipants int
 	// startDate is the parsed optional series start; nil = start with the
 	// planning period.
-	startDate *timezone.Date
+	startDate *calendar.Date
 	// endDate is the parsed optional last day (#3594); nil = until the period
 	// ends.
-	endDate *timezone.Date
+	endDate *calendar.Date
 }
 
 // parseCreateTemplateRequest binds and format-validates the request. Format
@@ -325,7 +329,7 @@ func parseBoundCreateTemplateRequest(
 	if !ok {
 		return nil, false
 	}
-	var startDate *timezone.Date
+	var startDate *calendar.Date
 	if req.StartDate != nil {
 		parsed, err := berlinDate(*req.StartDate)
 		if err != nil {
@@ -379,7 +383,7 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := rs.TimetableData.CreateTemplate(ctx, buildCreateTemplateInput(
+	result, err := rs.Templates.CreateTemplate(ctx, buildCreateTemplateInput(
 		parsed, tenantID, gradeLevelMax, rosterValidFrom, rs.resolveStartedByStaffID(ctx),
 	))
 	if err != nil {
@@ -411,16 +415,16 @@ func buildCreateTemplateInput(
 	parsed *parsedCreateTemplate,
 	tenantID int64,
 	gradeLevelMax int,
-	rosterValidFrom timezone.Date,
+	rosterValidFrom calendar.Date,
 	createdBy int64,
-) timetableplanning.CreateTemplateInput {
+) timetableModule.CreateTemplateCommand {
 	req := parsed.req
 	var createdByPtr *int64
 	if createdBy > 0 {
 		c := createdBy
 		createdByPtr = &c
 	}
-	return timetableplanning.CreateTemplateInput{
+	return timetableModule.CreateTemplateCommand{
 		Name:                  req.Name,
 		Type:                  req.Type,
 		Weekdays:              req.Weekdays,
@@ -437,14 +441,14 @@ func buildCreateTemplateInput(
 		TargetGroupType:       req.TargetGroupType,
 		TargetGradeLevel:      req.TargetGradeLevel,
 		TargetSchoolClass:     req.TargetSchoolClass,
-		Targets:               targetModels(req.Targets),
+		Targets:               targetInputs(req.Targets),
 		SourceCareOfferingIDs: req.SourceCareOfferingIDs,
 		SourceGradeLevels:     req.SourceGradeLevels,
 		SourceSchoolClasses:   req.SourceSchoolClasses,
 		ListKind:              req.ListKind,
 		Notes:                 normalizeNotes(req.Notes),
 		IncludeClosingDays:    req.IncludeClosingDays,
-		SeriesLastDay:         seriesLastDayActivityDate(parsed.endDate),
+		SeriesLastDay:         parsed.endDate,
 		StudentIDs:            req.StudentIDs,
 		StaffIDs:              req.StaffIDs,
 		PrimaryStaffID:        req.PrimaryStaffID,
@@ -463,9 +467,9 @@ func renderCreateTemplateError(w http.ResponseWriter, r *http.Request, err error
 	switch {
 	case errors.Is(err, timetableModule.ErrCategoryNotAssignable):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
-	case errors.Is(err, timetableplanning.ErrPlanningTrackNotFound), errors.Is(err, timetableplanning.ErrPlanningTrackArchived):
+	case errors.Is(err, timetableModule.ErrPlanningTrackNotFound), errors.Is(err, timetableModule.ErrPlanningTrackArchived):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
-	case errors.Is(err, timetableplanning.ErrOfferingSourceInvalid):
+	case errors.Is(err, timetableModule.ErrOfferingSourceInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case renderTemplateEducationGroupError(w, r, err):
 	case renderTemplateTargetGradeLimit(w, r, err):
@@ -492,7 +496,7 @@ func (rs *Resource) materializeTemplateWindow(
 		return
 	}
 	mat, mErr := rs.MaterializationService.MaterializeForTenant(
-		ctx, from, to, timetableplanning.MaterializationSourceManual,
+		ctx, from, to, timetableModule.MaterializationSourceManual,
 	)
 	if mErr != nil {
 		rs.getLogger().Warn("template create: materialize failed (template still saved)",
@@ -513,9 +517,9 @@ func (rs *Resource) materializeTemplateWindow(
 // Kept local to the handler so the imports stay narrow.
 func isValidActivityType(t string) bool {
 	switch t {
-	case activitiesModel.GroupTypeCare,
-		activitiesModel.GroupTypeActivity,
-		activitiesModel.GroupTypeExternal:
+	case timetableModule.GroupTypeCare,
+		timetableModule.GroupTypeActivity,
+		timetableModule.GroupTypeExternal:
 		return true
 	}
 	return false

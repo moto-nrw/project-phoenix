@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,34 +23,34 @@ func TestTemplateRequiredStaffCount(t *testing.T) {
 	}{
 		{
 			name: "override wins over the derived requirement when an occurrence exists",
-			row: templateRow{
-				RequiredStaff:           activities.NullInt64{Int64: 7, Valid: true},
+			row: templateRow{TemplateListRow: timetable.TemplateListRow{
+				RequiredStaff:           testpkg.Int64Ptr(7),
 				CapacityEnrollmentCount: 12,
 				CapacityOccurrenceFound: true,
-			},
+			}},
 			want: 7,
 		},
 		{
 			name: "no override derives from the Betreuungsschlüssel",
-			row: templateRow{
+			row: templateRow{TemplateListRow: timetable.TemplateListRow{
 				CapacityEnrollmentCount: 12,
 				CapacityOccurrenceFound: true,
-			},
+			}},
 			want: 2,
 		},
 		{
 			name: "override is suppressed when no occurrence exists in the period",
-			row: templateRow{
-				RequiredStaff:           activities.NullInt64{Int64: 7, Valid: true},
+			row: templateRow{TemplateListRow: timetable.TemplateListRow{
+				RequiredStaff:           testpkg.Int64Ptr(7),
 				CapacityOccurrenceFound: false,
-			},
+			}},
 			want: 0,
 		},
 		{
 			name: "no override and no occurrence stays zero",
-			row: templateRow{
+			row: templateRow{TemplateListRow: timetable.TemplateListRow{
 				CapacityOccurrenceFound: false,
-			},
+			}},
 			want: 0,
 		},
 	}
@@ -65,12 +65,12 @@ func TestTemplateRequiredStaffCount(t *testing.T) {
 func TestBuildTemplateWeekdayAssignments_PreservesEmptyDays(t *testing.T) {
 	t.Parallel()
 
-	rows := []activities.TemplateWeekdayRosterRow{
-		{TemplateID: 7, Weekday: activities.WeekdayMonday, Kind: activities.TemplateWeekdayRosterKindEmpty},
-		{TemplateID: 7, Weekday: activities.WeekdayMonday, Kind: activities.TemplateWeekdayRosterKindStaff, PersonID: 11, IsPrimary: true},
-		{TemplateID: 7, Weekday: activities.WeekdayMonday, Kind: activities.TemplateWeekdayRosterKindStudent, PersonID: 21},
-		{TemplateID: 7, Weekday: activities.WeekdayMonday, Kind: activities.TemplateWeekdayRosterKindProtectedStudent, PersonID: 22},
-		{TemplateID: 7, Weekday: activities.WeekdayTuesday, Kind: activities.TemplateWeekdayRosterKindEmpty},
+	rows := []timetable.TemplateWeekdayRosterRow{
+		{TemplateID: 7, Weekday: timetable.WeekdayMonday, Kind: timetable.TemplateWeekdayRosterKindEmpty},
+		{TemplateID: 7, Weekday: timetable.WeekdayMonday, Kind: timetable.TemplateWeekdayRosterKindStaff, PersonID: 11, IsPrimary: true},
+		{TemplateID: 7, Weekday: timetable.WeekdayMonday, Kind: timetable.TemplateWeekdayRosterKindStudent, PersonID: 21},
+		{TemplateID: 7, Weekday: timetable.WeekdayMonday, Kind: timetable.TemplateWeekdayRosterKindProtectedStudent, PersonID: 22},
+		{TemplateID: 7, Weekday: timetable.WeekdayTuesday, Kind: timetable.TemplateWeekdayRosterKindEmpty},
 	}
 
 	byTemplate := buildTemplateWeekdayAssignments(rows)
@@ -78,13 +78,13 @@ func TestBuildTemplateWeekdayAssignments_PreservesEmptyDays(t *testing.T) {
 	require.Contains(t, byTemplate, templateID)
 	assert.Equal(t, []templateWeekdayAssignmentResponse{
 		{
-			Weekday:        activities.WeekdayMonday,
+			Weekday:        timetable.WeekdayMonday,
 			StaffIDs:       []int64{11},
 			StudentIDs:     []int64{21},
 			PrimaryStaffID: ptrInt64(11),
 		},
 		{
-			Weekday:    activities.WeekdayTuesday,
+			Weekday:    timetable.WeekdayTuesday,
 			StaffIDs:   []int64{},
 			StudentIDs: []int64{},
 		},
@@ -92,7 +92,7 @@ func TestBuildTemplateWeekdayAssignments_PreservesEmptyDays(t *testing.T) {
 
 	protectedByTemplate := buildTemplateProtectedStudentAssignments(rows)
 	assert.Equal(t, []templateProtectedStudentAssignmentResponse{{
-		Weekday:    activities.WeekdayMonday,
+		Weekday:    timetable.WeekdayMonday,
 		StudentIDs: []int64{22},
 	}}, protectedByTemplate[templateID])
 }
@@ -100,11 +100,9 @@ func TestBuildTemplateWeekdayAssignments_PreservesEmptyDays(t *testing.T) {
 func TestListTemplates_WithoutPeriodSkipsWeekdayRosterRead(t *testing.T) {
 	t.Parallel()
 
-	repo := &catalogTemplateGroupRepo{}
+	repo := &catalogTemplateListing{}
 	resource := NewResource(Dependencies{
-		TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{
-			ActivityGroupRepo: repo,
-		}),
+		TimetableData: repo.data(),
 	})
 	request := httptest.NewRequest(http.MethodGet, "/templates", nil)
 	request = request.WithContext(tenant.WithTenantID(request.Context(), 42))
@@ -116,25 +114,22 @@ func TestListTemplates_WithoutPeriodSkipsWeekdayRosterRead(t *testing.T) {
 	assert.Equal(t, 0, repo.weekdayRosterReads)
 }
 
-type catalogTemplateGroupRepo struct {
-	activities.GroupRepository
+// catalogTemplateListing serves the owner's Vorlagen list: an empty period
+// list, and a counted weekday roster read.
+type catalogTemplateListing struct {
 	weekdayRosterReads int
 }
 
-func (r *catalogTemplateGroupRepo) ListTemplateRowsForPeriod(
-	context.Context,
-	*int64,
-) ([]activities.TemplateListRow, error) {
-	return []activities.TemplateListRow{}, nil
-}
-
-func (r *catalogTemplateGroupRepo) ListTemplateWeekdayRoster(
-	context.Context,
-	*int64,
-	*int64,
-) ([]activities.TemplateWeekdayRosterRow, error) {
-	r.weekdayRosterReads++
-	return nil, nil
+func (r *catalogTemplateListing) data() timetable.TimetableDataCapability {
+	return &fakeTimetableData{
+		ListTemplateEntriesForPeriodFn: func(context.Context, *int64, int) ([]timetable.TemplateListEntry, error) {
+			return []timetable.TemplateListEntry{}, nil
+		},
+		ListTemplateWeekdayRosterFn: func(context.Context, *int64, *int64) ([]timetable.TemplateWeekdayRosterRow, error) {
+			r.weekdayRosterReads++
+			return nil, nil
+		},
+	}
 }
 
 func ptrInt64(value int64) *int64 {

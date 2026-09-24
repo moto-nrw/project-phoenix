@@ -13,9 +13,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,22 +24,22 @@ import (
 // boilerplate (unused methods panic if ever called, which they are not).
 
 type asInstanceStaffRepo struct {
-	scheduleModels.InstanceStaffRepository
-	rows []*scheduleModels.InstanceStaff
+	AssignmentInstanceStaffReader
+	rows []*timetable.InstanceStaff
 	err  error
 }
 
-func (r *asInstanceStaffRepo) FindByStaffAndDateRange(context.Context, int64, scheduleModels.Date, scheduleModels.Date) ([]*scheduleModels.InstanceStaff, error) {
+func (r *asInstanceStaffRepo) FindByStaffAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*timetable.InstanceStaff, error) {
 	return r.rows, r.err
 }
 
 type asInstanceRepo struct {
-	scheduleModels.ActivityInstanceRepository
-	instances []*scheduleModels.ActivityInstance
+	ActivityInstanceBatchReader
+	instances []*timetable.ScheduledInstance
 	err       error
 }
 
-func (r *asInstanceRepo) FindByIDs(context.Context, []int64) ([]*scheduleModels.ActivityInstance, error) {
+func (r *asInstanceRepo) FindByIDs(context.Context, []int64) ([]*timetable.ScheduledInstance, error) {
 	return r.instances, r.err
 }
 
@@ -55,12 +54,12 @@ func (r *asRoomRepo) FindByIDs(context.Context, []int64) ([]*facilitiesModels.Ro
 }
 
 type asGroupRepo struct {
-	activitiesModels.GroupRepository
-	groups []*activitiesModels.Group
+	ActivityGroupBatchReader
+	groups []*timetable.Group
 	err    error
 }
 
-func (r *asGroupRepo) FindByIDs(context.Context, []int64) ([]*activitiesModels.Group, error) {
+func (r *asGroupRepo) FindByIDs(context.Context, []int64) ([]*timetable.Group, error) {
 	return r.groups, r.err
 }
 
@@ -73,8 +72,8 @@ func assignmentServiceFixture(is *asInstanceStaffRepo, ir *asInstanceRepo, rr *a
 	}, nil)
 }
 
-func instanceStaffRow(instanceID, staffID int64) *scheduleModels.InstanceStaff {
-	row := &scheduleModels.InstanceStaff{
+func instanceStaffRow(instanceID, staffID int64) *timetable.InstanceStaff {
+	row := &timetable.InstanceStaff{
 		InstanceID: instanceID,
 		StaffID:    staffID,
 	}
@@ -131,7 +130,7 @@ func TestAssignmentService_PropagatesInstanceLoadError(t *testing.T) {
 	t.Parallel()
 
 	svc := assignmentServiceFixture(
-		&asInstanceStaffRepo{rows: []*scheduleModels.InstanceStaff{instanceStaffRow(1, 7)}},
+		&asInstanceStaffRepo{rows: []*timetable.InstanceStaff{instanceStaffRow(1, 7)}},
 		&asInstanceRepo{err: errors.New("instance load failed")},
 		&asRoomRepo{}, &asGroupRepo{},
 	)
@@ -145,11 +144,11 @@ func TestAssignmentService_PropagatesInstanceLoadError(t *testing.T) {
 func TestAssignmentService_PropagatesRoomError(t *testing.T) {
 	t.Parallel()
 
-	inst := &scheduleModels.ActivityInstance{Title: "Lernzeit", RoomID: 100, StartTime: wall(10, 0), EndTime: wall(11, 0)}
+	inst := &timetable.ScheduledInstance{Title: "Lernzeit", RoomID: 100, StartTime: wall(10, 0), EndTime: wall(11, 0)}
 	inst.ID = 1
 	svc := assignmentServiceFixture(
-		&asInstanceStaffRepo{rows: []*scheduleModels.InstanceStaff{instanceStaffRow(1, 7)}},
-		&asInstanceRepo{instances: []*scheduleModels.ActivityInstance{inst}},
+		&asInstanceStaffRepo{rows: []*timetable.InstanceStaff{instanceStaffRow(1, 7)}},
+		&asInstanceRepo{instances: []*timetable.ScheduledInstance{inst}},
 		&asRoomRepo{err: errors.New("room read failed")},
 		&asGroupRepo{},
 	)
@@ -164,11 +163,11 @@ func TestAssignmentService_PropagatesGroupError(t *testing.T) {
 	t.Parallel()
 
 	groupID := int64(50)
-	inst := &scheduleModels.ActivityInstance{Title: "Lernzeit", RoomID: 100, ActivityGroupID: &groupID, StartTime: wall(10, 0), EndTime: wall(11, 0)}
+	inst := &timetable.ScheduledInstance{Title: "Lernzeit", RoomID: 100, ActivityGroupID: &groupID, StartTime: wall(10, 0), EndTime: wall(11, 0)}
 	inst.ID = 1
 	svc := assignmentServiceFixture(
-		&asInstanceStaffRepo{rows: []*scheduleModels.InstanceStaff{instanceStaffRow(1, 7)}},
-		&asInstanceRepo{instances: []*scheduleModels.ActivityInstance{inst}},
+		&asInstanceStaffRepo{rows: []*timetable.InstanceStaff{instanceStaffRow(1, 7)}},
+		&asInstanceRepo{instances: []*timetable.ScheduledInstance{inst}},
 		&asRoomRepo{rooms: []*facilitiesModels.Room{{ID: 100, Name: "Raum A"}}},
 		&asGroupRepo{err: errors.New("group read failed")},
 	)
@@ -191,23 +190,23 @@ func TestAssignmentService_EnrichesAndSorts(t *testing.T) {
 	grp2 := int64(51) // referenced but not returned → vanished
 	override := int64(200)
 
-	instA := &scheduleModels.ActivityInstance{ // later date, primary block, resolved group
-		Date: scheduleModels.NewDate(2026, time.March, 11), Title: "Lernzeit",
+	instA := &timetable.ScheduledInstance{ // later date, primary block, resolved group
+		Date: timezone.NewDate(2026, time.March, 11), Title: "Lernzeit",
 		ActivityGroupID: &grp1, RoomID: 100, StartTime: wall(9, 0), EndTime: wall(10, 0),
-		Status: scheduleModels.InstanceStatusPlanned,
+		Status: timetable.InstanceStatusPlanned,
 	}
 	instA.ID = 1
 	cancelReason := "Ausflug"
-	instB := &scheduleModels.ActivityInstance{ // earlier date, cancelled, vanished group, room override
-		Date: scheduleModels.NewDate(2026, time.March, 10), Title: "Fußball-AG",
+	instB := &timetable.ScheduledInstance{ // earlier date, cancelled, vanished group, room override
+		Date: timezone.NewDate(2026, time.March, 10), Title: "Fußball-AG",
 		ActivityGroupID: &grp2, RoomID: 100, StartTime: wall(14, 0), EndTime: wall(15, 0),
-		Status: scheduleModels.InstanceStatusCancelled, CancelReason: &cancelReason, UnderstaffedAck: true,
+		Status: timetable.InstanceStatusCancelled, CancelReason: &cancelReason, UnderstaffedAck: true,
 	}
 	instB.ID = 2
-	instC := &scheduleModels.ActivityInstance{ // same date as B, earlier time, spontaneous (no group)
-		Date: scheduleModels.NewDate(2026, time.March, 10), Title: "Spontan",
+	instC := &timetable.ScheduledInstance{ // same date as B, earlier time, spontaneous (no group)
+		Date: timezone.NewDate(2026, time.March, 10), Title: "Spontan",
 		RoomID: 100, StartTime: wall(8, 0), EndTime: wall(9, 0),
-		Status: scheduleModels.InstanceStatusPlanned,
+		Status: timetable.InstanceStatusPlanned,
 	}
 	instC.ID = 3
 
@@ -223,13 +222,13 @@ func TestAssignmentService_EnrichesAndSorts(t *testing.T) {
 	rowMissing := instanceStaffRow(999, 7) // instance not returned → skipped
 
 	svc := assignmentServiceFixture(
-		&asInstanceStaffRepo{rows: []*scheduleModels.InstanceStaff{rowA, rowB, rowC, rowMissing}},
-		&asInstanceRepo{instances: []*scheduleModels.ActivityInstance{instA, instB, instC}},
+		&asInstanceStaffRepo{rows: []*timetable.InstanceStaff{rowA, rowB, rowC, rowMissing}},
+		&asInstanceRepo{instances: []*timetable.ScheduledInstance{instA, instB, instC}},
 		&asRoomRepo{rooms: []*facilitiesModels.Room{
 			{ID: 100, Name: "Raum A"},
 			{ID: 200, Name: "Raum B"},
 		}},
-		&asGroupRepo{groups: []*activitiesModels.Group{
+		&asGroupRepo{groups: []*timetable.Group{
 			{Name: "Lernzeit"}, // ID set below
 		}},
 	)
@@ -271,7 +270,7 @@ func TestAssignmentService_ToleratesMissingInstancesAndRooms(t *testing.T) {
 	t.Parallel()
 
 	svc := assignmentServiceFixture(
-		&asInstanceStaffRepo{rows: []*scheduleModels.InstanceStaff{instanceStaffRow(1, 7)}},
+		&asInstanceStaffRepo{rows: []*timetable.InstanceStaff{instanceStaffRow(1, 7)}},
 		&asInstanceRepo{instances: nil}, // instance not found
 		&asRoomRepo{err: errors.New("must not be called")},
 		&asGroupRepo{err: errors.New("must not be called")},

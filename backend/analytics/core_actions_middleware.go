@@ -2,6 +2,7 @@ package analytics
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -27,11 +28,15 @@ const (
 )
 
 // Actor is what analytics may know about who performed a core action: the
-// portal, the role, and the school. Never an account or person.
+// portal, the role, and the school. The account leaves the backend only as a
+// pseudonymous ID, and only for an OGS request of a school with
+// Analyse-Freigabe.
 type Actor struct {
 	Surface  string
 	Role     string
 	SchoolID int64 // 0 when the session has no school (parents portal)
+	// AccountID is the OGS account of the session, 0 on every other surface.
+	AccountID int64
 }
 
 // CoreActionConfig wires the middleware to the session model. The resolvers
@@ -43,6 +48,10 @@ type CoreActionConfig struct {
 	// SessionActor reads the actor from an access token the response mints
 	// (login). It must verify the token and reject MFA interim tokens.
 	SessionActor func(accessToken string) (Actor, bool)
+	// AnalyseFreigabe reports whether a school has the Analyse-Freigabe
+	// (#3603). It must fail closed: false on any error. Nil means no school
+	// has it.
+	AnalyseFreigabe func(ctx context.Context, schoolID int64) bool
 }
 
 // sessionBodyLimit caps how much of a session-minting response is kept to
@@ -85,7 +94,8 @@ func CoreActionMiddleware(cfg CoreActionConfig) func(http.Handler) http.Handler 
 			if !ok {
 				return
 			}
-			cfg.Tracker.CaptureContext(r.Context(), distinctID(actor), action.Event, action.properties(actor))
+			ctx, distinct := identify(r.Context(), cfg, actor)
+			cfg.Tracker.CaptureContext(ctx, distinct, action.Event, action.properties(actor))
 		})
 	}
 }
@@ -153,6 +163,18 @@ func (action CoreAction) properties(actor Actor) map[string]any {
 		props["export_type"] = action.ExportType
 	}
 	return props
+}
+
+// identify names who a core action belongs to. Only an OGS account of a
+// school with Analyse-Freigabe is a person: the tracker sends its event under
+// the same pseudonymous ID the browser identifies with. Every other event
+// stays keyed without one.
+func identify(ctx context.Context, cfg CoreActionConfig, actor Actor) (context.Context, string) {
+	if actor.Surface == SurfaceOGS && actor.SchoolID > 0 && actor.AccountID > 0 &&
+		cfg.AnalyseFreigabe != nil && cfg.AnalyseFreigabe(ctx, actor.SchoolID) {
+		ctx = withPerson(ctx, actor.SchoolID, actor.AccountID)
+	}
+	return ctx, distinctID(actor)
 }
 
 // distinctID keys the event without a person: the school, or the surface
