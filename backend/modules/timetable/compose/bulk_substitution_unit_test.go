@@ -1,4 +1,4 @@
-package timetableplanning
+package compose
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +31,7 @@ func TestNormalizeBulkDates_RejectsEmptyInput(t *testing.T) {
 
 	_, err := normalizeBulkDates(nil)
 
-	var de *DeviationError
+	var de *timetable.DeviationError
 	require.ErrorAs(t, err, &de)
 	assert.Equal(t, http.StatusBadRequest, de.Status)
 	assert.Contains(t, de.ClientMsg, "must not be empty")
@@ -41,7 +42,7 @@ func TestNormalizeBulkDates_RejectsPastDates(t *testing.T) {
 
 	_, err := normalizeBulkDates([]timezone.Date{timezone.TodayDate().AddDays(-1)})
 
-	var de *DeviationError
+	var de *timetable.DeviationError
 	require.ErrorAs(t, err, &de)
 	assert.Equal(t, http.StatusBadRequest, de.Status)
 	assert.Contains(t, de.ClientMsg, "past")
@@ -51,24 +52,24 @@ func TestNormalizeBulkDates_CapsAtMaxDatesAfterDedupe(t *testing.T) {
 	t.Parallel()
 
 	today := timezone.TodayDate()
-	dates := make([]timezone.Date, 0, MaxBulkSubstitutionDates+1)
-	for i := 0; i <= MaxBulkSubstitutionDates; i++ {
+	dates := make([]timezone.Date, 0, timetable.MaxBulkSubstitutionDates+1)
+	for i := 0; i <= timetable.MaxBulkSubstitutionDates; i++ {
 		dates = append(dates, today.AddDays(i))
 	}
 
 	_, err := normalizeBulkDates(dates)
 
-	var de *DeviationError
+	var de *timetable.DeviationError
 	require.ErrorAs(t, err, &de)
 	assert.Equal(t, http.StatusBadRequest, de.Status)
 	assert.Contains(t, de.ClientMsg, "at most 31 dates")
 
 	// Duplicates do not count against the cap: 32 raw entries collapsing to
 	// 31 distinct dates pass.
-	withDup := append(dates[:MaxBulkSubstitutionDates], dates[0])
+	withDup := append(dates[:timetable.MaxBulkSubstitutionDates], dates[0])
 	out, err := normalizeBulkDates(withDup)
 	require.NoError(t, err)
-	assert.Len(t, out, MaxBulkSubstitutionDates)
+	assert.Len(t, out, timetable.MaxBulkSubstitutionDates)
 }
 
 func TestBulkDayError_PrefixesDeviationErrorWithFailingDate(t *testing.T) {
@@ -76,7 +77,7 @@ func TestBulkDayError_PrefixesDeviationErrorWithFailingDate(t *testing.T) {
 
 	date := timezone.NewDate(2026, time.August, 18)
 	cause := errors.New("root cause")
-	inner := &DeviationError{
+	inner := &timetable.DeviationError{
 		Status:    http.StatusConflict,
 		Code:      "staff_conflict",
 		ClientMsg: "die Ersatzperson ist bereits verplant",
@@ -85,7 +86,7 @@ func TestBulkDayError_PrefixesDeviationErrorWithFailingDate(t *testing.T) {
 
 	err := bulkDayError(date, inner)
 
-	var de *DeviationError
+	var de *timetable.DeviationError
 	require.ErrorAs(t, err, &de)
 	assert.Equal(t, http.StatusConflict, de.Status)
 	assert.Equal(t, "staff_conflict", de.Code)

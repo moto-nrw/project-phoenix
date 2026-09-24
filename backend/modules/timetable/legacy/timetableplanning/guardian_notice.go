@@ -27,21 +27,6 @@ var ErrGuardianNoticeInvalid = errors.New("guardian notice: invalid request")
 // announcement.ErrCareCancellationDisabled so handlers can match either.
 var ErrGuardianNoticeDisabled = errors.New("guardian notice: disabled for this school")
 
-// GuardianNoticeInput is the text the person cancelling wrote for the
-// families. It is separate from the internal cancel reason on purpose: the
-// reason may name a colleague's illness, the notice may not.
-type GuardianNoticeInput struct {
-	Title   string
-	Message string
-}
-
-// GuardianNoticeResult reports what the notice reached.
-type GuardianNoticeResult struct {
-	AnnouncementID int64
-	ChildCount     int
-	FamilyCount    int
-}
-
 // GuardianNoticeReach is the preview the cancel dialog shows before sending.
 type GuardianNoticeReach struct {
 	Enabled     bool

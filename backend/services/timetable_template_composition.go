@@ -19,15 +19,16 @@ import (
 // TimetablePlanning carries the Timetable owner's planning capabilities the
 // timetable HTTP adapter mounts beside the operational day (#3424): the
 // template writes, the recurrence gate, the planner's reads, the conflict
-// detection, and the retained attendance correction of completed blocks
-// (slice S3). services.Factory may not grow a field for each, so they travel
-// as one value.
+// detection, the attendance correction of completed blocks and the
+// deviation writes (slice S3). services.Factory may not grow a field for
+// each, so they travel as one value.
 type TimetablePlanning struct {
 	Templates             timetable.TemplateAdministration
 	RecurrenceLock        timetable.RecurrenceWriteLock
 	Data                  timetable.TimetableDataCapability
 	ConflictDetection     timetable.ConflictDetectionCapability
-	AttendanceCorrections *timetableplanning.AttendanceCorrectionService
+	AttendanceCorrections timetable.AttendanceCorrections
+	Deviations            timetable.StaffDeviations
 }
 
 // timetableMaterializationInputs compose the recurrence engine. CareBounds

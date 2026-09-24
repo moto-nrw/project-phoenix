@@ -11,7 +11,8 @@
 // all lands or all rolls back.
 //
 // The plan-then-write atomicity, the day-lock, and every business rule live in
-// InstanceService.ApplyDeviations (modules/timetable/legacy/timetableplanning/deviation_apply.go). The
+// the Timetable owner's timetable.StaffDeviations.ApplyDeviations (#3424 slice
+// S3, modules/timetable/compose/deviation_apply.go). The
 // handler only parses the body, calls the service once, maps its DeviationError
 // onto the wire contract, and fires the post-save SSE signals.
 //
@@ -26,7 +27,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // deviationAbsence marks one staff member absent. An omitted instance_ids keeps
@@ -98,45 +99,45 @@ type applyDeviationsRequest struct {
 
 // ApplyDeviationsResponse is the 200 body.
 type ApplyDeviationsResponse struct {
-	InstanceID        int64                                      `json:"instance_id"`
-	Cancelled         bool                                       `json:"cancelled"`
-	UnderstaffedAck   bool                                       `json:"understaffed_ack"`
-	AffectedInstances []AffectedInstance                         `json:"affected_instances"`
-	Warnings          []timetableplanning.SubstituteTimeConflict `json:"warnings"`
-	GuardianNotice    *GuardianNoticeResponse                    `json:"guardian_notice,omitempty"`
+	InstanceID        int64                              `json:"instance_id"`
+	Cancelled         bool                               `json:"cancelled"`
+	UnderstaffedAck   bool                               `json:"understaffed_ack"`
+	AffectedInstances []AffectedInstance                 `json:"affected_instances"`
+	Warnings          []timetable.SubstituteTimeConflict `json:"warnings"`
+	GuardianNotice    *GuardianNoticeResponse            `json:"guardian_notice,omitempty"`
 }
 
 // toServiceInput maps the wire request onto the service input, resolving the
 // acting account for the Änderungsprotokoll (#1886).
-func (req applyDeviationsRequest) toServiceInput(actor *int64) timetableplanning.ApplyDeviationsInput {
-	absences := make([]timetableplanning.DeviationAbsenceInput, 0, len(req.Absences))
+func (req applyDeviationsRequest) toServiceInput(actor *int64) timetable.ApplyDeviationsInput {
+	absences := make([]timetable.DeviationAbsenceInput, 0, len(req.Absences))
 	for _, a := range req.Absences {
-		absences = append(absences, timetableplanning.DeviationAbsenceInput{
+		absences = append(absences, timetable.DeviationAbsenceInput{
 			StaffID: a.StaffID, Reason: a.Reason, InstanceIDs: a.InstanceIDs,
 		})
 	}
-	subs := make([]timetableplanning.DeviationSubstitutionInput, 0, len(req.Substitutions))
+	subs := make([]timetable.DeviationSubstitutionInput, 0, len(req.Substitutions))
 	for _, s := range req.Substitutions {
-		subs = append(subs, timetableplanning.DeviationSubstitutionInput{
+		subs = append(subs, timetable.DeviationSubstitutionInput{
 			AbsentStaffID:     s.AbsentStaffID,
 			SubstituteStaffID: s.SubstituteStaffID,
 			Reason:            s.Reason,
 			InstanceIDs:       s.InstanceIDs,
 		})
 	}
-	presences := make([]timetableplanning.DeviationPresenceInput, 0, len(req.Presences))
+	presences := make([]timetable.DeviationPresenceInput, 0, len(req.Presences))
 	for _, p := range req.Presences {
-		presences = append(presences, timetableplanning.DeviationPresenceInput{
+		presences = append(presences, timetable.DeviationPresenceInput{
 			StaffID: p.StaffID, InstanceIDs: p.InstanceIDs,
 		})
 	}
-	removals := make([]timetableplanning.DeviationSubstitutionRemovalInput, 0, len(req.SubstitutionRemovals))
+	removals := make([]timetable.DeviationSubstitutionRemovalInput, 0, len(req.SubstitutionRemovals))
 	for _, removal := range req.SubstitutionRemovals {
-		removals = append(removals, timetableplanning.DeviationSubstitutionRemovalInput{
+		removals = append(removals, timetable.DeviationSubstitutionRemovalInput{
 			StaffID: removal.StaffID, InstanceIDs: removal.InstanceIDs,
 		})
 	}
-	return timetableplanning.ApplyDeviationsInput{
+	return timetable.ApplyDeviationsInput{
 		Cancel:               req.Cancel,
 		CancelReason:         req.CancelReason,
 		UnderstaffedAck:      req.UnderstaffedAck,
@@ -159,7 +160,7 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
 		return
 	}
-	if rs.InstanceService == nil {
+	if rs.Deviations == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
@@ -170,7 +171,7 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := rs.InstanceService.ApplyDeviations(ctx, id, req.toServiceInput(jwt.ActorAccountIDFromCtx(ctx)))
+	result, err := rs.Deviations.ApplyDeviations(ctx, id, req.toServiceInput(jwt.ActorAccountIDFromCtx(ctx)))
 	if err != nil {
 		renderDeviationError(w, r, err)
 		return
@@ -196,7 +197,7 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 // deviationResponseOf shapes the service result into the wire response, mapping
 // the neutral affected list onto AffectedInstance and defaulting nil slices to
 // empty ones so the JSON always carries arrays.
-func deviationResponseOf(id int64, result *timetableplanning.ApplyDeviationsResult) ApplyDeviationsResponse {
+func deviationResponseOf(id int64, result *timetable.ApplyDeviationsResult) ApplyDeviationsResponse {
 	affected := make([]AffectedInstance, 0, len(result.Affected))
 	for _, a := range result.Affected {
 		affected = append(affected, AffectedInstance{
@@ -208,7 +209,7 @@ func deviationResponseOf(id int64, result *timetableplanning.ApplyDeviationsResu
 	}
 	warnings := result.Warnings
 	if warnings == nil {
-		warnings = []timetableplanning.SubstituteTimeConflict{}
+		warnings = []timetable.SubstituteTimeConflict{}
 	}
 	return ApplyDeviationsResponse{
 		InstanceID:        id,
@@ -224,7 +225,7 @@ func deviationResponseOf(id int64, result *timetableplanning.ApplyDeviationsResu
 // former inline handler produced. Lifecycle sentinels (from Cancel /
 // SetUnderstaffedAck) fall through to the shared lifecycle mapper.
 func renderDeviationError(w http.ResponseWriter, r *http.Request, err error) {
-	var de *timetableplanning.DeviationError
+	var de *timetable.DeviationError
 	if !errors.As(err, &de) {
 		renderInstanceLifecycleError(w, r, err)
 		return

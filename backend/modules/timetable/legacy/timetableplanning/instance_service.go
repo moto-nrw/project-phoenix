@@ -180,32 +180,12 @@ type InstanceService interface {
 	Create(ctx context.Context, req CreateInstanceInput) (*scheduleModel.ActivityInstance, error)
 	UpdatePlanned(ctx context.Context, instanceID int64, req UpdateInstanceInput, actorAccountID *int64) (*scheduleModel.ActivityInstance, error)
 
-	// Day-wide deviation writes (#1840/#1886) — the ONLY write path for
-	// absence/presence/substitution deviations; each appends its
-	// Änderungsprotokoll entry in the same tx. See deviation_service.go.
-	ApplyAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, reason *string, actorAccountID *int64, activeTouched map[int64]*scheduleModel.ActivityInstance) error
-	ApplyPresence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, actorAccountID *int64, activeTouched map[int64]*scheduleModel.ActivityInstance) error
-	ApplySubstitute(ctx context.Context, op SubstituteWriteOp, subID int64, reason *string, now time.Time, actorAccountID *int64, activeTouched map[int64]*scheduleModel.ActivityInstance) error
-
-	// #1843 sick-cascade variants: same writes as ApplyAbsence/ApplyPresence
-	// but with provenance stamping and the sick_reported/sick_cleared events.
-	ApplySickAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, reason *string, sickAbsenceID int64, actorAccountID *int64, activeTouched map[int64]*scheduleModel.ActivityInstance) error
-	ClearSickAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, sickAbsenceID int64, actorAccountID *int64, activeTouched map[int64]*scheduleModel.ActivityInstance) error
 	// QueueActivityUpdates emits one activity_update per touched active group
 	// after the surrounding tenant transaction commits. Rollbacks emit nothing.
+	// The deviation writes moved to the Timetable owner (slice S3), which
+	// announces its own touched blocks.
 	QueueActivityUpdates(ctx context.Context, touched map[int64]*scheduleModel.ActivityInstance)
 
-	// ApplyDeviations applies a whole Vertretungsplan slide-over save atomically
-	// (#1840/#1886): day-lock, validate + classify (Phase A), then the absence /
-	// presence / substitution writes plus acknowledgement reconciliation
-	// (Phase B). See deviation_apply.go. Returns a DeviationError carrying the
-	// exact HTTP mapping on a validation/conflict failure.
-	ApplyDeviations(ctx context.Context, instanceID int64, in ApplyDeviationsInput) (*ApplyDeviationsResult, error)
-	// ApplyBulkSubstitution applies one person's day-wide absence — optionally
-	// covered by one substitute — to several selected dates in a single atomic
-	// save (Sammel-Vertretung, #2284). Multi-day sibling of ApplyDeviations;
-	// see bulk_substitution.go.
-	ApplyBulkSubstitution(ctx context.Context, in BulkSubstitutionInput) (*BulkSubstitutionResult, error)
 	// MoveStaffBetweenBlocks moves (or pool-assigns) one staff member onto the
 	// target block atomically in one save (#1884): removal from the source and
 	// assignment to the target share the day lock and the tenant tx, and leave
@@ -312,7 +292,7 @@ func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
 		deps.RoomRepo == nil || deps.ActivityGroupRepo == nil || deps.StaffRepo == nil ||
 		deps.StudentRepo == nil || deps.ActiveService == nil || deps.Materialization == nil || deps.RecurrenceLock == nil ||
 		deps.CalendarPeriodRepo == nil || deps.CareDayService == nil || deps.DeviationEventRepo == nil || deps.DB == nil ||
-		deps.RecoveryRepo == nil || deps.StartConflicts == nil || (deps.EnforceTimePolicy && deps.Settings == nil) {
+		deps.RecoveryRepo == nil || deps.StartConflicts == nil || deps.SubstituteConflicts == nil || (deps.EnforceTimePolicy && deps.Settings == nil) {
 		panic("schedule.NewInstanceService: required dependency is nil")
 	}
 	return &instanceService{deps: deps}

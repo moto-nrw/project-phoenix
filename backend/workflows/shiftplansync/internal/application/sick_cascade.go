@@ -20,7 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync/ports"
@@ -35,8 +35,8 @@ const (
 	sickBlockAbsenceReason = "Krankmeldung"
 )
 
-// TimetableRows are the Betreuungsplan rows the cascade hands to the retained
-// deviation writes, and the Timetable owner's day lock of every day-wide
+// TimetableRows are the Betreuungsplan rows the cascade selects for the
+// Timetable owner's deviation writes, and the Timetable owner's day lock of every day-wide
 // staffing mutation (timetable.SubstituteDayLockKey). The composition root
 // binds them to the retained repositories.
 type TimetableRows interface {
@@ -46,12 +46,21 @@ type TimetableRows interface {
 	GetInstanceStaff(ctx context.Context, instanceID int64) ([]*scheduleModel.InstanceStaff, error)
 }
 
+// SickDeviations is the Timetable owner's sick-report write surface
+// (timetable.StaffDeviations): stamp and release an assignment, then announce
+// the touched running blocks after commit.
+type SickDeviations interface {
+	MarkSickAbsence(ctx context.Context, in timetable.SickAbsenceMark, touched timetable.TouchedActivities) error
+	ClearSickAbsence(ctx context.Context, in timetable.SickAbsenceClear, touched timetable.TouchedActivities) error
+	QueueActivityUpdates(ctx context.Context, touched timetable.TouchedActivities)
+}
+
 // SickCascadeDependencies are the owner surfaces the cascade coordinates: the
 // Dienstplan through the Workforce-backed port, the Betreuungsplan through the
-// retained timetable planning services.
+// Timetable owner's deviation writes.
 type SickCascadeDependencies struct {
 	Shifts        ports.Shifts
-	Instances     timetableplanning.InstanceService
+	Deviations    SickDeviations
 	TimetableData TimetableRows
 	InstanceStaff scheduleModel.InstanceStaffRepository
 	Broadcaster   realtime.Broadcaster
@@ -63,7 +72,7 @@ type SickCascadeDependencies struct {
 
 type sickCascade struct {
 	shifts            ports.Shifts
-	instances         timetableplanning.InstanceService
+	deviations        SickDeviations
 	timetableData     TimetableRows
 	instanceStaffRepo scheduleModel.InstanceStaffRepository
 	broadcaster       realtime.Broadcaster
@@ -76,7 +85,7 @@ type sickCascade struct {
 func NewSickCascade(deps SickCascadeDependencies) workforce.ShiftPlanSync {
 	return &sickCascade{
 		shifts:            deps.Shifts,
-		instances:         deps.Instances,
+		deviations:        deps.Deviations,
 		timetableData:     deps.TimetableData,
 		instanceStaffRepo: deps.InstanceStaff,
 		broadcaster:       deps.Broadcaster,
@@ -127,11 +136,11 @@ func (s *sickCascade) MarkSickForRange(ctx context.Context, in workforce.SickCas
 	if err := s.cancelShiftsForSickDays(ctx, report, days); err != nil {
 		return err
 	}
-	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
+	activeTouched := make(timetable.TouchedActivities)
 	if err := s.markBlocksForSickDays(ctx, report, days, activeTouched); err != nil {
 		return err
 	}
-	s.instances.QueueActivityUpdates(ctx, activeTouched)
+	s.deviations.QueueActivityUpdates(ctx, activeTouched)
 	s.broadcastStaffingChanged(ctx, "sick_cascade_mark")
 	s.getLogger().Info("sick cascade applied",
 		"staff_id", report.subjectStaffID,
@@ -210,7 +219,7 @@ func (s *sickCascade) shiftTakesSickCancellation(shift workforce.StaffShift, day
 	return true, nil
 }
 
-func (s *sickCascade) markBlocksForSickDays(ctx context.Context, report sickReport, days []timezone.Date, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+func (s *sickCascade) markBlocksForSickDays(ctx context.Context, report sickReport, days []timezone.Date, activeTouched timetable.TouchedActivities) error {
 	// Past days are never touched: a completed/historical instance records
 	// what actually happened (mirrors the deviations endpoints' past guard).
 	today := s.todayDate()
@@ -226,7 +235,7 @@ func (s *sickCascade) markBlocksForSickDays(ctx context.Context, report sickRepo
 	return nil
 }
 
-func (s *sickCascade) markBlocksForSickDay(ctx context.Context, report sickReport, day timezone.Date, reason *string, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+func (s *sickCascade) markBlocksForSickDay(ctx context.Context, report sickReport, day timezone.Date, reason *string, activeTouched timetable.TouchedActivities) error {
 	if err := s.timetableData.AcquireSubstituteDayLock(ctx, day); err != nil {
 		return fmt.Errorf("sick cascade: day lock %s: %w", day.String(), err)
 	}
@@ -249,7 +258,9 @@ func (s *sickCascade) markBlocksForSickDay(ctx context.Context, report sickRepor
 		if instance == nil || !isPlannableInstance(instance) {
 			continue
 		}
-		if err := s.instances.ApplySickAbsence(ctx, row, instance, reason, report.absenceID, report.actorAccountID, activeTouched); err != nil {
+		if err := s.deviations.MarkSickAbsence(ctx, timetable.SickAbsenceMark{
+			AssignmentID: row.ID, Reason: reason, SickAbsenceID: report.absenceID, ActorAccountID: report.actorAccountID,
+		}, activeTouched); err != nil {
 			return fmt.Errorf("sick cascade: mark block %d: %w", row.InstanceID, err)
 		}
 	}
@@ -271,11 +282,11 @@ func (s *sickCascade) ClearSickForRange(ctx context.Context, in workforce.SickCa
 	if err := s.reactivateStampedShifts(ctx, report, nil); err != nil {
 		return err
 	}
-	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
+	activeTouched := make(timetable.TouchedActivities)
 	if err := s.clearStampedBlocks(ctx, report, nil, activeTouched); err != nil {
 		return err
 	}
-	s.instances.QueueActivityUpdates(ctx, activeTouched)
+	s.deviations.QueueActivityUpdates(ctx, activeTouched)
 	s.broadcastStaffingChanged(ctx, "sick_cascade_clear")
 	s.getLogger().Info("sick cascade cleared",
 		"staff_id", report.subjectStaffID,
@@ -310,14 +321,14 @@ func (s *sickCascade) ReconcileSickRange(ctx context.Context, beforeInput, after
 	if err := s.acquireCascadeDayLocks(ctx, unionDateSets(removed, added)); err != nil {
 		return err
 	}
-	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
+	activeTouched := make(timetable.TouchedActivities)
 	if err := s.reconcileRemovedSickDays(ctx, before, removed, activeTouched); err != nil {
 		return err
 	}
 	if err := s.reconcileAddedSickDays(ctx, after, added, activeTouched); err != nil {
 		return err
 	}
-	s.instances.QueueActivityUpdates(ctx, activeTouched)
+	s.deviations.QueueActivityUpdates(ctx, activeTouched)
 	s.broadcastStaffingChanged(ctx, "sick_cascade_reconcile")
 	return nil
 }
@@ -383,7 +394,7 @@ func staffShiftIDs(shifts []workforce.StaffShift) []int64 {
 	return ids
 }
 
-func (s *sickCascade) reconcileRemovedSickDays(ctx context.Context, before sickReport, removed map[timezone.Date]bool, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+func (s *sickCascade) reconcileRemovedSickDays(ctx context.Context, before sickReport, removed map[timezone.Date]bool, activeTouched timetable.TouchedActivities) error {
 	if len(removed) == 0 {
 		return nil
 	}
@@ -393,7 +404,7 @@ func (s *sickCascade) reconcileRemovedSickDays(ctx context.Context, before sickR
 	return s.clearStampedBlocks(ctx, before, removed, activeTouched)
 }
 
-func (s *sickCascade) reconcileAddedSickDays(ctx context.Context, after sickReport, added map[timezone.Date]bool, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+func (s *sickCascade) reconcileAddedSickDays(ctx context.Context, after sickReport, added map[timezone.Date]bool, activeTouched timetable.TouchedActivities) error {
 	if len(added) == 0 {
 		return nil
 	}
@@ -481,7 +492,7 @@ func (s *sickCascade) releaseStampedShift(ctx context.Context, shift workforce.S
 	return nil
 }
 
-func (s *sickCascade) clearStampedBlocks(ctx context.Context, report sickReport, onlyDays map[timezone.Date]bool, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+func (s *sickCascade) clearStampedBlocks(ctx context.Context, report sickReport, onlyDays map[timezone.Date]bool, activeTouched timetable.TouchedActivities) error {
 	rows, err := s.loadStampedBlockRows(ctx, report.absenceID)
 	if err != nil || len(rows) == 0 {
 		return err
@@ -580,7 +591,7 @@ func sortedStampedBlockDays(byDay map[timezone.Date][]stampedSickBlockRow) []tim
 	return dates
 }
 
-func (s *sickCascade) clearStampedBlocksForDay(ctx context.Context, report sickReport, day timezone.Date, entries []stampedSickBlockRow, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+func (s *sickCascade) clearStampedBlocksForDay(ctx context.Context, report sickReport, day timezone.Date, entries []stampedSickBlockRow, activeTouched timetable.TouchedActivities) error {
 	if err := s.timetableData.AcquireSubstituteDayLock(ctx, day); err != nil {
 		return fmt.Errorf("sick clear: day lock %s: %w", day.String(), err)
 	}
@@ -603,11 +614,12 @@ func (s *sickCascade) clearStampedBlocksForDay(ctx context.Context, report sickR
 			)
 			continue
 		}
-		if err := s.instances.ClearSickAbsence(ctx, entry.row, entry.instance, report.absenceID, report.actorAccountID, activeTouched); err != nil {
+		// The owner clears the block's understaffed acknowledgement when the
+		// restore leaves it fully staffed again.
+		if err := s.deviations.ClearSickAbsence(ctx, timetable.SickAbsenceClear{
+			AssignmentID: entry.row.ID, SickAbsenceID: report.absenceID, ActorAccountID: report.actorAccountID,
+		}, activeTouched); err != nil {
 			return fmt.Errorf("sick clear: clear block %d: %w", entry.row.InstanceID, err)
-		}
-		if err := s.instances.ClearUnderstaffedAckIfStaffed(ctx, entry.row.InstanceID, report.actorAccountID); err != nil {
-			return fmt.Errorf("sick clear: reconcile understaffed acknowledgement for block %d: %w", entry.row.InstanceID, err)
 		}
 	}
 	return nil

@@ -37,7 +37,7 @@ type testTimetable struct {
 	timetableModule.TemplateAdministration
 	data        timetableModule.TimetableDataCapability
 	conflicts   timetableModule.ConflictDetectionCapability
-	corrections *timetableplanning.AttendanceCorrectionService
+	corrections timetableModule.AttendanceCorrections
 	lock        timetableModule.RecurrenceWriteLock
 }
 
@@ -47,7 +47,7 @@ func (t *testTimetable) ConflictDetection() timetableModule.ConflictDetectionCap
 	return t.conflicts
 }
 
-func (t *testTimetable) AttendanceCorrections() *timetableplanning.AttendanceCorrectionService {
+func (t *testTimetable) AttendanceCorrections() timetableModule.AttendanceCorrections {
 	return t.corrections
 }
 
@@ -215,18 +215,22 @@ func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func(
 	if err != nil {
 		panic(err)
 	}
+	corrections, err := arrivalTimetable.NewAttendanceCorrections(arrivalTimetable.AttendanceCorrectionDependencies{
+		Participants: boundRepos.InstanceStudent,
+		Instances:    activityInstanceRepo,
+		Trail:        repositories.TimetableAttendanceCorrectionTrail(auditRepo.NewAttendanceCorrectionRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext))),
+		People:       usersRepo.NewPersonRepository(db),
+		Locks:        recovery,
+	})
+	if err != nil {
+		panic(err)
+	}
 	return &testTimetable{
 		TemplateAdministration: templateWrites,
 		data:                   timetableData,
 		conflicts:              conflicts,
 		lock:                   lock,
-		corrections: timetableplanning.NewAttendanceCorrectionService(timetableplanning.AttendanceCorrectionDependencies{
-			InstanceStudentRepo:      boundRepos.InstanceStudent,
-			ActivityInstanceRepo:     activityInstanceRepo,
-			AttendanceCorrectionRepo: auditRepo.NewAttendanceCorrectionRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
-			PersonRepo:               usersRepo.NewPersonRepository(db),
-			RecoveryRepo:             recovery,
-		}),
+		corrections:            corrections,
 	}
 }
 

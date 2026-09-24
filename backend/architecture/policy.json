@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 28,
+  "policy_epoch": 29,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -21273,18 +21273,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
-      "id": "inbound-timetable.module-behavior-test.transaction-runtime-domain",
-      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import models/base as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "module-behavior-test",
-      "target_owner": "transaction-runtime",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "people-directory.application.care-plan-absence-records",
       "description": "The parent request coordinator classifies the excused-request sentinels of modules/careplan/absencerecords (#3422).",
       "scopes": [
@@ -21294,18 +21282,6 @@
       "source_role": "application",
       "target_owner": "care-plan",
       "target_role": "contract"
-    },
-    {
-      "id": "student-presence.e2e-test.inbound-timetable-adapter",
-      "description": "The Student Presence behaviour suites drive the retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218, #3422).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "e2e-test",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "student-presence.e2e-test.care-plan-absence-records",
@@ -21742,18 +21718,6 @@
       ],
       "source_owner": "inbound-timetable",
       "source_role": "adapter-test",
-      "target_owner": "inbound-timetable",
-      "target_role": "test-support",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
-      "id": "inbound-timetable.module-behavior-test.inbound-timetable-test-support",
-      "description": "The retained timetable SQL test providers that moved from database/repositories/schedule to modules/timetable/legacy/timetablesqltest (#3220) are still consumed by modules/timetable/legacy/timetableplanning. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "module-behavior-test",
       "target_owner": "inbound-timetable",
       "target_role": "test-support",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
@@ -22800,6 +22764,17 @@
       "target_role": "public"
     },
     {
+      "id": "timetable-planning-cutover.shift-plan-sync.application.timetable-activities.public",
+      "description": "The sick cascade and the Terminvertretung write through the Timetable owner's deviation commands since slice S3 of #3424 (ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
       "id": "workforce.application.legacy-shared-domain",
       "description": "The Workforce planning commands and queries (modules/workforce/internal/planning, #3418) speak the shared calendar-date and wall-clock helpers.",
       "scopes": [
@@ -23159,18 +23134,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2729"
     },
     {
-      "id": "shift-plan-sync.application.inbound-timetable-adapter",
-      "description": "The sick cascade and the substitution moves drive the retained timetable instance and deviation services (#3418). Goes with the timetable nest.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "shift-plan-sync",
-      "source_role": "application",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
-    },
-    {
       "id": "shift-plan-sync.application.workforce",
       "description": "The sick cascade cancels and releases shifts through the public Workforce planning contracts (#3418).",
       "scopes": [
@@ -23292,18 +23255,6 @@
       "target_owner": "people-directory",
       "target_role": "domain",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2729"
-    },
-    {
-      "id": "shift-plan-sync.compose.inbound-timetable-adapter",
-      "description": "Shift-plan-sync composition binds the retained timetable instance and data services (#3418). Goes with the timetable nest.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "shift-plan-sync",
-      "source_role": "compose",
-      "target_owner": "inbound-timetable",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3424"
     },
     {
       "id": "shift-plan-sync.compose.workforce",

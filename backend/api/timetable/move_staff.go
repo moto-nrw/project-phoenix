@@ -49,8 +49,8 @@ type MoveStaffResponse struct {
 	// target window; CoverageWarnings the Dienstplan gaps for it (#1873).
 	// Both advisory — the writes have already landed in the request's tenant
 	// tx and are never rolled back because of a warning.
-	TimeConflicts    []timetableplanning.SubstituteTimeConflict `json:"time_conflicts"`
-	CoverageWarnings []timetable.ShiftCoverageWarning           `json:"coverage_warnings"`
+	TimeConflicts    []timetable.SubstituteTimeConflict `json:"time_conflicts"`
+	CoverageWarnings []timetable.ShiftCoverageWarning   `json:"coverage_warnings"`
 }
 
 // moveStaff handles POST /api/timetable/instances/{id}/move-staff.
@@ -86,7 +86,8 @@ func (rs *Resource) moveStaff(w http.ResponseWriter, r *http.Request) {
 	if result.Action == timetableplanning.MoveStaffActionAlreadyApplied {
 		appliedWrites = 0
 	}
-	rs.broadcastDeviationSaveEvents(ctx, result.ActiveTouched, appliedWrites, false, 0)
+	rs.InstanceService.QueueActivityUpdates(ctx, result.ActiveTouched)
+	rs.broadcastStaffingIfChanged(ctx, appliedWrites > 0)
 	rs.getLogger().Info("staff moved between blocks",
 		slog.Int64("target_instance_id", id),
 		slog.Int64("staff_id", req.StaffID),

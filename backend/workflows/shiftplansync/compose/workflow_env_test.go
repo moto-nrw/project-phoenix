@@ -86,7 +86,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 		Planning:        planning,
 		Workforce:       capability,
 		LockStaffShifts: lock,
-		Instances:       timetable.Instance,
+		Deviations:      timetable.TimetableData.Deviations,
 		TimetableData:   services.NewSickCascadeTimetableRows(repos.OwnerRows(), db),
 		InstanceStaff:   repos.InstanceStaff,
 		Broadcaster:     broadcaster,
@@ -95,7 +95,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 	})
 	require.NoError(t, err)
 	substitution, err := compose.NewSubstitution(compose.SubstitutionDependencies{
-		Instances:         timetable.Instance,
+		Deviations:        timetable.TimetableData.Deviations,
 		ActivityInstances: repos.ActivityInstance,
 		InstanceStaff:     repos.InstanceStaff,
 		Staff:             repos.Staff,

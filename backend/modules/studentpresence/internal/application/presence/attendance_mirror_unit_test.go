@@ -1,6 +1,7 @@
-// Unit tests for AttendanceSyncService that don't require a database.
+// Unit tests for the Timetable owner's attendance mirror behind Student
+// Presence's syncer port (#3424 slice S3) that don't require a database.
 //
-// The integration tests in attendance_sync_service_integration_test.go cover
+// The integration tests in attendance_mirror_integration_test.go cover
 // the happy-path branches (B1, B3, B5, B6, B9) via real repos. The
 // graceful-degradation error branches (B2 instance lookup error, B4
 // instance_student lookup error, B7 UPDATE error, B8 race, and the panic
@@ -10,7 +11,7 @@
 //
 // This file closes the coverage gap by stubbing both repositories with
 // hand-rolled fakes that return the shapes each branch expects.
-package timetableplanning_test
+package presence_test
 
 import (
 	"bytes"
@@ -20,10 +21,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	modelsBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -336,9 +338,15 @@ func newSilentLogger() (*slog.Logger, *bytes.Buffer) {
 	return logger, buf
 }
 
-func newUnitSyncer(instRepo *fakeInstanceRepo, isRepo *fakeInstanceStudentRepo) *timetableplanning.AttendanceSyncService {
+// newUnitSyncer binds the Timetable owner's attendance mirror to Student
+// Presence's syncer port the way the composition root does (#3424 slice S3).
+func newUnitSyncer(instRepo *fakeInstanceRepo, isRepo *fakeInstanceStudentRepo) studentpresence.AttendanceSyncer {
 	logger, _ := newSilentLogger()
-	return timetableplanning.NewAttendanceSyncService(instRepo, isRepo, logger)
+	syncer, err := services.NewTimetableAttendanceMirror(repositories.TimetableOwnerRows{Instances: instRepo, Participants: isRepo}, logger)
+	if err != nil {
+		panic(err)
+	}
+	return syncer
 }
 
 func validVisit() *studentpresence.Visit {
@@ -1075,11 +1083,11 @@ func TestAttendanceSync_NilLoggerUsesDefault(t *testing.T) {
 
 	// When a nil logger is passed, the service must fall back to slog.Default()
 	// and still execute end-to-end without panicking.
-	svc := timetableplanning.NewAttendanceSyncService(
-		&fakeInstanceRepo{instance: nil},
-		&fakeInstanceStudentRepo{},
-		nil,
-	)
+	svc, err := services.NewTimetableAttendanceMirror(repositories.TimetableOwnerRows{
+		Instances:    &fakeInstanceRepo{instance: nil},
+		Participants: &fakeInstanceStudentRepo{},
+	}, nil)
+	require.NoError(t, err)
 	require.NotPanics(t, func() {
 		checkInSnapshot, checkInErr := svc.MirrorCheckInForVisit(context.Background(), validVisit())
 		require.NoError(t, checkInErr)

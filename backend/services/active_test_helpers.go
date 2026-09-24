@@ -41,13 +41,16 @@ type activeTestYard struct {
 type ActiveTestModule struct {
 	GroupsTestModule
 	IoTDataTestModule
-	Settings             config.SettingsService
-	Schulhof             activeTestYard
-	PickupSchedule       careplan.PickupScheduleService
-	ArrivalSchedule      careplan.ArrivalScheduleService
-	TimetableOperations  timetable.OperationCapability
-	CareDay              careplan.CareDayQuery
-	Instance             timetableplanning.InstanceService
+	Settings            config.SettingsService
+	Schulhof            activeTestYard
+	PickupSchedule      careplan.PickupScheduleService
+	ArrivalSchedule     careplan.ArrivalScheduleService
+	TimetableOperations timetable.OperationCapability
+	CareDay             careplan.CareDayQuery
+	Instance            timetableplanning.InstanceService
+	// Deviations are the Timetable owner's deviation writes over the same
+	// repositories (#3424 slice S3).
+	Deviations           timetable.StaffDeviations
 	SupervisionDashboard supervisiondashboard.Query
 	// SessionEnd is the kiosk session end workflow over the real owners.
 	SessionEnd       sessionend.Command
@@ -142,6 +145,10 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
+	attendanceMirror, err := NewTimetableAttendanceMirror(r.OwnerRows(), logger)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
 	displayGroups, err := repositories.NewSchoolStructure(db)
 	if err != nil {
 		return ActiveTestModule{}, err
@@ -161,7 +168,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		StudentRepo: PresenceStudents(db, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff), RoomRepo: NewAttendanceRooms(r.Room),
 		ActivityGroupRepo: repositories.NewSessionActivities(r.ActivityGroup), ActivityCatRepo: NewAttendanceActivityCategories(r.ActivityCategory), EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), DeviceRepo: NewSessionDeviceDirectory(devices, settings.Settings, logger),
 		StaffNames: NewAttendanceStaffNames(r.Staff, data.Users), DB: db, Broadcaster: hub, WorkSessionService: work.WorkSession,
-		AttendanceSyncer:         timetableplanning.NewAttendanceSyncService(r.ActivityInstance, r.InstanceStudent, logger),
+		AttendanceSyncer:         attendanceMirror,
 		TimetableBridgeCompleter: bridge, Logger: logger, Now: optionalClock(clocks),
 	}
 	presence := presenceservice.NewPresence(presenceDeps, presenceservice.WithPresenceSettings(PresenceSettings(settings.Settings)))
@@ -220,6 +227,6 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		return ActiveTestModule{}, err
 	}
 	return ActiveTestModule{GroupsTestModule: groups, IoTDataTestModule: data, Settings: settings.Settings, Schulhof: activeTestYard{SchulhofService: yard, Yard: supervisiondashboardlegacy.NewYard(yard)},
-		PickupSchedule: pickups, ArrivalSchedule: arrivals, TimetableOperations: operations, SupervisionDashboard: dashboard, CareDay: careDay, Instance: tt.Instance,
+		PickupSchedule: pickups, ArrivalSchedule: arrivals, TimetableOperations: operations, SupervisionDashboard: dashboard, CareDay: careDay, Instance: tt.Instance, Deviations: tt.TimetableData.Deviations,
 		SessionEnd: sessionEnd, SessionLifecycle: devicescanCompose.NewSessionLifecycle(presence, devicescanCompose.NewSupervisionQuery(newStudentPresence(db, logger)), data.Users, data.IoT, nil, logger)}, nil
 }

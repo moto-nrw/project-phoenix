@@ -9,7 +9,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -23,11 +23,19 @@ var (
 	errSubstitutionNotRunning    = errors.New("schedule substitution is not running")
 )
 
+// ScheduleDeviations is the Timetable owner's deviation command surface a
+// Terminvertretung writes through (timetable.StaffDeviations).
+type ScheduleDeviations interface {
+	ApplyDeviations(ctx context.Context, instanceID int64, in timetable.ApplyDeviationsInput) (*timetable.ApplyDeviationsResult, error)
+	ApplyBulkSubstitution(ctx context.Context, in timetable.BulkSubstitutionInput) (*timetable.BulkSubstitutionResult, error)
+	QueueActivityUpdates(ctx context.Context, touched timetable.TouchedActivities)
+}
+
 type SubstitutionAdapterDependencies struct {
 	Instances     scheduleModel.ActivityInstanceRepository
 	InstanceStaff scheduleModel.InstanceStaffRepository
 	Staff         userModels.StaffRepository
-	Engine        timetableplanning.InstanceService
+	Engine        ScheduleDeviations
 	Broadcaster   realtime.Broadcaster
 	Logger        *slog.Logger
 }
@@ -47,8 +55,8 @@ func NewSubstitutionAdapter(deps SubstitutionAdapterDependencies) *SubstitutionA
 // substitutionMutation is what one deviation write changed: either one
 // appointment or a set of whole days, plus the after-commit notification.
 type substitutionMutation struct {
-	Appointment *timetableplanning.ApplyDeviationsResult
-	WholeDays   *timetableplanning.BulkSubstitutionResult
+	Appointment *timetable.ApplyDeviationsResult
+	WholeDays   *timetable.BulkSubstitutionResult
 	AfterCommit func(context.Context)
 }
 
@@ -203,13 +211,13 @@ func (a *SubstitutionAdapter) apply(
 		}
 	}
 	wholeDays := assignment.WholeDays
-	return a.applyWholeDays(ctx, timetableplanning.BulkSubstitutionInput{
+	return a.applyWholeDays(ctx, timetable.BulkSubstitutionInput{
 		AbsentStaffID: wholeDays.AbsentStaffID, SubstituteStaffID: wholeDays.SubstituteStaffID,
 		Dates: wholeDays.Dates, Reason: wholeDays.Reason, ActorAccountID: &actorAccountID,
 	})
 }
 
-func (a *SubstitutionAdapter) applyAppointment(ctx context.Context, instanceID int64, input timetableplanning.ApplyDeviationsInput) (*substitutionMutation, error) {
+func (a *SubstitutionAdapter) applyAppointment(ctx context.Context, instanceID int64, input timetable.ApplyDeviationsInput) (*substitutionMutation, error) {
 	result, err := a.deps.Engine.ApplyDeviations(ctx, instanceID, input)
 	if err != nil {
 		return nil, err
@@ -220,7 +228,7 @@ func (a *SubstitutionAdapter) applyAppointment(ctx context.Context, instanceID i
 	}, nil
 }
 
-func (a *SubstitutionAdapter) applyWholeDays(ctx context.Context, input timetableplanning.BulkSubstitutionInput) (*substitutionMutation, error) {
+func (a *SubstitutionAdapter) applyWholeDays(ctx context.Context, input timetable.BulkSubstitutionInput) (*substitutionMutation, error) {
 	result, err := a.deps.Engine.ApplyBulkSubstitution(ctx, input)
 	if err != nil {
 		return nil, err
@@ -257,15 +265,15 @@ func (a *SubstitutionAdapter) end(ctx context.Context, substitutionID, actorAcco
 		return nil, errSubstitutionNotRunning
 	}
 	selected := []int64{row.InstanceID}
-	return a.applyAppointment(ctx, row.InstanceID, timetableplanning.ApplyDeviationsInput{
+	return a.applyAppointment(ctx, row.InstanceID, timetable.ApplyDeviationsInput{
 		ActorAccountID: &actorAccountID,
-		SubstitutionRemovals: []timetableplanning.DeviationSubstitutionRemovalInput{{
+		SubstitutionRemovals: []timetable.DeviationSubstitutionRemovalInput{{
 			StaffID: row.StaffID, InstanceIDs: &selected,
 		}},
 	})
 }
 
-func (a *SubstitutionAdapter) afterCommit(activeTouched map[int64]*scheduleModel.ActivityInstance, notifyStaffing bool) func(context.Context) {
+func (a *SubstitutionAdapter) afterCommit(activeTouched timetable.TouchedActivities, notifyStaffing bool) func(context.Context) {
 	return func(ctx context.Context) {
 		a.deps.Engine.QueueActivityUpdates(ctx, activeTouched)
 		if notifyStaffing {

@@ -1191,68 +1191,10 @@ func TestReplanWeek_ActivityGroupIDPassThrough(t *testing.T) {
 	assert.Nil(t, mock.lastReplanGID)
 }
 
-// Deviation writes (#1886): the DB-backed deviations tests assert real row
-// effects, so these delegate to a real InstanceService when `real` is wired
-// (buildDevModule); the pure mock-backed routes leave it nil (no-op).
-func (m *mockInstanceService) ApplyAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, reason *string, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
-	if m.real != nil {
-		return m.real.ApplyAbsence(ctx, row, instance, reason, actor, touched)
-	}
-	return nil
-}
-
-// Interface-compile stubs for the #1843 sick-cascade methods; the timetable
-// endpoints under test never call them.
-func (m *mockInstanceService) ApplySickAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, reason *string, sickAbsenceID int64, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
-	if m.real != nil {
-		return m.real.ApplySickAbsence(ctx, row, instance, reason, sickAbsenceID, actor, touched)
-	}
-	return nil
-}
-
-func (m *mockInstanceService) ClearSickAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, sickAbsenceID int64, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
-	if m.real != nil {
-		return m.real.ClearSickAbsence(ctx, row, instance, sickAbsenceID, actor, touched)
-	}
-	return nil
-}
-
 func (m *mockInstanceService) QueueActivityUpdates(ctx context.Context, touched map[int64]*scheduleModel.ActivityInstance) {
 	if m.real != nil {
 		m.real.QueueActivityUpdates(ctx, touched)
 	}
-}
-
-func (m *mockInstanceService) ApplyPresence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
-	if m.real != nil {
-		return m.real.ApplyPresence(ctx, row, instance, actor, touched)
-	}
-	return nil
-}
-
-func (m *mockInstanceService) ApplySubstitute(ctx context.Context, op timetableplanning.SubstituteWriteOp, subID int64, reason *string, now time.Time, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
-	if m.real != nil {
-		return m.real.ApplySubstitute(ctx, op, subID, reason, now, actor, touched)
-	}
-	return nil
-}
-
-// ApplyDeviations delegates the atomic save to a real InstanceService when
-// wired (buildDevModule, DB-backed); the pure mock path is unused today.
-func (m *mockInstanceService) ApplyDeviations(ctx context.Context, id int64, in timetableplanning.ApplyDeviationsInput) (*timetableplanning.ApplyDeviationsResult, error) {
-	if m.real != nil {
-		return m.real.ApplyDeviations(ctx, id, in)
-	}
-	return &timetableplanning.ApplyDeviationsResult{}, nil
-}
-
-// ApplyBulkSubstitution delegates to a real InstanceService when wired
-// (interface completeness for #2284; the mock-only path is unused today).
-func (m *mockInstanceService) ApplyBulkSubstitution(ctx context.Context, in timetableplanning.BulkSubstitutionInput) (*timetableplanning.BulkSubstitutionResult, error) {
-	if m.real != nil {
-		return m.real.ApplyBulkSubstitution(ctx, in)
-	}
-	return &timetableplanning.BulkSubstitutionResult{}, nil
 }
 
 // MoveStaffBetweenBlocks delegates to a real InstanceService when wired

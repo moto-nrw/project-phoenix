@@ -57,6 +57,7 @@ func setupScopedDeviationsRoute(t *testing.T) *scopedDevSetup {
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("scoped-dev-%d", suffix))
 	resource := timetableAPI.NewResource(timetableAPI.Dependencies{
 		InstanceService: serviceFactory.Instance,
+		Deviations:      serviceFactory.TimetableData.Deviations,
 		DB:              db,
 	})
 	router := chi.NewRouter()

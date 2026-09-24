@@ -409,31 +409,8 @@ func (s *autoStartInstanceStarter) Create(context.Context, CreateInstanceInput) 
 func (s *autoStartInstanceStarter) UpdatePlanned(context.Context, int64, UpdateInstanceInput, *int64) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
-func (s *autoStartInstanceStarter) ApplyAbsence(context.Context, *scheduleModel.InstanceStaff, *scheduleModel.ActivityInstance, *string, *int64, map[int64]*scheduleModel.ActivityInstance) error {
-	return nil
-}
-func (s *autoStartInstanceStarter) ApplyPresence(context.Context, *scheduleModel.InstanceStaff, *scheduleModel.ActivityInstance, *int64, map[int64]*scheduleModel.ActivityInstance) error {
-	return nil
-}
-func (s *autoStartInstanceStarter) ApplySubstitute(context.Context, SubstituteWriteOp, int64, *string, time.Time, *int64, map[int64]*scheduleModel.ActivityInstance) error {
-	return nil
-}
 
-// Interface-compile stubs for the #1843 sick-cascade methods; auto-start
-// never exercises them.
-func (s *autoStartInstanceStarter) ApplySickAbsence(context.Context, *scheduleModel.InstanceStaff, *scheduleModel.ActivityInstance, *string, int64, *int64, map[int64]*scheduleModel.ActivityInstance) error {
-	return nil
-}
-func (s *autoStartInstanceStarter) ClearSickAbsence(context.Context, *scheduleModel.InstanceStaff, *scheduleModel.ActivityInstance, int64, *int64, map[int64]*scheduleModel.ActivityInstance) error {
-	return nil
-}
 func (s *autoStartInstanceStarter) QueueActivityUpdates(context.Context, map[int64]*scheduleModel.ActivityInstance) {
-}
-func (s *autoStartInstanceStarter) ApplyDeviations(context.Context, int64, ApplyDeviationsInput) (*ApplyDeviationsResult, error) {
-	return nil, nil
-}
-func (s *autoStartInstanceStarter) ApplyBulkSubstitution(context.Context, BulkSubstitutionInput) (*BulkSubstitutionResult, error) {
-	return nil, nil
 }
 func (s *autoStartInstanceStarter) AcknowledgeUnderstaffed(context.Context, int64, bool, *string, *int64) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
