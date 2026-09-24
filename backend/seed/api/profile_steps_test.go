@@ -81,12 +81,15 @@ func TestConfigureDemoProfilesOrdersAttendanceScopeChanges(t *testing.T) {
 			visibility := slices.Index(keys, profileSettingOverviewScope)
 			attendance := slices.Index(keys, profileSettingAttendanceScope)
 			starting := slices.Index(keys, profileSettingBlockStartScope)
+			ending := slices.Index(keys, profileSettingBlockCompleteScope)
 			require.NotEqual(t, -1, visibility)
 			require.NotEqual(t, -1, attendance)
 			require.NotEqual(t, -1, starting)
+			require.NotEqual(t, -1, ending)
 			if definition.Key == DefaultProfileKey {
 				assert.Less(t, visibility, attendance)
 				assert.Less(t, visibility, starting)
+				assert.Less(t, visibility, ending)
 				atSchool, ok := definition.Settings[profileSettingSessionEndTime]
 				require.True(t, ok)
 				assert.Equal(t, json.RawMessage(`"23:59"`), atSchool.Value)
@@ -94,6 +97,7 @@ func TestConfigureDemoProfilesOrdersAttendanceScopeChanges(t *testing.T) {
 			} else {
 				assert.Less(t, attendance, visibility)
 				assert.Less(t, starting, visibility)
+				assert.Less(t, ending, visibility)
 			}
 			require.Contains(t, keys, profileSettingParentSickMode)
 			require.Contains(t, keys, profileSettingParentExcusedMode)

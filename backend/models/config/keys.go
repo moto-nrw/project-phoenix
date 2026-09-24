@@ -132,6 +132,7 @@ const (
 	KeyOperationalOverviewScope              = "operations.operational_overview_scope"
 	KeyAttendanceEditScope                   = "operations.attendance_edit_scope"
 	KeyBlockStartScope                       = "operations.block_start_scope"
+	KeyBlockCompleteScope                    = "operations.block_complete_scope"
 	KeyStudentAbsenceEditScope               = "operations.student_absence_edit_scope"
 	KeyClassArrivalExceptionEditors          = "operations.class_arrival_exception_editors"
 	KeySchoolPortalWriteScope                = "operations.school_portal_write_scope"
@@ -266,6 +267,9 @@ const (
 const (
 	BlockStartScopeOwn      = AttendanceEditScopeOwn
 	BlockStartScopeAllStaff = AttendanceEditScopeAllStaff
+	// BlockCompleteScope does the same for ending a running block.
+	BlockCompleteScopeOwn      = AttendanceEditScopeOwn
+	BlockCompleteScopeAllStaff = AttendanceEditScopeAllStaff
 )
 
 // StudentAbsenceEditScope controls direct sick and excused reports, not parent review.

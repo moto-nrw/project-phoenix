@@ -232,8 +232,9 @@ type OperationRoster struct {
 	// requireCanOperate (#3167). The all_staff overview scope shows every
 	// running roster without granting action rights.
 	CanOperate bool `json:"can_operate"`
-	// CanStart is requireCanStart's verdict for a planned block (#3622).
+	// CanStart and CanEnd follow the block start and end scopes (#3622).
 	CanStart bool `json:"can_start"`
+	CanEnd   bool `json:"can_end"`
 	// CanEditAttendance is separate from start/complete/reopen authority.
 	CanEditAttendance bool `json:"can_edit_attendance"`
 	// CanReportAbsence covers sick/excused block markers, not other statuses.
@@ -663,7 +664,7 @@ func (s *timetableOperationsService) CreateAndStartSpontaneous(ctx context.Conte
 }
 
 func (s *timetableOperationsService) Start(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*StartInstanceResult, error) {
-	staffID, err := s.requireCanStart(ctx, accountID, isAdmin, instanceID)
+	staffID, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, configModel.KeyBlockStartScope)
 	if err != nil {
 		return nil, err
 	}
@@ -674,7 +675,7 @@ func (s *timetableOperationsService) Start(ctx context.Context, accountID int64,
 }
 
 func (s *timetableOperationsService) Complete(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*scheduleModel.ActivityInstance, error) {
-	if _, err := s.requireCanOperate(ctx, accountID, isAdmin, instanceID); err != nil {
+	if _, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, configModel.KeyBlockCompleteScope); err != nil {
 		return nil, err
 	}
 	return s.deps.InstanceService.Complete(WithLifecycleActor(ctx, accountID), instanceID)
@@ -722,11 +723,14 @@ func (s *timetableOperationsService) rosterWithActionAccess(ctx context.Context,
 	if roster.CanOperate, err = actionAllowed(s.requireCanOperate(ctx, accountID, isAdmin, instanceID)); err != nil {
 		return nil, err
 	}
-	if roster.CanStart, err = actionAllowed(s.requireCanStart(ctx, accountID, isAdmin, instanceID)); err != nil {
+	if roster.CanStart, err = actionAllowed(s.requireScopedAction(ctx, accountID, isAdmin, instanceID, configModel.KeyBlockStartScope)); err != nil {
 		return nil, err
 	}
 	roster.CanStart = roster.CanStart && roster.Instance.Status == scheduleModel.InstanceStatusPlanned
-	staffID, err := s.requireCanEditAttendance(ctx, accountID, isAdmin, instanceID)
+	if roster.CanEnd, err = actionAllowed(s.requireScopedAction(ctx, accountID, isAdmin, instanceID, configModel.KeyBlockCompleteScope)); err != nil {
+		return nil, err
+	}
+	staffID, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, configModel.KeyAttendanceEditScope)
 	if err != nil && !errors.Is(err, ErrTimetableOperationForbidden) {
 		return nil, err
 	}
@@ -754,7 +758,7 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 }
 
 func (s *timetableOperationsService) checkInStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error) {
-	staffID, err := s.requireCanEditAttendance(ctx, accountID, isAdmin, instanceID)
+	staffID, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, configModel.KeyAttendanceEditScope)
 	if err != nil {
 		return nil, err
 	}
@@ -834,7 +838,7 @@ func (s *timetableOperationsService) checkInStudentWithCurrentVisit(ctx context.
 // in another running session" check-in conflict by moving the child instead
 // of rejecting (#2386). The shared bulk-move path owns checkout semantics,
 // attendance mirroring, and SSE broadcasts for both the old and new visit.
-// Target authorization already happened in requireCanEditAttendance, so the move's
+// Target authorization already happened in the attendance scope check, so the move's
 // own supervision check is bypassed.
 func (s *timetableOperationsService) moveStudentFromOtherSession(ctx context.Context, staffID int64, inst *scheduleModel.ActivityInstance, instanceID, studentID int64) (*OperationRoster, error) {
 	result, err := s.deps.ActiveService.MoveStudentsToActiveGroupAuthorized(ctx, []int64{studentID}, *inst.ActiveGroupID, studentpresence.StudentMoveAuthorization{
@@ -907,7 +911,7 @@ func (s *timetableOperationsService) CheckOutStudent(ctx context.Context, accoun
 }
 
 func (s *timetableOperationsService) checkOutStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error) {
-	staffID, err := s.requireCanEditAttendance(ctx, accountID, isAdmin, instanceID)
+	staffID, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, configModel.KeyAttendanceEditScope)
 	if err != nil {
 		return nil, err
 	}
@@ -1123,17 +1127,9 @@ func (s *timetableOperationsService) rosterStudentExcluded(ctx context.Context, 
 	return rosterExcludedAlumni(inst, students, s.today())[studentID], nil
 }
 
-// Attendance commands and starts each have a school scope setting (#3180,
+// Attendance, starts and ends each have a school scope setting (#3180,
 // #3622). all_staff adds every verified staff member to requireCanOperate's
 // people for that one action; InstanceService.Start adds no supervisor.
-func (s *timetableOperationsService) requireCanEditAttendance(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (int64, error) {
-	return s.requireScopedAction(ctx, accountID, isAdmin, instanceID, configModel.KeyAttendanceEditScope)
-}
-
-func (s *timetableOperationsService) requireCanStart(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (int64, error) {
-	return s.requireScopedAction(ctx, accountID, isAdmin, instanceID, configModel.KeyBlockStartScope)
-}
-
 func (s *timetableOperationsService) requireScopedAction(ctx context.Context, accountID int64, isAdmin bool, instanceID int64, scopeKey string) (int64, error) {
 	schoolWide, err := s.schoolWideScope(ctx, accountID, isAdmin, scopeKey)
 	if err != nil {
@@ -1155,7 +1151,7 @@ func (s *timetableOperationsService) requireScopedAction(ctx context.Context, ac
 	return s.requireCanOperate(ctx, accountID, isAdmin, instanceID)
 }
 
-// Attendance reaches running sessions, a start today's planned blocks.
+// Attendance and ends reach running sessions, a start today's planned blocks.
 func (s *timetableOperationsService) scopeAdmits(scopeKey string, inst *scheduleModel.ActivityInstance) bool {
 	if scopeKey == configModel.KeyBlockStartScope {
 		return inst.Status == scheduleModel.InstanceStatusPlanned && timezone.Date(inst.Date) == s.today()

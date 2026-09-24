@@ -193,6 +193,7 @@ describe("SettingsField", () => {
   });
 
   const startKey = "operations.block_start_scope";
+  const endKey = "operations.block_complete_scope";
 
   function pickOption(
     getByRole: ReturnType<typeof renderWithProviders>["getByRole"],
@@ -201,6 +202,71 @@ describe("SettingsField", () => {
     fireEvent.click(getByRole("combobox"));
     fireEvent.click(getByRole("option", { name }));
   }
+
+  it.each([startKey, endKey])(
+    "expands visibility before the whole team may use %s",
+    async (key) => {
+      const onSave = vi.fn().mockResolvedValue(null);
+      const setting = scopeSetting(key, "own");
+      const { getByRole, getByText } = renderWithProviders(
+        <SettingsField
+          setting={setting}
+          categoryItems={[setting, scopeSetting(visibilityKey, "own")]}
+          onSave={onSave}
+          onReset={vi.fn()}
+        />,
+      );
+      pickOption(getByRole, "Alle Gruppen und Blöcke");
+      expect(onSave).not.toHaveBeenCalled();
+      expect(getByText("Auch den Sichtbereich erweitern?")).toBeInTheDocument();
+      fireEvent.click(getByRole("button", { name: "Beides erweitern" }));
+      await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+      expect(onSave.mock.calls).toEqual([
+        [visibilityKey, "all_staff"],
+        [key, "all_staff"],
+      ]);
+    },
+  );
+
+  it.each([
+    ["ending only", "own", "own", "all_staff", [endKey], "Beides begrenzen"],
+    [
+      "all three",
+      "all_staff",
+      "all_staff",
+      "all_staff",
+      [attendanceKey, startKey, endKey],
+      "Alles begrenzen",
+    ],
+  ])(
+    "restricts %s before visibility",
+    async (_name, attendance, starting, ending, restricted, confirmText) => {
+      const onSave = vi.fn().mockResolvedValue(null);
+      const setting = scopeSetting(visibilityKey, "all_staff");
+      const { getByRole } = renderWithProviders(
+        <SettingsField
+          setting={setting}
+          categoryItems={[
+            setting,
+            scopeSetting(attendanceKey, attendance),
+            scopeSetting(startKey, starting),
+            scopeSetting(endKey, ending),
+          ]}
+          onSave={onSave}
+          onReset={vi.fn()}
+        />,
+      );
+      pickOption(getByRole, "Eigene Zuständigkeiten");
+      fireEvent.click(getByRole("button", { name: confirmText }));
+      await waitFor(() =>
+        expect(onSave).toHaveBeenCalledTimes(restricted.length + 1),
+      );
+      expect(onSave.mock.calls).toEqual([
+        ...restricted.map((key) => [key, "own"]),
+        [visibilityKey, "own"],
+      ]);
+    },
+  );
 
   it("expands visibility before the whole team may start blocks", async () => {
     const onSave = vi.fn().mockResolvedValue(null);

@@ -1309,7 +1309,8 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Bei einem laufenden Termin können weitere Betreuungskräfte der Aufsicht beitreten.",
       "Ein geplanter Termin hat feste Zeiten. Vorher sind Start oder Ende möglicherweise gesperrt.",
       "Steht am Termin `Nur für Eingeplante`? Dann dürfen hier nur eingeplante Kräfte starten. Ihre OGS kann das Starten für das ganze Team freigeben.",
-      "Sie starten einen Termin, für den Sie nicht eingeplant sind? Dann werden Sie nicht zur Aufsicht. Beenden können ihn die eingeplanten Kräfte.",
+      "Sie starten einen Termin, für den Sie nicht eingeplant sind? Dann werden Sie nicht zur Aufsicht. Wer beenden darf, legt Ihre OGS fest.",
+      "Fehlt `Beenden`? Dann dürfen hier nur eingeplante Kräfte beenden. Ihre OGS kann das Beenden für das ganze Team freigeben.",
       "Welche freien Räume Sie übernehmen können, legt Ihre OGS fest.",
     ],
     troubleshooting: HELP_TOPICS.attendanceProblem,
@@ -4798,7 +4799,8 @@ function settingsTopic(): HelpTopic {
     notes: [
       "Oben steht, wie viele Einstellungen von der Vorgabe abweichen.",
       "Jede Einstellung hat einen Satz darunter, der sagt, was sie bewirkt.",
-      "Wer Blöcke starten darf, legen Sie unter `Betrieb` bei `Wer darf Blöcke starten?` fest. `Das ganze Team` geht nur, wenn das Team alle Gruppen und Blöcke sieht.",
+      "Wer Blöcke starten oder beenden darf, legen Sie unter `Betrieb` fest: bei `Wer darf Blöcke starten?` und `Wer darf Blöcke beenden?`.",
+      "`Das ganze Team` geht dort nur, wenn das Team alle Gruppen und Blöcke sieht.",
     ],
     differences: [
       "Welche Bereiche Sie sehen, hängt von Ihren Rechten und den Funktionen Ihrer OGS ab.",

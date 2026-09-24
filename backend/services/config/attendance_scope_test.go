@@ -213,6 +213,26 @@ func TestBlockStartScopeRequiresSchoolWideVisibility(t *testing.T) {
 	read(visibilityKey, "own")
 }
 
+func TestBlockCompleteScopeRequiresSchoolWideVisibility(t *testing.T) {
+	t.Parallel()
+	settings := attendanceScopeSettings(t)
+	ctx := testpkg.Ctx(t)
+	const endKey, visibilityKey = configModel.KeyBlockCompleteScope, configModel.KeyOperationalOverviewScope
+	got, err := settings.ResolveString(ctx, endKey)
+	require.NoError(t, err)
+	require.Equal(t, "own", got)
+	require.NoError(t, settings.SetValue(ctx, visibilityKey, "own", nil, nil))
+	err = settings.SetValue(ctx, endKey, "all_staff", nil, nil)
+	require.ErrorIs(t, err, ErrInvalidValue)
+	require.ErrorContains(t, err, "Das ganze Team darf nur beenden")
+
+	require.NoError(t, settings.ResetValue(ctx, visibilityKey, nil, nil))
+	require.NoError(t, settings.SetValue(ctx, endKey, "all_staff", nil, nil))
+	require.ErrorIs(t, settings.SetValue(ctx, visibilityKey, "own", nil, nil), ErrInvalidValue)
+	require.NoError(t, settings.ResetValue(ctx, endKey, nil, nil))
+	require.NoError(t, settings.SetValue(ctx, visibilityKey, "own", nil, nil))
+}
+
 func TestBlockStartScopeConcurrentWritersRejectStaleValues(t *testing.T) {
 	t.Parallel()
 	for _, firstKey := range []string{configModel.KeyBlockStartScope, configModel.KeyOperationalOverviewScope} {

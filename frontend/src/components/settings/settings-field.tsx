@@ -162,16 +162,45 @@ interface AttendanceScopeChange {
 }
 
 const VISIBILITY_SCOPE_KEY = "operations.operational_overview_scope";
-const ATTENDANCE_SCOPE_KEY = "operations.attendance_edit_scope";
-const BLOCK_START_SCOPE_KEY = "operations.block_start_scope";
 
-// "Das ganze Team" for attendance or starting needs the school-wide view;
-// the backend rejects any other order (#3180, #3622).
-const EXPAND_VISIBILITY_BODY: Record<string, string> = {
-  [ATTENDANCE_SCOPE_KEY]:
-    "Überall an- und abmelden geht nur mit schulweitem Überblick. Das Team sieht danach alle Gruppen und Blöcke.",
-  [BLOCK_START_SCOPE_KEY]:
-    "Das ganze Team darf nur starten, wenn es alle Blöcke sieht. Das Team sieht danach alle Gruppen und Blöcke.",
+// Settings whose "all_staff" needs the school-wide view; the backend rejects
+// any other order (#3180, #3622). `expand` answers widening one of them while
+// the view is personal, `restrict` narrowing the view while only it is wide.
+const DEPENDENT_SCOPES: Record<
+  string,
+  {
+    readonly name: string;
+    readonly expand: string;
+    readonly restrict: { readonly title: string; readonly body: string };
+  }
+> = {
+  "operations.attendance_edit_scope": {
+    name: "An- und Abmelden",
+    expand:
+      "Überall an- und abmelden geht nur mit schulweitem Überblick. Das Team sieht danach alle Gruppen und Blöcke.",
+    restrict: {
+      title: "Auch die Bearbeitung begrenzen?",
+      body: "Eigene Zuständigkeiten als Sichtbereich erfordern denselben Bereich für An- und Abmelden. Vorhandene Sonderzugänge bleiben erhalten.",
+    },
+  },
+  "operations.block_start_scope": {
+    name: "Blöcke starten",
+    expand:
+      "Das ganze Team darf nur starten, wenn es alle Blöcke sieht. Das Team sieht danach alle Gruppen und Blöcke.",
+    restrict: {
+      title: "Auch das Starten begrenzen?",
+      body: "Dann dürfen nur eingeplante Kräfte Blöcke starten.",
+    },
+  },
+  "operations.block_complete_scope": {
+    name: "Blöcke beenden",
+    expand:
+      "Das ganze Team darf nur beenden, wenn es alle Blöcke sieht. Das Team sieht danach alle Gruppen und Blöcke.",
+    restrict: {
+      title: "Auch das Beenden begrenzen?",
+      body: "Dann dürfen nur eingeplante Kräfte Blöcke beenden.",
+    },
+  },
 };
 
 function attendanceScopePrerequisite(
@@ -180,50 +209,41 @@ function attendanceScopePrerequisite(
   items: ResolvedSetting[],
 ): AttendanceScopeChange | null {
   const visibility = items.find((item) => item.key === VISIBILITY_SCOPE_KEY);
-  const expandBody = EXPAND_VISIBILITY_BODY[key];
-  if (expandBody && value === "all_staff" && visibility?.value === "own") {
+  const dependent = DEPENDENT_SCOPES[key];
+  if (dependent && value === "all_staff" && visibility?.value === "own") {
     return {
       changes: [{ key: visibility.key, value: "all_staff" }],
       writable: visibility.writable,
       title: "Auch den Sichtbereich erweitern?",
-      body: expandBody,
+      body: dependent.expand,
       confirmText: "Beides erweitern",
     };
   }
   if (key !== visibility?.key || value !== "own") return null;
-  const widened = items.filter(
-    (item) =>
-      (item.key === ATTENDANCE_SCOPE_KEY ||
-        item.key === BLOCK_START_SCOPE_KEY) &&
-      item.value === "all_staff",
-  );
+  const widened = items.flatMap((item) => {
+    const scope = DEPENDENT_SCOPES[item.key];
+    return scope && item.value === "all_staff" ? [{ item, scope }] : [];
+  });
   const [first] = widened;
   if (!first) return null;
   const restriction = {
-    changes: widened.map((item) => ({ key: item.key, value: "own" })),
-    writable: widened.every((item) => item.writable),
+    changes: widened.map(({ item }) => ({ key: item.key, value: "own" })),
+    writable: widened.every(({ item }) => item.writable),
   };
   if (widened.length > 1) {
+    const names = widened.map(({ scope }) => scope.name).join(", ");
     return {
       ...restriction,
-      title: "Auch Bearbeitung und Starten begrenzen?",
-      body: "Dann gelten eigene Zuständigkeiten auch beim An- und Abmelden. Blöcke starten dann nur eingeplante Kräfte. Vorhandene Sonderzugänge bleiben erhalten.",
+      title: "Auch diese Rechte begrenzen?",
+      body: `Dann gelten nur noch eigene Zuständigkeiten für: ${names}. Vorhandene Sonderzugänge bleiben erhalten.`,
       confirmText: "Alles begrenzen",
     };
   }
-  return first.key === ATTENDANCE_SCOPE_KEY
-    ? {
-        ...restriction,
-        title: "Auch die Bearbeitung begrenzen?",
-        body: "Eigene Zuständigkeiten als Sichtbereich erfordern denselben Bereich für An- und Abmelden. Vorhandene Sonderzugänge bleiben erhalten.",
-        confirmText: "Beides begrenzen",
-      }
-    : {
-        ...restriction,
-        title: "Auch das Starten begrenzen?",
-        body: "Mit eigenen Zuständigkeiten als Sichtbereich dürfen nur eingeplante Kräfte Blöcke starten.",
-        confirmText: "Beides begrenzen",
-      };
+  return {
+    ...restriction,
+    ...first.scope.restrict,
+    confirmText: "Beides begrenzen",
+  };
 }
 
 interface SettingsFieldProps {

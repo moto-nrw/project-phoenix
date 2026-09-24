@@ -233,7 +233,7 @@ func sortedProfileSettingKeys(settings map[string]SeedSetting) []string {
 	sort.Strings(keys)
 	// A rerun may start from any valid scope set. Expanding visibility first
 	// and restricting it last keeps every intermediate set valid; the sorted
-	// order already puts the overview scope after attendance and block starts.
+	// order already puts the overview scope after every action scope.
 	if setting, ok := settings[profileSettingOverviewScope]; !ok || !bytes.Equal(setting.Value, []byte(`"all_staff"`)) {
 		return keys
 	}

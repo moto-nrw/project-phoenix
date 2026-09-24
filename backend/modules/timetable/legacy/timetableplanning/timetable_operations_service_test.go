@@ -2083,7 +2083,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		rooms:         &fakeOpsRoomRepo{rooms: []*facilitiesModel.Room{{ID: 810, Name: "Lernraum"}}},
 		personService: &fakeOpsPersonService{people: map[int64]*usersModel.Person{}, staffByPersonID: map[int64]*usersModel.Staff{}, staffWithPerson: map[int64]*usersModel.Staff{}},
 		tracks:        &fakeOpsPlanningTrackRepo{byID: map[int64]*scheduleModel.PlanningTrack{}},
-		settings:      &fakeOpsSettings{attendanceScope: configModel.AttendanceEditScopeOwn, startScope: configModel.BlockStartScopeOwn, absenceScope: configModel.StudentAbsenceEditScopeAllStaff},
+		settings:      &fakeOpsSettings{attendanceScope: configModel.AttendanceEditScopeOwn, startScope: configModel.BlockStartScopeOwn, completeScope: configModel.BlockCompleteScopeOwn, absenceScope: configModel.StudentAbsenceEditScopeAllStaff},
 		broadcaster:   testpkg.NewRecordingBroadcaster(),
 	}
 	deps.service = NewTimetableOperationsService(TimetableOperationsDependencies{
@@ -2529,6 +2529,7 @@ func (s *fakeOpsPersonService) GetStaffWithPersonByIDs(_ context.Context, ids []
 type fakeOpsSettings struct {
 	attendanceScope string
 	startScope      string
+	completeScope   string
 	absenceScope    string
 	err             error
 	mode            string
@@ -2550,6 +2551,9 @@ func (s *fakeOpsSettings) ResolveString(_ context.Context, key string) (string, 
 	}
 	if key == configModel.KeyAttendanceEditScope {
 		return s.attendanceScope, nil
+	}
+	if key == configModel.KeyBlockCompleteScope {
+		return s.completeScope, nil
 	}
 	if key == configModel.KeyBlockStartScope {
 		return s.startScope, nil

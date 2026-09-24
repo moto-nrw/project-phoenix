@@ -12,6 +12,7 @@ const (
 	profileSettingOverviewScope         = "operations.operational_overview_scope"
 	profileSettingAttendanceScope       = "operations.attendance_edit_scope"
 	profileSettingBlockStartScope       = "operations.block_start_scope"
+	profileSettingBlockCompleteScope    = "operations.block_complete_scope"
 	profileSettingAbsenceScope          = "operations.student_absence_edit_scope"
 	profileSettingParentSickMode        = "operations.parent_sick_reports_enabled"
 	profileSettingParentExcusedMode     = "operations.parent_excused_reports_enabled"
@@ -57,13 +58,14 @@ func fullOperationProfileDefinition() demoProfileDefinition {
 
 func fullOperationSettings() map[string]SeedSetting {
 	return map[string]SeedSetting{
-		profileSettingOverviewScope:     {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
-		profileSettingAttendanceScope:   {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
-		profileSettingBlockStartScope:   {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
-		profileSettingAbsenceScope:      {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
-		profileSettingParentSickMode:    {Value: json.RawMessage(`"immediate"`), ManagedBy: SettingManagedByTenant},
-		profileSettingParentExcusedMode: {Value: json.RawMessage(`"approval"`), ManagedBy: SettingManagedByTenant},
-		profileSettingParentReviewScope: {Value: json.RawMessage(`"group_leaders"`), ManagedBy: SettingManagedByTenant},
+		profileSettingOverviewScope:      {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
+		profileSettingAttendanceScope:    {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
+		profileSettingBlockStartScope:    {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
+		profileSettingBlockCompleteScope: {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
+		profileSettingAbsenceScope:       {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
+		profileSettingParentSickMode:     {Value: json.RawMessage(`"immediate"`), ManagedBy: SettingManagedByTenant},
+		profileSettingParentExcusedMode:  {Value: json.RawMessage(`"approval"`), ManagedBy: SettingManagedByTenant},
+		profileSettingParentReviewScope:  {Value: json.RawMessage(`"group_leaders"`), ManagedBy: SettingManagedByTenant},
 		profileSettingPresenceMode: {
 			Value: json.RawMessage(`"` + profilePresenceDetailed + `"`), ManagedBy: SettingManagedByOperator,
 		},
@@ -135,13 +137,14 @@ func manualProfileDefinition() demoProfileDefinition {
 
 func manualProfileSettings() map[string]SeedSetting {
 	return map[string]SeedSetting{
-		profileSettingOverviewScope:     {Value: json.RawMessage(`"own"`), ManagedBy: SettingManagedByTenant},
-		profileSettingAttendanceScope:   {Value: json.RawMessage(`"own"`), ManagedBy: SettingManagedByTenant},
-		profileSettingBlockStartScope:   {Value: json.RawMessage(`"own"`), ManagedBy: SettingManagedByTenant},
-		profileSettingAbsenceScope:      {Value: json.RawMessage(`"admins"`), ManagedBy: SettingManagedByTenant},
-		profileSettingParentSickMode:    {Value: json.RawMessage(`"approval"`), ManagedBy: SettingManagedByTenant},
-		profileSettingParentExcusedMode: {Value: json.RawMessage(`"immediate"`), ManagedBy: SettingManagedByTenant},
-		profileSettingParentReviewScope: {Value: json.RawMessage(`"admins"`), ManagedBy: SettingManagedByTenant},
+		profileSettingOverviewScope:      {Value: json.RawMessage(`"own"`), ManagedBy: SettingManagedByTenant},
+		profileSettingAttendanceScope:    {Value: json.RawMessage(`"own"`), ManagedBy: SettingManagedByTenant},
+		profileSettingBlockStartScope:    {Value: json.RawMessage(`"own"`), ManagedBy: SettingManagedByTenant},
+		profileSettingBlockCompleteScope: {Value: json.RawMessage(`"own"`), ManagedBy: SettingManagedByTenant},
+		profileSettingAbsenceScope:       {Value: json.RawMessage(`"admins"`), ManagedBy: SettingManagedByTenant},
+		profileSettingParentSickMode:     {Value: json.RawMessage(`"approval"`), ManagedBy: SettingManagedByTenant},
+		profileSettingParentExcusedMode:  {Value: json.RawMessage(`"immediate"`), ManagedBy: SettingManagedByTenant},
+		profileSettingParentReviewScope:  {Value: json.RawMessage(`"admins"`), ManagedBy: SettingManagedByTenant},
 		profileSettingPresenceMode: {
 			Value: json.RawMessage(`"` + profilePresenceBinary + `"`), ManagedBy: SettingManagedByOperator,
 		},

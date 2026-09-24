@@ -553,6 +553,19 @@ func TestBlockStartScopeSetting(t *testing.T) {
 		{Label: "Nur eingeplante Kräfte", Value: config.BlockStartScopeOwn},
 		{Label: "Das ganze Team", Value: config.BlockStartScopeAllStaff},
 	}, def.Options.Static)
+
+	end := config.GetDefinition(config.KeyBlockCompleteScope)
+	require.NotNil(t, end, "operations.block_complete_scope should be registered")
+	assert.Equal(t, "Wer darf Blöcke beenden?", end.Label)
+	assert.Equal(t, config.BlockCompleteScopeOwn, end.Default)
+	assert.Equal(t, def.Category, end.Category)
+	assert.Equal(t, def.WritePermission, end.WritePermission)
+	assert.Greater(t, end.SortOrder, def.SortOrder, "ending follows starting")
+	require.NotNil(t, end.Options)
+	require.Equal(t, []config.SelectOption{
+		{Label: "Nur eingeplante Kräfte", Value: config.BlockCompleteScopeOwn},
+		{Label: "Das ganze Team", Value: config.BlockCompleteScopeAllStaff},
+	}, end.Options.Static)
 }
 
 // TestClassArrivalExceptionEditorsSetting pins who may set a class-wide

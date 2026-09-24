@@ -12,6 +12,7 @@ import (
 var schoolWideActionScopes = []struct{ key, reason string }{
 	{config.KeyAttendanceEditScope, "Überall an- und abmelden geht nur mit Sicht auf alle Gruppen und Blöcke. Erweitern Sie zuerst den Sichtbereich. Oder beschränken Sie zuerst das An- und Abmelden auf eigene Zuständigkeiten."},
 	{config.KeyBlockStartScope, "Das ganze Team darf nur starten, wenn es alle Gruppen und Blöcke sieht. Erweitern Sie zuerst den Sichtbereich. Oder erlauben Sie das Starten zuerst nur eingeplanten Kräften."},
+	{config.KeyBlockCompleteScope, "Das ganze Team darf nur beenden, wenn es alle Gruppen und Blöcke sieht. Erweitern Sie zuerst den Sichtbereich. Oder erlauben Sie das Beenden zuerst nur eingeplanten Kräften."},
 }
 
 func isOverviewScopeKey(key string) bool {

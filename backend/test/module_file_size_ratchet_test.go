@@ -79,7 +79,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/timetable/legacy/timetableplanning/template_split_service.go":           1873,
 	"modules/timetable/legacy/timetableplanning/template_update_service.go":          1135,
 	"modules/timetable/legacy/timetableplanning/timetable_data_service.go":           801,
-	"modules/timetable/legacy/timetableplanning/timetable_operations_service.go":     2069,
+	"modules/timetable/legacy/timetableplanning/timetable_operations_service.go":     2065,
 	"modules/timetable/timetable.go":                                                 1775,
 	"modules/workforce/inbound/timetracking/api.go":                                  919,
 	"modules/workforce/internal/adapters/postgres/shift_store.go":                    883,

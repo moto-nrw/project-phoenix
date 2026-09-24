@@ -207,12 +207,90 @@ func TestTimetableSchoolWideScopeNeverAdmitsFewerThanOwn(t *testing.T) {
 			tc.change(deps)
 			service := deps.service.(*timetableOperationsService)
 
-			editor, err := service.requireCanEditAttendance(ctx, startScopeAccount, false, startScopeInstance)
+			editor, err := service.requireScopedAction(ctx, startScopeAccount, false, startScopeInstance, configModel.KeyAttendanceEditScope)
 			require.NoError(t, err)
 			assert.Equal(t, startScopeStaff, editor)
-			starter, err := service.requireCanStart(ctx, startScopeAccount, false, startScopeInstance)
+			starter, err := service.requireScopedAction(ctx, startScopeAccount, false, startScopeInstance, configModel.KeyBlockStartScope)
 			require.NoError(t, err)
 			assert.Equal(t, startScopeStaff, starter)
+		})
+	}
+}
+
+func runningStartScopeInstance() *scheduleModel.ActivityInstance {
+	inst := activeInstance(startScopeInstance, 3629)
+	inst.Date = scheduleModel.Date(timezone.DateFromTime(startScopeNow))
+	return inst
+}
+
+// Ending a running block follows operations.block_complete_scope, separately
+// from starting (#3622).
+func TestTimetableCompleteScopeMatrix(t *testing.T) {
+	t.Parallel()
+	assigned := []*scheduleModel.InstanceStaff{{StaffID: startScopeStaff}}
+	other := []*scheduleModel.InstanceStaff{{StaffID: 9999}}
+	for _, tc := range []struct {
+		actor               startScopeActor
+		endOwn, endAllStaff bool
+	}{
+		{actor: startScopeActor{name: "assigned", staff: assigned}, endOwn: true, endAllStaff: true},
+		{actor: startScopeActor{name: "not assigned", staff: other}, endAllStaff: true},
+		{actor: startScopeActor{name: "admin", staff: other, admin: true}, endOwn: true, endAllStaff: true},
+		{actor: startScopeActor{name: "school portal not assigned", staff: other, scope: "school"}},
+	} {
+		for _, completeScope := range []string{configModel.BlockCompleteScopeOwn, configModel.BlockCompleteScopeAllStaff} {
+			t.Run(tc.actor.name+"/"+completeScope, func(t *testing.T) {
+				t.Parallel()
+				deps, ctx := newStartScopeDeps(t, configModel.BlockStartScopeOwn, tc.actor)
+				deps.settings.completeScope = completeScope
+				deps.instanceRepo.byID[startScopeInstance] = runningStartScopeInstance()
+				want := tc.endOwn
+				if completeScope == configModel.BlockCompleteScopeAllStaff {
+					want = tc.endAllStaff
+				}
+
+				if tc.actor.scope != "school" {
+					roster, err := deps.service.Roster(ctx, startScopeAccount, tc.actor.admin, startScopeInstance)
+					require.NoError(t, err)
+					assert.Equal(t, want, roster.CanEnd, "the roster offers exactly the ends the command accepts")
+				}
+
+				_, err := deps.service.Complete(ctx, startScopeAccount, tc.actor.admin, startScopeInstance)
+				if want {
+					require.NoError(t, err)
+					assert.Equal(t, []int64{startScopeInstance}, deps.instanceService.completed)
+				} else {
+					require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+					assert.Empty(t, deps.instanceService.completed)
+				}
+			})
+		}
+	}
+}
+
+func TestTimetableCompleteScopeNeedsSchoolWideVisibilityAndARunningBlock(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		change func(*timetableOpsTestDeps)
+	}{
+		{name: "personal visibility", change: func(d *timetableOpsTestDeps) { d.settings.scope = configModel.OverviewScopeOwn }},
+		{name: "planned block", change: func(d *timetableOpsTestDeps) {
+			d.instanceRepo.byID[startScopeInstance].Status = scheduleModel.InstanceStatusPlanned
+			d.instanceRepo.byID[startScopeInstance].ActiveGroupID = nil
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			deps, ctx := newStartScopeDeps(t, configModel.BlockStartScopeOwn, startScopeActor{staff: []*scheduleModel.InstanceStaff{{StaffID: 9999}}})
+			deps.settings.completeScope = configModel.BlockCompleteScopeAllStaff
+			deps.instanceRepo.byID[startScopeInstance] = runningStartScopeInstance()
+			tc.change(deps)
+
+			_, err := deps.service.Complete(ctx, startScopeAccount, false, startScopeInstance)
+
+			require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+			assert.Empty(t, deps.instanceService.completed)
 		})
 	}
 }
