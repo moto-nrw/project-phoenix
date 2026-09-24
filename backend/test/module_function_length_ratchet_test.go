@@ -244,7 +244,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/timetable/legacy/timetableplanning/template_update_service.go:(*TimetableDataService).updateTemplateLocked":                  123,
 	"modules/timetable/legacy/timetableplanning/timetable_bridge_service.go:(*TimetableBridgeService).notScheduledForEndedSessions":       90,
 	"modules/timetable/legacy/timetableplanning/timetable_cleanup_service.go:(*timetableCleanupService).CleanupExpiredTimetableData":      71,
-	"modules/timetable/legacy/timetableplanning/timetable_operations_service.go:(*timetableOperationsService).PlannedNow":                 129,
+	"modules/timetable/legacy/timetableplanning/timetable_operations_service.go:(*timetableOperationsService).PlannedNow":                 128,
 	"modules/timetable/legacy/timetableplanning/timetable_operations_service.go:(*timetableOperationsService).buildRosterWithCareDay":     146,
 	"modules/timetable/legacy/timetableplanning/timetable_operations_service.go:(*timetableOperationsService).checkInStudent":             66,
 	"modules/timetable/legacy/timetableplanning/timetable_operations_service.go:(*timetableOperationsService).enrichDayPlan":              120,
