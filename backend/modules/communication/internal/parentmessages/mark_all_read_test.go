@@ -12,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -85,8 +84,9 @@ type readCursor struct {
 }
 
 // cursorOf returns the account's read cursor in the thread, or nil.
-func cursorOf(t *testing.T, db *bun.DB, threadID, accountID int64) *readCursor {
+func cursorOf(t *testing.T, threadID, accountID int64) *readCursor {
 	t.Helper()
+	db := testpkg.SetupTestDB(t)
 	var rows []readCursor
 	require.NoError(t, db.NewSelect().
 		TableExpr("users.parent_message_reads").
@@ -104,8 +104,9 @@ type handledBoundary struct {
 	MessageID *int64     `bun:"staff_handled_up_to_message_id"`
 }
 
-func handledBoundaryOf(t *testing.T, db *bun.DB, threadID int64) handledBoundary {
+func handledBoundaryOf(t *testing.T, threadID int64) handledBoundary {
 	t.Helper()
+	db := testpkg.SetupTestDB(t)
 	var boundary handledBoundary
 	require.NoError(t, db.NewSelect().
 		TableExpr("users.parent_message_threads").
@@ -130,8 +131,8 @@ func TestMarkAllRead_OnlyForOwnAccount(t *testing.T) {
 	colleagueBefore := readUnreadView(t, f, colleague.ID, students...)
 	require.Equal(t, 3, colleagueBefore.badge)
 	boundaries := map[int64]handledBoundary{
-		firstThread:  handledBoundaryOf(t, f.db, firstThread),
-		secondThread: handledBoundaryOf(t, f.db, secondThread),
+		firstThread:  handledBoundaryOf(t, firstThread),
+		secondThread: handledBoundaryOf(t, secondThread),
 	}
 
 	f.bc.Reset()
@@ -145,13 +146,13 @@ func TestMarkAllRead_OnlyForOwnAccount(t *testing.T) {
 
 	assert.Equal(t, colleagueBefore, readUnreadView(t, f, colleague.ID, students...), "a colleague sees the same numbers as before")
 	for threadID, boundary := range boundaries {
-		assert.Equal(t, boundary, handledBoundaryOf(t, f.db, threadID), "the team boundary stays where it was")
+		assert.Equal(t, boundary, handledBoundaryOf(t, threadID), "the team boundary stays where it was")
 	}
 
-	firstCursor := cursorOf(t, f.db, firstThread, f.staffAccount)
+	firstCursor := cursorOf(t, firstThread, f.staffAccount)
 	require.NotNil(t, firstCursor)
 	assert.Equal(t, firstQuestion.ID, firstCursor.LastReadMessageID, "the cursor stops at the newest guardian message")
-	secondCursor := cursorOf(t, f.db, secondThread, f.staffAccount)
+	secondCursor := cursorOf(t, secondThread, f.staffAccount)
 	require.NotNil(t, secondCursor)
 	assert.Equal(t, secondQuestion.ID, secondCursor.LastReadMessageID)
 
@@ -166,12 +167,12 @@ func TestMarkAllRead_RepeatChangesNothing(t *testing.T) {
 	ctx := adminCtx(t, f.staffAccount)
 
 	markAllRead(t, f, ctx)
-	first := cursorOf(t, f.db, threadID, f.staffAccount)
+	first := cursorOf(t, threadID, f.staffAccount)
 	require.NotNil(t, first)
 
 	f.bc.Reset()
 	markAllRead(t, f, ctx)
-	second := cursorOf(t, f.db, threadID, f.staffAccount)
+	second := cursorOf(t, threadID, f.staffAccount)
 	require.NotNil(t, second)
 	assert.Equal(t, first.LastReadMessageID, second.LastReadMessageID)
 	assert.True(t, first.LastReadAt.Equal(second.LastReadAt))
@@ -192,7 +193,7 @@ func TestMarkAllRead_CursorNeverMovesBackward(t *testing.T) {
 	require.NoError(t, err)
 
 	markAllRead(t, f, adminCtx(t, f.staffAccount))
-	cursor := cursorOf(t, f.db, threadID, f.staffAccount)
+	cursor := cursorOf(t, threadID, f.staffAccount)
 	require.NotNil(t, cursor)
 	assert.Equal(t, question.ID+1000, cursor.LastReadMessageID)
 	assert.True(t, cursor.LastReadAt.Equal(ahead))
@@ -234,8 +235,8 @@ func TestMarkAllRead_LeavesChildrenOutsideScope(t *testing.T) {
 	markAllRead(t, f, adminCtx(t, f.staffAccount))
 	setStudentStatus(usersModels.StudentStatusActive)
 
-	assert.NotNil(t, cursorOf(t, f.db, visibleThread, f.staffAccount))
-	assert.Nil(t, cursorOf(t, f.db, hiddenThread, f.staffAccount), "the hidden child's conversation keeps its cursor")
+	assert.NotNil(t, cursorOf(t, visibleThread, f.staffAccount))
+	assert.Nil(t, cursorOf(t, hiddenThread, f.staffAccount), "the hidden child's conversation keeps its cursor")
 	view := readUnreadView(t, f, f.staffAccount, former.StudentID)
 	assert.Equal(t, map[int64]int{hiddenThread: 1}, view.onlyUnread)
 }
@@ -250,7 +251,7 @@ func TestMarkAllRead_WithoutReadScopeTouchesNothing(t *testing.T) {
 	outsider := testpkg.CreateTestAccount(t, f.db, "outsider-mark-all")
 
 	markAllRead(t, f, claimsCtx(t, outsider.ID, []string{"users:read"}))
-	assert.Nil(t, cursorOf(t, f.db, threadID, outsider.ID))
+	assert.Nil(t, cursorOf(t, threadID, outsider.ID))
 }
 
 func TestMarkAllRead_OtherSchoolUntouched(t *testing.T) {
@@ -263,7 +264,7 @@ func TestMarkAllRead_OtherSchoolUntouched(t *testing.T) {
 		testpkg.OwnTenant(t)
 		markAllRead(t, f, adminCtx(t, f.staffAccount))
 	})
-	assert.Nil(t, cursorOf(t, f.db, threadID, f.staffAccount))
+	assert.Nil(t, cursorOf(t, threadID, f.staffAccount))
 	assert.Equal(t, 1, readUnreadView(t, f, f.staffAccount).badge)
 }
 
