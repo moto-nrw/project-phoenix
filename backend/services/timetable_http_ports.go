@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -193,19 +194,19 @@ func (r supervisionSheetRefusal) Unwrap() error { return r.err }
 func (supervisionSheetRefusal) SupervisionSheetRefused() {}
 
 // timetableOfferingSources serves the offering-source support of the
-// Regeltermin editor from the enrollment decision service (#2137, #3140).
+// Regeltermin editor from Care Plan's booking materialization (#2137, #3140,
+// #3560).
 type timetableOfferingSources struct {
-	lister enrollment.OfferingSourceOptionLister
+	lister careplan.OfferingSourceEditor
 }
 
-// NewTimetableOfferingSources binds the offering-source support to the
-// decision service, or returns nil when it offers none.
-func NewTimetableOfferingSources(decisions enrollment.DecisionService) timetable.OfferingSourceSupport {
-	lister, ok := decisions.(enrollment.OfferingSourceOptionLister)
-	if !ok {
+// NewTimetableOfferingSources binds the offering-source support to Care
+// Plan, or returns nil without it.
+func NewTimetableOfferingSources(editor careplan.OfferingSourceEditor) timetable.OfferingSourceSupport {
+	if editor == nil {
 		return nil
 	}
-	return timetableOfferingSources{lister: lister}
+	return timetableOfferingSources{lister: editor}
 }
 
 func (s timetableOfferingSources) ListOfferingSourceOptions(ctx context.Context, calendarPeriodID *int64) ([]timetable.OfferingSourceOption, error) {
@@ -220,7 +221,7 @@ func (s timetableOfferingSources) ListOfferingSourceOptions(ctx context.Context,
 	return result, nil
 }
 
-func timetableOfferingSourceOption(option enrollment.OfferingSourceOption) timetable.OfferingSourceOption {
+func timetableOfferingSourceOption(option careplan.OfferingSourceOption) timetable.OfferingSourceOption {
 	sourced := make([]timetable.OfferingSourcedTemplate, 0, len(option.SourcedTemplates))
 	for _, template := range option.SourcedTemplates {
 		sourced = append(sourced, timetable.OfferingSourcedTemplate{
@@ -270,7 +271,7 @@ func (s timetableOfferingSources) EmptyRosterExplainer(ctx context.Context, cale
 		return nil, err
 	}
 	return func(selectedOfferingIDs []int64, date calendar.Date) *timetable.EmptyOfferingRoster {
-		explanation := enrollment.ExplainEmptyOfferingRoster(options, selectedOfferingIDs, date)
+		explanation := careplan.ExplainEmptyOfferingRoster(options, selectedOfferingIDs, date)
 		if explanation == nil {
 			return nil
 		}
@@ -286,9 +287,9 @@ func (s timetableOfferingSources) EmptyRosterExplainer(ctx context.Context, cale
 // once and derives each template's indicator; every queried template gets an
 // entry.
 func (s timetableOfferingSources) TemplateRosterMaintenance(ctx context.Context, templates []timetable.TemplateRosterMaintenanceQuery) (map[int64]timetable.TemplateRosterMaintenance, error) {
-	queries := make([]enrollment.TemplateRosterFeedQuery, 0, len(templates))
+	queries := make([]careplan.TemplateRosterFeedQuery, 0, len(templates))
 	for _, template := range templates {
-		queries = append(queries, enrollment.TemplateRosterFeedQuery{
+		queries = append(queries, careplan.TemplateRosterFeedQuery{
 			TemplateID:            template.TemplateID,
 			CalendarPeriodID:      template.CalendarPeriodID,
 			SourceCareOfferingIDs: template.SourceCareOfferingIDs,
@@ -300,7 +301,7 @@ func (s timetableOfferingSources) TemplateRosterMaintenance(ctx context.Context,
 	}
 	result := make(map[int64]timetable.TemplateRosterMaintenance, len(templates))
 	for _, template := range templates {
-		derived := enrollment.DeriveTemplateRosterMaintenance(enrollment.TemplateRosterMaintenanceInput{
+		derived := careplan.DeriveTemplateRosterMaintenance(careplan.TemplateRosterMaintenanceInput{
 			SourceCareOfferingIDs: template.SourceCareOfferingIDs,
 			SourceGradeLevels:     template.SourceGradeLevels,
 			SourceSchoolClasses:   template.SourceSchoolClasses,
@@ -321,7 +322,7 @@ func (s timetableOfferingSources) TemplateRosterMaintenance(ctx context.Context,
 	return result, nil
 }
 
-func timetableOfferingRefs(offerings []enrollment.RosterMaintenanceOffering) []timetable.OfferingRef {
+func timetableOfferingRefs(offerings []careplan.RosterMaintenanceOffering) []timetable.OfferingRef {
 	result := make([]timetable.OfferingRef, 0, len(offerings))
 	for _, offering := range offerings {
 		result = append(result, timetable.OfferingRef{ID: offering.ID, Name: offering.Name})

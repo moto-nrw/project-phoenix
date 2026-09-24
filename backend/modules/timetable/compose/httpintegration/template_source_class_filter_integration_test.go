@@ -134,8 +134,8 @@ type offeringScopedResync interface {
 
 func offeringSourceResyncer(t *testing.T, s *scenarioSetup) offeringSourceResync {
 	t.Helper()
-	resyncer, ok := s.factory.EnrollmentDecision.(offeringSourceResync)
-	require.True(t, ok, "the decision service must implement the offering-source resyncer")
+	resyncer, ok := s.factory.EnrollmentCareOffering.(offeringSourceResync)
+	require.True(t, ok, "Care Plan's booking materialization must implement the offering-source resyncer")
 	return resyncer
 }
 
@@ -146,8 +146,8 @@ func offeringScopedResyncer(
 	s *scenarioSetup,
 ) offeringScopedResync {
 	t.Helper()
-	resyncer, ok := s.factory.EnrollmentDecision.(offeringScopedResync)
-	require.True(t, ok, "the decision service must implement the per-offering resyncer")
+	resyncer, ok := s.factory.EnrollmentCareOffering.(offeringScopedResync)
+	require.True(t, ok, "Care Plan's booking materialization must implement the per-offering resyncer")
 	return resyncer
 }
 

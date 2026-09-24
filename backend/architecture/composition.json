@@ -2965,7 +2965,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3976
+        4026
       ],
       "tables": []
     },
@@ -3013,7 +3013,7 @@
       "declaration": "TestDecide_FansOutToMultiSourceTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1163
+        1177
       ],
       "tables": []
     },
@@ -3023,7 +3023,7 @@
       "declaration": "TestDecide_MultiSourceFanOutSeedsFromPhaseStart",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1291
+        1305
       ],
       "tables": []
     },
@@ -3033,7 +3033,7 @@
       "declaration": "TestDecide_MultiSourceResyncRespectsCareOfferingsDisabled",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1369
+        1383
       ],
       "tables": []
     },
@@ -3043,7 +3043,7 @@
       "declaration": "TestOfferingDelete_DegradesSourcedTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        898
+        912
       ],
       "tables": [
         "enrollment.care_offerings"
@@ -3055,8 +3055,8 @@
       "declaration": "TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1205,
-        1257
+        1219,
+        1271
       ],
       "tables": [
         "activities.student_enrollments",
@@ -3069,8 +3069,8 @@
       "declaration": "TestOfferingDetach_KeepsRemainingSources",
       "target": "database/repositories.NewFactory",
       "lines": [
-        946,
-        964
+        960,
+        978
       ],
       "tables": []
     },
@@ -3080,9 +3080,9 @@
       "declaration": "TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1020,
-        1041,
-        1047
+        1034,
+        1055,
+        1061
       ],
       "tables": []
     },
@@ -3092,7 +3092,7 @@
       "declaration": "TestPhaseDelete_RetiresSourcedRosterRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1414
+        1428
       ],
       "tables": []
     },
@@ -3102,7 +3102,7 @@
       "declaration": "TestResync_UnionAcrossOfferings_PlansSharedChildOnce",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1076
+        1090
       ],
       "tables": [
         "activities.student_enrollments"
@@ -3114,7 +3114,7 @@
       "declaration": "TestSourcedRosterRows_AppearInTemplateListReads",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2300
+        2314
       ],
       "tables": []
     },
@@ -3124,7 +3124,7 @@
       "declaration": "TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1323
+        1337
       ],
       "tables": []
     },
@@ -3134,7 +3134,7 @@
       "declaration": "createSourcedTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        49
+        51
       ],
       "tables": []
     },
@@ -3144,7 +3144,7 @@
       "declaration": "createSourcedTemplateSegment",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1483
+        1497
       ],
       "tables": []
     },
@@ -3618,7 +3618,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        364
+        363
       ],
       "tables": []
     },
@@ -3628,7 +3628,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_FreeSlotComesBackSubmitted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        303
+        302
       ],
       "tables": []
     },
@@ -3638,8 +3638,8 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity",
       "target": "database/repositories.NewFactory",
       "lines": [
-        410,
-        419
+        409,
+        418
       ],
       "tables": []
     },
@@ -3649,7 +3649,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_RejectModeFailsWhenFull",
       "target": "database/repositories.NewFactory",
       "lines": [
-        462
+        461
       ],
       "tables": []
     },
@@ -3659,7 +3659,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        264
+        263
       ],
       "tables": []
     },
@@ -3679,7 +3679,7 @@
       "declaration": "setupRolloverTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        59
+        62
       ],
       "tables": [
         "auth.accounts",

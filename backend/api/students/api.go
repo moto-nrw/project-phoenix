@@ -213,6 +213,11 @@ type ResourceConfig struct {
 	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService
+	// OfferingPickupTimes is Care Plan's offering pickup projection (#3560):
+	// the reset of a manual weekly Gehzeit onto the Angebots-Gehzeit.
+	// Optional for bare test Resources; the reset route answers 500 without
+	// it.
+	OfferingPickupTimes careplan.OfferingPickupTimes
 	// OfferingSourceResyncer re-reconciles Jahrgang-filtered offering-sourced
 	// Regeltermine after a direct school_class edit, in the same transaction —
 	// the same hook a grade transition uses (#2147 review round 10). Optional:

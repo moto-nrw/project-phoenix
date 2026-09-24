@@ -34,7 +34,6 @@ func newExportDecisionService(env *decisionTestEnv, auditRepo auditModels.DataAc
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		Requests:          env.repos.Enrollment(),
 		Children:          env.repos.Enrollment(),
-		ApprovedOfferings: approvedOfferingTestProjection(env.repos),
 		CareOfferingRepo:  enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
 		Phases:            env.repos.Enrollment(),
 		Schemas:           env.repos.Enrollment(),
@@ -70,7 +69,6 @@ func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo audit
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		Requests:          env.repos.Enrollment(),
 		Children:          env.repos.Enrollment(),
-		ApprovedOfferings: approvedOfferingTestProjection(env.repos),
 		CareOfferingRepo:  enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
 		Phases:            env.repos.Enrollment(),
 		Schemas:           failingSchemaRepo{env.repos.Enrollment()},
@@ -84,7 +82,6 @@ func newExportDecisionServiceFailingPhase(env *decisionTestEnv, auditRepo auditM
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		Requests:          env.repos.Enrollment(),
 		Children:          env.repos.Enrollment(),
-		ApprovedOfferings: approvedOfferingTestProjection(env.repos),
 		CareOfferingRepo:  enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
 		Phases:            failingPhaseRepo{env.repos.Enrollment()},
 		Schemas:           env.repos.Enrollment(),

@@ -1,7 +1,6 @@
 package careplan
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -85,31 +84,12 @@ type LinkedSegment struct {
 
 // OfferingSources is the validated source set of an offering-sourced
 // template (#2137): the surviving offerings in request order, their shared
-// phase, and the ids that no longer resolve.
+// phase, and the ids that no longer resolve. Booking materialization (#3560)
+// resyncs the template's roster from it.
 type OfferingSources struct {
 	Offerings []CareOffering
 	Phase     *OfferingPhase
 	Dropped   []int64
-}
-
-// CareOfferingLinks resolves and validates the timetable links of care
-// offerings for Enrollment's booking materialization while that still lives
-// in services/enrollment.
-type CareOfferingLinks interface {
-	// ResolveLinkedSegments expands a link to every live split-series
-	// segment that can produce an occurrence during the phase. A
-	// non-template activity stays one segment without a period.
-	ResolveLinkedSegments(ctx context.Context, activityGroupID int64, phase OfferingPhase) ([]LinkedSegment, error)
-	// ValidateMaterializable checks that every selected weekday has a
-	// covered, materializable occurrence on each of its dates in the phase.
-	ValidateMaterializable(ctx context.Context, segments []LinkedSegment, phase OfferingPhase, days []string) error
-	// ResolveTemplatePeriod resolves the one calendar period a template's
-	// schedules share.
-	ResolveTemplatePeriod(ctx context.Context, group LinkedGroup) (LinkedPeriod, error)
-	// LoadOfferingSources validates a template's offering-source rule
-	// against a calendar period (nil skips the period check). tolerateDrift
-	// skips the active and phase-within-period rejections.
-	LoadOfferingSources(ctx context.Context, offeringIDs []int64, calendarPeriodID *int64, tolerateDrift bool) (OfferingSources, error)
 }
 
 // SchedulesOverlapPhase reports whether any schedule can produce an

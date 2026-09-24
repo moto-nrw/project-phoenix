@@ -1,0 +1,112 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3020",
+    "#3558",
+    "#3559"
+  ],
+  "owner_and_capability": "Care Plan — the booking materialization: the roster rows an approval derives from a child's bookings, the offering-sourced Regeltermin resync, detach and editor support, the Regeltermin roster indicator, the dated offering adjustments and the offering pickup times, published as careplan.SourcedRosters, OfferingSourceEditor, BookingMaterializer, OfferingAdjustments and OfferingPickupTimes (#3560)",
+  "affected_packages": [
+    "modules/careplan",
+    "modules/careplan/compose",
+    "modules/careplan/internal/application",
+    "modules/careplan/internal/ports",
+    "services/enrollment",
+    "services",
+    "api/students",
+    "api/testutil",
+    "api",
+    "database/repositories",
+    "models/activities"
+  ],
+  "affected_tables": [
+    "enrollment.care_offering_bookings",
+    "activities.student_enrollments",
+    "schedule.instance_students",
+    "audit.enrollment_offering_adjustments",
+    "schedule.student_pickup_schedules",
+    "users.care_withdrawal_completions"
+  ],
+  "exact_ratchet_keys": [],
+  "atomic_cutover": "One PR moves the booking materialization into the Care Plan application behind its own ports, binds the ports in services over the Timetable owner's StudentEnrollmentCommand and roster maintenance, Enrollment's requests, children, phases, booked selections and approved-booking projection, People Directory's students and locks, the School Calendar periods, the settings and Audit Platform's adjustment trail, and switches every consumer: the Timetable roster resync hook, the grade transition, the catalog's offering-edit resync, the phase service, the Regeltermin editor, the direct school_class resync, the pickup reset route and the retained decision, change-request and offering-change services through a translating port. The five services/enrollment files and the carved-in materializer are deleted, as are the legacy repository methods only they called. No statement, table access, transaction boundary or error text changes, and no import rule or baseline key is added; two resolved keys are removed.",
+  "tests": [
+    "scripts/test-changed.sh origin/development without --fast: the full suites of every changed package and their importers, including services/enrollment, services, api/students, api/enrollment, modules/careplan and the timetable integration suites.",
+    "services/enrollment offering-source, offering-adjustment (dated, complete withdrawal), template roster maintenance, offering pickup projection, decision and change-request suites drive the composed owner through api/testutil.NewBookingMaterialization with unchanged assertions.",
+    "services/enrollment n_plus_one_query_budget_test.go keeps the offering-source and roster-indicator budgets with test/query_budgets.go unchanged.",
+    "modules/careplan/compose pins that a changed pickup projection is announced only after commit; services pins the staff and guardian announcement.",
+    "scripts/backend-architecture.sh check against the parent SHA: no new violation, two resolved entries removed (542 -> 540), composition surface 618 -> 618.",
+    "go test ./test -run Ratchet, TestCompositionInventory, TestHermeticTestPatterns and the module ratchets."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the PR branch stacked on the #3559 branch (714a4fffed). The move rebinds the materialization's reads and writes to the owner operations the retained repositories delegated to, so the evidence is the unchanged behaviour and query-budget suites plus the architecture check, not a benchmark rerun.",
+    "sources": [
+      "backend/services/enrollment/offering_source_service_test.go",
+      "backend/services/enrollment/offering_adjustment_dated_test.go",
+      "backend/services/enrollment/offering_pickup_projection_test.go",
+      "backend/services/enrollment/n_plus_one_query_budget_test.go",
+      "backend/test/query_budgets.go"
+    ],
+    "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The suites pass with an unchanged query-budget register, the ported suites keep their assertions, and the architecture check reports no new violation and no stale baseline entry.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "Every write reaches the same table through the owner operation the retained repository delegated to; no statement on the listed tables changes."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The query-budget tests passed with test/query_budgets.go unchanged. A template's roster rows are read with the student ids only; the unused name lookup the retained repository added is gone, one statement fewer per resync."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "The move adds no statement or round trip to a request path; the port translation is in-memory."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "The move adds no statement or round trip to a request path; the port translation is in-memory."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "The ported suites assert the unchanged error texts and sentinels; the enrollment and student handler suites pin the unchanged status codes and error codes."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection is acquired differently; every read and write joins the ambient tenant transaction as before."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "The class-writes gate, the recurrence gate and the student lock are taken in the same order by the same owner operations."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No transaction boundary or lock order changes."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The grade transition and the rollover deadline worker call the same resync and approval operations; their statements are unchanged."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No worker retry path changes."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No worker queue changes."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The ported suites cover drifted and invalid offering sources, rejected adjustments, missing withdrawal confirmation, the pickup reset without an offering time, the recurrence gate and the approval rollback across every owner."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data or schema change. Reverting the PR restores the services/enrollment materialization, its repository methods and the consumers' old types together."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally: 540 legacy violations remain, composition surface 618 -> 618 against the parent branch."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR; the services/enrollment materialization, the decision service's repository fields, the legacy repository methods and the consumers' old types return together. No data cleanup.",
+  "exit_criterion": "No booking materialization, dated offering adjustment or offering pickup time rule remains in services/enrollment; every consumer reaches them through modules/careplan (the retained enrollment services through their translating port); offering_pickup_time_service.go no longer exists; scripts/backend-architecture.sh check adds no key and no rule."
+}

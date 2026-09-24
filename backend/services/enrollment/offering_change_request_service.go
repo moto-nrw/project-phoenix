@@ -3002,10 +3002,9 @@ func offeringDiffEntries(
 	return entries
 }
 
-// validateExcludedAutoTargets accepts an exclusion only for an offering that
-// the unexcluded materialization marks as a Mitbuchungs-Regel target with
-// rule-derived days. Anything else — a parent-chosen offering, a pure
-// required-lunch derivation, an unknown id — cannot be overridden away.
+// validateExcludedAutoTargets applies Care Plan's co-booking override rule
+// (careplan.ExcludedAutoTargetOverrides, #3560) to the enrollment rows of the
+// decision diff.
 func validateExcludedAutoTargets(
 	excludedIDs []int64,
 	base []materializedOfferingSelection,
@@ -3014,27 +3013,22 @@ func validateExcludedAutoTargets(
 	if len(excludedIDs) == 0 {
 		return nil, nil
 	}
-	baseByID := materializedSelectionPointers(base)
-	overridden := make([]enrollmentModels.OfferingChangeSnapshotOffering, 0, len(excludedIDs))
-	seen := make(map[int64]bool, len(excludedIDs))
-	for _, id := range excludedIDs {
-		if seen[id] {
+	offerings := make(map[int64]*careplan.CareOffering, len(offeringByID))
+	for id, row := range offeringByID {
+		if row == nil {
 			continue
 		}
-		seen[id] = true
-		sel, ok := baseByID[id]
-		offering := offeringByID[id]
-		if !ok || offering == nil || len(ruleContributionForTarget(offering, sel, baseByID, offeringByID)) == 0 {
-			return nil, fmt.Errorf(
-				"%w: offering %d is not added by a co-booking rule and cannot be excluded", ErrOfferingChangeInvalid, id,
-			)
+		offering, err := careOfferingFromRow(row)
+		if err != nil {
+			return nil, err
 		}
-		overridden = append(overridden, enrollmentModels.OfferingChangeSnapshotOffering{
-			OfferingID: id,
-			Name:       offering.Name,
-		})
+		offerings[id] = &offering
 	}
-	return overridden, nil
+	overridden, err := careplan.ExcludedAutoTargetOverrides(excludedIDs, offeringSelectionsOf(base), offerings)
+	if err != nil {
+		return nil, err
+	}
+	return snapshotOfferingsOf(overridden), nil
 }
 
 func offeringChangeSelections(materialized []materializedOfferingSelection) []OfferingChangeSelection {
@@ -3117,39 +3111,6 @@ func materializedSelectionPointers(
 		byID[materialized[i].OfferingID] = &materialized[i]
 	}
 	return byID
-}
-
-func ruleContributionForTarget(
-	target *enrollmentModels.CareOffering,
-	selection *materializedOfferingSelection,
-	selections map[int64]*materializedOfferingSelection,
-	offerings map[int64]*enrollmentModels.CareOffering,
-) []string {
-	if target == nil || selection == nil {
-		return nil
-	}
-	ruleDays := autoDaysForTarget(target, target.AutoAddTriggerOfferingIDs, selections, offerings)
-	nonRuleDays := nonRuleDaysForTarget(target, selection, selections, offerings)
-	return daysExcept(ruleDays, nonRuleDays)
-}
-
-func nonRuleDaysForTarget(
-	target *enrollmentModels.CareOffering,
-	selection *materializedOfferingSelection,
-	selections map[int64]*materializedOfferingSelection,
-	offerings map[int64]*enrollmentModels.CareOffering,
-) []string {
-	return unionDaysInOfferingOrder(
-		target.AvailableDays,
-		selection.ManualSelectedDays,
-		autoLunchDaysForTarget(target, selections, offerings),
-	)
-}
-
-func daysExcept(days, excluded []string) []string {
-	return slices.DeleteFunc(slices.Clone(days), func(day string) bool {
-		return slices.Contains(excluded, day)
-	})
 }
 
 func offeringDiffEntry(

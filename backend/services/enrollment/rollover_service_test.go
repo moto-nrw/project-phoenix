@@ -30,6 +30,9 @@ import (
 // in request_service_test.go so we get tenant + form schema + base
 // phase out of the box.
 type rolloverTestEnv struct {
+	// tb composes the Care Plan collaborators the decision suites build on
+	// this env over the test tenant.
+	tb             testing.TB
 	db             *bun.DB
 	repos          *repositories.Factory
 	timetable      timetable.Capability
@@ -137,6 +140,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	require.NoError(t, enrollmentService.InsertOwnerPhaseForTest(ctx, repoFactory.Enrollment(), sourcePhase))
 
 	env := &rolloverTestEnv{
+		tb:              t,
 		db:              db,
 		repos:           repoFactory,
 		timetable:       timetableDeps.Capability,
