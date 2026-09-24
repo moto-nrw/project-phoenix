@@ -907,7 +907,7 @@ describe("ConfirmationModal", () => {
     ).toHaveClass("bg-black/40", "backdrop-blur-sm");
   });
 
-  it("renders an opted-in modal as a dismissible bottom sheet on phones", async () => {
+  it("renders an opted-in modal as a bottom-anchored dialog without Vaul on phones", async () => {
     const onClose = vi.fn();
     const matchMedia = vi.spyOn(window, "matchMedia").mockImplementation(
       (query) =>
@@ -937,10 +937,16 @@ describe("ConfirmationModal", () => {
       </TestWrapper>,
     );
 
-    await act(async () => undefined);
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
 
-    expect(document.querySelector('[data-mobile-sheet="true"]')).toBeTruthy();
-    expect(document.querySelector('[data-drawer-handle="true"]')).toBeTruthy();
+    // #3661: kein Vaul-Drawer mehr, dessen Zieh-Geste auf Android jede
+    // Berührung abfing. Das Sheet ist der unten angeheftete Dialog.
+    expect(document.querySelector("[data-vaul-drawer]")).toBeNull();
+    const dialog = screen.getByRole("dialog", { name: "Abwesenheit melden" });
+    expect(dialog).toHaveClass("rounded-t-2xl", "w-full");
+    expect(dialog.parentElement).toHaveClass("items-end");
     const closeButton = screen.getByRole("button", {
       name: "Modal schließen",
     });
@@ -950,6 +956,10 @@ describe("ConfirmationModal", () => {
     );
 
     fireEvent.click(closeButton);
+    // The dialog closes after its 250ms exit animation.
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+    });
     expect(onClose).toHaveBeenCalledOnce();
 
     matchMedia.mockRestore();

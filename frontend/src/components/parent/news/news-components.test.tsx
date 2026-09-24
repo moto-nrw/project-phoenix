@@ -102,6 +102,38 @@ describe("Umfrage answering in the detail view", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
+  // Android im Hochformat (#3661): unter 640px lief der Dialog als Vaul-Drawer,
+  // der jede Berührung für die Zieh-Geste abfing. Antworten muss dort genauso
+  // gehen wie im Querformat.
+  it("lets a phone in portrait pick and save an answer without a Vaul drawer", () => {
+    vi.spyOn(window, "matchMedia").mockImplementation(
+      (query) =>
+        ({
+          matches: query === "(max-width: 639px)",
+          media: query,
+          onchange: null,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        }) as MediaQueryList,
+    );
+
+    render(
+      <NewsDetailModal item={poll()} onClose={vi.fn()} onUpdated={vi.fn()} />,
+    );
+
+    expect(screen.getByRole("dialog")).toHaveClass("rounded-t-2xl");
+    expect(document.querySelector("[data-vaul-drawer]")).toBeNull();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Ja" }));
+    expect(screen.getByRole("radio", { name: "Ja" })).toBeChecked();
+    expect(
+      screen.getByRole("button", { name: "Antwort speichern" }),
+    ).toBeEnabled();
+  });
+
   it("keeps the save button disabled while nothing changed", () => {
     render(
       <NewsDetailModal item={poll()} onClose={vi.fn()} onUpdated={vi.fn()} />,

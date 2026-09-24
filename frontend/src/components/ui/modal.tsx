@@ -7,15 +7,6 @@ import { useModal } from "../dashboard/modal-context";
 import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
 import { useLatest } from "~/lib/hooks/use-latest";
 import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
-} from "~/components/ui/drawer";
-import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
-import {
   OVERLAY_BACKDROP_CLASS,
   OVERLAY_BACKDROP_TINT_CLASS,
   OVERLAY_BACKDROP_TINT_HIDDEN_CLASS,
@@ -69,10 +60,11 @@ interface ModalProps {
   /** Keep backdrop taps from discarding in-progress form input. */
   readonly isBackdropDismissDisabled?: boolean;
   /**
-   * Auf schmalen Schirmen als Sheet von unten statt als mittiges Fenster, mit
-   * angehefteter Fussleiste und freiem Sicherheitsbereich. Ab `sm` bleibt es
-   * das gewohnte mittige Fenster. Verlangt von der Eltern-App; alle anderen
-   * Aufrufer bleiben unveraendert.
+   * Auf schmalen Schirmen unten angeheftet und in voller Breite statt als
+   * mittiges Fenster, mit Fussleiste über dem Sicherheitsbereich. Ab `sm`
+   * bleibt es das gewohnte mittige Fenster. Bewusst kein Vaul-Drawer und
+   * keine Wisch-Geste: dessen Zieh-Geste fing auf Android im Hochformat jede
+   * Berührung ab (#3661). Geschlossen wird über X, Hintergrund oder Escape.
    */
   readonly mobileSheet?: boolean;
   /**
@@ -84,123 +76,7 @@ interface ModalProps {
   readonly focusTitleOnOpen?: boolean;
 }
 
-export function Modal(props: ModalProps) {
-  const isPhone = useMediaQuery(BELOW_SM);
-
-  if (props.mobileSheet && isPhone) {
-    return <MobileSheetModal {...props} />;
-  }
-
-  return <DialogModal {...props} />;
-}
-
-function MobileSheetModal({
-  isOpen,
-  onClose,
-  onDismissStart,
-  title,
-  children,
-  footer,
-  closeLabel = "Modal schließen",
-  isDismissDisabled = false,
-  isBackdropDismissDisabled = false,
-  focusTitleOnOpen = false,
-}: ModalProps) {
-  const { openModal, closeModal } = useModal();
-  const titleRef = React.useRef<HTMLHeadingElement>(null);
-  const onCloseRef = useLatest(onClose);
-  const onDismissStartRef = useLatest(onDismissStart);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    openModal();
-    return closeModal;
-  }, [closeModal, isOpen, openModal]);
-
-  const handleOpenChange = useCallback(
-    (open: boolean) => {
-      if (!open && !isDismissDisabled) {
-        onDismissStartRef.current?.();
-        onCloseRef.current();
-      }
-    },
-    [isDismissDisabled, onCloseRef, onDismissStartRef],
-  );
-
-  if (!isOpen) return null;
-
-  return (
-    <Drawer
-      open
-      onOpenChange={handleOpenChange}
-      dismissible={!isDismissDisabled && !isBackdropDismissDisabled}
-    >
-      <DrawerContent
-        data-mobile-sheet="true"
-        className="z-[9999] max-h-[calc(100dvh-env(safe-area-inset-top)-1rem)] overflow-hidden bg-white"
-        onOpenAutoFocus={
-          focusTitleOnOpen
-            ? (event: Event) => {
-                event.preventDefault();
-                titleRef.current?.focus();
-              }
-            : undefined
-        }
-      >
-        <DrawerHeader className="flex shrink-0 flex-row items-center justify-between border-b border-gray-100 px-4 pt-3 pb-4 text-left">
-          <div className="min-w-0">
-            <DrawerTitle
-              ref={titleRef}
-              tabIndex={focusTitleOnOpen ? -1 : undefined}
-              className="text-lg leading-tight font-semibold text-gray-900 outline-none"
-            >
-              {title}
-            </DrawerTitle>
-            <DrawerDescription className="sr-only">{title}</DrawerDescription>
-          </div>
-          <DrawerClose asChild>
-            <button
-              type="button"
-              disabled={isDismissDisabled}
-              className="flex size-11 shrink-0 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 active:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label={closeLabel}
-            >
-              <svg
-                className="size-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          </DrawerClose>
-        </DrawerHeader>
-
-        <div
-          className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 leading-relaxed text-gray-700"
-          data-modal-content="true"
-        >
-          {children}
-        </div>
-
-        {footer ? (
-          <div className="flex shrink-0 flex-col gap-3 border-t border-gray-100 bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-            {footer}
-          </div>
-        ) : null}
-      </DrawerContent>
-    </Drawer>
-  );
-}
-
-function DialogModal({
+export function Modal({
   isOpen,
   onClose,
   onDismissStart,
@@ -575,7 +451,7 @@ interface ConfirmationModalProps {
   readonly closeLabel?: string;
   /** Forwarded to Modal — translated backdrop aria-label. */
   readonly backdropLabel?: string;
-  /** Render as a swipeable bottom sheet below the `sm` breakpoint. */
+  /** Bottom-anchored full-width dialog below `sm`; see `ModalProps.mobileSheet`. */
   readonly mobileSheet?: boolean;
 }
 
