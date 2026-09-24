@@ -30,7 +30,7 @@ func TestSchoolNotificationPreferences(t *testing.T) {
 	db, resource, tenantID, _ := setupSchoolRoute(t)
 	schoolRouter := newSchoolChiRouter(resource)
 
-	require.NoError(t, resource.Timetable.SettingsService.SetValue(
+	require.NoError(t, resource.Timetable.SettingsService.(settingsWriter).SetValue(
 		testpkg.TenantContext(tenantID), configModel.KeyStaffMessagingEnabled, true, nil, nil,
 	))
 
