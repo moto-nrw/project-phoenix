@@ -34,10 +34,9 @@ func (s *operations) requireCanOperate(ctx context.Context, accountID int64, isA
 	return s.requireFixedGroupOperationAccess(ctx, staffID, instanceID)
 }
 
-// canOperate turns requireCanOperate into a flag for read responses; only a
-// denial becomes false, lookup failures still fail the request.
-func (s *operations) canOperate(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (bool, error) {
-	_, err := s.requireCanOperate(ctx, accountID, isAdmin, instanceID)
+// actionAllowed turns a require* check into a flag for read responses; only
+// a denial becomes false, lookup failures still fail the request.
+func actionAllowed(_ int64, err error) (bool, error) {
 	if errors.Is(err, timetable.ErrTimetableOperationForbidden) {
 		return false, nil
 	}
@@ -67,66 +66,62 @@ func (s *operations) requireCanView(ctx context.Context, accountID int64, isAdmi
 	return s.requireFixedGroupOperationAccess(ctx, staffID, instanceID)
 }
 
-// requireCanEditAttendance extends only the attendance commands to the
-// school-wide scope. Lifecycle actions keep requireCanOperate, including the
-// start a first check-in needs.
-func (s *operations) requireCanEditAttendance(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (int64, error) {
-	if isAssignmentBoundPortal(ctx) || s.hasAdministrativeActionAccess(ctx, isAdmin) {
-		return s.requireCanOperate(ctx, accountID, isAdmin, instanceID)
-	}
-	scope, err := s.deps.Settings.AttendanceEditScope(ctx)
+// requireScopedAction gates attendance, starts and ends, which each have a
+// school scope setting (#3180, #3622). all_staff adds every verified staff
+// member to requireCanOperate's people for that one action; starting adds
+// no supervisor.
+func (s *operations) requireScopedAction(ctx context.Context, accountID int64, isAdmin bool, instanceID int64, action ScopedAction) (int64, error) {
+	schoolWide, err := s.schoolWideScope(ctx, accountID, isAdmin, action)
 	if err != nil {
 		return 0, err
 	}
-	switch scope {
-	case AttendanceEditOwn:
-		return s.requireCanOperate(ctx, accountID, isAdmin, instanceID)
-	case AttendanceEditAllStaff:
-		return s.requireSchoolWideAttendanceActor(ctx, accountID, instanceID)
-	default:
-		return 0, timetable.ErrTimetableOperationForbidden
+	if schoolWide {
+		staffID, hasStaff, err := s.resolveStaffID(ctx, accountID)
+		if err != nil {
+			return 0, err
+		}
+		inst, err := s.loadInstance(ctx, instanceID)
+		if err != nil {
+			return 0, err
+		}
+		if hasStaff && s.scopeAdmits(action, inst) {
+			return staffID, nil
+		}
 	}
+	return s.requireCanOperate(ctx, accountID, isAdmin, instanceID)
 }
 
-func (s *operations) requireSchoolWideAttendanceActor(ctx context.Context, accountID, instanceID int64) (int64, error) {
-	staffID, err := s.requireOGSAttendanceActor(ctx, accountID)
-	if err != nil {
-		return 0, err
+// scopeAdmits names the blocks a school-wide scope reaches: attendance and
+// ends reach running sessions, a start today's planned blocks.
+func (s *operations) scopeAdmits(action ScopedAction, inst *scheduleModels.ActivityInstance) bool {
+	if action == ScopedBlockStart {
+		return inst.Status == scheduleModels.InstanceStatusPlanned && timezone.Date(inst.Date) == s.today()
 	}
-	allStaff, err := s.deps.Settings.OperationalOverviewAllStaff(ctx)
-	if err != nil {
-		return 0, err
-	}
-	if !allStaff {
-		return 0, timetable.ErrTimetableOperationForbidden
-	}
-	inst, err := s.loadInstance(ctx, instanceID)
-	if err != nil {
-		return 0, err
-	}
-	if inst.Status != scheduleModels.InstanceStatusActive || inst.ActiveGroupID == nil {
-		return 0, timetable.ErrTimetableOperationForbidden
-	}
-	return staffID, nil
+	return inst.Status == scheduleModels.InstanceStatusActive && inst.ActiveGroupID != nil
 }
 
-// requireOGSAttendanceActor accepts a tenant or organisation session of the
-// caller's own tenant with schedules:read and a staff profile.
-func (s *operations) requireOGSAttendanceActor(ctx context.Context, accountID int64) (int64, error) {
+// schoolWideScope asks the action's scope setting. Its all_staff value counts
+// only with the all_staff overview, so nobody acts on a block they cannot
+// see (the rule of authorize.SchoolWideActionScope). Portals keep their
+// assignment boundary and admins their own rights.
+func (s *operations) schoolWideScope(ctx context.Context, accountID int64, isAdmin bool, action ScopedAction) (bool, error) {
+	if isAssignmentBoundPortal(ctx) || s.hasAdministrativeActionAccess(ctx, isAdmin) || !isOGSActorToken(ctx, accountID) {
+		return false, nil
+	}
+	open, err := s.deps.Settings.ActionScopeAllStaff(ctx, action)
+	if err != nil || !open {
+		return false, err
+	}
+	return s.deps.Settings.OperationalOverviewAllStaff(ctx)
+}
+
+// isOGSActorToken accepts a tenant or organisation session of the caller's
+// own tenant with schedules:read.
+func isOGSActorToken(ctx context.Context, accountID int64) bool {
 	claims := jwt.ClaimsFromCtx(ctx)
-	if (claims.Scope != "" && claims.Scope != "tenant" && claims.Scope != "org") ||
-		int64(claims.ID) != accountID || claims.TenantID <= 0 || claims.TenantID != tenant.FromContext(ctx) ||
-		!authorize.HasPermission("schedules:read", jwt.PermissionsFromCtx(ctx)) {
-		return 0, timetable.ErrTimetableOperationForbidden
-	}
-	staffID, hasStaff, err := s.resolveStaffID(ctx, accountID)
-	if err != nil {
-		return 0, err
-	}
-	if !hasStaff {
-		return 0, timetable.ErrTimetableOperationForbidden
-	}
-	return staffID, nil
+	return (claims.Scope == "" || claims.Scope == "tenant" || claims.Scope == "org") &&
+		int64(claims.ID) == accountID && claims.TenantID > 0 && claims.TenantID == tenant.FromContext(ctx) &&
+		authorize.HasPermission("schedules:read", jwt.PermissionsFromCtx(ctx))
 }
 
 // requireCanReportAbsence covers reporting a child sick or excused on the
@@ -143,7 +138,10 @@ func (s *operations) requireCanReportAbsence(ctx context.Context, accountID int6
 	if err := s.requireDirectAbsenceScope(ctx, isAdmin); err != nil {
 		return err
 	}
-	_, err := s.requireOGSAttendanceActor(ctx, accountID)
+	_, hasStaff, err := s.resolveStaffID(ctx, accountID)
+	if err == nil && (!hasStaff || !isOGSActorToken(ctx, accountID)) {
+		return timetable.ErrTimetableOperationForbidden
+	}
 	return err
 }
 

@@ -29,6 +29,10 @@ const (
 	overviewScopeAllStaff           = "all_staff"
 	attendanceEditScopeOwn          = "own"
 	attendanceEditScopeAllStaff     = "all_staff"
+	blockStartScopeOwn              = "own"
+	blockStartScopeAllStaff         = "all_staff"
+	blockCompleteScopeOwn           = "own"
+	blockCompleteScopeAllStaff      = "all_staff"
 	studentAbsenceEditScopeAllStaff = "all_staff"
 	groupModeFixedGroups            = "fixed_groups"
 	groupModeOpenCare               = "open_care"
@@ -128,7 +132,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		rooms:         &fakeOpsRooms{names: map[int64]string{810: "Lernraum"}},
 		personService: &fakeOpsPersonService{people: map[int64]*usersModels.Person{}, staffByPersonID: map[int64]*usersModels.Staff{}, staffWithPerson: map[int64]*usersModels.Staff{}},
 		tracks:        &fakeOpsPlanningTracks{byID: map[int64]timetable.PlanningTrack{}},
-		settings:      &fakeOpsSettings{attendanceScope: attendanceEditScopeOwn, absenceScope: studentAbsenceEditScopeAllStaff},
+		settings:      &fakeOpsSettings{attendanceScope: attendanceEditScopeOwn, startScope: blockStartScopeOwn, completeScope: blockCompleteScopeOwn, absenceScope: studentAbsenceEditScopeAllStaff},
 		announcer:     &fakeOpsAnnouncer{},
 	}
 	service, err := compose.NewOperations(deps.dependencies())
@@ -632,11 +636,13 @@ func (r *fakeOpsPlanningTracks) ListPlanningTracks(_ context.Context, filter tim
 }
 
 // fakeOpsSettings keeps the configured setting values and maps them the way
-// the composition root's settings binding does: an unknown attendance-edit
-// scope grants nothing, only "all_staff" opens absence reports and the
-// operational overview. mode answers every other key (the group mode).
+// the composition root's settings binding does: only "all_staff" opens an
+// action scope, absence reports and the operational overview. mode answers
+// every other key (the group mode).
 type fakeOpsSettings struct {
 	attendanceScope string
+	startScope      string
+	completeScope   string
 	absenceScope    string
 	err             error
 	mode            string
@@ -666,17 +672,16 @@ func (s *fakeOpsSettings) EnforcePlannedEnd(context.Context) (bool, error) {
 	return false, s.err
 }
 
-func (s *fakeOpsSettings) AttendanceEditScope(context.Context) (compose.AttendanceEditScope, error) {
+func (s *fakeOpsSettings) ActionScopeAllStaff(_ context.Context, action compose.ScopedAction) (bool, error) {
 	if s.stringErr != nil {
-		return compose.AttendanceEditUnset, s.stringErr
+		return false, s.stringErr
 	}
-	switch s.attendanceScope {
-	case attendanceEditScopeOwn:
-		return compose.AttendanceEditOwn, nil
-	case attendanceEditScopeAllStaff:
-		return compose.AttendanceEditAllStaff, nil
-	}
-	return compose.AttendanceEditUnset, nil
+	scope := map[compose.ScopedAction]string{
+		compose.ScopedAttendance:    s.attendanceScope,
+		compose.ScopedBlockStart:    s.startScope,
+		compose.ScopedBlockComplete: s.completeScope,
+	}[action]
+	return scope == attendanceEditScopeAllStaff, nil
 }
 
 func (s *fakeOpsSettings) StudentAbsenceEditAllStaff(context.Context) (bool, error) {
