@@ -1425,6 +1425,27 @@ function parentMessageTopic(): HelpTopic {
           "Wählen Sie `Senden`.",
         ],
       },
+      {
+        title: "Eine Unterhaltung wieder als ungelesen markieren",
+        description:
+          "So sieht das ganze Team: Hier ist noch etwas offen. Die Eltern merken davon nichts.",
+        steps: [
+          "Öffnen Sie die Unterhaltung im Posteingang.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Als ungelesen markieren`.",
+          "moto bringt Sie zurück zum Posteingang.",
+        ],
+      },
+      {
+        title: "Alle Nachrichten für sich als gelesen markieren",
+        description:
+          "Ihre Zahl bei `Nachrichten` kann bleiben. Vom Team als ungelesen markierte Unterhaltungen bleiben ungelesen. Für Ihr Team ändert sich nichts.",
+        steps: [
+          "Öffnen Sie den Posteingang unter `Nachrichten`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Alle als gelesen markieren`.",
+        ],
+      },
     ],
     result:
       "Die Bezugsperson sieht die Nachricht in der Eltern-App. Sie wird dort im Namen der OGS angezeigt.",
@@ -1435,6 +1456,8 @@ function parentMessageTopic(): HelpTopic {
     notes: [
       "Schreiben Sie persönliche Angaben nur in die Unterhaltung der richtigen Bezugsperson.",
       "Mit `Nur ungelesen` sehen Sie nur neue Unterhaltungen.",
+      "Eine als ungelesen markierte Unterhaltung bleibt für alle ungelesen, bis jemand aus dem Team sie öffnet oder antwortet.",
+      "Nach `Alle als gelesen markieren` sehen die Eltern: Die OGS hat ihre Nachrichten gelesen.",
       "Über `Zum Kinderprofil` wechseln Sie direkt zu den Angaben des Kindes.",
     ],
     related: [HELP_TOPICS.parentRequests, HELP_TOPICS.studentSearch],

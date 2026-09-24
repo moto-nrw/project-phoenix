@@ -69,6 +69,16 @@ type InboxThread struct {
 	LastMessagePayload     map[string]any `bun:"last_message_payload" json:"-"`
 	LastMessageReadByStaff bool           `bun:"last_message_read_by_staff" json:"-"`
 	UnreadCount            int            `bun:"unread_count" json:"unread_count"`
+	// Mark-all-read uses the counterpart message selected with this inbox row,
+	// never a newer message committed before the cursor write.
+	ReadBound *ReadCursorBound `bun:"-" json:"-"`
+}
+
+// ReadCursorBound is the exact counterpart message observed in an inbox snapshot.
+type ReadCursorBound struct {
+	ThreadID  int64
+	ReadAt    time.Time
+	MessageID int64
 }
 
 // ReadCursor is the composite position of a read cursor: the read instant and
@@ -105,9 +115,21 @@ type ParentMessageReadRepository interface {
 	// advanced, so the read-receipt SSE push can fire only on a real move and not
 	// ping-pong with the refetch it triggers on the counterpart.
 	MarkReadUpTo(ctx context.Context, tenantID, threadID, accountID int64, readAt time.Time, readMessageID int64) (bool, error)
+	// MarkThreadsReadForStaff advances each cursor only to the counterpart
+	// message selected with the inbox snapshot, in one statement. The cursor
+	// never moves backward. It returns threads whose cursor actually advanced.
+	MarkThreadsReadForStaff(ctx context.Context, tenantID, accountID int64, bounds []ReadCursorBound) ([]int64, error)
 	// MarkStaffHandledUpTo advances the team-wide handled boundary to the newest
 	// guardian activity covered by a staff reply. It never moves backward.
 	MarkStaffHandledUpTo(ctx context.Context, tenantID, threadID int64, handledAt time.Time, handledMessageID int64) error
+	// MarkStaffUnread marks the conversation unread for every staff member who
+	// may read the child. It leaves the read cursors and the handled boundary
+	// alone. Marking again keeps the thread marked and renews the mark.
+	MarkStaffUnread(ctx context.Context, tenantID, threadID, accountID int64) error
+	// ClearStaffUnreadMark removes a mark no later than observedAt, the mark the
+	// caller loaded before opening or answering the conversation. A mark set
+	// after that load stays. It reports whether a mark was removed.
+	ClearStaffUnreadMark(ctx context.Context, tenantID, threadID int64, observedAt time.Time) (bool, error)
 	// UnreadMessageCountForStaff counts unread guardian MESSAGES the staff reader
 	// has not seen (sent by the other side) — the sidebar badge source. Counts
 	// messages, not threads, so the badge matches the per-thread unread pills.
