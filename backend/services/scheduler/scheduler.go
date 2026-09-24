@@ -614,8 +614,10 @@ func (s *Scheduler) registerTask(name, schedule string, runner func(*ScheduledTa
 // runMinutePolling is the shared runner for tasks that check per-tenant
 // settings once per minute. It checks immediately on startup so the current
 // minute isn't missed after a restart, then aligns to the minute boundary so
-// ticks land at HH:MM:00. panicName and startupMsg are passed verbatim so the
-// per-task log output stays byte-identical (Loki dashboards match on them).
+// ticks land at HH:MM:00. runJobCheck contains job panics so the next tick
+// still runs; panicName labels only panics outside a job run. startupMsg is
+// passed verbatim so the per-task log output stays byte-identical (Loki
+// dashboards match on it).
 func (s *Scheduler) runMinutePolling(task *ScheduledTask, panicName, startupMsg string, check func(context.Context, *ScheduledTask)) {
 	defer s.wg.Done()
 	defer func() {
@@ -656,8 +658,9 @@ func (s *Scheduler) runMinutePolling(task *ScheduledTask, panicName, startupMsg 
 // runIntervalPolling is the shared runner for tasks that tick at a fixed or
 // settings-driven interval. The startup delay honors s.done so shutdown during
 // boot stays responsive; interval() is re-resolved on every tick so admins can
-// change the cadence without a restart. panicName, startupMsg, and
-// startupAttrs are passed verbatim so log output stays byte-identical.
+// change the cadence without a restart. As in runMinutePolling, panicName
+// labels only panics outside a job run. startupMsg and startupAttrs are
+// passed verbatim so log output stays byte-identical.
 func (s *Scheduler) runIntervalPolling(task *ScheduledTask, panicName, startupMsg string, startupDelay time.Duration, interval func() time.Duration, check func(context.Context, *ScheduledTask), startupAttrs ...any) {
 	defer s.wg.Done()
 	defer func() {
@@ -715,7 +718,11 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 				slog.String("job_id", task.Name),
 				slog.Duration("duration", duration),
 			)
-			panic(recovered)
+			// Report and swallow the panic so only this run fails; re-panicking
+			// would end the polling loop until the next restart (#3597).
+			sentry.CurrentHub().Recover(recovered)
+			sentry.Flush(2 * time.Second)
+			return
 		}
 		if commandErr := failures.result(); commandErr != nil {
 			s.observeWorkerRun(JobID(task.Name), "failed", duration)
