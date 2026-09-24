@@ -80,7 +80,7 @@ func loadFormSchemasByRequests(
 		return nil, err
 	}
 	for _, schema := range rows {
-		result[schema.ID] = cloneSchema(schema)
+		result[schema.ID] = capability.CopyFormSchema(schema)
 	}
 	for _, id := range ids {
 		if result[id] == nil {

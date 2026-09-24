@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
@@ -128,10 +129,12 @@ type ChangeRequestServiceConfig struct {
 	Guardians IntakeGuardians
 	// LateInviteRepo restores the original invite identity when an accountless
 	// late-invite renewal is re-authorized during change-request approval.
-	LateInviteRepo      DecisionLateInvites
-	CareOfferingRepo    enrollmentModels.CareOfferingRepository
-	Catalog             IntakeCatalog
-	SchoolRepo          SchoolDirectory
+	LateInviteRepo   DecisionLateInvites
+	CareOfferingRepo enrollmentModels.CareOfferingRepository
+	Catalog          IntakeCatalog
+	// Notifications brands the change-request mails and notifies the
+	// capacity decisions an approval produces.
+	Notifications       capability.Notifications
 	GuardianProfileRepo userModels.GuardianProfileRepository
 	GuardianPhoneRepo   userModels.GuardianPhoneNumberRepository
 	// PersonRepo resolves the deciding staffer's display name for the review
@@ -804,7 +807,7 @@ func (s *changeRequestService) ensureCanCreate(ctx context.Context, req *enrollm
 	if err != nil || phase == nil || !phase.IsActive {
 		return ErrChangeRequestNotAllowed
 	}
-	if !IsEnrollmentWindowOpen(phase, time.Now()) {
+	if !phase.EnrollmentWindowOpen(time.Now()) {
 		return ErrEnrollmentWindowClosed
 	}
 	return nil
@@ -955,7 +958,7 @@ func (s *changeRequestService) prepareProposed(
 		// The selection this preserves is the one in force now, not every
 		// interval the child ever held: a superseded booking restored here
 		// would be written back as a live one.
-		existingLinks, linkErr := readOwnerOfferingBatchSelections(
+		existingLinks, linkErr := capability.OfferingSelectionRecordsForChildrenAt(
 			ctx, s.Children, childIDs, currentOfferingSelectionDate(phase),
 		)
 		if linkErr != nil {
@@ -1076,7 +1079,7 @@ func (s *changeRequestService) changeRequestOfferingCatalogs(
 		childIndexByID[child.ID] = i
 	}
 
-	links, err := readOwnerOfferingBatchSelections(ctx, s.Children, childIDs, onDate)
+	links, err := capability.OfferingSelectionRecordsForChildrenAt(ctx, s.Children, childIDs, onDate)
 	if err != nil {
 		return nil, nil, fmt.Errorf("change request: load current child offerings: %w", err)
 	}
@@ -1289,7 +1292,7 @@ func (s *changeRequestService) legalBlocksForRequest(ctx context.Context, schema
 }
 
 func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollmentModels.Request, children []*RequestChild) (map[string]any, error) {
-	guardians, err := listIntakeGuardians(ctx, s.Guardians, req.ID)
+	guardians, err := s.Guardians.RequestGuardians(ctx, []int64{req.ID})
 	if err != nil {
 		return nil, fmt.Errorf("change request: list guardians: %w", err)
 	}
@@ -1309,7 +1312,7 @@ func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollm
 	// approval to. Pinned to the phase start it would keep reporting a booking
 	// an approved dated change has already replaced - and the approval would
 	// then write that stale selection back over the newer one.
-	links, err := readOwnerOfferingBatchSelections(ctx, s.Children, childIDs, currentOfferingSelectionDate(phase))
+	links, err := capability.OfferingSelectionRecordsForChildrenAt(ctx, s.Children, childIDs, currentOfferingSelectionDate(phase))
 	if err != nil {
 		return nil, fmt.Errorf("change request: list child offerings: %w", err)
 	}
@@ -1442,7 +1445,7 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *Cha
 	}
 	var previousGuardians []*capability.RequestGuardian
 	if s.Guardians != nil {
-		previousGuardians, err = listIntakeGuardians(ctx, s.Guardians, req.ID)
+		previousGuardians, err = s.Guardians.RequestGuardians(ctx, []int64{req.ID})
 		if err != nil {
 			return fmt.Errorf("change request approve: list previous guardians: %w", err)
 		}
@@ -1468,7 +1471,7 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *Cha
 			return err
 		}
 		for i, guardian := range prepared.AdditionalGuardians {
-			if err := createIntakeGuardian(ctx, s.Guardians, &capability.RequestGuardian{
+			if err := s.Guardians.CreateRequestGuardian(ctx, &capability.RequestGuardian{
 				RequestID:         req.ID,
 				FirstName:         guardian.FirstName,
 				LastName:          guardian.LastName,
@@ -1616,13 +1619,10 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *Cha
 		if err != nil {
 			return fmt.Errorf("change request approve: refresh capacity decisions: %w", err)
 		}
-		if err := enqueueDecisionNotifications(ctx, decisionNotificationDependencies{
-			requests:   s.Requests,
-			settings:   s.Settings,
-			outbox:     s.OutboxEnqueuer,
-			schools:    s.SchoolRepo,
-			parentsURL: s.ParentsURL,
-		}, req, refreshedChildren, phase, newlyWaitlisted); err != nil {
+		if err := notifyDecisions(ctx, s.Notifications, decisionNotice{
+			Request: req, Children: refreshedChildren, Phase: phase,
+			ImmediateChildIDs: newlyWaitlisted, ParentsURL: s.ParentsURL,
+		}); err != nil {
 			return fmt.Errorf("change request approve: notify capacity decisions: %w", err)
 		}
 	}
@@ -2029,7 +2029,7 @@ func (s *changeRequestService) validateAccountLinkedGuardianEdits(ctx context.Co
 	if len(editReq.AdditionalGuardians) == 0 || s.Guardians == nil {
 		return nil
 	}
-	existing, err := listIntakeGuardians(ctx, s.Guardians, req.ID)
+	existing, err := s.Guardians.RequestGuardians(ctx, []int64{req.ID})
 	if err != nil {
 		return fmt.Errorf("change request: list guardians for account guardrail: %w", err)
 	}
@@ -2629,7 +2629,7 @@ func (s *changeRequestService) enqueueAdminNotification(ctx context.Context, ten
 		}
 		for _, admin := range (&requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings}}).resolveAdminEmails(txCtx) {
 			payload := s.emailPayload(txCtx, req, changeRequestID, admin)
-			payload[EnrollmentPayloadAdminURL] = s.adminURL(changeRequestID)
+			payload[capability.EnrollmentPayloadAdminURL] = s.adminURL(changeRequestID)
 			if enqueueErr := s.OutboxEnqueuer.EnqueueOutbox(txCtx, platformModels.OutboxEnqueueRequest{
 				Kind:              kind,
 				Payload:           payload,
@@ -2696,17 +2696,17 @@ func (s *changeRequestService) logChangeRequestNotificationFailure(err error, te
 }
 
 func (s *changeRequestService) emailPayload(ctx context.Context, req *enrollmentModels.Request, changeRequestID int64, recipient string) map[string]any {
-	schoolName, logoURL := emailBrandForSchool(ctx, s.SchoolRepo, req.TenantID, s.ParentsURL)
+	schoolName, logoURL := schoolBrand(ctx, s.Notifications, req.TenantID, s.ParentsURL)
 	return map[string]any{
-		EnrollmentPayloadGuardianFirstName: req.GuardianFirstName,
-		EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
-		EnrollmentPayloadGuardianEmail:     req.GuardianEmail,
-		EnrollmentPayloadSchoolName:        schoolName,
-		EnrollmentPayloadStatusURL:         enrollmentStatusURL(s.ParentsURL, req.StatusToken),
-		EnrollmentPayloadLogoURL:           logoURL,
-		EnrollmentPayloadMotoLogoURL:       motoLogoURL(s.ParentsURL),
-		EnrollmentPayloadRecipientEmail:    recipient,
-		"change_request_id":                strconv.FormatInt(changeRequestID, 10),
+		capability.EnrollmentPayloadGuardianFirstName: req.GuardianFirstName,
+		capability.EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
+		capability.EnrollmentPayloadGuardianEmail:     req.GuardianEmail,
+		capability.EnrollmentPayloadSchoolName:        schoolName,
+		capability.EnrollmentPayloadStatusURL:         capability.StatusURL(s.ParentsURL, req.StatusToken),
+		capability.EnrollmentPayloadLogoURL:           logoURL,
+		capability.EnrollmentPayloadMotoLogoURL:       emailbranding.MotoLogoURL(s.ParentsURL),
+		capability.EnrollmentPayloadRecipientEmail:    recipient,
+		"change_request_id":                           strconv.FormatInt(changeRequestID, 10),
 	}
 }
 
@@ -2724,5 +2724,5 @@ func (s *changeRequestService) intakePhase(ctx context.Context, id int64) (*capa
 
 func (s *changeRequestService) intakeSchema(ctx context.Context, id int64) (*capability.FormSchema, error) {
 	value, err := s.Catalog.Schema(ctx, id)
-	return cloneSchema(value), err
+	return capability.CopyFormSchema(value), err
 }

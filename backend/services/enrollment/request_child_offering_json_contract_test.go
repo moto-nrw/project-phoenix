@@ -41,7 +41,7 @@ func TestOwnerOfferingSelectionPreservesLegacyJSON(t *testing.T) {
 			after, err := json.Marshal(migrated)
 			require.NoError(t, err)
 			require.JSONEq(t, string(before), string(after))
-			converted := legacyOfferingSelections([]*owner.RequestChildOffering{&migrated})
+			converted := owner.RequestChildOfferingRecordsOf([]*owner.RequestChildOffering{&migrated})
 			require.Equal(t, row, converted[0])
 			if populated {
 				require.Equal(t, owner.Date("2027-03-28"), *migrated.ValidFrom)

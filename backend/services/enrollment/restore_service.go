@@ -231,7 +231,7 @@ func (s *decisionService) restoreCapacityWaitlist(
 	for _, child := range withdrawn {
 		childIDs = append(childIDs, child.ID)
 	}
-	rows, err := readOwnerOfferingBatchHistory(ctx, s.Children, childIDs)
+	rows, err := enrollmentOwner.OfferingHistoryRecordsForChildren(ctx, s.Children, childIDs)
 	if err != nil {
 		return nil, fmt.Errorf("restore: load offering selections: %w", err)
 	}

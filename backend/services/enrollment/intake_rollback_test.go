@@ -55,7 +55,7 @@ func TestPublicIntakeRejectsRateLimitStorageFailures(t *testing.T) {
 			limiter := &failingSubmissionRateLimiter{SubmissionRateLimiter: env.config.RateLimitRepo, failKey: keyType, failure: failure}
 			config := env.config
 			config.RateLimitRepo = limiter
-			service := enrollmentService.NewRequestService(config)
+			service := newTestRequestService(config)
 			input := validSubmission(t, env.phaseID)
 			input.RemoteIP = "198.51.100.42"
 			input.SuppressSubmissionEmails = true
@@ -140,7 +140,7 @@ func TestPublicIntakeRollsBackAfterEveryRequestInviteGuardianAndChildWrite(t *te
 			config.Children = writes
 			config.Guardians = writes
 			config.LateInviteRepo = writes
-			service := enrollmentService.NewRequestService(config)
+			service := newTestRequestService(config)
 			input := validSubmission(t, env.phaseID)
 			input.SuppressSubmissionEmails = true
 			input.AdditionalGuardians = []enrollmentService.SubmitGuardian{{FirstName: "Second", LastName: "Guardian"}}
@@ -244,7 +244,7 @@ func TestPublicIntakeRollsBackAfterEachSubmissionEmailEnqueue(t *testing.T) {
 			outbox := &failingIntakeOutbox{delivery: newTestEnrollmentDelivery(t, env.db), tenantID: testpkg.Tenant(t), failAfter: failAfter, failure: failure}
 			config := env.config
 			config.OutboxEnqueuer = outbox
-			service := enrollmentService.NewRequestService(config)
+			service := newTestRequestService(config)
 			input := validSubmission(t, env.phaseID)
 			input.AdditionalGuardians = []enrollmentService.SubmitGuardian{{FirstName: "Second", LastName: "Guardian"}}
 			ctx := testpkg.Ctx(t)
@@ -318,7 +318,7 @@ func TestPublicIntakeRollsBackAfterEachOfferingLinkWrite(t *testing.T) {
 			links := &failingIntakeOfferingLinks{IntakeChildren: env.config.Children, failAfter: failAfter, failure: failure}
 			config := env.config
 			config.Children = links
-			service := enrollmentService.NewRequestService(config)
+			service := newTestRequestService(config)
 			input := validSubmission(t, env.phaseID)
 			input.SuppressSubmissionEmails = true
 			input.AdditionalGuardians = []enrollmentService.SubmitGuardian{{FirstName: "Second", LastName: "Guardian"}}
@@ -365,7 +365,7 @@ func TestPublicIntakeRollsBackAfterCarePlanBookingCommand(t *testing.T) {
 		}
 		return nil
 	})
-	service := enrollmentService.NewRequestService(config)
+	service := newTestRequestService(config)
 	input := validSubmission(t, env.phaseID)
 	input.SuppressSubmissionEmails = true
 	input.Children[0].OfferingIDs = []int64{offering.ID}

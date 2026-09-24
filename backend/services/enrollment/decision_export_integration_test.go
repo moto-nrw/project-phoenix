@@ -31,7 +31,7 @@ import (
 // test can swap in a failing stub. Mirrors the export half of
 // setupDecisionTest's config (which omits the audit repo).
 func newExportDecisionService(env *decisionTestEnv, auditRepo auditModels.DataAccessLogRepository) enrollmentService.DecisionService {
-	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+	return newTestDecisionService(enrollmentService.DecisionServiceConfig{
 		Requests:          env.repos.Enrollment(),
 		Children:          env.repos.Enrollment(),
 		CareOfferingRepo:  enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
@@ -66,7 +66,7 @@ func (failingPhaseRepo) Phase(_ context.Context, _ int64) (*capability.Phase, er
 // but swaps in a schema reader whose Schema always errors, so a test
 // can prove the export fails closed when a pinned schema cannot be loaded.
 func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo auditModels.DataAccessLogRepository) enrollmentService.DecisionService {
-	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+	return newTestDecisionService(enrollmentService.DecisionServiceConfig{
 		Requests:          env.repos.Enrollment(),
 		Children:          env.repos.Enrollment(),
 		CareOfferingRepo:  enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
@@ -79,7 +79,7 @@ func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo audit
 }
 
 func newExportDecisionServiceFailingPhase(env *decisionTestEnv, auditRepo auditModels.DataAccessLogRepository) enrollmentService.DecisionService {
-	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+	return newTestDecisionService(enrollmentService.DecisionServiceConfig{
 		Requests:          env.repos.Enrollment(),
 		Children:          env.repos.Enrollment(),
 		CareOfferingRepo:  enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),

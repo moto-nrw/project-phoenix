@@ -33,7 +33,7 @@ func newChangeRequestServiceForTestWithAuthorizer(
 	authorizer enrollmentService.GuardianStudentAuthorizer,
 ) enrollmentService.ChangeRequestService {
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	return enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
+	return newTestChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
 		Bookings:            requestTestBookingCommands(),
 		Requests:            repoFactory.Enrollment(),
 		Children:            repoFactory.Enrollment(),
@@ -41,7 +41,7 @@ func newChangeRequestServiceForTestWithAuthorizer(
 		LateInviteRepo:      repoFactory.Enrollment(),
 		CareOfferingRepo:    enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		Catalog:             repoFactory.Enrollment(),
-		SchoolRepo:          factorySchools{repos: repoFactory},
+		Notifications:       testNotifications(repoFactory.Enrollment(), env.settings, env.outbox, factorySchools{repos: repoFactory}),
 		GuardianProfileRepo: repoFactory.GuardianProfile,
 		GuardianPhoneRepo:   repoFactory.GuardianPhoneNumber,
 		StudentRepo:         repoFactory.Student,
@@ -100,7 +100,7 @@ func newChangeRequestServiceWithDecisionAndIntakeForTest(
 	requests enrollmentService.ChangeRequestIntakeRequests,
 ) enrollmentService.ChangeRequestService {
 	t.Helper()
-	return enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
+	return newTestChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
 		Bookings:            requestTestBookingCommands(),
 		Requests:            requests,
 		Children:            env.repos.Enrollment(),
@@ -108,7 +108,7 @@ func newChangeRequestServiceWithDecisionAndIntakeForTest(
 		LateInviteRepo:      env.repos.Enrollment(),
 		CareOfferingRepo:    enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
 		Catalog:             env.repos.Enrollment(),
-		SchoolRepo:          factorySchools{repos: env.repos},
+		Notifications:       testNotifications(requests, env.settings, env.outbox, factorySchools{repos: env.repos}),
 		GuardianProfileRepo: env.repos.GuardianProfile,
 		GuardianPhoneRepo:   env.repos.GuardianPhoneNumber,
 		StudentRepo:         env.repos.Student,
@@ -177,7 +177,7 @@ func TestNewChangeRequestService_ParentsURLRequired(t *testing.T) {
 	t.Parallel()
 
 	assert.PanicsWithValue(t, "PARENTS_URL is required", func() {
-		enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
+		newTestChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
 			Bookings:    requestTestBookingCommands(),
 			FrontendURL: "http://localhost:3000",
 		})
@@ -187,7 +187,7 @@ func TestNewChangeRequestService_ParentsURLRequired(t *testing.T) {
 func TestChangeRequestService_CorrectApprovedChildData_RequiresReason(t *testing.T) {
 	t.Parallel()
 
-	svc := enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
+	svc := newTestChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
 		Bookings:   requestTestBookingCommands(),
 		ParentsURL: "http://parents.localhost:3000",
 	})
@@ -1797,7 +1797,7 @@ func TestChangeRequestService_PreservesReadFailures(t *testing.T) {
 		{"detail", "read"}, {"detail", "parent"}, {"question", "read"}, {"question", "lock"}, {"question", "parent"}, {"reply", "lock"}, {"reply", "token"}, {"detail", "phase"}, {"create", "phase"},
 	} {
 		t.Run(tc.operation+"/"+tc.fail, func(t *testing.T) {
-			svc := enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
+			svc := newTestChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
 				Bookings: requestTestBookingCommands(),
 				Requests: failingChangeRequestReader{ChangeRequestIntakeRequests: env.config.Requests.(enrollmentService.ChangeRequestIntakeRequests), fail: tc.fail},
 				Children: env.config.Children, Settings: env.settings,

@@ -25,15 +25,12 @@ import (
 
 // setupFullSchemaTest provides repositories for phase and request fixtures
 // used to verify the schema owner's reference checks.
-func setupFullSchemaTest(t *testing.T) (*bun.DB, enrollmentService.FormSchemaService, int64, *repositories.Factory) {
+func setupFullSchemaTest(t *testing.T) (*bun.DB, enrollmentCapability.FormSchemaAdministration, int64, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	svc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  repoFactory.Enrollment(),
-		Logger: slog.Default(),
-	})
+	svc := phaseFixture.NewFormSchemas(repoFactory.Enrollment(), nil, slog.Default())
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "Form", "Editor2")
 	t.Cleanup(func() {
@@ -60,11 +57,11 @@ func TestFormSchemaService_GetByID_RejectsNonPositive(t *testing.T) {
 	_, svc, _, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
-	_, err := svc.GetByID(ctx, 0)
+	_, err := svc.SchemaVersion(ctx, 0)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "positive")
 
-	_, err = svc.GetByID(ctx, -1)
+	_, err = svc.SchemaVersion(ctx, -1)
 	require.Error(t, err)
 }
 
@@ -79,7 +76,7 @@ func TestFormSchemaService_GetByID_ReturnsRow(t *testing.T) {
 	}, creatorID)
 	require.NoError(t, err)
 
-	got, err := svc.GetByID(ctx, pub.ID)
+	got, err := svc.SchemaVersion(ctx, pub.ID)
 	require.NoError(t, err)
 	assert.Equal(t, pub.ID, got.ID)
 	assert.Equal(t, pub.Name, got.Name)
@@ -172,7 +169,7 @@ func TestFormSchemaService_UpdateSchema_InheritsNameBumpsVersion(t *testing.T) {
 	assert.True(t, v2.IsActive)
 
 	// v1 stays around — phases pinning it must keep working.
-	v1ReFetched, err := svc.GetByID(ctx, v1.ID)
+	v1ReFetched, err := svc.SchemaVersion(ctx, v1.ID)
 	require.NoError(t, err)
 	assert.True(t, v1ReFetched.IsActive,
 		"previous version stays active under multi-schema semantics")
@@ -262,7 +259,7 @@ func TestFormSchemaService_DeleteSchema_RejectsZero(t *testing.T) {
 
 	err := svc.DeleteSchema(ctx, 0)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrFormSchemaNotFound))
+	assert.True(t, errors.Is(err, enrollmentCapability.ErrFormSchemaNotFound))
 }
 
 func TestFormSchemaService_DeleteSchema_MissingIDReturnsNotFound(t *testing.T) {
@@ -273,7 +270,7 @@ func TestFormSchemaService_DeleteSchema_MissingIDReturnsNotFound(t *testing.T) {
 
 	err := svc.DeleteSchema(ctx, 999_999_999)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrFormSchemaNotFound))
+	assert.True(t, errors.Is(err, enrollmentCapability.ErrFormSchemaNotFound))
 }
 
 func TestFormSchemaService_GetByID_MissingIDReturnsNotFound(t *testing.T) {
@@ -282,9 +279,9 @@ func TestFormSchemaService_GetByID_MissingIDReturnsNotFound(t *testing.T) {
 	_, svc, _, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
-	_, err := svc.GetByID(ctx, 999_999_999)
+	_, err := svc.SchemaVersion(ctx, 999_999_999)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrFormSchemaNotFound))
+	assert.True(t, errors.Is(err, enrollmentCapability.ErrFormSchemaNotFound))
 }
 
 func TestFormSchemaService_DeleteSchema_HappyPathDropsAllVersions(t *testing.T) {
@@ -306,9 +303,9 @@ func TestFormSchemaService_DeleteSchema_HappyPathDropsAllVersions(t *testing.T) 
 	require.NoError(t, svc.DeleteSchema(ctx, v2.ID))
 
 	// Both versions gone.
-	_, err = svc.GetByID(ctx, v1.ID)
+	_, err = svc.SchemaVersion(ctx, v1.ID)
 	require.Error(t, err)
-	_, err = svc.GetByID(ctx, v2.ID)
+	_, err = svc.SchemaVersion(ctx, v2.ID)
 	require.Error(t, err)
 
 	// Cross-check row count directly.

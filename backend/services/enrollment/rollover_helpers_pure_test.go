@@ -181,18 +181,6 @@ func TestIsUniqueViolationOn_WrappedNonPGError(t *testing.T) {
 // Composite test for the two named-constraint helpers — they're
 // trivial wrappers but ensure the detector wiring is correct.
 
-func TestIsPhaseDuplicateName_NilFalse(t *testing.T) {
-	t.Parallel()
-
-	assert.False(t, isPhaseDuplicateName(nil))
-}
-
-func TestIsPhaseDuplicateName_NonPGFalse(t *testing.T) {
-	t.Parallel()
-
-	assert.False(t, isPhaseDuplicateName(errors.New("synthetic")))
-}
-
 func TestIsRolloverSourceAlreadyRolled_NilFalse(t *testing.T) {
 	t.Parallel()
 
@@ -217,5 +205,5 @@ func TestIsUniqueViolationOn_PgErrorAsTypeAssertHandled(t *testing.T) {
 	// fail the "23505" check even though errors.As succeeds.
 	zeroPG := pgdriver.Error{}
 	wrapped := errors.Join(errors.New("outer"), zeroPG)
-	assert.False(t, base.IsUniqueViolationOn(wrapped, phaseNameUniqueConstraint))
+	assert.False(t, base.IsUniqueViolationOn(wrapped, rolloverSourceChildUniqueIndex))
 }

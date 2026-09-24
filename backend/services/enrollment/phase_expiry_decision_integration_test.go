@@ -5,6 +5,9 @@ import (
 	"testing"
 	"time"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 
 	"github.com/stretchr/testify/assert"
@@ -109,16 +112,16 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 	assert.Equal(t, timezone.Date(rollover.Phase.ServiceStartDate), *student.EnrolledFrom,
 		"the real approval must replace the student's source enrollment window")
 
-	warnings, err := enrollmentService.NewPhaseExpiryService(enrollmentService.NewPhaseExpiryProjection(env.repos.Enrollment(), expiryDecisionStudents{env.repos.Student}, expiryDecisionOfferings{env.repos.CarePlan()}, env.repos.Enrollment())).
+	warnings, err := enrollmentTest.NewPhaseExpiryWarnings(enrollmentTest.NewPhaseExpirySnapshots(env.repos.Enrollment(), expiryDecisionStudents{env.repos.Student}, expiryDecisionOfferings{env.repos.CarePlan()}, env.repos.Enrollment())).
 		ListWarnings(ctx, timezone.NewDate(2027, 7, 3))
 	require.NoError(t, err)
 	require.Len(t, warnings, 1)
-	assert.Equal(t, enrollmentService.PhaseExpiryStateIncomplete, warnings[0].State)
+	assert.Equal(t, enrollmentOwner.PhaseExpiryStateIncomplete, warnings[0].State)
 	assert.Equal(t, 1, warnings[0].UnresolvedChildren)
 
 	targetOfferings[0].IsActive = true
 	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, targetOfferings[0]))
-	warnings, err = enrollmentService.NewPhaseExpiryService(enrollmentService.NewPhaseExpiryProjection(env.repos.Enrollment(), expiryDecisionStudents{env.repos.Student}, expiryDecisionOfferings{env.repos.CarePlan()}, env.repos.Enrollment())).
+	warnings, err = enrollmentTest.NewPhaseExpiryWarnings(enrollmentTest.NewPhaseExpirySnapshots(env.repos.Enrollment(), expiryDecisionStudents{env.repos.Student}, expiryDecisionOfferings{env.repos.CarePlan()}, env.repos.Enrollment())).
 		ListWarnings(ctx, timezone.NewDate(2027, 7, 3))
 	require.NoError(t, err)
 	assert.Empty(t, warnings)
@@ -126,12 +129,12 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 
 type expiryDecisionStudents struct{ students usersModels.StudentRepository }
 
-func (d expiryDecisionStudents) ListEnrolledStudents(ctx context.Context) ([]enrollmentService.PhaseExpiryStudent, error) {
+func (d expiryDecisionStudents) ListEnrolledStudents(ctx context.Context) ([]enrollmentOwner.PhaseExpiryStudent, error) {
 	students, err := d.students.List(ctx, map[string]any{})
 	if err != nil {
 		return nil, err
 	}
-	result := make([]enrollmentService.PhaseExpiryStudent, 0, len(students))
+	result := make([]enrollmentOwner.PhaseExpiryStudent, 0, len(students))
 	for _, student := range students {
 		if student.IsAlumnus() {
 			continue
@@ -141,8 +144,8 @@ func (d expiryDecisionStudents) ListEnrolledStudents(ctx context.Context) ([]enr
 	return result, nil
 }
 
-func toExpiryDecisionStudent(student *usersModels.Student) enrollmentService.PhaseExpiryStudent {
-	row := enrollmentService.PhaseExpiryStudent{
+func toExpiryDecisionStudent(student *usersModels.Student) enrollmentOwner.PhaseExpiryStudent {
+	row := enrollmentOwner.PhaseExpiryStudent{
 		ID: student.ID, Status: string(student.Status),
 	}
 	if student.EnrolledFrom != nil {
@@ -156,14 +159,14 @@ func toExpiryDecisionStudent(student *usersModels.Student) enrollmentService.Pha
 
 type expiryDecisionOfferings struct{ query careplan.Query }
 
-func (d expiryDecisionOfferings) ListCareOfferings(ctx context.Context) ([]enrollmentService.PhaseExpiryOffering, error) {
+func (d expiryDecisionOfferings) ListCareOfferings(ctx context.Context) ([]enrollmentOwner.PhaseExpiryOffering, error) {
 	values, err := d.query.ListCareOfferings(ctx, careplan.CareOfferingFilter{Order: careplan.OfferingOrderID})
 	if err != nil {
 		return nil, err
 	}
-	result := make([]enrollmentService.PhaseExpiryOffering, 0, len(values))
+	result := make([]enrollmentOwner.PhaseExpiryOffering, 0, len(values))
 	for _, value := range values {
-		result = append(result, enrollmentService.PhaseExpiryOffering{
+		result = append(result, enrollmentOwner.PhaseExpiryOffering{
 			ID: value.ID, TenantID: value.TenantID, PhaseID: value.PhaseID,
 			DaysOfWeekMode: value.DaysOfWeekMode, AvailableDays: value.AvailableDays, IsActive: value.IsActive,
 		})

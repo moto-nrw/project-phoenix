@@ -109,7 +109,7 @@ func (rs *Resource) studentEnrollmentExtraFieldsForChild(r *http.Request, schema
 	if len(customData) == 0 {
 		return nil, nil
 	}
-	schema, err := rs.EnrollmentFormSchema.GetByID(r.Context(), schemaID)
+	schema, err := rs.EnrollmentFormSchema.SchemaVersion(r.Context(), schemaID)
 	if err != nil {
 		rs.logEnrollmentSchemaLoadFailure(schemaID, err)
 		return nil, fmt.Errorf("load enrollment schema %d for student extra fields: %w", schemaID, err)

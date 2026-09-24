@@ -37,7 +37,7 @@ type bookingMaterializationInputs struct {
 	Students    bookingStudentOwner
 	Periods     bookingPeriodReads
 	Enrollment  bookingEnrollmentReads
-	Approved    enrollment.ApprovedOfferingReader
+	Approved    bookingApprovedChildren
 	Settings    bookingSettingsReads
 	Bookings    careplanCompose.BookingCommands
 	Withdrawals careplanCompose.BookingWithdrawals
@@ -321,11 +321,17 @@ type bookingEnrollmentReads interface {
 	RequestChildOfferingHistory(context.Context, int64) ([]*enrollmentOwner.RequestChildOffering, error)
 }
 
+// bookingApprovedChildren resolves approved offering selections to their
+// still-enrolled children.
+type bookingApprovedChildren interface {
+	ListApprovedChildrenByCareOfferingIDs(context.Context, []int64, calendar.Date) ([]*enrollmentOwner.ApprovedOfferingChild, error)
+}
+
 // bookingEnrollment reads Enrollment's requests, children, phases and booked
 // selections, and the approved bookings with their students' classes.
 type bookingEnrollment struct {
 	owner    bookingEnrollmentReads
-	approved enrollment.ApprovedOfferingReader
+	approved bookingApprovedChildren
 }
 
 func (e bookingEnrollment) Request(ctx context.Context, id int64) (careplanCompose.BookingRequest, error) {

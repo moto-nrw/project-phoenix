@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 30,
+  "policy_epoch": 31,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -726,6 +726,20 @@
       "role": "compose",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/enrollment/internal/application",
+      "owner": "enrollment",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/enrollment/internal/adapters/turnstile",
+      "owner": "enrollment",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
     },
     {
       "path": "modules/enrollment/internal/adapters/postgres",
@@ -14503,6 +14517,28 @@
       "same_owner": true
     },
     {
+      "id": "enrollment.compose.application",
+      "description": "Enrollment composition constructs its application services.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "compose",
+      "target_owner": "enrollment",
+      "target_role": "application"
+    },
+    {
+      "id": "enrollment.compose.adapter",
+      "description": "Enrollment composition binds its captcha provider adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "compose",
+      "target_owner": "enrollment",
+      "target_role": "adapter"
+    },
+    {
       "id": "care-plan.compose.application",
       "description": "Care Plan composition constructs its application service.",
       "scopes": [
@@ -15407,17 +15443,6 @@
       "target_role": "domain"
     },
     {
-      "id": "parent-portal.integration-test.enrollment-application",
-      "description": "The relocated parent-portal tests stub the retained enrollment readers and request service; compatibility permission until the package exists at a base SHA (#3227).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "workflow-integration-test",
-      "target_owner": "enrollment",
-      "target_role": "application"
-    },
-    {
       "id": "parent-portal.integration-test.care-plan-domain",
       "description": "The relocated parent-portal tests stub the retained parent child repository; compatibility permission until the package exists at a base SHA (#3227).",
       "scopes": [
@@ -15804,17 +15829,6 @@
       "source_role": "compose",
       "target_owner": "enrollment",
       "target_role": "domain"
-    },
-    {
-      "id": "parent-portal.compose.enrollment.application",
-      "description": "Wire the guardian portal workflow (#3420): pass care periods, offering history and the offering change lifecycle (services/enrollment) to the flows. Compatibility binding of the retained read models the portal flows still consume; it falls together with the parent-portal.application compatibility bindings when the flows read through owner queries.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "compose",
-      "target_owner": "enrollment",
-      "target_role": "application"
     },
     {
       "id": "parent-portal.compose.settings-platform.application",

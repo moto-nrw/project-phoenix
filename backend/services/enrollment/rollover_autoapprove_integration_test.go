@@ -51,7 +51,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 
 	repoFactory := testRepositories(t, env.db)
 
-	decision := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+	decision := newTestDecisionService(enrollmentService.DecisionServiceConfig{
 		Requests:                  repoFactory.Enrollment(),
 		Children:                  repoFactory.Enrollment(),
 		CareBookings:              testBookings(t, env, settings),
@@ -75,7 +75,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 	})
 
 	// Rebuild the rollover service so DecisionService is injected.
-	env.rolloverSvc = enrollmentService.NewRolloverService(enrollmentService.RolloverServiceConfig{
+	env.rolloverSvc = newTestRolloverService(enrollmentService.RolloverServiceConfig{
 		Bookings:              requestTestBookingCommands(),
 		Phases:                env.repos.Enrollment(),
 		Requests:              env.repos.Enrollment(),

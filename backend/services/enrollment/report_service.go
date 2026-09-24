@@ -237,6 +237,22 @@ type ClassRosterGuardian struct {
 	Phone string `json:"phone,omitempty"`
 }
 
+// Enrollment owner ports of the reports; the decision flow reads through the
+// same ones.
+type (
+	ReportRequests interface {
+		AdminRequests(context.Context, capability.RequestListFilters) ([]*capability.Request, error)
+	}
+	ReportChildren interface {
+		RequestChildOfferingsForChildrenAtDate(context.Context, []int64, capability.Date) ([]*capability.RequestChildOffering, error)
+		ChildrenForRequests(context.Context, []int64) ([]*capability.RequestChild, error)
+	}
+	PhaseReader interface {
+		Phase(context.Context, int64) (*capability.Phase, error)
+		Phases(context.Context) ([]*capability.Phase, error)
+	}
+)
+
 type ReportService interface {
 	CareUsage(ctx context.Context, filters CareUsageFilters) (*CareUsageReport, error)
 	ExportCareUsage(ctx context.Context, filters CareUsageFilters, actorAccountID int64, actorRole, format string, compact bool) (*CareUsageReport, error)
@@ -437,7 +453,7 @@ func (s *reportService) careUsage(ctx context.Context, filters CareUsageFilters,
 	}
 	offeringDate := reportOfferingDate(s.today(), phase)
 	values, err := s.Children.RequestChildOfferingsForChildrenAtDate(ctx, childIDs, capability.Date(offeringDate))
-	links := legacyOfferingSelections(values)
+	links := capability.RequestChildOfferingRecordsOf(values)
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: list child offerings: %w", err)
 	}
@@ -557,7 +573,7 @@ func (s *reportService) enrichCompactCareUsage(ctx context.Context, report *Care
 
 	guardiansByRequest := map[int64][]*capability.RequestGuardian{}
 	if s.Guardians != nil && len(requestIDs) > 0 {
-		guardians, err := listIntakeGuardiansForRequests(ctx, s.Guardians, requestIDs)
+		guardians, err := s.Guardians.RequestGuardians(ctx, requestIDs)
 		if err != nil {
 			return fmt.Errorf("care usage report: list request guardians: %w", err)
 		}
@@ -762,7 +778,7 @@ func (s *reportService) classRosterForStudents(ctx context.Context, filters Clas
 			return nil, fmt.Errorf("class roster report: list children: %w", err)
 		}
 		if !filters.SkipGuardianData {
-			requestGuardians, err := listIntakeGuardiansForRequests(ctx, s.Guardians, requestIDs)
+			requestGuardians, err := s.Guardians.RequestGuardians(ctx, requestIDs)
 			if err != nil {
 				return nil, fmt.Errorf("class roster report: list request guardians: %w", err)
 			}
@@ -800,7 +816,7 @@ func (s *reportService) classRosterForStudents(ctx context.Context, filters Clas
 		offeringDate = *filters.OfferingDate
 	}
 	values, err := s.Children.RequestChildOfferingsForChildrenAtDate(ctx, approvedChildIDs, capability.Date(offeringDate))
-	links := legacyOfferingSelections(values)
+	links := capability.RequestChildOfferingRecordsOf(values)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: list child offerings: %w", err)
 	}

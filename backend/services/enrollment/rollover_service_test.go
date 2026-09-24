@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -83,7 +85,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	settings.stringValues[configModel.KeyEnrollmentLegalPhotoText] = "Foto Text"
 
 	outbox := &recordingOutbox{}
-	requestSvc := enrollmentService.NewRequestService(enrollmentService.RequestServiceConfig{
+	requestSvc := newTestRequestService(enrollmentService.RequestServiceConfig{
 		Bookings:         requestTestBookingCommands(),
 		Requests:         repoFactory.Enrollment(),
 		Children:         repoFactory.Enrollment(),
@@ -102,7 +104,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	offeringCatalog := testCareOfferingCatalog(t, db, testutil.WithCareOfferingSettings(settings))
 	var offeringCloner enrollmentService.RolloverOfferingCatalogCloner = offeringCatalog
 
-	rolloverSvc := enrollmentService.NewRolloverService(enrollmentService.RolloverServiceConfig{
+	rolloverSvc := newTestRolloverService(enrollmentService.RolloverServiceConfig{
 		Bookings:              requestTestBookingCommands(),
 		Phases:                repoFactory.Enrollment(),
 		Requests:              repoFactory.Enrollment(),
@@ -118,10 +120,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	ctx := testpkg.Ctx(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "Rollover", "Tester")
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  repoFactory.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(repoFactory.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Rollover", []capability.FormField{
 		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
 	}, account.ID)
@@ -268,7 +267,7 @@ func rolloverServiceWithSettings(
 	env *rolloverTestEnv,
 	settings enrollmentService.RequestSettingsResolver,
 ) enrollmentService.RolloverService {
-	return enrollmentService.NewRolloverService(enrollmentService.RolloverServiceConfig{
+	return newTestRolloverService(enrollmentService.RolloverServiceConfig{
 		Bookings:              requestTestBookingCommands(),
 		Phases:                env.repos.Enrollment(),
 		Requests:              env.repos.Enrollment(),
@@ -924,7 +923,7 @@ func TestRolloverService_RunDeadlineWorker_AutoApprovePromotesToApproved(t *test
 	// env doesn't wire a decision service (decision needs Person/
 	// Student repos and the full chain).
 	stubDecision := &fakeApproveDecisionService{repo: env.repos.Enrollment()}
-	autoApproveSvc := enrollmentService.NewRolloverService(enrollmentService.RolloverServiceConfig{
+	autoApproveSvc := newTestRolloverService(enrollmentService.RolloverServiceConfig{
 		Bookings:        requestTestBookingCommands(),
 		Phases:          env.repos.Enrollment(),
 		Requests:        env.repos.Enrollment(),

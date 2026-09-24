@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"testing"
 
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -40,7 +42,7 @@ func newCompanionSyncApplier(
 ) enrollmentService.ChangeRequestDecisionApplier {
 	t.Helper()
 	repoFactory := testRepositories(t, env.db)
-	svc := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+	svc := newTestDecisionService(enrollmentService.DecisionServiceConfig{
 		Requests:                  repoFactory.Enrollment(),
 		Children:                  repoFactory.Enrollment(),
 		Guardians:                 repoFactory.Enrollment(),
@@ -78,10 +80,7 @@ func newCompanionSyncApplier(
 func publishCompanionModesSchema(t *testing.T, env *decisionTestEnv, name string) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  env.repos.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(env.repos.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, name, []enrollmentCapability.FormField{{
 		Key:         "allowed_modes",
 		Label:       "Erlaubte Heimwege",

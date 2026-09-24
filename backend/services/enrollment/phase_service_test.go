@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -24,17 +26,16 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories.Factory, *bun.DB, func()) {
+func setupPhaseTest(t *testing.T) (enrollmentOwner.PhaseAdministration, *repositories.Factory, *bun.DB, func()) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 	phaseNamePrefix := "phase-" + t.Name()
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
-		Owner:            repoFactory.Enrollment(),
-		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
-		DB:               db,
-		Logger:           slog.Default(),
+	svc := enrollmentTest.NewPhases(enrollmentTest.PhaseDependencies{
+		Records:   repoFactory.Enrollment(),
+		Offerings: phaseOfferings{rows: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan())},
+		Logger:    slog.Default(),
 	})
 
 	cleanup := func() {
@@ -77,7 +78,7 @@ func TestPhaseService_Create_ValidatesAndPersists(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	created, err := svc.Create(ctx, minimalPhase(t, t.Name()))
+	created, err := svc.CreatePhase(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 	require.NotZero(t, created.ID)
 	assert.Equal(t, enrollmentOwner.PhaseKindSchoolYear, created.Kind)
@@ -95,7 +96,7 @@ func TestPhaseService_Create_RejectsServiceDateInversion(t *testing.T) {
 	bad.ServiceStartDate = enrollmentOwner.Date(timezone.NewDate(2027, 9, 1))
 	bad.ServiceEndDate = enrollmentOwner.Date(timezone.NewDate(2026, 7, 31))
 
-	_, err := svc.Create(ctx, bad)
+	_, err := svc.CreatePhase(ctx, bad)
 	require.Error(t, err, "service_end_date < service_start_date must be rejected")
 }
 
@@ -109,7 +110,7 @@ func TestPhaseService_Create_RejectsUnknownKind(t *testing.T) {
 	bad := minimalPhase(t, t.Name())
 	bad.Kind = "invalid_kind"
 
-	_, err := svc.Create(ctx, bad)
+	_, err := svc.CreatePhase(ctx, bad)
 	require.Error(t, err)
 }
 
@@ -121,13 +122,13 @@ func TestPhaseService_Create_RejectsDuplicateName(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	first := minimalPhase(t, t.Name()+"-dup")
-	_, err := svc.Create(ctx, first)
+	_, err := svc.CreatePhase(ctx, first)
 	require.NoError(t, err)
 
 	second := minimalPhase(t, t.Name()+"-dup")
-	_, err = svc.Create(ctx, second)
+	_, err = svc.CreatePhase(ctx, second)
 	require.Error(t, err, "UNIQUE(tenant_id, name) must reject duplicate")
-	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseDuplicateName))
+	assert.True(t, errors.Is(err, enrollmentOwner.ErrPhaseDuplicateName))
 }
 
 func TestPhaseService_Create_RejectsUnknownFormSchema(t *testing.T) {
@@ -141,9 +142,9 @@ func TestPhaseService_Create_RejectsUnknownFormSchema(t *testing.T) {
 	missing := int64(999_999_999)
 	phase.FormSchemaID = &missing
 
-	_, err := svc.Create(ctx, phase)
+	_, err := svc.CreatePhase(ctx, phase)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidPhase))
+	assert.True(t, errors.Is(err, enrollmentOwner.ErrInvalidPhase))
 }
 
 func TestPhaseService_Update_AppliesChanges(t *testing.T) {
@@ -153,15 +154,15 @@ func TestPhaseService_Update_AppliesChanges(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	created, err := svc.Create(ctx, minimalPhase(t, t.Name()))
+	created, err := svc.CreatePhase(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 
 	created.Name = "phase-" + t.Name() + "-renamed"
 	created.IsActive = false
 	created.CareOverflowMode = enrollmentOwner.PhaseCareOverflowReject
-	require.NoError(t, svc.Update(ctx, created))
+	require.NoError(t, svc.UpdatePhase(ctx, created))
 
-	refreshed, err := svc.GetByID(ctx, created.ID)
+	refreshed, err := svc.PhaseByID(ctx, created.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "phase-"+t.Name()+"-renamed", refreshed.Name)
 	assert.False(t, refreshed.IsActive)
@@ -171,18 +172,18 @@ func TestPhaseService_Update_AppliesChanges(t *testing.T) {
 func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(t *testing.T) {
 	t.Parallel()
 
-	baseService, repoFactory, db, cleanup := setupPhaseTest(t)
+	baseService, repoFactory, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	created, err := baseService.Create(ctx, minimalPhase(t, t.Name()))
+	created, err := baseService.CreatePhase(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 	originalEnd := created.ServiceEndDate
 	lockCalls := 0
 	validatorCalls := 0
-	guardedService := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
-		Owner:            repoFactory.Enrollment(),
-		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
+	guardedService := enrollmentTest.NewPhases(enrollmentTest.PhaseDependencies{
+		Records:   repoFactory.Enrollment(),
+		Offerings: phaseOfferings{rows: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan())},
 		LockTemplateRecurrence: func(context.Context) error {
 			lockCalls++
 			return nil
@@ -197,18 +198,17 @@ func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(
 			assert.Equal(t, enrollmentOwner.Date(timezone.Date(originalEnd).AddDays(7)), enrollmentOwner.Date(replacement.ServiceEndDate))
 			return fmt.Errorf("%w: synthetic uncovered occurrence", enrollmentService.ErrCareOfferingInvalid)
 		},
-		DB:     db,
 		Logger: slog.Default(),
 	})
 
 	created.Name += "-metadata-only"
-	require.NoError(t, guardedService.Update(ctx, created),
+	require.NoError(t, guardedService.UpdatePhase(ctx, created),
 		"metadata-only changes must not be rejected by unrelated legacy care-offering state")
 	assert.Zero(t, validatorCalls)
 
 	created.ServiceEndDate = enrollmentOwner.Date(timezone.Date(originalEnd).AddDays(7))
-	err = guardedService.Update(ctx, created)
-	require.ErrorIs(t, err, enrollmentService.ErrPhaseCareOfferingConflict)
+	err = guardedService.UpdatePhase(ctx, created)
+	require.ErrorIs(t, err, enrollmentOwner.ErrPhaseCareOfferingConflict)
 	assert.Equal(t, 2, lockCalls)
 	assert.Equal(t, 1, validatorCalls)
 
@@ -245,11 +245,11 @@ func (r *recordingSourcedTemplateResyncer) DetachTemplatesSourcedFromOffering(
 func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *testing.T) {
 	t.Parallel()
 
-	baseService, repoFactory, db, cleanup := setupPhaseTest(t)
+	baseService, repoFactory, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	created, err := baseService.Create(ctx, minimalPhase(t, t.Name()))
+	created, err := baseService.CreatePhase(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:            created.ID,
@@ -263,24 +263,21 @@ func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *tes
 	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, offering))
 
 	resyncer := &recordingSourcedTemplateResyncer{}
-	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
-		Owner:                  repoFactory.Enrollment(),
-		CareOfferingRepo:       enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
+	svc := enrollmentTest.NewPhases(enrollmentTest.PhaseDependencies{
+		Records:                repoFactory.Enrollment(),
+		Offerings:              phaseOfferings{rows: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan())},
 		LockTemplateRecurrence: func(context.Context) error { return nil },
-		DB:                     db,
+		SourcedTemplates:       func() enrollmentOwner.SourcedTemplateResyncer { return resyncer },
 		Logger:                 slog.Default(),
 	})
-	binder, ok := svc.(enrollmentService.CareOfferingSourceResyncBinder)
-	require.True(t, ok, "phase service must accept the sourced-template resyncer")
-	binder.SetSourcedTemplateResyncer(resyncer)
 
 	created.Name += "-metadata-only"
-	require.NoError(t, svc.Update(ctx, created))
+	require.NoError(t, svc.UpdatePhase(ctx, created))
 	assert.Empty(t, resyncer.offeringIDs,
 		"metadata-only updates must not resync sourced templates")
 
 	created.ServiceEndDate = enrollmentOwner.Date(timezone.Date(created.ServiceEndDate).AddDays(7))
-	require.NoError(t, svc.Update(ctx, created))
+	require.NoError(t, svc.UpdatePhase(ctx, created))
 	assert.Equal(t, []int64{offering.ID}, resyncer.offeringIDs,
 		"a service-window change must resync every template sourcing the phase's offerings")
 }
@@ -295,11 +292,11 @@ func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *tes
 func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *testing.T) {
 	t.Parallel()
 
-	baseService, repoFactory, db, cleanup := setupPhaseTest(t)
+	baseService, repoFactory, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := tenant.WithRollbackMarker(testpkg.Ctx(t))
 
-	created, err := baseService.Create(ctx, minimalPhase(t, t.Name()))
+	created, err := baseService.CreatePhase(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:            created.ID,
@@ -315,32 +312,29 @@ func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *t
 	resyncer := &recordingSourcedTemplateResyncer{
 		err: fmt.Errorf("offering roster resync: template 7: %w", timetable.ErrOfferingSourceInvalid),
 	}
-	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
-		Owner:                  repoFactory.Enrollment(),
-		CareOfferingRepo:       enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
+	svc := enrollmentTest.NewPhases(enrollmentTest.PhaseDependencies{
+		Records:                repoFactory.Enrollment(),
+		Offerings:              phaseOfferings{rows: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan())},
 		LockTemplateRecurrence: func(context.Context) error { return nil },
-		DB:                     db,
+		SourcedTemplates:       func() enrollmentOwner.SourcedTemplateResyncer { return resyncer },
 		Logger:                 slog.Default(),
 	})
-	binder, ok := svc.(enrollmentService.CareOfferingSourceResyncBinder)
-	require.True(t, ok, "phase service must accept the sourced-template resyncer")
-	binder.SetSourcedTemplateResyncer(resyncer)
 
 	created.ServiceEndDate = enrollmentOwner.Date(timezone.Date(created.ServiceEndDate).AddDays(7))
-	err = svc.Update(ctx, created)
-	require.ErrorIs(t, err, enrollmentService.ErrPhaseCareOfferingConflict,
+	err = svc.UpdatePhase(ctx, created)
+	require.ErrorIs(t, err, enrollmentOwner.ErrPhaseCareOfferingConflict,
 		"an incompatible sourced template must reject the window change, not be skipped")
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
 	assert.Equal(t, []int64{offering.ID}, resyncer.offeringIDs)
 	assert.True(t, tenant.RollbackRequested(ctx),
 		"the rejected update must discard the already-written phase row via the ambient-transaction rollback marker")
-	persisted, err := baseService.GetByID(testpkg.Ctx(t), created.ID)
+	persisted, err := baseService.PhaseByID(testpkg.Ctx(t), created.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentOwner.Date(timezone.Date(created.ServiceEndDate).AddDays(-7)), persisted.ServiceEndDate,
 		"a standalone update must roll back the phase when sourced-template resync fails")
 	resyncer.err = nil
-	require.NoError(t, svc.Update(testpkg.Ctx(t), created))
-	persisted, err = baseService.GetByID(testpkg.Ctx(t), created.ID)
+	require.NoError(t, svc.UpdatePhase(testpkg.Ctx(t), created))
+	persisted, err = baseService.PhaseByID(testpkg.Ctx(t), created.ID)
 	require.NoError(t, err)
 	assert.Equal(t, created.ServiceEndDate, persisted.ServiceEndDate,
 		"retry must commit the requested window after the resync failure is resolved")
@@ -353,15 +347,15 @@ func TestPhaseService_Update_RejectsDuplicateName(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	first, err := svc.Create(ctx, minimalPhase(t, t.Name()+"-first"))
+	first, err := svc.CreatePhase(ctx, minimalPhase(t, t.Name()+"-first"))
 	require.NoError(t, err)
-	second, err := svc.Create(ctx, minimalPhase(t, t.Name()+"-second"))
+	second, err := svc.CreatePhase(ctx, minimalPhase(t, t.Name()+"-second"))
 	require.NoError(t, err)
 
 	second.Name = first.Name
-	err = svc.Update(ctx, second)
+	err = svc.UpdatePhase(ctx, second)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseDuplicateName))
+	assert.True(t, errors.Is(err, enrollmentOwner.ErrPhaseDuplicateName))
 }
 
 func TestPhaseService_Update_RejectsUnknownFormSchema(t *testing.T) {
@@ -371,14 +365,14 @@ func TestPhaseService_Update_RejectsUnknownFormSchema(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	created, err := svc.Create(ctx, minimalPhase(t, t.Name()))
+	created, err := svc.CreatePhase(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 
 	missing := int64(999_999_999)
 	created.FormSchemaID = &missing
-	err = svc.Update(ctx, created)
+	err = svc.UpdatePhase(ctx, created)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidPhase))
+	assert.True(t, errors.Is(err, enrollmentOwner.ErrInvalidPhase))
 }
 
 func TestPhaseService_Update_MissingPhaseReturnsNotFound(t *testing.T) {
@@ -391,9 +385,9 @@ func TestPhaseService_Update_MissingPhaseReturnsNotFound(t *testing.T) {
 	phase := minimalPhase(t, t.Name())
 	phase.ID = 999_999_999
 
-	err := svc.Update(ctx, phase)
+	err := svc.UpdatePhase(ctx, phase)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseNotFound))
+	assert.True(t, errors.Is(err, enrollmentOwner.ErrPhaseNotFound))
 }
 
 func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T) {
@@ -412,7 +406,7 @@ func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T
 	openActive := minimalPhase(t, t.Name()+"-open-active")
 	openActive.EnrollmentOpenAt = &openStart
 	openActive.EnrollmentCloseAt = &openEnd
-	_, err := svc.Create(ctx, openActive)
+	_, err := svc.CreatePhase(ctx, openActive)
 	require.NoError(t, err)
 
 	// Open + inactive (admin hidden).
@@ -420,14 +414,14 @@ func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T
 	hidden.EnrollmentOpenAt = &openStart
 	hidden.EnrollmentCloseAt = &openEnd
 	hidden.IsActive = false
-	_, err = svc.Create(ctx, hidden)
+	_, err = svc.CreatePhase(ctx, hidden)
 	require.NoError(t, err)
 
 	// Active but window closed yesterday.
 	closed := minimalPhase(t, t.Name()+"-closed-window")
 	closed.EnrollmentOpenAt = &openStart
 	closed.EnrollmentCloseAt = &pastEnd
-	_, err = svc.Create(ctx, closed)
+	_, err = svc.CreatePhase(ctx, closed)
 	require.NoError(t, err)
 
 	open, err := svc.ListPublicOpen(ctx, now)
@@ -456,7 +450,7 @@ func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	phase, err := svc.Create(ctx, minimalPhase(t, t.Name()))
+	phase, err := svc.CreatePhase(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 
 	offering := &enrollmentModels.CareOffering{
@@ -469,11 +463,11 @@ func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
 	offering.TenantID = testpkg.Tenant(t)
 	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, offering))
 
-	require.NoError(t, svc.Delete(ctx, phase.ID),
+	require.NoError(t, svc.DeletePhase(ctx, phase.ID),
 		"phase with care offerings must be deletable")
 
-	_, err = svc.GetByID(ctx, phase.ID)
-	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseNotFound),
+	_, err = svc.PhaseByID(ctx, phase.ID)
+	assert.True(t, errors.Is(err, enrollmentOwner.ErrPhaseNotFound),
 		"phase must be gone after delete")
 	remaining, err := enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).CountByPhaseID(ctx, phase.ID)
 	require.NoError(t, err)
@@ -498,7 +492,7 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", student.ID).Exec(bg)
 	}()
 
-	phase, err := svc.Create(ctx, minimalPhase(t, t.Name()))
+	phase, err := svc.CreatePhase(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 
 	req := &enrollmentModels.Request{
@@ -522,11 +516,11 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 	child.TenantID = testpkg.Tenant(t)
 	require.NoError(t, enrollmentService.InsertOwnerChildForTest(ctx, repoFactory.Enrollment(), child))
 
-	require.NoError(t, svc.Delete(ctx, phase.ID),
+	require.NoError(t, svc.DeletePhase(ctx, phase.ID),
 		"phase with enrollment requests must be deletable")
 
-	_, err = svc.GetByID(ctx, phase.ID)
-	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseNotFound))
+	_, err = svc.PhaseByID(ctx, phase.ID)
+	assert.True(t, errors.Is(err, enrollmentOwner.ErrPhaseNotFound))
 	reqCount, err := repoFactory.Enrollment().CountPhaseRequests(ctx, phase.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 0, reqCount, "requests must cascade away with the phase")
@@ -555,7 +549,7 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", student.ID).Exec(bg)
 	}()
 
-	phase, err := svc.Create(ctx, minimalPhase(t, t.Name()))
+	phase, err := svc.CreatePhase(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 
 	offering := &enrollmentModels.CareOffering{
@@ -603,13 +597,13 @@ func TestPhaseService_Delete_RemovesEmptyPhase(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	phase, err := svc.Create(ctx, minimalPhase(t, t.Name()))
+	phase, err := svc.CreatePhase(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
-	require.NoError(t, svc.Delete(ctx, phase.ID))
+	require.NoError(t, svc.DeletePhase(ctx, phase.ID))
 
-	_, err = svc.GetByID(ctx, phase.ID)
+	_, err = svc.PhaseByID(ctx, phase.ID)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseNotFound))
+	assert.True(t, errors.Is(err, enrollmentOwner.ErrPhaseNotFound))
 }
 
 func TestPhaseService_GetByID_NotFoundSentinel(t *testing.T) {
@@ -619,28 +613,28 @@ func TestPhaseService_GetByID_NotFoundSentinel(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	_, err := svc.GetByID(ctx, 999_999_999)
+	_, err := svc.PhaseByID(ctx, 999_999_999)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseNotFound))
+	assert.True(t, errors.Is(err, enrollmentOwner.ErrPhaseNotFound))
 }
 
 func TestPhaseService_GetByID_PreservesRepositoryFailure(t *testing.T) {
 	t.Parallel()
 
 	repoErr := errors.New("database unavailable")
-	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
-		Owner: findByIDErrorPhaseRepo{err: repoErr},
+	svc := enrollmentTest.NewPhases(enrollmentTest.PhaseDependencies{
+		Records: findByIDErrorPhaseRepo{err: repoErr},
 	})
 
-	_, err := svc.GetByID(context.Background(), 123)
+	_, err := svc.PhaseByID(context.Background(), 123)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, repoErr)
-	assert.False(t, errors.Is(err, enrollmentService.ErrPhaseNotFound))
+	assert.False(t, errors.Is(err, enrollmentOwner.ErrPhaseNotFound))
 }
 
 type findByIDErrorPhaseRepo struct {
-	enrollmentService.PhaseOwner
+	enrollmentTest.PhaseRecords
 	err error
 }
 
@@ -650,15 +644,14 @@ func (r findByIDErrorPhaseRepo) Phase(context.Context, int64) (*enrollmentOwner.
 
 // phaseServiceWithCalendarPeriods wires the optional CalendarPeriods dep
 // on top of the standard setup so the link validation actually runs.
-func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentService.PhaseService, *repositories.Factory, *bun.DB, func()) {
+func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentOwner.PhaseAdministration, *repositories.Factory, *bun.DB, func()) {
 	t.Helper()
 	_, repoFactory, db, cleanup := setupPhaseTest(t)
-	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
-		Owner:            repoFactory.Enrollment(),
-		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
-		CalendarPeriods:  repoFactory.SchoolCalendar(),
-		DB:               db,
-		Logger:           slog.Default(),
+	svc := enrollmentTest.NewPhases(enrollmentTest.PhaseDependencies{
+		Records:   repoFactory.Enrollment(),
+		Offerings: phaseOfferings{rows: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan())},
+		Calendar:  repoFactory.SchoolCalendar(),
+		Logger:    slog.Default(),
 	})
 	return svc, repoFactory, db, cleanup
 }
@@ -690,12 +683,12 @@ func TestPhaseService_Create_WithCalendarPeriodLink(t *testing.T) {
 	phase := minimalPhase(t, t.Name())
 	phase.CalendarPeriodID = &period.ID
 
-	created, err := svc.Create(ctx, phase)
+	created, err := svc.CreatePhase(ctx, phase)
 	require.NoError(t, err)
 	require.NotNil(t, created.CalendarPeriodID)
 	assert.Equal(t, period.ID, *created.CalendarPeriodID)
 
-	fetched, err := svc.GetByID(ctx, created.ID)
+	fetched, err := svc.PhaseByID(ctx, created.ID)
 	require.NoError(t, err)
 	require.NotNil(t, fetched.CalendarPeriodID)
 	assert.Equal(t, period.ID, *fetched.CalendarPeriodID)
@@ -728,22 +721,22 @@ func TestPhaseService_Update_PersistsCalendarPeriodLink(t *testing.T) {
 			Exec(context.Background())
 	}()
 
-	created, err := svc.Create(ctx, minimalPhase(t, t.Name()))
+	created, err := svc.CreatePhase(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 	require.Nil(t, created.CalendarPeriodID)
 
 	created.CalendarPeriodID = &period.ID
-	require.NoError(t, svc.Update(ctx, created))
+	require.NoError(t, svc.UpdatePhase(ctx, created))
 
-	fetched, err := svc.GetByID(ctx, created.ID)
+	fetched, err := svc.PhaseByID(ctx, created.ID)
 	require.NoError(t, err)
 	require.NotNil(t, fetched.CalendarPeriodID, "update must persist the calendar period link")
 	assert.Equal(t, period.ID, *fetched.CalendarPeriodID)
 
 	// Unlinking must persist too (NULL round-trip).
 	fetched.CalendarPeriodID = nil
-	require.NoError(t, svc.Update(ctx, fetched))
-	unlinked, err := svc.GetByID(ctx, created.ID)
+	require.NoError(t, svc.UpdatePhase(ctx, fetched))
+	unlinked, err := svc.PhaseByID(ctx, created.ID)
 	require.NoError(t, err)
 	assert.Nil(t, unlinked.CalendarPeriodID)
 }
@@ -759,9 +752,9 @@ func TestPhaseService_Create_RejectsUnknownCalendarPeriod(t *testing.T) {
 	missing := int64(999_999_999)
 	phase.CalendarPeriodID = &missing
 
-	_, err := svc.Create(ctx, phase)
+	_, err := svc.CreatePhase(ctx, phase)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidPhase))
+	assert.True(t, errors.Is(err, enrollmentOwner.ErrInvalidPhase))
 }
 
 func TestPhaseService_Update_RejectsUnknownCalendarPeriod(t *testing.T) {
@@ -771,23 +764,23 @@ func TestPhaseService_Update_RejectsUnknownCalendarPeriod(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	created, err := svc.Create(ctx, minimalPhase(t, t.Name()))
+	created, err := svc.CreatePhase(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 
 	missing := int64(999_999_999)
 	created.CalendarPeriodID = &missing
-	err = svc.Update(ctx, created)
+	err = svc.UpdatePhase(ctx, created)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidPhase))
+	assert.True(t, errors.Is(err, enrollmentOwner.ErrInvalidPhase))
 }
 
 func TestPhaseService_Create_PropagatesCalendarPeriodLookupFailure(t *testing.T) {
 	t.Parallel()
 
 	lookupErr := errors.New("synthetic database failure")
-	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
-		CalendarPeriods: failingCalendarPeriodService{err: lookupErr},
-		Logger:          slog.Default(),
+	svc := enrollmentTest.NewPhases(enrollmentTest.PhaseDependencies{
+		Calendar: failingCalendarPeriodService{err: lookupErr},
+		Logger:   slog.Default(),
 	})
 	ctx := testpkg.Ctx(t)
 
@@ -795,10 +788,10 @@ func TestPhaseService_Create_PropagatesCalendarPeriodLookupFailure(t *testing.T)
 	periodID := int64(42)
 	phase.CalendarPeriodID = &periodID
 
-	_, err := svc.Create(ctx, phase)
+	_, err := svc.CreatePhase(ctx, phase)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, lookupErr)
-	assert.False(t, errors.Is(err, enrollmentService.ErrInvalidPhase))
+	assert.False(t, errors.Is(err, enrollmentOwner.ErrInvalidPhase))
 }
 
 type failingCalendarPeriodService struct {

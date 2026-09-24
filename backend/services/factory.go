@@ -39,6 +39,8 @@ import (
 	documentCompose "github.com/moto-nrw/project-phoenix/modules/documentrendering/compose"
 	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
 	emergencysnapshotlegacy "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/legacy"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
@@ -261,12 +263,12 @@ type Factory struct {
 	Delivery          *deliveryModule.Module
 
 	// Enrollment domain (parent-enrollment PR 5+).
-	EnrollmentFormSchema      enrollment.FormSchemaService
+	EnrollmentFormSchema      enrollmentOwner.FormSchemaAdministration
 	EnrollmentCareOffering    careplan.CareOfferingCapability
-	EnrollmentCaptcha         *enrollment.CaptchaService
+	EnrollmentCaptcha         enrollmentOwner.CaptchaVerifier
 	EnrollmentRequest         enrollment.RequestService
-	EnrollmentPhase           enrollment.PhaseService
-	EnrollmentPhaseExpiry     enrollment.PhaseExpiryService
+	EnrollmentPhase           enrollmentOwner.PhaseAdministration
+	EnrollmentPhaseExpiry     enrollmentOwner.PhaseExpiryWarnings
 	EnrollmentDecision        enrollment.DecisionService
 	EnrollmentReport          enrollment.ReportService
 	ClassDayArrivalExceptions enrollment.ClassDayArrivalExceptionService
@@ -1073,7 +1075,7 @@ func newFactory(
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable attendance mirror: %w", err)
 	}
-	approvedOfferingProjection := enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
+	approvedOfferingProjection := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
 	pickupBaselines, err := careplanCompose.NewPickupBaselines(repos.CarePlan(), approvedOfferingProjection, func(ctx context.Context) (bool, error) {
 		return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
@@ -1663,38 +1665,28 @@ func newFactory(
 	// rollover pair reuses the submission template as a placeholder until
 	// proper branded copy lands. Calendar appointments share one renderer
 	// for all four kinds.
-	enrollmentRendererCfg := enrollment.EmailRendererConfig{DefaultFrom: defaultFrom}
 	appointmentRenderer := emailoutbox.RendererFunc(NewCalendarAppointmentRenderer(CalendarEmailDependencies{
 		DefaultFrom: defaultFrom,
 		DB:          db,
 		Guardians:   repos.StudentGuardian,
 	}))
-	emailTemplateRegistry := emailoutbox.NewTemplateRegistry(map[string]emailoutbox.Renderer{
+	renderers := map[string]emailoutbox.Renderer{
 		platformModels.EmailKindGuardianInvitation: guardianInvitationRenderer(NewGuardianInvitationRenderer(GuardianInvitationRendererConfig{
 			DefaultFrom: defaultFrom,
 		})),
 		platformModels.EmailKindParentAnnouncement: emailoutbox.RendererFunc(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
 			DefaultFrom: defaultFrom,
 		})),
-		platformModels.EmailKindParentMessage:                      emailoutbox.RendererFunc(communicationCompose.NewParentMessageRenderer(communicationCompose.ParentMessageRendererConfig{DefaultFrom: defaultFrom})),
-		platformModels.EmailKindAppointmentPublished:               appointmentRenderer,
-		platformModels.EmailKindAppointmentUpdated:                 appointmentRenderer,
-		platformModels.EmailKindAppointmentCancelled:               appointmentRenderer,
-		platformModels.EmailKindAppointmentReminder:                appointmentRenderer,
-		platformModels.EmailKindEnrollmentSubmitted:                emailoutbox.RendererFunc(enrollment.NewEnrollmentSubmittedRenderer(enrollmentRendererCfg)),
-		platformModels.EmailKindEnrollmentAdminNotify:              emailoutbox.RendererFunc(enrollment.NewEnrollmentAdminNotificationRenderer(enrollmentRendererCfg)),
-		platformModels.EmailKindEnrollmentApproved:                 emailoutbox.RendererFunc(enrollment.NewEnrollmentApprovedRenderer(enrollmentRendererCfg)),
-		platformModels.EmailKindEnrollmentWaitlisted:               emailoutbox.RendererFunc(enrollment.NewEnrollmentWaitlistedRenderer(enrollmentRendererCfg)),
-		platformModels.EmailKindEnrollmentRejected:                 emailoutbox.RendererFunc(enrollment.NewEnrollmentRejectedRenderer(enrollmentRendererCfg)),
-		platformModels.EmailKindEnrollmentDecisionDigest:           emailoutbox.RendererFunc(enrollment.NewEnrollmentDecisionDigestRenderer(enrollmentRendererCfg)),
-		platformModels.EmailKindEnrollmentChangeRequestSubmitted:   emailoutbox.RendererFunc(enrollment.NewEnrollmentChangeRequestSubmittedRenderer(enrollmentRendererCfg)),
-		platformModels.EmailKindEnrollmentChangeRequestQuestion:    emailoutbox.RendererFunc(enrollment.NewEnrollmentChangeRequestQuestionRenderer(enrollmentRendererCfg)),
-		platformModels.EmailKindEnrollmentChangeRequestParentReply: emailoutbox.RendererFunc(enrollment.NewEnrollmentChangeRequestParentReplyRenderer(enrollmentRendererCfg)),
-		platformModels.EmailKindEnrollmentChangeRequestApproved:    emailoutbox.RendererFunc(enrollment.NewEnrollmentChangeRequestApprovedRenderer(enrollmentRendererCfg)),
-		platformModels.EmailKindEnrollmentChangeRequestRejected:    emailoutbox.RendererFunc(enrollment.NewEnrollmentChangeRequestRejectedRenderer(enrollmentRendererCfg)),
-		platformModels.EmailKindEnrollmentRolloverOptIn:            emailoutbox.RendererFunc(enrollment.NewEnrollmentRolloverOptInRenderer(enrollmentRendererCfg)),
-		platformModels.EmailKindEnrollmentRolloverOptOut:           emailoutbox.RendererFunc(enrollment.NewEnrollmentRolloverOptOutRenderer(enrollmentRendererCfg)),
-	})
+		platformModels.EmailKindParentMessage:        emailoutbox.RendererFunc(communicationCompose.NewParentMessageRenderer(communicationCompose.ParentMessageRendererConfig{DefaultFrom: defaultFrom})),
+		platformModels.EmailKindAppointmentPublished: appointmentRenderer,
+		platformModels.EmailKindAppointmentUpdated:   appointmentRenderer,
+		platformModels.EmailKindAppointmentCancelled: appointmentRenderer,
+		platformModels.EmailKindAppointmentReminder:  appointmentRenderer,
+	}
+	for kind, renderer := range enrollmentMailRenderers(enrollmentCompose.NewMailRenderers(), defaultFrom) {
+		renderers[kind] = renderer
+	}
+	emailTemplateRegistry := emailoutbox.NewTemplateRegistry(renderers)
 	vapidConfig := notifications.VAPIDConfig{
 		PublicKey: strings.TrimSpace(cfg.VAPIDPublicKey), PrivateKey: strings.TrimSpace(cfg.VAPIDPrivateKey),
 		Subscriber: strings.TrimSpace(cfg.VAPIDSubscriber),
@@ -1864,19 +1856,21 @@ func newFactory(
 		},
 	})
 
-	enrollmentFormSchemaService := enrollment.NewFormSchemaService(enrollment.FormSchemaServiceConfig{
-		Owner:    repos.Enrollment(),
-		Settings: settingsService,
-		Logger:   logger.With("service", "enrollment-form-schema"),
-	})
+	enrollmentCollection := enrollmentCollectionSettings{settings: settingsService}
+	enrollmentFormSchemaService := enrollmentCompose.NewFormSchemas(repos.Enrollment(), enrollmentCollection, logger.With("service", "enrollment-form-schema"))
 
-	enrollmentCaptchaService := enrollment.NewCaptchaService(enrollment.CaptchaServiceConfig{
-		Settings:       settingsService,
-		Logger:         logger.With("service", "enrollment-captcha"),
-		RequireCaptcha: cfg.EnrollmentRequireCaptcha,
-		SecretKey:      cfg.EnrollmentCaptchaSecretKey,
-		SiteKey:        cfg.EnrollmentCaptchaSiteKey,
-	})
+	enrollmentCaptchaService := enrollmentCompose.NewCaptcha(enrollmentCaptchaSettings{
+		settings:       settingsService,
+		requireCaptcha: cfg.EnrollmentRequireCaptcha,
+		secretKey:      strings.TrimSpace(cfg.EnrollmentCaptchaSecretKey),
+		siteKey:        strings.TrimSpace(cfg.EnrollmentCaptchaSiteKey),
+	}, "", logger.With("service", "enrollment-captcha"))
+
+	// Enrollment brands its mails and notifies decisions through the Delivery
+	// outbox; the retained request, decision, change-request and rollover
+	// services share this capability.
+	enrollmentNotifications := newEnrollmentNotifications(repos.Enrollment(), settingsService,
+		outboxEnqueuer{outbox: emailOutboxService}, enrollmentSchoolDirectory{schools: organizations})
 
 	enrollmentDeletionPreview := enrollment.NewDeletionPreview(repos.Enrollment(), enrollmentGuardianDirectory{persons}, repos.EnrollmentOfferingAdjustment.CountForDeletion, repos.CarePlan().CountCareOfferingBookings)
 	enrollmentDeletionService := enrollment.NewEnrollmentDeletionService(
@@ -1908,18 +1902,25 @@ func newFactory(
 		},
 	)
 
-	enrollmentPhaseService := enrollment.NewPhaseService(enrollment.PhaseServiceConfig{
-		Owner:                           repos.Enrollment(),
-		CareOfferingRepo:                enrollment.NewCareOfferingRepository(repos.CarePlan()),
-		CalendarPeriods:                 calendar,
+	// A phase service-window change re-bounds every roster row derived from
+	// the phase's offerings, so the templates sourcing them must resync too
+	// (#2147 review). The booking materialization composed below provides
+	// the resync; the phase administration resolves it on every edit.
+	var phaseSourcedTemplates enrollmentOwner.SourcedTemplateResyncer
+	enrollmentPhaseService := enrollmentCompose.NewPhases(enrollmentCompose.PhaseDependencies{
+		Records:                         repos.Enrollment(),
+		Offerings:                       enrollmentPhaseOfferings{carePlan: repos.CarePlan()},
+		Calendar:                        calendar,
 		LockTemplateRecurrence:          recurrenceLock.LockRecurrenceWrites,
 		ValidateCareOfferingPhaseChange: careOfferingPhaseGuard(enrollmentCareOfferingService),
-		Settings:                        settingsService,
-		Responses:                       newPhaseResponseSources(repos.Enrollment(), persons, repos.CarePlan()),
-		DB:                              db,
+		SourcedTemplates:                func() enrollmentOwner.SourcedTemplateResyncer { return phaseSourcedTemplates },
+		Settings:                        enrollmentCollection,
+		Roster:                          phaseResponseRoster{query: persons},
+		CareExits:                       phaseResponseCareExits{query: repos.CarePlan()},
+		PortalAccounts:                  persons,
 		Logger:                          logger.With("service", "enrollment-phase"),
 	})
-	enrollmentPhaseExpiryService := enrollment.NewPhaseExpiryService(enrollment.NewPhaseExpiryProjection(
+	enrollmentPhaseExpiryService := enrollmentCompose.NewPhaseExpiryWarnings(enrollmentCompose.NewPhaseExpirySnapshots(
 		repos.Enrollment(), phaseExpiryStudents{query: persons}, phaseExpiryCarePlanDirectory{query: repos.CarePlan()},
 		repos.Enrollment(),
 	))
@@ -1966,7 +1967,7 @@ func newFactory(
 	careBookings, err := newBookingMaterialization(bookingMaterializationInputs{
 		Catalog: enrollmentCareOfferingService, Timetable: timetableCapability, Rosters: rosterReconciler,
 		Students: persons, Periods: calendar, Enrollment: repos.Enrollment(),
-		Approved: enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons}),
+		Approved: enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons}),
 		Settings: settingsService, Bookings: repos.CarePlan(), Withdrawals: careLifecycleService,
 		Adjustments: repos.EnrollmentOfferingAdjustment, Persons: repos.Person, Accounts: guardianAccess,
 		Pickup: pickupBaselines, PickupRows: repos.CarePlan(),
@@ -1992,7 +1993,7 @@ func newFactory(
 		DataAccessLogRepo:         repos.DataAccessLog,
 		OfferingAdjustmentRepo:    repos.EnrollmentOfferingAdjustment,
 		RestorationAuditRepo:      repos.EnrollmentRestorationAudit,
-		SchoolRepo:                enrollmentSchoolDirectory{schools: organizations},
+		Notifications:             enrollmentNotifications,
 		PersonRepo:                repos.Person,
 		StaffRepo:                 repos.Staff,
 		StudentRepo:               repos.Student,
@@ -2059,17 +2060,12 @@ func newFactory(
 		return nil, fmt.Errorf("compose grade transition workflow: %w", err)
 	}
 	// A care-offering edit changes the wanted roster of every template sourcing
-	// it and the pickup projection (#2147 review). The catalog resolves the
-	// booking materialization composed here on every edit.
+	// it and the pickup projection (#2147 review); a phase service-window
+	// change re-bounds the rosters derived from its offerings. The catalog and
+	// the phase administration resolve the booking materialization composed
+	// here on every edit.
 	careOfferingResyncer = careBookings
-	// A phase service-window change re-bounds every roster row derived from
-	// the phase's offerings, so the templates sourcing them must resync too
-	// (#2147 review). Same late binding as above.
-	phaseSourceBinder, ok := enrollmentPhaseService.(enrollment.CareOfferingSourceResyncBinder)
-	if !ok {
-		return nil, fmt.Errorf("enrollment phase service does not accept the sourced-template resyncer")
-	}
-	phaseSourceBinder.SetSourcedTemplateResyncer(careBookings)
+	phaseSourcedTemplates = careBookings
 
 	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
 		Requests:           repos.Enrollment(),
@@ -2080,6 +2076,7 @@ func newFactory(
 		CareOfferingRepo:   enrollment.NewCareOfferingRepository(repos.CarePlan()),
 		Catalog:            repos.Enrollment(),
 		SchoolRepo:         enrollmentSchoolDirectory{schools: organizations},
+		Notifications:      enrollmentNotifications,
 		StudentRepo:        repos.Student,
 		GuardianAuthorizer: repos.StudentGuardian,
 		RateLimitRepo:      repos.Enrollment(),
@@ -2153,7 +2150,7 @@ func newFactory(
 		LateInviteRepo:       repos.Enrollment(),
 		CareOfferingRepo:     enrollment.NewCareOfferingRepository(repos.CarePlan()),
 		Catalog:              repos.Enrollment(),
-		SchoolRepo:           enrollmentSchoolDirectory{schools: organizations},
+		Notifications:        enrollmentNotifications,
 		GuardianProfileRepo:  repos.GuardianProfile,
 		GuardianPhoneRepo:    repos.GuardianPhoneNumber,
 		PersonRepo:           repos.Person,
@@ -2177,7 +2174,8 @@ func newFactory(
 		Requests:              repos.Enrollment(),
 		Children:              repos.Enrollment(),
 		OfferingCatalogCloner: enrollmentCareOfferingService,
-		SchoolRepo:            enrollmentSchoolDirectory{schools: organizations},
+		Notifications:         enrollmentNotifications,
+		PhaseEligibility:      enrollmentPhaseService,
 		OutboxEnqueuer:        outboxEnqueuer{outbox: emailOutboxService},
 		Settings:              settingsService,
 		DecisionService:       enrollmentDecisionService,
@@ -2464,8 +2462,8 @@ func newFactory(
 			return factory.StudentPhotos
 		},
 		AbsenceNotifier:  absenceNotifier,
-		CarePeriods:      repos.Enrollment(),
-		OfferingHistory:  repos.Enrollment(),
+		CarePeriods:      parentCarePeriods{owner: repos.Enrollment()},
+		OfferingHistory:  parentOfferingHistory{owner: repos.Enrollment()},
 		CareOfferingRepo: enrollment.NewCareOfferingRepository(repos.CarePlan()),
 		OfferingChanges:  offeringChanges,
 		Logger:           logger.With("service", "parent"),

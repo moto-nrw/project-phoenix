@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -243,7 +245,7 @@ func newDecisionServiceForTestWithBookings(
 		pickupBaselines := newPickupBaselineService(repoFactory.CarePlan(), approvedOfferingTestProjection(repoFactory))
 		pickupAutoExcusal = newPickupExcusal(t, env.db, repoFactory.CarePlan(), pickupBaselines, env.timetable, true)
 	}
-	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+	return newTestDecisionService(enrollmentService.DecisionServiceConfig{
 		Requests:                     repoFactory.Enrollment(),
 		Children:                     repoFactory.Enrollment(),
 		Guardians:                    repoFactory.Enrollment(),
@@ -471,10 +473,7 @@ func submitDecisionSiblings(t *testing.T, env *decisionTestEnv, guardianEmail st
 func publishDecisionScheduleSchema(t *testing.T, env *decisionTestEnv, key, target string) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  env.repos.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(env.repos.Enrollment(), nil, slog.Default())
 	field := capability.FormField{
 		Key:         key,
 		Label:       "Schedule",
@@ -523,10 +522,7 @@ func publishLegacyDuplicateTargetSchema(t *testing.T, env *decisionTestEnv, name
 func publishDecisionContactListSchema(t *testing.T, env *decisionTestEnv) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  env.repos.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(env.repos.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 2", []capability.FormField{{
 		Key:         "contacts",
 		Label:       "Weitere Kontakte",
@@ -1602,10 +1598,7 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedContactList(t *tes
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  env.repos.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(env.repos.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 3", []capability.FormField{{
 		Key:         "contacts",
 		Label:       "Weitere Kontakte",
@@ -1859,10 +1852,7 @@ func TestDecisionService_Decide_ContactListSelfGuardianDoesNotAbortApproval(t *t
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  env.repos.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(env.repos.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 4", []capability.FormField{{
 		Key:         "contacts",
 		Label:       "Weitere Kontakte",
@@ -1942,10 +1932,7 @@ func TestDecisionService_Decide_AppliesDepartureField(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// Pin a schema that carries the unified departure field onto the phase.
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  env.repos.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(env.repos.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 5", []capability.FormField{{
 		Key:         "departure",
 		Label:       "Geh- und Abholregelung",
@@ -2010,10 +1997,7 @@ func TestDecisionService_Decide_AppliesCoupledCompanionNote(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  env.repos.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(env.repos.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 6", []capability.FormField{{
 		Key:         "allowed_modes",
 		Label:       "Erlaubte Heimwege",
@@ -2081,10 +2065,7 @@ func TestDecisionService_Decide_SkipsCompanionNoteWithoutAccompanied(t *testing.
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  env.repos.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(env.repos.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 7", []capability.FormField{{
 		Key:         "allowed_modes",
 		Label:       "Erlaubte Heimwege",
@@ -4042,7 +4023,7 @@ func TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure(t *testing.
 	createChildOfferingLink(t, env, childID, offering.ID, nil, nil)
 
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	degraded := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+	degraded := newTestDecisionService(enrollmentService.DecisionServiceConfig{
 		Requests:         repoFactory.Enrollment(),
 		Children:         repoFactory.Enrollment(),
 		CareOfferingRepo: catalogFailureRepo{enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan())},
@@ -4739,20 +4720,20 @@ func createAdjustmentCareOfferingWith(t *testing.T, env *decisionTestEnv, name s
 
 type offeringStudentTestDirectory struct{ students usersModels.StudentRepository }
 
-func (d offeringStudentTestDirectory) ListOfferingStudents(ctx context.Context, ids []int64) ([]enrollmentService.OfferingStudent, error) {
+func (d offeringStudentTestDirectory) ListOfferingStudents(ctx context.Context, ids []int64) ([]enrollmentTest.OfferingStudent, error) {
 	students, err := d.students.FindByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]enrollmentService.OfferingStudent, 0, len(students))
+	rows := make([]enrollmentTest.OfferingStudent, 0, len(students))
 	for _, student := range students {
-		rows = append(rows, enrollmentService.OfferingStudent{ID: student.ID, SchoolClass: student.SchoolClass, Alumnus: student.IsAlumnus()})
+		rows = append(rows, enrollmentTest.OfferingStudent{ID: student.ID, SchoolClass: student.SchoolClass, Alumnus: student.IsAlumnus()})
 	}
 	return rows, nil
 }
 
-func approvedOfferingTestProjection(repos *repositories.Factory) *enrollmentService.ApprovedOfferingProjection {
-	return enrollmentService.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudentTestDirectory{repos.Student})
+func approvedOfferingTestProjection(repos *repositories.Factory) *enrollmentTest.ApprovedOfferingProjection {
+	return enrollmentTest.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudentTestDirectory{repos.Student})
 }
 
 // newPickupExcusal uses the same configured Timetable instance as the fixture's

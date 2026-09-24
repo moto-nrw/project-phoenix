@@ -362,7 +362,7 @@ func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *en
 	detail.ConsentFlags = summary.Request.ConsentFlags
 
 	if rs.FormSchemaService != nil && summary.Request.SchemaID != nil {
-		if fs, err := rs.FormSchemaService.GetByID(ctx, *summary.Request.SchemaID); err == nil && fs != nil {
+		if fs, err := rs.FormSchemaService.SchemaVersion(ctx, *summary.Request.SchemaID); err == nil && fs != nil {
 			detail.SchemaFields, detail.SchemaLegalBlocks = toAdminSchemaMetadata(fs)
 		}
 	}

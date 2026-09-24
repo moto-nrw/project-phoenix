@@ -192,6 +192,14 @@ var modulePassthroughBudgets = map[string]int{
 	// Session lifecycle (6) plus the school-name lookup and the service
 	// facade's device read.
 	"modules/devicescan": 8,
+	// First measured with #3562, when phases, form schemas, captcha and the
+	// parent mails moved out of services/enrollment. form_schemas.go carries
+	// 11: the transactional wrapper runs each schema write in one tenant
+	// transaction, and the reads forward to the owner's records. Phases (3:
+	// the listings and the lookup that maps a miss to ErrPhaseNotFound),
+	// captcha (2: the tenant settings reads), the school brand and the
+	// approved-offering read by care offering follow.
+	"modules/enrollment": 17,
 	// The target-state read, which only maps the port error to ErrUnavailable.
 	"modules/exporttransfer": 1,
 	// Room and toilet reads/writes in service.go.

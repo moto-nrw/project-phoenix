@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -29,12 +30,10 @@ type captchaBlockedSubmission struct {
 
 type requiredCaptchaSettings struct{}
 
-func (requiredCaptchaSettings) HasTenantOverride(context.Context, string) (bool, error) {
-	return true, nil
-}
-func (requiredCaptchaSettings) ResolveBool(context.Context, string) (bool, error) { return true, nil }
-func (requiredCaptchaSettings) ResolveString(context.Context, string) (string, error) {
-	return "test-only-secret", nil
+func (requiredCaptchaSettings) CaptchaRequired(context.Context) bool  { return true }
+func (requiredCaptchaSettings) CaptchaSiteKey(context.Context) string { return "" }
+func (requiredCaptchaSettings) CaptchaSecretKey(context.Context) string {
+	return "test-only-secret"
 }
 
 func TestPublicSubmissionRejectsProviderCaptchaBeforeIntake(t *testing.T) {
@@ -54,9 +53,7 @@ func TestPublicSubmissionRejectsProviderCaptchaBeforeIntake(t *testing.T) {
 	resource := &Resource{
 		db: db, SchoolService: captchaSchoolLookup{school: school},
 		RequestService: captchaBlockedSubmission{},
-		CaptchaService: enrollmentService.NewCaptchaService(enrollmentService.CaptchaServiceConfig{
-			Settings: requiredCaptchaSettings{}, VerifyURL: provider.URL,
-		}),
+		CaptchaService: enrollmentTest.NewCaptcha(requiredCaptchaSettings{}, provider.URL),
 	}
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
