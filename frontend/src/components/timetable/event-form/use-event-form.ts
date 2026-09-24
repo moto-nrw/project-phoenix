@@ -1357,11 +1357,9 @@ export function useEventForm({
         const seriesStart = initialSeries ? form.seriesStartDate : form.date;
         const periodEnd = findPeriod(form.calendarPeriodId)?.endDate;
         if (seriesStart && form.seriesEndDate < seriesStart) {
-          errors.seriesEndDate =
-            "Der letzte Tag darf nicht vor dem Beginn der Serie liegen.";
+          errors.seriesEndDate = "Bitte einen Tag ab dem ersten Termin wählen.";
         } else if (periodEnd && form.seriesEndDate > periodEnd) {
-          errors.seriesEndDate =
-            "Der letzte Tag muss im gewählten Planungszeitraum liegen.";
+          errors.seriesEndDate = "Bitte einen Tag im Planungszeitraum wählen.";
         }
       }
       // "Alle 2 Wochen" only genuinely repeats every two weeks in an anchored

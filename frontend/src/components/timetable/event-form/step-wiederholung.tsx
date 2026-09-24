@@ -102,7 +102,7 @@ export function StepWiederholung({
         onChange={(next) => update("seriesEndDate", next)}
       />
       <p className="mt-1 text-xs text-gray-500">
-        Danach legt die Serie keine Termine mehr an.
+        Danach gibt es keine Termine mehr.
       </p>
     </Field>
   );

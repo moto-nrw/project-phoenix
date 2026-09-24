@@ -148,7 +148,7 @@ describe("ClosingDaysEditor", () => {
 
     expect(
       await screen.findByText(
-        "Im Zeitraum 12.10.2026 – 25.10.2026 werden 83 geplante Termine abgesagt und aus dem Plan entfernt. Eltern bekommen keine Nachricht.",
+        "Im Zeitraum 12.10.2026 – 25.10.2026 werden 83 Termine abgesagt. Eltern bekommen keine Nachricht.",
       ),
     ).toBeInTheDocument();
     // Der Zeitraum ist mit dem Schließtag vorbelegt, lässt sich aber ändern.
@@ -233,7 +233,7 @@ describe("ClosingDaysEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mock Termine übrig" }));
 
     expect(
-      await screen.findByText(/werden 5 geplante Termine abgesagt/),
+      await screen.findByText(/werden 5 Termine abgesagt/),
     ).toBeInTheDocument();
     // The offer says the save worked, and title and actions do not repeat
     // each other.
@@ -241,12 +241,12 @@ describe("ClosingDaysEditor", () => {
       screen.getByText(/Der Schließtag ist gespeichert\./),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("dialog", { name: "Geplante Termine im Zeitraum" }),
+      screen.getByRole("dialog", { name: "Termine im Zeitraum absagen" }),
     ).toBeInTheDocument();
     // Holiday care in the range is named only when there is some.
     expect(
       screen.getByText(
-        "Diese Serien sind auch an Schließtagen geplant. Sie bleiben im Plan: Ferienbetreuung (3 Termine).",
+        "Serien, die auch an Schließtagen stattfinden, bleiben: Ferienbetreuung (3 Termine).",
       ),
     ).toBeInTheDocument();
     // Das Angebot nach dem Speichern lässt den Zeitraum ebenfalls ändern.

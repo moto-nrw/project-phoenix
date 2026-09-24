@@ -66,8 +66,8 @@ export function TargetOriginChip({
 }) {
   return hasTargetOverride ? (
     <OriginChip
-      label="Soll aus Arbeitszeitmodell und Sonderarbeitszeit"
-      title="Diese Woche gilt an einzelnen Tagen eine Sonderarbeitszeit. An diesen Tagen zählt ihr Soll."
+      label="Soll mit Sonderarbeitszeit"
+      title="An manchen Tagen dieser Woche gilt eine Sonderarbeitszeit statt des Arbeitszeitmodells."
     />
   ) : (
     <OriginChip

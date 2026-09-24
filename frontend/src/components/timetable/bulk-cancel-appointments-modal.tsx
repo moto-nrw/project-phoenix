@@ -9,7 +9,7 @@
  * Abgesagt werden nur geplante Termine ab heute. Laufende, beendete und
  * vergangene Termine bleiben. Serien, die bewusst auch an Schließtagen
  * geplant sind (Ferienbetreuung), bleiben ebenfalls, bis die Person das
- * Häkchen „Auch Serien absagen …“ setzt; der Dialog nennt sie mit Namen.
+ * Häkchen „Auch diese Serien absagen“ setzt; der Dialog nennt sie mit Namen.
  * Eltern bekommen keine Nachricht.
  */
 
@@ -50,9 +50,7 @@ function termineLabel(count: number): string {
 }
 
 function appointmentsLabel(count: number): string {
-  return count === 1
-    ? "wird 1 geplanter Termin"
-    : `werden ${count} geplante Termine`;
+  return count === 1 ? "wird 1 Termin" : `werden ${count} Termine`;
 }
 
 /** „Ferienbetreuung (5 Termine), Ferienspiele (1 Termin)“ */
@@ -187,14 +185,11 @@ export function BulkCancelAppointmentsModal({
   return (
     <ConfirmDeleteModal
       isOpen={isOpen}
-      title="Geplante Termine im Zeitraum"
+      title="Termine im Zeitraum absagen"
       description={
         <div className="flex flex-col gap-3">
           {afterSave && (
-            <p>
-              Der Schließtag ist gespeichert. In diesem Zeitraum stehen noch
-              Termine im Plan.
-            </p>
+            <p>Der Schließtag ist gespeichert. Es sind noch Termine geplant.</p>
           )}
           <div
             role="group"
@@ -229,21 +224,21 @@ export function BulkCancelAppointmentsModal({
           )}
           {ready && ready.count === 0 && keptSeries.length > 0 && (
             <p>
-              {rangeText} stehen nur noch Serien im Plan, die auch an
-              Schließtagen geplant sind: {keptSeriesLabel(keptSeries)}. Wenn Sie
-              auch diese absagen möchten, setzen Sie unten das Häkchen.
+              {rangeText} sind nur noch Serien geplant, die auch an Schließtagen
+              stattfinden: {keptSeriesLabel(keptSeries)}. Zum Absagen setzen Sie
+              unten das Häkchen.
             </p>
           )}
           {ready && ready.count > 0 && (
             <p>
-              {rangeText} {appointmentsLabel(ready.count)} abgesagt und aus dem
-              Plan entfernt. Eltern bekommen keine Nachricht.
+              {rangeText} {appointmentsLabel(ready.count)} abgesagt. Eltern
+              bekommen keine Nachricht.
             </p>
           )}
           {ready && ready.count > 0 && keptSeries.length > 0 && (
             <p>
-              Diese Serien sind auch an Schließtagen geplant. Sie bleiben im
-              Plan: {keptSeriesLabel(keptSeries)}.
+              Serien, die auch an Schließtagen stattfinden, bleiben:{" "}
+              {keptSeriesLabel(keptSeries)}.
             </p>
           )}
           {showIncludeSeries && (
@@ -255,7 +250,7 @@ export function BulkCancelAppointmentsModal({
                 onChange={(event) => setIncludeSeries(event.target.checked)}
               />
               <span className="text-sm text-gray-800">
-                Auch Serien absagen, die an Schließtagen geplant sind
+                Auch diese Serien absagen
               </span>
             </label>
           )}

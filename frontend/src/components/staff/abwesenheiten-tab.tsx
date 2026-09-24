@@ -548,7 +548,7 @@ export function AbwesenheitenTab({
       <SectionCard
         title="Kommende Abwesenheiten"
         headingLevel={3}
-        description="Arbeitet die Person in den Ferien andere Stunden? Das tragen Sie als Sonderarbeitszeit im Reiter Arbeitszeitmodell ein."
+        description="Andere Stunden in den Ferien? Tragen Sie dafür eine Sonderarbeitszeit im Reiter Arbeitszeitmodell ein."
       >
         {upcoming.length === 0 ? (
           <EmptyState title="Keine geplanten Abwesenheiten." />

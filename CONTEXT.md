@@ -587,12 +587,11 @@ nur einen Personensatz.
 ## Sonderarbeitszeit
 
 Eine **Sonderarbeitszeit** legt für eine Person und einen Zeitraum ein
-eigenes Tagessoll fest, typisch für die Ferienbetreuung in einer
-Schließzeit. Sie gilt Montag bis Freitag und geht einem Schließtag und dem
-Arbeitszeitmodell vor; ein gesetzlicher Feiertag bleibt Soll 0. Nach dem
-Zeitraum gilt ohne weiteres Zutun wieder das Arbeitszeitmodell. Zeiträume
-einer Person überschneiden sich nicht, und ein abgeschlossener Monat lässt
-sich nicht mehr ändern.
+eigenes Tagessoll fest, typisch für die Ferienbetreuung an Schließtagen.
+Sie gilt Montag bis Freitag und geht Schließtag und Arbeitszeitmodell vor;
+gesetzliche Feiertage bleiben Soll 0. Danach gilt wieder das
+Arbeitszeitmodell. Zeiträume einer Person überschneiden sich nicht; in einem
+abgeschlossenen Monat lässt sie sich nicht ändern.
 _Vermeiden_: Override (nur im Code), Ferienmodell, Ausnahme-Soll.
 
 ## Schulzugehörigkeit

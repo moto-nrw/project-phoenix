@@ -740,7 +740,7 @@ describe("TimetableEventModal", () => {
 
     expect(
       screen.getByText(
-        /Diese Serie trifft 1 Schließtag, zuerst am 11\.05\.2026/,
+        /1 Termin dieser Serie fällt auf einen Schließtag, zuerst am 11\.05\.2026/,
       ),
     ).toBeInTheDocument();
     await clickSave();
@@ -752,7 +752,7 @@ describe("TimetableEventModal", () => {
     });
     expect(
       within(dialog).getByText(
-        "Diese Serie trifft 1 Schließtag. Normalerweise werden sie ausgelassen.",
+        "1 Termin dieser Serie fällt auf einen Schließtag.",
       ),
     ).toBeInTheDocument();
     expect(mockCreateTemplate).not.toHaveBeenCalled();
@@ -793,7 +793,9 @@ describe("TimetableEventModal", () => {
       name: "Schließtage in dieser Serie",
     });
     expect(
-      within(dialog).getByText(/Diese Serie trifft 2 Schließtage\./),
+      within(dialog).getByText(
+        /2 Termine dieser Serie fallen auf Schließtage\./,
+      ),
     ).toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: /Schließtage auslassen/ }),
@@ -828,7 +830,7 @@ describe("TimetableEventModal", () => {
       "Wöchentlich am Montag",
     );
     expect(
-      screen.getByText("Danach legt die Serie keine Termine mehr an."),
+      screen.getByText("Danach gibt es keine Termine mehr."),
     ).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Letzter Tag"), {
       target: { value: "2026-05-18" },
@@ -839,7 +841,9 @@ describe("TimetableEventModal", () => {
       name: "Schließtage in dieser Serie",
     });
     expect(
-      within(dialog).getByText(/Diese Serie trifft 1 Schließtag\./),
+      within(dialog).getByText(
+        /1 Termin dieser Serie fällt auf einen Schließtag\./,
+      ),
     ).toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: /Schließtage auslassen/ }),
@@ -873,9 +877,7 @@ describe("TimetableEventModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
 
     expect(
-      await screen.findByText(
-        "Der letzte Tag darf nicht vor dem Beginn der Serie liegen.",
-      ),
+      await screen.findByText("Bitte einen Tag ab dem ersten Termin wählen."),
     ).toBeInTheDocument();
     expect(mockCreateTemplate).not.toHaveBeenCalled();
   });
@@ -2907,7 +2909,9 @@ describe("TimetableEventModal", () => {
         name: "Schließtage in dieser Serie",
       });
       expect(
-        within(dialog).getByText(/Diese Serie trifft 1 Schließtag\./),
+        within(dialog).getByText(
+          /1 Termin dieser Serie fällt auf einen Schließtag\./,
+        ),
       ).toBeInTheDocument();
       expect(mockSplitTemplate).not.toHaveBeenCalled();
       expect(mockUpdateTemplate).not.toHaveBeenCalled();

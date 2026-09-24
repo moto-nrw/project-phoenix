@@ -171,11 +171,8 @@ export function ClosingDayModal({
         </div>
 
         <p className="text-xs text-gray-500">
-          Für einen einzelnen Schließtag dasselbe Datum in beide Felder
-          eintragen. Regeltermine fallen an Schließtagen aus. Ausnahme: Serien,
-          die auch an Schließtagen geplant sind, z. B. die Ferienbetreuung.
-          Mitarbeitende haben an Schließtagen keine Sollstunden, außer es ist
-          eine Sonderarbeitszeit eingetragen.
+          Für einen einzelnen Tag dasselbe Datum in beide Felder eintragen. An
+          Schließtagen fallen Termine aus und Mitarbeitende haben kein Soll.
         </p>
       </div>
     </FormModal>

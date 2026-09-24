@@ -213,7 +213,7 @@ export function ClosingDaysEditor({
           freier Absatz und eigene Buttonzeile über der Tabelle zu stehen. */}
       <SectionCard
         title="Schließtage"
-        description="Tage, an denen die OGS geschlossen hat, z. B. pädagogische Tage, Ferien, Sommerschließung. Regeltermine fallen an diesen Tagen aus. Ausnahme: Serien, die auch an Schließtagen geplant sind, z. B. die Ferienbetreuung. Mitarbeitende haben an Schließtagen keine Sollstunden, außer es ist eine Sonderarbeitszeit eingetragen."
+        description="Tage, an denen die OGS geschlossen hat, z. B. Ferien oder pädagogische Tage. Dann fallen Termine aus und Mitarbeitende haben kein Soll. Ausnahmen: Serien mit „Auch an Schließtagen planen“ und Sonderarbeitszeiten."
         actions={
           <Button
             type="button"

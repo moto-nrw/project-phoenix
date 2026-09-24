@@ -27,19 +27,21 @@ export function SeriesClosingDaysChoiceModal({
   readonly onChoose: (includeClosingDays: boolean) => void;
   readonly isBusy?: boolean;
 }) {
-  const days =
-    closingDayCount === 1 ? "1 Schließtag" : `${closingDayCount} Schließtage`;
+  const description =
+    closingDayCount === 1
+      ? "1 Termin dieser Serie fällt auf einen Schließtag."
+      : `${closingDayCount} Termine dieser Serie fallen auf Schließtage.`;
   return (
     <ChoiceModal
       isOpen
       onClose={onCancel}
       title="Schließtage in dieser Serie"
-      description={`Diese Serie trifft ${days}. Normalerweise werden sie ausgelassen.`}
+      description={description}
       options={[
         {
           value: "skip",
           label: "Schließtage auslassen",
-          description: `${currentChoice === false ? "Wie bisher. " : ""}An Schließtagen gibt es keinen Termin.`,
+          description: `${currentChoice === false ? "Wie bisher. " : ""}An Schließtagen fällt der Termin aus.`,
           primary: currentChoice === false,
         },
         {

@@ -96,11 +96,11 @@ describe("BulkCancelAppointmentsModal", () => {
 
     expect(
       await screen.findByText(
-        "Diese Serien sind auch an Schließtagen geplant. Sie bleiben im Plan: Ferienbetreuung (5 Termine), Ferienspiele (1 Termin).",
+        "Serien, die auch an Schließtagen stattfinden, bleiben: Ferienbetreuung (5 Termine), Ferienspiele (1 Termin).",
       ),
     ).toBeInTheDocument();
     const checkbox = screen.getByRole("checkbox", {
-      name: "Auch Serien absagen, die an Schließtagen geplant sind",
+      name: "Auch diese Serien absagen",
     });
     expect(checkbox).not.toBeChecked();
     expect(mockBulkCancel).toHaveBeenCalledWith(
@@ -130,7 +130,7 @@ describe("BulkCancelAppointmentsModal", () => {
 
     expect(
       await screen.findByText(
-        "Im Zeitraum 12.10.2026 – 25.10.2026 stehen nur noch Serien im Plan, die auch an Schließtagen geplant sind: Ferienbetreuung (5 Termine), Ferienspiele (1 Termin). Wenn Sie auch diese absagen möchten, setzen Sie unten das Häkchen.",
+        "Im Zeitraum 12.10.2026 – 25.10.2026 sind nur noch Serien geplant, die auch an Schließtagen stattfinden: Ferienbetreuung (5 Termine), Ferienspiele (1 Termin). Zum Absagen setzen Sie unten das Häkchen.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -143,12 +143,12 @@ describe("BulkCancelAppointmentsModal", () => {
     // Das Häkchen zählt neu, jetzt mit den Serien.
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "Auch Serien absagen, die an Schließtagen geplant sind",
+        name: "Auch diese Serien absagen",
       }),
     );
     expect(
       await screen.findByText(
-        "Im Zeitraum 12.10.2026 – 25.10.2026 werden 6 geplante Termine abgesagt und aus dem Plan entfernt. Eltern bekommen keine Nachricht.",
+        "Im Zeitraum 12.10.2026 – 25.10.2026 werden 6 Termine abgesagt. Eltern bekommen keine Nachricht.",
       ),
     ).toBeInTheDocument();
     expect(mockBulkCancel).toHaveBeenCalledWith(
@@ -160,7 +160,7 @@ describe("BulkCancelAppointmentsModal", () => {
     // Nach dem Neuzählen bleibt das Häkchen sichtbar und abwählbar.
     expect(
       screen.getByRole("checkbox", {
-        name: "Auch Serien absagen, die an Schließtagen geplant sind",
+        name: "Auch diese Serien absagen",
       }),
     ).toBeChecked();
 
@@ -190,7 +190,7 @@ describe("BulkCancelAppointmentsModal", () => {
     renderModal();
 
     expect(
-      await screen.findByText(/werden 40 geplante Termine abgesagt/),
+      await screen.findByText(/werden 40 Termine abgesagt/),
     ).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Zeitraum" })).toBeInTheDocument();
 
@@ -200,7 +200,7 @@ describe("BulkCancelAppointmentsModal", () => {
 
     expect(
       await screen.findByText(
-        "Im Zeitraum 12.10.2026 – 16.10.2026 werden 12 geplante Termine abgesagt und aus dem Plan entfernt. Eltern bekommen keine Nachricht.",
+        "Im Zeitraum 12.10.2026 – 16.10.2026 werden 12 Termine abgesagt. Eltern bekommen keine Nachricht.",
       ),
     ).toBeInTheDocument();
     expect(mockBulkCancel).toHaveBeenLastCalledWith(
@@ -225,12 +225,12 @@ describe("BulkCancelAppointmentsModal", () => {
 
     expect(
       await screen.findByText(
-        "Am 12.10.2026 wird 1 geplanter Termin abgesagt und aus dem Plan entfernt. Eltern bekommen keine Nachricht.",
+        "Am 12.10.2026 wird 1 Termin abgesagt. Eltern bekommen keine Nachricht.",
       ),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("checkbox", {
-        name: "Auch Serien absagen, die an Schließtagen geplant sind",
+        name: "Auch diese Serien absagen",
       }),
     ).not.toBeInTheDocument();
   });

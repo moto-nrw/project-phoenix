@@ -74,7 +74,7 @@ function validateDraft(draft: Draft): {
     hours:
       parsed.status === "valid"
         ? undefined
-        : "Bitte 0 bis 12 Stunden eingeben, zum Beispiel 8,5.",
+        : "Bitte 0 bis 12 Stunden eingeben.",
   };
   return {
     fields,
@@ -236,7 +236,7 @@ export function SonderarbeitszeitenSection({
     <SectionCard
       title="Sonderarbeitszeiten"
       headingLevel={3}
-      description="Für einen Zeitraum gelten andere Stunden pro Tag, zum Beispiel für die Ferienbetreuung. Sie gelten Montag bis Freitag, auch an Schließtagen. Feiertage bleiben frei. Danach gilt wieder das Arbeitszeitmodell."
+      description="Für einen Zeitraum gelten andere Stunden pro Tag, zum Beispiel in den Ferien. Das gilt Montag bis Freitag, auch an Schließtagen. Feiertage bleiben frei."
       action={createButton}
     >
       {loadError ? (
@@ -257,11 +257,7 @@ export function SonderarbeitszeitenSection({
             <EmptyState
               variant="compact"
               title="Keine Sonderarbeitszeiten eingetragen."
-              description={
-                canEdit
-                  ? "Arbeitet die Person in den Ferien andere Stunden? Legen Sie dafür eine Sonderarbeitszeit an."
-                  : "Es gilt immer das Arbeitszeitmodell."
-              }
+              description="Es gilt das Arbeitszeitmodell."
               action={createButton}
             />
           }
@@ -341,7 +337,7 @@ export function SonderarbeitszeitenSection({
                 placeholder="z. B. 8,5"
               />
               <p className="mt-1 text-xs text-gray-500">
-                0 bedeutet: an diesen Tagen muss nicht gearbeitet werden.
+                Bei 0 hat die Person an diesen Tagen frei.
               </p>
             </div>
           </div>

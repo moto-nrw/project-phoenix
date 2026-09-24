@@ -168,9 +168,7 @@ describe("SonderarbeitszeitenSection", () => {
     fillRange("13");
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     expect(
-      await screen.findByText(
-        "Bitte 0 bis 12 Stunden eingeben, zum Beispiel 8,5.",
-      ),
+      await screen.findByText("Bitte 0 bis 12 Stunden eingeben."),
     ).toBeInTheDocument();
     expect(mocks.create).not.toHaveBeenCalled();
 
@@ -237,7 +235,7 @@ describe("SonderarbeitszeitenSection", () => {
       screen.getByText("Keine Sonderarbeitszeiten eingetragen."),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Legen Sie dafür eine Sonderarbeitszeit an\./),
+      screen.getByText("Es gilt das Arbeitszeitmodell."),
     ).toBeInTheDocument();
     expect(
       screen.getAllByRole("button", { name: "Sonderarbeitszeit anlegen" }),

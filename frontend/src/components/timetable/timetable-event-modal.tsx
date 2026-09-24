@@ -96,8 +96,11 @@ function getClosingDayWarningMessage(
 
   const date = formatDate(conflict.dateISO);
   if (isSeriesFlow) {
-    const days = count === 1 ? "1 Schließtag" : `${count} Schließtage`;
-    return `Hinweis: Diese Serie trifft ${days}, zuerst am ${date}${reason}. Beim Speichern entscheiden Sie, ob sie dort ausgelassen wird.`;
+    const days =
+      count === 1
+        ? "1 Termin dieser Serie fällt auf einen Schließtag"
+        : `${count} Termine dieser Serie fallen auf Schließtage`;
+    return `Hinweis: ${days}, zuerst am ${date}${reason}. Beim Speichern wählen Sie, ob sie ausfallen.`;
   }
   return `Hinweis: Am ${date} ist ein Schließtag hinterlegt${reason}. Planen ist weiterhin möglich.`;
 }

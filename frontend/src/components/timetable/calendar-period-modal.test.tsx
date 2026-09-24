@@ -409,7 +409,7 @@ describe("CalendarPeriodModal", () => {
     );
     expect(
       screen.getByText(
-        "Hat die OGS in dieser Zeit geschlossen? Dann legen Sie unten auf der Seite „Zeiträume“ einen Schließtag an. Nur an Schließtagen fallen Termine aus und es gibt keine Sollstunden.",
+        "Ferien allein sagen keine Termine ab. Hat die OGS geschlossen? Dann legen Sie unten auf der Seite „Zeiträume“ einen Schließtag an.",
       ),
     ).toBeInTheDocument();
   });

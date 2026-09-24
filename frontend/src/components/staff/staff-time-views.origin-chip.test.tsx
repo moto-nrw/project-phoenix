@@ -13,8 +13,6 @@ describe("TargetOriginChip (#3259)", () => {
   it("names the Sonderarbeitszeit too when one applies this week", () => {
     render(<TargetOriginChip hasTargetOverride />);
 
-    expect(
-      screen.getByText("Soll aus Arbeitszeitmodell und Sonderarbeitszeit"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Soll mit Sonderarbeitszeit")).toBeInTheDocument();
   });
 });

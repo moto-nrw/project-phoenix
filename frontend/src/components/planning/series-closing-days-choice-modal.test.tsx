@@ -52,7 +52,7 @@ describe("SeriesClosingDaysChoiceModal (#3594)", () => {
     renderPrompt(false);
 
     expect(skipButton()).toHaveTextContent(
-      "Wie bisher. An Schließtagen gibt es keinen Termin.",
+      "Wie bisher. An Schließtagen fällt der Termin aus.",
     );
     expect(includeButton()).not.toHaveTextContent("Wie bisher");
   });
