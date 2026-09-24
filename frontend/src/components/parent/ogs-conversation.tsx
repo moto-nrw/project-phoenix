@@ -490,6 +490,9 @@ function RequestItem({
 // flag arrives async (defaults off), so rendering early made "Abholung" pop in a
 // beat after the others. While loading we reserve one pill-row of height so the
 // whole set appears at once without shifting the composer.
+//
+// While the phone keyboard is open the row steps aside: the chat is then only a
+// few hundred pixels tall and the line being typed has priority (#3664).
 function QuickActions({
   features,
   loading,
@@ -501,11 +504,17 @@ function QuickActions({
   childName?: string;
   onPick: (key: OgsActionKey) => void;
 }>) {
-  if (loading) return <div className="mb-3 h-9" aria-hidden="true" />;
+  if (loading)
+    return (
+      <div
+        className="mb-3 h-9 in-data-chat-keyboard:hidden"
+        aria-hidden="true"
+      />
+    );
   const actions = getOgsActions(features).filter((action) => action.enabled);
   if (actions.length === 0) return null;
   return (
-    <div className="mb-3 flex flex-wrap gap-2">
+    <div className="mb-3 flex flex-wrap gap-2 in-data-chat-keyboard:hidden">
       {actions.map((action) => (
         <QuickActionPill
           key={action.key}
