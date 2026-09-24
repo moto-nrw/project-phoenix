@@ -106,10 +106,14 @@ project (free plan, one project); demo events carry `deployment=demo`, so they
 filter apart from schools. They need the build secret
 `DEMO_NEXT_PUBLIC_POSTHOG_KEY` besides the SOPS value. Backend analytics
 (`POSTHOG_API_KEY`) use the same project token; the backend stamps
-`deployment=demo` on every event, so they stay apart from schools too. Sentry and Web Push are disabled;
-configure their demo destinations before enabling them. Frontend Sentry also
-needs the build secret `DEMO_NEXT_PUBLIC_SENTRY_DSN`; absent demo keys disable
-the integrations without falling back to production keys.
+`deployment=demo` on every event, so they stay apart from schools too.
+Frontend Sentry reports through the build secret `DEMO_NEXT_PUBLIC_SENTRY_DSN`,
+which holds the shared frontend project's DSN; the build sets
+`NEXT_PUBLIC_SENTRY_ENVIRONMENT=demo`, so demo events filter apart from schools.
+Whether demo gets its own Sentry project is open in #3589. Backend Sentry and
+Web Push are disabled (`SENTRY_DSN` is empty in `demo.sops.env`); configure
+their demo destinations before enabling them. Absent demo keys disable the
+integrations without falling back to production keys.
 No staging or production application secret is reused.
 `scripts/create-demo-env.py` creates the initial SOPS file through SOPS only
 and refuses to overwrite an existing file. Use `sops edit` for later changes.
