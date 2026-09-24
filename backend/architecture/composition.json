@@ -55,7 +55,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        325
+        324
       ],
       "tables": []
     },
