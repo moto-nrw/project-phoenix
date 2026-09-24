@@ -88,6 +88,13 @@ func ProtectedParentGroup(r chi.Router, fn func(r chi.Router)) {
 // transaction middleware works unchanged — SchoolMiddleware puts the pinned
 // tenant id on the context exactly like TenantMiddleware does.
 func ProtectedSchoolGroup(r chi.Router, db *bun.DB, fn func(r chi.Router, withTx Middleware)) {
+	ProtectedSchoolRoutes(r, fn)
+}
+
+// ProtectedSchoolRoutes registers the school-portal security chain and
+// supplies the request-scoped transaction middleware without retaining a
+// database handle.
+func ProtectedSchoolRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware)) {
 
 	r.Group(func(gr chi.Router) {
 		gr.Use(jwt.Authenticator)

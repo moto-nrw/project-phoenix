@@ -1215,6 +1215,53 @@ in the public contract and pinned against the models. Every rule that named
 0038's exception ends with them; fifteen of its replacement rules remain as
 ordinary permissions to the owners' public contracts.
 
+#2732 closed the carrier of `api/timetable`: its 27 remaining keys, the
+root's `api -> api/timetable` key (#2750) and the end-to-end fixture's
+`test/e2e/timetable -> api/timetable` key (#2748) are gone (571 -> 542). No
+route path, status code, error body, middleware chain or authorization check
+changed; the middleware golden only renames the package and the spelling of
+two inlined closures.
+
+- The routes moved file for file to `modules/timetable/http` (package
+  `timetablehttp`), classified `timetable-activities`/`http` with
+  `adapter-test` for both test roles. PR mode rejects an owner change of an
+  existing path and a new permission on the existing `inbound-timetable`/`http`
+  point, so the `inbound-timetable` owner is deleted with its package entry.
+  Its six production rules and the adapter tests' compose rule moved to the
+  new point, the school portal's two rules now target it, and the two
+  test-construction rules to Student Presence and Care Plan compose had no
+  import left and are deleted. The new point's other target
+  dependencies are the ones the other owners' HTTP adapters hold: `api/common`,
+  the session token adapter (ADR 0031, also for the internal tests), the
+  permission registry, the public contracts of Security Runtime and Settings
+  Platform, and the tenant runtime. The root, the school portal and its tests,
+  and the timetable end-to-end fixture mount the new point.
+- The legacy imports became public contracts or consumer-owned ports.
+  `modules/settings` gains the timetable setting keys, the request-scoped
+  `Resolver` and the `Resolve*OrDefault` helpers; `modules/securityruntime`
+  gains `CanReadStudent`; the class-day projection and the plan export name
+  their file formats; `common.ProtectedTenantRoutes` and the new
+  `common.ProtectedSchoolRoutes` replace the route groups that took a
+  `*bun.DB` they never used. The People Directory reads are the routes' own
+  `People` port in builtin types, the Enrollment support of the Regeltermin
+  editor is `timetable.OfferingSourceSupport` in the owner's public contract,
+  and the school portal's supervision sheet is the `SupervisionSheets` port,
+  whose refusal the route recognises by a marker method.
+  `services/timetable_http_ports.go` binds the three over the retained
+  services at the root.
+- The route suites import neither repositories nor retained models. Their
+  composition of the owner moved to `services/timetable_http_test_helpers.go`
+  behind `api/testutil`, rollback probes use `test.TransactionProbe`,
+  correction trails are read through the owner's `GetAttendanceCorrections`,
+  deviation events through a row type of the suite, and the database-free
+  suites fake the ports. The pin of the Audit Platform vocabulary the owner
+  mirrors became a compile-time guard in
+  `database/repositories/timetable_audit_ports.go`, the one package that
+  binds both vocabularies.
+- The move put the handlers under the module ratchets (Rule 16): `Router`
+  and fourteen handlers were split into named steps, and `api.go` and
+  `instances_list.go` fell below 800 lines. No allowlist entry was added.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).
