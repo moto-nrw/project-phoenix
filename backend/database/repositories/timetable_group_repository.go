@@ -208,30 +208,6 @@ func (r timetableActivityGroupRepository) FindTemplateSeries(ctx context.Context
 	}, "find template series")
 }
 
-func (r timetableActivityGroupRepository) FindTemplatesBySourceOffering(ctx context.Context, offeringID int64) ([]*activitiesModels.Group, error) {
-	isTemplate := true
-	return r.listLegacyGroups(ctx, timetable.GroupFilter{
-		IsTemplate: &isTemplate, ActiveOnly: true, SourceOfferingIDs: []int64{offeringID}, OrderByID: true,
-	}, "find templates by source offering")
-}
-
-func (r timetableActivityGroupRepository) FindTemplatesBySourceOfferings(ctx context.Context, offeringIDs []int64) ([]*activitiesModels.Group, error) {
-	if len(offeringIDs) == 0 {
-		return []*activitiesModels.Group{}, nil
-	}
-	isTemplate := true
-	return r.listLegacyGroups(ctx, timetable.GroupFilter{
-		IsTemplate: &isTemplate, ActiveOnly: true, SourceOfferingIDs: offeringIDs, OrderByID: true,
-	}, "find templates by source offerings")
-}
-
-func (r timetableActivityGroupRepository) FindTemplatesWithOfferingSource(ctx context.Context) ([]*activitiesModels.Group, error) {
-	isTemplate := true
-	return r.listLegacyGroups(ctx, timetable.GroupFilter{
-		IsTemplate: &isTemplate, ActiveOnly: true, HasOfferingSource: true, OrderByID: true,
-	}, "find templates with offering source")
-}
-
 func (r timetableActivityGroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fields activitiesModels.TemplateFieldsUpdate) (int64, error) {
 	return r.timetable.UpdateTemplate(ctx, id, timetable.TemplateUpdate{
 		Name: fields.Name, Type: fields.Type, CategoryID: fields.CategoryID,

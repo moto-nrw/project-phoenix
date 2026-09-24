@@ -12,8 +12,9 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // GetChildCourses returns the school's courses with this child's state.
@@ -22,26 +23,26 @@ import (
 func (s *Service) GetChildCourses(
 	ctx context.Context,
 	accountID, studentID int64,
-) (*enrollmentSvc.CourseCatalog, error) {
+) (*careplan.CourseCatalog, error) {
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionEnrollmentsView)
 	if err != nil {
 		// "Darf nicht anfragen" ist kein Fehler, sondern ein benannter Grund:
 		// sonst stünde an der Stelle eine Fehlermeldung statt einer Erklärung.
 		if errors.Is(err, ErrGuardianPermissionDenied) {
-			return &enrollmentSvc.CourseCatalog{
-				DisabledReason: enrollmentSvc.CourseRequestsReasonNoPermission,
-				Items:          []enrollmentSvc.CourseCatalogItem{},
+			return &careplan.CourseCatalog{
+				DisabledReason: careplan.CourseRequestsReasonNoPermission,
+				Items:          []careplan.CourseCatalogItem{},
 			}, nil
 		}
 		return nil, err
 	}
 	if s.OfferingChanges == nil {
-		return &enrollmentSvc.CourseCatalog{
-			DisabledReason: enrollmentSvc.CourseRequestsReasonSchoolOff,
-			Items:          []enrollmentSvc.CourseCatalogItem{},
+		return &careplan.CourseCatalog{
+			DisabledReason: careplan.CourseRequestsReasonSchoolOff,
+			Items:          []careplan.CourseCatalogItem{},
 		}, nil
 	}
-	var catalog *enrollmentSvc.CourseCatalog
+	var catalog *careplan.CourseCatalog
 	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		resolved, resolveErr := s.OfferingChanges.CourseCatalog(txCtx, studentID, accountID)
 		if resolveErr != nil {
@@ -65,7 +66,7 @@ func (s *Service) RequestChildCourse(
 	ctx context.Context,
 	accountID, studentID, offeringID int64,
 	note string,
-) (*enrollmentSvc.CourseCatalog, error) {
+) (*careplan.CourseCatalog, error) {
 	child, err := s.resolveCourseWriteChild(ctx, accountID, studentID)
 	if err != nil {
 		return nil, err
@@ -77,13 +78,13 @@ func (s *Service) RequestChildCourse(
 		return nil, ErrEmptyNote
 	}
 	if s.OfferingChanges == nil {
-		return nil, enrollmentSvc.ErrCourseRequestsDisabled
+		return nil, careplan.ErrCourseRequestsDisabled
 	}
 	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
-		_, createErr := s.OfferingChanges.CreateCourseRequest(txCtx, enrollmentSvc.CreateCourseRequestInput{
+		_, createErr := s.OfferingChanges.CreateCourseRequest(txCtx, careplan.CreateCourseRequestInput{
 			StudentID:  studentID,
 			AccountID:  accountID,
 			OfferingID: offeringID,
@@ -110,7 +111,7 @@ func (s *Service) RequestChildCourse(
 func (s *Service) WithdrawChildCourseRequest(
 	ctx context.Context,
 	accountID, studentID, requestID int64,
-) (*enrollmentSvc.CourseCatalog, error) {
+) (*careplan.CourseCatalog, error) {
 	child, err := s.resolveCourseWriteChild(ctx, accountID, studentID)
 	if err != nil {
 		return nil, err
@@ -119,7 +120,7 @@ func (s *Service) WithdrawChildCourseRequest(
 		return nil, err
 	}
 	if s.OfferingChanges == nil {
-		return nil, enrollmentSvc.ErrCourseRequestsDisabled
+		return nil, careplan.ErrCourseRequestsDisabled
 	}
 	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {

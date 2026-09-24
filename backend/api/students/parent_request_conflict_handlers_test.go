@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -131,7 +131,7 @@ func TestResolveRequestConflictErrorCodes(t *testing.T) {
 		{name: "domain takes no typed value", err: userService.ErrStaffValueUnsupported, want: http.StatusBadRequest, code: codeStaffValueUnsupported},
 		{name: "absence value invalid", err: excusedrequests.ErrAbsenceRequestInvalidStatus, want: http.StatusBadRequest, code: codeStaffValueInvalid},
 		{name: "care value invalid", err: carerequests.ErrInvalidPayload, want: http.StatusBadRequest, code: codeStaffValueInvalid},
-		{name: "offering value invalid", err: enrollmentService.ErrOfferingChangeInvalid, want: http.StatusBadRequest, code: codeStaffValueInvalid},
+		{name: "offering value invalid", err: careplan.ErrOfferingChangeInvalid, want: http.StatusBadRequest, code: codeStaffValueInvalid},
 		{name: "Stammdaten value invalid", err: userService.ErrReviewInvalidValue, want: http.StatusBadRequest, code: codeStaffValueInvalid},
 		{name: "request gone", err: userService.ErrParentRequestNotFound, want: http.StatusNotFound},
 		{name: "kind not permitted", err: userService.ErrParentRequestForbidden, want: http.StatusForbidden},

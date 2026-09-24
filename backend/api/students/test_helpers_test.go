@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 
@@ -43,6 +44,9 @@ type testContext struct {
 	broadcaster  *testpkg.RecordingBroadcaster
 	// clock is the fixed clock the services run on; nil means the real one.
 	clock func() time.Time
+	// newPickupAdjustments rebinds the pickup adjustment to other offering
+	// adjustments.
+	newPickupAdjustments func(careplan.DirectOfferingAdjustments) (careplan.PickupAdjustments, error)
 }
 
 func newStudentTestRepositories(db *bun.DB) repositories.StudentTestRepositories {
@@ -240,11 +244,12 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	})
 
 	return &testContext{
-		careRequests: svc.CareRequests,
-		db:           db,
-		resource:     resource,
-		broadcaster:  broadcaster,
-		clock:        firstClock(clocks),
+		careRequests:         svc.CareRequests,
+		db:                   db,
+		resource:             resource,
+		broadcaster:          broadcaster,
+		clock:                firstClock(clocks),
+		newPickupAdjustments: svc.NewPickupAdjustments,
 	}
 }
 

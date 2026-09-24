@@ -86,6 +86,9 @@ type RequestEvent struct {
 	DecisionReason string
 	RefTable       string
 	RefID          int64
+	// Payload carries structured fields a localized client renders beside
+	// the body, such as the confirmed effective date.
+	Payload map[string]any
 }
 
 // DecisionAudience says which co-guardians hear the full decision and which

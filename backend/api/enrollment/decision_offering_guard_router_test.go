@@ -125,13 +125,15 @@ func setupOfferingGuardRouterTest(
 	if failOfferingLookup {
 		children = failingAtDateOfferingReader{children}
 	}
-	approvedOfferings, err := testutil.NewApprovedOfferingProjection(db, repos.Enrollment())
-	require.NoError(t, err)
 	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	studentEnrollment, err := repositories.NewPeopleDirectory(db)
 	require.NoError(t, err)
-	decision := newOfferingGuardDecisionService(repos, offeringsEnabled, children, approvedOfferings, guardianAccess, studentEnrollment)
+	bookings := testutil.NewBookingMaterialization(t, db,
+		testutil.WithBookingCatalog(testutil.NewCareOfferingCatalog(t, db).Catalog),
+		testutil.WithBookingSettings(offeringGuardSettings(offeringsEnabled)),
+	).Bookings
+	decision := newOfferingGuardDecisionService(repos, offeringsEnabled, children, guardianAccess, studentEnrollment, bookings)
 	resource := enrollmentAPI.NewResource(
 		nil, nil, nil, nil, nil, decision, nil, nil, nil,
 		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil, db,
@@ -238,17 +240,14 @@ func datePointers(from, until timezone.Date) (*capability.Date, *capability.Date
 	return &start, &end
 }
 
-func newOfferingGuardDecisionService(repos repositories.EnrollmentTestRepositories, offeringsEnabled bool, children enrollmentService.DecisionChildren, approvedOfferings enrollmentService.ApprovedOfferingReader, guardianAccess enrollmentService.DecisionGuardianAccess, studentEnrollment enrollmentService.DecisionStudentEnrollment) enrollmentService.DecisionService {
+func newOfferingGuardDecisionService(repos repositories.EnrollmentTestRepositories, offeringsEnabled bool, children enrollmentService.DecisionChildren, guardianAccess enrollmentService.DecisionGuardianAccess, studentEnrollment enrollmentService.DecisionStudentEnrollment, bookings enrollmentService.DecisionBookings) enrollmentService.DecisionService {
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		Requests: repos.Enrollment(), Children: children, Guardians: repos.Enrollment(),
-		ApprovedOfferings: approvedOfferings,
-		LateInviteRepo:    repos.Enrollment(), CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repos.CarePlan),
+		LateInviteRepo: repos.Enrollment(), CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repos.CarePlan),
 		Phases: repos.Enrollment(), Schemas: repos.Enrollment(), PersonRepo: repos.Person, StaffRepo: repos.Staff,
 		StudentRepo: repos.Student, StudentGuardianRepo: repos.StudentGuardian, GuardianProfileRepo: repos.GuardianProfile,
 		GuardianPhoneRepo: repos.GuardianPhoneNumber, PickupScheduleRepo: repos.StudentPickupSchedule,
-		ArrivalScheduleRepo: repos.StudentArrivalSchedule, StudentEnrollmentRepo: repos.StudentEnrollment,
-		ActivityGroupRepo: repos.ActivityGroup, ActivityScheduleRepo: repos.ActivitySchedule,
-		CalendarPeriodRepo: repos.CalendarPeriod, TimeframeRepo: repos.Timeframe, ActivityExceptionRepo: repos.ActivityException,
+		ArrivalScheduleRepo: repos.StudentArrivalSchedule, CareBookings: bookings,
 		GuardianAccess:    guardianAccess,
 		StudentEnrollment: studentEnrollment,
 		OutboxEnqueuer:    discardingOutbox{}, Settings: offeringGuardSettings(offeringsEnabled),

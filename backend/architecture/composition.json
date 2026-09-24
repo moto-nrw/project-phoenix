@@ -55,7 +55,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        312
+        310
       ],
       "tables": []
     },
@@ -65,7 +65,7 @@
       "declaration": "newRuntime",
       "target": "api.New",
       "lines": [
-        106
+        110
       ],
       "tables": []
     },
@@ -75,7 +75,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        177
+        181
       ],
       "tables": []
     },
@@ -125,7 +125,7 @@
       "declaration": "TestFullProductionRouterGolden",
       "target": "api.WithRuntime",
       "lines": [
-        297
+        302
       ],
       "tables": []
     },
@@ -2607,71 +2607,71 @@
     },
     {
       "scope": "test",
-      "file": "services/enrollment/care_offering_calendar_period_test.go",
+      "file": "services/enrollment/care_offering_catalog_guards_test.go",
       "declaration": "TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        277
+        294
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "services/enrollment/care_offering_calendar_period_test.go",
-      "declaration": "calendarPeriodValidationFixture.createPeriod",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        87
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/care_offering_materializability_test.go",
+      "file": "services/enrollment/care_offering_catalog_guards_test.go",
       "declaration": "TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom",
       "target": "database/repositories.NewFactory",
       "lines": [
-        114
+        525
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "services/enrollment/care_offering_materializability_test.go",
+      "file": "services/enrollment/care_offering_catalog_guards_test.go",
       "declaration": "TestCareOfferingMaterializability_RejectsInvalidEffectiveTimes",
       "target": "database/repositories.NewFactory",
       "lines": [
-        434
+        843
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "services/enrollment/care_offering_materializability_test.go",
+      "file": "services/enrollment/care_offering_catalog_guards_test.go",
+      "declaration": "calendarPeriodValidationFixture.createPeriod",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        113
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/enrollment/care_offering_catalog_guards_test.go",
       "declaration": "createCareMaterializationException",
       "target": "database/repositories.NewFactory",
       "lines": [
-        70
+        481
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "services/enrollment/care_offering_materializability_test.go",
+      "file": "services/enrollment/care_offering_catalog_guards_test.go",
       "declaration": "setCareTestPhaseWindow",
       "target": "database/repositories.NewFactory",
       "lines": [
-        60
+        471
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "services/enrollment/care_offering_service_test.go",
-      "declaration": "TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases",
+      "file": "services/enrollment/care_offering_catalog_guards_test.go",
+      "declaration": "setupCareGuardTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        846
+        389
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -2680,11 +2680,11 @@
     },
     {
       "scope": "test",
-      "file": "services/enrollment/care_offering_service_test.go",
-      "declaration": "TestCareOfferingService_Clone_RepointsToTargetPhase",
+      "file": "services/enrollment/care_offering_catalog_test.go",
+      "declaration": "TestCareOfferingCatalog_Clone_ClearsLinkedTemplateAcrossPhases",
       "target": "database/repositories.NewFactory",
       "lines": [
-        792
+        731
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -2693,51 +2693,64 @@
     },
     {
       "scope": "test",
-      "file": "services/enrollment/care_offering_service_test.go",
-      "declaration": "TestCareOfferingService_Create_ActiveOfferingRequiresActivePeriod",
+      "file": "services/enrollment/care_offering_catalog_test.go",
+      "declaration": "TestCareOfferingCatalog_Clone_RepointsToTargetPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        609
+        677
+      ],
+      "tables": [
+        "enrollment.care_offerings",
+        "enrollment.phases"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/enrollment/care_offering_catalog_test.go",
+      "declaration": "TestCareOfferingCatalog_Create_ActiveOfferingRequiresActivePeriod",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        492
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "services/enrollment/care_offering_service_test.go",
-      "declaration": "TestCareOfferingService_Create_AllowsNonOccurrencePhaseBoundaries",
+      "file": "services/enrollment/care_offering_catalog_test.go",
+      "declaration": "TestCareOfferingCatalog_Create_AllowsNonOccurrencePhaseBoundaries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        579
+        462
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "services/enrollment/care_offering_service_test.go",
-      "declaration": "TestCareOfferingService_Create_RejectsAdvertisedDayAbsentFromShortPhase",
+      "file": "services/enrollment/care_offering_catalog_test.go",
+      "declaration": "TestCareOfferingCatalog_Create_RejectsAdvertisedDayAbsentFromShortPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        520
+        403
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "services/enrollment/care_offering_service_test.go",
-      "declaration": "TestCareOfferingService_Create_UsesTemplateCalendarPeriodFallback",
+      "file": "services/enrollment/care_offering_catalog_test.go",
+      "declaration": "TestCareOfferingCatalog_Create_UsesTemplateCalendarPeriodFallback",
       "target": "database/repositories.NewFactory",
       "lines": [
-        424
+        307
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "services/enrollment/care_offering_service_test.go",
+      "file": "services/enrollment/care_offering_catalog_test.go",
       "declaration": "createCareOfferingTemplateGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        141
+        1046
       ],
       "tables": [
         "activities.schedules"
@@ -2745,21 +2758,21 @@
     },
     {
       "scope": "test",
-      "file": "services/enrollment/care_offering_service_test.go",
+      "file": "services/enrollment/care_offering_catalog_test.go",
       "declaration": "createCareOfferingTestPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        123
+        1028
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "services/enrollment/care_offering_service_test.go",
+      "file": "services/enrollment/care_offering_catalog_test.go",
       "declaration": "setupCareTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        70
+        38
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -2952,7 +2965,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3977
+        4044
       ],
       "tables": []
     },
@@ -3000,7 +3013,7 @@
       "declaration": "TestDecide_FansOutToMultiSourceTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1167
+        1177
       ],
       "tables": []
     },
@@ -3010,7 +3023,7 @@
       "declaration": "TestDecide_MultiSourceFanOutSeedsFromPhaseStart",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1295
+        1305
       ],
       "tables": []
     },
@@ -3020,7 +3033,7 @@
       "declaration": "TestDecide_MultiSourceResyncRespectsCareOfferingsDisabled",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1373
+        1383
       ],
       "tables": []
     },
@@ -3030,7 +3043,7 @@
       "declaration": "TestOfferingDelete_DegradesSourcedTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        896
+        912
       ],
       "tables": [
         "enrollment.care_offerings"
@@ -3042,8 +3055,8 @@
       "declaration": "TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1209,
-        1261
+        1219,
+        1271
       ],
       "tables": [
         "activities.student_enrollments",
@@ -3056,8 +3069,8 @@
       "declaration": "TestOfferingDetach_KeepsRemainingSources",
       "target": "database/repositories.NewFactory",
       "lines": [
-        944,
-        962
+        960,
+        978
       ],
       "tables": []
     },
@@ -3067,9 +3080,9 @@
       "declaration": "TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1024,
-        1045,
-        1051
+        1034,
+        1055,
+        1061
       ],
       "tables": []
     },
@@ -3079,7 +3092,7 @@
       "declaration": "TestPhaseDelete_RetiresSourcedRosterRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1418
+        1428
       ],
       "tables": []
     },
@@ -3089,7 +3102,7 @@
       "declaration": "TestResync_UnionAcrossOfferings_PlansSharedChildOnce",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1080
+        1090
       ],
       "tables": [
         "activities.student_enrollments"
@@ -3101,7 +3114,7 @@
       "declaration": "TestSourcedRosterRows_AppearInTemplateListReads",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2324
+        2314
       ],
       "tables": []
     },
@@ -3111,7 +3124,7 @@
       "declaration": "TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1327
+        1337
       ],
       "tables": []
     },
@@ -3121,7 +3134,7 @@
       "declaration": "createSourcedTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        47
+        51
       ],
       "tables": []
     },
@@ -3131,7 +3144,7 @@
       "declaration": "createSourcedTemplateSegment",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1487
+        1497
       ],
       "tables": []
     },
@@ -3605,7 +3618,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        364
+        363
       ],
       "tables": []
     },
@@ -3615,7 +3628,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_FreeSlotComesBackSubmitted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        303
+        302
       ],
       "tables": []
     },
@@ -3625,8 +3638,8 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity",
       "target": "database/repositories.NewFactory",
       "lines": [
-        410,
-        419
+        409,
+        418
       ],
       "tables": []
     },
@@ -3636,7 +3649,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_RejectModeFailsWhenFull",
       "target": "database/repositories.NewFactory",
       "lines": [
-        462
+        461
       ],
       "tables": []
     },
@@ -3646,7 +3659,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        264
+        263
       ],
       "tables": []
     },
@@ -3666,7 +3679,7 @@
       "declaration": "setupRolloverTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        54
+        62
       ],
       "tables": [
         "auth.accounts",
@@ -20780,27 +20793,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 165,
+          "line": 163,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 515,
+          "line": 513,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 678,
+          "line": 676,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 927,
+          "line": 925,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1338,
+          "line": 1337,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -20810,7 +20823,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 312,
+          "line": 310,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -20820,22 +20833,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 166,
+          "line": 164,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 384,
+          "line": 382,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 429,
+          "line": 427,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 675,
+          "line": 673,
           "declaration": "type API"
         },
         {
@@ -20905,12 +20918,12 @@
         },
         {
           "file": "services/factory.go",
-          "line": 455,
+          "line": 451,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 505,
+          "line": 501,
           "declaration": "newFactory"
         },
         {

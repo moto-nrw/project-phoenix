@@ -1262,6 +1262,160 @@ two inlined closures.
   and fourteen handlers were split into named steps, and `api.go` and
   `instances_list.go` fell below 800 lines. No allowlist entry was added.
 
+#3559 (G1 of the `services/enrollment` dissolution under #2733) moved the
+care-offering catalog to its owner. The admin catalog, the timetable-link
+validation, the materializability, calendar-period, room, timeframe and phase
+guards, the offering-source guard and the rollover clone now live in
+`modules/careplan/internal/application/care_offering_*.go` behind the ports in
+`internal/ports/care_offering_catalog.go`, composed by
+`compose.NewCareOfferingCatalog`. The public contract is
+`careplan.CareOfferingCatalog`, `CareOfferingGuards`, `CareOfferingRollover`
+and `CareOfferingLinks` (`care_offering_catalog.go`, `care_offering_links.go`),
+with capability-specific method names because `contracts.generic-crud` refuses
+`List`/`Create`/`Update`/`Delete`/`GetByID` on a public contract. Error texts,
+statements and transaction boundaries are unchanged; the key count stays at
+542 and no rule was added.
+
+- The catalog reads the Timetable, the School Calendar and Enrollment only
+  through its own ports; `services/care_offering_catalog_composition.go` binds
+  them over the owners' public contracts, the settings service, Enrollment's
+  translation rules and the Timetable owner's offering-source refusal
+  (`timetable.ErrOfferingSourceInvalid`), which the catalog therefore never
+  imports. The ports call the same owner queries the retained activity,
+  schedule, calendar-period, timeframe and exception repositories delegated
+  to, with the same filters. Tenant rollback on a rejected update comes from the tenant runtime
+  in Care Plan's compose.
+- The decision service that resyncs sourced rosters and the pickup projection
+  is still composed after the catalog. Instead of the two setters the catalog
+  had, it resolves the service through a factory-local variable at call time,
+  so the composition surface fell from 620 to 618.
+- The enrollment routes and the retained enrollment services still speak
+  enrollment rows. Only Enrollment's own packages may name `models/enrollment`,
+  and `inbound-enrollment`/`http` has no permission to `care-plan`/`public`
+  (PR mode rejects adding one on an existing point), so `api/enrollment`
+  declares its own `CareOfferingCatalog` port in rows, bound at the root to
+  `services/enrollment.CareOfferingRows` over the owner. For the same reason
+  the row translation of care offerings and offering-change requests
+  (`services/enrollment/care_plan_offering_records.go`) stays with its
+  consumers until G2 to E4 move them. `services/enrollment` keeps its error
+  names pointed at the owner values, as #3558 did.
+- Booking materialization in `services/enrollment` calls the moved link rules
+  through `careplan.CareOfferingLinks` and the pure
+  `careplan.SchedulesOverlapPhase` / `ValidatePhaseWithinPeriod`, instead of
+  a second copy. The unused legacy sentinels
+  `models/enrollment.ErrCareOfferingInvalid`,
+  `ErrCareOfferingPickupTimesRequired` and
+  `models/schedule.ErrCalendarPeriodCareOfferingConflict` are gone.
+- The catalog's behaviour suites stay in the `services/enrollment` test
+  package, which already reaches the retained fixtures, and compose the owner
+  through `api/testutil.NewCareOfferingCatalog`; the pure booking-stats and
+  availability tests run against fakes in the application package.
+
+#3560 (G2 of the `services/enrollment` dissolution under #2733) moved the
+booking materialization to Care Plan. The roster rows an approval derives
+from a child's bookings, the offering-sourced Regeltermin resync, detach and
+editor support, the Regeltermin roster indicator, the dated offering
+adjustments and the offering pickup times now live in
+`modules/careplan/internal/application` (`booking_*.go`, `sourced_*.go`,
+`offering_adjustment*.go`, `offering_pickup_times.go`,
+`offering_source_editor.go`, `template_roster_feeds.go`) behind the ports in
+`internal/ports/booking_materialization.go`, composed by
+`compose.NewBookingMaterialization` over the catalog of #3559. The public
+contract is `careplan.SourcedRosters`, `OfferingSourceEditor`,
+`BookingMaterializer`, `OfferingAdjustments` and `OfferingPickupTimes`
+(`booking_materialization.go`), plus the pure rules
+`DeriveTemplateRosterMaintenance`, `ExplainEmptyOfferingRoster` and
+`ExcludedAutoTargetOverrides`. `careplan.CareOfferingLinks`, which only
+served the materialization while it lived in `services/enrollment`, is gone.
+Error texts, statements and transaction boundaries are unchanged; the key
+count falls from 542 to 540 and no rule was added.
+
+- The materialization writes `activities.student_enrollments` and reconciles
+  `schedule.instance_students` through ports that
+  `services/booking_materialization_composition.go` binds to the Timetable
+  owner's `StudentEnrollmentCommand` and roster maintenance, the way
+  `NewCareLifecycle` already works. It reads Enrollment's requests, children,
+  phases, booked selections and the approved-booking projection, People
+  Directory students and locks, the School Calendar periods, the settings and
+  Audit Platform's adjustment trail through the same binding; Care Plan's own
+  bookings, pickup rows and withdrawal follow-up are passed in directly.
+  Every write joins the ambient tenant transaction. The recurrence gate is
+  the Timetable owner's; the class-writes gate and the student lock are People
+  Directory's, in the order every care writer takes them. The pickup
+  announcement is deferred to commit in Care Plan's compose; the services
+  binding only broadcasts.
+- The Jahrgang of a child comes from Enrollment's rule
+  (`enrollment.SchoolClassGradeLevel`) through the ports, because Care Plan's
+  application may not import School Structure's class grammar.
+- The decision, change-request and offering-change services still speak
+  enrollment rows. They drive the owner through
+  `services/enrollment.DecisionBookings` and translate its results in
+  `care_plan_bookings.go`; `services.Factory.EnrollmentCareOffering` now
+  carries the catalog together with the materialization
+  (`careplan.CareOfferingCapability`), so the Timetable hook, the grade
+  transition, the phase service, the Regeltermin editor, the student class
+  resync and the pickup reset route reach it without a new field. The
+  intake-side selection helpers the retained request, change-request and
+  offering-change services share with enrollment rows
+  (`intake_offering_rules.go`, `changeCareBookings`) and the decision's own
+  targeted-field pickup hooks stay with those services until E3, E4 and G3
+  move them. The offering-change decision validates excluded co-booking
+  targets through `careplan.ExcludedAutoTargetOverrides` instead of its own
+  copy.
+- The legacy repository methods only the materialization called
+  (`FindTemplatesBySourceOffering(s)`, `FindTemplatesWithOfferingSource`,
+  `BackfillEnrollmentRequestChildSource`, `DeleteByEnrollmentRequestChild`)
+  are deleted. The behaviour suites stay in the `services/enrollment` test
+  package and compose the owner through `api/testutil.NewBookingMaterialization`.
+
+#3561 (G3 of the `services/enrollment` dissolution under #2733) moved the
+offering-change, course-request and pickup-adjustment reviews to Care Plan.
+The parent's switch request, its staff decision and preview, the edit and
+withdrawal, the conflict resolver side, the course request with its
+waitlist, the staff-side direct offering correction and the permanent
+pickup-time adjustment now live in `modules/careplan/internal/application`
+(`offering_change*.go`, `course_request*.go`,
+`direct_offering_adjustments.go`, `pickup_adjustment*.go`) behind the ports in
+`internal/ports/offering_changes.go` and `internal/ports/pickup_adjustments.go`,
+composed by `compose.NewOfferingChanges` and `compose.NewPickupAdjustments`.
+The public contract is `careplan.OfferingChangeRequests`, `CourseRequests`,
+`OfferingChangeConflicts`, `DirectOfferingAdjustments` (together
+`OfferingChangeCapability`) and `PickupAdjustments`. Routes, status codes,
+error texts, authorization and tenant scoping are unchanged; the key count
+falls from 540 to 535 and no rule was added (one stale test rule is gone).
+
+- `services/offering_change_composition.go` and
+  `services/pickup_adjustment_composition.go` bind the ports over Care Plan's
+  own request rows, Enrollment's care periods, children, phases, selections,
+  catalog state and capacity peak, People Directory students and locks, the
+  withdrawal follow-up, the settings, the review scope of the caller's JWT
+  permissions, the parent-messaging ledger and the co-guardian notices. The
+  course groups of the manual planning come from the Timetable owner
+  (`services/offering_change_planning.go`). Every write joins the ambient
+  tenant transaction; the pickup adjustment joins it through Care Plan's
+  compose (`tenant.WithTenantTx`) and marks it for rollback the way the
+  retained service did.
+- Approvals and direct corrections reach the booking materialization of #3560
+  through `careplan.OfferingAdjustments` with the request or direct source;
+  `services/enrollment` keeps no offering-change, course-request, pickup or
+  direct-correction rule. The pickup adjustment token is the Security Runtime
+  fingerprint; it is a content fingerprint, not a secret, so the comparison no
+  longer needs `crypto/subtle`.
+- `services.Factory` loses the `OfferingChanges` and `PickupAdjustments`
+  fields: `EnrollmentCareOffering` (`careplan.CareOfferingCapability`) now
+  carries both reviews, so `api/students`, the parent portal and the conflict
+  coordinator reach them without a new field (composition surface
+  618 -> 615). The lifecycle sentinels are translated to the
+  `services/users` ones in a services decorator so rendered texts stay
+  byte-identical; the conflict coordinator's staff value is parsed there too,
+  so the public contract stays typed.
+- The legacy queue methods (`ListPending`, `ListHistory`, `PendingCount`,
+  `ListDirectCorrections`) had no production caller since the native request
+  review (#3179) and are deleted. The behaviour suites stay in the
+  `services/enrollment` test package, compose the owner through
+  `api/testutil.NewOfferingChanges` and assert the staff queue through
+  `api/testutil.NewOfferingReviewQuery`.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).

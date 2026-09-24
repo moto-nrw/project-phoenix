@@ -12,72 +12,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/offeringrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
+// fakeOfferingChangeRequestService records the preview and decide calls; the
+// embedded interface panics for any other method the routes must not reach.
 type fakeOfferingChangeRequestService struct {
-	input                enrollmentService.DecideOfferingChangeInput
+	careplan.OfferingChangeRequests
+	input                careplan.OfferingChangeDecisionInput
 	previewExcluded      []int64
 	previewEffectiveFrom *timezone.Date
-	preview              *enrollmentService.OfferingChangePreview
-}
-
-func (f *fakeOfferingChangeRequestService) Catalog(context.Context, int64) (*enrollmentService.OfferingChangeCatalog, error) {
-	return nil, nil
-}
-
-func (f *fakeOfferingChangeRequestService) CatalogAt(context.Context, int64, timezone.Date) (*enrollmentService.OfferingChangeCatalog, error) {
-	return nil, nil
-}
-
-// Kurse (#3075). The parents-portal course surface has its own tests; the fake
-// only has to satisfy the interface.
-func (f *fakeOfferingChangeRequestService) CourseCatalog(context.Context, int64, int64) (*enrollmentService.CourseCatalog, error) {
-	return nil, nil
-}
-
-func (f *fakeOfferingChangeRequestService) CreateCourseRequest(
-	context.Context, enrollmentService.CreateCourseRequestInput,
-) (*enrollmentModels.OfferingChangeRequest, error) {
-	return nil, nil
-}
-
-func (f *fakeOfferingChangeRequestService) WithdrawCourseRequest(context.Context, int64, int64, int64) error {
-	return nil
-}
-
-func (f *fakeOfferingChangeRequestService) GetForStudent(context.Context, int64) (*enrollmentService.OfferingChangeView, error) {
-	return nil, nil
-}
-
-func (f *fakeOfferingChangeRequestService) Create(context.Context, enrollmentService.CreateOfferingChangeInput) (*enrollmentModels.OfferingChangeRequest, error) {
-	return nil, nil
-}
-
-func (f *fakeOfferingChangeRequestService) Withdraw(context.Context, int64, int64, int64) error {
-	return nil
-}
-
-func (f *fakeOfferingChangeRequestService) ListHistory(context.Context, modelBase.RequestQueueFilters) ([]*enrollmentService.OfferingChangeHistoryItem, *userService.HistoryCursor, error) {
-	return nil, nil, nil
-}
-
-func (f *fakeOfferingChangeRequestService) ListDirectCorrections(context.Context, modelBase.RequestQueueFilters) ([]*enrollmentService.DirectCorrectionItem, *userService.HistoryCursor, error) {
-	return nil, nil, nil
-}
-
-func (f *fakeOfferingChangeRequestService) ListPending(context.Context, modelBase.RequestQueueFilters) ([]*enrollmentService.OfferingChangeView, *userService.HistoryCursor, error) {
-	return nil, nil, nil
-}
-
-func (f *fakeOfferingChangeRequestService) PendingCount(context.Context) (int, error) {
-	return 0, nil
+	preview              *careplan.OfferingChangePreview
 }
 
 func (f *fakeOfferingChangeRequestService) PreviewDecision(
@@ -85,13 +33,13 @@ func (f *fakeOfferingChangeRequestService) PreviewDecision(
 	_ int64,
 	excluded []int64,
 	effectiveFrom *timezone.Date,
-) (*enrollmentService.OfferingChangePreview, error) {
+) (*careplan.OfferingChangePreview, error) {
 	f.previewExcluded = excluded
 	f.previewEffectiveFrom = effectiveFrom
 	return f.preview, nil
 }
 
-func (f *fakeOfferingChangeRequestService) Decide(_ context.Context, input enrollmentService.DecideOfferingChangeInput) error {
+func (f *fakeOfferingChangeRequestService) Decide(_ context.Context, input careplan.OfferingChangeDecisionInput) error {
 	f.input = input
 	return nil
 }
@@ -123,13 +71,13 @@ func TestDecideOfferingChangeRequest_UsesReviewerRolesForAudit(t *testing.T) {
 func TestPreviewOfferingChangeRequest_ReturnsMaterializedDays(t *testing.T) {
 	t.Parallel()
 
-	svc := &fakeOfferingChangeRequestService{preview: &enrollmentService.OfferingChangePreview{
-		Selections: []enrollmentService.OfferingChangePreviewSelection{{
+	svc := &fakeOfferingChangeRequestService{preview: &careplan.OfferingChangePreview{
+		Selections: []careplan.OfferingChangePreviewSelection{{
 			OfferingID: 11,
 			State:      "booked",
 			Days:       []string{"mon", "wed"},
 		}},
-		ManualPlanningConflicts: []enrollmentService.ManualPlanningConflict{{
+		ManualPlanningConflicts: []careplan.ManualPlanningConflict{{
 			ActivityGroupID:   17,
 			ActivityGroupName: "Freie Hausaufgaben-Gruppe",
 			Days:              []string{"tue"},
@@ -286,7 +234,7 @@ func TestRenderOfferingDecisionError_UsesStableCompleteWithdrawalCode(t *testing
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/", nil)
 
-	renderOfferingDecisionError(recorder, request, enrollmentService.ErrCompleteWithdrawalConfirmationRequired)
+	renderOfferingDecisionError(recorder, request, careplan.ErrCompleteWithdrawalConfirmationRequired)
 
 	assert.Equal(t, http.StatusConflict, recorder.Code)
 	assert.Contains(t, recorder.Body.String(), `"code":"enrollment.complete_withdrawal_confirmation_required"`)
@@ -338,7 +286,7 @@ func TestDecideOfferingChangeRequest_RejectionNeedsNoDate(t *testing.T) {
 func TestPreviewOfferingChangeRequest_PassesTheChosenDate(t *testing.T) {
 	t.Parallel()
 
-	svc := &fakeOfferingChangeRequestService{preview: &enrollmentService.OfferingChangePreview{}}
+	svc := &fakeOfferingChangeRequestService{preview: &careplan.OfferingChangePreview{}}
 	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/preview",
 		strings.NewReader(`{"excluded_offering_ids":[],"effective_from":"2026-09-01"}`))
@@ -352,12 +300,4 @@ func TestPreviewOfferingChangeRequest_PassesTheChosenDate(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.NotNil(t, svc.previewEffectiveFrom)
 	assert.Equal(t, timezone.NewDate(2026, 9, 1), *svc.previewEffectiveFrom)
-}
-
-// Edit is the guardian edit path (#2267); the staff review handlers under
-// test never call it.
-func (f *fakeOfferingChangeRequestService) Edit(
-	context.Context, int64, enrollmentService.CreateOfferingChangeInput, string,
-) (*enrollmentModels.OfferingChangeRequest, error) {
-	return nil, nil
 }

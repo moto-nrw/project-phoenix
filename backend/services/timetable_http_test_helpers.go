@@ -11,12 +11,12 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -37,10 +37,10 @@ func NewTimetableHTTPTestRows(db *bun.DB, clocks ...func() time.Time) (Timetable
 	return repositories.NewTimetableTestRepositories(db, clocks...)
 }
 
-// TimetableHTTPTestCareOfferingInvalid is what Enrollment's care-offering
+// TimetableHTTPTestCareOfferingInvalid is what Care Plan's care-offering
 // checks return for an offering a template change would invalidate; the
 // composition classifies it as the conflict.
-var TimetableHTTPTestCareOfferingInvalid = enrollment.ErrCareOfferingInvalid
+var TimetableHTTPTestCareOfferingInvalid = careplan.ErrCareOfferingConfigInvalid
 
 // TimetableHTTPTestOptions are the collaborators a suite replaces: the
 // Enrollment care-offering checks and roster resync (nil accepts), the
@@ -235,13 +235,13 @@ func newTimetableHTTPTestReads(db *bun.DB, r TimetableHTTPTestRows, rows reposit
 
 // timetableHTTPTestCareOfferingChecks binds the suite's care-offering
 // callbacks; an omitted callback accepts, and an invalid linked offering is
-// the conflict, as the composition root binds Enrollment.
+// the conflict, as the composition root binds the Care Plan catalog.
 func timetableHTTPTestCareOfferingChecks(options TimetableHTTPTestOptions) timetableCompose.CareOfferingChecks {
 	checks := timetableCompose.CareOfferingChecks{
 		ValidateSeries:         options.ValidateCareOfferingSeries,
 		ValidateOfferingSource: options.ValidateOfferingSource,
 		IsConflict: func(err error) bool {
-			return errors.Is(err, enrollment.ErrCareOfferingInvalid)
+			return isCareOfferingConfigInvalid(err)
 		},
 	}
 	if checks.ValidateSeries == nil {
@@ -312,24 +312,16 @@ func NewTimetableHTTPTestPeople(db *bun.DB) (TimetablePeople, error) {
 }
 
 // NewTimetableHTTPTestOfferingSources serves the offering-source support of
-// the timetable routes from the enrollment decision service over the test
+// the timetable routes from Care Plan's booking materialization over the test
 // database.
 func NewTimetableHTTPTestOfferingSources(db *bun.DB, unit tenant.UnitOfWork) (timetable.OfferingSourceSupport, error) {
-	r, err := repositories.NewTimetableTestRepositories(db)
+	module, err := NewBookingMaterializationTestModule(db, unit, BookingMaterializationTestOptions{})
 	if err != nil {
 		return nil, err
 	}
-	settings, err := NewSettingsTestModule(db, unit)
-	if err != nil {
-		return nil, err
-	}
-	support := NewTimetableOfferingSources(enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
-		CareOfferingRepo:  enrollment.NewCareOfferingRepository(r.CarePlan),
-		ActivityGroupRepo: r.ActivityGroup,
-		Settings:          settings.Settings,
-	}))
+	support := NewTimetableOfferingSources(module.Bookings)
 	if support == nil {
-		return nil, errors.New("enrollment decision service serves no offering sources")
+		return nil, errors.New("care plan serves no offering sources")
 	}
 	return support, nil
 }

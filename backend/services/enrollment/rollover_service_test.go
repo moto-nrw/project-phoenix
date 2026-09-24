@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
@@ -28,16 +30,22 @@ import (
 // in request_service_test.go so we get tenant + form schema + base
 // phase out of the box.
 type rolloverTestEnv struct {
+	// tb composes the Care Plan collaborators the decision suites build on
+	// this env over the test tenant.
+	tb             testing.TB
 	db             *bun.DB
 	repos          *repositories.Factory
 	timetable      timetable.Capability
 	rolloverSvc    enrollmentService.RolloverService
 	requestSvc     enrollmentService.RequestService
 	offeringCloner enrollmentService.RolloverOfferingCatalogCloner
-	settings       *stubRequestSettings
-	outbox         *recordingOutbox
-	sourcePhase    *capability.Phase
-	creatorID      int64
+	// offeringCatalog is the Care Plan catalog over the test database; its
+	// link rules feed the decision services the suites build on this env.
+	offeringCatalog careplan.CareOfferingCatalogCapability
+	settings        *stubRequestSettings
+	outbox          *recordingOutbox
+	sourcePhase     *capability.Phase
+	creatorID       int64
 }
 
 func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
@@ -91,20 +99,8 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 		Logger:           slog.Default(),
 	})
 
-	careOfferingSvc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
-		Repo:                  enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
-		Bookings:              repoFactory.Enrollment(),
-		ActivityGroupRepo:     repoFactory.ActivityGroup,
-		ActivityScheduleRepo:  repoFactory.ActivitySchedule,
-		CalendarPeriodRepo:    repoFactory.CalendarPeriod,
-		TimeframeRepo:         repoFactory.Timeframe,
-		ActivityExceptionRepo: repoFactory.ActivityException,
-		Phases:                repoFactory.Enrollment(),
-		Settings:              settings,
-		Logger:                slog.Default(),
-	})
-	offeringCloner, ok := careOfferingSvc.(enrollmentService.RolloverOfferingCatalogCloner)
-	require.True(t, ok, "care offering service must implement RolloverOfferingCatalogCloner")
+	offeringCatalog := testCareOfferingCatalog(t, db, testutil.WithCareOfferingSettings(settings))
+	var offeringCloner enrollmentService.RolloverOfferingCatalogCloner = offeringCatalog
 
 	rolloverSvc := enrollmentService.NewRolloverService(enrollmentService.RolloverServiceConfig{
 		Bookings:              requestTestBookingCommands(),
@@ -144,16 +140,18 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	require.NoError(t, enrollmentService.InsertOwnerPhaseForTest(ctx, repoFactory.Enrollment(), sourcePhase))
 
 	env := &rolloverTestEnv{
-		db:             db,
-		repos:          repoFactory,
-		timetable:      timetableDeps.Capability,
-		rolloverSvc:    rolloverSvc,
-		requestSvc:     requestSvc,
-		offeringCloner: offeringCloner,
-		settings:       settings,
-		outbox:         outbox,
-		sourcePhase:    sourcePhase,
-		creatorID:      account.ID,
+		tb:              t,
+		db:              db,
+		repos:           repoFactory,
+		timetable:       timetableDeps.Capability,
+		rolloverSvc:     rolloverSvc,
+		requestSvc:      requestSvc,
+		offeringCloner:  offeringCloner,
+		offeringCatalog: offeringCatalog,
+		settings:        settings,
+		outbox:          outbox,
+		sourcePhase:     sourcePhase,
+		creatorID:       account.ID,
 	}
 
 	cleanup := func() {
