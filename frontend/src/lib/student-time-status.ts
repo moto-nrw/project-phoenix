@@ -135,6 +135,9 @@ function parseTimeParts(time: string): TimeParts | null {
   return { hours, minutes };
 }
 
+/** How a day without care time reads on the narrow card and home rows (#3373). */
+export const ONLY_IF_LESSON_CANCELLED_LABEL = "Nur bei Unterrichtsausfall";
+
 function toMinutes(time?: string | null): number | null {
   const parts = time ? parseTimeParts(time) : null;
   return parts ? parts.hours * 60 + parts.minutes : null;

@@ -22,6 +22,7 @@ import {
 } from "~/lib/hooks/use-home-group";
 import { isAtSchoolLocation, LOCATION_COLORS } from "~/lib/location-helper";
 import type { OgsLiveWireStudent } from "~/lib/ogs-group-live-api";
+import { ONLY_IF_LESSON_CANCELLED_LABEL } from "~/lib/student-time-status";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 /** So viele Zeilen passen in eine Karte dieser Höhe ganz hinein. */
@@ -340,7 +341,7 @@ function AwayBadge({
   if (student.sick) return <StatusBadge tone="red" label="Krank" />;
   // Unterricht bis zur Abholzeit: kommt nur, wenn eine Stunde ausfällt (#3373).
   if (onlyIfLessonCancelled && isExpectedToday(student)) {
-    return <StatusBadge tone="gray" label="Nur bei Unterrichtsausfall" />;
+    return <StatusBadge tone="gray" label={ONLY_IF_LESSON_CANCELLED_LABEL} />;
   }
   // Noch nicht da, aber angekündigt: das ist kein Fehlen, das ist Warten.
   if (isExpectedToday(student)) {

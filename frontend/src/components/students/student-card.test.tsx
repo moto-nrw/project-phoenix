@@ -658,10 +658,8 @@ describe("time rows for a day without care time (#3373)", () => {
       </>,
     );
 
-    expect(screen.getByText("Ankunftszeit: 13:20 Uhr")).toBeInTheDocument();
-    expect(
-      screen.getByText("(nur bei Unterrichtsausfall)"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Nur bei Unterrichtsausfall")).toBeInTheDocument();
+    expect(screen.queryByText(/Ankunftszeit/)).not.toBeInTheDocument();
     expect(screen.getByText("Gehzeit: 13:20 Uhr")).toBeInTheDocument();
     expect(
       container.querySelector("svg.lucide-triangle-alert"),

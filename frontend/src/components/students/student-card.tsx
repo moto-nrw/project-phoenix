@@ -24,6 +24,7 @@ import {
 } from "@phosphor-icons/react";
 import {
   getStudentTimeStatus,
+  ONLY_IF_LESSON_CANCELLED_LABEL,
   type StudentDayTimes,
   type StudentTimeStatus,
 } from "~/lib/student-time-status";
@@ -471,7 +472,12 @@ function TimeStatusRow({
   // and screen-reader output read the row as one continuous string. Splitting
   // the time into its own <span> for the colored states would break exact
   // text matching even though the rendered characters are identical.
-  const fullText = `${label}: ${status.displayTime} Uhr`;
+  // A day without care time says so instead of a time: the card row is too
+  // narrow for time plus explanation, and the explanation is the news (#3373).
+  const fullText =
+    status.state === "only-if-lesson-cancelled"
+      ? ONLY_IF_LESSON_CANCELLED_LABEL
+      : `${label}: ${status.displayTime} Uhr`;
 
   return (
     <StudentInfoRow icon={icon}>
@@ -479,9 +485,6 @@ function TimeStatusRow({
         <span style={{ color: status.textColor }}>{fullText}</span>
       ) : (
         fullText
-      )}
-      {status.state === "only-if-lesson-cancelled" && (
-        <span className="ml-1 text-gray-500">({status.detailAnnotation})</span>
       )}
       {notes && <span className="ml-1 text-gray-500">({notes})</span>}
     </StudentInfoRow>
