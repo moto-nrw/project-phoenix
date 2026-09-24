@@ -41,7 +41,6 @@ import (
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
-	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -113,6 +112,7 @@ import (
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
+	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	worktimemodelsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/httpadapter"
@@ -125,19 +125,6 @@ import (
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 )
-
-// offeringSourceOptions narrows the enrollment decision service to the
-// timetable editor's offering-source view (#2137). Returns nil when the
-// concrete service does not implement it (partial test wiring) — the handler
-// then responds 500 instead of panicking, matching the resource's nil-dep
-// contract.
-func offeringSourceOptions(svc enrollmentSvc.DecisionService) enrollmentSvc.OfferingSourceOptionLister {
-	lister, ok := svc.(enrollmentSvc.OfferingSourceOptionLister)
-	if !ok {
-		return nil
-	}
-	return lister
-}
 
 // recordHTTPRuntimeEvent turns one runtime event into a metric and, for
 // failures, one ERROR record carrying method, route, path and status. A
@@ -1600,7 +1587,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		InstanceService:         api.Services.Instance,
 		InstanceSeriesConverter: api.Services.InstanceSeriesConverter,
 		OperationsService:       api.Services.TimetableOperations,
-		PersonService:           api.Services.Users,
+		People:                  services.NewTimetablePeople(api.Services.Users),
 		Templates:               api.Services.TimetableData.Templates,
 		RecurrenceLock:          api.Services.TimetableData.RecurrenceLock,
 		AttendanceCorrections:   api.Services.TimetableData.AttendanceCorrections,
@@ -1612,13 +1599,12 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		UserContextService:      api.Services.UserContext,
 		SettingsService:         api.Services.Settings,
 		SlotListsService:        api.Services.SlotLists,
-		OfferingSourceOptions:   offeringSourceOptions(api.Services.EnrollmentDecision),
-		ReportService:           api.Services.EnrollmentReport,
+		OfferingSourceOptions:   services.NewTimetableOfferingSources(api.Services.EnrollmentDecision),
+		SupervisionSheets:       services.NewTimetableSupervisionSheets(api.Services.EnrollmentReport),
 		PlanExportService:       api.Services.PlanExport,
 		PickupExtensions:        pickupExtensions,
 		Staffing:                timetableStaffingAnnouncer(api.Services.Instance),
 		Logger:                  logger.With("handler", "timetable"),
-		DB:                      db,
 	})
 	// The school portal reuses the class-day and the timetable resources, so
 	// it is built after both (#2207, #2527).

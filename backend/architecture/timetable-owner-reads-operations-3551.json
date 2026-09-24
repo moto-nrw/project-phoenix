@@ -37,8 +37,8 @@
   "runtime_evidence": {
     "source": "Local runs on the #3551 branch stacked on work/3550-move-timetable-conflict-detection-and-staffing-o at 1697d2a3e9444b44206aa85583587fc0b5264960; PR https://github.com/moto-nrw/project-phoenix/pull/3606.",
     "sources": [
-      "backend/api/timetable/deviation_history.go",
-      "backend/api/timetable/timetable_data_ports_test.go",
+      "backend/modules/timetable/http/deviation_history.go",
+      "backend/modules/timetable/http/timetable_data_ports_test.go",
       "backend/services/enrollment/timetable_arrival_projection_test.go",
       "backend/test/query_budgets.go",
       "https://github.com/moto-nrw/project-phoenix/pull/3606"
