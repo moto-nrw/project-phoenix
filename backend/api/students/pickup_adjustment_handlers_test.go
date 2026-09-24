@@ -8,34 +8,32 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 type failAfterOfferingWriteCoordinator struct {
-	enrollmentService.DirectOfferingAdjustmentCoordinator
+	careplan.DirectOfferingAdjustments
 }
 
 func (c failAfterOfferingWriteCoordinator) ApplyDirectOfferingAdjustment(
 	ctx context.Context,
-	input enrollmentService.DirectOfferingAdjustmentInput,
+	input careplan.DirectOfferingAdjustmentInput,
 ) error {
-	if err := c.DirectOfferingAdjustmentCoordinator.ApplyDirectOfferingAdjustment(ctx, input); err != nil {
+	if err := c.DirectOfferingAdjustments.ApplyDirectOfferingAdjustment(ctx, input); err != nil {
 		return err
 	}
-	return enrollmentService.ErrPickupAdjustmentInvalid
+	return careplan.ErrPickupAdjustmentInvalid
 }
 
 func TestPickupAdjustmentProtectedRouterRequiresExplicitExceptionAndAuditsApply(t *testing.T) {
@@ -383,11 +381,11 @@ func TestPickupAdjustmentProtectedRouterRollsBackKnownErrorAfterOfferingWrite(t 
 	preview := postPickupAdjustmentPreview(t, tc, student.ID, account.ID, body)
 	body["preview_token"] = preview.PreviewToken
 	body["resolution"] = "offering"
-	realCoordinator, ok := tc.resource.OfferingChangeService.(enrollmentService.DirectOfferingAdjustmentCoordinator)
+	realCoordinator, ok := tc.resource.OfferingChangeService.(careplan.DirectOfferingAdjustments)
 	require.True(t, ok)
-	tc.resource.PickupAdjustmentService = pickupAdjustmentServiceWithCoordinator(
-		tc, failAfterOfferingWriteCoordinator{realCoordinator},
-	)
+	failing, err := tc.newPickupAdjustments(failAfterOfferingWriteCoordinator{realCoordinator})
+	require.NoError(t, err)
+	tc.resource.PickupAdjustmentService = failing
 
 	req := testutil.NewAuthenticatedRequest(
 		t, http.MethodPost, fmt.Sprintf("/%d/pickup-schedules/apply", student.ID), body,
@@ -466,31 +464,6 @@ func fiveDayArrivalBody(arrivalTime, mondayNote string) []map[string]any {
 		rows = append(rows, row)
 	}
 	return rows
-}
-
-func pickupAdjustmentServiceWithCoordinator(
-	tc *testContext,
-	coordinator enrollmentService.DirectOfferingAdjustmentCoordinator,
-) enrollmentService.PickupAdjustmentService {
-	repos := newStudentTestRepositories(tc.db)
-	approvedOfferings, err := testutil.NewApprovedOfferingProjection(tc.db, repos.Enrollment())
-	if err != nil {
-		panic(err)
-	}
-	baselines, err := careplanCompose.NewPickupBaselines(repos.CarePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
-		return tc.resource.SettingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
-	})
-	if err != nil {
-		panic(err)
-	}
-	return enrollmentService.NewPickupAdjustmentService(enrollmentService.PickupAdjustmentServiceConfig{
-		PickupSchedules: tc.resource.PickupScheduleService, ArrivalSchedules: tc.resource.ArrivalScheduleService,
-		PickupScheduleRepo:  repos.StudentPickupSchedule,
-		ArrivalScheduleRepo: repos.StudentArrivalSchedule,
-		PickupBaselines:     baselines, Offerings: coordinator, Settings: tc.resource.SettingsService,
-		Audit: tc.resource.StudentAuditService, Students: repos.Student, DB: tc.db,
-		Today: func() timezone.Date { return studentsTestToday },
-	})
 }
 
 type pickupAdjustmentPreviewEnvelopeData struct {

@@ -10,11 +10,10 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -200,20 +199,20 @@ func (rs *Resource) applyStudentPickupAdjustment(w http.ResponseWriter, r *http.
 
 func (rs *Resource) pickupAdjustmentApplyInput(
 	r *http.Request,
-	input enrollmentService.PickupAdjustmentPreviewInput,
+	input careplan.PickupAdjustmentPreviewInput,
 	body pickupAdjustmentRequest,
 	staffID int64,
-) enrollmentService.PickupAdjustmentApplyInput {
+) careplan.PickupAdjustmentApplyInput {
 	claims := jwt.ClaimsFromCtx(r.Context())
 	permissions := jwt.PermissionsFromCtx(r.Context())
-	return enrollmentService.PickupAdjustmentApplyInput{
+	return careplan.PickupAdjustmentApplyInput{
 		PickupAdjustmentPreviewInput: input,
 		PreviewToken:                 body.PreviewToken, Resolution: body.Resolution, Reason: body.Reason,
 		ActorAccountID: int64(claims.ID), ActorRole: strings.Join(claims.Roles, ","),
 		CreatedByStaffID:            staffID,
 		CompleteWithdrawalConfirmed: body.CompleteWithdrawalConfirmed,
-		Authorize: func(ctx context.Context, fresh *users.Student) (bool, error) {
-			return canUpdateStudent(ctx, permissions, fresh, rs.UserContextService)
+		Authorize: func(ctx context.Context, fresh careplan.ScheduleStudent) (bool, error) {
+			return authorize.CanUpdateStudent(ctx, permissions, fresh, rs.UserContextService)
 		},
 	}
 }
@@ -221,45 +220,45 @@ func (rs *Resource) pickupAdjustmentApplyInput(
 func pickupAdjustmentPreviewInput(
 	studentID int64,
 	body pickupAdjustmentRequest,
-) (enrollmentService.PickupAdjustmentPreviewInput, error) {
+) (careplan.PickupAdjustmentPreviewInput, error) {
 	effectiveFrom := timezone.TodayDate()
 	if body.EffectiveFrom != nil {
 		effectiveFrom = *body.EffectiveFrom
 	}
-	schedules := make([]enrollmentService.PickupAdjustmentSchedule, 0, len(body.Schedules))
+	schedules := make([]careplan.PickupAdjustmentSchedule, 0, len(body.Schedules))
 	for _, row := range body.Schedules {
-		schedules = append(schedules, enrollmentService.PickupAdjustmentSchedule{
+		schedules = append(schedules, careplan.PickupAdjustmentSchedule{
 			Weekday: row.Weekday, PickupTime: row.PickupTime, Notes: row.Notes,
 		})
 	}
-	var selections []enrollmentService.OfferingChangeSelection
+	var selections []careplan.OfferingChangeSelection
 	if body.Selections != nil {
-		selections = make([]enrollmentService.OfferingChangeSelection, 0, len(*body.Selections))
+		selections = make([]careplan.OfferingChangeSelection, 0, len(*body.Selections))
 		for _, row := range *body.Selections {
 			id, err := strconv.ParseInt(strings.TrimSpace(row.OfferingID), 10, 64)
 			if err != nil || id <= 0 {
-				return enrollmentService.PickupAdjustmentPreviewInput{}, errors.New("offering_id must be a positive number")
+				return careplan.PickupAdjustmentPreviewInput{}, errors.New("offering_id must be a positive number")
 			}
-			selections = append(selections, enrollmentService.OfferingChangeSelection{
+			selections = append(selections, careplan.OfferingChangeSelection{
 				OfferingID: id, SelectedDays: row.SelectedDays,
 			})
 		}
 	}
 	excluded, err := parseExcludedOfferingIDs(body.ExcludedAutoOfferingIDs)
 	if err != nil {
-		return enrollmentService.PickupAdjustmentPreviewInput{}, err
+		return careplan.PickupAdjustmentPreviewInput{}, err
 	}
-	var arrivalSchedules *[]enrollmentService.PickupAdjustmentArrivalSchedule
+	var arrivalSchedules *[]careplan.PickupAdjustmentArrivalSchedule
 	if body.ArrivalSchedules != nil {
-		rows := make([]enrollmentService.PickupAdjustmentArrivalSchedule, 0, len(*body.ArrivalSchedules))
+		rows := make([]careplan.PickupAdjustmentArrivalSchedule, 0, len(*body.ArrivalSchedules))
 		for _, row := range *body.ArrivalSchedules {
-			rows = append(rows, enrollmentService.PickupAdjustmentArrivalSchedule{
+			rows = append(rows, careplan.PickupAdjustmentArrivalSchedule{
 				Weekday: row.Weekday, ExpectedArrival: row.ExpectedArrival, Notes: row.Notes,
 			})
 		}
 		arrivalSchedules = &rows
 	}
-	return enrollmentService.PickupAdjustmentPreviewInput{
+	return careplan.PickupAdjustmentPreviewInput{
 		StudentID:               studentID,
 		Schedules:               schedules,
 		ArrivalSchedules:        arrivalSchedules,
@@ -270,7 +269,7 @@ func pickupAdjustmentPreviewInput(
 	}, nil
 }
 
-func toPickupAdjustmentPreviewResponse(preview *enrollmentService.PickupAdjustmentPreview) pickupAdjustmentPreviewResponse {
+func toPickupAdjustmentPreviewResponse(preview *careplan.PickupAdjustmentPreview) pickupAdjustmentPreviewResponse {
 	response := pickupAdjustmentPreviewResponse{
 		PreviewToken:         preview.PreviewToken,
 		EffectiveFrom:        preview.EffectiveFrom.String(),
@@ -304,7 +303,7 @@ func toPickupAdjustmentPreviewResponse(preview *enrollmentService.PickupAdjustme
 	return response
 }
 
-func pickupAdjustmentCatalogResponseFrom(catalog *enrollmentService.OfferingChangeCatalog) *pickupAdjustmentCatalogResponse {
+func pickupAdjustmentCatalogResponseFrom(catalog *careplan.OfferingChangeCatalog) *pickupAdjustmentCatalogResponse {
 	if catalog == nil {
 		return nil
 	}
@@ -328,7 +327,7 @@ func pickupAdjustmentCatalogResponseFrom(catalog *enrollmentService.OfferingChan
 	return response
 }
 
-func pickupAdjustmentConsequencesResponseFrom(preview *enrollmentService.OfferingChangePreview) *pickupAdjustmentConsequencesResponse {
+func pickupAdjustmentConsequencesResponseFrom(preview *careplan.OfferingChangePreview) *pickupAdjustmentConsequencesResponse {
 	if preview == nil {
 		return nil
 	}

@@ -2,8 +2,6 @@ package users
 
 import (
 	"errors"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // Lifecycle sentinels shared by the past / mark-done / correction paths of all
@@ -25,17 +23,6 @@ var (
 	// since the decision. The wrapped message names the reason.
 	ErrParentRequestCorrectionUnsupported = errors.New("parent requests: decision cannot be corrected")
 )
-
-// ParentRequestIsPast reports whether a request whose effective scope ends on
-// scopeEnd no longer covers any day from today on. A zero scopeEnd means the
-// type has no effective scope (weekly care plans, master data) and is never
-// past.
-func ParentRequestIsPast(scopeEnd, today timezone.Date) bool {
-	if scopeEnd.IsZero() {
-		return false
-	}
-	return scopeEnd.Before(today)
-}
 
 // Stable codes for the list's bulk_ineligible_reason. The German sentence
 // travels next to them as bulk_ineligible_text; the client maps the code and

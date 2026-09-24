@@ -135,10 +135,13 @@ type BookingMaterializationCapability interface {
 }
 
 // CareOfferingCapability is the care-offering catalog together with the
-// booking materialization it feeds.
+// booking materialization it feeds, the offering-change review deciding
+// changes to the bookings (#3561) and the pickup adjustments switching them.
 type CareOfferingCapability interface {
 	CareOfferingCatalogCapability
 	BookingMaterializationCapability
+	OfferingChangeCapability
+	PickupAdjustments
 }
 
 // BookedOffering is one of a request child's offering selections, with the

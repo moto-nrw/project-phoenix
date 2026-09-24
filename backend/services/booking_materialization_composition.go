@@ -99,11 +99,14 @@ func timetableOfferingRosterResync(rosters careplan.SourcedRosters) func(context
 	}
 }
 
-// carePlanCareOfferings serves the catalog and the booking materialization it
-// feeds as one Care Plan capability.
+// carePlanCareOfferings serves the catalog, the booking materialization it
+// feeds, the offering-change review and the pickup adjustments as one Care
+// Plan capability.
 type carePlanCareOfferings struct {
 	careplan.CareOfferingCatalogCapability
 	careplan.BookingMaterializationCapability
+	careplan.OfferingChangeCapability
+	careplan.PickupAdjustments
 }
 
 type bookingTimetableOwner interface {

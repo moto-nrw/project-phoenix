@@ -129,7 +129,7 @@ func childEvent(event carePlanCompose.RequestEvent) parentmessaging.ChildEvent {
 	result := parentmessaging.ChildEvent{
 		EventType: event.EventType, ActorKind: event.ActorKind, ActorAccountID: event.ActorAccountID, Body: event.Body,
 		RequestType: event.RequestType, RequestStatus: event.RequestStatus, DecisionReason: event.DecisionReason,
-		RefTable: event.RefTable,
+		RefTable: event.RefTable, Payload: event.Payload,
 	}
 	if event.RefID > 0 {
 		refID := event.RefID

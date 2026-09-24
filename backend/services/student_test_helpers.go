@@ -45,8 +45,8 @@ type StudentTestModule struct {
 	PartialAbsence     careplan.PartialAbsenceService
 	EnrollmentDecision enrollment.DecisionService
 	CareRequests       carerequests.Service
-	OfferingChanges    enrollment.OfferingChangeRequestService
-	PickupAdjustments  enrollment.PickupAdjustmentService
+	OfferingChanges    careplan.OfferingChangeCapability
+	PickupAdjustments  careplan.PickupAdjustments
 	ExcusedRequests    careplan.ExcusedAbsenceRequests
 	MasterDataReview   users.MasterDataReviewService
 	ParentRequests     *users.ParentRequestCoordinator
@@ -56,6 +56,10 @@ type StudentTestModule struct {
 	// and file cleanup. Adapter tests assert on both, and the stored files are
 	// an api-layer concern this graph cannot supply.
 	NewStudentPhotos func(PhotoBroadcaster, users.PhotoUnlinker) users.StudentPhotoService
+	// NewPickupAdjustments rebinds the pickup adjustment to the caller's
+	// offering adjustments, so a route test can fail an apply after the
+	// offering write.
+	NewPickupAdjustments func(careplan.DirectOfferingAdjustments) (careplan.PickupAdjustments, error)
 }
 
 // ManualPartialAbsences binds the owner projection without constructing another service graph.
@@ -264,8 +268,6 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		Today:  today,
 	})
 	offeringResync = careBookings
-	enrollmentDecisionApplier := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
-	directOfferingApplier := enrollmentDecisionService.(enrollment.DirectOfferingAdjustmentApplier)
 	requestReviewPolicy := NewParentRequestReviewPolicy(userContextService.Caller().ParentRequestReviews)
 	parentRequestEvents := users.NewParentRequestEventRecorder(repos.ParentRequestEvent)
 	careRequestService := NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
@@ -285,40 +287,27 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		studentAuditService,
 		WithCareRequestToday(today),
 	)
-	offeringChangeRequestService := enrollment.NewOfferingChangeRequestServiceWithPolicy(enrollment.OfferingChangeRequestServiceConfig{
-		ChangeRepo:             enrollment.NewOfferingChangeRepository(repos.CarePlan, offeringChangeStudentSearch{people: persons}),
-		Children:               repos.Enrollment(),
-		Requests:               repos.Enrollment(),
-		Phases:                 repos.Enrollment(),
-		CareOfferingRepo:       enrollment.NewCareOfferingRepository(repos.CarePlan),
-		ImpactRepo:             manualPlanningReader{db: db},
-		StudentRepo:            repos.Student,
-		PersonRepo:             repos.Person,
-		CareWithdrawalRepo:     repos.CareWithdrawal,
-		OfferingAdjustmentRepo: repos.EnrollmentOfferingAdjustment,
-		UserContext:            userContextService,
-		Applier:                enrollmentDecisionApplier,
-		DirectApplier:          directOfferingApplier,
-		Settings:               settingsService,
-		Emitter:                pillEmitter,
-		Logger:                 logger.With("service", "offering-change-requests"),
-		Today:                  today,
-		EventRecorder:          parentRequestEvents,
-	}, requestReviewPolicy)
-	pickupOfferingCoordinator := offeringChangeRequestService.(enrollment.DirectOfferingAdjustmentCoordinator)
-	pickupAdjustmentService := enrollment.NewPickupAdjustmentService(enrollment.PickupAdjustmentServiceConfig{
-		PickupSchedules:     pickupScheduleService,
-		ArrivalSchedules:    arrivalScheduleService,
-		PickupScheduleRepo:  repos.StudentPickupSchedule,
-		ArrivalScheduleRepo: repos.StudentArrivalSchedule,
-		PickupBaselines:     pickupBaselines,
-		Offerings:           pickupOfferingCoordinator,
-		Settings:            settingsService,
-		Audit:               studentAuditService,
-		Students:            repos.Student,
-		DB:                  db,
-		Today:               today,
+	offeringChanges, err := newOfferingChanges(offeringChangeInputs{
+		CarePlan: repos.CarePlan, Enrollment: repos.Enrollment(), Students: repos.Student,
+		Withdrawals: repos.CareWithdrawal, Settings: settingsService,
+		Planning: manualPlanningReader{db: db, courseGroups: repos.Timetable},
+		Bookings: careBookings, Reviews: requestReviewPolicy, Emitter: pillEmitter,
+		Events: parentRequestEvents, Today: today, Logger: logger.With("service", "offering-change-requests"),
 	})
+	if err != nil {
+		return StudentTestModule{}, err
+	}
+	newPickupAdjustmentsFor := func(offerings careplan.DirectOfferingAdjustments) (careplan.PickupAdjustments, error) {
+		return newPickupAdjustments(pickupAdjustmentInputs{
+			CarePlan: repos.CarePlan, PickupSchedules: pickupScheduleService, ArrivalSchedules: arrivalScheduleService,
+			Baselines: pickupBaselines, Offerings: offerings, Settings: settingsService,
+			Audit: studentAuditService, Students: repos.Student, Today: today,
+		})
+	}
+	pickupAdjustments, err := newPickupAdjustmentsFor(offeringChanges)
+	if err != nil {
+		return StudentTestModule{}, err
+	}
 	excusedRequestService, err := newExcusedAbsenceRequests(excusedRequestWiring{
 		carePlan: repos.CarePlan, students: repos.Student, persons: repos.Person,
 		scope:   parentRequestReviewScope(requestReviewPolicy),
@@ -348,7 +337,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	parentRequestCoordinator.SetMasterDataConflictPort(masterDataReviewService.(users.ParentRequestConflictPort))
 	parentRequestCoordinator.SetExcusedConflictPort(excusedCoordinatorPort)
 	parentRequestCoordinator.SetCareConflictPort(careRequestService.(users.ParentRequestConflictPort))
-	parentRequestCoordinator.SetOfferingConflictPort(offeringChangeRequestService.(users.ParentRequestConflictPort))
+	parentRequestCoordinator.SetOfferingConflictPort(offeringChangeConflictPort{changes: offeringChanges})
 	parentRequestCoordinator.SetEventRecorder(parentRequestEvents)
 	scheduleSubstitution, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
 		Deviations: live.Deviations, Staff: repos.Staff, Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
@@ -408,10 +397,10 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	}
 	return StudentTestModule{
 		ActiveTestModule: live, GradeTransitionTestModule: grade, PeopleDirectory: persons, Audit: auditCommand,
-		StudentPhotos: studentPhotoService, NewStudentPhotos: newStudentPhotos,
+		StudentPhotos: studentPhotoService, NewStudentPhotos: newStudentPhotos, NewPickupAdjustments: newPickupAdjustmentsFor,
 		Schools: repos.School, CareLifecycle: careLifecycleService, StudentAudit: studentAuditService,
 		PartialAbsence: partialAbsenceService, EnrollmentDecision: enrollmentDecisionService, CareRequests: careRequestService,
-		OfferingChanges: offeringChangeRequestService, PickupAdjustments: pickupAdjustmentService, ExcusedRequests: excusedRequestService,
+		OfferingChanges: offeringChanges, PickupAdjustments: pickupAdjustments, ExcusedRequests: excusedRequestService,
 		MasterDataReview: masterDataReviewService, ParentRequests: parentRequestCoordinator, OGSGroupLive: ogsGroupLiveService,
 	}, nil
 }
