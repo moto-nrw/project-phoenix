@@ -17,7 +17,6 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -313,24 +312,16 @@ func NewTimetableHTTPTestPeople(db *bun.DB) (TimetablePeople, error) {
 }
 
 // NewTimetableHTTPTestOfferingSources serves the offering-source support of
-// the timetable routes from the enrollment decision service over the test
+// the timetable routes from Care Plan's booking materialization over the test
 // database.
 func NewTimetableHTTPTestOfferingSources(db *bun.DB, unit tenant.UnitOfWork) (timetable.OfferingSourceSupport, error) {
-	r, err := repositories.NewTimetableTestRepositories(db)
+	module, err := NewBookingMaterializationTestModule(db, unit, BookingMaterializationTestOptions{})
 	if err != nil {
 		return nil, err
 	}
-	settings, err := NewSettingsTestModule(db, unit)
-	if err != nil {
-		return nil, err
-	}
-	support := NewTimetableOfferingSources(enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
-		CareOfferingRepo:  enrollment.NewCareOfferingRepository(r.CarePlan),
-		ActivityGroupRepo: r.ActivityGroup,
-		Settings:          settings.Settings,
-	}))
+	support := NewTimetableOfferingSources(module.Bookings)
 	if support == nil {
-		return nil, errors.New("enrollment decision service serves no offering sources")
+		return nil, errors.New("care plan serves no offering sources")
 	}
 	return support, nil
 }

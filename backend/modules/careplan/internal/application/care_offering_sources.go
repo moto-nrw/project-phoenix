@@ -39,7 +39,8 @@ func (c *CareOfferingCatalog) ValidateTemplateOfferingSource(ctx context.Context
 }
 
 // LoadOfferingSources resolves and validates every source offering of a
-// template for Enrollment's roster resync; see loadValidatedOfferingSources.
+// template for the booking materialization's roster resync; see
+// loadValidatedOfferingSources.
 func (c *CareOfferingCatalog) LoadOfferingSources(ctx context.Context, offeringIDs []int64, calendarPeriodID *int64, tolerateDrift bool) (careplan.OfferingSources, error) {
 	return c.loadValidatedOfferingSources(ctx, offeringIDs, calendarPeriodID, tolerateDrift)
 }
@@ -275,8 +276,9 @@ func (c *CareOfferingCatalog) careOfferingSeriesPhase(ctx context.Context, phase
 	return phase, nil
 }
 
-// ResolveLinkedSegments expands a care offering's timetable link for the
-// phase; see CareOfferingLinks.
+// ResolveLinkedSegments expands a link to every live split-series segment
+// that can produce an occurrence during the phase. A non-template activity
+// stays one segment without a period.
 func (c *CareOfferingCatalog) ResolveLinkedSegments(ctx context.Context, activityGroupID int64, phase careplan.OfferingPhase) ([]careplan.LinkedSegment, error) {
 	return c.resolveCareOfferingLinkedGroupsForPhase(ctx, activityGroupID, phase)
 }

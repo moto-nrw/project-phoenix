@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -254,6 +256,19 @@ type offeringRosterResyncer interface {
 	ResyncTemplateOfferingRoster(context.Context, timetable.OfferingRosterResyncInput) error
 }
 
+// timetableRosterResync hands the Timetable owner's resync input to Care
+// Plan's booking materialization field by field, like the server's roster
+// resync hook (#3560).
+type timetableRosterResync struct{ rosters careplan.SourcedRosters }
+
+func (r timetableRosterResync) ResyncTemplateOfferingRoster(ctx context.Context, in timetable.OfferingRosterResyncInput) error {
+	return r.rosters.ResyncTemplateOfferingRoster(ctx, careplan.OfferingRosterResync{
+		TemplateID: in.TemplateID, OfferingIDs: in.OfferingIDs, GradeLevels: in.GradeLevels,
+		SchoolClasses: in.SchoolClasses, CalendarPeriodID: in.CalendarPeriodID, EffectiveFrom: in.EffectiveFrom,
+		ScopeRequestChildIDs: in.ScopeRequestChildIDs, TolerateDriftedSources: in.TolerateDriftedSources,
+	})
+}
+
 // A child booked into the offering after the series was set up joins the
 // sourced roster on its booked weekdays; the per-weekday staffing stays.
 func TestTemplateOfferingSource_NewlyBookedChildJoinsWithoutTouchingWeekdayStaff(t *testing.T) {
@@ -286,8 +301,8 @@ func TestTemplateOfferingSource_NewlyBookedChildJoinsWithoutTouchingWeekdayStaff
 	stored := loadTemplateGroup(t, f.s, result.TemplateID)
 	linkApprovedChildToOffering(t, f.s, f.offering, newChild, "1c")
 
-	resyncer, ok := f.s.factory.EnrollmentDecision.(offeringRosterResyncer)
-	require.True(t, ok, "the enrollment decision service owns the offering roster resync")
+	require.NotNil(t, f.s.factory.EnrollmentCareOffering, "Care Plan's booking materialization owns the offering roster resync")
+	var resyncer offeringRosterResyncer = timetableRosterResync{rosters: f.s.factory.EnrollmentCareOffering}
 	require.NoError(t, testpkg.WithTenantTx(t, f.s.ctx, f.s.db, f.s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return resyncer.ResyncTemplateOfferingRoster(txCtx, timetable.OfferingRosterResyncInput{
 			TemplateID:       result.TemplateID,

@@ -35,7 +35,6 @@ func TestCarePlanDecisionErrorContract(t *testing.T) {
 		{"course not found", ErrCourseNotFound, careplan.ErrCourseNotFound, ErrCourseNotFound},
 		{"course already booked", ErrCourseAlreadyBooked, careplan.ErrCourseAlreadyBooked, ErrCourseAlreadyBooked},
 		{"course request not own", ErrCourseRequestNotOwn, careplan.ErrCourseRequestNotOwn, ErrCourseRequestNotOwn},
-		{"pickup reset no offering", ErrPickupResetNoOffering, careplan.ErrPickupResetNoOffering, ErrPickupResetNoOffering},
 		{"pickup adjustment invalid", ErrPickupAdjustmentInvalid, careplan.ErrPickupAdjustmentInvalid, ErrPickupAdjustmentInvalid},
 		{"pickup adjustment resolution required", ErrPickupAdjustmentResolutionRequired, careplan.ErrPickupAdjustmentResolutionRequired, ErrPickupAdjustmentResolutionRequired},
 		{"pickup adjustment stale", ErrPickupAdjustmentStale, careplan.ErrPickupAdjustmentStale, ErrPickupAdjustmentStale},

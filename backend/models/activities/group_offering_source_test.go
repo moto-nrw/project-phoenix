@@ -334,23 +334,6 @@ func TestGroupValidateSourceSchoolClassesNormalizes(t *testing.T) {
 	}
 }
 
-func TestSourceClassFilterMatches(t *testing.T) {
-	t.Parallel()
-
-	if !SourceClassFilterMatches(nil, "") || !SourceClassFilterMatches(nil, "3a") {
-		t.Fatal("empty filter must admit every child")
-	}
-	if !SourceClassFilterMatches([]string{"1b"}, " 1B ") {
-		t.Fatal("class matching must ignore case and padding")
-	}
-	if SourceClassFilterMatches([]string{"1b"}, "1a") {
-		t.Fatal("class 1a must not match filter [1b]")
-	}
-	if SourceClassFilterMatches([]string{"1b"}, "") {
-		t.Fatal("a child without a school class must not match a set filter")
-	}
-}
-
 func TestTemplateListRowParseSourceSchoolClasses(t *testing.T) {
 	t.Parallel()
 

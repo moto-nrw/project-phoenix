@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -97,16 +96,6 @@ func int64SetKeys(values map[int64]struct{}) []int64 {
 		ids = append(ids, id)
 	}
 	return ids
-}
-
-func activitySchedulesByGroup(rows []*activities.Schedule) map[int64][]*activities.Schedule {
-	result := make(map[int64][]*activities.Schedule)
-	for _, row := range rows {
-		if row != nil {
-			result[row.ActivityGroupID] = append(result[row.ActivityGroupID], row)
-		}
-	}
-	return result
 }
 
 func careOfferingMap(rows []*enrollmentModels.CareOffering) map[int64]*enrollmentModels.CareOffering {
