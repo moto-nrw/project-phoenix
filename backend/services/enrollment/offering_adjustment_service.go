@@ -1180,7 +1180,7 @@ func (s *decisionService) reconcileAdjustedEnrollment(
 		// and the offering-link window (#2147 review). Extending a capped
 		// split predecessor back to the phase end would restore coverage past
 		// the split and overlap its successor.
-		draftEndExclusive := careDraftValidUntil(draft, phase)
+		draftEndExclusive := careDraftValidUntil(draft, offeringPhaseOf(phase))
 		if row.ValidUntil != nil && timezone.Date(*row.ValidUntil).Before(draftEndExclusive) {
 			if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, activities.Date(draftEndExclusive)); err != nil {
 				return fmt.Errorf("decision: extend retained adjusted enrollment: %w", err)

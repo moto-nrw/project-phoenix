@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	phaseFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
@@ -20,6 +21,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/services/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -983,13 +985,7 @@ func TestValidateTemplateOfferingSource_RejectsNewUnknownToleratesStored(t *test
 	ctx := testpkg.Ctx(t)
 
 	offering := createSourceOffering(t, env, "PruefQuelle", nil)
-	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
-		Repo:               enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
-		Phases:             env.repos.Enrollment(),
-		CalendarPeriodRepo: env.repos.CalendarPeriod,
-	})
-	validator, ok := svc.(enrollmentService.CareOfferingSeriesValidator)
-	require.True(t, ok, "care offering service must implement the pre-write source validator")
+	validator := env.offeringCatalog
 
 	missing := int64(999999999)
 	err := validator.ValidateTemplateOfferingSource(ctx, []int64{offering.ID, missing}, nil, nil)
@@ -2108,23 +2104,13 @@ func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
 	require.Len(t, rows, 1)
 	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays)
 
-	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
-		Repo:                  enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
-		Bookings:              env.repos.Enrollment(),
-		ActivityGroupRepo:     env.repos.ActivityGroup,
-		ActivityScheduleRepo:  env.repos.ActivitySchedule,
-		CalendarPeriodRepo:    env.repos.CalendarPeriod,
-		TimeframeRepo:         env.repos.Timeframe,
-		ActivityExceptionRepo: env.repos.ActivityException,
-		Phases:                env.repos.Enrollment(),
-		Today:                 func() timezone.Date { return offeringResyncToday },
-	})
-	binder, ok := svc.(enrollmentService.CareOfferingSourceResyncBinder)
-	require.True(t, ok, "care offering service must accept the sourced-template resyncer")
 	sourcedResyncer, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-update resync")
-	binder.SetSourcedTemplateResyncer(sourcedResyncer)
-	bindTestPickupResyncer(t, svc)
+	svc := enrollmentService.NewCareOfferingRows(testCareOfferingCatalog(t, env.db,
+		testutil.WithCareOfferingToday(func() timezone.Date { return offeringResyncToday }),
+		testutil.WithCareOfferingRosterResync(sourcedResyncer),
+		testutil.WithCareOfferingPickupResync(&enrollmenttest.PickupResyncer{}),
+	))
 
 	offering.AvailableDays = []string{"tue"}
 	offering.PickupTimes = carePickupTimes("tue")
@@ -2208,23 +2194,13 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 			Exec(context.Background())
 	})
 
-	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
-		Repo:                  enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
-		Bookings:              env.repos.Enrollment(),
-		ActivityGroupRepo:     env.repos.ActivityGroup,
-		ActivityScheduleRepo:  env.repos.ActivitySchedule,
-		CalendarPeriodRepo:    env.repos.CalendarPeriod,
-		TimeframeRepo:         env.repos.Timeframe,
-		ActivityExceptionRepo: env.repos.ActivityException,
-		Phases:                env.repos.Enrollment(),
-		Today:                 func() timezone.Date { return offeringResyncToday },
-	})
-	binder, ok := svc.(enrollmentService.CareOfferingSourceResyncBinder)
-	require.True(t, ok, "care offering service must accept the sourced-template resyncer")
 	sourcedResyncer, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-update resync")
-	binder.SetSourcedTemplateResyncer(sourcedResyncer)
-	bindTestPickupResyncer(t, svc)
+	svc := enrollmentService.NewCareOfferingRows(testCareOfferingCatalog(t, env.db,
+		testutil.WithCareOfferingToday(func() timezone.Date { return offeringResyncToday }),
+		testutil.WithCareOfferingRosterResync(sourcedResyncer),
+		testutil.WithCareOfferingPickupResync(&enrollmenttest.PickupResyncer{}),
+	))
 
 	offering.PhaseID = latePhase.ID
 	err := svc.Update(ctx, offering)

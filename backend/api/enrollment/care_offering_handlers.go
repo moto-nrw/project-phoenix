@@ -78,13 +78,13 @@ var careOfferingWriteErrorRenderer = common.RulesRenderer(
 			},
 		},
 		{
-			Target: enrollmentModels.ErrCareOfferingDaysRequired,
+			Target: enrollmentService.ErrCareOfferingDaysRequired,
 			Render: func(err error) render.Renderer {
 				return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingDaysRequired)
 			},
 		},
 		{
-			Target: enrollmentModels.ErrCareOfferingPickupTimesRequired,
+			Target: enrollmentService.ErrCareOfferingPickupTimesRequired,
 			Render: func(err error) render.Renderer {
 				return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingPickupTimesRequired)
 			},
@@ -131,7 +131,7 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 	}
 	// The document is validated on every write. Should a row still fail to
 	// decode, the offering renders untranslated instead of failing the list.
-	resp.Translations, _ = enrollmentService.CareOfferingTranslations(o)
+	resp.Translations, _ = careOfferingTranslations(o)
 	return resp
 }
 
@@ -139,8 +139,42 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 // reduced to those still matching the German text, without their source.
 func toPublicCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingResponse {
 	resp := toCareOfferingResponse(o)
-	resp.Translations, _ = enrollmentService.CareOfferingPublicTranslations(o)
+	resp.Translations, _ = careOfferingPublicTranslations(o)
 	return resp
+}
+
+// Care offerings carry their translations (#3377) as stored JSON: the
+// catalog rows belong to Care Plan, which does not interpret Enrollment's
+// translation document. The routes decode it for rendering.
+
+// careOfferingTranslations decodes the stored translation document.
+func careOfferingTranslations(offering *enrollmentModels.CareOffering) (capability.Translations, error) {
+	if offering == nil || len(offering.Translations) == 0 {
+		return nil, nil
+	}
+	var translations capability.Translations
+	if err := json.Unmarshal(offering.Translations, &translations); err != nil {
+		return nil, fmt.Errorf("decode care offering translations: %w", err)
+	}
+	return translations, nil
+}
+
+// careOfferingPublicTranslations returns the translations parents may read:
+// only those still matching the current German name, description and
+// selection group.
+func careOfferingPublicTranslations(offering *enrollmentModels.CareOffering) (capability.Translations, error) {
+	translations, err := careOfferingTranslations(offering)
+	if err != nil || translations == nil {
+		return nil, err
+	}
+	sources := map[string]string{
+		capability.TranslationAttrName:           offering.Name,
+		capability.TranslationAttrSelectionGroup: offering.SelectionGroup,
+	}
+	if offering.Description != nil {
+		sources[capability.TranslationAttrDescription] = *offering.Description
+	}
+	return translations.Fresh(sources), nil
 }
 
 // CareOfferingRequest is the wire shape POST + PUT accept.
