@@ -51,14 +51,18 @@ const (
 	candidateNotStarted
 	candidateNoPeriod
 	candidateABWeek
+	candidateHoliday
+	candidateClosingDay
 	candidateIncomplete
 	candidateCancelled
 )
 
 // candidateSlot applies the engine's per-date rules to one schedule row of
-// the template on a weekday-matching date: schedule validity, period
-// selection, the A/B week pattern, the timeframe, the dated exception and the
-// room. It returns the effective slot and period of a kept candidate.
+// the template on a weekday-matching date: schedule validity and the series'
+// last day, period selection, the A/B week pattern, holidays and closing days
+// (#3594), the timeframe, the dated exception and the room. It returns the
+// effective slot and period of a kept candidate. The zero NonWorkingDays
+// skips no holiday or closing day.
 //
 // Both schedule.timeframes and schedule.activity_instances store clock values
 // as SQL TIME. The slot passes through the wall-clock normalization anyway so
@@ -68,11 +72,12 @@ func candidateSlot(
 	sch *activities.Schedule,
 	date timezone.Date,
 	periods []*schedule.CalendarPeriod,
+	days timetable.NonWorkingDays,
 	exc *schedule.ActivityException,
 	timeframeByID map[int64]*schedule.Timeframe,
 	logger *slog.Logger,
 ) (materialParams, *schedule.CalendarPeriod, candidateSkip) {
-	if scheduleEndedOn(sch, date) {
+	if scheduleEndedOn(sch, date) || (tmpl.SeriesLastDay != nil && tmpl.SeriesLastDay.Before(date)) {
 		return materialParams{}, nil, candidateEnded
 	}
 	if scheduleNotStartedOn(sch, date) {
@@ -84,6 +89,12 @@ func candidateSlot(
 	}
 	if !weekPatternApplies(sch.WeekPattern, date, period) {
 		return materialParams{}, nil, candidateABWeek
+	}
+	switch days.Skip(date.String(), tmpl.IncludeClosingDays) {
+	case timetable.SkipHoliday:
+		return materialParams{}, nil, candidateHoliday
+	case timetable.SkipClosingDay:
+		return materialParams{}, nil, candidateClosingDay
 	}
 	tfID := int64(0)
 	if sch.TimeframeID != nil {
@@ -123,6 +134,10 @@ func countSkippedCandidate(result *timetable.MaterializationResult, skip candida
 		result.CandidatesSkippedNoPeriod++
 	case candidateABWeek:
 		result.CandidatesSkippedABWeek++
+	case candidateHoliday:
+		result.CandidatesSkippedHoliday++
+	case candidateClosingDay:
+		result.CandidatesSkippedClosingDay++
 	case candidateIncomplete:
 		result.CandidatesSkippedIncomplete++
 	case candidateCancelled:

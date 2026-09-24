@@ -268,6 +268,9 @@ type InstanceLifecycle interface {
 	// DeleteCancelled removes a planned or cancelled block; a materialized
 	// occurrence leaves a cancellation exception behind.
 	DeleteCancelled(ctx context.Context, instanceID int64) error
+	// BulkCancelPlanned cancels and removes the planned occurrences of
+	// [from, to] from today on (#3594); opts.DryRun only counts them.
+	BulkCancelPlanned(ctx context.Context, from, to calendar.Date, opts BulkCancelOptions, actorAccountID *int64) (*BulkCancelResult, error)
 }
 
 // InstancePlanning creates, edits and re-plans single blocks.

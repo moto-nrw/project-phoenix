@@ -3767,6 +3767,10 @@
       "write_owner": "workforce"
     },
     {
+      "name": "config.staff_target_overrides",
+      "write_owner": "workforce"
+    },
+    {
       "name": "config.work_time_model_entries",
       "write_owner": "workforce"
     },

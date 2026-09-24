@@ -228,7 +228,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/workforce/legacy/timetracking/staff_balance_adjustment_service.go:(*staffBalanceAdjustmentService).ResetBalance":        97,
 	"modules/workforce/legacy/timetracking/staff_overview_service.go:(*staffOverviewService).GetDashboardSummary":                    77,
 	"modules/workforce/legacy/timetracking/staff_overview_service.go:(*staffOverviewService).GetTimeTrackingOverview":                114,
-	"modules/workforce/legacy/timetracking/staff_overview_service.go:(*staffOverviewService).buildPrefetch":                          97,
+	"modules/workforce/legacy/timetracking/staff_overview_service.go:(*staffOverviewService).buildPrefetch":                          95,
 	"modules/workforce/legacy/timetracking/staff_vacation_opening.go:(*staffAbsenceService).SetVacationOpening":                      62,
 	"modules/workforce/legacy/timetracking/work_session_service.go:(*workSessionService).AutoCheckoutDueSessions":                    161,
 	"modules/workforce/legacy/timetracking/work_session_service.go:(*workSessionService).AutoEndExpiredBreaks":                       66,

@@ -12,6 +12,10 @@ const config = {
   experimental: {
     optimizePackageImports: ["@phosphor-icons/react"],
   },
+  // The PostHog reverse proxy under /ingest (src/proxy.ts) must keep the
+  // trailing slash of its endpoints (/e/, /flags/). src/proxy.ts removes the
+  // trailing slash for every other path, as Next.js does by default.
+  skipTrailingSlashRedirect: true,
   async redirects() {
     // :tenant must exclude the literal "api" segment: next.config redirects
     // run before route handlers, so an unguarded /:tenant/... source would
@@ -85,8 +89,14 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 export default withSentryConfig(withNextIntl(config), {
   silent: true,
 
+  // Readable stack traces need the source maps in Sentry. The upload runs
+  // only when the build has SENTRY_AUTH_TOKEN (plus SENTRY_ORG,
+  // SENTRY_PROJECT and SENTRY_RELEASE, all read from the environment); the
+  // maps are deleted after upload and never served. Local and CI builds
+  // without the token build exactly as before.
   sourcemaps: {
-    disable: true,
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+    deleteSourcemapsAfterUpload: true,
   },
 
   tunnelRoute: "/monitoring",

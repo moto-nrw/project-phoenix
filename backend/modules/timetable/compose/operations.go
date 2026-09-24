@@ -109,34 +109,34 @@ type RoomNames interface {
 	RoomName(ctx context.Context, id int64) (name string, ok bool, err error)
 }
 
-// AttendanceEditScope is the tenant's operations.attendance_edit_scope.
-type AttendanceEditScope int
+// ScopedAction is an operational action with its own school scope setting
+// (#3180, #3622).
+type ScopedAction int
 
 const (
-	// AttendanceEditUnset grants nothing beyond the block's own staff.
-	AttendanceEditUnset AttendanceEditScope = iota
-	// AttendanceEditOwn keeps attendance edits with the block's operators.
-	AttendanceEditOwn
-	// AttendanceEditAllStaff opens them to every verified OGS staff member.
-	AttendanceEditAllStaff
+	// ScopedAttendance is operations.attendance_edit_scope.
+	ScopedAttendance ScopedAction = iota + 1
+	// ScopedBlockStart is operations.block_start_scope.
+	ScopedBlockStart
+	// ScopedBlockComplete is operations.block_complete_scope.
+	ScopedBlockComplete
 )
 
 // OperationSettings is the consumer-owned port to the Settings Platform
 // policies of the operational day. ResolveString serves the shared
-// operational-overview gate (auth/authorize).
+// operational-overview gate and the school-wide action scope rule
+// (auth/authorize).
 type OperationSettings interface {
 	authorize.OverviewSettingsResolver
 	// StartLeadMinutes is timetable.start_lead_minutes.
 	StartLeadMinutes(ctx context.Context) (int, error)
 	// EnforcePlannedEnd is timetable.enforce_planned_end.
 	EnforcePlannedEnd(ctx context.Context) (bool, error)
-	AttendanceEditScope(ctx context.Context) (AttendanceEditScope, error)
+	// ActionScopeKey names the action's scope setting.
+	ActionScopeKey(action ScopedAction) (string, error)
 	// StudentAbsenceEditAllStaff reports operations.student_absence_edit_scope
 	// = all_staff.
 	StudentAbsenceEditAllStaff(ctx context.Context) (bool, error)
-	// OperationalOverviewAllStaff reports operations.operational_overview_scope
-	// = all_staff.
-	OperationalOverviewAllStaff(ctx context.Context) (bool, error)
 }
 
 // ClassArrivalNotice is a class-wide day exception behind an arrival time

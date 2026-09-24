@@ -25,6 +25,16 @@ func (e engine) UpdateSchool(ctx context.Context, input organizationtenancy.Upda
 	return toPublicSchool(value), mapError(err)
 }
 
+func (e engine) SetSchoolChildQuota(ctx context.Context, id int64, quota *organizationtenancy.ChildQuota) (organizationtenancy.School, error) {
+	var bundles *int
+	bundleSize := 0
+	if quota != nil {
+		bundles, bundleSize = &quota.Bundles, quota.BundleSize
+	}
+	value, err := e.service.SetSchoolChildQuota(ctx, id, bundles, bundleSize)
+	return toPublicSchool(value), mapError(err)
+}
+
 func (e engine) SoftDeleteSchool(ctx context.Context, id int64) (organizationtenancy.School, error) {
 	value, err := e.service.SoftDeleteSchool(ctx, id)
 	return toPublicSchool(value), mapError(err)
@@ -100,7 +110,9 @@ func toPublicSchool(value domain.School) organizationtenancy.School {
 		OrganizationID: value.OrganizationID, Name: value.Name, Slug: value.Slug, Subdomain: value.Subdomain,
 		Active: value.Active, Hidden: value.Hidden, DeletedAt: value.DeletedAt, Settings: value.Settings,
 		Address: value.Address, City: value.City, Zip: value.Zip, Phone: value.Phone, Email: value.Email,
-		DevicePinHash: value.DevicePinHash, Organization: organization,
+		DevicePinHash:     value.DevicePinHash,
+		ChildQuotaBundles: value.ChildQuotaBundles, ChildQuotaBundleSize: value.ChildQuotaBundleSize,
+		Organization: organization,
 	}
 }
 

@@ -39,6 +39,11 @@ var queryBudgets = map[string]queryBudget{
 	// organization summaries, and one device read through the Device Fleet
 	// owner. Flat in the number of devices.
 	"repositories.operator.device_rows": {max: 3},
+	// services — the operator school listing (#3568), organizationtenancy
+	// Provisioning.ListSchoolSummaries: the school rows plus one aggregate
+	// each for accounts, devices, persons and the Kontingentzahl, eight
+	// statements in all. Flat in the number of schools and children.
+	"services.operator.school_summaries": {max: 8},
 	// modules — the operator billing report (#2791), organizationtenancy
 	// BillingReport. The listing is one read of the captured rows. A capture
 	// is the key day, the schools still missing, and one insert for all of
@@ -135,6 +140,12 @@ var queryBudgets = map[string]queryBudget{
 	// modules/timetable/compose operational day (#3551) — GET /planned-now backing list, 8 eligible instances:
 	// instance list + rooms + staff batch + student batch (#2941).
 	"services.schedule.planned_now": {max: 4},
+	// modules/timetable/compose — POST /instances/bulk-cancel
+	// dry run (#3594): tenant transaction (BEGIN, SET LOCAL ROLE, set_config,
+	// COMMIT) + one instance range read + one series read for the closing-day
+	// flag. Flat from 2 to 5 occurrences. The execution reuses Cancel and
+	// DeleteCancelled per occurrence by design and is not budgeted here.
+	"services.schedule.bulk_cancel_dry_run": {max: 6, exact: true},
 	// modules/schoolcalendar/portal — ListMyStaffEvents over a week, 8 appointments.
 	"services.calendar.list_my_staff_events": {max: 11},
 	// modules/schoolcalendar/portal — one authenticated CalDAV snapshot. The operation
@@ -204,7 +215,13 @@ var queryBudgets = map[string]queryBudget{
 	// whole list. Flat at three acknowledgements — a per-row lookup would show
 	// as N+1 here.
 	"api.staff_notices.acknowledgements": {max: 7, exact: true},
-	"modules.careplan.request_feed.list": {max: 1, exact: true},
+	// modules/workforce/inbound/timetracking — GET
+	// /api/staff/{id}/target-overrides (#3259): the tenant-transaction
+	// statements, the two staff lookups (membership, employment profile) and
+	// ONE read of the staff member's
+	// Sonderarbeitszeiten. Flat in the number of ranges.
+	"workforce.staff_target_overrides.list": {max: 7, exact: true},
+	"modules.careplan.request_feed.list":    {max: 1, exact: true},
 	// modules/identityaccess caller context (behavior/caller_request_cache_test.go) —
 	// the #2099 request cache dedups the identity chain.
 	"services.usercontext.identity_chain.persons":       {max: 1, exact: true},

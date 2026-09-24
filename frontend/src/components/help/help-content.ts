@@ -1088,7 +1088,7 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
  * Tagesbetrieb und hatte bisher keine Hilfeseite. Inhalt belegt aus
  * `components/timetable/tagesplan-view.tsx`: chronologische Blockliste,
  * Jetzt-Linie, Tippen auf einen laufenden Block oeffnet dessen Kinderliste,
- * eigener Block startet ueber `Starten`. Bei einfacher Anwesenheit greift
+ * ein startbarer Block startet ueber `Starten` (#3622). Bei einfacher Anwesenheit greift
  * der BinaryModeGuard, deshalb steht das Thema in DETAILED_ONLY_TOPIC_IDS.
  */
 function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
@@ -1110,7 +1110,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Sie sehen die Blöcke des Tages von früh nach spät.",
       "Eine Linie zeigt, wo Sie gerade im Tag stehen.",
       "Tippen Sie auf einen laufenden Block. Das öffnet seine Kinderliste.",
-      "Hat Ihr eigener Block noch nicht begonnen? Wählen Sie `Starten`.",
+      "Hat Ihr Block noch nicht begonnen? Wählen Sie `Starten`.",
     ],
     result:
       "Nach `Starten` öffnet moto die Kinderliste des Blocks in `Aktuelle Aufsicht`.",
@@ -1118,6 +1118,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "`Läuft` heißt: der Block ist gerade aktiv. `Beendet` und `Nicht gestartet` können Sie nur ansehen.",
       "`Fällt aus` zeigt zusätzlich den Grund.",
       "Welche Blöcke Sie sehen, legt Ihre OGS fest. Manche sehen den ganzen Tag der Schule, andere nur die eigene Einteilung.",
+      "Ob Sie nur eigene oder alle Blöcke starten dürfen, legt Ihre OGS fest. Wer einen fremden Block startet, wird nicht zur Aufsicht.",
       ...(presenceMode === "unknown"
         ? ["Bei einfacher Anwesenheit gibt es den Tagesplan nicht."]
         : []),
@@ -1307,6 +1308,9 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
     differences: [
       "Bei einem laufenden Termin können weitere Betreuungskräfte der Aufsicht beitreten.",
       "Ein geplanter Termin hat feste Zeiten. Vorher sind Start oder Ende möglicherweise gesperrt.",
+      "Steht am Termin `Nur für Eingeplante`? Dann dürfen hier nur eingeplante Kräfte starten. Ihre OGS kann das Starten für das ganze Team freigeben.",
+      "Sie starten einen Termin, für den Sie nicht eingeplant sind? Dann werden Sie nicht zur Aufsicht. Wer beenden darf, legt Ihre OGS fest.",
+      "Fehlt `Beenden`? Dann dürfen hier nur eingeplante Kräfte beenden. Ihre OGS kann das Beenden für das ganze Team freigeben.",
       "Welche freien Räume Sie übernehmen können, legt Ihre OGS fest.",
     ],
     troubleshooting: HELP_TOPICS.attendanceProblem,
@@ -2779,6 +2783,7 @@ function createStudentTopic(): HelpTopic {
       "Ein Auge neben einer Angabe heißt: Eltern sehen sie.",
       "In der Vorlage erklärt das Blatt `Hinweise` jede Spalte.",
       "`Nur bestehende aktualisieren` und `Beides` brauchen Sie erst, wenn Sie Angaben nachträglich ändern. Leere Zellen ändern nie etwas.",
+      "Hat Ihre Schule ein Kinderkontingent, steht es oben in `Kinderdaten`. Zum Beispiel `Kinderkontingent: 48 von 50 belegt`. Es zählen aktive Kinder und Kinder, deren Betreuung später beginnt. Das Info-Symbol daneben erklärt es auch.",
     ],
     differences: [
       "`Vorname`, `Nachname` und `Klasse` tragen einen roten Stern. Sie sind Pflicht.",
@@ -2789,6 +2794,7 @@ function createStudentTopic(): HelpTopic {
       "Fehlt die passende `Gruppe`? Legen Sie sie zuerst in der `Datenverwaltung` unter `Gruppen` an.",
       "Der grüne Knopf ist grau? Dann hat die Vorschau noch Fehler. Beheben Sie sie in der Datei und laden Sie erneut hoch.",
       "moto erkennt eine Zeile an Vorname, Nachname und Klasse. Bei einem Klassenwechsel an der Spalte `RFID-Karte` oder am Geburtstag.",
+      "moto meldet, das Kinderkontingent ist voll? Dann ist die Kontingentzahl erreicht. Wie viel belegt ist, steht oben in `Kinderdaten`. Ihre Eingaben bleiben im Fenster. Für weitere Kinder melden Sie sich beim moto-Team.",
     ],
     related: [
       HELP_TOPICS.leadCareTimes,
@@ -4054,9 +4060,57 @@ function staffRecordTopic(): HelpTopic {
       "Ein Bereich fehlt Ihnen? Dann fehlt Ihrer Rolle das Recht dafür.",
     ],
     related: [
+      HELP_TOPICS.leadTargetOverride,
       HELP_TOPICS.leadWorkTimeReview,
       HELP_TOPICS.leadInviteStaff,
       HELP_TOPICS.leadPayroll,
+    ],
+  };
+}
+
+/**
+ * `/staff/[id]`, Reiter `Arbeitszeitmodell`, Abschnitt `Sonderarbeitszeiten`
+ * (#3259). Der Fall aus der Praxis: die Herbstferien sind ein Schließtag,
+ * einige arbeiten trotzdem in der Ferienbetreuung. Ohne Sonderarbeitszeit
+ * bekämen sie Plusstunden.
+ */
+function targetOverrideTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadTargetOverride,
+    title: "Eine Sonderarbeitszeit eintragen",
+    question: "Wie trage ich andere Stunden für die Ferienbetreuung ein?",
+    summary:
+      "Für Personen, die in den Ferien andere Stunden arbeiten, zum Beispiel in den Herbstferien.",
+    group: "personal",
+    audience: "lead",
+    icon: "CalendarPlus",
+    requirements: [
+      "Sie dürfen die Zeiterfassung aller Mitarbeitenden verwalten.",
+    ],
+    steps: [
+      "Klappen Sie in der Seitenleiste `Team` auf.",
+      "Öffnen Sie `Mitarbeiter`.",
+      "Wählen Sie die Person.",
+      "Wählen Sie oben `Arbeitszeitmodell`.",
+      "Wählen Sie `Sonderarbeitszeit anlegen`.",
+      "Tragen Sie `Erster Tag`, `Letzter Tag` und `Stunden pro Tag` ein, zum Beispiel `8,5`.",
+      "Wählen Sie `Speichern`.",
+    ],
+    result:
+      "In diesem Zeitraum gelten die neuen Stunden. Danach gilt wieder das Arbeitszeitmodell.",
+    notes: [
+      "Die Stunden gelten Montag bis Freitag, auch an Schließtagen. Gesetzliche Feiertage bleiben frei.",
+      "Mit `0` Stunden muss die Person an diesen Tagen nicht arbeiten.",
+      "Ändern geht nicht. Löschen Sie den Eintrag über die drei Punkte und legen Sie ihn neu an.",
+    ],
+    troubleshootingDetails: [
+      "Es gibt in dem Zeitraum schon eine Sonderarbeitszeit? Löschen Sie diese zuerst.",
+      "Der Monat ist abgeschlossen? Öffnen Sie ihn zuerst wieder im Reiter `Zeiterfassung`.",
+    ],
+    related: [
+      HELP_TOPICS.leadStaffRecord,
+      HELP_TOPICS.leadCalendarPeriods,
+      HELP_TOPICS.leadWorkTimeReview,
     ],
   };
 }
@@ -4280,13 +4334,22 @@ function calendarPeriodsTopic(): HelpTopic {
     steps: [],
     instructionGroups: [
       {
+        title: "Zeitraum oder Schließtag?",
+        steps: [
+          "Ein Zeitraum der Art `Ferien`, etwa die Herbstferien, markiert nur die Ferienzeit. Termine und Sollstunden bleiben.",
+          "Hat die OGS zu, legen Sie einen Schließtag an. Dann fallen Termine aus, und niemand hat Sollstunden.",
+          "Arbeitet jemand trotzdem, etwa in der Ferienbetreuung? Tragen Sie für die Person eine Sonderarbeitszeit ein.",
+        ],
+        ordered: false,
+      },
+      {
         title: "Einen Zeitraum anlegen",
         steps: [
           "Klappen Sie in der Seitenleiste `Planung` auf.",
           "Öffnen Sie `Schuljahr und Ferien`.",
           "Wählen Sie `Halbjahr anlegen` oder `Zeitraum anlegen`.",
-          "Tragen Sie Name, Beginn und Ende ein.",
-          "Speichern Sie den Zeitraum.",
+          "Tragen Sie `Bezeichnung`, `Art`, `Startdatum` und `Enddatum` ein. Für Ferien wählen Sie die Art `Ferien`.",
+          "Wählen Sie `Anlegen`.",
         ],
       },
       {
@@ -4295,19 +4358,34 @@ function calendarPeriodsTopic(): HelpTopic {
           "Öffnen Sie `Schuljahr und Ferien`.",
           "Gehen Sie zum Abschnitt `Schließtage`.",
           "Wählen Sie `Schließtag anlegen`.",
-          "Tragen Sie den Tag und den Grund ein.",
-          "Speichern Sie den Schließtag.",
+          "Tragen Sie `Grund`, `Von` und `Bis` ein, zum Beispiel `Herbstferien`.",
+          "Wählen Sie `Speichern`.",
+          "Stehen an diesen Tagen schon Termine, fragt moto nach. Sagen Sie sie ab wie im nächsten Abschnitt.",
+        ],
+      },
+      {
+        title: "Termine an Schließtagen absagen",
+        description: "Für Termine, die schon vor dem Schließtag geplant waren.",
+        steps: [
+          "Wählen Sie beim Schließtag die drei Punkte.",
+          "Wählen Sie `Termine absagen`.",
+          "Prüfen Sie den `Zeitraum`. Sie können ihn kürzen, etwa auf die erste Ferienwoche.",
+          "Serien für die Ferienbetreuung bleiben im Plan. Sollen sie auch ausfallen, setzen Sie das Häkchen bei `Auch diese Serien absagen`.",
+          "Wählen Sie `Termine absagen` und dann `Endgültig absagen`.",
         ],
       },
     ],
     result:
-      "Betreuungsplan und Dienstplan halten sich an diese Zeiträume und Schließtage.",
+      "An Schließtagen und gesetzlichen Feiertagen plant moto keine Termine. Abgesagte Termine verschwinden aus dem Plan. Eltern bekommen keine Nachricht.",
     notes: [
       "Die Seite heißt oben `Zeiträume`. In der Seitenleiste steht `Schuljahr und Ferien`.",
       "Ein Zeitraum, den noch nichts benutzt, trägt `Nicht verwendet`.",
+      "Ferienbetreuung an Schließtagen: Wählen Sie beim Speichern der Serie `Auch an Schließtagen planen`. Tragen Sie bei `Letzter Tag` den letzten Ferientag ein. Dann endet die Serie mit den Ferien.",
+      "Termine ohne Schließtag absagen: Wählen Sie im Betreuungsplan im Menü `Termine im Zeitraum absagen`.",
     ],
     differences: [
       "Legen Sie eine Schicht auf einen Schließtag, fragt moto vorher nach.",
+      "Sie sehen `Termine absagen` nicht? Dann fehlt Ihnen das Recht, den Betreuungsplan zu bearbeiten.",
     ],
     troubleshootingDetails: [
       "Der Betreuungsplan sagt `Noch kein Planungszeitraum`? Dann fehlt für diese Woche ein Zeitraum.",
@@ -4721,6 +4799,8 @@ function settingsTopic(): HelpTopic {
     notes: [
       "Oben steht, wie viele Einstellungen von der Vorgabe abweichen.",
       "Jede Einstellung hat einen Satz darunter, der sagt, was sie bewirkt.",
+      "Wer Blöcke starten oder beenden darf, legen Sie unter `Betrieb` fest: bei `Wer darf Blöcke starten?` und `Wer darf Blöcke beenden?`.",
+      "`Das ganze Team` geht dort nur, wenn das Team alle Gruppen und Blöcke sieht.",
     ],
     differences: [
       "Welche Bereiche Sie sehen, hängt von Ihren Rechten und den Funktionen Ihrer OGS ab.",
@@ -5116,6 +5196,7 @@ function leadTopics(
 
     // --- Personalverwaltung ---
     staffRecordTopic(),
+    targetOverrideTopic(),
     staffPermissionsTopic(),
     workTimeReviewTopic(),
     payrollTopic(),

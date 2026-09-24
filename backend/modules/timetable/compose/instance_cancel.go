@@ -121,6 +121,14 @@ func (s *InstanceLifecycleService) lockCancellationState(ctx context.Context, in
 // stay protected. A materialized occurrence first gets a cancelled
 // exception, so the materialization cannot resurrect it.
 func (s *InstanceLifecycleService) DeleteCancelled(ctx context.Context, instanceID int64) error {
+	return s.deleteInstance(ctx, instanceID, deletedSlotReason, true)
+}
+
+// deleteInstance implements DeleteCancelled. The slot exception covers the
+// whole day of the series, so a single delete rejects a series with several
+// same-day slots; a bulk cancellation removes all of them and skips that
+// check.
+func (s *InstanceLifecycleService) deleteInstance(ctx context.Context, instanceID int64, slotReason string, rejectAmbiguous bool) error {
 	instance, err := s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return err
@@ -132,10 +140,12 @@ func (s *InstanceLifecycleService) DeleteCancelled(ctx context.Context, instance
 		return fmt.Errorf("%w: cannot delete instance in status %q", timetable.ErrInvalidInstanceTransition, instance.Status)
 	}
 	if instance.ActivityGroupID != nil && !instance.IsSpontaneous {
-		if err := s.rejectAmbiguousTemplateDelete(ctx, *instance.ActivityGroupID, timezone.Date(instance.Date)); err != nil {
-			return err
+		if rejectAmbiguous {
+			if err := s.rejectAmbiguousTemplateDelete(ctx, *instance.ActivityGroupID, timezone.Date(instance.Date)); err != nil {
+				return err
+			}
 		}
-		if err := s.ensureCancelledSlotException(ctx, *instance.ActivityGroupID, timezone.Date(instance.Date), deletedSlotReason); err != nil {
+		if err := s.ensureCancelledSlotException(ctx, *instance.ActivityGroupID, timezone.Date(instance.Date), slotReason); err != nil {
 			return err
 		}
 	}

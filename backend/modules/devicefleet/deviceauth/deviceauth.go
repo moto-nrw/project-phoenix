@@ -1,8 +1,8 @@
 // Package deviceauth composes the device authentication middleware for the
 // IoT routes. It binds the ports of the device adapter (auth/device) to the
-// public Device Fleet capability, the school directory, the retained staff
-// PIN verification, the tenant device PIN setting, and the tenant runtime.
-// Handler packages receive plain middlewares and never see those seams.
+// public Device Fleet capability, the school directory, the tenant device PIN
+// setting, and the tenant runtime. Handler packages receive plain middlewares
+// and never see those seams.
 package deviceauth
 
 import (
@@ -56,9 +56,6 @@ type Dependencies struct {
 	// Schools blocks devices of deleted schools. Optional: a nil directory
 	// skips the check, which only test graphs use.
 	Schools SchoolDirectory
-	// StaffPIN verifies personal staff credentials; build it with StaffPIN.
-	// Optional: a nil verifier rejects requests that present a credential.
-	StaffPIN device.StaffPINAuthenticator
 	// Settings resolves the tenant device PIN. Optional: without it only
 	// FallbackPIN authenticates.
 	Settings Settings
@@ -85,57 +82,16 @@ func New(deps Dependencies) *Authenticators {
 		Devices:     fleetDirectory{fleet: deps.Devices},
 		BindTenant:  bindTenant,
 		Schools:     schools,
-		StaffPIN:    deps.StaffPIN,
 		PIN:         pinResolver(deps.Settings),
 		FallbackPIN: deps.FallbackPIN,
 	})}
 }
 
-// Device authenticates API key plus device PIN and binds verified staff.
+// Device authenticates API key plus device PIN.
 func (a *Authenticators) Device() Middleware { return a.authenticator.Device() }
 
 // DeviceOnly authenticates the API key alone.
 func (a *Authenticators) DeviceOnly() Middleware { return a.authenticator.DeviceOnly() }
-
-// StaffPIN adapts the retained staff PIN verification to the device port.
-// The verified row's type stays opaque to this owner: only its identity and
-// tenant are copied into the principal handlers see. The type parameters are
-// what keep Device Fleet from importing the people-directory staff model; a
-// plain adapter over that row would be a compatibility import the target
-// policy does not grant.
-func StaffPIN[Staff interface {
-	*Row
-	GetID() any
-	GetTenantID() int64
-}, Row any](verify func(ctx context.Context, tenantID, staffID int64, pin string) (Staff, error)) device.StaffPINAuthenticator {
-	if verify == nil {
-		return nil
-	}
-	return staffPINAuthenticator[Staff, Row]{verify: verify}
-}
-
-type staffPINAuthenticator[Staff interface {
-	*Row
-	GetID() any
-	GetTenantID() int64
-}, Row any] struct {
-	verify func(ctx context.Context, tenantID, staffID int64, pin string) (Staff, error)
-}
-
-func (a staffPINAuthenticator[Staff, Row]) AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (*device.AuthenticatedStaff, error) {
-	staff, err := a.verify(ctx, tenantID, staffID, pin)
-	if err != nil {
-		return nil, err
-	}
-	if staff == nil {
-		return nil, errors.New("staff PIN verification returned no staff")
-	}
-	id, ok := staff.GetID().(int64)
-	if !ok || id <= 0 {
-		return nil, fmt.Errorf("staff PIN verification returned an unusable staff id %v", staff.GetID())
-	}
-	return &device.AuthenticatedStaff{ID: id, TenantID: staff.GetTenantID()}, nil
-}
 
 // fleetDirectory serves the device port from the public capability.
 type fleetDirectory struct{ fleet Fleet }

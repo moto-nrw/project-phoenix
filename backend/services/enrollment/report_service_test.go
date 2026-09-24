@@ -1534,6 +1534,9 @@ func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 		PickupTime: time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC),
 	}}}
 	svc := &reportService{ReportServiceConfig: ReportServiceConfig{
+		// The phase starts after this day, so the report reads the selection
+		// at the phase start rather than today.
+		Now: func() time.Time { return reportDate.AddDays(-30).BerlinMidnight() },
 		Requests: &fakeCareUsageRequestRepo{requests: []*enrollmentModels.Request{{
 			ID:                11,
 			GuardianFirstName: "Eva",

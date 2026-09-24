@@ -8,6 +8,8 @@ import test from 'node:test';
 
 const build = readFileSync(new URL('../.github/workflows/build.yml', import.meta.url), 'utf8');
 const rollback = readFileSync(new URL('../.github/workflows/rollback.yml', import.meta.url), 'utf8');
+const uptime = readFileSync(new URL('../.github/workflows/demo-uptime.yml', import.meta.url), 'utf8');
+const generator = readFileSync(new URL('../scripts/create-demo-env.py', import.meta.url), 'utf8');
 
 function stepRun(workflow, name) {
   const start = workflow.indexOf(`      - name: ${name}\n`);
@@ -121,6 +123,30 @@ test('each environment copies and runs its release scripts in its own directory'
     assert.ok(paths.length >= 3, step);
     for (const path of paths) assert.ok(`${path}/`.startsWith(`~/scripts/${directory}/`), `${step}: ${path}`);
   }
+});
+
+// The demo request form posts from the marketing website to the demo API, so a
+// regenerated configuration that drops those origins breaks the entry silently.
+test('the demo configuration generator allows the website origins', () => {
+  const setting = generator.match(/"CORS_ALLOWED_ORIGINS":((?:\s*"[^"]*",?)+)/);
+  assert.ok(setting, 'CORS_ALLOWED_ORIGINS');
+  const allowed = setting[1].match(/"([^"]*)"/g).map(part => part.slice(1, -1)).join('').split(',');
+  for (const origin of ['https://moto-ogs.de', 'https://www.moto-ogs.de', 'https://staging.moto-ogs.de',
+    'https://demo.moto-app.de']) {
+    assert.ok(allowed.includes(origin), origin);
+  }
+});
+
+// Nothing watches the demo's own VM from outside: a deploy notifies on failure,
+// a crash afterwards does not.
+test('a scheduled probe watches the public demo and stays silent until enabled', () => {
+  assert.match(uptime, /^on:\n  schedule:\n    - cron: '[^']+'\n  workflow_dispatch:$/m);
+  assert.match(uptime, /if: github\.event_name == 'workflow_dispatch' \|\| vars\.DEMO_MONITOR_ENABLED == 'true'/);
+  const script = stepRun(uptime, 'Probe health endpoints and certificate');
+  assert.match(script, /https:\/\/\$FRONTEND_HOST\/api\/health/);
+  assert.match(script, /https:\/\/\$API_HOST\/health/);
+  assert.match(script, /exit 1/);
+  assert.match(stepRun(uptime, 'Notify Slack'), /curl .*--data @-/);
 });
 
 test('demo deploy ships one Compose file that carries the demo runtime', () => {

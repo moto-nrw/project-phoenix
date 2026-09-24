@@ -136,6 +136,9 @@ type OperationRoster struct {
 	MovedFrom *string `json:"moved_from,omitempty"`
 	// CanOperate reports whether the caller may act on this block (#3167).
 	CanOperate bool `json:"can_operate"`
+	// CanStart and CanEnd follow the block start and end scopes (#3622).
+	CanStart bool `json:"can_start"`
+	CanEnd   bool `json:"can_end"`
 	// CanEditAttendance is separate from start/complete/reopen authority.
 	CanEditAttendance bool `json:"can_edit_attendance"`
 	// CanReportAbsence covers sick/excused block markers only.

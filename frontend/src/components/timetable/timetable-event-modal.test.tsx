@@ -740,21 +740,175 @@ describe("TimetableEventModal", () => {
 
     expect(
       screen.getByText(
-        /Regeltermin fällt am 11\.05\.2026 auf einen Schließtag/,
+        /1 Termin dieser Serie fällt auf einen Schließtag, zuerst am 11\.05\.2026/,
       ),
     ).toBeInTheDocument();
     await clickSave();
 
+    // #3594: a series skips closing days unless it is planned for them on
+    // purpose; the prompt names the count and both choices.
     const dialog = await screen.findByRole("dialog", {
-      name: "An einem Schließtag planen?",
+      name: "Schließtage in dieser Serie",
     });
-    expect(within(dialog).getByText(/11\.05\.2026/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "1 Termin dieser Serie fällt auf einen Schließtag.",
+      ),
+    ).toBeInTheDocument();
     expect(mockCreateTemplate).not.toHaveBeenCalled();
 
     fireEvent.click(
-      within(dialog).getByRole("button", { name: "Trotzdem planen" }),
+      within(dialog).getByRole("button", {
+        name: /Auch an Schließtagen planen/,
+      }),
     );
-    await waitFor(() => expect(mockCreateTemplate).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({ include_closing_days: true }),
+      ),
+    );
+  });
+
+  it("skips closing days when the series prompt says so (#3594)", async () => {
+    renderModal({
+      variant: "quick",
+      closingDayRanges: [
+        { startDate: "2026-05-11", endDate: "2026-05-18", reason: "Ferien" },
+      ],
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Montagsangebot" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    await chooseFromSelect(
+      screen.getByLabelText("Wiederholt sich"),
+      "Wöchentlich am Montag",
+    );
+    await clickSave();
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Schließtage in dieser Serie",
+    });
+    expect(
+      within(dialog).getByText(
+        /2 Termine dieser Serie fallen auf Schließtage\./,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: /Schließtage auslassen/ }),
+    );
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({ include_closing_days: false }),
+      ),
+    );
+  });
+
+  // #3594: a series may end before its planning period, e.g. one week of
+  // holiday care. The last day travels with the create and limits which
+  // closing days the series prompt counts.
+  it("saves the last day of a new series and counts closing days only up to it", async () => {
+    renderModal({
+      variant: "quick",
+      closingDayRanges: [
+        { startDate: "2026-05-11", endDate: "2026-05-11", reason: "Ferien" },
+        { startDate: "2026-05-25", endDate: "2026-05-25", reason: "Brücke" },
+      ],
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Ferienbetreuung" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    await chooseFromSelect(
+      screen.getByLabelText("Wiederholt sich"),
+      "Wöchentlich am Montag",
+    );
+    expect(
+      screen.getByText("Danach gibt es keine Termine mehr."),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Letzter Tag"), {
+      target: { value: "2026-05-18" },
+    });
+    await clickSave();
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Schließtage in dieser Serie",
+    });
+    expect(
+      within(dialog).getByText(
+        /1 Termin dieser Serie fällt auf einen Schließtag\./,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: /Schließtage auslassen/ }),
+    );
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          start_date: "2026-05-04",
+          end_date: "2026-05-18",
+        }),
+      ),
+    );
+  });
+
+  it("rejects a last day before the series start", async () => {
+    renderModal({ variant: "quick" });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Ferienbetreuung" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    await chooseFromSelect(
+      screen.getByLabelText("Wiederholt sich"),
+      "Wöchentlich am Montag",
+    );
+    fireEvent.change(screen.getByLabelText("Letzter Tag"), {
+      target: { value: "2026-04-27" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(
+      await screen.findByText("Bitte einen Tag ab dem ersten Termin wählen."),
+    ).toBeInTheDocument();
+    expect(mockCreateTemplate).not.toHaveBeenCalled();
+  });
+
+  it("sends a changed last day on a series edit", async () => {
+    renderModal({
+      initialSeries: { ...template, endDate: "2026-06-29" },
+    });
+
+    await screen.findByText("Regeltermin bearbeiten");
+    await goToStep(2);
+    expect(screen.getByLabelText("Letzter Tag")).toHaveValue("2026-06-29");
+    fireEvent.change(screen.getByLabelText("Letzter Tag"), {
+      target: { value: "2026-05-25" },
+    });
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        template.id,
+        expect.objectContaining({ end_date: "2026-05-25" }),
+      ),
+    );
+  });
+
+  it("keeps an unchanged last day out of a series edit", async () => {
+    renderModal({ initialSeries: { ...template, endDate: "2026-06-29" } });
+    await screen.findByText("Regeltermin bearbeiten");
+    await clickSave();
+    await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
+    expect(mockUpdateTemplate.mock.calls[0]![1]).not.toHaveProperty("end_date");
   });
 
   // #2135: a new series starts at the picked Datum. Occurrences before it can
@@ -793,7 +947,7 @@ describe("TimetableEventModal", () => {
       ),
     );
     expect(
-      screen.queryByRole("dialog", { name: "An einem Schließtag planen?" }),
+      screen.queryByRole("dialog", { name: "Schließtage in dieser Serie" }),
     ).not.toBeInTheDocument();
   });
 
@@ -2067,7 +2221,7 @@ describe("TimetableEventModal", () => {
 
     await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
     expect(
-      screen.queryByRole("dialog", { name: "An einem Schließtag planen?" }),
+      screen.queryByRole("dialog", { name: "Schließtage in dieser Serie" }),
     ).not.toBeInTheDocument();
   });
 
@@ -2752,19 +2906,36 @@ describe("TimetableEventModal", () => {
       await clickSave();
 
       const dialog = await screen.findByRole("dialog", {
-        name: "An einem Schließtag planen?",
+        name: "Schließtage in dieser Serie",
       });
-      expect(within(dialog).getByText(/11\.05\.2026/)).toBeInTheDocument();
+      expect(
+        within(dialog).getByText(
+          /1 Termin dieser Serie fällt auf einen Schließtag\./,
+        ),
+      ).toBeInTheDocument();
       expect(mockSplitTemplate).not.toHaveBeenCalled();
       expect(mockUpdateTemplate).not.toHaveBeenCalled();
 
       fireEvent.click(
-        within(dialog).getByRole("button", { name: "Trotzdem planen" }),
+        within(dialog).getByRole("button", {
+          name: /Auch an Schließtagen planen/,
+        }),
       );
+      // #3594: the answer reaches the series write.
       if (write === "split") {
-        await waitFor(() => expect(mockSplitTemplate).toHaveBeenCalled());
+        await waitFor(() =>
+          expect(mockSplitTemplate).toHaveBeenCalledWith(
+            "7",
+            expect.objectContaining({ include_closing_days: true }),
+          ),
+        );
       } else {
-        await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
+        await waitFor(() =>
+          expect(mockUpdateTemplate).toHaveBeenCalledWith(
+            "7",
+            expect.objectContaining({ include_closing_days: true }),
+          ),
+        );
       }
     },
   );
@@ -5635,7 +5806,7 @@ describe("TimetableEventModal", () => {
 
       expect(
         await screen.findByRole("dialog", {
-          name: "An einem Schließtag planen?",
+          name: "Schließtage in dieser Serie",
         }),
       ).toBeInTheDocument();
       expect(mockUpdateTemplate).not.toHaveBeenCalled();

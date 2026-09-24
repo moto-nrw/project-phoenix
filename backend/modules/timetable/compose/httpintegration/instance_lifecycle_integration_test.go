@@ -2108,3 +2108,23 @@ func TestInstance_Cancel_FromActive_DoesNotTouchAttendance(t *testing.T) {
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got2.Status,
 		"Cancel(active) must not flip expected → absent")
 }
+
+// The real start records an unplanned starter without making them a
+// supervisor: only planned, present staff supervise (#3622).
+func TestInstance_StartByUnplannedStaffAddsNoSupervisor(t *testing.T) {
+	t.Parallel()
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, false)
+	starter := testpkg.CreateTestStaff(t, s.db, "LC-Starter", fmt.Sprintf("Start-%d", ai.ID))
+
+	result, err := s.svc.Start(s.ctx, ai.ID, starter.ID)
+
+	require.NoError(t, err)
+	started := reloadInstance(t, s, ai.ID)
+	require.NotNil(t, started.StartedBy)
+	assert.Equal(t, starter.ID, *started.StartedBy)
+	sups, err := s.presence.QueryGroupSupervisions(s.ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{result.ActiveGroupID}})
+	require.NoError(t, err)
+	require.Len(t, sups, 1)
+	assert.Equal(t, s.staffID, sups[0].StaffID)
+}

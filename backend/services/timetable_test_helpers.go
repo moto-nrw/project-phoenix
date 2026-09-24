@@ -129,7 +129,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	}
 	rows := r.TimetableTemplateRows()
 	materialization, err := newTimetableMaterialization(timetableMaterializationInputs{
-		Rows: rows, CareBounds: r.Student, RecurrenceLock: recurrenceLock, Broadcaster: hub, DB: db, Logger: logger,
+		Rows: rows, CareBounds: r.Student, NonWorkingDays: calendar, RecurrenceLock: recurrenceLock, Broadcaster: hub, DB: db, Logger: logger,
 	})
 	if err != nil {
 		return TimetableTestModule{}, err

@@ -74,6 +74,9 @@ vi.mock("~/env.client", () => ({
   clientEnv: {
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
     NEXT_PUBLIC_TENANT_DOMAIN: "localhost",
+    NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000",
+    NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000",
+    NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000",
   },
 }));
 

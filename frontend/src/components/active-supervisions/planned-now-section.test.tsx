@@ -307,6 +307,33 @@ describe("PlannedNowSection", () => {
     ).toBeInTheDocument();
   });
 
+  // With „Das ganze Team“ (#3622) the backend marks foreign blocks startable;
+  // the button follows can_start, not the assignment.
+  it("lets the caller start a block they are not assigned to when allowed", () => {
+    const onStart = vi.fn();
+    const foreign: PlannedTimetableInstance = {
+      ...plannedInstance,
+      assignedStaffIds: ["staff-2"],
+      isAssigned: false,
+      isPrimary: false,
+      canStart: true,
+    };
+    render(
+      <PlannedNowSection
+        plannedNow={[foreign]}
+        isStartingInstance={null}
+        onStart={onStart}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^Starten$/i }));
+
+    expect(onStart).toHaveBeenCalledWith(foreign);
+    expect(
+      screen.queryByRole("button", { name: "Nur für Eingeplante" }),
+    ).toBeNull();
+  });
+
   it("expands a startable slot even when it is more than 15 minutes away", () => {
     render(
       <PlannedNowSection

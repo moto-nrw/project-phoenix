@@ -933,6 +933,12 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 			renderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
+		// A full Kinderkontingent (#3567) is a business rejection with
+		// its own code; the form keeps its input and shows the numbers.
+		if common.IsBusinessRejection(err) {
+			renderError(w, r, common.ErrorBusinessRejection(err))
+			return
+		}
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}

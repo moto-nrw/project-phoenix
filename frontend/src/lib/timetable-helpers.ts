@@ -35,6 +35,7 @@ import type {
   BackendGuardianNoticeResult,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
+  BackendBulkCancelResult,
   BackendReplanWeekResult,
   BackendEditedInWindowResult,
   EditedInWindowResult,
@@ -64,6 +65,7 @@ import type {
   GuardianNoticeResult,
   InstanceStatusResult,
   MaterializeResult,
+  BulkCancelResult,
   ReplanWeekResult,
   ShiftCoverageCheckResult,
   SplitTemplateResult,
@@ -251,6 +253,7 @@ export function materializedRecurrenceDates({
   weekPattern,
   validFrom,
   validUntil,
+  lastDay,
 }: {
   period: CalendarPeriod;
   fromISO: string;
@@ -258,11 +261,14 @@ export function materializedRecurrenceDates({
   weekPattern: number;
   validFrom?: string;
   validUntil?: string;
+  /** Inclusive last day of the series (#3594); empty = until the period ends. */
+  lastDay?: string;
 }): string[] {
   const from = latestISODate(period.startDate, fromISO, validFrom ?? "");
   return weekdayDatesInRange(from, period.endDate, weekdays).filter(
     (dateISO) =>
       (validUntil === undefined || dateISO < validUntil) &&
+      (!lastDay || dateISO <= lastDay) &&
       shouldMaterializeWeekPattern(period, dateISO, weekPattern),
   );
 }
@@ -604,6 +610,8 @@ export function mapMaterializeResult(
     to: raw.to,
     instancesCreated: raw.instances_created,
     candidatesSkippedExisting: raw.candidates_skipped_existing,
+    skippedHolidays: raw.skipped_holidays ?? 0,
+    skippedClosingDays: raw.skipped_closing_days ?? 0,
     warnings: (raw.warnings ?? []).map((w) => ({
       // The codes the backend emits today are bounded; widening to string
       // here keeps the mapper forward-compatible if a new code lands without
@@ -612,6 +620,23 @@ export function mapMaterializeResult(
       message: w.message,
     })),
     durationMs: raw.duration_ms,
+  };
+}
+
+export function mapBulkCancelResult(
+  raw: BackendBulkCancelResult,
+): BulkCancelResult {
+  return {
+    from: raw.from,
+    to: raw.to,
+    dryRun: raw.dry_run,
+    count: raw.count,
+    days: (raw.days ?? []).map((day) => ({ date: day.date, count: day.count })),
+    kept: raw.kept ?? 0,
+    keptSeries: (raw.kept_series ?? []).map((series) => ({
+      name: series.name,
+      count: series.count,
+    })),
   };
 }
 
@@ -1080,6 +1105,8 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       isOpen: template.is_open,
       maxParticipants: template.max_participants,
       notes: template.notes,
+      includeClosingDays: template.include_closing_days ?? false,
+      endDate: template.end_date ?? undefined,
       shiftTypeName: template.shift_type_name,
       shiftTypeColor: template.shift_type_color,
       calendarPeriodId:

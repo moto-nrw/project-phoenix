@@ -74,6 +74,9 @@ func (rs *Resource) convertInstanceToSeries(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
+	if !rs.validateSeriesEnd(w, r, parsed.endDate, rosterValidFrom, parsed.req.CalendarPeriodID) {
+		return
+	}
 
 	result, err := rs.InstanceSeriesConverter.ConvertInstanceToSeries(
 		r.Context(),

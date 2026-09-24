@@ -735,6 +735,8 @@ export interface BackendDailyProjection extends BackendDailyTarget {
   credit_minutes: number;
   actual_minutes: number;
   balance_minutes: number;
+  /** "override" on a Sonderarbeitszeit day (#3259). */
+  target_source?: string;
 }
 
 /**
@@ -752,6 +754,8 @@ export interface DayProjection {
   readonly creditMinutes: number;
   readonly actualMinutes: number;
   readonly balanceMinutes: number;
+  /** Eine Sonderarbeitszeit setzt das Soll dieses Tages (#3259). */
+  readonly isOverride?: boolean;
 }
 
 /**
@@ -767,6 +771,7 @@ export function mapDailyProjectionResponse(
       creditMinutes: entry.credit_minutes,
       actualMinutes: entry.actual_minutes,
       balanceMinutes: entry.balance_minutes,
+      ...(entry.target_source === "override" ? { isOverride: true } : {}),
     });
   }
   return projection;

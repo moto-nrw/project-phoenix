@@ -14,7 +14,6 @@ type StaffCredentials struct {
 	AccountID int64
 	Email     string
 	Password  string
-	PIN       string
 	Name      string
 	Position  string
 }
@@ -1309,7 +1308,6 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 		if s.staffPassword != "" {
 			password = s.staffPassword
 		}
-		pin := fmt.Sprintf("%04d", 1000+i)
 
 		// Assign role based on position:
 		// - OGS-Büro → admin (OGS leadership with full access)
@@ -1379,7 +1377,6 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 			AccountID: account.Data.ID,
 			Email:     email,
 			Password:  password,
-			PIN:       pin,
 			Name:      personKey,
 			Position:  staff.Position,
 		})

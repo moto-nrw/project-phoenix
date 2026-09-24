@@ -265,6 +265,8 @@ func createTemplateInput(cmd timetable.CreateTemplateCommand) CreateTemplateInpu
 		SourceSchoolClasses:   cmd.SourceSchoolClasses,
 		ListKind:              cmd.ListKind,
 		Notes:                 cmd.Notes,
+		IncludeClosingDays:    cmd.IncludeClosingDays,
+		SeriesLastDay:         activityDatePtr(cmd.SeriesLastDay),
 		StudentIDs:            cmd.StudentIDs,
 		StaffIDs:              cmd.StaffIDs,
 		PrimaryStaffID:        cmd.PrimaryStaffID,
@@ -321,6 +323,9 @@ func templateFieldsUpdate(fields timetable.TemplateFields) activitiesModel.Templ
 		SourceCareOfferingIDs:   fields.SourceCareOfferingIDs,
 		SourceGradeLevels:       fields.SourceGradeLevels,
 		SourceSchoolClasses:     fields.SourceSchoolClasses,
+		IncludeClosingDays:      fields.IncludeClosingDays,
+		SeriesLastDay:           fields.SeriesLastDay,
+		SeriesLastDayProvided:   fields.SeriesLastDayProvided,
 	}
 }
 
@@ -358,6 +363,7 @@ func templateSplitInput(cmd timetable.SplitTemplateCommand) TemplateSplitInput {
 		NotesProvided:                 cmd.NotesProvided,
 		ListKind:                      cmd.ListKind,
 		ListKindProvided:              cmd.ListKindProvided,
+		IncludeClosingDays:            cmd.IncludeClosingDays,
 		StudentIDs:                    cmd.StudentIDs,
 		StaffIDs:                      cmd.StaffIDs,
 		PrimaryStaffID:                cmd.PrimaryStaffID,

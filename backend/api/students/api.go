@@ -80,6 +80,20 @@ type ClassListEntryReader interface {
 	ListClassListEntriesInDisplayOrder(context.Context) ([]ClassListEntry, error)
 }
 
+// ChildQuotaUsage is the school's Kinderkontingent (Booked) next to its
+// Kontingentzahl (Occupied), as the Datenverwaltung shows it (#3569).
+type ChildQuotaUsage struct {
+	Booked   int
+	Occupied int
+}
+
+// ChildQuotaReader reads the Kinderkontingent of the caller's school. The
+// root binds it to the School Membership capability that counts the
+// Kontingentzahl; limited is false when the school has no Kinderkontingent.
+type ChildQuotaReader interface {
+	ChildQuotaUsage(context.Context) (usage ChildQuotaUsage, limited bool, err error)
+}
+
 // WeekdayPickupNoteReplacer owns the one atomic write that replaces the
 // recurring day notes for a child. It deliberately excludes dated notes.
 type WeekdayPickupNoteReplacer interface {
@@ -153,6 +167,10 @@ type ResourceConfig struct {
 	// their School Membership owner in the display order the export needs.
 	// Optional: nil exports without entries (bare test Resources).
 	ClassListEntries ClassListEntryReader
+	// ChildQuota backs the Kinderkontingent line of the Datenverwaltung
+	// (#3569). Optional for bare test Resources; the route answers 500
+	// without it.
+	ChildQuota ChildQuotaReader
 	// StudentDeletion is the owner workflow behind the permanent deletion
 	// routes (#2710): delete-impact, DELETE /{id}, the graduate purge and the
 	// withdrawal deletion. Optional so bare test Resources still compile; the
@@ -263,6 +281,10 @@ func (rs *Resource) Router() chi.Router {
 		// missing — mirroring the permission split of the replaced single
 		// endpoints instead of failing the whole roster.
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/ogs-group-live", rs.getOGSGroupLive)
+		// Kinderkontingent line of the Datenverwaltung child list (#3569).
+		// Gated on users:delete like the page itself (DATABASE_PAGE_PERMISSIONS),
+		// so the standard caregiver role, which lacks it, never reads it.
+		r.With(common.RequiresPermission(permissions.UsersDelete), withTx).Get("/child-quota", rs.getChildQuota)
 		// Navigation only exposes groups scoped by the service. It remains
 		// authenticated-only so legacy caregiver sessions and staff with
 		// users:read retain their personal-group navigation; groups:read only

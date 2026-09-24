@@ -79,9 +79,11 @@ type TemplateSplitInput struct {
 	// series from its automatic Randstunden/Lernzeit/AG/Mensa list.
 	ListKind         *string
 	ListKindProvided bool
-	StudentIDs       []int64
-	StaffIDs         []int64
-	PrimaryStaffID   *int64
+	// IncludeClosingDays nil inherits the source series' flag (#3594).
+	IncludeClosingDays *bool
+	StudentIDs         []int64
+	StaffIDs           []int64
+	PrimaryStaffID     *int64
 	// WeekdayAssignments carries the per-weekday roster deviations (#2129)
 	// onto the successor. It only applies to the explicit-roster path: a
 	// carried-over roster keeps each row's own weekday scope.

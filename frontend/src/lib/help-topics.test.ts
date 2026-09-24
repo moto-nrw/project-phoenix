@@ -511,11 +511,11 @@ describe("getParentHelpTopicForPath", () => {
     );
     const visible = new Set(leadTopics.map((topic) => topic.id));
 
-    // 46 eigene Leitungs-Themen plus die geteilten Artikel, deren Ablauf
+    // 47 eigene Leitungs-Themen plus die geteilten Artikel, deren Ablauf
     // fuer Leitung und Betreuung derselbe ist -- die eigene Arbeitszeit,
     // der eigene Kalender, der Aufbau der Navigation, die Seiten des
     // Tagesbetriebs und der Umgang mit dem NFC-Tablet.
-    expect(leadTopics).toHaveLength(75);
+    expect(leadTopics).toHaveLength(76);
     expect(
       leadTopics.every(
         (topic) =>

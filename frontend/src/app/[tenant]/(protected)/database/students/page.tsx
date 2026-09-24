@@ -13,6 +13,8 @@ import {
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { ChildQuotaStatus } from "~/components/database/child-quota-status";
+import { fetchChildQuota } from "~/lib/child-quota-api";
 import { Skeleton } from "~/components/ui/skeleton";
 import { formatCount } from "~/lib/format-utils";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -160,6 +162,13 @@ function StudentsPageContent() {
     });
     return Array.isArray(data.data) ? data.data : [];
   });
+
+  // Kinderkontingent der Schule (#3569). Ein Fehler blendet die Zeile nur
+  // aus; die Liste bleibt davon unberührt.
+  const { data: childQuota } = useSWRAuth(
+    "database-students-child-quota",
+    fetchChildQuota,
+  );
 
   const errorMessage = studentsError
     ? "Fehler beim Laden der Kinder. Bitte versuchen Sie es später erneut."
@@ -402,7 +411,10 @@ function StudentsPageContent() {
         ),
       );
       setShowCreateModal(false);
-      await tenantMutate("database-students-list");
+      await Promise.all([
+        tenantMutate("database-students-list"),
+        tenantMutate("database-students-child-quota"),
+      ]);
     },
     [service, tenantMutate, toastSuccess],
   );
@@ -502,7 +514,10 @@ function StudentsPageContent() {
               onFinished={async () => {
                 setCareExitIds(null);
                 finishSelection();
-                await tenantMutate("database-students-list");
+                await Promise.all([
+                  tenantMutate("database-students-list"),
+                  tenantMutate("database-students-child-quota"),
+                ]);
               }}
             />
           ) : null}
@@ -511,7 +526,14 @@ function StudentsPageContent() {
       className="flex w-full flex-col"
       intro={{
         title: "Kinder",
-        description: loading ? <Skeleton className="h-4 w-48" /> : statusLine,
+        description: loading ? (
+          <Skeleton className="h-4 w-48" />
+        ) : (
+          <>
+            {statusLine}
+            <ChildQuotaStatus quota={childQuota ?? null} />
+          </>
+        ),
         actions: (
           <>
             {!isMobile ? (

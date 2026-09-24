@@ -149,12 +149,17 @@ type CreateTemplateCommand struct {
 	SourceSchoolClasses   []string
 	ListKind              *string
 	Notes                 *string
-	StudentIDs            []int64
-	StaffIDs              []int64
-	PrimaryStaffID        *int64
-	WeekdayAssignments    []WeekdayRosterAssignment
-	CreatedBy             *int64
-	RosterValidFrom       calendar.Date
+	// IncludeClosingDays also plans the series on closing days (#3594).
+	IncludeClosingDays bool
+	// SeriesLastDay is the inclusive last day of the series (#3594); nil runs
+	// the series until the planning period ends.
+	SeriesLastDay      *calendar.Date
+	StudentIDs         []int64
+	StaffIDs           []int64
+	PrimaryStaffID     *int64
+	WeekdayAssignments []WeekdayRosterAssignment
+	CreatedBy          *int64
+	RosterValidFrom    calendar.Date
 	// ScheduleValidFrom is the optional series start (#2135); nil starts the
 	// series with the planning period.
 	ScheduleValidFrom *calendar.Date
@@ -196,6 +201,12 @@ type TemplateFields struct {
 	SourceCareOfferingIDs []int64
 	SourceGradeLevels     []int
 	SourceSchoolClasses   []string
+	// IncludeClosingDays nil keeps the stored closing-day opt-in (#3594).
+	IncludeClosingDays *bool
+	// SeriesLastDay (#3594, inclusive) is written only when
+	// SeriesLastDayProvided; nil clears it.
+	SeriesLastDay         *string
+	SeriesLastDayProvided bool
 }
 
 // UpdateTemplateCommand carries the fields, recurrence shape and roster a
@@ -266,13 +277,16 @@ type SplitTemplateCommand struct {
 	NotesProvided                 bool
 	ListKind                      *string
 	ListKindProvided              bool
-	StudentIDs                    []int64
-	StaffIDs                      []int64
-	PrimaryStaffID                *int64
-	WeekdayAssignments            []WeekdayRosterAssignment
-	MaterializeFrom               *calendar.Date
-	MaterializeTo                 *calendar.Date
-	GradeLevelMax                 int
+	// IncludeClosingDays nil inherits the source series' closing-day opt-in
+	// (#3594).
+	IncludeClosingDays *bool
+	StudentIDs         []int64
+	StaffIDs           []int64
+	PrimaryStaffID     *int64
+	WeekdayAssignments []WeekdayRosterAssignment
+	MaterializeFrom    *calendar.Date
+	MaterializeTo      *calendar.Date
+	GradeLevelMax      int
 	// ActorAccountID stamps the Änderungsprotokoll entries of deviations the
 	// split drops (#1886).
 	ActorAccountID *int64

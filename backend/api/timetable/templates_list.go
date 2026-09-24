@@ -122,6 +122,8 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		SourceSchoolClasses:         row.SourceSchoolClasses,
 		ListKind:                    row.ListKind,
 		Notes:                       row.Notes,
+		IncludeClosingDays:          row.IncludeClosingDays,
+		EndDate:                     row.SeriesLastDay,
 		ShiftTypeName:               row.ShiftTypeName,
 		ShiftTypeColor:              row.ShiftTypeColor,
 		EnrollmentCount:             row.EnrollmentCount,
@@ -242,6 +244,11 @@ type templateResponse struct {
 	// Notes is the template's durable Wochennotiz (#1837 follow-up), nil when
 	// no series note is set. Lets the planner prefill the field on a series edit.
 	Notes *string `json:"notes,omitempty"`
+	// IncludeClosingDays: the series is planned on closing days too (#3594).
+	IncludeClosingDays bool `json:"include_closing_days"`
+	// EndDate is the inclusive last day of the series (#3594); nil = the
+	// series runs until its planning period ends.
+	EndDate *string `json:"end_date,omitempty"`
 	// ShiftTypeName/ShiftTypeColor reflect the category's optional
 	// Kategorie↔Schichtart mapping (#1836/#1837 follow-up); empty when unmapped.
 	ShiftTypeName   string `json:"shift_type_name,omitempty"`

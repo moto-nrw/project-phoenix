@@ -51,7 +51,10 @@ function CalendarPeriodsPageContent() {
       actions={<CalendarPeriodsActions state={state} />}
     >
       <CalendarPeriodsEditor state={state} />
-      <ClosingDaysEditor />
+      {/* Abgesagte Termine ändern die Spalte „Verwendung“ (#3594). */}
+      <ClosingDaysEditor
+        onAppointmentsCancelled={() => void state.reload({ silent: true })}
+      />
     </TenantPage>
   );
 }

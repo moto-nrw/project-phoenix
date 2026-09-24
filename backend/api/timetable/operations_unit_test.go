@@ -1167,12 +1167,19 @@ func (p testOperationPeople) GetStaffByPersonID(ctx context.Context, personID in
 }
 
 // testOperationSettings resolves the operational policies from the fake
-// settings service.
+// settings service. The action scopes stay unset, so no action opens to the
+// whole school.
 type testOperationSettings struct {
 	settings *fakeOperationSettingsService
 }
 
+// testActionScopeKey stands for every action scope setting.
+const testActionScopeKey = "operations.attendance_edit_scope"
+
 func (s testOperationSettings) ResolveString(ctx context.Context, key string) (string, error) {
+	if key == testActionScopeKey {
+		return "", nil
+	}
 	return s.settings.ResolveString(ctx, key)
 }
 
@@ -1180,18 +1187,13 @@ func (testOperationSettings) StartLeadMinutes(context.Context) (int, error) { re
 
 func (testOperationSettings) EnforcePlannedEnd(context.Context) (bool, error) { return false, nil }
 
-func (testOperationSettings) AttendanceEditScope(context.Context) (timetableCompose.AttendanceEditScope, error) {
-	return timetableCompose.AttendanceEditUnset, nil
+func (testOperationSettings) ActionScopeKey(timetableCompose.ScopedAction) (string, error) {
+	return testActionScopeKey, nil
 }
 
 func (s testOperationSettings) StudentAbsenceEditAllStaff(ctx context.Context) (bool, error) {
 	scope, err := s.settings.ResolveString(ctx, configModel.KeyStudentAbsenceEditScope)
 	return scope == configModel.StudentAbsenceEditScopeAllStaff, err
-}
-
-func (s testOperationSettings) OperationalOverviewAllStaff(ctx context.Context) (bool, error) {
-	scope, err := s.settings.ResolveString(ctx, configModel.KeyOperationalOverviewScope)
-	return scope == configModel.OverviewScopeAllStaff, err
 }
 
 // testOperationLifecycle drives the instance lifecycle the way the owner

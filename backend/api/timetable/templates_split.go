@@ -171,6 +171,10 @@ func (req *splitTemplateRequest) Bind(r *http.Request) error {
 	if req.SeriesRosterFrom != nil {
 		return errors.New("series_roster_from is not supported on a split")
 	}
+	// The series end (#3594) is set on create and on a whole-series update.
+	if req.EndDate.Set {
+		return errors.New("end_date is not supported on a split")
+	}
 	// req.Notes (nullableStr) shadows the embedded updateTemplateRequest.Notes,
 	// so the create/update length guard in the embedded Bind never sees the
 	// split note. Enforce the same 2000-char limit here (#1837 follow-up).
@@ -341,16 +345,18 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (timetableModu
 		RequiredStaffProvided: req.RequiredStaff.Set,
 		// Same three-state contract for the Wochennotiz: present -> set/clear,
 		// omitted -> inherit the source template's note.
-		Notes:             normalizeNotes(req.Notes.Value),
-		NotesProvided:     req.Notes.Set,
-		ListKind:          req.ListKind.Value,
-		ListKindProvided:  req.ListKind.Set,
-		WeekPattern:       req.WeekPattern,
-		CalendarPeriodID:  req.CalendarPeriodID,
-		EducationGroupID:  req.EducationGroupID,
-		TargetGroupType:   req.TargetGroupType,
-		TargetGradeLevel:  req.TargetGradeLevel,
-		TargetSchoolClass: req.TargetSchoolClass,
+		Notes:            normalizeNotes(req.Notes.Value),
+		NotesProvided:    req.Notes.Set,
+		ListKind:         req.ListKind.Value,
+		ListKindProvided: req.ListKind.Set,
+		// Omitted inherits the source series' closing-day opt-in (#3594).
+		IncludeClosingDays: req.IncludeClosingDays,
+		WeekPattern:        req.WeekPattern,
+		CalendarPeriodID:   req.CalendarPeriodID,
+		EducationGroupID:   req.EducationGroupID,
+		TargetGroupType:    req.TargetGroupType,
+		TargetGradeLevel:   req.TargetGradeLevel,
+		TargetSchoolClass:  req.TargetSchoolClass,
 		// Offering-source rule (#2137): same presence contract as the template
 		// PUT — omitted fields inherit the old template's source and filter,
 		// submitted fields are authoritative (#2147 review round 14). Without

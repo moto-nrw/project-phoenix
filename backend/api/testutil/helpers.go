@@ -558,20 +558,17 @@ func SeedTestJWTConfig() {
 }
 
 // NewDeviceAuthenticators composes the production device authentication
-// middleware for handler tests. staffPIN may be nil when a test never
-// presents a personal staff credential; settings may be nil to authenticate
-// with fallbackPIN alone.
+// middleware for handler tests. settings may be nil to authenticate with
+// fallbackPIN alone.
 func NewDeviceAuthenticators(
 	devices deviceauth.Fleet,
 	schools deviceauth.SchoolDirectory,
-	staffPIN func(ctx context.Context, tenantID, staffID int64, pin string) (*services.StaffPINPrincipal, error),
 	settings deviceauth.Settings,
 	fallbackPIN string,
 ) *deviceauth.Authenticators {
 	return deviceauth.New(deviceauth.Dependencies{
 		Devices:     devices,
 		Schools:     schools,
-		StaffPIN:    deviceauth.StaffPIN(staffPIN),
 		Settings:    settings,
 		FallbackPIN: fallbackPIN,
 	})
@@ -595,8 +592,8 @@ func DevicePrincipal(d *iot.Device) *device.AuthenticatedDevice {
 	}
 }
 
-// StaffPrincipal converts a staff row into the principal the device auth
-// middleware binds after a verified account PIN.
+// StaffPrincipal converts a staff row into the principal a verified web
+// boundary binds to a request.
 func StaffPrincipal(s *users.Staff) *device.AuthenticatedStaff {
 	if s == nil {
 		return nil

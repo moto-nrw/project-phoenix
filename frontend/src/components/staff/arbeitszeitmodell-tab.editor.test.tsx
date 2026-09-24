@@ -27,10 +27,16 @@ vi.mock("swr", () => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
-  useSWRAuth: (key: string | null) =>
-    key?.startsWith("staff-schedule-")
-      ? { data: schedule, isLoading: false, mutate: mocks.mutateSchedule }
-      : { data: [], isLoading: false, mutate: vi.fn() },
+  useSWRAuth: (key: string | null) => {
+    if (key === "staff-schedule-42") {
+      return { data: schedule, isLoading: false, mutate: mocks.mutateSchedule };
+    }
+    // The four-week preview's daily Soll stays pending in these editor tests.
+    if (key?.startsWith("staff-schedule-targets-preview-")) {
+      return { data: undefined, isLoading: true, mutate: vi.fn() };
+    }
+    return { data: [], isLoading: false, mutate: vi.fn() };
+  },
 }));
 
 vi.mock("~/lib/staff-api", () => ({
@@ -39,6 +45,7 @@ vi.mock("~/lib/staff-api", () => ({
     updateSchedule: mocks.updateSchedule,
   },
   workTimeModelService: { list: vi.fn() },
+  staffMonthSummaryService: { getDailyProjection: vi.fn() },
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
