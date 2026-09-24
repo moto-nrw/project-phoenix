@@ -150,25 +150,17 @@ var timetableScopedActionKeys = map[timetableCompose.ScopedAction]string{
 	timetableCompose.ScopedBlockComplete: configModels.KeyBlockCompleteScope,
 }
 
-// ActionScopeAllStaff compares with the attendance scope's all_staff, the
-// school-wide value every action scope shares.
-func (s timetableOperationSettings) ActionScopeAllStaff(ctx context.Context, action timetableCompose.ScopedAction) (bool, error) {
+func (timetableOperationSettings) ActionScopeKey(action timetableCompose.ScopedAction) (string, error) {
 	key, ok := timetableScopedActionKeys[action]
 	if !ok {
-		return false, fmt.Errorf("timetable operations: unknown scoped action %d", action)
+		return "", fmt.Errorf("timetable operations: unknown scoped action %d", action)
 	}
-	scope, err := s.settings.ResolveString(ctx, key)
-	return scope == configModels.AttendanceEditScopeAllStaff, err
+	return key, nil
 }
 
 func (s timetableOperationSettings) StudentAbsenceEditAllStaff(ctx context.Context) (bool, error) {
 	scope, err := s.settings.ResolveString(ctx, configModels.KeyStudentAbsenceEditScope)
 	return scope == configModels.StudentAbsenceEditScopeAllStaff, err
-}
-
-func (s timetableOperationSettings) OperationalOverviewAllStaff(ctx context.Context) (bool, error) {
-	scope, err := s.settings.ResolveString(ctx, configModels.KeyOperationalOverviewScope)
-	return scope == configModels.OverviewScopeAllStaff, err
 }
 
 // timetableEffectiveArrivals serves Care Plan's effective arrivals.
