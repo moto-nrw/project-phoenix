@@ -164,6 +164,9 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
+          # Same release as the frontend build: the full commit SHA (#3638).
+          build-args: |
+            SENTRY_RELEASE=${{ github.sha }}
           # Layer cache is mounted automatically via Blacksmith sticky disks (per repo + Dockerfile)
           provenance: false
 
