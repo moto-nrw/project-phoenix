@@ -20,6 +20,7 @@ import {
   fetchThread,
   postMessage,
   markThreadUnread,
+  markAllMessagesRead,
   openThread,
   fetchGuardians,
   type InboxThread,
@@ -384,6 +385,26 @@ describe("markThreadUnread", () => {
     await expect(markThreadUnread("t42")).rejects.toThrow(
       "messaging: forbidden",
     );
+  });
+});
+
+describe("markAllMessagesRead", () => {
+  it("POSTs to the mark-all-read route", async () => {
+    let seenURL = "";
+    let seenMethod = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method ?? "";
+      return jsonOk({ data: null });
+    });
+    await markAllMessagesRead();
+    expect(seenURL).toBe("/api/messages/mark-all-read");
+    expect(seenMethod).toBe("POST");
+  });
+
+  it("throws the backend error on failure", async () => {
+    mockFetch(async () => jsonOk({ error: "messaging: forbidden" }, 403));
+    await expect(markAllMessagesRead()).rejects.toThrow("messaging: forbidden");
   });
 });
 

@@ -105,6 +105,11 @@ type ParentMessageReadRepository interface {
 	// advanced, so the read-receipt SSE push can fire only on a real move and not
 	// ping-pong with the refetch it triggers on the counterpart.
 	MarkReadUpTo(ctx context.Context, tenantID, threadID, accountID int64, readAt time.Time, readMessageID int64) (bool, error)
+	// MarkThreadsReadForStaff advances the staff reader's cursor in each given
+	// thread to the newest guardian-side message the reader did not author, by
+	// the same rules as a single open, in one statement. The cursor never moves
+	// backward. It returns the threads whose cursor actually advanced.
+	MarkThreadsReadForStaff(ctx context.Context, tenantID, accountID int64, threadIDs []int64) ([]int64, error)
 	// MarkStaffHandledUpTo advances the team-wide handled boundary to the newest
 	// guardian activity covered by a staff reply. It never moves backward.
 	MarkStaffHandledUpTo(ctx context.Context, tenantID, threadID int64, handledAt time.Time, handledMessageID int64) error

@@ -36,6 +36,10 @@ func (r *ParentMessageReads) MarkReadUpTo(ctx context.Context, tenantID, threadI
 	return r.cursors.MarkReadUpTo(ctx, tenantID, threadID, accountID, readAt, readMessageID)
 }
 
+func (r *ParentMessageReads) MarkThreadsReadForStaff(ctx context.Context, tenantID, accountID int64, threadIDs []int64) ([]int64, error) {
+	return r.cursors.MarkThreadsReadForStaff(ctx, tenantID, accountID, threadIDs)
+}
+
 func (r *ParentMessageReads) MarkStaffHandledUpTo(ctx context.Context, tenantID, threadID int64, handledAt time.Time, handledMessageID int64) error {
 	return r.threads.MarkStaffHandledUpTo(ctx, tenantID, threadID, handledAt, handledMessageID)
 }
