@@ -26,6 +26,9 @@ var (
 	// switch cannot take effect on: before today, or outside the care period the
 	// request belongs to.
 	ErrOfferingChangeDateOutOfRange = errors.New("enrollment: confirmed effective date is out of range")
+	// ErrOfferingChangeAlreadyPending means the child already has an open
+	// request (enforced by a partial unique index as well).
+	ErrOfferingChangeAlreadyPending = errors.New("enrollment: offering change request already pending")
 
 	// ErrCareOfferingsDisabled means the tenant has care offerings switched
 	// off. Enrollment paths return the same value.

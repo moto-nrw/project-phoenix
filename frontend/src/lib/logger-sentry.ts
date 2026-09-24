@@ -55,6 +55,19 @@ function entryDetails(entry: SentryLogEntry): Record<string, unknown> {
   );
 }
 
+// Entry fields that become tags, so Sentry can filter by them (#3590): the
+// backend's error code and the Vorgangskennung, when the entry carries them.
+const TAG_KEYS = ["error_code", "request_id"] as const;
+
+function searchableTags(entry: SentryLogEntry): Record<string, string> {
+  const tags: Record<string, string> = {};
+  for (const key of TAG_KEYS) {
+    const value = entry[key];
+    if (typeof value === "string" && value !== "") tags[key] = value;
+  }
+  return tags;
+}
+
 export function reportLogToSentry(entry: SentryLogEntry): void {
   const component = entry.component ?? "unknown";
 
@@ -71,7 +84,7 @@ export function reportLogToSentry(entry: SentryLogEntry): void {
 
   Sentry.captureMessage(entry.msg, {
     level: "error",
-    tags: { component, log_source: "logger" },
+    tags: { component, log_source: "logger", ...searchableTags(entry) },
     extra: entryDetails(entry),
     fingerprint: ["logger", component, entry.msg],
   });

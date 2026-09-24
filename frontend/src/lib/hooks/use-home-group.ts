@@ -12,7 +12,10 @@ import {
   isSchoolyardLocation,
   isTransitLocation,
 } from "~/lib/location-helper";
-import { combineTimeNotes } from "~/lib/student-time-status";
+import {
+  combineTimeNotes,
+  comesOnlyIfLessonCancelled,
+} from "~/lib/student-time-status";
 import { useSWRAuth } from "~/lib/swr";
 
 /** Eine Abholung, die heute noch kommt. */
@@ -55,6 +58,11 @@ export interface HomeGroupSnapshot {
    * nicht da ist — die Frage des Vormittags: „Wer fehlt noch?"
    */
   readonly missing: readonly HomeMissingArrival[];
+  /**
+   * Kinder, deren Unterricht heute nicht vor der Abholzeit endet: Sie kommen
+   * nur, wenn eine Stunde ausfällt, und fehlen deshalb nicht (#3373).
+   */
+  readonly onlyIfLessonCancelled: ReadonlySet<string>;
   /** Abholungen ab jetzt, die früheste zuerst. */
   readonly pickups: readonly HomePickup[];
   /** Nächste Abholzeit „HH:MM" unter den anwesenden Kindern, oder null. */
@@ -69,6 +77,7 @@ const EMPTY: Omit<HomeGroupSnapshot, "isLoading" | "error"> = {
   total: 0,
   away: [],
   missing: [],
+  onlyIfLessonCancelled: new Set(),
   pickups: [],
   nextPickup: null,
 };
@@ -146,6 +155,19 @@ export function deriveHomeGroup(
     })
     .sort((a, b) => a.time.localeCompare(b.time));
 
+  const onlyIfLessonCancelled = new Set(
+    away
+      .filter((student) =>
+        comesOnlyIfLessonCancelled({
+          plannedArrival: student.arrival_time,
+          actualArrival: student.actual_arrival_time,
+          plannedPickup: data.pickupTimes.get(student.id)?.pickupTime,
+          actualPickup: student.actual_pickup_time,
+        }),
+      )
+      .map((student) => student.id),
+  );
+
   // Ist die Uhr noch unbekannt, fehlt niemand: eine Kachel „fehlt seit",
   // die beim nächsten Bild wieder verschwindet, wäre ein falscher Alarm.
   const missing: HomeMissingArrival[] =
@@ -154,7 +176,9 @@ export function deriveHomeGroup(
       : away
           .filter(
             (student) =>
-              isExpectedToday(student) && (student.arrival_time ?? "") < now,
+              isExpectedToday(student) &&
+              !onlyIfLessonCancelled.has(student.id) &&
+              (student.arrival_time ?? "") < now,
           )
           .map((student) => ({
             student,
@@ -173,6 +197,7 @@ export function deriveHomeGroup(
     total: students.length,
     away,
     missing,
+    onlyIfLessonCancelled,
     pickups,
     nextPickup: pickups[0]?.time ?? null,
   };

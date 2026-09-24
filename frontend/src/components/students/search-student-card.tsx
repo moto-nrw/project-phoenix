@@ -30,7 +30,10 @@ import {
 import type { Student } from "~/lib/api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import type { DepartureMode } from "~/lib/student-helpers";
-import { getStudentAbsence } from "~/lib/student-time-status";
+import {
+  getStudentAbsence,
+  getStudentDayTimes,
+} from "~/lib/student-time-status";
 import {
   getDayPlanningNotComingLabel,
   getStudentPresenceBadgePlanning,
@@ -210,12 +213,18 @@ function SearchStudentCardImpl({
                     }
                     notes={student.arrival_notes}
                     absentWording={absenceWording}
+                    day={getStudentDayTimes(student, {
+                      ignoreCurrentAttendance: !isToday,
+                    })}
                   />
                   <PickupTimeRow
                     pickupTime={student.pickup_time ?? undefined}
                     actualTime={student.actual_pickup_time}
                     isException={student.pickup_is_exception ?? false}
                     notes={student.pickup_notes}
+                    day={getStudentDayTimes(student, {
+                      ignoreCurrentAttendance: !isToday,
+                    })}
                   />
                 </>
               );

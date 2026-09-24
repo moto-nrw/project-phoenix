@@ -3,7 +3,10 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { recordBackendProxyMetric } from "./backend-proxy-metrics";
 import { analyticsSessionHeaders } from "./analytics-session-header.server";
-import { canonicalForwardedFor } from "./client-headers.server";
+import {
+  canonicalForwardedFor,
+  requestIdHeaders,
+} from "./client-headers.server";
 import { sanitizeEndpoint } from "./log-sanitize";
 import { createLogger } from "~/lib/logger";
 
@@ -122,6 +125,7 @@ async function getIncomingForwardHeaders(): Promise<Record<string, string>> {
       }),
       ...(userAgent && { "User-Agent": userAgent }),
       ...analyticsSessionHeaders(incomingHeaders),
+      ...requestIdHeaders(incomingHeaders),
     };
   } catch {
     return {};
@@ -384,12 +388,13 @@ export async function apiDelete<T, B = unknown>(
 export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
   const status = getApiErrorStatus(error);
   if (error instanceof Error && status !== null) {
-    logApiRouteError(status, error.message);
+    const response = buildApiErrorResponse(error.message);
+    logApiRouteError(status, error.message, response.code);
     const headers =
       error instanceof ApiResponseError && error.retryAfter
         ? { "Retry-After": error.retryAfter }
         : undefined;
-    return NextResponse.json(buildApiErrorResponse(error.message), {
+    return NextResponse.json(response, {
       status,
       headers,
     });
@@ -415,16 +420,22 @@ function getApiErrorStatus(error: unknown): number | null {
   return match?.[1] ? Number.parseInt(match[1], 10) : null;
 }
 
-function logApiRouteError(status: number, errorMessage: string): void {
+function logApiRouteError(
+  status: number,
+  errorMessage: string,
+  errorCode: string | undefined,
+): void {
   // Free-text fields like sick-note content must not land in server logs even
   // when a 4xx body still carries them. Redact before any level logs the body.
   const safeErrorMessage = redactSensitiveApiErrorFields(errorMessage);
 
-  // Only log server errors (5xx) to avoid Next.js error overlay for expected 4xx
+  // Only log server errors (5xx) to avoid Next.js error overlay for expected 4xx.
+  // The error code becomes the event's `error_code` tag (logger-sentry.ts).
   if (status >= 500) {
     logger.error("api route error", {
       status,
       error: safeErrorMessage,
+      ...(errorCode && { error_code: errorCode }),
     });
     return;
   }

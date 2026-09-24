@@ -16,7 +16,7 @@ const {
   auth,
   uncachedAuth,
   withAuthResponse: withTenantAuth,
-} = createResponseAwareAuth(rawAuth);
+} = createResponseAwareAuth(rawAuth, "tenant");
 
 /** @public uncachedAuth — false positive in knip 6.x, used by route-wrapper.ts */
 export { auth, uncachedAuth, handlers, signIn, withTenantAuth };

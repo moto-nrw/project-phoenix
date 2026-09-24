@@ -65,6 +65,8 @@ var serveCmd = &cobra.Command{
 			PublicAPIURL: config.PublicAPIURL,
 			EnableCORS:   config.EnableCORS,
 			Logger:       logger,
+			// A malformed DSN stops the runtime build.
+			SentryPyrePortalDSN: config.SentryPyrePortalDSN,
 		}, func(runtime *api.Runtime) error {
 			return runtime.Serve(ctx)
 		}); err != nil {
@@ -134,7 +136,8 @@ type serveConfig struct {
 	JWTSecret, JWTExpiry, JWTRefreshExpiry                     string
 	FrontendURL, PublicAPIURL, ParentsURL, PhoenixAuthPassword string
 	DatabaseDSN, TestDatabaseDSN                               string
-	SentryDSN, SentryEnvironment, LogLevel                     string
+	SentryDSN, SentryEnvironment, SentryPyrePortalDSN          string
+	LogLevel                                                   string
 	LogTextLogging, EnableCORS                                 bool
 }
 
@@ -148,7 +151,8 @@ func currentServeConfig() serveConfig {
 		ParentsURL:   viper.GetString("parents_url"), PhoenixAuthPassword: viper.GetString("phoenix_auth_password"),
 		DatabaseDSN: viper.GetString("db_dsn"), TestDatabaseDSN: viper.GetString("test_db_dsn"),
 		SentryDSN: viper.GetString("sentry_dsn"), SentryEnvironment: viper.GetString("sentry_environment"),
-		LogLevel: viper.GetString("log_level"), EnableCORS: viper.GetBool("enable_cors"),
+		SentryPyrePortalDSN: viper.GetString("sentry_pyreportal_dsn"),
+		LogLevel:            viper.GetString("log_level"), EnableCORS: viper.GetBool("enable_cors"),
 	}
 }
 
@@ -178,6 +182,11 @@ func validateServeConfig(config serveConfig) error {
 
 	if strings.TrimSpace(config.SentryDSN) != "" && strings.TrimSpace(config.SentryEnvironment) == "" {
 		missing = append(missing, "SENTRY_ENVIRONMENT")
+	}
+	// The kiosks report through the backend (#3645), so a backend that
+	// reports to Sentry must know where their reports go.
+	if strings.TrimSpace(config.SentryDSN) != "" && strings.TrimSpace(config.SentryPyrePortalDSN) == "" {
+		missing = append(missing, "SENTRY_PYREPORTAL_DSN")
 	}
 
 	if len(missing) > 0 {

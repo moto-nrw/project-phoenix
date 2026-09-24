@@ -397,11 +397,11 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"api/iot/checkin/wire_test.go",                           // Wire goldens over a fake device-scan workflow (#2698); int64 literals are throwaway IDs, not DB rows
 		"api/iot/config_test.go",                                 // Uses mock settings service for unit testing config endpoint
 		"enrich_pickup_times_test.go",                            // Uses mock PickupScheduleService for unit testing enrichment
-		"api/timetable/api_test.go",                              // Uses mock CalendarPeriodService for unit testing handlers
-		"api/timetable/closing_days_test.go",                     // Uses mock ClosingDayService for unit testing handlers; int64 literals are fake IDs, not DB rows
-		"api/timetable/instances_test.go",                        // Uses mock InstanceService + PersonService for unit testing handlers
-		"api/timetable/understaffed_test.go",                     // Uses mock InstanceService for unit testing the acknowledge-understaffed handler (no DB); int64 literals are fake instance IDs, not DB rows
-		"api/timetable/instance_students_unit_test.go",           // Uses fake repo for unit testing attendance PATCH handler
+		"modules/timetable/http/api_test.go",                     // Uses mock CalendarPeriodService for unit testing handlers
+		"modules/timetable/http/closing_days_test.go",            // Uses mock ClosingDayService for unit testing handlers; int64 literals are fake IDs, not DB rows
+		"modules/timetable/http/instances_test.go",               // Uses mock InstanceService + PersonService for unit testing handlers
+		"modules/timetable/http/understaffed_test.go",            // Uses mock InstanceService for unit testing the acknowledge-understaffed handler (no DB); int64 literals are fake instance IDs, not DB rows
+		"modules/timetable/http/instance_students_unit_test.go",  // Uses fake repo for unit testing attendance PATCH handler
 		"presence/attendance_mirror_unit_test.go",                // Uses fake repos for unit testing the attendance mirror's graceful-degradation branches
 		"timetable/substitute_conflicts_test.go",                 // Pure unit test with in-memory structs; int64(1)/int64(2) are fake IDs, not DB rows (WP-B12)
 		"realtime/hub_broadcast_to_tenant_test.go",               // Pure SSE-hub unit test; tenant IDs are in-memory channel routing keys, not DB rows
@@ -523,7 +523,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"makeScenario",                     // modules/timetable/compose/httpintegration materialization/split/lifecycle integration tests — wraps SetupTestDB
 		"makeRosterChain",                  // modules/timetable/compose/httpintegration split-series roster tests (#2187) — wraps makeSeriesChain → makeScenario
 		"makeMoveSetup",                    // modules/timetable/compose/httpintegration staff-move tests (#1884) — wraps SetupTestDB
-		"buildDevSetup",                    // api/timetable deviations/protocol tests — wraps SetupTestDB
+		"buildDevSetup",                    // modules/timetable/http deviations/protocol tests — wraps SetupTestDB
 		"setupAbsenceAdminTest",            // api/staff absence question tests (#1419) — wraps setupTestContext
 		"newOverviewFixture",               // modules/studentpresence/internal/application/presence overview/export integration tests (#1417) — wraps SetupTestDB
 		"setupOverviewAPI",                 // api/staff overview/export tests (#1417) — wraps setupTestContext
@@ -561,18 +561,18 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 
 		// Skip files that reference DB types but don't perform real DB operations
 		skipFiles := []string{
-			"http_middleware_test.go",                                 // Uses nil *bun.DB for unit testing middleware
-			"parent_message_hooks_test.go",                            // Pure base.Model accessor unit test; no real DB
-			"parent_announcement_model_test.go",                       // Pure validator/derivation unit tests; no real DB
-			"role_management_internal_test.go",                        // Uses hand-rolled stub repos injected via repositories.Factory, no real DB
-			"test/architecture_ratchet_test.go",                       // Source-scanning ratchet; regex literals look like DB ops but no DB is used
-			"test/handler_layer_ratchet_test.go",                      // Source-scanning ratchet (issue #584); same as above, no DB is used
-			"api/timetable/timetable_data_test_helpers_test.go",       // Shared fixture helper; caller tests own DB setup
-			"services/messaging/apply_export_internal_test.go",        // Test-support wrappers exposing unexported apply funcs; the *bun.DB is injected, caller (requests_test.go) owns SetupTestDB
-			"test/module_file_size_ratchet_test.go",                   // Source-scanning ratchet (#2580); allowlist keys name *_repositories.go files, no DB is used
-			"test/module_complexity_ratchet_test.go",                  // Source-scanning ratchet (#2580); same as above, no DB is used
-			"test/module_http_orm_ratchet_test.go",                    // Source-scanning ratchet (#2580); the rule text names *bun.DB, which is the thing it forbids, no DB is used
-			"modules/identityaccess/behavior/owner_contracts_test.go", // Shared row readers of the behaviour suites (#3446); caller tests own DB setup
+			"http_middleware_test.go",                                    // Uses nil *bun.DB for unit testing middleware
+			"parent_message_hooks_test.go",                               // Pure base.Model accessor unit test; no real DB
+			"parent_announcement_model_test.go",                          // Pure validator/derivation unit tests; no real DB
+			"role_management_internal_test.go",                           // Uses hand-rolled stub repos injected via repositories.Factory, no real DB
+			"test/architecture_ratchet_test.go",                          // Source-scanning ratchet; regex literals look like DB ops but no DB is used
+			"test/handler_layer_ratchet_test.go",                         // Source-scanning ratchet (issue #584); same as above, no DB is used
+			"modules/timetable/http/timetable_data_test_helpers_test.go", // Shared fixture helper; caller tests own DB setup
+			"services/messaging/apply_export_internal_test.go",           // Test-support wrappers exposing unexported apply funcs; the *bun.DB is injected, caller (requests_test.go) owns SetupTestDB
+			"test/module_file_size_ratchet_test.go",                      // Source-scanning ratchet (#2580); allowlist keys name *_repositories.go files, no DB is used
+			"test/module_complexity_ratchet_test.go",                     // Source-scanning ratchet (#2580); same as above, no DB is used
+			"test/module_http_orm_ratchet_test.go",                       // Source-scanning ratchet (#2580); the rule text names *bun.DB, which is the thing it forbids, no DB is used
+			"modules/identityaccess/behavior/owner_contracts_test.go",    // Shared row readers of the behaviour suites (#3446); caller tests own DB setup
 		}
 		skip := false
 		for _, sf := range skipFiles {

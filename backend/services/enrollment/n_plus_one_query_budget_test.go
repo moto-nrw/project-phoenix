@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -48,7 +50,7 @@ func TestEnrollmentOfferingSourceOptionsQueryBudget(t *testing.T) {
 	for i := range 3 {
 		createSourceOffering(t, env, fmt.Sprintf("Budget small %d", i), nil)
 	}
-	lister := env.decision.(enrollmentService.OfferingSourceOptionLister)
+	lister := env.bookings.(careplan.OfferingSourceEditor)
 	counter := testpkg.CaptureQueries(t, env.db)
 	run := func() []string {
 		var queries []string
@@ -79,12 +81,12 @@ func TestTemplateRosterMaintenanceFeedsQueryBudget(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	period := offeringSourcePeriod(t, env)
 	source := createSourceOffering(t, env, "Teilnehmerpflege Budget", nil)
-	lister := env.decision.(enrollmentService.OfferingSourceOptionLister)
-	queries := make([]enrollmentService.TemplateRosterFeedQuery, 0, 8)
+	lister := env.bookings.(careplan.OfferingSourceEditor)
+	queries := make([]careplan.TemplateRosterFeedQuery, 0, 8)
 	addTemplates := func(count int) {
 		for range count {
 			template := createSourcedTemplate(t, env, "Teilnehmerpflege Budget", source.ID, nil, period)
-			queries = append(queries, enrollmentService.TemplateRosterFeedQuery{
+			queries = append(queries, careplan.TemplateRosterFeedQuery{
 				TemplateID:            template.ID,
 				CalendarPeriodID:      &period.ID,
 				SourceCareOfferingIDs: []int64{source.ID},

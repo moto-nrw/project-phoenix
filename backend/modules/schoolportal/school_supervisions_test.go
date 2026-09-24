@@ -239,7 +239,7 @@ func TestSchoolSupervisionsIgnoreOperationalOverview(t *testing.T) {
 	otherStaff, _ := testpkg.CreateTestStaffWithAccountForTenant(t, f.db, f.tenantID, "Andere", fmt.Sprintf("Kraft-%d", time.Now().UnixNano()))
 	testpkg.CreateTestInstanceStaff(t, f.db, foreign.ID, otherStaff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
 
-	require.NoError(t, f.resource.Timetable.SettingsService.SetValue(
+	require.NoError(t, f.resource.Timetable.SettingsService.(settingsWriter).SetValue(
 		testpkg.TenantContext(f.tenantID),
 		configModel.KeyOperationalOverviewScope,
 		configModel.OverviewScopeAllStaff,

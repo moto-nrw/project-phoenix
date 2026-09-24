@@ -3,6 +3,17 @@ import type { NextAuthRequest, NextAuthResult, Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { createResponseAwareAuth } from "./route-handler";
 
+const { setUser, setTags } = vi.hoisted(() => ({
+  setUser: vi.fn(),
+  setTags: vi.fn(),
+}));
+vi.mock("@sentry/nextjs", () => ({ setUser, setTags }));
+
+/** The tags the route's Sentry scope holds after all setTags calls. */
+function sentryTags(): Record<string, unknown> {
+  return Object.assign({}, ...setTags.mock.calls.map(([tags]) => tags));
+}
+
 const tenantSession = {
   user: { id: "42", name: "Tablet User", token: "access-2" },
   expires: "2099-01-01T00:00:00.000Z",
@@ -46,7 +57,7 @@ function createRawAuth(
 describe("createResponseAwareAuth", () => {
   it("preserves Auth.js rotation cookies on the final route response", async () => {
     const rawAuth = createRawAuth(tenantSession, "tenant.session-token");
-    const helpers = createResponseAwareAuth(rawAuth);
+    const helpers = createResponseAwareAuth(rawAuth, "tenant");
     const nestedSessions: Array<Session | null> = [];
     const route = helpers.withAuthResponse(async () => {
       nestedSessions.push(await helpers.auth());
@@ -75,7 +86,7 @@ describe("createResponseAwareAuth", () => {
       [tenantSession, refreshedSession],
       "tenant.session-token",
     );
-    const helpers = createResponseAwareAuth(rawAuth);
+    const helpers = createResponseAwareAuth(rawAuth, "tenant");
     const route = helpers.withAuthResponse(async () => {
       expect(await helpers.auth()).toBe(tenantSession);
       const firstFreshSession = await helpers.uncachedAuth();
@@ -109,7 +120,7 @@ describe("createResponseAwareAuth", () => {
       [expiredSession, refreshedSession],
       "tenant.session-token",
     );
-    const helpers = createResponseAwareAuth(rawAuth);
+    const helpers = createResponseAwareAuth(rawAuth, "tenant");
     const backend = vi.fn(async (token: string | undefined) =>
       token === "fresh-access"
         ? Response.json({ ok: true })
@@ -146,12 +157,13 @@ describe("createResponseAwareAuth", () => {
     } as Session;
     const tenant = createResponseAwareAuth(
       createRawAuth(tenantSession, "tenant.session-token"),
+      "tenant",
     );
     const operatorRawAuth = createRawAuth(
       operatorSession,
       "operator.session-token",
     );
-    const operator = createResponseAwareAuth(operatorRawAuth);
+    const operator = createResponseAwareAuth(operatorRawAuth, "operator");
 
     const route = tenant.withAuthResponse(async () => {
       expect(await tenant.auth()).toBe(tenantSession);
@@ -170,6 +182,7 @@ describe("createResponseAwareAuth", () => {
   it("preserves rotation cookies on handled error responses", async () => {
     const helpers = createResponseAwareAuth(
       createRawAuth(tenantSession, "tenant.session-token"),
+      "tenant",
     );
     const route = helpers.withAuthResponse(async () =>
       Response.json({ error: "backend unavailable" }, { status: 503 }),
@@ -181,5 +194,92 @@ describe("createResponseAwareAuth", () => {
 
     expect(response.status).toBe(503);
     expect(response.headers.get("set-cookie")).toContain("rotated-session");
+  });
+
+  describe("Sentry context of the request", () => {
+    function requestWithId(url: string): NextRequest {
+      return new NextRequest(url, {
+        headers: { "X-Request-ID": "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10" },
+      });
+    }
+
+    async function runRoute(
+      portal: Parameters<typeof createResponseAwareAuth>[1],
+      session: Session | null,
+    ) {
+      setUser.mockClear();
+      setTags.mockClear();
+      const helpers = createResponseAwareAuth(
+        createRawAuth(session, `${portal}.session-token`),
+        portal,
+      );
+      const route = helpers.withAuthResponse(
+        async () => new Response(null, { status: 204 }),
+      );
+      await route(requestWithId("https://moto.test/api/whatever"));
+    }
+
+    it("tags a school-bound OGS request with account, role, school, portal and Vorgangskennung", async () => {
+      await runRoute("tenant", {
+        ...tenantSession,
+        user: {
+          ...tenantSession.user,
+          email: "leitung@example.com",
+          tenantId: 12,
+          scope: "",
+          isAdmin: true,
+        },
+      } as Session);
+
+      expect(setUser).toHaveBeenLastCalledWith({ id: "42" });
+      expect(sentryTags()).toEqual({
+        portal: "tenant",
+        role: "admin",
+        school_id: "12",
+        request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10",
+      });
+    });
+
+    it("leaves school_id out for operator sessions", async () => {
+      await runRoute("operator", {
+        user: { id: "7", token: "operator-access", scope: "platform" },
+        expires: "2099-01-01T00:00:00.000Z",
+      } as Session);
+
+      expect(setUser).toHaveBeenLastCalledWith({ id: "7" });
+      expect(sentryTags()).toMatchObject({
+        portal: "operator",
+        role: "operator",
+      });
+      expect(sentryTags().school_id).toBeUndefined();
+    });
+
+    it("leaves school_id out for cross-school parent sessions", async () => {
+      await runRoute("parent", {
+        user: {
+          id: "99",
+          token: "parent-access",
+          scope: "parent",
+          tenantId: 0,
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      } as Session);
+
+      expect(setUser).toHaveBeenLastCalledWith({ id: "99" });
+      expect(sentryTags()).toMatchObject({
+        portal: "parent",
+        role: "guardian",
+      });
+      expect(sentryTags().school_id).toBeUndefined();
+    });
+
+    it("clears the account of a request without a session", async () => {
+      await runRoute("tenant", null);
+
+      expect(setUser).toHaveBeenLastCalledWith(null);
+      expect(sentryTags()).toMatchObject({ portal: "tenant" });
+      expect(sentryTags().role).toBeUndefined();
+      expect(sentryTags().school_id).toBeUndefined();
+    });
   });
 });

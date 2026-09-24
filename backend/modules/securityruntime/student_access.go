@@ -20,6 +20,12 @@ const (
 // the current tenant.
 type StudentAccessUserContext = authorize.StudentAccessUserContext
 
+// CanReadStudent decides whether the caller may see an existing child's
+// unredacted data: an administrator, or verified staff of the tenant (#2329).
+func CanReadStudent(ctx context.Context, granted []string, student interface{ IsAuthorizationStudent() bool }, userCtx StudentAccessUserContext) bool {
+	return authorize.CanReadStudent(ctx, granted, student, userCtx)
+}
+
 // CanModifyStudent decides whether the caller may write to an existing
 // child's record: an administrator, or verified staff of the tenant (#2329).
 func CanModifyStudent(ctx context.Context, granted []string, student interface{ IsAuthorizationStudent() bool }, userCtx StudentAccessUserContext) bool {

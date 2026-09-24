@@ -1,0 +1,121 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3020",
+    "#3558",
+    "#3559",
+    "#3560"
+  ],
+  "owner_and_capability": "Care Plan — the offering-change, course-request and pickup-adjustment reviews: the parent's switch request with its staff decision, preview, edit and withdrawal, the conflict resolver side, the course request with its waitlist, the staff-side direct offering correction and the permanent pickup-time adjustment, published as careplan.OfferingChangeRequests, CourseRequests, OfferingChangeConflicts, DirectOfferingAdjustments (together OfferingChangeCapability) and PickupAdjustments (#3561)",
+  "affected_packages": [
+    "modules/careplan",
+    "modules/careplan/compose",
+    "modules/careplan/internal/application",
+    "modules/careplan/internal/ports",
+    "modules/careplan/inbound/parent",
+    "workflows/parentportal/care",
+    "workflows/parentportal/compose",
+    "services/enrollment",
+    "services",
+    "api/students",
+    "api/testutil",
+    "api"
+  ],
+  "affected_tables": [
+    "enrollment.offering_change_requests",
+    "enrollment.care_offering_bookings",
+    "activities.student_enrollments",
+    "schedule.student_pickup_schedules",
+    "schedule.student_arrival_schedules",
+    "audit.enrollment_offering_adjustments",
+    "users.care_withdrawal_completions"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/base",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/enrollment",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|crypto/subtle",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/services/parentmessaging"
+  ],
+  "atomic_cutover": "One PR moves the offering-change, course-request, direct-correction and pickup-adjustment reviews into the Care Plan application behind their own ports, binds the ports in services over Care Plan's request rows, Enrollment's care periods, children, phases, selections, catalog state and capacity peak, People Directory's students and locks, the withdrawal follow-up, the settings, the JWT review scope, the parent-messaging ledger, the co-guardian notices and the Timetable course groups, and switches every consumer: api/students, the parent portal inbound routes and workflows, the conflict coordinator and the offering-change test composition. services.Factory loses the OfferingChanges and PickupAdjustments fields; EnrollmentCareOffering carries both reviews. The seven services/enrollment files and their tests are deleted. Routes, status codes, error texts, authorization and tenant scoping are unchanged; no import rule or baseline key is added, five resolved keys and one stale test rule are removed.",
+  "tests": [
+    "scripts/test-changed.sh origin/development without --fast: the full suites of every changed package and their importers, including services/enrollment, services, api/students, modules/careplan, modules/careplan/inbound/parent and workflows/parentportal.",
+    "services/enrollment offering-change, automatic-offering, full-withdrawal and history suites drive the composed owner through api/testutil.NewOfferingChanges and assert the staff queue through api/testutil.NewOfferingReviewQuery with unchanged assertions.",
+    "modules/careplan/internal/application ports the pure course-request, pickup-adjustment and offering-change internal tests; modules/careplan/compose pins the native review queue for a complete withdrawal.",
+    "api/students offering-review, pickup-adjustment and parent-request conflict suites pin the unchanged status codes and error codes.",
+    "scripts/backend-architecture.sh check against the parent branch: no new violation, five resolved entries removed (540 -> 535), composition surface 618 -> 615.",
+    "go test ./test -run 'TestModule|TestPolicyTemporaryRules|Ratchet|TestHermetic|TestQueryBudget|TestCompositionInventory': the careplan pass-through budget stays at 111."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the PR branch stacked on the #3560 branch (321b7bb5bf). The move rebinds the reviews' reads and writes to the owner operations the retained repositories delegated to, so the evidence is the unchanged behaviour suites plus the architecture check, not a benchmark rerun.",
+    "sources": [
+      "backend/services/enrollment/offering_change_request_service_test.go",
+      "backend/services/enrollment/offering_change_request_automatic_test.go",
+      "backend/services/enrollment/offering_change_full_withdrawal_test.go",
+      "backend/api/students/pickup_adjustment_handlers_test.go",
+      "backend/api/students/offering_request_review_handlers_test.go"
+    ],
+    "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The suites pass, the ported suites keep their assertions, and the architecture check reports no new violation and no stale baseline entry.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "Every write reaches the same table through the owner operation the retained repository delegated to; no statement on the listed tables changes."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The query-budget tests passed with test/query_budgets.go unchanged. An approval no longer reads the child back after the adjustment, one statement fewer per approved request."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "The move adds no statement or round trip to a request path; the port translation is in-memory."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "The move adds no statement or round trip to a request path; the port translation is in-memory."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "The ported suites assert the unchanged sentinels; the services decorator translates the lifecycle sentinels to the services/users ones so the api/students and parent portal suites pin the unchanged status codes and texts."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection is acquired differently; every read and write joins the ambient tenant transaction as before."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "The request row lock, the student lock and the offering-derived write lock are taken in the same order by the same owner operations."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No transaction boundary or lock order changes."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "No worker calls the reviews."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No worker retry path changes."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No worker queue changes."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The ported suites cover a second pending request, capacity exhaustion, a date out of range, a planned care end, a rule change between lock and approval, a stale pickup-adjustment token and the rollback after a failed offering write."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data or schema change. Reverting the PR restores the services/enrollment reviews, the Factory fields and the consumers' old types together."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally: 535 legacy violations remain, composition surface 618 -> 615."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR; the services/enrollment offering-change, course-request, direct-correction and pickup-adjustment services, the Factory fields and the consumers' old types return together. No data cleanup.",
+  "exit_criterion": "offering_change_request_service.go, course_request_service.go, pickup_adjustment_service.go, offering_change_direct_adjustment.go, offering_direct_correction_service.go, offering_conflict_port.go and manual_planning.go no longer exist in services/enrollment; every consumer reaches the reviews through modules/careplan; scripts/backend-architecture.sh check adds no key and no rule."
+}

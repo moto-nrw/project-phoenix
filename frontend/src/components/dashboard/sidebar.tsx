@@ -27,7 +27,6 @@ import {
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
-import { buildHelpHref, type HelpRole } from "~/lib/help-topics";
 import type { SupervisedRoom } from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { isDemoBannerShown } from "~/components/demo/demo-banner";
@@ -54,6 +53,7 @@ import { useStaffNoticesPending } from "~/lib/hooks/use-staff-notices-pending";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
+import { useHelpHref } from "~/lib/hooks/use-help-href";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
 import { SidebarGroup } from "~/components/dashboard/sidebar-group";
@@ -705,36 +705,9 @@ function SidebarContent({
   // Berechtigten mit allen Kindern.
   const openCareGroupMode = useOpenCareGroupMode();
 
-  /**
-   * Die Adresse hinter dem Eintrag `Hilfe` ganz unten.
-   *
-   * Nackt auf `/help` fragte die Hilfe zuerst, fuer wen die Anleitung ist
-   * und wie die OGS arbeitet -- vier Fragen, deren Antworten die angemeldete
-   * Sitzung bereits kennt. Wer aus der App kommt, soll direkt bei seinen
-   * Themen landen. Dieselben Werte gibt schon das Fragezeichen im Seitenkopf
-   * mit (`ContextHelpLink`); beide bauen die Adresse jetzt mit demselben
-   * `buildHelpHref`.
-   */
-  const helpHref = useMemo(() => {
-    const role: HelpRole =
-      mode === "parent" ? "parent" : userLeadsSchool ? "lead" : "caregiver";
-    const currentQuery = searchParams.toString();
-    return buildHelpHref({
-      role,
-      nfcEnabled,
-      presenceMode: presenceMode === "binary" ? "binary" : "detailed",
-      groupMode: openCareGroupMode ? "open_care" : "fixed_groups",
-      returnTo: currentQuery ? `${rawPathname}?${currentQuery}` : rawPathname,
-    });
-  }, [
-    mode,
-    nfcEnabled,
-    openCareGroupMode,
-    presenceMode,
-    rawPathname,
-    searchParams,
-    userLeadsSchool,
-  ]);
+  // Die Adresse hinter dem Eintrag `Hilfe` ganz unten, mit dem Kontext der
+  // Sitzung. Die mobile Navigation holt sie aus demselben Hook (#3575).
+  const helpHref = useHelpHref();
 
   const formatGroupAttendanceCount = (groupId: string) => {
     if (!canShowGroupAttendanceCounts) return undefined;

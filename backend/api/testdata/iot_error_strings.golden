@@ -8,10 +8,14 @@ code: deviation_reason_required -> api/iot/staffclock.codeDeviationReason (error
 code: invalid_rfid_tag -> api/iot/staffclock.codeInvalidRFIDTag (errors.go)
 code: invalid_staff_clock_request -> api/iot/staffclock.codeInvalidRequest (errors.go)
 code: invalid_staff_clock_state -> api/iot/staffclock.codeInvalidState (errors.go)
+code: open_room_binary_mode -> modules/devicescan.CodeOpenRoomBinaryMode (open_room.go)
 code: planned_start_not_reached -> api/iot/staffclock.codePlannedStartNotReached (errors.go)
 code: rfid_tag_inactive -> api/iot/staffclock.codeRFIDTagInactive (errors.go)
 code: rfid_tag_not_found -> api/iot/staffclock.codeRFIDTagNotFound (errors.go)
 code: rfid_tag_not_staff -> api/iot/staffclock.codeRFIDTagNotStaff (errors.go)
+code: room_not_found -> modules/devicescan.CodeOpenRoomNotFound (open_room.go)
+code: room_not_released -> modules/devicescan.CodeOpenRoomNotReleased (open_room.go)
+code: student_not_present -> modules/devicescan.CodeStudentNotPresent (open_room.go)
 excluded code: reopen_status_conflict -> retired with #2402; a repeated check-in starts a new work block
 excluded message: device is offline -> never emitted (audit A5)
 excluded message: locked -> no emitter; PyrePortal's generic lock fallback

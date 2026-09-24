@@ -18,6 +18,6 @@ const {
   auth: parentAuth,
   uncachedAuth: uncachedParentAuth,
   withAuthResponse: withParentAuth,
-} = createResponseAwareAuth(rawParentAuth);
+} = createResponseAwareAuth(rawParentAuth, "parent");
 
 export { parentAuth, uncachedParentAuth, parentHandlers, withParentAuth };
