@@ -100,19 +100,19 @@ func (s *operations) scopeAdmits(action ScopedAction, inst *scheduleModels.Activ
 	return inst.Status == scheduleModels.InstanceStatusActive && inst.ActiveGroupID != nil
 }
 
-// schoolWideScope asks the action's scope setting. Its all_staff value counts
-// only with the all_staff overview, so nobody acts on a block they cannot
-// see (the rule of authorize.SchoolWideActionScope). Portals keep their
-// assignment boundary and admins their own rights.
+// schoolWideScope asks authorize.SchoolWideActionScope for the action's scope
+// setting: its all_staff value counts only with the all_staff overview, so
+// nobody acts on a block they cannot see. Portals keep their assignment
+// boundary and admins their own rights.
 func (s *operations) schoolWideScope(ctx context.Context, accountID int64, isAdmin bool, action ScopedAction) (bool, error) {
 	if isAssignmentBoundPortal(ctx) || s.hasAdministrativeActionAccess(ctx, isAdmin) || !isOGSActorToken(ctx, accountID) {
 		return false, nil
 	}
-	open, err := s.deps.Settings.ActionScopeAllStaff(ctx, action)
-	if err != nil || !open {
+	key, err := s.deps.Settings.ActionScopeKey(action)
+	if err != nil {
 		return false, err
 	}
-	return s.deps.Settings.OperationalOverviewAllStaff(ctx)
+	return authorize.SchoolWideActionScope(ctx, s.deps.Settings, key)
 }
 
 // isOGSActorToken accepts a tenant or organisation session of the caller's

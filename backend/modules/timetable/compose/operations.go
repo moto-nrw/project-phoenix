@@ -124,21 +124,19 @@ const (
 
 // OperationSettings is the consumer-owned port to the Settings Platform
 // policies of the operational day. ResolveString serves the shared
-// operational-overview gate (auth/authorize).
+// operational-overview gate and the school-wide action scope rule
+// (auth/authorize).
 type OperationSettings interface {
 	authorize.OverviewSettingsResolver
 	// StartLeadMinutes is timetable.start_lead_minutes.
 	StartLeadMinutes(ctx context.Context) (int, error)
 	// EnforcePlannedEnd is timetable.enforce_planned_end.
 	EnforcePlannedEnd(ctx context.Context) (bool, error)
-	// ActionScopeAllStaff reports the action's scope setting = all_staff.
-	ActionScopeAllStaff(ctx context.Context, action ScopedAction) (bool, error)
+	// ActionScopeKey names the action's scope setting.
+	ActionScopeKey(action ScopedAction) (string, error)
 	// StudentAbsenceEditAllStaff reports operations.student_absence_edit_scope
 	// = all_staff.
 	StudentAbsenceEditAllStaff(ctx context.Context) (bool, error)
-	// OperationalOverviewAllStaff reports operations.operational_overview_scope
-	// = all_staff.
-	OperationalOverviewAllStaff(ctx context.Context) (bool, error)
 }
 
 // ClassArrivalNotice is a class-wide day exception behind an arrival time

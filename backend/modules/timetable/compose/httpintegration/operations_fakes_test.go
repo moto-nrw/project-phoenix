@@ -2,6 +2,7 @@ package httpintegration_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -24,6 +25,9 @@ import (
 // Setting values as the Settings Platform stores them.
 const (
 	overviewScopeKey                = "operations.operational_overview_scope"
+	attendanceEditScopeKey          = "operations.attendance_edit_scope"
+	blockStartScopeKey              = "operations.block_start_scope"
+	blockCompleteScopeKey           = "operations.block_complete_scope"
 	overviewScopeOwn                = "own"
 	overviewScopeAdmins             = "admins"
 	overviewScopeAllStaff           = "all_staff"
@@ -635,10 +639,11 @@ func (r *fakeOpsPlanningTracks) ListPlanningTracks(_ context.Context, filter tim
 	return tracks, nil
 }
 
-// fakeOpsSettings keeps the configured setting values and maps them the way
-// the composition root's settings binding does: only "all_staff" opens an
-// action scope, absence reports and the operational overview. mode answers
-// every other key (the group mode).
+// fakeOpsSettings keeps the configured setting values. ResolveString answers
+// the operational overview and the action scopes with their stored strings
+// (auth/authorize reads them); the absence scope maps the way the
+// composition root's settings binding does, where only "all_staff" opens it.
+// mode answers every other key (the group mode).
 type fakeOpsSettings struct {
 	attendanceScope string
 	startScope      string
@@ -655,10 +660,29 @@ func (s *fakeOpsSettings) ResolveString(_ context.Context, key string) (string, 
 	if s.stringErr != nil {
 		return "", s.stringErr
 	}
-	if key == overviewScopeKey {
+	switch key {
+	case overviewScopeKey:
 		return s.scope, nil
+	case attendanceEditScopeKey:
+		return s.attendanceScope, nil
+	case blockStartScopeKey:
+		return s.startScope, nil
+	case blockCompleteScopeKey:
+		return s.completeScope, nil
 	}
 	return s.mode, nil
+}
+
+func (s *fakeOpsSettings) ActionScopeKey(action compose.ScopedAction) (string, error) {
+	key, ok := map[compose.ScopedAction]string{
+		compose.ScopedAttendance:    attendanceEditScopeKey,
+		compose.ScopedBlockStart:    blockStartScopeKey,
+		compose.ScopedBlockComplete: blockCompleteScopeKey,
+	}[action]
+	if !ok {
+		return "", fmt.Errorf("unknown scoped action %d", action)
+	}
+	return key, nil
 }
 
 func (s *fakeOpsSettings) StartLeadMinutes(context.Context) (int, error) {
@@ -672,30 +696,11 @@ func (s *fakeOpsSettings) EnforcePlannedEnd(context.Context) (bool, error) {
 	return false, s.err
 }
 
-func (s *fakeOpsSettings) ActionScopeAllStaff(_ context.Context, action compose.ScopedAction) (bool, error) {
-	if s.stringErr != nil {
-		return false, s.stringErr
-	}
-	scope := map[compose.ScopedAction]string{
-		compose.ScopedAttendance:    s.attendanceScope,
-		compose.ScopedBlockStart:    s.startScope,
-		compose.ScopedBlockComplete: s.completeScope,
-	}[action]
-	return scope == attendanceEditScopeAllStaff, nil
-}
-
 func (s *fakeOpsSettings) StudentAbsenceEditAllStaff(context.Context) (bool, error) {
 	if s.stringErr != nil {
 		return false, s.stringErr
 	}
 	return s.absenceScope == studentAbsenceEditScopeAllStaff, nil
-}
-
-func (s *fakeOpsSettings) OperationalOverviewAllStaff(context.Context) (bool, error) {
-	if s.stringErr != nil {
-		return false, s.stringErr
-	}
-	return s.scope == overviewScopeAllStaff, nil
 }
 
 // fakeOpsCareDays reports the care-plan verdict per student. Empty by
