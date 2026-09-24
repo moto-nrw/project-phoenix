@@ -12,5 +12,7 @@ func RoutePattern(r *http.Request) string {
 			return pattern
 		}
 	}
-	return "unmatched"
+	return unmatchedRoute
 }
+
+const unmatchedRoute = "unmatched"
