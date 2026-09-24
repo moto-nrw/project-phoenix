@@ -561,6 +561,24 @@ describe("AdminEnrollmentPhaseDetail", () => {
     );
   });
 
+  it("marks the row of a renewal the Kinderkontingent held back (#3570)", async () => {
+    mocks.listAdminRequests.mockResolvedValue(
+      requests.map((request) => ({
+        ...request,
+        children: request.children.map((child) =>
+          child.id === "20"
+            ? { ...child, review_reason: "child_quota_reached" }
+            : child,
+        ),
+      })),
+    );
+    await renderPhase();
+
+    expect(
+      await screen.findAllByText("Wegen Kinderkontingent offen"),
+    ).toHaveLength(1);
+  });
+
   it("warns before a quick approval in an optional phase without an offering", async () => {
     mocks.getCareUsageReport.mockResolvedValue(
       report({

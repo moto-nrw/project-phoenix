@@ -83,7 +83,9 @@ import {
 
 import {
   CHILD_STATUS_LABELS,
+  ChildQuotaHeldBadge,
   ChildStatusBadge,
+  isHeldForChildQuota,
 } from "~/components/enrollment/child-status-badge";
 
 const logger = createLogger({ component: "AdminEnrollmentDetail" });
@@ -576,9 +578,17 @@ function ChildInformationCard({
             </>
           ) : null}
           <ChildStatusBadge status={child.status} />
+          {isHeldForChildQuota(child) ? <ChildQuotaHeldBadge /> : null}
         </div>
       </div>
       <div className="space-y-4 p-4">
+        {isHeldForChildQuota(child) ? (
+          <Alert
+            type="warning"
+            announce="off"
+            message="Beim Schuljahreswechsel war das Kinderkontingent voll. Darum wurde dieses Kind nicht automatisch verlängert. Bitte entscheiden Sie selbst."
+          />
+        ) : null}
         {child.status_reason ? (
           <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm text-gray-700">
             <span className="text-xs font-medium text-gray-500">
@@ -728,7 +738,10 @@ function ReviewSidebar({
                       : "Keine Klassenstufe"}
                 </p>
               </div>
-              <ChildStatusBadge status={child.status} />
+              <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                <ChildStatusBadge status={child.status} />
+                {isHeldForChildQuota(child) ? <ChildQuotaHeldBadge /> : null}
+              </div>
             </div>
             <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm text-gray-600">
               {TERMINAL.has(child.status)

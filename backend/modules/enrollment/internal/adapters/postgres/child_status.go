@@ -22,6 +22,10 @@ func (r *Store) UpdateChildStatus(ctx context.Context, id int64, newStatus strin
 		Set("status = ?", newStatus).
 		Set("status_reason = ?", reason).
 		Set("reviewed_at = ?", now).
+		// Leaving the open statuses resolves whatever left the row to the
+		// school, such as a renewal held for the Kinderkontingent (#3570).
+		// While it stays open (a parent edit, "In Prüfung") the reason stays.
+		Set("review_reason = CASE WHEN ? IN ('submitted', 'under_review') THEN review_reason ELSE NULL END", newStatus).
 		Where(`"request_child".id = ?`, id)
 	if reviewedBy > 0 {
 		q = q.Set("reviewed_by = ?", reviewedBy)
@@ -45,6 +49,38 @@ func (r *Store) UpdateChildStatus(ctx context.Context, id int64, newStatus strin
 	}
 	return nil
 }
+
+// HoldAutoRenewedChild moves one auto_renewed child to submitted and records
+// why the automatic approval left it to the school. It changes nothing when
+// the child is no longer auto_renewed.
+func (r *Store) HoldAutoRenewedChild(ctx context.Context, id int64, reviewReason string) (bool, error) {
+	tenantID, err := r.tenantID(ctx)
+	if err != nil {
+		return false, err
+	}
+	db, err := r.resolve(ctx)
+	if err != nil {
+		return false, err
+	}
+	res, err := db.NewUpdate().
+		TableExpr(`enrollment.request_children AS "request_child"`).
+		Where(`"request_child".tenant_id = ?`, tenantID).
+		Set("status = ?", "submitted").
+		Set("review_reason = ?", reviewReason).
+		Set("updated_at = NOW()").
+		Where(`"request_child".id = ?`, id).
+		Where(`"request_child".status = ?`, "auto_renewed").
+		Exec(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to hold auto-renewed request child: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return rows == 1, nil
+}
+
 func (r *Store) ReviewRolloverChild(ctx context.Context, id int64, newStatus string, reason *string, newGradeLevel *int16, reviewedBy int64) error {
 	tenantID, err := r.tenantID(ctx)
 	if err != nil {

@@ -1,3 +1,5 @@
+import { childQuotaMessage } from "~/lib/child-quota-error";
+
 type EnrollmentErrorLogger = {
   error: (message: string, context?: Record<string, unknown>) => void;
   warn?: (message: string, context?: Record<string, unknown>) => void;
@@ -7,6 +9,7 @@ interface BackendErrorEnvelope {
   error?: string;
   message?: string;
   code?: string;
+  details?: unknown;
 }
 
 export type EnrollmentAPIError = Error & {
@@ -405,7 +408,10 @@ export async function readEnrollmentError(
 ): Promise<EnrollmentAPIError> {
   const payload = await readBackendErrorPayload(response);
   const rawMessage = payload.error ?? payload.message;
+  // A full Kinderkontingent names its numbers from the details, the same
+  // text the student flows show (#3570).
   const message =
+    childQuotaMessage(payload) ??
     translateEnrollmentErrorMessage(rawMessage, payload.code) ??
     `${fallback} (HTTP ${response.status})`;
   const context = {
