@@ -46,11 +46,17 @@ func (s *operations) rosterWithActionAccess(ctx context.Context, accountID int64
 	if err != nil || roster == nil {
 		return roster, err
 	}
-	roster.CanOperate, err = s.canOperate(ctx, accountID, isAdmin, instanceID)
-	if err != nil {
+	if roster.CanOperate, err = actionAllowed(s.requireCanOperate(ctx, accountID, isAdmin, instanceID)); err != nil {
 		return nil, err
 	}
-	staffID, err := s.requireCanEditAttendance(ctx, accountID, isAdmin, instanceID)
+	if roster.CanStart, err = actionAllowed(s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ScopedBlockStart)); err != nil {
+		return nil, err
+	}
+	roster.CanStart = roster.CanStart && roster.Instance.Status == scheduleModels.InstanceStatusPlanned
+	if roster.CanEnd, err = actionAllowed(s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ScopedBlockComplete)); err != nil {
+		return nil, err
+	}
+	staffID, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ScopedAttendance)
 	if err != nil && !errors.Is(err, timetable.ErrTimetableOperationForbidden) {
 		return nil, err
 	}

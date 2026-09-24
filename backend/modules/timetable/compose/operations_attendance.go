@@ -19,7 +19,7 @@ func (s *operations) CheckInStudent(ctx context.Context, accountID int64, isAdmi
 }
 
 func (s *operations) checkInStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*timetable.OperationRoster, error) {
-	staffID, err := s.requireCanEditAttendance(ctx, accountID, isAdmin, instanceID)
+	staffID, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ScopedAttendance)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +175,7 @@ func (s *operations) CheckOutStudent(ctx context.Context, accountID int64, isAdm
 }
 
 func (s *operations) checkOutStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*timetable.OperationRoster, error) {
-	staffID, err := s.requireCanEditAttendance(ctx, accountID, isAdmin, instanceID)
+	staffID, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ScopedAttendance)
 	if err != nil {
 		return nil, err
 	}

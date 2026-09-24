@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"time"
@@ -142,19 +143,22 @@ func (s timetableOperationSettings) EnforcePlannedEnd(ctx context.Context) (bool
 	return s.settings.ResolveBool(ctx, configModels.KeyTimetableEnforcePlannedEnd)
 }
 
-func (s timetableOperationSettings) AttendanceEditScope(ctx context.Context) (timetableCompose.AttendanceEditScope, error) {
-	scope, err := s.settings.ResolveString(ctx, configModels.KeyAttendanceEditScope)
-	if err != nil {
-		return timetableCompose.AttendanceEditUnset, err
+// timetableScopedActionKeys names the scope setting of each scoped action.
+var timetableScopedActionKeys = map[timetableCompose.ScopedAction]string{
+	timetableCompose.ScopedAttendance:    configModels.KeyAttendanceEditScope,
+	timetableCompose.ScopedBlockStart:    configModels.KeyBlockStartScope,
+	timetableCompose.ScopedBlockComplete: configModels.KeyBlockCompleteScope,
+}
+
+// ActionScopeAllStaff compares with the attendance scope's all_staff, the
+// school-wide value every action scope shares.
+func (s timetableOperationSettings) ActionScopeAllStaff(ctx context.Context, action timetableCompose.ScopedAction) (bool, error) {
+	key, ok := timetableScopedActionKeys[action]
+	if !ok {
+		return false, fmt.Errorf("timetable operations: unknown scoped action %d", action)
 	}
-	switch scope {
-	case configModels.AttendanceEditScopeOwn:
-		return timetableCompose.AttendanceEditOwn, nil
-	case configModels.AttendanceEditScopeAllStaff:
-		return timetableCompose.AttendanceEditAllStaff, nil
-	default:
-		return timetableCompose.AttendanceEditUnset, nil
-	}
+	scope, err := s.settings.ResolveString(ctx, key)
+	return scope == configModels.AttendanceEditScopeAllStaff, err
 }
 
 func (s timetableOperationSettings) StudentAbsenceEditAllStaff(ctx context.Context) (bool, error) {
