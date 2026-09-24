@@ -22,13 +22,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/api/timetable"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal/portaltest"
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable/http"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -55,8 +55,8 @@ func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoo
 	classDayResource := classdayhttp.NewResource(classdayCompose.NewClassDay(classdayCompose.ClassDayDependencies{Reports: services.EnrollmentReport, Caller: services.UserContext}), db, nil)
 	timetableResource := timetable.NewResource(timetable.Dependencies{
 		OperationsService: services.TimetableOperations,
-		ReportService:     services.EnrollmentReport, SettingsService: services.Settings,
-		Now: firstSchoolClock(clocks), DB: db,
+		SupervisionSheets: services.TimetableSupervisionSheets, SettingsService: services.Settings,
+		Now: firstSchoolClock(clocks),
 	})
 	resource := schoolportal.NewResource(
 		portaltest.AuthRuntime(services.SchoolAuth), portaltest.MFARuntime(services.SchoolMFA),
@@ -87,11 +87,16 @@ func newSchoolChiRouter(resource *schoolportal.Resource) chi.Router {
 	return resource.Router()
 }
 
+// settingsWriter is the write side of the settings service the school test
+// module binds; the timetable routes only read through it.
+type settingsWriter interface {
+	SetValue(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
+}
+
 // newSchoolTimetableResource builds the timetable resource behind
 // /school/supervisions (#2527) with the deps that surface actually consumes.
 func newSchoolTimetableResource(db *bun.DB, resource *schoolportal.Resource, clocks ...func() time.Time) *timetable.Resource {
 	dependencies := resource.Timetable.Dependencies
-	dependencies.DB = db
 	dependencies.Now = firstSchoolClock(clocks)
 	return timetable.NewResource(dependencies)
 }

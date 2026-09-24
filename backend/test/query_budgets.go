@@ -116,21 +116,21 @@ var queryBudgets = map[string]queryBudget{
 	"api.activities.available_supervisors.specialization.reads": {max: 5},
 	"api.iot.teacher_students.reads":                            {max: 5},
 	"api.rooms.snapshot_export.reads":                           {max: 4},
-	// api/timetable — 14-day /week: FindByID + 7 preloads + class-exception
+	// modules/timetable/http — 14-day /week: FindByID + 7 preloads + class-exception
 	// lookup (#2962) with headroom for bun metadata reads; was ~98 pre-fix.
 	"api.timetable.student_week.14d": {max: 13},
-	// api/timetable — GET /instances over a week, 8 instances on 3 days:
+	// modules/timetable/http — GET /instances over a week, 8 instances on 3 days:
 	// instances + room + staff batch + student batch + one cutoff read per day.
 	"api.timetable.instances.list": {max: 7},
-	// api/timetable — GET /templates: template rows, retained list enrichments,
+	// modules/timetable/http — GET /templates: template rows, retained list enrichments,
 	// plus the setting, offering and series-root reads for roster maintenance
 	// (#3140). The test proves all 11 statements stay flat from 3 to 8 rows.
 	"api.timetable.templates.list": {max: 11},
-	// api/timetable — GET /pickup-extensions (#3261), day tasks only: tenant
+	// modules/timetable/http — GET /pickup-extensions (#3261), day tasks only: tenant
 	// transaction and tenant setup, task read, one batched block read,
 	// student and person names. Flat in the number of open tasks.
 	"api.timetable.pickup_extensions.list": {max: 9},
-	// api/timetable — GET /periods (#3124): tenant transaction (BEGIN, SET
+	// modules/timetable/http — GET /periods (#3124): tenant transaction (BEGIN, SET
 	// LOCAL ROLE, set_config, COMMIT) + period list + one usage read per
 	// owner (Enrollment phases, Timetable planning tables). The two owner
 	// round trips are the accepted #2580 boundary cost; the count is flat in

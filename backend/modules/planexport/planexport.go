@@ -24,6 +24,19 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
+// File is a rendered plan document.
+type File = listexport.File
+
+// Format is the file format a plan renders to.
+type Format = listexport.Format
+
+// The file formats of the plan documents.
+const (
+	FormatPDF  = listexport.FormatPDF
+	FormatDOCX = listexport.FormatDOCX
+	FormatXLSX = listexport.FormatXLSX
+)
+
 // Date is a calendar day in "YYYY-MM-DD" form, the shape every record and
 // request of this capability carries. The renderer resolves it to the
 // canonical calendar-date value internally; a malformed day in a request is

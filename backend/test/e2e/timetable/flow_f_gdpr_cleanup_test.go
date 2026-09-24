@@ -186,7 +186,7 @@ func setRetentionDays(t *testing.T, s *scenario, days int) {
 	}
 	err := testpkg.WithTenantTx(t, context.Background(), s.db, s.primaryTenant,
 		func(ctx context.Context, _ bun.Tx) error {
-			return s.resource.SettingsService.SetValue(ctx, "gdpr.timetable_retention_days", days, nil, perms)
+			return s.resource.SettingsService.(settingsWriter).SetValue(ctx, "gdpr.timetable_retention_days", days, nil, perms)
 		})
 	require.NoError(t, err, "set gdpr.timetable_retention_days=%d", days)
 }
