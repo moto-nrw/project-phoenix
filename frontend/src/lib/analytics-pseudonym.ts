@@ -10,7 +10,7 @@
  */
 
 /** Starts every pseudonymous ID; the filter recognizes them by it. */
-export const PSEUDONYM_PREFIX = "pseudo_";
+const PSEUDONYM_PREFIX = "pseudo_";
 
 /** Whether an ID has the shape of a pseudonymous ID. */
 export function isPseudonym(value: unknown): value is string {
