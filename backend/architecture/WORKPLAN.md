@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 23.09.2026 · Ratchet 588 · Composition 623 · Policy-Epoche 26 · 95 Regeln mit
-`convert it to exact debt` · 50.105 LOC unter `modules/*/legacy`
+Stand 23.09.2026 · Ratchet 584 · Composition 623 · Policy-Epoche 27 · 79 Regeln mit
+`convert it to exact debt` · 45.937 LOC unter `modules/*/legacy`
 
-Summenprobe: 244 + 29 + 4 + 60 + 43 + 28 + 19 + 161 = 588 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 243 + 29 + 4 + 60 + 40 + 28 + 19 + 161 = 584 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -16,9 +16,9 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [x] [#3414](https://github.com/moto-nrw/project-phoenix/issues/3414) Projection-Owner `operator-dashboard-view` bleibt (ADR 0033)
 - [ ] Gehört der Träger-Strang [#2809](https://github.com/moto-nrw/project-phoenix/issues/2809) / [#2821](https://github.com/moto-nrw/project-phoenix/issues/2821) zu #2580?
 
-## Jetzt vergebbar · 244 Keys
+## Jetzt vergebbar · 243 Keys
 
-- [ ] [#2733](https://github.com/moto-nrw/project-phoenix/issues/2733) services/enrollment, repositories/enrollment — 61 (`database/repositories/enrollment` gelöscht, 7 Keys weg; die 61 `services/enrollment`-Keys fallen über #3558 bis #3565)
+- [ ] [#2733](https://github.com/moto-nrw/project-phoenix/issues/2733) services/enrollment, repositories/enrollment — 60 (`database/repositories/enrollment` gelöscht, 7 Keys weg; die 60 `services/enrollment`-Keys fallen über #3558 bis #3565)
 - [ ] [#2742](https://github.com/moto-nrw/project-phoenix/issues/2742) services/education, repositories/education, api/groups, api/admin — 63
 - [ ] [#2728](https://github.com/moto-nrw/project-phoenix/issues/2728) services/users — 42
 - [ ] [#2734](https://github.com/moto-nrw/project-phoenix/issues/2734) api/enrollment — 32
@@ -26,9 +26,9 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#2727](https://github.com/moto-nrw/project-phoenix/issues/2727) database/repositories/users — 14
 - [ ] [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) models/users — 9
 
-## Legacy-Nester auflösen · 51.401 LOC, 0 Keys
+## Legacy-Nester auflösen · 47.233 LOC, 0 Keys
 
-- [ ] [#3424](https://github.com/moto-nrw/project-phoenix/issues/3424) `modules/timetable/legacy/timetableplanning` — 20.326 LOC (Schnitt S6 Schulkalender erledigt: Zeiträume, Schließtage, Feiertage, Wochenzyklus und Dateframes beim Owner `modules/schoolcalendar`, Budget 24.299 → 23.093, `planexport/legacy` 410 → 359, Legacy-Summe 44.517 → 43.250, 3 Kompatibilitätsregeln weg statt konvertiert, Policy-Epoche 22 → 23, Ausnahme für die 7 Ersatzregeln per ADR 0038; Schnitt S4 Konflikterkennung und Personalplanung erledigt (#3550): Konflikte, Personalpool, Dienstplan-Abdeckung und Personalbedarf beim Owner `modules/timetable`, Budget 23.093 → 20.326, `planexport/legacy` 359 → 337, `supervisiondashboard/legacy` 729 → 722, Legacy-Summe 43.250 → 40.454, 4 Kompatibilitätsregeln weg statt konvertiert, Policy-Epoche 25 → 26, Ausnahme für die 5 Ersatzregeln per ADR 0038; offen: Schnitte S5, S2, S3, S1), blockt #2732
+- [ ] [#3424](https://github.com/moto-nrw/project-phoenix/issues/3424) `modules/timetable/legacy/timetableplanning` — 16.159 LOC (Schnitt S6 Schulkalender erledigt: Zeiträume, Schließtage, Feiertage, Wochenzyklus und Dateframes beim Owner `modules/schoolcalendar`, Budget 24.299 → 23.093, `planexport/legacy` 410 → 359, Legacy-Summe 44.517 → 43.250, 3 Kompatibilitätsregeln weg statt konvertiert, Policy-Epoche 22 → 23, Ausnahme für die 7 Ersatzregeln per ADR 0038; Schnitt S4 Konflikterkennung und Personalplanung erledigt (#3550): Konflikte, Personalpool, Dienstplan-Abdeckung und Personalbedarf beim Owner `modules/timetable`, Budget 23.093 → 20.326, `planexport/legacy` 359 → 337, `supervisiondashboard/legacy` 729 → 722, Legacy-Summe 43.250 → 40.454, 4 Kompatibilitätsregeln weg statt konvertiert, Policy-Epoche 25 → 26, Ausnahme für die 5 Ersatzregeln per ADR 0038; Schnitt S5 Stundenplan-Lesepfade, Betrieb und Bereinigung erledigt (#3551): Planer-Lesepfade, operativer Tag, Aufbewahrungs-Bereinigung, Abschluss beendeter Sitzungen und Planungsspuren beim Owner `modules/timetable`, Budget 20.326 → 16.159, `supervisiondashboard/legacy` 722 → 721, Legacy-Summe 40.454 → 36.286, 17 Kompatibilitätsregeln weg statt konvertiert, 3 erledigte Keys gelöscht, Policy-Epoche 26 → 27, Ausnahme für die 3 Ersatzregeln per ADR 0038; offen: Schnitte S2, S3, S1), blockt #2732
 - [x] [#3422](https://github.com/moto-nrw/project-phoenix/issues/3422) `modules/studentpresence/legacy` aufgelöst — 13.969 LOC, Budget-Eintrag gelöscht (Legacy-Summe 51.310 → 49.904), 79 `student-presence`-`adapter`/`domain`-Regeln weg statt konvertiert, 0 Keys (Ratchet unverändert), Komplexitäts-Ratchet −35 Einträge, Policy-Epoche 20 → 21; Ausnahme für die 57 Ersatzregeln per ADR 0036; offen: Passthrough-Budget `modules/studentpresence` 64 → 76
 - [ ] [#3413](https://github.com/moto-nrw/project-phoenix/issues/3413) `modules/workforce/legacy/timetracking` — 13.511 LOC
 - [x] [#3418](https://github.com/moto-nrw/project-phoenix/issues/3418) `modules/workforce/legacy/shiftplanning` aufgelöst — 5.336 LOC (Legacy-Summe 49.904 → 44.517), 44 Kompatibilitätsregeln weg statt konvertiert, 5 verwaiste Regeln gelöscht (195 → 150), 0 Keys (Ratchet unverändert), Policy-Epoche 21 → 22; Dienstplan-Kommandos in `modules/workforce/internal/planning`, Tagesinformationen bei Timetable, Krankheits-Kaskade und Terminvertretung als Workflow `workflows/shiftplansync`; Ausnahme für die Ersatzregeln per ADR 0037; offen: `models/schedule`-Zeilen der Dienstplan-Reads gehen mit #3424
@@ -36,7 +36,7 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [x] [#3420](https://github.com/moto-nrw/project-phoenix/issues/3420) `workflows/parentportal/legacy` aufgelöst — 5.881 LOC, 46 Kompatibilitätsregeln weg, Schreibpfade als Owner-Commands (Care Plan, People Directory, Audit Platform); offen: Announcement-Quittungen in `messaging` (Communication)
 - [x] [#3410](https://github.com/moto-nrw/project-phoenix/issues/3410) `modules/careplan/legacy` Wurzelpaket aufgelöst — 874 LOC, 15 Keys weniger (644 → 629)
 
-## Schuld sichtbar machen · 95 Regeln, 29 Keys
+## Schuld sichtbar machen · 79 Regeln, 29 Keys
 
 - [ ] [#3421](https://github.com/moto-nrw/project-phoenix/issues/3421) `inbound-parent.*` zu exaktem Debt konvertiert — 27 Regeln weg, 29 Keys unter #3421 (568 → 597); offen: Keys abbauen, dann schließen
 - [ ] [#3416](https://github.com/moto-nrw/project-phoenix/issues/3416) `issue`-Feld an Policy-Regeln und `rules.stale`
@@ -88,9 +88,9 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#3419](https://github.com/moto-nrw/project-phoenix/issues/3419) IoT-Fehlertexte im Golden, `apiErrors.ts`-Pfad korrigieren
 - [ ] [#3021](https://github.com/moto-nrw/project-phoenix/issues/3021) Runtime-Checkpoint 3
 
-## Blockiert · 43 Keys
+## Blockiert · 40 Keys
 
-- [ ] [#2732](https://github.com/moto-nrw/project-phoenix/issues/2732) api/timetable — 43, blockiert durch #3424
+- [ ] [#2732](https://github.com/moto-nrw/project-phoenix/issues/2732) api/timetable — 40, blockiert durch #3424
 
 ## Spur A · 19 Keys
 

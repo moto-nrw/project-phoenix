@@ -135,8 +135,8 @@ var convertInstanceToSeriesErrorRules = []common.ErrorRule{
 	},
 	{
 		Match: func(err error) bool {
-			return errors.Is(err, timetableplanning.ErrPlanningTrackNotFound) ||
-				errors.Is(err, timetableplanning.ErrPlanningTrackArchived)
+			return errors.Is(err, timetableModule.ErrPlanningTrackNotFound) ||
+				errors.Is(err, timetableModule.ErrPlanningTrackArchived)
 		},
 		Render: func(error) render.Renderer {
 			return common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable"))

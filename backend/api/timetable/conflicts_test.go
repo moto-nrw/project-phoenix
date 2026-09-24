@@ -40,7 +40,8 @@ func buildPlannedConflictsSetup(t *testing.T) *plannedConflictsSetup {
 
 	data := testTimetableData(db)
 	res := NewResource(Dependencies{
-		TimetableData:     data,
+		Templates:         data,
+		TimetableData:     data.TimetableData(),
 		ConflictDetection: data.ConflictDetection(),
 		DB:                db,
 	})

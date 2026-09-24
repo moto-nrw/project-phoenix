@@ -1113,7 +1113,7 @@ func TestInstance_Reopen_RejectsNonActor(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s.svc.Reopen(s.ctx, ai.ID, 42, false)
-	require.ErrorIs(t, err, timetableplanning.ErrTimetableOperationForbidden)
+	require.ErrorIs(t, err, timetable.ErrTimetableOperationForbidden)
 }
 
 func TestInstance_Reopen_RejectsExpiredWindow(t *testing.T) {
@@ -1155,7 +1155,7 @@ func TestInstance_Reopen_RejectsAttendanceChangedAfterComplete(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
-	require.ErrorIs(t, err, timetableplanning.ErrTimetableOperationConflict)
+	require.ErrorIs(t, err, timetable.ErrTimetableOperationConflict)
 }
 
 func TestInstance_Reopen_RejectsSupervisorChangedAfterComplete(t *testing.T) {
@@ -1190,7 +1190,7 @@ func TestInstance_Reopen_RejectsSupervisorChangedAfterComplete(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
-	require.ErrorIs(t, err, timetableplanning.ErrTimetableOperationConflict)
+	require.ErrorIs(t, err, timetable.ErrTimetableOperationConflict)
 }
 
 func TestInstance_Reopen_RejectsStaffNowSupervisingElsewhere(t *testing.T) {
@@ -1208,7 +1208,7 @@ func TestInstance_Reopen_RejectsStaffNowSupervisingElsewhere(t *testing.T) {
 	testpkg.CreateTestGroupSupervisor(t, s.db, s.staffID, otherGroup.ID, "supervisor")
 
 	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
-	require.ErrorIs(t, err, timetableplanning.ErrTimetableOperationConflict)
+	require.ErrorIs(t, err, timetable.ErrTimetableOperationConflict)
 }
 
 func TestInstance_Reopen_RejectsMissingSnapshot(t *testing.T) {

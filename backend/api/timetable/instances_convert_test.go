@@ -141,7 +141,7 @@ func TestConvertInstanceToSeries_PreservesTemplateValidationErrorContract(t *tes
 	}{
 		{name: "inactive calendar period", err: timetableplanning.ErrInstanceOutsideActiveCalendarPeriod, wantMessage: "instance date must lie within an active calendar period"},
 		{name: "archived category", err: timetableModule.ErrCategoryNotAssignable, wantMessage: "category is archived or unavailable"},
-		{name: "archived planning track", err: timetableplanning.ErrPlanningTrackArchived, wantMessage: "planning track is archived or unavailable"},
+		{name: "archived planning track", err: timetableModule.ErrPlanningTrackArchived, wantMessage: "planning track is archived or unavailable"},
 		{name: "education group", err: &timetableplanning.TemplateEducationGroupError{Err: errors.New("education group is unavailable")}, wantMessage: "education group is unavailable"},
 		{name: "grade limit", err: timetableplanning.ErrTemplateTargetGradeExceedsLimit, wantMessage: "template target grade exceeds tenant limit"},
 	}
@@ -259,7 +259,7 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 			return nil
 		},
 	)
-	s.res.TimetableData = timetableData
+	s.res.Templates = timetableData
 	s.res.InstanceSeriesConverter = timetableplanning.NewInstanceSeriesConversionService(
 		timetableplanning.InstanceSeriesConversionDependencies{
 			DB:              s.db,
@@ -311,7 +311,7 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 			DB:              s.db,
 			InstanceRepo:    repoFactory.ActivityInstance,
 			InstanceService: failingInstanceService,
-			TimetableData:   s.res.TimetableData,
+			TimetableData:   s.res.Templates,
 		},
 	)
 	router := conversionRouter(s.ctx, s.res)

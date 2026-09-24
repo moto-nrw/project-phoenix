@@ -22,7 +22,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // DeviationHistoryEvent is one protocol row in the response.
@@ -142,7 +142,7 @@ func (rs *Resource) getDeviationHistory(w http.ResponseWriter, r *http.Request) 
 // and actor account referenced by the events. Best effort: a missing person
 // simply stays unnamed (frontend renders a fallback); only per-ID lookups run,
 // bounded by the distinct IDs in the page.
-func (rs *Resource) resolveDeviationNames(ctx context.Context, events []*auditModel.DeviationEvent) (staffNames, actorNames map[int64]string) {
+func (rs *Resource) resolveDeviationNames(ctx context.Context, events []timetable.DeviationEvent) (staffNames, actorNames map[int64]string) {
 	staffIDs := make(map[int64]bool)
 	actorIDs := make(map[int64]bool)
 	for _, ev := range events {

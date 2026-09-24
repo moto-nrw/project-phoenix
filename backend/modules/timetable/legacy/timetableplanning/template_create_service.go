@@ -109,7 +109,7 @@ type InstanceSeriesConverter interface {
 // is_template=true) together with its weekday schedules, underlying timeframe,
 // and initial roster in one tenant transaction. Grade-limit and education-group
 // validation run before any write, so a rejected request leaves no orphan rows.
-func (s *TimetableDataService) CreateTemplate(ctx context.Context, in CreateTemplateInput) (*CreateTemplateResult, error) {
+func (s *TemplateService) CreateTemplate(ctx context.Context, in CreateTemplateInput) (*CreateTemplateResult, error) {
 	tenantID, err := s.validateTemplateCreateRequest(ctx, in)
 	if err != nil {
 		return nil, err
@@ -125,7 +125,7 @@ func (s *TimetableDataService) CreateTemplate(ctx context.Context, in CreateTemp
 	return &result, nil
 }
 
-func (s *TimetableDataService) validateTemplateCreateRequest(ctx context.Context, in CreateTemplateInput) (int64, error) {
+func (s *TemplateService) validateTemplateCreateRequest(ctx context.Context, in CreateTemplateInput) (int64, error) {
 	if err := validateTemplateCreateInput(in); err != nil {
 		return 0, &ScheduleError{Op: createTemplateOp, Err: err}
 	}
@@ -269,7 +269,7 @@ func validateOfferingSourceInput(
 	return nil
 }
 
-func (s *TimetableDataService) createTemplateLocked(
+func (s *TemplateService) createTemplateLocked(
 	ctx context.Context,
 	in CreateTemplateInput,
 	tenantID int64,
@@ -300,7 +300,7 @@ func (s *TimetableDataService) createTemplateLocked(
 	if err := validateAssignableCategory(ctx, s.deps.ActivityCategoryRepo, in.CategoryID, "create template: validate category"); err != nil {
 		return err
 	}
-	if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTrackRepo, in.PlanningTrackID, nil); err != nil {
+	if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTracks, in.PlanningTrackID, nil); err != nil {
 		return err
 	}
 	applyTargetMirrorToCreateInput(&in, targets)
@@ -455,7 +455,7 @@ func normalizeDynamicTargets(targetType string, grade *int16, class *string, gro
 	return normalized, nil
 }
 
-func validateDynamicTargets(ctx context.Context, s *TimetableDataService, gradeLevelMax int, existing *activitiesModel.Group, existingTargets, targets []*activitiesModel.GroupTarget) error {
+func validateDynamicTargets(ctx context.Context, s *TemplateService, gradeLevelMax int, existing *activitiesModel.Group, existingTargets, targets []*activitiesModel.GroupTarget) error {
 	if err := ValidateTemplateTargetsGradeLimit(gradeLevelMax, existing, existingTargets, targets); err != nil {
 		return err
 	}
@@ -483,7 +483,7 @@ func applyTargetMirrorToCreateInput(in *CreateTemplateInput, targets []*activiti
 // createTemplateRoster seeds the fresh template's period-scoped roster. The
 // close-open calls are defensive no-ops for a brand-new group but keep the
 // write path identical to a roster replacement.
-func (s *TimetableDataService) createTemplateRoster(
+func (s *TemplateService) createTemplateRoster(
 	ctx context.Context,
 	groupID int64,
 	in CreateTemplateInput,

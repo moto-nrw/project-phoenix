@@ -6,10 +6,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 type updateInstanceRequest struct {
@@ -107,26 +105,13 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		renderInstanceLifecycleError(w, r, err)
 		return
 	}
-	roomCache := make(map[int64]string)
-	typeCache := make(map[int64]templateMeta)
 	// A failed care-day derivation fails the response rather than answering with
 	// counts that read every assigned child as expected again (#1747 review) —
 	// the same 500 the rest of the enrichment already returns here.
-	careDays, err := rs.careDaysForInstance(r.Context(), inst)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve care days failed", err))
-		return
-	}
-	rows, err := rs.TimetableData.GetInstanceRows(r.Context(), []*scheduleModel.ActivityInstance{inst})
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance rows failed", err))
-		return
-	}
-	enriched, _, _, err := rs.enrichInstance(r.Context(), inst, rows, roomCache, typeCache, make(map[int64]*scheduleModel.PlanningTrack), make(map[int64][]enrollmentSvc.OfferingSourceOption), rs.childrenPerStaffRatio(r.Context()), careDays)
+	enriched, err := rs.enrichWrittenInstance(r.Context(), inst.ID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("enrich instance failed", err))
 		return
 	}
-	enriched.ConflictWarnings = rs.dayConflictWarningsFor(r.Context(), inst)
 	common.Respond(w, r, http.StatusOK, enriched, "Instance updated")
 }

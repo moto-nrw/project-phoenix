@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/config"
@@ -171,7 +172,7 @@ type Scheduler struct {
 	studentDocumentFileCleaner StudentDocumentFileCleaner
 	fileStoreCleaner           FileStoreCleaner
 	materializer               timetableplanning.MaterializationService
-	timetableCleanup           timetableplanning.TimetableCleanupService
+	timetableCleanup           timetable.TimetableCleanup
 	calendarFeedCleanup        CalendarFeedCleaner
 	timeTrackingCleanup        TimeTrackingCleanupService
 	studentChangeLogCleanup    usersSvc.StudentChangeLogCleanupService
@@ -447,9 +448,9 @@ func (s *Scheduler) observeTenantRuntime(outcome string) {
 }
 
 // TimetableBridgeCompleter finalizes attendance and completes the schedule-side
-// instances of ended active.groups in one step. Implemented by
-// schedule.TimetableBridgeService — the same implementation the force-start
-// path uses, so both paths leave identical rows behind (#1747).
+// instances of ended active.groups in one step. Implemented by the Timetable
+// owner's timetable.EndedSessionCompletion, the same completion the
+// force-start path uses, so both paths leave identical rows behind (#1747).
 type TimetableBridgeCompleter interface {
 	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
 }

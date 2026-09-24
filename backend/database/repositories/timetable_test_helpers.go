@@ -193,3 +193,14 @@ func (r TimetableTestRepositories) SchoolCalendar() schoolcalendar.Calendar { re
 func (r TimetableTestRepositories) CalendarPeriodUsage() *timetableCompose.CalendarPeriodUsageRepository {
 	return r.calendarPeriodUsage
 }
+
+// OwnerRows are the retained rows the Timetable owner's reads run over
+// (#3551), filled from the test repository set.
+func (r TimetableTestRepositories) OwnerRows() TimetableOwnerRows {
+	return TimetableOwnerRows{
+		Instances: r.ActivityInstance, InstanceStaff: r.InstanceStaff, Participants: r.InstanceStudent,
+		Templates: r.ActivityGroup, Categories: r.ActivityCategory, Students: r.Student,
+		EducationGroups: r.Group, Rooms: r.Room, PickupExceptions: r.StudentPickupException,
+		ArrivalExceptions: r.StudentArrivalException, DeviationEvents: r.DeviationEvent,
+	}
+}

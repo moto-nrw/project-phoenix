@@ -75,7 +75,10 @@ import (
 // same issue, removing the family and lowering the totals by 27 each. Slice
 // S4 of #3424 (#3550) moved conflict detection and staffing to the Timetable
 // owner and retired the four grants it emptied, one of them a conversion
-// promise (document-rendering), lowering the totals to 95 and 153.
+// promise (document-rendering), lowering the totals to 95 and 153. Slice S5
+// (#3551) moved the timetable reads, the operational day and the cleanup and
+// retired the seventeen grants it emptied, sixteen of them conversion promises,
+// lowering the totals to 79 and 137.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -125,12 +128,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 95
+	policyTempRulesTotal = 79
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 153
+	policyTempRulesCompatTotal = 137
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -156,7 +159,6 @@ var policyTempRulesCompatMarkers = []string{
 var policyTempRulesFamilies = map[string]int{
 	// #3214, #3218, #3220, #3224 — all closed.
 	// #3422 removed 2 that went stale with legacy/services/active.
-	"calendar-view": 2,
 
 	// #3218, #3219, #3220 — closed.
 	"document-rendering": 1,
@@ -177,7 +179,7 @@ var policyTempRulesFamilies = map[string]int{
 	// #3218, #3220, #3214, #3224 — closed. The largest family: 90 rules, every
 	// one of them permitted by an issue that is done.
 	// #3422 removed 5 that went stale with legacy/services/active.
-	"inbound-timetable": 72,
+	"inbound-timetable": 61,
 
 	// #2725 (OPEN) and #3224 (closed) name most rules jointly; #3214 the rest.
 	// The only large family with a live issue behind it.
@@ -193,11 +195,10 @@ var policyTempRulesFamilies = map[string]int{
 
 	// #3214, #3218, #3220 — closed.
 	// #3422 removed 1 that went stale with legacy/services/active.
-	"process-device-scan": 1,
 
 	// #3207, #3214, #3217, #3218, #3219, #3220, #3224, #3229 — all closed.
 	// #3422 removed 2 that went stale with legacy/services/active.
-	"root-composition": 5,
+	"root-composition": 4,
 
 	// #3214, #3218, #3220 — closed.
 	// #3422 removed 3 that went stale with legacy/services/active.
@@ -207,7 +208,7 @@ var policyTempRulesFamilies = map[string]int{
 	"school-structure": 1,
 
 	// #3214, #3218, #3229 — closed.
-	"test-support": 2,
+	"test-support": 1,
 
 	// #3214, #3218, #3220, #3224 — closed.
 }

@@ -1,0 +1,107 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3424",
+    "#3550"
+  ],
+  "owner_and_capability": "Timetable & Activities — slice S5 of #3424 (#3551): the planner reads, the operational day, the retention cleanup, the ended-session completion and the planning-track administration leave modules/timetable/legacy/timetableplanning and become the public contracts timetable.TimetableDataCapability, timetable.OperationCapability, timetable.TimetableCleanup, timetable.EndedSessionCompletion and timetable.PlanningTrackAdministration, implemented in modules/timetable/compose",
+  "affected_packages": [
+    "modules/timetable",
+    "modules/timetable/compose",
+    "modules/timetable/legacy/timetableplanning",
+    "api/timetable",
+    "services/enrollment",
+    "database/repositories"
+  ],
+  "affected_tables": [
+    "audit.deviation_events",
+    "education.groups",
+    "schedule.activity_instances",
+    "schedule.instance_students"
+  ],
+  "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/models/audit",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/models/education",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/database/repositories/education"
+  ],
+  "atomic_cutover": "One PR moves the five capabilities to the owner and retires the three keys with them. The Änderungsprotokoll read of api/timetable/deviation_history.go receives the owner's typed rows instead of models/audit rows, which removes the last production import of models/audit from api/timetable. The operations handler tests lose the education group repository fake together with the moved operations code, which removes the last internal-test import of models/education from api/timetable; the ported behaviour tests live in modules/timetable/compose/httpintegration. The enrollment arrival-projection test builds the owner's planner reads through modules/timetable/compose instead of the nest's TimetableDataService, so it no longer constructs the education group repository and the external-test import of database/repositories/education disappears. HTTP paths, status codes, error texts, payloads, permissions and tenant scoping stay the same; the only visible change is that requireWebAttendanceForActiveInstance answers an unknown block with 404 instead of 500. No second provider, no fallback and no new debt key is added.",
+  "tests": [
+    "modules/timetable/compose and modules/timetable/compose/httpintegration: the ported operations, attendance, lifecycle, cleanup, ended-session and planning-track suites against the isolated PostgreSQL test database.",
+    "api/timetable/timetable_data_ports_test.go pins the Änderungsprotokoll rows the handler renders from the owner contract; api/timetable/operations_unit_test.go covers the retained handler wiring without the education fakes.",
+    "services/enrollment/timetable_arrival_projection_test.go builds the owner's planner reads and asserts the unchanged arrival projection in booking mode.",
+    "scripts/test-changed.sh origin/development without --fast, go test ./test/ -run 'Ratchet|TestHermeticTestPatterns' and go test ./internal/architecture/.",
+    "scripts/backend-architecture.sh check with exactly these three keys absent from legacy.jsonl and none added."
+  ],
+  "runtime_evidence": {
+    "source": "Local runs on the #3551 branch stacked on work/3550-move-timetable-conflict-detection-and-staffing-o at 1697d2a3e9444b44206aa85583587fc0b5264960; PR https://github.com/moto-nrw/project-phoenix/pull/3606.",
+    "sources": [
+      "backend/api/timetable/deviation_history.go",
+      "backend/api/timetable/timetable_data_ports_test.go",
+      "backend/services/enrollment/timetable_arrival_projection_test.go",
+      "backend/test/query_budgets.go",
+      "https://github.com/moto-nrw/project-phoenix/pull/3606"
+    ],
+    "workload": "No load run. Go suites through scripts/run-go-toolchain.sh and scripts/test-changed.sh origin/development against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The moved code executes the same statements in the same order: the query-budget register stays unchanged, every affected suite passes, and scripts/backend-architecture.sh check passes with exactly these three keys removed, no key added and an unchanged composition surface of 623.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "The listed tables are read and written by the moved code with unchanged statements; the move relocates callers and types, it changes no row."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The query-budget suites passed with backend/test/query_budgets.go unchanged, so no budgeted scenario of the planner reads, the operational day or the cleanup gained a statement."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency run was made. The capabilities keep their repository calls and their order; only the package boundary and the argument types changed."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency run was made. The capabilities keep their repository calls and their order; only the package boundary and the argument types changed."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development reported 152 packages ok with no failure, golangci-lint run reported 0 issues, go vet ./... was clean and scripts/check-deadcode.sh reported no unused symbol."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection acquisition, transaction boundary or pool setting changed; the request transaction of the spontaneous start is the same one."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "The spontaneous start keeps its advisory lock key hash through tenant.AcquireLock and the sick cascade keeps the nest's day lock, so no lock statement changed."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No statement, transaction boundary or lock order changed, so no lock ordering can differ."
+    },
+    "job_duration": {
+      "state": "measured",
+      "result": "The scheduler suites for the retention cleanup and the ended-session completion passed against the same repositories through the new capability bindings, with the same statements per run."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The scheduler keeps its retry and error handling; only the injected capability type changed."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No queue, schedule interval or worker count changed."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The ported HTTP suites pin the previous status codes, error codes and texts for the operations and attendance paths; the single intended difference is the 404 answer of requireWebAttendanceForActiveInstance for an unknown block, which the middleware already required and which its test pins."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data or schema change. Reverting the PR restores the nest services, their callers and the three baseline entries together."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally with 584 remaining keys and composition surface 623 -> 623; bash scripts/pre-push.sh work/3550-move-timetable-conflict-detection-and-staffing-o passed."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR; the nest services, the caller wiring, the policy epoch and the three baseline entries return together. No data cleanup and no deployment step.",
+  "exit_criterion": "api/timetable has no production import of models/audit and no internal-test import of models/education, the services/enrollment tests have no import of database/repositories/education, the five capabilities are reached only through modules/timetable, and the three listed keys are absent from legacy.jsonl."
+}

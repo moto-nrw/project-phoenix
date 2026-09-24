@@ -55,7 +55,7 @@ func buildCreateSetup(t *testing.T) *createSetup {
 
 	mock := &mockInstanceService{}
 	res := NewResource(Dependencies{
-		TimetableData:   testTimetableData(db),
+		TimetableData:   testTimetableData(db).TimetableData(),
 		InstanceService: mock,
 		DB:              db,
 	})
@@ -317,7 +317,7 @@ func setupDuplicateInstanceRoute(
 
 	_, serviceFactory := testutil.SetupTimetableModule(t)
 	resource := NewResource(Dependencies{
-		TimetableData:   testTimetableData(db, clock),
+		TimetableData:   testTimetableData(db, clock).TimetableData(),
 		InstanceService: serviceFactory.Instance,
 		DB:              db,
 	})

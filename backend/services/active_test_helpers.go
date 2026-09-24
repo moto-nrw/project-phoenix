@@ -7,6 +7,7 @@ import (
 	"time"
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -44,7 +45,7 @@ type ActiveTestModule struct {
 	Schulhof             activeTestYard
 	PickupSchedule       careplan.PickupScheduleService
 	ArrivalSchedule      careplan.ArrivalScheduleService
-	TimetableOperations  timetableplanning.TimetableOperationsService
+	TimetableOperations  timetable.OperationCapability
 	CareDay              careplan.CareDayQuery
 	Instance             timetableplanning.InstanceService
 	SupervisionDashboard supervisiondashboard.Query
@@ -137,7 +138,10 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		return ActiveTestModule{}, err
 	}
 	careplanCompose.WireCareParticipation(careDay, care.CareLifecycle)
-	bridge := timetableplanning.NewTimetableBridgeService(timetableplanning.TimetableBridgeDependencies{Instances: r.ActivityInstance, InstanceStudents: r.InstanceStudent, CareDays: careDay})
+	bridge, err := NewTimetableEndedSessionCompletion(r.OwnerRows(), careDay)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
 	displayGroups, err := repositories.NewSchoolStructure(db)
 	if err != nil {
 		return ActiveTestModule{}, err
@@ -186,13 +190,18 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	operations := timetableplanning.NewTimetableOperationsService(timetableplanning.TimetableOperationsDependencies{
-		InstanceRepo: r.ActivityInstance, InstanceStaffRepo: r.InstanceStaff, InstanceStudents: r.InstanceStudent, InstanceService: tt.Instance,
-		ActiveGroupRepo: r.ActiveGroup, ActivityGroupRepo: r.ActivityGroup, ActiveService: presence,
-		ArrivalService: arrivals, PickupService: pickups, CareDayService: careDay, SupervisorRepo: r.GroupSupervisor, Presence: newStudentPresence(db, logger),
-		StudentRepo: r.Student, EducationGroupRepo: r.Group, RoomRepo: r.Room, PersonService: timetableOperationPeople{OperationPersonService: data.Users, membership: membership}, PlanningTrackRepo: r.PlanningTrack,
-		Settings: settings.Settings, Broadcaster: hub, DB: db, Logger: logger, Now: optionalClock(clocks), RecoveryRepo: repositories.NewActivityRecoveryRepository(db, r.InstanceStudent),
+	operationRows := r.OwnerRows()
+	operationRows.Locks = repositories.NewActivityRecoveryRepository(db, r.InstanceStudent)
+	operations, err := newTimetableOperations(timetableOperationInputs{
+		Rows: operationRows, Lifecycle: tt.Instance,
+		Sessions: r.ActiveGroup, Presence: presence,
+		Arrivals: arrivals, Pickups: pickups, CareDays: careDay, Supervisions: r.GroupSupervisor, Visits: newStudentPresence(db, logger),
+		People: timetableOperationPeople{OperationPeople: data.Users, membership: membership}, PlanningTracks: r.Timetable,
+		Settings: settings.Settings, Broadcaster: hub, Logger: logger, Now: optionalClock(clocks),
 	})
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
 	timetableOwner, err := repositories.NewTimetable(db, students, rooms)
 	if err != nil {
 		return ActiveTestModule{}, err

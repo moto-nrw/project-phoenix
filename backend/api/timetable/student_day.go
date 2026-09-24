@@ -28,7 +28,6 @@ import (
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // isoWeekday returns 1..7 (Mon..Sun) for the weekday of d.
@@ -226,7 +225,7 @@ func (rs *Resource) buildStudentDays(ctx context.Context, studentID int64, from,
 	if rs.TimetableData == nil {
 		return nil, errors.New("timetable data service not wired")
 	}
-	pre, err := rs.TimetableData.PreloadStudentWeek(ctx, studentID, from, to)
+	pre, err := rs.TimetableData.StudentWeek(ctx, studentID, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +241,7 @@ func (rs *Resource) buildStudentDays(ctx context.Context, studentID int64, from,
 
 // buildStudentDayFromPreload assembles a single day's response from the
 // already-preloaded data. No DB calls.
-func buildStudentDayFromPreload(pre *timetableplanning.StudentWeekPreload, studentID int64, date timezone.Date) StudentDayResponse {
+func buildStudentDayFromPreload(pre *timetable.StudentWeek, studentID int64, date timezone.Date) StudentDayResponse {
 	k := dateKey(date)
 
 	enrolledRows := pre.EnrolledByDate[k]
@@ -278,16 +277,16 @@ func buildStudentDayFromPreload(pre *timetableplanning.StudentWeekPreload, stude
 // the map lookup already scopes visits to this date.
 func appendUnplannedInstances(
 	instances []InstanceDayResponse,
-	pre *timetableplanning.StudentWeekPreload,
-	dayInstances []*scheduleModel.ActivityInstance,
+	pre *timetable.StudentWeek,
+	dayInstances []timetable.ScheduledInstance,
 	enrolledInstanceIDs map[int64]bool,
 ) []InstanceDayResponse {
 	for _, inst := range dayInstances {
 		if inst.ActiveGroupID == nil || enrolledInstanceIDs[inst.ID] {
 			continue
 		}
-		if inst.Status != scheduleModel.InstanceStatusActive &&
-			inst.Status != scheduleModel.InstanceStatusCompleted {
+		if inst.Status != timetable.InstanceStatusActive &&
+			inst.Status != timetable.InstanceStatusCompleted {
 			continue
 		}
 		if visits := pre.VisitsByActiveGroup[*inst.ActiveGroupID]; len(visits) > 0 {
@@ -300,36 +299,26 @@ func appendUnplannedInstances(
 // resolveArrivalSlotFromPreload applies the shared exception-over-schedule rule
 // (ResolveSlotSource) against already-loaded data. An exception on the date
 // wins even when its time is nil (absence signal).
-func resolveArrivalSlotFromPreload(pre *timetableplanning.StudentWeekPreload, date timezone.Date) SlotResponse {
-	exc, hasExc := pre.ArrivalExcByDate[dateKey(date)]
-	hasExc = hasExc && exc != nil
-	wd := isoWeekday(date)
-	sched, hasSched := pre.ArrivalSchedByDate[dateKey(date)]
-	hasSched = hasSched && sched != nil
-
-	switch timetable.ResolveSlotSource(hasExc, hasSched, wd) {
+func resolveArrivalSlotFromPreload(pre *timetable.StudentWeek, date timezone.Date) SlotResponse {
+	times := pre.ArrivalByDate[dateKey(date)]
+	switch timetable.ResolveSlotSource(times.Exception != nil, times.HasSchedule, isoWeekday(date)) {
 	case SlotSourceException:
-		return mapArrivalExceptionSlot(exc)
+		return mapExceptionSlot(times.Exception)
 	case SlotSourceSchedule:
-		return mapArrivalScheduleSlot(sched.ExpectedArrival)
+		return mapArrivalScheduleSlot(times.Time)
 	default:
 		return SlotResponse{Source: SlotSourceNone}
 	}
 }
 
 // resolvePickupSlotFromPreload mirrors resolveArrivalSlotFromPreload.
-func resolvePickupSlotFromPreload(pre *timetableplanning.StudentWeekPreload, date timezone.Date) SlotResponse {
-	exc, hasExc := pre.PickupExcByDate[dateKey(date)]
-	hasExc = hasExc && exc != nil
-	wd := isoWeekday(date)
-	sched, hasSched := pre.PickupSchedByDate[dateKey(date)]
-	hasSched = hasSched && sched != nil
-
-	switch timetable.ResolveSlotSource(hasExc, hasSched, wd) {
+func resolvePickupSlotFromPreload(pre *timetable.StudentWeek, date timezone.Date) SlotResponse {
+	times := pre.PickupByDate[dateKey(date)]
+	switch timetable.ResolveSlotSource(times.Exception != nil, times.HasSchedule, isoWeekday(date)) {
 	case SlotSourceException:
-		return mapPickupExceptionSlot(exc)
+		return mapExceptionSlot(times.Exception)
 	case SlotSourceSchedule:
-		return mapPickupScheduleSlot(sched.PickupTime)
+		return mapPickupScheduleSlot(times.Time)
 	default:
 		return SlotResponse{Source: SlotSourceNone}
 	}

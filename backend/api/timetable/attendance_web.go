@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // requireWebAttendanceForActiveInstance leaves pure planning cancellations
@@ -22,16 +22,16 @@ func (rs *Resource) requireWebAttendanceForActiveInstance(next http.Handler) htt
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
 			return
 		}
-		instance, err := rs.TimetableData.GetActivityInstance(r.Context(), id)
+		instance, err := rs.TimetableData.FindScheduledInstance(r.Context(), id)
+		if errors.Is(err, timetable.ErrActivityInstanceNotFound) {
+			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+			return
+		}
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 			return
 		}
-		if instance == nil {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
-			return
-		}
-		if instance.Status != schedule.InstanceStatusActive {
+		if instance.Status != timetable.InstanceStatusActive {
 			next.ServeHTTP(w, r)
 			return
 		}

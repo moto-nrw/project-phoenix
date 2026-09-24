@@ -18,10 +18,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // InstanceParticipantResponse is one visible child in an instance.
@@ -60,8 +59,8 @@ func (rs *Resource) getInstanceParticipants(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if _, err := rs.TimetableData.GetActivityInstance(ctx, instanceID); err != nil {
-		if base.IsNoRows(err) {
+	if _, err := rs.TimetableData.FindScheduledInstance(ctx, instanceID); err != nil {
+		if errors.Is(err, timetable.ErrActivityInstanceNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
 			return
 		}
@@ -69,7 +68,7 @@ func (rs *Resource) getInstanceParticipants(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	rows, err := rs.TimetableData.GetInstanceStudents(ctx, instanceID)
+	rows, err := rs.TimetableData.ListBlockParticipants(ctx, instanceID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance students failed", err))
 		return
@@ -98,7 +97,7 @@ func (rs *Resource) getInstanceParticipants(w http.ResponseWriter, r *http.Reque
 // instanceStaffNames resolves the display names of the staff assigned to the
 // instance. Deliberately unfiltered (see InstanceParticipantsResponse).
 func (rs *Resource) instanceStaffNames(ctx context.Context, instanceID int64) ([]InstanceStaffNameResponse, error) {
-	staffRows, err := rs.TimetableData.GetInstanceStaff(ctx, instanceID)
+	staffRows, err := rs.TimetableData.ListBlockStaff(ctx, instanceID)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +129,7 @@ func (rs *Resource) instanceStaffNames(ctx context.Context, instanceID int64) ([
 // visibleParticipants maps enrolled-student rows to named entries, keeping
 // only students the caller may read. Alumni are excluded like every other
 // staff read (see resolveStudentForRead).
-func (rs *Resource) visibleParticipants(r *http.Request, rows []*scheduleModel.InstanceStudent) ([]InstanceParticipantResponse, error) {
+func (rs *Resource) visibleParticipants(r *http.Request, rows []timetable.ScheduledParticipant) ([]InstanceParticipantResponse, error) {
 	studentIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		studentIDs = append(studentIDs, row.StudentID)

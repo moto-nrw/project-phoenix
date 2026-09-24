@@ -106,10 +106,14 @@ type Dependencies struct {
 	MaterializationService  timetableplanning.MaterializationService
 	InstanceService         timetableplanning.InstanceService
 	InstanceSeriesConverter timetableplanning.InstanceSeriesConverter
-	OperationsService       timetableplanning.TimetableOperationsService
+	OperationsService       timetable.OperationCapability
 	TemplateSplitService    *timetableplanning.TemplateSplitService
 	PersonService           userSvc.PersonService
-	TimetableData           *timetableplanning.TimetableDataService
+	// Templates holds the retained template writes and the attendance
+	// correction (#3424 slices S2 and S3); TimetableData serves the planner's
+	// reads from the Timetable owner (#3551).
+	Templates     *timetableplanning.TemplateService
+	TimetableData timetable.TimetableDataCapability
 	// ConflictDetection serves the conflict warnings, the staff pool and the
 	// shift-coverage probe from the Timetable owner (#3550).
 	ConflictDetection  timetable.ConflictDetectionCapability
@@ -124,8 +128,8 @@ type Dependencies struct {
 	// portal (#2527). Only SchoolSupervisionRouter consumes it.
 	ReportService enrollmentSvc.ReportService
 	// PlanExportService renders the printable Betreuungsplan week (#2079).
-	PlanExportService    planexport.Service
-	PlanningTrackService timetableplanning.PlanningTrackService
+	PlanExportService planexport.Service
+	PlanningTracks    timetable.PlanningTrackAdministration
 	// PickupExtensions serves the open block decisions for later pickup
 	// times (#3261).
 	PickupExtensions timetable.PickupExtensionCapability

@@ -45,7 +45,7 @@ func buildAckSetup(t *testing.T) *ackSetup {
 	})
 
 	res := NewResource(Dependencies{
-		TimetableData: testTimetableData(db),
+		TimetableData: testTimetableData(db).TimetableData(),
 		DB:            db,
 	})
 	return &ackSetup{res: res, db: db, accountID: account.ID}

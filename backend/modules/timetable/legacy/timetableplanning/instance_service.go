@@ -102,7 +102,7 @@ var (
 	ErrInstanceStartTooEarly       = errors.New("activity instance cannot be started yet")
 	ErrInstanceStartExpired        = errors.New("activity instance can no longer be started")
 	ErrInstanceCompleteEarly       = errors.New("activity instance cannot be completed before planned end")
-	ErrLifecycleSettings           = errors.New("activity lifecycle settings unavailable")
+	ErrLifecycleSettings           = timetable.ErrLifecycleSettings
 	ErrCompletionConfirmationStale = errors.New("activity completion confirmation is stale")
 	ErrIdempotencyKeyReuse         = errors.New("idempotency key was reused with different request data")
 )
@@ -125,30 +125,11 @@ func WithCompletionConfirmation(ctx context.Context, studentIDs []int64) context
 	return context.WithValue(ctx, lifecycleConfirmedStudentsKey, slices.Clone(studentIDs))
 }
 
-type LifecycleAvailability struct {
-	CanStart            bool
-	StartAvailableAt    time.Time
-	CanComplete         bool
-	CompleteAvailableAt time.Time
-}
-
-// EvaluateLifecycleAvailability is the shared clock policy used by API
-// payloads and lifecycle writes. Planned starts are valid from the configured
-// lead boundary until (but not including) plan end. Spontaneous blocks are not
-// constrained by plan times.
-func EvaluateLifecycleAvailability(instance *scheduleModel.ActivityInstance, now time.Time, startLeadMinutes int, enforcePlannedEnd bool) LifecycleAvailability {
-	start := instanceBoundary(instance.Date, instance.StartTime)
-	end := instanceBoundary(instance.Date, instance.EndTime)
-	availableAt := start.Add(-time.Duration(startLeadMinutes) * time.Minute)
-	if instance.IsSpontaneous {
-		return LifecycleAvailability{CanStart: true, StartAvailableAt: now, CanComplete: true, CompleteAvailableAt: now}
-	}
-	return LifecycleAvailability{
-		CanStart:            !now.Before(availableAt) && now.Before(end),
-		StartAvailableAt:    availableAt,
-		CanComplete:         !enforcePlannedEnd || !now.Before(end),
-		CompleteAvailableAt: end,
-	}
+// EvaluateLifecycleAvailability applies the Timetable owner's clock policy
+// (timetable.EvaluateLifecycleAvailability) to a retained instance row.
+func EvaluateLifecycleAvailability(instance *scheduleModel.ActivityInstance, now time.Time, startLeadMinutes int, enforcePlannedEnd bool) timetable.LifecycleAvailability {
+	window := timetable.LifecycleWindow{Date: timezone.Date(instance.Date), StartTime: instance.StartTime, EndTime: instance.EndTime, IsSpontaneous: instance.IsSpontaneous}
+	return timetable.EvaluateLifecycleAvailability(window, now, startLeadMinutes, enforcePlannedEnd)
 }
 
 // ActiveSessionEnder is the subset of active.Service used by Complete and
@@ -312,7 +293,7 @@ type instanceService struct {
 
 type spontaneousStartWorkdayGuardKey struct{}
 
-func withSpontaneousStartWorkdayGuard(ctx context.Context) context.Context {
+func WithSpontaneousStartWorkdayGuard(ctx context.Context) context.Context {
 	return context.WithValue(ctx, spontaneousStartWorkdayGuardKey{}, struct{}{})
 }
 
@@ -345,7 +326,7 @@ func (s *instanceService) now() time.Time {
 }
 
 func instanceBoundary(day scheduleModel.Date, wallClock time.Time) time.Time {
-	return time.Date(day.Year(), day.Month(), day.Day(), wallClock.Hour(), wallClock.Minute(), wallClock.Second(), wallClock.Nanosecond(), timezone.Berlin)
+	return timetable.LifecycleBoundary(timezone.Date(day), wallClock)
 }
 
 func (s *instanceService) validateStartTime(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time) error {
@@ -992,7 +973,7 @@ func (s *instanceService) Reopen(ctx context.Context, instanceID, accountID int6
 		return nil, fmt.Errorf("%w: reopen window expired", ErrInvalidInstanceTransition)
 	}
 	if !isAdmin && (instance.CompletedBy == nil || *instance.CompletedBy != accountID) {
-		return nil, ErrTimetableOperationForbidden
+		return nil, timetable.ErrTimetableOperationForbidden
 	}
 	var snapshot scheduleModel.ActivityCompletionSnapshot
 	if len(instance.CompletionSnapshot) == 0 || json.Unmarshal(instance.CompletionSnapshot, &snapshot) != nil {
@@ -1019,7 +1000,7 @@ func (s *instanceService) Reopen(ctx context.Context, instanceID, accountID int6
 	}
 	if err := s.deps.RecoveryRepo.Restore(ctx, instance.ID, snapshot, s.now()); err != nil {
 		if modelBase.IsUniqueViolation(err) {
-			return nil, fmt.Errorf("%w: concurrent check-in", ErrTimetableOperationConflict)
+			return nil, fmt.Errorf("%w: concurrent check-in", timetable.ErrTimetableOperationConflict)
 		}
 		return nil, &ScheduleError{Op: "reopen instance: restore snapshot", Err: err}
 	}
@@ -1117,54 +1098,6 @@ func (s *instanceService) broadcastRestoredVisits(ctx context.Context, activeGro
 	})
 }
 
-// CanReopenInstance is the actor-aware reopen gate the list payload exposes
-// so clients can hide the action when the five-minute window, snapshot, or
-// actor check would reject it. Session-end completions (scheduler, kiosk)
-// write no snapshot or reopen_until and therefore stay false.
-func CanReopenInstance(instance *scheduleModel.ActivityInstance, accountID int64, isAdmin bool, now time.Time) bool {
-	if instance == nil || instance.Status != scheduleModel.InstanceStatusCompleted {
-		return false
-	}
-	if instance.ReopenUntil == nil || now.After(*instance.ReopenUntil) {
-		return false
-	}
-	if len(instance.CompletionSnapshot) == 0 {
-		return false
-	}
-	if !CanReopenAsActor(instance, accountID, isAdmin) {
-		return false
-	}
-	return true
-}
-
-// CanReopenAsActor is the actor/admin half of the reopen gate. Completing a
-// live group ends its supervisor row, so operational access is not a
-// substitute for this check.
-func CanReopenAsActor(instance *scheduleModel.ActivityInstance, accountID int64, isAdmin bool) bool {
-	if instance == nil || instance.Status != scheduleModel.InstanceStatusCompleted {
-		return false
-	}
-	if isAdmin {
-		return true
-	}
-	return instance.CompletedBy != nil && *instance.CompletedBy == accountID
-}
-
-// AttendanceUnchangedSinceCompletion reports whether any roster row was
-// written after the instance was completed. A later attendance PATCH makes
-// snapshot restore unsafe.
-func AttendanceUnchangedSinceCompletion(instance *scheduleModel.ActivityInstance, rows []*scheduleModel.InstanceStudent) bool {
-	if instance == nil || instance.CompletedAt == nil {
-		return true
-	}
-	for _, row := range rows {
-		if row != nil && row.UpdatedAt.After(*instance.CompletedAt) {
-			return false
-		}
-	}
-	return true
-}
-
 func (s *instanceService) lockReopenSnapshotStudents(ctx context.Context, snapshot scheduleModel.ActivityCompletionSnapshot) ([]int64, error) {
 	if len(snapshot.VisitIDs) == 0 {
 		return nil, nil
@@ -1201,7 +1134,7 @@ func (s *instanceService) lockReopenSnapshotStudents(ctx context.Context, snapsh
 		return nil, err
 	}
 	if len(currentVisits) > 0 {
-		return nil, fmt.Errorf("%w: student %d already has an active visit", ErrTimetableOperationConflict, currentVisits[0].StudentID)
+		return nil, fmt.Errorf("%w: student %d already has an active visit", timetable.ErrTimetableOperationConflict, currentVisits[0].StudentID)
 	}
 	return studentIDs, nil
 }
@@ -1252,7 +1185,7 @@ func (s *instanceService) validateReopenAttendanceUnchanged(ctx context.Context,
 	}
 	for _, row := range rows {
 		if row.UpdatedAt.After(*instance.CompletedAt) {
-			return fmt.Errorf("%w: attendance changed after completion", ErrTimetableOperationConflict)
+			return fmt.Errorf("%w: attendance changed after completion", timetable.ErrTimetableOperationConflict)
 		}
 	}
 	return nil
@@ -1293,14 +1226,14 @@ func (s *instanceService) validateReopenSupervisorsUnchanged(ctx context.Context
 	for _, supervisorID := range snapshot.SupervisorIDs {
 		row, ok := byID[supervisorID]
 		if !ok {
-			return fmt.Errorf("%w: supervisor snapshot missing", ErrTimetableOperationConflict)
+			return fmt.Errorf("%w: supervisor snapshot missing", timetable.ErrTimetableOperationConflict)
 		}
 		if instance.CompletedAt != nil && row.UpdatedAt.After(*instance.CompletedAt) {
-			return fmt.Errorf("%w: supervisor changed after completion", ErrTimetableOperationConflict)
+			return fmt.Errorf("%w: supervisor changed after completion", timetable.ErrTimetableOperationConflict)
 		}
 		for _, other := range activeByStaff[row.StaffID] {
 			if other.ID != row.ID {
-				return fmt.Errorf("%w: staff %d now supervises another group", ErrTimetableOperationConflict, row.StaffID)
+				return fmt.Errorf("%w: staff %d now supervises another group", timetable.ErrTimetableOperationConflict, row.StaffID)
 			}
 		}
 	}

@@ -46,18 +46,18 @@ func (rs *Resource) loadTemplates(
 ) ([]templateResponse, error) {
 	childrenPerStaffRatio := rs.childrenPerStaffRatio(ctx)
 	var (
-		rows []activities.TemplateListRow
+		rows []templateRow
 		err  error
 	)
 	if templateID != nil && calendarPeriodID != nil {
-		rows, err = rs.TimetableData.ListTemplateRowsForTemplatePeriod(
+		rows, err = rs.TimetableData.ListTemplateEntriesForTemplatePeriod(
 			ctx,
 			*templateID,
 			*calendarPeriodID,
 			childrenPerStaffRatio,
 		)
 	} else {
-		rows, err = rs.TimetableData.ListTemplateRows(ctx, templateID, childrenPerStaffRatio)
+		rows, err = rs.TimetableData.ListTemplateEntries(ctx, templateID, childrenPerStaffRatio)
 	}
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func (rs *Resource) loadTemplates(
 func mapTemplateRows(
 	rows []templateRow,
 	childrenPerStaffRatio int,
-	weekdayRoster []activities.TemplateWeekdayRosterRow,
+	weekdayRoster []timetable.TemplateWeekdayRosterRow,
 ) []templateResponse {
 	assignmentsByTemplate := buildTemplateWeekdayAssignments(weekdayRoster)
 	protectedStudentsByTemplate := buildTemplateProtectedStudentAssignments(weekdayRoster)
@@ -97,48 +97,34 @@ func mapTemplateRows(
 }
 
 func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templateResponse {
-	sourceGradeLevels, err := row.ParseSourceGradeLevels()
-	if err != nil {
-		// Corrupt jsonb cannot happen via the write path (validated slice);
-		// degrade to "no filter" instead of failing the whole list read.
-		sourceGradeLevels = nil
-	}
-	sourceCareOfferingIDs, err := row.ParseSourceCareOfferingIDs()
-	if err != nil {
-		sourceCareOfferingIDs = nil
-	}
-	sourceSchoolClasses, err := row.ParseSourceSchoolClasses()
-	if err != nil {
-		sourceSchoolClasses = nil
-	}
 	return templateResponse{
 		ID:                          row.TemplateID,
 		Name:                        row.Name,
 		Type:                        row.Type,
 		CategoryID:                  row.CategoryID,
 		CategoryName:                row.CategoryName,
-		PlanningTrackID:             nullableTemplateInt64(row.PlanningTrackID.Valid, row.PlanningTrackID.Int64),
+		PlanningTrackID:             row.PlanningTrackID,
 		PlanningTrackName:           row.PlanningTrackName,
 		PlanningTrackColor:          row.PlanningTrackColor,
-		PlanningTrackSortOrder:      nullableTemplateInt64(row.PlanningTrackOrder.Valid, row.PlanningTrackOrder.Int64),
-		RoomID:                      nullableTemplateInt64(row.RoomID.Valid, row.RoomID.Int64),
-		RoomName:                    row.RoomName.String,
-		EducationGroupID:            educationGroupIDFromRow(row),
-		EducationGroupName:          row.EducationGroupName.String,
+		PlanningTrackSortOrder:      row.PlanningTrackOrder,
+		RoomID:                      row.RoomID,
+		RoomName:                    stringValue(row.RoomName),
+		EducationGroupID:            row.EducationGroupID,
+		EducationGroupName:          stringValue(row.EducationGroupName),
 		IsOpen:                      row.IsOpen,
 		MaxParticipants:             activities.ParticipantLimitPtr(row.MaxParticipants),
-		CalendarPeriodID:            nullableTemplateInt64(row.TemplateCalendarPeriodID.Valid, row.TemplateCalendarPeriodID.Int64),
+		CalendarPeriodID:            row.TemplateCalendarPeriodID,
 		TargetGroupType:             row.TargetGroupType,
-		TargetGradeLevel:            nullableTemplateInt16(row.TargetGradeLevel.Valid, row.TargetGradeLevel.Int16),
-		TargetSchoolClass:           nullableTemplateString(row.TargetSchoolClass.Valid, row.TargetSchoolClass.String),
+		TargetGradeLevel:            row.TargetGradeLevel,
+		TargetSchoolClass:           row.TargetSchoolClass,
 		Targets:                     templateTargetsFromRow(row),
-		SourceCareOfferingIDs:       sourceCareOfferingIDs,
-		SourceGradeLevels:           sourceGradeLevels,
-		SourceSchoolClasses:         sourceSchoolClasses,
-		ListKind:                    nullableTemplateString(row.ListKind.Valid, row.ListKind.String),
-		Notes:                       nullableTemplateString(row.Notes.Valid, row.Notes.String),
+		SourceCareOfferingIDs:       row.SourceCareOfferingIDs,
+		SourceGradeLevels:           row.SourceGradeLevels,
+		SourceSchoolClasses:         row.SourceSchoolClasses,
+		ListKind:                    row.ListKind,
+		Notes:                       row.Notes,
 		IncludeClosingDays:          row.IncludeClosingDays,
-		EndDate:                     nullableTemplateString(row.SeriesLastDay.Valid, row.SeriesLastDay.String),
+		EndDate:                     row.SeriesLastDay,
 		ShiftTypeName:               row.ShiftTypeName,
 		ShiftTypeColor:              row.ShiftTypeColor,
 		EnrollmentCount:             row.EnrollmentCount,
@@ -148,7 +134,7 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		RequiredStaffOverride:       templateRequiredStaffOverride(row.RequiredStaff),
 		StudentIDs:                  row.StudentIDs,
 		StaffIDs:                    row.StaffIDs,
-		PrimaryStaffID:              nullableTemplateInt64(row.PrimaryStaffID.Valid, row.PrimaryStaffID.Int64),
+		PrimaryStaffID:              row.PrimaryStaffID,
 		Schedules:                   []templateScheduleResponse{},
 		WeekdayAssignments:          []templateWeekdayAssignmentResponse{},
 		ProtectedStudentAssignments: []templateProtectedStudentAssignmentResponse{},
@@ -158,9 +144,6 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 func templateTargetsFromRow(row templateRow) []templateTargetResponse {
 	targets := make([]templateTargetResponse, 0, len(row.Targets))
 	for _, target := range row.Targets {
-		if target == nil {
-			continue
-		}
 		targets = append(targets, templateTargetResponse{
 			Type: target.TargetGroupType, GradeLevel: target.TargetGradeLevel,
 			SchoolClass: target.TargetSchoolClass, EducationGroupID: target.EducationGroupID,
@@ -186,11 +169,11 @@ func templateRequiredStaffCount(row templateRow, childrenPerStaffRatio int) int 
 
 // templateRequiredStaffOverride converts the nullable required_staff column
 // into the *int override EffectiveRequiredStaff expects (NULL -> nil = derive).
-func templateRequiredStaffOverride(n activities.NullInt64) *int {
-	if !n.Valid {
+func templateRequiredStaffOverride(n *int64) *int {
+	if n == nil {
 		return nil
 	}
-	v := int(n.Int64)
+	v := int(*n)
 	return &v
 }
 
@@ -198,42 +181,21 @@ func templateScheduleResponseFromRow(row templateRow) templateScheduleResponse {
 	return templateScheduleResponse{
 		ID:               row.ScheduleID,
 		Weekday:          row.Weekday,
-		StartTime:        row.StartTime.String,
-		EndTime:          row.EndTime.String,
+		StartTime:        stringValue(row.StartTime),
+		EndTime:          stringValue(row.EndTime),
 		WeekPattern:      row.WeekPattern,
-		CalendarPeriodID: nullableTemplateInt64(row.CalendarPeriodID.Valid, row.CalendarPeriodID.Int64),
-		ValidFrom:        row.ScheduleValidFrom.String,
-		ValidUntil:       row.ScheduleValidUntil.String,
+		CalendarPeriodID: row.CalendarPeriodID,
+		ValidFrom:        stringValue(row.ScheduleValidFrom),
+		ValidUntil:       stringValue(row.ScheduleValidUntil),
 	}
 }
 
-func nullableTemplateInt64(valid bool, value int64) *int64 {
-	if !valid {
-		return nil
+// stringValue reads an optional text column; NULL reads as "".
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
 	}
-	return &value
-}
-
-func nullableTemplateInt16(valid bool, value int16) *int16 {
-	if !valid {
-		return nil
-	}
-	return &value
-}
-
-func nullableTemplateString(valid bool, value string) *string {
-	if !valid {
-		return nil
-	}
-	return &value
-}
-
-func educationGroupIDFromRow(row templateRow) *int64 {
-	if !row.EducationGroupID.Valid {
-		return nil
-	}
-	id := row.EducationGroupID.Int64
-	return &id
+	return *value
 }
 
 type templateResponse struct {
@@ -324,9 +286,8 @@ type listTemplatesResponse struct {
 	Templates []templateResponse `json:"templates"`
 }
 
-// templateRow aliases the repository read model (issue #584: the
-// aggregation queries moved into the activities GroupRepository).
-type templateRow = activities.TemplateListRow
+// templateRow is one entry of the Timetable owner's Vorlagen list (#3551).
+type templateRow = timetable.TemplateListEntry
 
 func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 	if rs.TimetableData == nil {
@@ -353,12 +314,12 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 	// "0 Kinder". Only the schedule join below stays period-filtered, which
 	// decides WHETHER the card appears at all.
 	childrenPerStaffRatio := rs.childrenPerStaffRatio(r.Context())
-	rows, err := rs.TimetableData.ListTemplateRowsForPeriod(r.Context(), periodID, childrenPerStaffRatio)
+	rows, err := rs.TimetableData.ListTemplateEntriesForPeriod(r.Context(), periodID, childrenPerStaffRatio)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("list templates failed", err))
 		return
 	}
-	var weekdayRoster []activities.TemplateWeekdayRosterRow
+	var weekdayRoster []timetable.TemplateWeekdayRosterRow
 	if periodID != nil {
 		weekdayRoster, err = rs.TimetableData.ListTemplateWeekdayRoster(r.Context(), nil, periodID)
 		if err != nil {

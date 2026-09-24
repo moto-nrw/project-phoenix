@@ -272,12 +272,12 @@ func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 		renderTemplatePeriodLookupError(w, r, err)
 		return
 	}
-	if err := rs.TimetableData.ValidateTemplateEducationGroup(r.Context(), req.EducationGroupID); err != nil {
+	if err := rs.Templates.ValidateTemplateEducationGroup(r.Context(), req.EducationGroupID); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 	for _, target := range req.Targets {
-		if err := rs.TimetableData.ValidateTemplateEducationGroup(r.Context(), target.EducationGroupID); err != nil {
+		if err := rs.Templates.ValidateTemplateEducationGroup(r.Context(), target.EducationGroupID); err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
@@ -407,7 +407,7 @@ func renderTemplateSplitError(w http.ResponseWriter, r *http.Request, err error)
 		renderTemplateNotFound(w, r)
 	case errors.Is(err, timetableModule.ErrCategoryNotAssignable):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
-	case errors.Is(err, timetableplanning.ErrPlanningTrackNotFound), errors.Is(err, timetableplanning.ErrPlanningTrackArchived):
+	case errors.Is(err, timetableModule.ErrPlanningTrackNotFound), errors.Is(err, timetableModule.ErrPlanningTrackArchived):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
 	case errors.Is(err, timetableplanning.ErrSplitInvalidInput):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))

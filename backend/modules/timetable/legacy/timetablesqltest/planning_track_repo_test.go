@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	model "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,13 +20,22 @@ func planningTrackRepository(t *testing.T, db *bun.DB) model.PlanningTrackReposi
 	return factory.PlanningTrack
 }
 
+// reorderPlanningTracks stores the order in the scope's tenant transaction,
+// the way the planning-track administration does.
+func reorderPlanningTracks(t *testing.T, db *bun.DB, scope testpkg.TenantScope, ids []int64) error {
+	t.Helper()
+	repo := planningTrackRepository(t, db)
+	return testpkg.WithTenantTx(t, context.Background(), db, scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return repo.UpdateSortOrders(txCtx, ids)
+	})
+}
+
 func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	repo := planningTrackRepository(t, db)
-	service := timetableplanning.NewPlanningTrackService(repo, db)
 	ctx := scope.Context()
 
 	first := &model.PlanningTrack{Name: "Früh", Color: "#5080D8", SortOrder: 0}
@@ -34,16 +43,11 @@ func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, first))
 	require.NoError(t, repo.Create(ctx, second))
 
-	err := service.ReorderPlanningTracks(ctx, []int64{second.ID, first.ID})
-	require.NoError(t, err)
+	require.NoError(t, reorderPlanningTracks(t, db, scope, []int64{second.ID, first.ID}))
 
 	shared, err := repo.FindByIDForShare(ctx, second.ID)
 	require.NoError(t, err)
 	assert.Equal(t, second.ID, shared.ID)
-	second.Name = "Spät"
-	updatedActive, err := repo.UpdateIfActive(ctx, second)
-	require.NoError(t, err)
-	assert.True(t, updatedActive)
 
 	archivedAt := time.Now()
 	first.ArchivedAt = &archivedAt
@@ -57,15 +61,13 @@ func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
 	assert.Equal(t, second.ID, tracks[0].ID)
 	assert.Equal(t, first.ID, tracks[1].ID)
 	assert.True(t, tracks[1].IsArchived())
-	updatedActive, err = repo.UpdateIfActive(ctx, first)
-	require.NoError(t, err)
-	assert.False(t, updatedActive)
 
-	require.NoError(t, service.ReorderPlanningTracks(ctx, []int64{second.ID}))
-	restored, err := service.RestorePlanningTrack(ctx, first.ID)
+	require.NoError(t, reorderPlanningTracks(t, db, scope, []int64{second.ID}))
+	restored, err := repo.RestoreAtEnd(ctx, first)
 	require.NoError(t, err)
-	assert.Equal(t, 1, restored.SortOrder)
-	assert.False(t, restored.IsArchived())
+	assert.True(t, restored)
+	assert.Equal(t, 1, first.SortOrder)
+	assert.False(t, first.IsArchived())
 
 	otherScope := testpkg.NewTenantScope(t, db)
 	_, err = repo.FindByID(otherScope.Context(), second.ID)
@@ -120,14 +122,13 @@ func TestPlanningTrackRepositoryRejectsPartialOrder(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	repo := planningTrackRepository(t, db)
-	service := timetableplanning.NewPlanningTrackService(repo, db)
 	first := &model.PlanningTrack{Name: "Früh", Color: "#5080D8", SortOrder: 0}
 	second := &model.PlanningTrack{Name: "Mittag", Color: "#F78C10", SortOrder: 1}
 	require.NoError(t, repo.Create(scope.Context(), first))
 	require.NoError(t, repo.Create(scope.Context(), second))
 
-	err := service.ReorderPlanningTracks(scope.Context(), []int64{first.ID})
-	require.ErrorIs(t, err, timetableplanning.ErrPlanningTrackNotFound)
+	err := reorderPlanningTracks(t, db, scope, []int64{first.ID})
+	require.True(t, modelBase.IsNoRows(err), "partial order must report not found, got %v", err)
 
 	err = testpkg.WithTenantTx(t, context.Background(), db, scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		require.NoError(t, repo.UpdateSortOrders(txCtx, nil))
@@ -135,44 +136,4 @@ func TestPlanningTrackRepositoryRejectsPartialOrder(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Error(t, repo.UpdateSortOrders(context.Background(), []int64{first.ID, second.ID}))
-
-	updated, err := repo.UpdateIfActive(scope.Context(), nil)
-	require.Error(t, err)
-	assert.False(t, updated)
-	updated, err = repo.UpdateIfActive(scope.Context(), &model.PlanningTrack{
-		Name: "Ungültig", Color: "blue",
-	})
-	require.Error(t, err)
-	assert.False(t, updated)
-}
-
-func TestPlanningTrackServiceNameConflictAndArchiveLifecycle(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-	scope := testpkg.NewTenantScope(t, db)
-	service := timetableplanning.NewPlanningTrackService(planningTrackRepository(t, db), db)
-	input := timetableplanning.PlanningTrackInput{Name: "Nord", Color: "#5080D8", SortOrder: 0}
-
-	first, err := service.CreatePlanningTrack(scope.Context(), input)
-	require.NoError(t, err)
-	_, err = service.CreatePlanningTrack(scope.Context(), timetableplanning.PlanningTrackInput{
-		Name: " nord ", Color: "#83CD2D", SortOrder: 1,
-	})
-	require.ErrorIs(t, err, timetableplanning.ErrPlanningTrackNameTaken)
-	_, err = service.ArchivePlanningTrack(scope.Context(), first.ID)
-	require.NoError(t, err)
-	second, err := service.CreatePlanningTrack(scope.Context(), input)
-	require.NoError(t, err)
-	third, err := service.CreatePlanningTrack(scope.Context(), timetableplanning.PlanningTrackInput{
-		Name: "Süd", Color: "#F78C10", SortOrder: 1,
-	})
-	require.NoError(t, err)
-	_, err = service.UpdatePlanningTrack(scope.Context(), third.ID, timetableplanning.PlanningTrackInput{
-		Name: "NORD", Color: "#83CD2D", SortOrder: 1,
-	})
-	require.ErrorIs(t, err, timetableplanning.ErrPlanningTrackNameTaken)
-	_, err = service.RestorePlanningTrack(scope.Context(), first.ID)
-	require.ErrorIs(t, err, timetableplanning.ErrPlanningTrackNameTaken)
-	assert.NotEqual(t, first.ID, second.ID)
 }

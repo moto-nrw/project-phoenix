@@ -10,6 +10,7 @@ import (
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // Sentinels for the attendance correction path (#2898).
@@ -62,7 +63,7 @@ var (
 // activity_instances.completion_snapshot is never touched. It records what the
 // day meant at the moment it was closed; the correction changes the live row
 // and leaves the snapshot as evidence of the original state.
-func (s *TimetableDataService) CorrectInstanceStudentAttendance(
+func (s *TemplateService) CorrectInstanceStudentAttendance(
 	ctx context.Context,
 	instanceID, studentID int64,
 	patch scheduleModel.AttendanceFieldPatch,
@@ -84,7 +85,7 @@ func (s *TimetableDataService) CorrectInstanceStudentAttendance(
 		return nil, ErrCorrectionTrailUnavailable
 	}
 
-	current, err := s.GetInstanceStudent(ctx, instanceID, studentID)
+	current, err := s.deps.InstanceStudentRepo.FindByInstanceAndStudent(ctx, instanceID, studentID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
 			return nil, ErrAttendanceEntryNotFound
@@ -97,11 +98,11 @@ func (s *TimetableDataService) CorrectInstanceStudentAttendance(
 
 	// Serialize against a concurrent Complete/Reopen so the status check and
 	// the write describe the same instance state.
-	if err := s.LockInstanceAttendance(ctx, instanceID); err != nil {
+	if err := s.lockInstanceAttendance(ctx, instanceID); err != nil {
 		return nil, fmt.Errorf("lock attendance: %w", err)
 	}
 
-	instance, err := s.GetActivityInstance(ctx, instanceID)
+	instance, err := s.deps.ActivityInstanceRepo.FindByID(ctx, instanceID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
 			return nil, ErrInstanceNotFound
@@ -125,7 +126,7 @@ func (s *TimetableDataService) CorrectInstanceStudentAttendance(
 	// stale: whatever wrote between then and the lock would otherwise end up in
 	// the trail as this correction's "before" value — the one thing this table
 	// exists to state correctly.
-	current, err = s.GetInstanceStudent(ctx, instanceID, studentID)
+	current, err = s.deps.InstanceStudentRepo.FindByInstanceAndStudent(ctx, instanceID, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("reload attendance entry: %w", err)
 	}
@@ -134,7 +135,7 @@ func (s *TimetableDataService) CorrectInstanceStudentAttendance(
 	}
 
 	if verrs := ValidateAttendancePatch(patch, current); len(verrs) > 0 {
-		return nil, &TimetableAttendanceValidationError{Fields: verrs}
+		return nil, &timetable.AttendanceValidationError{Fields: verrs}
 	}
 
 	patch = changedAttendancePatch(patch, current)
@@ -156,7 +157,7 @@ func (s *TimetableDataService) CorrectInstanceStudentAttendance(
 		return nil, fmt.Errorf("record attendance correction: %w", err)
 	}
 
-	updated, err := s.GetInstanceStudent(ctx, instanceID, studentID)
+	updated, err := s.deps.InstanceStudentRepo.FindByInstanceAndStudent(ctx, instanceID, studentID)
 	if err != nil || updated == nil {
 		return nil, fmt.Errorf("reload corrected attendance: %w", err)
 	}
@@ -200,7 +201,7 @@ func changedAttendancePatch(patch scheduleModel.AttendanceFieldPatch, current *s
 // buildAttendanceCorrections turns a patch into one audit row per field that
 // actually changes value. A patch that sets a field to what it already holds
 // produces no row: the trail records changes, not requests.
-func (s *TimetableDataService) buildAttendanceCorrections(
+func (s *TemplateService) buildAttendanceCorrections(
 	ctx context.Context,
 	instanceID, studentID int64,
 	patch scheduleModel.AttendanceFieldPatch,
@@ -254,7 +255,7 @@ func (s *TimetableDataService) buildAttendanceCorrections(
 // later account deletion. A missing name is not an error: the account id still
 // identifies the actor while the account exists, and the correction itself
 // matters more than its label.
-func (s *TimetableDataService) resolveActorName(ctx context.Context, accountID int64) *string {
+func (s *TemplateService) resolveActorName(ctx context.Context, accountID int64) *string {
 	if accountID <= 0 || s.deps.PersonRepo == nil {
 		return nil
 	}
@@ -283,7 +284,7 @@ func equalStringPtr(a, b *string) bool {
 // GetAttendanceCorrections returns one child's correction trail for one
 // instance, newest first. Returns an empty slice when the trail repository is
 // not wired (read-only test facades).
-func (s *TimetableDataService) GetAttendanceCorrections(ctx context.Context, instanceID, studentID int64) ([]*auditModel.AttendanceCorrection, error) {
+func (s *TemplateService) GetAttendanceCorrections(ctx context.Context, instanceID, studentID int64) ([]*auditModel.AttendanceCorrection, error) {
 	if s.deps.AttendanceCorrectionRepo == nil {
 		return []*auditModel.AttendanceCorrection{}, nil
 	}

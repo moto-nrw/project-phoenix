@@ -22,7 +22,7 @@ type InstanceSeriesConversionDependencies struct {
 	DB              *bun.DB
 	InstanceRepo    scheduleModel.ActivityInstanceRepository
 	InstanceService InstanceService
-	TimetableData   *TimetableDataService
+	TimetableData   *TemplateService
 }
 
 type instanceSeriesConversionService struct {
@@ -141,7 +141,7 @@ func (s *instanceSeriesConversionService) ConvertInstanceToSeries(
 // materialized occurrence would receive for one date. It intentionally reads
 // the persisted template roster after CreateTemplate has completed, so
 // offering-service start dates and selected weekdays are already authoritative.
-func (s *TimetableDataService) templateAssignmentsOn(
+func (s *TemplateService) templateAssignmentsOn(
 	ctx context.Context,
 	templateID int64,
 	date timezone.Date,

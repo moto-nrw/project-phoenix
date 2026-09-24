@@ -59,7 +59,7 @@ func buildStudentDaySetup(t *testing.T) *studentDaySetup {
 
 	// Wire the full resource with real repos for the B11 path.
 	res := NewResource(Dependencies{
-		TimetableData: testTimetableData(db),
+		TimetableData: testTimetableData(db).TimetableData(),
 		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: repositories.NewStudentRepository(db)}),
 		// UserContextService + SettingsService intentionally nil:
 		// admin-perm path short-circuits CanReadStudent; the 403 test relies on

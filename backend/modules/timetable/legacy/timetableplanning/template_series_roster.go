@@ -54,7 +54,7 @@ import (
 // in.SeriesRosterFrom on. No-op without the anchor. Runs inside the update's
 // tenant transaction, after lockTenantRecurrenceWrites — the chain cannot
 // shift between the segment read and the writes.
-func (s *TimetableDataService) reconcileSeriesPredecessorRoster(
+func (s *TemplateService) reconcileSeriesPredecessorRoster(
 	ctx context.Context,
 	in TemplateUpdateInput,
 	tenantID int64,
@@ -169,7 +169,7 @@ type seriesWeekdayPerson struct {
 // enrollment and supervisor rows (and their already-materialized occurrences)
 // with the desired roster, inside [max(anchor, segment valid_from), segment
 // valid_until) — restricted to the people the edit actually changed.
-func (s *TimetableDataService) reconcilePredecessorSegmentRoster(
+func (s *TemplateService) reconcilePredecessorSegmentRoster(
 	ctx context.Context,
 	in TemplateUpdateInput,
 	tenantID int64,
@@ -268,7 +268,7 @@ func (s *TimetableDataService) reconcilePredecessorSegmentRoster(
 // against the desired student roster and returns the students whose coverage
 // changed (rows created, closed, or deleted). Students outside scope — the
 // people this edit actually changed — are ignored entirely.
-func (s *TimetableDataService) reconcilePredecessorEnrollmentRows(
+func (s *TemplateService) reconcilePredecessorEnrollmentRows(
 	ctx context.Context,
 	in TemplateUpdateInput,
 	tenantID int64,
@@ -351,7 +351,7 @@ func (s *TimetableDataService) reconcilePredecessorEnrollmentRows(
 // reconcilePredecessorSupervisorRows is the staff twin of the enrollment diff.
 // A kept row must also match the desired is_primary flag on every weekday it
 // covers, so a primary change propagates like a membership change.
-func (s *TimetableDataService) reconcilePredecessorSupervisorRows(
+func (s *TemplateService) reconcilePredecessorSupervisorRows(
 	ctx context.Context,
 	in TemplateUpdateInput,
 	tenantID int64,
@@ -459,7 +459,7 @@ func (s *TimetableDataService) reconcilePredecessorSupervisorRows(
 // recording a real decision (a substitution, an absence, a sick-cascade
 // stamp) are never touched, and a staff member a planner had removed from one
 // occurrence by hand is not resurrected (priorSupervisors semantics).
-func (s *TimetableDataService) reconcilePredecessorInstanceStaff(
+func (s *TemplateService) reconcilePredecessorInstanceStaff(
 	ctx context.Context,
 	templateID int64,
 	staffIDs []int64,

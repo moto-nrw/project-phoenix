@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -74,7 +74,7 @@ func (rs *Resource) schoolMySupervisions(w http.ResponseWriter, r *http.Request)
 	accountID, isAdmin := operationActor(r.Context())
 	result, err := rs.OperationsService.PlannedNow(
 		r.Context(), accountID, isAdmin, rs.todayDate(), rs.Now(),
-		timetableplanning.PlannedNowOptions{Scope: timetableplanning.PlannedNowScopeDay},
+		timetable.PlannedNowOptions{Scope: timetable.PlannedNowScopeDay},
 	)
 	if err != nil {
 		rs.renderOperationsError(w, r, err)

@@ -68,13 +68,17 @@ import (
 // grouplive, supervisiondashboard and timetable trees. The last slice folded
 // legacy/repositories/active and the remaining session rows into the module's
 // ports and Postgres adapter, so the tree is gone and its entry with it.
+// Slice S5 of #3424 (#3551) moved the timetable reads, the operational day,
+// the cleanup and the planning-track administration out of the timetable nest
+// to the Timetable owner, shrinking the timetable and supervisiondashboard
+// trees.
 // Re-measure the same way when a number needs to move — downwards.
 const moduleLegacyBudgetCheck = "legacy LOC budget"
 
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 40375
+const moduleLegacyBudgetTotal = 36268
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.
 // The comment on each entry names the ticket that is supposed to dissolve the
@@ -98,9 +102,9 @@ var moduleLegacyBudgets = map[string]int{
 	// No ticket today.
 	"modules/planexport/legacy": 337,
 	// No ticket today.
-	"modules/supervisiondashboard/legacy": 722,
+	"modules/supervisiondashboard/legacy": 721,
 	// No ticket today — and the largest tree of the twelve.
-	"modules/timetable/legacy": 20360,
+	"modules/timetable/legacy": 16254,
 	// No ticket today — grew from 15,402 LOC at creation to this.
 	"modules/workforce/legacy": 15944,
 	// No ticket today.

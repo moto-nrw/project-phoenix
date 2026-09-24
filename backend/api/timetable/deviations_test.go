@@ -68,7 +68,7 @@ func buildDevModule(t *testing.T) *devSetup {
 	// assertions keep exercising real rows.
 	mock := &mockInstanceService{real: serviceFactory.Instance}
 	res := NewResource(Dependencies{
-		TimetableData:   testTimetableData(db, clock),
+		TimetableData:   testTimetableData(db, clock).TimetableData(),
 		PersonService:   usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{PersonRepo: usersRepo.NewPersonRepository(db), StaffRepo: mustTimetableTestRepositories(db).Staff}),
 		InstanceService: mock,
 		Now:             clock,

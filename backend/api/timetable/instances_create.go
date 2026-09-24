@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // createInstanceRequest is the JSON body accepted by POST /instances.
@@ -238,25 +237,12 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Re-fetch as enriched payload so the frontend can drop the fresh row
-	// straight into its SWR cache without a round-trip refetch.
-	roomCache := make(map[int64]string)
-	typeCache := make(map[int64]templateMeta)
-	// A failed care-day derivation takes the same route as any other failed
+	// straight into its SWR cache without a round-trip refetch. A failed
+	// care-day derivation takes the same route as any other failed
 	// enrichment: the payload is announced as incomplete instead of carrying
 	// counts that quietly read every assigned child as expected again (#1747
 	// review).
-	var enriched enrichedInstance
-	var rows *timetableplanning.InstanceRows
-	careDays, err := rs.careDaysForInstance(r.Context(), inst)
-	if err == nil {
-		rows, err = rs.TimetableData.GetInstanceRows(r.Context(), []*scheduleModel.ActivityInstance{inst})
-	}
-	if err == nil {
-		enriched, _, _, err = rs.enrichInstance(r.Context(), inst, rows, roomCache, typeCache, make(map[int64]*scheduleModel.PlanningTrack), make(map[int64][]enrollmentSvc.OfferingSourceOption), rs.childrenPerStaffRatio(r.Context()), careDays)
-	}
-	if err == nil {
-		enriched.ConflictWarnings = rs.dayConflictWarningsFor(r.Context(), inst)
-	}
+	enriched, err := rs.enrichWrittenInstance(r.Context(), inst.ID)
 	if err != nil {
 		// Insert succeeded; enrichment is informational. Fall through with
 		// a partial response rather than failing the whole request.

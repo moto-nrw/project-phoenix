@@ -10,6 +10,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -46,7 +47,7 @@ type WorkerDependencies struct {
 	StudentDocumentCleaner    StudentDocumentFileCleaner
 	FileStoreCleaner          FileStoreCleaner
 	Materializer              timetableplanning.MaterializationService
-	TimetableCleanup          timetableplanning.TimetableCleanupService
+	TimetableCleanup          timetable.TimetableCleanup
 	CalendarFeedCleanup       CalendarFeedCleaner
 	TimeTrackingCleanup       TimeTrackingCleanupService
 	StudentChangeLogCleanup   usersSvc.StudentChangeLogCleanupService

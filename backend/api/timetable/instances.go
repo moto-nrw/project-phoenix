@@ -321,10 +321,10 @@ var instanceLifecycleErrorRules = []common.ErrorRule{
 	{Target: timetableplanning.ErrInstanceStartExpired, Render: conflictCode("start_window_expired")},
 	{Target: timetableplanning.ErrInstanceCompleteEarly, Render: conflictCode("complete_too_early")},
 	{Target: timetableplanning.ErrCompletionConfirmationStale, Render: conflictCode("completion_confirmation_stale")},
-	{Target: timetableplanning.ErrTimetableOperationForbidden, Render: common.ErrorForbidden},
+	{Target: timetable.ErrTimetableOperationForbidden, Render: common.ErrorForbidden},
 	{
 		Match: func(err error) bool {
-			return errors.Is(err, timetableplanning.ErrTimetableOperationConflict) ||
+			return errors.Is(err, timetable.ErrTimetableOperationConflict) ||
 				errors.Is(err, studentpresence.ErrStudentAlreadyActive) ||
 				errors.Is(err, studentpresence.ErrRoomConflict) ||
 				errors.Is(err, studentpresence.ErrRoomCapacityExceeded)

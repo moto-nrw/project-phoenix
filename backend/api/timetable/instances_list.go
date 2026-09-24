@@ -25,12 +25,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -200,7 +197,7 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	instances, err := rs.TimetableData.GetActivityInstancesByDateRange(ctx, from, to)
+	instances, err := rs.TimetableData.ListScheduledInstances(ctx, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
 			"load instances failed", err))
@@ -211,7 +208,7 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 	// rooms and templates per week — caching turns 30 lookups into ~10.
 	roomCache := make(map[int64]string)
 	typeCache := make(map[int64]templateMeta)
-	planningTrackCache := make(map[int64]*scheduleModel.PlanningTrack)
+	planningTrackCache := make(map[int64]*timetable.PlanningTrack)
 	offeringSourceCache := make(map[int64][]enrollmentSvc.OfferingSourceOption)
 
 	// Resolved once per request (not per instance) — the Betreuungsschlüssel
@@ -277,7 +274,7 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 // and leaves every count exactly as it was before this feature.
 func (rs *Resource) resolveCareDays(
 	ctx context.Context,
-	instances []*scheduleModel.ActivityInstance,
+	instances []timetable.ScheduledInstance,
 	from, to timezone.Date,
 ) (map[int64]map[timezone.Date]careplan.CareDayStatus, error) {
 	empty := map[int64]map[timezone.Date]careplan.CareDayStatus{}
@@ -287,12 +284,10 @@ func (rs *Resource) resolveCareDays(
 
 	instanceIDs := make([]int64, 0, len(instances))
 	for _, inst := range instances {
-		if inst != nil {
-			instanceIDs = append(instanceIDs, inst.ID)
-		}
+		instanceIDs = append(instanceIDs, inst.ID)
 	}
 
-	rows, err := rs.TimetableData.GetCareDayCandidateStudentsByInstanceIDs(ctx, instanceIDs)
+	rows, err := rs.TimetableData.ListCareDayCandidates(ctx, instanceIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load care-day candidate students: %w", err)
 	}
@@ -312,28 +307,38 @@ func (rs *Resource) resolveCareDays(
 	return rs.CareDayService.ResolveForRange(ctx, studentIDs, from, to)
 }
 
-// careDaysForInstance resolves the care-day map for a single instance, used by
-// the create/update paths that re-enrich one row.
+// enrichWrittenInstance re-reads a block the create/update paths just wrote
+// and projects it like one row of the list, with its day's conflicts.
 //
-// A failure is returned, never swallowed (#1747 review). An empty map does not
-// mean "no verdict yet" to the reader — it reads as unknown, which is the
-// verdict that puts every assigned child back into "Erwartet". Degrading to it
-// would answer a successful write with counts that silently contradict the
-// planner the very next reload corrects, and the caller cannot tell the two
-// apart. Both call sites already have a path for "the write committed, the
-// enrichment did not" and route this into it.
-func (rs *Resource) careDaysForInstance(
-	ctx context.Context, inst *scheduleModel.ActivityInstance,
-) (map[int64]map[timezone.Date]careplan.CareDayStatus, error) {
-	if inst == nil {
-		return map[int64]map[timezone.Date]careplan.CareDayStatus{}, nil
+// A failed care-day derivation is returned, never swallowed (#1747 review).
+// An empty map does not mean "no verdict yet" to the reader — it reads as
+// unknown, which is the verdict that puts every assigned child back into
+// "Erwartet". Degrading to it would answer a successful write with counts that
+// silently contradict the planner the very next reload corrects, and the
+// caller cannot tell the two apart. Both call sites already have a path for
+// "the write committed, the enrichment did not" and route this into it.
+func (rs *Resource) enrichWrittenInstance(ctx context.Context, instanceID int64) (enrichedInstance, error) {
+	if rs.TimetableData == nil {
+		return enrichedInstance{}, errors.New("timetable resource not fully wired")
 	}
-	date := timezone.Date(inst.Date)
-	careDays, err := rs.resolveCareDays(ctx, []*scheduleModel.ActivityInstance{inst}, date, date)
+	inst, err := rs.TimetableData.FindScheduledInstance(ctx, instanceID)
 	if err != nil {
-		return nil, fmt.Errorf("resolve care days for instance %d: %w", inst.ID, err)
+		return enrichedInstance{}, fmt.Errorf("load instance %d: %w", instanceID, err)
 	}
-	return careDays, nil
+	careDays, err := rs.resolveCareDays(ctx, []timetable.ScheduledInstance{inst}, inst.Date, inst.Date)
+	if err != nil {
+		return enrichedInstance{}, fmt.Errorf("resolve care days for instance %d: %w", inst.ID, err)
+	}
+	rows, err := rs.TimetableData.ListScheduledInstanceRows(ctx, []timetable.ScheduledInstance{inst})
+	if err != nil {
+		return enrichedInstance{}, fmt.Errorf("load instance rows: %w", err)
+	}
+	enriched, _, _, err := rs.enrichInstance(ctx, inst, rows, make(map[int64]string), make(map[int64]templateMeta), make(map[int64]*timetable.PlanningTrack), make(map[int64][]enrollmentSvc.OfferingSourceOption), rs.childrenPerStaffRatio(ctx), careDays)
+	if err != nil {
+		return enrichedInstance{}, err
+	}
+	enriched.ConflictWarnings = rs.dayConflictWarningsFor(ctx, inst)
+	return enriched, nil
 }
 
 // instanceStudentCareDay picks the care-day verdict reported for one
@@ -345,13 +350,13 @@ func (rs *Resource) careDaysForInstance(
 // roster and the planned-now cards; this only looks up the plan verdict for the
 // instance's date.
 func instanceStudentCareDay(
-	inst *scheduleModel.ActivityInstance,
-	row *scheduleModel.InstanceStudent,
+	inst timetable.ScheduledInstance,
+	row timetable.ScheduledParticipant,
 	careDays map[int64]map[timezone.Date]careplan.CareDayStatus,
 ) careplan.CareDayStatus {
 	return careplan.AttendanceRowCareDay(
-		inst.Status == scheduleModel.InstanceStatusCompleted, &careplan.CareDayAttendance{Expected: row.Status == scheduleModel.AttendanceStatusExpected, NotScheduled: row.NotScheduled, ManuallyDecided: row.ManualStatusAt != nil, PlanOwnedAbsence: row.StudentStatusDayID != nil || row.PickupExceptionID != nil},
-		careDays[row.StudentID][timezone.Date(inst.Date)],
+		inst.Status == timetable.InstanceStatusCompleted, &careplan.CareDayAttendance{Expected: row.Status == timetable.SlotAttendanceExpected, NotScheduled: row.NotScheduled, ManuallyDecided: row.ManualStatusAt != nil, PlanOwnedAbsence: row.StudentStatusDayID != nil || row.PickupExceptionID != nil},
+		careDays[row.StudentID][inst.Date],
 	)
 }
 
@@ -369,8 +374,8 @@ type instanceAttendanceSummary struct {
 // summarizeInstanceStudents groups one instance's attendance rows by the
 // care-day verdict instanceStudentCareDay reports for each of them.
 func summarizeInstanceStudents(
-	inst *scheduleModel.ActivityInstance,
-	studentRows []*scheduleModel.InstanceStudent,
+	inst timetable.ScheduledInstance,
+	studentRows []timetable.ScheduledParticipant,
 	careDays map[int64]map[timezone.Date]careplan.CareDayStatus,
 	pickupCutoffs map[int64]time.Time,
 ) instanceAttendanceSummary {
@@ -393,7 +398,7 @@ func summarizeInstanceStudents(
 		// the whole day while the pre-cutoff row stays expected — that child is
 		// not picked up early, they are not coming at all.
 		var earlyPickup *string
-		if row.Status == scheduleModel.AttendanceStatusExpected && careDayStatus.Expected() {
+		if row.Status == timetable.SlotAttendanceExpected && careDayStatus.Expected() {
 			earlyPickup = earlyPickupWithin(inst, pickupCutoffs, row.StudentID)
 		}
 		out.students = append(out.students, instanceStudentSummary{
@@ -406,7 +411,7 @@ func summarizeInstanceStudents(
 			EarlyPickupTime: earlyPickup,
 		})
 		switch row.Status {
-		case scheduleModel.AttendanceStatusExpected:
+		case timetable.SlotAttendanceExpected:
 			// Assigned but not in care today: counted separately, and left out
 			// of the staffing maths — planning for children who are not there
 			// that day inflates the Betreuungsschlüssel (#1747). The row carries
@@ -417,9 +422,9 @@ func summarizeInstanceStudents(
 				continue
 			}
 			out.expected++
-		case scheduleModel.AttendanceStatusPresent:
+		case timetable.SlotAttendancePresent:
 			out.present++
-		case scheduleModel.AttendanceStatusAbsent:
+		case timetable.SlotAttendanceAbsent:
 			// A broad day status wrote this absence onto a day the care plan
 			// never booked — the block has not ended yet, so nothing has undone
 			// it. Group it where the verdict says it belongs instead of showing
@@ -442,15 +447,15 @@ func summarizeInstanceStudents(
 // batched read per kind (#2940), the caches are shared across the window.
 func (rs *Resource) enrichInstances(
 	ctx context.Context,
-	instances []*scheduleModel.ActivityInstance,
+	instances []timetable.ScheduledInstance,
 	roomCache map[int64]string,
 	metaCache map[int64]templateMeta,
-	planningTrackCache map[int64]*scheduleModel.PlanningTrack,
+	planningTrackCache map[int64]*timetable.PlanningTrack,
 	offeringSourceCache map[int64][]enrollmentSvc.OfferingSourceOption,
 	childrenPerStaffRatio int,
 	careDays map[int64]map[timezone.Date]careplan.CareDayStatus,
 ) ([]enrichedInstance, []timetable.WindowConflictBlock, error) {
-	rows, err := rs.TimetableData.GetInstanceRows(ctx, instances)
+	rows, err := rs.TimetableData.ListScheduledInstanceRows(ctx, instances)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load instance rows: %w", err)
 	}
@@ -469,10 +474,10 @@ func (rs *Resource) enrichInstances(
 
 // windowConflictBlock maps one listed block and its rows onto the input of
 // the Timetable owner's window conflict detection (#2139).
-func windowConflictBlock(inst *scheduleModel.ActivityInstance, staffRows []*scheduleModel.InstanceStaff, studentRows []*scheduleModel.InstanceStudent) timetable.WindowConflictBlock {
+func windowConflictBlock(inst timetable.ScheduledInstance, staffRows []timetable.InstanceStaff, studentRows []timetable.ScheduledParticipant) timetable.WindowConflictBlock {
 	block := timetable.WindowConflictBlock{
 		InstanceID: inst.ID,
-		Date:       timezone.Date(inst.Date),
+		Date:       inst.Date,
 		Title:      inst.Title,
 		StartTime:  inst.StartTime,
 		EndTime:    inst.EndTime,
@@ -505,7 +510,7 @@ func (rs *Resource) detectWindowConflicts(blocks []timetable.WindowConflictBlock
 // cutoffs at or before the start belong to fully-excused blocks, cutoffs at
 // or after the end do not affect the block.
 func earlyPickupWithin(
-	inst *scheduleModel.ActivityInstance,
+	inst timetable.ScheduledInstance,
 	pickupCutoffs map[int64]time.Time,
 	studentID int64,
 ) *string {
@@ -527,19 +532,15 @@ func earlyPickupWithin(
 // (#2139) without a second round of queries.
 func (rs *Resource) enrichInstance(
 	ctx context.Context,
-	inst *scheduleModel.ActivityInstance,
-	rows *timetableplanning.InstanceRows,
+	inst timetable.ScheduledInstance,
+	rows *timetable.ScheduledInstanceRows,
 	roomCache map[int64]string,
 	metaCache map[int64]templateMeta,
-	planningTrackCache map[int64]*scheduleModel.PlanningTrack,
+	planningTrackCache map[int64]*timetable.PlanningTrack,
 	offeringSourceCache map[int64][]enrollmentSvc.OfferingSourceOption,
 	childrenPerStaffRatio int,
 	careDays map[int64]map[timezone.Date]careplan.CareDayStatus,
-) (enrichedInstance, []*scheduleModel.InstanceStaff, []*scheduleModel.InstanceStudent, error) {
-	if inst == nil {
-		return enrichedInstance{}, nil, nil, errors.New("nil instance")
-	}
-
+) (enrichedInstance, []timetable.InstanceStaff, []timetable.ScheduledParticipant, error) {
 	roomName := rs.lookupRoomName(ctx, inst.RoomID, roomCache)
 	meta := rs.lookupTemplateMeta(ctx, inst.ActivityGroupID, metaCache, planningTrackCache)
 
@@ -560,8 +561,8 @@ func (rs *Resource) enrichInstance(
 		})
 	}
 
-	studentRows := rows.Students[inst.ID]
-	attendance := summarizeInstanceStudents(inst, studentRows, careDays, rows.Cutoffs[timezone.Date(inst.Date)])
+	studentRows := rows.Participants[inst.ID]
+	attendance := summarizeInstanceStudents(inst, studentRows, careDays, rows.Cutoffs[inst.Date])
 	emptyRosterReason := rs.resolveEmptyRosterReason(ctx, inst, meta, studentRows, offeringSourceCache)
 
 	assignedStaff := len(staffRows) - absentCount
@@ -570,8 +571,8 @@ func (rs *Resource) enrichInstance(
 	if err != nil {
 		return enrichedInstance{}, nil, nil, err
 	}
-	availability := timetableplanning.EvaluateLifecycleAvailability(
-		inst, time.Now(), 0, enforcePlannedEnd,
+	availability := timetable.EvaluateLifecycleAvailability(
+		timetable.LifecycleWindow{Date: inst.Date, StartTime: inst.StartTime, EndTime: inst.EndTime, IsSpontaneous: inst.IsSpontaneous}, time.Now(), 0, enforcePlannedEnd,
 	)
 
 	item := enrichedInstance{
@@ -585,7 +586,7 @@ func (rs *Resource) enrichInstance(
 		SeriesNotes:            meta.seriesNotes,
 		Status:                 inst.Status,
 		IsSpontaneous:          inst.IsSpontaneous,
-		IsLive:                 inst.Status == scheduleModel.InstanceStatusActive && inst.ActiveGroupID != nil,
+		IsLive:                 inst.Status == timetable.InstanceStatusActive && inst.ActiveGroupID != nil,
 		ActivityGroupID:        inst.ActivityGroupID,
 		CalendarPeriodID:       inst.CalendarPeriodID,
 		ListKind:               inst.ListKind,
@@ -619,10 +620,10 @@ func (rs *Resource) enrichInstance(
 	return item, staffRows, studentRows, nil
 }
 
-func reopenEligibility(ctx context.Context, inst *scheduleModel.ActivityInstance, attendance []*scheduleModel.InstanceStudent) bool {
+func reopenEligibility(ctx context.Context, inst timetable.ScheduledInstance, attendance []timetable.ScheduledParticipant) bool {
 	claims := jwt.ClaimsFromCtx(ctx)
-	return timetableplanning.CanReopenInstance(inst, int64(claims.ID), common.HasEffectiveAdminScope(ctx), time.Now()) &&
-		timetableplanning.AttendanceUnchangedSinceCompletion(inst, attendance)
+	return timetable.CanReopenInstance(inst, int64(claims.ID), common.HasEffectiveAdminScope(ctx), time.Now()) &&
+		timetable.AttendanceUnchangedSinceCompletion(inst, attendance)
 }
 
 // dayConflictWarningsFor computes the #2139 window conflicts for ONE instance
@@ -632,14 +633,13 @@ func reopenEligibility(ctx context.Context, inst *scheduleModel.ActivityInstance
 // load errors — conflicts are advisory and must never fail a committed write.
 func (rs *Resource) dayConflictWarningsFor(
 	ctx context.Context,
-	inst *scheduleModel.ActivityInstance,
+	inst timetable.ScheduledInstance,
 ) []timetable.InstanceConflictWarning {
 	empty := []timetable.InstanceConflictWarning{}
-	if inst == nil || rs.TimetableData == nil || rs.ConflictDetection == nil {
+	if rs.TimetableData == nil || rs.ConflictDetection == nil {
 		return empty
 	}
-	date := timezone.Date(inst.Date)
-	dayInstances, err := rs.TimetableData.GetActivityInstancesByDateRange(ctx, date, date)
+	dayInstances, err := rs.TimetableData.ListScheduledInstances(ctx, inst.Date, inst.Date)
 	if err != nil {
 		rs.getLogger().Warn("day conflict detection: load day instances failed",
 			slog.Int64("instance_id", inst.ID),
@@ -648,25 +648,17 @@ func (rs *Resource) dayConflictWarningsFor(
 		)
 		return empty
 	}
+	rows, err := rs.TimetableData.ListScheduledInstanceRows(ctx, dayInstances)
+	if err != nil {
+		rs.getLogger().Warn("day conflict detection: load instance rows failed",
+			slog.Int64("instance_id", inst.ID),
+			slog.String("error", err.Error()),
+		)
+		return empty
+	}
 	inputs := make([]timetable.WindowConflictBlock, 0, len(dayInstances))
 	for _, dayInst := range dayInstances {
-		staffRows, err := rs.TimetableData.GetInstanceStaff(ctx, dayInst.ID)
-		if err != nil {
-			rs.getLogger().Warn("day conflict detection: load instance_staff failed",
-				slog.Int64("instance_id", dayInst.ID),
-				slog.String("error", err.Error()),
-			)
-			return empty
-		}
-		studentRows, err := rs.TimetableData.GetInstanceStudents(ctx, dayInst.ID)
-		if err != nil {
-			rs.getLogger().Warn("day conflict detection: load instance_students failed",
-				slog.Int64("instance_id", dayInst.ID),
-				slog.String("error", err.Error()),
-			)
-			return empty
-		}
-		inputs = append(inputs, windowConflictBlock(dayInst, staffRows, studentRows))
+		inputs = append(inputs, windowConflictBlock(dayInst, rows.Staff[dayInst.ID], rows.Participants[dayInst.ID]))
 	}
 	if warnings, ok := rs.ConflictDetection.DetectWindowConflicts(inputs)[inst.ID]; ok {
 		return warnings
@@ -675,7 +667,7 @@ func (rs *Resource) dayConflictWarningsFor(
 }
 
 // lookupRoomName resolves a room id to its display name, with per-request
-// memoisation. Returns an empty string if the repo is unwired or the lookup
+// memoisation. Returns an empty string if the owner is unwired or the lookup
 // fails — the planner shows "Raum #ID" in that case so the user is not blocked.
 func (rs *Resource) lookupRoomName(ctx context.Context, roomID int64, cache map[int64]string) string {
 	if name, ok := cache[roomID]; ok {
@@ -685,8 +677,8 @@ func (rs *Resource) lookupRoomName(ctx context.Context, roomID int64, cache map[
 		cache[roomID] = ""
 		return ""
 	}
-	room, err := rs.TimetableData.GetRoom(ctx, roomID)
-	if err != nil || room == nil {
+	name, ok, err := rs.TimetableData.BlockRoomName(ctx, roomID)
+	if err != nil || !ok {
 		// Logged at debug only — a missing room reference here is recoverable.
 		rs.getLogger().Debug("instance list: room lookup failed",
 			slog.Int64("room_id", roomID),
@@ -694,8 +686,8 @@ func (rs *Resource) lookupRoomName(ctx context.Context, roomID int64, cache map[
 		cache[roomID] = ""
 		return ""
 	}
-	cache[roomID] = room.Name
-	return room.Name
+	cache[roomID] = name
+	return name
 }
 
 // lookupActivityType resolves an activity-group id to its type field
@@ -722,9 +714,9 @@ func (rs *Resource) lookupTemplateMeta(
 	ctx context.Context,
 	activityGroupID *int64,
 	cache map[int64]templateMeta,
-	planningTrackCache map[int64]*scheduleModel.PlanningTrack,
+	planningTrackCache map[int64]*timetable.PlanningTrack,
 ) templateMeta {
-	fallback := templateMeta{activityType: activitiesModel.GroupTypeActivity}
+	fallback := templateMeta{activityType: timetable.GroupTypeActivity}
 	if activityGroupID == nil {
 		return fallback
 	}
@@ -735,8 +727,8 @@ func (rs *Resource) lookupTemplateMeta(
 		cache[*activityGroupID] = fallback
 		return fallback
 	}
-	group, err := rs.TimetableData.GetActivityGroup(ctx, *activityGroupID)
-	if err != nil || group == nil {
+	group, err := rs.TimetableData.FindBlockTemplate(ctx, *activityGroupID)
+	if err != nil {
 		rs.getLogger().Debug("instance list: activity group lookup failed",
 			slog.Int64("activity_group_id", *activityGroupID),
 		)
@@ -750,19 +742,8 @@ func (rs *Resource) lookupTemplateMeta(
 		planningTrackID:       group.PlanningTrackID,
 		sourceCareOfferingIDs: append([]int64(nil), group.SourceCareOfferingIDs...),
 	}
-	if group.PlanningTrackID != nil && rs.PlanningTrackService != nil {
-		track, cached := planningTrackCache[*group.PlanningTrackID]
-		if !cached {
-			var trackErr error
-			track, trackErr = rs.PlanningTrackService.GetPlanningTrack(ctx, *group.PlanningTrackID)
-			planningTrackCache[*group.PlanningTrackID] = track
-			if trackErr != nil {
-				rs.getLogger().Debug("instance list: planning track lookup failed",
-					slog.Int64("planning_track_id", *group.PlanningTrackID),
-				)
-			}
-		}
-		if track != nil {
+	if group.PlanningTrackID != nil {
+		if track := rs.lookupPlanningTrack(ctx, *group.PlanningTrackID, planningTrackCache); track != nil {
 			meta.planningTrackName = track.Name
 			meta.planningTrackColor = track.Color
 			sortOrder := track.SortOrder
@@ -773,14 +754,36 @@ func (rs *Resource) lookupTemplateMeta(
 	return meta
 }
 
+// lookupPlanningTrack resolves a template's planning track with per-request
+// memoisation; nil when the administration is unwired or the lookup fails.
+func (rs *Resource) lookupPlanningTrack(ctx context.Context, trackID int64, cache map[int64]*timetable.PlanningTrack) *timetable.PlanningTrack {
+	if rs.PlanningTracks == nil {
+		return nil
+	}
+	if track, cached := cache[trackID]; cached {
+		return track
+	}
+	var track *timetable.PlanningTrack
+	found, err := rs.PlanningTracks.GetPlanningTrack(ctx, trackID)
+	if err == nil {
+		track = &found
+	} else {
+		rs.getLogger().Debug("instance list: planning track lookup failed",
+			slog.Int64("planning_track_id", trackID),
+		)
+	}
+	cache[trackID] = track
+	return track
+}
+
 func (rs *Resource) resolveEmptyRosterReason(
 	ctx context.Context,
-	inst *scheduleModel.ActivityInstance,
+	inst timetable.ScheduledInstance,
 	meta templateMeta,
-	studentRows []*scheduleModel.InstanceStudent,
+	studentRows []timetable.ScheduledParticipant,
 	cache map[int64][]enrollmentSvc.OfferingSourceOption,
 ) *emptyRosterReason {
-	if inst == nil || len(studentRows) > 0 || len(meta.sourceCareOfferingIDs) == 0 || rs.OfferingSourceOptions == nil {
+	if len(studentRows) > 0 || len(meta.sourceCareOfferingIDs) == 0 || rs.OfferingSourceOptions == nil {
 		return nil
 	}
 	periodKey := int64(0)
@@ -800,7 +803,7 @@ func (rs *Resource) resolveEmptyRosterReason(
 		}
 		cache[periodKey] = options
 	}
-	explanation := enrollmentSvc.ExplainEmptyOfferingRoster(options, meta.sourceCareOfferingIDs, timezone.Date(inst.Date))
+	explanation := enrollmentSvc.ExplainEmptyOfferingRoster(options, meta.sourceCareOfferingIDs, inst.Date)
 	if explanation == nil {
 		return nil
 	}
