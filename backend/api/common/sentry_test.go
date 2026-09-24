@@ -182,6 +182,32 @@ func TestClientErrorsAndCanceledRequestsProduceNoSentryEvent(t *testing.T) {
 	})
 }
 
+// Issue #3645: the error-report relay's 502 for an unreachable Sentry is the
+// one server error that stays out of Sentry. The skip covers only its own
+// request.
+func TestSkippedServerErrorProducesNoSentryEvent(t *testing.T) {
+	t.Parallel()
+
+	code, events := serveWithRecordingSentry(t, func(router chi.Router) {
+		router.Post("/api/iot/error-reports", func(w http.ResponseWriter, r *http.Request) {
+			common.SkipServerErrorReport(r.Context())
+			common.RenderError(w, r, common.ErrorBadGatewayWrap("error reporting service unavailable", errors.New("connection refused")))
+		})
+	}, httptest.NewRequest(http.MethodPost, "/api/iot/error-reports", nil))
+
+	require.Equal(t, http.StatusBadGateway, code)
+	assert.Empty(t, events)
+
+	code, events = serveWithRecordingSentry(t, func(router chi.Router) {
+		router.Post("/api/iot/error-reports", func(w http.ResponseWriter, r *http.Request) {
+			common.RenderError(w, r, common.ErrorBadGatewayWrap("error reporting service unavailable", errors.New("connection refused")))
+		})
+	}, httptest.NewRequest(http.MethodPost, "/api/iot/error-reports", nil))
+
+	require.Equal(t, http.StatusBadGateway, code)
+	assert.Len(t, events, 1, "without the skip a 502 is an ordinary server error")
+}
+
 // sentryhttp reports the panic; the 500 that chi's Recoverer writes afterwards
 // must not add a second event.
 func TestPanicProducesExactlyOneSentryEvent(t *testing.T) {

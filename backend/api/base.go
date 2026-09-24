@@ -768,7 +768,7 @@ func (resources *apiBuildResources) close() error {
 }
 
 // New creates a new API instance
-func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL string) (result *API, resultErr error) {
+func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL, errorReportDSN string) (result *API, resultErr error) {
 	metricsBearerToken, err := observability.MetricsBearerTokenFromEnv(os.Getenv)
 	if err != nil {
 		return nil, err
@@ -911,7 +911,7 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	// response is 2xx (#3602). After the verifier, which names the session.
 	api.Router.Use(coreActionAnalytics(serviceFactory.Tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(serviceFactory.Settings, logger)))
 
-	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, modules, db, logger, frontendURL, sessionAuth)
+	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, modules, db, logger, frontendURL, sessionAuth, errorReportDSN)
 	if err != nil {
 		return nil, err
 	}
@@ -936,8 +936,8 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	return api, nil
 }
 
-func initializeAPIResourcesWithRequestFeed(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger, frontendURL string, sessionAuth *projectJWT.TokenAuth) (*requestFeedHTTP.Resource, error) {
-	if err := initializeAPIResources(api, repoFactory, modules, db, logger, sessionAuth); err != nil {
+func initializeAPIResourcesWithRequestFeed(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger, frontendURL string, sessionAuth *projectJWT.TokenAuth, errorReportDSN string) (*requestFeedHTTP.Resource, error) {
+	if err := initializeAPIResources(api, repoFactory, modules, db, logger, sessionAuth, errorReportDSN); err != nil {
 		return nil, err
 	}
 	if err := mountDemoAccess(api.Router, modules.demoAccess, viper.GetString("app_env"), frontendURL, viper.GetString("tenant_domain")); err != nil {
@@ -1348,7 +1348,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	}, careReviews, nil
 }
 
-func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger, sessionAuth *projectJWT.TokenAuth) error {
+func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger, sessionAuth *projectJWT.TokenAuth, errorReportDSN string) error {
 	workforce := modules.workforce
 	// One device authentication composition serves every kiosk route group,
 	// so the IoT and students resources share its last-seen debouncer.
@@ -1534,6 +1534,10 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	if err != nil {
 		return err
 	}
+	errorReports, err := iotAPI.NewErrorReportRelay(errorReportDSN)
+	if err != nil {
+		return err
+	}
 	// The device-scan workflow runs every kiosk scan through one
 	// orchestrator over the public Device Fleet, Student Presence,
 	// Facilities and Timetable & Activities capabilities; the retained
@@ -1565,6 +1569,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 			observability.ObserveFeedbackHTTPResponse("iot", status, code)
 		},
 		SchoolName:              devicescanCompose.NewSchoolName(schoolName(api.Services.Schools)),
+		ErrorReports:            errorReports,
 		SessionEnd:              sessionEnd,
 		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(api.Services.Active, devicescanCompose.NewSupervisionQuery(presence), api.Services.Users, api.Services.IoT, devicescanCompose.NewSessionMirror(repoFactory.ActivityInstance, repoFactory.InstanceStaff, api.Services.Activities, services.KioskMirrorPublisher(api.Services.RealtimeHub, logger), logger), logger),
 		Logger:                  logger.With("handler", "iot"),

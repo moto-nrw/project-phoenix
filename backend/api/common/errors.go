@@ -399,6 +399,18 @@ func ErrorServiceUnavailable(err error) render.Renderer {
 	return newErrResponse(http.StatusServiceUnavailable, err)
 }
 
+// ErrorBadGatewayWrap returns a 502 response with a stable client-facing
+// message for an upstream service that did not take the request. The cause
+// stays in the log.
+func ErrorBadGatewayWrap(clientMsg string, cause error) render.Renderer {
+	return &ErrResponse{
+		Err:            fmt.Errorf("%s: %w", clientMsg, cause),
+		HTTPStatusCode: http.StatusBadGateway,
+		Status:         "error",
+		ErrorText:      clientMsg,
+	}
+}
+
 // IsTransientDatabaseError reports whether err represents a temporary database
 // connectivity failure rather than a domain validation error. Callers can use
 // this to retry a whole transaction once or return 503 after retry exhaustion.

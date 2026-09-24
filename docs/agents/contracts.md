@@ -20,6 +20,40 @@ two-repo change: `backend/api/testdata/iot_error_strings.golden`
 and the golden move together.
 Backend header and attribution rules: `backend/CLAUDE.md` RFID/IoT Integration.
 
+### Error reports relay
+
+`POST /api/iot/error-reports` is PyrePortal's Sentry tunnel (#3645, SDK option
+`tunnel`). It authenticates with `Authorization: Bearer <device API key>`
+alone, without `X-Staff-PIN`, and opens no tenant transaction. The body is one
+Sentry envelope (`application/x-sentry-envelope`) of at most 1 MB.
+
+The relay accepts only envelopes whose header `dsn` names the project of
+`SENTRY_PYREPORTAL_DSN` (`pyreportal`). It writes the tags `device_id` (the
+device's `device_id`) and `school_id` into every event item, replacing what
+the kiosk sent under these keys, and posts the envelope to that project's
+envelope endpoint, never to a host the envelope names. The device key does not
+leave the backend. Code: `backend/api/iot/error_reports.go` (handler and
+texts), `backend/api/iot/compose/error_reports.go` (forwarding),
+`backend/observability/sentry_envelope.go` (envelope check and tags).
+
+| Status | `error` | When |
+|---|---|---|
+| Sentry's | Sentry's body | Forwarded; `Retry-After` and `X-Sentry-Rate-Limits` pass through |
+| 400 | `invalid error report` | The body is no envelope |
+| 400 | `error report project is not allowed` | The envelope names another project or no DSN |
+| 401 / 403 | Device key strings above | Key missing, invalid, or device inactive |
+| 429 | `error report too large` | Envelope over 1 MB |
+| 429 | `too many error reports` | Over 60 envelopes per minute and device (burst 60, per process); `Retry-After: 60` |
+| 502 | `error reporting service unavailable` | Sentry unreachable or answering 5xx; logged, never a Sentry event |
+| 503 | `error reporting is not configured` | The backend runs without Sentry (local development) |
+
+The 502 is the only 5xx that `ServerErrorReporting` does not report
+(`common.SkipServerErrorReport`); reporting it could only loop. PyrePortal's
+SDK transport consumes these answers and shows no text, so they are not part
+of `ERROR_MESSAGE_MAPPINGS` or `iot_error_strings.golden`. Changing a status or
+text is still a two-repo change. `serve` refuses to start with `SENTRY_DSN` set
+and `SENTRY_PYREPORTAL_DSN` empty, and a malformed DSN stops the start.
+
 ### Presence mode
 
 `GET /api/iot/config` returns `presence_mode: "detailed" | "binary"`.
