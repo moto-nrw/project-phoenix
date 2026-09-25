@@ -40,6 +40,8 @@ func staffQualificationsSoftDeleteUp(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
+// staffQualificationsSoftDeleteDown restores hard deletes. Retired rows are
+// dropped with the column: without deleted_at they would reappear as live.
 func staffQualificationsSoftDeleteDown(ctx context.Context, db *bun.DB) error {
 	_, err := db.ExecContext(ctx, `
 		DELETE FROM users.staff_qualifications WHERE deleted_at IS NOT NULL;

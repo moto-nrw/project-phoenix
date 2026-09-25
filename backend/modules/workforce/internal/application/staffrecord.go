@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
@@ -110,9 +109,12 @@ func (s *Service) applyQualificationPlan(ctx context.Context, staffID int64, pla
 	if err != nil {
 		return nil, err
 	}
+	type pendingInsert struct {
+		index int
+		value domain.StaffQualification
+	}
 	result := make([]domain.StaffQualification, len(plan.rows))
-	var inserts []domain.StaffQualification
-	var insertAt []int
+	var pending []pendingInsert
 	for index, row := range plan.rows {
 		switch row.action {
 		case qualificationKeep:
@@ -123,22 +125,30 @@ func (s *Service) applyQualificationPlan(ctx context.Context, staffID int64, pla
 			if updateErr != nil {
 				return nil, updateErr
 			}
-			if !found {
-				return nil, fmt.Errorf("workforce: staff qualification %d vanished during replace", row.value.ID)
+			if found {
+				result[index] = updated
+				continue
 			}
-			result[index] = updated
+			// A concurrent replace retired the row since the list was read;
+			// the submitted row then starts a new one.
+			pending = append(pending, pendingInsert{index: index, value: domain.StaffQualification{
+				StaffID: staffID, Name: row.value.Name, AcquiredOn: row.value.AcquiredOn, ExpiresOn: row.value.ExpiresOn,
+			}})
 		case qualificationInsert:
-			inserts = append(inserts, row.value)
-			insertAt = append(insertAt, index)
+			pending = append(pending, pendingInsert{index: index, value: row.value})
 		}
+	}
+	inserts := make([]domain.StaffQualification, 0, len(pending))
+	for _, insert := range pending {
+		inserts = append(inserts, insert.value)
 	}
 	inserted, insertStats, err := s.store.InsertStaffQualifications(ctx, inserts)
 	stats.Add(insertStats)
 	if err != nil {
 		return nil, err
 	}
-	for position, index := range insertAt {
-		result[index] = inserted[position]
+	for position, insert := range pending {
+		result[insert.index] = inserted[position]
 	}
 	return result, nil
 }
@@ -176,7 +186,8 @@ func planQualificationReplace(live, submitted []domain.StaffQualification) quali
 			}
 			if candidate, ok := firstUnpaired(live, paired, row, match); ok {
 				paired[candidate.ID] = true
-				plan.rows[index] = continueQualification(candidate, row, action)
+				candidate.AcquiredOn, candidate.ExpiresOn = row.AcquiredOn, row.ExpiresOn
+				plan.rows[index] = plannedQualification{action: action, value: candidate}
 			}
 		}
 	}
@@ -204,20 +215,12 @@ func firstUnpaired(live []domain.StaffQualification, paired map[int64]bool, subm
 	return domain.StaffQualification{}, false
 }
 
-func continueQualification(live, submitted domain.StaffQualification, action qualificationAction) plannedQualification {
-	if action == qualificationUpdate {
-		live.AcquiredOn = submitted.AcquiredOn
-		live.ExpiresOn = submitted.ExpiresOn
-	}
-	return plannedQualification{action: action, value: live}
-}
-
 func sameQualificationName(live, submitted domain.StaffQualification) bool {
 	return live.Name == submitted.Name
 }
 
 func sameQualification(live, submitted domain.StaffQualification) bool {
-	return live.Name == submitted.Name && live.AcquiredOn == submitted.AcquiredOn && live.ExpiresOn == submitted.ExpiresOn
+	return sameQualificationName(live, submitted) && live.AcquiredOn == submitted.AcquiredOn && live.ExpiresOn == submitted.ExpiresOn
 }
 
 // --- financial data ---
