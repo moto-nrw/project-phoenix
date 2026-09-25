@@ -400,6 +400,35 @@ jobs:
             -c "ALTER SYSTEM SET log_autovacuum_min_duration = '1s'" \
             -c "SELECT pg_reload_conf()"
 
+      # DIAGNOSTIC ONLY (not for merge): sample every non-idle backend and the
+      # TCP queues of every 5432 socket twice a second, so a 10 s i/o timeout
+      # shows whether Postgres was running, waiting, or never saw the query.
+      - name: Start activity sampler
+        run: |
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 \
+            -c "ALTER SYSTEM SET log_connections = on" \
+            -c "ALTER SYSTEM SET log_disconnections = on" \
+            -c "SELECT pg_reload_conf()"
+          cat > "${RUNNER_TEMP}/activity.sql" <<'SQL'
+          SELECT pid, usename, backend_type, state, wait_event_type, wait_event,
+                 round(extract(epoch FROM now() - xact_start)::numeric, 2) AS xact_s,
+                 round(extract(epoch FROM now() - query_start)::numeric, 2) AS query_s,
+                 left(regexp_replace(query, '\s+', ' ', 'g'), 160) AS query
+          FROM pg_stat_activity
+          WHERE pid <> pg_backend_pid() AND state IS DISTINCT FROM 'idle'
+            AND backend_type IN ('client backend', 'autovacuum worker')
+          ORDER BY pid;
+          SQL
+          cat > "${RUNNER_TEMP}/activity.sh" <<'SH'
+          while true; do
+            echo "=== $(date -u +%H:%M:%S.%3N)"
+            psql "${DB_DSN}" -XAt -F ' | ' -f "${RUNNER_TEMP}/activity.sql" 2>&1
+            ss -tnio state established '( sport = :5432 or dport = :5432 )' 2>&1 | awk 'NR > 1 && ($1 > 0 || $2 > 0)'
+            sleep 0.5
+          done
+          SH
+          nohup bash "${RUNNER_TEMP}/activity.sh" > "${RUNNER_TEMP}/activity.log" 2>&1 &
+
       - name: Start server
         working-directory: backend
         run: |
@@ -521,6 +550,12 @@ jobs:
         env:
           SEED_COVERAGE_DSN: postgres://postgres:postgres@localhost:5432/phoenix_seed?sslmode=disable
         run: go test ./seed/api/ -run TestSeedCoverageRatchet -v
+
+      - name: Activity sampler log (diagnostic)
+        if: always()
+        run: |
+          # Only the window around a 500 is interesting; print the tail.
+          tail -n 1500 "${RUNNER_TEMP}/activity.log" || true
 
       - name: Server log
         if: always()
