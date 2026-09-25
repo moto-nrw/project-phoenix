@@ -13,7 +13,7 @@ describe("DemoShell", () => {
     );
 
     expect(
-      screen.getByText(/Wir zeichnen Besuche der Demo auf/),
+      screen.getByText(/werten wir aus, wie die Demo genutzt wird/),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Mehr zum Datenschutz" }),

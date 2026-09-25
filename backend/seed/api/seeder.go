@@ -206,13 +206,28 @@ func (s *Seeder) accountScope() string {
 	return s.options.TenantSlug
 }
 
-// scopedEmail puts the scope in front of the @, e.g. demo1.ogs-nord@mail.de.
+// scopedEmail moves an address into the school's own demo domain, e.g.
+// julia.klein@demo-ogs-nord.moto-ogs.de. The scope keeps it unique across
+// schools; in the domain it leaves the name readable and the address
+// recognizable as one of the demo.
 func scopedEmail(email, scope string) string {
-	local, domain, ok := strings.Cut(email, "@")
+	local, _, ok := strings.Cut(email, "@")
 	if scope == "" || !ok {
 		return email
 	}
-	return local + "." + scope + "@" + domain
+	return local + "@demo-" + scope + ".moto-ogs.de"
+}
+
+// emailLocalPart turns a name into the part of an address before the @.
+// Names carry real umlauts, but the canonical email pattern
+// (users.ValidateOptionalEmail) only accepts ASCII.
+func emailLocalPart(firstName, lastName string) string {
+	return strings.NewReplacer(
+		"ä", "ae",
+		"ö", "oe",
+		"ü", "ue",
+		"ß", "ss",
+	).Replace(strings.ReplaceAll(strings.ToLower(firstName+"."+lastName), " ", "."))
 }
 
 func (s *Seeder) profileAdminCredentials() (string, string, error) {
