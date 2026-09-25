@@ -464,6 +464,16 @@ jobs:
         if: always()
         run: rm -f ~/.ssh/deploy_key /tmp/staging.env
 
+      # Finalizes the release and records the deploy in Sentry (#3642).
+      # A Sentry outage only warns; it never fails a finished deploy.
+      - name: Report deploy to Sentry
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+        run: bash scripts/report-sentry-deploy.sh "${{ github.sha }}" staging
+
       - name: Notify on deploy failure
         if: always() && steps.deploy.outputs.deploy_exit != '' && steps.deploy.outputs.deploy_exit != '0'
         uses: ./.github/actions/notify-deploy-failure
@@ -573,6 +583,16 @@ jobs:
         if: always()
         run: rm -f ~/.ssh/deploy_key /tmp/production.env
 
+      # Finalizes the release and records the deploy in Sentry (#3642).
+      # A Sentry outage only warns; it never fails a finished deploy.
+      - name: Report deploy to Sentry
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+        run: bash scripts/report-sentry-deploy.sh "${{ github.sha }}" production
+
       - name: Notify on deploy failure
         if: always() && steps.deploy.outputs.deploy_exit != '' && steps.deploy.outputs.deploy_exit != '0'
         uses: ./.github/actions/notify-deploy-failure
@@ -681,6 +701,16 @@ jobs:
       - name: Cleanup secrets
         if: always()
         run: rm -f ~/.ssh/deploy_key /tmp/demo.env
+
+      # Finalizes the release and records the deploy in Sentry (#3642).
+      # A Sentry outage only warns; it never fails a finished deploy.
+      - name: Report deploy to Sentry
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+        run: bash scripts/report-sentry-deploy.sh "${{ github.sha }}" demo
 
       - name: Notify on deploy failure
         if: always() && steps.deploy.outputs.deploy_exit != '' && steps.deploy.outputs.deploy_exit != '0'

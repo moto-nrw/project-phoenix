@@ -115,7 +115,10 @@ reports through `SENTRY_DSN` in `demo.sops.env`, the DSN of the shared backend
 project that staging and production use. The backend takes its Sentry
 environment from `APP_ENV`, so demo events carry `environment=demo` and filter
 apart from schools. The release is the full commit SHA of the workflow run,
-the same value the frontend reports. Web Push is disabled (the VAPID keys are
+the same value the frontend reports. After a successful deploy, the build
+workflow finalizes that release and records a deploy to `demo` in the `backend`
+and `frontend` projects (`scripts/report-sentry-deploy.sh`, like staging and
+production); a Sentry failure only warns. Web Push is disabled (the VAPID keys are
 empty); configure its demo destination before enabling it. Absent demo keys
 disable the integrations without falling back to production keys.
 No staging or production application secret is reused.
