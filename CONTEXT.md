@@ -519,9 +519,9 @@ Er ist die einzige Stelle, an der Fehlertexte für Nutzerinnen entstehen.
 ## Vorgangskennung
 
 Die **Vorgangskennung** benennt einen einzelnen fehlgeschlagenen Aufruf. Sie
-wird nur bei Serverfehlern und Netzabbrüchen angezeigt, damit eine Schule am
-Telefon auf denselben Vorgang zeigen kann, den der Support in der Auswertung
-sieht. Sie ist keine Fehleridentität: derselbe Fehlercode hat bei jedem
+wird nur bei Serverfehlern und der Fehlerklasse „Nicht erreichbar“ angezeigt,
+damit eine Schule am Telefon auf denselben Vorgang zeigen kann, den der
+Support in der Auswertung sieht. Sie ist keine Fehleridentität: derselbe Fehlercode hat bei jedem
 Auftreten eine andere Vorgangskennung.
 
 ## Träger

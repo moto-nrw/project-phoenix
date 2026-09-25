@@ -53,6 +53,19 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent | null {
   return event;
 }
 
+/** A browser fetch with no HTTP response is not a defect owned by the client. */
+export function scrubClientEvent(event: ErrorEvent): ErrorEvent | null {
+  const isNetworkFailure = event.exception?.values?.some(
+    (exception) =>
+      (exception.type === "TypeError" &&
+        /^(?:Failed to fetch|Load failed|NetworkError when attempting to fetch resource\.?)$/.test(
+          exception.value ?? "",
+        )) ||
+      (exception.type === "AxiosError" && exception.value === "Network Error"),
+  );
+  return isNetworkFailure ? null : scrubEvent(event);
+}
+
 function scrubRequestAndUser(event: Event): void {
   // Strip auth headers and cookies
   if (event.request?.headers) {

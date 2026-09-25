@@ -1,5 +1,7 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
@@ -26,10 +28,7 @@ async function proxyExport(body: string, token: string) {
   );
 
   if (!response.ok) {
-    return NextResponse.json(
-      { error: await response.text() },
-      { status: response.status },
-    );
+    return forwardBackendResponse(response);
   }
 
   const contentType =
@@ -64,6 +63,7 @@ async function POSTHandler(request: NextRequest) {
     }
     return proxyExport(body, refreshed.user.token);
   } catch (error) {
+    captureBffException(error, request);
     const message = error instanceof Error ? error.message : "Export failed";
     logger.error("class_roster_report_export_failed", { error: message });
     return NextResponse.json({ error: message }, { status: 500 });

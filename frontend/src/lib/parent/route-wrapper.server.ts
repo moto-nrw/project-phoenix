@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { parentAuth } from "~/server/auth/parent";
 import { withParentAuth } from "~/server/auth/parent-route";
 import { incomingAnalyticsSessionHeaders } from "../analytics-session-header.server";
-import { handleApiError } from "../api-helpers.server";
+import { ApiResponseError, handleApiError } from "../api-helpers.server";
 import { makeProxyFactories } from "../route-proxy-factory.server";
 import {
   extractParams,
@@ -62,7 +62,10 @@ async function parentServerFetch<T>(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`API error (${response.status}): ${errorText}`);
+    throw new ApiResponseError(response.status, errorText, {
+      contentType: response.headers.get("Content-Type"),
+      retryAfter: response.headers.get("Retry-After"),
+    });
   }
 
   return parseResponse<T>(response);
@@ -184,7 +187,7 @@ function createParentNoBodyHandler<T>(
         formatResponse,
       );
     } catch (error) {
-      return handleApiError(error);
+      return handleApiError(error, request);
     }
   });
 }
@@ -203,7 +206,7 @@ function createParentWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
         (data) => NextResponse.json(wrapInApiResponse(data)),
       );
     } catch (error) {
-      return handleApiError(error);
+      return handleApiError(error, request);
     }
   });
 }

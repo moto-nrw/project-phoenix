@@ -1,40 +1,27 @@
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { createLogger } from "~/lib/logger";
+import { createPublicJsonProxy } from "~/lib/backend-proxy-route.server";
 
-const logger = createLogger({ component: "PublicEnrollmentSchemaRoute" });
-
-interface RouteContext {
-  params: Promise<{ tenantSlug: string; phaseId: string }>;
-}
-
-export async function GET(request: NextRequest, context: RouteContext) {
-  const { tenantSlug, phaseId } = await context.params;
-  if (!tenantSlug || !phaseId) {
-    return NextResponse.json(
-      { error: "tenant slug and phaseId are required" },
-      { status: 400 },
-    );
-  }
-  try {
+export const GET = createPublicJsonProxy({
+  method: "GET",
+  path: (request, params) => {
+    const { tenantSlug, phaseId } = params;
+    if (
+      typeof tenantSlug !== "string" ||
+      !tenantSlug ||
+      typeof phaseId !== "string" ||
+      !phaseId
+    ) {
+      return NextResponse.json(
+        { error: "tenant slug and phaseId are required" },
+        { status: 400 },
+      );
+    }
+    const path = `/api/enrollment/schema/public/${encodeURIComponent(tenantSlug)}/${encodeURIComponent(phaseId)}`;
     const lateInvite = request.nextUrl.searchParams.get("late_invite")?.trim();
-    const backendUrl = new URL(
-      `${getServerApiUrl()}/api/enrollment/schema/public/${encodeURIComponent(
-        tenantSlug,
-      )}/${encodeURIComponent(phaseId)}`,
-    );
-    if (lateInvite) backendUrl.searchParams.set("late_invite", lateInvite);
-    const response = await fetch(backendUrl, { cache: "no-store" });
-    const payload = await response.json().catch(() => ({}));
-    return NextResponse.json(payload, { status: response.status });
-  } catch (error) {
-    logger.error("public_enrollment_schema_failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
-  }
-}
+    return lateInvite
+      ? `${path}?late_invite=${encodeURIComponent(lateInvite)}`
+      : path;
+  },
+  cache: "no-store",
+  contentTypeOnGet: false,
+});

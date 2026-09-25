@@ -125,7 +125,7 @@ describe("GET /api/public/login-image/[filename]", () => {
     expect(response.status).toBe(502);
   });
 
-  it("returns 502 when backend returns a non-404 error (e.g. 500)", async () => {
+  it("forwards a backend non-404 error status (e.g. 500)", async () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 500,
@@ -137,6 +137,6 @@ describe("GET /api/public/login-image/[filename]", () => {
       createMockContext("logo.png"),
     );
 
-    expect(response.status).toBe(502);
+    expect(response.status).toBe(500);
   });
 });

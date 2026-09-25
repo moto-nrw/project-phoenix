@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { captureBffException } from "~/lib/sentry-bff.server";
 
 const logger = createLogger({ component: "AuthProxy" });
 
@@ -20,27 +22,6 @@ function buildForwardHeaders(request: NextRequest): Record<string, string> {
   const authHeader = request.headers.get("authorization");
   if (authHeader) headers.Authorization = authHeader;
   return headers;
-}
-
-async function readBackendBody(
-  response: Response,
-  backendPath: string,
-): Promise<unknown> {
-  const contentType = response.headers.get("content-type");
-  const responseText = await response.text();
-  if (!contentType?.includes("application/json")) {
-    return { message: responseText || "Request failed with no response" };
-  }
-  if (!responseText) return null;
-  try {
-    return JSON.parse(responseText) as unknown;
-  } catch (jsonError) {
-    logger.error("failed to parse backend JSON", {
-      path: backendPath,
-      error: jsonError instanceof Error ? jsonError.message : String(jsonError),
-    });
-    return { message: responseText };
-  }
 }
 
 function mirrorSetCookies(from: Response, to: NextResponse): void {
@@ -70,19 +51,11 @@ export async function forwardJsonPost(
       body: bodyJson,
     });
 
-    if (response.status === 204) {
-      const out = new NextResponse(null, { status: 204 });
-      mirrorSetCookies(response, out);
-      return out;
-    }
-
-    const data = await readBackendBody(response, backendPath);
-    const out = NextResponse.json(data ?? { message: "Empty response" }, {
-      status: response.status,
-    });
+    const out = forwardBackendResponse(response);
     mirrorSetCookies(response, out);
     return out;
   } catch (error) {
+    captureBffException(error, request);
     logger.error("proxy_failed", {
       path: backendPath,
       error: error instanceof Error ? error.message : String(error),

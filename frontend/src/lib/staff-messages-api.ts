@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 /**
  * Client for the OGS-internal colleague chat (#2598). Chat model: one
  * continuous conversation between two staff accounts of the same school (no
@@ -101,12 +102,10 @@ interface ApiResponse<T> {
 const STAFF_MESSAGING_DISABLED = "staff_messaging_disabled";
 
 /** An error carrying the backend's stable code, when there was one. */
-class StaffMessagesError extends Error {
-  readonly code?: string;
+class StaffMessagesError extends ApiError {
   constructor(message: string, code?: string) {
-    super(message);
+    super(message, undefined, { code });
     this.name = "StaffMessagesError";
-    this.code = code;
   }
 }
 
@@ -143,7 +142,11 @@ async function unwrap<T>(
 ): Promise<ApiResponse<T>> {
   const body = (await response.json().catch(() => ({}))) as ApiResponse<T>;
   if (!response.ok) {
-    throw new StaffMessagesError(body.error ?? fallbackMessage, body.code);
+    throw enrichApiError(
+      new StaffMessagesError(body.error ?? fallbackMessage, body.code),
+      body,
+      response.status,
+    );
   }
   return body;
 }

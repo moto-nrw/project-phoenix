@@ -137,11 +137,12 @@ describe("POST /api/operator/provisioning/organizations", () => {
 
   it("handles backend validation errors", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 409,
-      text: async () => JSON.stringify({ error: "slug already exists" }),
-    });
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "slug already exists" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/provisioning/organizations",

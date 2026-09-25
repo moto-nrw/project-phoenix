@@ -62,11 +62,7 @@ describe("POST /api/import/teachers/preview", () => {
       data: { TotalRows: 1, CreatedCount: 1, ErrorCount: 0, Errors: [] },
     };
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => mockPreview,
-    });
+    mockFetch.mockResolvedValueOnce(Response.json(mockPreview));
 
     const formData = new FormData();
     formData.append(
@@ -97,11 +93,7 @@ describe("POST /api/import/teachers/preview", () => {
   it("forwards backend validation errors", async () => {
     const mockError = { error: "Invalid CSV format" };
 
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      json: async () => mockError,
-    });
+    mockFetch.mockResolvedValueOnce(Response.json(mockError, { status: 400 }));
 
     const formData = new FormData();
     formData.append("file", new Blob(["invalid"]), "invalid.csv");
@@ -114,11 +106,9 @@ describe("POST /api/import/teachers/preview", () => {
   });
 
   it("handles backend server errors", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      json: async () => ({ error: "Database connection failed" }),
-    });
+    mockFetch.mockResolvedValueOnce(
+      Response.json({ error: "Database connection failed" }, { status: 500 }),
+    );
 
     const formData = new FormData();
     formData.append("file", new Blob(["test"]), "test.csv");

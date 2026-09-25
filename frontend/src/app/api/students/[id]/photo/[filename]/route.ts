@@ -7,6 +7,7 @@ import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 
 const logger = createLogger({ component: "StudentPhotoServeRoute" });
 
@@ -75,7 +76,7 @@ async function GETHandler(
       filename,
       status: upstream.status,
     });
-    return new NextResponse(null, { status: upstream.status });
+    return forwardBackendResponse(upstream);
   }
 
   // 200 path — stream the body through unchanged. Preserve Content-Type,

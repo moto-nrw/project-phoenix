@@ -2,7 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import StatisticsPage from "./page";
-import type { StatisticsReport } from "~/lib/statistics-api";
+import { StatisticsError, type StatisticsReport } from "~/lib/statistics-api";
 
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({ push: vi.fn(), replace: vi.fn() })),
@@ -122,6 +122,19 @@ describe("Statistik — Bereich Kurse (#2891)", () => {
   beforeEach(() => {
     mockFetchReport.mockReset();
     mockFetchReport.mockResolvedValue(report());
+  });
+
+  it("zeigt bei fehlendem Zugriff weiterhin die bisherige Meldung", async () => {
+    mockFetchReport.mockRejectedValueOnce(new StatisticsError("forbidden"));
+    render(<StatisticsPage />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          "Ihr Konto darf die Statistik nicht sehen. Bitte wenden Sie sich an Ihre Administration.",
+        ),
+      ).toBeVisible(),
+    );
   });
 
   it("zeigt je Kurs Termine, abgesagte Termine und die Quote", async () => {

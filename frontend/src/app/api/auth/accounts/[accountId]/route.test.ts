@@ -45,12 +45,7 @@ const defaultSession: ExtendedSession = {
 };
 
 function createMockResponse(data: unknown, status = 200) {
-  return Promise.resolve({
-    ok: status >= 200 && status < 300,
-    status,
-    json: () => Promise.resolve(data),
-    text: () => Promise.resolve(JSON.stringify(data)),
-  } as Response);
+  return Promise.resolve(Response.json(data, { status }));
 }
 
 // ============================================================================
@@ -76,15 +71,9 @@ describe("GET /api/auth/accounts/[accountId]", () => {
     const request = createMockRequest("/api/auth/accounts/");
     const response = await GET(request, createMockContext());
 
-    expect(response.status).toBe(200);
-    const json = (await response.json()) as {
-      success: boolean;
-      data: { status: string; message: string };
-    };
-    // createGetHandler wraps the return value in { success, message, data }
-    expect(json.success).toBe(true);
-    expect(json.data.status).toBe("error");
-    expect(json.data.message).toContain("required");
+    expect(response.status).toBe(500);
+    const json = (await response.json()) as { error: string };
+    expect(json.error).toContain("Account ID is required");
   });
 
   it("fetches account from user API successfully", async () => {
@@ -126,7 +115,7 @@ describe("GET /api/auth/accounts/[accountId]", () => {
     expect(json.data.data.id).toBe("123");
   });
 
-  it("returns fallback account when user API fails", async () => {
+  it("forwards the backend error instead of fabricating an account", async () => {
     mockFetch.mockReturnValueOnce(
       createMockResponse({ error: "Not found" }, 404),
     );
@@ -137,19 +126,8 @@ describe("GET /api/auth/accounts/[accountId]", () => {
       createMockContext({ accountId: "456" }),
     );
 
-    expect(response.status).toBe(200);
-    const json = (await response.json()) as {
-      success: boolean;
-      data: {
-        status: string;
-        data: { id: string; email: string; username: string };
-      };
-    };
-    expect(json.success).toBe(true);
-    expect(json.data.status).toBe("success");
-    expect(json.data.data.id).toBe("456");
-    expect(json.data.data.email).toBe("user@example.com");
-    expect(json.data.data.username).toBe("user_456");
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Not found" });
   });
 
   it("handles user data without data wrapper", async () => {

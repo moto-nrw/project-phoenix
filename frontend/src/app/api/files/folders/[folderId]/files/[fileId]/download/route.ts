@@ -1,3 +1,4 @@
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Dateiablage (#2596): authenticated proxy streaming file bytes. Mirrors the
 // child document download proxy: inject the JWT server-side, refresh once on
 // 401, stream the body through with Content-Type and Content-Disposition
@@ -49,7 +50,7 @@ async function GETHandler(
       file_id: fileId,
       status: upstream.status,
     });
-    return new NextResponse(null, { status: upstream.status });
+    return forwardBackendResponse(upstream);
   }
 
   const headers = new Headers();

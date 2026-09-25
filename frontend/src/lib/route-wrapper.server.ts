@@ -167,7 +167,7 @@ function createNoBodyHandler<T>(
         (data) => formatResponse(data, request),
       );
     } catch (error) {
-      return handleApiError(error);
+      return handleApiError(error, request);
     }
   });
 }
@@ -210,7 +210,7 @@ function createWithBodyHandler<T, B>(
         (data) => formatResponse(data, request),
       );
     } catch (error) {
-      return handleApiError(error);
+      return handleApiError(error, request);
     }
   });
 }

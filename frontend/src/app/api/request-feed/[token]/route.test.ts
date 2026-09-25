@@ -48,7 +48,7 @@ describe("GET /api/request-feed/[token]", () => {
 
     expect(response.status).toBe(404);
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
-    expect(await response.text()).toBe("Not found");
+    expect(await response.text()).toBe("Not Found");
   });
 
   it("kodiert den Capability-Token vor dem Weiterleiten", async () => {

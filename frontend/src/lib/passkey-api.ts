@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 import {
   browserSupportsWebAuthn,
   startAuthentication,
@@ -89,11 +90,14 @@ async function requestJson<T>(
   }
 
   if (!response.ok) {
-    throw new PasskeyApiError(
-      response.status,
-      extractErrorMessage(data) ??
-        `Passkey-Anfrage fehlgeschlagen (${response.status}).`,
-      extractErrorCode(data) ?? undefined,
+    throw enrichApiError(
+      new PasskeyApiError(
+        response.status,
+        extractErrorMessage(data) ??
+          `Passkey-Anfrage fehlgeschlagen (${response.status}).`,
+        extractErrorCode(data) ?? undefined,
+      ),
+      data,
     );
   }
 
@@ -115,13 +119,13 @@ function extractErrorCode(data: unknown): string | null {
   return typeof rec.code === "string" ? rec.code : null;
 }
 
-export class PasskeyApiError extends Error {
+export class PasskeyApiError extends ApiError {
   constructor(
     public status: number,
     message: string,
-    public code?: string,
+    code?: string,
   ) {
-    super(message);
+    super(message, status, { code });
     this.name = "PasskeyApiError";
   }
 }

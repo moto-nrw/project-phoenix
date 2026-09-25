@@ -310,7 +310,7 @@ describe("getParentHelpTopicForPath", () => {
     expect(caregiverTopics[15]).toMatchObject({
       id: HELP_TOPICS.transferGroup,
     });
-    expect(caregiverTopics).toHaveLength(38);
+    expect(caregiverTopics).toHaveLength(39);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -480,7 +480,7 @@ describe("getParentHelpTopicForPath", () => {
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            38 -
+            39 -
             (nfcEnabled ? 0 : 7) -
             (presenceMode === "binary" ? (nfcEnabled ? 5 : 4) : 0) -
             (groupMode === "open_care" ? 2 : 0);
@@ -515,7 +515,7 @@ describe("getParentHelpTopicForPath", () => {
     // fuer Leitung und Betreuung derselbe ist -- die eigene Arbeitszeit,
     // der eigene Kalender, der Aufbau der Navigation, die Seiten des
     // Tagesbetriebs und der Umgang mit dem NFC-Tablet.
-    expect(leadTopics).toHaveLength(76);
+    expect(leadTopics).toHaveLength(77);
     expect(
       leadTopics.every(
         (topic) =>
@@ -540,7 +540,7 @@ describe("getParentHelpTopicForPath", () => {
     );
     const visible = new Set(parentTopics.map((topic) => topic.id));
 
-    expect(parentTopics).toHaveLength(20);
+    expect(parentTopics).toHaveLength(21);
     expect(
       parentTopics.every(
         (topic) =>
@@ -574,7 +574,7 @@ describe("getParentHelpTopicForPath", () => {
     ).filter((topic) => helpTopicMatchesRole(topic, "teacher"));
     const visible = new Set(teacherTopics.map((topic) => topic.id));
 
-    expect(teacherTopics).toHaveLength(15);
+    expect(teacherTopics).toHaveLength(16);
     expect(
       teacherTopics.every(
         (topic) =>

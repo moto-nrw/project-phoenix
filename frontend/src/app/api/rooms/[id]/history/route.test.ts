@@ -32,21 +32,8 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("~/lib/api-helpers.server")>();
   return {
-    ApiResponseError: actual.ApiResponseError,
+    ...actual,
     apiGet: mockApiGet,
-    apiPost: vi.fn(),
-    apiPut: vi.fn(),
-    apiDelete: vi.fn(),
-    handleApiError: vi.fn((error: unknown) => {
-      const message =
-        error instanceof Error ? error.message : "Internal Server Error";
-      const status = message.includes("(401)")
-        ? 401
-        : message.includes("(404)")
-          ? 404
-          : 500;
-      return new Response(JSON.stringify({ error: message }), { status });
-    }),
   };
 });
 
@@ -256,7 +243,7 @@ describe("GET /api/rooms/[id]/history", () => {
   });
 
   it("does NOT translate a generic 403 (no feature_disabled marker) into the disabled signal", async () => {
-    // A plain RBAC failure must still surface as a 500 so it gets logged.
+    // A plain RBAC failure must retain its backend status and body.
     // Otherwise we'd silently mask permission bugs as "feature off".
     mockApiGet.mockRejectedValueOnce(
       new ApiResponseError(403, '{"status":"error","error":"forbidden"}'),
@@ -265,7 +252,11 @@ describe("GET /api/rooms/[id]/history", () => {
     const request = createMockRequest("/api/rooms/123/history");
     const response = await GET(request);
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      status: "error",
+      error: "forbidden",
+    });
   });
 
   it("returns 400 when room ID is missing", async () => {
@@ -286,7 +277,7 @@ describe("GET /api/rooms/[id]/history", () => {
 
     expect(response.status).toBe(500);
     const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Backend API error");
+    expect(json.error).toBe("Database connection failed");
   });
 
   it("handles non-Error rejections", async () => {
@@ -297,7 +288,7 @@ describe("GET /api/rooms/[id]/history", () => {
 
     expect(response.status).toBe(500);
     const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("String error");
+    expect(json.error).toBe("Internal Server Error");
   });
 
   it("extracts room ID from URL path correctly", async () => {

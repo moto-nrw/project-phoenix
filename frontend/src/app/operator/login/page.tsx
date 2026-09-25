@@ -69,6 +69,18 @@ export default function OperatorLoginPage() {
     setPasskeySupported(isPasskeySupported());
   }, []);
 
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("error") !== "SessionExpired") return;
+    setError("Ihre Anmeldung ist abgelaufen. Bitte melden Sie sich erneut an.");
+    url.searchParams.delete("error");
+    window.history.replaceState(
+      {},
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  }, []);
+
   // Redirect if already authenticated as operator, or clear stale sessions
   useEffect(() => {
     const check = async () => {

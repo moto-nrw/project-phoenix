@@ -102,7 +102,7 @@ func TestBinaryOwnerFailureWire(t *testing.T) {
 	rr := httptest.NewRecorder()
 	rs.exportSnapshot(rr, httptest.NewRequest(http.MethodPost, "/snapshot/export", nil))
 	require.Equal(t, 500, rr.Code)
-	require.JSONEq(t, `{"status":"error","error":"active: GetStudentsAttendanceStatuses: database operation failed"}`, rr.Body.String())
+	require.JSONEq(t, `{"status":"error","error":"active: GetStudentsAttendanceStatuses: database operation failed","code":"general.server","type":"https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler","title":"Internal Server Error","detail":"active: GetStudentsAttendanceStatuses: database operation failed","instance":""}`, rr.Body.String())
 }
 
 func TestExportSnapshotStreamsTheFile(t *testing.T) {

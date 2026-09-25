@@ -62,11 +62,7 @@ describe("POST /api/import/teachers/import", () => {
       data: { TotalRows: 2, CreatedCount: 2, ErrorCount: 0, Errors: [] },
     };
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => mockResult,
-    });
+    mockFetch.mockResolvedValueOnce(Response.json(mockResult));
 
     const formData = new FormData();
     formData.append(
@@ -102,11 +98,7 @@ describe("POST /api/import/teachers/import", () => {
       data: { TotalRows: 2, CreatedCount: 1, ErrorCount: 1, Errors: [] },
     };
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => mockResult,
-    });
+    mockFetch.mockResolvedValueOnce(Response.json(mockResult));
 
     const formData = new FormData();
     formData.append("file", new Blob(["data"]), "staff.csv");
@@ -121,11 +113,7 @@ describe("POST /api/import/teachers/import", () => {
   it("forwards backend validation errors", async () => {
     const mockError = { error: "Invalid CSV format" };
 
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      json: async () => mockError,
-    });
+    mockFetch.mockResolvedValueOnce(Response.json(mockError, { status: 400 }));
 
     const formData = new FormData();
     formData.append("file", new Blob(["invalid"]), "invalid.csv");
@@ -138,11 +126,9 @@ describe("POST /api/import/teachers/import", () => {
   });
 
   it("handles backend server errors", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      json: async () => ({ error: "Database transaction failed" }),
-    });
+    mockFetch.mockResolvedValueOnce(
+      Response.json({ error: "Database transaction failed" }, { status: 500 }),
+    );
 
     const formData = new FormData();
     formData.append("file", new Blob(["test"]), "test.csv");

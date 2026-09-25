@@ -75,7 +75,7 @@ func TestReplyToChangeRequestRejectsInvalidIDs(t *testing.T) {
 			resource.replyToChangeRequest(recorder, newChangeRequestReplyRequest("status-token", test.id))
 
 			require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
-			assert.JSONEq(t, `{"status":"error","error":"invalid change request"}`, recorder.Body.String())
+			assert.JSONEq(t, `{"status":"error","error":"invalid change request","code":"general.input","type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Bad Request","detail":"invalid change request","instance":""}`, recorder.Body.String())
 			assertNoParentReplyCall(t, service.calls)
 		})
 	}
@@ -91,7 +91,7 @@ func TestReplyToChangeRequestRejectsMissingTokenIndependently(t *testing.T) {
 	resource.replyToChangeRequest(recorder, newChangeRequestReplyRequest("   ", "42"))
 
 	require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
-	assert.JSONEq(t, `{"status":"error","error":"invalid change request"}`, recorder.Body.String())
+	assert.JSONEq(t, `{"status":"error","error":"invalid change request","code":"general.input","type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Bad Request","detail":"invalid change request","instance":""}`, recorder.Body.String())
 	assertNoParentReplyCall(t, service.calls)
 }
 

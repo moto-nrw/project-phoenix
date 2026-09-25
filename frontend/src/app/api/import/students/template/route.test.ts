@@ -139,33 +139,28 @@ describe("GET /api/import/students/template", () => {
   });
 
   it("handles backend errors", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      text: async () => "Template generation failed",
-    });
+    mockFetch.mockResolvedValueOnce(
+      new Response("Template generation failed", {
+        status: 500,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
 
     const request = createMockRequest("/api/import/students/template");
     const response = await GET(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Template generation failed");
+    expect(await response.text()).toBe("Template generation failed");
   });
 
   it("handles empty error text from backend", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 503,
-      text: async () => "",
-    });
+    mockFetch.mockResolvedValueOnce(new Response("", { status: 503 }));
 
     const request = createMockRequest("/api/import/students/template");
     const response = await GET(request);
 
     expect(response.status).toBe(503);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Failed to download template");
+    expect(await response.text()).toBe("");
   });
 
   it("handles fetch errors", async () => {

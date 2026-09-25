@@ -62,11 +62,7 @@ describe("/api/auth/accounts/[accountId]/caregiver-capability", () => {
   });
 
   it("proxies successful GET responses with the backend content type", async () => {
-    mockFetch.mockResolvedValue({
-      status: 200,
-      text: async () => JSON.stringify({ ok: true }),
-      headers: new Headers({ "Content-Type": "application/json" }),
-    });
+    mockFetch.mockResolvedValue(Response.json({ ok: true }));
 
     const response = await GET(
       new NextRequest(
@@ -94,16 +90,10 @@ describe("/api/auth/accounts/[accountId]/caregiver-capability", () => {
   it("retries POST requests with a refreshed token after a 401", async () => {
     mockUncachedAuth.mockResolvedValue({ user: { token: "refreshed-token" } });
     mockFetch
-      .mockResolvedValueOnce({
-        status: 401,
-        text: async () => JSON.stringify({ error: "expired" }),
-        headers: new Headers({ "Content-Type": "application/json" }),
-      })
-      .mockResolvedValueOnce({
-        status: 200,
-        text: async () => JSON.stringify({ success: true }),
-        headers: new Headers({ "Content-Type": "application/json" }),
-      });
+      .mockResolvedValueOnce(
+        Response.json({ error: "expired" }, { status: 401 }),
+      )
+      .mockResolvedValueOnce(Response.json({ success: true }));
 
     const response = await POST(
       new NextRequest(

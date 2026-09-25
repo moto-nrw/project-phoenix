@@ -355,7 +355,7 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
     );
 
     expect(response.status).toBe(500);
-    expect(mockHandleApiError).toHaveBeenCalledWith(thrown);
+    expect(mockHandleApiError).toHaveBeenCalledWith(thrown, request);
     const json = await parseJsonResponse<{ error: string }>(response);
     expect(json.error).toContain("Failed to remove supervisor");
   });

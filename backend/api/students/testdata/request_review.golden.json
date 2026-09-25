@@ -1448,8 +1448,13 @@
     "path": "/change-requests?view=everything",
     "status": 400,
     "body": {
+      "code": "general.input",
+      "detail": "invalid change request list query",
       "error": "invalid change request list query",
-      "status": "error"
+      "instance": "",
+      "status": "error",
+      "title": "Bad Request",
+      "type": "https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen"
     }
   },
   {
@@ -1457,8 +1462,13 @@
     "path": "/change-requests?types=unknown",
     "status": 400,
     "body": {
+      "code": "general.input",
+      "detail": "invalid change request list query",
       "error": "invalid change request list query",
-      "status": "error"
+      "instance": "",
+      "status": "error",
+      "title": "Bad Request",
+      "type": "https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen"
     }
   },
   {
@@ -1466,8 +1476,13 @@
     "path": "/change-requests?view=open&status=approved",
     "status": 400,
     "body": {
+      "code": "general.input",
+      "detail": "invalid change request list query",
       "error": "invalid change request list query",
-      "status": "error"
+      "instance": "",
+      "status": "error",
+      "title": "Bad Request",
+      "type": "https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen"
     }
   },
   {
@@ -1475,8 +1490,13 @@
     "path": "/change-requests?view=history&from=2026-03-02&to=2026-03-01",
     "status": 400,
     "body": {
+      "code": "general.input",
+      "detail": "invalid change request list query",
       "error": "invalid change request list query",
-      "status": "error"
+      "instance": "",
+      "status": "error",
+      "title": "Bad Request",
+      "type": "https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen"
     }
   },
   {
@@ -1484,8 +1504,13 @@
     "path": "/change-requests?limit=0",
     "status": 400,
     "body": {
+      "code": "general.input",
+      "detail": "invalid change request list query",
       "error": "invalid change request list query",
-      "status": "error"
+      "instance": "",
+      "status": "error",
+      "title": "Bad Request",
+      "type": "https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen"
     }
   },
   {
@@ -1493,8 +1518,13 @@
     "path": "/change-requests?view=open&cursor=not-a-cursor",
     "status": 400,
     "body": {
+      "code": "general.input",
+      "detail": "invalid change request list query",
       "error": "invalid change request list query",
-      "status": "error"
+      "instance": "",
+      "status": "error",
+      "title": "Bad Request",
+      "type": "https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen"
     }
   },
   {
@@ -1700,8 +1730,12 @@
     "status": 403,
     "body": {
       "code": "absence_read_required",
+      "detail": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
       "error": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
-      "status": "error"
+      "instance": "",
+      "status": "error",
+      "title": "Forbidden",
+      "type": "https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen"
     }
   },
   {
@@ -1710,8 +1744,12 @@
     "status": 403,
     "body": {
       "code": "absence_read_required",
+      "detail": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
       "error": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
-      "status": "error"
+      "instance": "",
+      "status": "error",
+      "title": "Forbidden",
+      "type": "https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen"
     }
   },
   {
@@ -1720,8 +1758,12 @@
     "status": 403,
     "body": {
       "code": "absence_read_required",
+      "detail": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
       "error": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
-      "status": "error"
+      "instance": "",
+      "status": "error",
+      "title": "Forbidden",
+      "type": "https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen"
     }
   },
   {
@@ -1729,7 +1771,12 @@
     "path": "/change-requests?view=open&search=Golda",
     "status": 403,
     "body": {
-      "status": "Forbidden"
+      "code": "general.permission",
+      "detail": "",
+      "instance": "",
+      "status": "Forbidden",
+      "title": "Forbidden",
+      "type": "https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen"
     }
   },
   {
@@ -1737,7 +1784,12 @@
     "path": "/change-requests/pending-count",
     "status": 403,
     "body": {
-      "status": "Forbidden"
+      "code": "general.permission",
+      "detail": "",
+      "instance": "",
+      "status": "Forbidden",
+      "title": "Forbidden",
+      "type": "https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen"
     }
   },
   {

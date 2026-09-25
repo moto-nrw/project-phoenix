@@ -1,3 +1,4 @@
+import { backendResponseError } from "~/lib/api-helpers.server";
 // Anhänge an Elternmitteilungen (#2890): Liste und Upload.
 //
 // Die maßgebliche Prüfung (Magic Bytes, Entwurfs-Zustand, Obergrenze) macht
@@ -14,9 +15,6 @@ import { proxyGet } from "~/lib/route-proxy.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 import { uncachedAuth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
-import { createLogger } from "~/lib/logger";
-
-const logger = createLogger({ component: "AnnouncementAttachmentsRoute" });
 
 export const GET = proxyGet(
   (p) =>
@@ -63,19 +61,7 @@ export const POST = createFileUploadHandler<unknown>(
       }
     }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error("announcement_attachment_upload_proxy_failed", {
-        announcement_id: announcementId,
-        status: response.status,
-        error: errorText,
-      });
-      // The "API error (XXX)" prefix keeps the backend's status code intact
-      // through handleApiError instead of collapsing everything into a 500.
-      throw new Error(
-        `API error (${response.status}): ${errorText || "Upload fehlgeschlagen"}`,
-      );
-    }
+    if (!response.ok) throw await backendResponseError(response);
 
     const body = (await response.json()) as BackendAttachmentResponse;
     return body.data ?? {};

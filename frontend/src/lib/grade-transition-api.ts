@@ -1,3 +1,4 @@
+import { ApiError, apiErrorFromBody, enrichApiError } from "./api-error";
 // grade-transition-api.ts
 // Client for the Jahrgangsstufenwechsel (grade transition) admin flow (#405).
 // Talks to the Next.js proxy routes under /api/admin/grade-transitions which
@@ -320,10 +321,6 @@ function toBackendMappings(mappings: MappingInput[]) {
 // Fetch plumbing (proxy routes wrap payloads in { data })
 // ---------------------------------------------------------------------------
 
-async function readError(response: Response): Promise<string> {
-  return (await readErrorWithCode(response)).message;
-}
-
 /**
  * Stable backend error code returned (409) when an apply is refused because
  * graduating children are still checked in. Mirrors the code the Go handler
@@ -371,18 +368,16 @@ export const NOT_APPLIED_CODE = "not_applied";
  * distinguish a recoverable conflict (graduates still checked in, stale revert
  * target) from a generic failure.
  */
-export class TransitionRequestError extends Error {
-  readonly code?: string;
+export class TransitionRequestError extends ApiError {
   constructor(message: string, code?: string) {
-    super(message);
+    super(message, undefined, { code });
     this.name = "TransitionRequestError";
-    this.code = code;
   }
 }
 
 async function readErrorWithCode(
   response: Response,
-): Promise<{ message: string; code?: string }> {
+): Promise<{ message: string; code?: string; payload?: unknown }> {
   try {
     const body = (await response.json()) as {
       error?: string;
@@ -392,6 +387,7 @@ async function readErrorWithCode(
     return {
       message: body.error ?? body.message ?? `HTTP ${response.status}`,
       code: body.code,
+      payload: body,
     };
   } catch {
     return { message: `HTTP ${response.status}` };
@@ -400,7 +396,8 @@ async function readErrorWithCode(
 
 async function readJSON<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    throw new Error(await readError(response));
+    const error = await readErrorWithCode(response);
+    throw apiErrorFromBody(error.message, response.status, error.payload);
   }
   const body = (await response.json()) as { data?: T } | T;
   if (body && typeof body === "object" && "data" in body) {
@@ -505,8 +502,12 @@ export async function updateGradeTransition(
     // Keep the stable code: a NOT_DRAFT_CODE conflict means the loaded draft
     // was applied by another admin, and the editor must say so instead of
     // suggesting a retry that can never succeed (#405 review).
-    const { message, code } = await readErrorWithCode(response);
-    throw new TransitionRequestError(message, code);
+    const { message, code, payload } = await readErrorWithCode(response);
+    throw enrichApiError(
+      new TransitionRequestError(message, code),
+      payload,
+      response.status,
+    );
   }
   return mapTransition(await readJSON<BackendGradeTransition>(response));
 }
@@ -516,8 +517,12 @@ export async function deleteGradeTransition(id: string): Promise<void> {
     method: "DELETE",
   });
   if (!response.ok) {
-    const { message, code } = await readErrorWithCode(response);
-    throw new TransitionRequestError(message, code);
+    const { message, code, payload } = await readErrorWithCode(response);
+    throw enrichApiError(
+      new TransitionRequestError(message, code),
+      payload,
+      response.status,
+    );
   }
 }
 
@@ -540,8 +545,12 @@ async function readResultOrThrow(
   response: Response,
 ): Promise<TransitionResult> {
   if (!response.ok) {
-    const { message, code } = await readErrorWithCode(response);
-    throw new TransitionRequestError(message, code);
+    const { message, code, payload } = await readErrorWithCode(response);
+    throw enrichApiError(
+      new TransitionRequestError(message, code),
+      payload,
+      response.status,
+    );
   }
   const body = (await response.json()) as
     { data?: BackendTransitionResult } | BackendTransitionResult;
@@ -621,6 +630,7 @@ export async function purgeGraduatedStudent(studentId: string): Promise<void> {
     { method: "DELETE" },
   );
   if (!response.ok) {
-    throw new Error(await readError(response));
+    const error = await readErrorWithCode(response);
+    throw apiErrorFromBody(error.message, response.status, error.payload);
   }
 }

@@ -125,7 +125,7 @@
       "declaration": "TestFullProductionRouterGolden",
       "target": "api.WithRuntime",
       "lines": [
-        302
+        311
       ],
       "tables": []
     },
@@ -19442,12 +19442,12 @@
         },
         {
           "file": "api/base.go",
-          "line": 927,
+          "line": 928,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1339,
+          "line": 1340,
           "declaration": "initializeAPIResources"
         }
       ]

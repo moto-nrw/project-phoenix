@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 
 export const GET = withTenantAuth(
   async (request: NextRequest): Promise<Response> => {
@@ -15,10 +16,7 @@ export const GET = withTenantAuth(
       { headers: { Authorization: `Bearer ${session.user.token}` } },
     );
     if (!response.ok) {
-      return Response.json(
-        { error: "Export failed" },
-        { status: response.status },
-      );
+      return forwardBackendResponse(response);
     }
     return new Response(await response.arrayBuffer(), {
       status: response.status,

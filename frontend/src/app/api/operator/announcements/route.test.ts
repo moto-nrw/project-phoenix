@@ -167,11 +167,12 @@ describe("POST /api/operator/announcements", () => {
 
   it("handles validation errors from backend", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 400,
-      text: async () => JSON.stringify({ error: "Title is required" }),
-    });
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "Title is required" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/announcements",
