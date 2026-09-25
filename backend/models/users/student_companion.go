@@ -153,16 +153,6 @@ type CompanionLink = departure.CompanionLink
 // offline lists; People Directory's departure contract owns them.
 var CompanionWeekdayShortLabels = departure.CompanionWeekdayShortLabels
 
-// FilterCompanionLinksToDays keeps only the weekdays the given set allows; see
-// departure.FilterCompanionLinksToDays.
-func FilterCompanionLinksToDays(links []CompanionLink, allowedDays map[string]bool) []CompanionLink {
-	return departure.FilterCompanionLinksToDays(links, allowedDays)
-}
-
-// CompanionDisplayName is the companion's full name; see
-// departure.CompanionDisplayName.
-func CompanionDisplayName(link CompanionLink) string { return departure.CompanionDisplayName(link) }
-
 // FormatCompanionLinks renders the "läuft mit" links for the offline lists; see
 // departure.FormatCompanionLinks.
 func FormatCompanionLinks(links []CompanionLink) string { return departure.FormatCompanionLinks(links) }
