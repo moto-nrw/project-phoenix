@@ -31,9 +31,6 @@ var (
 	// ErrOfferingChangeNotPending means the row was already decided or
 	// withdrawn — a lost race or a double submit.
 	ErrOfferingChangeNotPending = errors.New("enrollment: offering change request is not pending")
-	// ErrOfferingChangeAlreadyPending means the child already has an open
-	// request (enforced by a partial unique index as well).
-	ErrOfferingChangeAlreadyPending = errors.New("enrollment: offering change request already pending")
 )
 
 // OfferingChangeRequest is one parent-initiated change to the care offerings a

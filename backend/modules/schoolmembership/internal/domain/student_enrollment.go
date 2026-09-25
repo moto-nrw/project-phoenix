@@ -26,6 +26,13 @@ func CheckChildQuota(limit, before, after int) error {
 	return &ChildQuotaReachedError{Booked: limit, Occupied: before, Requested: after - before}
 }
 
+// ChildQuotaUsage is the Kinderkontingent (Booked) next to the Kontingentzahl
+// (Occupied) of one school on one day (#3569).
+type ChildQuotaUsage struct {
+	Booked   int
+	Occupied int
+}
+
 // StudentEnrollment uses the public profile ID, never the membership row ID.
 type StudentEnrollment struct {
 	StudentID     int64

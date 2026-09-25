@@ -11,6 +11,7 @@ import type { JwtPayload } from "./jwt-payload";
 import type { DefaultSession, NextAuthConfig, User } from "next-auth";
 import { createHmac, randomBytes } from "node:crypto";
 import { env } from "~/env";
+import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { canonicalForwardedFor } from "~/lib/client-headers.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
@@ -493,7 +494,10 @@ export async function performLogin(
 
     const response = await fetch(`${apiUrl}/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(await incomingAnalyticsSessionHeaders()),
+      },
       body: JSON.stringify(body),
     });
 

@@ -27,11 +27,6 @@ type CategoryRepository interface {
 	// ListAll returns all categories
 	ListAll(ctx context.Context) ([]*Category, error)
 
-	// UpdateIfActive writes only editable fields while archived_at is still
-	// NULL. The condition and update run in one statement so a stale editor
-	// cannot reactivate a category or overwrite a concurrent shift mapping.
-	UpdateIfActive(ctx context.Context, category *Category) (updated bool, err error)
-
 	// UpdateColumns is the generic partial-update helper promoted from the
 	// embedded base repository: updates only the named columns by primary key
 	// and returns the number of rows affected. Archive/restore writes just
@@ -123,13 +118,6 @@ type GroupRepository interface {
 	// same split lineage as groupID. An unsplit template is one segment.
 	FindTemplateSeries(ctx context.Context, groupID int64) ([]*Group, error)
 
-	// FindTemplatesBySourceOffering returns every non-archived template whose
-	// source_care_offering_ids array contains the given care offering (#2137).
-	// One offering may feed many parallel Regeltermine; split successors carry
-	// the copied source column, so every live segment appears individually.
-	FindTemplatesBySourceOffering(ctx context.Context, offeringID int64) ([]*Group, error)
-	FindTemplatesBySourceOfferings(ctx context.Context, offeringIDs []int64) ([]*Group, error)
-
 	// UpdateTemplateOfferingSource rewrites ONLY a template's offering-source
 	// columns: the id array plus the Jahrgang filter, both NULLed when the
 	// id list is empty (the DB CHECK forbids a filter without a source). The
@@ -139,13 +127,6 @@ type GroupRepository interface {
 	// expressible via the generic Repository[T] update because both jsonb
 	// columns must change atomically under the CHECK constraint.
 	UpdateTemplateOfferingSource(ctx context.Context, id int64, offeringIDs []int64, gradeLevels []int, schoolClasses []string) error
-
-	// FindTemplatesWithOfferingSource returns every non-archived template of
-	// the tenant that declares ANY care offering as its roster source (#2137).
-	// Grade transitions use it to re-reconcile all sourced rosters after
-	// school_class rewrites — a per-offering lookup cannot enumerate them
-	// because the affected offerings are unknown at that point.
-	FindTemplatesWithOfferingSource(ctx context.Context) ([]*Group, error)
 }
 
 // GroupTargetRepository manages dynamic target cohorts for timetable templates.
@@ -268,16 +249,6 @@ type StudentEnrollmentRepository interface {
 	// FindByGroupID finds all enrollments for a specific group
 	FindByGroupID(ctx context.Context, groupID int64) ([]*StudentEnrollment, error)
 
-	// BackfillEnrollmentRequestChildSource stamps legacy rows that were
-	// materialized during the same approval as requestChildID but predate the
-	// explicit provenance column. The group list keeps the operation bounded to
-	// offerings that were linked before an adjustment.
-	BackfillEnrollmentRequestChildSource(ctx context.Context, studentID, requestChildID int64, groupIDs []int64) (int64, error)
-
-	// DeleteByEnrollmentRequestChild removes rows materialized from one
-	// approved enrollment request child for a specific student.
-	DeleteByEnrollmentRequestChild(ctx context.Context, studentID, requestChildID int64) (int64, error)
-
 	// CapActiveByGroup caps open enrollment rows (valid_until IS NULL). Rows
 	// starting on/after the cap are deleted because they have no interval left;
 	// begun rows are ended at validUntil. Bounded rows are left to their owning
@@ -325,6 +296,13 @@ type TemplateFieldsUpdate struct {
 	SourceCareOfferingIDs []int64
 	SourceGradeLevels     []int
 	SourceSchoolClasses   []string
+	// IncludeClosingDays opts the series into closing days (#3594); nil
+	// keeps the stored value.
+	IncludeClosingDays *bool
+	// SeriesLastDay (#3594, inclusive) is written only when
+	// SeriesLastDayProvided; nil clears it.
+	SeriesLastDay         *string
+	SeriesLastDayProvided bool
 }
 
 // TemplateListRow is one row of the template list read model produced by
@@ -371,6 +349,10 @@ type TemplateListRow struct {
 	ListKind NullString `bun:"list_kind"`
 	// Notes is the template's durable Wochennotiz (#1837 follow-up); NULL = none.
 	Notes NullString `bun:"notes"`
+	// IncludeClosingDays is the series' closing-day opt-in (#3594).
+	IncludeClosingDays bool `bun:"include_closing_days"`
+	// SeriesLastDay is the inclusive last day of the series (#3594); nil = none.
+	SeriesLastDay NullString `bun:"series_last_day"`
 	// ShiftTypeName/ShiftTypeColor come from the category's optional
 	// Kategorie↔Schichtart mapping (#1836/#1837 follow-up); empty when unmapped.
 	ShiftTypeID     NullInt64 `bun:"shift_type_id"`

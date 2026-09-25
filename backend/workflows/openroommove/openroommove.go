@@ -31,7 +31,10 @@ var (
 // visibility.
 type Actor struct {
 	StaffID int64
-	// BypassResourceChecks is set only for administrators.
+	// BypassResourceChecks is set only for administrators and for the kiosk
+	// the child leaves (#3067): the device authenticated with its key and the
+	// school PIN and the child's card was scanned at it, the same trust the
+	// binary attendance toggle relies on.
 	BypassResourceChecks bool
 	// SchoolWideAttendanceEligible marks a verified OGS staff actor holding
 	// the move permission; the tenant settings still decide whether the

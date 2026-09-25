@@ -3,7 +3,6 @@
 // PDF or XLSX; "Drucken" is the PDF opened in a print dialog, not a second
 // rendering path.
 
-import { trackEvent } from "~/lib/analytics";
 import {
   downloadBlob,
   filenameFromDisposition,
@@ -114,8 +113,6 @@ export async function exportPlan(
     if (!response.ok) {
       throw new Error(await readErrorMessage(response));
     }
-
-    trackEvent("data_exported", { export_type: plan, format });
 
     const blob = await response.blob();
     if (mode === "print") {

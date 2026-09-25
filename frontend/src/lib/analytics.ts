@@ -8,25 +8,19 @@
 
 import type { Properties } from "posthog-js";
 import { analyticsDeployment } from "~/lib/analytics-deployment";
+import type { AnalyticsRole, AnalyticsSurface } from "~/lib/analytics-policy";
 import type { DemoVisit } from "~/lib/demo-access";
 import {
   capturePostHog,
+  clearPostHogContext,
   resetAndCapturePostHog,
+  setAnalyticsContext,
   setPostHogContext,
 } from "~/lib/posthog-client";
-import {
-  isAnalyticsViewId,
-  type AnalyticsViewId,
-} from "~/lib/analytics-routes";
 
 export type AnalyticsEvent =
-  | "login_success"
   | "login_failed"
   | "tenant_switched"
-  | "group_created"
-  | "group_updated"
-  | "user_invited"
-  | "data_exported"
   | "pwa_install_prompt_shown"
   | "pwa_install_prompt_accepted"
   | "pwa_install_prompt_dismissed"
@@ -54,7 +48,6 @@ export function trackTenantEvent(
     ...props,
     deployment: analyticsDeployment(),
     school_id: schoolId,
-    $groups: { school: schoolId },
   };
 
   // A completed tenant switch belongs to the target school and must not share
@@ -67,18 +60,67 @@ export function trackTenantEvent(
   captureEvent(event, eventProperties);
 }
 
-export function trackPageView(viewId: AnalyticsViewId, schoolId: string): void {
-  if (!isAnalyticsViewId(viewId) || !/^\d+$/.test(schoolId)) return;
+export interface PortalAnalyticsSession {
+  readonly surface: AnalyticsSurface;
+  /** The school of the session; null where the token has none (parents). */
+  readonly schoolId: string | null;
+  readonly role: AnalyticsRole;
+  /**
+   * The school's Analyse-Freigabe (#3603) with its recording share and the
+   * pseudonymous ID of the account. The analytics policy honours them on the
+   * OGS portal only; every other portal leaves them out.
+   */
+  readonly analyseFreigabe?: boolean;
+  readonly recordingSamplePercent?: number;
+  readonly person?: string | null;
+}
 
-  capturePostHog("page_viewed", {
-    view_id: viewId,
-    portal: "tenant",
-    deployment: analyticsDeployment(),
-    school_id: schoolId,
-    $groups: { school: schoolId },
-    $geoip_disable: true,
-    $process_person_profile: false,
+/**
+ * Registers the signed-in portal session as analytics context: the surface
+ * for the filter, `school_id` and `role` for every later event. Page views,
+ * clicks, and heatmaps come from the SDK itself. An account is named only by
+ * its pseudonymous ID, and only on the OGS portal of a school with
+ * Analyse-Freigabe.
+ */
+export function registerPortalSession(
+  session: PortalAnalyticsSession,
+  resetFirst: boolean,
+): void {
+  // The registered properties first: a reset for a school change must not
+  // undo the identity the context applies next.
+  setPostHogContext(
+    {
+      ...(session.schoolId && /^\d+$/.test(session.schoolId)
+        ? { school_id: session.schoolId }
+        : {}),
+      role: session.role,
+    },
+    resetFirst,
+  );
+  setAnalyticsContext({
+    surface: session.surface,
+    role: session.role,
+    analyseFreigabe: session.analyseFreigabe === true,
+    recordingSamplePercent: session.recordingSamplePercent ?? 0,
+    person: session.person ?? null,
   });
+}
+
+/** Logout or school change: back to an anonymous visit of the host. */
+export function clearPortalSession(): void {
+  clearPostHogContext();
+}
+
+/**
+ * The OGS portal's role property. Role names are school data (a school can
+ * create its own roles), so only the admin flag reaches the analytics. The
+ * read-only staff preview (#2893) is an admin at work, not the staff member.
+ */
+export function ogsAnalyticsRole(user: {
+  readonly isAdmin?: boolean;
+  readonly isPreview?: boolean;
+}): AnalyticsRole {
+  return user.isAdmin === true || user.isPreview === true ? "admin" : "staff";
 }
 
 export type DemoAnalyticsEvent =

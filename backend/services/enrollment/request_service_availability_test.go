@@ -185,6 +185,19 @@ func TestUnknownOfferingStillUsesClosedError(t *testing.T) {
 	require.True(t, errors.Is(err, ErrCareOfferingClosed))
 }
 
+func TestEffectiveFormCapabilitiesRequiresGradeForConditionalCatalog(t *testing.T) {
+	t.Parallel()
+
+	offering := &enrollmentModels.CareOffering{
+		AvailabilityRule: testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
+	}
+	got := EffectiveFormCapabilities(FormCapabilities{CareOfferingsEnabled: true}, []*enrollmentModels.CareOffering{offering})
+	require.True(t, got.CollectGradeLevel)
+
+	got = EffectiveFormCapabilities(FormCapabilities{CareOfferingsEnabled: false}, []*enrollmentModels.CareOffering{offering})
+	require.False(t, got.CollectGradeLevel)
+}
+
 func testGradeAvailabilityRule(operator string, values ...int) *enrollmentModels.CareOfferingAvailabilityRule {
 	return &enrollmentModels.CareOfferingAvailabilityRule{
 		Match: enrollmentModels.AvailabilityMatchAll,

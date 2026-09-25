@@ -69,6 +69,10 @@ type ParentMessageThread struct {
 	// covered by a staff reply. Personal read cursors stay per account.
 	StaffHandledUpToAt        *time.Time
 	StaffHandledUpToMessageID *int64
+	// StaffMarkedUnread* is the team-wide "als ungelesen markiert" state. It is
+	// cleared when a staff member opens or answers the conversation.
+	StaffMarkedUnreadAt          *time.Time
+	StaffMarkedUnreadByAccountID *int64
 	// LastStaffMessageNotificationAt is the database-clock claim that collapses
 	// a burst of guardian messages into one staff notification.
 	LastStaffMessageNotificationAt *time.Time
@@ -104,6 +108,8 @@ type ParentInboxThread struct {
 	LastMessagePayload     map[string]any
 	LastMessageReadByStaff bool
 	UnreadCount            int
+	ReadBoundAt            *time.Time
+	ReadBoundMessageID     *int64
 }
 
 // ParentReadCursor is a reader's position in a thread: the read instant and its
@@ -112,6 +118,13 @@ type ParentInboxThread struct {
 type ParentReadCursor struct {
 	LastReadAt        time.Time
 	LastReadMessageID int64
+}
+
+// ReadCursorBound is a counterpart message selected in the inbox snapshot.
+type ReadCursorBound struct {
+	ThreadID  int64
+	ReadAt    time.Time
+	MessageID int64
 }
 
 // ParentThreadHeader is the chat window's header: the child and guardian

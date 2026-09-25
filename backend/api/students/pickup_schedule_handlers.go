@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -644,7 +643,7 @@ func (rs *Resource) bulkUpsertPickupSchedules(w http.ResponseWriter, r *http.Req
 	permissions := jwt.PermissionsFromCtx(r.Context())
 	claims := jwt.ClaimsFromCtx(r.Context())
 	result, err := rs.PickupAdjustmentService.ApplyBulkExceptions(
-		r.Context(), enrollmentService.PickupAdjustmentBulkInput{
+		r.Context(), careplan.PickupAdjustmentBulkInput{
 			StudentIDs: req.StudentIDs, Schedules: req.Schedules,
 			ConfirmedException: req.ConfirmedException, CreatedByStaffID: staffID,
 			ActorAccountID: int64(claims.ID),
@@ -1086,8 +1085,8 @@ func (rs *Resource) resetStudentPickupToOffering(w http.ResponseWriter, r *http.
 	if student == nil {
 		return
 	}
-	svc, ok := rs.EnrollmentDecision.(enrollmentService.OfferingPickupTimeService)
-	if rs.EnrollmentDecision == nil || !ok {
+	svc := rs.OfferingPickupTimes
+	if svc == nil {
 		renderError(w, r, common.ErrorInternalServer(errors.New("offering pickup service not configured")))
 		return
 	}

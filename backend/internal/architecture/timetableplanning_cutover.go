@@ -42,9 +42,14 @@ func timetablePlanningCutoverPermission(base, candidate *Policy, scope Scope, so
 
 // timetablePlanningReplacementTarget lists the points a former consumer of
 // the nest may name instead: the School Calendar's public contract holds the
-// calendar periods, closing days, holidays and dateframes slice S6 moved.
+// calendar periods, closing days, holidays and dateframes slice S6 moved, the
+// Timetable owner's public contract the conflict detection and staffing slice
+// S4 moved (#3550). Only the public role of either owner qualifies.
 func timetablePlanningReplacementTarget(target Package) bool {
-	return target.Owner == "school-calendar" && target.Role == "public"
+	if target.Role != "public" {
+		return false
+	}
+	return target.Owner == "school-calendar" || target.Owner == "timetable-activities"
 }
 
 // timetablePlanningNestPoint recognizes the retained nest and its own

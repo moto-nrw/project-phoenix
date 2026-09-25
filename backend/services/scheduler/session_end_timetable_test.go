@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"testing"
@@ -10,8 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,18 +46,15 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	instanceRepo := timetablesqltest.NewActivityInstanceRepository(db)
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	instanceRepo := factory.ActivityInstance
 	instanceStudentRepo := factory.InstanceStudent
 	s := unitScheduler(&Scheduler{
 		instanceRepo:        instanceRepo,
 		instanceStudentRepo: instanceStudentRepo,
 
-		timetableBridge: timetableplanning.NewTimetableBridgeService(timetableplanning.TimetableBridgeDependencies{
-			Instances:        instanceRepo,
-			InstanceStudents: instanceStudentRepo,
-		}),
-		logger: slog.Default()})
+		timetableBridge: endedSessionRows{instances: instanceRepo, participants: instanceStudentRepo},
+		logger:          slog.Default()})
 
 	completed, err := s.completeTimetableInstancesForEndedSessions(ctx, &studentpresence.DailySessionCleanupResult{
 		EndedActiveGroupIDs: []int64{activeGroup.ID},
@@ -95,4 +91,27 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 	assert.Equal(t, scheduleModels.AttendanceStatusPresent, reloadedPresent.Status, "observed presence must be preserved")
 	require.NotNil(t, reloadedPresent.CheckedOutAt, "daily session end must close the open slot checkout")
 	assert.False(t, reloadedPresent.CheckedOutAt.Before(checkedInAt))
+}
+
+// endedSessionRows completes the blocks of ended sessions straight through
+// the retained rows, the way the Timetable owner's completion does without
+// Care Plan: nobody is spared, every still-expected child is stamped absent,
+// then the blocks complete. The owner's completion itself is covered in
+// modules/timetable/compose; this suite pins the scheduler's session-end
+// pass and the row effects it leaves behind.
+type endedSessionRows struct {
+	instances interface {
+		CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
+	}
+	participants scheduleModels.InstanceStudentRepository
+}
+
+func (r endedSessionRows) CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error) {
+	if err := r.participants.MarkNotScheduled(ctx, nil); err != nil {
+		return 0, err
+	}
+	if err := r.participants.MarkExpectedAbsentByActiveGroupIDs(ctx, activeGroupIDs, completedAt, nil); err != nil {
+		return 0, err
+	}
+	return r.instances.CompleteActiveByActiveGroupIDs(ctx, activeGroupIDs, completedAt)
 }

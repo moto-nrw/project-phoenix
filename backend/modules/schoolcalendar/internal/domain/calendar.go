@@ -13,6 +13,9 @@ var (
 	// ErrCalendarPeriodOverlapConflict: an active period may not overlap an
 	// active period of the same type (#1837).
 	ErrCalendarPeriodOverlapConflict = errors.New("calendar period overlaps an active period of the same type")
+	// ErrCalendarPeriodRosterConflict: removing the period would duplicate
+	// an active enrollment or supervision.
+	ErrCalendarPeriodRosterConflict = errors.New("calendar period removal conflicts with active roster assignments")
 )
 
 // CalendarPeriodOverlapError names the active same-type periods a mutation

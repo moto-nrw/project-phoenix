@@ -21,7 +21,6 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -81,10 +80,31 @@ type ClassListEntryReader interface {
 	ListClassListEntriesInDisplayOrder(context.Context) ([]ClassListEntry, error)
 }
 
+// ChildQuotaUsage is the school's Kinderkontingent (Booked) next to its
+// Kontingentzahl (Occupied), as the Datenverwaltung shows it (#3569).
+type ChildQuotaUsage struct {
+	Booked   int
+	Occupied int
+}
+
+// ChildQuotaReader reads the Kinderkontingent of the caller's school. The
+// root binds it to the School Membership capability that counts the
+// Kontingentzahl; limited is false when the school has no Kinderkontingent.
+type ChildQuotaReader interface {
+	ChildQuotaUsage(context.Context) (usage ChildQuotaUsage, limited bool, err error)
+}
+
 // WeekdayPickupNoteReplacer owns the one atomic write that replaces the
 // recurring day notes for a child. It deliberately excludes dated notes.
 type WeekdayPickupNoteReplacer interface {
 	ReplaceWeekdayPickupNotes(context.Context, int64, int64, map[int]string) error
+}
+
+// PlannedStudents is the consumer-owned port to the Timetable owner's
+// planned-block lookup the day planning reads (#584): which of the children
+// have a planned block on a date.
+type PlannedStudents interface {
+	GetPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]int64, error)
 }
 
 // StudentPresence is the consumer-owned presence port of the students inbound
@@ -127,7 +147,7 @@ type ResourceConfig struct {
 	WeekdayPickupNotes     WeekdayPickupNoteReplacer
 	PartialAbsenceService  careplan.PartialAbsenceService
 	ArrivalScheduleService careplan.ArrivalScheduleService
-	InstanceService        timetableplanning.InstanceService
+	InstanceService        PlannedStudents
 	// CareDayService gates the day-planning timetable signal on the child's
 	// care plan (#1747) — without it a child assigned to a block counts as
 	// "kommt heute" on every weekday, including the ones they are not booked
@@ -147,6 +167,10 @@ type ResourceConfig struct {
 	// their School Membership owner in the display order the export needs.
 	// Optional: nil exports without entries (bare test Resources).
 	ClassListEntries ClassListEntryReader
+	// ChildQuota backs the Kinderkontingent line of the Datenverwaltung
+	// (#3569). Optional for bare test Resources; the route answers 500
+	// without it.
+	ChildQuota ChildQuotaReader
 	// StudentDeletion is the owner workflow behind the permanent deletion
 	// routes (#2710): delete-impact, DELETE /{id}, the graduate purge and the
 	// withdrawal deletion. Optional so bare test Resources still compile; the
@@ -161,8 +185,8 @@ type ResourceConfig struct {
 	CareRequestReviews      careplan.CareScheduleReviewQuery
 	// OfferingChangeService backs the post-enrollment offering-change queue
 	// (#1665).
-	OfferingChangeService    enrollmentService.OfferingChangeRequestService
-	PickupAdjustmentService  enrollmentService.PickupAdjustmentService
+	OfferingChangeService    careplan.OfferingChangeRequests
+	PickupAdjustmentService  careplan.PickupAdjustments
 	ExcusedRequestService    excusedrequests.Service
 	ParentRequestBulkService userService.ParentRequestBulkService
 	// ParentRequestConflictService resolves a whole conflict group at once
@@ -189,6 +213,11 @@ type ResourceConfig struct {
 	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService
+	// OfferingPickupTimes is Care Plan's offering pickup projection (#3560):
+	// the reset of a manual weekly Gehzeit onto the Angebots-Gehzeit.
+	// Optional for bare test Resources; the reset route answers 500 without
+	// it.
+	OfferingPickupTimes careplan.OfferingPickupTimes
 	// OfferingSourceResyncer re-reconciles Jahrgang-filtered offering-sourced
 	// Regeltermine after a direct school_class edit, in the same transaction —
 	// the same hook a grade transition uses (#2147 review round 10). Optional:
@@ -257,6 +286,10 @@ func (rs *Resource) Router() chi.Router {
 		// missing — mirroring the permission split of the replaced single
 		// endpoints instead of failing the whole roster.
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/ogs-group-live", rs.getOGSGroupLive)
+		// Kinderkontingent line of the Datenverwaltung child list (#3569).
+		// Gated on users:delete like the page itself (DATABASE_PAGE_PERMISSIONS),
+		// so the standard caregiver role, which lacks it, never reads it.
+		r.With(common.RequiresPermission(permissions.UsersDelete), withTx).Get("/child-quota", rs.getChildQuota)
 		// Navigation only exposes groups scoped by the service. It remains
 		// authenticated-only so legacy caregiver sessions and staff with
 		// users:read retain their personal-group navigation; groups:read only

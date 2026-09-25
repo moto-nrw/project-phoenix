@@ -1,0 +1,125 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3424",
+    "#3553"
+  ],
+  "owner_and_capability": "Timetable & Activities — slice S1 of #3424 (#3554): the instance lifecycle (start, completion, reopen, cancellation with its guardian notice, delete, create, planned edit, re-plan), the staff move, the standalone understaffed acknowledgement, the series conversion and the scheduler's automatic start and end leave modules/timetable/legacy/timetableplanning and become the public contracts timetable.InstanceLifecycle, timetable.InstancePlanning, timetable.InstanceStaffing, timetable.InstanceSeriesConversion, timetable.InstanceAutoStart and timetable.InstanceAutoEnd, implemented in modules/timetable/compose; the nest and modules/timetable/legacy/timetablesqltest are deleted",
+  "affected_packages": [
+    "modules/timetable",
+    "modules/timetable/compose",
+    "modules/timetable/legacy/timetableplanning",
+    "modules/timetable/legacy/timetablesqltest",
+    "api/timetable",
+    "api/students",
+    "modules/grouplive/legacy",
+    "modules/workforce/internal/planning",
+    "modules/workforce/compose",
+    "workflows/shiftplansync/internal/application",
+    "services",
+    "services/scheduler",
+    "database/repositories"
+  ],
+  "affected_tables": [
+    "schedule.activity_instances",
+    "schedule.instance_staff",
+    "schedule.instance_students",
+    "schedule.activity_exceptions",
+    "schedule.staff_shifts",
+    "audit.deviation_events"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/models/schedule",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/internal/schoolclass",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/models/activities",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/models/base",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/models/schedule",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/internal/schoolclass",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/models/activities",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/models/schedule",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/realtime"
+  ],
+  "atomic_cutover": "One PR moves the lifecycle to the owner, switches api/timetable, api/students, the group live view, the scheduler and the composition root to the public contract, deletes the nest and the SQL test providers and retires the thirteen #2732 keys the facade leaked. api/timetable receives owner types (timetable.LifecycleInstance and the lifecycle inputs, results and sentinels) instead of models/schedule rows, reads the vocabulary it borrowed from models/activities, models/schedule and internal/schoolclass from the public contract (pinned against the models), matches owner sentinels instead of models/base error helpers, uses sharedkernel/calendar instead of internal/timezone and announces staffing changes through a consumer-owned port instead of the realtime hub. Its tests build fixtures through the bound repositories and the owner contract. HTTP paths, status codes, error texts, payloads, permissions and tenant scoping stay the same. No second provider, no fallback and no new debt key is added.",
+  "tests": [
+    "modules/timetable/compose and modules/timetable/compose/httpintegration: the lifecycle, auto-start, auto-end, series-conversion, guardian-notice, staff-move, re-plan, session-end and deviation-log suites ported from the nest, against the isolated PostgreSQL test database.",
+    "api/timetable: the instance, operations, deviation, template and conversion route and contract tests on the owner contract, plus the vocabulary pins and rule parity tests in modules/timetable/compose.",
+    "modules/workforce and workflows/shiftplansync suites on Workforce and Timetable owner types.",
+    "go test ./test/ -run 'Ratchet|TestHermeticTestPatterns', go test ./internal/architecture/ and scripts/test-changed.sh without --fast.",
+    "scripts/backend-architecture.sh check with exactly these thirteen keys absent from legacy.jsonl and none added."
+  ],
+  "runtime_evidence": {
+    "source": "Local runs on the #3554 branch stacked on work/3553-move-deviations-substitutions-and-the-attendance at 8d5d3bcfe4c17a6266a3591249917532c061d468.",
+    "sources": [
+      "backend/modules/timetable/instance_lifecycle.go",
+      "backend/modules/timetable/compose/instance_lifecycle.go",
+      "backend/services/timetable_lifecycle_composition.go",
+      "backend/test/query_budgets.go"
+    ],
+    "workload": "No load run. Go suites through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The moved code executes the same statements in the same order: the query-budget register stays unchanged, every affected suite passes, and scripts/backend-architecture.sh check passes with exactly these thirteen keys removed, no key added and an unchanged composition surface of 622.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "The listed tables are read and written by the moved code with unchanged statements; the move relocates callers and types, it changes no row."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The query-budget suites passed with backend/test/query_budgets.go unchanged."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency run was made. The lifecycle keeps its repository calls and their order; only the package boundary and the argument types changed."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency run was made. The lifecycle keeps its repository calls and their order; only the package boundary and the argument types changed."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "go build ./... and go vet ./... were clean and the ported lifecycle suites passed without a behaviour difference."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection acquisition, transaction boundary or pool setting changed."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "The lifecycle takes the same advisory keys (timetable.SubstituteDayLockKey, the recurrence and grade-transition gates) in the same order through the owner's Postgres adapter."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No statement, transaction boundary or lock order changed, so no lock ordering can differ."
+    },
+    "job_duration": {
+      "state": "measured",
+      "result": "The ported auto-start and auto-end suites passed against the same repositories through the new capability bindings, with the same statements per tick."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The scheduler keeps its retry and error handling; only the injected capability types changed."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No queue, schedule interval or worker count changed."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The ported HTTP and lifecycle suites pin the previous status codes, error codes and texts of the instance routes, including the 409 duplicate_instance answer, which now matches the owner's timetable.ErrDuplicateTemplateInstance wrapped around the unchanged unique violation."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data or schema change. Reverting the PR restores the nest, its callers, the policy rules and the thirteen baseline entries together."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally with 571 remaining keys and composition surface 622 -> 622."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR; the nest, the SQL test providers, the caller wiring, the policy epoch, the deleted rules and the thirteen baseline entries return together. No data cleanup and no deployment step.",
+  "exit_criterion": "modules/timetable/legacy/timetableplanning and modules/timetable/legacy/timetablesqltest no longer exist, every consumer reaches the instance lifecycle only through modules/timetable, no rule references #3424, and the thirteen listed keys are absent from legacy.jsonl."
+}

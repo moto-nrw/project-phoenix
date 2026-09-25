@@ -5,27 +5,26 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type shiftMoveExceptionRepo struct {
-	createFunc func(context.Context, *scheduleModels.StaffShiftSeriesException) error
+	createFunc func(context.Context, *StaffShiftSeriesException) error
 }
 
-func (m *shiftMoveExceptionRepo) Create(ctx context.Context, exception *scheduleModels.StaffShiftSeriesException) error {
+func (m *shiftMoveExceptionRepo) Create(ctx context.Context, exception *StaffShiftSeriesException) error {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, exception)
 	}
 	return nil
 }
 
-func (*shiftMoveExceptionRepo) FindDatesBySeriesID(context.Context, int64) ([]scheduleModels.Date, error) {
+func (*shiftMoveExceptionRepo) FindDatesBySeriesID(context.Context, int64) ([]timezone.Date, error) {
 	return nil, nil
 }
 
-func (*shiftMoveExceptionRepo) RepointToSeriesFrom(context.Context, int64, int64, scheduleModels.Date) (int64, error) {
+func (*shiftMoveExceptionRepo) RepointToSeriesFrom(context.Context, int64, int64, timezone.Date) (int64, error) {
 	return 0, nil
 }
 
@@ -41,18 +40,18 @@ func TestShiftService_MoveAcrossStaffPreservesIdentityAndConsumesSeriesOccurrenc
 	existing.SeriesOccurrenceDate = &existing.Date
 	existing.Notes = "Nur Hintereingang"
 	existing.ChangeReason = &reason
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return existing, nil
 	}
 
-	var persisted *scheduleModels.StaffShift
-	repo.updateFunc = func(_ context.Context, shift *scheduleModels.StaffShift) error {
+	var persisted *StaffShift
+	repo.updateFunc = func(_ context.Context, shift *StaffShift) error {
 		persisted = shift
 		return nil
 	}
-	var exception *scheduleModels.StaffShiftSeriesException
+	var exception *StaffShiftSeriesException
 	svc.(*staffShiftService).exceptionRepo = &shiftMoveExceptionRepo{
-		createFunc: func(_ context.Context, row *scheduleModels.StaffShiftSeriesException) error {
+		createFunc: func(_ context.Context, row *StaffShiftSeriesException) error {
 			exception = row
 			return nil
 		},
@@ -92,11 +91,11 @@ func TestShiftService_MoveRetryReturnsAlreadyMovedRowWithoutWriting(t *testing.T
 	alreadyMoved := validShift(8)
 	alreadyMoved.ID = 5
 	alreadyMoved.Date = alreadyMoved.Date.AddDays(1)
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return alreadyMoved, nil
 	}
 	updates := 0
-	repo.updateFunc = func(_ context.Context, _ *scheduleModels.StaffShift) error {
+	repo.updateFunc = func(_ context.Context, _ *StaffShift) error {
 		updates++
 		return nil
 	}
@@ -126,12 +125,12 @@ func TestShiftService_MoveSeriesDateRetainsDeviationAndConsumesOriginalDate(t *t
 	existing.ID = 5
 	existing.SeriesID = &seriesID
 	existing.SeriesOccurrenceDate = &existing.Date
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return existing, nil
 	}
-	var exceptionDate scheduleModels.Date
+	var exceptionDate timezone.Date
 	svc.(*staffShiftService).exceptionRepo = &shiftMoveExceptionRepo{
-		createFunc: func(_ context.Context, row *scheduleModels.StaffShiftSeriesException) error {
+		createFunc: func(_ context.Context, row *StaffShiftSeriesException) error {
 			exceptionDate = row.Date
 			return nil
 		},
@@ -164,17 +163,17 @@ func TestShiftService_MoveSeriesNoOpDoesNotDetachOrWrite(t *testing.T) {
 	existing.ID = 5
 	existing.SeriesID = &seriesID
 	existing.SeriesOccurrenceDate = &existing.Date
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return existing, nil
 	}
 	updates := 0
-	repo.updateFunc = func(_ context.Context, _ *scheduleModels.StaffShift) error {
+	repo.updateFunc = func(_ context.Context, _ *StaffShift) error {
 		updates++
 		return nil
 	}
 	exceptions := 0
 	svc.(*staffShiftService).exceptionRepo = &shiftMoveExceptionRepo{
-		createFunc: func(_ context.Context, _ *scheduleModels.StaffShiftSeriesException) error {
+		createFunc: func(_ context.Context, _ *StaffShiftSeriesException) error {
 			exceptions++
 			return nil
 		},

@@ -9,6 +9,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
+// OfferingChangeRequests is the part of Care Plan's offering-change review
+// the portal drives: a child's booking catalog, the change requests and the
+// course requests (#3561). Every call runs in the tenant unit of work the
+// caller opened.
+type OfferingChangeRequests interface {
+	careplan.OfferingChangeRequests
+	careplan.CourseRequests
+}
+
 // MealPlan is the consumer-owned port over the Meal Plan capability of the
 // child's school. Every call runs in the tenant unit of work the caller opened.
 // The binding translates the owner's refusals: a switched-off meal plan is

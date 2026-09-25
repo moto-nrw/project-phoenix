@@ -296,6 +296,7 @@ type engine interface {
 	ResumeStudentCare(context.Context, int64, string, string, string) (bool, error)
 	GraduateStudents(context.Context, []int64) (int64, error)
 	ReactivateStudents(ctx context.Context, ids []int64, status string, enforceChildQuota bool) ([]int64, error)
+	ChildQuotaUsage(context.Context) (ChildQuotaUsage, bool, error)
 	ChangeStudentClass(context.Context, []int64, string, string) (int64, error)
 	FindStaff(ctx context.Context, id int64, lock string) (Staff, error)
 	FindStaffByPerson(context.Context, int64) (Staff, error)

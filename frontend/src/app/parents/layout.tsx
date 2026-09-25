@@ -10,6 +10,11 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // Die Handy-Tastatur verkleinert nur den sichtbaren Bereich, nicht die
+  // Seite. Davon geht der Nachrichten-Chat aus (useChatViewportLock); ohne
+  // die Angabe verkleinern manche Android-Browser die ganze Seite, und das
+  // Schreibfeld rutscht unter die Tastatur (#3664).
+  interactiveWidget: "resizes-visual",
 };
 
 /**

@@ -22,7 +22,7 @@ type queryBudget struct {
 //
 //   - Never raise a number. A scenario that needs more statements is an N+1
 //     regression until proven otherwise; the fix is a batch load keyed by an
-//     ID set (modules/timetable/legacy/timetableplanning/timetable_read_exception_conflicts.go, the
+//     ID set (modules/timetable/compose/exception_conflicts.go, the
 //     FindByStudentIDsAndDate calls, is the reference shape).
 //   - Lower a number when a fix removes statements, so the win cannot regress.
 //   - Every new list endpoint gets an entry plus a test calling
@@ -116,30 +116,36 @@ var queryBudgets = map[string]queryBudget{
 	"api.activities.available_supervisors.specialization.reads": {max: 5},
 	"api.iot.teacher_students.reads":                            {max: 5},
 	"api.rooms.snapshot_export.reads":                           {max: 4},
-	// api/timetable — 14-day /week: FindByID + 7 preloads + class-exception
+	// modules/timetable/http — 14-day /week: FindByID + 7 preloads + class-exception
 	// lookup (#2962) with headroom for bun metadata reads; was ~98 pre-fix.
 	"api.timetable.student_week.14d": {max: 13},
-	// api/timetable — GET /instances over a week, 8 instances on 3 days:
+	// modules/timetable/http — GET /instances over a week, 8 instances on 3 days:
 	// instances + room + staff batch + student batch + one cutoff read per day.
 	"api.timetable.instances.list": {max: 7},
-	// api/timetable — GET /templates: template rows, retained list enrichments,
+	// modules/timetable/http — GET /templates: template rows, retained list enrichments,
 	// plus the setting, offering and series-root reads for roster maintenance
 	// (#3140). The test proves all 11 statements stay flat from 3 to 8 rows.
 	"api.timetable.templates.list": {max: 11},
-	// api/timetable — GET /pickup-extensions (#3261), day tasks only: tenant
+	// modules/timetable/http — GET /pickup-extensions (#3261), day tasks only: tenant
 	// transaction and tenant setup, task read, one batched block read,
 	// student and person names. Flat in the number of open tasks.
 	"api.timetable.pickup_extensions.list": {max: 9},
-	// api/timetable — GET /periods (#3124): tenant transaction (BEGIN, SET
+	// modules/timetable/http — GET /periods (#3124): tenant transaction (BEGIN, SET
 	// LOCAL ROLE, set_config, COMMIT) + period list + one usage read per
 	// owner (Enrollment phases, Timetable planning tables). The two owner
 	// round trips are the accepted #2580 boundary cost; the count is flat in
 	// the number of periods. Pinned exact so an owner-boundary move fails
 	// here instead of at a runtime checkpoint (#3020).
 	"api.timetable.periods.list": {max: 7, exact: true},
-	// modules/timetable/legacy/timetableplanning — GET /planned-now backing list, 8 eligible instances:
+	// modules/timetable/compose operational day (#3551) — GET /planned-now backing list, 8 eligible instances:
 	// instance list + rooms + staff batch + student batch (#2941).
 	"services.schedule.planned_now": {max: 4},
+	// modules/timetable/compose — POST /instances/bulk-cancel
+	// dry run (#3594): tenant transaction (BEGIN, SET LOCAL ROLE, set_config,
+	// COMMIT) + one instance range read + one series read for the closing-day
+	// flag. Flat from 2 to 5 occurrences. The execution reuses Cancel and
+	// DeleteCancelled per occurrence by design and is not budgeted here.
+	"services.schedule.bulk_cancel_dry_run": {max: 6, exact: true},
 	// modules/schoolcalendar/portal — ListMyStaffEvents over a week, 8 appointments.
 	"services.calendar.list_my_staff_events": {max: 11},
 	// modules/schoolcalendar/portal — one authenticated CalDAV snapshot. The operation
@@ -209,7 +215,13 @@ var queryBudgets = map[string]queryBudget{
 	// whole list. Flat at three acknowledgements — a per-row lookup would show
 	// as N+1 here.
 	"api.staff_notices.acknowledgements": {max: 7, exact: true},
-	"modules.careplan.request_feed.list": {max: 1, exact: true},
+	// modules/workforce/inbound/timetracking — GET
+	// /api/staff/{id}/target-overrides (#3259): the tenant-transaction
+	// statements, the two staff lookups (membership, employment profile) and
+	// ONE read of the staff member's
+	// Sonderarbeitszeiten. Flat in the number of ranges.
+	"workforce.staff_target_overrides.list": {max: 7, exact: true},
+	"modules.careplan.request_feed.list":    {max: 1, exact: true},
 	// modules/identityaccess caller context (behavior/caller_request_cache_test.go) —
 	// the #2099 request cache dedups the identity chain.
 	"services.usercontext.identity_chain.persons":       {max: 1, exact: true},
@@ -266,7 +278,7 @@ func AssertQueryBudget(tb testing.TB, scenario string, queries []string) {
 	case got > budget.max:
 		tb.Errorf("query budget exceeded: scenario %q issued %d statements, budget %d.\n"+
 			"  Likely an N+1: a query inside a loop over rows. Batch-load by ID set instead\n"+
-			"  (reference: modules/timetable/legacy/timetableplanning/timetable_read_exception_conflicts.go, FindByStudentIDsAndDate).\n"+
+			"  (reference: modules/timetable/compose/exception_conflicts.go, FindByStudentIDsAndDate).\n"+
 			"  Never raise the register entry.\n%s",
 			scenario, got, budget.max, indentQueries(queries))
 	case budget.exact && got < budget.max:

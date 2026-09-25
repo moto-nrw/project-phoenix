@@ -563,6 +563,44 @@ func TestSettingsSetValue_OperatorOnlyForbidden(t *testing.T) {
 	testutil.AssertErrorResponse(t, rr, 403)
 }
 
+// The Analyse-Freigabe (#3603) needs the written consent of the school or
+// its Träger; a school admin with every settings permission can neither
+// switch it on nor raise the recording share through the tenant API.
+func TestSettingsSetValue_AnalyticsFreigabeForbiddenForSchoolAdmin(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupSettingsModule(t)
+	router := ctx.resource.SettingsRouter()
+
+	for _, write := range []struct {
+		key   string
+		value any
+	}{
+		{"analytics.freigabe", true},
+		{"analytics.recording_sample_percent", 100},
+	} {
+		req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/"+write.key,
+			map[string]interface{}{"value": write.value},
+			testutil.WithTestTenant(t),
+		)
+		rr := testutil.ExecuteRequest(router, req)
+		testutil.AssertErrorResponse(t, rr, 403)
+
+		reset := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/"+write.key, nil,
+			testutil.WithTestTenant(t),
+		)
+		testutil.AssertErrorResponse(t, testutil.ExecuteRequest(router, reset), 403)
+	}
+
+	count, err := ctx.db.NewSelect().
+		Table("config.setting_values").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Where("setting_key LIKE ?", "analytics.%").
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Zero(t, count, "a refused write must not store an override")
+}
+
 func TestSettingsResetValue_OperatorOnlyForbidden(t *testing.T) {
 	t.Parallel()
 

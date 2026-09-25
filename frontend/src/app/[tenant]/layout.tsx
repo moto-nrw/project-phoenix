@@ -11,6 +11,7 @@ import {
   normalizeAttendanceEditScope,
   normalizeOverviewScope,
   normalizePresenceMode,
+  normalizeRecordingSamplePercent,
 } from "~/lib/tenant-api";
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 import { isValidTenantSlug } from "~/lib/tenant-slug";
@@ -43,6 +44,8 @@ interface TenantResolveResponse {
   waitlist_enabled?: boolean;
   emergency_list_health_info_enabled?: boolean;
   grade_level_max: number;
+  analytics_freigabe?: boolean;
+  analytics_recording_sample_percent?: number;
 }
 
 /**
@@ -98,6 +101,10 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     emergencyHealthInfoEnabled:
       data.emergency_list_health_info_enabled === true,
     gradeLevelMax: data.grade_level_max,
+    analyticsFreigabe: data.analytics_freigabe === true,
+    analyticsRecordingSamplePercent: normalizeRecordingSamplePercent(
+      data.analytics_recording_sample_percent,
+    ),
   };
 }
 

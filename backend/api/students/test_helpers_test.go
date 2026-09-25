@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 
@@ -29,7 +30,6 @@ import (
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -42,6 +42,11 @@ type testContext struct {
 	db           *bun.DB
 	resource     *studentsAPI.Resource
 	broadcaster  *testpkg.RecordingBroadcaster
+	// clock is the fixed clock the services run on; nil means the real one.
+	clock func() time.Time
+	// newPickupAdjustments rebinds the pickup adjustment to other offering
+	// adjustments.
+	newPickupAdjustments func(careplan.DirectOfferingAdjustments) (careplan.PickupAdjustments, error)
 }
 
 func newStudentTestRepositories(db *bun.DB) repositories.StudentTestRepositories {
@@ -174,7 +179,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	studentDeletion, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
 		DB: db, Directory: svc.PeopleDirectory, CarePlan: repoFactory.CarePlan, Timetable: repoFactory.Timetable,
 		Feedback: &testpkg.FeedbackEntryCounterMock{}, IsVerifiedStaff: svc.UserContext.HasCurrentStaff,
-		LockCareBookingWrites: func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) },
+		LockCareBookingWrites: repositories.MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites,
 		UnlinkPhoto:           studentPhotos.ScheduleUnlinkAfterCommit, Broadcaster: broadcaster, Audit: svc.Audit,
 		Now: clock,
 	})
@@ -226,6 +231,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		PickupAdjustmentService:  svc.PickupAdjustments,
 		ParentRequestBulkService: svc.ParentRequests,
 		FamilyProtection:         svc.PeopleDirectory,
+		ChildQuota:               newChildQuotaReader(t, db),
 		RequestReview:            requestReview,
 		Broadcaster:              broadcaster,
 		ParentEventEmitter:       parentEventEmitter,
@@ -238,10 +244,12 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	})
 
 	return &testContext{
-		careRequests: svc.CareRequests,
-		db:           db,
-		resource:     resource,
-		broadcaster:  broadcaster,
+		careRequests:         svc.CareRequests,
+		db:                   db,
+		resource:             resource,
+		broadcaster:          broadcaster,
+		clock:                firstClock(clocks),
+		newPickupAdjustments: svc.NewPickupAdjustments,
 	}
 }
 

@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -37,9 +37,7 @@ func TestUpdateStudent_ClassChangeResyncsOfferingSourcedTemplates(t *testing.T) 
 	tc := setupStudentsRoute(t, fixedCalendarClock)
 	rec := &recordingOfferingResyncer{}
 	tc.resource.OfferingSourceResyncer = rec
-	tc.resource.LockTemplateRecurrence = func(ctx context.Context) error {
-		return timetableplanning.LockTenantRecurrenceWrites(ctx, tc.db)
-	}
+	tc.resource.LockTemplateRecurrence = repositories.MustNewTimetableRecurrenceLock(tc.db).LockRecurrenceWrites
 
 	student := testpkg.CreateTestStudent(t, tc.db, "KlassenResync", "Kind", "2a")
 

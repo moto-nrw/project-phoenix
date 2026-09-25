@@ -292,13 +292,19 @@ func unifiedDiff(want, got string) string {
 // production graph. Its subtests cover contracts of the assembled router.
 func TestFullProductionRouterGolden(t *testing.T) {
 	t.Parallel()
-	testpkg.SetupTestDB(t)
+	db := testpkg.SetupTestDB(t)
+	sentryFake := newFakeSentry(t)
+	newKiosk := func(t *testing.T, name string) (string, string, int64) {
+		kiosk := testpkg.CreateTestDevice(t, db, name)
+		return *kiosk.APIKey, kiosk.DeviceID, kiosk.TenantID
+	}
 	called := false
 	err := WithRuntime(context.Background(), ServeConfig{
-		Port:         "127.0.0.1:0",
-		FrontendURL:  "http://localhost:3000",
-		PublicAPIURL: "http://api.invalid",
-		Logger:       slog.Default(),
+		Port:                "127.0.0.1:0",
+		FrontendURL:         "http://localhost:3000",
+		PublicAPIURL:        "http://api.invalid",
+		Logger:              slog.Default(),
+		SentryPyrePortalDSN: sentryFake.dsn(relayTestProjectID),
 	}, func(runtime *Runtime) error {
 		called = true
 		require.NotNil(t, runtime.worker)
@@ -310,11 +316,15 @@ func TestFullProductionRouterGolden(t *testing.T) {
 		// Wait for parallel contract subtests before WithRuntime closes its resources.
 		t.Run("contracts", func(t *testing.T) {
 			t.Run("route table", func(t *testing.T) { checkRouteTableGolden(t, api) })
+			t.Run("core action classification", func(t *testing.T) { checkCoreActionClassification(t, api) })
 			t.Run("IoT auth matrix", func(t *testing.T) { checkIoTAuthMatrixGolden(t, api) })
 			t.Run("IoT error strings", checkIoTErrorStringsGolden)
+			t.Run("IoT error reports relay", func(t *testing.T) { checkIoTErrorReportsRelay(t, api, sentryFake, newKiosk) })
 			t.Run("school scope matrix", func(t *testing.T) { checkSchoolScopeMatrix(t, api) })
 			t.Run("caregiver wiring", func(t *testing.T) { checkCaregiverWiring(t, api) })
+			t.Run("timetable conflict wiring", func(t *testing.T) { checkTimetableConflictWiring(t, api) })
 			t.Run("enrollment submission", func(t *testing.T) { checkEnrollmentSubmissionGolden(t, api) })
+			t.Run("open room kiosk booking", func(t *testing.T) { checkOpenRoomKioskBooking(t, api) })
 			t.Run("phase response query budget", func(t *testing.T) { checkPhaseResponseQueryBudget(t, api) })
 			t.Run("rate limited operator invitations", func(t *testing.T) { checkOperatorInvitationMount(t, api) })
 		})

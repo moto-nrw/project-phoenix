@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // CoursesResponse is the parents-portal Kurse section (#3075). It is empty and
@@ -57,7 +56,7 @@ type CourseRequestBody struct {
 	Note     string `json:"note"`
 }
 
-func toCoursesResponse(catalog *enrollmentService.CourseCatalog) CoursesResponse {
+func toCoursesResponse(catalog *careplan.CourseCatalog) CoursesResponse {
 	resp := CoursesResponse{
 		Enabled:                catalog.Enabled,
 		CanRequest:             catalog.CanRequest,

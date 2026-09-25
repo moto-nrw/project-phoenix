@@ -77,6 +77,10 @@ const (
 // guardian queries run under an admin transaction where RLS injects no tenant
 // predicate — a thread_id-only correlated filter would then seq-scan
 // parent_messages once per thread row.
+//
+// The staff column is lifted to at least one while the thread carries the
+// team-wide unread mark (staffMarkedUnreadFloor, #3654). Real unread messages
+// keep their real count, so a new guardian message after the mark adds no +1.
 const (
 	unreadCountPrefix = `(
 		SELECT COUNT(*) FROM users.parent_messages cm
@@ -85,11 +89,14 @@ const (
 	unreadCountSuffix = `
 	) AS unread_count`
 
-	unreadCountForStaff = unreadCountPrefix +
+	staffMarkedUnreadFloor = `CASE WHEN t.staff_marked_unread_at IS NULL THEN 0 ELSE 1 END`
+
+	unreadCountForStaff = `GREATEST(` + unreadCountPrefix +
 		counterpartUnreadCMForStaff + `
 		  AND ` + afterReadCursorCM + `
 		  AND ` + notReaderAuthoredCM + `
-		  AND ` + afterStaffHandledCursorCM + unreadCountSuffix
+		  AND ` + afterStaffHandledCursorCM + `
+	), ` + staffMarkedUnreadFloor + `) AS unread_count`
 
 	unreadCountForGuardian = unreadCountPrefix +
 		counterpartUnreadCMForGuardian + `
@@ -205,6 +212,16 @@ const guardianUnreadExists = `EXISTS (
 	  AND ` + notReaderAuthoredUM + `
 	  AND ` + afterStaffHandledCursorUM + `
 )`
+
+// staffUnreadThread keeps a thread in the staff inbox's unread filter when it
+// has unread guardian activity OR carries the team-wide unread mark, matching
+// the lifted unread_count column. Carries the single ? of guardianUnreadExists.
+const staffUnreadThread = `(t.staff_marked_unread_at IS NOT NULL OR ` + guardianUnreadExists + `)`
+
+// staffMarkedWithoutUnread selects marked threads whose reader has no real
+// unread message, the ones the aggregate badge must add as one each. Carries
+// the single ? of guardianUnreadExists.
+const staffMarkedWithoutUnread = `(t.staff_marked_unread_at IS NOT NULL AND NOT ` + guardianUnreadExists + `)`
 
 // withTenant applies the defense-in-depth tenant_id filter that complements
 // RLS. A zero tenant leaves the query untouched, which is what the

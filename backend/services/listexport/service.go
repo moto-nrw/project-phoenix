@@ -68,9 +68,10 @@ func DefaultColumnsForPreset(preset Preset) []ColumnID {
 
 // ColumnCatalog is the set of columns a caller-chosen column list may resolve
 // to. ColumnHealthInfo is deliberately NOT in it: the child's health note is
-// printed by the Notfallliste alone, which builds its columns itself and asks
-// operations.emergency_list_health_info first (#2609). Listing it here would
-// let any export request print Art. 9 data past that switch.
+// printed only by the two lists built for it, the Notfallliste (which asks
+// operations.emergency_list_health_info first, #2609) and the Gesundheitsliste
+// (HealthListColumns, #3323). Listing it here would let any other export
+// request print Art. 9 data.
 func ColumnCatalog() map[ColumnID]Column {
 	return map[ColumnID]Column{
 		ColumnName:              {ID: ColumnName, Label: "Name"},
@@ -110,6 +111,9 @@ func ColumnCatalog() map[ColumnID]Column {
 }
 
 func ResolveColumns(ids []ColumnID, preset Preset) []Column {
+	if preset == PresetHealthList {
+		return HealthListColumns(ids)
+	}
 	if len(ids) == 0 {
 		ids = DefaultColumnsForPreset(preset)
 	}
@@ -133,6 +137,26 @@ func ResolveColumns(ids []ColumnID, preset Preset) []Column {
 		}
 	}
 	return columns
+}
+
+// HealthListColumns resolves the columns of the Gesundheitsliste (#3323). The
+// caller may drop the class and the group; the name and the health note are
+// always printed, because a note without its child, or the list without its
+// note, is not the list that was asked for. An empty request means every
+// column.
+func HealthListColumns(ids []ColumnID) []Column {
+	catalog := ColumnCatalog()
+	requested := make(map[ColumnID]bool, len(ids))
+	for _, id := range ids {
+		requested[id] = true
+	}
+	columns := []Column{catalog[ColumnName]}
+	for _, id := range []ColumnID{ColumnSchoolClass, ColumnGroup} {
+		if len(ids) == 0 || requested[id] {
+			columns = append(columns, catalog[id])
+		}
+	}
+	return append(columns, Column{ID: ColumnHealthInfo, Label: "Gesundheitsinformationen"})
 }
 
 func GeneratedAtLabel(t time.Time) string {

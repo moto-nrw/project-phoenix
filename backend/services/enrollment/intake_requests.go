@@ -44,11 +44,6 @@ type RolloverRequests interface {
 	RequestBatchReader
 }
 
-type OfferingRequestReader interface {
-	RequestIDReader
-	RequestBatchReader
-}
-
 type DecisionRequests interface {
 	RequestIDReader
 	ReportRequests

@@ -12,6 +12,10 @@ const config = {
   experimental: {
     optimizePackageImports: ["@phosphor-icons/react"],
   },
+  // The PostHog reverse proxy under /ingest (src/proxy.ts) must keep the
+  // trailing slash of its endpoints (/e/, /flags/). src/proxy.ts removes the
+  // trailing slash for every other path, as Next.js does by default.
+  skipTrailingSlashRedirect: true,
   async redirects() {
     // :tenant must exclude the literal "api" segment: next.config redirects
     // run before route handlers, so an unguarded /:tenant/... source would

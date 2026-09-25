@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
@@ -133,23 +135,23 @@ func (s careOfferingRepoStub) ListByIDs(
 }
 
 type offeringChangesStub struct {
-	enrollmentSvc.OfferingChangeRequestService
-	catalog      *enrollmentSvc.OfferingChangeCatalog
-	view         *enrollmentSvc.OfferingChangeView
+	OfferingChangeRequests
+	catalog      *careplan.OfferingChangeCatalog
+	view         *careplan.OfferingChangeView
 	earliest     timezone.Date
 	catalogErr   error
 	viewErr      error
 	earliestErr  error
 	createErr    error
 	withdrawErr  error
-	createdInput enrollmentSvc.CreateOfferingChangeInput
+	createdInput careplan.CreateOfferingChangeInput
 	withdrawn    [3]int64
 }
 
 func (s *offeringChangesStub) Catalog(
 	_ context.Context,
 	_ int64,
-) (*enrollmentSvc.OfferingChangeCatalog, error) {
+) (*careplan.OfferingChangeCatalog, error) {
 	return s.catalog, s.catalogErr
 }
 
@@ -157,23 +159,23 @@ func (s *offeringChangesStub) CatalogAt(
 	_ context.Context,
 	_ int64,
 	_ timezone.Date,
-) (*enrollmentSvc.OfferingChangeCatalog, error) {
+) (*careplan.OfferingChangeCatalog, error) {
 	return s.catalog, s.catalogErr
 }
 
 func (s *offeringChangesStub) GetForStudent(
 	_ context.Context,
 	_ int64,
-) (*enrollmentSvc.OfferingChangeView, error) {
+) (*careplan.OfferingChangeView, error) {
 	return s.view, s.viewErr
 }
 
-func (s *offeringChangesStub) Create(
+func (s *offeringChangesStub) SubmitOfferingChange(
 	_ context.Context,
-	input enrollmentSvc.CreateOfferingChangeInput,
-) (*enrollmentModels.OfferingChangeRequest, error) {
+	input careplan.CreateOfferingChangeInput,
+) (*careplan.OfferingChangeRequest, error) {
 	s.createdInput = input
-	return &enrollmentModels.OfferingChangeRequest{}, s.createErr
+	return &careplan.OfferingChangeRequest{}, s.createErr
 }
 
 func (s *offeringChangesStub) Withdraw(
@@ -280,21 +282,21 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 	}
 	changes := &offeringChangesStub{
 		earliest: today.AddDays(15),
-		view: &enrollmentSvc.OfferingChangeView{
-			Request: &enrollmentModels.OfferingChangeRequest{
+		view: &careplan.OfferingChangeView{
+			Request: &careplan.OfferingChangeRequest{
 				ID:            61,
 				CreatedAt:     createdAt,
-				EffectiveFrom: enrollmentModels.OfferingChangeDate(today.AddDays(20)),
+				EffectiveFrom: today.AddDays(20).String(),
 				ParentNote:    &note,
 				SubmittedBy:   11,
 			},
-			Diff: []enrollmentSvc.OfferingChangeDiffEntry{{
+			Diff: []careplan.OfferingChangeDiffEntry{{
 				Label:    "Erste Sortierung",
 				OldState: "not_booked",
 				NewState: "booked",
 				NewDays:  []string{"tue"},
 			}},
-			LastDecision: &enrollmentSvc.OfferingChangeDecision{ID: 60, SubmittedBy: 11, Status: "rejected"},
+			LastDecision: &careplan.OfferingChangeDecision{ID: 60, SubmittedBy: 11, Status: "rejected"},
 		},
 	}
 	svc := careOfferingsService(db, permittedCareOfferingsChild(t), changes)
@@ -364,7 +366,7 @@ func TestGetChildCareOfferingsWithoutEnrollmentStillReturnsEmptySlices(t *testin
 func TestPendingOfferingChange_HidesAnotherGuardiansRequest(t *testing.T) {
 	t.Parallel()
 
-	view := &enrollmentSvc.OfferingChangeView{Request: &enrollmentModels.OfferingChangeRequest{SubmittedBy: 41}}
+	view := &careplan.OfferingChangeView{Request: &careplan.OfferingChangeRequest{SubmittedBy: 41}}
 	assert.Nil(t, pendingOfferingChange(view, 42, false))
 }
 
@@ -619,7 +621,7 @@ func TestOfferingChangeCommandsAuthorizeDelegateAndRefresh(t *testing.T) {
 	today := timezone.TodayDate()
 	child := permittedCareOfferingsChild(t)
 	changes := &offeringChangesStub{
-		catalog:  &enrollmentSvc.OfferingChangeCatalog{PhaseID: 99},
+		catalog:  &careplan.OfferingChangeCatalog{PhaseID: 99},
 		earliest: today.AddDays(15),
 	}
 	svc := careOfferingsService(db, child, changes)
@@ -629,7 +631,7 @@ func TestOfferingChangeCommandsAuthorizeDelegateAndRefresh(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(99), catalog.PhaseID)
 
-	selections := []enrollmentSvc.OfferingChangeSelection{{OfferingID: 41, SelectedDays: []string{"mon"}}}
+	selections := []careplan.OfferingChangeSelection{{OfferingID: 41, SelectedDays: []string{"mon"}}}
 	view, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, selections, today.AddDays(20), "Bitte", false, nil)
 	require.NoError(t, err)
 	assert.NotNil(t, view)
@@ -658,7 +660,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 				_, err := svc.GetChildOfferingCatalog(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22)
 				return err
 			},
-			want: enrollmentSvc.ErrOfferingChangeDisabled,
+			want: careplan.ErrOfferingChangeDisabled,
 		},
 		{
 			name:  "create no service",
@@ -667,7 +669,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 				_, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, nil, timezone.TodayDate(), "", false, nil)
 				return err
 			},
-			want: enrollmentSvc.ErrOfferingChangeDisabled,
+			want: careplan.ErrOfferingChangeDisabled,
 		},
 		{
 			name:   "catalog permission denied",

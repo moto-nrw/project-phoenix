@@ -67,7 +67,8 @@ func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *studentpr
 
 // createAttendanceRecord creates a new attendance record for first visit of the day.
 // CheckInTime is deliberately visit.EntryTime — the slot-attendance mirror
-// (schedule.AttendanceSyncService) stamps instance_students.checked_in_at from
+// (the Timetable owner's timetable.AttendanceMirror) stamps
+// instance_students.checked_in_at from
 // the same instant, and history/export session-to-slot matching relies on the
 // two timestamps being identical. Never replace either side with an
 // independent time.Now().

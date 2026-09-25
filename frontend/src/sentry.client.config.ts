@@ -1,5 +1,10 @@
 import * as Sentry from "@sentry/nextjs";
-import { scrubEvent } from "./sentry.shared";
+import {
+  sampleBrowserTrace,
+  scrubEvent,
+  scrubSpan,
+  scrubTransaction,
+} from "./sentry.shared";
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 const environment = process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT;
@@ -21,12 +26,17 @@ if (dsn) {
     dsn,
     environment,
 
-    tracesSampleRate: 0,
+    // Page loads, navigations and their Web Vitals for a 5 % sample. The
+    // default browserTracingIntegration measures them and sends trace
+    // headers to the BFF (same origin), which passes them on to the backend.
+    tracesSampler: sampleBrowserTrace,
     replaysSessionSampleRate: 0,
     replaysOnErrorSampleRate: 0,
 
     initialScope: { tags: { portal: currentPortal() } },
 
     beforeSend: scrubEvent,
+    beforeSendTransaction: scrubTransaction,
+    beforeSendSpan: scrubSpan,
   });
 }

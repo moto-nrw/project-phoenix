@@ -2641,6 +2641,39 @@ func SetCalendarPeriodActive(tb testing.TB, db *bun.DB, period *schedule.Calenda
 	require.NoError(tb, err, "Failed to set test calendar period active state")
 }
 
+// CreateTestWeekCyclePeriodForTenant inserts an ACTIVE custom
+// schedule.calendar_periods row spanning [start, end] for an explicit tenant
+// (a TenantScope's), with a week cycle of cycleLength weeks anchored at anchor
+// (nil for none). Shift-series suites materialize over it. Names must be
+// unique per tenant; the tenant-owned row dies with the clone.
+func CreateTestWeekCyclePeriodForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string, start, end CalendarDate, cycleLength int, anchor CalendarDate) *schedule.CalendarPeriod {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &schedule.CalendarPeriod{
+		Name:            name,
+		PeriodType:      schedule.PeriodTypeCustom,
+		StartDate:       schedule.Date(start.String()),
+		EndDate:         schedule.Date(end.String()),
+		WeekCycleLength: cycleLength,
+		IsActive:        true,
+	}
+	if anchor != nil {
+		value := schedule.Date(anchor.String())
+		row.WeekCycleAnchor = &value
+	}
+	row.TenantID = tenantID
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.calendar_periods`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test week-cycle calendar period")
+	return row
+}
+
 // CreateTestClosingDay inserts a schedule.closing_days row spanning
 // [start, end] for the test tenant. The tenant-owned row dies with the clone.
 func CreateTestClosingDay(tb testing.TB, db *bun.DB, start, end CalendarDate, reason string) *schedule.ClosingDay {
@@ -2860,6 +2893,13 @@ type InstanceStaffOpts struct {
 // main room.
 func CreateTestInstanceStaff(tb testing.TB, db *bun.DB, instanceID, staffID int64, opts InstanceStaffOpts) *schedule.InstanceStaff {
 	tb.Helper()
+	return CreateTestInstanceStaffForTenant(tb, db, fixtureTenantID(tb), instanceID, staffID, opts)
+}
+
+// CreateTestInstanceStaffForTenant is CreateTestInstanceStaff for an explicit
+// tenant, for multi-tenant isolation tests.
+func CreateTestInstanceStaffForTenant(tb testing.TB, db *bun.DB, tenantID, instanceID, staffID int64, opts InstanceStaffOpts) *schedule.InstanceStaff {
+	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -2872,7 +2912,7 @@ func CreateTestInstanceStaff(tb testing.TB, db *bun.DB, instanceID, staffID int6
 		IsSubstitute: opts.IsSubstitute,
 		IsAbsent:     opts.IsAbsent,
 	}
-	row.TenantID = fixtureTenantID(tb)
+	row.TenantID = tenantID
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2983,13 +3023,21 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 // the current test tenant covering the current school year.
 func CreateTestEnrollmentPhase(tb testing.TB, db *bun.DB) *enrollmentOwner.Phase {
 	tb.Helper()
-	return createTestEnrollmentPhase(tb, db, nil)
+	return createTestEnrollmentPhase(tb, db, nil, timezone.TodayDate())
+}
+
+// CreateTestEnrollmentPhaseAround creates the same phase around a fixed day.
+// Tests that run their services on a fixed clock use it, so the phase still
+// covers their "today" when the real date has moved on.
+func CreateTestEnrollmentPhaseAround(tb testing.TB, db *bun.DB, today timezone.Date) *enrollmentOwner.Phase {
+	tb.Helper()
+	return createTestEnrollmentPhase(tb, db, nil, today)
 }
 
 // CreateTestEnrollmentPhaseForCalendarPeriod creates a phase linked to a real planning period.
 func CreateTestEnrollmentPhaseForCalendarPeriod(tb testing.TB, db *bun.DB, periodID int64) *enrollmentOwner.Phase {
 	tb.Helper()
-	return createTestEnrollmentPhase(tb, db, &periodID)
+	return createTestEnrollmentPhase(tb, db, &periodID, timezone.TodayDate())
 }
 
 // CreateTestEnrollmentRequestAwaitingGuardian submits a public enrollment
@@ -3017,14 +3065,14 @@ func CreateTestEnrollmentRequestAwaitingGuardian(tb testing.TB, db *bun.DB, phas
 	return request
 }
 
-func createTestEnrollmentPhase(tb testing.TB, db *bun.DB, periodID *int64) *enrollmentOwner.Phase {
+func createTestEnrollmentPhase(tb testing.TB, db *bun.DB, periodID *int64, today timezone.Date) *enrollmentOwner.Phase {
 	tb.Helper()
 	ctx := WithTenantRuntime(tb, TenantContext(fixtureTenantID(tb)), db)
 	phase := &enrollmentOwner.Phase{
 		Name:                      fmt.Sprintf("Testphase-%d", uniqueFixtureSuffix()),
 		Kind:                      "school_year",
-		ServiceStartDate:          enrollmentOwner.Date(timezone.TodayDate().AddDays(-30)),
-		ServiceEndDate:            enrollmentOwner.Date(timezone.TodayDate().AddDays(300)),
+		ServiceStartDate:          enrollmentOwner.Date(today.AddDays(-30)),
+		ServiceEndDate:            enrollmentOwner.Date(today.AddDays(300)),
 		CareOverflowMode:          "waitlist",
 		CareOfferingSelectionMode: "optional",
 		CalendarPeriodID:          periodID,

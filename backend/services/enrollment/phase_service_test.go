@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/uptrace/bun"
 )
 
@@ -195,7 +195,7 @@ func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(
 			validatorCalls++
 			assert.Equal(t, created.ID, phaseID)
 			assert.Equal(t, enrollmentOwner.Date(timezone.Date(originalEnd).AddDays(7)), enrollmentOwner.Date(replacement.ServiceEndDate))
-			return fmt.Errorf("%w: synthetic uncovered occurrence", enrollmentModels.ErrCareOfferingInvalid)
+			return fmt.Errorf("%w: synthetic uncovered occurrence", enrollmentService.ErrCareOfferingInvalid)
 		},
 		DB:     db,
 		Logger: slog.Default(),
@@ -313,7 +313,7 @@ func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *t
 	require.NoError(t, enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()).Create(ctx, offering))
 
 	resyncer := &recordingSourcedTemplateResyncer{
-		err: fmt.Errorf("offering roster resync: template 7: %w", timetableplanning.ErrOfferingSourceInvalid),
+		err: fmt.Errorf("offering roster resync: template 7: %w", timetable.ErrOfferingSourceInvalid),
 	}
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Owner:                  repoFactory.Enrollment(),
@@ -330,7 +330,7 @@ func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *t
 	err = svc.Update(ctx, created)
 	require.ErrorIs(t, err, enrollmentService.ErrPhaseCareOfferingConflict,
 		"an incompatible sourced template must reject the window change, not be skipped")
-	require.ErrorIs(t, err, timetableplanning.ErrOfferingSourceInvalid)
+	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
 	assert.Equal(t, []int64{offering.ID}, resyncer.offeringIDs)
 	assert.True(t, tenant.RollbackRequested(ctx),
 		"the rejected update must discard the already-written phase row via the ambient-transaction rollback marker")

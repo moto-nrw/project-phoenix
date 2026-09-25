@@ -1,7 +1,6 @@
 package schedule
 
 import (
-	"errors"
 	"time"
 )
 
@@ -50,67 +49,6 @@ const (
 	WeekPatternA     = 1
 	WeekPatternB     = 2
 )
-
-// Validate ensures series data is consistent. Period-dependent rules
-// (validity within the period, A/B requires a week cycle) live in the
-// service, which has the period loaded.
-func (s *StaffShiftSeries) Validate() error {
-	if s.StaffID <= 0 {
-		return errors.New("staff ID is required")
-	}
-	if len(s.Weekdays) == 0 {
-		return errors.New("at least one weekday is required")
-	}
-	seen := map[int16]bool{}
-	for _, wd := range s.Weekdays {
-		if wd < 1 || wd > 7 {
-			return errors.New("weekdays must be ISO weekdays between 1 and 7")
-		}
-		if seen[wd] {
-			return errors.New("weekdays must not repeat")
-		}
-		seen[wd] = true
-	}
-	if err := validateShiftWindow(s.StartTime, s.EndTime, s.BreakMinutes); err != nil {
-		return err
-	}
-	if s.CalendarPeriodID <= 0 {
-		return errors.New("calendar period is required")
-	}
-	if s.WeekPattern < WeekPatternEvery || s.WeekPattern > WeekPatternB {
-		return errors.New("week pattern must be 0 (every week), 1 (week A), or 2 (week B)")
-	}
-	if s.ValidFrom.IsZero() {
-		return errors.New("valid from is required")
-	}
-	if s.ValidUntil != nil && !s.ValidUntil.After(s.ValidFrom) {
-		return errors.New("valid until must be after valid from")
-	}
-	if s.CreatedBy <= 0 {
-		return errors.New("created by is required")
-	}
-	return nil
-}
-
-// RootID returns the lineage root of this series segment (itself when it was
-// never split), mirroring the timetable template convention.
-func (s *StaffShiftSeries) RootID() int64 {
-	if s.SeriesRootID != nil {
-		return *s.SeriesRootID
-	}
-	return s.ID
-}
-
-// ContainsWeekday reports whether the ISO weekday (1=Monday … 7=Sunday) is
-// part of the series.
-func (s *StaffShiftSeries) ContainsWeekday(weekday int) bool {
-	for _, wd := range s.Weekdays {
-		if int(wd) == weekday {
-			return true
-		}
-	}
-	return false
-}
 
 // StaffShiftSeriesException records one deliberately removed occurrence of a
 // series: deleting a single materialized series shift removes the concrete

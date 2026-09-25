@@ -114,6 +114,7 @@ export const HELP_TOPICS = {
   leadEnrollmentCleanup: "fehlerhafte-anmeldung-loeschen",
   leadInviteStaff: "mitarbeitende-anlegen-und-einladen",
   leadStaffRecord: "personalakte-fuehren",
+  leadTargetOverride: "sonderarbeitszeit-eintragen",
   leadRemoveStaff: "person-aus-dem-team-entfernen",
   leadStaffPermissions: "mitarbeitende-und-rechte-verwalten",
   leadTeacherAccess: "lehrkraft-zugang-vorbereiten",

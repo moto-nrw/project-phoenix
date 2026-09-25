@@ -186,11 +186,15 @@ export function ParentMessagesPage() {
   if (children.length === 1) {
     return (
       <ParentPage>
-        <ParentPageHeader
-          kicker={t("kicker")}
-          title={t("title")}
-          description={t("description")}
-        />
+        {/* Bei offener Handy-Tastatur braucht der Chat den Platz, sonst liegt
+            das Schreibfeld unter der Tastatur (#3664). */}
+        <div className="in-data-chat-keyboard:hidden">
+          <ParentPageHeader
+            kicker={t("kicker")}
+            title={t("title")}
+            description={t("description")}
+          />
+        </div>
         <OgsConversation studentId={children[0]!.student_id} showChild />
       </ParentPage>
     );

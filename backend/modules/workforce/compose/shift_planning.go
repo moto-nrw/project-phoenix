@@ -6,11 +6,9 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -38,22 +36,22 @@ type StaffDirectory interface {
 	FindByID(ctx context.Context, id any) (*usersModels.Staff, error)
 }
 
-// CalendarPeriodLookup resolves the planning period a series materializes over.
-type CalendarPeriodLookup interface {
-	FindByID(ctx context.Context, id any) (*scheduleModels.CalendarPeriod, error)
-}
+// CalendarPeriodLookup resolves the School Calendar period a series
+// materializes over; the School Calendar capability satisfies it.
+type CalendarPeriodLookup = planning.CalendarPeriodLookup
 
 // ActivityInstanceReader loads the timetable blocks the week grid and the
-// self-service assignments are built from.
+// self-service assignments are built from, in the Timetable owner's
+// scheduled-instance vocabulary (the plan with its session state).
 type ActivityInstanceReader interface {
-	FindByTenantAndDateRange(ctx context.Context, from, to scheduleModels.Date) ([]*scheduleModels.ActivityInstance, error)
-	FindByIDs(ctx context.Context, ids []int64) ([]*scheduleModels.ActivityInstance, error)
+	planning.ActivityInstanceRangeReader
+	planning.ActivityInstanceBatchReader
 }
 
 // InstanceStaffReader loads who is planned into those blocks.
 type InstanceStaffReader interface {
-	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStaff, error)
-	FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to scheduleModels.Date) ([]*scheduleModels.InstanceStaff, error)
+	planning.InstanceStaffBatchReader
+	planning.AssignmentInstanceStaffReader
 }
 
 // RoomReader resolves the "Ort" of an assignment.
@@ -62,9 +60,7 @@ type RoomReader interface {
 }
 
 // ActivityGroupReader resolves the Angebot an assignment belongs to.
-type ActivityGroupReader interface {
-	FindByIDs(ctx context.Context, ids []int64) ([]*activitiesModels.Group, error)
-}
+type ActivityGroupReader = planning.ActivityGroupBatchReader
 
 // StaffWorkScheduleReader and WorkTimeModelReader feed the contractual
 // weekly target of the week grid's summaries.
@@ -76,24 +72,13 @@ type WorkTimeModelReader interface {
 	FindByIDs(ctx context.Context, ids []int64) ([]*configModels.WorkTimeModel, error)
 }
 
-// StaffShiftRangeReader and StaffShiftWeekUsageReader are the two shift reads
-// the week grid needs. ShiftRows serves both; a caller with a narrower
-// transaction-scoped reader (the plan export) binds its own.
-type StaffShiftRangeReader interface {
-	FindByDateRange(ctx context.Context, start, end scheduleModels.Date) ([]*scheduleModels.StaffShift, error)
-}
-
-type StaffShiftWeekUsageReader interface {
-	FindUsedCalendarWeeks(ctx context.Context, start, end scheduleModels.Date) ([]scheduleModels.Date, error)
-}
-
 // StaffScheduleOverviewDependencies are the narrow readers the Dienstplan
 // week grid is built from.
 type StaffScheduleOverviewDependencies struct {
-	Shifts StaffShiftRangeReader
-	// ShiftWeeks is optional when Shifts also reports the used weeks; the
-	// composition then reuses it.
-	ShiftWeeks    StaffShiftWeekUsageReader
+	// Shifts serves the shift rows and the weeks the Dienstplan is in use.
+	// NewShiftPlanning binds the Workforce capability; a caller with a
+	// narrower transaction-scoped read (the plan export) binds its own.
+	Shifts        StaffShiftSource
 	Instances     ActivityInstanceReader
 	InstanceStaff InstanceStaffReader
 	Rooms         RoomReader
@@ -105,6 +90,8 @@ type StaffScheduleOverviewDependencies struct {
 	// Holidays reduces the weekly targets by the non-working-day Soll (#1418
 	// 3a/3b), bound to the School Calendar. Optional: nil skips the reduction.
 	Holidays planning.HolidayDatesReader
+	// TargetOverrides re-prices Sonderarbeitszeit days (#3259). Optional.
+	TargetOverrides planning.TargetOverrideDaysReader
 }
 
 // newStaffScheduleOverview builds the public query and the getter the
@@ -115,19 +102,21 @@ func newStaffScheduleOverview(deps StaffScheduleOverviewDependencies) (workforce
 }
 
 func newStaffScheduleOverviewService(deps StaffScheduleOverviewDependencies) planning.StaffScheduleOverviewGetter {
+	shifts := NewShiftReadRows(deps.Shifts)
 	overview := planning.StaffScheduleOverviewDependencies{
-		Shifts:        deps.Shifts,
+		Shifts:        shifts,
+		ShiftWeeks:    shifts,
 		Instances:     deps.Instances,
 		InstanceStaff: deps.InstanceStaff,
 		Rooms:         deps.Rooms,
 		Staff:         deps.Staff,
 		Holidays:      deps.Holidays,
 	}
+	if deps.TargetOverrides != nil {
+		overview.TargetOverrides = deps.TargetOverrides
+	}
 	// A typed nil reader in an interface field is not nil, so only a set
 	// reader is forwarded; the overview's own optional handling does the rest.
-	if deps.ShiftWeeks != nil {
-		overview.ShiftWeeks = deps.ShiftWeeks
-	}
 	if deps.WorkSchedules != nil {
 		overview.WorkSchedules = deps.WorkSchedules
 	}
@@ -216,7 +205,7 @@ func NewShiftPlanning(deps ShiftPlanningDependencies) (*ShiftPlanning, error) {
 	shifts := planning.NewStaffShiftService(shiftRows, deps.Staff, shiftTypes, lockStaffShifts, logger, shiftOptions...)
 
 	series := planning.NewStaffShiftSeriesService(
-		NewShiftSeriesRows(deps.Workforce), exceptionRows, shiftRows, deps.Staff, deps.CalendarPeriods,
+		NewShiftSeriesRows(deps.Workforce), exceptionRows, shiftRows, deps.Staff, planning.SchoolCalendarPeriods(deps.CalendarPeriods),
 		shiftTypes, lockStaffShifts, logger, shifts,
 		planning.WithStaffShiftSeriesBroadcaster(deps.Broadcaster),
 		planning.WithStaffShiftSeriesToday(deps.Today),
@@ -230,9 +219,9 @@ func NewShiftPlanning(deps ShiftPlanningDependencies) (*ShiftPlanning, error) {
 	}, logger)
 
 	overviewQuery, overview := newStaffScheduleOverview(StaffScheduleOverviewDependencies{
-		Shifts: shiftRows, ShiftWeeks: shiftRows, Instances: deps.Instances, InstanceStaff: deps.InstanceStaff,
+		Shifts: deps.Workforce, Instances: deps.Instances, InstanceStaff: deps.InstanceStaff,
 		Rooms: deps.Rooms, Staff: deps.Staff, WorkSchedules: deps.WorkSchedules, WorkModels: deps.WorkModels,
-		Holidays: deps.Holidays,
+		Holidays: deps.Holidays, TargetOverrides: deps.Workforce,
 	})
 
 	return &ShiftPlanning{

@@ -7,14 +7,14 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // federalStateResolver is the slice of config.SettingsService the tenant
@@ -26,12 +26,12 @@ type federalStateResolver interface {
 // schoolCalendarAdministration binds the owner collaborators the School
 // Calendar period administration and the tenant holiday reads resolve at
 // call time: the federal-state setting (#1418 3a), the shared tenant
-// recurrence gate and Enrollment's care-offering guard, whose refusal is
-// mapped onto the calendar's own sentinel.
+// recurrence gate and the Care Plan catalog's care-offering guard, whose
+// refusal is mapped onto the calendar's own sentinel.
 func schoolCalendarAdministration(
 	settings federalStateResolver,
 	lockRecurrence func(context.Context) error,
-	careOfferings enrollment.CareOfferingCalendarPeriodValidator,
+	careOfferings careplan.CareOfferingGuards,
 ) schoolCalendarCompose.AdministrationRuntime {
 	runtime := schoolCalendarCompose.AdministrationRuntime{
 		FederalState: func(ctx context.Context) (string, error) {
@@ -45,8 +45,8 @@ func schoolCalendarAdministration(
 	}
 	if careOfferings != nil {
 		runtime.CareOfferingGuard = func(ctx context.Context, periodID int64, replacement *schoolcalendar.CalendarPeriodFields) error {
-			err := careOfferings.ValidateCalendarPeriodFieldsChange(ctx, periodID, replacement)
-			if enrollment.IsCareOfferingCalendarPeriodConflict(err) {
+			err := careOfferings.ValidateCalendarPeriodChange(ctx, periodID, calendarPeriodReplacement(replacement))
+			if errors.Is(err, careplan.ErrCalendarPeriodCareOfferingConflict) {
 				return fmt.Errorf("%w: %w", schoolcalendar.ErrCalendarPeriodRequiredByCareOffering, err)
 			}
 			return err
@@ -55,14 +55,29 @@ func schoolCalendarAdministration(
 	return runtime
 }
 
+// calendarPeriodReplacement describes the School Calendar's proposed period
+// in the catalog's words; nil is the period's removal.
+func calendarPeriodReplacement(fields *schoolcalendar.CalendarPeriodFields) *careplan.CalendarPeriodReplacement {
+	if fields == nil {
+		return nil
+	}
+	return &careplan.CalendarPeriodReplacement{
+		StartDate: calendar.Date(fields.StartDate), EndDate: calendar.Date(fields.EndDate),
+		IsActive: fields.IsActive, WeekCycleLength: fields.WeekCycleLength, WeekCycleAnchor: fields.WeekCycleAnchor,
+	}
+}
+
 // SchoolCalendarAdministration is the runtime the School Calendar module
 // resolves its period administration from once this factory exists: the
-// care-offering guard is an Enrollment service composed here, long after the
+// care-offering guard is the Care Plan catalog composed here, long after the
 // root composed the calendar itself.
 func (f *Factory) SchoolCalendarAdministration() schoolCalendarCompose.AdministrationRuntime {
-	guard, ok := f.EnrollmentCareOffering.(enrollment.CareOfferingCalendarPeriodValidator)
+	var guard careplan.CareOfferingGuards
+	if f.EnrollmentCareOffering != nil {
+		guard = f.EnrollmentCareOffering
+	}
 	runtime := schoolCalendarAdministration(f.Settings, f.lockTenantRecurrence, guard)
-	if !ok {
+	if guard == nil {
 		// newFactory refuses this composition; keep the refusal loud on the
 		// write path rather than administering periods unguarded.
 		runtime.CareOfferingGuard = func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error {
@@ -75,7 +90,10 @@ func (f *Factory) SchoolCalendarAdministration() schoolCalendarCompose.Administr
 // lockTenantRecurrence is the tenant-wide recurrence gate every
 // recurrence-derived write of this factory serializes on.
 func (f *Factory) lockTenantRecurrence(ctx context.Context) error {
-	return timetableplanning.LockTenantRecurrenceWrites(ctx, f.settingsRuntimeDB)
+	if f.TimetableData.RecurrenceLock == nil {
+		return errors.New("timetable recurrence lock is not configured")
+	}
+	return f.TimetableData.RecurrenceLock.LockRecurrenceWrites(ctx)
 }
 
 // nonWorkingDays serves the retained Soll consumers (time tracking, the
@@ -210,21 +228,21 @@ func (a planExportHolidays) HolidaysInRange(ctx context.Context, from, to planex
 // refused while a linked care offering still needs the timeframe.
 func TimeframeChangeGuard(
 	lockRecurrence func(context.Context) error,
-	validate func(ctx context.Context, timeframeID int64, replacement *enrollment.TimeframeReplacement) error,
+	validate func(ctx context.Context, timeframeID int64, replacement *careplan.TimeframeReplacement) error,
 ) timetableHTTPAdapter.TimeframeChangeGuard {
 	return func(ctx context.Context, timeframeID int64, replacement *timetable.TimeframeInput) error {
 		if err := lockRecurrence(ctx); err != nil {
 			return fmt.Errorf("lock timetable recurrence: %w", err)
 		}
-		var proposed *enrollment.TimeframeReplacement
+		var proposed *careplan.TimeframeReplacement
 		if replacement != nil {
-			proposed = &enrollment.TimeframeReplacement{
+			proposed = &careplan.TimeframeReplacement{
 				StartTime: replacement.StartTime, EndTime: replacement.EndTime,
 				IsActive: replacement.IsActive, Description: replacement.Description,
 			}
 		}
 		if err := validate(ctx, timeframeID, proposed); err != nil {
-			if enrollment.IsCareOfferingInvalid(err) {
+			if isCareOfferingConfigInvalid(err) {
 				return fmt.Errorf("%w: %w", timetable.ErrTimeframeRequiredByCareOffering, err)
 			}
 			return fmt.Errorf("validate care offerings: %w", err)
