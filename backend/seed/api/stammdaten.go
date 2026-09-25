@@ -1296,10 +1296,14 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 		personKey := fmt.Sprintf("%s %s", staff.FirstName, staff.LastName)
 
 		// Generate email and credentials for demo accounts.
-		// Email: demo{n}@mail.de where n = account number (1-20)
+		// Email: demo{n}@mail.de where n = account number (1-20); a scoped
+		// school names the person instead, e.g. julia.klein@demo-ogs-nord.moto-ogs.de
 		// Password: per-account defaults, or shared --staff-password when set
 		accountNum := i + 1
-		email := scopedEmail(fmt.Sprintf("demo%d@mail.de", accountNum), s.accountScope)
+		email := fmt.Sprintf("demo%d@mail.de", accountNum)
+		if s.accountScope != "" {
+			email = scopedEmail(emailLocalPart(staff.FirstName, staff.LastName)+"@", s.accountScope)
+		}
 		username := fmt.Sprintf("demo%d", accountNum)
 		if s.accountScope != "" {
 			username += "-" + s.accountScope
