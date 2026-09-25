@@ -1848,20 +1848,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/enrollment",
-      "owner": "enrollment",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "services/enrollment/enrollmenttest",
-      "owner": "test-support",
-      "role": "test-support",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "services/facilities",
       "owner": "facilities",
       "role": "application",
@@ -15806,17 +15792,6 @@
       "source_owner": "parent-portal",
       "source_role": "compose",
       "target_owner": "timetable-activities",
-      "target_role": "domain"
-    },
-    {
-      "id": "parent-portal.compose.enrollment.domain",
-      "description": "Wire the guardian portal workflow (#3420): pass care offering and offering change rows (models/enrollment) to the flows. Compatibility binding of the retained read models the portal flows still consume; it falls together with the parent-portal.application compatibility bindings when the flows read through owner queries.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "compose",
-      "target_owner": "enrollment",
       "target_role": "domain"
     },
     {

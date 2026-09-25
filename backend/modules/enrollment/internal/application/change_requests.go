@@ -160,8 +160,8 @@ type changeRequestCase struct {
 	Phase         *enrollment.Phase
 }
 
-// Create files a family's change request against its request.
-func (s *ChangeRequests) Create(ctx context.Context, token string, input enrollment.CreateChangeRequestInput) (*enrollment.ChangeRequestCase, error) {
+// Propose files a family's change request against its request.
+func (s *ChangeRequests) Propose(ctx context.Context, token string, input enrollment.CreateChangeRequestInput) (*enrollment.ChangeRequestCase, error) {
 	return publicCase(s.create(ctx, token, input))
 }
 
@@ -354,9 +354,7 @@ func (s *ChangeRequests) parentReply(ctx context.Context, token string, changeRe
 }
 
 func (s *ChangeRequests) listAdmin(ctx context.Context, filters enrollment.ChangeRequestFilters) ([]*changeRequestCase, error) {
-	rows, err := changeRequestsFromOwner(s.deps.Requests.ListChangeRequests(ctx, enrollment.ChangeRequestListFilters{
-		RequestID: filters.RequestID, Status: filters.Status, Limit: filters.Limit,
-	}))
+	rows, err := changeRequestsFromOwner(s.deps.Requests.ListChangeRequests(ctx, enrollment.ChangeRequestListFilters(filters)))
 	if err != nil {
 		return nil, err
 	}

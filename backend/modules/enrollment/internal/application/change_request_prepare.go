@@ -83,24 +83,33 @@ func (s *ChangeRequests) bindProposal(ctx context.Context, req *enrollmentModels
 		return editReq, err
 	}
 	if opts.lockTakenOverChildren {
-		persisted, err := s.currentSnapshot(ctx, req, children)
-		if err != nil {
+		if err := s.keepTakenOverChildren(ctx, req, children, &editReq); err != nil {
 			return editReq, err
-		}
-		if err := ensureTakenOverChildrenUnchanged(children, persisted, submitSnapshot(editReq)); err != nil {
-			return editReq, err
-		}
-		persistedSubmit, err := snapshotToSubmitRequest(persisted)
-		if err != nil {
-			return editReq, err
-		}
-		for i, child := range children {
-			if childTakenOver(child) {
-				editReq.Children[i] = persistedSubmit.Children[i]
-			}
 		}
 	}
 	return editReq, nil
+}
+
+// keepTakenOverChildren refuses a proposal that changes a child already taken
+// over into care and pins those children to their stored data.
+func (s *ChangeRequests) keepTakenOverChildren(ctx context.Context, req *enrollmentModels.Request, children []*RequestChild, editReq *SubmitRequest) error {
+	persisted, err := s.currentSnapshot(ctx, req, children)
+	if err != nil {
+		return err
+	}
+	if err := ensureTakenOverChildrenUnchanged(children, persisted, submitSnapshot(*editReq)); err != nil {
+		return err
+	}
+	persistedSubmit, err := snapshotToSubmitRequest(persisted)
+	if err != nil {
+		return err
+	}
+	for i, child := range children {
+		if childTakenOver(child) {
+			editReq.Children[i] = persistedSubmit.Children[i]
+		}
+	}
+	return nil
 }
 
 func clearHiddenProposalOfferings(editReq *SubmitRequest) {
@@ -264,8 +273,29 @@ func (s *ChangeRequests) changeRequestOfferingCatalogs(ctx context.Context, chil
 	if err != nil {
 		return nil, nil, fmt.Errorf("change request: load current child offerings: %w", err)
 	}
+	currentByChild, currentIDs := heldOfferingsByChild(links, childIndexByID, len(children), openByID)
+	combinedByID, err := s.combinedOfferingCatalog(ctx, openByID, currentIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	catalogs := make([]map[int64]*enrollmentModels.CareOffering, len(children))
+	for i := range children {
+		catalog := maps.Clone(openByID)
+		for id := range currentByChild[i] {
+			if offering := combinedByID[id]; offering != nil {
+				catalog[id] = offering
+			}
+		}
+		catalogs[i] = catalog
+	}
+	return catalogs, combinedByID, nil
+}
+
+// heldOfferingsByChild groups the held offerings by child index and collects
+// the held offerings the open catalog lacks.
+func heldOfferingsByChild(links []*enrollment.RequestChildOfferingRecord, childIndexByID map[int64]int, childCount int, openByID map[int64]*enrollmentModels.CareOffering) ([]map[int64]bool, map[int64]bool) {
 	currentIDs := make(map[int64]bool)
-	currentByChild := make([]map[int64]bool, len(children))
+	currentByChild := make([]map[int64]bool, childCount)
 	for _, link := range links {
 		if link == nil {
 			continue
@@ -282,21 +312,7 @@ func (s *ChangeRequests) changeRequestOfferingCatalogs(ctx context.Context, chil
 			currentIDs[link.CareOfferingID] = true
 		}
 	}
-	combinedByID, err := s.combinedOfferingCatalog(ctx, openByID, currentIDs)
-	if err != nil {
-		return nil, nil, err
-	}
-	catalogs := make([]map[int64]*enrollmentModels.CareOffering, len(children))
-	for i := range children {
-		catalog := maps.Clone(openByID)
-		for id := range currentByChild[i] {
-			if offering := combinedByID[id]; offering != nil {
-				catalog[id] = offering
-			}
-		}
-		catalogs[i] = catalog
-	}
-	return catalogs, combinedByID, nil
+	return currentByChild, currentIDs
 }
 
 // combinedOfferingCatalog adds the currently held, inactive offerings to the

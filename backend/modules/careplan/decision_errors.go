@@ -5,8 +5,8 @@ import "errors"
 // The error contract of the Care Plan decisions on offering changes, course
 // requests, pickup adjustments and offering adjustments (#3558). Handlers
 // render err.Error() to staff and parents, so every text is byte-identical to
-// the services/enrollment value it replaces; services/enrollment points its
-// legacy names at these values until the decisions move here.
+// the retained services/enrollment value it replaced; Enrollment marks these
+// values with its public mirrors for the enrollment routes (#3565).
 var (
 	// ErrOfferingChangeDisabled means the school has post-enrollment changes
 	// switched off.

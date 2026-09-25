@@ -59,7 +59,7 @@ func publicError(err error) error {
 	if len(marks) == 0 {
 		return err
 	}
-	return &publicMarkedError{err: err, marks: marks}
+	return &publicMarkedError{error: err, marks: marks}
 }
 
 func markedBy(marks []error, target error) bool {
@@ -74,14 +74,12 @@ func markedBy(marks []error, target error) bool {
 // publicMarkedError keeps the originating error's text and chain and adds the
 // Enrollment values to errors.Is.
 type publicMarkedError struct {
-	err   error
+	error
 	marks []error
 }
 
-func (e *publicMarkedError) Error() string { return e.err.Error() }
-
 func (e *publicMarkedError) Unwrap() []error {
-	return append([]error{e.err}, e.marks...)
+	return append([]error{e.error}, e.marks...)
 }
 
 // PublicError marks err with Enrollment's public values for a caller outside

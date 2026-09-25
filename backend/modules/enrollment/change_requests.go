@@ -134,7 +134,8 @@ func (r *ChangeRequest) DecisionInstant() time.Time {
 // corrections of an enrollment. The family's calls resolve the status token
 // themselves; staff calls run in the caller's tenant transaction.
 type ChangeRequests interface {
-	Create(ctx context.Context, token string, input CreateChangeRequestInput) (*ChangeRequestCase, error)
+	// Propose files a family's change request against its request.
+	Propose(ctx context.Context, token string, input CreateChangeRequestInput) (*ChangeRequestCase, error)
 	ListPublic(ctx context.Context, token string) ([]*ChangeRequestCase, error)
 	ParentReply(ctx context.Context, token string, changeRequestID int64, input ChangeRequestMessageInput) (*ChangeRequestCase, error)
 	ListAdmin(ctx context.Context, filters ChangeRequestFilters) ([]*ChangeRequestCase, error)

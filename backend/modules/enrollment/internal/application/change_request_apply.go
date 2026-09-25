@@ -76,25 +76,9 @@ func (s *ChangeRequests) applyApprovedChange(ctx context.Context, row *ChangeReq
 // snapshot and prepares the stored proposal with the capability pinned at
 // creation.
 func (s *ChangeRequests) loadApproval(ctx context.Context, row *ChangeRequest, input enrollment.ReviewChangeRequestInput) (*approval, error) {
-	req, err := s.requestByID(ctx, row.RequestID, true)
+	req, children, err := s.lockApprovalRequest(ctx, row)
 	if err != nil {
 		return nil, err
-	}
-	children, err := decodedChildrenOfRequest(ctx, s.deps.Children, req.ID, true)
-	if err != nil {
-		return nil, fmt.Errorf("change request approve: lock children: %w", err)
-	}
-	for _, child := range children {
-		if child.Status == enrollmentModels.ChildStatusWithdrawn {
-			return nil, enrollment.ErrChangeRequestNotAllowed
-		}
-	}
-	current, err := s.currentSnapshot(ctx, req, children)
-	if err != nil {
-		return nil, err
-	}
-	if !jsonEqual(current, row.BaseSnapshot) {
-		return nil, enrollment.ErrChangeRequestConflict
 	}
 	proposed, err := snapshotToSubmitRequest(row.ProposedSnapshot)
 	if err != nil {
@@ -110,19 +94,55 @@ func (s *ChangeRequests) loadApproval(ctx context.Context, row *ChangeRequest, i
 	if err := s.ensureNoActiveDuplicateForApproval(ctx, req, run.prepared.request); err != nil {
 		return nil, err
 	}
+	if err := s.loadApprovalContext(ctx, run); err != nil {
+		return nil, err
+	}
+	run.eligibilityEnforced = !isTrustedEnrollmentSource(req.SubmissionSource) && !hasRolloverGeneratedChild(children)
+	return run, nil
+}
+
+// lockApprovalRequest locks the request and its children and refuses a
+// withdrawn child or a base snapshot that no longer matches.
+func (s *ChangeRequests) lockApprovalRequest(ctx context.Context, row *ChangeRequest) (*enrollmentModels.Request, []*RequestChild, error) {
+	req, err := s.requestByID(ctx, row.RequestID, true)
+	if err != nil {
+		return nil, nil, err
+	}
+	children, err := decodedChildrenOfRequest(ctx, s.deps.Children, req.ID, true)
+	if err != nil {
+		return nil, nil, fmt.Errorf("change request approve: lock children: %w", err)
+	}
+	for _, child := range children {
+		if child.Status == enrollmentModels.ChildStatusWithdrawn {
+			return nil, nil, enrollment.ErrChangeRequestNotAllowed
+		}
+	}
+	current, err := s.currentSnapshot(ctx, req, children)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !jsonEqual(current, row.BaseSnapshot) {
+		return nil, nil, enrollment.ErrChangeRequestConflict
+	}
+	return req, children, nil
+}
+
+// loadApprovalContext reads the co-guardians the approval replaces and runs
+// the capacity gate when the pinned capability books offerings.
+func (s *ChangeRequests) loadApprovalContext(ctx context.Context, run *approval) error {
+	var err error
 	if s.deps.Guardians != nil {
-		if run.previousGuardians, err = s.deps.Guardians.RequestGuardians(ctx, []int64{req.ID}); err != nil {
-			return nil, fmt.Errorf("change request approve: list previous guardians: %w", err)
+		if run.previousGuardians, err = s.deps.Guardians.RequestGuardians(ctx, []int64{run.req.ID}); err != nil {
+			return fmt.Errorf("change request approve: list previous guardians: %w", err)
 		}
 	}
 	run.overrides = map[int]string{}
 	if run.capabilities.CareOfferingsEnabled {
 		if run.overrides, err = s.changeRequestCapacityOverrides(ctx, run); err != nil {
-			return nil, err
+			return err
 		}
 	}
-	run.eligibilityEnforced = !isTrustedEnrollmentSource(req.SubmissionSource) && !hasRolloverGeneratedChild(children)
-	return run, nil
+	return nil
 }
 
 // writeApprovedRequest writes the proposal's guardian fields and replaces the
@@ -362,6 +382,27 @@ func (s *ChangeRequests) changeRequestCapacityOverrides(ctx context.Context, run
 	if s.deps.Children == nil || len(run.children) == 0 {
 		return overrides, nil
 	}
+	candidates, candidateIndexes, preservedChildIDs := s.capacityCandidates(run)
+	if len(candidates) == 0 {
+		return overrides, nil
+	}
+	candidateOverrides, err := s.intake.applyCapacityOverflow(ctx, run.prepared.phase, candidates, nil, preservedChildIDs)
+	if err != nil {
+		return nil, fmt.Errorf("change request approve: capacity overflow: %w", err)
+	}
+	for candidateIdx, status := range candidateOverrides {
+		if candidateIdx >= 0 && candidateIdx < len(candidateIndexes) {
+			overrides[candidateIndexes[candidateIdx]] = status
+		}
+	}
+	return overrides, nil
+}
+
+// capacityCandidates selects the proposed children that compete for a slot:
+// those holding one and rejected ones the proposal changes. Children the
+// decision flow syncs are left out. It returns the candidates, their child
+// indexes and the IDs whose own current claims the gate excludes.
+func (s *ChangeRequests) capacityCandidates(run *approval) ([]SubmitChild, []int, []int64) {
 	candidates := make([]SubmitChild, 0, len(run.children))
 	candidateIndexes := make([]int, 0, len(run.children))
 	preservedChildIDs := make([]int64, 0, len(run.children))
@@ -380,19 +421,7 @@ func (s *ChangeRequests) changeRequestCapacityOverrides(ctx context.Context, run
 			preservedChildIDs = append(preservedChildIDs, child.ID)
 		}
 	}
-	if len(candidates) == 0 {
-		return overrides, nil
-	}
-	candidateOverrides, err := s.intake.applyCapacityOverflow(ctx, run.prepared.phase, candidates, nil, preservedChildIDs)
-	if err != nil {
-		return nil, fmt.Errorf("change request approve: capacity overflow: %w", err)
-	}
-	for candidateIdx, status := range candidateOverrides {
-		if candidateIdx >= 0 && candidateIdx < len(candidateIndexes) {
-			overrides[candidateIndexes[candidateIdx]] = status
-		}
-	}
-	return overrides, nil
+	return candidates, candidateIndexes, preservedChildIDs
 }
 
 func (s *ChangeRequests) approvedChildUsesDecisionSync(child *RequestChild) bool {

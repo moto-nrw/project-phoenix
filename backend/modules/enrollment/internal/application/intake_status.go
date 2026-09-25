@@ -104,7 +104,12 @@ func (s *Intake) EditModeForStatus(ctx context.Context, status *enrollment.Reque
 	if err != nil {
 		return enrollment.EditModeNone, err
 	}
-	return s.editModeForStatus(s.deps.Runtime.WithTenant(ctx, req.TenantID), req, children)
+	return s.editModeForStatus(s.tenantContext(ctx, req.TenantID), req, children)
+}
+
+// tenantContext scopes ctx to the tenant of a request the caller handed in.
+func (s *Intake) tenantContext(ctx context.Context, tenantID int64) context.Context {
+	return s.deps.Runtime.WithTenant(ctx, tenantID)
 }
 
 func (s *Intake) editModeForStatus(ctx context.Context, req *enrollmentModels.Request, children []*RequestChild) (string, error) {

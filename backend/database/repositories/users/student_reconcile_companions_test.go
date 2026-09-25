@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -195,7 +196,7 @@ func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *test
 	clearStoredCompanionNote(t, db, second.ID)
 
 	// ACT — one approval, applied child after the other.
-	batchCtx, _ := users.ContextWithCompanionStrandingBatch(ctx)
+	batchCtx, _ := departure.ContextWithStrandingBatch(ctx)
 	for _, id := range []int64{first.ID, second.ID} {
 		loaded, err := factory.Student.FindByID(batchCtx, id)
 		require.NoError(t, err)
@@ -237,7 +238,7 @@ func TestStudentRepository_Update_BatchStillRefusesStrandingCompanion(t *testing
 	// The companion keeps its accompanied Monday, answered ONLY by the link.
 	clearStoredCompanionNote(t, db, companion.ID)
 
-	batchCtx, _ := users.ContextWithCompanionStrandingBatch(ctx)
+	batchCtx, _ := departure.ContextWithStrandingBatch(ctx)
 	loaded, err := factory.Student.FindByID(batchCtx, subject.ID)
 	require.NoError(t, err)
 	loaded.AllowedDepartureModes = users.AllowedDepartureModes{

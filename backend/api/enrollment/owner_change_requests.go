@@ -182,7 +182,7 @@ func (s changeRequestService) Create(ctx context.Context, token string, input Cr
 	if err != nil {
 		return nil, err
 	}
-	return changeRequestCase(s.owner.Create(ctx, token, capability.CreateChangeRequestInput{
+	return changeRequestCase(s.owner.Propose(ctx, token, capability.CreateChangeRequestInput{
 		Submission: submission, ParentNote: input.ParentNote, CreatedByAccountID: input.CreatedByAccountID,
 	}))
 }

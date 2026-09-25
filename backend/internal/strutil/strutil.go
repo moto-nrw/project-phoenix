@@ -23,16 +23,6 @@ func TrimPtrToNil(p *string) *string {
 	return TrimToNil(*p)
 }
 
-// TruncateRunes caps s to at most n runes (multibyte-safe) and appends suffix
-// when it cut. Pass "" for a plain cut.
-func TruncateRunes(s string, n int, suffix string) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n]) + suffix
-}
-
 // ContainsFold reports whether s contains substr, ignoring case (ToLower on
 // both sides — the search/filter semantics of the staff and student lists).
 func ContainsFold(s, substr string) bool {

@@ -341,14 +341,19 @@ func pruneChildScheduleAnswers(schema *enrollment.FormSchema, answers map[string
 		if err := decodeStructured(raw, &sched); err != nil {
 			continue
 		}
-		pruned := make(map[string]any, len(sched))
-		for day, t := range sched {
-			if scheduleDays[day] {
-				pruned[day] = t
-			}
-		}
-		answers[f.Key] = pruned
+		answers[f.Key] = scheduleOnDays(sched, scheduleDays)
 	}
+}
+
+// scheduleOnDays keeps the schedule entries of the given days.
+func scheduleOnDays(sched enrollment.WeekdaySchedule, days map[string]bool) map[string]any {
+	pruned := make(map[string]any, len(sched))
+	for day, t := range sched {
+		if days[day] {
+			pruned[day] = t
+		}
+	}
+	return pruned
 }
 
 // jsonEqual compares two values by their JSON encoding.

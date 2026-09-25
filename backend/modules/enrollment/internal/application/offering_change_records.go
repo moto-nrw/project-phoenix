@@ -63,10 +63,11 @@ type offeringRecordError struct {
 }
 
 func (e *offeringRecordError) Error() string {
-	if e.err == nil {
-		return "database error during " + e.op
+	msg := "database error during " + e.op
+	if cause := e.err; cause != nil {
+		msg += ": " + cause.Error()
 	}
-	return "database error during " + e.op + ": " + e.err.Error()
+	return msg
 }
 
 func (e *offeringRecordError) Unwrap() error { return e.err }

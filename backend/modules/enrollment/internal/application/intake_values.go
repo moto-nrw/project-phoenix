@@ -70,14 +70,6 @@ func decodeJSONMap(raw json.RawMessage, what string) (map[string]any, error) {
 	return out, nil
 }
 
-// encodeJSONMap encodes a decoded document; a nil map stays absent.
-func encodeJSONMap(value map[string]any) (json.RawMessage, error) {
-	if value == nil {
-		return nil, nil
-	}
-	return json.Marshal(value)
-}
-
 func decodeSubmitRequest(in enrollment.SubmitRequest) (SubmitRequest, error) {
 	out := SubmitRequest{
 		TenantID: in.TenantID, PhaseID: in.PhaseID, RemoteIP: in.RemoteIP, LateInviteToken: in.LateInviteToken,
