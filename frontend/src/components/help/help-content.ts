@@ -146,14 +146,14 @@ function errorMessagesTopic(): HelpTopic {
         title: "Gerade nicht erreichbar",
         steps: [
           "Prüfen Sie Ihre Internetverbindung.",
-          "Warten Sie kurz und versuchen Sie es erneut.",
+          "Tippen Sie auf `Wiederholen`, wenn der Knopf zu sehen ist.",
         ],
       },
       {
         title: "Unerwarteter Fehler",
         steps: [
-          "Versuchen Sie es noch einmal.",
-          "Klappt es weiter nicht? Nennen Sie dem moto-Team die Vorgangskennung.",
+          "Tippen Sie auf `Wiederholen`, wenn der Knopf zu sehen ist.",
+          "Klappt es weiter nicht? Tippen Sie auf die Vorgangskennung und nennen Sie sie dem moto-Team.",
         ],
       },
     ],

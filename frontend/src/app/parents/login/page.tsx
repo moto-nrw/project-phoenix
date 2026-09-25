@@ -54,6 +54,7 @@ export default function ParentLoginPage() {
 
 function ParentLoginForm() {
   const t = useTranslations("parentLogin");
+  const tErrorCatalog = useTranslations("errorCatalog");
   const tAuthShell = useTranslations("parentAuthShell");
   const tReset = useTranslations("parentPasswordResetModal");
   const [email, setEmail] = useState("");
@@ -67,6 +68,7 @@ function ParentLoginForm() {
   // Gesetzt, wenn die Personal-Anmeldung ein Elternkonto hierher geschickt hat.
   const searchParams = useSearchParams();
   const cameFromStaffLogin = searchParams.get("from") === "staff";
+  const sessionExpired = searchParams.get("error") === "SessionExpired";
   // Erst nach dem Mount, weil die URL window.location.port braucht und die
   // Seite serverseitig vorgerendert wird.
   const [staffUrl, setStaffUrl] = useState<string | null>(null);
@@ -208,6 +210,9 @@ function ParentLoginForm() {
         >
           {cameFromStaffLogin && !error && (
             <Alert type="info" message={t("fromStaffBanner")} />
+          )}
+          {sessionExpired && !error && (
+            <Alert type="info" message={tErrorCatalog("loginNotice")} />
           )}
 
           {error && (

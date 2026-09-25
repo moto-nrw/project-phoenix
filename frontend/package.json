@@ -7,8 +7,8 @@
   "scripts": {
     "build": "next build",
     "build-storybook": "node scripts/build-storybook.mjs",
-    "check": "node scripts/verify-locales.mjs && oxlint . && node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
-    "check:fresh": "rm -f *.tsbuildinfo && node scripts/verify-locales.mjs && oxlint . && node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
+    "check": "node scripts/verify-locales.mjs && node scripts/verify-error-catalog.mjs && oxlint . && node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
+    "check:fresh": "rm -f *.tsbuildinfo && node scripts/verify-locales.mjs && node scripts/verify-error-catalog.mjs && oxlint . && node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
     "depcruise": "dependency-cruise --config .dependency-cruiser.cjs src",
     "dev": "next dev",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
@@ -16,6 +16,7 @@
     "generate:guides": "playwright test -c playwright.guides.config.ts",
     "test:layout": "playwright test -c playwright.layout.config.ts",
     "generate:locales": "node scripts/generate-locales.mjs",
+    "generate:error-catalog": "node scripts/verify-error-catalog.mjs --write",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
     "preview": "next build && next start",
