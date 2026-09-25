@@ -90,6 +90,28 @@ class ComparisonTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "workload version"):
             compare.compare(summary(a=scenario()), candidate)
 
+    def test_bridge_compares_shared_scenarios_across_versions(self):
+        candidate = summary(a=scenario(queries_total=151), b=scenario())
+        candidate["workload_version"] = "checkpoint-1-v2"
+        result = compare.compare(summary(a=scenario()), candidate, bridge=True)
+        self.assertEqual(result["workload_version"], "checkpoint-1-v1 → checkpoint-1-v2 (bridge)")
+        self.assertEqual(list(result["scenarios"]), ["a"])
+        self.assertEqual(result["only_in_candidate"], ["b"])
+        self.assertEqual(result["only_in_baseline"], [])
+        self.assertEqual([(m["scenario"], m["metric"]) for m in result["material"]],
+                         [("a", "queries_total"), ("a", "queries_total")])
+        self.assertIn("Not compared: `b`.", compare.markdown(result))
+
+    def test_bridge_refuses_one_version(self):
+        with self.assertRaisesRegex(ValueError, "two workload versions"):
+            compare.compare(summary(a=scenario()), summary(a=scenario()), bridge=True)
+
+    def test_bridge_needs_a_shared_scenario(self):
+        candidate = summary(b=scenario())
+        candidate["workload_version"] = "checkpoint-1-v2"
+        with self.assertRaisesRegex(ValueError, "at least one scenario"):
+            compare.compare(summary(a=scenario()), candidate, bridge=True)
+
     def test_scenario_set_must_match(self):
         with self.assertRaisesRegex(ValueError, "scenario set"):
             compare.compare(summary(a=scenario()), summary(a=scenario(), b=scenario()))

@@ -78,6 +78,27 @@ var queryBudgets = map[string]queryBudget{
 	// statement that joins the named student directory projection; the
 	// matching test also pins the rows read at one and at four children.
 	"api.students.care_withdrawals.list": {max: 6},
+	// workflows/studentdeletion — the permanent deletion behind DELETE
+	// /students/{id} and DELETE /students/care-withdrawals/{id} (#3411), over
+	// the production composition with one and with four linked children.
+	// Preview takes no lock and costs the same at both sizes: the tenant
+	// transaction (4), the student and person reads and one owner-count block
+	// of 16 statements (the Feedback counter is a test double here).
+	// Execute runs deleteConfirmed -> lockedSnapshot: the companion snapshot
+	// twice plus the stranding re-read, one locked student-row read (with its
+	// shared class-writes gate) per child in the graph, K unlocked re-reads,
+	// the subject's second locked read, and the owner-count block twice
+	// (fingerprint, then the recheck before the cascade: 32 statements), then
+	// the nine-statement cascade and audit. Each linked child adds three
+	// statements; .student_rows pins the 2(K+1) row round trips on
+	// their own so a third pass over the graph cannot hide behind a saving
+	// elsewhere.
+	"workflows.studentdeletion.preview.companions_1":              {max: 22},
+	"workflows.studentdeletion.preview.companions_4":              {max: 22},
+	"workflows.studentdeletion.execute.companions_1":              {max: 61},
+	"workflows.studentdeletion.execute.companions_4":              {max: 70},
+	"workflows.studentdeletion.execute.companions_1.student_rows": {max: 4},
+	"workflows.studentdeletion.execute.companions_4.student_rows": {max: 10},
 	// api/students — #2056: aggregated OGS group view, 10 students.
 	"api.students.ogs_group_live": {max: 41},
 	// api/students — #2099: identity chain resolved once per request.
