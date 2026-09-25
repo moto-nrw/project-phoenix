@@ -337,12 +337,40 @@ describe("Umfrage answering in the detail view", () => {
     ).toBeDisabled();
   });
 
-  it("shows one clear action for an unanswered poll", () => {
+  // The whole card is the button. A bold action word in its last line read as
+  // a second button, so the line states where the item stands instead.
+  it("flags an unanswered poll as a state, not as an action word", () => {
     render(<NewsCard item={poll()} onOpen={vi.fn()} />);
     expect(screen.getByText("Umfrage")).toBeInTheDocument();
-    expect(screen.getByText("Antworten")).toBeInTheDocument();
-    expect(screen.queryByText("Antwort nötig")).not.toBeInTheDocument();
+    expect(screen.getByText("Antwort nötig")).toBeInTheDocument();
+    expect(screen.queryByText("Antworten")).not.toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: "Ja" })).not.toBeInTheDocument();
+  });
+
+  it("shows no status line and no tint on an unread message that asks for nothing", () => {
+    render(<NewsCard item={announcement({ read: false })} onOpen={vi.fn()} />);
+    const card = screen.getByRole("button", { name: /Sommerfest/ });
+    expect(screen.queryByText("Lesen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Gelesen")).not.toBeInTheDocument();
+    expect(screen.getByText("Offen")).toHaveClass("sr-only");
+    expect(card.className).not.toContain("bg-moto-blue");
+    expect(card.className).toContain("bg-white");
+  });
+
+  it("flags a missing read confirmation as a state on the card", () => {
+    render(
+      <NewsCard
+        item={announcement({
+          read: true,
+          requires_acknowledgement: true,
+          acknowledged: false,
+          delivery_mode: "letter",
+        })}
+        onOpen={vi.fn()}
+      />,
+    );
+    expect(screen.getAllByText("Bestätigung erforderlich")).toHaveLength(1);
+    expect(screen.queryByText("Gelesen bestätigen")).not.toBeInTheDocument();
   });
 
   it("shows the saved answer on an answered poll", () => {
@@ -364,7 +392,7 @@ describe("Umfrage answering in the detail view", () => {
 
     expect(screen.getByText("Beantwortet")).toBeInTheDocument();
     expect(screen.getByText("Antwort: Ja")).toBeInTheDocument();
-    expect(screen.queryByText("Antworten")).not.toBeInTheDocument();
+    expect(screen.queryByText("Antwort nötig")).not.toBeInTheDocument();
   });
 
   it("shows partial progress and the saved answer for multiple children", () => {
@@ -390,7 +418,7 @@ describe("Umfrage answering in the detail view", () => {
       />,
     );
 
-    expect(screen.getByText("Antwort vervollständigen")).toBeInTheDocument();
+    expect(screen.getByText("Antwort nötig")).toBeInTheDocument();
     expect(screen.getByText("1 von 2 beantwortet")).toBeInTheDocument();
     expect(screen.getByText("Mila: Nein")).toBeInTheDocument();
   });

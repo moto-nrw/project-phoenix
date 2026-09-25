@@ -115,12 +115,7 @@ function NewsCardMeta({
     : isPoll(item)
       ? t("newsPoll")
       : t("newsLetter");
-  const outstanding = isOutstandingAnnouncement(item);
-  const typeClass = cancellation
-    ? "text-moto-red-strong"
-    : outstanding
-      ? "text-moto-blue-strong"
-      : "text-gray-500";
+  const typeClass = cancellation ? "text-moto-red-strong" : "text-gray-500";
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold tracking-wide uppercase">
       <span className={typeClass}>{type}</span>
@@ -130,14 +125,6 @@ function NewsCardMeta({
             ·
           </span>
           <span className="text-moto-blue-strong">{t("newsReminder")}</span>
-        </>
-      )}
-      {isBindingLetter(item) && !item.acknowledged && (
-        <>
-          <span className="text-gray-300" aria-hidden="true">
-            ·
-          </span>
-          <span className="text-moto-amber-strong">{t("newsLetterBadge")}</span>
         </>
       )}
       {item.priority === "important" && (
@@ -161,6 +148,14 @@ function isBindingLetter(item: ParentAnnouncement): boolean {
   return item.delivery_mode === "letter";
 }
 
+/**
+ * The card's last line states where the item stands; it never names an
+ * action. The whole card is the button, so a bold "Lesen" or "Antworten"
+ * down here read as a second button that did nothing of its own, and it
+ * looked exactly like the finished states "Gelesen" / "Bestätigt" next to it.
+ * An unread message without anything owed shows no line at all: the dot on
+ * the icon and the bold title already say it is new.
+ */
 function NewsCardState({
   item,
 }: Readonly<{ item: ParentAnnouncement }>): React.ReactNode {
@@ -168,27 +163,24 @@ function NewsCardState({
   const locale = useLocale();
 
   if (!isPoll(item)) {
+    if (item.requires_acknowledgement && !item.acknowledged) {
+      return (
+        <span className="mt-2 flex">
+          <StatusBadge label={t("newsLetterBadge")} tone="orange" />
+        </span>
+      );
+    }
     const complete = item.requires_acknowledgement
       ? item.acknowledged
       : item.read;
-    const label = item.requires_acknowledgement
-      ? item.acknowledged
-        ? t("newsAcknowledged")
-        : t("newsReadAndConfirm")
-      : item.read
-        ? t("newsRead")
-        : t("newsReadAnnouncement");
+    if (!complete) return null;
     return (
-      <span
-        className={`flex items-center gap-1.5 text-sm font-semibold ${complete ? "text-moto-green-strong" : "text-gray-900"}`}
-      >
-        {complete && (
-          <Check
-            className="text-moto-green-strong h-4 w-4 shrink-0"
-            aria-hidden="true"
-          />
-        )}
-        {label}
+      <span className="text-moto-green-strong mt-2 flex items-center gap-1.5 text-sm font-semibold">
+        <Check
+          className="text-moto-green-strong h-4 w-4 shrink-0"
+          aria-hidden="true"
+        />
+        {item.requires_acknowledgement ? t("newsAcknowledged") : t("newsRead")}
       </span>
     );
   }
@@ -208,29 +200,30 @@ function NewsCardState({
     .filter((summary): summary is string => summary !== null);
   const closed = isPollClosed(item);
   const complete = children.length > 0 && answered.length === children.length;
-  const action = closed
+  const settled = complete || (closed && answered.length > 0);
+  const state = closed
     ? answered.length > 0
       ? t("newsPollClosed")
       : t("newsPollNoAnswer")
-    : complete
-      ? t("newsPollDone")
-      : answered.length > 0
-        ? t("newsPollContinue")
-        : t("newsAnswer");
+    : t("newsPollDone");
 
   return (
-    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-      <span
-        className={`flex items-center gap-1.5 font-semibold ${complete || (closed && answered.length > 0) ? "text-moto-green-strong" : "text-gray-900"}`}
-      >
-        {(complete || closed) && answered.length > 0 && (
-          <Check
-            className="text-moto-green-strong h-4 w-4 shrink-0"
-            aria-hidden="true"
-          />
-        )}
-        {action}
-      </span>
+    <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+      {!closed && !complete ? (
+        <StatusBadge label={t("newsPollNeedsAnswer")} tone="orange" />
+      ) : (
+        <span
+          className={`flex items-center gap-1.5 font-semibold ${settled ? "text-moto-green-strong" : "text-gray-600"}`}
+        >
+          {settled && (
+            <Check
+              className="text-moto-green-strong h-4 w-4 shrink-0"
+              aria-hidden="true"
+            />
+          )}
+          {state}
+        </span>
+      )}
       {!complete && answered.length > 0 && (
         <span className="text-gray-500">
           {t("newsPollAnsweredCount", {
@@ -493,8 +486,6 @@ export function NewsCard({
     <ChoiceTile
       as="button"
       onClick={() => onOpen(item)}
-      selected={outstanding}
-      tone="blue"
       className="min-h-12 w-full p-4 shadow-sm active:bg-gray-100"
     >
       <span className="relative flex size-10 shrink-0 items-center justify-center rounded-xl bg-gray-100">
@@ -527,9 +518,7 @@ export function NewsCard({
             ? item.reminder_text
             : item.body}
         </span>
-        <span className="mt-2 block">
-          <NewsCardState item={item} />
-        </span>
+        <NewsCardState item={item} />
       </span>
       <ChevronRight
         className="h-5 w-5 shrink-0 text-gray-400"
