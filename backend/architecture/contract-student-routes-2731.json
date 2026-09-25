@@ -51,6 +51,8 @@
     "audit.student_consent_changes"
   ],
   "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/models/education",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/models/users",
     "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/api/common",
     "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/database/repositories",
     "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/internal/timezone",
@@ -69,6 +71,7 @@
     "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/users",
     "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
     "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/services/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/models/education",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/enrollment|github.com/moto-nrw/project-phoenix/api/students",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|cmp",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|database/sql",
