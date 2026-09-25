@@ -202,13 +202,15 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 	phase.TenantID = testpkg.Tenant(t)
 	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
 
-	approvedOfferings, err := testutil.NewApprovedOfferingProjection(db, repos.Enrollment())
-	require.NoError(t, err)
 	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	studentEnrollment, err := repositories.NewPeopleDirectory(db)
 	require.NoError(t, err)
-	decision := newOfferingGuardDecisionService(repos, false, repos.Enrollment(), approvedOfferings, guardianAccess, studentEnrollment)
+	bookings := testutil.NewBookingMaterialization(t, db,
+		testutil.WithBookingCatalog(testutil.NewCareOfferingCatalog(t, db).Catalog),
+		testutil.WithBookingSettings(offeringGuardSettings(false)),
+	).Bookings
+	decision := newOfferingGuardDecisionService(repos, false, repos.Enrollment(), guardianAccess, studentEnrollment, bookings)
 	requests := enrollmentService.NewRequestService(enrollmentService.RequestServiceConfig{
 		Requests: repos.Enrollment(), Children: repos.Enrollment(), Guardians: repos.Enrollment(),
 		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repos.CarePlan), Catalog: repos.Enrollment(),
