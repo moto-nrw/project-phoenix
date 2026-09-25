@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 // API client for the school's own Abwesenheitsarten (#2403).
 //
 // These sit next to the five standard types (Urlaub, Krank, Fortbildung,
@@ -51,13 +52,13 @@ function mapAbsenceType(data: BackendAbsenceType): AbsenceType {
   };
 }
 
-class AbsenceTypeApiError extends Error {
+class AbsenceTypeApiError extends ApiError {
   readonly status: number;
   readonly detail: string;
 
   constructor(status: number, detail: string) {
     // The detail is the server's German reason; it is shown as-is.
-    super(detail);
+    super(detail, status);
     this.name = "AbsenceTypeApiError";
     this.status = status;
     this.detail = detail;
@@ -69,18 +70,23 @@ async function readError(
   fallback: string,
 ): Promise<AbsenceTypeApiError> {
   let detail = "";
+  let payload: unknown;
   const contentType = response.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
+  if (contentType.includes("json")) {
     try {
       const body = (await response.json()) as { error?: string };
       detail = body.error ?? "";
+      payload = body;
     } catch {
       detail = "";
     }
   } else {
     detail = await response.text();
   }
-  return new AbsenceTypeApiError(response.status, detail || fallback);
+  return enrichApiError(
+    new AbsenceTypeApiError(response.status, detail || fallback),
+    payload,
+  );
 }
 
 async function readList(response: Response): Promise<AbsenceType[]> {

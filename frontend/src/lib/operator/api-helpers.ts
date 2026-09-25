@@ -1,13 +1,23 @@
+import { ApiError } from "../api-error";
 interface OperatorFetchOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
 }
 
-export class OperatorApiError extends Error {
+export class OperatorApiError extends ApiError {
   status: number;
 
-  constructor(message: string, status: number) {
-    super(message);
+  constructor(
+    message: string,
+    status: number,
+    payload?: {
+      code?: string;
+      details?: Record<string, unknown>;
+      errors?: { field: string; reason: string }[];
+      instance?: string;
+    },
+  ) {
+    super(message, status, payload);
     this.name = "OperatorApiError";
     this.status = status;
   }
@@ -38,16 +48,29 @@ export async function operatorFetch<T>(
     }
 
     let errorMessage = response.statusText;
+    let payload:
+      | {
+          code?: string;
+          details?: Record<string, unknown>;
+          errors?: { field: string; reason: string }[];
+          instance?: string;
+        }
+      | undefined;
     try {
       const errorData = (await response.json()) as {
         error?: string;
         message?: string;
+        code?: string;
+        details?: Record<string, unknown>;
+        errors?: { field: string; reason: string }[];
+        instance?: string;
       };
       errorMessage = errorData.message ?? errorData.error ?? errorMessage;
+      payload = errorData;
     } catch {
       // use statusText
     }
-    throw new OperatorApiError(errorMessage, response.status);
+    throw new OperatorApiError(errorMessage, response.status, payload);
   }
 
   if (response.status === 204) {

@@ -768,6 +768,33 @@ describe("auth-api", () => {
   });
 
   describe("buildApiError (via requestPasswordReset)", () => {
+    it("reads structured fields from application/problem+json", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        headers: new Headers({ "Content-Type": "application/problem+json" }),
+        json: () =>
+          Promise.resolve({
+            error: "Conflict",
+            code: "identity.email_conflict",
+            details: { account_id: "42" },
+            errors: [{ field: "email", reason: "duplicate" }],
+            instance: "request-auth-409",
+          }),
+      });
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      await expect(
+        requestPasswordReset("test@example.com"),
+      ).rejects.toMatchObject({
+        status: 409,
+        code: "identity.email_conflict",
+        details: { account_id: "42" },
+        errors: [{ field: "email", reason: "duplicate" }],
+        requestId: "request-auth-409",
+      });
+    });
+
     it("extracts error from JSON response with error field", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,

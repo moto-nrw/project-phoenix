@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 // Closing day API client (#1418 3b). Talks to the Next.js proxy at
 // /api/timetable/closing-days, which forwards to the Go backend
 // /api/timetable/closing-days (CRUD via SchedulesRead/Create/Update/Delete).
@@ -19,11 +20,11 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
-class ClosingDayApiError extends Error {
+class ClosingDayApiError extends ApiError {
   readonly httpStatus: number;
 
   constructor(message: string, httpStatus: number) {
-    super(message);
+    super(message, httpStatus);
     this.name = "ClosingDayApiError";
     this.httpStatus = httpStatus;
   }
@@ -32,13 +33,19 @@ class ClosingDayApiError extends Error {
 async function unwrap<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;
+    let payload: unknown;
     try {
       const body = (await response.json()) as { error?: string };
+      payload = body;
       if (body.error) message = body.error;
     } catch {
       // Body wasn't JSON — keep the generic message.
     }
-    throw new ClosingDayApiError(message, response.status);
+    throw enrichApiError(
+      new ClosingDayApiError(message, response.status),
+      payload,
+      response.status,
+    );
   }
 
   if (response.status === 204) {
