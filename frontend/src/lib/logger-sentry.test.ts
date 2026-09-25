@@ -68,7 +68,6 @@ describe("reportLogToSentry", () => {
     reportLogToSentry(entry({ msg: "sse connection error" }));
     reportLogToSentry(entry({ msg: "parent login failed", context: "server" }));
     reportLogToSentry(entry({ msg: "login failed", status: 401 }));
-    reportLogToSentry(entry({ msg: "login failed", error: "Failed to fetch" }));
     reportLogToSentry(
       entry({ msg: "school login failed", context: "server", status: 403 }),
     );
@@ -84,6 +83,18 @@ describe("reportLogToSentry", () => {
 
     expect(captureMessage).toHaveBeenCalledTimes(2);
   });
+
+  it.each(["login failed", "school login failed"])(
+    "reports a statusless %s exception",
+    (msg) => {
+      reportLogToSentry(entry({ msg, error: "Invalid response format" }));
+
+      expect(captureMessage).toHaveBeenCalledWith(
+        msg,
+        expect.objectContaining({ level: "error" }),
+      );
+    },
+  );
 
   it("sends server errors as events without breadcrumbs", () => {
     reportLogToSentry(entry({ msg: "api route error", context: "server" }));
@@ -150,6 +161,7 @@ describe("logger levels for expected failures (#3694)", () => {
   it.each([
     ["a 403", { status: 403, error: "timetable operation forbidden" }],
     ["a 5xx", { status: 503, error: "API error (503): unavailable" }],
+    ["a 5xx with network wording", { status: 500, error: "Failed to fetch" }],
     ["an exception", { error: "Cannot read properties of undefined" }],
     [
       "an unreadable response",

@@ -34,15 +34,18 @@ const NOT_SENT_TO_SENTRY = new Set([
 ]);
 
 /**
- * A failed staff or school login is user input or a missing school access
- * (#3694), unless the backend answered with a 5xx.
+ * An identified HTTP login refusal below 500 is user input or missing school
+ * access (#3694). Statusless exceptions can also happen after login succeeds.
  */
 const LOGIN_FAILURES = new Set(["login failed", "school login failed"]);
 
 function isExpectedNoise(entry: SentryLogEntry): boolean {
   if (NOT_SENT_TO_SENTRY.has(entry.msg)) return true;
-  const serverFault = typeof entry.status === "number" && entry.status >= 500;
-  return LOGIN_FAILURES.has(entry.msg) && !serverFault;
+  return (
+    LOGIN_FAILURES.has(entry.msg) &&
+    typeof entry.status === "number" &&
+    entry.status < 500
+  );
 }
 
 const BREADCRUMB_LEVEL: Record<SentryLogEntry["level"], Sentry.SeverityLevel> =

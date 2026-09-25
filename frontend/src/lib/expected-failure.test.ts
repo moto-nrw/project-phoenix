@@ -28,6 +28,7 @@ describe("expectedFailure", () => {
   it.each([
     ["a 403", { status: 403, error: "timetable operation forbidden" }],
     ["a 5xx", { status: 503, error: "API error (503): unavailable" }],
+    ["a 5xx with network wording", { status: 500, error: "Failed to fetch" }],
     ["another 4xx", { status: 400, error: "invalid request" }],
     ["an exception", { error: "Cannot read properties of undefined" }],
     [

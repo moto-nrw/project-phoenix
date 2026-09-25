@@ -29,12 +29,12 @@ export function expectedFailure(
 ): ExpectedFailure | null {
   if (!context) return null;
   const message = typeof context.error === "string" ? context.error : "";
-  if (NETWORK_ERROR.test(message)) return "network";
   const status =
     typeof context.status === "number"
       ? context.status
       : Number(API_ERROR_STATUS.exec(message)?.[1]);
-  return EXPECTED_STATUS.get(status) ?? null;
+  if (!Number.isNaN(status)) return EXPECTED_STATUS.get(status) ?? null;
+  return NETWORK_ERROR.test(message) ? "network" : null;
 }
 
 /**
