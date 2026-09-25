@@ -1728,12 +1728,14 @@ export function ChildOfferingAdjustment({
                   ).map((line) => (
                     <li
                       key={`${line.days ?? ""}|${line.text}`}
-                      className="flex flex-wrap items-center gap-1.5 text-gray-500"
+                      className="flex items-baseline gap-1.5 text-gray-500"
                     >
                       {line.days ? (
-                        <StatusBadge compact tone="gray" label={line.days} />
+                        <span className="shrink-0">
+                          <StatusBadge compact tone="gray" label={line.days} />
+                        </span>
                       ) : null}
-                      <span>{line.text}</span>
+                      <span className="min-w-0">{line.text}</span>
                     </li>
                   ))}
                 </ul>
