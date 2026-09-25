@@ -173,8 +173,7 @@ describe("POST /api/auth/link-to-tenant", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    expect(await response.text()).toBe("Internal Server Error");
   });
 
   it("returns 500 on fetch failure", async () => {

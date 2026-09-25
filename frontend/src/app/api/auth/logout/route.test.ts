@@ -124,18 +124,27 @@ describe("POST /api/auth/logout", () => {
     expect(text).toBe("");
   });
 
-  it("returns 204 even when backend returns error", async () => {
+  it("forwards the backend error status and body", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response("Internal Error", { status: 500 }),
+      new Response('{"code":"logout_failed","details":{"retry":true}}', {
+        status: 500,
+        headers: { "Content-Type": "application/problem+json" },
+      }),
     );
 
     const request = createMockRequest("/api/auth/logout");
     const response = await POST(request);
 
-    expect(response.status).toBe(204);
+    expect(response.status).toBe(500);
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/problem+json",
+    );
+    expect(await response.text()).toBe(
+      '{"code":"logout_failed","details":{"retry":true}}',
+    );
   });
 
-  it("returns 204 when backend logout succeeds with 200", async () => {
+  it("forwards a backend 200 response", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
       new Response(JSON.stringify({ success: true }), { status: 200 }),
     );
@@ -143,15 +152,16 @@ describe("POST /api/auth/logout", () => {
     const request = createMockRequest("/api/auth/logout");
     const response = await POST(request);
 
-    expect(response.status).toBe(204);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ success: true });
   });
 
-  it("returns 204 even when fetch throws error", async () => {
+  it("returns 502 when the backend cannot be reached", async () => {
     vi.mocked(global.fetch).mockRejectedValueOnce(new Error("Network error"));
 
     const request = createMockRequest("/api/auth/logout");
     const response = await POST(request);
 
-    expect(response.status).toBe(204);
+    expect(response.status).toBe(502);
   });
 });

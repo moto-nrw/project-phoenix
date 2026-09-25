@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"golang.org/x/time/rate"
@@ -149,6 +150,11 @@ func readErrorReport(w http.ResponseWriter, r *http.Request) ([]byte, int, error
 // allow takes one envelope from the device's quota. The limiters live as
 // long as the process; there is one per device that ever reported.
 func (rs *ErrorReports) allow(id int64) bool {
+	return rs.allowAt(id, time.Now())
+}
+
+// allowAt keeps the burst boundary testable independently of HTTP latency.
+func (rs *ErrorReports) allowAt(id int64, now time.Time) bool {
 	rs.mu.Lock()
 	limiter, ok := rs.limiters[id]
 	if !ok {
@@ -156,5 +162,5 @@ func (rs *ErrorReports) allow(id int64) bool {
 		rs.limiters[id] = limiter
 	}
 	rs.mu.Unlock()
-	return limiter.Allow()
+	return limiter.AllowN(now, 1)
 }

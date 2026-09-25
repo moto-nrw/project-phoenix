@@ -88,11 +88,7 @@ describe("POST /api/import/students/import", () => {
       ],
     };
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => mockResult,
-    });
+    mockFetch.mockResolvedValueOnce(Response.json(mockResult));
 
     const formData = new FormData();
     const file = new Blob(
@@ -132,11 +128,7 @@ describe("POST /api/import/students/import", () => {
       errors: [{ row: 3, error: "Invalid class name" }],
     };
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => mockResult,
-    });
+    mockFetch.mockResolvedValueOnce(Response.json(mockResult));
 
     const formData = new FormData();
     formData.append("file", new Blob(["data"]), "students.csv");
@@ -155,11 +147,7 @@ describe("POST /api/import/students/import", () => {
       details: ["Missing required column: class_name"],
     };
 
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      json: async () => mockError,
-    });
+    mockFetch.mockResolvedValueOnce(Response.json(mockError, { status: 400 }));
 
     const formData = new FormData();
     formData.append("file", new Blob(["invalid"]), "invalid.csv");
@@ -173,11 +161,9 @@ describe("POST /api/import/students/import", () => {
   });
 
   it("handles backend server errors", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      json: async () => ({ error: "Database transaction failed" }),
-    });
+    mockFetch.mockResolvedValueOnce(
+      Response.json({ error: "Database transaction failed" }, { status: 500 }),
+    );
 
     const formData = new FormData();
     formData.append("file", new Blob(["test"]), "test.csv");

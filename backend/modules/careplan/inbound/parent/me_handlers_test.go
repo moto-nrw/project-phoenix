@@ -425,7 +425,11 @@ func TestGetChildMealPlan_DisabledContract(t *testing.T) {
 	assert.JSONEq(t, `{
 		"status":"error",
 		"error":"parent: meal plan disabled for this school",
-		"code":"meal_plan_disabled"
+		"code":"meal_plan_disabled",
+		"type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen",
+		"title":"Forbidden",
+		"detail":"parent: meal plan disabled for this school",
+		"instance":""
 	}`, w.Body.String())
 }
 

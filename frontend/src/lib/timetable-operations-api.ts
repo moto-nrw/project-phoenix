@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 import type {
   AttendancePatchBody,
   BackendStartOperationResult,
@@ -35,15 +36,13 @@ export interface SpontaneousStartBody {
   staff_ids?: number[];
 }
 
-export class TimetableOperationsApiError extends Error {
+export class TimetableOperationsApiError extends ApiError {
   readonly httpStatus: number;
-  readonly code?: string;
 
   constructor(message: string, httpStatus: number, code?: string) {
-    super(message);
+    super(message, httpStatus, { code });
     this.name = "TimetableOperationsApiError";
     this.httpStatus = httpStatus;
-    this.code = code;
   }
 }
 
@@ -66,14 +65,20 @@ async function unwrap<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;
     let code: string | undefined;
+    let payload: unknown;
     try {
       const body = (await response.json()) as { error?: string; code?: string };
+      payload = body;
       if (body.error) message = body.error;
       code = body.code;
     } catch {
       // Keep generic error.
     }
-    throw new TimetableOperationsApiError(message, response.status, code);
+    throw enrichApiError(
+      new TimetableOperationsApiError(message, response.status, code),
+      payload,
+      response.status,
+    );
   }
   const envelope = (await response.json()) as ApiEnvelope<T>;
   return envelope.data;

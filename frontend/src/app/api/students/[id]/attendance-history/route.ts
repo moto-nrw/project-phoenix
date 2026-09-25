@@ -1,12 +1,9 @@
 // app/api/students/[id]/attendance-history/route.ts
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { apiGet } from "~/lib/api-helpers.server";
-import { createLogger } from "~/lib/logger";
+import { apiGet, handleApiError } from "~/lib/api-helpers.server";
 import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
-
-const logger = createLogger({ component: "StudentAttendanceHistoryRoute" });
 
 /**
  * Proxy for GET /api/students/[id]/attendance-history.
@@ -59,32 +56,7 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (apiError) {
-    const message =
-      apiError instanceof Error ? apiError.message : String(apiError);
-
-    // apiGet throws errors in the format "API error (STATUS): body".
-    // Extract the status code structurally instead of matching on body text.
-    const statusMatch = message.match(/API error \((\d+)\)/);
-    const status = statusMatch?.[1] ? Number.parseInt(statusMatch[1], 10) : 500;
-
-    if (status === 403) {
-      const code = message.includes("not_group_supervisor")
-        ? "not_group_supervisor"
-        : "feature_disabled";
-      return NextResponse.json({ error: code }, { status: 403 });
-    }
-    if (status === 404) {
-      return NextResponse.json({ error: "not_found" }, { status: 404 });
-    }
-
-    logger.error("attendance_history_fetch_failed", {
-      student_id: studentId,
-      error: message,
-    });
-    return NextResponse.json(
-      { error: `Backend API error: ${message}` },
-      { status },
-    );
+    return handleApiError(apiError);
   }
 }
 

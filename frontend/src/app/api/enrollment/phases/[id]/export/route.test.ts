@@ -84,18 +84,12 @@ describe("POST /api/enrollment/phases/[id]/export", () => {
   it("forwards a backend error with its status and body", async () => {
     mockAuth.mockResolvedValue(session("tok"));
     global.fetch = vi.fn(
-      async () =>
-        ({
-          ok: false,
-          status: 400,
-          headers: new Headers(),
-          text: async () => "phase too large",
-        }) as unknown as Response,
+      async () => new Response("phase too large", { status: 400 }),
     ) as unknown as typeof fetch;
 
     const res = await POST(req(), ctx);
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "phase too large" });
+    expect(await res.text()).toBe("phase too large");
   });
 
   it("refreshes the token and retries once on a 401 from the backend", async () => {

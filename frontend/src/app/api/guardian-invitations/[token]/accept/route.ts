@@ -1,8 +1,10 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { analyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 
 const logger = createLogger({ component: "GuardianInvitationAcceptRoute" });
 
@@ -25,7 +27,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   try {
-    const body = (await request.json()) as AcceptGuardianInvitationBody;
+    let body: AcceptGuardianInvitationBody;
+    try {
+      body = (await request.json()) as AcceptGuardianInvitationBody;
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
     const payload = {
       password: body.password,
       confirm_password: body.confirmPassword,
@@ -43,17 +50,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     );
 
-    const contentType = response.headers.get("Content-Type") ?? "";
-    let payloadBody: unknown = null;
-    if (contentType.includes("application/json")) {
-      payloadBody = await response.json();
-    } else {
-      const text = await response.text();
-      payloadBody = text ? { error: text } : null;
-    }
-
-    return NextResponse.json(payloadBody ?? {}, { status: response.status });
+    return forwardBackendResponse(response);
   } catch (error) {
+    captureBffException(error, request);
     logger.error("guardian_invitation_accept_failed", {
       error: error instanceof Error ? error.message : String(error),
     });

@@ -1,36 +1,19 @@
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { createLogger } from "~/lib/logger";
+import { createPublicJsonProxy } from "~/lib/backend-proxy-route.server";
 
-const logger = createLogger({ component: "EnrollmentConfirmRenewalRoute" });
-
-interface RouteContext {
-  params: Promise<{ token: string }>;
-}
-
-export async function POST(_request: NextRequest, context: RouteContext) {
-  const { token } = await context.params;
-  if (!token) {
+const path = (
+  _request: Request,
+  params: Record<string, string | string[] | undefined>,
+) => {
+  const token = params.token;
+  if (typeof token !== "string" || !token) {
     return NextResponse.json({ error: "token required" }, { status: 400 });
   }
-  try {
-    const response = await fetch(
-      `${getServerApiUrl()}/api/enrollment/requests/${encodeURIComponent(token)}/confirm-renewal`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      },
-    );
-    const payload = await response.json().catch(() => ({}));
-    return NextResponse.json(payload, { status: response.status });
-  } catch (error) {
-    logger.error("status_confirm_renewal_failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
-  }
-}
+  return `/api/enrollment/requests/${encodeURIComponent(token)}/confirm-renewal`;
+};
+
+export const POST = createPublicJsonProxy({
+  method: "POST",
+  path,
+  body: "none",
+});

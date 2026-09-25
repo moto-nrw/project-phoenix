@@ -2,11 +2,13 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -27,6 +29,57 @@ func TestRequestIDMiddlewarePreservesChiContextContract(t *testing.T) {
 
 	if got != requestValue {
 		t.Fatalf("GetReqID() = %q, want %q", got, requestValue)
+	}
+}
+
+func TestRequestIDGenerationFailureHasProblemResponse(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	tracer := newRuntimeTracer(logger)
+	handler := requestIDMiddlewareWithStartRequest(
+		tracer,
+		func(ctx context.Context, _ string) (context.Context, string, error) {
+			return ctx, "", errors.New("random source unavailable")
+		},
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			t.Fatal("handler ran after RequestID generation failed")
+		}),
+	)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", response.Code)
+	}
+	if got := response.Header().Get("Content-Type"); got != "application/problem+json" {
+		t.Errorf("Content-Type = %q, want application/problem+json", got)
+	}
+	if got := response.Header().Get(middleware.RequestIDHeader); got != "" {
+		t.Errorf("%s = %q, want empty because generation failed", middleware.RequestIDHeader, got)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	want := map[string]any{
+		"status":   "error",
+		"error":    http.StatusText(http.StatusInternalServerError),
+		"code":     "general.server",
+		"type":     "https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler",
+		"title":    http.StatusText(http.StatusInternalServerError),
+		"detail":   http.StatusText(http.StatusInternalServerError),
+		"instance": "", // No correlation ID exists when generation itself fails.
+	}
+	if !reflect.DeepEqual(body, want) {
+		t.Errorf("body = %#v, want %#v", body, want)
+	}
+	if !bytes.Contains(logs.Bytes(), []byte(`"outcome":"generation_failure"`)) {
+		t.Errorf("missing bounded failure log: %s", logs.String())
+	}
+	if bytes.Contains(logs.Bytes(), []byte("random source unavailable")) {
+		t.Fatal("failure log leaked the generation error at Info-or-higher")
 	}
 }
 

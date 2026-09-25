@@ -1,3 +1,4 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
 import { type NextRequest, NextResponse } from "next/server";
 import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
@@ -57,6 +58,7 @@ async function readySchoolUrl(
       ? body.school_url.replace(/\/+$/, "")
       : null;
   } catch (error) {
+    captureBffException(error, request);
     logger.error("demo_handoff_status_failed", {
       error: error instanceof Error ? error.message : String(error),
     });

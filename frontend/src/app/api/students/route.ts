@@ -1,6 +1,11 @@
 // app/api/students/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost, apiPut } from "~/lib/api-helpers.server";
+import {
+  apiGet,
+  apiPost,
+  apiPut,
+  ApiResponseError,
+} from "~/lib/api-helpers.server";
 import {
   createGetHandler,
   createPostHandler,
@@ -249,6 +254,7 @@ export const POST = createPostHandler<
         fetchPrivacyConsent,
       );
     } catch (error) {
+      if (error instanceof ApiResponseError) throw error;
       handleStudentCreationError(error);
     }
   },

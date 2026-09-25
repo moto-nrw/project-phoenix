@@ -26,23 +26,12 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiGet: mockApiGet,
   apiPost: mockApiPost,
   apiPut: vi.fn(),
   apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : message.includes("(403)")
-          ? 403
-          : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
 }));
 
 // ============================================================================
@@ -176,22 +165,15 @@ describe("GET /api/rooms", () => {
     expect(json).toEqual([]);
   });
 
-  it("handles errors gracefully", async () => {
+  it("does not turn a failed backend request into an empty room list", async () => {
     mockApiGet.mockRejectedValueOnce(new Error("Network error"));
 
     const request = createMockRequest("/api/rooms");
     const response = await GET(request, createMockContext());
 
-    const json = await parseJsonResponse<{
-      data: unknown[];
-      pagination: {
-        current_page: number;
-        page_size: number;
-        total_pages: number;
-        total_records: number;
-      };
-    }>(response);
-    expect(json.data).toEqual([]);
+    expect(response.status).toBe(500);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).toBe("Network error");
   });
 
   it("logs rate-limited fetch failures as warnings", async () => {
@@ -202,10 +184,11 @@ describe("GET /api/rooms", () => {
     const request = createMockRequest("/api/rooms");
     const response = await GET(request, createMockContext());
 
-    expect(response.status).toBe(200);
-    expect(consoleSpies.warn).toHaveBeenCalledWith("rooms fetch failed", {
+    expect(response.status).toBe(429);
+    expect(consoleSpies.warn).toHaveBeenCalledWith("api route rate limited", {
       error: "API error (429): Rate limit exceeded",
       rate_limited: true,
+      status: 429,
     });
   });
 });
@@ -296,6 +279,6 @@ describe("POST /api/rooms", () => {
     });
     const response = await POST(request, createMockContext());
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(403);
   });
 });

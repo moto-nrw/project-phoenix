@@ -1,17 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { addBreadcrumb, captureMessage } = vi.hoisted(() => ({
+const { addBreadcrumb, captureMessage, captureException } = vi.hoisted(() => ({
   addBreadcrumb: vi.fn(),
   captureMessage: vi.fn(),
+  captureException: vi.fn(),
 }));
-vi.mock("@sentry/nextjs", () => ({ addBreadcrumb, captureMessage }));
+vi.mock("@sentry/nextjs", () => ({
+  addBreadcrumb,
+  captureMessage,
+  captureException,
+}));
 
 vi.unmock("~/lib/logger");
 
 const { reportLogToSentry } = await import("./logger-sentry");
 const { createLogger } = await import("./logger");
 
-function entry(overrides: Record<string, unknown>) {
+function entry(overrides: Record<string, unknown> = {}) {
   return {
     timestamp: "2026-09-23T14:15:08.000Z",
     level: "error" as const,
@@ -24,178 +29,47 @@ function entry(overrides: Record<string, unknown>) {
 }
 
 describe("reportLogToSentry", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+  beforeEach(() => vi.clearAllMocks());
 
-  it("turns a handled client error into a Sentry event grouped by message", () => {
-    reportLogToSentry(entry({ error: "Failed to fetch", route: "/news" }));
+  it("records an error as a breadcrumb without creating an event", () => {
+    reportLogToSentry(entry({ error: "Invalid response format" }));
 
-    expect(captureMessage).toHaveBeenCalledWith(
-      "parent_news_poll_answer_failed",
-      {
-        level: "error",
-        tags: { component: "ParentNews", log_source: "logger" },
-        extra: { error: "Failed to fetch", route: "/news" },
-        fingerprint: ["logger", "ParentNews", "parent_news_poll_answer_failed"],
-      },
-    );
-  });
-
-  it("records client info and warnings only as breadcrumbs", () => {
-    reportLogToSentry(entry({ level: "info", msg: "poll_opened" }));
-    reportLogToSentry(entry({ level: "warn", msg: "poll_slow" }));
-
+    expect(addBreadcrumb).toHaveBeenCalledWith({
+      category: "log.ParentNews",
+      message: "parent_news_poll_answer_failed",
+      level: "error",
+      data: { error: "Invalid response format" },
+    });
     expect(captureMessage).not.toHaveBeenCalled();
-    expect(addBreadcrumb).toHaveBeenCalledTimes(2);
-    expect(addBreadcrumb).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        category: "log.ParentNews",
-        message: "poll_slow",
-        level: "warning",
-      }),
-    );
+    expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("keeps debug output out of Sentry", () => {
+  it("keeps debug out of breadcrumbs and records server errors only as breadcrumbs", () => {
     reportLogToSentry(entry({ level: "debug" }));
+    reportLogToSentry(entry({ context: "server" }));
 
-    expect(addBreadcrumb).not.toHaveBeenCalled();
+    expect(addBreadcrumb).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ level: "error" }),
+    );
     expect(captureMessage).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("does not send expected noise as events", () => {
-    reportLogToSentry(entry({ msg: "sse connection error" }));
-    reportLogToSentry(entry({ msg: "parent login failed", context: "server" }));
-    reportLogToSentry(entry({ msg: "login failed", status: 401 }));
-    reportLogToSentry(
-      entry({ msg: "school login failed", context: "server", status: 403 }),
-    );
+  it("treats a client network failure as a warning breadcrumb, not an event", () => {
+    createLogger({ component: "Probe" }).error("request_failed", {
+      error: "TypeError: Failed to fetch",
+    });
 
-    expect(captureMessage).not.toHaveBeenCalled();
-  });
-
-  it("still sends a login that failed on the server side", () => {
-    reportLogToSentry(entry({ msg: "login failed", status: 502 }));
-    reportLogToSentry(
-      entry({ msg: "school login failed", context: "server", status: 500 }),
-    );
-
-    expect(captureMessage).toHaveBeenCalledTimes(2);
-  });
-
-  it.each(["login failed", "school login failed"])(
-    "reports a statusless %s exception",
-    (msg) => {
-      reportLogToSentry(entry({ msg, error: "Invalid response format" }));
-
-      expect(captureMessage).toHaveBeenCalledWith(
-        msg,
-        expect.objectContaining({ level: "error" }),
-      );
-    },
-  );
-
-  it("sends server errors as events without breadcrumbs", () => {
-    reportLogToSentry(entry({ msg: "api route error", context: "server" }));
-
-    expect(addBreadcrumb).not.toHaveBeenCalled();
-    expect(captureMessage).toHaveBeenCalledTimes(1);
-  });
-
-  it("tags an event with the error code and Vorgangskennung the entry carries", () => {
-    reportLogToSentry(
-      entry({
-        msg: "api route error",
-        component: "ApiHelpers",
-        context: "server",
-        status: 503,
-        error_code: "db_unavailable",
-        request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10",
-      }),
-    );
-
-    expect(captureMessage).toHaveBeenCalledWith(
-      "api route error",
-      expect.objectContaining({
-        tags: {
-          component: "ApiHelpers",
-          log_source: "logger",
-          error_code: "db_unavailable",
-          request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10",
-        },
-      }),
-    );
-  });
-});
-
-describe("logger levels for expected failures (#3694)", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it.each([
-    ["a dropped connection", { error: "Load failed" }],
-    ["a prefixed dropped connection", { error: "TypeError: Failed to fetch" }],
-    ["an expired session", { status: 401, error: "unauthorized" }],
-    ["a business-rule conflict", { status: 409, error: "request_past" }],
-    [
-      "a conflict named only in the API error text",
-      { error: "API error (409): room still in use" },
-    ],
-    ["a profile 401", { error: "Error: HTTP error! status: 401" }],
-    ["a profile 409", { error: "Error: HTTP error! status: 409" }],
-  ])("logs %s as a warning breadcrumb, not an event", (_label, context) => {
-    createLogger({ component: "Probe" }).error("probe_failed", context);
-
-    expect(captureMessage).not.toHaveBeenCalled();
     expect(addBreadcrumb).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: "probe_failed",
+        category: "log.Probe",
         level: "warning",
         data: expect.objectContaining({
-          expected_failure: expect.any(String),
+          expected_failure: "network",
         }) as unknown,
       }),
     );
-  });
-
-  it.each([
-    ["a 403", { status: 403, error: "timetable operation forbidden" }],
-    ["a 5xx", { status: 503, error: "API error (503): unavailable" }],
-    ["a 5xx with network wording", { status: 500, error: "Failed to fetch" }],
-    ["an exception", { error: "Cannot read properties of undefined" }],
-    [
-      "an unreadable response",
-      { error: "SyntaxError: The string did not match the expected pattern." },
-    ],
-  ])("still sends %s as an event", (_label, context) => {
-    createLogger({ component: "Probe" }).error("probe_failed", context);
-
-    expect(captureMessage).toHaveBeenCalledWith(
-      "probe_failed",
-      expect.objectContaining({ level: "error" }),
-    );
-  });
-
-  it("reports a server-side login proxy fetch failure", () => {
-    vi.stubGlobal("window", undefined);
-    const consoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
-    try {
-      createLogger({ component: "AuthLoginRoute" }).error(
-        "login proxy failed",
-        {
-          error: "TypeError: Failed to fetch",
-        },
-      );
-
-      expect(captureMessage).toHaveBeenCalledWith(
-        "login proxy failed",
-        expect.objectContaining({ level: "error" }),
-      );
-    } finally {
-      consoleLog.mockRestore();
-      vi.unstubAllGlobals();
-    }
+    expect(captureMessage).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
   });
 });

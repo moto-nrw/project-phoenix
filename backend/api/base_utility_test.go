@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -30,20 +31,22 @@ func TestMealPlanErrorRendererContracts(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name, targetCode, internalMessage, body string
-		err                                     error
-		status                                  int
+		name, targetCode, internalMessage, errorText, code, anchor string
+		err                                                        error
+		status                                                     int
 	}{
-		{name: "disabled", targetCode: "meal_plan_disabled", status: http.StatusForbidden, body: `{"status":"error","error":"feature_disabled"}`},
-		{name: "invalid date", targetCode: "invalid_meal_date", status: http.StatusBadRequest, body: `{"status":"error","error":"meal plan covers weekdays only (Monday-Friday)"}`},
-		{name: "invalid dishes", targetCode: "invalid_dishes", status: http.StatusBadRequest, body: `{"status":"error","error":"invalid_dishes"}`},
-		{name: "internal", err: errors.New("database unavailable"), status: http.StatusInternalServerError, internalMessage: "failed to load meal plan", body: `{"status":"error","error":"failed to load meal plan"}`},
+		{name: "disabled", targetCode: "meal_plan_disabled", status: http.StatusForbidden, errorText: "feature_disabled", code: "general.permission", anchor: "anleitung-zugriff-pruefen"},
+		{name: "invalid date", targetCode: "invalid_meal_date", status: http.StatusBadRequest, errorText: "meal plan covers weekdays only (Monday-Friday)", code: "general.input", anchor: "anleitung-eingabe-pruefen"},
+		{name: "invalid dishes", targetCode: "invalid_dishes", status: http.StatusBadRequest, errorText: "invalid_dishes", code: "general.input", anchor: "anleitung-eingabe-pruefen"},
+		{name: "internal", err: errors.New("database unavailable"), status: http.StatusInternalServerError, internalMessage: "failed to load meal plan", errorText: "failed to load meal plan", code: "general.server", anchor: "anleitung-unerwarteter-fehler"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
+			const requestID = "meal-plan-contract-request"
 			request := httptest.NewRequest(http.MethodGet, "/meal-plan", nil)
+			request = request.WithContext(context.WithValue(request.Context(), chimiddleware.RequestIDKey, requestID))
 			response := httptest.NewRecorder()
 			err := test.err
 			if test.targetCode != "" {
@@ -57,7 +60,17 @@ func TestMealPlanErrorRendererContracts(t *testing.T) {
 			}
 			renderMealPlanFailure(response, request, err, test.internalMessage)
 			assert.Equal(t, test.status, response.Code)
-			assert.JSONEq(t, test.body, response.Body.String())
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
+			assert.Equal(t, map[string]any{
+				"status":   "error",
+				"error":    test.errorText,
+				"code":     test.code,
+				"type":     "https://moto-app.de/help/fehlermeldungen#" + test.anchor,
+				"title":    http.StatusText(test.status),
+				"detail":   test.errorText,
+				"instance": requestID,
+			}, body)
 		})
 	}
 }

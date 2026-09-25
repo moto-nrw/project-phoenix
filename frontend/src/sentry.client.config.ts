@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/nextjs";
 import {
   sampleBrowserTrace,
-  scrubEvent,
+  scrubClientEvent,
   scrubSpan,
   sentryDataCollection,
 } from "./sentry.shared";
@@ -40,7 +40,7 @@ if (dsn) {
       attributes: { portal: currentPortal() },
     },
 
-    beforeSend: scrubEvent,
+    beforeSend: scrubClientEvent,
     // Spans are streamed: the page view span carries the page URL and the
     // referrer, so scrubSpan also covers what a transaction held in v10.
     beforeSendSpan: scrubSpan,

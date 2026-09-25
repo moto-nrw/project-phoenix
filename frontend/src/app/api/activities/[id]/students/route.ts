@@ -73,7 +73,7 @@ export const GET = createGetHandler(
         logger.error("failed to fetch available students", {
           error: error instanceof Error ? error.message : String(error),
         });
-        return []; // Return empty array on error
+        throw error;
       }
     }
 
@@ -89,7 +89,7 @@ export const GET = createGetHandler(
       logger.error("failed to fetch enrolled students", {
         error: error instanceof Error ? error.message : String(error),
       });
-      return []; // Return empty array on error
+      throw error;
     }
   },
 );

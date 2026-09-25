@@ -861,6 +861,7 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL,
 
 	// Setup router middleware
 	api.Router.Use(func(next http.Handler) http.Handler { return requestIDMiddleware(tracer, next) })
+	api.Router.Use(apiCommon.ProblemResponseMiddleware)
 	api.Router.Use(apiCommon.TenantRuntimeMiddleware(tenantRuntime))
 	api.Router.Use(apiCommon.AuthorizationObserverMiddleware(func(event apiCommon.AuthorizationEvent) {
 		observability.RecordAuthorizationEvent(event.Outcome, event.Reason, event.Elapsed)

@@ -12,10 +12,8 @@
 // HTML-escapes, emits compact JSON, and appends a trailing newline) and
 // asserts the literal body string.
 //
-// Changing an expectation in this file requires proof that the wire format
-// change is intentional (e.g. a linked B1 commit updating PyrePortal's
-// error-string mapping in lockstep) — not just "the refactor made the test
-// fail."
+// Issue #2503 intentionally adds problem fields. These expectations keep the
+// legacy status/error values and exact bytes pinned alongside the new fields.
 package presence_test
 
 import (
@@ -52,31 +50,31 @@ func TestWireFormat_Active_ErrorRenderer(t *testing.T) {
 			name:       "ErrRoomConflict",
 			err:        studentpresence.ErrRoomConflict,
 			wantStatus: 409,
-			wantBody:   "{\"status\":\"Room Conflict\",\"error\":\"room is already occupied by another active group\"}\n",
+			wantBody:   "{\"status\":\"Room Conflict\",\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich\",\"title\":\"Conflict\",\"detail\":\"room is already occupied by another active group\",\"instance\":\"\",\"error\":\"room is already occupied by another active group\",\"code\":\"general.business_rejection\"}\n",
 		},
 		{
 			name:       "ErrActiveGroupNotFound",
 			err:        studentpresence.ErrGroupNotFound,
 			wantStatus: 404,
-			wantBody:   "{\"status\":\"Active Group Not Found\",\"error\":\"active group not found\"}\n",
+			wantBody:   "{\"status\":\"Active Group Not Found\",\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen\",\"title\":\"Not Found\",\"detail\":\"active group not found\",\"instance\":\"\",\"error\":\"active group not found\",\"code\":\"general.input\"}\n",
 		},
 		{
 			name:       "ErrStudentAlreadyActive",
 			err:        studentpresence.ErrStudentAlreadyActive,
 			wantStatus: 409,
-			wantBody:   "{\"status\":\"Student Already Has Active Visit\",\"error\":\"student already has an active visit\"}\n",
+			wantBody:   "{\"status\":\"Student Already Has Active Visit\",\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich\",\"title\":\"Conflict\",\"detail\":\"student already has an active visit\",\"instance\":\"\",\"error\":\"student already has an active visit\",\"code\":\"general.business_rejection\"}\n",
 		},
 		{
 			name:       "ErrStudentMoveForbidden",
 			err:        studentpresence.ErrStudentMoveForbidden,
 			wantStatus: 403,
-			wantBody:   "{\"status\":\"Forbidden\",\"error\":\"not authorized to move the selected students\"}\n",
+			wantBody:   "{\"status\":\"Forbidden\",\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen\",\"title\":\"Forbidden\",\"detail\":\"not authorized to move the selected students\",\"instance\":\"\",\"error\":\"not authorized to move the selected students\",\"code\":\"general.permission\"}\n",
 		},
 		{
 			name:       "unmapped error defaults to 500",
 			err:        errors.New("boom"),
 			wantStatus: 500,
-			wantBody:   "{\"status\":\"Internal Server Error\",\"error\":\"boom\"}\n",
+			wantBody:   "{\"status\":\"Internal Server Error\",\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler\",\"title\":\"Internal Server Error\",\"detail\":\"boom\",\"instance\":\"\",\"error\":\"boom\",\"code\":\"general.server\"}\n",
 		},
 	}
 
@@ -106,7 +104,7 @@ func TestWireFormat_Active_ErrorHelpers(t *testing.T) {
 				common.RenderError(w, r, presence.ErrorInvalidRequest(errors.New("bad")))
 			},
 			wantStatus: 400,
-			wantBody:   "{\"status\":\"Invalid Request\",\"error\":\"bad\"}\n",
+			wantBody:   "{\"status\":\"Invalid Request\",\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen\",\"title\":\"Bad Request\",\"detail\":\"bad\",\"instance\":\"\",\"error\":\"bad\",\"code\":\"general.input\"}\n",
 		},
 		{
 			name: "ErrorForbidden",
@@ -114,7 +112,7 @@ func TestWireFormat_Active_ErrorHelpers(t *testing.T) {
 				common.RenderError(w, r, presence.ErrorForbidden(errors.New("nope")))
 			},
 			wantStatus: 403,
-			wantBody:   "{\"status\":\"Forbidden\",\"error\":\"nope\"}\n",
+			wantBody:   "{\"status\":\"Forbidden\",\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen\",\"title\":\"Forbidden\",\"detail\":\"nope\",\"instance\":\"\",\"error\":\"nope\",\"code\":\"general.permission\"}\n",
 		},
 		{
 			name: "ErrorUnauthorized",
@@ -122,7 +120,7 @@ func TestWireFormat_Active_ErrorHelpers(t *testing.T) {
 				common.RenderError(w, r, presence.ErrorUnauthorized(errors.New("nope")))
 			},
 			wantStatus: 401,
-			wantBody:   "{\"status\":\"Unauthorized\",\"error\":\"nope\"}\n",
+			wantBody:   "{\"status\":\"Unauthorized\",\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen\",\"title\":\"Unauthorized\",\"detail\":\"nope\",\"instance\":\"\",\"error\":\"nope\",\"code\":\"general.permission\"}\n",
 		},
 		{
 			name: "ErrorInternalServer",
@@ -130,7 +128,7 @@ func TestWireFormat_Active_ErrorHelpers(t *testing.T) {
 				common.RenderError(w, r, presence.ErrorInternalServer(errors.New("boom2")))
 			},
 			wantStatus: 500,
-			wantBody:   "{\"status\":\"Internal Server Error\",\"error\":\"boom2\"}\n",
+			wantBody:   "{\"status\":\"Internal Server Error\",\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler\",\"title\":\"Internal Server Error\",\"detail\":\"boom2\",\"instance\":\"\",\"error\":\"boom2\",\"code\":\"general.server\"}\n",
 		},
 	}
 

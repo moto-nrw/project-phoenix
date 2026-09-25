@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "../api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AccountTenantAccessAPI" });
@@ -56,11 +57,11 @@ interface GrantAccountTenantAccessRequest {
   position?: string;
 }
 
-export class AccountTenantAccessApiError extends Error {
+export class AccountTenantAccessApiError extends ApiError {
   status: number;
 
   constructor(message: string, status: number) {
-    super(message);
+    super(message, status);
     this.name = "AccountTenantAccessApiError";
     this.status = status;
   }
@@ -94,11 +95,13 @@ function mapAccess(entry: BackendAccountTenantAccess): AccountTenantAccess {
 
 async function throwApiError(response: Response): Promise<never> {
   let message = `Die Anfrage ist fehlgeschlagen (${response.status}).`;
+  let body: unknown;
   try {
     const payload = (await response.json()) as {
       message?: string;
       error?: string;
     };
+    body = payload;
     message = payload.message ?? payload.error ?? message;
   } catch (error) {
     logger.warn("failed to parse school access error response", {
@@ -106,7 +109,10 @@ async function throwApiError(response: Response): Promise<never> {
       status: response.status,
     });
   }
-  throw new AccountTenantAccessApiError(message, response.status);
+  throw enrichApiError(
+    new AccountTenantAccessApiError(message, response.status),
+    body,
+  );
 }
 
 async function request(

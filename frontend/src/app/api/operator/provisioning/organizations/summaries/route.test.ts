@@ -109,11 +109,12 @@ describe("GET /api/operator/provisioning/organizations/summaries", () => {
   // dashboard.
   it("forwards a backend 500 with the same status code", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 500,
-      text: async () => JSON.stringify({ error: "summaries failed" }),
-    });
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "summaries failed" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/provisioning/organizations/summaries",
@@ -129,11 +130,12 @@ describe("GET /api/operator/provisioning/organizations/summaries", () => {
 
   it("forwards a backend 503 with the same status code", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 503,
-      text: async () => "service unavailable",
-    });
+    mockFetch.mockResolvedValue(
+      new Response("service unavailable", {
+        status: 503,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/provisioning/organizations/summaries",

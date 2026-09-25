@@ -87,11 +87,12 @@ describe("GET /api/operator/profile", () => {
 
   it("handles API error", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 500,
-      text: async () => "Server error",
-    });
+    mockFetch.mockResolvedValue(
+      new Response("Server error", {
+        status: 500,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
 
     const request = createMockRequest("GET");
     const response = await GET(request, mockContext);
@@ -148,11 +149,12 @@ describe("PUT /api/operator/profile", () => {
 
   it("handles validation error from backend", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 400,
-      text: async () => JSON.stringify({ error: "Display name too short" }),
-    });
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "Display name too short" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     const request = createMockRequest("PUT", { display_name: "" });
     const response = await PUT(request, mockContext);

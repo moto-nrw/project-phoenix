@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 
 const logger = createLogger({ component: "DemoAccessRoute" });
 
@@ -26,8 +27,7 @@ export async function forwardDemoToken(
   }
   try {
     const response = await send(token, getClientForwardHeaders(request));
-    const payload: unknown = await response.json().catch(() => ({}));
-    return NextResponse.json(payload, { status: response.status });
+    return forwardBackendResponse(response);
   } catch (error) {
     logger.error("demo_access_forward_failed", {
       error: error instanceof Error ? error.message : String(error),

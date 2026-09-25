@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 /**
  * API client for the timetable feature.
  *
@@ -115,15 +116,13 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
-class TimetableApiError extends Error {
+class TimetableApiError extends ApiError {
   readonly httpStatus: number;
-  readonly code?: string;
 
   constructor(message: string, httpStatus: number, code?: string) {
-    super(message);
+    super(message, httpStatus, { code });
     this.name = "TimetableApiError";
     this.httpStatus = httpStatus;
-    this.code = code;
   }
 }
 
@@ -131,14 +130,20 @@ async function unwrap<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;
     let code: string | undefined;
+    let payload: unknown;
     try {
       const body = (await response.json()) as { error?: string; code?: string };
+      payload = body;
       if (body.error) message = body.error;
       code = body.code;
     } catch {
       // Body wasn't JSON; keep the generic message.
     }
-    throw new TimetableApiError(message, response.status, code);
+    throw enrichApiError(
+      new TimetableApiError(message, response.status, code),
+      payload,
+      response.status,
+    );
   }
 
   if (response.status === 204) {

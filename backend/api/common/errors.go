@@ -31,9 +31,13 @@ func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 	if errResp, ok := renderer.(*ErrResponse); ok && IsBusinessRejection(errResp.Err) {
 		tenant.MarkRollback(r.Context())
 	}
+	if errResp, ok := renderer.(*ErrResponse); ok && errResp.Code == "" {
+		errResp.Code = ErrorClassCode(errResp.HTTPStatusCode)
+	}
 	if errResp, ok := renderer.(*ErrResponse); ok && errResp.HTTPStatusCode >= 500 && errResp.Err != nil {
 		slog.Default().ErrorContext(r.Context(), "server error",
 			slog.Int("status", errResp.HTTPStatusCode),
+			slog.String("correlation_id", requestID(r)),
 			slog.String("error", errResp.Err.Error()),
 		)
 		noteServerError(r.Context(), errResp.Err, errResp.Code)
@@ -88,6 +92,10 @@ type ErrResponse struct {
 	HTTPStatusCode int   `json:"-"`
 
 	Status    string       `json:"status"`
+	Type      string       `json:"type"`
+	Title     string       `json:"title"`
+	Detail    string       `json:"detail"`
+	Instance  string       `json:"instance"`
 	ErrorText string       `json:"error,omitempty"`
 	Code      string       `json:"code,omitempty"`
 	Errors    []FieldError `json:"errors,omitempty"`
@@ -100,6 +108,13 @@ type ErrResponse struct {
 
 // Render implements the render.Renderer interface for ErrResponse
 func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
+	if e.Code == "" {
+		e.Code = ErrorClassCode(e.HTTPStatusCode)
+	}
+	e.Type = problemType(e.Code, e.HTTPStatusCode)
+	e.Title = problemTitle(e.HTTPStatusCode)
+	e.Detail = e.ErrorText
+	e.Instance = requestID(r)
 	render.Status(r, e.HTTPStatusCode)
 	return nil
 }

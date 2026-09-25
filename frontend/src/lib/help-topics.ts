@@ -81,6 +81,7 @@ export const HELP_TOPICS = {
   attendanceProblem: "kind-laesst-sich-nicht-an-oder-abmelden",
   nfcProblem: "nfc-tablet-funktioniert-nicht",
   loginProblem: "anmeldung-funktioniert-nicht",
+  errorMessages: "fehlermeldungen",
   dataManagement: "datenverwaltung",
   enrollments: "anmeldungen-pruefen",
   settings: "einstellungen-ueberblick",

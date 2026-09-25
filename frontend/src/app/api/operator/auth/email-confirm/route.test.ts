@@ -62,12 +62,9 @@ describe("POST /api/operator/auth/email-confirm", () => {
   });
 
   it("proxies successful JSON response", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({ message: "E-Mail erfolgreich geändert" }),
-    });
+    mockFetch.mockResolvedValue(
+      Response.json({ message: "E-Mail erfolgreich geändert" }),
+    );
 
     const request = createMockRequest({
       token: "550e8400-e29b-41d4-a716-446655440000",
@@ -93,48 +90,42 @@ describe("POST /api/operator/auth/email-confirm", () => {
   });
 
   it("returns German message for 429 non-JSON response", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 429,
-      headers: new Headers({ "content-type": "text/plain" }),
-      text: async () => "Too Many Requests",
-    });
+    mockFetch.mockResolvedValue(
+      new Response("Too Many Requests", {
+        status: 429,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
 
     const request = createMockRequest({ token: "some-token" });
     const response = await POST(request);
 
     expect(response.status).toBe(429);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe(
-      "Zu viele Anfragen. Bitte versuchen Sie es später erneut.",
-    );
+    expect(await response.text()).toBe("Too Many Requests");
   });
 
   it("returns text body for non-JSON, non-429 response", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 502,
-      headers: new Headers({ "content-type": "text/html" }),
-      text: async () => "Bad Gateway",
-    });
+    mockFetch.mockResolvedValue(
+      new Response("Bad Gateway", {
+        status: 502,
+        headers: { "Content-Type": "text/html" },
+      }),
+    );
 
     const request = createMockRequest({ token: "some-token" });
     const response = await POST(request);
 
     expect(response.status).toBe(502);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Bad Gateway");
+    expect(await response.text()).toBe("Bad Gateway");
   });
 
   it("proxies backend error JSON with original status code", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 400,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({
-        message: "Ungültiger oder abgelaufener Token",
-      }),
-    });
+    mockFetch.mockResolvedValue(
+      Response.json(
+        { message: "Ungültiger oder abgelaufener Token" },
+        { status: 400 },
+      ),
+    );
 
     const request = createMockRequest({ token: "expired-token" });
     const response = await POST(request);
@@ -156,19 +147,18 @@ describe("POST /api/operator/auth/email-confirm", () => {
   });
 
   it("returns statusText when text body is empty for non-JSON response", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 503,
-      statusText: "Service Unavailable",
-      headers: new Headers({ "content-type": "text/plain" }),
-      text: async () => "",
-    });
+    mockFetch.mockResolvedValue(
+      new Response("", {
+        status: 503,
+        statusText: "Service Unavailable",
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
 
     const request = createMockRequest({ token: "some-token" });
     const response = await POST(request);
 
     expect(response.status).toBe(503);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Service Unavailable");
+    expect(await response.text()).toBe("");
   });
 });
