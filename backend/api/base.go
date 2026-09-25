@@ -1416,7 +1416,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		AbsenceOverview:              api.Services.AbsenceOverview,
 		StudentHistoryService:        api.Services.StudentHistory,
 		OGSGroupLiveService:          api.Services.OGSGroupLive,
-		ActiveEnrollments:            newStudentActiveEnrollments(api.Services),
+		ActiveEnrollments:            studentActiveEnrollments{enrollments: api.Services.Activities},
 		EnrollmentDecision:           api.Services.EnrollmentDecision,
 		OfferingPickupTimes:          api.Services.EnrollmentCareOffering,
 		EnrollmentFormSchema:         api.Services.EnrollmentFormSchema,

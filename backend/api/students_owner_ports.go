@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/api/students"
-	"github.com/moto-nrw/project-phoenix/services"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -73,32 +73,25 @@ func (s studentSchoolGroups) ListGroups(ctx context.Context) ([]*students.School
 
 // studentActiveEnrollments serves the students' ActiveEnrollments port from
 // the Timetable enrollment read, reduced to the group id and name the export
-// prints.
-type studentActiveEnrollments func(ctx context.Context, studentIDs []int64, onDate calendar.Date) (map[int64][]students.ActiveEnrollmentGroup, error)
-
-func (f studentActiveEnrollments) ActiveEnrollmentGroups(ctx context.Context, studentIDs []int64, onDate calendar.Date) (map[int64][]students.ActiveEnrollmentGroup, error) {
-	return f(ctx, studentIDs, onDate)
+// prints. Each child's groups keep the read's order; the export sorts and
+// deduplicates the names itself.
+type studentActiveEnrollments struct {
+	enrollments timetableCompose.ActivityService
 }
 
-// newStudentActiveEnrollments binds the Timetable enrollment read of the
-// service graph. Each child's groups keep the read's order; the export sorts
-// and deduplicates the names itself.
-func newStudentActiveEnrollments(svc *services.Factory) studentActiveEnrollments {
-	enrollments := svc.Activities
-	return func(ctx context.Context, studentIDs []int64, onDate calendar.Date) (map[int64][]students.ActiveEnrollmentGroup, error) {
-		byStudent, err := enrollments.GetActiveStudentEnrollmentsByStudentIDs(ctx, studentIDs, onDate)
-		if err != nil {
-			return nil, err
-		}
-		views := make(map[int64][]students.ActiveEnrollmentGroup, len(byStudent))
-		for studentID, groups := range byStudent {
-			for _, group := range groups {
-				if group == nil {
-					continue
-				}
-				views[studentID] = append(views[studentID], students.ActiveEnrollmentGroup{ID: group.ID, Name: group.Name})
-			}
-		}
-		return views, nil
+func (s studentActiveEnrollments) ActiveEnrollmentGroups(ctx context.Context, studentIDs []int64, onDate calendar.Date) (map[int64][]students.ActiveEnrollmentGroup, error) {
+	byStudent, err := s.enrollments.GetActiveStudentEnrollmentsByStudentIDs(ctx, studentIDs, onDate)
+	if err != nil {
+		return nil, err
 	}
+	views := make(map[int64][]students.ActiveEnrollmentGroup, len(byStudent))
+	for studentID, groups := range byStudent {
+		for _, group := range groups {
+			if group == nil {
+				continue
+			}
+			views[studentID] = append(views[studentID], students.ActiveEnrollmentGroup{ID: group.ID, Name: group.Name})
+		}
+	}
+	return views, nil
 }
