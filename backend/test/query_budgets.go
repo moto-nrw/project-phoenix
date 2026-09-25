@@ -184,7 +184,8 @@ var queryBudgets = map[string]queryBudget{
 	"services.users.list_guardians.reads":                  {max: 2},
 	"services.users.student_guardians.reads":               {max: 4},
 	"api.active.combination_groups.reads":                  {max: 3, exact: true},
-	// services/enrollment — list/read paths stay flat as rows grow (#2941).
+	// Enrollment decision and Care Plan offering source reads (formerly
+	// services/enrollment) stay flat as rows grow (#2941).
 	"services.enrollment.list_child_offerings.reads":    {max: 5},
 	"services.enrollment.offering_source_options.reads": {max: 5},
 	// Source validation adds one batched read each for the offering catalog,

@@ -22,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
@@ -55,6 +54,14 @@ type StaffMessageCleanupResult struct {
 // StaffMessageCleanup is supplied by the composition root. The scheduler
 // owns when cleanup runs but remains independent of the Communication module.
 type StaffMessageCleanup func(context.Context) (StaffMessageCleanupResult, error)
+
+// RejectedEnrollmentCleaner removes the rejected enrollments of the tenant in
+// context after their retention window and reports how many requests, late
+// invites and outbox rows it removed. The composition root supplies it; the
+// scheduler owns when it runs but stays independent of Enrollment.
+type RejectedEnrollmentCleaner interface {
+	CleanupRejectedEnrollments(ctx context.Context) (requests int, lateInvites, outboxRows int64, err error)
+}
 
 // CleanupJob represents a single cleanup task that can be executed.
 type CleanupJob struct {
@@ -177,7 +184,7 @@ type Scheduler struct {
 	pwaUsageCleanup            pwaSvc.UsageService
 	staffMessageCleanup        StaffMessageCleanup
 	bookingConsistency         auditModel.BookingConsistencyRepository
-	enrollmentRejectedCleanup  enrollmentSvc.RejectedEnrollmentCleaner
+	enrollmentRejectedCleanup  RejectedEnrollmentCleaner
 	autoStart                  timetable.InstanceAutoStart
 	autoEnd                    timetable.InstanceAutoEnd
 	settings                   SettingsResolver
@@ -970,19 +977,19 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 	}
 
 	if s.enrollmentRejectedCleanup != nil {
-		result, cleanupErr := s.enrollmentRejectedCleanup.CleanupRejectedEnrollments(ctx)
+		requests, lateInvites, outboxRows, cleanupErr := s.enrollmentRejectedCleanup.CleanupRejectedEnrollments(ctx)
 		if cleanupErr != nil {
 			s.getLogger().Error("rejected enrollment cleanup failed",
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", cleanupErr.Error()))
 			return false
 		}
-		if result.DeletedRequests > 0 {
+		if requests > 0 {
 			s.getLogger().Info("rejected enrollment cleanup completed",
 				slog.Int64("tenant_id", tenantID),
-				slog.Int("requests_deleted", result.DeletedRequests),
-				slog.Int64("late_invites_deleted", result.DeletedLateInvites),
-				slog.Int64("outbox_rows_deleted", result.DeletedOutboxRows))
+				slog.Int("requests_deleted", requests),
+				slog.Int64("late_invites_deleted", lateInvites),
+				slog.Int64("outbox_rows_deleted", outboxRows))
 		}
 	}
 

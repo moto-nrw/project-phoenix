@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
@@ -30,7 +32,6 @@ import (
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/education"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -45,7 +46,7 @@ type StudentTestModule struct {
 	CareLifecycle      careplan.CareLifecycle
 	StudentAudit       users.StudentAuditService
 	PartialAbsence     careplan.PartialAbsenceService
-	EnrollmentDecision enrollment.DecisionService
+	EnrollmentDecision enrollmentOwner.Decisions
 	CareRequests       carerequests.Service
 	OfferingChanges    careplan.OfferingChangeCapability
 	PickupAdjustments  careplan.PickupAdjustments
@@ -219,12 +220,12 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	enrollmentDecisionService := enrollment.NewDecisionService(NewEnrollmentDecisions(EnrollmentDecisionSources{
+	enrollmentDecisionService := enrollmentCompose.PublicDecisions(NewEnrollmentDecisions(EnrollmentDecisionSources{
 		Requests:               repos.Enrollment(),
 		Children:               repos.Enrollment(),
 		Guardians:              repos.Enrollment(),
 		LateInvites:            repos.Enrollment(),
-		CareOfferings:          enrollment.NewCareOfferingRepository(repos.CarePlan),
+		CareOfferings:          enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),
 		Phases:                 repos.Enrollment(),
 		Schemas:                repos.Enrollment(),
 		DataAccessLog:          repos.DataAccessLog,

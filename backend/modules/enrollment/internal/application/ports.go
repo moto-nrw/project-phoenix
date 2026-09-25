@@ -46,6 +46,20 @@ type Runtime struct {
 	// AfterCommit queues fn to run once the ambient transaction commits, or
 	// runs it at once outside a transaction.
 	AfterCommit func(ctx context.Context, fn func())
+	// AdminTx runs fn in the cross-tenant administrative transaction; the
+	// intake resolves a status token there.
+	AdminTx func(ctx context.Context, fn func(context.Context) error) error
+	// TenantTx runs fn in a transaction of the given tenant.
+	TenantTx func(ctx context.Context, tenantID int64, fn func(context.Context) error) error
+	// WithTenant scopes ctx to a tenant without opening a transaction.
+	WithTenant func(ctx context.Context, tenantID int64) context.Context
+	// IsAdminTx reports whether ctx carries the administrative transaction.
+	IsAdminTx func(ctx context.Context) bool
+	// WithoutTransaction drops the ambient transaction from ctx.
+	WithoutTransaction func(ctx context.Context) context.Context
+	// DetachTransaction drops the ambient transaction and its after-commit
+	// hooks from ctx.
+	DetachTransaction func(ctx context.Context) context.Context
 }
 
 // CollectionSettings resolves the tenant settings that decide which grades

@@ -1,8 +1,6 @@
 package users
 
 import (
-	"context"
-
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 )
 
@@ -35,10 +33,3 @@ import (
 // CompanionStrandingBatch is the owner's batch under the name the retained
 // callers already use (#3349): opening a scope here is opening the owner's.
 type CompanionStrandingBatch = departure.StrandingBatch
-
-// ContextWithCompanionStrandingBatch opens a batch scope and returns both the
-// derived context and the batch itself. The caller decides its verdicts through
-// the student repository's VerifyCompanionStrandingBatch before it commits.
-func ContextWithCompanionStrandingBatch(ctx context.Context) (context.Context, *CompanionStrandingBatch) {
-	return departure.ContextWithStrandingBatch(ctx)
-}

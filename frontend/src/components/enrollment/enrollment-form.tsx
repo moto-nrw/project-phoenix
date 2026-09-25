@@ -2614,7 +2614,7 @@ type OfferingBucket =
 // Buckets offerings for display: ungrouped offerings render individually (in
 // order); offerings sharing a non-empty selection_group collapse into one
 // bucket anchored at the group's first member. Mirrors the backend grouping
-// in services/enrollment/care_offering_rules.go.
+// in backend/modules/enrollment/selection/materialize.go.
 function groupOfferings(offerings: PublicCareOffering[]): OfferingBucket[] {
   const buckets: OfferingBucket[] = [];
   const indexByGroup = new Map<string, number>();

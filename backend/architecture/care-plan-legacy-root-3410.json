@@ -52,7 +52,7 @@
   "runtime_evidence": {
     "source": "Local run on the PR branch at commit 316554535f. The change relocates a translation layer without touching a statement, so the evidence is the unchanged behaviour and query-budget suites plus the architecture check, not a benchmark rerun.",
     "sources": [
-      "backend/services/enrollment/care_plan_offering_records.go",
+      "backend/modules/enrollment/internal/application/care_offering_rows.go",
       "backend/database/repositories/care_plan_student_record_adapters.go",
       "backend/modules/careplan/compose/ambient_database_test.go",
       "backend/test/query_budgets.go",

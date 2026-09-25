@@ -26,7 +26,6 @@ import (
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -212,7 +211,7 @@ type ResourceConfig struct {
 	StudentHistoryService   studentpresence.StudentHistory
 	OGSGroupLiveService     grouplive.Query
 	ActivityService         activityService.ActivityService
-	EnrollmentDecision      enrollmentService.DecisionService
+	EnrollmentDecision      enrollmentOwner.Decisions
 	EnrollmentFormSchema    enrollmentOwner.FormSchemaAdministration
 	// OfferingPickupTimes is Care Plan's offering pickup projection (#3560):
 	// the reset of a manual weekly Gehzeit onto the Angebots-Gehzeit.

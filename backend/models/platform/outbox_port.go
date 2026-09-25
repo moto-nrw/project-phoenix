@@ -15,7 +15,7 @@ type OutboxEnqueueRequest struct {
 
 // OutboxEnqueuer is the narrow contract feature services need from the
 // platform email outbox. Declared here (models/platform is a leaf package)
-// so services/auth and services/enrollment can depend on it without
+// so services/auth and the composition root can depend on it without
 // importing services/platform.
 type OutboxEnqueuer interface {
 	EnqueueOutbox(ctx context.Context, req OutboxEnqueueRequest) error

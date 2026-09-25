@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
@@ -78,7 +77,7 @@ func (rs *Resource) exportPhaseRegistrations(w http.ResponseWriter, r *http.Requ
 	// move — a render failure after the audit row commits only
 	// over-reports (the bytes never leave this handler on error), which
 	// is the safe direction; it can never under-report an actual leak.
-	var data *enrollmentService.PhaseExport
+	var data *PhaseExport
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		d, e := rs.DecisionService.ExportPhase(ctx, phaseID, actorAccountID, actorRole, string(format), childStatus)
 		if e != nil {
@@ -95,8 +94,8 @@ func (rs *Resource) exportPhaseRegistrations(w http.ResponseWriter, r *http.Requ
 		// Phase too large to assemble in one in-memory file: a client-side
 		// limit, not a server fault — surface it as a 400 with a clear
 		// message rather than a 500.
-		if errors.Is(err, enrollmentService.ErrExportTooLarge) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(enrollmentService.ErrExportTooLarge))
+		if errors.Is(err, capability.ErrExportTooLarge) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(capability.ErrExportTooLarge))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -168,7 +167,7 @@ func parsePhaseExportRequest(r *http.Request) (listexport.Format, string, error)
 	return format, childStatus, nil
 }
 
-func buildPhaseExportFile(svc *listexport.RendererService, data *enrollmentService.PhaseExport, format listexport.Format, childStatus string) (listexport.File, error) {
+func buildPhaseExportFile(svc *listexport.RendererService, data *PhaseExport, format listexport.Format, childStatus string) (listexport.File, error) {
 	// The document heading is the phase name on its own (no separator
 	// punctuation); "Anmeldungen" lives in the subtitle counts + the
 	// download filename. The filename base stays descriptive regardless.
@@ -209,7 +208,7 @@ func (rs *Resource) exportStudentEnrollmentRequests(w http.ResponseWriter, r *ht
 	actorAccountID := int64(claims.ID)
 	actorRole := strings.Join(claims.Roles, ",")
 
-	var data *enrollmentService.StudentEnrollmentExport
+	var data *StudentEnrollmentExport
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		d, e := rs.DecisionService.ExportStudent(ctx, studentID, actorAccountID, actorRole, string(format))
 		if e != nil {
@@ -219,12 +218,12 @@ func (rs *Resource) exportStudentEnrollmentRequests(w http.ResponseWriter, r *ht
 		return nil
 	})
 	if err != nil {
-		if errors.Is(err, enrollmentService.ErrDecisionStudentNotFound) {
+		if errors.Is(err, capability.ErrDecisionStudentNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
 		}
-		if errors.Is(err, enrollmentService.ErrExportTooLarge) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(enrollmentService.ErrExportTooLarge))
+		if errors.Is(err, capability.ErrExportTooLarge) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(capability.ErrExportTooLarge))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -244,7 +243,7 @@ func (rs *Resource) exportStudentEnrollmentRequests(w http.ResponseWriter, r *ht
 	_, _ = w.Write(file.Data)
 }
 
-func buildStudentEnrollmentExportFile(svc *listexport.RendererService, data *enrollmentService.StudentEnrollmentExport, format listexport.Format) (listexport.File, error) {
+func buildStudentEnrollmentExportFile(svc *listexport.RendererService, data *StudentEnrollmentExport, format listexport.Format) (listexport.File, error) {
 	heading := studentEnrollmentExportHeading(data)
 	filename := heading
 	switch format {
@@ -259,14 +258,14 @@ func buildStudentEnrollmentExportFile(svc *listexport.RendererService, data *enr
 	}
 }
 
-func studentEnrollmentExportHeading(data *enrollmentService.StudentEnrollmentExport) string {
+func studentEnrollmentExportHeading(data *StudentEnrollmentExport) string {
 	if name := studentEnrollmentExportChildName(data); name != "" {
 		return "Anmeldungen " + name
 	}
 	return "Anmeldungen"
 }
 
-func studentEnrollmentExportChildName(data *enrollmentService.StudentEnrollmentExport) string {
+func studentEnrollmentExportChildName(data *StudentEnrollmentExport) string {
 	if data == nil {
 		return ""
 	}
@@ -280,7 +279,7 @@ func studentEnrollmentExportChildName(data *enrollmentService.StudentEnrollmentE
 	return ""
 }
 
-func studentEnrollmentExportSubtitle(data *enrollmentService.StudentEnrollmentExport) string {
+func studentEnrollmentExportSubtitle(data *StudentEnrollmentExport) string {
 	requests, children := data.Counts()
 	if requests == 1 {
 		return fmt.Sprintf("%d Anmeldung, %d Kind", requests, children)
@@ -288,7 +287,7 @@ func studentEnrollmentExportSubtitle(data *enrollmentService.StudentEnrollmentEx
 	return fmt.Sprintf("%d Anmeldungen, %d Kinder", requests, children)
 }
 
-func buildStudentEnrollmentExportRecords(data *enrollmentService.StudentEnrollmentExport, title string) listexport.RecordDocument {
+func buildStudentEnrollmentExportRecords(data *StudentEnrollmentExport, title string) listexport.RecordDocument {
 	guardianCustoms, childCustoms := collectCustomFields(data.Schemas)
 	records := make([]listexport.Record, 0, len(data.Rows))
 	for _, row := range data.Rows {
@@ -305,7 +304,7 @@ func buildStudentEnrollmentExportRecords(data *enrollmentService.StudentEnrollme
 	}
 }
 
-func studentEnrollmentRecord(req *enrollmentModels.Request, phase *capability.Phase, ch enrollmentService.ExportChildRow, guardianCustoms, childCustoms []capability.FormField) listexport.Record {
+func studentEnrollmentRecord(req *enrollmentModels.Request, phase *capability.Phase, ch ExportChildRow, guardianCustoms, childCustoms []capability.FormField) listexport.Record {
 	rec := listexport.Record{
 		Title:  childFullName(ch.Child),
 		Fields: childFields(ch, childCustoms),
@@ -333,7 +332,7 @@ func phaseNameForExport(phase *capability.Phase) string {
 	return strings.TrimSpace(phase.Name)
 }
 
-func buildStudentEnrollmentExportTable(data *enrollmentService.StudentEnrollmentExport, title string) listexport.Document {
+func buildStudentEnrollmentExportTable(data *StudentEnrollmentExport, title string) listexport.Document {
 	guardianCustoms, childCustoms := collectCustomFields(data.Schemas)
 	cols := []listexport.Column{
 		{ID: "phase", Label: "Anmeldung"},
@@ -383,7 +382,7 @@ func buildStudentEnrollmentExportTable(data *enrollmentService.StudentEnrollment
 	}
 }
 
-func studentEnrollmentRowValues(req *enrollmentModels.Request, phase *capability.Phase, ch enrollmentService.ExportChildRow, guardianCustoms, childCustoms []capability.FormField) map[listexport.ColumnID]string {
+func studentEnrollmentRowValues(req *enrollmentModels.Request, phase *capability.Phase, ch ExportChildRow, guardianCustoms, childCustoms []capability.FormField) map[listexport.ColumnID]string {
 	values := map[listexport.ColumnID]string{
 		"phase":                   phaseNameForExport(phase),
 		"submitted_at":            req.SubmittedAt.Format("02.01.2006 15:04"),
@@ -414,28 +413,28 @@ func enrollmentExportFilterLabels(childStatus string) []string {
 	return []string{"Status: " + statusLabelDE(childStatus)}
 }
 
-func phaseName(data *enrollmentService.PhaseExport) string {
+func phaseName(data *PhaseExport) string {
 	if data != nil && data.Phase != nil {
 		return strings.TrimSpace(data.Phase.Name)
 	}
 	return ""
 }
 
-func phaseExportHeading(data *enrollmentService.PhaseExport) string {
+func phaseExportHeading(data *PhaseExport) string {
 	if name := phaseName(data); name != "" {
 		return name
 	}
 	return "Anmeldungen"
 }
 
-func phaseExportFilename(data *enrollmentService.PhaseExport) string {
+func phaseExportFilename(data *PhaseExport) string {
 	if name := phaseName(data); name != "" {
 		return "Anmeldungen " + name
 	}
 	return "Anmeldungen"
 }
 
-func phaseExportSubtitle(data *enrollmentService.PhaseExport) string {
+func phaseExportSubtitle(data *PhaseExport) string {
 	requests, children := data.Counts()
 	return fmt.Sprintf("%d Anmeldungen, %d Kinder", requests, children)
 }
@@ -453,9 +452,9 @@ func phaseExportSubtitle(data *enrollmentService.PhaseExport) string {
 // formats list registrations in exactly the same order.
 type exportEntry struct {
 	request   *enrollmentModels.Request
-	child     *enrollmentService.ExportChildRow // nil = registration has no children
-	guardians []*capability.RequestGuardian     // co-guardians of this submission (nil when none)
-	sortLast  string                            // lower-cased sort key (child surname, or guardian surname when childless)
+	child     *ExportChildRow               // nil = registration has no children
+	guardians []*capability.RequestGuardian // co-guardians of this submission (nil when none)
+	sortLast  string                        // lower-cased sort key (child surname, or guardian surname when childless)
 	sortFirst string
 }
 
@@ -485,7 +484,7 @@ var enrollmentStatusExportGroups = []struct {
 // name. This is the single source of truth for export ordering — both
 // buildPhaseExportRecords (PDF) and buildPhaseExportTable (XLSX) iterate
 // the same slice, so PDF blocks and XLSX rows can never drift apart.
-func orderedExportEntries(data *enrollmentService.PhaseExport) []exportEntry {
+func orderedExportEntries(data *PhaseExport) []exportEntry {
 	entries := make([]exportEntry, 0, len(data.Rows))
 	for _, row := range data.Rows {
 		if len(row.Children) == 0 {
@@ -518,7 +517,7 @@ func orderedExportEntries(data *enrollmentService.PhaseExport) []exportEntry {
 	return entries
 }
 
-func groupedExportEntries(data *enrollmentService.PhaseExport) []exportEntryGroup {
+func groupedExportEntries(data *PhaseExport) []exportEntryGroup {
 	entries := orderedExportEntries(data)
 	buckets := make(map[string][]exportEntry)
 	titles := make(map[string]string)
@@ -584,7 +583,7 @@ func sortedRemainingExportGroupKeys(titles map[string]string, seen map[string]bo
 	return keys
 }
 
-func buildPhaseExportRecords(data *enrollmentService.PhaseExport, title, childStatus string) listexport.RecordDocument {
+func buildPhaseExportRecords(data *PhaseExport, title, childStatus string) listexport.RecordDocument {
 	guardianCustoms, childCustoms := collectCustomFields(data.Schemas)
 
 	// One block per child (child-first), in the shared export order. A
@@ -641,7 +640,7 @@ func guardianBlockFields(req *enrollmentModels.Request, guardianCustoms []capabi
 // fields first (the child is the subject), then the guardian/contact
 // details led by the parent name, repeated on every child so a single
 // block holds everything a supervisor needs offline.
-func childRecord(req *enrollmentModels.Request, ch enrollmentService.ExportChildRow, guardians []*capability.RequestGuardian, guardianCustoms, childCustoms []capability.FormField) listexport.Record {
+func childRecord(req *enrollmentModels.Request, ch ExportChildRow, guardians []*capability.RequestGuardian, guardianCustoms, childCustoms []capability.FormField) listexport.Record {
 	rec := listexport.Record{
 		Title:  childFullName(ch.Child),
 		Fields: childFields(ch, childCustoms),
@@ -711,7 +710,7 @@ func formatAdditionalGuardians(guardians []*capability.RequestGuardian) string {
 
 // childFields builds the child's own label/value lines: identity, target
 // class, status, activation, offerings, then per-child custom answers.
-func childFields(ch enrollmentService.ExportChildRow, childCustoms []capability.FormField) []listexport.Field {
+func childFields(ch ExportChildRow, childCustoms []capability.FormField) []listexport.Field {
 	c := ch.Child
 	fields := []listexport.Field{
 		{Label: "Geburtsdatum", Value: timezone.Date(c.DateOfBirth).Format("02.01.2006")},
@@ -746,7 +745,7 @@ const departureCompanionLabelDE = "Mit welchem Kind?"
 // allowed_departure_modes (not a schema field), so the field-iterating export
 // loops never emit it — it must be pulled out explicitly. Returns "" when
 // absent or blank.
-func childCompanionNote(c *enrollmentService.RequestChild) string {
+func childCompanionNote(c *RequestChild) string {
 	if c == nil || c.CustomData == nil {
 		return ""
 	}
@@ -754,7 +753,7 @@ func childCompanionNote(c *enrollmentService.RequestChild) string {
 }
 
 // childFullName is the child's display heading for its block.
-func childFullName(c *enrollmentService.RequestChild) string {
+func childFullName(c *RequestChild) string {
 	name := strings.TrimSpace(c.FirstName + " " + c.LastName)
 	if name == "" {
 		return "Kind"
@@ -766,7 +765,7 @@ func childFullName(c *enrollmentService.RequestChild) string {
 // XLSX: one flat row per child, every field its own column.
 // ---------------------------------------------------------------------
 
-func buildPhaseExportTable(data *enrollmentService.PhaseExport, title, childStatus string) listexport.Document {
+func buildPhaseExportTable(data *PhaseExport, title, childStatus string) listexport.Document {
 	guardianCustoms, childCustoms := collectCustomFields(data.Schemas)
 
 	// Child-first column order, mirroring the PDF block: every child
@@ -859,7 +858,7 @@ func guardianRowValues(req *enrollmentModels.Request, guardians []*capability.Re
 	return values
 }
 
-func childRowValues(guardianValues map[listexport.ColumnID]string, ch enrollmentService.ExportChildRow, childCustoms []capability.FormField) map[listexport.ColumnID]string {
+func childRowValues(guardianValues map[listexport.ColumnID]string, ch ExportChildRow, childCustoms []capability.FormField) map[listexport.ColumnID]string {
 	c := ch.Child
 	values := cloneValues(guardianValues)
 	values["child_first_name"] = c.FirstName

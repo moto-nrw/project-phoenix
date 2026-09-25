@@ -26,7 +26,6 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -214,7 +213,7 @@ func attachOfferingGuardLink(t *testing.T, repos repositories.EnrollmentTestRepo
 			AvailableDays: []string{"mon", "tue", "wed", "thu", "fri"}, IsActive: true,
 			IsRequired: required, CountsAsCare: true,
 		}
-		require.NoError(t, enrollmentService.NewCareOfferingRepository(repos.CarePlan).Create(ctx, offering))
+		require.NoError(t, newCareOfferingFixtures(repos.CarePlan).Create(ctx, offering))
 		return &capability.RequestChildOffering{RequestChildID: childID, CareOfferingID: offering.ID}
 	}
 	link := createLink("Ganztag", fixture == requiredOnly)
@@ -240,10 +239,16 @@ func datePointers(from, until timezone.Date) (*capability.Date, *capability.Date
 	return &start, &end
 }
 
-func newOfferingGuardDecisionService(repos repositories.EnrollmentTestRepositories, offeringsEnabled bool, children enrollmentAPI.TestDecisionChildren, guardianAccess enrollmentAPI.TestDecisionGuardianAccess, studentEnrollment enrollmentAPI.TestDecisionStudentEnrollment, bookings enrollmentAPI.TestDecisionBookings) enrollmentService.DecisionService {
-	return enrollmentService.NewDecisionService(testutil.NewEnrollmentDecisions(testutil.EnrollmentDecisionSources{
+func newOfferingGuardDecisionService(repos repositories.EnrollmentTestRepositories, offeringsEnabled bool, children enrollmentAPI.TestDecisionChildren, guardianAccess enrollmentAPI.TestDecisionGuardianAccess, studentEnrollment enrollmentAPI.TestDecisionStudentEnrollment, bookings enrollmentAPI.TestDecisionBookings) enrollmentAPI.DecisionService {
+	return enrollmentAPI.NewDecisionService(testutil.PublicEnrollmentDecisions(newOfferingGuardDecisions(repos, offeringsEnabled, children, guardianAccess, studentEnrollment, bookings)))
+}
+
+// newOfferingGuardDecisions composes the decision flow the guard suites
+// drive, the way the root binds it.
+func newOfferingGuardDecisions(repos repositories.EnrollmentTestRepositories, offeringsEnabled bool, children enrollmentAPI.TestDecisionChildren, guardianAccess enrollmentAPI.TestDecisionGuardianAccess, studentEnrollment enrollmentAPI.TestDecisionStudentEnrollment, bookings enrollmentAPI.TestDecisionBookings) *enrollmentAPI.TestDecisions {
+	return testutil.NewEnrollmentDecisions(testutil.EnrollmentDecisionSources{
 		Requests: repos.Enrollment(), Children: children, Guardians: repos.Enrollment(),
-		LateInvites: repos.Enrollment(), CareOfferings: enrollmentService.NewCareOfferingRepository(repos.CarePlan),
+		LateInvites: repos.Enrollment(), CareOfferings: testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan),
 		Phases: repos.Enrollment(), Schemas: repos.Enrollment(), Persons: repos.Person, Staff: repos.Staff,
 		Students: repos.Student, StudentGuardians: repos.StudentGuardian, GuardianProfiles: repos.GuardianProfile,
 		GuardianPhones: repos.GuardianPhoneNumber, PickupSchedules: repositories.NewEnrollmentPickupSchedules(repos.StudentPickupSchedule),
@@ -253,7 +258,7 @@ func newOfferingGuardDecisionService(repos repositories.EnrollmentTestRepositori
 		Settings:          offeringGuardSettings(offeringsEnabled),
 		Notifications:     enrollmentAPI.NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: offeringGuardSettings(offeringsEnabled)}, discardingOutbox{}, nil),
 		ParentsURL:        "http://parents.localhost:3000", Logger: slog.Default(),
-	}))
+	})
 }
 
 func offeringGuardSettings(offeringsEnabled bool) *configtest.Mock {

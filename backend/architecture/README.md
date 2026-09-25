@@ -1544,6 +1544,51 @@ added.
   bindings; the savepoint suite of the retention cleanup runs in
   `modules/enrollment/integration`.
 
+#3565 (E4 under #2733) moved the parent intake (submission, edit, withdrawal,
+renewal confirmation, status link, public form loads, late invites and the
+manual approved enrollment) and the change requests with their review list
+into Enrollment (`modules/enrollment/internal/application`). The public
+package publishes them as `enrollment.IntakeSubmissions`, `IntakeStatus`,
+`IntakeForms` and `ChangeRequests`; `modules/enrollment/compose` composes
+them (`NewIntake`, `NewChangeRequests`) in the ambient tenant transaction.
+`backend/services/enrollment` is deleted with its `enrollmenttest` helper and
+its goldens; routes, status codes, error texts, authorization and tenant
+scoping are unchanged. The key count falls from 513 to 468 (every remaining
+`services/enrollment` key, among them `crypto/rand`, `crypto/sha256`,
+`database/sql`, `internal/schoolclass`, `internal/strutil`, `services/config`,
+`services/users` and `bun`, and the consumer keys of `api`, `api/enrollment`,
+`api/students`, `modules/careplan/inbound/parent`, `services` and
+`services/scheduler`); #2733 holds no key any more. Fourteen rules no import
+used are deleted, among them `parent-portal.compose.enrollment.domain`, the
+`enrollment.behavior-test.*` rules of the retained test package and
+`people-directory.test-support.compose`, whose `peopletest` package lost its
+last caller and is deleted. No rule is added.
+
+- The public contract carries answers, consent flags and source metadata as
+  raw JSON. `api/enrollment` decodes them for its handlers and the parents
+  portal (`owner_intake.go`, `owner_change_requests.go`, `owner_decisions.go`,
+  `owner_rollovers.go`) under the type names the retained package exported.
+- Refusals that originate in the selection contract or in Care Plan come back
+  marked with Enrollment's public mirrors (`intake_errors.go`), so the
+  handlers classify them with `errors.Is` while the text stays the
+  originating one; the decision flow reaches the routes through
+  `compose.PublicDecisions`.
+- Settings reach the intake as the typed `IntakeSettings` port; random bytes
+  and fingerprints as functions `services` binds from `securityruntime`;
+  guardian profiles, phones and reviewer names through ports; Care Plan's
+  offerings through `compose.NewCareOfferingRecords` and its bookings through
+  `enrollment.CareBookingCommands`.
+- The capacity seam of #3564 is a direct call; the scheduler reads the
+  retention cleanup through its own port.
+- The public change-request operation is `Propose`, not `Create`: public
+  contracts use capability-specific operations.
+- Suites: the unit suites run in `modules/enrollment/internal/application`
+  and `modules/enrollment/selection`, the intake, change-request, decision,
+  rollover and deletion suites in `api/enrollment`, the care-offering and
+  offering-change suites in `modules/careplan/contracttest`. ADR 0041's
+  exception grants nothing once this merges, because its anchor package is
+  gone from the base.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).

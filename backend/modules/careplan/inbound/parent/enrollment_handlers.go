@@ -17,7 +17,6 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -172,13 +171,13 @@ func (rs *Resource) getEnrollmentBootstrap(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("tenant not found")))
 		return
 	}
-	var access enrollmentService.EnrolleeAudienceAccess
+	var access enrollmentAPI.EnrolleeAudienceAccess
 	if status != nil {
 		access.LinkedParents = status.HasSubmitPermission
 		access.ExistingStudents = status.HasEnrolledSubmitPermission
 	}
 
-	var data *enrollmentService.PublicFormBootstrapData
+	var data *enrollmentAPI.PublicFormBootstrapData
 	lateInviteToken := strings.TrimSpace(r.URL.Query().Get("late_invite"))
 	loadErr := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
 		loaded, e := rs.RequestService.LoadEnrolleeFormBootstrap(txCtx, phaseID, time.Now(), lateInviteToken, access)
@@ -328,7 +327,7 @@ func decodeParentEnrollmentBody(r *http.Request) (*enrollmentAPI.SubmitEnrollmen
 // parentSubmitOutcome captures the mutually-distinguished results of the
 // admin-tx submit closure so the post-tx mapping can pick the right response.
 type parentSubmitOutcome struct {
-	result *enrollmentService.SubmitResult
+	result *enrollmentAPI.SubmitResult
 	// submitErr is the RequestService.Submit failure (400/403/409 family).
 	submitErr error
 	// statusErr is a guardian-submit-status lookup failure. It is tracked
@@ -402,7 +401,7 @@ func (rs *Resource) runParentEnrollmentSubmit(r *http.Request, accountID int64, 
 // stamps the guardian account id + submit eligibility, and forwards to
 // RequestService.Submit under the tenant context. A parse failure returns
 // before the service call.
-func (rs *Resource) submitEnrollmentForTenant(adminCtx context.Context, schoolID, accountID int64, submitEligible bool, wireReq *enrollmentAPI.SubmitEnrollmentRequest, clientIP string) (*enrollmentService.SubmitResult, error) {
+func (rs *Resource) submitEnrollmentForTenant(adminCtx context.Context, schoolID, accountID int64, submitEligible bool, wireReq *enrollmentAPI.SubmitEnrollmentRequest, clientIP string) (*enrollmentAPI.SubmitResult, error) {
 	serviceReq, parseErr := enrollmentAPI.BuildServiceRequest(wireReq, schoolID, clientIP)
 	if parseErr != nil {
 		return nil, parseErr

@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 type AdminChildDataCorrectionRequest struct {
@@ -48,10 +47,10 @@ func (rs *Resource) correctAdminChildData(w http.ResponseWriter, r *http.Request
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	var corrected *enrollmentService.ChangeRequestAggregate
+	var corrected *ChangeRequestAggregate
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		var correctionErr error
-		corrected, correctionErr = rs.ChangeRequestService.CorrectApprovedChildData(ctx, enrollmentService.CorrectApprovedChildDataInput{
+		corrected, correctionErr = rs.ChangeRequestService.CorrectApprovedChildData(ctx, CorrectApprovedChildDataInput{
 			RequestID:         requestID,
 			ChildID:           childID,
 			FirstName:         body.FirstName,

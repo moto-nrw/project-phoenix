@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -69,7 +68,7 @@ type Dependencies struct {
 
 	CarePeriods      care.CarePeriodReads
 	OfferingHistory  care.OfferingHistoryReads
-	CareOfferingRepo enrollmentModels.CareOfferingRepository
+	CareOfferingRepo care.CareOfferingReads
 	OfferingChanges  care.OfferingChangeRequests
 
 	// CareProfiles writes the child's care profile (health information, live
@@ -95,7 +94,7 @@ type Dependencies struct {
 	AnnouncementRepo          usersModels.ParentAnnouncementRepository
 	CareRequestRepo           scheduleModels.CareScheduleChangeRequestRepository
 	ExcusedRequestRepo        messaging.ExcusedRequestReads
-	OfferingChangeRequestRepo enrollmentModels.OfferingChangeRequestRepository
+	OfferingChangeRequestRepo messaging.OfferingChangeRequestReads
 	FamilyProtectionEvents    usersModels.FamilyProtectionEventRepository
 	ParentRequestShares       usersModels.ParentRequestShareEventRepository
 

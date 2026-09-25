@@ -10,8 +10,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 type parentReplyCall struct {
@@ -22,7 +20,7 @@ type parentReplyCall struct {
 // capturingChangeRequestService stays package-local under the shared-double
 // rule's channel-capture exception.
 type capturingChangeRequestService struct {
-	enrollmentService.ChangeRequestService
+	ChangeRequestService
 	calls chan parentReplyCall
 }
 
@@ -34,10 +32,10 @@ func (s *capturingChangeRequestService) ParentReply(
 	_ context.Context,
 	token string,
 	changeRequestID int64,
-	_ enrollmentService.ChangeRequestMessageInput,
-) (*enrollmentService.ChangeRequestAggregate, error) {
+	_ ChangeRequestMessageInput,
+) (*ChangeRequestAggregate, error) {
 	s.calls <- parentReplyCall{token: token, changeRequestID: changeRequestID}
-	return &enrollmentService.ChangeRequestAggregate{}, nil
+	return &ChangeRequestAggregate{}, nil
 }
 
 func TestReplyToChangeRequestAcceptsPositiveID(t *testing.T) {

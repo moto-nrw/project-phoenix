@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -194,7 +193,7 @@ type AdminOfferingAdjustment struct {
 	ChangedAt          time.Time       `json:"changed_at"`
 }
 
-func toAdminRequestSummary(s *enrollmentService.RequestSummary) AdminRequestSummary {
+func toAdminRequestSummary(s *RequestSummary) AdminRequestSummary {
 	out := AdminRequestSummary{
 		ID:                strconv.FormatInt(s.Request.ID, 10),
 		PhaseID:           strconv.FormatInt(s.Request.PhaseID, 10),
@@ -249,7 +248,7 @@ func (rs *Resource) listAdminRequests(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filters := enrollmentService.RequestFilters{}
+	filters := RequestFilters{}
 	if v := r.URL.Query().Get("phase_id"); v != "" {
 		id, err := strconv.ParseInt(v, 10, 64)
 		if err != nil || id <= 0 {
@@ -262,7 +261,7 @@ func (rs *Resource) listAdminRequests(w http.ResponseWriter, r *http.Request) {
 		filters.ChildStatus = v
 	}
 
-	var summaries []*enrollmentService.RequestSummary
+	var summaries []*RequestSummary
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		list, listErr := rs.DecisionService.List(ctx, filters)
 		summaries = list
@@ -300,7 +299,7 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
-		if errors.Is(err, enrollmentService.ErrDecisionRequestNotFound) {
+		if errors.Is(err, capability.ErrDecisionRequestNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
 		}
@@ -339,7 +338,7 @@ func (rs *Resource) listAdminRequestsByStudent(w http.ResponseWriter, r *http.Re
 	common.Respond(w, r, http.StatusOK, out, "Student admin requests retrieved")
 }
 
-func (rs *Resource) toAdminRequestDetail(ctx context.Context, summary *enrollmentService.RequestSummary) AdminRequestDetail {
+func (rs *Resource) toAdminRequestDetail(ctx context.Context, summary *RequestSummary) AdminRequestDetail {
 	detail := AdminRequestDetail{
 		AdminRequestSummary: rs.toAdminRequestDetailSummary(ctx, summary),
 	}
@@ -357,7 +356,7 @@ func (rs *Resource) toAdminRequestDetail(ctx context.Context, summary *enrollmen
 	return detail
 }
 
-func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *enrollmentService.RequestSummary) AdminRequestSummary {
+func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *RequestSummary) AdminRequestSummary {
 	detail := toAdminRequestSummary(summary)
 	if summary == nil || summary.Request == nil {
 		return detail
@@ -392,7 +391,7 @@ func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *en
 // the request's care-offering rows, matching admin children to summary
 // children positionally. Children beyond the summary or without rows are
 // left untouched.
-func attachChildOfferings(children []AdminRequestChild, summaryChildren []*enrollmentService.RequestChild, childOfferings map[int64]enrollmentService.ChildOfferingSet) {
+func attachChildOfferings(children []AdminRequestChild, summaryChildren []*RequestChild, childOfferings map[int64]ChildOfferingSet) {
 	for i := range children {
 		if i >= len(summaryChildren) {
 			continue
@@ -410,7 +409,7 @@ func attachChildOfferings(children []AdminRequestChild, summaryChildren []*enrol
 // itself belongs to the service: a client must not have to re-derive which
 // bookings a correction replaces, and a nil slice must stay a nil slice so
 // "no upcoming bookings" never ships as an empty array.
-func toAdminChildOfferings(rows []enrollmentService.ChildOfferingRow) []AdminRequestChildOffering {
+func toAdminChildOfferings(rows []ChildOfferingRow) []AdminRequestChildOffering {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -478,10 +477,10 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
-	outcome, err := rs.decideChildWithRetry(r, enrollmentService.DecideInput{
+	outcome, err := rs.decideChildWithRetry(r, DecideInput{
 		RequestID:  requestID,
 		ChildID:    childID,
-		Status:     enrollmentService.DecisionStatus(body.Status),
+		Status:     DecisionStatus(body.Status),
 		Reason:     body.Reason,
 		ReviewedBy: int64(claims.ID),
 	})
@@ -516,7 +515,7 @@ func (rs *Resource) restoreAdminRequest(w http.ResponseWriter, r *http.Request) 
 	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
-	var outcome *enrollmentService.RestoreOutcome
+	var outcome *RestoreOutcome
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		out, e := rs.DecisionService.RestoreWithdrawn(ctx, requestID, int64(claims.ID))
 		if e != nil {
@@ -545,19 +544,19 @@ func renderRestoreError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorClientClosed(err))
 	case errors.Is(err, context.DeadlineExceeded):
 		common.RenderError(w, r, common.ErrorRequestTimeout(err))
-	case errors.Is(err, enrollmentService.ErrDecisionRequestNotFound):
+	case errors.Is(err, capability.ErrDecisionRequestNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, enrollmentService.ErrRestoreNothingWithdrawn):
+	case errors.Is(err, capability.ErrRestoreNothingWithdrawn):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, enrollmentService.ErrRestorePhaseInactive):
+	case errors.Is(err, capability.ErrRestorePhaseInactive):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.restore_phase_inactive"))
-	case errors.Is(err, enrollmentService.ErrRestoreDuplicateActive):
+	case errors.Is(err, capability.ErrRestoreDuplicateActive):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.restore_duplicate"))
-	case errors.Is(err, enrollmentService.ErrCareOfferingFull):
+	case errors.Is(err, capability.ErrCareOfferingFull):
 		// Reject-mode phase: the capacity gate refuses the restore because
 		// an offering is meanwhile full. Same code the submit path uses.
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeEnrollmentCareOfferingFull))
-	case errors.Is(err, enrollmentService.ErrCareOfferingClosed):
+	case errors.Is(err, capability.ErrCareOfferingClosed):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.restore_offering_closed"))
 	case common.IsTransientDatabaseError(err):
 		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
@@ -570,9 +569,9 @@ func renderRestoreError(w http.ResponseWriter, r *http.Request, err error) {
 // retrying once on a transient database error when the decision body has
 // not yet committed. A cancelled/expired request context stops the retry
 // loop and surfaces the context error.
-func (rs *Resource) decideChildWithRetry(r *http.Request, input enrollmentService.DecideInput) (*enrollmentService.DecideOutcome, error) {
+func (rs *Resource) decideChildWithRetry(r *http.Request, input DecideInput) (*DecideOutcome, error) {
 	var err error
-	var outcome *enrollmentService.DecideOutcome
+	var outcome *DecideOutcome
 	for attempt := 0; attempt < 2; attempt++ {
 		outcome = nil
 		decisionBodySucceeded := false
@@ -606,21 +605,21 @@ func (rs *Resource) decideChildWithRetry(r *http.Request, input enrollmentServic
 var decideErrorRules = []common.ErrorRule{
 	{Target: context.Canceled, Render: common.ErrorClientClosed},
 	{Target: context.DeadlineExceeded, Render: common.ErrorRequestTimeout},
-	{Target: enrollmentService.ErrDecisionChildNotFound, Render: common.ErrorNotFound},
-	{Target: enrollmentService.ErrDecisionRequestNotFound, Render: common.ErrorNotFound},
-	{Target: enrollmentService.ErrDecisionInvalidStatus, Render: common.ErrorInvalidRequest},
-	{Target: enrollmentService.ErrDecisionAlreadyTerminal, Render: common.ErrorInvalidRequest},
-	{Target: enrollmentService.ErrDecisionInvalidData, Render: common.ErrorInvalidRequest},
-	{Target: enrollmentService.ErrWaitlistDisabled, Render: func(err error) render.Renderer {
+	{Target: capability.ErrDecisionChildNotFound, Render: common.ErrorNotFound},
+	{Target: capability.ErrDecisionRequestNotFound, Render: common.ErrorNotFound},
+	{Target: capability.ErrDecisionInvalidStatus, Render: common.ErrorInvalidRequest},
+	{Target: capability.ErrDecisionAlreadyTerminal, Render: common.ErrorInvalidRequest},
+	{Target: capability.ErrDecisionInvalidData, Render: common.ErrorInvalidRequest},
+	{Target: capability.ErrWaitlistDisabled, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "enrollment.waitlist_disabled")
 	}},
-	{Target: enrollmentService.ErrCareOfferingMissing, Render: func(err error) render.Renderer {
+	{Target: capability.ErrCareOfferingMissing, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, errCodeApprovalCareOfferingMissing)
 	}},
-	{Target: enrollmentService.ErrCareOfferingExactlyOneRequired, Render: func(err error) render.Renderer {
+	{Target: capability.ErrCareOfferingExactlyOneRequired, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, errCodeApprovalCareOfferingExactlyOne)
 	}},
-	{Target: enrollmentService.ErrGuardianAccountMismatch, Render: func(err error) render.Renderer {
+	{Target: capability.ErrGuardianAccountMismatch, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "enrollment.guardian_account_mismatch")
 	}},
 	{Match: common.IsTransientDatabaseError, Render: common.ErrorServiceUnavailable},
@@ -635,7 +634,7 @@ func renderDecideError(w http.ResponseWriter, r *http.Request, err error) {
 // newAdminRequestChild maps a decided child model onto the wire shape
 // returned by the decide endpoint (no CustomData / Offerings — those are
 // detail-endpoint concerns).
-func newAdminRequestChild(child *enrollmentService.RequestChild) AdminRequestChild {
+func newAdminRequestChild(child *RequestChild) AdminRequestChild {
 	return AdminRequestChild{
 		ID:                strconv.FormatInt(child.ID, 10),
 		FirstName:         child.FirstName,
@@ -668,17 +667,17 @@ type AdminUpdateOfferingSelection struct {
 func (req *AdminUpdateOfferingsRequest) Bind(_ *http.Request) error { return nil }
 
 var updateAdminOfferingsErrorRenderer = common.RulesRenderer([]common.ErrorRule{
-	{Target: enrollmentService.ErrDecisionChildNotFound, Render: common.ErrorNotFound},
-	{Target: enrollmentService.ErrDecisionRequestNotFound, Render: common.ErrorNotFound},
-	{Target: enrollmentService.ErrOfferingAdjustmentInvalid, Render: common.ErrorInvalidRequest},
-	{Target: enrollmentService.ErrCareOfferingClosed, Render: common.ErrorInvalidRequest},
-	{Target: enrollmentService.ErrRequiredCareOfferingMissing, Render: common.ErrorInvalidRequest},
-	{Target: enrollmentService.ErrCareOfferingMissing, Render: common.ErrorInvalidRequest},
-	{Target: enrollmentService.ErrCareOfferingExactlyOneRequired, Render: common.ErrorInvalidRequest},
-	{Target: enrollmentService.ErrCareOfferingsDisabled, Render: func(err error) render.Renderer {
+	{Target: capability.ErrDecisionChildNotFound, Render: common.ErrorNotFound},
+	{Target: capability.ErrDecisionRequestNotFound, Render: common.ErrorNotFound},
+	{Target: capability.ErrOfferingAdjustmentInvalid, Render: common.ErrorInvalidRequest},
+	{Target: capability.ErrCareOfferingClosed, Render: common.ErrorInvalidRequest},
+	{Target: capability.ErrRequiredCareOfferingMissing, Render: common.ErrorInvalidRequest},
+	{Target: capability.ErrCareOfferingMissing, Render: common.ErrorInvalidRequest},
+	{Target: capability.ErrCareOfferingExactlyOneRequired, Render: common.ErrorInvalidRequest},
+	{Target: capability.ErrCareOfferingsDisabled, Render: func(err error) render.Renderer {
 		return common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingsDisabled)
 	}},
-	{Target: enrollmentService.ErrCompleteWithdrawalConfirmationRequired, Render: func(err error) render.Renderer {
+	{Target: capability.ErrCompleteWithdrawalConfirmationRequired, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "enrollment.complete_withdrawal_confirmation_required")
 	}},
 }, common.ErrorInternalServer)
@@ -714,15 +713,15 @@ func (rs *Resource) updateAdminChildOfferings(w http.ResponseWriter, r *http.Req
 
 func (rs *Resource) applyAdminOfferingUpdate(
 	r *http.Request, requestID, childID int64, body *AdminUpdateOfferingsRequest,
-) (*enrollmentService.RequestChild, error) {
+) (*RequestChild, error) {
 	selections, effectiveFrom, err := parseAdminOfferingUpdate(body)
 	if err != nil {
 		return nil, err
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	var updated *enrollmentService.RequestChild
+	var updated *RequestChild
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
-		child, updateErr := rs.DecisionService.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		child, updateErr := rs.DecisionService.UpdateChildOfferings(ctx, UpdateChildOfferingsInput{
 			RequestID: requestID, ChildID: childID, Offerings: selections, Reason: body.Reason,
 			ActorAccountID: int64(claims.ID), ActorRole: actorRoleFromClaims(claims.Roles),
 			EffectiveFrom: effectiveFrom, CompleteWithdrawalConfirmed: body.CompleteWithdrawalConfirmed,
@@ -735,14 +734,14 @@ func (rs *Resource) applyAdminOfferingUpdate(
 
 func parseAdminOfferingUpdate(
 	body *AdminUpdateOfferingsRequest,
-) ([]enrollmentService.OfferingAdjustmentSelection, *timezone.Date, error) {
-	selections := make([]enrollmentService.OfferingAdjustmentSelection, 0, len(body.Offerings))
+) ([]OfferingAdjustmentSelection, *timezone.Date, error) {
+	selections := make([]OfferingAdjustmentSelection, 0, len(body.Offerings))
 	for _, row := range body.Offerings {
 		offeringID, parseErr := strconv.ParseInt(row.OfferingID, 10, 64)
 		if parseErr != nil || offeringID <= 0 {
-			return nil, nil, fmt.Errorf("%w: invalid offering_id", enrollmentService.ErrOfferingAdjustmentInvalid)
+			return nil, nil, fmt.Errorf("%w: invalid offering_id", capability.ErrOfferingAdjustmentInvalid)
 		}
-		selections = append(selections, enrollmentService.OfferingAdjustmentSelection{
+		selections = append(selections, OfferingAdjustmentSelection{
 			OfferingID:   offeringID,
 			SelectedDays: row.SelectedDays,
 		})
@@ -751,7 +750,7 @@ func parseAdminOfferingUpdate(
 	if strings.TrimSpace(body.EffectiveFrom) != "" {
 		parsed, parseErr := timezone.ParseDate(body.EffectiveFrom)
 		if parseErr != nil {
-			return nil, nil, fmt.Errorf("%w: das Datum muss im Format JJJJ-MM-TT angegeben werden", enrollmentService.ErrOfferingAdjustmentInvalid)
+			return nil, nil, fmt.Errorf("%w: das Datum muss im Format JJJJ-MM-TT angegeben werden", capability.ErrOfferingAdjustmentInvalid)
 		}
 		effectiveFrom = &parsed
 	}
@@ -824,14 +823,14 @@ func (rs *Resource) listAdminChildOfferingAdjustments(w http.ResponseWriter, r *
 	if !ok {
 		return
 	}
-	var rows []*enrollmentService.OfferingAdjustment
+	var rows []*OfferingAdjustment
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		list, listErr := rs.DecisionService.ListOfferingAdjustments(ctx, requestID, childID)
 		rows = list
 		return listErr
 	})
 	if err != nil {
-		if errors.Is(err, enrollmentService.ErrDecisionChildNotFound) {
+		if errors.Is(err, capability.ErrDecisionChildNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
 		}
@@ -845,7 +844,7 @@ func (rs *Resource) listAdminChildOfferingAdjustments(w http.ResponseWriter, r *
 	common.Respond(w, r, http.StatusOK, out, "Offering adjustments retrieved")
 }
 
-func toAdminChildOffering(row enrollmentService.ChildOfferingRow) AdminRequestChildOffering {
+func toAdminChildOffering(row ChildOfferingRow) AdminRequestChildOffering {
 	return AdminRequestChildOffering{
 		OfferingID:            strconv.FormatInt(row.OfferingID, 10),
 		OfferingName:          row.OfferingName,
@@ -863,7 +862,7 @@ func toAdminChildOffering(row enrollmentService.ChildOfferingRow) AdminRequestCh
 	}
 }
 
-func toAdminOfferingAdjustment(row *enrollmentService.OfferingAdjustment) AdminOfferingAdjustment {
+func toAdminOfferingAdjustment(row *OfferingAdjustment) AdminOfferingAdjustment {
 	return AdminOfferingAdjustment{
 		ID:                 strconv.FormatInt(row.ID, 10),
 		RequestID:          strconv.FormatInt(row.RequestID, 10),
@@ -895,7 +894,7 @@ func actorRoleFromClaims(roles []string) string {
 // response isn't blocked on SMTP / outbox writes; the invitation
 // service writes to platform.email_outbox synchronously, then the
 // outbox worker dispatches the email asynchronously on its own tick.
-func (rs *Resource) dispatchPostDecisionInvite(parentCtx context.Context, invite *enrollmentService.PendingGuardianInvite) {
+func (rs *Resource) dispatchPostDecisionInvite(parentCtx context.Context, invite *PendingGuardianInvite) {
 	// Detach from request lifetime so the goroutine isn't cancelled by
 	// the response writer flushing. Re-attach tenant from the parent so
 	// the invitation service's tenant-scoped writes resolve.

@@ -8,14 +8,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // --- BuildServiceRequest -------------------------------------------------
@@ -103,12 +103,12 @@ func TestToEditDraftChildResponses_PreserveOnlyLockedOfferingsWhenDisabled(t *te
 	t.Parallel()
 
 	studentID := int64(42)
-	responses := toEditDraftChildResponses(&enrollmentService.EditDraft{
-		Children: []*enrollmentService.RequestChild{
+	responses := toEditDraftChildResponses(&EditDraft{
+		Children: []*RequestChild{
 			{ID: 1},
 			{ID: 2, CreatedStudentID: &studentID},
 		},
-		OfferingsByChild: map[int64][]*enrollmentService.RequestChildOffering{
+		OfferingsByChild: map[int64][]*RequestChildOffering{
 			1: {{CareOfferingID: 6}},
 			2: {{CareOfferingID: 7}},
 		},
@@ -192,7 +192,7 @@ func TestMapSubmitError_EnrollmentDisabled403(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	MapSubmitError(w, r, enrollmentService.ErrEnrollmentDisabled)
+	MapSubmitError(w, r, capability.ErrEnrollmentDisabled)
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
@@ -201,7 +201,7 @@ func TestMapSubmitError_EnrollmentWindowClosed403(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	MapSubmitError(w, r, enrollmentService.ErrEnrollmentWindowClosed)
+	MapSubmitError(w, r, capability.ErrEnrollmentWindowClosed)
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
@@ -212,7 +212,7 @@ func TestMapSubmitError_LateInviteInvalid403WithCode(t *testing.T) {
 	// render the localized late-invite message. Keep this assertion strict.
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	MapSubmitError(w, r, enrollmentService.ErrLateInviteInvalid)
+	MapSubmitError(w, r, capability.ErrLateInviteInvalid)
 	assert.Equal(t, http.StatusForbidden, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentLateInviteInvalid)
 }
@@ -222,7 +222,7 @@ func TestMapSubmitError_CareOfferingMissing400WithCode(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	MapSubmitError(w, r, enrollmentService.ErrCareOfferingMissing)
+	MapSubmitError(w, r, capability.ErrCareOfferingMissing)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentCareOfferingMissing)
 }
@@ -232,7 +232,7 @@ func TestMapSubmitError_CareOfferingUnavailable400WithStableCode(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	MapSubmitError(w, r, fmt.Errorf("child 1: %w", enrollmentService.ErrCareOfferingUnavailable))
+	MapSubmitError(w, r, fmt.Errorf("child 1: %w", capability.ErrCareOfferingUnavailable))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentCareOfferingUnavailable)
 }
@@ -242,7 +242,7 @@ func TestMapSubmitError_InvalidGuardianPhone400WithCode(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	MapSubmitError(w, r, enrollmentService.ErrInvalidGuardianPhone)
+	MapSubmitError(w, r, capability.ErrInvalidGuardianPhone)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentInvalidPhone)
 }
@@ -255,7 +255,7 @@ func TestMapSubmitError_InvalidGuardianEmail400WithCode(t *testing.T) {
 	// reads to localize the invalid-email message.
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	MapSubmitError(w, r, enrollmentService.ErrInvalidGuardianEmail)
+	MapSubmitError(w, r, capability.ErrInvalidGuardianEmail)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentInvalidEmail)
 }
@@ -268,7 +268,7 @@ func TestMapSubmitError_PickupTimeNotAllowed400WithCode(t *testing.T) {
 	// reads to localize the off-list pickup message.
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	MapSubmitError(w, r, enrollmentService.ErrPickupTimeNotAllowed)
+	MapSubmitError(w, r, capability.ErrPickupTimeNotAllowed)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentPickupTimeNotAllowed)
 }
@@ -282,7 +282,7 @@ func TestMapSubmitError_WrappedPickupTimeNotAllowed400WithCode(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	wrapped := fmt.Errorf("%w: child 0 field %q: off-list",
-		enrollmentService.ErrPickupTimeNotAllowed, "schedule_pickup")
+		capability.ErrPickupTimeNotAllowed, "schedule_pickup")
 	MapSubmitError(w, r, wrapped)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentPickupTimeNotAllowed)
@@ -296,7 +296,7 @@ func TestMapSubmitError_SelectedDayNotAvailable400WithCode(t *testing.T) {
 	// enrollment form reads to localize the off-days message (#1885).
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	MapSubmitError(w, r, enrollmentService.ErrSelectedDayNotAvailable)
+	MapSubmitError(w, r, capability.ErrSelectedDayNotAvailable)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentSelectedDayNotAvailable)
 }
@@ -309,7 +309,7 @@ func TestMapSubmitError_WrappedDepartureModeLimit400WithCode(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	wrapped := fmt.Errorf("%w: child 0 field %q: weekday \"mon\" allows only one departure mode, got 2",
-		enrollmentService.ErrDepartureModeLimitExceeded, "heimwege")
+		capability.ErrDepartureModeLimitExceeded, "heimwege")
 	MapSubmitError(w, r, wrapped)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentDepartureModeLimit)
@@ -323,7 +323,7 @@ func TestMapSubmitError_WrappedSelectedDayNotAvailable400WithCode(t *testing.T) 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	wrapped := fmt.Errorf("%w: day %q is not in the offering's available_days",
-		enrollmentService.ErrSelectedDayNotAvailable, "tue")
+		capability.ErrSelectedDayNotAvailable, "tue")
 	MapSubmitError(w, r, wrapped)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentSelectedDayNotAvailable)
@@ -334,7 +334,7 @@ func TestMapSubmitError_DaySelectionRequired400WithCode(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	MapSubmitError(w, r, enrollmentService.ErrDaySelectionRequired)
+	MapSubmitError(w, r, capability.ErrDaySelectionRequired)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentDaySelectionRequired)
 }
@@ -344,7 +344,7 @@ func TestMapSubmitError_DaySelectionNotAllowed400WithCode(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	MapSubmitError(w, r, enrollmentService.ErrDaySelectionNotAllowed)
+	MapSubmitError(w, r, capability.ErrDaySelectionNotAllowed)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentDaySelectionNotAllowed)
 }
@@ -354,7 +354,7 @@ func TestMapSubmitError_CareOfferingClosed400(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	MapSubmitError(w, r, enrollmentService.ErrCareOfferingClosed)
+	MapSubmitError(w, r, capability.ErrCareOfferingClosed)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
@@ -363,7 +363,7 @@ func TestMapSubmitError_InvalidSubmission400(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	MapSubmitError(w, r, enrollmentService.ErrInvalidSubmission)
+	MapSubmitError(w, r, capability.ErrInvalidSubmission)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
@@ -372,7 +372,7 @@ func TestMapSubmitError_CareOfferingFull409WithCode(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	MapSubmitError(w, r, enrollmentService.ErrCareOfferingFull)
+	MapSubmitError(w, r, capability.ErrCareOfferingFull)
 	assert.Equal(t, http.StatusConflict, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentCareOfferingFull)
 }
@@ -382,7 +382,7 @@ func TestMapSubmitError_DuplicateEnrollment409(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	MapSubmitError(w, r, enrollmentService.ErrDuplicateEnrollment)
+	MapSubmitError(w, r, capability.ErrDuplicateEnrollment)
 	assert.Equal(t, http.StatusConflict, w.Code)
 }
 
@@ -391,7 +391,7 @@ func TestMapSubmitError_RateLimited429WithRetryAfter(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	MapSubmitError(w, r, enrollmentService.ErrRateLimited)
+	MapSubmitError(w, r, capability.ErrRateLimited)
 	assert.Equal(t, http.StatusTooManyRequests, w.Code)
 	assert.Equal(t, "3600", w.Header().Get("Retry-After"))
 }

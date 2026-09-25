@@ -1,6 +1,7 @@
 package students
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,8 +11,6 @@ import (
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 type StudentEnrollmentExtraFieldGroup struct {
@@ -49,7 +48,7 @@ func (rs *Resource) getStudentEnrollmentExtraFields(w http.ResponseWriter, r *ht
 		return
 	}
 
-	summaries, err := rs.EnrollmentDecision.ListByStudent(r.Context(), student.ID)
+	summaries, err := rs.EnrollmentDecision.StudentDecisionRequests(r.Context(), student.ID)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to load enrollment extra fields", err))
 		return
@@ -63,7 +62,7 @@ func (rs *Resource) getStudentEnrollmentExtraFields(w http.ResponseWriter, r *ht
 	common.Respond(w, r, http.StatusOK, out, "Student enrollment extra fields retrieved")
 }
 
-func (rs *Resource) toStudentEnrollmentExtraFieldGroups(r *http.Request, studentID int64, summaries []*enrollmentService.RequestSummary) ([]StudentEnrollmentExtraFieldGroup, error) {
+func (rs *Resource) toStudentEnrollmentExtraFieldGroups(r *http.Request, studentID int64, summaries []*enrollmentCapability.DecisionSummary) ([]StudentEnrollmentExtraFieldGroup, error) {
 	out := make([]StudentEnrollmentExtraFieldGroup, 0, len(summaries))
 	for _, summary := range summaries {
 		if summary == nil || summary.Request == nil || summary.Request.SchemaID == nil {
@@ -73,7 +72,11 @@ func (rs *Resource) toStudentEnrollmentExtraFieldGroups(r *http.Request, student
 		if child == nil {
 			continue
 		}
-		fields, err := rs.studentEnrollmentExtraFieldsForChild(r, *summary.Request.SchemaID, child.CustomData)
+		customData, err := decodeEnrollmentCustomData(child.CustomData)
+		if err != nil {
+			return nil, err
+		}
+		fields, err := rs.studentEnrollmentExtraFieldsForChild(r, *summary.Request.SchemaID, customData)
 		if err != nil {
 			return nil, err
 		}
@@ -93,7 +96,7 @@ func (rs *Resource) toStudentEnrollmentExtraFieldGroups(r *http.Request, student
 	return out, nil
 }
 
-func linkedSummaryChild(summary *enrollmentService.RequestSummary, studentID int64) *enrollmentService.RequestChild {
+func linkedSummaryChild(summary *enrollmentCapability.DecisionSummary, studentID int64) *enrollmentCapability.RequestChild {
 	for _, child := range summary.Children {
 		if child == nil || child.CreatedStudentID == nil {
 			continue
@@ -103,6 +106,19 @@ func linkedSummaryChild(summary *enrollmentService.RequestSummary, studentID int
 		}
 	}
 	return nil
+}
+
+// decodeEnrollmentCustomData decodes the answers a family gave for a child,
+// which the Enrollment owner hands over as raw JSON.
+func decodeEnrollmentCustomData(raw json.RawMessage) (map[string]any, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	var customData map[string]any
+	if err := json.Unmarshal(raw, &customData); err != nil {
+		return nil, fmt.Errorf("decode enrollment child custom data: %w", err)
+	}
+	return customData, nil
 }
 
 func (rs *Resource) studentEnrollmentExtraFieldsForChild(r *http.Request, schemaID int64, customData map[string]any) ([]StudentEnrollmentExtraField, error) {
