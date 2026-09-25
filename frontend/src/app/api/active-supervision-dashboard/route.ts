@@ -22,6 +22,8 @@ interface WireGroup {
   room_color?: string | null;
   is_current_user_supervising: boolean;
   can_assign: boolean;
+  // The started activity's limit; absent without one (#3634).
+  participant_limit?: number;
 }
 
 interface WireUnclaimedGroup {
@@ -80,6 +82,8 @@ interface WireOpenRoomSession {
   is_user_supervising: boolean;
   can_assign: boolean;
   student_count: number;
+  // The activity's limit; absent without one (#3634).
+  participant_limit?: number;
   block?: {
     instance_id: string;
     start_time: string;
@@ -268,6 +272,7 @@ interface ActiveSupervisionDashboardResponse {
     id: string;
     name: string;
     canAssign: boolean;
+    participantLimit: number | null;
     room_id?: string;
     room?: { id: string; name: string; color?: string | null };
   }>;
@@ -305,6 +310,7 @@ interface ActiveSupervisionDashboardResponse {
       isUserSupervising: boolean;
       canAssign: boolean;
       studentCount: number;
+      participantLimit: number | null;
       block: {
         instanceId: string;
         startTime: string;
@@ -418,6 +424,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
       name: g.name,
       canAssign: g.can_assign,
       isCurrentUserSupervising: g.is_current_user_supervising,
+      participantLimit: g.participant_limit ?? null,
       room_id: g.room_id,
       room: g.room_id
         ? {
@@ -459,6 +466,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
         isUserSupervising: session.is_user_supervising,
         canAssign: session.can_assign,
         studentCount: session.student_count,
+        participantLimit: session.participant_limit ?? null,
         block: session.block
           ? {
               instanceId: session.block.instance_id,

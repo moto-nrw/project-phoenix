@@ -13,10 +13,16 @@ RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
 # Add source code
 COPY . .
 
+# Full commit SHA of the workflow run, reported to Sentry as the release.
+# Declared after COPY so the module download layer stays cached.
+ARG SENTRY_RELEASE
+
 # Reuse downloaded modules and compiled packages across builds.
 RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
     --mount=type=cache,mode=0755,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -ldflags="-s -w" -o main .
+    CGO_ENABLED=0 go build \
+    -ldflags="-s -w -X github.com/moto-nrw/project-phoenix/cmd.release=${SENTRY_RELEASE}" \
+    -o main .
 
 # Multi-Stage production build
 FROM alpine:3.21 AS production

@@ -8,7 +8,10 @@ import {
   SectionCard,
   SectionCollapseToggle,
 } from "~/components/ui/section-card";
+import { OccupancyBadges } from "~/components/ui/occupancy-badges";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";
+import { useNFCEnabled } from "~/lib/tenant-context";
 import { ActiveSupervisionLoadingView } from "~/components/active-supervisions/states";
 import { CompleteInstanceModal } from "~/components/active-supervisions/complete-instance-modal";
 import { SupervisionStudentGrid } from "~/components/active-supervisions/student-grid";
@@ -105,8 +108,24 @@ function sectionSessionIds(section: OpenRoomSection): readonly string[] {
     : section.activeGroupIds;
 }
 
-function childCountLabel(count: number): string {
-  return `${count} ${count === 1 ? "Kind" : "Kinder"}`;
+/**
+ * The section description, with the overbooking hint on its own line when
+ * the session holds more children than its activity allows (#3634).
+ */
+function withOverbookedHint(
+  description: string,
+  occupancy: Occupancy,
+  nfcEnabled: boolean,
+): ReactNode {
+  const hint = overbookedHintFor(occupancy, nfcEnabled);
+  if (hint === null) return description;
+  return (
+    <>
+      {description}
+      <br />
+      {hint}
+    </>
+  );
 }
 
 interface SectionChildren {
@@ -210,6 +229,11 @@ function OpenRoomBlock({
   });
 
   const title = session.title;
+  const nfcEnabled = useNFCEnabled();
+  const occupancy: Occupancy = {
+    count: session.studentCount,
+    limit: session.participantLimit,
+  };
   const addSupervisor = (
     <AddSupervisorButton
       activeGroupId={section.assignableSessionId}
@@ -232,17 +256,16 @@ function OpenRoomBlock({
               tone="green"
             />
           ) : null}
-          <StatusBadge
-            label={childCountLabel(session.studentCount)}
-            tone="gray"
-          />
+          <OccupancyBadges occupancy={occupancy} nfcEnabled={nfcEnabled} />
         </>
       }
-      description={
+      description={withOverbookedHint(
         section.isOwn
           ? `${block.startTime}–${block.endTime} Uhr`
-          : `${block.startTime}–${block.endTime} Uhr · Sie sind hier nicht eingeplant.`
-      }
+          : `${block.startTime}–${block.endTime} Uhr · Sie sind hier nicht eingeplant.`,
+        occupancy,
+        nfcEnabled,
+      )}
       actions={section.assignableSessionId ? addSupervisor : undefined}
     />
   );
@@ -266,6 +289,7 @@ function OpenRoomBlock({
           isConfirmingExpected={actions.isConfirmingExpected}
           roster={currentRoster}
           showTimetableCounts={showTimetableCounts}
+          occupancy={occupancy}
           headerActions={section.assignableSessionId ? addSupervisor : null}
           headerToggle={
             <SectionCollapseToggle
@@ -329,6 +353,11 @@ function OpenRoomOccupancy({
     !section.independent && !section.isOwn,
   );
   const title = section.independent ? "Ohne Angebot" : section.title;
+  const nfcEnabled = useNFCEnabled();
+  const occupancy: Occupancy = {
+    count: section.studentCount,
+    limit: section.participantLimit,
+  };
   const header = (
     <SectionCard
       collapsible
@@ -336,16 +365,15 @@ function OpenRoomOccupancy({
       onCollapsedChange={setCollapsed}
       title={title}
       titleBadge={
-        <StatusBadge
-          label={childCountLabel(section.studentCount)}
-          tone="gray"
-        />
+        <OccupancyBadges occupancy={occupancy} nfcEnabled={nfcEnabled} />
       }
-      description={
+      description={withOverbookedHint(
         section.independent
           ? "Diese Kinder nutzen nur den Raum."
-          : "Diese Aktivität läuft ohne Block aus dem Betreuungsplan."
-      }
+          : "Diese Aktivität läuft ohne Block aus dem Betreuungsplan.",
+        occupancy,
+        nfcEnabled,
+      )}
       actions={
         section.assignableSessionId ? (
           <AddSupervisorButton

@@ -9,6 +9,66 @@ import (
 	"strings"
 )
 
+// OpenRoom is one released room and every child currently recorded there.
+type OpenRoom struct {
+	RoomID            int64    `json:"room_id,string"`
+	Name              string   `json:"name"`
+	IsUserSupervising bool     `json:"is_user_supervising"`
+	ActiveGroupIDs    []string `json:"active_group_ids"`
+	// HasOccupyingSession is true when any session in the room counts as
+	// occupancy (#3066). Independent stays do not occupy: Spontanes Angebot
+	// can still start in a released room that only holds those stays.
+	HasOccupyingSession bool              `json:"has_occupying_session"`
+	StudentCount        int               `json:"student_count"`
+	Students            []OpenRoomStudent `json:"students"`
+	// Sessions lists every session running in the room, in start order, with
+	// what its section on the room page needs (#3281). The room stays the
+	// navigation entry; the sessions are its sections.
+	Sessions []OpenRoomSession `json:"sessions"`
+}
+
+// OpenRoomSession is one live session in a released room. Its children are
+// the room's students with its ActiveGroupID; StudentCount counts them, so
+// the room's count is the sum over its sessions.
+type OpenRoomSession struct {
+	ActiveGroupID int64 `json:"active_group_id,string"`
+	// Title names the session: the block's title, else the activity's name.
+	// It stays empty for the room's own session of independent stays.
+	Title       string `json:"title"`
+	Independent bool   `json:"independent"`
+	// IsUserSupervising reports a current supervision of the caller.
+	IsUserSupervising bool `json:"is_user_supervising"`
+	// CanAssign reports whether the caller may add supervisors (#2806).
+	CanAssign    bool `json:"can_assign"`
+	StudentCount int  `json:"student_count"`
+	// ParticipantLimit is the activity's limit; nil without one. Above it
+	// the terminal rejects every further check-in (#3634).
+	ParticipantLimit *int `json:"participant_limit,omitempty"`
+	// Block is the timetable block running in the session. It is nil for a
+	// kiosk session, for the room's own session, and for callers without
+	// schedules:read, whose page shows the children without a roster.
+	Block *OpenRoomBlock `json:"block"`
+}
+
+// OpenRoomBlock carries what the block roster needs beyond the session: the
+// instance to load and the caller's relation to it.
+type OpenRoomBlock struct {
+	InstanceID     int64  `json:"instance_id,string"`
+	StartTime      string `json:"start_time"`
+	EndTime        string `json:"end_time"`
+	IsUserAssigned bool   `json:"is_user_assigned"`
+	CanOperate     bool   `json:"can_operate"`
+}
+
+// OpenRoomStudent reuses the selected session's visit projection.
+type OpenRoomStudent struct {
+	Visit
+	ActivityName string `json:"activity_name,omitempty"`
+	// Independent marks a child who stays in the room without taking part in
+	// an activity (#3066); such a child never carries an activity name.
+	Independent bool `json:"independent"`
+}
+
 type openRoomInputs struct {
 	rooms        []ReleasedRoom
 	sessions     []RunningSession
@@ -209,6 +269,7 @@ func openRoomSession(session RunningSession, blocks map[int64]SessionBlock, staf
 		Independent:       session.IndependentStays,
 		IsUserSupervising: supervising,
 		CanAssign:         adminScope || supervising,
+		ParticipantLimit:  session.ParticipantLimit,
 	}
 	if !session.IndependentStays {
 		entry.Title = session.ActivityName

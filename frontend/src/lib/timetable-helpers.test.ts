@@ -490,6 +490,7 @@ describe("backend mappers", () => {
           absent_staff_count: 0,
           expected_students_count: 1,
           present_students_count: 1,
+          occupancy: { participant_limit: 45, current_students_count: 1 },
           required_staff_count: 1,
           assigned_staff_count: 1,
           conflict_warnings: [
@@ -511,6 +512,7 @@ describe("backend mappers", () => {
       studentIds: ["21"],
       staff: [{ staffId: "11", isPrimary: true }],
       conflictWarnings: [{ resourceId: "3", canOverride: true }],
+      occupancy: { participantLimit: 45, currentStudentsCount: 1 },
     });
   });
 
@@ -548,6 +550,7 @@ describe("backend mappers", () => {
       studentIds: [],
       students: [],
       conflictWarnings: [],
+      occupancy: null,
     });
   });
 

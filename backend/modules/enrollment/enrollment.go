@@ -68,6 +68,7 @@ type engine interface {
 	TransitionPhaseChildren(context.Context, int64, string, string) (int, error)
 	UpdateChildStatus(context.Context, int64, string, *string, int64) error
 	ReviewRolloverChild(context.Context, int64, string, *string, *int16, int64) error
+	HoldAutoRenewedChild(context.Context, int64, string) (bool, error)
 	DeleteRequestChildren(context.Context, int64) error
 	CountCreatedStudentsByPhase(context.Context, int64) (int, error)
 	InsertRequest(context.Context, *Request) error

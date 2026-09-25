@@ -93,6 +93,17 @@ func (s presenceSettings) OperationalOverviewScope(ctx context.Context) (string,
 	return s.source.ResolveString(ctx, configModels.KeyOperationalOverviewScope)
 }
 
+// WebParticipantLimitEnforced reports whether web assignments respect the
+// activity's participant limit. The stored setting says whether exceeding it
+// is allowed, so the answer is its negation.
+func (s presenceSettings) WebParticipantLimitEnforced(ctx context.Context) (bool, error) {
+	allowed, err := s.source.ResolveBool(ctx, configModels.KeyWebExceedParticipantLimit)
+	if err != nil {
+		return false, err
+	}
+	return !allowed, nil
+}
+
 // TimeTrackingRetentionOverridden probes whether the tenant set its own
 // retention window. The cleanup logs a failing probe and falls back.
 func (s presenceSettings) TimeTrackingRetentionOverridden(ctx context.Context) (bool, error) {

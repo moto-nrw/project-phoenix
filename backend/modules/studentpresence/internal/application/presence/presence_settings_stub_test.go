@@ -18,12 +18,16 @@ type presenceSettingsStub struct {
 	attendanceEditScope      string
 	operationalOverviewScope string
 	inactivityTimeoutMinutes int
+	// webParticipantLimitEnforced is the negated #3632 setting; the zero value
+	// is the registry default (exceeding the limit on the web is allowed).
+	webParticipantLimitEnforced bool
 
 	presenceModeErr             error
 	sickClearModeErr            error
 	excusedClearModeErr         error
 	attendanceEditScopeErr      error
 	operationalOverviewScopeErr error
+	webParticipantLimitErr      error
 
 	// Answers that depend on what the test has already done take a function
 	// instead of a fixed value.
@@ -65,6 +69,10 @@ func (s presenceSettingsStub) AttendanceEditScope(context.Context) (string, erro
 
 func (s presenceSettingsStub) OperationalOverviewScope(context.Context) (string, error) {
 	return s.operationalOverviewScope, s.operationalOverviewScopeErr
+}
+
+func (s presenceSettingsStub) WebParticipantLimitEnforced(context.Context) (bool, error) {
+	return s.webParticipantLimitEnforced, s.webParticipantLimitErr
 }
 
 // defaultPresenceSettings answers every question with the value an

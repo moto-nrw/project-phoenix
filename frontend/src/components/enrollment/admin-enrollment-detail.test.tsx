@@ -300,6 +300,76 @@ describe("AdminEnrollmentDetail approval without an offering", () => {
   });
 });
 
+describe("AdminEnrollmentDetail Kinderkontingent (#3570)", () => {
+  const request = {
+    id: "request-1",
+    phase_id: "phase-1",
+    phase_name: "2027/28",
+    guardian_first_name: "Mara",
+    guardian_last_name: "Beispiel",
+    guardian_email: "mara@example.test",
+    submitted_at: "2027-08-05T10:00:00Z",
+    status_token: "status-token",
+  };
+  const heldChild = {
+    id: "child-1",
+    first_name: "Lina",
+    last_name: "Kind",
+    date_of_birth: "2018-04-15",
+    status: "submitted" as const,
+    activation_mode: "scheduled",
+    review_reason: "child_quota_reached",
+  };
+
+  it("marks a renewal the Kinderkontingent held back", async () => {
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      children: [heldChild],
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+
+    expect(
+      (await screen.findAllByText("Wegen Kinderkontingent offen")).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/Darum wurde dieses Kind nicht automatisch verlängert/),
+    ).toBeVisible();
+  });
+
+  it("drops the mark once the enrollment is decided", async () => {
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      children: [{ ...heldChild, status: "waitlisted" as const }],
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+
+    expect(await screen.findAllByText("Mara Beispiel")).not.toHaveLength(0);
+    expect(
+      screen.queryByText("Wegen Kinderkontingent offen"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the Kinderkontingent message when an approval is refused", async () => {
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      children: [{ ...heldChild, review_reason: null }],
+    });
+    const message =
+      "Das Kinderkontingent Ihrer Schule ist voll. Die Kontingentzahl beträgt 50 von 50 Kindern. Für weitere Kinder melden Sie sich bitte beim moto-Team.";
+    mocks.decideAdminChild.mockRejectedValue(new Error(message));
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bestätigen" }));
+
+    expect(await screen.findByText(message)).toBeVisible();
+  });
+});
+
 describe("AdminEnrollmentDetail late-invite email warning", () => {
   const request = {
     id: "request-1",

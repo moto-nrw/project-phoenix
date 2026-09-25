@@ -66,6 +66,7 @@ func (s openRoomSessionPresence) FindOpenSessionsInRooms(ctx context.Context, id
 		if row.ActivityGroupID != nil {
 			activity := activities[*row.ActivityGroupID]
 			session.ActivityName = activity.Name
+			session.ParticipantLimit = timetable.ParticipantLimitPtr(activity.MaxParticipants)
 			// Independent stays are device-less system sessions (#3066). A
 			// kiosk-owned Schulhof Freispiel is a real supervision, not one.
 			session.IndependentStays = studentpresence.LiveGroup{
