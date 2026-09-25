@@ -14,8 +14,16 @@ func TestScopedEmail(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, "demo1@mail.de", scopedEmail("demo1@mail.de", ""))
-	assert.Equal(t, "demo1.ogs-nord@mail.de", scopedEmail("demo1@mail.de", "ogs-nord"))
+	assert.Equal(t, "demo1@demo-ogs-nord.moto-ogs.de", scopedEmail("demo1@mail.de", "ogs-nord"))
 	assert.Equal(t, "no-at-sign", scopedEmail("no-at-sign", "ogs-nord"))
+}
+
+func TestEmailLocalPart(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "julia.klein", emailLocalPart("Julia", "Klein"))
+	assert.Equal(t, "anna.mueller", emailLocalPart("Anna", "Müller"))
+	assert.Equal(t, "maria.von.berg", emailLocalPart("Maria", "von Berg"))
 }
 
 func TestAccountScope(t *testing.T) {
@@ -114,7 +122,7 @@ func TestBootstrapTenant_DemoSchoolJoinsExistingOrganization(t *testing.T) {
 	assert.InDelta(t, 4207, requests["/operator/schools"]["organization_id"], 0)
 	assert.Equal(t, "OGS Nord", requests["/operator/schools"]["name"])
 	assert.Equal(t, "ogs-nord", requests["/operator/schools"]["slug"])
-	assert.Equal(t, "vollbetrieb-admin.ogs-nord@example.test", requests["/operator/schools/2/invite-admin"]["email"])
+	assert.Equal(t, "vollbetrieb-admin@demo-ogs-nord.moto-ogs.de", requests["/operator/schools/2/invite-admin"]["email"])
 	assert.Equal(t, "OGS Nord", bootstrap.SchoolName)
 }
 
@@ -137,9 +145,9 @@ func TestFixedSeeder_SeedStaffAccounts_CarriesAccountScope(t *testing.T) {
 
 	require.NoError(t, fs.seedStaffAccounts(context.Background(), &FixedResult{}))
 	require.Len(t, registered, len(DemoStaff))
-	assert.Equal(t, "demo1.ogs-nord@mail.de", registered[0]["email"])
+	assert.Equal(t, "anna.mueller@demo-ogs-nord.moto-ogs.de", registered[0]["email"], "a scoped school names the person")
 	assert.Equal(t, "demo1-ogs-nord", registered[0]["username"])
-	assert.Equal(t, "demo1.ogs-nord@mail.de", fs.staffCredentials[0].Email)
+	assert.Equal(t, "anna.mueller@demo-ogs-nord.moto-ogs.de", fs.staffCredentials[0].Email)
 }
 
 // The visitor of a public demo school appears exactly once among the staff:
@@ -168,7 +176,7 @@ func TestFixedSeeder_SeedStaffAccounts_NamesOneCaregiverAfterTheVisitor(t *testi
 	names := make(map[string]int)
 	for _, body := range registered {
 		names[fmt.Sprintf("%s %s", body["first_name"], body["last_name"])]++
-		assert.Contains(t, body["email"], ".ogs-nord-k3m9xp@", "every account keeps a synthetic, scoped address")
+		assert.Contains(t, body["email"], "@demo-ogs-nord-k3m9xp.moto-ogs.de", "every account keeps a synthetic, scoped address")
 	}
 	assert.Equal(t, 1, names["Anna Müller"], "the visitor's name appears exactly once")
 	assert.Equal(t, 1, names["Julia Klein"], "the seed person of the same name takes the displaced name")
@@ -186,6 +194,8 @@ func TestVisitorDisplayName(t *testing.T) {
 	assert.Equal(t, []string{"Maria", "von Berg"}, []string{first, last})
 	first, last = visitorDisplayName("Kim", true, "Sabine", "Schneider", "Sabine", "Schneider")
 	assert.Equal(t, []string{"Kim", "Schneider"}, []string{first, last}, "a single name keeps the family name of the child")
+	first, last = visitorDisplayName("Kim", true, "Julia", "Klein", "Julia", "Klein")
+	assert.Equal(t, []string{"Kim", "Schneider"}, []string{first, last}, "the caregiver has the same family name as the parent")
 	first, last = visitorDisplayName("Kim Beispiel", false, "Petra", "Meyer", "Sabine", "Schneider")
 	assert.Equal(t, "Petra Meyer", first+" "+last)
 }
@@ -247,7 +257,7 @@ func TestBootstrapTenant_ReplacesTheSchoolOfABrokenSeed(t *testing.T) {
 	assert.Equal(t, "x11-ogs-nord-k3m9xp", renamed["subdomain"], "the unique subdomain is freed before the soft delete")
 	assert.Equal(t, false, renamed["active"])
 	assert.True(t, deleted)
-	assert.Equal(t, "vollbetrieb-admin.ogs-nord-k3m9xp-2@example.test", invited["email"], "the abandoned school keeps its accounts, so the repetition needs its own scope")
+	assert.Equal(t, "vollbetrieb-admin@demo-ogs-nord-k3m9xp-2.moto-ogs.de", invited["email"], "the abandoned school keeps its accounts, so the repetition needs its own scope")
 }
 
 // The demo role parent (#3468) signs the visitor in as the parent whose

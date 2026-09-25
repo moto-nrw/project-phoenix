@@ -22,7 +22,9 @@ func visitorDisplayName(visitor string, isVisitor bool, first, last, displacedFi
 	}
 	visitorFirst, visitorLast, ok := strings.Cut(visitor, " ")
 	if !ok {
-		visitorLast = displacedLast
+		// A single name takes the family name of the visitor's child, in the
+		// OGS app as in the parents app, so the visitor has one name.
+		visitorLast = DemoGuardians[visitorGuardianIndex].LastName
 	}
 	if isVisitor {
 		return visitorFirst, visitorLast

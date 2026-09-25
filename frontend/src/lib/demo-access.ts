@@ -17,7 +17,7 @@ export const DEMO_PRIVACY_URL = "https://moto-ogs.de/datenschutz";
 // Every demo session is recorded (#3603). The visitor reads that on every
 // screen of the way in, before the first click inside the demo school.
 export const DEMO_RECORDING_NOTICE =
-  "Wir zeichnen Besuche der Demo auf, um moto zu verbessern. Ihre Eingaben sind dabei unkenntlich.";
+  "Um moto zu verbessern, werten wir aus, wie die Demo genutzt wird. Was Sie eintippen, sehen wir dabei nicht.";
 export const DEMO_RECORDING_PRIVACY_LINK = "Mehr zum Datenschutz";
 
 /**
@@ -139,12 +139,12 @@ export const DEMO_ENTRY_PROBLEMS: Record<
   },
   failed: {
     title: "Das hat leider nicht geklappt",
-    description: "Es liegt nicht an Ihnen. Bitte versuchen Sie es noch einmal.",
+    description: "Bitte versuchen Sie es gleich noch einmal.",
   },
   unavailable: {
     title: "Das hat leider nicht geklappt",
     description:
-      "Es liegt nicht an Ihnen. Bitte fordern Sie auf unserer Website einen neuen Link an.",
+      "Die Demo konnte nicht vorbereitet werden. Auf unserer Website bekommen Sie sofort einen neuen Link.",
   },
 };
 
