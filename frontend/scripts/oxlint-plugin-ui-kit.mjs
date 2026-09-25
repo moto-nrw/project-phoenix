@@ -492,8 +492,8 @@ src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@437 text-[11px]
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@295 text-[11px]@301
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@157 text-[11px]@227 text-[11px]@260 text-[11px]@321 text-[11px]@327 text-[11px]@375
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
-src/components/timetable/instance-block.tsx|text-[10px]@197 text-[10px]@203 text-[10px]@210 text-[10px]@218 text-[10px]@239
-src/components/timetable/instance-detail-modal.tsx|text-[10px]@279 text-[9px]@395 text-[9px]@977 text-[11px]@1274 text-[11px]@1300 text-[11px]@1476 text-[10px]@1546 text-[11px]@1569
+src/components/timetable/instance-block.tsx|text-[10px]@212 text-[10px]@218 text-[10px]@225 text-[10px]@233 text-[10px]@269
+src/components/timetable/instance-detail-modal.tsx|text-[10px]@286 text-[9px]@402 text-[9px]@984 text-[11px]@1281 text-[11px]@1307 text-[11px]@1483 text-[10px]@1592 text-[11px]@1615
 src/components/timetable/month-planner-grid.tsx|text-[11px]@65 text-[11px]@141 text-[11px]@150 text-[11px]@171 text-[9px]@203 text-[10px]@237
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@200 text-[10px]@216 text-[11px]@225 text-[10px]@267 text-[10px]@291 text-[10px]@364 text-[10px]@378 text-[10px]@390 text-[11px]@398 text-[11px]@405
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@379 text-[11px]@444

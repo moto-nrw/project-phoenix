@@ -110,7 +110,10 @@ type enrichedInstance struct {
 	CancelReason           *string                  `json:"cancel_reason,omitempty"`
 	ExpectedStudentsCount  int                      `json:"expected_students_count"`
 	PresentStudentsCount   int                      `json:"present_students_count"`
-	EmptyRosterReason      *emptyRosterReason       `json:"empty_roster_reason,omitempty"`
+	// Occupancy pairs the template's Teilnehmergrenze with the children still
+	// there; nil without a limit (#3634).
+	Occupancy         *instanceOccupancy `json:"occupancy,omitempty"`
+	EmptyRosterReason *emptyRosterReason `json:"empty_roster_reason,omitempty"`
 	// NotScheduledCount is how many assigned children are not in care here on
 	// this day (#1747) — not booked on this weekday, or the day was cancelled.
 	// Excluded from ExpectedStudentsCount and from the staffing maths;
@@ -384,7 +387,6 @@ func (rs *Resource) enrichInstance(
 
 	studentRows := rows.Participants[inst.ID]
 	attendance := summarizeInstanceStudents(inst, studentRows, careDays, rows.Cutoffs[inst.Date])
-	emptyRosterReason := rs.resolveEmptyRosterReason(ctx, inst, meta, studentRows, offeringSourceCache)
 
 	availability, err := rs.completionAvailability(ctx, inst)
 	if err != nil {
@@ -423,7 +425,8 @@ func (rs *Resource) enrichInstance(
 		CancelReason:           inst.CancelReason,
 		ExpectedStudentsCount:  attendance.expected,
 		PresentStudentsCount:   attendance.present,
-		EmptyRosterReason:      emptyRosterReason,
+		Occupancy:              newInstanceOccupancy(meta.participantLimit, attendance.current),
+		EmptyRosterReason:      rs.resolveEmptyRosterReason(ctx, inst, meta, studentRows, offeringSourceCache),
 		NotScheduledCount:      attendance.notScheduled,
 		RequiredStaffCount:     timetable.EffectiveRequiredStaff(instanceRequiredStaffOverride(inst.RequiredStaff, meta.requiredStaff), attendance.expected+attendance.present, childrenPerStaffRatio),
 		AssignedStaffCount:     len(staffRows) - absentCount,
@@ -536,6 +539,7 @@ type templateMeta struct {
 	// occurrence and survives Re-Plan/Split without an instance column.
 	seriesNotes           *string
 	sourceCareOfferingIDs []int64
+	participantLimit      *int
 }
 
 func (rs *Resource) lookupTemplateMeta(
@@ -569,6 +573,7 @@ func (rs *Resource) lookupTemplateMeta(
 		seriesNotes:           group.Notes,
 		planningTrackID:       group.PlanningTrackID,
 		sourceCareOfferingIDs: append([]int64(nil), group.SourceCareOfferingIDs...),
+		participantLimit:      timetable.ParticipantLimitPtr(group.MaxParticipants),
 	}
 	if group.PlanningTrackID != nil {
 		if track := rs.lookupPlanningTrack(ctx, *group.PlanningTrackID, planningTrackCache); track != nil {

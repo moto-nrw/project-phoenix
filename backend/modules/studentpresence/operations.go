@@ -274,6 +274,7 @@ type ActiveGroupInfo struct {
 	Name         string
 	Type         string
 	StudentCount int
+	MaxCapacity  *int
 	Location     string
 	Status       string
 }

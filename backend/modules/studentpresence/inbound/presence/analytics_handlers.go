@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // ===== Analytics Handlers =====
@@ -40,7 +41,6 @@ func (rs *Resource) getDashboardAnalytics(w http.ResponseWriter, r *http.Request
 		StudentsInHomeRoom:   analytics.StudentsInHomeRoom,
 		RecentActivity:       make([]RecentActivityItem, 0),
 		CurrentActivities:    make([]CurrentActivityItem, 0),
-		ActiveGroupsSummary:  make([]ActiveGroupSummary, 0),
 		LastUpdated:          time.Now(),
 	}
 
@@ -67,16 +67,24 @@ func (rs *Resource) getDashboardAnalytics(w http.ResponseWriter, r *http.Request
 		})
 	}
 
-	// Map active groups summary
-	for _, group := range analytics.ActiveGroupsSummary {
-		response.ActiveGroupsSummary = append(response.ActiveGroupsSummary, ActiveGroupSummary{
+	response.ActiveGroupsSummary = activeGroupSummaries(analytics.ActiveGroupsSummary)
+
+	common.Respond(w, r, http.StatusOK, response, "Dashboard analytics retrieved successfully")
+}
+
+// activeGroupSummaries maps the running sessions of the dashboard's
+// "Laufende Betreuung" list onto the wire; never nil.
+func activeGroupSummaries(groups []studentpresence.ActiveGroupInfo) []ActiveGroupSummary {
+	result := make([]ActiveGroupSummary, 0, len(groups))
+	for _, group := range groups {
+		result = append(result, ActiveGroupSummary{
 			Name:         group.Name,
 			Type:         group.Type,
 			StudentCount: group.StudentCount,
+			MaxCapacity:  group.MaxCapacity,
 			Location:     group.Location,
 			Status:       group.Status,
 		})
 	}
-
-	common.Respond(w, r, http.StatusOK, response, "Dashboard analytics retrieved successfully")
+	return result
 }

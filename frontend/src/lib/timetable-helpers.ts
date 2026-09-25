@@ -562,6 +562,12 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     expectedStudentsCount: raw.expected_students_count,
     notScheduledStudentsCount: raw.not_scheduled_students_count ?? 0,
     presentStudentsCount: raw.present_students_count,
+    occupancy: raw.occupancy
+      ? {
+          participantLimit: raw.occupancy.participant_limit,
+          currentStudentsCount: raw.occupancy.current_students_count,
+        }
+      : null,
     emptyRosterReason: raw.empty_roster_reason
       ? {
           kind: raw.empty_roster_reason.kind,

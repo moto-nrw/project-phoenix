@@ -223,8 +223,10 @@ type ActiveGroupInfo struct {
 	Name         string
 	Type         string
 	StudentCount int
-	Location     string
-	Status       string
+	// MaxCapacity is the activity's limit; nil without one (#3634).
+	MaxCapacity *int
+	Location    string
+	Status      string
 }
 
 // ActivityConflictInfo represents information about a detected activity conflict
