@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
@@ -69,9 +70,14 @@ func (s *Service) ListStaffQualifications(ctx context.Context, staffID int64) (r
 	return result, err
 }
 
-// ReplaceStaffQualifications rewrites the qualification list of one staff
-// member atomically: the delete and the insert share one unit of work, so a
-// rejected row leaves the previous list in place.
+// ReplaceStaffQualifications makes the submitted list the live qualification
+// list of one staff member in one unit of work, so a rejected row leaves the
+// previous list in place. Removing retires instead of deleting (ADR 0021).
+// A submitted row continues the live row with the same name: an equal row is
+// left untouched, changed dates update it in place. Live rows no submitted row
+// continues are retired, and the remaining submitted rows are inserted. Saving
+// the same list again therefore writes nothing, and the list keeps its order.
+// The result follows the submitted order.
 func (s *Service) ReplaceStaffQualifications(ctx context.Context, staffID int64, values []domain.StaffQualification) (result []domain.StaffQualification, err error) {
 	if staffID <= 0 {
 		return nil, &domain.InvalidStaffRecordError{Reason: "staff_id is required"}
@@ -86,18 +92,132 @@ func (s *Service) ReplaceStaffQualifications(ctx context.Context, staffID int64,
 	}
 	err = s.run("replace_staff_qualifications", func(stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
-			deleteStats, deleteErr := s.store.DeleteStaffQualifications(txCtx, staffID)
-			stats.Add(deleteStats)
-			if deleteErr != nil {
-				return deleteErr
+			live, listStats, listErr := s.store.ListStaffQualifications(txCtx, staffID)
+			stats.Add(listStats)
+			if listErr != nil {
+				return listErr
 			}
-			var insertStats domain.OperationStats
-			result, insertStats, err = s.store.InsertStaffQualifications(txCtx, rows)
-			stats.Add(insertStats)
+			result, err = s.applyQualificationPlan(txCtx, staffID, planQualificationReplace(live, rows), stats)
 			return err
 		})
 	})
 	return result, err
+}
+
+func (s *Service) applyQualificationPlan(ctx context.Context, staffID int64, plan qualificationReplacePlan, stats *domain.OperationStats) ([]domain.StaffQualification, error) {
+	retireStats, err := s.store.RetireStaffQualifications(ctx, staffID, plan.retire)
+	stats.Add(retireStats)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.StaffQualification, len(plan.rows))
+	var inserts []domain.StaffQualification
+	var insertAt []int
+	for index, row := range plan.rows {
+		switch row.action {
+		case qualificationKeep:
+			result[index] = row.value
+		case qualificationUpdate:
+			updated, found, updateStats, updateErr := s.store.UpdateStaffQualification(ctx, row.value)
+			stats.Add(updateStats)
+			if updateErr != nil {
+				return nil, updateErr
+			}
+			if !found {
+				return nil, fmt.Errorf("workforce: staff qualification %d vanished during replace", row.value.ID)
+			}
+			result[index] = updated
+		case qualificationInsert:
+			inserts = append(inserts, row.value)
+			insertAt = append(insertAt, index)
+		}
+	}
+	inserted, insertStats, err := s.store.InsertStaffQualifications(ctx, inserts)
+	stats.Add(insertStats)
+	if err != nil {
+		return nil, err
+	}
+	for position, index := range insertAt {
+		result[index] = inserted[position]
+	}
+	return result, nil
+}
+
+type qualificationAction int
+
+const (
+	qualificationInsert qualificationAction = iota
+	qualificationKeep
+	qualificationUpdate
+)
+
+type plannedQualification struct {
+	action qualificationAction
+	value  domain.StaffQualification
+}
+
+// qualificationReplacePlan holds one planned write per submitted row, in
+// submitted order, and the live rows to retire.
+type qualificationReplacePlan struct {
+	rows   []plannedQualification
+	retire []int64
+}
+
+// planQualificationReplace pairs submitted rows with live rows. Equal rows
+// pair first, so a list holding the same name twice keeps both rows; a row
+// whose name is left pairs with the oldest live row of that name.
+func planQualificationReplace(live, submitted []domain.StaffQualification) qualificationReplacePlan {
+	plan := qualificationReplacePlan{rows: make([]plannedQualification, len(submitted))}
+	paired := make(map[int64]bool, len(live))
+	pair := func(match func(live, submitted domain.StaffQualification) bool, action qualificationAction) {
+		for index, row := range submitted {
+			if plan.rows[index].action != qualificationInsert {
+				continue
+			}
+			if candidate, ok := firstUnpaired(live, paired, row, match); ok {
+				paired[candidate.ID] = true
+				plan.rows[index] = continueQualification(candidate, row, action)
+			}
+		}
+	}
+	pair(sameQualification, qualificationKeep)
+	pair(sameQualificationName, qualificationUpdate)
+	for index, row := range submitted {
+		if plan.rows[index].action == qualificationInsert {
+			plan.rows[index].value = row
+		}
+	}
+	for _, row := range live {
+		if !paired[row.ID] {
+			plan.retire = append(plan.retire, row.ID)
+		}
+	}
+	return plan
+}
+
+func firstUnpaired(live []domain.StaffQualification, paired map[int64]bool, submitted domain.StaffQualification, match func(live, submitted domain.StaffQualification) bool) (domain.StaffQualification, bool) {
+	for _, candidate := range live {
+		if !paired[candidate.ID] && match(candidate, submitted) {
+			return candidate, true
+		}
+	}
+	return domain.StaffQualification{}, false
+}
+
+func continueQualification(live, submitted domain.StaffQualification, action qualificationAction) plannedQualification {
+	if action == qualificationUpdate {
+		live.AcquiredOn = submitted.AcquiredOn
+		live.ExpiresOn = submitted.ExpiresOn
+	}
+	return plannedQualification{action: action, value: live}
+}
+
+func sameQualificationName(live, submitted domain.StaffQualification) bool {
+	return live.Name == submitted.Name
+}
+
+func sameQualification(live, submitted domain.StaffQualification) bool {
+	return live.Name == submitted.Name && live.AcquiredOn == submitted.AcquiredOn && live.ExpiresOn == submitted.ExpiresOn
 }
 
 // --- financial data ---

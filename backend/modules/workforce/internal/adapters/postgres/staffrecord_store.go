@@ -53,6 +53,7 @@ type staffQualificationRow struct {
 	Name          string        `bun:"name,notnull"`
 	AcquiredOn    *calendarDate `bun:"acquired_on,type:date"`
 	ExpiresOn     *calendarDate `bun:"expires_on,type:date"`
+	DeletedAt     *time.Time    `bun:"deleted_at"`
 	CreatedAt     time.Time     `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt     time.Time     `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
@@ -173,7 +174,8 @@ func (s *Store) ListStaffQualifications(ctx context.Context, staffID int64) ([]d
 	rows := []staffQualificationRow{}
 	query := withTenant(db.NewSelect().Model(&rows).
 		ModelTableExpr(tableStaffQualifications+` AS "staff_qualification"`).
-		Where(`"staff_qualification".staff_id = ?`, staffID), aliasStaffQualification, tenantID).
+		Where(`"staff_qualification".staff_id = ?`, staffID).
+		Where(`"staff_qualification".deleted_at IS NULL`), aliasStaffQualification, tenantID).
 		OrderExpr(`"staff_qualification".id ASC`)
 	stats, err := scanAll(ctx, query, "list staff qualifications")
 	if err != nil {
@@ -183,15 +185,47 @@ func (s *Store) ListStaffQualifications(ctx context.Context, staffID int64) ([]d
 	return staffQualificationsToDomain(rows), stats, nil
 }
 
-func (s *Store) DeleteStaffQualifications(ctx context.Context, staffID int64) (domain.OperationStats, error) {
+func (s *Store) RetireStaffQualifications(ctx context.Context, staffID int64, ids []int64) (domain.OperationStats, error) {
+	if len(ids) == 0 {
+		return domain.OperationStats{}, nil
+	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
-	query := withTenant(db.NewDelete().Model((*staffQualificationRow)(nil)).
+	query := withTenant(db.NewUpdate().Model((*staffQualificationRow)(nil)).
 		ModelTableExpr(tableStaffQualifications+` AS "staff_qualification"`).
-		Where(`"staff_qualification".staff_id = ?`, staffID), aliasStaffQualification, tenantID)
-	return execAffected(ctx, query, "delete staff qualifications")
+		Set("deleted_at = NOW()").
+		Set("updated_at = NOW()").
+		Where(`"staff_qualification".staff_id = ?`, staffID).
+		Where(`"staff_qualification".id IN (?)`, bun.List(ids)).
+		Where(`"staff_qualification".deleted_at IS NULL`), aliasStaffQualification, tenantID)
+	return execAffected(ctx, query, "retire staff qualifications")
+}
+
+func (s *Store) UpdateStaffQualification(ctx context.Context, value domain.StaffQualification) (domain.StaffQualification, bool, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.StaffQualification{}, false, domain.OperationStats{}, err
+	}
+	row := staffQualificationFromDomain(value)
+	query := withTenant(db.NewUpdate().Model(row).
+		ModelTableExpr(tableStaffQualifications+` AS "staff_qualification"`).
+		Column("acquired_on", "expires_on").
+		Set("updated_at = NOW()").
+		WherePK().
+		Where(`"staff_qualification".staff_id = ?`, value.StaffID).
+		Where(`"staff_qualification".deleted_at IS NULL`).
+		Returning("*"), aliasStaffQualification, tenantID)
+	stats, err := execAffected(ctx, query, "update staff qualification")
+	if err != nil {
+		return domain.StaffQualification{}, false, stats, err
+	}
+	if stats.Rows != 1 {
+		stats.Rows = 0
+		return domain.StaffQualification{}, false, stats, nil
+	}
+	return staffQualificationsToDomain([]staffQualificationRow{*row})[0], true, stats, nil
 }
 
 func (s *Store) InsertStaffQualifications(ctx context.Context, values []domain.StaffQualification) ([]domain.StaffQualification, domain.OperationStats, error) {
