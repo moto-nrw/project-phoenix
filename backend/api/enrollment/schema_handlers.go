@@ -298,9 +298,13 @@ func (rs *Resource) publicCaptchaConfig(w http.ResponseWriter, r *http.Request) 
 	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
 	if resolveErr == nil {
 		resolveErr = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
-			out.Enabled = rs.CaptchaService.IsEnabled(txCtx)
-			out.SiteKey = rs.CaptchaService.SiteKey(txCtx)
-			return nil
+			var err error
+			out.Enabled, err = rs.CaptchaService.IsEnabled(txCtx)
+			if err != nil {
+				return err
+			}
+			out.SiteKey, err = rs.CaptchaService.SiteKey(txCtx)
+			return err
 		})
 	}
 	if resolveErr != nil {

@@ -367,9 +367,6 @@ type FactoryConfig struct {
 	VAPIDPrivateKey            string
 	VAPIDSubscriber            string
 	StudentDailyCheckoutTime   string
-	EnrollmentRequireCaptcha   bool
-	EnrollmentCaptchaSecretKey string
-	EnrollmentCaptchaSiteKey   string
 }
 
 func currentFactoryConfig() FactoryConfig {
@@ -399,9 +396,6 @@ func currentFactoryConfig() FactoryConfig {
 		VAPIDPrivateKey:            viper.GetString("vapid_private_key"),
 		VAPIDSubscriber:            viper.GetString("vapid_subscriber"),
 		StudentDailyCheckoutTime:   os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"),
-		EnrollmentRequireCaptcha:   strings.TrimSpace(os.Getenv("ENROLLMENT_REQUIRE_CAPTCHA")) == "true",
-		EnrollmentCaptchaSecretKey: os.Getenv("ENROLLMENT_CAPTCHA_SECRET_KEY"),
-		EnrollmentCaptchaSiteKey:   os.Getenv("ENROLLMENT_CAPTCHA_SITE_KEY"),
 	}
 }
 
@@ -1859,12 +1853,7 @@ func newFactory(
 	enrollmentCollection := enrollmentCollectionSettings{settings: settingsService}
 	enrollmentFormSchemaService := enrollmentCompose.NewFormSchemas(repos.Enrollment(), enrollmentCollection, logger.With("service", "enrollment-form-schema"))
 
-	enrollmentCaptchaService := enrollmentCompose.NewCaptcha(enrollmentCaptchaSettings{
-		settings:       settingsService,
-		requireCaptcha: cfg.EnrollmentRequireCaptcha,
-		secretKey:      strings.TrimSpace(cfg.EnrollmentCaptchaSecretKey),
-		siteKey:        strings.TrimSpace(cfg.EnrollmentCaptchaSiteKey),
-	}, "", logger.With("service", "enrollment-captcha"))
+	enrollmentCaptchaService := enrollmentCompose.NewCaptcha(enrollmentCaptchaSettings{settings: settingsService}, "", logger.With("service", "enrollment-captcha"))
 
 	// Enrollment brands its mails and notifies decisions through the Delivery
 	// outbox; the retained request, decision, change-request and rollover

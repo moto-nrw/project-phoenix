@@ -81,11 +81,10 @@ type FormSchemaRecords interface {
 }
 
 // CaptchaSettings resolves the captcha settings of the tenant in context.
-// The binding owns the fallback of an unset tenant value.
 type CaptchaSettings interface {
-	CaptchaRequired(ctx context.Context) bool
-	CaptchaSecretKey(ctx context.Context) string
-	CaptchaSiteKey(ctx context.Context) string
+	CaptchaRequired(ctx context.Context) (bool, error)
+	CaptchaSecretKey(ctx context.Context) (string, error)
+	CaptchaSiteKey(ctx context.Context) (string, error)
 }
 
 // CaptchaSiteVerify asks the captcha provider whether a token is valid.

@@ -29,8 +29,11 @@ func NewCaptcha(settings CaptchaSettings, provider CaptchaSiteVerify, logger *sl
 // IsEnabled reports the enrollment.require_captcha setting of the tenant in
 // context. Default false: a fresh tenant has no Turnstile keys configured
 // yet.
-func (s *Captcha) IsEnabled(ctx context.Context) bool {
-	return s.settings != nil && s.settings.CaptchaRequired(ctx)
+func (s *Captcha) IsEnabled(ctx context.Context) (bool, error) {
+	if s.settings == nil {
+		return false, nil
+	}
+	return s.settings.CaptchaRequired(ctx)
 }
 
 // Verify validates token against the configured provider for the tenant in
@@ -38,11 +41,18 @@ func (s *Captcha) IsEnabled(ctx context.Context) bool {
 // provider as a defense-in-depth signal. Returns nil on success and when
 // captcha is disabled.
 func (s *Captcha) Verify(ctx context.Context, token, remoteIP string) error {
-	if !s.IsEnabled(ctx) {
+	enabled, err := s.IsEnabled(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve captcha requirement: %w", err)
+	}
+	if !enabled {
 		return nil
 	}
 
-	secret := s.settings.CaptchaSecretKey(ctx)
+	secret, err := s.settings.CaptchaSecretKey(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve captcha secret key: %w", err)
+	}
 	if secret == "" {
 		return fmt.Errorf("captcha secret key not configured")
 	}
@@ -67,9 +77,9 @@ func (s *Captcha) Verify(ctx context.Context, token, remoteIP string) error {
 // SiteKey returns the public site key for the tenant in context, or "" when
 // unset. Safe to expose on a public endpoint — it's the same value that
 // lives in the rendered widget markup.
-func (s *Captcha) SiteKey(ctx context.Context) string {
+func (s *Captcha) SiteKey(ctx context.Context) (string, error) {
 	if s.settings == nil {
-		return ""
+		return "", nil
 	}
 	return s.settings.CaptchaSiteKey(ctx)
 }

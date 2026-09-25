@@ -13,11 +13,14 @@ type captchaSettingsStub struct {
 	required bool
 	secret   string
 	siteKey  string
+	err      error
 }
 
-func (s captchaSettingsStub) CaptchaRequired(context.Context) bool    { return s.required }
-func (s captchaSettingsStub) CaptchaSecretKey(context.Context) string { return s.secret }
-func (s captchaSettingsStub) CaptchaSiteKey(context.Context) string   { return s.siteKey }
+func (s captchaSettingsStub) CaptchaRequired(context.Context) (bool, error) { return s.required, s.err }
+func (s captchaSettingsStub) CaptchaSecretKey(context.Context) (string, error) {
+	return s.secret, s.err
+}
+func (s captchaSettingsStub) CaptchaSiteKey(context.Context) (string, error) { return s.siteKey, s.err }
 func (s *captchaProviderStub) calledWith() (string, string, string) {
 	return s.secret, s.token, s.remoteIP
 }
@@ -46,7 +49,9 @@ func TestCaptchaDisabledAcceptsEveryToken(t *testing.T) {
 	provider := &captchaProviderStub{}
 	svc := newCaptchaForTest(captchaSettingsStub{}, provider)
 
-	assert.False(t, svc.IsEnabled(context.Background()))
+	enabled, err := svc.IsEnabled(context.Background())
+	assert.NoError(t, err)
+	assert.False(t, enabled)
 	// Even a blank token + IP must not error when captcha is off.
 	assert.NoError(t, svc.Verify(context.Background(), "", ""))
 	assert.Zero(t, provider.calls)
@@ -56,9 +61,13 @@ func TestCaptchaWithoutSettingsIsDisabled(t *testing.T) {
 	t.Parallel()
 	svc := newCaptchaForTest(nil, &captchaProviderStub{})
 
-	assert.False(t, svc.IsEnabled(context.Background()))
+	enabled, err := svc.IsEnabled(context.Background())
+	assert.NoError(t, err)
+	assert.False(t, enabled)
 	assert.NoError(t, svc.Verify(context.Background(), "", ""))
-	assert.Empty(t, svc.SiteKey(context.Background()))
+	siteKey, err := svc.SiteKey(context.Background())
+	assert.NoError(t, err)
+	assert.Empty(t, siteKey)
 }
 
 func TestCaptchaRequiresASecret(t *testing.T) {
@@ -115,5 +124,18 @@ func TestCaptchaSiteKeyComesFromTheSettings(t *testing.T) {
 	t.Parallel()
 	svc := newCaptchaForTest(captchaSettingsStub{siteKey: "site"}, &captchaProviderStub{})
 
-	assert.Equal(t, "site", svc.SiteKey(context.Background()))
+	siteKey, err := svc.SiteKey(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, "site", siteKey)
+}
+
+func TestCaptchaSettingsErrorsFailClosed(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("settings unavailable")
+	svc := newCaptchaForTest(captchaSettingsStub{err: failure}, &captchaProviderStub{})
+	_, err := svc.IsEnabled(context.Background())
+	assert.ErrorIs(t, err, failure)
+	assert.ErrorIs(t, svc.Verify(context.Background(), "", ""), failure)
+	_, err = svc.SiteKey(context.Background())
+	assert.ErrorIs(t, err, failure)
 }

@@ -166,9 +166,9 @@ type MailRenderers struct {
 // the captcha is valid, or an error explaining why it failed; it returns nil
 // unconditionally when captcha is disabled for the tenant.
 type CaptchaVerifier interface {
-	IsEnabled(ctx context.Context) bool
+	IsEnabled(ctx context.Context) (bool, error)
 	Verify(ctx context.Context, token, remoteIP string) error
 	// SiteKey returns the public site key for the tenant, or "" when unset.
 	// Safe to expose on a public endpoint.
-	SiteKey(ctx context.Context) string
+	SiteKey(ctx context.Context) (string, error)
 }

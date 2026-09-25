@@ -13,7 +13,6 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/services/config"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
 
@@ -75,25 +74,21 @@ func (s enrollmentNotificationSettings) NotifyPerDecision(ctx context.Context) (
 	return s.settings.ResolveString(ctx, configModels.KeyEnrollmentNotifyPerDecision)
 }
 
-// enrollmentCaptchaSettings resolves the captcha settings: the tenant
-// override when one exists, else the deployment's captcha configuration.
+// enrollmentCaptchaSettings resolves tenant overrides or registry defaults.
 type enrollmentCaptchaSettings struct {
-	settings       enrollmentSettingsReads
-	requireCaptcha bool
-	secretKey      string
-	siteKey        string
+	settings enrollmentSettingsReads
 }
 
-func (s enrollmentCaptchaSettings) CaptchaRequired(ctx context.Context) bool {
-	return config.ResolveBoolOrDefault(ctx, s.settings, configModels.KeyEnrollmentRequireCaptcha, s.requireCaptcha, nil)
+func (s enrollmentCaptchaSettings) CaptchaRequired(ctx context.Context) (bool, error) {
+	return s.settings.ResolveBool(ctx, configModels.KeyEnrollmentRequireCaptcha)
 }
 
-func (s enrollmentCaptchaSettings) CaptchaSecretKey(ctx context.Context) string {
-	return config.ResolveStringOrDefault(ctx, s.settings, configModels.KeyEnrollmentCaptchaSecretKey, s.secretKey, nil)
+func (s enrollmentCaptchaSettings) CaptchaSecretKey(ctx context.Context) (string, error) {
+	return s.settings.ResolveString(ctx, configModels.KeyEnrollmentCaptchaSecretKey)
 }
 
-func (s enrollmentCaptchaSettings) CaptchaSiteKey(ctx context.Context) string {
-	return config.ResolveStringOrDefault(ctx, s.settings, configModels.KeyEnrollmentCaptchaSiteKey, s.siteKey, nil)
+func (s enrollmentCaptchaSettings) CaptchaSiteKey(ctx context.Context) (string, error) {
+	return s.settings.ResolveString(ctx, configModels.KeyEnrollmentCaptchaSiteKey)
 }
 
 // enrollmentPhaseOfferings reads the Care Plan offerings of a phase.

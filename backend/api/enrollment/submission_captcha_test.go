@@ -30,10 +30,10 @@ type captchaBlockedSubmission struct {
 
 type requiredCaptchaSettings struct{}
 
-func (requiredCaptchaSettings) CaptchaRequired(context.Context) bool  { return true }
-func (requiredCaptchaSettings) CaptchaSiteKey(context.Context) string { return "" }
-func (requiredCaptchaSettings) CaptchaSecretKey(context.Context) string {
-	return "test-only-secret"
+func (requiredCaptchaSettings) CaptchaRequired(context.Context) (bool, error)  { return true, nil }
+func (requiredCaptchaSettings) CaptchaSiteKey(context.Context) (string, error) { return "", nil }
+func (requiredCaptchaSettings) CaptchaSecretKey(context.Context) (string, error) {
+	return "test-only-secret", nil
 }
 
 func TestPublicSubmissionRejectsProviderCaptchaBeforeIntake(t *testing.T) {

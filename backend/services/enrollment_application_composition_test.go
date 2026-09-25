@@ -2,68 +2,67 @@ package services
 
 import (
 	"context"
-	"strings"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// captchaSettingsStub answers the captcha settings keys: an override exists
-// for the flag and the secret independently, and ResolveString returns the
-// stored secret.
+// captchaSettingsStub returns resolved tenant values or registry defaults.
 type captchaSettingsStub struct {
 	enrollmentSettingsReads
-	requireOverride bool
-	required        bool
-	secretOverride  bool
-	secret          string
-}
-
-func (s captchaSettingsStub) HasTenantOverride(_ context.Context, key string) (bool, error) {
-	if strings.Contains(key, "captcha_secret_key") {
-		return s.secretOverride, nil
-	}
-	return s.requireOverride, nil
+	required bool
+	secret   string
+	siteKey  string
+	err      error
 }
 
 func (s captchaSettingsStub) ResolveBool(context.Context, string) (bool, error) {
-	return s.required, nil
+	return s.required, s.err
 }
 
-func (s captchaSettingsStub) ResolveString(context.Context, string) (string, error) {
-	return s.secret, nil
+func (s captchaSettingsStub) ResolveString(_ context.Context, key string) (string, error) {
+	if key == "enrollment.captcha_site_key" {
+		return s.siteKey, s.err
+	}
+	return s.secret, s.err
 }
 
-func TestEnrollmentCaptchaSettingsDefaultToDisabledWithoutTenantOverride(t *testing.T) {
+func TestEnrollmentCaptchaSettingsUseRegistryDefaults(t *testing.T) {
 	t.Parallel()
 	settings := enrollmentCaptchaSettings{settings: captchaSettingsStub{}}
 
-	assert.False(t, settings.CaptchaRequired(context.Background()))
+	required, err := settings.CaptchaRequired(context.Background())
+	assert.NoError(t, err)
+	assert.False(t, required)
+	secret, err := settings.CaptchaSecretKey(context.Background())
+	assert.NoError(t, err)
+	assert.Empty(t, secret)
 }
 
-func TestEnrollmentCaptchaSettingsHonorTheTenantOverride(t *testing.T) {
+func TestEnrollmentCaptchaSettingsUseResolvedValues(t *testing.T) {
 	t.Parallel()
-	settings := enrollmentCaptchaSettings{settings: captchaSettingsStub{requireOverride: true, required: true}}
+	settings := enrollmentCaptchaSettings{settings: captchaSettingsStub{required: true, secret: "tenant-secret", siteKey: "tenant-site"}}
 
-	assert.True(t, settings.CaptchaRequired(context.Background()))
+	required, err := settings.CaptchaRequired(context.Background())
+	assert.NoError(t, err)
+	assert.True(t, required)
+	secret, err := settings.CaptchaSecretKey(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, "tenant-secret", secret)
+	siteKey, err := settings.CaptchaSiteKey(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, "tenant-site", siteKey)
 }
 
-func TestEnrollmentCaptchaSettingsFallBackToTheDeployment(t *testing.T) {
+func TestEnrollmentCaptchaSettingsPropagateResolutionErrors(t *testing.T) {
 	t.Parallel()
-	settings := enrollmentCaptchaSettings{settings: captchaSettingsStub{}, requireCaptcha: true, secretKey: "env-secret"}
-
-	assert.True(t, settings.CaptchaRequired(context.Background()))
-	assert.Equal(t, "env-secret", settings.CaptchaSecretKey(context.Background()),
-		"the deployment secret must be used when no tenant override exists")
-}
-
-func TestEnrollmentCaptchaSettingsPreferTheTenantSecret(t *testing.T) {
-	t.Parallel()
-	settings := enrollmentCaptchaSettings{
-		settings:  captchaSettingsStub{secretOverride: true, secret: "tenant-wins"},
-		secretKey: "env-secret",
-	}
-
-	assert.Equal(t, "tenant-wins", settings.CaptchaSecretKey(context.Background()),
-		"the tenant override takes precedence over the deployment secret")
+	failure := errors.New("settings unavailable")
+	settings := enrollmentCaptchaSettings{settings: captchaSettingsStub{err: failure}}
+	_, err := settings.CaptchaRequired(context.Background())
+	assert.ErrorIs(t, err, failure)
+	_, err = settings.CaptchaSecretKey(context.Background())
+	assert.ErrorIs(t, err, failure)
+	_, err = settings.CaptchaSiteKey(context.Background())
+	assert.ErrorIs(t, err, failure)
 }
