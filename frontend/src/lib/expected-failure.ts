@@ -1,6 +1,6 @@
 /**
  * Failures the app expects and handles, which are not defects (#3694): a
- * request that never reached the server, an expired session (401), and a
+ * client request that never reached the server, an expired session (401), and a
  * business-rule conflict (409, e.g. a stale review, a past date, a room still
  * in use). The logger records them as warn, so they stay in the logs and as
  * Sentry breadcrumbs without opening a Sentry issue. 403, 5xx, exceptions and
@@ -15,26 +15,31 @@ export type ExpectedFailure = "network" | "unauthorized" | "conflict";
 const NETWORK_ERROR =
   /(?:^|: )(?:Failed to fetch|Load failed|NetworkError when attempting to fetch resource\.?)$/;
 
-// Server API helpers put the status only into the message: "API error (409): …".
+// Some API helpers put the status only into the message.
 const API_ERROR_STATUS = /API error[:\s(]+(\d{3})/;
+const HTTP_ERROR_STATUS = /^(?:Error: )?HTTP error! status: (\d{3})$/;
 
 const EXPECTED_STATUS = new Map<number, ExpectedFailure>([
   [401, "unauthorized"],
   [409, "conflict"],
 ]);
 
-/** Classifies an error log entry's context by its `error` and `status` fields. */
+/** Classifies an error log entry's context by source, `error` and `status`. */
 export function expectedFailure(
   context: Record<string, unknown> | undefined,
+  source: "server" | "client",
 ): ExpectedFailure | null {
   if (!context) return null;
   const message = typeof context.error === "string" ? context.error : "";
   const status =
     typeof context.status === "number"
       ? context.status
-      : Number(API_ERROR_STATUS.exec(message)?.[1]);
+      : Number(
+          API_ERROR_STATUS.exec(message)?.[1] ??
+            HTTP_ERROR_STATUS.exec(message)?.[1],
+        );
   if (!Number.isNaN(status)) return EXPECTED_STATUS.get(status) ?? null;
-  return NETWORK_ERROR.test(message) ? "network" : null;
+  return source === "client" && NETWORK_ERROR.test(message) ? "network" : null;
 }
 
 /**

@@ -146,15 +146,16 @@ function getLogLevelFromEnv(): LogLevel {
 }
 
 /**
- * An error the app expects and handles (dropped connection, 401, 409) becomes
+ * An error the app expects and handles (client dropped connection, 401, 409) becomes
  * a warning that names the reason, so it stays in the logs and breadcrumbs
  * without opening a Sentry issue (#3694).
  */
 function settleLevel(
   level: LogLevel,
   context: Record<string, unknown> | undefined,
+  source: "server" | "client",
 ): [LogLevel, Record<string, unknown> | undefined] {
-  const expected = level === "error" ? expectedFailure(context) : null;
+  const expected = level === "error" ? expectedFailure(context, source) : null;
   return expected
     ? ["warn", { ...context, expected_failure: expected }]
     : [level, context];
@@ -217,7 +218,7 @@ class ServerLogger implements Logger {
     context?: Record<string, unknown>,
   ): void {
     if (!this.config.enabled) return;
-    [level, context] = settleLevel(level, context);
+    [level, context] = settleLevel(level, context, "server");
     if (LogLevelValue[level] < LogLevelValue[this.config.level]) return;
 
     const entry = redactSensitiveLogData({
@@ -299,7 +300,7 @@ class ClientLogger implements Logger {
     context?: Record<string, unknown>,
   ): void {
     if (!this.config.enabled) return;
-    [level, context] = settleLevel(level, context);
+    [level, context] = settleLevel(level, context, "client");
     if (LogLevelValue[level] < LogLevelValue[this.config.level]) return;
 
     const entry = redactSensitiveLogData({

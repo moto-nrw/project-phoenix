@@ -24,8 +24,8 @@ interface SentryLogEntry {
 /**
  * Error-level messages that are expected noise, not defects: the SSE stream
  * reconnects on its own (about 700 entries a day in production), and a wrong
- * parent password is user input. They stay in the logs. Dropped connections,
- * 401 and 409 in any other message arrive here as warn already
+ * parent password is user input. They stay in the logs. Client dropped
+ * connections, 401 and 409 in any other message arrive here as warn already
  * (expected-failure.ts).
  */
 const NOT_SENT_TO_SENTRY = new Set([

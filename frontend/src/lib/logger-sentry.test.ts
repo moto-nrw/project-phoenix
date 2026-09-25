@@ -143,6 +143,8 @@ describe("logger levels for expected failures (#3694)", () => {
       "a conflict named only in the API error text",
       { error: "API error (409): room still in use" },
     ],
+    ["a profile 401", { error: "Error: HTTP error! status: 401" }],
+    ["a profile 409", { error: "Error: HTTP error! status: 409" }],
   ])("logs %s as a warning breadcrumb, not an event", (_label, context) => {
     createLogger({ component: "Probe" }).error("probe_failed", context);
 
@@ -174,5 +176,26 @@ describe("logger levels for expected failures (#3694)", () => {
       "probe_failed",
       expect.objectContaining({ level: "error" }),
     );
+  });
+
+  it("reports a server-side login proxy fetch failure", () => {
+    vi.stubGlobal("window", undefined);
+    const consoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      createLogger({ component: "AuthLoginRoute" }).error(
+        "login proxy failed",
+        {
+          error: "TypeError: Failed to fetch",
+        },
+      );
+
+      expect(captureMessage).toHaveBeenCalledWith(
+        "login proxy failed",
+        expect.objectContaining({ level: "error" }),
+      );
+    } finally {
+      consoleLog.mockRestore();
+      vi.unstubAllGlobals();
+    }
   });
 });
