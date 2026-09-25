@@ -12,7 +12,7 @@
 # Sentry cannot stall the deploy job either.
 set -uo pipefail
 
-SENTRY_CLI_VERSION=2.58.6
+SENTRY_CLI_VERSION=3.8.0
 PROJECTS=(backend frontend)
 
 release="${1:-}"
