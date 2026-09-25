@@ -1,10 +1,11 @@
-package enrollment
+package application
 
-import "github.com/moto-nrw/project-phoenix/models/users"
+import "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
-// Preserve legacy field precedence while rebasing untouched hydrated fields onto
-// the state read under the student row lock. Only intentional edits win.
-func enrollmentRebaseUntouchedDeparturePlan(student *users.Student, current *users.Student) {
+// enrollmentRebaseUntouchedDeparturePlan preserves the legacy field
+// precedence while rebasing untouched hydrated fields onto the state read
+// under the student row lock. Only intentional edits win.
+func enrollmentRebaseUntouchedDeparturePlan(student *Student, current *Student) {
 	baseline := student.DepartureBaseline
 	if baseline == nil || current == nil {
 		return
@@ -24,21 +25,19 @@ func enrollmentRebaseUntouchedDeparturePlan(student *users.Student, current *use
 		student.PickupDays = current.PickupDays
 	}
 	// PickupStatus needs no rebase: hydration always leaves PickupDays non-nil,
-	// and enrollmentResolvedPickupDays only falls back to the legacy status string when
-	// PickupDays is nil.
+	// and enrollmentResolvedPickupDays only falls back to the legacy status
+	// string when PickupDays is nil.
 }
 
-func enrollmentResolveAllowedDepartureModes(student *users.Student, current *users.Student) users.AllowedDepartureModes {
-	if student.AllowedDepartureModes != nil {
-		if enrollmentShouldUseAllowedDepartureModes(student, current) {
-			return student.AllowedDepartureModes.Normalize()
-		}
+func enrollmentResolveAllowedDepartureModes(student *Student, current *Student) departure.AllowedDepartureModes {
+	if student.AllowedDepartureModes != nil && enrollmentShouldUseAllowedDepartureModes(student, current) {
+		return student.AllowedDepartureModes.Normalize()
 	}
 	if current == nil {
 		if student.DepartureDays != nil {
-			return users.AllowedDepartureModesFromDeparture(student.DepartureDays).Normalize()
+			return departure.AllowedDepartureModesFromDeparture(student.DepartureDays).Normalize()
 		}
-		return users.AllowedDepartureModesFromLegacy(student.BusDays, enrollmentResolvedPickupDays(student)).Normalize()
+		return departure.AllowedDepartureModesFromLegacy(student.BusDays, enrollmentResolvedPickupDays(student)).Normalize()
 	}
 
 	pickup := enrollmentResolvedPickupDays(student)
@@ -49,12 +48,12 @@ func enrollmentResolveAllowedDepartureModes(student *users.Student, current *use
 	}
 
 	if student.DepartureDays != nil && !enrollmentDepartureDaysEqual(student.DepartureDays, current.DepartureDays) {
-		return users.AllowedDepartureModesFromDeparture(student.DepartureDays).Normalize()
+		return departure.AllowedDepartureModesFromDeparture(student.DepartureDays).Normalize()
 	}
 	return current.AllowedDepartureModes.Normalize()
 }
 
-func enrollmentShouldUseAllowedDepartureModes(student *users.Student, current *users.Student) bool {
+func enrollmentShouldUseAllowedDepartureModes(student *Student, current *Student) bool {
 	if current == nil {
 		return true
 	}
@@ -69,31 +68,31 @@ func enrollmentShouldUseAllowedDepartureModes(student *users.Student, current *u
 	return !departureChanged && !legacyChanged
 }
 
-func enrollmentResolvedPickupDays(student *users.Student) users.PickupDays {
+func enrollmentResolvedPickupDays(student *Student) departure.PickupDays {
 	if student.PickupDays != nil {
 		return student.PickupDays
 	}
 	if student.PickupStatus != nil {
-		return users.PickupDaysFromLegacyStatus(*student.PickupStatus)
+		return departure.PickupDaysFromLegacyStatus(*student.PickupStatus)
 	}
 	return nil
 }
 
-func enrollmentMergeLegacyDepartureModes(current users.AllowedDepartureModes, bus users.BusDays, pickup users.PickupDays, busChanged, pickupChanged bool) users.AllowedDepartureModes {
+func enrollmentMergeLegacyDepartureModes(current departure.AllowedDepartureModes, bus departure.BusDays, pickup departure.PickupDays, busChanged, pickupChanged bool) departure.AllowedDepartureModes {
 	current = current.Normalize()
-	out := users.AllowedDepartureModes{}
-	for _, day := range users.PickupDayOrder {
-		modes := map[users.DepartureMode]bool{}
+	out := departure.AllowedDepartureModes{}
+	for _, day := range departure.PickupDayOrder {
+		modes := map[departure.DepartureMode]bool{}
 		for _, mode := range current[day] {
 			modes[mode] = true
 		}
 		if busChanged {
-			modes[users.DepartureBus] = bus[day]
+			modes[departure.DepartureBus] = bus[day]
 		}
 		if pickupChanged {
-			modes[users.DeparturePickup] = pickup[day]
+			modes[departure.DeparturePickup] = pickup[day]
 		}
-		for _, mode := range []users.DepartureMode{users.DepartureAlone, users.DepartureBus, users.DeparturePickup, users.DepartureAccompanied} {
+		for _, mode := range []departure.DepartureMode{departure.DepartureAlone, departure.DepartureBus, departure.DeparturePickup, departure.DepartureAccompanied} {
 			if modes[mode] {
 				out[day] = append(out[day], mode)
 			}
@@ -102,10 +101,10 @@ func enrollmentMergeLegacyDepartureModes(current users.AllowedDepartureModes, bu
 	return out.Normalize()
 }
 
-func enrollmentAllowedDepartureModesEqual(a, b users.AllowedDepartureModes) bool {
+func enrollmentAllowedDepartureModesEqual(a, b departure.AllowedDepartureModes) bool {
 	a = a.Normalize()
 	b = b.Normalize()
-	for _, day := range users.PickupDayOrder {
+	for _, day := range departure.PickupDayOrder {
 		am := a[day]
 		bm := b[day]
 		if len(am) != len(bm) {
@@ -120,10 +119,10 @@ func enrollmentAllowedDepartureModesEqual(a, b users.AllowedDepartureModes) bool
 	return true
 }
 
-func enrollmentDepartureDaysEqual(a, b users.DepartureDays) bool {
+func enrollmentDepartureDaysEqual(a, b departure.DepartureDays) bool {
 	a = a.Normalize()
 	b = b.Normalize()
-	for _, day := range users.PickupDayOrder {
+	for _, day := range departure.PickupDayOrder {
 		if a.ModeFor(day) != b.ModeFor(day) {
 			return false
 		}
@@ -131,10 +130,10 @@ func enrollmentDepartureDaysEqual(a, b users.DepartureDays) bool {
 	return true
 }
 
-func enrollmentBusDaysEqual(a, b users.BusDays) bool {
+func enrollmentBusDaysEqual(a, b departure.BusDays) bool {
 	a = a.Normalize()
 	b = b.Normalize()
-	for _, day := range users.PickupDayOrder {
+	for _, day := range departure.PickupDayOrder {
 		if a[day] != b[day] {
 			return false
 		}
@@ -142,10 +141,10 @@ func enrollmentBusDaysEqual(a, b users.BusDays) bool {
 	return true
 }
 
-func enrollmentPickupDaysEqual(a, b users.PickupDays) bool {
+func enrollmentPickupDaysEqual(a, b departure.PickupDays) bool {
 	a = a.Normalize()
 	b = b.Normalize()
-	for _, day := range users.PickupDayOrder {
+	for _, day := range departure.PickupDayOrder {
 		if a[day] != b[day] {
 			return false
 		}

@@ -10,7 +10,6 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // maxReportRows caps the students and children one report covers;
@@ -21,23 +20,10 @@ const (
 )
 
 // The reports read the parent's answers, so they decode the stored request
-// and child answers the same way the retained decision flow does until that
-// flow moves into the owner (#3564, #3565).
+// and child answers the same way the decision flow does.
 
 // reportChild is a request child with its decoded answers.
-type reportChild struct {
-	ID                int64
-	RequestID         int64
-	FirstName         string
-	LastName          string
-	DateOfBirth       calendar.Date
-	TargetGradeLevel  *int16
-	TargetSchoolClass *string
-	CustomData        map[string]any
-	Status            string
-	CreatedStudentID  *int64
-	MatchedStudentID  *int64
-}
+type reportChild = RequestChild
 
 func listReportRequests(ctx context.Context, owner ReportRequests, filters enrollment.RequestListFilters) ([]*enrollmentModels.Request, error) {
 	values, err := owner.AdminRequests(ctx, filters)
@@ -46,7 +32,7 @@ func listReportRequests(ctx context.Context, owner ReportRequests, filters enrol
 	}
 	var result []*enrollmentModels.Request
 	for _, value := range values {
-		converted, err := reportRequestValue(value)
+		converted, err := requestValue(value)
 		if err != nil {
 			return nil, err
 		}
@@ -55,7 +41,7 @@ func listReportRequests(ctx context.Context, owner ReportRequests, filters enrol
 	return result, nil
 }
 
-func reportRequestValue(r *enrollment.Request) (*enrollmentModels.Request, error) {
+func requestValue(r *enrollment.Request) (*enrollmentModels.Request, error) {
 	if r == nil {
 		return nil, nil
 	}
@@ -93,38 +79,11 @@ func listReportChildren(ctx context.Context, owner ReportChildren, requestIDs []
 	}
 	var result []*reportChild
 	for _, value := range values {
-		converted, err := reportChildValue(value)
+		converted, err := childValue(value)
 		if err != nil {
 			return nil, err
 		}
 		result = append(result, converted)
-	}
-	return result, nil
-}
-
-func reportChildValue(r *enrollment.RequestChild) (*reportChild, error) {
-	if r == nil {
-		return nil, nil
-	}
-	result := &reportChild{
-		ID: r.ID, RequestID: r.RequestID, FirstName: r.FirstName, LastName: r.LastName,
-		TargetGradeLevel: r.TargetGradeLevel, TargetSchoolClass: r.TargetSchoolClass, Status: r.Status,
-		CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID,
-	}
-	dob, err := calendar.ParseDate(string(r.DateOfBirth))
-	if err != nil {
-		return nil, err
-	}
-	result.DateOfBirth = dob
-	if r.ActivateOn != nil {
-		if _, err := calendar.ParseDate(string(*r.ActivateOn)); err != nil {
-			return nil, err
-		}
-	}
-	if len(r.CustomData) > 0 {
-		if err := json.Unmarshal(r.CustomData, &result.CustomData); err != nil {
-			return nil, err
-		}
 	}
 	return result, nil
 }

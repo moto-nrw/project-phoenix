@@ -29,6 +29,23 @@ type Runtime struct {
 	MarkRollback func(context.Context)
 	// NotFound reports whether an owner read found no row.
 	NotFound func(error) bool
+	// NoRows is the error an owner read that found no row wraps; the
+	// decision flow wraps a missing student the same way.
+	NoRows error
+	// InTransaction reports whether the context carries a tenant
+	// transaction.
+	InTransaction func(context.Context) bool
+	// Savepoint runs fn inside a savepoint of the ambient transaction. A
+	// savepoint-control failure is fatal to that transaction.
+	Savepoint func(ctx context.Context, fn func(context.Context) error) error
+	// IsSavepointControl reports a savepoint-control failure.
+	IsSavepointControl func(error) bool
+	// WithinCurrentTenant runs fn in a new transaction of the tenant in
+	// context.
+	WithinCurrentTenant func(ctx context.Context, fn func(context.Context) error) error
+	// AfterCommit queues fn to run once the ambient transaction commits, or
+	// runs it at once outside a transaction.
+	AfterCommit func(ctx context.Context, fn func())
 }
 
 // CollectionSettings resolves the tenant settings that decide which grades

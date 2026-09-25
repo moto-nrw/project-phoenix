@@ -287,6 +287,14 @@ func (r *GuardianProfileRepository) FindInvitable(ctx context.Context) ([]*users
 }
 
 // ListWithOptions retrieves guardian profiles with pagination and filters
+// FindByEmails retrieves the tenant's guardian profiles whose trimmed email
+// is one of the given addresses, through the generic list filter.
+func (r *GuardianProfileRepository) FindByEmails(ctx context.Context, emails []string) ([]*users.GuardianProfile, error) {
+	return r.ListWithOptions(ctx, &base.QueryOptions{
+		Filter: base.NewFilter().TrimIn("email", emails...),
+	})
+}
+
 func (r *GuardianProfileRepository) ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*users.GuardianProfile, error) {
 	listOptions := &base.QueryOptions{}
 	if options != nil {

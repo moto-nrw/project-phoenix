@@ -84,7 +84,6 @@ type CompanionGraphCoordinator interface {
 type ChangeRequestDecisionApplier interface {
 	LockOfferingDerivedWrites(ctx context.Context) error
 	applyApprovedChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*RequestChild, error)
-	applyApprovedChangeRequestOfferingsWithResult(ctx context.Context, input UpdateChildOfferingsInput) (*appliedOfferingAdjustment, error)
 	SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*RequestChild, error)
 	// ReconcileOfferingPickupForStudents refreshes dependent state
 	// after an approved change replaced the students' offering bookings.
@@ -131,7 +130,10 @@ type ChangeRequestServiceConfig struct {
 	// late-invite renewal is re-authorized during change-request approval.
 	LateInviteRepo   DecisionLateInvites
 	CareOfferingRepo enrollmentModels.CareOfferingRepository
-	Catalog          IntakeCatalog
+	// Capacity is the Enrollment owner's capacity gate an approval re-runs
+	// for children moved onto another offering.
+	Capacity capability.OfferingCapacity
+	Catalog  IntakeCatalog
 	// Notifications brands the change-request mails and notifies the
 	// capacity decisions an approval produces.
 	Notifications       capability.Notifications
@@ -1667,6 +1669,7 @@ func (s *changeRequestService) changeRequestCapacityOverrides(
 	rs := &requestService{RequestServiceConfig: RequestServiceConfig{
 		Children:         s.Children,
 		CareOfferingRepo: s.CareOfferingRepo,
+		Capacity:         s.Capacity,
 		Settings:         s.Settings,
 	}}
 	candidateOverrides, err := rs.applyCapacityOverflowWithReplacedChildren(ctx, phase, candidates, preservedChildIDs)
@@ -1872,7 +1875,7 @@ func childStatusCountsForCapacity(status string) bool {
 
 func (s *changeRequestService) ensureNoActiveDuplicateForApproval(ctx context.Context, req *enrollmentModels.Request, prepared SubmitRequest) error {
 	emailLC := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
-	if err := s.Requests.AcquireSubmissionDedupLock(ctx, req.PhaseID, fnvHash64(emailLC)); err != nil {
+	if err := s.Requests.AcquireSubmissionDedupLock(ctx, req.PhaseID, capability.SubmissionDedupLockKey(emailLC)); err != nil {
 		return fmt.Errorf("change request approve: acquire duplicate lock: %w", err)
 	}
 
@@ -2037,7 +2040,7 @@ func (s *changeRequestService) validateAccountLinkedGuardianEdits(ctx context.Co
 	for _, guardian := range editReq.AdditionalGuardians {
 		emails = append(emails, optionalLowerEmail(guardian.Email))
 	}
-	profiles, err := findGuardianProfilesByEmails(ctx, s.GuardianProfileRepo, emails)
+	profiles, err := guardianProfilesByEmails(ctx, s.GuardianProfileRepo, emails)
 	if err != nil {
 		return fmt.Errorf("change request: load co-guardian profiles for account guardrail: %w", err)
 	}
@@ -2158,6 +2161,34 @@ func trimmedOptionalString(value *string) string {
 		return ""
 	}
 	return strings.TrimSpace(*value)
+}
+
+// guardianProfilesByEmails resolves the tenant's profiles of the given
+// addresses in one query, keyed by the lower-cased, trimmed address.
+func guardianProfilesByEmails(ctx context.Context, repo userModels.GuardianProfileRepository, emails []string) (map[string]*userModels.GuardianProfile, error) {
+	normalized := make([]string, 0, len(emails))
+	seen := make(map[string]bool, len(emails))
+	for _, email := range emails {
+		email = strings.ToLower(strings.TrimSpace(email))
+		if email != "" && !seen[email] {
+			seen[email] = true
+			normalized = append(normalized, email)
+		}
+	}
+	result := make(map[string]*userModels.GuardianProfile, len(normalized))
+	if len(normalized) == 0 {
+		return result, nil
+	}
+	profiles, err := repo.FindByEmails(ctx, normalized)
+	if err != nil {
+		return nil, err
+	}
+	for _, profile := range profiles {
+		if profile != nil && profile.Email != nil {
+			result[strings.ToLower(strings.TrimSpace(*profile.Email))] = profile
+		}
+	}
+	return result, nil
 }
 
 func optionalLowerEmail(value *string) string {

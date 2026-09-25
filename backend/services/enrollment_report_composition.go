@@ -148,7 +148,7 @@ func (s enrollmentReportSettings) CareOfferingsEnabled(ctx context.Context) (boo
 	return s.settings.ResolveBool(ctx, configModels.KeyEnrollmentCareOfferingsEnabled)
 }
 
-// enrollmentExportAccessLog appends the phase export rows to
+// enrollmentExportAccessLog appends the enrollment export rows to
 // audit.data_access_log.
 type enrollmentExportAccessLog struct {
 	repo auditModels.DataAccessLogRepository
@@ -159,6 +159,19 @@ func (l enrollmentExportAccessLog) RecordPhaseExport(ctx context.Context, entry 
 		ActorAccountID: entry.ActorAccountID,
 		ActorRole:      entry.ActorRole,
 		ResourceType:   auditModels.ResourceTypeEnrollmentPhaseExport,
+		RangeStart:     entry.RangeStart,
+		RangeEnd:       entry.RangeEnd,
+		AccessedAt:     entry.AccessedAt,
+		Metadata:       entry.Metadata,
+	})
+}
+
+func (l enrollmentExportAccessLog) RecordStudentExport(ctx context.Context, studentID int64, entry enrollmentCompose.ExportAccess) error {
+	return l.repo.Create(ctx, &auditModels.DataAccessLog{
+		ActorAccountID: entry.ActorAccountID,
+		ActorRole:      entry.ActorRole,
+		ResourceType:   auditModels.ResourceTypeEnrollmentStudentExport,
+		StudentID:      &studentID,
 		RangeStart:     entry.RangeStart,
 		RangeEnd:       entry.RangeEnd,
 		AccessedAt:     entry.AccessedAt,

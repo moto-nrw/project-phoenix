@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"strings"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
@@ -18,11 +17,50 @@ import (
 // repositories below are this consumer's translation onto the owner's
 // Commands and Queries; they hold no persistence of their own.
 
+// offeringRecordError is the retained repository error shape, "database error
+// during <op>: <cause>", with the cause kept in the chain and marked as the
+// store's failure rather than a refusal of the request.
+type offeringRecordError struct {
+	op  string
+	err error
+}
+
+func (e *offeringRecordError) Error() string {
+	if e.err == nil {
+		return "database error during " + e.op
+	}
+	return "database error during " + e.op + ": " + e.err.Error()
+}
+
+func (e *offeringRecordError) Unwrap() error { return e.err }
+
+// StoreFailure marks the error as the store's failure.
+func (e *offeringRecordError) StoreFailure() bool { return true }
+
+// errRecordNotFound is the repository not-found sentinel's shape: the same
+// text and the RepositoryNotFound marker the retained callers and the HTTP
+// layer recognise a missing row by.
+var errRecordNotFound error = recordNotFoundError{}
+
+type recordNotFoundError struct{}
+
+func (recordNotFoundError) Error() string { return "repository: not found" }
+
+// RepositoryNotFound marks the not-found sentinel.
+func (recordNotFoundError) RepositoryNotFound() {}
+
+// isRecordNotFound reports whether err carries a repository not-found
+// sentinel, matched by its marker the way the model package matches it.
+func isRecordNotFound(err error) bool {
+	var marker interface{ RepositoryNotFound() }
+	return errors.As(err, &marker)
+}
+
 // recordNotFound builds the not-found shape the retained repository contracts
 // return, so callers keep classifying with errors.Is(err, sql.ErrNoRows) and
-// modelBase.IsNoRows(err) alike.
+// the not-found marker alike.
 func recordNotFound(op string) error {
-	return &modelBase.DatabaseError{Op: op, Err: errors.Join(modelBase.ErrNotFound, sql.ErrNoRows)}
+	return &offeringRecordError{op: op, err: errors.Join(errRecordNotFound, sql.ErrNoRows)}
 }
 
 // wrapRecordError wraps err in the retained repository error shape and keeps
@@ -31,7 +69,7 @@ func wrapRecordError(op string, err error) error {
 	if err == nil {
 		return nil
 	}
-	return &modelBase.DatabaseError{Op: op, Err: err}
+	return &offeringRecordError{op: op, err: err}
 }
 
 // careOfferingCarePlanRepository preserves the enrollment model contract over
@@ -280,7 +318,7 @@ func (r *offeringChangeCarePlanRepository) FindByID(ctx context.Context, rawID a
 func (r *offeringChangeCarePlanRepository) GetPendingForStudent(ctx context.Context, studentID int64) (*enrollmentModels.OfferingChangeRequest, error) {
 	rows, err := r.list(ctx, enrollmentModels.OfferingChangeQueueFilters{StudentID: studentID}, []string{enrollmentModels.OfferingChangeStatusPending}, careplan.ChangeOrderCreated)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "get pending offering change request", Err: err}
+		return nil, &offeringRecordError{op: "get pending offering change request", err: err}
 	}
 	if len(rows) == 0 {
 		return nil, nil
@@ -291,7 +329,7 @@ func (r *offeringChangeCarePlanRepository) GetPendingForStudent(ctx context.Cont
 func (r *offeringChangeCarePlanRepository) ListByStudent(ctx context.Context, studentID int64) ([]*enrollmentModels.OfferingChangeRequest, error) {
 	rows, err := r.list(ctx, enrollmentModels.OfferingChangeQueueFilters{StudentID: studentID}, nil, careplan.ChangeOrderReviewed)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list offering change requests by student", Err: err}
+		return nil, &offeringRecordError{op: "list offering change requests by student", err: err}
 	}
 	return rows, nil
 }
@@ -299,7 +337,7 @@ func (r *offeringChangeCarePlanRepository) ListByStudent(ctx context.Context, st
 func (r *offeringChangeCarePlanRepository) ListPendingForTenant(ctx context.Context, filters enrollmentModels.OfferingChangeQueueFilters) ([]*enrollmentModels.OfferingChangeRequest, error) {
 	rows, err := r.list(ctx, filters, []string{enrollmentModels.OfferingChangeStatusPending}, careplan.ChangeOrderCreated)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list pending offering change requests", Err: err}
+		return nil, &offeringRecordError{op: "list pending offering change requests", err: err}
 	}
 	return rows, nil
 }
@@ -308,14 +346,14 @@ func (r *offeringChangeCarePlanRepository) ListDecidedForTenant(ctx context.Cont
 	statuses := []string{enrollmentModels.OfferingChangeStatusApproved, enrollmentModels.OfferingChangeStatusRejected, enrollmentModels.OfferingChangeStatusWithdrawn}
 	rows, err := r.list(ctx, filters, statuses, careplan.ChangeOrderUpdated)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list decided offering change requests", Err: err}
+		return nil, &offeringRecordError{op: "list decided offering change requests", err: err}
 	}
 	return rows, nil
 }
 
 func (r *offeringChangeCarePlanRepository) FindByIDForUpdate(ctx context.Context, id int64) (*enrollmentModels.OfferingChangeRequest, error) {
 	row, err := r.find(ctx, id, true, "find offering change request for update")
-	if errors.Is(err, careplan.ErrOfferingChangeNotFound) || modelBase.IsNoRows(err) {
+	if errors.Is(err, careplan.ErrOfferingChangeNotFound) || isRecordNotFound(err) {
 		return nil, errOfferingChangeNotFound
 	}
 	return row, err
@@ -332,7 +370,7 @@ func (r *offeringChangeCarePlanRepository) UpdateApprovedCompleteWithdrawal(ctx 
 func (r *offeringChangeCarePlanRepository) UpdatePending(ctx context.Context, id int64, payload map[string]any, date enrollmentModels.OfferingChangeDate, note *string) error {
 	encoded, err := marshalJSON(payload)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update pending offering change request", Err: err}
+		return &offeringRecordError{op: "update pending offering change request", err: err}
 	}
 	err = r.carePlan.UpdatePendingOfferingChange(ctx, careplan.UpdatePendingOfferingChange{ID: id, Payload: encoded, EffectiveFrom: string(date), ParentNote: note})
 	return r.pendingError("update pending offering change request", err)
@@ -346,11 +384,11 @@ func (r *offeringChangeCarePlanRepository) Decide(ctx context.Context, id int64,
 func (r *offeringChangeCarePlanRepository) UpdateDecisionSnapshot(ctx context.Context, id int64, snapshot *enrollmentModels.OfferingChangeDecisionSnapshot) error {
 	encoded, err := marshalJSON(snapshot)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update offering change decision snapshot", Err: err}
+		return &offeringRecordError{op: "update offering change decision snapshot", err: err}
 	}
 	err = r.carePlan.UpdateOfferingChangeSnapshot(ctx, id, encoded)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update offering change decision snapshot", Err: err}
+		return &offeringRecordError{op: "update offering change decision snapshot", err: err}
 	}
 	return nil
 }
@@ -361,11 +399,11 @@ func (r *offeringChangeCarePlanRepository) find(ctx context.Context, id int64, l
 		return nil, recordNotFound(op)
 	}
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: op, Err: err}
+		return nil, &offeringRecordError{op: op, err: err}
 	}
 	row := new(enrollmentModels.OfferingChangeRequest)
 	if err := applyOfferingChangeToLegacy(row, value); err != nil {
-		return nil, &modelBase.DatabaseError{Op: op, Err: err}
+		return nil, &offeringRecordError{op: op, err: err}
 	}
 	return row, nil
 }
@@ -423,7 +461,7 @@ func (r *offeringChangeCarePlanRepository) pendingError(op string, err error) er
 		return errOfferingChangeNotPending
 	}
 	if err != nil {
-		return &modelBase.DatabaseError{Op: op, Err: err}
+		return &offeringRecordError{op: op, err: err}
 	}
 	return nil
 }

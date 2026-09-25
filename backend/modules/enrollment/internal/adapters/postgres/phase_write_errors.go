@@ -43,3 +43,21 @@ func markPhaseWriteError(err error) error {
 func isPhaseReferenceConstraint(name string) bool {
 	return name == "phases_form_schema_id_fkey" || name == "phases_calendar_period_id_fkey"
 }
+
+// rolloverSourceChildUniqueIndex is the partial unique index from migration
+// 1.15.73 that enforces "each source child rolled at most once".
+const rolloverSourceChildUniqueIndex = "uq_enrollment_request_children_rollover_source"
+
+// markChildWriteError marks a refused child insert whose rollover source was
+// already rolled into another phase with ErrRolloverSourceChildTaken, keeping
+// the database error's text.
+func markChildWriteError(err error) error {
+	var postgresError pgdriver.Error
+	if !errors.As(err, &postgresError) {
+		return err
+	}
+	if postgresError.IntegrityViolation() && postgresError.Field('n') == rolloverSourceChildUniqueIndex {
+		return &phaseWriteError{err: err, reason: enrollment.ErrRolloverSourceChildTaken}
+	}
+	return err
+}

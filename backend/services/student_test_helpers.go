@@ -219,56 +219,57 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
-		Requests:                  repos.Enrollment(),
-		Children:                  repos.Enrollment(),
-		Guardians:                 repos.Enrollment(),
-		LateInviteRepo:            repos.Enrollment(),
-		CareOfferingRepo:          enrollment.NewCareOfferingRepository(repos.CarePlan),
-		Phases:                    repos.Enrollment(),
-		Schemas:                   repos.Enrollment(),
-		DataAccessLogRepo:         repos.DataAccessLog,
-		OfferingAdjustmentRepo:    repos.EnrollmentOfferingAdjustment,
-		RestorationAuditRepo:      repos.EnrollmentRestorationAudit,
-		Notifications:             newEnrollmentNotifications(repos.Enrollment(), settingsService, outboxEnqueuer{outbox: emailOutboxService}, enrollmentSchoolDirectory{schools: repos.School}),
-		PersonRepo:                repos.Person,
-		StaffRepo:                 repos.Staff,
-		StudentRepo:               repos.Student,
-		StudentGuardianRepo:       repos.StudentGuardian,
-		GuardianFinancialAudit:    repos.GuardianFinancialChange,
-		GuardianProfileRepo:       repos.GuardianProfile,
-		GuardianPhoneRepo:         repos.GuardianPhoneNumber,
-		PickupScheduleRepo:        repos.StudentPickupSchedule,
-		ArrivalScheduleRepo:       repos.StudentArrivalSchedule,
-		CareBookings:              careBookings,
-		GuardianAccess:            guardianAccess,
-		StudentEnrollment:         persons,
-		DepartureCompanions:       repositories.NewStudentCompanionRepository(repos.CarePlan),
-		DeleteDepartureCompanions: repos.CarePlan.DeleteCompanionEdges,
-		OutboxEnqueuer:            outboxEnqueuer{outbox: emailOutboxService},
-		StudentAudit:              studentAuditService,
-		StudentConsents:           studentConsentService,
-		CareWithdrawal:            careLifecycleService,
-		Broadcaster:               realtimeHub,
-		FrontendURL:               frontendURL,
-		ParentsURL:                parentsURL,
-		Settings:                  settingsService,
-		LockTemplateRecurrence:    recurrenceLock.LockRecurrenceWrites,
-		ResyncPickupAutoExcusals:  resyncPickupAutoExcusals,
-		LockPickupStudents: func(ctx context.Context, studentIDs []int64) error {
-			for _, studentID := range studentIDs {
-				if err := persons.LockStudent(ctx, studentID); err != nil {
-					if errors.Is(err, peopledirectory.ErrStudentNotFound) {
-						continue
+	enrollmentDecisionService := enrollment.NewDecisionService(NewEnrollmentDecisions(EnrollmentDecisionSources{
+		Requests:               repos.Enrollment(),
+		Children:               repos.Enrollment(),
+		Guardians:              repos.Enrollment(),
+		LateInvites:            repos.Enrollment(),
+		CareOfferings:          enrollment.NewCareOfferingRepository(repos.CarePlan),
+		Phases:                 repos.Enrollment(),
+		Schemas:                repos.Enrollment(),
+		DataAccessLog:          repos.DataAccessLog,
+		OfferingAdjustments:    repos.EnrollmentOfferingAdjustment,
+		Restorations:           repos.EnrollmentRestorationAudit,
+		Notifications:          newEnrollmentNotifications(repos.Enrollment(), settingsService, outboxEnqueuer{outbox: emailOutboxService}, enrollmentSchoolDirectory{schools: repos.School}),
+		Persons:                repos.Person,
+		Staff:                  repos.Staff,
+		Students:               repos.Student,
+		StudentGuardians:       repos.StudentGuardian,
+		GuardianFinancialAudit: repos.GuardianFinancialChange,
+		GuardianProfiles:       repos.GuardianProfile,
+		GuardianPhones:         repos.GuardianPhoneNumber,
+		PickupSchedules:        repositories.NewEnrollmentPickupSchedules(repos.StudentPickupSchedule),
+		ArrivalSchedules:       repositories.NewEnrollmentArrivalSchedules(repos.StudentArrivalSchedule),
+		CareBookings:           careBookings,
+		GuardianAccess:         guardianAccess,
+		StudentEnrollment:      persons,
+		Companions:             repositories.NewStudentCompanionRepository(repos.CarePlan),
+		DeleteCompanions:       repos.CarePlan.DeleteCompanionEdges,
+		StudentAudit:           studentAuditService,
+		StudentConsents:        studentConsentService,
+		CareWithdrawal:         careLifecycleService,
+		Broadcaster:            realtimeHub,
+		FrontendURL:            frontendURL,
+		ParentsURL:             parentsURL,
+		Settings:               settingsService,
+		LockTemplateRecurrence: recurrenceLock.LockRecurrenceWrites,
+		Pickups: enrollmentCompose.WeeklyPickupHooks{
+			LockStudents: func(ctx context.Context, studentIDs []int64) error {
+				for _, studentID := range studentIDs {
+					if err := persons.LockStudent(ctx, studentID); err != nil {
+						if errors.Is(err, peopledirectory.ErrStudentNotFound) {
+							continue
+						}
+						return err
 					}
-					return err
 				}
-			}
-			return nil
+				return nil
+			},
+			ResyncExcusal: resyncPickupAutoExcusals,
 		},
 		Logger: logger.With("service", "enrollment-decision"),
 		Today:  today,
-	})
+	}))
 	offeringResync = careBookings
 	requestReviewPolicy := NewParentRequestReviewPolicy(userContextService.Caller().ParentRequestReviews)
 	parentRequestEvents := users.NewParentRequestEventRecorder(repos.ParentRequestEvent)

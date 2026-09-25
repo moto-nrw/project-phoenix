@@ -64,6 +64,8 @@ const (
 	MailKindWaitlisted     = "enrollment_waitlisted"
 	MailKindRejected       = "enrollment_rejected"
 	MailKindDecisionDigest = "enrollment_decision_digest"
+	MailKindRolloverOptIn  = "enrollment_rollover_opt_in"
+	MailKindRolloverOptOut = "enrollment_rollover_opt_out"
 	MailRelatedRequest     = "enrollment_request"
 )
 
