@@ -26,8 +26,9 @@ func studentRowRead(sql string) bool {
 // cost into numbers: Preview takes no lock and must not grow with companions;
 // Execute (deleteConfirmed -> lockedSnapshot) pays 2(K+1) student-row reads,
 // one lock round trip per locked read, and the doubled owner-count block. The
-// scenario uses the real composition of the production root, except that the
-// Feedback counter is the shared test double, so its query is not counted.
+// scenario uses the owner composition of the production root; the Feedback
+// counter, the authorization and the verified-staff check are test doubles,
+// so their statements are not counted.
 func TestStudentDeletionWorkflow_QueryBudget(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
