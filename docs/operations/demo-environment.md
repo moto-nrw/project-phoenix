@@ -110,10 +110,14 @@ filter apart from schools. They need the build secret
 Frontend Sentry reports through the build secret `DEMO_NEXT_PUBLIC_SENTRY_DSN`,
 which holds the shared frontend project's DSN; the build sets
 `NEXT_PUBLIC_SENTRY_ENVIRONMENT=demo`, so demo events filter apart from schools.
-Whether demo gets its own Sentry project is open in #3589. Backend Sentry and
-Web Push are disabled (`SENTRY_DSN` is empty in `demo.sops.env`); configure
-their demo destinations before enabling them. Absent demo keys disable the
-integrations without falling back to production keys.
+Whether demo gets its own Sentry project is open in #3589. Backend Sentry
+reports through `SENTRY_DSN` in `demo.sops.env`, the DSN of the shared backend
+project that staging and production use. The backend takes its Sentry
+environment from `APP_ENV`, so demo events carry `environment=demo` and filter
+apart from schools. The release is the full commit SHA of the workflow run,
+the same value the frontend reports. Web Push is disabled (the VAPID keys are
+empty); configure its demo destination before enabling it. Absent demo keys
+disable the integrations without falling back to production keys.
 No staging or production application secret is reused.
 `scripts/create-demo-env.py` creates the initial SOPS file through SOPS only
 and refuses to overwrite an existing file. Use `sops edit` for later changes.
