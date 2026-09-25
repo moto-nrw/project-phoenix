@@ -48,6 +48,9 @@ type checkpointResult struct {
 	MetricsAfter       string                `json:"metrics_after"`
 	LockSamples        checkpointLockSamples `json:"lock_samples"`
 	Deadlocks          int64                 `json:"deadlocks"`
+	// JSONBRecordsets records the jsonb_to_recordset set sizes the measured
+	// samples shipped into owner queries (#3411).
+	JSONBRecordsets []testpkg.RuntimeCheckpointRecordset `json:"jsonb_recordsets,omitempty"`
 }
 
 type checkpointLockSamples = testpkg.RuntimeCheckpointLockSamples
@@ -62,6 +65,8 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 	require.True(t, !*runtimeCheckpointEnrollmentParents || *runtimeCheckpointEnrollmentWrites, "parent workload requires the Enrollment writes option")
 	require.False(t, *runtimeCheckpointEnrollmentChangeRequests && (*runtimeCheckpointEnrollment || *runtimeCheckpointEnrollmentWrites), "select exactly one Enrollment workload")
 	require.False(t, *runtimeCheckpointEnrollmentAcceptance && (*runtimeCheckpointEnrollment || *runtimeCheckpointEnrollmentWrites || *runtimeCheckpointEnrollmentChangeRequests), "select exactly one Enrollment workload")
+	require.Contains(t, []string{checkpointWorkloadV1, checkpointWorkloadV2}, *runtimeCheckpointWorkload, "unknown default checkpoint workload")
+	defaultWorkload := !*runtimeCheckpointEnrollment && !*runtimeCheckpointEnrollmentWrites && !*runtimeCheckpointEnrollmentChangeRequests && !*runtimeCheckpointEnrollmentAcceptance
 	output, err := os.OpenFile(*runtimeCheckpointOutput, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	require.NoError(t, err, "use a new output path for each checkpoint execution")
 	defer func() { _ = output.Close() }()
@@ -112,7 +117,16 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		{"people-directory.invalid-id", "GET", "/api/guardians/invalid", 400, true, ""},
 		{"security.unauthenticated", "GET", "/api/rooms/", 401, false, ""},
 	}
-	workloadVersion := "checkpoint-1-v1"
+	workloadVersion := checkpointWorkloadV1
+	var targetRisks *targetRiskWorkload
+	if defaultWorkload && *runtimeCheckpointWorkload == checkpointWorkloadV2 {
+		// checkpoint-1-v2 keeps the v1 list unchanged and in order, then adds
+		// the flows the #2580 migration rebuilt (#3411), in a tenant of their
+		// own so the v1 scenarios read the same data as in v1.
+		targetRisks = newTargetRiskWorkload(t, production)
+		scenarios = append(scenarios, targetRisks.scenarios()...)
+		workloadVersion = checkpointWorkloadV2
+	}
 	var checkpointSchemaID, parentToken string
 	var parentAccountID int64
 	if *runtimeCheckpointEnrollment || *runtimeCheckpointEnrollmentWrites {
@@ -267,6 +281,11 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		"http_transport": "in-process Runtime.Handler (no TCP/TLS)", "email_transport": "production mock mailer (unavailable)",
 		"lock_poll_interval_ms": 2, "app_env": os.Getenv("APP_ENV"),
 	}
+	if targetRisks != nil {
+		environment["checkpoint_1_v2_fixture_rows"] = targetRisks.fixtureRows(t)
+		environment["scenario_headers"] = targetRisks.headerContract(scenarios)
+		environment["device_pin"] = "fresh-tenant default of security.ogs_device_pin"
+	}
 	var runs [][]checkpointResult
 	var workerRuns [][]testpkg.RuntimeCheckpointWorkerResult
 	requestSequence := 0
@@ -292,10 +311,17 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		if acceptance != nil {
 			scenario, requestToken = acceptance.prepare(t, scenario)
 		}
+		if targetRisks != nil && targetRisks.owns(scenario) {
+			scenario, requestToken = targetRisks.prepare(t, scenario)
+		}
 		return scenario, requestToken, sequence
 	}
 	sendRequest := func(scenario checkpointScenario, requestToken string, sequence int) *httptest.ResponseRecorder {
-		response := checkpointSequencedRequest(production.Handler(), scenario, requestToken, sequence)
+		var headers map[string]string
+		if targetRisks != nil && targetRisks.owns(scenario) {
+			headers = targetRisks.headers(scenario)
+		}
+		response := checkpointHeaderRequest(production.Handler(), scenario, requestToken, sequence, headers)
 		if scenario.ExpectedStatus == http.StatusTooManyRequests {
 			require.Equal(t, "3600", response.Header().Get("Retry-After"))
 		}
@@ -304,6 +330,9 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		}
 		if acceptance != nil {
 			acceptance.observe(scenario, response)
+		}
+		if targetRisks != nil && targetRisks.owns(scenario) {
+			targetRisks.observe(t, scenario, response)
 		}
 		return response
 	}
@@ -340,6 +369,7 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 				return waiting, err
 			})
 			t.Cleanup(func() { _ = stopSampling() })
+			var recordsets testpkg.RuntimeCheckpointRecordsets
 			for range 30 {
 				resolved, requestToken, sequence := prepareRequest(scenario)
 				counter.Reset()
@@ -350,6 +380,7 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 				elapsed := time.Since(started)
 				counter.Stop()
 				after := api.db.Stats()
+				recordsets.Observe(counter.Queries())
 				result.Samples = append(result.Samples, checkpointSample{
 					DurationMS: float64(elapsed) / float64(time.Millisecond), Queries: counter.Total(), Status: response.Code,
 					PoolWaitCount: after.WaitCount - before.WaitCount,
@@ -372,6 +403,7 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 			result.LockSamples = stopSampling()
 			require.Empty(t, result.LockSamples.Error)
 			result.Deadlocks = deadlocks() - deadlocksBefore
+			result.JSONBRecordsets = recordsets.Result()
 			latencies := make([]float64, len(result.Samples))
 			for i, sample := range result.Samples {
 				latencies[i] = sample.DurationMS
@@ -394,6 +426,14 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 			return result.InstancesCreated, result.CandidatesSkippedExisting, nil
 		}, func() string { return checkpointMetrics(t) })...)
 		workerRuns = append(workerRuns, workers)
+	}
+	// The contention runs follow all serial runs, so the serial samples see
+	// the same fixture volume as checkpoint-1-v1.
+	var concurrentRuns []checkpointConcurrentRun
+	if targetRisks != nil {
+		for range 3 {
+			concurrentRuns = append(concurrentRuns, targetRisks.measureContention(t, production, *runtimeCheckpointConcurrency))
+		}
 	}
 	var finalState map[string]int
 	if *runtimeCheckpointEnrollmentWrites {
@@ -437,6 +477,9 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 	if acceptance != nil {
 		finalState = acceptance.finalState(t)
 	}
+	if targetRisks != nil {
+		finalState = targetRisks.finalState(t)
+	}
 	report := struct {
 		WorkloadVersion    string                                    `json:"workload_version"`
 		GoVersion          string                                    `json:"go_version"`
@@ -450,7 +493,8 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		WorkerRuns         [][]testpkg.RuntimeCheckpointWorkerResult `json:"worker_runs"`
 		Environment        map[string]any                            `json:"environment"`
 		FinalState         map[string]int                            `json:"final_state,omitempty"`
-	}{workloadVersion, runtime.Version(), runtime.GOOS + "/" + runtime.GOARCH, postgresVersion, role, 1, 5, 30, runs, workerRuns, environment, finalState}
+		ConcurrentRuns     []checkpointConcurrentRun                 `json:"concurrent_runs,omitempty"`
+	}{workloadVersion, runtime.Version(), runtime.GOOS + "/" + runtime.GOARCH, postgresVersion, role, serialCheckpointConcurrency, 5, 30, runs, workerRuns, environment, finalState, concurrentRuns}
 	data, err := json.MarshalIndent(report, "", "  ")
 	require.NoError(t, err)
 	_, err = output.Write(append(data, '\n'))
@@ -461,6 +505,11 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 			require.Zero(t, result.UnexpectedStatuses, result.Scenario.Name)
 		}
 	}
+	for _, run := range concurrentRuns {
+		for _, operation := range run.Operations {
+			require.Zero(t, operation.UnexpectedCount, "%s: %v", operation.Name, operation.StatusCounts)
+		}
+	}
 }
 
 func checkpointRequest(handler http.Handler, scenario checkpointScenario, token string) *httptest.ResponseRecorder {
@@ -468,6 +517,12 @@ func checkpointRequest(handler http.Handler, scenario checkpointScenario, token 
 }
 
 func checkpointSequencedRequest(handler http.Handler, scenario checkpointScenario, token string, sequence int) *httptest.ResponseRecorder {
+	return checkpointHeaderRequest(handler, scenario, token, sequence, nil)
+}
+
+// checkpointHeaderRequest sends one scenario request. headers are set after
+// the bearer, so a scenario can replace the Authorization header.
+func checkpointHeaderRequest(handler http.Handler, scenario checkpointScenario, token string, sequence int, headers map[string]string) *httptest.ResponseRecorder {
 	uniqueClient := strings.Contains(scenario.Body, "{{attempt}}")
 	scenario.Body = strings.ReplaceAll(scenario.Body, "{{attempt}}", fmt.Sprint(sequence))
 	request := httptest.NewRequest(scenario.Method, "http://localhost"+scenario.Path, strings.NewReader(scenario.Body))
@@ -477,6 +532,9 @@ func checkpointSequencedRequest(handler http.Handler, scenario checkpointScenari
 	request.Header.Set("Content-Type", "application/json")
 	if scenario.Authenticated {
 		request.Header.Set("Authorization", "Bearer "+token)
+	}
+	for name, value := range headers {
+		request.Header.Set(name, value)
 	}
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
