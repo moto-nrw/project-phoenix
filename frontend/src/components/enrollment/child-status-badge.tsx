@@ -30,6 +30,26 @@ const CHILD_STATUS_TONES: Record<ChildStatus, StatusBadgeTone> = {
   pending_admin_review: "gray",
 };
 
+/**
+ * Review reason of a renewal the automatic approval at the school-year change
+ * skipped because the Kinderkontingent was full (#3570).
+ */
+const CHILD_QUOTA_REVIEW_REASON = "child_quota_reached";
+
+/** True while an enrollment stays open because the Kinderkontingent is full. */
+export function isHeldForChildQuota(
+  child: Readonly<{ status: ChildStatus; review_reason?: string | null }>,
+): boolean {
+  return (
+    child.review_reason === CHILD_QUOTA_REVIEW_REASON &&
+    (child.status === "submitted" || child.status === "under_review")
+  );
+}
+
+export function ChildQuotaHeldBadge() {
+  return <StatusBadge label="Wegen Kinderkontingent offen" tone="orange" />;
+}
+
 export function ChildStatusBadge({
   status,
 }: Readonly<{ status: ChildStatus }>) {

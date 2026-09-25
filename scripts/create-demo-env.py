@@ -45,7 +45,9 @@ def main():
         "CORS_ALLOWED_ORIGINS": "https://demo.moto-app.de,https://*.demo.moto-app.de,"
                                 "https://moto-ogs.de,https://www.moto-ogs.de,https://staging.moto-ogs.de,"
                                 "https://moto.nrw,https://www.moto.nrw",
-        "SENTRY_DSN": "", "NEXT_PUBLIC_SENTRY_DSN": "", "SENTRY_ENVIRONMENT": "demo",
+        # SENTRY_DSN stays the staging value: backend events of all environments go
+        # to one project and filter apart by APP_ENV.
+        "NEXT_PUBLIC_SENTRY_DSN": "",
         "NEXT_PUBLIC_SENTRY_ENVIRONMENT": "demo", "POSTHOG_API_KEY": "", "NEXT_PUBLIC_POSTHOG_KEY": "",
         "VAPID_PUBLIC_KEY": "", "VAPID_PRIVATE_KEY": "", "VAPID_SUBSCRIBER": "",
     })

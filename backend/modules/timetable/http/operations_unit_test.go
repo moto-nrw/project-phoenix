@@ -1373,3 +1373,29 @@ func lastPathSegment(path string) string {
 	}
 	return path
 }
+
+// TestOperationsCheckInParticipantLimitWire pins that a Betreuungsplan
+// check-in refused by the activity's participant limit (#3632) answers 409
+// with the refusal's code and numbers, not a server error.
+func TestOperationsCheckInParticipantLimitWire(t *testing.T) {
+	t.Parallel()
+	limitErr := &studentpresence.OperationError{Op: "CreateVisit", Err: &studentpresence.ActivityParticipantLimitError{
+		ActivityID: 7, ActivityName: "Fußball", CurrentOccupancy: 45, MaxParticipants: 45, Incoming: 1,
+	}}
+	router := operationRouter(
+		http.MethodPost,
+		"/instances/{id}/students/{student_id}/check-in",
+		NewResource(Dependencies{OperationsService: &fakeOperationsService{err: limitErr}}).operationsCheckInStudent,
+	)
+
+	rr := executeOperationRequest(t, router, http.MethodPost, "/instances/250/students/350/check-in", nil)
+
+	require.Equal(t, http.StatusConflict, rr.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, studentpresence.ActivityParticipantLimitCode, body["code"])
+	details, ok := body["details"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, float64(45), details["max_participants"])
+	assert.Equal(t, float64(1), details["incoming_students"])
+}

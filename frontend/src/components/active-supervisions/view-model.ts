@@ -22,6 +22,8 @@ export interface ActiveSupervisionRoom {
   room_id?: string;
   room_color?: string;
   student_count?: number;
+  /** The started activity's limit; null without one (#3634). */
+  participant_limit?: number | null;
   supervisor_name?: string;
   isCurrentUserSupervising?: boolean;
   canAssign?: boolean;
@@ -91,6 +93,11 @@ export interface OpenRoomSessionView {
   readonly canAssign: boolean;
   readonly studentCount: number;
   /**
+   * The activity's limit; null or absent without one. Above it the terminal
+   * accepts no further child (#3634).
+   */
+  readonly participantLimit?: number | null;
+  /**
    * The timetable block running in the session. Null for a kiosk session,
    * the room's own session, and callers who may not read schedules.
    */
@@ -130,6 +137,8 @@ export interface OpenRoomOccupancySection extends OpenRoomSectionBase {
   readonly independent: boolean;
   readonly activeGroupIds: readonly string[];
   readonly studentCount: number;
+  /** The session's limit (#3634); absent for the collected independent stays. */
+  readonly participantLimit?: number | null;
 }
 
 export type OpenRoomSection = OpenRoomBlockSection | OpenRoomOccupancySection;
@@ -182,6 +191,7 @@ export function openRoomSections(
         independent: false,
         activeGroupIds: [session.activeGroupId],
         studentCount: session.studentCount,
+        participantLimit: session.participantLimit ?? null,
         isOwn: session.isUserSupervising,
         assignableSessionId: session.canAssign ? session.activeGroupId : null,
       });
@@ -432,6 +442,7 @@ interface SupervisedGroupLike {
   room?: { id: string; name: string; color?: string | null };
   isCurrentUserSupervising?: boolean;
   canAssign?: boolean;
+  participantLimit?: number | null;
 }
 
 interface EducationalGroupLike {
@@ -463,6 +474,7 @@ export function mapSupervisedGroupsToRooms(
       room_id: group.room_id,
       room_color: group.room?.color ?? undefined,
       student_count: undefined,
+      participant_limit: group.participantLimit ?? null,
       supervisor_name: undefined,
       isCurrentUserSupervising: group.isCurrentUserSupervising === true,
       canAssign: group.canAssign === true,

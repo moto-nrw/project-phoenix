@@ -860,3 +860,72 @@ func TestListInstances_NoSeriesNotesWhenTemplateHasNone(t *testing.T) {
 	require.Len(t, got.Instances, 1)
 	assert.Nil(t, got.Instances[0].SeriesNotes)
 }
+
+// TestListInstances_OccupancyCountsChildrenStillThere pins what the
+// Betreuungsplan compares with a block's limit (#3634): the template's limit
+// and the present children who have not left yet. A checkout keeps the row
+// present, so counting present rows alone would flag a block as overbooked
+// while the terminal accepts children again. A block without a template
+// carries no occupancy.
+func TestListInstances_OccupancyCountsChildrenStillThere(t *testing.T) {
+	t.Parallel()
+
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+
+	from, fromDate := listFutureDate(1)
+	to, _ := listFutureDate(7)
+
+	suffix := time.Now().UnixNano()
+	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("Limit-Template-%d", suffix))
+	_, err := s.db.NewUpdate().
+		TableExpr("activities.groups").
+		Set("is_template = TRUE").
+		Set("max_participants = 2").
+		Where("id = ?", group.ID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	limited := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID: &group.ID,
+		StartHHMM:       "14:00",
+		EndHHMM:         "15:00",
+		Title:           "Fußball",
+	})
+	testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "12:00", EndHHMM: "12:50", Title: "Spontan",
+	})
+	var left int64
+	for i, name := range []string{"Anna", "Ben", "Cem"} {
+		student := testpkg.CreateTestStudent(t, s.db, name, fmt.Sprintf("Limit-%d-%d", suffix, i), "1a")
+		testpkg.CreateTestInstanceStudent(t, s.db, limited.ID, student.ID, timetable.SlotAttendancePresent)
+		left = student.ID
+	}
+	_, err = s.db.NewUpdate().
+		TableExpr("schedule.instance_students").
+		Set("checked_in_at = ?", time.Now().Add(-time.Hour)).
+		Set("checked_out_at = ?", time.Now()).
+		Where("instance_id = ?", limited.ID).
+		Where("student_id = ?", left).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	router := listRouter(s.ctx, s.res)
+	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeList(t, w)
+	require.Len(t, got.Instances, 2)
+	for _, item := range got.Instances {
+		if item.ID != limited.ID {
+			assert.Nil(t, item.Occupancy, "a block without a template has no limit")
+			continue
+		}
+		assert.Equal(t, 3, item.PresentStudentsCount, "the day's present count keeps the child who left")
+		require.NotNil(t, item.Occupancy)
+		assert.Equal(t, 2, item.Occupancy.ParticipantLimit)
+		assert.Equal(t, 2, item.Occupancy.CurrentStudentsCount, "a child who left no longer counts against the limit")
+	}
+}

@@ -147,6 +147,7 @@ const (
 	KeyAttendanceNFCEnabled                  = "attendance.nfc_enabled"
 	KeyStudentActivationIntervalMin          = "operations.student_activation_interval_minutes"
 	KeyWebSpontaneousActivities              = "attendance.web_spontaneous_activities_enabled"
+	KeyWebExceedParticipantLimit             = "attendance.web_exceed_participant_limit_enabled"
 	KeyStudentPhotosEnabled                  = "operations.student_photos_enabled"
 	KeyGroupMode                             = "operations.group_mode"
 	KeyBirthdayDisplayEnabled                = "operations.birthday_display_enabled"

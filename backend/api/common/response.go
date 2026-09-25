@@ -56,7 +56,7 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, status int, errorM
 			slog.Int("status", status),
 			slog.String("error", errorMsg),
 		)
-		noteServerError(r.Context(), errors.New(errorMsg))
+		noteServerError(r.Context(), errors.New(errorMsg), "")
 	}
 	render.Status(r, status)
 	render.JSON(w, r, map[string]string{

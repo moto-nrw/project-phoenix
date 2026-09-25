@@ -53,6 +53,8 @@ SDK transport consumes these answers and shows no text, so they are not part
 of `ERROR_MESSAGE_MAPPINGS` or `iot_error_strings.golden`. Changing a status or
 text is still a two-repo change. `serve` refuses to start with `SENTRY_DSN` set
 and `SENTRY_PYREPORTAL_DSN` empty, and a malformed DSN stops the start.
+With `SENTRY_DSN` set, `APP_ENV` must be `production`, `staging`, `demo` or
+`development`; it is the Sentry environment of backend events.
 
 ### Presence mode
 
