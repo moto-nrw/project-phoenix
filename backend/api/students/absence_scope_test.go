@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -18,7 +18,7 @@ import (
 
 func TestDirectAbsenceScope(t *testing.T) {
 	t.Parallel()
-	for _, scope := range []string{configModel.StudentAbsenceEditScopeAdmins, configModel.StudentAbsenceEditScopeAllStaff} {
+	for _, scope := range []string{settings.StudentAbsenceEditScopeAdmins, settings.StudentAbsenceEditScopeAllStaff} {
 		t.Run(scope, func(t *testing.T) {
 			t.Parallel()
 			_ = testpkg.OwnCtx(t)
@@ -26,7 +26,7 @@ func TestDirectAbsenceScope(t *testing.T) {
 			_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Absence", "Writer")
 			claims := testutil.TeacherTestClaims(int(account.ID))
 			perms := []string{"users:read", "users:update", "users:absence"}
-			require.NoError(t, tc.resource.SettingsService.SetValue(testpkg.Ctx(t), configModel.KeyStudentAbsenceEditScope, scope, nil, nil))
+			require.NoError(t, tc.settings().SetValue(testpkg.Ctx(t), settings.KeyStudentAbsenceEditScope, scope, nil, nil))
 			child := testpkg.CreateTestStudent(t, tc.db, "Detail", "Rights", "1a")
 			detail := authExec(t, tc, testutil.NewRequest("GET", fmt.Sprintf("/%d", child.ID), nil), claims, perms)
 			require.Equal(t, http.StatusOK, detail.Code, detail.Body.String())
@@ -38,12 +38,12 @@ func TestDirectAbsenceScope(t *testing.T) {
 			}
 			require.NoError(t, json.Unmarshal(detail.Body.Bytes(), &capability))
 			require.True(t, capability.Data.HasAbsenceWriteAccess, "class-trip authority is unchanged")
-			require.Equal(t, scope == configModel.StudentAbsenceEditScopeAllStaff, capability.Data.HasSickExcusedWriteAccess)
+			require.Equal(t, scope == settings.StudentAbsenceEditScopeAllStaff, capability.Data.HasSickExcusedWriteAccess)
 			for _, status := range []string{"sick", "excused", "class_trip"} {
 				t.Run(status, func(t *testing.T) {
 					student := testpkg.CreateTestStudent(t, tc.db, "Absence", status, "1a")
 					want := http.StatusCreated
-					if scope == configModel.StudentAbsenceEditScopeAdmins && status != "class_trip" {
+					if scope == settings.StudentAbsenceEditScopeAdmins && status != "class_trip" {
 						want = http.StatusForbidden
 					}
 					req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
@@ -57,7 +57,7 @@ func TestDirectAbsenceScope(t *testing.T) {
 				for _, payload := range []map[string]any{{"sick": value}, {"excused": value}, {"sick": value, "school_class": "2b"}} {
 					student := testpkg.CreateTestStudent(t, tc.db, "Direct", "Update", "1a")
 					want := http.StatusOK
-					if scope == configModel.StudentAbsenceEditScopeAdmins {
+					if scope == settings.StudentAbsenceEditScopeAdmins {
 						want = http.StatusForbidden
 					}
 					rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), payload), claims, perms)
@@ -95,7 +95,7 @@ func TestDirectAbsenceScopeRestrictsExistingReportsOnNextRequest(t *testing.T) {
 	rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/partial-absences", student.ID), partialPayload), claims, perms)
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 	partialID := partialAbsenceResponseID(t, rr.Body.Bytes())
-	require.NoError(t, tc.resource.SettingsService.SetValue(testpkg.Ctx(t), configModel.KeyStudentAbsenceEditScope, configModel.StudentAbsenceEditScopeAdmins, nil, nil))
+	require.NoError(t, tc.settings().SetValue(testpkg.Ctx(t), settings.KeyStudentAbsenceEditScope, settings.StudentAbsenceEditScopeAdmins, nil, nil))
 
 	for status, id := range statusIDs {
 		want := http.StatusForbidden
@@ -124,7 +124,7 @@ func TestDirectAbsenceScopeRestrictsExistingReportsOnNextRequest(t *testing.T) {
 	rr = authExec(t, tc, testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/%d", student.ID, statusIDs["sick"]), nil), testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	// Reset restores the registered default without renewing the actor's claims.
-	require.NoError(t, tc.resource.SettingsService.ResetValue(testpkg.Ctx(t), configModel.KeyStudentAbsenceEditScope, nil, nil))
+	require.NoError(t, tc.settings().ResetValue(testpkg.Ctx(t), settings.KeyStudentAbsenceEditScope, nil, nil))
 	rr = authExec(t, tc, testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/%d", student.ID, statusIDs["excused"]), nil), claims, perms)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 }

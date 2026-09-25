@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,11 +21,26 @@ func TestResourceWakeChildGuardians(t *testing.T) {
 	(&Resource{}).wakeChildGuardians(42, 100)
 
 	// zero tenantID with a present emitter logs and skips (never reaches the
-	// emitter). A bare emitter is a non-nil pointer, which is all the guard needs.
+	// emitter).
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, nil))
-	emitter := parentmessaging.NewEmitter(nil)
+	emitter := &recordingGuardianWake{}
 	(&Resource{ResourceConfig: ResourceConfig{ParentEventEmitter: emitter, Logger: logger}}).
 		wakeChildGuardians(0, 100)
 	assert.Contains(t, buf.String(), "no tenant context")
+	assert.Empty(t, emitter.woken)
+
+	// A valid tenant reaches the Communication port unchanged.
+	(&Resource{ResourceConfig: ResourceConfig{ParentEventEmitter: emitter, Logger: logger}}).
+		wakeChildGuardians(42, 100)
+	assert.Equal(t, [][2]int64{{42, 100}}, emitter.woken)
+}
+
+// recordingGuardianWake records the fan-outs the Communication port receives.
+type recordingGuardianWake struct {
+	woken [][2]int64
+}
+
+func (w *recordingGuardianWake) BroadcastChildUpdateToGuardians(tenantID, studentID int64) {
+	w.woken = append(w.woken, [2]int64{tenantID, studentID})
 }

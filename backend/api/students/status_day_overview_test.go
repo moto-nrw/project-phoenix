@@ -9,13 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/students"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,11 +49,11 @@ type statusDayOverviewTestBody struct {
 	} `json:"data"`
 }
 
-type failingOverviewEducationService struct {
-	educationService.Service
+type failingOverviewSchoolGroups struct {
+	students.SchoolGroups
 }
 
-func (failingOverviewEducationService) ListGroups(context.Context, *educationModels.GroupListQuery) ([]*educationModels.Group, error) {
+func (failingOverviewSchoolGroups) ListGroups(context.Context) ([]*students.SchoolGroup, error) {
 	return nil, errors.New("group database unavailable")
 }
 
@@ -123,11 +121,10 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
-	var auditEntry auditModels.DataAccessLog
+	var auditEntry dataAccessLogRow
 	require.NoError(t, tc.db.NewSelect().
 		Model(&auditEntry).
-		ModelTableExpr(`audit.data_access_log AS "data_access_log"`).
-		Where("resource_type = ?", auditModels.ResourceTypeStudentStatusDayOverview).
+		Where("resource_type = ?", auditResourceStudentStatusDayOverview).
 		Where("tenant_id = ?", testpkg.Tenant(t)).
 		OrderExpr("id DESC").
 		Limit(1).
@@ -314,9 +311,8 @@ func TestGetStudentStatusDaysOverview_ServiceUnavailableFailsClosed(t *testing.T
 	tc.resource.AbsenceOverview = nil
 
 	before, err := tc.db.NewSelect().
-		Model((*auditModels.DataAccessLog)(nil)).
-		ModelTableExpr(`audit.data_access_log AS "data_access_log"`).
-		Where("resource_type = ?", auditModels.ResourceTypeStudentStatusDayOverview).
+		Model((*dataAccessLogRow)(nil)).
+		Where("resource_type = ?", auditResourceStudentStatusDayOverview).
 		Count(context.Background())
 	require.NoError(t, err)
 
@@ -326,9 +322,8 @@ func TestGetStudentStatusDaysOverview_ServiceUnavailableFailsClosed(t *testing.T
 	assert.Contains(t, rr.Body.String(), "absence overview service is not configured")
 
 	after, err := tc.db.NewSelect().
-		Model((*auditModels.DataAccessLog)(nil)).
-		ModelTableExpr(`audit.data_access_log AS "data_access_log"`).
-		Where("resource_type = ?", auditModels.ResourceTypeStudentStatusDayOverview).
+		Model((*dataAccessLogRow)(nil)).
+		Where("resource_type = ?", auditResourceStudentStatusDayOverview).
 		Count(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, before, after)
@@ -338,7 +333,7 @@ func TestGetStudentStatusDaysOverview_GroupLookupFailureIsServerError(t *testing
 	t.Parallel()
 
 	tc := setupStudentsRoute(t)
-	tc.resource.EducationService = failingOverviewEducationService{Service: tc.resource.EducationService}
+	tc.resource.SchoolGroups = failingOverviewSchoolGroups{SchoolGroups: tc.resource.SchoolGroups}
 
 	req := testutil.NewRequest("GET", "/status-days", nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})

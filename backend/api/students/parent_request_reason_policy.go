@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -20,7 +19,7 @@ func (rs *Resource) staffReasonRequired(r *http.Request) bool {
 	if rs.SettingsService == nil {
 		return true
 	}
-	policy, err := rs.SettingsService.ResolveString(r.Context(), configModels.KeyParentRequestReasonPolicy)
+	policy, err := rs.SettingsService.ResolveString(r.Context(), settingParentRequestReasonPolicy)
 	if err != nil {
 		slog.WarnContext(r.Context(), "resolve parent request reason policy failed, requiring a reason",
 			slog.String("error", err.Error()),

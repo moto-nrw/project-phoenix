@@ -43,9 +43,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -111,11 +111,11 @@ func enableStudentPhotos(t *testing.T, tc *testContext) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 	require.NoError(t,
-		tc.resource.SettingsService.SetValue(ctx, configModel.KeyStudentPhotosEnabled, true, nil, nil),
+		tc.settings().SetValue(ctx, settings.KeyStudentPhotosEnabled, true, nil, nil),
 		"enable student_photos_enabled",
 	)
 	t.Cleanup(func() {
-		_ = tc.resource.SettingsService.ResetValue(ctx, configModel.KeyStudentPhotosEnabled, nil, nil)
+		_ = tc.settings().ResetValue(ctx, settings.KeyStudentPhotosEnabled, nil, nil)
 	})
 }
 

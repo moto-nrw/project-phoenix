@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -71,11 +70,11 @@ func (rs *Resource) canManageStudentStatus(ctx context.Context, userPermissions 
 	if rs.SettingsService == nil {
 		return false, errors.New("absence edit settings unavailable")
 	}
-	scope, err := rs.SettingsService.ResolveString(ctx, configModel.KeyStudentAbsenceEditScope)
+	scope, err := rs.SettingsService.ResolveString(ctx, settingStudentAbsenceEditScope)
 	if err != nil {
 		return false, err
 	}
-	if scope != configModel.StudentAbsenceEditScopeAllStaff {
+	if scope != studentAbsenceEditScopeAllStaff {
 		return false, errors.New("direct absence reports require an OGS admin")
 	}
 	return true, nil
@@ -137,7 +136,7 @@ func (rs *Resource) checkStudentReadAccess(r *http.Request, student *users.Stude
 
 // buildSupervisorContacts creates supervisor contact list from group teachers
 func (rs *Resource) buildSupervisorContacts(ctx context.Context, groupID int64) []SupervisorContact {
-	teachers, err := rs.EducationService.GetGroupTeachers(ctx, groupID)
+	teachers, err := rs.SchoolGroups.GetGroupTeachers(ctx, groupID)
 	if err != nil {
 		return nil
 	}

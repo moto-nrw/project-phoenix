@@ -18,37 +18,49 @@ import (
 
 // Keys of the tenant settings other owners read.
 const (
-	KeyAnalyticsFreigabe                  = configModel.KeyAnalyticsFreigabe
-	KeyAnalyticsRecordingSamplePercent    = configModel.KeyAnalyticsRecordingSamplePercent
-	KeyAttendanceEditScope                = configModel.KeyAttendanceEditScope
-	KeyAttendanceLogEnabled               = configModel.KeyAttendanceLogEnabled
-	KeyAttendanceNFCEnabled               = configModel.KeyAttendanceNFCEnabled
-	KeyAttendanceWebEnabled               = configModel.KeyAttendanceWebEnabled
-	KeyCalendarCalDAVEnabled              = configModel.KeyCalendarCalDAVEnabled
-	KeyCareConcept                        = configModel.KeyCareConcept
-	KeyDisplayEnabled                     = configModel.KeyDisplayEnabled
-	KeyEmergencyListHealthInfo            = configModel.KeyEmergencyListHealthInfo
-	KeyEnrollmentCareOfferingsEnabled     = configModel.KeyEnrollmentCareOfferingsEnabled
-	KeyEnrollmentGradeLevelMax            = configModel.KeyEnrollmentGradeLevelMax
-	KeyEnrollmentLegalAGBDocumentURL      = configModel.KeyEnrollmentLegalAGBDocumentURL
-	KeyEnrollmentWaitlistEnabled          = configModel.KeyEnrollmentWaitlistEnabled
-	KeyGroupMode                          = configModel.KeyGroupMode
-	KeyOperationalOverviewScope           = configModel.KeyOperationalOverviewScope
-	KeyParentNotesEnabled                 = configModel.KeyParentNotesEnabled
-	KeyParentRequestReasonPolicy          = configModel.KeyParentRequestReasonPolicy
-	KeyPresenceMode                       = configModel.KeyPresenceMode
-	KeyStaffMessagingEnabled              = configModel.KeyStaffMessagingEnabled
-	KeyStudentAbsenceEditScope            = configModel.KeyStudentAbsenceEditScope
-	KeyStudentPhotosEnabled               = configModel.KeyStudentPhotosEnabled
-	KeyTimetableChildrenPerStaffRatio     = configModel.KeyTimetableChildrenPerStaffRatio
-	KeyTimetableEnabled                   = configModel.KeyTimetableEnabled
-	KeyTimetableEnforcePlannedEnd         = configModel.KeyTimetableEnforcePlannedEnd
-	KeyTimetableShowExpectedChildrenCount = configModel.KeyTimetableShowExpectedChildrenCount
-	KeyTrackingIndicatorsEnabled          = configModel.KeyTrackingIndicatorsEnabled
-	KeyTrackingIndicator1                 = configModel.KeyTrackingIndicator1
-	KeyTrackingIndicator2                 = configModel.KeyTrackingIndicator2
-	KeyTrackingIndicator3                 = configModel.KeyTrackingIndicator3
-	KeyWebSpontaneousActivities           = configModel.KeyWebSpontaneousActivities
+	KeyAnalyticsFreigabe                     = configModel.KeyAnalyticsFreigabe
+	KeyAnalyticsRecordingSamplePercent       = configModel.KeyAnalyticsRecordingSamplePercent
+	KeyAttendanceEditScope                   = configModel.KeyAttendanceEditScope
+	KeyAttendanceLogEnabled                  = configModel.KeyAttendanceLogEnabled
+	KeyAttendanceNFCEnabled                  = configModel.KeyAttendanceNFCEnabled
+	KeyAttendanceVisibleDays                 = configModel.KeyAttendanceVisibleDays
+	KeyAttendanceWebEnabled                  = configModel.KeyAttendanceWebEnabled
+	KeyCalendarCalDAVEnabled                 = configModel.KeyCalendarCalDAVEnabled
+	KeyCareConcept                           = configModel.KeyCareConcept
+	KeyCareDefaultArrivalTime                = configModel.KeyCareDefaultArrivalTime
+	KeyCareDefaultPickupTime                 = configModel.KeyCareDefaultPickupTime
+	KeyClassArrivalExceptionEditors          = configModel.KeyClassArrivalExceptionEditors
+	KeyDisplayEnabled                        = configModel.KeyDisplayEnabled
+	KeyEmergencyListHealthInfo               = configModel.KeyEmergencyListHealthInfo
+	KeyEnrollmentBookingsAuthoritative       = configModel.KeyEnrollmentBookingsAuthoritative
+	KeyEnrollmentCareOfferingsEnabled        = configModel.KeyEnrollmentCareOfferingsEnabled
+	KeyEnrollmentGradeLevelMax               = configModel.KeyEnrollmentGradeLevelMax
+	KeyEnrollmentLegalAGBDocumentURL         = configModel.KeyEnrollmentLegalAGBDocumentURL
+	KeyEnrollmentWaitlistEnabled             = configModel.KeyEnrollmentWaitlistEnabled
+	KeyFeedbackEnabled                       = configModel.KeyFeedbackEnabled
+	KeyGroupMode                             = configModel.KeyGroupMode
+	KeyOperationalOverviewScope              = configModel.KeyOperationalOverviewScope
+	KeyParentAbsenceReviewScope              = configModel.KeyParentAbsenceReviewScope
+	KeyParentNotesEnabled                    = configModel.KeyParentNotesEnabled
+	KeyParentRequestGroupLeaderReviewEnabled = configModel.KeyParentRequestGroupLeaderReviewEnabled
+	KeyParentRequestReasonPolicy             = configModel.KeyParentRequestReasonPolicy
+	KeyPresenceMode                          = configModel.KeyPresenceMode
+	KeyPrivacyConsentRetentionDays           = configModel.KeyPrivacyConsentRetentionDays
+	KeyRequirePickupOfferingReview           = configModel.KeyRequirePickupOfferingReview
+	KeyRoomDetailVisibleDays                 = configModel.KeyRoomDetailVisibleDays
+	KeySessionEndTime                        = configModel.KeySessionEndTime
+	KeyStaffMessagingEnabled                 = configModel.KeyStaffMessagingEnabled
+	KeyStudentAbsenceEditScope               = configModel.KeyStudentAbsenceEditScope
+	KeyStudentPhotosEnabled                  = configModel.KeyStudentPhotosEnabled
+	KeyTimetableChildrenPerStaffRatio        = configModel.KeyTimetableChildrenPerStaffRatio
+	KeyTimetableEnabled                      = configModel.KeyTimetableEnabled
+	KeyTimetableEnforcePlannedEnd            = configModel.KeyTimetableEnforcePlannedEnd
+	KeyTimetableShowExpectedChildrenCount    = configModel.KeyTimetableShowExpectedChildrenCount
+	KeyTrackingIndicator1                    = configModel.KeyTrackingIndicator1
+	KeyTrackingIndicator2                    = configModel.KeyTrackingIndicator2
+	KeyTrackingIndicator3                    = configModel.KeyTrackingIndicator3
+	KeyTrackingIndicatorsEnabled             = configModel.KeyTrackingIndicatorsEnabled
+	KeyWebSpontaneousActivities              = configModel.KeyWebSpontaneousActivities
 )
 
 // Values of the enumerated settings above.
@@ -66,6 +78,7 @@ const (
 	OverviewScopeAllStaff = configModel.OverviewScopeAllStaff
 	OverviewScopeOwn      = configModel.OverviewScopeOwn
 
+	PresenceModeBinary   = configModel.PresenceModeBinary
 	PresenceModeDetailed = configModel.PresenceModeDetailed
 
 	ReasonPolicyBoth      = configModel.ReasonPolicyBoth
@@ -73,8 +86,24 @@ const (
 	ReasonPolicyNobody    = configModel.ReasonPolicyNobody
 	ReasonPolicyStaff     = configModel.ReasonPolicyStaff
 
+	StudentAbsenceEditScopeAdmins   = configModel.StudentAbsenceEditScopeAdmins
 	StudentAbsenceEditScopeAllStaff = configModel.StudentAbsenceEditScopeAllStaff
+
+	ClassArrivalExceptionEditorsAllStaff = configModel.ClassArrivalExceptionEditorsAllStaff
+
+	ParentAbsenceReviewScopeAdmins       = configModel.ParentAbsenceReviewScopeAdmins
+	ParentAbsenceReviewScopeAllStaff     = configModel.ParentAbsenceReviewScopeAllStaff
+	ParentAbsenceReviewScopeGroupLeaders = configModel.ParentAbsenceReviewScopeGroupLeaders
 )
+
+// SchoolPeriodCount is the number of lessons a school day may name.
+const SchoolPeriodCount = configModel.SchoolPeriodCount
+
+// SchoolPeriodEndKey returns the key of one lesson's end time; period is
+// 1-based up to SchoolPeriodCount.
+func SchoolPeriodEndKey(period int) string {
+	return configModel.SchoolPeriodEndKey(period)
+}
 
 // TenantReader resolves one tenant's settings outside its tenant middleware:
 // the tenant override, else the registry default.

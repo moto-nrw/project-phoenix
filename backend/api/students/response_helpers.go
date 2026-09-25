@@ -12,7 +12,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -23,7 +22,7 @@ import (
 type StudentResponseOpts struct {
 	Student          *users.Student
 	Person           *users.Person
-	Group            *education.Group
+	Group            *SchoolGroup
 	HasFullAccess    bool
 	LocationOverride *string
 	// Resolve once per request and thread through — populatePhotoFields
@@ -39,7 +38,7 @@ type StudentResponseServices struct {
 
 // populatePersonAndGroupData fills the response with person and group information
 // based on access level permissions
-func populatePersonAndGroupData(response *StudentResponse, person *users.Person, student *users.Student, group *education.Group, hasFullAccess bool) {
+func populatePersonAndGroupData(response *StudentResponse, person *users.Person, student *users.Student, group *SchoolGroup, hasFullAccess bool) {
 	if person != nil {
 		response.FirstName = person.FirstName
 		response.LastName = person.LastName
@@ -413,7 +412,7 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 
 // newStudentResponseFromSnapshot creates a student response using pre-loaded snapshot data
 // This eliminates N+1 queries by using cached person, group, and location data
-func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, snapshot *common.StudentDataSnapshot, photosEnabled bool) StudentResponse {
+func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, person *users.Person, group *SchoolGroup, hasFullAccess bool, snapshot *common.StudentDataSnapshot, photosEnabled bool) StudentResponse {
 	response := StudentResponse{
 		ID:          student.ID,
 		PersonID:    student.PersonID,
@@ -629,11 +628,11 @@ func (rs *Resource) getPersonForStudent(w http.ResponseWriter, r *http.Request, 
 }
 
 // getStudentGroup fetches the group for a student if they have one assigned
-func (rs *Resource) getStudentGroup(ctx context.Context, student *users.Student) *education.Group {
+func (rs *Resource) getStudentGroup(ctx context.Context, student *users.Student) *SchoolGroup {
 	if student.GroupID == nil {
 		return nil
 	}
-	group, err := rs.EducationService.GetGroup(ctx, *student.GroupID)
+	group, err := rs.SchoolGroups.GetGroup(ctx, *student.GroupID)
 	if err != nil {
 		return nil
 	}
@@ -641,11 +640,11 @@ func (rs *Resource) getStudentGroup(ctx context.Context, student *users.Student)
 }
 
 // fetchStudentGroup retrieves group data if the student has an assigned group
-func (rs *Resource) fetchStudentGroup(ctx context.Context, groupID *int64) *education.Group {
+func (rs *Resource) fetchStudentGroup(ctx context.Context, groupID *int64) *SchoolGroup {
 	if groupID == nil {
 		return nil
 	}
-	group, err := rs.EducationService.GetGroup(ctx, *groupID)
+	group, err := rs.SchoolGroups.GetGroup(ctx, *groupID)
 	if err != nil {
 		return nil
 	}
@@ -681,12 +680,34 @@ func (rs *Resource) filterStudentIDsByGroups(ctx context.Context, studentIDs []i
 	return filtered, nil
 }
 
+// loadStudentListData bulk-loads what a student list renders besides the
+// student rows: persons and locations into the shared snapshot, and the
+// groups from School Structure. It prevents N+1 reads per listed child.
+func (rs *Resource) loadStudentListData(ctx context.Context, students []*users.Student) (*common.StudentDataSnapshot, map[int64]*SchoolGroup, error) {
+	studentIDs, personIDs, groupIDs := collectIDsFromStudents(students)
+	dataSnapshot, err := common.LoadStudentDataSnapshot(ctx, rs.PersonService, nil, rs.ActiveService, studentIDs, personIDs, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(groupIDs) == 0 {
+		return dataSnapshot, map[int64]*SchoolGroup{}, nil
+	}
+	if rs.SchoolGroups == nil {
+		return nil, nil, errors.New("school groups are not configured")
+	}
+	groups, err := rs.SchoolGroups.GetGroupsByIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load student snapshot groups: %w", err)
+	}
+	return dataSnapshot, groups, nil
+}
+
 // buildStudentResponses builds filtered student responses
-func (rs *Resource) buildStudentResponses(ctx context.Context, students []*users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot, photosEnabled bool) []StudentResponse {
+func (rs *Resource) buildStudentResponses(ctx context.Context, students []*users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot, groups map[int64]*SchoolGroup, photosEnabled bool) []StudentResponse {
 	responses := make([]StudentResponse, 0, len(students))
 
 	for _, student := range students {
-		response := rs.buildSingleStudentResponse(ctx, student, params, accessCtx, dataSnapshot, photosEnabled)
+		response := rs.buildSingleStudentResponse(ctx, student, params, accessCtx, dataSnapshot, groups, photosEnabled)
 		if response != nil {
 			responses = append(responses, *response)
 		}
@@ -696,7 +717,7 @@ func (rs *Resource) buildStudentResponses(ctx context.Context, students []*users
 }
 
 // buildSingleStudentResponse builds a response for a single student, returning nil if filtered out
-func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot, photosEnabled bool) *StudentResponse {
+func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot, groups map[int64]*SchoolGroup, photosEnabled bool) *StudentResponse {
 	hasFullAccess := accessCtx.HasFullAccessToStudent(student)
 
 	// Get person data from snapshot
@@ -716,10 +737,10 @@ func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *use
 		return nil
 	}
 
-	// Get group data from snapshot
-	var group *education.Group
+	// Get group data from the bulk-loaded groups
+	var group *SchoolGroup
 	if student.GroupID != nil {
-		group = dataSnapshot.GetGroup(*student.GroupID)
+		group = groups[*student.GroupID]
 	}
 
 	// Build response
