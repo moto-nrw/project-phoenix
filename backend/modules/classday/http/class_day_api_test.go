@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -30,7 +29,7 @@ import (
 func setupClassDayRoute(t *testing.T) (*testpkg.DB, chi.Router) {
 	t.Helper()
 	db, factory := testutil.SetupClassDayModule(t)
-	return db, classdayhttp.NewResource(classdayCompose.NewClassDay(classdayCompose.ClassDayDependencies{Reports: factory.EnrollmentReport, Caller: factory.UserContext}), db, nil).SchoolRouter()
+	return db, classdayhttp.NewResource(factory.ClassDay, db, nil).SchoolRouter()
 }
 
 func TestClassDayAPI(t *testing.T) {

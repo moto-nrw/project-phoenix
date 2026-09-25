@@ -22,7 +22,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -52,7 +51,7 @@ func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoo
 	t.Helper()
 
 	db, services := testutil.SetupSchoolModule(t, clocks...)
-	classDayResource := classdayhttp.NewResource(classdayCompose.NewClassDay(classdayCompose.ClassDayDependencies{Reports: services.EnrollmentReport, Caller: services.UserContext}), db, nil)
+	classDayResource := classdayhttp.NewResource(services.ClassDay, db, nil)
 	timetableResource := timetable.NewResource(timetable.Dependencies{
 		OperationsService: services.TimetableOperations,
 		SupervisionSheets: services.TimetableSupervisionSheets, SettingsService: services.Settings,

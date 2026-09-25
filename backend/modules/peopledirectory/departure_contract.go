@@ -9,7 +9,18 @@ type (
 	DepartureMode         = departure.DepartureMode
 	DepartureDays         = departure.DepartureDays
 	AllowedDepartureModes = departure.AllowedDepartureModes
+	// CompanionLink is one "läuft mit" companion of a child with the
+	// weekdays they walk together.
+	CompanionLink = departure.CompanionLink
 )
+
+// FilterCompanionLinksToDays keeps only the weekdays the given set allows.
+func FilterCompanionLinksToDays(links []CompanionLink, allowedDays map[string]bool) []CompanionLink {
+	return departure.FilterCompanionLinksToDays(links, allowedDays)
+}
+
+// FormatCompanionLinks renders the "läuft mit" links for the offline lists.
+func FormatCompanionLinks(links []CompanionLink) string { return departure.FormatCompanionLinks(links) }
 
 const (
 	BusDayMonday            = departure.BusDayMonday

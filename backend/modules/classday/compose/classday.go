@@ -5,17 +5,32 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
-// DayReportReader is the slice of the enrollment report service the school
-// portal reads.
-type DayReportReader interface {
-	ClassDay(ctx context.Context, schoolClass string, date timezone.Date, actorAccountID int64, actorRole string) (*enrollment.ClassDayReport, error)
-}
+// Ports the composition root binds for the school-portal capability.
+type (
+	DayRoster                = application.DayRoster
+	DayRosterRow             = application.DayRosterRow
+	DayRosterStudent         = application.DayRosterStudent
+	DayRosters               = application.DayRosters
+	StatusDayEntry           = application.StatusDayEntry
+	StatusDays               = application.StatusDays
+	Companions               = application.Companions
+	SheetStudent             = application.SheetStudent
+	SheetPerson              = application.SheetPerson
+	SheetStudents            = application.SheetStudents
+	EmergencyContactRow      = application.EmergencyContactRow
+	EmergencyContacts        = application.EmergencyContacts
+	AccessRecord             = application.AccessRecord
+	AccessLog                = application.AccessLog
+	BlockStarts              = application.BlockStarts
+	ArrivalScheduleAnnouncer = application.ArrivalScheduleAnnouncer
+)
 
 // CallerReader is the slice of the user-context service the school portal
 // resolves the caller with.
@@ -26,38 +41,67 @@ type CallerReader interface {
 	CurrentStaffID(ctx context.Context) (staffID int64, found bool, err error)
 }
 
-// ClassDayDependencies wires the school-portal capability. ArrivalExceptions
-// is the one write seam of moto schule (#2970); nil leaves its routes
-// answering "not configured".
-type ClassDayDependencies struct {
-	Reports           DayReportReader
-	Caller            CallerReader
-	ArrivalExceptions enrollment.ClassDayArrivalExceptionService
+// WriteScopeReader is the slice of the settings service the arrival
+// exceptions resolve operations.school_portal_write_scope with.
+type WriteScopeReader interface {
+	ResolveString(ctx context.Context, key string) (string, error)
 }
 
-// NewClassDay composes the school-portal capability over the retained
-// enrollment report, the arrival-exception service and the identity chain.
+// ClassDayDependencies wires the school-portal capability: the day report
+// over Enrollment's day roster and Care Plan's day facts, the supervision
+// sheet, and the one write seam of moto schule (#2970). A nil
+// ClassArrivalExceptions leaves the exception routes answering "not
+// configured".
+type ClassDayDependencies struct {
+	Caller                 CallerReader
+	Rosters                DayRosters
+	StatusDays             StatusDays
+	PickupTimes            PickupTimeReader
+	ArrivalTimes           ArrivalTimeReader
+	CareDays               CareDayResolver
+	Companions             Companions
+	Students               SheetStudents
+	EmergencyContacts      EmergencyContacts
+	AccessLog              AccessLog
+	ClassArrivalExceptions careplan.ClassArrivalExceptions
+	Settings               WriteScopeReader
+	BlockStarts            BlockStarts
+	Announcer              ArrivalScheduleAnnouncer
+}
+
+// NewClassDay composes the school-portal capability.
 func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
-	var exceptions ports.ArrivalExceptions
-	if deps.ArrivalExceptions != nil {
-		exceptions = arrivalExceptionBinding{service: deps.ArrivalExceptions}
-	}
 	var caller ports.Caller
 	if deps.Caller != nil {
 		caller = callerBinding{context: deps.Caller}
 	}
-	var reports ports.DayReports
-	if deps.Reports != nil {
-		reports = reportBinding{reports: deps.Reports}
+	var writeScope application.ArrivalWriteScope
+	if deps.Settings != nil {
+		writeScope = writeScopeBinding{settings: deps.Settings}
 	}
-	return application.NewClassDay(application.ClassDayDependencies{
-		Caller: caller, Reports: reports, ArrivalExceptions: exceptions,
-	})
+	app := application.ClassDayDependencies{
+		Caller: caller, Rosters: deps.Rosters, StatusDays: deps.StatusDays,
+		Companions: deps.Companions, Students: deps.Students, EmergencyContacts: deps.EmergencyContacts,
+		AccessLog: deps.AccessLog, WriteScope: writeScope, Announcer: deps.Announcer,
+	}
+	if deps.PickupTimes != nil && deps.ArrivalTimes != nil {
+		app.Times = dayTimeBinding{pickups: deps.PickupTimes, arrivals: deps.ArrivalTimes}
+	}
+	if deps.CareDays != nil {
+		app.CareDays = careDayBinding{resolver: deps.CareDays}
+	}
+	if deps.ClassArrivalExceptions != nil {
+		app.ClassArrivalExceptions = classArrivalExceptionBinding{store: deps.ClassArrivalExceptions}
+	}
+	if deps.BlockStarts != nil {
+		app.BlockStarts = blockStartBinding{starts: deps.BlockStarts}
+	}
+	return application.NewClassDay(app)
 }
 
-// mappedError keeps the retained service's message on the wire while
-// answering errors.Is for the projection's sentinel, so the HTTP adapter
-// classifies the outcome without the client reading a different text.
+// mappedError keeps Care Plan's message on the wire while answering
+// errors.Is for the projection's sentinel, so the HTTP adapter classifies
+// the outcome without the client reading a different text.
 type mappedError struct {
 	err      error
 	sentinel error
@@ -69,63 +113,118 @@ func (e mappedError) Is(target error) bool {
 	return target == e.sentinel
 }
 
-func mapError(err error, pairs ...errorPair) error {
-	for _, pair := range pairs {
-		if errors.Is(err, pair.legacy) {
+// arrivalExceptionErrors pairs Care Plan's refusals of a class-wide arrival
+// exception with the projection's sentinels.
+var arrivalExceptionErrors = []struct {
+	owner    error
+	sentinel error
+}{
+	{owner: careplan.ErrClassArrivalExceptionPastDate, sentinel: classday.ErrArrivalExceptionPastDate},
+	{owner: careplan.ErrClassArrivalExceptionWeekend, sentinel: classday.ErrArrivalExceptionWeekend},
+	{owner: careplan.ErrClassArrivalExceptionClassNotFound, sentinel: classday.ErrArrivalExceptionClassNotFound},
+	{owner: careplan.ErrClassArrivalExceptionNotFound, sentinel: classday.ErrArrivalExceptionNotFound},
+	{owner: careplan.ErrClassArrivalExceptionNotConfigured, sentinel: ports.ErrClassArrivalExceptionsNotConfigured},
+}
+
+func mapArrivalExceptionError(err error) error {
+	for _, pair := range arrivalExceptionErrors {
+		if errors.Is(err, pair.owner) {
 			return mappedError{err: err, sentinel: pair.sentinel}
 		}
 	}
 	return err
 }
 
-type errorPair struct {
-	legacy   error
-	sentinel error
+// dayTimeBinding reads Care Plan's effective pickup and arrival times.
+type dayTimeBinding struct {
+	pickups  PickupTimeReader
+	arrivals ArrivalTimeReader
 }
 
-var arrivalExceptionErrors = []errorPair{
-	{legacy: enrollment.ErrClassDayArrivalExceptionPastDate, sentinel: classday.ErrArrivalExceptionPastDate},
-	{legacy: enrollment.ErrClassDayArrivalExceptionWeekend, sentinel: classday.ErrArrivalExceptionWeekend},
-	{legacy: enrollment.ErrClassDayArrivalExceptionClassNotFound, sentinel: classday.ErrArrivalExceptionClassNotFound},
-	{legacy: enrollment.ErrClassDayArrivalExceptionNotFound, sentinel: classday.ErrArrivalExceptionNotFound},
-}
-
-type reportBinding struct{ reports DayReportReader }
-
-func (b reportBinding) ClassDay(ctx context.Context, schoolClass string, date timezone.Date, actor classday.Actor) (*classday.DayReport, error) {
-	report, err := b.reports.ClassDay(ctx, schoolClass, date, actor.AccountID, actor.Roles)
+func (b dayTimeBinding) EffectivePickups(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]application.EffectivePickup, error) {
+	effective, err := b.pickups.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, date)
 	if err != nil {
-		return nil, mapError(err, errorPair{legacy: enrollment.ErrReportInvalidFilter, sentinel: classday.ErrInvalidReportFilter})
+		return nil, err
 	}
-	return dayReportFromEnrollment(report), nil
+	out := make(map[int64]application.EffectivePickup, len(effective))
+	for studentID, entry := range effective {
+		if entry != nil {
+			out[studentID] = application.EffectivePickup{
+				PickupTime: entry.PickupTime, RegularPickupTime: entry.RegularPickupTime,
+				IsException: entry.IsException, ChangedAt: entry.ChangedAt,
+			}
+		}
+	}
+	return out, nil
 }
 
-// dayReportFromEnrollment projects the enrollment report onto the public
-// contract. Rows, totals and the class exception convert as struct types, so
-// the compiler refuses a field the two sides do not share; the wire golden
-// and the class-day HTTP tests pin the JSON tags.
-func dayReportFromEnrollment(report *enrollment.ClassDayReport) *classday.DayReport {
-	if report == nil {
-		return nil
+func (b dayTimeBinding) EffectiveArrivals(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]application.EffectiveArrival, error) {
+	effective, err := b.arrivals.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, date)
+	if err != nil {
+		return nil, err
 	}
-	out := &classday.DayReport{
-		SchoolClass:     report.SchoolClass,
-		Date:            classday.Date(report.Date.String()),
-		Weekday:         report.Weekday,
-		SchoolDay:       report.SchoolDay,
-		PhaseName:       report.PhaseName,
-		EnrollmentKnown: report.EnrollmentKnown,
-		Totals:          classday.DayTotals(report.Totals),
-		Rows:            make([]classday.DayRow, 0, len(report.Rows)),
+	out := make(map[int64]application.EffectiveArrival, len(effective))
+	for studentID, entry := range effective {
+		if entry != nil {
+			out[studentID] = application.EffectiveArrival{
+				ArrivalTime: entry.ArrivalTime, IsException: entry.IsException, ChangedAt: entry.ChangedAt,
+			}
+		}
 	}
-	for _, row := range report.Rows {
-		out.Rows = append(out.Rows, classday.DayRow(row))
+	return out, nil
+}
+
+// classArrivalExceptionBinding reads and writes Care Plan's class-wide
+// arrival day exceptions.
+type classArrivalExceptionBinding struct {
+	store careplan.ClassArrivalExceptions
+}
+
+func (b classArrivalExceptionBinding) ListClassArrivalExceptions(ctx context.Context, schoolClass string, from, to timezone.Date) ([]application.ClassArrivalException, error) {
+	rows, err := b.store.ListClassArrivalExceptions(ctx, schoolClass, from, to)
+	if err != nil {
+		return nil, mapArrivalExceptionError(err)
 	}
-	if report.ClassArrivalException != nil {
-		exception := classday.DayArrivalException(*report.ClassArrivalException)
-		out.ClassArrivalException = &exception
+	out := make([]application.ClassArrivalException, 0, len(rows))
+	for _, row := range rows {
+		if row != nil {
+			out = append(out, classArrivalException(row))
+		}
 	}
-	return out
+	return out, nil
+}
+
+func (b classArrivalExceptionBinding) UpsertClassArrivalException(ctx context.Context, in application.ClassArrivalExceptionWrite) (application.ClassArrivalException, error) {
+	row, err := b.store.UpsertClassArrivalException(ctx, careplan.ClassArrivalExceptionInput{
+		SchoolClass: in.SchoolClass, Date: in.Date, ArrivalTime: in.ArrivalTime, Reason: in.Reason, Origin: in.Origin,
+	}, in.CreatedBy)
+	if err != nil {
+		return application.ClassArrivalException{}, mapArrivalExceptionError(err)
+	}
+	return classArrivalException(row), nil
+}
+
+func (b classArrivalExceptionBinding) DeleteClassArrivalException(ctx context.Context, schoolClass string, date timezone.Date) error {
+	return mapArrivalExceptionError(b.store.DeleteClassArrivalException(ctx, schoolClass, date))
+}
+
+func classArrivalException(row *careplan.ClassArrivalException) application.ClassArrivalException {
+	return application.ClassArrivalException{
+		SchoolClass: row.SchoolClass, Date: row.Date, ArrivalTime: row.ArrivalTime,
+		Reason: row.Reason, CreatedAt: row.CreatedAt, Origin: row.Origin,
+	}
+}
+
+// blockStartBinding answers the "Unterricht fällt aus" preset with the same
+// error classification as the exception writes.
+type blockStartBinding struct{ starts BlockStarts }
+
+func (b blockStartBinding) EarliestPlannedBlockStartForClass(ctx context.Context, schoolClass string, date timezone.Date) (string, error) {
+	start, err := b.starts.EarliestPlannedBlockStartForClass(ctx, schoolClass, date)
+	if err != nil {
+		return "", mapArrivalExceptionError(err)
+	}
+	return start, nil
 }
 
 type callerBinding struct{ context CallerReader }
@@ -150,55 +249,14 @@ func (b callerBinding) StaffID(ctx context.Context) (int64, error) {
 	return staffID, nil
 }
 
-type arrivalExceptionBinding struct {
-	service enrollment.ClassDayArrivalExceptionService
-}
+// writeScopeBinding applies operations.school_portal_write_scope: only the
+// class arrival exception scope opens the school's write.
+type writeScopeBinding struct{ settings WriteScopeReader }
 
-func (b arrivalExceptionBinding) SchoolMayWrite(ctx context.Context) (bool, error) {
-	return b.service.SchoolMayWrite(ctx)
-}
-
-func (b arrivalExceptionBinding) ListForClass(ctx context.Context, schoolClass string, from, to timezone.Date) ([]classday.ArrivalException, error) {
-	entries, err := b.service.List(ctx, schoolClass, from, to)
+func (b writeScopeBinding) SchoolMayWriteClassArrivalExceptions(ctx context.Context) (bool, error) {
+	scope, err := b.settings.ResolveString(ctx, configModel.KeySchoolPortalWriteScope)
 	if err != nil {
-		return nil, mapError(err, arrivalExceptionErrors...)
+		return false, err
 	}
-	out := make([]classday.ArrivalException, 0, len(entries))
-	for _, entry := range entries {
-		out = append(out, arrivalExceptionFromEnrollment(entry))
-	}
-	return out, nil
-}
-
-func (b arrivalExceptionBinding) Set(ctx context.Context, in classday.ArrivalExceptionWrite, date timezone.Date) (*classday.ArrivalException, error) {
-	entry, err := b.service.Set(ctx, enrollment.ClassDayArrivalExceptionWrite{
-		SchoolClass: in.SchoolClass, Date: date, ArrivalTime: in.ArrivalTime, Reason: in.Reason, CreatedBy: in.CreatedBy,
-	})
-	if err != nil {
-		return nil, mapError(err, arrivalExceptionErrors...)
-	}
-	if entry == nil {
-		return nil, nil
-	}
-	mapped := arrivalExceptionFromEnrollment(*entry)
-	return &mapped, nil
-}
-
-func (b arrivalExceptionBinding) Clear(ctx context.Context, schoolClass string, date timezone.Date) error {
-	return mapError(b.service.Remove(ctx, schoolClass, date), arrivalExceptionErrors...)
-}
-
-func (b arrivalExceptionBinding) EarliestBlockStart(ctx context.Context, schoolClass string, date timezone.Date) (string, error) {
-	start, err := b.service.EarliestBlockStart(ctx, schoolClass, date)
-	if err != nil {
-		return "", mapError(err, arrivalExceptionErrors...)
-	}
-	return start, nil
-}
-
-func arrivalExceptionFromEnrollment(entry enrollment.ClassDayArrivalExceptionEntry) classday.ArrivalException {
-	return classday.ArrivalException{
-		SchoolClass: entry.SchoolClass, Date: classday.Date(entry.Date), ArrivalTime: entry.ArrivalTime,
-		Reason: entry.Reason, CreatedAt: entry.CreatedAt, Origin: entry.Origin,
-	}
+	return scope == configModel.SchoolPortalWriteScopeClassArrivalExceptions, nil
 }

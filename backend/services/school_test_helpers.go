@@ -42,7 +42,7 @@ func NewSchoolTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		Auth: auth.Auth, MFA: auth.MFA,
 		SchoolAuth:                 SchoolPortalAuthenticationOver(auth.Auth),
 		SchoolMFA:                  SchoolPortalMFAOver(auth.MFA),
-		TimetableSupervisionSheets: NewTimetableSupervisionSheets(classday.EnrollmentReport),
+		TimetableSupervisionSheets: NewTimetableSupervisionSheets(classday.ClassDay),
 	}, nil
 }
 

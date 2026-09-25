@@ -263,15 +263,19 @@ type Factory struct {
 	Delivery          *deliveryModule.Module
 
 	// Enrollment domain (parent-enrollment PR 5+).
-	EnrollmentFormSchema      enrollmentOwner.FormSchemaAdministration
-	EnrollmentCareOffering    careplan.CareOfferingCapability
-	EnrollmentCaptcha         enrollmentOwner.CaptchaVerifier
-	EnrollmentRequest         enrollment.RequestService
-	EnrollmentPhase           enrollmentOwner.PhaseAdministration
-	EnrollmentPhaseExpiry     enrollmentOwner.PhaseExpiryWarnings
-	EnrollmentDecision        enrollment.DecisionService
-	EnrollmentReport          enrollment.ReportService
-	ClassDayArrivalExceptions enrollment.ClassDayArrivalExceptionService
+	EnrollmentFormSchema   enrollmentOwner.FormSchemaAdministration
+	EnrollmentCareOffering careplan.CareOfferingCapability
+	EnrollmentCaptcha      enrollmentOwner.CaptchaVerifier
+	EnrollmentRequest      enrollment.RequestService
+	EnrollmentPhase        enrollmentOwner.PhaseAdministration
+	EnrollmentPhaseExpiry  enrollmentOwner.PhaseExpiryWarnings
+	EnrollmentDecision     enrollment.DecisionService
+	EnrollmentReport       enrollmentOwner.Reports
+	// ClassDayArrivalExceptions carries the school portal's whole class-day
+	// capability: the day report, the supervision sheet and the arrival
+	// exception write seam (#2970, #3563). The field keeps its name because
+	// the composition surface only shrinks (#2747).
+	ClassDayArrivalExceptions classday.ClassDay
 	EnrollmentRollover        enrollment.RolloverService
 	EnrollmentChangeRequest   enrollment.ChangeRequestService
 	EnrollmentDeletion        enrollment.EnrollmentDeletionService
@@ -2078,36 +2082,40 @@ func newFactory(
 		Logger:             logger.With("service", "enrollment-request"),
 	})
 
-	enrollmentReportService := enrollment.NewReportService(enrollment.ReportServiceConfig{
-		Requests:               repos.Enrollment(),
-		Children:               repos.Enrollment(),
-		Guardians:              repos.Enrollment(),
-		CareOfferingRepo:       enrollment.NewCareOfferingRepository(repos.CarePlan()),
-		Schemas:                repos.Enrollment(),
-		Phases:                 repos.Enrollment(),
-		DataAccessLogRepo:      repos.DataAccessLog,
-		StudentRepo:            repos.Student,
-		StudentGuardianRepo:    repos.StudentGuardian,
-		StudentCompanionRepo:   repositories.NewStudentCompanionRepository(repos.CarePlan()),
-		PersonRepo:             repos.Person,
-		EducationGroupRepo:     repos.Group,
-		StudentStatusDayRepo:   repos.StudentStatusDay,
-		ClassListEntries:       NewClassListEntryRosterReader(membership),
-		PickupScheduleSvc:      pickupScheduleService,
-		ArrivalScheduleSvc:     arrivalScheduleService,
-		ClassArrivalExceptions: arrivalScheduleService,
-		CareDaySvc:             careDayService,
-		Settings:               settingsService,
-		CareParticipation:      careLifecycleService,
+	enrollmentReports := newEnrollmentReports(enrollmentReportSources{
+		Owner:             repos.Enrollment(),
+		Offerings:         enrollment.NewCareOfferingRepository(repos.CarePlan()),
+		AccessLog:         repos.DataAccessLog,
+		Students:          repos.Student,
+		Persons:           repos.Person,
+		Groups:            repositories.NewGroupNames(repos.Group),
+		StudentGuardians:  repos.StudentGuardian,
+		Companions:        repositories.NewStudentCompanionRepository(repos.CarePlan()),
+		ClassListEntries:  NewClassListEntryRosterReader(membership),
+		PickupSchedules:   pickupScheduleService,
+		CareParticipation: careLifecycleService,
+		Settings:          settingsService,
 	})
-	// The class-day view's one write seam (#2970): a Lehrkraft sets the
-	// class-wide arrival day exception through moto schule.
-	classDayArrivalExceptionService := enrollment.NewClassDayArrivalExceptionService(enrollment.ClassDayArrivalExceptionConfig{
-		ArrivalSchedule: arrivalScheduleService,
-		Settings:        settingsService,
-		BlockStarts:     timetableOperationsService,
-		Broadcaster:     realtimeHub,
-		Logger:          logger.With("service", "class-day-arrival-exceptions"),
+	// The school portal's class-day capability (#2701): the day report over
+	// Enrollment's day roster, the supervision sheet (#2527) and the one
+	// write seam of moto schule (#2970).
+	classDayService := newClassDay(classDaySources{
+		Caller:                 userContextService,
+		Reports:                enrollmentReports,
+		StatusDays:             repos.StudentStatusDay,
+		PickupTimes:            pickupScheduleService,
+		ArrivalTimes:           arrivalScheduleService,
+		CareDays:               careDayService,
+		Companions:             repositories.NewStudentCompanionRepository(repos.CarePlan()),
+		Students:               repos.Student,
+		Persons:                repos.Person,
+		StudentGuardians:       repos.StudentGuardian,
+		AccessLog:              repos.DataAccessLog,
+		ClassArrivalExceptions: arrivalScheduleService,
+		Settings:               settingsService,
+		BlockStarts:            timetableOperationsService,
+		Broadcaster:            realtimeHub,
+		Logger:                 logger.With("service", "class-day-arrival-exceptions"),
 	})
 	enrollmentDecisionApplier, _ := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
 
@@ -2940,8 +2948,8 @@ func newFactory(
 		EnrollmentPhase:           enrollmentPhaseService,
 		EnrollmentPhaseExpiry:     enrollmentPhaseExpiryService,
 		EnrollmentDecision:        enrollmentDecisionService,
-		EnrollmentReport:          enrollmentReportService,
-		ClassDayArrivalExceptions: classDayArrivalExceptionService,
+		EnrollmentReport:          enrollmentReports,
+		ClassDayArrivalExceptions: classDayService,
 		EnrollmentRollover:        enrollmentRolloverService,
 		EnrollmentChangeRequest:   enrollmentChangeRequestService,
 		EnrollmentDeletion:        enrollmentDeletionService,
