@@ -386,6 +386,20 @@ jobs:
         run: |
           "${RUNNER_TEMP}/phoenix" migrate
 
+      # A request once hung here for the full 10s driver read timeout on a
+      # sub-millisecond read while no other request or pool connection was
+      # busy (run 36190757699), and the service log could not say why. With
+      # these settings the log printed at job end names a lock wait and its
+      # blocker, or a slow statement with its duration; a hang that leaves
+      # neither points at the runner rather than at the query.
+      - name: Log Postgres lock waits and slow statements
+        run: |
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 \
+            -c "ALTER SYSTEM SET log_lock_waits = on" \
+            -c "ALTER SYSTEM SET log_min_duration_statement = '1s'" \
+            -c "ALTER SYSTEM SET log_autovacuum_min_duration = '1s'" \
+            -c "SELECT pg_reload_conf()"
+
       - name: Start server
         working-directory: backend
         run: |
