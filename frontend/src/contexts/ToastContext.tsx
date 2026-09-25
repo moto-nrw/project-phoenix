@@ -425,23 +425,14 @@ interface ApiErrorDisplayOptions {
 }
 
 export function loginUrl(host: string, path: string): string {
-  if (
-    host === clientEnv.NEXT_PUBLIC_PARENTS_HOSTNAME ||
-    path.startsWith("/parents/")
-  ) {
-    return `${host === clientEnv.NEXT_PUBLIC_PARENTS_HOSTNAME ? "" : "/parents"}/login?error=SessionExpired`;
-  }
-  if (
-    host === clientEnv.NEXT_PUBLIC_SCHOOL_HOSTNAME ||
-    path.startsWith("/school/")
-  ) {
-    return `${host === clientEnv.NEXT_PUBLIC_SCHOOL_HOSTNAME ? "" : "/school"}/login?error=SessionExpired`;
-  }
-  if (
-    host === clientEnv.NEXT_PUBLIC_OPERATOR_HOSTNAME ||
-    path.startsWith("/operator/")
-  ) {
-    return `${host === clientEnv.NEXT_PUBLIC_OPERATOR_HOSTNAME ? "" : "/operator"}/login?error=SessionExpired`;
+  for (const [hostname, prefix] of [
+    [clientEnv.NEXT_PUBLIC_PARENTS_HOSTNAME, "/parents"],
+    [clientEnv.NEXT_PUBLIC_SCHOOL_HOSTNAME, "/school"],
+    [clientEnv.NEXT_PUBLIC_OPERATOR_HOSTNAME, "/operator"],
+  ]) {
+    if (host === hostname || path.startsWith(`${prefix}/`)) {
+      return `${host === hostname ? "" : prefix}/login?error=SessionExpired`;
+    }
   }
   return "/?error=SessionExpired";
 }
@@ -494,24 +485,22 @@ export function useApiErrorDisplay(
         );
         return presentation;
       }
+      const labels = errorDisplayLabels(locale);
       setFieldErrors(
         Object.fromEntries(
-          presentation.fields.map((field) => [
-            field,
-            errorDisplayLabels(locale).fieldCheck,
-          ]),
+          presentation.fields.map((field) => [field, labels.fieldCheck]),
         ),
       );
       toast.error(presentation.message, {
         action:
           presentation.retryable && options.retry
             ? {
-                label: errorDisplayLabels(locale).retry,
+                label: labels.retry,
                 onClick: options.retry,
               }
             : undefined,
         requestId: presentation.requestId,
-        requestIdLabel: errorDisplayLabels(locale).requestId,
+        requestIdLabel: labels.requestId,
       });
       return presentation;
     },
