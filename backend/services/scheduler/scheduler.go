@@ -749,7 +749,30 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 // scheduler stopped under it. Like a request the client canceled, that is no
 // defect and no Sentry event.
 func stoppedByShutdown(ctx context.Context, err error) bool {
-	return ctx.Err() != nil && errors.Is(err, context.Canceled)
+	return ctx.Err() != nil && onlyCancellationErrors(err)
+}
+
+// errors.Is on errors.Join would hide a real failure beside a cancellation.
+func onlyCancellationErrors(err error) bool {
+	if err == nil {
+		return false
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		parts := joined.Unwrap()
+		if len(parts) == 0 {
+			return false
+		}
+		for _, part := range parts {
+			if !onlyCancellationErrors(part) {
+				return false
+			}
+		}
+		return true
+	}
+	if wrapped := errors.Unwrap(err); wrapped != nil {
+		return onlyCancellationErrors(wrapped)
+	}
+	return errors.Is(err, context.Canceled)
 }
 
 // scheduleCleanupTask schedules the daily cleanup task using minute-polling.

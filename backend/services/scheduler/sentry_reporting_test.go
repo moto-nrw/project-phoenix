@@ -251,6 +251,21 @@ func TestJobRunStoppedByShutdownSendsNoEvent(t *testing.T) {
 	assert.Empty(t, transport.recorded())
 }
 
+func TestJobRunReportsCommandFailureDespiteShutdown(t *testing.T) {
+	t.Parallel()
+
+	scheduler, transport := newSentryTestScheduler(t, sentryTestSchedulerOptions{stopped: true})
+	scheduler.runJobCheck(&ScheduledTask{Name: "visit-cleanup"}, func(ctx context.Context, _ *ScheduledTask) {
+		recordJobCommandFailure(ctx, errors.New("cleanup failed"))
+		recordJobCommandFailure(ctx, context.Canceled)
+	})
+
+	events := transport.recorded()
+	require.Len(t, events, 1, "shutdown must not hide a separate command failure")
+	assert.Equal(t, "visit-cleanup", events[0].Tags["job"])
+	assert.Equal(t, []string{"job command failed", "job command failed"}, sentryBreadcrumbMessages(events[0]))
+}
+
 func TestJobRunReportsKeepTheirBreadcrumbsApart(t *testing.T) {
 	t.Parallel()
 	hub, transport := newRecordingHub(t)
