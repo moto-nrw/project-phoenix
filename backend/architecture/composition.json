@@ -2965,7 +2965,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        4025
+        4039
       ],
       "tables": []
     },
@@ -2975,7 +2975,7 @@
       "declaration": "newDeletionTestFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        40
+        43
       ],
       "tables": []
     },
@@ -3178,7 +3178,7 @@
       "declaration": "TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox",
       "target": "database/repositories.NewFactory",
       "lines": [
-        68
+        69
       ],
       "tables": [
         "enrollment.request_children",
@@ -3192,7 +3192,7 @@
       "declaration": "TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        188
+        186
       ],
       "tables": [
         "enrollment.late_invites",
@@ -3618,7 +3618,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        363
+        364
       ],
       "tables": []
     },
@@ -3628,7 +3628,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_FreeSlotComesBackSubmitted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        302
+        303
       ],
       "tables": []
     },
@@ -3638,8 +3638,8 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity",
       "target": "database/repositories.NewFactory",
       "lines": [
-        409,
-        418
+        410,
+        419
       ],
       "tables": []
     },
@@ -3649,7 +3649,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_RejectModeFailsWhenFull",
       "target": "database/repositories.NewFactory",
       "lines": [
-        461
+        462
       ],
       "tables": []
     },
@@ -3659,7 +3659,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        263
+        264
       ],
       "tables": []
     },
@@ -3669,7 +3669,7 @@
       "declaration": "newRestoreDecisionServiceForRequestEnv",
       "target": "database/repositories.NewFactory",
       "lines": [
-        218
+        219
       ],
       "tables": []
     },
@@ -3679,7 +3679,7 @@
       "declaration": "setupRolloverTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        64
+        63
       ],
       "tables": [
         "auth.accounts",

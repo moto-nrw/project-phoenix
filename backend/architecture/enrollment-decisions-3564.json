@@ -1,0 +1,139 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3020",
+    "#2733",
+    "#3563"
+  ],
+  "owner_and_capability": "Enrollment — decision flow, restore, rollover, admin deletion, retention cleanup and the shared capacity gate in modules/enrollment, published as enrollment.Decisions, ApprovedChildChanges, Rollovers, EnrollmentDeletions, RejectedEnrollmentCleaner and OfferingCapacity (#3564)",
+  "affected_packages": [
+    "services/enrollment",
+    "services",
+    "api/enrollment",
+    "api/testutil",
+    "database/repositories",
+    "database/repositories/users",
+    "models/base",
+    "models/enrollment",
+    "models/users",
+    "modules/enrollment",
+    "modules/enrollment/compose",
+    "modules/enrollment/enrollmenttest",
+    "modules/enrollment/internal/adapters/postgres",
+    "modules/enrollment/internal/application",
+    "modules/enrollment/integration",
+    "modules/securityruntime",
+    "workflows/parentportal"
+  ],
+  "affected_tables": [
+    "enrollment.requests",
+    "enrollment.request_children",
+    "enrollment.request_guardians",
+    "enrollment.phases",
+    "enrollment.late_invites",
+    "users.students",
+    "users.persons",
+    "users.guardian_profiles",
+    "users.guardian_phone_numbers",
+    "users.student_guardian_relationships",
+    "schedule.student_pickup_schedules",
+    "schedule.student_arrival_schedules",
+    "audit.data_access_log",
+    "audit.enrollment_restorations",
+    "audit.enrollment_offering_adjustments",
+    "audit.guardian_financial_change_ledger",
+    "audit.enrollment_deletions",
+    "platform.email_outbox"
+  ],
+  "exact_ratchet_keys": [
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/enrollment|github.com/moto-nrw/project-phoenix/models/audit",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/base",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/tenant",
+    "production|database.direct-access|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/uptrace/bun.DB.RunInTx",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/enrollment|github.com/moto-nrw/project-phoenix/models/audit",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/audit",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/schedule",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/realtime",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/services/import"
+  ],
+  "atomic_cutover": "The decision flow, restore, rollover, admin deletion, deletion preview and retention cleanup move from services/enrollment into the Enrollment application with the capacity gate, the status token, the submission lock key and the request sentinels; the thirteen retained files and three helper files are deleted with no second provider. People Directory rows, the audit trails, the settings, the realtime hub, the weekly schedules and the outbox reach the application through ports that services and database/repositories bind; every write keeps the ambient tenant transaction. services/enrollment keeps a decoding facade over the public contract for the retained intake, change-request and scheduler consumers until #3565.",
+  "tests": [
+    "The decision helper, guardian resolution, school class, enrollment window, rollover grade and validation, targeted field and retention cleanup unit suites run in modules/enrollment/internal/application against fakes of the new ports.",
+    "The retention cleanup savepoint suite runs in modules/enrollment/integration over the real tenant runtime.",
+    "The decision, restore, rollover, deletion, rejected cleanup concurrency and n+1 query budget suites in services/enrollment compose the flow the way the root does through api/testutil.",
+    "scripts/backend-architecture.sh check and scripts/test-changed.sh origin/development without --fast verify the architecture ratchet and affected packages."
+  ],
+  "runtime_evidence": {
+    "source": "The PR on the #3564 branch after the decision, rollover and deletion cutover. The PR description records the local architecture, lint, vet and changed-package test runs; the evidence is behavioral and structural, not a latency benchmark.",
+    "sources": [
+      "backend/modules/enrollment/internal/application/guardian_resolve_test.go",
+      "backend/modules/enrollment/internal/application/rejected_cleanup_test.go",
+      "backend/modules/enrollment/integration/rejected_cleanup_savepoint_test.go",
+      "backend/services/enrollment/decision_service_test.go",
+      "backend/services/enrollment/deletion_service_integration_test.go"
+    ],
+    "workload": "Affected Go package suites against the local PostgreSQL test database, the moved unit suites and source-level architecture checks.",
+    "thresholds": "No new forbidden import, rule or composition target; ten listed legacy keys retired; the moved suites retain their assertions and scripts/backend-architecture.sh check passes.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "This cutover changes implementation ownership and bindings, not the schema or row-update statements; every write keeps its columns and transaction."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The n+1 query budget suites of the decision list and export run unchanged against the composed flow."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run for this code relocation; no new network round trip was added."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run for this code relocation; no new network round trip was added."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "The moved unit suites and the retained service suites pin the decision, restore, rollover and deletion error texts and sentinels."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection-pool configuration or acquisition path changes; the rollover opens its transaction through the tenant runtime instead of bun.DB.RunInTx."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No lock is added or reordered; the parent-before-children lock order and the offering row locks of the capacity gate are unchanged."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No lock order changes were intended or measured in this code relocation."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The rollover deadline worker and the retention cleanup keep their scheduler bindings and statements."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No retry policy changes."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No job queue is introduced."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The unit suites cover missing bindings, lookup failures that fail the approval closed, the savepoint rollback and release failures of the retention cleanup and the guardian ownership refusals."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No schema or data migration accompanies this code cutover; reverting the PR restores the former service implementations and bindings."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally at 513 legacy keys with a composition surface of 610."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR as a unit to restore the former services/enrollment implementations and bindings. No data cleanup is required.",
+  "exit_criterion": "Approve, reject, restore, rollover and delete run through modules/enrollment; the ten listed legacy keys are absent, no new key or rule is added, and validate-ticket --all --base-ref accepts their retirement."
+}
