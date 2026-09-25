@@ -38,7 +38,7 @@ def main():
         "SCHOOL_URL": "https://schule.demo.moto-app.de", "EMAIL_FROM_NAME": "moto Demo",
         "ADMIN_EMAIL": "admin@demo.moto-app.de", "OPERATOR_EMAIL": "operator@demo.moto-app.de",
         "OPERATOR_DISPLAY_NAME": "Demo Operator", "OGS_DEVICE_PIN": str(secrets.randbelow(900000) + 100000),
-        "SECURITY_LOGGING_ENABLED": "true", "RATE_LIMIT_ENABLED": "false", "SKIP_ENV_VALIDATION": "false",
+        "SECURITY_LOGGING_ENABLED": "true", "RATE_LIMIT_ENABLED": "true", "SKIP_ENV_VALIDATION": "false",
         # The demo request form posts from the marketing website, so its origins
         # belong here too. The encrypted file is authoritative once it exists;
         # keep this list in sync with it.
