@@ -385,6 +385,24 @@ func TestRaw_HTTPError(t *testing.T) {
 	assert.Equal(t, testpkg.HTTPStatusBadRequest, apiErr.StatusCode)
 }
 
+func TestRaw_RateLimitExposesRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	srv := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, _ *testpkg.HTTPRequest) {
+		w.Header().Set("Retry-After", "7")
+		w.WriteHeader(429)
+		_, _ = fmt.Fprint(w, `{"message":"Rate limit exceeded"}`)
+	})
+	defer srv.Close()
+
+	a := NewCommandAdapter(srv.URL, false)
+	_, status, err := a.Raw(context.Background(), AuthRef{}, "POST", "/api/students", nil, nil)
+	var apiErr *APIError
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, 429, status)
+	assert.Equal(t, "7", apiErr.RetryAfter)
+}
+
 func TestRaw_Verbose(t *testing.T) {
 	t.Parallel()
 

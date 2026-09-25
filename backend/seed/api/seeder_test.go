@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -671,6 +672,26 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	assertWithdrawalSeedTrace(t, trace)
 }
 
+func TestSeeder_Seed_RecoversFromStudentRateLimit(t *testing.T) {
+	t.Parallel()
+	trace := &fullSeedAPITrace{rateLimitStudentOnce: true}
+	srv := fullSeedAPIMock(t, trace)
+	defer srv.Close()
+
+	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{StatePath: filepath.Join(t.TempDir(), DefaultSeedStatePath)})
+	var delays []time.Duration
+	s.client.adapter.(*retryingAdapter).sleep = func(_ context.Context, delay time.Duration) error {
+		delays = append(delays, delay)
+		return nil
+	}
+	result, err := s.Seed(context.Background(), "admin@test.de", "pass", "1234")
+	require.NoError(t, err)
+	require.NotNil(t, result.Fixed)
+	require.Greater(t, result.Fixed.StudentCount, 0)
+	require.Equal(t, 1, trace.rateLimitStudentRejections)
+	require.Equal(t, []time.Duration{2 * time.Second}, delays)
+}
+
 // A long-running demo stores the same complete seed contract in its database,
 // without producing a credentials file on the sidecar filesystem.
 func TestSeeder_Seed_UsesStateSink(t *testing.T) {
@@ -867,10 +888,12 @@ func TestPrintSuccessSummary_DoesNotPanic(t *testing.T) {
 
 // fullSeedAPIMock creates a comprehensive mock server for the full seed workflow.
 type fullSeedAPITrace struct {
-	withdrawalRemovals []map[string]any
-	withdrawalPreviews int
-	withdrawalEnds     int
-	withdrawalToday    seedDate
+	withdrawalRemovals         []map[string]any
+	withdrawalPreviews         int
+	withdrawalEnds             int
+	withdrawalToday            seedDate
+	rateLimitStudentOnce       bool
+	rateLimitStudentRejections int
 }
 
 func assertWithdrawalSeedTrace(t *testing.T, trace *fullSeedAPITrace) {
@@ -916,6 +939,13 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 	return newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		mu.Lock()
 		defer mu.Unlock()
+		if trace != nil && trace.rateLimitStudentOnce && r.Method == seedHTTPMethodPost && r.URL.Path == "/api/students" {
+			trace.rateLimitStudentOnce = false
+			trace.rateLimitStudentRejections++
+			w.Header().Set("Retry-After", "2")
+			w.WriteHeader(429)
+			return
+		}
 		if weeklyMock.serve(t, w, r) {
 			return
 		}
