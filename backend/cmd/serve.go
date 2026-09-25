@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"regexp"
 	"slices"
 	"strings"
 	"syscall"
@@ -98,16 +99,23 @@ func scrubSentryEvent(event *sentry.Event) *sentry.Event {
 	// transaction name / breadcrumbs), so a failing feed request would otherwise
 	// ship a replayable capability token to Sentry. Redact it everywhere the SDK
 	// may have recorded the path.
-	event.Message = appmiddleware.RedactFeedToken(event.Message)
+	//
+	// Error texts reach Sentry as exception values and, from background work,
+	// as breadcrumbs (#3640). A mail server's rejection names the recipient's
+	// e-mail address, which must never leave for Sentry (#3590).
+	event.Message = scrubSentryText(event.Message)
 	event.Transaction = appmiddleware.RedactFeedToken(event.Transaction)
+	for i := range event.Exception {
+		event.Exception[i].Value = scrubSentryText(event.Exception[i].Value)
+	}
 	for _, bc := range event.Breadcrumbs {
 		if bc == nil {
 			continue
 		}
-		bc.Message = appmiddleware.RedactFeedToken(bc.Message)
+		bc.Message = scrubSentryText(bc.Message)
 		for key, value := range bc.Data {
 			if s, ok := value.(string); ok {
-				bc.Data[key] = appmiddleware.RedactFeedToken(s)
+				bc.Data[key] = scrubSentryText(s)
 			}
 		}
 	}
@@ -125,6 +133,14 @@ func scrubSentryEvent(event *sentry.Event) *sentry.Event {
 		}
 	}
 	return event
+}
+
+// sentryEmailAddress matches an e-mail address inside free text.
+var sentryEmailAddress = regexp.MustCompile(`[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}`)
+
+// scrubSentryText redacts feed tokens and e-mail addresses in free text.
+func scrubSentryText(s string) string {
+	return sentryEmailAddress.ReplaceAllString(appmiddleware.RedactFeedToken(s), "[email]")
 }
 
 func init() {

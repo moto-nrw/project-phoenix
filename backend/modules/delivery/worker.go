@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -57,6 +58,11 @@ type workerEngine interface {
 	Backlog(context.Context) (int, error)
 }
 
+// ErrDeadLettered fails a run in which deliveries failed for good after all
+// their attempts. That is the end of a delivery's retries, so the worker's
+// caller reports it like any failed run (#3640).
+var ErrDeadLettered = errors.New("delivery worker: deliveries failed for good after all attempts")
+
 type Worker struct{ engine workerEngine }
 
 func NewWorker(engine workerEngine) *Worker {
@@ -74,6 +80,9 @@ func (w *Worker) RunOnce(ctx context.Context, batchSize, maxAttempts int) (int, 
 		return 0, errors.New("delivery worker: max attempts must be positive")
 	}
 	stats, err := w.engine.RunOnce(ctx, batchSize, maxAttempts)
+	if err == nil && stats.DeadLettered > 0 {
+		err = fmt.Errorf("%w: %d", ErrDeadLettered, stats.DeadLettered)
+	}
 	return stats.Claimed, err
 }
 

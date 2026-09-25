@@ -17,12 +17,13 @@ func (*recordingEngine) EnqueueEmail(context.Context, EmailIntent) (Enqueued, er
 
 type recordingWorkerEngine struct {
 	batchSize, maxAttempts int
+	deadLettered           int
 	err                    error
 }
 
 func (e *recordingWorkerEngine) RunOnce(_ context.Context, batchSize, maxAttempts int) (WorkerStats, error) {
 	e.batchSize, e.maxAttempts = batchSize, maxAttempts
-	return WorkerStats{Claimed: 4}, e.err
+	return WorkerStats{Claimed: 4, DeadLettered: e.deadLettered}, e.err
 }
 
 func (*recordingWorkerEngine) Backlog(context.Context) (int, error) { return 0, nil }
@@ -54,6 +55,20 @@ func TestWorkerPassesRunPolicyAndPreservesResult(t *testing.T) {
 	assert.Equal(t, 3, engine.maxAttempts)
 	assert.Equal(t, 4, processed)
 	assert.ErrorIs(t, err, failure)
+}
+
+// Issue #3640: a delivery that used up its attempts fails the run, so the
+// scheduler reports the run to Sentry. A run with only retries does not.
+func TestWorkerFailsRunWithDeadLetteredDeliveries(t *testing.T) {
+	t.Parallel()
+
+	processed, err := NewWorker(&recordingWorkerEngine{deadLettered: 2}).RunOnce(context.Background(), 25, 3)
+	assert.Equal(t, 4, processed)
+	require.ErrorIs(t, err, ErrDeadLettered)
+	assert.Contains(t, err.Error(), ": 2")
+
+	_, err = NewWorker(&recordingWorkerEngine{}).RunOnce(context.Background(), 25, 3)
+	assert.NoError(t, err)
 }
 func (e *recordingEngine) EnqueuePush(context.Context, PushIntent) (Enqueued, error) {
 	e.pushCalled = true

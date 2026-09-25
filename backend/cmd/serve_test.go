@@ -202,6 +202,30 @@ func TestScrubSentryEvent_RedactsFeedTokens(t *testing.T) {
 	}
 }
 
+// Issue #3640: background failures carry error texts, and a mail server's
+// rejection names the recipient. No e-mail address may reach Sentry.
+func TestScrubSentryEvent_RedactsEmailAddresses(t *testing.T) {
+	t.Parallel()
+	const address = "parent.name+ogs@example-school.de"
+	event := &sentry.Event{
+		Message:   "delivery to " + address + " failed",
+		Exception: []sentry.Exception{{Value: "550 5.1.1 <" + address + ">: Recipient address rejected"}},
+		Breadcrumbs: []*sentry.Breadcrumb{{
+			Message: "email send attempt failed",
+			Data:    map[string]any{"error": "rcpt " + address + " refused", "attempt": 2},
+		}},
+	}
+
+	scrubbed := scrubSentryEvent(event)
+
+	assert.NotContains(t, scrubbed.Message, address)
+	require.Len(t, scrubbed.Exception, 1)
+	assert.Equal(t, "550 5.1.1 <[email]>: Recipient address rejected", scrubbed.Exception[0].Value)
+	require.Len(t, scrubbed.Breadcrumbs, 1)
+	assert.Equal(t, "rcpt [email] refused", scrubbed.Breadcrumbs[0].Data["error"])
+	assert.Equal(t, 2, scrubbed.Breadcrumbs[0].Data["attempt"])
+}
+
 func validServeConfig() serveConfig {
 	return serveConfig{
 		Port:                "8080",
