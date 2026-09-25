@@ -72,20 +72,20 @@ func NewEnrollmentIntake(src EnrollmentIntakeSources) *enrollmentCompose.Intake 
 // EnrollmentChangeRequestSources are the owners and retained repositories the
 // root binds the change requests to.
 type EnrollmentChangeRequestSources struct {
-	Bookings           enrollmentCompose.CareBookingChanges
-	Requests           enrollmentCompose.ChangeRequestRecords
-	Children           enrollmentCompose.IntakeChildren
-	Guardians          enrollmentCompose.IntakeGuardians
-	LateInviteRepo     enrollmentCompose.DecisionLateInvites
-	CareOfferingRepo   enrollmentCompose.IntakeOfferings
-	Capacity           enrollmentOwner.OfferingCapacity
-	Catalog            enrollmentCompose.IntakeCatalog
-	Notifications      enrollmentOwner.Notifications
-	GuardianProfiles   userModels.GuardianProfileRepository
-	GuardianPhones     userModels.GuardianPhoneNumberRepository
-	Persons            EnrollmentReviewerPersons
-	StudentRepo        enrollmentCompose.StudentMatches
-	GuardianAuthorizer enrollmentCompose.GuardianStudentAuthorizer
+	Bookings            enrollmentCompose.CareBookingChanges
+	Requests            enrollmentCompose.ChangeRequestRecords
+	Children            enrollmentCompose.IntakeChildren
+	Guardians           enrollmentCompose.IntakeGuardians
+	LateInviteRepo      enrollmentCompose.DecisionLateInvites
+	CareOfferingRepo    enrollmentCompose.IntakeOfferings
+	Capacity            enrollmentOwner.OfferingCapacity
+	Catalog             enrollmentCompose.IntakeCatalog
+	Notifications       enrollmentOwner.Notifications
+	GuardianProfileRepo userModels.GuardianProfileRepository
+	GuardianPhoneRepo   userModels.GuardianPhoneNumberRepository
+	PersonRepo          EnrollmentReviewerPersons
+	StudentRepo         enrollmentCompose.StudentMatches
+	GuardianAuthorizer  enrollmentCompose.GuardianStudentAuthorizer
 	// Decisions applies an approved change to a child the decision flow
 	// already approved; BookingGates wrap those writes. A nil Decisions
 	// leaves every child to the booking replacement.
@@ -108,11 +108,11 @@ type EnrollmentReviewerPersons interface {
 // sources.
 func NewEnrollmentChangeRequests(src EnrollmentChangeRequestSources) enrollmentOwner.ChangeRequests {
 	people := enrollmentCompose.PeopleDirectory{}
-	if src.GuardianProfiles != nil {
-		people.GuardianProfiles = enrollmentGuardianProfiles{repo: src.GuardianProfiles}
+	if src.GuardianProfileRepo != nil {
+		people.GuardianProfiles = enrollmentGuardianProfiles{repo: src.GuardianProfileRepo}
 	}
-	if src.GuardianPhones != nil {
-		people.GuardianPhones = enrollmentGuardianPhones{repo: src.GuardianPhones}
+	if src.GuardianPhoneRepo != nil {
+		people.GuardianPhones = enrollmentGuardianPhones{repo: src.GuardianPhoneRepo}
 	}
 	deps := enrollmentCompose.ChangeRequestDependencies{
 		Requests: src.Requests, Children: src.Children, Guardians: src.Guardians, LateInvites: src.LateInviteRepo,
@@ -123,8 +123,8 @@ func NewEnrollmentChangeRequests(src EnrollmentChangeRequestSources) enrollmentO
 		Settings: intakeSettings(src.Settings), Outbox: intakeMailOutbox(src.OutboxEnqueuer),
 		FrontendURL: src.FrontendURL, ParentsURL: src.ParentsURL, Logger: src.Logger,
 	}
-	if src.Persons != nil {
-		deps.Reviewers = enrollmentReviewerNames{persons: src.Persons}
+	if src.PersonRepo != nil {
+		deps.Reviewers = enrollmentReviewerNames{persons: src.PersonRepo}
 	}
 	return enrollmentCompose.NewChangeRequests(deps)
 }
