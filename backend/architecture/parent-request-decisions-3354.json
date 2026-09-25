@@ -1,0 +1,65 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": ["#3020", "#3182", "#3565"],
+  "owner_and_capability": "Care Plan — master-data decisions and corrections (masterdatarequests.Decisions), and cross-queue bulk approval and conflict resolution (parentrequests.Coordinator) (#3354)",
+  "affected_packages": [
+    "services/users",
+    "services",
+    "api/students",
+    "api/enrollment",
+    "modules/careplan",
+    "modules/careplan/parentrequests",
+    "modules/careplan/internal/application",
+    "modules/careplan/contracttest",
+    "modules/requestreview",
+    "workflows/parentportal"
+  ],
+  "affected_tables": [
+    "users.student_field_change_requests",
+    "users.students",
+    "users.persons",
+    "users.parent_request_events"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/services/parentmessaging",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|cmp",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/realtime",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/services/parentmessaging"
+  ],
+  "atomic_cutover": "Move staff master-data decisions, corrections, bulk approval and conflict resolution from services/users into Care Plan in one PR. Bind People Directory records and the parent-request ledger through ports in services, switch api/students to the new contracts, and delete the old decision and coordinator implementations. Keep the same tenant transactions, route contracts, error texts and post-commit realtime notifications.",
+  "tests": [
+    "The moved master-data decision and correction contract suites cover stale values, concurrency, co-guardian notices, companion changes and history.",
+    "The Care Plan coordinator and conflict-resolution unit suites cover decisions across all four queues.",
+    "scripts/backend-architecture.sh check --base-ref b54d3de446213daf4f7ca71e2fa1e6657d2f79e0: no new violation, five legacy keys retired, composition surface 607 to 604."
+  ],
+  "runtime_evidence": {
+    "source": "Local PR #3701 verification on the branch stacked on #3697; behavior and architecture checks, not a latency benchmark.",
+    "sources": [
+      "backend/modules/careplan/contracttest/master_data_decisions_test.go",
+      "backend/modules/careplan/contracttest/master_data_corrections_test.go",
+      "backend/modules/careplan/internal/application/parent_request_coordinator_test.go",
+      "backend/modules/careplan/internal/application/parent_request_resolution_test.go"
+    ],
+    "workload": "Affected Go package suites against the local test database and the architecture ratchet against the stacked parent branch.",
+    "thresholds": "Preserve decision results and error strings, retire exactly the five listed legacy keys, add no architecture violation, and reduce or preserve composition targets.",
+    "affected_rows": {"state": "not_applicable", "reason": "No schema or row-update contract changes; the moved flow writes the existing request, person, student and ledger rows."},
+    "query_count": {"state": "measured", "result": "The existing query-budget ratchet passed with the moved review flow."},
+    "latency_p50": {"state": "not_applicable", "reason": "This ownership move was not latency benchmarked; no remote call is added."},
+    "latency_p95": {"state": "not_applicable", "reason": "This ownership move was not latency benchmarked; no remote call is added."},
+    "errors": {"state": "measured", "result": "The moved suites and api/students suites passed with the existing decision sentinels and rendered error texts."},
+    "pool_wait": {"state": "not_applicable", "reason": "The database pool and acquisition path are unchanged."},
+    "lock_wait": {"state": "not_applicable", "reason": "No new lock or lock order was introduced by the ownership move."},
+    "deadlocks": {"state": "not_applicable", "reason": "No lock order was changed or deadlock benchmark run."},
+    "job_duration": {"state": "not_applicable", "reason": "No background job executes this staff review flow."},
+    "job_retries": {"state": "not_applicable", "reason": "No background job retry policy is involved."},
+    "job_backlog": {"state": "not_applicable", "reason": "No background job queue is involved."},
+    "failure": {"state": "measured", "result": "The moved suites passed for stale approval, invalid targets, concurrent decisions and failed corrections."},
+    "rollback": {"state": "not_applicable", "reason": "No data migration; reverting the PR restores the previous services/users implementation and its bindings."},
+    "smoke": {"state": "measured", "result": "The architecture ratchet passed against the stacked parent: 463 legacy keys remain, composition surface 607 to 604."}
+  },
+  "rollback_and_cleanup": "Revert the PR as one unit to restore the services/users decision and coordinator implementations and caller bindings. No data cleanup is needed.",
+  "exit_criterion": "The staff decision and coordinator callers use Care Plan, all five listed legacy keys are absent, and validate-ticket --all --base-ref accepts their retirement."
+}
