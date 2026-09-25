@@ -19,15 +19,21 @@ type serverErrorKey struct{}
 // wrote, so the Sentry event carries the cause instead of a bare status.
 type serverErrorCause struct {
 	err error
+	// code is the error code of the answer, if it has one. It only becomes a
+	// tag: Sentry groups by stack trace, since server errors mostly share a
+	// generic code (#3590).
+	code string
 	// unreported marks the one 5xx answer that must not reach Sentry.
 	unreported bool
 }
 
-// noteServerError records err as the cause of the 5xx answer the current
-// request is about to write. Outside ServerErrorReporting it does nothing.
-func noteServerError(ctx context.Context, err error) {
+// noteServerError records err and its error code as the cause of the 5xx
+// answer the current request is about to write. Outside
+// ServerErrorReporting it does nothing.
+func noteServerError(ctx context.Context, err error, code string) {
 	if cause, ok := ctx.Value(serverErrorKey{}).(*serverErrorCause); ok && err != nil {
 		cause.err = err
+		cause.code = code
 	}
 }
 
@@ -55,7 +61,9 @@ var sentryHandler = sentryhttp.New(sentryhttp.Options{Repanic: true})
 // 500 the Recoverer writes adds no second event.
 //
 // Every event of the request, the panic event included, is named after the
-// chi route pattern (/api/students/{id}) and carries no query string.
+// chi route pattern (/api/students/{id}), carries the request ID as
+// request_id tag, so support finds it by the Vorgangskennung a school reads
+// out, and carries no query string. SentrySessionContext adds the session.
 func ServerErrorReporting(next http.Handler) http.Handler {
 	return sentryHandler.Handle(reportServerErrors(next))
 }
@@ -65,6 +73,9 @@ func reportServerErrors(next http.Handler) http.Handler {
 		// sentryhttp bound a hub cloned for this request.
 		hub := sentry.GetHubFromContext(r.Context())
 		hub.Scope().AddEventProcessor(requestEventProcessor(r))
+		if requestID := middleware.GetReqID(r.Context()); requestID != "" {
+			hub.Scope().SetTag("request_id", requestID)
+		}
 
 		cause := &serverErrorCause{}
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
@@ -76,6 +87,9 @@ func reportServerErrors(next http.Handler) http.Handler {
 		}
 		hub.WithScope(func(scope *sentry.Scope) {
 			scope.SetTag("http.status_code", strconv.Itoa(status))
+			if cause.code != "" {
+				scope.SetTag("error_code", cause.code)
+			}
 			if cause.err != nil {
 				hub.CaptureException(cause.err)
 				return

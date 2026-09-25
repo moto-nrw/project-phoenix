@@ -6,13 +6,10 @@ import {
   sampleNoTrace,
   scrubEvent,
   scrubSpan,
-  scrubTransaction,
+  sentryDataCollection,
 } from "./sentry.shared";
 
 type SpanJSON = Parameters<NonNullable<BrowserOptions["beforeSendSpan"]>>[0];
-type TransactionEvent = Parameters<
-  NonNullable<BrowserOptions["beforeSendTransaction"]>
->[0];
 type TracesSamplingContext = Parameters<
   NonNullable<BrowserOptions["tracesSampler"]>
 >[0];
@@ -332,18 +329,21 @@ function makeSpan(overrides: Partial<SpanJSON> = {}): SpanJSON {
   return {
     span_id: "span-id",
     trace_id: "trace-id",
+    name: "span",
     start_timestamp: 0,
-    data: {},
+    status: "ok",
+    is_segment: false,
+    attributes: {},
     ...overrides,
   };
 }
 
 describe("scrubSpan", () => {
-  it("strips query strings and fragments from the span name and data, keeping paths with IDs", () => {
+  it("strips query strings and fragments from the span name and attributes, keeping paths with IDs", () => {
     const span = makeSpan({
-      op: "http.client",
-      description: "GET /api/students/42?search=Mia%20Muster",
-      data: {
+      name: "GET /api/students/42?search=Mia%20Muster",
+      attributes: {
+        "sentry.op": "http.client",
         url: "/api/students/42?search=Mia%20Muster",
         "http.url": "https://schule-a.moto-app.de/api/students/42?search=Mia",
         "url.full": "https://schule-a.moto-app.de/demo#token=secret-demo",
@@ -351,7 +351,8 @@ describe("scrubSpan", () => {
         "http.fragment": "#token=secret-demo",
         "url.query": "search=Mia",
         "url.fragment": "token=secret-demo",
-        "lcp.url": "https://schule-a.moto-app.de/_next/image?url=%2Fmia.png",
+        "browser.web_vital.lcp.url":
+          "https://schule-a.moto-app.de/_next/image?url=%2Fmia.png",
         "http.response.status_code": 200,
       },
     });
@@ -361,21 +362,23 @@ describe("scrubSpan", () => {
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain("Mia");
     expect(serialized).not.toContain("secret-demo");
-    expect(result.description).toBe("GET /api/students/42");
-    expect(result.data).toStrictEqual({
+    expect(result.name).toBe("GET /api/students/42");
+    expect(result.attributes).toStrictEqual({
+      "sentry.op": "http.client",
       url: "/api/students/42",
       "http.url": "https://schule-a.moto-app.de/api/students/42",
       "url.full": "https://schule-a.moto-app.de/demo",
-      "lcp.url": "https://schule-a.moto-app.de/_next/image",
+      "browser.web_vital.lcp.url": "https://schule-a.moto-app.de/_next/image",
       "http.response.status_code": 200,
     });
   });
 
   it("redacts feed tokens from page view names and fetch URLs", () => {
     const span = makeSpan({
-      op: "pageload",
-      description: "/public/calendar/calendar-secret",
-      data: {
+      name: "/public/calendar/calendar-secret",
+      is_segment: true,
+      attributes: {
+        "sentry.op": "pageload",
         url: "https://parents.test/api/request-feed/request-secret",
         "http.url": "http://server:8080/public/request-feed/backend-secret",
         "url.full": "https://parents.test/api/calendar-feed/feed-secret.ics",
@@ -385,56 +388,134 @@ describe("scrubSpan", () => {
     const result = scrubSpan(span);
 
     expect(JSON.stringify(result)).not.toContain("secret");
-    expect(result.description).toBe("/public/calendar/[REDACTED]");
-    expect(result.data).toStrictEqual({
+    expect(result.name).toBe("/public/calendar/[REDACTED]");
+    expect(result.attributes).toStrictEqual({
+      "sentry.op": "pageload",
       url: "https://parents.test/api/request-feed/[REDACTED]",
       "http.url": "http://server:8080/public/request-feed/[REDACTED]",
       "url.full": "https://parents.test/api/calendar-feed/[REDACTED]",
     });
   });
 
+  // The page view span carries the page URL and the referrer, which the
+  // SDK sets as a list. v10 kept both in the transaction's request data.
+  it("scrubs the referrer list and the page URL of a page view", () => {
+    const span = makeSpan({
+      name: "/students/[id]",
+      is_segment: true,
+      attributes: {
+        "sentry.op": "navigation",
+        "url.full": "https://schule-a.moto-app.de/students/42?search=Mia",
+        "http.request.header.referer": [
+          "https://schule-a.moto-app.de/students?search=Mia#details",
+          "https://parents.test/api/calendar-feed/feed-secret",
+        ],
+        "browser.web_vital.cls.source": {
+          value: "https://schule-a.moto-app.de/students?search=Mia",
+          unit: "none",
+        },
+      },
+    });
+
+    const result = scrubSpan(span);
+
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain("Mia");
+    expect(serialized).not.toContain("secret");
+    expect(result.attributes).toStrictEqual({
+      "sentry.op": "navigation",
+      "url.full": "https://schule-a.moto-app.de/students/42",
+      "http.request.header.referer": [
+        "https://schule-a.moto-app.de/students",
+        "https://parents.test/api/calendar-feed/[REDACTED]",
+      ],
+      "browser.web_vital.cls.source": {
+        value: "https://schule-a.moto-app.de/students",
+        unit: "none",
+      },
+    });
+  });
+
+  it("keeps only the account ID of the user: no name, e-mail or IP", () => {
+    const span = makeSpan({
+      is_segment: true,
+      attributes: {
+        "user.id": "17",
+        "user.email": "mia@example.com",
+        "user.name": "Mia Muster",
+        "user.username": "mia",
+        "user.ip_address": "203.0.113.7",
+        "client.address": "203.0.113.7",
+        "http.client_ip": "203.0.113.7",
+      },
+    });
+
+    const result = scrubSpan(span);
+
+    expect(result.attributes).toStrictEqual({ "user.id": "17" });
+  });
+
+  it("strips auth and cookie headers, whatever their case", () => {
+    const span = makeSpan({
+      is_segment: true,
+      attributes: {
+        "http.request.header.authorization": ["Bearer secret-token"],
+        "http.request.header.Cookie": ["session=abc123"],
+        "http.request.header.user_agent": ["Firefox"],
+      },
+    });
+
+    const result = scrubSpan(span);
+
+    expect(result.attributes).toStrictEqual({
+      "http.request.header.user_agent": ["Firefox"],
+    });
+  });
+
   it("leaves spans without URLs untouched", () => {
     const span = makeSpan({
-      op: "ui.interaction.click",
-      description: "body > button.save",
-      data: { "sentry.op": "ui.interaction.click" },
+      name: "Click",
+      attributes: {
+        "sentry.op": "ui.interaction.click",
+        "browser.web_vital.inp.target": "body > button.save",
+        "browser.web_vital.inp.value": 120,
+        "sentry.sdk.integrations": ["BrowserTracing", "HttpContext"],
+      },
     });
 
     expect(scrubSpan(span)).toStrictEqual(
       makeSpan({
-        op: "ui.interaction.click",
-        description: "body > button.save",
-        data: { "sentry.op": "ui.interaction.click" },
+        name: "Click",
+        attributes: {
+          "sentry.op": "ui.interaction.click",
+          "browser.web_vital.inp.target": "body > button.save",
+          "browser.web_vital.inp.value": 120,
+          "sentry.sdk.integrations": ["BrowserTracing", "HttpContext"],
+        },
       }),
     );
   });
 });
 
-describe("scrubTransaction", () => {
-  it("strips the query string, fragment and feed token from a page view's request data", () => {
-    const event = {
-      type: "transaction",
-      transaction: "/public/calendar/calendar-secret",
-      request: {
-        url: "https://schule-a.moto-app.de/students/42?search=Mia#details",
-        query_string: "search=Mia",
-        headers: {
-          Referer: "https://schule-a.moto-app.de/students?search=Mia",
-          Cookie: "session=abc123",
-        },
+describe("sentryDataCollection", () => {
+  // v11 collects user data (with the IP), cookies, headers, bodies and query
+  // strings unless told otherwise. The data boundary of #3636 stays.
+  it("collects no user data, cookies, bodies or query strings", () => {
+    expect(sentryDataCollection).toStrictEqual({
+      userInfo: false,
+      cookies: false,
+      httpHeaders: {
+        request: { allow: ["user-agent", "referer"] },
+        response: false,
       },
-      user: { id: "17", email: "mia@example.com" },
-    } as TransactionEvent;
-
-    const result = scrubTransaction(event);
-
-    expect(JSON.stringify(result)).not.toContain("Mia");
-    expect(result.transaction).toBe("/public/calendar/[REDACTED]");
-    expect(result.request).toStrictEqual({
-      url: "https://schule-a.moto-app.de/students/42",
-      headers: { Referer: "https://schule-a.moto-app.de/students" },
+      httpBodies: [],
+      urlQueryParams: false,
+      graphQL: { document: false, variables: false },
+      genAI: { inputs: false, outputs: false },
+      databaseQueryData: false,
+      queues: false,
+      stackFrameVariables: false,
     });
-    expect(result.user).toStrictEqual({ id: "17" });
   });
 });
 

@@ -112,6 +112,7 @@ func TestReviewReason_StableValues(t *testing.T) {
 
 	assert.Equal(t, "grade_above_max", ReviewReasonGradeAboveMax)
 	assert.Equal(t, "no_grade_level", ReviewReasonNoGradeLevel)
+	assert.Equal(t, "child_quota_reached", ReviewReasonChildQuotaReached)
 }
 
 func TestChildActivation_StableValues(t *testing.T) {

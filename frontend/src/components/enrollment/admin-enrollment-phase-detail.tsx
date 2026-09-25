@@ -83,7 +83,9 @@ import { studentService } from "~/lib/api";
 import { useSWRAuth } from "~/lib/swr";
 import {
   CHILD_STATUS_LABELS,
+  ChildQuotaHeldBadge,
   ChildStatusBadge,
+  isHeldForChildQuota,
 } from "~/components/enrollment/child-status-badge";
 
 const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
@@ -405,11 +407,19 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   }, [loadData]);
 
   const stats = useMemo(() => calculateRequestStats(requests), [requests]);
+  const childQuotaHeldIds = useMemo(
+    () =>
+      new Set(
+        requests.flatMap((request) =>
+          request.children.filter(isHeldForChildQuota).map((child) => child.id),
+        ),
+      ),
+    [requests],
+  );
 
   const handleQuickDecision = useCallback(
     async (row: CareUsageRow, status: DecisionStatus) => {
       setBusyChildId(row.child_id);
-      setError(null);
       try {
         await decideAdminChild(row.request_id, row.child_id, status);
         toast.success(
@@ -426,7 +436,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           child_id: row.child_id,
           status,
         });
-        setError(message);
+        // Nur als Toast: der Seitenfehler ersetzt die ganze Tabelle und ist
+        // Ladefehlern vorbehalten (#3570).
         toast.error(message);
       } finally {
         setBusyChildId(null);
@@ -499,7 +510,14 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       {
         key: "status",
         header: "Status",
-        render: (row) => <ChildStatusBadge status={row.status} />,
+        render: (row) => (
+          <div className="flex flex-wrap gap-1.5">
+            <ChildStatusBadge status={row.status} />
+            {childQuotaHeldIds.has(row.child_id) ? (
+              <ChildQuotaHeldBadge />
+            ) : null}
+          </div>
+        ),
         sortValue: (row) => CHILD_STATUS_LABELS[row.status],
       },
       {
@@ -549,7 +567,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         ),
       },
     ],
-    [busyChildId, requestHref, requestQuickDecision],
+    [busyChildId, childQuotaHeldIds, requestHref, requestQuickDecision],
   );
 
   // Such- und Filterzeile der Kopfkarte. Die Auswertung filtert nach Status,

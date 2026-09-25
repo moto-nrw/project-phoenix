@@ -163,6 +163,31 @@ describe("trailing slash", () => {
   });
 });
 
+// Since @sentry/nextjs 11 the tunnel route runs through the proxy (#3687).
+// Events arrive without a session, so the proxy must hand them on untouched.
+describe("Sentry tunnel", () => {
+  it.each([
+    ["school-a.localhost:3000", "tenant host"],
+    ["localhost:3000", "path-mode host"],
+    [OPERATOR_HOSTNAME, "operator host"],
+    [PARENTS_HOSTNAME, "parents host"],
+    [SCHOOL_HOSTNAME, "school host"],
+  ])("passes /monitoring through on the %s (%s)", (host) => {
+    const req = new NextRequest(`http://${host}/monitoring?o=123&p=456&r=de`, {
+      method: "POST",
+      body: "envelope",
+    });
+    req.headers.set("host", host);
+
+    const res = proxy(req);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-middleware-next")).toBe("1");
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+    expect(res.headers.get("location")).toBeNull();
+  });
+});
+
 describe("proxy", () => {
   describe("legacy collection selections", () => {
     it("nests database room filters in the return path", () => {

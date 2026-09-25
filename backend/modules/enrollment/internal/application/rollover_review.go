@@ -247,10 +247,11 @@ func (s *Rollovers) RunDeadlineWorker(ctx context.Context, asOf time.Time) (*enr
 // The opt-in side lets pending_renewal rows lapse to withdrawn: the parent
 // didn't act before the deadline.
 func (s *Rollovers) resolveExpiredPhase(ctx context.Context, phase *enrollment.Phase, summary *enrollment.DeadlineWorkerSummary) error {
-	autoApproved, autoSubmitted, autoErrs, autoFatalErr := s.resolveAutoRenewed(ctx, phase)
-	summary.AutoRenewedToApproved += autoApproved
-	summary.AutoRenewedToSubmitted += autoSubmitted
-	summary.AutoApproveErrors += autoErrs
+	auto, autoFatalErr := s.resolveAutoRenewed(ctx, phase)
+	summary.AutoRenewedToApproved += auto.approved
+	summary.AutoRenewedToSubmitted += auto.submitted
+	summary.AutoApproveChildQuotaHeld += auto.childQuotaHeld
+	summary.AutoApproveErrors += auto.errs
 	if autoFatalErr != nil {
 		return autoFatalErr
 	}
@@ -267,22 +268,29 @@ func (s *Rollovers) resolveExpiredPhase(ctx context.Context, phase *enrollment.P
 		return nil
 	}
 	summary.PendingRenewalToWithdrawn += pendingCount
-	if autoApproved > 0 || autoSubmitted > 0 || pendingCount > 0 {
+	if auto.approved > 0 || auto.submitted > 0 || auto.childQuotaHeld > 0 || pendingCount > 0 {
 		s.deps.Logger.Info("rollover deadline: resolved phase",
 			slog.Int64("phase_id", phase.ID),
-			slog.Int("auto_to_approved", autoApproved),
-			slog.Int("auto_to_submitted", autoSubmitted),
+			slog.Int("auto_to_approved", auto.approved),
+			slog.Int("auto_to_submitted", auto.submitted),
+			slog.Int("auto_held_for_child_quota", auto.childQuotaHeld),
 			slog.Int("pending_to_withdrawn", pendingCount),
-			slog.Int("auto_approve_errors", autoErrs),
+			slog.Int("auto_approve_errors", auto.errs),
 		)
 	}
 	return nil
 }
 
+// autoRenewedOutcome counts what happened to one phase's auto_renewed rows.
+type autoRenewedOutcome struct {
+	approved, submitted, childQuotaHeld, errs int
+}
+
 // resolveAutoRenewed handles the auto_renewed cohort for one phase.
 // Returns the counts split by destination status (approved when the
 // phase opts in to auto-approve and the decision flow is wired,
-// otherwise submitted) plus how many per-row Decide() calls errored. A
+// otherwise submitted), how many rows the Kinderkontingent held back for a
+// manual decision, and how many per-row Decide() calls errored. A
 // savepoint-control error is returned separately because the surrounding
 // transaction is no longer safe to continue or commit.
 //
@@ -290,9 +298,10 @@ func (s *Rollovers) resolveExpiredPhase(ctx context.Context, phase *enrollment.P
 // (test environments that don't wire the full approval pipeline), we fall
 // back to the bulk-promotion-to-submitted path so the worker still
 // completes — logs a warning so the gap is visible.
-func (s *Rollovers) resolveAutoRenewed(ctx context.Context, phase *enrollment.Phase) (approved, submitted, errs int, fatalErr error) {
+func (s *Rollovers) resolveAutoRenewed(ctx context.Context, phase *enrollment.Phase) (out autoRenewedOutcome, fatalErr error) {
 	if !phase.RolloverAutoApprove || s.deps.Decisions == nil {
-		return 0, s.promoteAutoRenewed(ctx, phase), 0, nil
+		out.submitted = s.promoteAutoRenewed(ctx, phase)
+		return out, nil
 	}
 	// Auto-approve path: pull each auto_renewed row and Decide it so the
 	// rollover approval runs (updates the existing student, fires the
@@ -302,28 +311,42 @@ func (s *Rollovers) resolveAutoRenewed(ctx context.Context, phase *enrollment.Ph
 		s.deps.Logger.Error("rollover deadline: list auto_renewed failed",
 			slog.Int64("phase_id", phase.ID),
 			slog.String("error", err.Error()))
-		return 0, 0, 0, nil
+		return out, nil
 	}
 	for _, row := range rows {
 		decideErr := s.decideAutoRenewedRow(ctx, row)
-		if decideErr == nil {
-			approved++
-			continue
-		}
-		if s.deps.Runtime.IsSavepointControl(decideErr) {
-			return approved, 0, errs, fmt.Errorf(
+		switch {
+		case decideErr == nil:
+			out.approved++
+		case s.deps.Runtime.IsSavepointControl(decideErr):
+			return out, fmt.Errorf(
 				"rollover deadline: auto-approve savepoint failed for request_child %d: %w",
 				row.ID,
 				decideErr,
 			)
+		case isChildQuotaReached(decideErr):
+			held, holdErr := s.holdForChildQuota(ctx, phase.ID, row.ID)
+			if holdErr != nil && s.deps.Runtime.IsSavepointControl(holdErr) {
+				return out, fmt.Errorf("rollover deadline: hold savepoint failed for request_child %d: %w", row.ID, holdErr)
+			}
+			if holdErr != nil {
+				out.errs++
+				s.deps.Logger.Error("rollover deadline: hold for the child quota failed",
+					slog.Int64("phase_id", phase.ID),
+					slog.Int64("request_child_id", row.ID),
+					slog.String("error", holdErr.Error()))
+			} else if held {
+				out.childQuotaHeld++
+			}
+		default:
+			out.errs++
+			s.deps.Logger.Error("rollover deadline: auto-approve decide failed",
+				slog.Int64("phase_id", phase.ID),
+				slog.Int64("request_child_id", row.ID),
+				slog.String("error", decideErr.Error()))
 		}
-		errs++
-		s.deps.Logger.Error("rollover deadline: auto-approve decide failed",
-			slog.Int64("phase_id", phase.ID),
-			slog.Int64("request_child_id", row.ID),
-			slog.String("error", decideErr.Error()))
 	}
-	return approved, 0, errs, nil
+	return out, nil
 }
 
 // promoteAutoRenewed moves a phase's auto_renewed rows to submitted.

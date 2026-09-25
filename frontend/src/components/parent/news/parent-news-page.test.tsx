@@ -89,7 +89,7 @@ describe("ParentNewsPage", () => {
     ).not.toBeNull();
   });
 
-  it("zeigt eine offene Umfrage ohne Status-Pill und bietet Antworten", async () => {
+  it("zeigt bei einer offenen Umfrage den Stand statt eines Aktionsworts", async () => {
     mocked.mockResolvedValue([
       announcement({
         response_type: "single_choice",
@@ -110,16 +110,19 @@ describe("ParentNewsPage", () => {
       card.querySelector('[data-moto-duotone-tone="blue"]'),
     ).not.toBeNull();
     expect(screen.getByText("Umfrage")).toBeInTheDocument();
-    expect(screen.getByText("Antworten")).toBeInTheDocument();
-    expect(screen.queryByText("Antwort nötig")).not.toBeInTheDocument();
+    expect(screen.getByText("Antwort nötig")).toBeInTheDocument();
+    expect(screen.queryByText("Antworten")).not.toBeInTheDocument();
   });
 
-  it("bietet bei bestaetigungspflichtigen Meldungen 'Gelesen bestätigen'", async () => {
+  it("zeigt bei bestaetigungspflichtigen Meldungen, dass die Bestätigung fehlt", async () => {
     mocked.mockResolvedValue([
       announcement({ requires_acknowledgement: true, acknowledged: false }),
     ]);
     render(<ParentNewsPage />);
-    expect(await screen.findByText("Gelesen bestätigen")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Bestätigung erforderlich"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Gelesen bestätigen")).not.toBeInTheDocument();
   });
 
   it("öffnet den per Link angeforderten Elternbrief", async () => {

@@ -67,6 +67,10 @@ type SettingsResolver interface {
 	// attendance and who sees the tenant-wide overview.
 	AttendanceEditScope(ctx context.Context) (string, error)
 	OperationalOverviewScope(ctx context.Context) (string, error)
+	// WebParticipantLimitEnforced reports whether web and app assignments
+	// must respect an activity's participant limit the way the terminal does
+	// (#3632). False, the registry default, lets them exceed it.
+	WebParticipantLimitEnforced(ctx context.Context) (bool, error)
 }
 
 // Settings values the presence flows compare against. They are the stored
