@@ -189,10 +189,18 @@ def summarize_concurrent(runs):
             raise ValueError("concurrency changed between contention runs")
         if len(run["round_wall_ms"]) != run["measured_rounds"]:
             raise ValueError("each contention run must record one wall time per measured round")
-        before, after = counters(run["metrics_before"]), counters(run["metrics_after"])
-        delta = {key: value - before.get(key, 0) for key, value in after.items()}
-        if any(value < 0 for value in delta.values()):
-            raise ValueError("counters reset during a contention run")
+        metric_rounds = run.get("metric_rounds")
+        if metric_rounds is None:
+            metric_rounds = [{"before": run["metrics_before"], "after": run["metrics_after"]}]
+        elif len(metric_rounds) != run["measured_rounds"]:
+            raise ValueError("each contention run must record one counter delta per measured round")
+        delta = collections.Counter()
+        for metric_round in metric_rounds:
+            before, after = counters(metric_round["before"]), counters(metric_round["after"])
+            round_delta = {key: value - before.get(key, 0) for key, value in after.items()}
+            if any(value < 0 for value in round_delta.values()):
+                raise ValueError("counters reset during a contention round")
+            delta.update(round_delta)
         locks = run["lock_samples"]
         if locks.get("error"):
             raise ValueError(locks["error"])

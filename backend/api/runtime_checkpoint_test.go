@@ -74,7 +74,9 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 	db := testpkg.SetupTestDB(t)
 	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Checkpoint", "Staff")
 	phase := testpkg.CreateTestEnrollmentPhase(t, db)
-	_, err = db.NewRaw("UPDATE enrollment.phases SET service_start_date = '2026-08-01', service_end_date = '2027-07-31' WHERE id = ? AND tenant_id = ?", phase.ID, testpkg.Tenant(t)).Exec(context.Background())
+	today := testpkg.TodayDate()
+	phaseStart, phaseEnd := today.AddDays(-55), today.AddDays(309)
+	_, err = db.NewRaw("UPDATE enrollment.phases SET service_start_date = ?, service_end_date = ? WHERE id = ? AND tenant_id = ?", phaseStart, phaseEnd, phase.ID, testpkg.Tenant(t)).Exec(context.Background())
 	require.NoError(t, err)
 	for i := range 10 {
 		testpkg.CreateTestCareOffering(t, db, phase.ID, fmt.Sprintf("Checkpoint Offering %d", i))
@@ -197,7 +199,7 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 			}
 			scenarios = []checkpointScenario{
 				{"enrollment.phase-update", "PUT", fmt.Sprintf("/api/enrollment/phases/%d", phase.ID), 200, true,
-					`{"name":"Checkpoint Updated Phase","kind":"school_year","service_start_date":"2026-08-01","service_end_date":"2027-07-31","care_overflow_mode":"waitlist","care_offering_selection_mode":"optional","is_active":true}`},
+					fmt.Sprintf(`{"name":"Checkpoint Updated Phase","kind":"school_year","service_start_date":%q,"service_end_date":%q,"care_overflow_mode":"waitlist","care_offering_selection_mode":"optional","is_active":true}`, phaseStart, phaseEnd)},
 				{"enrollment.phase-update-invalid", "PUT", fmt.Sprintf("/api/enrollment/phases/%d", phase.ID), 400, true, `{}`},
 				{"enrollment.schema-rename", "PATCH", "/api/enrollment/schema/" + checkpointSchemaID, 200, true, `{"name":"Checkpoint Renamed Schema"}`},
 				{"enrollment.schema-rename-conflict", "PATCH", "/api/enrollment/schema/" + checkpointSchemaID, 409, true, `{"name":"Checkpoint Reserved Schema"}`},

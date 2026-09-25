@@ -149,6 +149,21 @@ class HTTPOutcomeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unexpected HTTP status in contention operation delete"):
             report.summarize_concurrent([run])
 
+    def test_contention_counters_exclude_work_between_rounds(self):
+        run = contention_run(4)
+        run.pop("metrics_before")
+        run.pop("metrics_after")
+        run["measured_rounds"] = 2
+        run["round_wall_ms"] = [30.0, 30.0]
+        run["metric_rounds"] = [
+            {"before": 'phoenix_unit_of_work_rollbacks_total{entry_point="http"} 10',
+             "after": 'phoenix_unit_of_work_rollbacks_total{entry_point="http"} 11'},
+            {"before": 'phoenix_unit_of_work_rollbacks_total{entry_point="http"} 20',
+             "after": 'phoenix_unit_of_work_rollbacks_total{entry_point="http"} 22'},
+        ]
+        summary = report.summarize_concurrent([run])
+        self.assertEqual(summary["median"]["transaction_rollbacks"], 3)
+
     def test_consistently_reported_unexpected_status_is_rejected(self):
         result = http_result(201)
         result["samples"][0]["status"] = 500

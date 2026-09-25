@@ -78,8 +78,9 @@ type targetRiskWorkload struct {
 	// careEndIDs is the fixed selection of the care-end preview; ended lists
 	// children whose care a measured request ended, removed before the next
 	// preparation so the tenant volume stays flat.
-	careEndIDs []string
-	ended      []int64
+	careEndIDs                               []string
+	lastCareDay, earlierCareDay, pastCareDay string
+	ended                                    []int64
 	// bookedActivities every care-end child is enrolled in, so ending care
 	// removes real bookings and the removal sets carry rows.
 	bookedActivities []int64
@@ -109,9 +110,13 @@ func newTargetRiskWorkload(t *testing.T, production *Runtime) *targetRiskWorkloa
 	db := testpkg.SetupTestDB(fixtures)
 	ctx := testpkg.Ctx(fixtures)
 	_, account := testpkg.CreateTestTeacherWithAccount(fixtures, db, "Checkpoint", "Reviewer")
+	today := testpkg.TodayDate()
 	w := &targetRiskWorkload{
 		handler: production.Handler(), db: db, fixtures: fixtures, tenantID: testpkg.Tenant(fixtures), accountID: account.ID,
-		token: testutil.MintTestJWT(fixtures, testutil.AdminTestClaimsForTenant(int(account.ID), testpkg.Tenant(fixtures))),
+		token:          testutil.MintTestJWT(fixtures, testutil.AdminTestClaimsForTenant(int(account.ID), testpkg.Tenant(fixtures))),
+		lastCareDay:    today.AddDays(308).String(),
+		earlierCareDay: today.AddDays(307).String(),
+		pastCareDay:    today.AddDays(-1).String(),
 	}
 	require.NotEqual(t, testpkg.Tenant(t), w.tenantID, "checkpoint-1-v2 fixtures need their own tenant")
 	require.NoError(t, db.NewRaw("SELECT subdomain FROM platform.schools WHERE id = ?", w.tenantID).Scan(ctx, &w.subdomain))
@@ -174,17 +179,8 @@ func (w *targetRiskWorkload) bookedStudent(t *testing.T, name string) int64 {
 	return id
 }
 
-// checkpointLastCareDay is a fixed future day: the care-end preview refuses a
-// day in the past, and the phase fixture runs until 2027-07-31.
-// The re-plan scenario first ends care on the earlier day, so its measured
-// request has to restore the bookings that exit removed.
-const (
-	checkpointLastCareDay    = "2027-07-30"
-	checkpointEarlierCareDay = "2027-07-29"
-)
-
-func careEndBody(studentIDs []string, token string) string {
-	return careEndBodyOn(studentIDs, checkpointLastCareDay, token)
+func (w *targetRiskWorkload) careEndBody(studentIDs []string, token string) string {
+	return careEndBodyOn(studentIDs, w.lastCareDay, token)
 }
 
 func careEndBodyOn(studentIDs []string, day, token string) string {
@@ -372,11 +368,11 @@ func (w *targetRiskWorkload) scenarios() []checkpointScenario {
 		{"care-plan.withdrawals-invalid-state", "GET", "/api/students/care-withdrawals?state=bogus", 400, true, ""},
 		{"student-deletion.withdrawal-impact", "GET", fmt.Sprintf("/api/students/care-withdrawals/%d/deletion-impact", w.completionID), 200, true, ""},
 		{"student-deletion.withdrawal-impact-not-found", "GET", fmt.Sprintf("/api/students/care-withdrawals/%d/deletion-impact", w.missingCompletion), 404, true, ""},
-		{"care-plan.care-end-preview", "POST", "/api/students/care-end/preview", 200, true, careEndBody(w.careEndIDs, "")},
-		{"care-plan.care-end-preview-past-day", "POST", "/api/students/care-end/preview", 400, true, strings.Replace(careEndBody(w.careEndIDs, ""), checkpointLastCareDay, "2020-01-31", 1)},
+		{"care-plan.care-end-preview", "POST", "/api/students/care-end/preview", 200, true, w.careEndBody(w.careEndIDs, "")},
+		{"care-plan.care-end-preview-past-day", "POST", "/api/students/care-end/preview", 400, true, careEndBodyOn(w.careEndIDs, w.pastCareDay, "")},
 		{"care-plan.care-end", "POST", "/api/students/care-end", 200, true, checkpointBodyPlaceholder},
 		{"care-plan.care-end-replan", "POST", "/api/students/care-end", 200, true, checkpointBodyPlaceholder},
-		{"care-plan.care-end-stale-token", "POST", "/api/students/care-end", 409, true, careEndBody(w.careEndIDs, checkpointStaleFingerprint)},
+		{"care-plan.care-end-stale-token", "POST", "/api/students/care-end", 409, true, w.careEndBody(w.careEndIDs, checkpointStaleFingerprint)},
 		{"student-deletion.execute", "DELETE", "/api/students/" + checkpointStudentPlaceholder, 200, true, checkpointBodyPlaceholder},
 		{"student-deletion.execute-stale-preview", "DELETE", fmt.Sprintf("/api/students/%d", w.stalePreviewID), 409, true,
 			fmt.Sprintf(`{"expected_fingerprint":%q,"confirmation_name":"Checkpoint Stale","reason":"test_data","acknowledged":true}`, checkpointStaleFingerprint)},
@@ -493,10 +489,10 @@ func (w *targetRiskWorkload) prepareCareEnd(t *testing.T, replan bool) string {
 	ids := []string{strconv.FormatInt(id, 10)}
 	if replan {
 		first := checkpointRequest(w.handler, checkpointScenario{Method: http.MethodPost, Path: "/api/students/care-end", Authenticated: true,
-			Body: careEndBodyOn(ids, checkpointEarlierCareDay, w.careEndToken(t, ids, checkpointEarlierCareDay))}, w.token)
+			Body: careEndBodyOn(ids, w.earlierCareDay, w.careEndToken(t, ids, w.earlierCareDay))}, w.token)
 		require.Equal(t, http.StatusOK, first.Code, "prepare earlier care end: %s", first.Body.String())
 	}
-	return careEndBody(ids, w.careEndToken(t, ids, checkpointLastCareDay))
+	return w.careEndBody(ids, w.careEndToken(t, ids, w.lastCareDay))
 }
 
 // mfaChallenge stores one open e-mail challenge for the MFA account and
@@ -600,10 +596,14 @@ type checkpointConcurrentRun struct {
 	RoundsWithPoolWait int                                  `json:"rounds_with_pool_wait"`
 	LockSamples        checkpointLockSamples                `json:"lock_samples"`
 	Deadlocks          int64                                `json:"deadlocks"`
-	MetricsBefore      string                               `json:"metrics_before"`
-	MetricsAfter       string                               `json:"metrics_after"`
+	MetricRounds       []checkpointMetricRound              `json:"metric_rounds"`
 	Operations         []*checkpointConcurrentOperation     `json:"operations"`
 	JSONBRecordsets    []testpkg.RuntimeCheckpointRecordset `json:"jsonb_recordsets,omitempty"`
+}
+
+type checkpointMetricRound struct {
+	Before string `json:"before"`
+	After  string `json:"after"`
 }
 
 // contentionOperations lists the request kinds of one round. Slot 0 deletes
@@ -657,7 +657,6 @@ func (w *targetRiskWorkload) measureContention(t *testing.T, production *Runtime
 		return count
 	}
 	var stopSampling func() checkpointLockSamples
-	var deadlocksBefore int64
 	var recordsets testpkg.RuntimeCheckpointRecordsets
 	for round := range run.WarmupRounds + run.MeasuredRounds {
 		measured := round >= run.WarmupRounds
@@ -688,8 +687,6 @@ func (w *targetRiskWorkload) measureContention(t *testing.T, production *Runtime
 			requests[i] = request.WithContext(counters[i].Context(request.Context()))
 		}
 		if round == run.WarmupRounds {
-			run.MetricsBefore = checkpointMetrics(t)
-			deadlocksBefore = deadlocks()
 			stopSampling = testpkg.SampleCheckpointLocks(func(ctx context.Context) (int, error) {
 				var waiting int
 				err := w.db.NewRaw("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND usename = 'phoenix_auth' AND wait_event_type = 'Lock'").Scan(ctx, &waiting)
@@ -713,6 +710,12 @@ func (w *targetRiskWorkload) measureContention(t *testing.T, production *Runtime
 				responses[i] = recorder
 			}()
 		}
+		var metricRound checkpointMetricRound
+		var deadlocksBefore int64
+		if measured {
+			metricRound.Before = checkpointMetrics(t)
+			deadlocksBefore = deadlocks()
+		}
 		before := api.db.Stats()
 		roundStarted := time.Now()
 		close(start)
@@ -720,6 +723,9 @@ func (w *targetRiskWorkload) measureContention(t *testing.T, production *Runtime
 		wall := time.Since(roundStarted)
 		after := api.db.Stats()
 		if measured {
+			metricRound.After = checkpointMetrics(t)
+			run.MetricRounds = append(run.MetricRounds, metricRound)
+			run.Deadlocks += deadlocks() - deadlocksBefore
 			run.RoundWallMS = append(run.RoundWallMS, float64(wall)/float64(time.Millisecond))
 			waits := after.WaitCount - before.WaitCount
 			run.PoolWaitCount += waits
@@ -738,10 +744,8 @@ func (w *targetRiskWorkload) measureContention(t *testing.T, production *Runtime
 		}
 		w.removeLeftovers(t, subject, companion, second)
 	}
-	run.MetricsAfter = checkpointMetrics(t)
 	run.LockSamples = stopSampling()
 	require.Empty(t, run.LockSamples.Error)
-	run.Deadlocks = deadlocks() - deadlocksBefore
 	run.JSONBRecordsets = recordsets.Result()
 	for _, operation := range operations {
 		latencies := make([]float64, len(operation.Samples))
