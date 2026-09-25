@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
@@ -141,6 +143,7 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 		Children:         repos.Enrollment(),
 		Guardians:        repos.Enrollment(),
 		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repos.CarePlan),
+		Capacity:         testutil.NewEnrollmentOfferingCapacity(enrollmentService.NewCareOfferingRepository(repos.CarePlan), repos.Enrollment(), settings),
 		Catalog:          repos.Enrollment(),
 		SchoolRepo:       capabilitySchools{schools: repos.School},
 		Notifications:    enrollmentAPI.NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
@@ -158,6 +161,7 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 		Guardians:           repos.Enrollment(),
 		LateInviteRepo:      repos.Enrollment(),
 		CareOfferingRepo:    enrollmentService.NewCareOfferingRepository(repos.CarePlan),
+		Capacity:            testutil.NewEnrollmentOfferingCapacity(enrollmentService.NewCareOfferingRepository(repos.CarePlan), repos.Enrollment(), settings),
 		Catalog:             repos.Enrollment(),
 		Notifications:       enrollmentAPI.NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
 		GuardianProfileRepo: repos.GuardianProfile,

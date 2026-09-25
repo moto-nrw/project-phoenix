@@ -1,4 +1,4 @@
-package enrollment
+package application
 
 import (
 	"testing"
@@ -7,9 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Pure-helper tests for the small functions the decision service
@@ -126,10 +123,10 @@ func TestDecodeDepartureDays_MapsModes(t *testing.T) {
 		"thu": "alone", // normalized away
 	})
 	require.NoError(t, err)
-	assert.Equal(t, users.DepartureBus, out.ModeFor("mon"))
-	assert.Equal(t, users.DeparturePickup, out.ModeFor("wed"))
-	assert.Equal(t, users.DepartureAlone, out.ModeFor("thu"))
-	assert.Equal(t, users.DepartureAlone, out.ModeFor("fri"))
+	assert.EqualValues(t, "bus", out.ModeFor("mon"))
+	assert.EqualValues(t, "pickup", out.ModeFor("wed"))
+	assert.EqualValues(t, "alone", out.ModeFor("thu"))
+	assert.EqualValues(t, "alone", out.ModeFor("fri"))
 }
 
 func TestDecodeDepartureDays_RejectsUnknownMode(t *testing.T) {
@@ -166,7 +163,7 @@ func TestDecodePickupDays_AcceptsLegacySelectValues(t *testing.T) {
 	// *value*, not the German label. "picked_up" must map to all weekdays.
 	pickedUp, err := decodePickupDays("picked_up")
 	require.NoError(t, err)
-	for _, day := range users.PickupDayOrder {
+	for _, day := range []string{"mon", "tue", "wed", "thu", "fri"} {
 		assert.True(t, pickedUp[day], "picked_up should imply %s", day)
 	}
 
@@ -178,11 +175,11 @@ func TestDecodePickupDays_AcceptsLegacySelectValues(t *testing.T) {
 func TestDecodePickupDays_AcceptsGermanLabels(t *testing.T) {
 	t.Parallel()
 
-	pickedUp, err := decodePickupDays(users.PickupStatusPickedUp)
+	pickedUp, err := decodePickupDays("Wird abgeholt")
 	require.NoError(t, err)
 	assert.True(t, pickedUp.HasAny())
 
-	alone, err := decodePickupDays(users.PickupStatusGoesAlone)
+	alone, err := decodePickupDays("Geht alleine nach Hause")
 	require.NoError(t, err)
 	assert.False(t, alone.HasAny())
 }
@@ -232,21 +229,21 @@ func TestContactGuardianRole(t *testing.T) {
 		name               string
 		isEmergencyContact bool
 		canPickup          bool
-		want               string
+		want               GuardianRole
 	}{
 		{
 			name:      "pickup wins",
 			canPickup: true,
-			want:      authorize.GuardianRolePickupOnly,
+			want:      GuardianRolePickupOnly,
 		},
 		{
 			name:               "emergency contact",
 			isEmergencyContact: true,
-			want:               authorize.GuardianRoleEmergency,
+			want:               GuardianRoleEmergency,
 		},
 		{
 			name: "no operational role",
-			want: authorize.GuardianRoleCustom,
+			want: GuardianRoleCustom,
 		},
 	}
 

@@ -21,7 +21,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -40,7 +39,7 @@ type rolloverTestEnv struct {
 	timetable      timetable.Capability
 	rolloverSvc    enrollmentService.RolloverService
 	requestSvc     enrollmentService.RequestService
-	offeringCloner enrollmentService.RolloverOfferingCatalogCloner
+	offeringCloner enrollmentTest.RolloverCatalogCloner
 	// offeringCatalog is the Care Plan catalog over the test database; its
 	// link rules feed the decision services the suites build on this env.
 	offeringCatalog careplan.CareOfferingCatalogCapability
@@ -102,19 +101,18 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	})
 
 	offeringCatalog := testCareOfferingCatalog(t, db, testutil.WithCareOfferingSettings(settings))
-	var offeringCloner enrollmentService.RolloverOfferingCatalogCloner = offeringCatalog
+	var offeringCloner enrollmentTest.RolloverCatalogCloner = offeringCatalog
 
-	rolloverSvc := newTestRolloverService(enrollmentService.RolloverServiceConfig{
-		Bookings:              requestTestBookingCommands(),
-		Phases:                repoFactory.Enrollment(),
-		Requests:              repoFactory.Enrollment(),
-		Children:              repoFactory.Enrollment(),
-		OfferingCatalogCloner: offeringCloner,
-		OutboxEnqueuer:        outbox,
-		Settings:              settings,
-		ParentsURL:            "http://parents.localhost:3000",
-		DB:                    db,
-		Logger:                slog.Default(),
+	rolloverSvc := newTestRolloverService(testutil.EnrollmentRolloverSources{
+		Bookings:   requestTestBookingCommands(),
+		Phases:     repoFactory.Enrollment(),
+		Requests:   repoFactory.Enrollment(),
+		Children:   repoFactory.Enrollment(),
+		Catalog:    offeringCloner,
+		Outbox:     outbox,
+		Settings:   settings,
+		ParentsURL: "http://parents.localhost:3000",
+		Logger:     slog.Default(),
 	})
 
 	ctx := testpkg.Ctx(t)
@@ -267,17 +265,16 @@ func rolloverServiceWithSettings(
 	env *rolloverTestEnv,
 	settings enrollmentService.RequestSettingsResolver,
 ) enrollmentService.RolloverService {
-	return newTestRolloverService(enrollmentService.RolloverServiceConfig{
-		Bookings:              requestTestBookingCommands(),
-		Phases:                env.repos.Enrollment(),
-		Requests:              env.repos.Enrollment(),
-		Children:              env.repos.Enrollment(),
-		OfferingCatalogCloner: env.offeringCloner,
-		OutboxEnqueuer:        env.outbox,
-		Settings:              settings,
-		ParentsURL:            "http://parents.localhost:3000",
-		DB:                    env.db,
-		Logger:                slog.Default(),
+	return newTestRolloverService(testutil.EnrollmentRolloverSources{
+		Bookings:   requestTestBookingCommands(),
+		Phases:     env.repos.Enrollment(),
+		Requests:   env.repos.Enrollment(),
+		Children:   env.repos.Enrollment(),
+		Catalog:    env.offeringCloner,
+		Outbox:     env.outbox,
+		Settings:   settings,
+		ParentsURL: "http://parents.localhost:3000",
+		Logger:     slog.Default(),
 	})
 }
 
@@ -847,7 +844,7 @@ func TestRolloverService_RunDeadlineWorker_IsIdempotent(t *testing.T) {
 	assert.Equal(t, 0, second.PendingRenewalToWithdrawn)
 }
 
-// fakeApproveDecisionService stands in for the real DecisionService
+// fakeApproveDecisionService stands in for the owner's decision flow
 // when we only want to assert the auto-approve path *would* be invoked
 // — the real service requires Person/Student/etc. repos that the
 // rollover test env doesn't spin up. The stub flips status to approved
@@ -860,52 +857,12 @@ type fakeApproveDecisionService struct {
 	calls int
 }
 
-func (f *fakeApproveDecisionService) List(_ context.Context, _ enrollmentService.RequestFilters) ([]*enrollmentService.RequestSummary, error) {
-	return nil, nil
-}
-
-func (f *fakeApproveDecisionService) ListByStudent(_ context.Context, _ int64) ([]*enrollmentService.RequestSummary, error) {
-	return nil, nil
-}
-
-func (f *fakeApproveDecisionService) Get(_ context.Context, _ int64) (*enrollmentService.RequestSummary, error) {
-	return nil, nil
-}
-
-func (f *fakeApproveDecisionService) ListChildOfferings(_ context.Context, _ int64) (map[int64]enrollmentService.ChildOfferingSet, error) {
-	return nil, nil
-}
-
-func (f *fakeApproveDecisionService) UpdateChildOfferings(_ context.Context, _ enrollmentService.UpdateChildOfferingsInput) (*enrollmentService.RequestChild, error) {
-	return nil, nil
-}
-
-func (f *fakeApproveDecisionService) ListOfferingAdjustments(_ context.Context, _, _ int64) ([]*auditModels.EnrollmentOfferingAdjustment, error) {
-	return nil, nil
-}
-
-func (f *fakeApproveDecisionService) ExportPhase(_ context.Context, _, _ int64, _, _, _ string) (*enrollmentService.PhaseExport, error) {
-	return nil, nil
-}
-
-func (f *fakeApproveDecisionService) ExportStudent(_ context.Context, _, _ int64, _, _ string) (*enrollmentService.StudentEnrollmentExport, error) {
-	return nil, nil
-}
-
-func (f *fakeApproveDecisionService) RecordPhaseExportAudit(_ context.Context, _ int64, _ string, _ *capability.Phase, _, _ string, _, _ int) error {
-	return nil
-}
-
-func (f *fakeApproveDecisionService) RestoreWithdrawn(_ context.Context, _, _ int64) (*enrollmentService.RestoreOutcome, error) {
-	return nil, nil
-}
-
-func (f *fakeApproveDecisionService) Decide(ctx context.Context, input enrollmentService.DecideInput) (*enrollmentService.DecideOutcome, error) {
+func (f *fakeApproveDecisionService) Decide(ctx context.Context, input capability.DecideInput) (*capability.DecideOutcome, error) {
 	f.calls++
 	if err := f.repo.UpdateChildStatus(ctx, input.ChildID, string(input.Status), nil, 0); err != nil {
 		return nil, err
 	}
-	return &enrollmentService.DecideOutcome{}, nil
+	return &capability.DecideOutcome{}, nil
 }
 
 func TestRolloverService_RunDeadlineWorker_AutoApprovePromotesToApproved(t *testing.T) {
@@ -923,17 +880,16 @@ func TestRolloverService_RunDeadlineWorker_AutoApprovePromotesToApproved(t *test
 	// env doesn't wire a decision service (decision needs Person/
 	// Student repos and the full chain).
 	stubDecision := &fakeApproveDecisionService{repo: env.repos.Enrollment()}
-	autoApproveSvc := newTestRolloverService(enrollmentService.RolloverServiceConfig{
-		Bookings:        requestTestBookingCommands(),
-		Phases:          env.repos.Enrollment(),
-		Requests:        env.repos.Enrollment(),
-		Children:        env.repos.Enrollment(),
-		OutboxEnqueuer:  env.outbox,
-		Settings:        env.settings,
-		DecisionService: stubDecision,
-		ParentsURL:      "http://parents.localhost:3000",
-		DB:              env.db,
-		Logger:          slog.Default(),
+	autoApproveSvc := newTestRolloverService(testutil.EnrollmentRolloverSources{
+		Bookings:   requestTestBookingCommands(),
+		Phases:     env.repos.Enrollment(),
+		Requests:   env.repos.Enrollment(),
+		Children:   env.repos.Enrollment(),
+		Outbox:     env.outbox,
+		Settings:   env.settings,
+		Decisions:  stubDecision,
+		ParentsURL: "http://parents.localhost:3000",
+		Logger:     slog.Default(),
 	})
 
 	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)

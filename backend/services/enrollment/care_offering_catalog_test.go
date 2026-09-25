@@ -986,7 +986,7 @@ func testRepositories(t *testing.T, db *bun.DB) *repositories.Factory {
 
 // testGuardianAccess composes the production Identity & Access capability the
 // decision service grants parent portal access through.
-func testGuardianAccess(db *bun.DB) enrollmentService.DecisionGuardianAccess {
+func testGuardianAccess(db *bun.DB) phaseFixture.DecisionGuardianAccess {
 	module, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	if err != nil {
 		panic(err)
@@ -994,7 +994,7 @@ func testGuardianAccess(db *bun.DB) enrollmentService.DecisionGuardianAccess {
 	return module
 }
 
-func testStudentEnrollment(db *bun.DB) enrollmentService.DecisionStudentEnrollment {
+func testStudentEnrollment(db *bun.DB) phaseFixture.DecisionStudentEnrollment {
 	module, err := repositories.NewPeopleDirectory(db)
 	if err != nil {
 		panic(err)

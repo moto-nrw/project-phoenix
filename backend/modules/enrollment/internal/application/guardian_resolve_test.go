@@ -1,4 +1,4 @@
-package enrollment
+package application
 
 import (
 	"context"
@@ -11,19 +11,18 @@ import (
 	"github.com/stretchr/testify/require"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// stubGuardianProfileRepo implements only the GuardianProfileRepository methods
+// stubGuardianProfiles implements only the guardian profile reads and writes
 // resolveGuardianProfile touches; the embedded interface panics on any other
 // call, which keeps the unit test honest about what the resolver depends on.
-type stubGuardianProfileRepo struct {
-	usersModels.GuardianProfileRepository
-	byAccount map[int64]*usersModels.GuardianProfile
-	byEmail   map[string]*usersModels.GuardianProfile
+type stubGuardianProfiles struct {
+	GuardianProfiles
+	byAccount map[int64]*GuardianProfile
+	byEmail   map[string]*GuardianProfile
 	// byAccountErr simulates an operational (non-not-found) failure of the
 	// by-account lookup.
 	byAccountErr error
@@ -33,44 +32,63 @@ type stubGuardianProfileRepo struct {
 	updated      int
 }
 
-func (s *stubGuardianProfileRepo) FindByAccountID(_ context.Context, accountID int64) (*usersModels.GuardianProfile, error) {
+func (s *stubGuardianProfiles) GuardianProfileByAccount(_ context.Context, accountID int64) (*GuardianProfile, error) {
 	if s.byAccountErr != nil {
 		return nil, s.byAccountErr
 	}
-	if p, ok := s.byAccount[accountID]; ok {
-		return p, nil
-	}
-	return nil, usersModels.ErrGuardianProfileNotFound
+	return s.byAccount[accountID], nil
 }
 
-func (s *stubGuardianProfileRepo) FindByEmail(_ context.Context, email string) (*usersModels.GuardianProfile, error) {
+func (s *stubGuardianProfiles) GuardianProfileByEmail(_ context.Context, email string) (*GuardianProfile, error) {
 	s.emailLookups++
 	if s.byEmailErr != nil {
 		return nil, s.byEmailErr
 	}
-	if p, ok := s.byEmail[strings.ToLower(strings.TrimSpace(email))]; ok {
-		return p, nil
-	}
-	return nil, usersModels.ErrGuardianProfileNotFound
+	return s.byEmail[strings.ToLower(strings.TrimSpace(email))], nil
 }
 
-func (s *stubGuardianProfileRepo) Create(_ context.Context, _ *usersModels.GuardianProfile) error {
+func (s *stubGuardianProfiles) CreateGuardianProfile(context.Context, *GuardianProfile) error {
 	s.created++
 	return nil
 }
 
-func (s *stubGuardianProfileRepo) Update(_ context.Context, _ *usersModels.GuardianProfile) error {
+func (s *stubGuardianProfiles) UpdateGuardianProfile(context.Context, *GuardianProfile) error {
 	s.updated++
 	return nil
 }
 
 func int64Ptr(v int64) *int64 { return &v }
 
+// testTenantKey carries the tenant the stubbed runtime reports, so a grant
+// can prove it ran in the approval's own context.
+type testTenantKey struct{}
+
+func withTestTenant(ctx context.Context, tenantID int64) context.Context {
+	return context.WithValue(ctx, testTenantKey{}, tenantID)
+}
+
+func testTenantID(ctx context.Context) int64 {
+	tenantID, _ := ctx.Value(testTenantKey{}).(int64)
+	return tenantID
+}
+
+func guardianDecisions(deps DecisionDependencies) *Decisions {
+	deps.Runtime.TenantID = testTenantID
+	if deps.Logger == nil {
+		deps.Logger = slog.Default()
+	}
+	return &Decisions{deps: deps}
+}
+
+func withGuardianProfiles(profiles GuardianProfiles) DecisionDependencies {
+	return DecisionDependencies{People: PeopleDirectory{GuardianProfiles: profiles}}
+}
+
 func TestResolveGuardianProfile_PreservesEmailReadFailure(t *testing.T) {
 	t.Parallel()
 	failure := errors.New("guardian storage unavailable")
-	repo := &stubGuardianProfileRepo{byEmailErr: failure}
-	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{GuardianProfileRepo: repo}}
+	repo := &stubGuardianProfiles{byEmailErr: failure}
+	svc := guardianDecisions(withGuardianProfiles(repo))
 	profile, created, err := svc.resolveGuardianProfile(context.Background(), &enrollmentModels.Request{
 		GuardianEmail: "guardian@example.test", GuardianFirstName: "Anna", GuardianLastName: "Test",
 	})
@@ -83,10 +101,10 @@ func TestResolveGuardianProfile_PreservesEmailReadFailure(t *testing.T) {
 func TestResolveAdditionalGuardianProfile_PreservesEmailReadFailure(t *testing.T) {
 	t.Parallel()
 	failure := errors.New("guardian storage unavailable")
-	repo := &stubGuardianProfileRepo{byEmailErr: failure}
-	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{GuardianProfileRepo: repo}}
+	repo := &stubGuardianProfiles{byEmailErr: failure}
+	svc := guardianDecisions(withGuardianProfiles(repo))
 	email := "guardian@example.test"
-	id, err := svc.resolveAdditionalGuardianProfile(context.Background(), &capability.RequestGuardian{
+	id, err := svc.resolveAdditionalGuardianProfile(context.Background(), &enrollment.RequestGuardian{
 		Email: &email, FirstName: "Anna", LastName: "Test",
 	})
 	require.ErrorIs(t, err, failure)
@@ -99,27 +117,32 @@ type failingDecisionRequestReader struct {
 	err error
 }
 
-func (r failingDecisionRequestReader) RequestByID(context.Context, int64, bool) (*capability.Request, error) {
+func (r failingDecisionRequestReader) RequestByID(context.Context, int64, bool) (*enrollment.Request, error) {
 	return nil, r.err
 }
 
 func TestDecide_PreservesRequestReadFailure(t *testing.T) {
 	t.Parallel()
 	failure := errors.New("request storage unavailable")
-	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{Requests: failingDecisionRequestReader{err: failure}}}
-	outcome, err := svc.Decide(context.Background(), DecideInput{RequestID: 10, ChildID: 20, Status: DecisionApproved})
+	svc := guardianDecisions(DecisionDependencies{
+		Requests: failingDecisionRequestReader{err: failure},
+		Runtime:  Runtime{NotFound: func(err error) bool { return errors.Is(err, errNoDecisionRow) }},
+	})
+	outcome, err := svc.Decide(context.Background(), enrollment.DecideInput{RequestID: 10, ChildID: 20, Status: enrollment.DecisionApproved})
 	require.ErrorIs(t, err, failure)
-	require.NotErrorIs(t, err, ErrDecisionRequestNotFound)
+	require.NotErrorIs(t, err, careplan.ErrBookingRequestNotFound)
 	require.Nil(t, outcome)
 }
 
-type stubLateInviteRepo struct {
-	invite  *capability.LateInvite
+var errNoDecisionRow = errors.New("no rows")
+
+type stubLateInvites struct {
+	invite  *enrollment.LateInvite
 	err     error
 	lookups int
 }
 
-func (s *stubLateInviteRepo) LateInviteByUsedRequestID(_ context.Context, _ int64) (*capability.LateInvite, error) {
+func (s *stubLateInvites) LateInviteByUsedRequestID(context.Context, int64) (*enrollment.LateInvite, error) {
 	s.lookups++
 	return s.invite, s.err
 }
@@ -127,8 +150,8 @@ func (s *stubLateInviteRepo) LateInviteByUsedRequestID(_ context.Context, _ int6
 func TestGuardianIdentityRequest_UsesLateInviteRecipient(t *testing.T) {
 	t.Parallel()
 
-	repo := &stubLateInviteRepo{invite: &capability.LateInvite{GuardianEmail: "invited@example.test"}}
-	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{LateInviteRepo: repo}}
+	repo := &stubLateInvites{invite: &enrollment.LateInvite{GuardianEmail: "invited@example.test"}}
+	svc := guardianDecisions(DecisionDependencies{LateInvites: repo})
 	request := &enrollmentModels.Request{
 		SubmissionSource: enrollmentModels.RequestSourceLateInvite,
 		GuardianEmail:    "corrected@example.test",
@@ -146,8 +169,8 @@ func TestGuardianIdentityRequest_UsesLateInviteRecipient(t *testing.T) {
 func TestGuardianIdentityRequest_AuthenticatedSubmitKeepsAccountIdentity(t *testing.T) {
 	t.Parallel()
 
-	repo := &stubLateInviteRepo{invite: &capability.LateInvite{GuardianEmail: "invited@example.test"}}
-	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{LateInviteRepo: repo}}
+	repo := &stubLateInvites{invite: &enrollment.LateInvite{GuardianEmail: "invited@example.test"}}
+	svc := guardianDecisions(DecisionDependencies{LateInvites: repo})
 	request := &enrollmentModels.Request{
 		SubmissionSource:  enrollmentModels.RequestSourceLateInvite,
 		GuardianAccountID: int64Ptr(23),
@@ -164,7 +187,7 @@ func TestGuardianIdentityRequest_AuthenticatedSubmitKeepsAccountIdentity(t *test
 func TestGuardianIdentityRequest_MissingLateInviteFailsClosed(t *testing.T) {
 	t.Parallel()
 
-	svc := &decisionService{}
+	svc := guardianDecisions(DecisionDependencies{})
 	request := &enrollmentModels.Request{
 		SubmissionSource: enrollmentModels.RequestSourceLateInvite,
 		GuardianEmail:    "corrected@example.test",
@@ -185,13 +208,12 @@ func TestResolveGuardianProfile_RejectsCrossAccountEmail(t *testing.T) {
 		callerAccount = int64(10)
 		victimAccount = int64(20)
 	)
-	victim := &usersModels.GuardianProfile{FirstName: "Vera", LastName: "Opfer", AccountID: int64Ptr(victimAccount)}
-	victim.ID = 99
-	repo := &stubGuardianProfileRepo{
-		byAccount: map[int64]*usersModels.GuardianProfile{}, // caller has no profile here yet
-		byEmail:   map[string]*usersModels.GuardianProfile{"victim@example.test": victim},
+	victim := &GuardianProfile{ID: 99, FirstName: "Vera", LastName: "Opfer", AccountID: int64Ptr(victimAccount)}
+	repo := &stubGuardianProfiles{
+		byAccount: map[int64]*GuardianProfile{}, // caller has no profile here yet
+		byEmail:   map[string]*GuardianProfile{"victim@example.test": victim},
 	}
-	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{GuardianProfileRepo: repo}}
+	svc := guardianDecisions(withGuardianProfiles(repo))
 
 	req := &enrollmentModels.Request{
 		GuardianAccountID: int64Ptr(callerAccount),
@@ -201,7 +223,7 @@ func TestResolveGuardianProfile_RejectsCrossAccountEmail(t *testing.T) {
 	}
 
 	got, wasNew, err := svc.resolveGuardianProfile(context.Background(), req)
-	require.ErrorIs(t, err, ErrGuardianAccountMismatch)
+	require.ErrorIs(t, err, enrollment.ErrGuardianAccountMismatch)
 	assert.Nil(t, got)
 	assert.False(t, wasNew)
 	assert.Zero(t, repo.created, "must not create a profile on a rejected mismatch")
@@ -214,17 +236,15 @@ func TestResolveGuardianProfile_PrefersAuthenticatedAccountProfile(t *testing.T)
 	t.Parallel()
 
 	const callerAccount = int64(10)
-	own := &usersModels.GuardianProfile{FirstName: "Anna", LastName: "Antragsteller", AccountID: int64Ptr(callerAccount)}
-	own.ID = 5
+	own := &GuardianProfile{ID: 5, FirstName: "Anna", LastName: "Antragsteller", AccountID: int64Ptr(callerAccount)}
 	// A colliding email owned by someone else exists too; the account-first
 	// resolution must never consult it.
-	other := &usersModels.GuardianProfile{FirstName: "Vera", LastName: "Opfer", AccountID: int64Ptr(int64(20))}
-	other.ID = 99
-	repo := &stubGuardianProfileRepo{
-		byAccount: map[int64]*usersModels.GuardianProfile{callerAccount: own},
-		byEmail:   map[string]*usersModels.GuardianProfile{"victim@example.test": other},
+	other := &GuardianProfile{ID: 99, FirstName: "Vera", LastName: "Opfer", AccountID: int64Ptr(int64(20))}
+	repo := &stubGuardianProfiles{
+		byAccount: map[int64]*GuardianProfile{callerAccount: own},
+		byEmail:   map[string]*GuardianProfile{"victim@example.test": other},
 	}
-	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{GuardianProfileRepo: repo}}
+	svc := guardianDecisions(withGuardianProfiles(repo))
 
 	req := &enrollmentModels.Request{
 		GuardianAccountID: int64Ptr(callerAccount),
@@ -265,7 +285,7 @@ func (s *stubGuardianAccess) FindAccountByEmail(_ context.Context, email string)
 }
 
 func (s *stubGuardianAccess) GrantGuardianTenantAccess(ctx context.Context, accountID int64) (identityaccess.GuardianTenantAccess, error) {
-	granted := identityaccess.GuardianTenantAccess{AccountID: accountID, TenantID: tenant.FromContext(ctx), RoleAssigned: true}
+	granted := identityaccess.GuardianTenantAccess{AccountID: accountID, TenantID: testTenantID(ctx), RoleAssigned: true}
 	s.grants = append(s.grants, granted)
 	return granted, nil
 }
@@ -278,19 +298,17 @@ func TestResolveGuardianProfile_RejectsForeignUnclaimedEmailProfile(t *testing.T
 	t.Parallel()
 
 	const callerAccount = int64(10)
-	foreign := &usersModels.GuardianProfile{FirstName: "Vera", LastName: "Opfer"} // AccountID nil
-	foreign.ID = 77
-	repo := &stubGuardianProfileRepo{
-		byAccount: map[int64]*usersModels.GuardianProfile{},
-		byEmail:   map[string]*usersModels.GuardianProfile{"victim@example.test": foreign},
+	foreign := &GuardianProfile{ID: 77, FirstName: "Vera", LastName: "Opfer"} // AccountID nil
+	repo := &stubGuardianProfiles{
+		byAccount: map[int64]*GuardianProfile{},
+		byEmail:   map[string]*GuardianProfile{"victim@example.test": foreign},
 	}
 	accounts := &stubGuardianAccess{byID: map[int64]identityaccess.Account{
 		callerAccount: {ID: callerAccount, Email: "caller@example.test"},
 	}}
-	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{
-		GuardianProfileRepo: repo,
-		GuardianAccess:      accounts,
-	}}
+	deps := withGuardianProfiles(repo)
+	deps.GuardianAccess = accounts
+	svc := guardianDecisions(deps)
 
 	req := &enrollmentModels.Request{
 		GuardianAccountID: int64Ptr(callerAccount),
@@ -300,7 +318,7 @@ func TestResolveGuardianProfile_RejectsForeignUnclaimedEmailProfile(t *testing.T
 	}
 
 	got, wasNew, err := svc.resolveGuardianProfile(context.Background(), req)
-	require.ErrorIs(t, err, ErrGuardianAccountMismatch)
+	require.ErrorIs(t, err, enrollment.ErrGuardianAccountMismatch)
 	assert.Nil(t, got)
 	assert.False(t, wasNew)
 	assert.Zero(t, repo.created, "must not create a profile on a rejected claim")
@@ -312,19 +330,17 @@ func TestResolveGuardianProfile_AllowsOwnUnclaimedEmailProfile(t *testing.T) {
 	t.Parallel()
 
 	const callerAccount = int64(10)
-	own := &usersModels.GuardianProfile{FirstName: "Anna", LastName: "Antragsteller"} // AccountID nil
-	own.ID = 7
-	repo := &stubGuardianProfileRepo{
-		byAccount: map[int64]*usersModels.GuardianProfile{},
-		byEmail:   map[string]*usersModels.GuardianProfile{"anna@example.test": own},
+	own := &GuardianProfile{ID: 7, FirstName: "Anna", LastName: "Antragsteller"} // AccountID nil
+	repo := &stubGuardianProfiles{
+		byAccount: map[int64]*GuardianProfile{},
+		byEmail:   map[string]*GuardianProfile{"anna@example.test": own},
 	}
 	accounts := &stubGuardianAccess{byID: map[int64]identityaccess.Account{
 		callerAccount: {ID: callerAccount, Email: "Anna@Example.test"}, // case-insensitive match
 	}}
-	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{
-		GuardianProfileRepo: repo,
-		GuardianAccess:      accounts,
-	}}
+	deps := withGuardianProfiles(repo)
+	deps.GuardianAccess = accounts
+	svc := guardianDecisions(deps)
 
 	req := &enrollmentModels.Request{
 		GuardianAccountID: int64Ptr(callerAccount),
@@ -342,19 +358,18 @@ func TestResolveGuardianProfile_AllowsOwnUnclaimedEmailProfile(t *testing.T) {
 // A database failure on the by-account lookup must NOT degrade into the email
 // path: doing so hands the linkage decision to the parent-editable email field
 // (or creates a duplicate profile) on a transient outage. Only the explicit
-// not-found sentinel may fall through.
+// not-found answer may fall through.
 func TestResolveGuardianProfile_PropagatesAccountLookupFailure(t *testing.T) {
 	t.Parallel()
 
 	const callerAccount = int64(10)
-	other := &usersModels.GuardianProfile{FirstName: "Vera", LastName: "Opfer"}
-	other.ID = 99
-	repo := &stubGuardianProfileRepo{
-		byAccount:    map[int64]*usersModels.GuardianProfile{},
-		byEmail:      map[string]*usersModels.GuardianProfile{"anna@example.test": other},
+	other := &GuardianProfile{ID: 99, FirstName: "Vera", LastName: "Opfer"}
+	repo := &stubGuardianProfiles{
+		byAccount:    map[int64]*GuardianProfile{},
+		byEmail:      map[string]*GuardianProfile{"anna@example.test": other},
 		byAccountErr: errors.New("connection reset by peer"),
 	}
-	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{GuardianProfileRepo: repo}}
+	svc := guardianDecisions(withGuardianProfiles(repo))
 
 	req := &enrollmentModels.Request{
 		GuardianAccountID: int64Ptr(callerAccount),
@@ -382,13 +397,12 @@ func TestResolveGuardianProfile_RequiresGuardianAccessForUnclaimedEmailProfile(t
 	t.Parallel()
 
 	const callerAccount = int64(10)
-	unclaimed := &usersModels.GuardianProfile{FirstName: "Anna", LastName: "Antragsteller"} // AccountID nil
-	unclaimed.ID = 7
-	repo := &stubGuardianProfileRepo{
-		byAccount: map[int64]*usersModels.GuardianProfile{},
-		byEmail:   map[string]*usersModels.GuardianProfile{"anna@example.test": unclaimed},
+	unclaimed := &GuardianProfile{ID: 7, FirstName: "Anna", LastName: "Antragsteller"} // AccountID nil
+	repo := &stubGuardianProfiles{
+		byAccount: map[int64]*GuardianProfile{},
+		byEmail:   map[string]*GuardianProfile{"anna@example.test": unclaimed},
 	}
-	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{GuardianProfileRepo: repo}}
+	svc := guardianDecisions(withGuardianProfiles(repo))
 
 	req := &enrollmentModels.Request{
 		GuardianAccountID: int64Ptr(callerAccount),
@@ -411,17 +425,14 @@ func TestResolveGuardianProfile_AllowsUnclaimedEmailProfileWhenSubmitterAccountI
 	t.Parallel()
 
 	const callerAccount = int64(10)
-	unclaimed := &usersModels.GuardianProfile{FirstName: "Anna", LastName: "Antragsteller"} // AccountID nil
-	unclaimed.ID = 7
-	repo := &stubGuardianProfileRepo{
-		byAccount: map[int64]*usersModels.GuardianProfile{},
-		byEmail:   map[string]*usersModels.GuardianProfile{"anna@example.test": unclaimed},
+	unclaimed := &GuardianProfile{ID: 7, FirstName: "Anna", LastName: "Antragsteller"} // AccountID nil
+	repo := &stubGuardianProfiles{
+		byAccount: map[int64]*GuardianProfile{},
+		byEmail:   map[string]*GuardianProfile{"anna@example.test": unclaimed},
 	}
-	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{
-		GuardianProfileRepo: repo,
-		GuardianAccess:      &stubGuardianAccess{byID: map[int64]identityaccess.Account{}},
-		Logger:              slog.Default(),
-	}}
+	deps := withGuardianProfiles(repo)
+	deps.GuardianAccess = &stubGuardianAccess{byID: map[int64]identityaccess.Account{}}
+	svc := guardianDecisions(deps)
 
 	req := &enrollmentModels.Request{
 		GuardianAccountID: int64Ptr(callerAccount),
@@ -450,21 +461,18 @@ func TestAttachGuardianAccountIfPresent_ReactivatesLinkedAccountTenant(t *testin
 		accountID = int64(4242)
 		tenantID  = int64(77)
 	)
-	guardian := &usersModels.GuardianProfile{
+	guardian := &GuardianProfile{
+		ID:         5,
 		FirstName:  "Anna",
 		LastName:   "Antragsteller",
 		AccountID:  int64Ptr(accountID),
 		HasAccount: true,
 	}
-	guardian.ID = 5
 
 	access := &stubGuardianAccess{byID: map[int64]identityaccess.Account{}}
-	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{
-		GuardianAccess: access,
-		Logger:         slog.Default(),
-	}}
+	svc := guardianDecisions(DecisionDependencies{GuardianAccess: access})
 
-	ctx := tenant.WithTenantID(context.Background(), tenantID)
+	ctx := withTestTenant(context.Background(), tenantID)
 	require.NoError(t, svc.attachGuardianAccountIfPresent(ctx, &enrollmentModels.Request{}, guardian, false))
 
 	require.Len(t, access.grants, 1,
@@ -478,10 +486,9 @@ func TestAttachGuardianAccountIfPresent_ReactivatesLinkedAccountTenant(t *testin
 func TestAttachGuardianAccountIfPresent_RequiresGuardianAccess(t *testing.T) {
 	t.Parallel()
 
-	guardian := &usersModels.GuardianProfile{AccountID: int64Ptr(4242), HasAccount: true}
-	guardian.ID = 5
-	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{}}
-	ctx := tenant.WithTenantID(context.Background(), 77)
+	guardian := &GuardianProfile{ID: 5, AccountID: int64Ptr(4242), HasAccount: true}
+	svc := guardianDecisions(DecisionDependencies{})
+	ctx := withTestTenant(context.Background(), 77)
 	err := svc.attachGuardianAccountIfPresent(ctx, &enrollmentModels.Request{}, guardian, false)
 	require.ErrorIs(t, err, errDecisionGuardianAccessRequired)
 }

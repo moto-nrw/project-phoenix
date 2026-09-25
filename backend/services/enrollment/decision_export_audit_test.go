@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -45,8 +47,8 @@ func samplePhaseForAudit() *enrollmentModels.Phase {
 }
 
 func newAuditDecisionService(repo auditModels.DataAccessLogRepository) enrollmentService.DecisionService {
-	return newTestDecisionService(enrollmentService.DecisionServiceConfig{
-		DataAccessLogRepo: repo,
+	return newTestDecisionService(testutil.EnrollmentDecisionSources{
+		DataAccessLog: repo,
 	})
 }
 

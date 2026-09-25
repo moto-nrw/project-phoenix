@@ -3,6 +3,7 @@ package enrollment_test
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -116,16 +117,33 @@ func (o phaseOfferings) CountOfferingsForPhase(ctx context.Context, phaseID int6
 // Enrollment's parent mails over the suite's owner, settings and outbox, and
 // the rollover's eligibility guard over the suite's settings.
 
-func newTestDecisionService(cfg enrollmentService.DecisionServiceConfig) enrollmentService.DecisionService {
-	if cfg.Notifications == nil {
-		cfg.Notifications = testNotifications(cfg.Requests, cfg.Settings, cfg.OutboxEnqueuer, nil)
+// newTestDecisions composes Enrollment's decision flow over the sources; the
+// optional outbox records its parent mails.
+func newTestDecisions(src testutil.EnrollmentDecisionSources, outboxes ...platformModels.OutboxEnqueuer) *enrollmentTest.Decisions {
+	if src.Notifications == nil {
+		var outbox platformModels.OutboxEnqueuer
+		if len(outboxes) > 0 {
+			outbox = outboxes[0]
+		}
+		modes, _ := src.Requests.(enrollmentTest.NotificationModePin)
+		src.Notifications = testNotifications(modes, src.Settings, outbox, nil)
 	}
-	return enrollmentService.NewDecisionService(cfg)
+	return testutil.NewEnrollmentDecisions(src)
 }
 
+func newTestDecisionService(src testutil.EnrollmentDecisionSources, outboxes ...platformModels.OutboxEnqueuer) enrollmentService.DecisionService {
+	return enrollmentService.NewDecisionService(newTestDecisions(src, outboxes...))
+}
+
+// newTestRequestService composes the retained intake; without an explicit
+// gate it binds the owner's capacity gate over the suite's offerings,
+// children and settings, the way the root binds it.
 func newTestRequestService(cfg enrollmentService.RequestServiceConfig) enrollmentService.RequestService {
 	if cfg.Notifications == nil {
 		cfg.Notifications = testNotifications(cfg.Requests, cfg.Settings, cfg.OutboxEnqueuer, cfg.SchoolRepo)
+	}
+	if cfg.Capacity == nil {
+		cfg.Capacity = testutil.NewEnrollmentOfferingCapacity(cfg.CareOfferingRepo, cfg.Children, cfg.Settings)
 	}
 	return enrollmentService.NewRequestService(cfg)
 }
@@ -134,17 +152,20 @@ func newTestChangeRequestService(cfg enrollmentService.ChangeRequestServiceConfi
 	if cfg.Notifications == nil {
 		cfg.Notifications = testNotifications(cfg.Requests, cfg.Settings, cfg.OutboxEnqueuer, nil)
 	}
+	if cfg.Capacity == nil {
+		cfg.Capacity = testutil.NewEnrollmentOfferingCapacity(cfg.CareOfferingRepo, cfg.Children, cfg.Settings)
+	}
 	return enrollmentService.NewChangeRequestService(cfg)
 }
 
-func newTestRolloverService(cfg enrollmentService.RolloverServiceConfig) enrollmentService.RolloverService {
-	if cfg.Notifications == nil {
-		cfg.Notifications = testNotifications(nil, nil, nil, nil)
+func newTestRolloverService(src testutil.EnrollmentRolloverSources) enrollmentService.RolloverService {
+	if src.Notifications == nil {
+		src.Notifications = testNotifications(nil, nil, nil, nil)
 	}
-	if cfg.PhaseEligibility == nil && cfg.Settings != nil {
-		cfg.PhaseEligibility = enrollmentTest.NewPhases(enrollmentTest.PhaseDependencies{Settings: collectionSettings{settings: cfg.Settings}})
+	if src.PhaseEligibility == nil && src.Settings != nil {
+		src.PhaseEligibility = enrollmentTest.NewPhases(enrollmentTest.PhaseDependencies{Settings: collectionSettings{settings: src.Settings}})
 	}
-	return enrollmentService.NewRolloverService(cfg)
+	return enrollmentService.NewRolloverService(testutil.NewEnrollmentRollovers(src))
 }
 
 // testNotifications composes Enrollment's parent mails for a retained

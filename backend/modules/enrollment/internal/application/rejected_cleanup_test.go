@@ -1,4 +1,4 @@
-package enrollment
+package application
 
 import (
 	"context"
@@ -7,17 +7,11 @@ import (
 	"testing"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-
-	"github.com/moto-nrw/project-phoenix/tenant"
-
-	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/pgdialect"
+
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 type cleanupSettingsStub struct {
@@ -25,19 +19,7 @@ type cleanupSettingsStub struct {
 	err  error
 }
 
-func (s cleanupSettingsStub) HasTenantOverride(context.Context, string) (bool, error) {
-	return false, nil
-}
-func (s cleanupSettingsStub) ResolveBool(context.Context, string) (bool, error) {
-	return false, nil
-}
-func (s cleanupSettingsStub) ResolveString(context.Context, string) (string, error) {
-	return "", nil
-}
-func (s cleanupSettingsStub) ResolveInt(_ context.Context, key string) (int, error) {
-	if key != configModel.KeyEnrollmentRejectedRetentionDays {
-		return 0, errors.New("unexpected key")
-	}
+func (s cleanupSettingsStub) RejectedRetentionDays(context.Context) (int, error) {
 	return s.days, s.err
 }
 
@@ -59,12 +41,12 @@ func (s *cleanupRequestStub) FullyRejectedRequestsBefore(_ context.Context, cuto
 	s.cutoff = cutoff
 	return s.ids, s.listErr
 }
-func (s *cleanupRequestStub) RequestByID(_ context.Context, id int64, _ bool) (*capability.Request, error) {
+func (s *cleanupRequestStub) RequestByID(_ context.Context, id int64, _ bool) (*enrollment.Request, error) {
 	s.locked = append(s.locked, id)
 	if err := s.lockErr[id]; err != nil {
 		return nil, err
 	}
-	return &capability.Request{}, nil
+	return &enrollment.Request{}, nil
 }
 func (s *cleanupRequestStub) DeleteRequest(_ context.Context, id int64) error {
 	if err := s.deleteErr[id]; err != nil {
@@ -75,12 +57,12 @@ func (s *cleanupRequestStub) DeleteRequest(_ context.Context, id int64) error {
 }
 
 type cleanupChildrenStub struct {
-	byRequestID map[int64][]*capability.RequestChild
+	byRequestID map[int64][]*enrollment.RequestChild
 	errFor      map[int64]error
 	locked      []int64
 }
 
-func (s *cleanupChildrenStub) ChildrenForRequest(_ context.Context, requestID int64, forUpdate bool) ([]*capability.RequestChild, error) {
+func (s *cleanupChildrenStub) ChildrenForRequest(_ context.Context, requestID int64, forUpdate bool) ([]*enrollment.RequestChild, error) {
 	if !forUpdate {
 		return nil, errors.New("cleanup must lock children")
 	}
@@ -94,11 +76,11 @@ func (s *cleanupChildrenStub) ChildrenForRequest(_ context.Context, requestID in
 func eligibleCleanupChildren(requestIDs ...int64) *cleanupChildrenStub {
 	reviewedAt := time.Now().Add(-365 * 24 * time.Hour)
 	children := &cleanupChildrenStub{
-		byRequestID: make(map[int64][]*capability.RequestChild, len(requestIDs)),
+		byRequestID: make(map[int64][]*enrollment.RequestChild, len(requestIDs)),
 		errFor:      map[int64]error{},
 	}
 	for _, requestID := range requestIDs {
-		children.byRequestID[requestID] = []*capability.RequestChild{{
+		children.byRequestID[requestID] = []*enrollment.RequestChild{{
 			RequestID:  requestID,
 			Status:     enrollmentModels.ChildStatusRejected,
 			ReviewedAt: &reviewedAt,
@@ -148,22 +130,25 @@ func (s *cleanupOutboxStub) CancelRelatedEmails(_ context.Context, relatedType s
 	return s.counts[id], nil
 }
 
-func cleanupServiceForTest(requests *cleanupRequestStub, children *cleanupChildrenStub, outbox *cleanupOutboxStub, settings cleanupSettingsStub, lateInviteStubs ...*cleanupLateInvitesStub) *rejectedEnrollmentCleanupService {
+func cleanupServiceForTest(requests *cleanupRequestStub, children *cleanupChildrenStub, outbox *cleanupOutboxStub, settings cleanupSettingsStub, lateInviteStubs ...*cleanupLateInvitesStub) *RejectedCleanup {
 	lateInvites := &cleanupLateInvitesStub{counts: map[int64]int64{}, errFor: map[int64]error{}}
 	if len(lateInviteStubs) > 0 && lateInviteStubs[0] != nil {
 		lateInvites = lateInviteStubs[0]
 	}
-	return &rejectedEnrollmentCleanupService{
-		requests:    requests,
-		children:    children,
-		lateInvites: lateInvites,
-		delivery:    outbox,
-		settings:    settings,
-		logger:      slog.New(slog.DiscardHandler),
-		runInTx: func(ctx context.Context, fn func(context.Context) error) error {
-			return fn(ctx)
+	return NewRejectedCleanup(RejectedCleanupDependencies{
+		Requests:    requests,
+		Children:    children,
+		LateInvites: lateInvites,
+		Delivery:    outbox,
+		Settings:    settings,
+		Logger:      slog.New(slog.DiscardHandler),
+		Runtime: Runtime{
+			InTransaction: func(context.Context) bool { return false },
+			WithinCurrentTenant: func(ctx context.Context, fn func(context.Context) error) error {
+				return fn(ctx)
+			},
 		},
-	}
+	})
 }
 
 func TestRejectedEnrollmentCleanup_DeletesUsedLateInvites(t *testing.T) {
@@ -177,7 +162,7 @@ func TestRejectedEnrollmentCleanup_DeletesUsedLateInvites(t *testing.T) {
 	result, err := cleanupServiceForTest(requests, children, outbox, cleanupSettingsStub{days: 30}, lateInvites).CleanupRejectedEnrollments(context.Background())
 
 	require.NoError(t, err)
-	assert.Equal(t, RejectedEnrollmentCleanupResult{DeletedRequests: 1, DeletedLateInvites: 2, DeletedOutboxRows: 3}, result)
+	assert.Equal(t, enrollment.RejectedEnrollmentCleanupResult{DeletedRequests: 1, DeletedLateInvites: 2, DeletedOutboxRows: 3}, result)
 	assert.Equal(t, []int64{11}, lateInvites.deleted)
 	assert.Equal(t, []int64{11}, outbox.deleted)
 	assert.Equal(t, []int64{11}, requests.deleted)
@@ -211,7 +196,7 @@ func TestRejectedEnrollmentCleanup_DeletesOnlyRepositorySelectedRequests(t *test
 	result, err := cleanupServiceForTest(requests, children, outbox, cleanupSettingsStub{days: 30}).CleanupRejectedEnrollments(context.Background())
 
 	require.NoError(t, err)
-	assert.Equal(t, RejectedEnrollmentCleanupResult{DeletedRequests: 2, DeletedOutboxRows: 3}, result)
+	assert.Equal(t, enrollment.RejectedEnrollmentCleanupResult{DeletedRequests: 2, DeletedOutboxRows: 3}, result)
 	assert.Equal(t, []int64{11, 12}, requests.locked)
 	assert.Equal(t, []int64{11, 12}, children.locked)
 	assert.Equal(t, []int64{11, 12}, outbox.deleted)
@@ -256,7 +241,7 @@ func TestRejectedEnrollmentCleanup_RechecksLockedChildrenBeforeDeleting(t *testi
 	requests := &cleanupRequestStub{ids: []int64{11, 12}, deleteErr: map[int64]error{}}
 	children := eligibleCleanupChildren(11, 12)
 	reviewedAt := time.Now().Add(-365 * 24 * time.Hour)
-	children.byRequestID[11] = []*capability.RequestChild{{
+	children.byRequestID[11] = []*enrollment.RequestChild{{
 		RequestID:  11,
 		Status:     enrollmentModels.ChildStatusUnderReview,
 		ReviewedAt: &reviewedAt,
@@ -266,7 +251,7 @@ func TestRejectedEnrollmentCleanup_RechecksLockedChildrenBeforeDeleting(t *testi
 	result, err := cleanupServiceForTest(requests, children, outbox, cleanupSettingsStub{days: 30}).CleanupRejectedEnrollments(context.Background())
 
 	require.NoError(t, err)
-	assert.Equal(t, RejectedEnrollmentCleanupResult{DeletedRequests: 1, DeletedOutboxRows: 2}, result)
+	assert.Equal(t, enrollment.RejectedEnrollmentCleanupResult{DeletedRequests: 1, DeletedOutboxRows: 2}, result)
 	assert.Equal(t, []int64{11, 12}, requests.locked)
 	assert.Equal(t, []int64{11, 12}, children.locked)
 	assert.Equal(t, []int64{12}, outbox.deleted)
@@ -320,16 +305,16 @@ func TestChildrenRemainFullyRejectedBefore(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		children []*capability.RequestChild
+		children []*enrollment.RequestChild
 		want     bool
 	}{
 		{name: "no children"},
-		{name: "nil child", children: []*capability.RequestChild{nil}},
-		{name: "reopened child", children: []*capability.RequestChild{{Status: enrollmentModels.ChildStatusUnderReview, ReviewedAt: &oldReview}}},
-		{name: "missing review time", children: []*capability.RequestChild{{Status: enrollmentModels.ChildStatusRejected}}},
-		{name: "review exactly at cutoff", children: []*capability.RequestChild{{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &cutoff}}},
-		{name: "review after cutoff", children: []*capability.RequestChild{{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &newReview}}},
-		{name: "all rejected before cutoff", children: []*capability.RequestChild{
+		{name: "nil child", children: []*enrollment.RequestChild{nil}},
+		{name: "reopened child", children: []*enrollment.RequestChild{{Status: enrollmentModels.ChildStatusUnderReview, ReviewedAt: &oldReview}}},
+		{name: "missing review time", children: []*enrollment.RequestChild{{Status: enrollmentModels.ChildStatusRejected}}},
+		{name: "review exactly at cutoff", children: []*enrollment.RequestChild{{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &cutoff}}},
+		{name: "review after cutoff", children: []*enrollment.RequestChild{{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &newReview}}},
+		{name: "all rejected before cutoff", children: []*enrollment.RequestChild{
 			{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &oldReview},
 			{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &oldReview},
 		}, want: true},
@@ -340,141 +325,4 @@ func TestChildrenRemainFullyRejectedBefore(t *testing.T) {
 			assert.Equal(t, tt.want, childrenRemainFullyRejectedBefore(tt.children, cutoff))
 		})
 	}
-}
-
-func rejectedCleanupAmbientTx(t *testing.T) (context.Context, sqlmock.Sqlmock) {
-	t.Helper()
-	sqlDB, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = sqlDB.Close() })
-
-	db := bun.NewDB(sqlDB, pgdialect.New())
-	mock.ExpectBegin()
-	tx, err := db.BeginTx(context.Background(), nil)
-	require.NoError(t, err)
-	controller := rejectedCleanupSavepointController{tx: &tx}
-	uow, err := tenant.NewUnitOfWork(
-		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error { return fn(ctx, tx) },
-		func(ctx context.Context, fn func(context.Context, any) error) error { return fn(ctx, tx) },
-		tenant.SavepointFunc(controller),
-		func(error) bool { return false },
-	)
-	require.NoError(t, err)
-	ctx := tenant.WithUnitOfWork(context.Background(), uow)
-	return tenant.WithTransactionForTest(ctx, &tx), mock
-}
-
-type rejectedCleanupSavepointController struct{ tx *bun.Tx }
-
-func (c rejectedCleanupSavepointController) CreateSavepoint(ctx context.Context) error {
-	_, err := c.tx.ExecContext(ctx, "SAVEPOINT phoenix_operation")
-	return err
-}
-
-func (c rejectedCleanupSavepointController) RollbackSavepoint(ctx context.Context) error {
-	_, err := c.tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT phoenix_operation")
-	return err
-}
-
-func (c rejectedCleanupSavepointController) ReleaseSavepoint(ctx context.Context) error {
-	_, err := c.tx.ExecContext(ctx, "RELEASE SAVEPOINT phoenix_operation")
-	return err
-}
-
-func TestRejectedEnrollmentCleanupSavepointSuccess(t *testing.T) {
-	t.Parallel()
-
-	ctx, mock := rejectedCleanupAmbientTx(t)
-	mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("RELEASE SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
-
-	called := false
-	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error {
-		called = true
-		return nil
-	})
-
-	require.NoError(t, err)
-	assert.True(t, called)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestRejectedEnrollmentCleanupSavepointRollsBackCallbackFailure(t *testing.T) {
-	t.Parallel()
-
-	ctx, mock := rejectedCleanupAmbientTx(t)
-	mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("ROLLBACK TO SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("RELEASE SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
-	expected := errors.New("delete failed")
-
-	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error { return expected })
-
-	require.ErrorIs(t, err, expected)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestRejectedEnrollmentCleanupSavepointRollbackFailureJoinsErrors(t *testing.T) {
-	t.Parallel()
-
-	ctx, mock := rejectedCleanupAmbientTx(t)
-	mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
-	rollbackErr := errors.New("rollback failed")
-	mock.ExpectExec("ROLLBACK TO SAVEPOINT phoenix_operation").WillReturnError(rollbackErr)
-	callbackErr := errors.New("delete failed")
-
-	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error { return callbackErr })
-
-	require.ErrorIs(t, err, callbackErr)
-	require.ErrorIs(t, err, rollbackErr)
-	assert.ErrorContains(t, err, "savepoint control failed: rollback")
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestRejectedEnrollmentCleanupSavepointRollbackReleaseFailureJoinsErrors(t *testing.T) {
-	t.Parallel()
-
-	ctx, mock := rejectedCleanupAmbientTx(t)
-	mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("ROLLBACK TO SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
-	releaseErr := errors.New("release failed")
-	mock.ExpectExec("RELEASE SAVEPOINT phoenix_operation").WillReturnError(releaseErr)
-	callbackErr := errors.New("delete failed")
-
-	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error { return callbackErr })
-
-	require.ErrorIs(t, err, callbackErr)
-	require.ErrorIs(t, err, releaseErr)
-	assert.ErrorContains(t, err, "savepoint control failed: release after rollback")
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestRejectedEnrollmentCleanupSavepointCreationFailureSkipsCallback(t *testing.T) {
-	t.Parallel()
-
-	ctx, mock := rejectedCleanupAmbientTx(t)
-	mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnError(errors.New("savepoint unavailable"))
-
-	called := false
-	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error {
-		called = true
-		return nil
-	})
-
-	require.EqualError(t, err, "savepoint control failed: create: savepoint unavailable")
-	assert.False(t, called)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-func TestRejectedEnrollmentCleanupSavepointReleaseFailureIsReturned(t *testing.T) {
-	t.Parallel()
-
-	ctx, mock := rejectedCleanupAmbientTx(t)
-	mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("RELEASE SAVEPOINT phoenix_operation").WillReturnError(errors.New("release failed"))
-
-	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error { return nil })
-
-	require.EqualError(t, err, "savepoint control failed: release: release failed")
-	require.NoError(t, mock.ExpectationsWereMet())
 }

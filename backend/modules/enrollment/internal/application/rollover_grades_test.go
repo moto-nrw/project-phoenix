@@ -1,4 +1,4 @@
-package enrollment
+package application
 
 import (
 	"testing"

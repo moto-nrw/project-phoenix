@@ -70,3 +70,12 @@ func OwnerPhaseForTest(phase *capability.Phase) *capability.Phase {
 func WriteSelectionDateForTest(phase *capability.Phase, today timezone.Date) timezone.Date {
 	return offeringSelectionDateOn(phase, today)
 }
+
+// ChangeRequestApplierForTest applies change requests through the owner flow
+// behind a decision service built by NewDecisionService, the way the root
+// binds the applier over the same flow.
+func ChangeRequestApplierForTest(svc DecisionService, bookings CareBookingGates) ChangeRequestDecisionApplier {
+	contract, _ := svc.(decisionContract)
+	owner, _ := contract.owner.(capability.ApprovedChildChanges)
+	return NewChangeRequestDecisionApplier(owner, bookings)
+}

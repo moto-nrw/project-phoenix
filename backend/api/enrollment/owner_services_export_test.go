@@ -39,3 +39,12 @@ func (o testMailOutbox) EnqueueMail(ctx context.Context, mail enrollmentTest.Mai
 		RelatedEntityID: mail.RelatedEntityID, IdempotencyKey: mail.IdempotencyKey,
 	})
 }
+
+// The decision-flow ports the external router suites bind their doubles to
+// (#3564).
+type (
+	TestDecisionChildren          = enrollmentTest.DecisionChildren
+	TestDecisionGuardianAccess    = enrollmentTest.DecisionGuardianAccess
+	TestDecisionStudentEnrollment = enrollmentTest.DecisionStudentEnrollment
+	TestDecisionBookings          = enrollmentTest.DecisionBookings
+)

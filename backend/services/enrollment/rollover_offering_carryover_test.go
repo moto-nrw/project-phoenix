@@ -3,6 +3,8 @@ package enrollment_test
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 
 	"testing"
@@ -413,15 +415,14 @@ func TestRolloverService_CreatePhaseFromSource_FailsWhenBookingHasNoClone(t *tes
 
 	// A mis-wired service (nil cloner) must fail the rollover instead of
 	// silently persisting a source-phase offering reference.
-	svcNoCloner := newTestRolloverService(enrollmentService.RolloverServiceConfig{
-		Bookings:       requestTestBookingCommands(),
-		Phases:         env.repos.Enrollment(),
-		Requests:       env.repos.Enrollment(),
-		Children:       env.repos.Enrollment(),
-		OutboxEnqueuer: env.outbox,
-		Settings:       env.settings,
-		ParentsURL:     "http://parents.localhost:3000",
-		DB:             env.db,
+	svcNoCloner := newTestRolloverService(testutil.EnrollmentRolloverSources{
+		Bookings:   requestTestBookingCommands(),
+		Phases:     env.repos.Enrollment(),
+		Requests:   env.repos.Enrollment(),
+		Children:   env.repos.Enrollment(),
+		Outbox:     env.outbox,
+		Settings:   env.settings,
+		ParentsURL: "http://parents.localhost:3000",
 	})
 	err := testpkg.WithTenantTx(t, context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, createErr := svcNoCloner.CreatePhaseFromSource(txCtx,
