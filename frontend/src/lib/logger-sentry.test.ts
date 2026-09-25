@@ -6,7 +6,10 @@ const { addBreadcrumb, captureMessage } = vi.hoisted(() => ({
 }));
 vi.mock("@sentry/nextjs", () => ({ addBreadcrumb, captureMessage }));
 
+vi.unmock("~/lib/logger");
+
 const { reportLogToSentry } = await import("./logger-sentry");
+const { createLogger } = await import("./logger");
 
 function entry(overrides: Record<string, unknown>) {
   return {
@@ -64,6 +67,8 @@ describe("reportLogToSentry", () => {
   it("does not send expected noise as events", () => {
     reportLogToSentry(entry({ msg: "sse connection error" }));
     reportLogToSentry(entry({ msg: "parent login failed", context: "server" }));
+    reportLogToSentry(entry({ msg: "login failed" }));
+    reportLogToSentry(entry({ msg: "school login failed", context: "server" }));
 
     expect(captureMessage).not.toHaveBeenCalled();
   });
@@ -97,6 +102,53 @@ describe("reportLogToSentry", () => {
           request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10",
         },
       }),
+    );
+  });
+});
+
+describe("logger levels for expected failures (#3694)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it.each([
+    ["a dropped connection", { error: "Load failed" }],
+    ["a prefixed dropped connection", { error: "TypeError: Failed to fetch" }],
+    ["an expired session", { status: 401, error: "unauthorized" }],
+    ["a business-rule conflict", { status: 409, error: "request_past" }],
+    [
+      "a conflict named only in the API error text",
+      { error: "API error (409): room still in use" },
+    ],
+  ])("logs %s as a warning breadcrumb, not an event", (_label, context) => {
+    createLogger({ component: "Probe" }).error("probe_failed", context);
+
+    expect(captureMessage).not.toHaveBeenCalled();
+    expect(addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "probe_failed",
+        level: "warning",
+        data: expect.objectContaining({
+          expected_failure: expect.any(String),
+        }) as unknown,
+      }),
+    );
+  });
+
+  it.each([
+    ["a 403", { status: 403, error: "timetable operation forbidden" }],
+    ["a 5xx", { status: 503, error: "API error (503): unavailable" }],
+    ["an exception", { error: "Cannot read properties of undefined" }],
+    [
+      "an unreadable response",
+      { error: "SyntaxError: The string did not match the expected pattern." },
+    ],
+  ])("still sends %s as an event", (_label, context) => {
+    createLogger({ component: "Probe" }).error("probe_failed", context);
+
+    expect(captureMessage).toHaveBeenCalledWith(
+      "probe_failed",
+      expect.objectContaining({ level: "error" }),
     );
   });
 });

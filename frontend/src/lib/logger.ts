@@ -16,6 +16,7 @@ import {
   redactSensitiveLogData,
   redactSensitiveLogString,
 } from "~/lib/log-redaction";
+import { expectedFailure } from "~/lib/expected-failure";
 import { reportLogToSentry } from "~/lib/logger-sentry";
 
 /**
@@ -145,6 +146,21 @@ function getLogLevelFromEnv(): LogLevel {
 }
 
 /**
+ * An error the app expects and handles (dropped connection, 401, 409) becomes
+ * a warning that names the reason, so it stays in the logs and breadcrumbs
+ * without opening a Sentry issue (#3694).
+ */
+function settleLevel(
+  level: LogLevel,
+  context: Record<string, unknown> | undefined,
+): [LogLevel, Record<string, unknown> | undefined] {
+  const expected = level === "error" ? expectedFailure(context) : null;
+  return expected
+    ? ["warn", { ...context, expected_failure: expected }]
+    : [level, context];
+}
+
+/**
  * Base logger configuration (can be overridden)
  */
 const DEFAULT_CONFIG: Required<LoggerConfig> = {
@@ -201,6 +217,7 @@ class ServerLogger implements Logger {
     context?: Record<string, unknown>,
   ): void {
     if (!this.config.enabled) return;
+    [level, context] = settleLevel(level, context);
     if (LogLevelValue[level] < LogLevelValue[this.config.level]) return;
 
     const entry = redactSensitiveLogData({
@@ -282,6 +299,7 @@ class ClientLogger implements Logger {
     context?: Record<string, unknown>,
   ): void {
     if (!this.config.enabled) return;
+    [level, context] = settleLevel(level, context);
     if (LogLevelValue[level] < LogLevelValue[this.config.level]) return;
 
     const entry = redactSensitiveLogData({

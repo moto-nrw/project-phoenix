@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 
+import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
@@ -37,6 +38,7 @@ export function useStartOwnBlock({
         logger.error("home_block_start_failed", {
           instance_id: instance.id,
           error: err instanceof Error ? err.message : String(err),
+          status: errorStatus(err),
         });
         setError(
           "Der Block konnte nicht gestartet werden. Bitte noch einmal versuchen.",

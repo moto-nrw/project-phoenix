@@ -23,11 +23,15 @@ interface SentryLogEntry {
 
 /**
  * Error-level messages that are expected noise, not defects: the SSE stream
- * reconnects on its own (about 700 entries a day in production), and a wrong
- * parent password is user input. They stay in the logs.
+ * reconnects on its own (about 700 entries a day in production), and a failed
+ * login is user input or a normal session flow in every portal (#3694). They
+ * stay in the logs. Dropped connections, 401 and 409 in any other message
+ * arrive here as warn already (expected-failure.ts).
  */
 const NOT_SENT_TO_SENTRY = new Set([
   "sse connection error",
+  "login failed",
+  "school login failed",
   "parent login failed",
 ]);
 

@@ -287,9 +287,10 @@ export function ToastProvider({
       // a longer explanation opt into a longer duration.
       const duration = options?.duration ?? 1500;
 
-      // Log error toasts for monitoring
+      // A breadcrumb, not a Sentry event: the caller that failed reports the
+      // cause itself, so an error here would count every failure twice (#3694).
       if (type === "error") {
-        logger.error("user-facing error displayed", {
+        logger.warn("user-facing error displayed", {
           message: message.substring(0, 100), // Truncate for logging
           toast_type: type,
           source: "toast_context",
