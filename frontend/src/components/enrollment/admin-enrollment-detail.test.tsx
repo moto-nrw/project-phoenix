@@ -1990,6 +1990,12 @@ describe("describeOfferingAdjustmentChanges", () => {
     ]);
   });
 
+  it("keeps the known days of an offering whose days are unknown on one side", () => {
+    expect(
+      lines([ganztag16(["mon"])], [{ ...ganztag16([]), selected_days: [] }]),
+    ).toEqual(["Mo: Ganztagsbetreuung bis 16 Uhr abgemeldet"]);
+  });
+
   it("reports unchanged offerings", () => {
     expect(lines([randstunde], [{ ...randstunde }])).toEqual([
       "Angebote unverändert",

@@ -1951,25 +1951,23 @@ export interface OfferingAdjustmentChangeLine {
   readonly text: string;
 }
 
-const WEEKDAY_ORDER = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const WEEKDAY_ORDER = Object.keys(DAY_LABEL_DE);
+const GERMAN_LIST = new Intl.ListFormat("de", { type: "conjunction" });
 
 // describeOfferingAdjustmentChanges turns the before/after audit snapshots of
 // one offering adjustment into one line per group of weekdays that changed the
-// same way (#3688). Offerings whose days cannot be determined are compared by
-// presence only and listed at the end.
+// same way (#3688). A snapshot row without determinable days does not enter the
+// weekday comparison; an offering that only such rows carry and that appears on
+// one side only is listed at the end as booked or cancelled.
 export function describeOfferingAdjustmentChanges(
   before: readonly OfferingAdjustmentSnapshot[],
   after: readonly OfferingAdjustmentSnapshot[],
 ): OfferingAdjustmentChangeLine[] {
-  const undatedIds = new Set(
-    [...before, ...after]
-      .filter((row) => snapshotDays(row).length === 0)
-      .map((row) => row.offering_id),
-  );
-  const beforeByDay = offeringsByDay(before, undatedIds);
-  const afterByDay = offeringsByDay(after, undatedIds);
+  const beforeByDay = offeringsByDay(before);
+  const afterByDay = offeringsByDay(after);
+  // The after snapshot names an offering as it is called now.
   const names = new Map<string, string>();
-  for (const row of [...after, ...before]) {
+  for (const row of [...before, ...after]) {
     names.set(row.offering_id, snapshotName(row));
   }
 
@@ -1991,7 +1989,7 @@ export function describeOfferingAdjustmentChanges(
   }
 
   const nameList = (ids: readonly string[]) =>
-    joinGerman(ids.map((id) => names.get(id) ?? `Angebot #${id}`));
+    GERMAN_LIST.format(ids.map((id) => names.get(id) ?? `Angebot #${id}`));
   const lines: OfferingAdjustmentChangeLine[] = [...groups.values()].map(
     ({ days, removed, added }) => ({
       days: formatAdminDays(days),
@@ -1999,30 +1997,13 @@ export function describeOfferingAdjustmentChanges(
     }),
   );
 
-  const presentIn = (rows: readonly OfferingAdjustmentSnapshot[]) =>
-    new Set(rows.map((row) => row.offering_id));
-  const beforeIds = presentIn(before);
-  const afterIds = presentIn(after);
-  const undatedRemoved = uniqueRowNames(
-    before.filter(
-      (row) =>
-        undatedIds.has(row.offering_id) && !afterIds.has(row.offering_id),
-    ),
-  );
-  const undatedAdded = uniqueRowNames(
-    after.filter(
-      (row) =>
-        undatedIds.has(row.offering_id) && !beforeIds.has(row.offering_id),
-    ),
-  );
+  const undatedRemoved = undatedOnlyIn(before, after);
+  const undatedAdded = undatedOnlyIn(after, before);
   if (undatedRemoved.length > 0) {
-    lines.push({
-      days: null,
-      text: `${joinGerman(undatedRemoved)} abgemeldet`,
-    });
+    lines.push({ days: null, text: `${nameList(undatedRemoved)} abgemeldet` });
   }
   if (undatedAdded.length > 0) {
-    lines.push({ days: null, text: `${joinGerman(undatedAdded)} gebucht` });
+    lines.push({ days: null, text: `${nameList(undatedAdded)} gebucht` });
   }
 
   return lines.length > 0
@@ -2046,11 +2027,9 @@ function snapshotDays(row: OfferingAdjustmentSnapshot): readonly string[] {
 
 function offeringsByDay(
   rows: readonly OfferingAdjustmentSnapshot[],
-  undatedIds: ReadonlySet<string>,
 ): Map<string, string[]> {
   const byDay = new Map<string, string[]>();
   for (const row of rows) {
-    if (undatedIds.has(row.offering_id)) continue;
     for (const day of snapshotDays(row)) {
       const ids = byDay.get(day) ?? [];
       if (!ids.includes(row.offering_id)) ids.push(row.offering_id);
@@ -2058,6 +2037,24 @@ function offeringsByDay(
     }
   }
   return byDay;
+}
+
+// undatedOnlyIn returns the ids of offerings that `rows` carries only without
+// determinable days and that `other` does not carry at all.
+function undatedOnlyIn(
+  rows: readonly OfferingAdjustmentSnapshot[],
+  other: readonly OfferingAdjustmentSnapshot[],
+): string[] {
+  const otherIds = new Set(other.map((row) => row.offering_id));
+  const datedIds = new Set(
+    rows
+      .filter((row) => snapshotDays(row).length > 0)
+      .map((row) => row.offering_id),
+  );
+  const ids = rows
+    .map((row) => row.offering_id)
+    .filter((id) => !datedIds.has(id) && !otherIds.has(id));
+  return [...new Set(ids)];
 }
 
 function compareWeekdays(a: string, b: string): number {
@@ -2070,15 +2067,6 @@ function compareWeekdays(a: string, b: string): number {
 
 function snapshotName(row: OfferingAdjustmentSnapshot): string {
   return row.offering_name || `Angebot #${row.offering_id}`;
-}
-
-function uniqueRowNames(rows: readonly OfferingAdjustmentSnapshot[]): string[] {
-  return [...new Set(rows.map(snapshotName))];
-}
-
-function joinGerman(items: readonly string[]): string {
-  if (items.length <= 1) return items.join("");
-  return `${items.slice(0, -1).join(", ")} und ${items.at(-1)}`;
 }
 
 function formatAdminOfferingDaySource(o: AdminRequestChildOffering): string {
