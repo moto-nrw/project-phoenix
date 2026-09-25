@@ -25,6 +25,7 @@ type RolloverChildren interface {
 	ChildrenByID(context.Context, []int64) ([]*capability.RequestChild, error)
 	ChildrenByPhaseStatuses(context.Context, int64, []string) ([]*capability.RequestChild, error)
 	ReviewRolloverChild(context.Context, int64, string, *string, *int16, int64) error
+	HoldAutoRenewedChild(context.Context, int64, string) (bool, error)
 	TransitionPhaseChildren(context.Context, int64, string, string) (int, error)
 }
 
