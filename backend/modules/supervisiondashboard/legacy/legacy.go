@@ -208,8 +208,8 @@ func (s sessions) records(ctx context.Context, groups []*studentpresence.Session
 	result := make([]supervisiondashboard.Session, 0, len(groups))
 	for _, group := range groups {
 		item := supervisiondashboard.Session{ID: group.ID}
-		if group.Activity != nil {
-			item.Name = group.Activity.Name
+		if activity := group.Activity; activity != nil {
+			item.Name, item.ParticipantLimit = activity.Name, timetable.ParticipantLimitPtr(activity.MaxParticipants)
 		}
 		if group.RoomID > 0 {
 			roomID := group.RoomID

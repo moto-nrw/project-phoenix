@@ -86,10 +86,13 @@ func instanceStudentCareDay(
 // counts derived from it. They are built together so the rows and the header
 // counts can never disagree about the same child (#1747 review).
 type instanceAttendanceSummary struct {
-	studentIDs   []int64
-	students     []instanceStudentSummary
-	expected     int
-	present      int
+	studentIDs []int64
+	students   []instanceStudentSummary
+	expected   int
+	present    int
+	// current counts the present rows without a checkout: the children still
+	// there, which is what the terminal compares with the limit (#3634).
+	current      int
 	notScheduled int
 }
 
@@ -132,33 +135,42 @@ func summarizeInstanceStudents(
 			CareDayStatus:   careDayStatus,
 			EarlyPickupTime: earlyPickup,
 		})
-		switch row.Status {
-		case timetable.SlotAttendanceExpected:
-			// Assigned but not in care today: counted separately, and left out
-			// of the staffing maths — planning for children who are not there
-			// that day inflates the Betreuungsschlüssel (#1747). The row carries
-			// the same verdict, so the slide-over can group it exactly the way
-			// this count does.
-			if !careDayStatus.Expected() {
-				out.notScheduled++
-				continue
-			}
-			out.expected++
-		case timetable.SlotAttendancePresent:
-			out.present++
-		case timetable.SlotAttendanceAbsent:
-			// A broad day status wrote this absence onto a day the care plan
-			// never booked — the block has not ended yet, so nothing has undone
-			// it. Group it where the verdict says it belongs instead of showing
-			// a school an absence from care that was never owed (#1747).
-			// instanceStudentCareDay hands out this verdict for no other absent
-			// row, so a manual absence is untouched.
-			if careDayStatus == careplan.CareDayNotScheduled {
-				out.notScheduled++
-			}
-		}
+		out.count(row, careDayStatus)
 	}
 	return out
+}
+
+// count adds one attendance row to the header counts, under the same
+// care-day verdict its row carries.
+func (out *instanceAttendanceSummary) count(row timetable.ScheduledParticipant, careDayStatus careplan.CareDayStatus) {
+	switch row.Status {
+	case timetable.SlotAttendanceExpected:
+		// Assigned but not in care today: counted separately, and left out
+		// of the staffing maths — planning for children who are not there
+		// that day inflates the Betreuungsschlüssel (#1747). The row carries
+		// the same verdict, so the slide-over can group it exactly the way
+		// this count does.
+		if !careDayStatus.Expected() {
+			out.notScheduled++
+			return
+		}
+		out.expected++
+	case timetable.SlotAttendancePresent:
+		out.present++
+		if row.CheckedOutAt == nil {
+			out.current++
+		}
+	case timetable.SlotAttendanceAbsent:
+		// A broad day status wrote this absence onto a day the care plan
+		// never booked — the block has not ended yet, so nothing has undone
+		// it. Group it where the verdict says it belongs instead of showing
+		// a school an absence from care that was never owed (#1747).
+		// instanceStudentCareDay hands out this verdict for no other absent
+		// row, so a manual absence is untouched.
+		if careDayStatus == careplan.CareDayNotScheduled {
+			out.notScheduled++
+		}
+	}
 }
 
 // earlyPickupWithin reports the child's pickup cutoff as HH:MM when it falls
@@ -203,4 +215,21 @@ func summarizeInstanceStaff(staffRows []timetable.InstanceStaff) ([]instanceStaf
 		})
 	}
 	return staff, absentCount
+}
+
+// instanceOccupancy is a block's participant limit and the children still
+// there. The Betreuungsplan flags a live block above the limit as overbooked:
+// the terminal then accepts no further child (#3634). PresentStudentsCount
+// cannot stand in, because it keeps the children who already left.
+type instanceOccupancy struct {
+	ParticipantLimit     int `json:"participant_limit"`
+	CurrentStudentsCount int `json:"current_students_count"`
+}
+
+// newInstanceOccupancy is nil for a block without a limit.
+func newInstanceOccupancy(limit *int, current int) *instanceOccupancy {
+	if limit == nil {
+		return nil
+	}
+	return &instanceOccupancy{ParticipantLimit: *limit, CurrentStudentsCount: current}
 }

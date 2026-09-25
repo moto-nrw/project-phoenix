@@ -711,6 +711,73 @@ describe("MeinRaumPage additional scenarios", () => {
       screen.queryByRole("heading", { name: "Aktuelle Aufsicht" }),
     ).not.toBeInTheDocument();
   });
+
+  // #3634: mit Grenze steht „Anzahl / Grenze“ in der Statuszeile; über der
+  // Grenze dazu „Überbucht“ und der Hinweis über den Kindern, genau an der
+  // Grenze keines von beiden.
+  it.each([
+    { limit: 1, line: "2 / 1 Kinder · Überbucht", warned: true },
+    { limit: 2, line: "2 / 2 Kinder", warned: false },
+  ])(
+    "shows the session's limit in the status line (limit $limit)",
+    async ({ limit, line, warned }) => {
+      const visit = (studentId: string, studentName: string) => ({
+        studentId,
+        studentName,
+        schoolClass: "1a",
+        groupName: "OGS Gruppe A",
+        activeGroupId: "1",
+        checkInTime: new Date().toISOString(),
+        isActive: true,
+      });
+      vi.mocked(useSWRAuth)
+        .mockReturnValueOnce({
+          data: {
+            supervisedGroups: [
+              {
+                id: "1",
+                name: "Fußball",
+                participantLimit: limit,
+                room: { id: "10", name: "Raum 101" },
+              },
+            ],
+            unclaimedGroups: [],
+            currentStaff: { id: "1" },
+            educationalGroups: [],
+            firstRoomVisits: [
+              visit("100", "Max Mustermann"),
+              visit("101", "Test Student"),
+            ],
+            firstRoomId: "1",
+          },
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        } as never)
+        .mockReturnValue({
+          data: null,
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        } as never);
+
+      render(<MeinRaumPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText(line, { selector: "p" })).toBeVisible();
+      });
+      const hint = screen.queryByText(
+        /^Mehr Kinder als erlaubt \(höchstens 1\)\./,
+      );
+      if (warned) {
+        expect(hint).toHaveAttribute("data-testid", "alert-warning");
+      } else {
+        expect(hint).not.toBeInTheDocument();
+      }
+    },
+  );
 });
 
 describe("MeinRaumPage filter and search behavior", () => {
