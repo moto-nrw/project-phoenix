@@ -1,3 +1,4 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
 import { type NextRequest, NextResponse } from "next/server";
 import { schoolAuth } from "~/server/auth/school";
 import { withSchoolAuth } from "~/server/auth/school-route";
@@ -33,6 +34,7 @@ async function POSTHandler(request: NextRequest) {
 
     return forwardBackendResponse(response);
   } catch (error) {
+    captureBffException(error, request);
     logger.error("logout failed", {
       error: error instanceof Error ? error.message : String(error),
     });

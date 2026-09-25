@@ -1,3 +1,4 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { analyticsSessionHeaders } from "~/lib/analytics-session-header.server";
@@ -26,7 +27,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   try {
-    const body = (await request.json()) as AcceptGuardianInvitationBody;
+    let body: AcceptGuardianInvitationBody;
+    try {
+      body = (await request.json()) as AcceptGuardianInvitationBody;
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
     const payload = {
       password: body.password,
       confirm_password: body.confirmPassword,
@@ -46,6 +52,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     return forwardBackendResponse(response);
   } catch (error) {
+    captureBffException(error, request);
     logger.error("guardian_invitation_accept_failed", {
       error: error instanceof Error ? error.message : String(error),
     });

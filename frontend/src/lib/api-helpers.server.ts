@@ -9,6 +9,7 @@ import {
 } from "./client-headers.server";
 import { sanitizeEndpoint } from "./log-sanitize";
 import { createLogger } from "~/lib/logger";
+import { captureBffException } from "~/lib/sentry-bff.server";
 
 // Logger instance for API helpers
 const logger = createLogger({ component: "ApiHelpers" });
@@ -401,7 +402,10 @@ export async function apiDelete<T, B = unknown>(
  * @param error Error object
  * @returns Response with error message and status
  */
-export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
+export function handleApiError(
+  error: unknown,
+  request?: Request,
+): NextResponse<ApiErrorResponse> {
   if (error instanceof ApiResponseError) {
     const code = error.body<BackendErrorPayload>()?.code;
     logApiRouteError(error.status, error.message, code);
@@ -429,6 +433,7 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
   }
 
   // Unknown errors are logged as errors and return 500
+  captureBffException(error, request);
   logger.error("api route error without status", {
     error: error instanceof Error ? error.message : String(error),
   });
@@ -458,7 +463,7 @@ function logApiRouteError(
   const safeErrorMessage = redactSensitiveApiErrorFields(errorMessage);
 
   // Only log server errors (5xx) to avoid Next.js error overlay for expected 4xx.
-  // The error code becomes the event's `error_code` tag (logger-sentry.ts).
+  // Backend 5xx responses stay in logs; the backend owns their Sentry event.
   if (status >= 500) {
     logger.error("api route error", {
       status,

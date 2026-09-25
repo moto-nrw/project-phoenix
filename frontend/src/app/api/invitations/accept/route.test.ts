@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 
+const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
+vi.mock("@sentry/nextjs", () => ({ captureException }));
+
 // ============================================================================
 // Mocks
 // ============================================================================
@@ -54,6 +57,20 @@ describe("POST /api/invitations/accept", () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
+  });
+
+  it("rejects malformed credential JSON without a Sentry event", async () => {
+    const response = await POST(
+      new NextRequest("http://localhost:3000/api/invitations/accept", {
+        method: "POST",
+        body: '{"password":"cleartext-secret"',
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Invalid JSON" });
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("accepts invitation successfully", async () => {

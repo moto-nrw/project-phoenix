@@ -147,8 +147,7 @@ function getLogLevelFromEnv(): LogLevel {
 
 /**
  * An error the app expects and handles (client dropped connection, 401, 409) becomes
- * a warning that names the reason, so it stays in the logs and breadcrumbs
- * without opening a Sentry issue (#3694).
+ * a warning that names the reason, so it stays in logs and breadcrumbs (#3694).
  */
 function settleLevel(
   level: LogLevel,

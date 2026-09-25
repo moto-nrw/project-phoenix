@@ -4,6 +4,7 @@ import {
   pageViewTraceSampleRate,
   sampleBrowserTrace,
   sampleNoTrace,
+  scrubClientEvent,
   scrubEvent,
   scrubSpan,
   sentryDataCollection,
@@ -22,6 +23,29 @@ function makeEvent(overrides: Partial<ErrorEvent> = {}): ErrorEvent {
 }
 
 describe("scrubEvent", () => {
+  it("drops a client fetch network failure but preserves a normal client exception", () => {
+    const network = makeEvent({
+      exception: { values: [{ type: "TypeError", value: "Failed to fetch" }] },
+    });
+    const other = makeEvent({
+      exception: {
+        values: [{ type: "TypeError", value: "Invalid response format" }],
+      },
+    });
+
+    expect(scrubClientEvent(network)).toBeNull();
+    expect(
+      scrubClientEvent(
+        makeEvent({
+          exception: {
+            values: [{ type: "AxiosError", value: "Network Error" }],
+          },
+        }),
+      ),
+    ).toBeNull();
+    expect(scrubClientEvent(other)).toBe(other);
+    expect(scrubEvent(network)).toBe(network);
+  });
   it("strips Authorization and Cookie headers (case-sensitive variants)", () => {
     const event = makeEvent({
       request: {

@@ -1,3 +1,4 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
@@ -42,6 +43,7 @@ async function GETHandler(request: NextRequest) {
       },
     });
   } catch (error) {
+    captureBffException(error, request);
     logger.error("template_download_failed", {
       error: error instanceof Error ? error.message : String(error),
     });

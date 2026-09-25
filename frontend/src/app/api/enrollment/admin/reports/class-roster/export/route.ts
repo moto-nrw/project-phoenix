@@ -1,3 +1,4 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
@@ -62,6 +63,7 @@ async function POSTHandler(request: NextRequest) {
     }
     return proxyExport(body, refreshed.user.token);
   } catch (error) {
+    captureBffException(error, request);
     const message = error instanceof Error ? error.message : "Export failed";
     logger.error("class_roster_report_export_failed", { error: message });
     return NextResponse.json({ error: message }, { status: 500 });

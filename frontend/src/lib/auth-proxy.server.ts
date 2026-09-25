@@ -3,6 +3,7 @@ import { getServerApiUrl } from "~/lib/server-api-url";
 import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { captureBffException } from "~/lib/sentry-bff.server";
 
 const logger = createLogger({ component: "AuthProxy" });
 
@@ -54,6 +55,7 @@ export async function forwardJsonPost(
     mirrorSetCookies(response, out);
     return out;
   } catch (error) {
+    captureBffException(error, request);
     logger.error("proxy_failed", {
       path: backendPath,
       error: error instanceof Error ? error.message : String(error),

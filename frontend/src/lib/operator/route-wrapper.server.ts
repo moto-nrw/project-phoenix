@@ -224,7 +224,7 @@ function createOperatorNoBodyHandler<T>(
         formatResponse,
       );
     } catch (error) {
-      return handleApiError(error);
+      return handleApiError(error, request);
     }
   });
 }
@@ -243,7 +243,7 @@ function createOperatorWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
         (data) => NextResponse.json(wrapInApiResponse(data)),
       );
     } catch (error) {
-      return handleApiError(error);
+      return handleApiError(error, request);
     }
   });
 }
@@ -332,7 +332,7 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
       });
       return forwardBackendResponse(response);
     } catch (error) {
-      return handleApiError(error);
+      return handleApiError(error, request);
     }
   });
 }
@@ -485,7 +485,7 @@ export function createOperatorProxyMethodHandler(
       });
       return forwardBackendResponse(response);
     } catch (error) {
-      return handleApiError(error);
+      return handleApiError(error, request);
     }
   });
 }

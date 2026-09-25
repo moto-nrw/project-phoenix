@@ -187,7 +187,7 @@ function createParentNoBodyHandler<T>(
         formatResponse,
       );
     } catch (error) {
-      return handleApiError(error);
+      return handleApiError(error, request);
     }
   });
 }
@@ -206,7 +206,7 @@ function createParentWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
         (data) => NextResponse.json(wrapInApiResponse(data)),
       );
     } catch (error) {
-      return handleApiError(error);
+      return handleApiError(error, request);
     }
   });
 }

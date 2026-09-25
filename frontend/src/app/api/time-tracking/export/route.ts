@@ -1,3 +1,4 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
@@ -55,6 +56,7 @@ async function GETHandler(request: NextRequest) {
 
     return new Response(backendResponse.body, { headers });
   } catch (error) {
+    captureBffException(error, request);
     logger.error("export proxy error", {
       error: error instanceof Error ? error.message : String(error),
     });

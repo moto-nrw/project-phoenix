@@ -54,6 +54,13 @@ message when the backend returned an empty body. Locally generated errors
 (validation, missing session, network failure) are separate from backend
 responses.
 
+Sentry ownership follows the same boundary: forwarding a backend HTTP error,
+including 5xx, creates no BFF event. A caught network failure or BFF exception
+uses `captureBffException(error, request)` once at the handler boundary so the
+event carries the proxy-assigned `X-Request-ID`. `logger.error` records context
+and a breadcrumb, never an event. Uncaught Next.js exceptions use
+`onRequestError` in `src/instrumentation.ts`.
+
 The following response paths intentionally do not use the ordinary JSON
 success wrapper. Their **backend errors still use the shared error path**:
 

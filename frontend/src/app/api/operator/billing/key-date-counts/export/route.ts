@@ -1,3 +1,4 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import type { NextRequest } from "next/server";
 import { createLogger } from "~/lib/logger";
@@ -75,6 +76,7 @@ async function GETHandler(request: NextRequest) {
     }
     return await proxyExport(query, refreshed.user.token);
   } catch (error) {
+    captureBffException(error, request);
     logger.error("operator billing export proxy failed", {
       error: error instanceof Error ? error.message : String(error),
     });

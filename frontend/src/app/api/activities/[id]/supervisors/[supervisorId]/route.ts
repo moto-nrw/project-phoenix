@@ -132,7 +132,7 @@ export const DELETE = withTenantAuth(
 
       return NextResponse.json({ success: true });
     } catch (error) {
-      return handleApiError(error);
+      return handleApiError(error, request);
     }
   },
 );

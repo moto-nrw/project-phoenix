@@ -23,10 +23,15 @@ export const GET = createGetHandler(async (request, token, _params) => {
 // POST handler for updating accounts
 export const POST = createTenantApiAdapter(
   async (request, token) => {
-    const body = (await request.json()) as {
+    let body: {
       id: string;
       [key: string]: unknown;
     };
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    }
     const { id, ...updateData } = body;
     const response = await apiPut(`/auth/accounts/${id}`, token, updateData);
     return Response.json(response);

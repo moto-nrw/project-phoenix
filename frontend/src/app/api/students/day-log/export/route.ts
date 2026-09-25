@@ -1,3 +1,4 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // app/api/students/day-log/export/route.ts
 import type { NextRequest } from "next/server";
@@ -71,6 +72,7 @@ async function GETHandler(request: NextRequest) {
     }
     return proxyExport(query, refreshed.user.token);
   } catch (error) {
+    captureBffException(error, request);
     logger.error("day_log_export_proxy_failed", {
       error: error instanceof Error ? error.message : String(error),
     });

@@ -180,7 +180,7 @@ function createSchoolNoBodyHandler<T>(
         formatResponse,
       );
     } catch (error) {
-      return handleApiError(error);
+      return handleApiError(error, request);
     }
   });
 }
@@ -199,7 +199,7 @@ function createSchoolWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
         (data) => NextResponse.json(wrapInApiResponse(data)),
       );
     } catch (error) {
-      return handleApiError(error);
+      return handleApiError(error, request);
     }
   });
 }

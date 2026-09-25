@@ -1,3 +1,4 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
@@ -116,6 +117,7 @@ async function GETHandler(request: NextRequest, context: RouteContext) {
       { status: response.status },
     );
   } catch (error) {
+    captureBffException(error, request);
     logger.error("form_bootstrap_failed", {
       error: error instanceof Error ? error.message : String(error),
     });

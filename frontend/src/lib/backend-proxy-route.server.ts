@@ -10,6 +10,7 @@ import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { operatorAuth, uncachedOperatorAuth } from "~/server/auth/operator";
 import { withOperatorAuth } from "~/server/auth/operator-route";
 import { ApiResponseError, handleApiError } from "~/lib/api-helpers.server";
+import { captureBffException } from "~/lib/sentry-bff.server";
 
 type JsonMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -93,7 +94,7 @@ async function proxyJsonRequest(
       let parsed: unknown;
       try {
         parsed = await request.json();
-      } catch (error) {
+      } catch {
         if (invalidJsonResponse) return invalidJsonResponse();
         if (invalidJsonMessage) {
           return NextResponse.json(
@@ -101,7 +102,7 @@ async function proxyJsonRequest(
             { status: 400 },
           );
         }
-        throw error;
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
       }
       requestBody = JSON.stringify(mapJsonBody ? mapJsonBody(parsed) : parsed);
     } else if (body === "optional-json") {
@@ -158,6 +159,7 @@ async function proxyJsonRequest(
     }
     return onSuccess ? onSuccess(response) : forwardBackendResponse(response);
   } catch (error) {
+    captureBffException(error, request);
     logger.error("JSON backend proxy failed", {
       method,
       path: typeof path === "string" ? path : request.nextUrl.pathname,
@@ -252,8 +254,9 @@ export function createTenantApiAdapter(
       return await handler(request, session.user.token, context);
     } catch (error) {
       if (error instanceof ApiResponseError || !onLocalError) {
-        return handleApiError(error);
+        return handleApiError(error, request);
       }
+      captureBffException(error, request);
       return onLocalError(error);
     }
   });

@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 
+const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
+vi.mock("@sentry/nextjs", () => ({ captureException }));
+
 // ============================================================================
 // Mocks (using vi.hoisted for proper hoisting)
 // ============================================================================
@@ -136,6 +139,7 @@ describe("POST /api/auth/login", () => {
     expect(response.status).toBe(500);
     expect(response.headers.get("Content-Type")).toBe("text/plain");
     expect(await response.text()).toBe("Server Error");
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("handles JSON parse error from backend", async () => {
@@ -199,7 +203,8 @@ describe("POST /api/auth/login", () => {
   it("returns 500 when fetch throws an error", async () => {
     const loginPayload = { email: "test@example.com", password: "Test1234!" };
 
-    vi.mocked(global.fetch).mockRejectedValueOnce(new Error("Network error"));
+    const failure = new Error("Network error");
+    vi.mocked(global.fetch).mockRejectedValueOnce(failure);
 
     const request = createMockRequest("/api/auth/login", {
       body: loginPayload,
@@ -209,17 +214,35 @@ describe("POST /api/auth/login", () => {
     expect(response.status).toBe(500);
     const json = await parseJsonResponse<{ error: string }>(response);
     expect(json.error).toBe("Internal Server Error");
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {});
   });
 
-  it("returns 500 when request parsing throws a non-Error value", async () => {
+  it("rejects malformed request JSON without reporting its password", async () => {
+    const secret = "cleartext-password-123";
+    const request = new NextRequest("http://localhost:3000/api/auth/login", {
+      method: "POST",
+      body: `{not-json ${secret}`,
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    expect(await response.text()).not.toContain(secret);
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when request parsing throws a non-Error value", async () => {
     const request = {
       json: vi.fn().mockRejectedValueOnce("bad payload"),
+      headers: new Headers(),
     } as unknown as NextRequest;
 
     const response = await POST(request);
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(400);
     const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    expect(json.error).toBe("Invalid JSON");
+    expect(captureException).not.toHaveBeenCalled();
   });
 });

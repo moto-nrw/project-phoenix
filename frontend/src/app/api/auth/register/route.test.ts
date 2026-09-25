@@ -380,18 +380,15 @@ describe("POST /api/auth/register", () => {
     expect(json.message).toBe("An error occurred during registration");
   });
 
-  it("returns 500 when request parsing throws a non-Error value", async () => {
+  it("rejects unreadable request JSON as a client error", async () => {
     const request = {
       json: vi.fn().mockRejectedValueOnce("bad payload"),
     } as unknown as NextRequest;
 
     const response = await POST(request);
 
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ message: string; error: string }>(
-      response,
-    );
-    expect(json.message).toBe("An error occurred during registration");
-    expect(json.error).toBe("bad payload");
+    expect(response.status).toBe(400);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).toBe("Invalid JSON");
   });
 });

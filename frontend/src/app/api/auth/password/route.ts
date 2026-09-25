@@ -17,11 +17,16 @@ async function POSTHandler(request: NextRequest) {
       );
     }
 
-    const body = (await request.json()) as {
+    let body: {
       currentPassword?: string;
       newPassword?: string;
       confirmPassword?: string;
     };
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
     const { currentPassword, newPassword, confirmPassword } = body;
 
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -49,7 +54,7 @@ async function POSTHandler(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error("password change failed", { error: errorMessage });
 
-    return handleApiError(error);
+    return handleApiError(error, request);
   }
 }
 

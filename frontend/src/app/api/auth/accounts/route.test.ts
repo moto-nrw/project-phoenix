@@ -4,6 +4,9 @@ import { NextRequest } from "next/server";
 import { GET, POST } from "./route";
 import { ApiResponseError } from "~/lib/api-helpers.server";
 
+const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
+vi.mock("@sentry/nextjs", () => ({ captureException }));
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -220,7 +223,8 @@ describe("POST /api/auth/accounts", () => {
   });
 
   it("handles errors during update", async () => {
-    mockApiPut.mockRejectedValueOnce(new Error("Update failed"));
+    const failure = new Error("Update failed");
+    mockApiPut.mockRejectedValueOnce(failure);
 
     const request = createMockRequest("/api/auth/accounts", {
       method: "POST",
@@ -231,6 +235,7 @@ describe("POST /api/auth/accounts", () => {
     expect(response.status).toBe(500);
     const json = (await response.json()) as { error: string };
     expect(json.error).toBe("Failed to update account");
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {});
   });
 
   it("forwards a backend conflict body and status unchanged", async () => {
@@ -258,5 +263,20 @@ describe("POST /api/auth/accounts", () => {
       "application/problem+json",
     );
     expect(await response.text()).toBe(body);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed account JSON without an event", async () => {
+    const response = await POST(
+      new NextRequest("http://localhost:3000/api/auth/accounts", {
+        method: "POST",
+        body: '{"password":"cleartext-secret"',
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Invalid JSON" });
+    expect(mockApiPut).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
   });
 });

@@ -77,7 +77,7 @@ export const GET = withTenantAuth(
         },
       });
     } catch (error) {
-      return handleApiError(error);
+      return handleApiError(error, request);
     }
   },
 );

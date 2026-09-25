@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 
+const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
+vi.mock("@sentry/nextjs", () => ({ captureException }));
+
 // Mock dependencies first — auth-proxy imports server-api-url which
 // reaches into env.js at module-eval time, and the t3-env validation
 // blows up under vitest without these.
@@ -69,6 +72,7 @@ function mockFetchResponse(opts: {
 
 describe("forwardJsonPost", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     globalThis.fetch = ORIGINAL_FETCH;
   });
   afterEach(() => {
@@ -172,18 +176,23 @@ describe("forwardJsonPost", () => {
     expect(res.status).toBe(500);
     expect(res.headers.get("Content-Type")).toBe("application/json");
     expect(await res.text()).toBe("not-json-at-all");
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("treats fetch rejections as 500 Internal Server Error", async () => {
     const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => {});
+    const failure = new Error("ECONNREFUSED");
     globalThis.fetch = vi.fn(async () => {
-      throw new Error("ECONNREFUSED");
+      throw failure;
     }) as unknown as typeof fetch;
 
     const res = await forwardJsonPost(
-      makeRequest({ body: {} }),
+      makeRequest({
+        body: {},
+        headers: { "X-Request-ID": "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10" },
+      }),
       "/api/auth/login",
     );
 
@@ -193,6 +202,9 @@ describe("forwardJsonPost", () => {
       "proxy_failed",
       expect.objectContaining({ path: "/api/auth/login" }),
     );
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {
+      tags: { request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10" },
+    });
     consoleError.mockRestore();
   });
 

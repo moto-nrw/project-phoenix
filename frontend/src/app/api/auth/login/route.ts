@@ -1,3 +1,4 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { getClientForwardHeaders } from "~/lib/client-headers.server";
@@ -8,7 +9,12 @@ const logger = createLogger({ component: "AuthLoginRoute" });
 
 export async function POST(request: NextRequest) {
   try {
-    const body: unknown = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
 
     const cookieHeader = request.headers.get("cookie");
     const headers: Record<string, string> = {
@@ -29,6 +35,7 @@ export async function POST(request: NextRequest) {
     }
     return out;
   } catch (error) {
+    captureBffException(error, request);
     logger.error("login proxy failed", {
       error: error instanceof Error ? error.message : String(error),
     });

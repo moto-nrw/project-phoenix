@@ -34,7 +34,9 @@ describe("Sentry runtime configs", () => {
       const { options, shared } = await initOptionsOf(config);
 
       expect(options.dataCollection).toBe(shared.sentryDataCollection);
-      expect(options.beforeSend).toBe(shared.scrubEvent);
+      expect(options.beforeSend).toBe(
+        config === "client" ? shared.scrubClientEvent : shared.scrubEvent,
+      );
       expect(options).not.toHaveProperty("sendDefaultPii");
       expect(options.environment).toBe("staging");
     },

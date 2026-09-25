@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { type Logger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { captureBffException } from "~/lib/sentry-bff.server";
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
@@ -146,6 +147,7 @@ export async function proxySSEStream(
       return new Response(null, { status: 204 });
     }
 
+    captureBffException(error, request);
     logger.error("SSE proxy error", {
       error: error instanceof Error ? error.message : String(error),
     });
