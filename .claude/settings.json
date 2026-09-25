@@ -175,24 +175,6 @@
             "command": "bash -c 'root=\"${CLAUDE_PROJECT_DIR:-}\"; if [[ -z \"$root\" ]]; then root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; fi; bash \"$root/.claude/hooks/check-commit-message.sh\"'"
           }
         ]
-      },
-      {
-        "matcher": "Bash|WebFetch",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash -c 'root=\"${CLAUDE_PROJECT_DIR:-}\"; if [[ -z \"$root\" ]]; then root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; fi; bash \"$root/.claude/hooks/guard-absolute-rules.sh\"'"
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash -c 'root=\"${CLAUDE_PROJECT_DIR:-}\"; if [[ -z \"$root\" ]]; then root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; fi; bash \"$root/.claude/hooks/guard-absolute-rules.sh\"'"
-          }
-        ]
       }
     ],
     "SessionStart": [
