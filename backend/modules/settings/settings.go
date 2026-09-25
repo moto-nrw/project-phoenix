@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -24,6 +25,7 @@ const (
 	KeyAttendanceNFCEnabled               = configModel.KeyAttendanceNFCEnabled
 	KeyAttendanceWebEnabled               = configModel.KeyAttendanceWebEnabled
 	KeyCalendarCalDAVEnabled              = configModel.KeyCalendarCalDAVEnabled
+	KeyCareConcept                        = configModel.KeyCareConcept
 	KeyDisplayEnabled                     = configModel.KeyDisplayEnabled
 	KeyEmergencyListHealthInfo            = configModel.KeyEmergencyListHealthInfo
 	KeyEnrollmentCareOfferingsEnabled     = configModel.KeyEnrollmentCareOfferingsEnabled
@@ -36,19 +38,26 @@ const (
 	KeyParentRequestReasonPolicy          = configModel.KeyParentRequestReasonPolicy
 	KeyPresenceMode                       = configModel.KeyPresenceMode
 	KeyStaffMessagingEnabled              = configModel.KeyStaffMessagingEnabled
+	KeyStudentAbsenceEditScope            = configModel.KeyStudentAbsenceEditScope
 	KeyStudentPhotosEnabled               = configModel.KeyStudentPhotosEnabled
+	KeyTimetableChildrenPerStaffRatio     = configModel.KeyTimetableChildrenPerStaffRatio
 	KeyTimetableEnabled                   = configModel.KeyTimetableEnabled
+	KeyTimetableEnforcePlannedEnd         = configModel.KeyTimetableEnforcePlannedEnd
 	KeyTimetableShowExpectedChildrenCount = configModel.KeyTimetableShowExpectedChildrenCount
 	KeyTrackingIndicatorsEnabled          = configModel.KeyTrackingIndicatorsEnabled
 	KeyTrackingIndicator1                 = configModel.KeyTrackingIndicator1
 	KeyTrackingIndicator2                 = configModel.KeyTrackingIndicator2
 	KeyTrackingIndicator3                 = configModel.KeyTrackingIndicator3
+	KeyWebSpontaneousActivities           = configModel.KeyWebSpontaneousActivities
 )
 
 // Values of the enumerated settings above.
 const (
 	AttendanceEditScopeOwn      = configModel.AttendanceEditScopeOwn
 	AttendanceEditScopeAllStaff = configModel.AttendanceEditScopeAllStaff
+
+	CareConceptFixedSchedule = configModel.CareConceptFixedSchedule
+	CareConceptOpenRooms     = configModel.CareConceptOpenRooms
 
 	GroupModeFixedGroups = configModel.GroupModeFixedGroups
 	GroupModeOpenCare    = configModel.GroupModeOpenCare
@@ -63,6 +72,8 @@ const (
 	ReasonPolicyGuardians = configModel.ReasonPolicyGuardians
 	ReasonPolicyNobody    = configModel.ReasonPolicyNobody
 	ReasonPolicyStaff     = configModel.ReasonPolicyStaff
+
+	StudentAbsenceEditScopeAllStaff = configModel.StudentAbsenceEditScopeAllStaff
 )
 
 // TenantReader resolves one tenant's settings outside its tenant middleware:
@@ -71,6 +82,34 @@ type TenantReader interface {
 	ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error)
 	ResolveIntForTenant(ctx context.Context, tenantID int64, key string) (int, error)
 	ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error)
+}
+
+// Resolver resolves the request tenant's settings inside its tenant
+// middleware: the tenant override, else the registry default.
+// HasTenantOverride tells the two apart for the Resolve*OrDefault helpers.
+type Resolver interface {
+	HasTenantOverride(ctx context.Context, key string) (bool, error)
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
+// ResolveBoolOrDefault returns the tenant override of a boolean setting, or
+// fallback when the tenant has none, the resolver is missing or the read
+// fails. Failures are logged, never returned.
+func ResolveBoolOrDefault(ctx context.Context, resolver Resolver, key string, fallback bool, logger *slog.Logger) bool {
+	return configSvc.ResolveBoolOrDefault(ctx, resolver, key, fallback, logger)
+}
+
+// ResolveIntOrDefault is ResolveBoolOrDefault for an integer setting.
+func ResolveIntOrDefault(ctx context.Context, resolver Resolver, key string, fallback int, logger *slog.Logger) int {
+	return configSvc.ResolveIntOrDefault(ctx, resolver, key, fallback, logger)
+}
+
+// ResolveStringOrDefault is ResolveBoolOrDefault for a string setting; an
+// empty override also yields fallback.
+func ResolveStringOrDefault(ctx context.Context, resolver Resolver, key, fallback string, logger *slog.Logger) string {
+	return configSvc.ResolveStringOrDefault(ctx, resolver, key, fallback, logger)
 }
 
 // Snapshot is a batch of one tenant's resolved settings. A reader that

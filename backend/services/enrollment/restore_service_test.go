@@ -219,7 +219,6 @@ func newRestoreDecisionServiceForRequestEnv(t *testing.T, env *requestTestEnv) e
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		Requests:             repoFactory.Enrollment(),
 		Children:             repoFactory.Enrollment(),
-		ApprovedOfferings:    approvedOfferingTestProjection(repoFactory),
 		CareOfferingRepo:     enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
 		Phases:               repoFactory.Enrollment(),
 		RestorationAuditRepo: repoFactory.EnrollmentRestorationAudit,

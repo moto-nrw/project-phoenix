@@ -1,4 +1,4 @@
-import { LOCATION_COLORS } from "./location-helper";
+import { isNotCheckedInLocation, LOCATION_COLORS } from "./location-helper";
 
 const APPROACHING_THRESHOLD_MINUTES = 30;
 
@@ -10,7 +10,9 @@ type TimeStatusState =
   | "very-overdue"
   | "done-on-time"
   | "done-late"
-  | "absent-excused";
+  | "absent-excused"
+  | "awaiting-arrival"
+  | "only-if-lesson-cancelled";
 
 type TimeStatusIcon = "clock" | "warning" | "check";
 
@@ -25,10 +27,62 @@ export interface StudentTimeStatus {
   diffMinutes?: number;
 }
 
+/**
+ * Both ends of one child's day as far as a surface knows them. The arrival and
+ * pickup rows each need the other end for the rules of #3373.
+ */
+export interface StudentDayTimes {
+  plannedArrival?: string | null;
+  actualArrival?: string | null;
+  plannedPickup?: string | null;
+  actualPickup?: string | null;
+  /**
+   * The child is here right now by its live location. Counts like a recorded
+   * check-in, so a missing arrival time never hides a due pickup.
+   */
+  checkedIn?: boolean;
+}
+
+/**
+ * Reads the day from the flat student shape most surfaces carry. For a date
+ * other than today the live location says nothing about that day.
+ */
+export function getStudentDayTimes(
+  student: {
+    arrival_time?: string | null;
+    actual_arrival_time?: string | null;
+    pickup_time?: string | null;
+    actual_pickup_time?: string | null;
+    current_location?: string | null;
+  },
+  { ignoreCurrentAttendance = false } = {},
+): StudentDayTimes {
+  return {
+    plannedArrival: student.arrival_time,
+    actualArrival: student.actual_arrival_time,
+    plannedPickup: student.pickup_time,
+    actualPickup: student.actual_pickup_time,
+    checkedIn:
+      !ignoreCurrentAttendance &&
+      !isNotCheckedInLocation(student.current_location),
+  };
+}
+
+/** A recorded check-in or check-out, or the child is here right now. */
+function hasArrived(day: StudentDayTimes): boolean {
+  return Boolean(day.actualArrival || day.actualPickup || day.checkedIn);
+}
+
 interface StudentTimeStatusInput {
   plannedTime?: string;
   actualTime?: string;
   now: Date;
+  /**
+   * Which end of the day this row shows. Together with `day` it enables the
+   * whole-day rules (#3373); without both, the row is judged on its own time.
+   */
+  kind?: "arrival" | "pickup";
+  day?: StudentDayTimes;
   /** Student is reported sick today — suppresses overdue urgency. */
   sick?: boolean;
   /** Student is excused today (not attending) — suppresses overdue urgency. */
@@ -101,6 +155,30 @@ function parseTimeParts(time: string): TimeParts | null {
   return { hours, minutes };
 }
 
+/** How a day without care time reads on the narrow card and home rows (#3373). */
+export const ONLY_IF_LESSON_CANCELLED_LABEL = "Nur bei Unterrichtsausfall";
+
+function toMinutes(time?: string | null): number | null {
+  const parts = time ? parseTimeParts(time) : null;
+  return parts ? parts.hours * 60 + parts.minutes : null;
+}
+
+/**
+ * The child is booked for the day, but the planned arrival (usually the end of
+ * lessons) is not before the planned pickup: the regular day has no care time.
+ * Such a child only comes when a lesson is cancelled, so the missing check-in
+ * is not an alarm (#3373). Once the child is here (see `hasArrived`), the
+ * special case ends and the ordinary rules apply.
+ */
+export function comesOnlyIfLessonCancelled(day: StudentDayTimes): boolean {
+  if (hasArrived(day)) {
+    return false;
+  }
+  const arrival = toMinutes(day.plannedArrival);
+  const pickup = toMinutes(day.plannedPickup);
+  return arrival !== null && pickup !== null && arrival >= pickup;
+}
+
 function buildTimeDate(time: string, baseDate: Date): Date | null {
   const parts = parseTimeParts(time);
   if (!parts) {
@@ -144,6 +222,8 @@ export function getStudentTimeStatus({
   plannedTime,
   actualTime,
   now,
+  kind,
+  day,
   sick,
   classTrip,
   excused,
@@ -206,6 +286,33 @@ export function getStudentTimeStatus({
   const diffMinutes = Math.round(
     (plannedDate.getTime() - now.getTime()) / 60000,
   );
+
+  if (kind === "arrival" && day && comesOnlyIfLessonCancelled(day)) {
+    return {
+      state: "only-if-lesson-cancelled",
+      displayTime: displayPlannedTime,
+      icon: "clock",
+      iconColor: LOCATION_COLORS.UNKNOWN,
+      textColor: undefined,
+      isResolved: true,
+      detailAnnotation: "nur bei Unterrichtsausfall",
+      diffMinutes,
+    };
+  }
+
+  // A pickup can only be late for a child who is here. Without a check-in
+  // there is nobody to pick up, whatever the clock says (#3373).
+  if (kind === "pickup" && day && !hasArrived(day)) {
+    return {
+      state: "awaiting-arrival",
+      displayTime: displayPlannedTime,
+      icon: "clock",
+      iconColor: LOCATION_COLORS.UNKNOWN,
+      textColor: undefined,
+      isResolved: false,
+      diffMinutes,
+    };
+  }
 
   if (diffMinutes > APPROACHING_THRESHOLD_MINUTES) {
     return {
@@ -283,6 +390,7 @@ export function getTimeStatusSortRank(status: StudentTimeStatus): number {
     case "approaching":
       return 2;
     case "planned":
+    case "awaiting-arrival":
       return 3;
     case "done-late":
       return 4;
@@ -291,6 +399,7 @@ export function getTimeStatusSortRank(status: StudentTimeStatus): number {
     // Out of the urgency band, alongside resolved students — but above "none"
     // so a known-absent child still outranks one with no schedule at all.
     case "absent-excused":
+    case "only-if-lesson-cancelled":
       return 5;
     case "none":
     default:

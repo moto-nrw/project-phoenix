@@ -35,13 +35,6 @@ func (q *ManualPlanningQuery) ListManualPlanningOccurrences(ctx context.Context,
 	return presenceprojection.ListManualPlanningOccurrences(ctx, q.resolve(ctx), q.tenantID(ctx), studentID, fromDate, toDate)
 }
 
-func (q *ManualPlanningQuery) CourseGroupsForOfferings(
-	ctx context.Context,
-	offerings []enrollmentModels.CourseOfferingReference,
-) (map[int64][]enrollmentModels.CourseGroup, error) {
-	return timetableprojection.CourseGroupsForOfferings(ctx, q.resolve(ctx), q.tenantID(ctx), offerings)
-}
-
 func (q *ManualPlanningQuery) LockCourseGroups(ctx context.Context, groupIDs []int64) ([]enrollmentModels.CourseGroup, error) {
 	return timetableprojection.LockCourseGroups(ctx, q.resolve(ctx), q.tenantID(ctx), groupIDs)
 }

@@ -3,9 +3,12 @@ package enrollment_test
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	phaseFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
@@ -20,6 +23,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/services/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -138,11 +142,23 @@ func offeringSourcePeriod(t *testing.T, env *decisionTestEnv) *scheduleModels.Ca
 		timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 }
 
-func offeringResyncer(t *testing.T, env *decisionTestEnv) enrollmentService.OfferingRosterResyncer {
+// timetableRosterResyncer hands the Timetable owner's resync input to Care
+// Plan's booking materialization field by field, like the server's roster
+// resync hook (#3560).
+type timetableRosterResyncer struct{ rosters careplan.SourcedRosters }
+
+func (r timetableRosterResyncer) ResyncTemplateOfferingRoster(ctx context.Context, in timetable.OfferingRosterResyncInput) error {
+	return r.rosters.ResyncTemplateOfferingRoster(ctx, careplan.OfferingRosterResync{
+		TemplateID: in.TemplateID, OfferingIDs: in.OfferingIDs, GradeLevels: in.GradeLevels,
+		SchoolClasses: in.SchoolClasses, CalendarPeriodID: in.CalendarPeriodID, EffectiveFrom: in.EffectiveFrom,
+		ScopeRequestChildIDs: in.ScopeRequestChildIDs, TolerateDriftedSources: in.TolerateDriftedSources,
+	})
+}
+
+func offeringResyncer(t *testing.T, env *decisionTestEnv) timetableRosterResyncer {
 	t.Helper()
-	resyncer, ok := env.decision.(enrollmentService.OfferingRosterResyncer)
-	require.True(t, ok, "decision service must implement the offering roster resync contract")
-	return resyncer
+	require.NotNil(t, env.bookings, "the decision env must compose Care Plan's booking materialization")
+	return timetableRosterResyncer{rosters: env.bookings}
 }
 
 // offeringResyncToday mirrors the fixed clock newDecisionServiceForTest
@@ -748,7 +764,7 @@ func TestResyncOfferingSourcedTemplates_FollowsClassChange(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	resyncAll, ok := env.decision.(interface {
+	resyncAll, ok := env.bookings.(interface {
 		ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom timezone.Date) error
 	})
 	require.True(t, ok, "decision service must implement the tenant-wide offering resync")
@@ -883,7 +899,7 @@ func TestOfferingDelete_DegradesSourcedTemplate(t *testing.T) {
 	offering := createSourceOffering(t, env, "LoeschQuelle", nil)
 	template := createSourcedTemplate(t, env, "LoeschTermin", offering.ID, []int{2}, period)
 
-	detacher, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	detacher, ok := env.bookings.(enrollmentService.CareOfferingSourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the sourced-template detach contract")
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offering.ID, offeringResyncToday))
 
@@ -955,7 +971,7 @@ func TestOfferingDetach_KeepsRemainingSources(t *testing.T) {
 	require.Len(t, loadTemplateEnrollments(t, env, template.ID), 2,
 		"both offerings' children must be planned before the detach")
 
-	detacher, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	detacher, ok := env.bookings.(enrollmentService.CareOfferingSourcedTemplateResyncer)
 	require.True(t, ok)
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, offeringResyncToday))
 
@@ -983,13 +999,7 @@ func TestValidateTemplateOfferingSource_RejectsNewUnknownToleratesStored(t *test
 	ctx := testpkg.Ctx(t)
 
 	offering := createSourceOffering(t, env, "PruefQuelle", nil)
-	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
-		Repo:               enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
-		Phases:             env.repos.Enrollment(),
-		CalendarPeriodRepo: env.repos.CalendarPeriod,
-	})
-	validator, ok := svc.(enrollmentService.CareOfferingSeriesValidator)
-	require.True(t, ok, "care offering service must implement the pre-write source validator")
+	validator := env.offeringCatalog
 
 	missing := int64(999999999)
 	err := validator.ValidateTemplateOfferingSource(ctx, []int64{offering.ID, missing}, nil, nil)
@@ -1044,7 +1054,7 @@ func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 	template.CalendarPeriodID = &shortPeriod.ID
 	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.Update(ctx, template))
 
-	detacher, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	detacher, ok := env.bookings.(enrollmentService.CareOfferingSourcedTemplateResyncer)
 	require.True(t, ok)
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, offeringResyncToday))
 
@@ -1254,7 +1264,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 	_, err = env.db.NewRaw(`UPDATE enrollment.care_offerings SET is_active = false WHERE id = ?`, offeringB.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	detacher, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	detacher, ok := env.bookings.(enrollmentService.CareOfferingSourcedTemplateResyncer)
 	require.True(t, ok)
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, offeringResyncToday))
 
@@ -1425,7 +1435,7 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 	})
 	binder, ok := phaseSvc.(enrollmentService.CareOfferingSourceResyncBinder)
 	require.True(t, ok, "phase service must accept the sourced-template resyncer")
-	sourcedResyncer, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	sourcedResyncer, ok := env.bookings.(enrollmentService.CareOfferingSourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the delete-side detach")
 	binder.SetSourcedTemplateResyncer(sourcedResyncer)
 
@@ -2108,23 +2118,13 @@ func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
 	require.Len(t, rows, 1)
 	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays)
 
-	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
-		Repo:                  enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
-		Bookings:              env.repos.Enrollment(),
-		ActivityGroupRepo:     env.repos.ActivityGroup,
-		ActivityScheduleRepo:  env.repos.ActivitySchedule,
-		CalendarPeriodRepo:    env.repos.CalendarPeriod,
-		TimeframeRepo:         env.repos.Timeframe,
-		ActivityExceptionRepo: env.repos.ActivityException,
-		Phases:                env.repos.Enrollment(),
-		Today:                 func() timezone.Date { return offeringResyncToday },
-	})
-	binder, ok := svc.(enrollmentService.CareOfferingSourceResyncBinder)
-	require.True(t, ok, "care offering service must accept the sourced-template resyncer")
-	sourcedResyncer, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	sourcedResyncer, ok := env.bookings.(enrollmentService.CareOfferingSourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-update resync")
-	binder.SetSourcedTemplateResyncer(sourcedResyncer)
-	bindTestPickupResyncer(t, svc)
+	svc := enrollmentService.NewCareOfferingRows(testCareOfferingCatalog(t, env.db,
+		testutil.WithCareOfferingToday(func() timezone.Date { return offeringResyncToday }),
+		testutil.WithCareOfferingRosterResync(sourcedResyncer),
+		testutil.WithCareOfferingPickupResync(&enrollmenttest.PickupResyncer{}),
+	))
 
 	offering.AvailableDays = []string{"tue"}
 	offering.PickupTimes = carePickupTimes("tue")
@@ -2160,14 +2160,14 @@ func TestResyncSourcedTemplates_InvalidSourceSkipVsReject(t *testing.T) {
 	offering := createSourceOffering(t, env, "DriftQuelle", nil)
 	createSourcedTemplate(t, env, "DriftTermin", offering.ID, nil, shortPeriod)
 
-	resyncAll, ok := env.decision.(interface {
+	resyncAll, ok := env.bookings.(interface {
 		ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom timezone.Date) error
 	})
 	require.True(t, ok, "decision service must implement the tenant-wide resync")
 	require.NoError(t, resyncAll.ResyncOfferingSourcedTemplates(ctx, offeringResyncToday),
 		"the tenant-wide resync must skip a drifted-invalid template with a warning")
 
-	scoped, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	scoped, ok := env.bookings.(enrollmentService.CareOfferingSourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-scoped resync")
 	err := scoped.ResyncTemplatesSourcedFromOffering(ctx, offering.ID, offeringResyncToday)
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid,
@@ -2208,23 +2208,13 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 			Exec(context.Background())
 	})
 
-	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
-		Repo:                  enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
-		Bookings:              env.repos.Enrollment(),
-		ActivityGroupRepo:     env.repos.ActivityGroup,
-		ActivityScheduleRepo:  env.repos.ActivitySchedule,
-		CalendarPeriodRepo:    env.repos.CalendarPeriod,
-		TimeframeRepo:         env.repos.Timeframe,
-		ActivityExceptionRepo: env.repos.ActivityException,
-		Phases:                env.repos.Enrollment(),
-		Today:                 func() timezone.Date { return offeringResyncToday },
-	})
-	binder, ok := svc.(enrollmentService.CareOfferingSourceResyncBinder)
-	require.True(t, ok, "care offering service must accept the sourced-template resyncer")
-	sourcedResyncer, ok := env.decision.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	sourcedResyncer, ok := env.bookings.(enrollmentService.CareOfferingSourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-update resync")
-	binder.SetSourcedTemplateResyncer(sourcedResyncer)
-	bindTestPickupResyncer(t, svc)
+	svc := enrollmentService.NewCareOfferingRows(testCareOfferingCatalog(t, env.db,
+		testutil.WithCareOfferingToday(func() timezone.Date { return offeringResyncToday }),
+		testutil.WithCareOfferingRosterResync(sourcedResyncer),
+		testutil.WithCareOfferingPickupResync(&enrollmenttest.PickupResyncer{}),
+	))
 
 	offering.PhaseID = latePhase.ID
 	err := svc.Update(ctx, offering)
@@ -2266,10 +2256,10 @@ func TestListOfferingSourceOptions_CountsScopedToSelectedPeriod(t *testing.T) {
 	).Exec(ctx)
 	require.NoError(t, err)
 
-	lister, ok := env.decision.(enrollmentService.OfferingSourceOptionLister)
+	lister, ok := env.bookings.(careplan.OfferingSourceEditor)
 	require.True(t, ok, "decision service must implement the editor's option lister")
 
-	findOption := func(options []enrollmentService.OfferingSourceOption) *enrollmentService.OfferingSourceOption {
+	findOption := func(options []careplan.OfferingSourceOption) *careplan.OfferingSourceOption {
 		for i := range options {
 			if options[i].ID == offering.ID {
 				return &options[i]
@@ -2346,24 +2336,24 @@ func TestExplainEmptyOfferingRoster_UsesServiceStartAndStaysNeutralAfterward(t *
 
 	sourceID := time.Now().UnixNano()
 	serviceStart := timezone.NewDate(2026, 8, 13)
-	options := []enrollmentService.OfferingSourceOption{{
+	options := []careplan.OfferingSourceOption{{
 		ID:                sourceID,
 		PhaseName:         "Schuljahr 2026/27",
 		PhaseServiceStart: serviceStart,
 	}}
 
-	early := enrollmentService.ExplainEmptyOfferingRoster(
+	early := careplan.ExplainEmptyOfferingRoster(
 		options, []int64{sourceID}, timezone.NewDate(2026, 8, 10),
 	)
 	require.NotNil(t, early)
-	assert.Equal(t, enrollmentService.EmptyOfferingRosterBeforeServiceStart, early.Kind)
+	assert.Equal(t, careplan.EmptyOfferingRosterBeforeServiceStart, early.Kind)
 	assert.Equal(t, serviceStart, early.ServiceStartDate)
 
-	started := enrollmentService.ExplainEmptyOfferingRoster(
+	started := careplan.ExplainEmptyOfferingRoster(
 		options, []int64{sourceID}, serviceStart,
 	)
 	require.NotNil(t, started)
-	assert.Equal(t, enrollmentService.EmptyOfferingRosterSourceEmpty, started.Kind)
+	assert.Equal(t, careplan.EmptyOfferingRosterSourceEmpty, started.Kind)
 
-	assert.Nil(t, enrollmentService.ExplainEmptyOfferingRoster(options, nil, serviceStart))
+	assert.Nil(t, careplan.ExplainEmptyOfferingRoster(options, nil, serviceStart))
 }

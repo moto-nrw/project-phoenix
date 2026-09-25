@@ -709,7 +709,9 @@ POST /api/iot/*/scan-network
 POST /api/iot/*/{deviceId}/ping
 POST /api/iot/attendance/toggle
 POST /api/iot/checkin
+POST /api/iot/error-reports
 POST /api/iot/feedback
+POST /api/iot/move-to-room
 POST /api/iot/pickup-query
 POST /api/iot/ping
 POST /api/iot/session/activity
@@ -722,9 +724,11 @@ POST /api/iot/staff-clock
 POST /api/iot/staff-clock/state
 POST /api/iot/staff/{staffId}/rfid
 POST /api/me/profile/avatar
+POST /api/messages/mark-all-read
 POST /api/messages/threads
 POST /api/messages/threads/open
 POST /api/messages/threads/{threadId}
+POST /api/messages/threads/{threadId}/unread
 POST /api/notifications/push/subscriptions
 POST /api/notifications/test
 POST /api/parent-announcements/

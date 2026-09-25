@@ -6,6 +6,7 @@ import (
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 
 	"log/slog"
@@ -25,10 +26,10 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func pickupTimeService(t *testing.T, env *decisionTestEnv) enrollmentService.OfferingPickupTimeService {
+func pickupTimeService(t *testing.T, env *decisionTestEnv) careplan.OfferingPickupTimes {
 	t.Helper()
-	svc, ok := env.decision.(enrollmentService.OfferingPickupTimeService)
-	require.True(t, ok, "decision service must implement OfferingPickupTimeService")
+	svc, ok := env.bookings.(careplan.OfferingPickupTimes)
+	require.True(t, ok, "Care Plan's booking materialization must implement OfferingPickupTimes")
 	return svc
 }
 
@@ -112,7 +113,7 @@ func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t 
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Geschützt")
 	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, author.ID, "15:15")
 	err = pickupTimeService(t, env).ResetStudentPickupDayToOffering(ctx, studentID, effectiveFrom)
-	require.ErrorIs(t, err, enrollmentService.ErrPickupResetNoOffering)
+	require.ErrorIs(t, err, careplan.ErrPickupResetNoOffering)
 	stored, err = env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	require.Len(t, stored, 1)
@@ -236,17 +237,13 @@ func TestOfferingPickupResetClearsManualWeekdayExtension(t *testing.T) {
 
 	var clearedStudentID int64
 	var clearedWeekday int
-	resetter := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
-		PickupScheduleRepo: env.repos.StudentPickupSchedule,
-		PickupBaselines:    newPickupBaselineService(env.repos.CarePlan(), approvedOfferingTestProjection(env.repos)),
-		ClearPickupWeekdayExtension: func(_ context.Context, gotStudentID int64, gotWeekday int) error {
+	reset := testutil.NewBookingMaterialization(t, env.db,
+		testutil.WithBookingCatalog(env.offeringCatalog),
+		testutil.WithBookingPickupWeekdayExtension(func(_ context.Context, gotStudentID int64, gotWeekday int) error {
 			clearedStudentID, clearedWeekday = gotStudentID, gotWeekday
 			return nil
-		},
-	})
-
-	reset, ok := resetter.(enrollmentService.OfferingPickupTimeService)
-	require.True(t, ok)
+		}),
+	).Bookings
 	require.NoError(t, reset.ResetStudentPickupDayToOffering(ctx, studentID, monday))
 	assert.Equal(t, studentID, clearedStudentID)
 	assert.Equal(t, scheduleModels.WeekdayMonday, clearedWeekday)
@@ -314,11 +311,9 @@ func TestOfferingPickupProjection_ResetWaitsForOfferingSourceGate(t *testing.T) 
 	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, author.ID, "15:15")
 	monday := nextWeekday(decisionTestToday, time.Monday)
 
-	lockedDecision := newDecisionServiceForTest(env.rolloverTestEnv, nil, func(ctx context.Context) error {
+	resetter := newBookingsForTest(env.rolloverTestEnv, nil, func(ctx context.Context) error {
 		return repositories.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(ctx)
-	})
-	resetter, ok := lockedDecision.(enrollmentService.OfferingPickupTimeService)
-	require.True(t, ok)
+	}, nil)
 	releaseHolder, holderDone := holdOfferingSourceGate(t, env)
 	resetDone := startPickupReset(t, env, resetter, studentID, monday)
 	assertPickupResetBlocked(t, resetDone, releaseHolder, holderDone)
@@ -353,7 +348,7 @@ func holdOfferingSourceGate(t *testing.T, env *decisionTestEnv) (chan struct{}, 
 	return release, done
 }
 
-func startPickupReset(t *testing.T, env *decisionTestEnv, resetter enrollmentService.OfferingPickupTimeService, studentID int64, date timezone.Date) chan error {
+func startPickupReset(t *testing.T, env *decisionTestEnv, resetter careplan.OfferingPickupTimes, studentID int64, date timezone.Date) chan error {
 	t.Helper()
 	done := make(chan error, 1)
 	go func() {

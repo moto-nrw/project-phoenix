@@ -72,6 +72,11 @@ const (
 	// gets its own resource type — and, unlike the class day view, no
 	// deduplication: the sheet opens only on a deliberate tap.
 	ResourceTypeSupervisionStudentSheet = "supervision_student_sheet"
+	// ResourceTypeStudentHealthListExport records an export of the
+	// Gesundheitsliste (#3323): the stored health notes (Art. 9 data) of
+	// many children at once. StudentID stays NULL; metadata carries the
+	// group filter and the export day.
+	ResourceTypeStudentHealthListExport = "student_health_list_export"
 
 	// ResourceTypeAttendanceStatistics is the Statistik report (#2606):
 	// attendance quotas per child over a window. Views are deduplicated per

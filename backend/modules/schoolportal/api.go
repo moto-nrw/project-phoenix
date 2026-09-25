@@ -25,10 +25,10 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	classdayAPI "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
 )
 
 // StaffMessagingRouter is the school-portal mount supplied by the application

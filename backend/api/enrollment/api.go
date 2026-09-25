@@ -13,16 +13,31 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
+// CareOfferingCatalog is the Care Plan care-offering catalog as these routes
+// use it (#3559), in the enrollment rows they render. The composition root
+// binds it to the owner through Enrollment's row translation.
+type CareOfferingCatalog interface {
+	List(ctx context.Context) ([]*enrollmentModels.CareOffering, error)
+	ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error)
+	GetByID(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error)
+	Create(ctx context.Context, offering *enrollmentModels.CareOffering) (*enrollmentModels.CareOffering, error)
+	Update(ctx context.Context, offering *enrollmentModels.CareOffering) error
+	Delete(ctx context.Context, id int64) error
+	Clone(ctx context.Context, sourceID int64, targetPhaseID int64) (*enrollmentModels.CareOffering, error)
+	ListBookingStats(ctx context.Context, phaseID int64) ([]enrollmentService.CareOfferingBookingStat, error)
+}
+
 // Resource bundles the handler methods + their dependencies.
 type Resource struct {
 	FormSchemaService     enrollmentService.FormSchemaService
-	CareOfferingService   enrollmentService.CareOfferingService
+	CareOfferingService   CareOfferingCatalog
 	RequestService        enrollmentService.RequestService
 	CaptchaService        *enrollmentService.CaptchaService
 	PhaseService          enrollmentService.PhaseService
@@ -52,7 +67,7 @@ type Resource struct {
 // GuardianInvitations runtime so post-approval invites can fire.
 func NewResource(
 	formSchemaSvc enrollmentService.FormSchemaService,
-	careOfferingSvc enrollmentService.CareOfferingService,
+	careOfferingSvc CareOfferingCatalog,
 	requestSvc enrollmentService.RequestService,
 	captchaSvc *enrollmentService.CaptchaService,
 	phaseSvc enrollmentService.PhaseService,

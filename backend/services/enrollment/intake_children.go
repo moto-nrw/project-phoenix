@@ -71,30 +71,12 @@ func updateDecisionActivationPlan(ctx context.Context, owner DecisionChildren, i
 	return owner.UpdateChildActivationPlan(ctx, id, mode, date)
 }
 
-type OfferingChildrenReader interface {
-	OfferingCatalogState(context.Context, int64, int64, capability.Date, capability.Date) (*capability.OfferingCatalogState, error)
-	OfferingCapacityPeak(context.Context, int64, []int64, capability.Date, capability.Date) (int, error)
-	EffectiveOfferingSelectionsAtDates(context.Context, map[int64]capability.Date) ([]*capability.RequestChildOffering, error)
-	OfferingSelectionReader
-	ChildByID(context.Context, int64) (*capability.RequestChild, error)
-	ChildrenByID(context.Context, []int64) ([]*capability.RequestChild, error)
-	StudentCarePeriods(context.Context, int64) ([]*capability.StudentCarePeriod, error)
-}
-
 func offeringChildByID(ctx context.Context, owner ChildIDReader, id int64) (*RequestChild, error) {
 	value, err := owner.ChildByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	return intakeChildValue(value)
-}
-
-func offeringChildrenByID(ctx context.Context, owner OfferingChildrenReader, ids []int64) ([]*RequestChild, error) {
-	values, err := owner.ChildrenByID(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	return intakeChildValues(values)
 }
 
 // StudentCarePeriod is one approved enrollment that materialized into a

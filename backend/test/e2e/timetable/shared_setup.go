@@ -6,8 +6,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/spf13/viper"
 
-	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
 )
 
 // These aliases keep the existing production-scoped legacy imports in one

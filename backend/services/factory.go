@@ -236,12 +236,8 @@ type Factory struct {
 	StudentAudit         users.StudentAuditService
 	MasterDataReview     users.MasterDataReviewService
 	CareRequests         carerequests.Service
-	// OfferingChanges is the post-enrollment offering change-request lifecycle
-	// (#1665), shared by the parents portal and the staff review queue.
-	OfferingChanges   enrollment.OfferingChangeRequestService
-	PickupAdjustments enrollment.PickupAdjustmentService
-	ExcusedRequests   careplan.ExcusedAbsenceRequests
-	ParentRequests    *users.ParentRequestCoordinator
+	ExcusedRequests      careplan.ExcusedAbsenceRequests
+	ParentRequests       *users.ParentRequestCoordinator
 	// RequestReviewPolicy is the one cross-domain decision about WHO may see
 	// and decide parent requests. The API layer reads it to explain an empty
 	// queue; the four request services enforce it per child.
@@ -266,7 +262,7 @@ type Factory struct {
 
 	// Enrollment domain (parent-enrollment PR 5+).
 	EnrollmentFormSchema      enrollment.FormSchemaService
-	EnrollmentCareOffering    enrollment.CareOfferingService
+	EnrollmentCareOffering    careplan.CareOfferingCapability
 	EnrollmentCaptcha         *enrollment.CaptchaService
 	EnrollmentRequest         enrollment.RequestService
 	EnrollmentPhase           enrollment.PhaseService
@@ -1215,34 +1211,26 @@ func newFactory(
 	// recurrence resources. Room/timeframe FKs use ON DELETE SET NULL, so those
 	// delete services must preflight the same materializability invariant as
 	// template and calendar-period mutations.
-	enrollmentCareOfferingService := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
-		Repo:                   enrollment.NewCareOfferingRepository(repos.CarePlan()),
-		Bookings:               repos.Enrollment(),
-		ActivityGroupRepo:      repos.ActivityGroup,
-		ActivityScheduleRepo:   repos.ActivitySchedule,
-		CalendarPeriodRepo:     repos.CalendarPeriod,
-		TimeframeRepo:          repos.Timeframe,
-		ActivityExceptionRepo:  repos.ActivityException,
-		Phases:                 repos.Enrollment(),
-		Settings:               settingsService,
-		Today:                  today,
-		LockTemplateRecurrence: recurrenceLock.LockRecurrenceWrites,
-		Logger:                 logger.With("service", "enrollment-care-offering"),
+	// The decision service that keeps offering-sourced rosters and the pickup
+	// projection in step is composed later; the catalog resolves it on every
+	// edit (#2147 review).
+	var careOfferingResyncer careOfferingResync
+	resyncSourcedTemplates, resyncPickup := lateCareOfferingResync(&careOfferingResyncer)
+	enrollmentCareOfferingService, err := newCareOfferingCatalog(careOfferingCatalogInputs{
+		Records:          repos.CarePlan(),
+		Phases:           repos.Enrollment(),
+		Bookings:         repos.Enrollment(),
+		Timetable:        timetableCapability,
+		Calendar:         calendar,
+		Settings:         settingsService,
+		SourcedTemplates: resyncSourcedTemplates,
+		Pickup:           resyncPickup,
+		LockRecurrence:   recurrenceLock.LockRecurrenceWrites,
+		Today:            today,
+		Logger:           logger.With("service", "enrollment-care-offering"),
 	})
-	careOfferingSeriesValidator, ok := enrollmentCareOfferingService.(enrollment.CareOfferingSeriesValidator)
-	if !ok {
-		return nil, fmt.Errorf("enrollment care offering service does not implement series validation")
-	}
-	if _, ok := enrollmentCareOfferingService.(enrollment.CareOfferingCalendarPeriodValidator); !ok {
-		return nil, fmt.Errorf("enrollment care offering service does not implement calendar period validation")
-	}
-	careOfferingResourceValidator, ok := enrollmentCareOfferingService.(enrollment.CareOfferingMaterializationResourceValidator)
-	if !ok {
-		return nil, fmt.Errorf("enrollment care offering service does not implement materialization resource validation")
-	}
-	careOfferingPhaseValidator, ok := enrollmentCareOfferingService.(enrollment.CareOfferingPhaseValidator)
-	if !ok {
-		return nil, fmt.Errorf("enrollment care offering service does not implement phase validation")
+	if err != nil {
+		return nil, fmt.Errorf("compose care offering catalog: %w", err)
 	}
 
 	// Initialize facilities service
@@ -1258,8 +1246,8 @@ func newFactory(
 			if len(activeGroups) > 0 {
 				return facilitiesModule.ErrRoomInUse
 			}
-			if err := careOfferingResourceValidator.ValidateRoomDeletion(ctx, roomID); err != nil {
-				if errors.Is(err, enrollment.ErrCareOfferingInvalid) {
+			if err := enrollmentCareOfferingService.ValidateRoomDeletion(ctx, roomID); err != nil {
+				if errors.Is(err, careplan.ErrCareOfferingConfigInvalid) {
 					return facilitiesModule.ErrRoomRequiredByOffering
 				}
 				return err
@@ -1925,7 +1913,7 @@ func newFactory(
 		CareOfferingRepo:                enrollment.NewCareOfferingRepository(repos.CarePlan()),
 		CalendarPeriods:                 calendar,
 		LockTemplateRecurrence:          recurrenceLock.LockRecurrenceWrites,
-		ValidateCareOfferingPhaseChange: careOfferingPhaseValidator.ValidatePhaseChange,
+		ValidateCareOfferingPhaseChange: careOfferingPhaseGuard(enrollmentCareOfferingService),
 		Settings:                        settingsService,
 		Responses:                       newPhaseResponseSources(repos.Enrollment(), persons, repos.CarePlan()),
 		DB:                              db,
@@ -1955,13 +1943,49 @@ func newFactory(
 	}
 	users.WirePersonCareParticipation(usersService, careParticipationResolver(careLifecycleService))
 	careplanCompose.WireCareParticipation(careDayService, careLifecycleService)
+	// Offering-sourced weekly Gehzeit changes move the same baseline a staff
+	// weekly edit does, so they re-derive the auto excusals of the students'
+	// future day exceptions too (#2360). The wrapper reuses an ambient tenant
+	// transaction and opens one otherwise — the resync's care-day locks are
+	// transaction-scoped.
+	resyncPickupAutoExcusals := func(ctx context.Context, studentIDs []int64) error {
+		return tenant.WithTenantTx(ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+			for _, studentID := range studentIDs {
+				if err := pickupAutoExcusal.ResyncFutureExceptions(txCtx, studentID); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+	}
+	// Care Plan's booking materialization (#3560): the rosters an approval
+	// derives, the offering-sourced Regeltermine, the dated offering
+	// adjustments and the offering pickup times. Sourced-roster resyncs also
+	// refresh already-materialized future occurrences (#2147 review) through
+	// the Timetable roster reconciliation.
+	careBookings, err := newBookingMaterialization(bookingMaterializationInputs{
+		Catalog: enrollmentCareOfferingService, Timetable: timetableCapability, Rosters: rosterReconciler,
+		Students: persons, Periods: calendar, Enrollment: repos.Enrollment(),
+		Approved: enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons}),
+		Settings: settingsService, Bookings: repos.CarePlan(), Withdrawals: careLifecycleService,
+		Adjustments: repos.EnrollmentOfferingAdjustment, Persons: repos.Person, Accounts: guardianAccess,
+		Pickup: pickupBaselines, PickupRows: repos.CarePlan(),
+		LockRecurrence:              recurrenceLock.LockRecurrenceWrites,
+		ResyncPickupAutoExcusals:    resyncPickupAutoExcusals,
+		ClearPickupWeekdayExtension: timetableCapability.ClearPickupWeekdayExtension,
+		Broadcaster:                 realtimeHub,
+		GuardianNotifier:            pillEmitter,
+		Today:                       today,
+		Logger:                      logger.With("service", "care-plan-bookings"),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose care plan booking materialization: %w", err)
+	}
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
-		Bookings:                  enrollmentCareBookingCommands{owner: repos.CarePlan()},
 		Requests:                  repos.Enrollment(),
 		Children:                  repos.Enrollment(),
 		Guardians:                 repos.Enrollment(),
 		LateInviteRepo:            repos.Enrollment(),
-		ApprovedOfferings:         enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons}),
 		CareOfferingRepo:          enrollment.NewCareOfferingRepository(repos.CarePlan()),
 		Phases:                    repos.Enrollment(),
 		Schemas:                   repos.Enrollment(),
@@ -1980,56 +2004,30 @@ func newFactory(
 		GuardianProfileRepo:       repos.GuardianProfile,
 		GuardianPhoneRepo:         repos.GuardianPhoneNumber,
 		PickupScheduleRepo:        repos.StudentPickupSchedule,
-		PickupBaselines:           pickupBaselines,
 		ArrivalScheduleRepo:       repos.StudentArrivalSchedule,
-		StudentEnrollmentRepo:     repos.StudentEnrollment,
-		ActivityGroupRepo:         repos.ActivityGroup,
-		ActivityScheduleRepo:      repos.ActivitySchedule,
-		CalendarPeriodRepo:        repos.CalendarPeriod,
-		TimeframeRepo:             repos.Timeframe,
-		ActivityExceptionRepo:     repos.ActivityException,
+		CareBookings:              careBookings,
 		GuardianAccess:            guardianAccess,
 		OutboxEnqueuer:            outboxEnqueuer{outbox: emailOutboxService},
 		StudentAudit:              studentAuditService,
 		StudentConsents:           studentConsentService,
 		CareWithdrawal:            careLifecycleService,
 		Broadcaster:               realtimeHub,
-		PickupGuardianNotifier:    pillEmitter,
 		FrontendURL:               frontendURL,
 		ParentsURL:                parentsURL,
 		Settings:                  settingsService,
 		LockTemplateRecurrence:    recurrenceLock.LockRecurrenceWrites,
-		// Sourced-roster resyncs must also refresh already-materialized future
-		// occurrences (#2147 review) — the materializer never revisits them.
-		InstanceRosters: rosterReconciler,
-		// Offering-sourced weekly Gehzeit changes move the same baseline a
-		// staff weekly edit does, so they re-derive the auto excusals of the
-		// students' future day exceptions too (#2360). The wrapper reuses an
-		// ambient tenant transaction and opens one otherwise — the resync's
-		// care-day locks are transaction-scoped.
-		ResyncPickupAutoExcusals: func(ctx context.Context, studentIDs []int64) error {
-			return tenant.WithTenantTx(ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
-				for _, studentID := range studentIDs {
-					if err := pickupAutoExcusal.ResyncFutureExceptions(txCtx, studentID); err != nil {
-						return err
-					}
-				}
-				return nil
-			})
-		},
+		ResyncPickupAutoExcusals:  resyncPickupAutoExcusals,
 		SnapshotPickupWeekdayChanges: func(ctx context.Context, studentID int64, date timezone.Date) (map[int]string, error) {
 			return pickupAutoExcusal.SnapshotWeeklyPickups(ctx, studentID, date)
 		},
 		RecordPickupWeekdayChanges: func(ctx context.Context, studentID int64, date timezone.Date, before map[int]string) error {
 			return pickupAutoExcusal.RecordWeeklyPickupChanges(ctx, studentID, date, careplan.WeeklyPickupSnapshot(before))
 		},
-		ClearPickupWeekdayExtension: timetableCapability.ClearPickupWeekdayExtension,
-		// The reconciler takes these BEFORE writing weekly rows — the same
-		// student → schedule-row → care-day lock order the staff weekly
-		// editors use, so the two weekly writers cannot deadlock against
+		// An approved weekly Gehzeit plan takes the student lock BEFORE its
+		// weekly rows — the same student → schedule-row → care-day lock order
+		// the staff weekly editors use, so the writers cannot deadlock against
 		// each other (#2360 review). Uses the ambient tenant transaction;
-		// missing students (concurrent offboarding) are skipped, matching
-		// the resync's tolerance.
+		// missing students (concurrent offboarding) are skipped.
 		LockPickupStudents: func(ctx context.Context, studentIDs []int64) error {
 			for _, studentID := range studentIDs {
 				if err := persons.LockStudent(ctx, studentID); err != nil {
@@ -2044,51 +2042,26 @@ func newFactory(
 		Logger: logger.With("service", "enrollment-decision"),
 		Today:  today,
 	})
-	offeringRosterResyncer, ok := enrollmentDecisionService.(enrollment.OfferingRosterResyncer)
-	if !ok {
-		return nil, fmt.Errorf("enrollment decision service does not implement offering roster resync")
-	}
 	// Grade transitions rewrite school classes, so they must re-reconcile the
 	// offering-sourced templates' Jahrgang-filtered rosters (#2137). The
-	// workflow is composed here because the decision service that provides
-	// the resync is constructed late; it binds the People Directory, the
-	// School Membership, the Timetable roster reconciliation and the
-	// recurrence gate, and builds School Structure and Student Presence over
-	// the shared database itself (#2711).
-	gradeTransitionResyncer, ok := enrollmentDecisionService.(education.OfferingSourceResyncer)
-	if !ok {
-		return nil, fmt.Errorf("enrollment decision service does not implement the grade-transition offering resync")
-	}
+	// workflow is composed here because Care Plan's booking materialization
+	// that provides the resync is composed late; it binds the People
+	// Directory, the School Membership, the Timetable roster reconciliation
+	// and the recurrence gate, and builds School Structure and Student
+	// Presence over the shared database itself (#2711).
 	gradeTransitionWorkflow, err := gradetransitioncompose.New(gradetransitioncompose.Dependencies{
 		DB: db, Directory: persons, Membership: membership, Rosters: rosterReconciler,
 		LockRecurrenceWrites:  recurrenceLock.LockRecurrenceWrites,
-		ResyncOfferingRosters: gradeTransitionResyncer.ResyncOfferingSourcedTemplates,
+		ResyncOfferingRosters: careBookings.ResyncOfferingSourcedTemplates,
 		Logger:                logger.With("workflow", "grade_transition"), Audit: auditCommand, Clock: now,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose grade transition workflow: %w", err)
 	}
 	// A care-offering edit changes the wanted roster of every template sourcing
-	// it (#2147 review). Wired late because the decision service is constructed
-	// after the care-offering service.
-	careOfferingSourceBinder, ok := enrollmentCareOfferingService.(enrollment.CareOfferingSourceResyncBinder)
-	if !ok {
-		return nil, fmt.Errorf("enrollment care offering service does not accept the sourced-template resyncer")
-	}
-	careOfferingSourcedResyncer, ok := enrollmentDecisionService.(enrollment.CareOfferingSourcedTemplateResyncer)
-	if !ok {
-		return nil, fmt.Errorf("enrollment decision service does not implement the offering-update resync")
-	}
-	careOfferingSourceBinder.SetSourcedTemplateResyncer(careOfferingSourcedResyncer)
-	pickupResyncBinder, ok := enrollmentCareOfferingService.(enrollment.CareOfferingPickupResyncBinder)
-	if !ok {
-		return nil, fmt.Errorf("enrollment care offering service does not accept the pickup resyncer")
-	}
-	pickupResyncer, ok := enrollmentDecisionService.(enrollment.CareOfferingPickupResyncer)
-	if !ok {
-		return nil, fmt.Errorf("enrollment decision service does not implement pickup resync")
-	}
-	pickupResyncBinder.SetPickupResyncer(pickupResyncer)
+	// it and the pickup projection (#2147 review). The catalog resolves the
+	// booking materialization composed here on every edit.
+	careOfferingResyncer = careBookings
 	// A phase service-window change re-bounds every roster row derived from
 	// the phase's offerings, so the templates sourcing them must resync too
 	// (#2147 review). Same late binding as above.
@@ -2096,7 +2069,7 @@ func newFactory(
 	if !ok {
 		return nil, fmt.Errorf("enrollment phase service does not accept the sourced-template resyncer")
 	}
-	phaseSourceBinder.SetSourcedTemplateResyncer(careOfferingSourcedResyncer)
+	phaseSourceBinder.SetSourcedTemplateResyncer(careBookings)
 
 	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
 		Requests:           repos.Enrollment(),
@@ -2198,16 +2171,12 @@ func newFactory(
 
 	// Rollover service depends on DecisionService for the
 	// rollover_auto_approve=true deadline path.
-	enrollmentRolloverCatalogCloner, ok := enrollmentCareOfferingService.(enrollment.RolloverOfferingCatalogCloner)
-	if !ok {
-		return nil, fmt.Errorf("enrollment care offering service does not implement rollover catalog cloning")
-	}
 	enrollmentRolloverService := enrollment.NewRolloverService(enrollment.RolloverServiceConfig{
 		Bookings:              enrollmentCareBookingCommands{owner: repos.CarePlan()},
 		Phases:                repos.Enrollment(),
 		Requests:              repos.Enrollment(),
 		Children:              repos.Enrollment(),
-		OfferingCatalogCloner: enrollmentRolloverCatalogCloner,
+		OfferingCatalogCloner: enrollmentCareOfferingService,
 		SchoolRepo:            enrollmentSchoolDirectory{schools: organizations},
 		OutboxEnqueuer:        outboxEnqueuer{outbox: emailOutboxService},
 		Settings:              settingsService,
@@ -2256,50 +2225,30 @@ func newFactory(
 		WithCareRequestToday(today),
 	)
 
-	// Post-enrollment offering changes (#1665): the parents portal submits them,
-	// staff decide them on the same review page, and an approval applies the
-	// switch through the decision service's dated adjustment path.
-	directOfferingApplier, ok := enrollmentDecisionService.(enrollment.DirectOfferingAdjustmentApplier)
-	if !ok {
-		return nil, fmt.Errorf("enrollment decision service does not implement direct offering adjustment")
-	}
-	offeringChangeRequestService := enrollment.NewOfferingChangeRequestServiceWithPolicy(enrollment.OfferingChangeRequestServiceConfig{
-		ChangeRepo:             enrollment.NewOfferingChangeRepository(repos.CarePlan(), offeringChangeStudentSearch{people: persons}),
-		Children:               repos.Enrollment(),
-		Requests:               repos.Enrollment(),
-		Phases:                 repos.Enrollment(),
-		CareOfferingRepo:       enrollment.NewCareOfferingRepository(repos.CarePlan()),
-		ImpactRepo:             manualPlanningReader{db: db, courseGroups: timetableCapability},
-		StudentRepo:            repos.Student,
-		PersonRepo:             repos.Person,
-		CareWithdrawalRepo:     repos.CareWithdrawal,
-		OfferingAdjustmentRepo: repos.EnrollmentOfferingAdjustment,
-		UserContext:            userContextService.Caller(),
-		Applier:                enrollmentDecisionApplier,
-		DirectApplier:          directOfferingApplier,
-		Settings:               settingsService,
-		Emitter:                pillEmitter,
-		Logger:                 logger.With("service", "offering-change-requests"),
-		Today:                  today,
-		EventRecorder:          parentRequestEvents,
-	}, requestReviewPolicy)
-	pickupOfferingCoordinator, ok := offeringChangeRequestService.(enrollment.DirectOfferingAdjustmentCoordinator)
-	if !ok {
-		return nil, fmt.Errorf("offering change service does not implement direct pickup adjustment coordination")
-	}
-	pickupAdjustmentService := enrollment.NewPickupAdjustmentService(enrollment.PickupAdjustmentServiceConfig{
-		PickupSchedules:     pickupScheduleService,
-		ArrivalSchedules:    arrivalScheduleService,
-		PickupScheduleRepo:  repos.StudentPickupSchedule,
-		ArrivalScheduleRepo: repos.StudentArrivalSchedule,
-		PickupBaselines:     pickupBaselines,
-		Offerings:           pickupOfferingCoordinator,
-		Settings:            settingsService,
-		Audit:               studentAuditService,
-		Students:            repos.Student,
-		DB:                  db,
-		Today:               today,
+	// Post-enrollment offering changes (#1665, #3561): the parents portal
+	// submits them, staff decide them on the same review page, and an
+	// approval applies the switch through Care Plan's dated offering
+	// adjustment. Permanent pickup-time changes switch to a matching offering
+	// through the same review.
+	offeringChanges, err := newOfferingChanges(offeringChangeInputs{
+		CarePlan: repos.CarePlan(), Enrollment: repos.Enrollment(), Students: repos.Student,
+		Withdrawals: repos.CareWithdrawal, Settings: settingsService,
+		Planning: manualPlanningReader{db: db, courseGroups: timetableCapability},
+		Bookings: careBookings, Reviews: requestReviewPolicy, Emitter: pillEmitter,
+		Events: parentRequestEvents, Shares: requestShares, Today: today,
+		Logger: logger.With("service", "offering-change-requests"),
 	})
+	if err != nil {
+		return nil, fmt.Errorf("compose care plan offering changes: %w", err)
+	}
+	pickupAdjustments, err := newPickupAdjustments(pickupAdjustmentInputs{
+		CarePlan: repos.CarePlan(), PickupSchedules: pickupScheduleService, ArrivalSchedules: arrivalScheduleService,
+		Baselines: pickupBaselines, Offerings: offeringChanges, Settings: settingsService,
+		Audit: studentAuditService, Students: repos.Student, Today: today,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose care plan pickup adjustments: %w", err)
+	}
 
 	// Review access is one cross-domain policy: admins remain school-wide;
 	// group leaders are opt-in and limited to their current groups. Attach it
@@ -2518,7 +2467,7 @@ func newFactory(
 		CarePeriods:      repos.Enrollment(),
 		OfferingHistory:  repos.Enrollment(),
 		CareOfferingRepo: enrollment.NewCareOfferingRepository(repos.CarePlan()),
-		OfferingChanges:  offeringChangeRequestService,
+		OfferingChanges:  offeringChanges,
 		Logger:           logger.With("service", "parent"),
 		Now:              now,
 	})
@@ -2774,8 +2723,8 @@ func newFactory(
 		PlanningTracks:       planningTrackService,
 		Materialization:      materializationService,
 		Deviations:           instanceService.SeriesDeviations(),
-		CareOfferings:        careOfferingSeriesValidator,
-		ResyncOfferingRoster: offeringRosterResyncer.ResyncTemplateOfferingRoster,
+		CareOfferings:        enrollmentCareOfferingService,
+		ResyncOfferingRoster: timetableOfferingRosterResync(careBookings),
 		RecurrenceLock:       recurrenceLock,
 		Broadcaster:          realtimeHub,
 		DB:                   db,
@@ -2832,13 +2781,12 @@ func newFactory(
 	// Bound deliberately AFTER the request services and parentService exist:
 	// the sharing rules live in the parents domain, and the request domains
 	// must not import it just to ask who a request was shared with. The
-	// offering and master-data services take it by setter; the care and
-	// excused requests read it lazily through requestShares.
+	// master-data service takes it by setter; the care, excused and offering
+	// requests read it lazily through requestShares.
 	var _ parentmessaging.ShareVisibilityResolver = parentService
 	if resolver, ok := any(parentService).(parentmessaging.ShareVisibilityResolver); ok {
 		requestShareVisibility = resolver
 		for _, service := range []any{
-			offeringChangeRequestService,
 			masterDataReviewService,
 		} {
 			if sink, ok := service.(interface {
@@ -2861,7 +2809,7 @@ func newFactory(
 	parentRequestCoordinator.SetMasterDataConflictPort(masterDataReviewService.(users.ParentRequestConflictPort))
 	parentRequestCoordinator.SetExcusedConflictPort(excusedCoordinatorPort)
 	parentRequestCoordinator.SetCareConflictPort(careRequestService.(users.ParentRequestConflictPort))
-	parentRequestCoordinator.SetOfferingConflictPort(offeringChangeRequestService.(users.ParentRequestConflictPort))
+	parentRequestCoordinator.SetOfferingConflictPort(offeringChangeConflictPort{changes: offeringChanges})
 	// The resolver records ONLY the staff-entered result. Every verdict it
 	// takes goes through a domain Decide, which writes its own decided event.
 	parentRequestCoordinator.SetEventRecorder(parentRequestEvents)
@@ -2968,8 +2916,6 @@ func newFactory(
 		StudentConsents:      studentConsentService,
 		MasterDataReview:     masterDataReviewService,
 		CareRequests:         careRequestService,
-		OfferingChanges:      offeringChangeRequestService,
-		PickupAdjustments:    pickupAdjustmentService,
 		ExcusedRequests:      excusedRequestService,
 		ParentRequests:       parentRequestCoordinator,
 		RequestReviewPolicy:  requestReviewPolicy,
@@ -3001,7 +2947,7 @@ func newFactory(
 		Delivery:          deliveryRuntime.Module,
 
 		EnrollmentFormSchema:      enrollmentFormSchemaService,
-		EnrollmentCareOffering:    enrollmentCareOfferingService,
+		EnrollmentCareOffering:    carePlanCareOfferings{enrollmentCareOfferingService, careBookings, offeringChanges, pickupAdjustments},
 		EnrollmentCaptcha:         enrollmentCaptchaService,
 		EnrollmentRequest:         enrollmentRequestService,
 		EnrollmentPhase:           enrollmentPhaseService,

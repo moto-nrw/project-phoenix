@@ -58,6 +58,9 @@ type Dependencies struct {
 	Rosters    ports.Rosters
 	Groups     ports.Groups
 	Pickups    ports.Pickups
+	// OpenRooms books independent stays in released rooms (#3067). Absent
+	// in narrow graphs, which refuses the destination booking.
+	OpenRooms  devicescan.OpenRoomMover
 	Settings   ports.Settings
 	UnitOfWork ports.UnitOfWork
 	Clock      ports.Clock
@@ -78,6 +81,7 @@ type Service struct {
 	rosters    ports.Rosters
 	groups     ports.Groups
 	pickups    ports.Pickups
+	openRooms  devicescan.OpenRoomMover
 	settings   ports.Settings
 	unit       ports.UnitOfWork
 	clock      ports.Clock
@@ -100,7 +104,7 @@ func NewService(deps Dependencies) *Service {
 	return &Service{
 		fleet: deps.Fleet, presence: deps.Presence, rooms: deps.Rooms, principals: deps.Principals,
 		people: deps.People, visits: deps.Visits, sessions: deps.Sessions, attendance: deps.Attendance,
-		activities: deps.Activities, rosters: deps.Rosters, groups: deps.Groups, pickups: deps.Pickups, settings: deps.Settings,
+		activities: deps.Activities, rosters: deps.Rosters, groups: deps.Groups, pickups: deps.Pickups, openRooms: deps.OpenRooms, settings: deps.Settings,
 		unit: deps.UnitOfWork, clock: deps.Clock, logger: logger,
 	}
 }

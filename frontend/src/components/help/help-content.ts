@@ -1425,6 +1425,27 @@ function parentMessageTopic(): HelpTopic {
           "Wählen Sie `Senden`.",
         ],
       },
+      {
+        title: "Eine Unterhaltung wieder als ungelesen markieren",
+        description:
+          "So sieht das ganze Team: Hier ist noch etwas offen. Die Eltern merken davon nichts.",
+        steps: [
+          "Öffnen Sie die Unterhaltung im Posteingang.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Als ungelesen markieren`.",
+          "moto bringt Sie zurück zum Posteingang.",
+        ],
+      },
+      {
+        title: "Alle Nachrichten für sich als gelesen markieren",
+        description:
+          "Ihre Zahl bei `Nachrichten` kann bleiben. Vom Team als ungelesen markierte Unterhaltungen bleiben ungelesen. Für Ihr Team ändert sich nichts.",
+        steps: [
+          "Öffnen Sie den Posteingang unter `Nachrichten`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Alle als gelesen markieren`.",
+        ],
+      },
     ],
     result:
       "Die Bezugsperson sieht die Nachricht in der Eltern-App. Sie wird dort im Namen der OGS angezeigt.",
@@ -1435,6 +1456,8 @@ function parentMessageTopic(): HelpTopic {
     notes: [
       "Schreiben Sie persönliche Angaben nur in die Unterhaltung der richtigen Bezugsperson.",
       "Mit `Nur ungelesen` sehen Sie nur neue Unterhaltungen.",
+      "Eine als ungelesen markierte Unterhaltung bleibt für alle ungelesen, bis jemand aus dem Team sie öffnet oder antwortet.",
+      "Nach `Alle als gelesen markieren` sehen die Eltern: Die OGS hat ihre Nachrichten gelesen.",
       "Über `Zum Kinderprofil` wechseln Sie direkt zu den Angaben des Kindes.",
     ],
     related: [HELP_TOPICS.parentRequests, HELP_TOPICS.studentSearch],
@@ -2161,16 +2184,18 @@ function nfcCheckInTopic(
         steps: [
           "Das bereits eingecheckte Kind hält sein Armband erneut an den Sensor.",
           "Das Kind wählt unter `Wohin geht ...?` das passende Ziel.",
-          "Wählen Sie `Raumwechsel` für einen anderen betreuten Raum.",
+          "Wählen Sie `Raumwechsel` für einen anderen betreuten Raum. Dort hält das Kind sein Armband erneut an.",
+          "Offene Räume stehen mit ihrem Namen da, zum Beispiel `Turnhalle`. Ein Tipp trägt das Kind sofort dort ein.",
           "Wählen Sie `nach Hause`, wenn das Kind die OGS verlässt.",
           "Je nach Einstellung können auch `Schulhof` oder `Toilette` erscheinen.",
         ],
       },
     ],
     result:
-      "moto aktualisiert Anwesenheit und Aufenthaltsort. Nach `nach Hause` ist das Kind abgemeldet.",
+      "moto aktualisiert den Aufenthaltsort. Bei einem Ortswechsel bleibt das Kind angemeldet. Erst nach `nach Hause` ist es abgemeldet.",
     differences: [
       "Welche Ziele angezeigt werden, legt Ihre OGS fest.",
+      "Ein offener Raum erscheint nur, wenn die Leitung ihn unter `Räume` als `Offener Raum` freigegeben hat. Dort braucht es kein Tablet und keine Aufsicht.",
       "Eine tägliche Abmeldezeit kann verhindern, dass `nach Hause` zu früh gewählt wird.",
       "Nach dem Abmelden kann ein freiwilliges Tages-Feedback erscheinen.",
     ],
@@ -2859,6 +2884,9 @@ function careTimesTopic(): HelpTopic {
       "Die Zeiten gelten sofort. Eine Notiz ohne Abholzeit steht auf der Kinderkarte unter `Kommt heute nicht`. Eine Ausnahme ändert den Wochenplan nicht.",
     notes: [
       "Ohne eigene Zeit gilt die Klassenzeit des Kindes.",
+      // #3373: Ankunft nicht vor Abholung (comesOnlyIfLessonCancelled in
+      // student-time-status.ts) warnt nicht mehr als überfällig.
+      "Endet der Unterricht erst zur Abholzeit? Dann steht auf der Kinderkarte `Nur bei Unterrichtsausfall`. Das Kind gilt nicht als verspätet. Kommt es doch, checken Sie es wie gewohnt ein.",
       "Den Wochenplan können Sie schon beim Anlegen des Kindes mitgeben.",
       // #3372: Die Auswahl erscheint nur mit gepflegten Schulstunden
       // (school-period-select.tsx) und kopiert die Uhrzeit ins Zeitfeld.
@@ -4720,12 +4748,17 @@ function exportsTopic(): HelpTopic {
     notes: [
       "Die Listen sind in `Kinderlisten`, `Personallisten` und `Momentaufnahmen` geordnet.",
       "Eine `Momentaufnahme` wie die `Notfallliste` zeigt den Stand von jetzt.",
+      "Die `Gesundheitsliste` zeigt Allergien, Medikamente und andere Gesundheitsinformationen.",
+      "Sie enthält zuerst nur Kinder mit einem Eintrag.",
+      "`Auch Kinder ohne Eintrag` nimmt alle Kinder auf.",
+      "Jeder Export der `Gesundheitsliste` wird protokolliert.",
       "Jede Datei enthält personenbezogene Daten. Behandeln Sie sie wie jede andere Unterlage dieser Art.",
     ],
     differences: [
       "Sie sehen weniger Listen als eine Kollegin? Jede Liste hängt an einem eigenen Recht.",
     ],
     troubleshootingDetails: [
+      "Fehlt ein Kind auf der `Gesundheitsliste`? Dann ist bei ihm nichts eingetragen. Haken Sie `Auch Kinder ohne Eintrag` an.",
       "Brauchen Sie Zahlen statt Namen? Nutzen Sie die `Statistik`.",
       "Brauchen Sie eine Liste für einen bestimmten Tag? Nutzen Sie die `Tageslisten`.",
     ],

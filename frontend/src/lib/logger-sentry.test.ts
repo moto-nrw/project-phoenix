@@ -74,4 +74,29 @@ describe("reportLogToSentry", () => {
     expect(addBreadcrumb).not.toHaveBeenCalled();
     expect(captureMessage).toHaveBeenCalledTimes(1);
   });
+
+  it("tags an event with the error code and Vorgangskennung the entry carries", () => {
+    reportLogToSentry(
+      entry({
+        msg: "api route error",
+        component: "ApiHelpers",
+        context: "server",
+        status: 503,
+        error_code: "db_unavailable",
+        request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10",
+      }),
+    );
+
+    expect(captureMessage).toHaveBeenCalledWith(
+      "api route error",
+      expect.objectContaining({
+        tags: {
+          component: "ApiHelpers",
+          log_source: "logger",
+          error_code: "db_unavailable",
+          request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10",
+        },
+      }),
+    );
+  });
 });

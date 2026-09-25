@@ -71,7 +71,7 @@ func createSourceCareOfferingOnDays(
 	var created *testpkg.CareOffering
 	require.NoError(t, testpkg.WithTenantTx(t, s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var createErr error
-		created, createErr = s.factory.EnrollmentCareOffering.Create(txCtx, offering)
+		created, createErr = s.factory.EnrollmentCareOfferingRows().Create(txCtx, offering)
 		return createErr
 	}))
 
@@ -319,8 +319,7 @@ func TestTemplateOfferingSource_CreateStoresTheRuleAndIsFoundByOffering(t *testi
 
 	// The reverse lookup is what the editor's overlap hint and the decision
 	// fan-out both read: one offering, every live template sourcing it.
-	sourced, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
-	require.NoError(t, err)
+	sourced := templatesSourcingOffering(t, s, offering.ID)
 	require.Len(t, sourced, 1)
 	assert.Equal(t, result.TemplateID, sourced[0].ID)
 }
@@ -389,8 +388,7 @@ func TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule(t *testing.T) {
 	assert.Empty(t, cleared.SourceCareOfferingIDs)
 	assert.Empty(t, cleared.SourceGradeLevels)
 
-	sourced, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
-	require.NoError(t, err)
+	sourced := templatesSourcingOffering(t, s, offering.ID)
 	assert.Empty(t, sourced, "a cleared source must drop out of the offering's template list")
 }
 
@@ -796,8 +794,7 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
 
 	// Nothing may survive the rejected create — the whole save is one tx.
-	sourced, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, overhanging.ID)
-	require.NoError(t, err)
+	sourced := templatesSourcingOffering(t, s, overhanging.ID)
 	assert.Empty(t, sourced)
 
 	// Same rule on the edit path: an existing sourced template cannot be
@@ -863,8 +860,7 @@ func TestTemplateOfferingSource_RejectsInactiveOffering(t *testing.T) {
 	})
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
 
-	sourced, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
-	require.NoError(t, err)
+	sourced := templatesSourcingOffering(t, s, offering.ID)
 	assert.Empty(t, sourced, "nothing may survive the rejected create")
 }
 
@@ -933,8 +929,7 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
 
 	// The rejected split must leave no successor behind.
-	sourced, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
-	require.NoError(t, err)
+	sourced := templatesSourcingOffering(t, s, offering.ID)
 	require.Len(t, sourced, 1)
 	assert.Equal(t, result.TemplateID, sourced[0].ID)
 }
@@ -1108,4 +1103,16 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 		Where(`"instance_student".instance_id = ?`, instance.ID).
 		Scan(s.ctx))
 	require.Empty(t, rows, "the retired manual child must be removed from the already-materialized occurrence")
+}
+
+// templatesSourcingOffering lists the live templates sourcing the offering,
+// in id order, through the Timetable owner's group listing.
+func templatesSourcingOffering(t *testing.T, s *scenarioSetup, offeringID int64) []timetable.Group {
+	t.Helper()
+	isTemplate := true
+	sourced, err := repositories.NewUnobservedTimetableDependencies(s.db).Capability.ListGroups(s.ctx, timetable.GroupFilter{
+		IsTemplate: &isTemplate, ActiveOnly: true, SourceOfferingIDs: []int64{offeringID}, OrderByID: true,
+	})
+	require.NoError(t, err)
+	return sourced
 }

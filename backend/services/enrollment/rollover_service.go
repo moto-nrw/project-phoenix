@@ -242,6 +242,16 @@ type rolloverChildAttributes struct {
 	reviewReason      *string
 }
 
+// RolloverOfferingCatalogCloner copies a phase's care-offering catalog into
+// the follow-up phase (#2249). The Care Plan catalog implements it
+// (careplan.CareOfferingRollover): every offering of the source phase plus
+// the carried offerings of earlier phases, with the linked timetable
+// templates kept and the auto-add triggers remapped, returning the
+// source→target offering ids.
+type RolloverOfferingCatalogCloner interface {
+	CloneCatalogForRollover(ctx context.Context, sourcePhaseID int64, targetPhaseID int64, carriedOfferingIDs []int64) (map[int64]int64, error)
+}
+
 // RolloverServiceConfig is the dependency-injection bundle.
 type RolloverServiceConfig struct {
 	Bookings CareBookingCommands
@@ -250,7 +260,7 @@ type RolloverServiceConfig struct {
 	Children RolloverChildren
 	// OfferingCatalogCloner clones the source phase's care-offering
 	// catalog into the follow-up phase (#2249). Production always wires
-	// the care-offering service; when nil (lightweight tests without
+	// the Care Plan catalog; when nil (lightweight tests without
 	// offerings) the catalog is not cloned and any carried booking fails
 	// the rollover instead of persisting a source-phase reference.
 	OfferingCatalogCloner RolloverOfferingCatalogCloner

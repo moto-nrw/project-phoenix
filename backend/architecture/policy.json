@@ -299,10 +299,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-timetable",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-users",
       "kind": "inbound"
     },
@@ -1059,13 +1055,6 @@
       "role": "test-support",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "api/timetable",
-      "owner": "inbound-timetable",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
     },
     {
       "path": "api/work-time-models",
@@ -2193,6 +2182,13 @@
       "role": "compose",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/timetable/http",
+      "owner": "timetable-activities",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
     },
     {
       "path": "modules/timetableprojection",
@@ -5150,17 +5146,6 @@
       "target_role": "public"
     },
     {
-      "id": "care-schedule-cutover.inbound-students.adapter-test.care-plan.compose.test-construction",
-      "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-students",
-      "source_role": "adapter-test",
-      "target_owner": "care-plan",
-      "target_role": "compose"
-    },
-    {
       "id": "care-schedule-cutover.enrollment.module-behavior-test.care-plan.compose.test-construction",
       "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
       "scopes": [
@@ -5179,17 +5164,6 @@
       ],
       "source_owner": "parent-portal",
       "source_role": "workflow-integration-test",
-      "target_owner": "care-plan",
-      "target_role": "compose"
-    },
-    {
-      "id": "care-schedule-cutover.inbound-timetable.adapter-test.care-plan.compose.test-construction",
-      "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "adapter-test",
       "target_owner": "care-plan",
       "target_role": "compose"
     },
@@ -5282,12 +5256,12 @@
       "target_role": "public"
     },
     {
-      "id": "care-schedule-cutover.inbound-timetable.http.care-plan.public",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "id": "timetable-activities.http.care-plan-public",
+      "description": "The timetable routes read the care days of the Care Plan owner through its public contract (#3351, #2732).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-timetable",
+      "source_owner": "timetable-activities",
       "source_role": "http",
       "target_owner": "care-plan",
       "target_role": "public"
@@ -6545,17 +6519,6 @@
       "target_role": "compose"
     },
     {
-      "id": "inbound-timetable.adapter-test.presence-compose",
-      "description": "Existing integration fixtures construct the owner facade for migrated visit records.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-timetable",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "compose"
-    },
-    {
       "id": "emergency-snapshot.adapter-test.presence-compose",
       "description": "Emergency snapshot adapter tests construct the Student Presence facade for migrated visit and attendance records (#2704).",
       "scopes": [
@@ -6743,12 +6706,12 @@
       "target_role": "compose"
     },
     {
-      "id": "inbound-timetable.http.student-presence-public",
-      "description": "Timetable day/week responses map plain Student Presence visits (#2691).",
+      "id": "timetable-activities.http.student-presence-public",
+      "description": "Timetable day/week responses map plain Student Presence visits (#2691, #2732).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-timetable",
+      "source_owner": "timetable-activities",
       "source_role": "http",
       "target_owner": "student-presence",
       "target_role": "public"
@@ -9497,15 +9460,114 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-timetable.to.timetable-activities",
-      "description": "inbound-timetable calls exactly one public capability.",
+      "id": "timetable-activities.http.public",
+      "description": "The timetable routes drive the Timetable owner through its public capability (#2732).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-timetable",
+      "source_owner": "timetable-activities",
       "source_role": "http",
       "target_owner": "timetable-activities",
       "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.http.inbound-common",
+      "description": "The timetable routes reuse the shared HTTP runtime of api/common: the tenant and school route groups, the permission gates, request parsing and response rendering, like the other owners' HTTP adapters (#2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "timetable-activities.http.identity-adapter",
+      "description": "The timetable routes read the authenticated claims and permissions from the session token adapter (ADR 0031, #2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "timetable-activities.http.security-contract",
+      "description": "The timetable routes gate on the permission registry (#2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "timetable-activities.http.security-public",
+      "description": "The timetable routes decide student read access and permission matches through the Security Runtime capability (#2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.http.tenant-runtime",
+      "description": "The timetable routes mark rollbacks and read the request tenant through the tenant runtime (#2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.http.settings-public",
+      "description": "The timetable routes resolve the request tenant's settings through the Settings Platform contract (#2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "target_owner": "settings-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.adapter-test.identity-adapter",
+      "description": "Timetable route tests mint the claims and permissions the routes read from the session token adapter (ADR 0031, #2732).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "root-composition.to.timetable-http",
+      "description": "The root API composition mounts the timetable routes of the Timetable owner (#2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "http"
+    },
+    {
+      "id": "test-support.to.timetable-http",
+      "description": "The timetable end-to-end fixture constructs the timetable routes it drives (#2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "timetable-activities",
+      "target_role": "http"
     },
     {
       "id": "inbound-users.to.people-directory",
@@ -17135,14 +17197,14 @@
       "target_role": "http"
     },
     {
-      "id": "inbound-school.to.inbound-timetable",
-      "description": "The school portal mounts the assignment-bound supervision surface (#2527, #2701).",
+      "id": "inbound-school.to.timetable-http",
+      "description": "The school portal mounts the assignment-bound supervision surface of the timetable routes (#2527, #2701, #2732).",
       "scopes": [
         "production"
       ],
       "source_owner": "inbound-school",
       "source_role": "http",
-      "target_owner": "inbound-timetable",
+      "target_owner": "timetable-activities",
       "target_role": "http"
     },
     {
@@ -17157,14 +17219,14 @@
       "target_role": "http"
     },
     {
-      "id": "inbound-school.adapter-test.inbound-timetable",
-      "description": "School-portal handler tests construct the supervision surface they mount (#2527, #2701).",
+      "id": "inbound-school.adapter-test.timetable-http",
+      "description": "School-portal handler tests construct the supervision surface they mount (#2527, #2701, #2732).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "inbound-school",
       "source_role": "adapter-test",
-      "target_owner": "inbound-timetable",
+      "target_owner": "timetable-activities",
       "target_role": "http"
     },
     {
@@ -17399,12 +17461,12 @@
       "target_role": "application"
     },
     {
-      "id": "inbound-timetable.to.class-day-view",
-      "description": "The timetable list endpoints read the class-day projection (#1565, #2701).",
+      "id": "timetable-activities.http.class-day-view",
+      "description": "The timetable list endpoints read the class-day projection (#1565, #2701, #2732).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-timetable",
+      "source_owner": "timetable-activities",
       "source_role": "http",
       "target_owner": "class-day-view",
       "target_role": "public"
@@ -19435,12 +19497,12 @@
       "target_role": "application"
     },
     {
-      "id": "inbound-timetable.to.document-rendering",
-      "description": "The timetable Betreuungsplan export calls the public plan export capability (#2706).",
+      "id": "timetable-activities.http.document-rendering",
+      "description": "The timetable Betreuungsplan export calls the public plan export capability (#2706, #2732).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-timetable",
+      "source_owner": "timetable-activities",
       "source_role": "http",
       "target_owner": "document-rendering",
       "target_role": "public"
@@ -21224,12 +21286,12 @@
       "target_role": "contract"
     },
     {
-      "id": "care-schedule-cutover.inbound-timetable.adapter-test.timetable-activities.compose",
-      "description": "Construct native class-arrival projections in the retained timetable HTTP fixture (#3351, ADR 0030).",
+      "id": "timetable-activities.adapter-test.compose",
+      "description": "Database-free timetable route tests compose the owner's planner reads and operational day over fakes (#2732).",
       "scopes": [
         "internal_test"
       ],
-      "source_owner": "inbound-timetable",
+      "source_owner": "timetable-activities",
       "source_role": "adapter-test",
       "target_owner": "timetable-activities",
       "target_role": "compose"
@@ -21775,12 +21837,12 @@
       "target_role": "public"
     },
     {
-      "id": "timetable-planning-cutover.inbound-timetable.http.school-calendar.public",
-      "description": "The calendar period and closing day routes of api/timetable drive the School Calendar owner's public contract (timetable planning dissolution, ADR 0038).",
+      "id": "timetable-activities.http.school-calendar-public",
+      "description": "The calendar period and closing day routes drive the School Calendar owner's public contract (timetable planning dissolution, ADR 0038, #2732).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-timetable",
+      "source_owner": "timetable-activities",
       "source_role": "http",
       "target_owner": "school-calendar",
       "target_role": "public"

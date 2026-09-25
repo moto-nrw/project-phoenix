@@ -19,6 +19,9 @@ type SchoolTestModule struct {
 	// binds, so a router test drives the same scope binding production has.
 	SchoolAuth SchoolPortalAuthRuntime
 	SchoolMFA  SchoolPortalMFARuntime
+	// TimetableSupervisionSheets serves the per-child sheet of the
+	// supervision surface from the enrollment report, as the root binds it.
+	TimetableSupervisionSheets TimetableSupervisionSheets
 }
 
 func NewSchoolTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (SchoolTestModule, error) {
@@ -37,8 +40,9 @@ func NewSchoolTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	return SchoolTestModule{
 		ClassDayTestModule: classday, DeliveryTestModule: delivery,
 		Auth: auth.Auth, MFA: auth.MFA,
-		SchoolAuth: SchoolPortalAuthenticationOver(auth.Auth),
-		SchoolMFA:  SchoolPortalMFAOver(auth.MFA),
+		SchoolAuth:                 SchoolPortalAuthenticationOver(auth.Auth),
+		SchoolMFA:                  SchoolPortalMFAOver(auth.MFA),
+		TimetableSupervisionSheets: NewTimetableSupervisionSheets(classday.EnrollmentReport),
 	}, nil
 }
 

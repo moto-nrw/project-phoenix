@@ -102,6 +102,10 @@ const (
 	// (#1542). Separate rather than shared because the child list carries
 	// class, group, and age, none of which belong on a colleague list.
 	PresetStaffBirthdayList Preset = "staff_birthday_list"
+	// PresetHealthList lists children with their stored health note (#3323).
+	// It is the one child list that may carry ColumnHealthInfo; its columns
+	// come from HealthListColumns, never from the caller-chosen catalog.
+	PresetHealthList Preset = "health_list"
 )
 
 type Column struct {
