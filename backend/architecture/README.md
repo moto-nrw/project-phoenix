@@ -1501,6 +1501,49 @@ deleted, among them `class-day-view.compose.enrollment-application` and
   `classday.ClassDay` capability, so the composition surface does not grow
   (615 → 610 targets).
 
+#3564 (E3 under #2733) moved the decision flow, the restore of a withdrawn
+request, the rollover with its review queue and deadline worker, the admin
+deletion with its impact preview and the retention cleanup of rejected
+requests into Enrollment (`modules/enrollment/internal/application`). The
+public package publishes them as `enrollment.Decisions`,
+`ApprovedChildChanges`, `Rollovers`, `EnrollmentDeletions` and
+`RejectedEnrollmentCleaner`; `modules/enrollment/compose` composes them
+(`NewDecisions`, `NewRollovers`, `NewDeletionPreview`, `NewDeletions`,
+`NewRejectedCleanup`) in the ambient tenant transaction. The thirteen retained
+files and three helper files are deleted; routes, status codes, error texts,
+authorization and tenant scoping are unchanged. The key count falls from 523 to
+513 (`models/audit`, `models/base`, `models/schedule`, `realtime`,
+`services/import` and `bun.DB.RunInTx` of `services/enrollment` in production,
+`models/audit` of `api/enrollment` in both scopes, two test keys). No rule is
+added.
+
+- The capacity gate the submissions share with the restore is the public
+  `enrollment.OfferingCapacity`, composed by `compose.NewOfferingCapacity`
+  and bound into the retained intake by `services`. The request sentinels,
+  the status token (`NewStatusToken`), the submission lock key
+  (`SubmissionDedupLockKey`) and `NormalizedSubmissionSource` moved to the
+  public package with it.
+- The public contract carries the owner's raw request and child values; until
+  #3565, `services/enrollment` keeps a decoding facade (`NewDecisionService`,
+  `NewRolloverService`, `NewChangeRequestDecisionApplier`) for the retained
+  intake, change-request and scheduler consumers, and a copy of the answer
+  decoders its visibility checks read.
+- People Directory rows, the audit trails, the settings, the realtime hub and
+  the outbox reach the application through ports `services` binds
+  (`NewEnrollmentDecisions`, `NewEnrollmentRollovers`,
+  `NewEnrollmentDeletionModule`); the weekly pickup and arrival schedules come
+  from `repositories.NewEnrollmentPickupSchedules` /
+  `NewEnrollmentArrivalSchedules`. Role presets reach the binding as a typed
+  permission list through `securityruntime.StudentGuardianRolePreset`.
+- The rollover opens its transaction through the tenant runtime instead of
+  `bun.DB.RunInTx`; the postgres adapter marks a child insert refused by the
+  rollover source index with `ErrRolloverSourceChildTaken`.
+- The care offering record adapter left in `services/enrollment` keeps the
+  retained error shape and not-found marker without `models/base`.
+- Suites compose the flow through `api/testutil` aliases of the root
+  bindings; the savepoint suite of the retention cleanup runs in
+  `modules/enrollment/integration`.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).

@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -42,36 +44,34 @@ func newCompanionSyncApplier(
 ) enrollmentService.ChangeRequestDecisionApplier {
 	t.Helper()
 	repoFactory := testRepositories(t, env.db)
-	svc := newTestDecisionService(enrollmentService.DecisionServiceConfig{
-		Requests:                  repoFactory.Enrollment(),
-		Children:                  repoFactory.Enrollment(),
-		Guardians:                 repoFactory.Enrollment(),
-		CareBookings:              testBookings(t, env.rolloverTestEnv, nil),
-		CareOfferingRepo:          enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
-		Phases:                    repoFactory.Enrollment(),
-		Schemas:                   repoFactory.Enrollment(),
-		OfferingAdjustmentRepo:    repoFactory.EnrollmentOfferingAdjustment,
-		PersonRepo:                repoFactory.Person,
-		StaffRepo:                 repoFactory.Staff,
-		StudentRepo:               repoFactory.Student,
-		StudentGuardianRepo:       repoFactory.StudentGuardian,
-		GuardianProfileRepo:       repoFactory.GuardianProfile,
-		GuardianPhoneRepo:         repoFactory.GuardianPhoneNumber,
-		PickupScheduleRepo:        repoFactory.StudentPickupSchedule,
-		ArrivalScheduleRepo:       repoFactory.StudentArrivalSchedule,
-		GuardianAccess:            testGuardianAccess(env.db),
-		StudentEnrollment:         testStudentEnrollment(env.db),
-		DepartureCompanions:       repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
-		DeleteDepartureCompanions: repoFactory.CarePlan().DeleteCompanionEdges,
-		OutboxEnqueuer:            env.outbox,
-		Broadcaster:               bc,
-		FrontendURL:               "http://localhost:3000",
-		ParentsURL:                "http://parents.localhost:3000",
-		Logger:                    slog.Default(),
-	})
-	applier, ok := svc.(enrollmentService.ChangeRequestDecisionApplier)
-	require.True(t, ok, "decision service must implement the change-request applier contract")
-	return applier
+	bookings := testBookings(t, env.rolloverTestEnv, nil)
+	decisions := newTestDecisions(testutil.EnrollmentDecisionSources{
+		Requests:            repoFactory.Enrollment(),
+		Children:            repoFactory.Enrollment(),
+		Guardians:           repoFactory.Enrollment(),
+		CareBookings:        bookings,
+		CareOfferings:       enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
+		Phases:              repoFactory.Enrollment(),
+		Schemas:             repoFactory.Enrollment(),
+		OfferingAdjustments: repoFactory.EnrollmentOfferingAdjustment,
+		Persons:             repoFactory.Person,
+		Staff:               repoFactory.Staff,
+		Students:            repoFactory.Student,
+		StudentGuardians:    repoFactory.StudentGuardian,
+		GuardianProfiles:    repoFactory.GuardianProfile,
+		GuardianPhones:      repoFactory.GuardianPhoneNumber,
+		PickupSchedules:     repositories.NewEnrollmentPickupSchedules(repoFactory.StudentPickupSchedule),
+		ArrivalSchedules:    repositories.NewEnrollmentArrivalSchedules(repoFactory.StudentArrivalSchedule),
+		GuardianAccess:      testGuardianAccess(env.db),
+		StudentEnrollment:   testStudentEnrollment(env.db),
+		Companions:          repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
+		DeleteCompanions:    repoFactory.CarePlan().DeleteCompanionEdges,
+		Broadcaster:         bc,
+		FrontendURL:         "http://localhost:3000",
+		ParentsURL:          "http://parents.localhost:3000",
+		Logger:              slog.Default(),
+	}, env.outbox)
+	return enrollmentService.NewChangeRequestDecisionApplier(decisions, bookings)
 }
 
 // publishCompanionModesSchema pins the phase to a form whose single field

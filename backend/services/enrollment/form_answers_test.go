@@ -1,0 +1,142 @@
+package enrollment
+
+import (
+	"testing"
+
+	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/models/users"
+)
+
+// Pure-helper tests for the answer decoders the retained intake keeps for
+// its visibility and departure checks; the decision flow moved into the
+// Enrollment owner with its own copies (#3564). Covered here because each
+// helper is independently testable without spinning up the test DB.
+
+// ---- stringValue --------------------------------------------------------
+
+func TestStringValue_TrimsString(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "hello", stringValue("  hello  "))
+}
+
+func TestStringValue_NonStringReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "", stringValue(42))
+	assert.Equal(t, "", stringValue(nil))
+	assert.Equal(t, "", stringValue(true))
+	assert.Equal(t, "", stringValue([]string{"a"}))
+}
+
+func TestStringValue_EmptyStringReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "", stringValue(""))
+	assert.Equal(t, "", stringValue("   "))
+}
+
+// ---- decodeStructured ---------------------------------------------------
+
+func TestDecodeStructured_DecodesPhoneList(t *testing.T) {
+	t.Parallel()
+
+	raw := []any{
+		map[string]any{
+			"phone_number": "0177 12345",
+			"phone_type":   "mobile",
+			"is_primary":   true,
+		},
+	}
+	var out []enrollmentCapability.PhoneEntry
+	require.NoError(t, decodeStructured(raw, &out))
+	require.Len(t, out, 1)
+	assert.Equal(t, "0177 12345", out[0].PhoneNumber)
+	assert.Equal(t, "mobile", out[0].PhoneType)
+	assert.True(t, out[0].IsPrimary)
+}
+
+func TestDecodeStructured_DecodesWeekdaySchedule(t *testing.T) {
+	t.Parallel()
+
+	raw := map[string]any{"mon": "08:00", "fri": "10:30"}
+	var out enrollmentCapability.WeekdaySchedule
+	require.NoError(t, decodeStructured(raw, &out))
+	assert.Equal(t, "08:00", out["mon"])
+	assert.Equal(t, "10:30", out["fri"])
+}
+
+func TestDecodeStructured_DecodesWeekdayBoolean(t *testing.T) {
+	t.Parallel()
+
+	raw := map[string]any{"mon": true, "fri": false}
+	var out enrollmentCapability.WeekdayBoolean
+	require.NoError(t, decodeStructured(raw, &out))
+	assert.True(t, out["mon"])
+	assert.False(t, out["fri"])
+}
+
+func TestDecodeDepartureDays_MapsModes(t *testing.T) {
+	t.Parallel()
+
+	out, err := decodeDepartureDays(map[string]any{
+		"mon": "bus",
+		"wed": "pickup",
+		"thu": "alone", // normalized away
+	})
+	require.NoError(t, err)
+	assert.Equal(t, users.DepartureBus, out.ModeFor("mon"))
+	assert.Equal(t, users.DeparturePickup, out.ModeFor("wed"))
+	assert.Equal(t, users.DepartureAlone, out.ModeFor("thu"))
+	assert.Equal(t, users.DepartureAlone, out.ModeFor("fri"))
+}
+
+func TestDecodeDepartureDays_RejectsUnknownMode(t *testing.T) {
+	t.Parallel()
+
+	_, err := decodeDepartureDays(map[string]any{"mon": "taxi"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "taxi")
+}
+
+func TestDecodeDepartureDays_RejectsUnknownWeekday(t *testing.T) {
+	t.Parallel()
+
+	_, err := decodeDepartureDays(map[string]any{"sat": "bus"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sat")
+}
+
+func TestDecodeStructured_DecodesContactList(t *testing.T) {
+	t.Parallel()
+
+	raw := []any{
+		map[string]any{
+			"first_name":           "Erika",
+			"last_name":            "Müller",
+			"email":                "erika@example.com",
+			"is_emergency_contact": true,
+			"can_pickup":           true,
+		},
+	}
+	var out []enrollmentCapability.ContactEntry
+	require.NoError(t, decodeStructured(raw, &out))
+	require.Len(t, out, 1)
+	assert.Equal(t, "Erika", out[0].FirstName)
+	assert.True(t, out[0].IsEmergencyContact)
+	assert.True(t, out[0].CanPickup)
+}
+
+func TestDecodeStructured_RejectsMismatch(t *testing.T) {
+	t.Parallel()
+
+	// A scalar can't decode into []PhoneEntry — json.Unmarshal returns
+	// an error and decodeStructured surfaces it.
+	var out []enrollmentCapability.PhoneEntry
+	err := decodeStructured("not a list", &out)
+	require.Error(t, err)
+}

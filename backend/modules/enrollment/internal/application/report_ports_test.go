@@ -316,6 +316,11 @@ func (r *fakeExportAccessLog) RecordPhaseExport(_ context.Context, entry ExportA
 	return nil
 }
 
+func (r *fakeExportAccessLog) RecordStudentExport(_ context.Context, _ int64, entry ExportAccess) error {
+	r.entries = append(r.entries, entry)
+	return nil
+}
+
 // reportRequestInputs hands request fixtures over the way the owner stores
 // them: answers as raw JSON.
 func reportRequestInputs(requests []*enrollmentModels.Request) ([]*enrollment.Request, error) {

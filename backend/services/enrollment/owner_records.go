@@ -70,35 +70,6 @@ type RequestChild struct {
 	ReviewReason          *string `json:"review_reason,omitempty"`
 }
 
-func rolloverChildrenByStatuses(ctx context.Context, owner RolloverChildren, phaseID int64, statuses []string) ([]*RequestChild, error) {
-	values, err := owner.ChildrenByPhaseStatuses(ctx, phaseID, statuses)
-	if err != nil {
-		return nil, err
-	}
-	return intakeChildValues(values)
-}
-func rolloverChildrenByID(ctx context.Context, owner RolloverChildren, ids []int64) ([]*RequestChild, error) {
-	values, err := owner.ChildrenByID(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	return intakeChildValues(values)
-}
-func updateDecisionActivationPlan(ctx context.Context, owner DecisionChildren, id int64, mode string, on *timezone.Date) error {
-	var date *capability.Date
-	if on != nil {
-		value := capability.Date(on.String())
-		date = &value
-	}
-	return owner.UpdateChildActivationPlan(ctx, id, mode, date)
-}
-func offeringChildByID(ctx context.Context, owner ChildIDReader, id int64) (*RequestChild, error) {
-	value, err := owner.ChildByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return intakeChildValue(value)
-}
 func createIntakeChild(ctx context.Context, owner ChildCreator, child *RequestChild) error {
 	value, err := intakeChildInput(child)
 	if err != nil {
@@ -222,14 +193,6 @@ func listIntakeChildrenForRequests(ctx context.Context, owner ReportChildren, re
 		return nil, err
 	}
 	return intakeChildValues(values)
-}
-
-func listReportRequests(ctx context.Context, owner ReportRequests, filters capability.RequestListFilters) ([]*enrollmentModels.Request, error) {
-	values, err := owner.AdminRequests(ctx, filters)
-	if err != nil {
-		return nil, err
-	}
-	return intakeRequestValues(values)
 }
 
 func createIntakeRequest(ctx context.Context, owner RequestCreator, req *enrollmentModels.Request) error {

@@ -501,6 +501,11 @@ type GuardianProfileRepository interface {
 	// ListWithOptions retrieves guardian profiles with pagination and filters
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*GuardianProfile, error)
 
+	// FindByEmails retrieves the tenant's guardian profiles whose trimmed
+	// email is one of the given addresses, in one query: the batched lookup
+	// of an enrollment decision's contact list.
+	FindByEmails(ctx context.Context, emails []string) ([]*GuardianProfile, error)
+
 	// SearchByText retrieves guardian profiles whose first name, last name, or
 	// email matches the search text (case-insensitive substring). Tenant-scoped
 	// via RLS; results are capped by limit to keep the picker payload small.

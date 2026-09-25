@@ -51,6 +51,15 @@ func tenantRuntime() application.Runtime {
 		TenantID:     tenant.FromContext,
 		MarkRollback: tenant.MarkRollback,
 		NotFound:     func(err error) bool { return errors.Is(err, sql.ErrNoRows) },
+		NoRows:       sql.ErrNoRows,
+		InTransaction: func(ctx context.Context) bool {
+			_, ok := tenant.TransactionFromContext(ctx)
+			return ok
+		},
+		Savepoint:           tenant.WithSavepoint,
+		IsSavepointControl:  func(err error) bool { return errors.Is(err, tenant.ErrSavepointControl) },
+		WithinCurrentTenant: tenant.WithinCurrentTenant,
+		AfterCommit:         tenant.RegisterAfterCommit,
 	}
 }
 

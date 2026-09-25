@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -216,13 +218,13 @@ func TestDecisionService_RestoreWithdrawn_PhaseInactive(t *testing.T) {
 func newRestoreDecisionServiceForRequestEnv(t *testing.T, env *requestTestEnv) enrollmentService.DecisionService {
 	t.Helper()
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	return newTestDecisionService(enrollmentService.DecisionServiceConfig{
-		Requests:             repoFactory.Enrollment(),
-		Children:             repoFactory.Enrollment(),
-		CareOfferingRepo:     enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
-		Phases:               repoFactory.Enrollment(),
-		RestorationAuditRepo: repoFactory.EnrollmentRestorationAudit,
-		Logger:               slog.Default(),
+	return newTestDecisionService(testutil.EnrollmentDecisionSources{
+		Requests:      repoFactory.Enrollment(),
+		Children:      repoFactory.Enrollment(),
+		CareOfferings: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
+		Phases:        repoFactory.Enrollment(),
+		Restorations:  repoFactory.EnrollmentRestorationAudit,
+		Logger:        slog.Default(),
 	})
 }
 

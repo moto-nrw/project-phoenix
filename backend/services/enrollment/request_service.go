@@ -5,12 +5,10 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"log/slog"
 	"maps"
 	"net/mail"
@@ -38,15 +36,17 @@ import (
 )
 
 // RequestService sentinel errors. The HTTP layer maps these to status
-// codes; tests assert on them via errors.Is.
+// codes; tests assert on them via errors.Is. The plain sentinels are the
+// Enrollment owner's (#3564); the ones wrapping ErrInvalidSubmission stay
+// here with the selection contract they wrap.
 var (
-	ErrEnrollmentDisabled      = errors.New("enrollment is not enabled for this tenant")
-	ErrEnrollmentWindowClosed  = errors.New("enrollment window is closed")
-	ErrLateInviteInvalid       = errors.New("late invite is invalid")
+	ErrEnrollmentDisabled      = enrollmentCapability.ErrEnrollmentDisabled
+	ErrEnrollmentWindowClosed  = enrollmentCapability.ErrEnrollmentWindowClosed
+	ErrLateInviteInvalid       = enrollmentCapability.ErrLateInviteInvalid
 	ErrInvalidSubmission       = selection.ErrInvalidSubmission
 	ErrCareOfferingClosed      = selection.ErrCareOfferingClosed
 	ErrCareOfferingUnavailable = selection.ErrCareOfferingUnavailable
-	ErrCareOfferingFull        = errors.New("one or more selected care offerings are at capacity")
+	ErrCareOfferingFull        = enrollmentCapability.ErrCareOfferingFull
 	ErrCareOfferingsDisabled   = careplan.ErrCareOfferingsDisabled
 	// ErrCareOfferingMissing is returned when a phase requires at least
 	// one care offering per child but a child has no offering selected.
@@ -68,9 +68,9 @@ var (
 	// violates a group's selection rule (exactly_one / at_least_one /
 	// at_most_one). Defense-in-depth: the parent form enforces the same.
 	ErrCareOfferingRule     = selection.ErrCareOfferingRule
-	ErrRateLimited          = errors.New("too many submission attempts; please retry later")
-	ErrRequestNotFound      = errors.New("enrollment request not found")
-	ErrInvalidGuardianPhone = errors.New("guardian phone number has an invalid format")
+	ErrRateLimited          = enrollmentCapability.ErrRateLimited
+	ErrRequestNotFound      = enrollmentCapability.ErrRequestNotFound
+	ErrInvalidGuardianPhone = enrollmentCapability.ErrInvalidGuardianPhone
 	// ErrInvalidGuardianEmail wraps ErrInvalidSubmission so callers that match
 	// the broad category keep working, while the HTTP layer maps the specific
 	// case to a stable code (enrollment.invalid_email) for per-field marking.
@@ -94,9 +94,9 @@ var (
 	ErrSelectedDayNotAvailable = selection.ErrSelectedDayNotAvailable
 	ErrDaySelectionRequired    = selection.ErrDaySelectionRequired
 	ErrDaySelectionNotAllowed  = selection.ErrDaySelectionNotAllowed
-	ErrEditNotAllowed          = errors.New("request can no longer be edited")
-	ErrWithdrawNotAllowed      = errors.New("child cannot be withdrawn in its current state")
-	ErrDuplicateEnrollment     = errors.New("an active enrollment already exists for this parent and child in this phase")
+	ErrEditNotAllowed          = enrollmentCapability.ErrEditNotAllowed
+	ErrWithdrawNotAllowed      = enrollmentCapability.ErrWithdrawNotAllowed
+	ErrDuplicateEnrollment     = enrollmentCapability.ErrDuplicateEnrollment
 	// ErrExistingStudentAlreadyRequested rejects an existing_students
 	// submission (or parent edit) whose child matched an already-enrolled
 	// student that ANOTHER active request in the same phase already targets.
@@ -107,13 +107,13 @@ var (
 	// unconditionally (independent of the block/warn/ignore duplicate policy)
 	// because it protects a live student record, not just parent convenience
 	// (#1663). Mapped to 409 Conflict.
-	ErrExistingStudentAlreadyRequested = errors.New("another active enrollment request already targets this student in this phase")
+	ErrExistingStudentAlreadyRequested = enrollmentCapability.ErrExistingStudentAlreadyRequested
 	// Phase eligibility sentinels (#1663). ErrPhaseNotEligible is the
 	// audience gate: a linked_parents phase rejects anonymous submissions
 	// (the parent handler additionally verifies the guardian link before
 	// stamping GuardianAccountID). The two child-level errors carry stable
 	// codes so the form can explain which child is affected.
-	ErrPhaseNotEligible      = errors.New("phase is not open for this applicant")
+	ErrPhaseNotEligible      = enrollmentCapability.ErrPhaseNotEligible
 	ErrChildClassNotEligible = fmt.Errorf("%w: child school class is not eligible for this phase", ErrInvalidSubmission)
 	// ErrChildGradeNotEligible is the grade-level counterpart of
 	// ErrChildClassNotEligible: a phase aimed at whole grades (e.g. all
@@ -140,7 +140,7 @@ var (
 	// child must not be able to renew a DIFFERENT child at the same school just
 	// because the school-wide GuardianSubmitEligible audience flag is set. It is
 	// an authorization failure (mapped to 403), NOT an ErrInvalidSubmission.
-	ErrChildEnrollmentNotPermitted = errors.New("guardian is not permitted to re-enroll this child")
+	ErrChildEnrollmentNotPermitted = enrollmentCapability.ErrChildEnrollmentNotPermitted
 	// ErrPhaseAudienceRestricted is the public form-load gate for
 	// audience-restricted phases (#1663): a linked_parents or
 	// existing_students phase cannot be bootstrapped anonymously, so the
@@ -149,7 +149,7 @@ var (
 	// anonymous caller cannot distinguish
 	// a restricted phase from a non-existent one; the parents portal loads
 	// these phases through its own authenticated bootstrap path instead.
-	ErrPhaseAudienceRestricted = errors.New("phase is not available for public enrollment")
+	ErrPhaseAudienceRestricted = enrollmentCapability.ErrPhaseAudienceRestricted
 )
 
 // Rate-limit thresholds. Hardcoded for now - if individual schools
@@ -263,16 +263,9 @@ type SubmitOfferingDays struct {
 	SelectedDays []string
 }
 
-// OfferingClaim is one capacity claim a child brings to the capacity gate:
-// an offering plus the selection's validity interval (ValidUntil exclusive,
-// matching RequestChildOffering). Submit-time selections span the whole
-// phase (nil bounds); the restore path passes the surviving dated intervals
-// so a claim is only checked against occupancy inside its own window.
-type OfferingClaim struct {
-	OfferingID int64
-	ValidFrom  *timezone.Date
-	ValidUntil *timezone.Date
-}
+// OfferingClaim is one capacity claim a child brings to the owner's capacity
+// gate.
+type OfferingClaim = enrollmentCapability.OfferingClaim
 
 // fullWindowClaims converts submit-time selections into capacity claims
 // spanning the whole phase window — the shape every Submit variant uses.
@@ -645,8 +638,11 @@ type RequestServiceConfig struct {
 	Guardians        IntakeGuardians
 	LateInviteRepo   IntakeLateInvites
 	CareOfferingRepo enrollmentModels.CareOfferingRepository
-	Catalog          IntakeCatalog
-	SchoolRepo       enrollmentCapability.SchoolDirectory
+	// Capacity is the Enrollment owner's capacity gate every submission and
+	// edit runs its offering claims through (#3564).
+	Capacity   enrollmentCapability.OfferingCapacity
+	Catalog    IntakeCatalog
+	SchoolRepo enrollmentCapability.SchoolDirectory
 	// Notifications brands the submission mails and notifies the capacity
 	// decisions a submission produces.
 	Notifications enrollmentCapability.Notifications
@@ -720,7 +716,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		req.AllowClosedPhase = true
 		req.SubmissionSource = enrollmentModels.RequestSourceLateInvite
 	}
-	submissionSource := normalizedSubmissionSource(req.SubmissionSource)
+	submissionSource := enrollmentCapability.NormalizedSubmissionSource(req.SubmissionSource)
 	sourceMetadata := cloneSourceMetadata(req.SourceMetadata)
 
 	phase, err := s.loadPhaseForSubmission(ctx, req.PhaseID)
@@ -916,7 +912,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		// the lowercased email is the second - pg_advisory_xact_lock
 		// takes two int4s OR one int8.
 		emailLC := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
-		emailHash := fnvHash64(emailLC)
+		emailHash := enrollmentCapability.SubmissionDedupLockKey(emailLC)
 		if err := s.Requests.AcquireSubmissionDedupLock(txCtx, phase.ID, emailHash); err != nil {
 			return fmt.Errorf("submit: acquire dedup lock: %w", err)
 		}
@@ -2371,7 +2367,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		)
 
 		emailLC := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
-		emailHash := fnvHash64(emailLC)
+		emailHash := enrollmentCapability.SubmissionDedupLockKey(emailLC)
 		if err := s.Requests.AcquireSubmissionDedupLock(txCtx, phase.ID, emailHash); err != nil {
 			return fmt.Errorf("edit replace: acquire dedup lock: %w", err)
 		}
@@ -3072,27 +3068,15 @@ func (s *requestService) resolveSubmissionSchema(ctx context.Context, phase *enr
 }
 
 func newStatusToken() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
+	return enrollmentCapability.NewStatusToken(func(b []byte) error {
+		_, err := rand.Read(b)
+		return err
+	})
 }
 
 func lateInviteTokenHash(token string) string {
 	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))
 	return hex.EncodeToString(sum[:])
-}
-
-func normalizedSubmissionSource(source string) string {
-	switch strings.TrimSpace(source) {
-	case enrollmentModels.RequestSourceLateInvite:
-		return enrollmentModels.RequestSourceLateInvite
-	case enrollmentModels.RequestSourceAdminManual:
-		return enrollmentModels.RequestSourceAdminManual
-	default:
-		return enrollmentModels.RequestSourcePublic
-	}
 }
 
 func cloneSourceMetadata(src map[string]any) map[string]any {
@@ -3127,14 +3111,6 @@ func normalizeGuardianEmail(email string) (string, error) {
 // into the settings package directly.
 func (s *requestService) IsEnrollmentEnabled(ctx context.Context) bool {
 	return s.isEnrollmentEnabled(ctx)
-}
-
-// fnvHash64 returns a 64-bit FNV-1a hash of the input. Used to derive
-// a stable advisory-lock key from the lowercased guardian email.
-func fnvHash64(s string) uint64 {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(s))
-	return h.Sum64()
 }
 
 func (s *requestService) isEnrollmentEnabled(ctx context.Context) bool {
@@ -4180,7 +4156,7 @@ func reEnrollmentSubmitterFor(submissionSource string, guardianAccountID *int64,
 	return reEnrollmentSubmitter{
 		GuardianAccountID: guardianAccountID,
 		GuardianEmail:     strings.ToLower(strings.TrimSpace(guardianEmail)),
-		AdminManaged:      normalizedSubmissionSource(submissionSource) == enrollmentModels.RequestSourceAdminManual,
+		AdminManaged:      enrollmentCapability.NormalizedSubmissionSource(submissionSource) == enrollmentModels.RequestSourceAdminManual,
 	}
 }
 
@@ -4199,7 +4175,7 @@ func reEnrollmentSubmitterForPersistedRequest(
 		return reEnrollmentSubmitter{}, errors.New("request is required")
 	}
 	email := req.GuardianEmail
-	if req.GuardianAccountID == nil && normalizedSubmissionSource(req.SubmissionSource) == enrollmentModels.RequestSourceLateInvite {
+	if req.GuardianAccountID == nil && enrollmentCapability.NormalizedSubmissionSource(req.SubmissionSource) == enrollmentModels.RequestSourceLateInvite {
 		if lateInvites == nil {
 			return reEnrollmentSubmitter{}, errors.New("late invite repository is not configured")
 		}
@@ -4587,245 +4563,13 @@ func (s *requestService) applyCapacityOverflowWithCapacityClaims(
 	preservedClaims map[int64]int,
 	replacedRequestChildIDs []int64,
 ) (map[int]string, error) {
-	var resolveWaitlistEnabled func(context.Context) (bool, error)
-	if s.Settings != nil {
-		resolveWaitlistEnabled = func(ctx context.Context) (bool, error) {
-			return s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentWaitlistEnabled)
-		}
+	if s.Capacity == nil {
+		return nil, errors.New("care offering capacity gate is not configured")
 	}
-	return applyCapacityOverflowCore(ctx, s.CareOfferingRepo, s.Children,
-		resolveWaitlistEnabled, phase, fullWindowClaims(children), preservedClaims, replacedRequestChildIDs)
-}
-
-// applyCapacityOverflowCore is the shared capacity gate behind every path
-// that (re-)creates active offering claims: Submit and its edit/replace
-// variants above, and the admin restore of a withdrawn request
-// (decisionService.RestoreWithdrawn). It locks the selected offerings by
-// ascending id — the same order the offering-change approval takes — counts
-// active claims in the phase's remaining capacity window, and flags
-// over-capacity children per the phase's overflow mode (waitlist/reject/
-// allow). A claim carrying its own validity interval is checked only
-// against the peak occupancy inside that interval, so a dated switch never
-// competes with capacity pressure it doesn't overlap; claims queued earlier
-// in the same run count wherever their intervals overlap the checked claim,
-// not only on identical windows. Extracted to a package-level function so
-// the decision service can run the identical machinery without reaching
-// into requestService.
-func applyCapacityOverflowCore(
-	ctx context.Context,
-	careOfferingRepo enrollmentModels.CareOfferingRepository,
-	capacity OfferingCapacityReader,
-	resolveWaitlistEnabled func(context.Context) (bool, error),
-	phase *enrollmentCapability.Phase,
-	claimsPerChild [][]OfferingClaim,
-	preservedClaims map[int64]int,
-	replacedRequestChildIDs []int64,
-) (map[int]string, error) {
-	overrides := make(map[int]string)
-	if capacity == nil || len(claimsPerChild) == 0 {
-		return overrides, nil
-	}
-	// Historical manual approvals and late invites can legitimately target a
-	// completed care period. They create no present or future capacity claim,
-	// so querying from today through the already-ended phase would be empty.
-	if timezone.Date(phase.ServiceEndDate).Before(timezone.TodayDate()) {
-		return overrides, nil
-	}
-	// Serialize this count with offering-change approvals and other
-	// submissions. Both paths lock care offerings by ascending id before they
-	// inspect capacity and write the booking links.
-	if careOfferingRepo == nil {
-		return nil, errors.New("care offering repository is not configured")
-	}
-	selectedIDs := make([]int64, 0)
-	seen := make(map[int64]bool)
-	for _, childClaims := range claimsPerChild {
-		for _, claim := range childClaims {
-			if claim.OfferingID > 0 && !seen[claim.OfferingID] {
-				seen[claim.OfferingID] = true
-				selectedIDs = append(selectedIDs, claim.OfferingID)
-			}
-		}
-	}
-	sort.Slice(selectedIDs, func(i, j int) bool { return selectedIDs[i] < selectedIDs[j] })
-	lockedOfferings, err := careOfferingRepo.ListByIDsForUpdate(ctx, selectedIDs)
-	if err != nil {
-		return nil, fmt.Errorf("lock care offering capacity: %w", err)
-	}
-	// The catalog the callers validated against was read before entering the
-	// write transaction. Only the locked rows count here, so a concurrent
-	// capacity reduction or deactivation cannot be missed between selection
-	// validation and booking creation.
-	openByID := offeringsByID(lockedOfferings)
-	for _, offeringID := range selectedIDs {
-		offering := openByID[offeringID]
-		if offering == nil || !offering.IsActive {
-			return nil, ErrCareOfferingClosed
-		}
-	}
-
-	mode := phase.CareOverflowMode
-	if mode == "" {
-		mode = enrollmentCapability.PhaseCareOverflowWaitlist
-	}
-	if mode == enrollmentCapability.PhaseCareOverflowWaitlist {
-		if resolveWaitlistEnabled == nil {
-			return nil, errors.New("enrollment settings resolver is not configured")
-		}
-		waitlistEnabled, err := resolveWaitlistEnabled(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentWaitlistEnabled, err)
-		}
-		if !waitlistEnabled {
-			// Tenant-wide disable wins. Overflow remains deterministic and safe:
-			// accept above capacity instead of manufacturing a forbidden status.
-			mode = enrollmentCapability.PhaseCareOverflowAllow
-		}
-	}
-
-	// The phase's remaining capacity window; every claim interval is
-	// clamped into it before counting.
-	capacityFrom := timezone.TodayDate()
-	if timezone.Date(phase.ServiceStartDate).After(capacityFrom) {
-		capacityFrom = timezone.Date(phase.ServiceStartDate)
-	}
-	capacityUntil := timezone.Date(phase.ServiceEndDate).AddDays(1)
-
-	// Queued claims from earlier children in this run, per offering. Each
-	// keeps its clamped interval so a later claim queues against exactly
-	// the queued claims its own window overlaps — identical, partially
-	// overlapping, and containing windows alike; disjoint dated intervals
-	// on the same offering still count independently.
-	type dateInterval struct {
-		from, until timezone.Date
-	}
-	queuedByOffering := make(map[int64][]dateInterval)
-
-	// clampClaim reduces a claim's interval to the remaining capacity
-	// window; ok is false when nothing of the interval lies inside it —
-	// such a claim holds no future slot.
-	clampClaim := func(claim OfferingClaim) (window dateInterval, ok bool) {
-		window = dateInterval{from: capacityFrom, until: capacityUntil}
-		if claim.ValidFrom != nil && claim.ValidFrom.After(window.from) {
-			window.from = *claim.ValidFrom
-		}
-		if claim.ValidUntil != nil && claim.ValidUntil.Before(window.until) {
-			window.until = *claim.ValidUntil
-		}
-		return window, window.from.Before(window.until)
-	}
-
-	// Cache the DB occupancy peak per (offering, window) — full-window
-	// submissions re-check the same window once per child.
-	type peakKey struct {
-		offeringID  int64
-		from, until timezone.Date
-	}
-	peakCache := make(map[peakKey]int)
-	countPeak := func(offeringID int64, from, until timezone.Date) (int, error) {
-		key := peakKey{offeringID: offeringID, from: from, until: until}
-		if cached, ok := peakCache[key]; ok {
-			return cached, nil
-		}
-		count, err := capacity.OfferingCapacityPeak(ctx, offeringID, replacedRequestChildIDs, enrollmentCapability.Date(from), enrollmentCapability.Date(until))
-		if err != nil {
-			return 0, fmt.Errorf("submit: count offering %d: %w", offeringID, err)
-		}
-		peakCache[key] = count
-		return count, nil
-	}
-
-	// claimOverCapacity reports whether one more claim with this window
-	// exceeds the offering's capacity on any day of the window. The window
-	// is cut at every boundary a queued claim contributes; inside each
-	// resulting segment the queued coverage is constant, so segment DB
-	// peak + queued coverage + 1 is the exact combined occupancy peak.
-	claimOverCapacity := func(offeringID int64, capacity int, window dateInterval) (bool, error) {
-		queued := queuedByOffering[offeringID]
-		boundaries := []timezone.Date{window.from, window.until}
-		for _, qi := range queued {
-			if qi.from.After(window.from) && qi.from.Before(window.until) {
-				boundaries = append(boundaries, qi.from)
-			}
-			if qi.until.After(window.from) && qi.until.Before(window.until) {
-				boundaries = append(boundaries, qi.until)
-			}
-		}
-		sort.Slice(boundaries, func(i, j int) bool { return boundaries[i].Before(boundaries[j]) })
-		for i := 0; i+1 < len(boundaries); i++ {
-			segFrom, segUntil := boundaries[i], boundaries[i+1]
-			if !segFrom.Before(segUntil) {
-				continue // duplicate boundary
-			}
-			peak, err := countPeak(offeringID, segFrom, segUntil)
-			if err != nil {
-				return false, err
-			}
-			current := max(peak-preservedClaims[offeringID], 0)
-			cover := 0
-			for _, qi := range queued {
-				// Segments are elementary w.r.t. queued boundaries, so a
-				// queued interval overlaps the segment iff it contains it.
-				if !qi.from.After(segFrom) && !qi.until.Before(segUntil) {
-					cover++
-				}
-			}
-			if current+cover+1 > capacity {
-				return true, nil
-			}
-		}
-		return false, nil
-	}
-
-	preservedRemaining := make(map[int64]int, len(preservedClaims))
-	for offeringID, n := range preservedClaims {
-		preservedRemaining[offeringID] = n
-	}
-
-	for childIdx, childClaims := range claimsPerChild {
-		childOver := false
-		for _, claim := range childClaims {
-			window, ok := clampClaim(claim)
-			if !ok {
-				continue
-			}
-			offering, found := openByID[claim.OfferingID]
-			if !found {
-				// Should be impossible (validateOfferingSelections ran first).
-				return nil, fmt.Errorf("submit: offering %d not in open catalog", claim.OfferingID)
-			}
-			enqueue := func() {
-				queuedByOffering[claim.OfferingID] = append(queuedByOffering[claim.OfferingID], window)
-			}
-			if offering.Capacity == nil {
-				enqueue()
-				continue
-			}
-			if preservedRemaining[claim.OfferingID] > 0 {
-				preservedRemaining[claim.OfferingID]--
-				enqueue()
-				continue
-			}
-			over, err := claimOverCapacity(claim.OfferingID, *offering.Capacity, window)
-			if err != nil {
-				return nil, err
-			}
-			if over {
-				childOver = true
-				if mode == enrollmentCapability.PhaseCareOverflowReject {
-					return nil, fmt.Errorf("%w: offering %d", ErrCareOfferingFull, claim.OfferingID)
-				}
-			}
-			// Waitlisted children keep occupying: the DB peak counts
-			// waitlisted claims too, so the in-run queue must as well.
-			enqueue()
-		}
-		if childOver && mode == enrollmentCapability.PhaseCareOverflowWaitlist {
-			overrides[childIdx] = enrollmentModels.ChildStatusWaitlisted
-		}
-	}
-
-	return overrides, nil
+	return s.Capacity.ApplyCapacityOverflow(ctx, enrollmentCapability.CapacityCheck{
+		Phase: phase, Claims: fullWindowClaims(children),
+		PreservedClaims: preservedClaims, ReplacedRequestChildIDs: replacedRequestChildIDs,
+	})
 }
 
 // enforceRateLimit increments the per-IP and per-email buckets and

@@ -9,19 +9,13 @@ import (
 	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
-// CareBookingInput is the effective-care data this workflow sends to Care Plan.
+// CareBookingInput is the effective-care data this workflow sends to Care
+// Plan; the Enrollment owner defines it for every enrollment flow (#3564).
 // Submitted days and notes are written separately through Enrollment.
-type CareBookingInput struct {
-	CareOfferingID        int64
-	ManualSelectedDays    []string
-	AutomaticSelectedDays []string
-	ValidFrom             *timezone.Date
-	ValidUntil            *timezone.Date
-}
+type CareBookingInput = owner.CareBookingInput
 
-type CareBookingCommands interface {
-	RecordCareBookings(context.Context, int64, []CareBookingInput) error
-}
+// CareBookingCommands records the effective bookings of a new request child.
+type CareBookingCommands = owner.CareBookingCommands
 
 type CareBookingChanges interface {
 	ReplaceCareBookings(context.Context, int64, []CareBookingInput) error

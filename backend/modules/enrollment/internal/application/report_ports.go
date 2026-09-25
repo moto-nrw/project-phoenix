@@ -125,7 +125,7 @@ type (
 	}
 )
 
-// ExportAccess is one GDPR access-log row of an enrollment phase export.
+// ExportAccess is one GDPR access-log row of an enrollment export.
 type ExportAccess struct {
 	ActorAccountID int64
 	ActorRole      string
@@ -135,9 +135,11 @@ type ExportAccess struct {
 	Metadata       map[string]any
 }
 
-// ExportAccessLog appends the phase export rows to the GDPR access log.
+// ExportAccessLog appends the enrollment export rows to the GDPR access log:
+// a phase export, or the export of one student's enrollments.
 type ExportAccessLog interface {
 	RecordPhaseExport(ctx context.Context, entry ExportAccess) error
+	RecordStudentExport(ctx context.Context, studentID int64, entry ExportAccess) error
 }
 
 // ReportDependencies bind the reports to their owners. Guardians,

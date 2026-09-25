@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -22,7 +24,7 @@ type approvalOutboxFunc func(context.Context, platformModels.OutboxEnqueueReques
 // accountBeforeRosterBookings runs the check when the decision asks Care
 // Plan's booking materialization to resync the class-filtered rosters.
 type accountBeforeRosterBookings struct {
-	enrollmentService.DecisionBookings
+	enrollmentTest.DecisionBookings
 	check func(context.Context) error
 }
 

@@ -42,9 +42,3 @@ type CompanionStrandingBatch = departure.StrandingBatch
 func ContextWithCompanionStrandingBatch(ctx context.Context) (context.Context, *CompanionStrandingBatch) {
 	return departure.ContextWithStrandingBatch(ctx)
 }
-
-// CompanionStrandingBatchFromContext returns the open batch, or nil when the
-// caller is an ordinary single-child write.
-func CompanionStrandingBatchFromContext(ctx context.Context) *CompanionStrandingBatch {
-	return departure.StrandingBatchFromContext(ctx)
-}
