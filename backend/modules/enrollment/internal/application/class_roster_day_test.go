@@ -98,5 +98,5 @@ func TestClassDayWithoutPhaseListsFullClass(t *testing.T) {
 	assert.Empty(t, roster.PhaseNames)
 	assert.False(t, roster.Rows[0].Registered)
 	assert.Equal(t, "Anders", roster.Rows[0].LastName)
-	assert.Equal(t, int64(2), roster.Rows[1].StudentID)
+	assert.Equal(t, "Becker", roster.Rows[1].LastName)
 }
