@@ -101,9 +101,7 @@ const SchoolPeriodCount = configModel.SchoolPeriodCount
 
 // SchoolPeriodEndKey returns the key of one lesson's end time; period is
 // 1-based up to SchoolPeriodCount.
-func SchoolPeriodEndKey(period int) string {
-	return configModel.SchoolPeriodEndKey(period)
-}
+var SchoolPeriodEndKey = configModel.SchoolPeriodEndKey
 
 // TenantReader resolves one tenant's settings outside its tenant middleware:
 // the tenant override, else the registry default.

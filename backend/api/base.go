@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 
@@ -1428,7 +1429,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		StudentConsents:              api.Services.StudentConsents,
 		PrivacyConsents:              presence,
 		StudentDocumentService:       api.Services.StudentDocuments,
-		ListExportService:            api.Services.ListExport,
+		ListExportService:            lists.NewRenderer(),
 		Logger:                       logger.With("handler", "students"),
 		DB:                           db,
 	})

@@ -9302,6 +9302,17 @@
       "target_role": "contract"
     },
     {
+      "id": "root-composition.compose.document-rendering-lists",
+      "description": "The production root binds the students routes to the list renderer of the Document Rendering list contract (#3356).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "contract"
+    },
+    {
       "id": "document-rendering.contract.list-renderer",
       "description": "The list contract names the list renderer's document types and hands out the renderer (#3356).",
       "scopes": [

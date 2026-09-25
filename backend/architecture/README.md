@@ -256,8 +256,9 @@ are spelled out in the inbound, and the sweep's batch size is Care Plan's
 `StudentDocumentSweepBatchSize`. The list export is the one edge that needed
 the owner itself: `modules/documentrendering/lists` is a new Document
 Rendering contract that names the list renderer's document types, so the
-four export paths render byte for byte what they did. Its two rules
-(`inbound-students.http.document-rendering-lists` and
+four export paths render byte for byte what they did; the root binds its
+`NewRenderer`. Its three rules (`inbound-students.http.document-rendering-lists`,
+`root-composition.compose.document-rendering-lists` and
 `document-rendering.contract.list-renderer`) are anchored to that new
 contract point. 19 `api/students` keys are gone (463 → 444).
 

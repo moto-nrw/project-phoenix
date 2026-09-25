@@ -10,6 +10,7 @@
   "affected_packages": [
     "api/students",
     "api",
+    "models/audit",
     "api/common",
     "modules/documentrendering/lists",
     "modules/settings",
