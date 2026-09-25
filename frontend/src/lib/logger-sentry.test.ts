@@ -6,7 +6,10 @@ const { addBreadcrumb, captureMessage } = vi.hoisted(() => ({
 }));
 vi.mock("@sentry/nextjs", () => ({ addBreadcrumb, captureMessage }));
 
+vi.unmock("~/lib/logger");
+
 const { reportLogToSentry } = await import("./logger-sentry");
+const { createLogger } = await import("./logger");
 
 function entry(overrides: Record<string, unknown>) {
   return {
@@ -64,9 +67,34 @@ describe("reportLogToSentry", () => {
   it("does not send expected noise as events", () => {
     reportLogToSentry(entry({ msg: "sse connection error" }));
     reportLogToSentry(entry({ msg: "parent login failed", context: "server" }));
+    reportLogToSentry(entry({ msg: "login failed", status: 401 }));
+    reportLogToSentry(
+      entry({ msg: "school login failed", context: "server", status: 403 }),
+    );
 
     expect(captureMessage).not.toHaveBeenCalled();
   });
+
+  it("still sends a login that failed on the server side", () => {
+    reportLogToSentry(entry({ msg: "login failed", status: 502 }));
+    reportLogToSentry(
+      entry({ msg: "school login failed", context: "server", status: 500 }),
+    );
+
+    expect(captureMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["login failed", "school login failed"])(
+    "reports a statusless %s exception",
+    (msg) => {
+      reportLogToSentry(entry({ msg, error: "Invalid response format" }));
+
+      expect(captureMessage).toHaveBeenCalledWith(
+        msg,
+        expect.objectContaining({ level: "error" }),
+      );
+    },
+  );
 
   it("sends server errors as events without breadcrumbs", () => {
     reportLogToSentry(entry({ msg: "api route error", context: "server" }));
@@ -98,5 +126,76 @@ describe("reportLogToSentry", () => {
         },
       }),
     );
+  });
+});
+
+describe("logger levels for expected failures (#3694)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it.each([
+    ["a dropped connection", { error: "Load failed" }],
+    ["a prefixed dropped connection", { error: "TypeError: Failed to fetch" }],
+    ["an expired session", { status: 401, error: "unauthorized" }],
+    ["a business-rule conflict", { status: 409, error: "request_past" }],
+    [
+      "a conflict named only in the API error text",
+      { error: "API error (409): room still in use" },
+    ],
+    ["a profile 401", { error: "Error: HTTP error! status: 401" }],
+    ["a profile 409", { error: "Error: HTTP error! status: 409" }],
+  ])("logs %s as a warning breadcrumb, not an event", (_label, context) => {
+    createLogger({ component: "Probe" }).error("probe_failed", context);
+
+    expect(captureMessage).not.toHaveBeenCalled();
+    expect(addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "probe_failed",
+        level: "warning",
+        data: expect.objectContaining({
+          expected_failure: expect.any(String),
+        }) as unknown,
+      }),
+    );
+  });
+
+  it.each([
+    ["a 403", { status: 403, error: "timetable operation forbidden" }],
+    ["a 5xx", { status: 503, error: "API error (503): unavailable" }],
+    ["a 5xx with network wording", { status: 500, error: "Failed to fetch" }],
+    ["an exception", { error: "Cannot read properties of undefined" }],
+    [
+      "an unreadable response",
+      { error: "SyntaxError: The string did not match the expected pattern." },
+    ],
+  ])("still sends %s as an event", (_label, context) => {
+    createLogger({ component: "Probe" }).error("probe_failed", context);
+
+    expect(captureMessage).toHaveBeenCalledWith(
+      "probe_failed",
+      expect.objectContaining({ level: "error" }),
+    );
+  });
+
+  it("reports a server-side login proxy fetch failure", () => {
+    vi.stubGlobal("window", undefined);
+    const consoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      createLogger({ component: "AuthLoginRoute" }).error(
+        "login proxy failed",
+        {
+          error: "TypeError: Failed to fetch",
+        },
+      );
+
+      expect(captureMessage).toHaveBeenCalledWith(
+        "login proxy failed",
+        expect.objectContaining({ level: "error" }),
+      );
+    } finally {
+      consoleLog.mockRestore();
+      vi.unstubAllGlobals();
+    }
   });
 });

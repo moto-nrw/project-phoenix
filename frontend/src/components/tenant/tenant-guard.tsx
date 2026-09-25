@@ -9,6 +9,7 @@ import { TenantSwitchError, performTenantSwitch } from "~/lib/tenant-api";
 import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { useTenant } from "~/lib/tenant-context";
 import { isDemoEntryPath } from "~/lib/demo-access";
+import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -232,6 +233,7 @@ function GuardedTenant({
       } catch (err) {
         logger.error("tenant_auto_switch_failed", {
           error: err instanceof Error ? err.message : String(err),
+          status: errorStatus(err),
           target_slug: urlSubdomain,
         });
 

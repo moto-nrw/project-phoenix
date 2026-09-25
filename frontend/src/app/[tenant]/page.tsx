@@ -40,6 +40,7 @@ import {
   PasskeyApiError,
 } from "~/lib/passkey-api";
 
+import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TenantLoginPage" });
@@ -396,6 +397,7 @@ function LoginForm() {
       }
       logger.error("login failed", {
         error: err instanceof Error ? err.message : String(err),
+        status: errorStatus(err),
       });
     } finally {
       setIsLoading(false);

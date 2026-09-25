@@ -24,12 +24,29 @@ interface SentryLogEntry {
 /**
  * Error-level messages that are expected noise, not defects: the SSE stream
  * reconnects on its own (about 700 entries a day in production), and a wrong
- * parent password is user input. They stay in the logs.
+ * parent password is user input. They stay in the logs. Client dropped
+ * connections, 401 and 409 in any other message arrive here as warn already
+ * (expected-failure.ts).
  */
 const NOT_SENT_TO_SENTRY = new Set([
   "sse connection error",
   "parent login failed",
 ]);
+
+/**
+ * An identified HTTP login refusal below 500 is user input or missing school
+ * access (#3694). Statusless exceptions can also happen after login succeeds.
+ */
+const LOGIN_FAILURES = new Set(["login failed", "school login failed"]);
+
+function isExpectedNoise(entry: SentryLogEntry): boolean {
+  if (NOT_SENT_TO_SENTRY.has(entry.msg)) return true;
+  return (
+    LOGIN_FAILURES.has(entry.msg) &&
+    typeof entry.status === "number" &&
+    entry.status < 500
+  );
+}
 
 const BREADCRUMB_LEVEL: Record<SentryLogEntry["level"], Sentry.SeverityLevel> =
   {
@@ -80,7 +97,7 @@ export function reportLogToSentry(entry: SentryLogEntry): void {
     });
   }
 
-  if (entry.level !== "error" || NOT_SENT_TO_SENTRY.has(entry.msg)) return;
+  if (entry.level !== "error" || isExpectedNoise(entry)) return;
 
   Sentry.captureMessage(entry.msg, {
     level: "error",
