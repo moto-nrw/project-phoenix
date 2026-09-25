@@ -55,6 +55,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// Capacity-detail disclosure toggles (issue #1879, devices tab).
 		"checkin.activity_capacity_details_enabled",
 		"checkin.room_capacity_details_enabled",
+		// Web assignments may exceed an activity's participant limit (#3632).
+		"attendance.web_exceed_participant_limit_enabled",
 		// Device online/offline window for health monitoring (issue #586, Rule 12).
 		"iot.device_online_window_minutes",
 		"tracking.indicators_enabled",
@@ -484,6 +486,24 @@ func TestWebSpontaneousActivitiesSetting(t *testing.T) {
 	assert.Equal(t, config.KeyCareConcept, def.DependsOn.Key)
 	assert.Equal(t, "eq", def.DependsOn.Condition)
 	assert.Equal(t, config.CareConceptOpenRooms, def.DependsOn.Value)
+}
+
+// TestWebParticipantLimitSetting pins the #3632 switch: web assignments may
+// exceed an activity's participant limit unless the school turns it off, so
+// deploying it changes nothing for any school.
+func TestWebParticipantLimitSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyWebExceedParticipantLimit)
+	require.NotNil(t, def, "attendance.web_exceed_participant_limit_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, true, def.Default, "exceeding the limit on the web stays allowed until a school opts out")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "anwesenheit", def.Category)
+	assert.Equal(t, "config:read", def.ReadPermission)
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Nil(t, def.DependsOn, "the limit applies to every care concept")
 }
 
 func TestAttendanceSetupSettings(t *testing.T) {
