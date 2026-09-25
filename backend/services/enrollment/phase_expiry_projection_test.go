@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	peopleTest "github.com/moto-nrw/project-phoenix/modules/peopledirectory/peopletest"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -339,39 +341,39 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 
 type expiryStudentDirectory struct{ query peopleTest.StudentQuery }
 
-func (d expiryStudentDirectory) ListEnrolledStudents(ctx context.Context) ([]enrollmentService.PhaseExpiryStudent, error) {
+func (d expiryStudentDirectory) ListEnrolledStudents(ctx context.Context) ([]capability.PhaseExpiryStudent, error) {
 	students, err := d.query.ListEnrolledStudents(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]enrollmentService.PhaseExpiryStudent, 0, len(students))
+	result := make([]capability.PhaseExpiryStudent, 0, len(students))
 	for _, student := range students {
-		result = append(result, enrollmentService.PhaseExpiryStudent{ID: student.ID, Status: student.Status, EnrolledFrom: student.EnrolledFrom, EnrolledUntil: student.EnrolledUntil})
+		result = append(result, capability.PhaseExpiryStudent{ID: student.ID, Status: student.Status, EnrolledFrom: student.EnrolledFrom, EnrolledUntil: student.EnrolledUntil})
 	}
 	return result, nil
 }
 
 type phaseExpiryCareOfferingDirectory struct{ query careplan.Query }
 
-func (d phaseExpiryCareOfferingDirectory) ListCareOfferings(ctx context.Context) ([]enrollmentService.PhaseExpiryOffering, error) {
+func (d phaseExpiryCareOfferingDirectory) ListCareOfferings(ctx context.Context) ([]capability.PhaseExpiryOffering, error) {
 	values, err := d.query.ListCareOfferings(ctx, careplan.CareOfferingFilter{Order: careplan.OfferingOrderID})
 	if err != nil {
 		return nil, err
 	}
-	result := make([]enrollmentService.PhaseExpiryOffering, 0, len(values))
+	result := make([]capability.PhaseExpiryOffering, 0, len(values))
 	for _, value := range values {
-		result = append(result, enrollmentService.PhaseExpiryOffering{ID: value.ID, TenantID: value.TenantID, PhaseID: value.PhaseID, DaysOfWeekMode: value.DaysOfWeekMode, AvailableDays: value.AvailableDays, IsActive: value.IsActive})
+		result = append(result, capability.PhaseExpiryOffering{ID: value.ID, TenantID: value.TenantID, PhaseID: value.PhaseID, DaysOfWeekMode: value.DaysOfWeekMode, AvailableDays: value.AvailableDays, IsActive: value.IsActive})
 	}
 	return result, nil
 }
 
 // Exercise the production projection with the real owners.
-func newPhaseExpiryProjection(t *testing.T, db *bun.DB) enrollmentService.PhaseExpirySnapshots {
+func newPhaseExpiryProjection(t *testing.T, db *bun.DB) *enrollmentTest.PhaseExpirySnapshots {
 	t.Helper()
 	owner := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
 	students, err := peopleTest.NewStudentQuery(db)
 	require.NoError(t, err)
-	return enrollmentService.NewPhaseExpiryProjection(owner, expiryStudentDirectory{students}, phaseExpiryCareOfferingDirectory{carePlanTest.NewCarePlan(t, db)}, owner)
+	return enrollmentTest.NewPhaseExpirySnapshots(owner, expiryStudentDirectory{students}, phaseExpiryCareOfferingDirectory{carePlanTest.NewCarePlan(t, db)}, owner)
 }
 
 // Fixture-only lifecycle setup: the report tests do not exercise lifecycle commands.

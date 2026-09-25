@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ErrClassNotAssigned is returned when the requested class is not among the
@@ -40,8 +42,12 @@ var (
 )
 
 // ArrivalExceptionOriginSchool marks an entry a Lehrkraft made through the
-// school portal.
-const ArrivalExceptionOriginSchool = "school"
+// school portal; ArrivalExceptionOriginOGS one the OGS made, and every entry
+// older than the origin stamp.
+const (
+	ArrivalExceptionOriginSchool = "school"
+	ArrivalExceptionOriginOGS    = "ogs"
+)
 
 // Actor is the authenticated account a day report is served to; the report
 // records the access in the GDPR log under these values.
@@ -182,4 +188,77 @@ type ClassDay interface {
 	// EarliestBlockStart returns the "HH:MM" start of the first block of the
 	// date that addresses the class, "" when there is none.
 	EarliestBlockStart(ctx context.Context, schoolClass string, date Date) (string, error)
+	// SupervisionStudentSheet is the per-child pickup and emergency sheet a
+	// supervisor opens from a running block (#2527). It carries guardian
+	// names and phone numbers, which the day report deliberately does not,
+	// so the caller MUST have proven the assignment to a block holding this
+	// child before calling. Every call writes a GDPR access-log row.
+	// ErrInvalidReportFilter refuses a request without a known child.
+	SupervisionStudentSheet(ctx context.Context, in SupervisionSheetInput) (*SupervisionStudentSheet, error)
+}
+
+// SupervisionContact is one adult a supervisor may need during an Aufsicht:
+// the name, how they relate to the child, and their phone numbers.
+//
+// Deliberately no e-mail address: this sheet is opened when somebody has to be
+// reached NOW, and an inbox is not a way to reach anybody. Everything the sheet
+// does not need is a detail a Lehrkraft has no business seeing.
+type SupervisionContact struct {
+	Name string `json:"name"`
+	// Relationship is the stored relationship type ("parent", "guardian", …),
+	// not a display string: the portal renders it through the same table as
+	// every other guardian screen.
+	Relationship string `json:"relationship,omitempty"`
+	// Phones carries one entry per stored number, never a joined string: the
+	// portal turns each into a tel: link, and a link holding two numbers dials
+	// neither. A guardian with a mobile and a work number is the normal case.
+	Phones []string `json:"phones"`
+	// Note is the pickup remark stored on the relationship ("nur mit
+	// Vollmacht", "holt immer freitags ab"). Empty for most contacts.
+	Note string `json:"note,omitempty"`
+}
+
+// SupervisionStudentSheet is the per-child information one supervisor needs
+// while running the block a child is in (#2527): when and how the child leaves
+// today, who may collect them, and whom to call in an emergency.
+//
+// This is a deliberate widening over the class day view (#1772), which carries
+// no guardian names at all. It is bounded three ways instead: the caller must
+// be assigned to the block, the child must be on that block's roster, and every
+// single call writes a GDPR access-log row naming the child.
+type SupervisionStudentSheet struct {
+	StudentID   int64         `json:"student_id"`
+	FirstName   string        `json:"first_name"`
+	LastName    string        `json:"last_name"`
+	SchoolClass string        `json:"school_class,omitempty"`
+	Date        calendar.Date `json:"date"`
+	// Arrival / Pickup are the effective times of the day ("07:45" / "15:30"),
+	// empty when the plan names none.
+	Arrival string `json:"arrival,omitempty"`
+	Pickup  string `json:"pickup,omitempty"`
+	// Departure renders how the child goes home today ("Bus", "Abholung",
+	// "Geht alleine"). Missing plan data reads as "Keine Angabe", never as
+	// permission to send the child off alone.
+	Departure string `json:"departure"`
+	// Status is the reported day status ("sick" / "excused" / "class_trip"),
+	// empty when none is reported. Cancelled care ("kommt heute nicht") is
+	// reported as "cancelled", matching the class day view.
+	Status            string               `json:"status,omitempty"`
+	PickupContacts    []SupervisionContact `json:"pickup_contacts"`
+	EmergencyContacts []SupervisionContact `json:"emergency_contacts"`
+}
+
+// SupervisionSheetInput parameterizes the sheet.
+type SupervisionSheetInput struct {
+	StudentID int64
+	// Date is the day of the sheet; the zero date means today.
+	Date calendar.Date
+	// CompanionBoundary is the set of student IDs the caller ALREADY sees —
+	// the roster of the block. An accompanied departure ("läuft mit …") names
+	// only children from this set, exactly like the class day view names only
+	// children of the class being served: a Laufgemeinschaft may pair the
+	// child with one from a class the caller never gets to see.
+	CompanionBoundary []int64
+	ActorAccountID    int64
+	ActorRole         string
 }

@@ -863,10 +863,13 @@ the consumer-owned read seams, and `compose` binds them. The projection reads
 `schedule.activity_instances`, `schedule.instance_students`, `active.visits`,
 `active.attendance`, `users.students`, `users.persons`, `education.groups`, the
 rooms and the Care Plan status days and pickup exceptions only through the public
-owner facades (`class-day-view.from.*`). Its `class-day-view.compose.*`
+owner facades (`class-day-view.from.*`). Since #3563 the application also
+builds the school portal's day report, the supervision sheet and the class-wide
+arrival exceptions itself; Enrollment's class roster of a day reaches it
+through the `DayRosters` port the root binds. Its `class-day-view.compose.*`
 permissions for the retained schedule services (care-day derivation, effective
-times, pickup baselines), the enrollment report and class-day write seam, the
-settings service, the user context and the JWT permission check exist only
+times, pickup baselines), the settings service, the user context and the JWT
+permission check exist only
 because PR mode cannot record debt for a package the candidate creates. They are
 compatibility bindings, not target dependencies: convert them to exact debt with
 the rule above once the packages exist at a base SHA, and remove each binding
@@ -1415,6 +1418,131 @@ falls from 540 to 535 and no rule was added (one stale test rule is gone).
   `services/enrollment` test package, compose the owner through
   `api/testutil.NewOfferingChanges` and assert the staff queue through
   `api/testutil.NewOfferingReviewQuery`.
+
+#3562 (E1 of the `services/enrollment` dissolution under #2733) moved
+Enrollment's phases, form schemas, the phase-response overview, the
+phase-expiry warnings, the approved-offering projection, captcha
+verification and the parent mail renderers and decision notifications into
+`modules/enrollment/internal/application` (`enrollment`/`application`, the
+same point as the retained package), composed by `modules/enrollment/compose`
+and published through `modules/enrollment` (`PhaseAdministration`,
+`FormSchemaAdministration`, `PhaseExpiryWarnings`, `CaptchaVerifier`,
+`Notifications`, `MailRenderers`). The Turnstile call is the adapter
+`modules/enrollment/internal/adapters/turnstile` (`enrollment`/`adapter`).
+Routes, status codes, error texts, authorization and tenant scoping are
+unchanged; 21 files are deleted and the key count falls from 535 to 529
+(`email`, `pgdriver` and `net/http` in production, three test keys).
+
+- The composition could not construct its application under an ordinary
+  `enrollment.compose.application` rule, because `services/enrollment`
+  already holds that point at the base. ADR 0041 grants exactly that
+  production permission in epoch 31 while the retained package exists.
+- Settings reach the application through typed ports (`CollectionSettings`,
+  `CaptchaSettings`, `NotificationSettings`) that `services` binds over the
+  settings resolver; the captcha keeps its deployment fallbacks there. Mails
+  leave as `application.Mail` intents that `services` puts on the platform
+  outbox; the renderers take the stored JSON payload.
+- The Postgres adapter marks a duplicate phase name and a missing form schema
+  or calendar period with `ErrPhaseNameTaken` and `ErrPhaseReferenceMissing`,
+  so neither the phase administration nor the rollover reads driver errors.
+- The decoded request and child glue (`services/enrollment/owner_records.go`)
+  stays with the retained decision, rollover and intake flows until #3564 and
+  #3565 move them: the public contract may not carry the decoded answer maps.
+- The guardian portal reads care periods and offering history through its own
+  ports (`care.CarePeriodReads`, `care.OfferingHistoryReads`), which removes
+  the two parent-portal rules to the retained Enrollment application.
+- The behaviour suites stay in the `services/enrollment` test package and
+  compose the owner through `modules/enrollment/enrollmenttest`; the external
+  `api/enrollment` router suites reach it through exported helpers of the
+  package's internal tests.
+
+#3563 (E2 under #2733) moved the school portal's class day report, the
+supervision sheet and the class-wide arrival exceptions into the Class Day View
+application (`modules/classday/internal/application`, behind the one
+`classday.ClassDay` capability, which gained `SupervisionStudentSheet`), and
+the care usage and class roster reports with their export audit into
+Enrollment (`modules/enrollment/internal/application`, published as
+`enrollment.Reports`, composed by `modules/enrollment/compose.NewReports`).
+The five retained files are deleted; routes, status codes, error texts, the
+report and export output, the GDPR access-log rows, authorization and tenant
+scoping are unchanged. The key count falls from 529 to 523
+(`internal/collation`, `internal/sliceutil` and `models/education` in
+production, three test keys), and eight rules that no import used any more are
+deleted, among them `class-day-view.compose.enrollment-application` and
+`parent-portal.application.enrollment-application`. No rule is added.
+
+- Enrollment publishes the class roster of a day
+  (`Reports.ClassRosterDay`: covering phases, merged roster rows and each
+  student's departure modes for the weekday). Class Day View reads it through
+  its own `DayRosters` port, which `services` binds; a direct
+  `class-day-view.compose → enrollment/public` import would have been a new
+  permission.
+- Neither application may import People Directory's domain, the audit or
+  settings models, the realtime hub or the tenant runtime. Students, persons,
+  guardian contacts, status days, the care-offering setting, the GDPR access
+  log and the after-commit arrival announcement reach them through ports
+  `services` binds; Care Plan's effective times, care days and class arrival
+  exceptions reach Class Day View through its compose bindings, which also
+  keep Care Plan's refusal texts on the wire. Group names come from the
+  retained group repository through `repositories.NewGroupNames`.
+- The companion link helpers (`FilterCompanionLinksToDays`,
+  `CompanionDisplayName`, `FormatCompanionLinks`) moved from `models/users` to
+  People Directory's departure contract (`modules/peopledirectory/departure`),
+  aliased from `models/users` and the People Directory facade.
+- The reports sort with the settings of `internal/collation` through
+  `golang.org/x/text/collate`, which the policy keeps out of an owner's
+  application; a table test pins the order against the shared cases.
+- `BookingViewDate` moved to Care Plan (`careplan.BookingViewDate`), so the
+  guardian portal no longer imports the retained Enrollment application;
+  `ReportOfferingDate` is public in `modules/enrollment` for the retained
+  decision flow, which keeps its own export audit writer until #3564.
+- `services.Factory` keeps its field names: `EnrollmentReport` now holds
+  `enrollment.Reports` and `ClassDayArrivalExceptions` the whole
+  `classday.ClassDay` capability, so the composition surface does not grow
+  (615 → 610 targets).
+
+#3564 (E3 under #2733) moved the decision flow, the restore of a withdrawn
+request, the rollover with its review queue and deadline worker, the admin
+deletion with its impact preview and the retention cleanup of rejected
+requests into Enrollment (`modules/enrollment/internal/application`). The
+public package publishes them as `enrollment.Decisions`,
+`ApprovedChildChanges`, `Rollovers`, `EnrollmentDeletions` and
+`RejectedEnrollmentCleaner`; `modules/enrollment/compose` composes them
+(`NewDecisions`, `NewRollovers`, `NewDeletionPreview`, `NewDeletions`,
+`NewRejectedCleanup`) in the ambient tenant transaction. The thirteen retained
+files and three helper files are deleted; routes, status codes, error texts,
+authorization and tenant scoping are unchanged. The key count falls from 523 to
+513 (`models/audit`, `models/base`, `models/schedule`, `realtime`,
+`services/import` and `bun.DB.RunInTx` of `services/enrollment` in production,
+`models/audit` of `api/enrollment` in both scopes, two test keys). No rule is
+added.
+
+- The capacity gate the submissions share with the restore is the public
+  `enrollment.OfferingCapacity`, composed by `compose.NewOfferingCapacity`
+  and bound into the retained intake by `services`. The request sentinels,
+  the status token (`NewStatusToken`), the submission lock key
+  (`SubmissionDedupLockKey`) and `NormalizedSubmissionSource` moved to the
+  public package with it.
+- The public contract carries the owner's raw request and child values; until
+  #3565, `services/enrollment` keeps a decoding facade (`NewDecisionService`,
+  `NewRolloverService`, `NewChangeRequestDecisionApplier`) for the retained
+  intake, change-request and scheduler consumers, and a copy of the answer
+  decoders its visibility checks read.
+- People Directory rows, the audit trails, the settings, the realtime hub and
+  the outbox reach the application through ports `services` binds
+  (`NewEnrollmentDecisions`, `NewEnrollmentRollovers`,
+  `NewEnrollmentDeletionModule`); the weekly pickup and arrival schedules come
+  from `repositories.NewEnrollmentPickupSchedules` /
+  `NewEnrollmentArrivalSchedules`. Role presets reach the binding as a typed
+  permission list through `securityruntime.StudentGuardianRolePreset`.
+- The rollover opens its transaction through the tenant runtime instead of
+  `bun.DB.RunInTx`; the postgres adapter marks a child insert refused by the
+  rollover source index with `ErrRolloverSourceChildTaken`.
+- The care offering record adapter left in `services/enrollment` keeps the
+  retained error shape and not-found marker without `models/base`.
+- Suites compose the flow through `api/testutil` aliases of the root
+  bindings; the savepoint suite of the retention cleanup runs in
+  `modules/enrollment/integration`.
 
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`

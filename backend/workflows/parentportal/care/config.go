@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -55,8 +54,8 @@ type Config struct {
 
 	// Enrollment: the booked care offerings behind the child and the
 	// post-enrollment change-request lifecycle.
-	CarePeriods      enrollmentSvc.StudentCarePeriodReader
-	OfferingHistory  enrollmentSvc.OfferingHistoryReader
+	CarePeriods      CarePeriodReads
+	OfferingHistory  OfferingHistoryReads
 	CareOfferingRepo CareOfferingReads
 	OfferingChanges  OfferingChangeRequests
 

@@ -57,37 +57,6 @@ func TestNewStatusToken_TokensAreDistinct(t *testing.T) {
 	}
 }
 
-// ---- fnvHash64 ----------------------------------------------------------
-
-func TestFnvHash64_Stable(t *testing.T) {
-	t.Parallel()
-
-	// Stability matters: the value is used as an advisory-lock key on
-	// the lowercased guardian email so concurrent submissions for the
-	// same parent serialize. Changing the algorithm would silently
-	// allow duplicates through during a rolling deploy.
-	a := fnvHash64("parent@example.com")
-	b := fnvHash64("parent@example.com")
-	assert.Equal(t, a, b)
-}
-
-func TestFnvHash64_DifferentInputsCollideRarely(t *testing.T) {
-	t.Parallel()
-
-	assert.NotEqual(t,
-		fnvHash64("parent@example.com"),
-		fnvHash64("other@example.com"),
-	)
-}
-
-func TestFnvHash64_EmptyStringIsFnvOffsetBasis(t *testing.T) {
-	t.Parallel()
-
-	// FNV-1a offset basis for 64-bit; sanity check that the hash isn't
-	// silently zero-initialised.
-	assert.Equal(t, uint64(0xcbf29ce484222325), fnvHash64(""))
-}
-
 // ---- validateOfferingSelections -----------------------------------------
 
 func TestValidateOfferingSelections_AcceptsKnownOfferings(t *testing.T) {

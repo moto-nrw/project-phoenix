@@ -39,7 +39,7 @@ func (r *Store) InsertChild(ctx context.Context, child *enrollment.RequestChild)
 		Returning("*").
 		Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to create request child: %w", err)
+		return fmt.Errorf("failed to create request child: %w", markChildWriteError(err))
 	}
 	*child = *row.value()
 	return nil

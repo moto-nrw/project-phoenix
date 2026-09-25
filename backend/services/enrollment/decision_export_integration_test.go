@@ -6,6 +6,9 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
@@ -31,15 +34,15 @@ import (
 // test can swap in a failing stub. Mirrors the export half of
 // setupDecisionTest's config (which omits the audit repo).
 func newExportDecisionService(env *decisionTestEnv, auditRepo auditModels.DataAccessLogRepository) enrollmentService.DecisionService {
-	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
-		Requests:          env.repos.Enrollment(),
-		Children:          env.repos.Enrollment(),
-		CareOfferingRepo:  enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
-		Phases:            env.repos.Enrollment(),
-		Schemas:           env.repos.Enrollment(),
-		DataAccessLogRepo: auditRepo,
-		StudentRepo:       env.repos.Student,
-		Logger:            slog.Default(),
+	return newTestDecisionService(testutil.EnrollmentDecisionSources{
+		Requests:      env.repos.Enrollment(),
+		Children:      env.repos.Enrollment(),
+		CareOfferings: enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
+		Phases:        env.repos.Enrollment(),
+		Schemas:       env.repos.Enrollment(),
+		DataAccessLog: auditRepo,
+		Students:      env.repos.Student,
+		Logger:        slog.Default(),
 	})
 }
 
@@ -47,7 +50,7 @@ func newExportDecisionService(env *decisionTestEnv, auditRepo auditModels.DataAc
 // fail, simulating a transient read error or a corrupt/orphaned
 // request.schema_id. Other reads delegate to the embedded owner.
 type failingSchemaRepo struct {
-	enrollmentService.SchemaReader
+	enrollmentTest.DecisionSchemas
 }
 
 func (failingSchemaRepo) Schema(_ context.Context, _ int64) (*capability.FormSchema, error) {
@@ -55,7 +58,7 @@ func (failingSchemaRepo) Schema(_ context.Context, _ int64) (*capability.FormSch
 }
 
 type failingPhaseRepo struct {
-	enrollmentService.PhaseBatchReader
+	enrollmentTest.DecisionPhases
 }
 
 func (failingPhaseRepo) Phase(_ context.Context, _ int64) (*capability.Phase, error) {
@@ -66,28 +69,28 @@ func (failingPhaseRepo) Phase(_ context.Context, _ int64) (*capability.Phase, er
 // but swaps in a schema reader whose Schema always errors, so a test
 // can prove the export fails closed when a pinned schema cannot be loaded.
 func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo auditModels.DataAccessLogRepository) enrollmentService.DecisionService {
-	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
-		Requests:          env.repos.Enrollment(),
-		Children:          env.repos.Enrollment(),
-		CareOfferingRepo:  enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
-		Phases:            env.repos.Enrollment(),
-		Schemas:           failingSchemaRepo{env.repos.Enrollment()},
-		DataAccessLogRepo: auditRepo,
-		StudentRepo:       env.repos.Student,
-		Logger:            slog.Default(),
+	return newTestDecisionService(testutil.EnrollmentDecisionSources{
+		Requests:      env.repos.Enrollment(),
+		Children:      env.repos.Enrollment(),
+		CareOfferings: enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
+		Phases:        env.repos.Enrollment(),
+		Schemas:       failingSchemaRepo{env.repos.Enrollment()},
+		DataAccessLog: auditRepo,
+		Students:      env.repos.Student,
+		Logger:        slog.Default(),
 	})
 }
 
 func newExportDecisionServiceFailingPhase(env *decisionTestEnv, auditRepo auditModels.DataAccessLogRepository) enrollmentService.DecisionService {
-	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
-		Requests:          env.repos.Enrollment(),
-		Children:          env.repos.Enrollment(),
-		CareOfferingRepo:  enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
-		Phases:            failingPhaseRepo{env.repos.Enrollment()},
-		Schemas:           env.repos.Enrollment(),
-		DataAccessLogRepo: auditRepo,
-		StudentRepo:       env.repos.Student,
-		Logger:            slog.Default(),
+	return newTestDecisionService(testutil.EnrollmentDecisionSources{
+		Requests:      env.repos.Enrollment(),
+		Children:      env.repos.Enrollment(),
+		CareOfferings: enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()),
+		Phases:        failingPhaseRepo{env.repos.Enrollment()},
+		Schemas:       env.repos.Enrollment(),
+		DataAccessLog: auditRepo,
+		Students:      env.repos.Student,
+		Logger:        slog.Default(),
 	})
 }
 

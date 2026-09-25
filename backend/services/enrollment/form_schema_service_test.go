@@ -8,27 +8,25 @@ import (
 	"sync"
 	"testing"
 
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-func setupSchemaTest(t *testing.T) (*bun.DB, enrollmentService.FormSchemaService, int64, int64) {
+func setupSchemaTest(t *testing.T) (*bun.DB, capability.FormSchemaAdministration, int64, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	svc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  repoFactory.Enrollment(),
-		Logger: slog.Default(),
-	})
+	svc := enrollmentTest.NewFormSchemas(repoFactory.Enrollment(), nil, slog.Default())
 
 	// Need a real auth.accounts row to satisfy the created_by FK.
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "Form", "Editor")
@@ -109,7 +107,7 @@ func TestFormSchemaService_UpdateSchema_KeepsAllVersionsActive(t *testing.T) {
 	assert.Equal(t, 2, v2.Version)
 
 	// v1 STAYS active (was deactivated under the old single-schema flow).
-	v1Refetched, err := svc.GetByID(ctx, v1.ID)
+	v1Refetched, err := svc.SchemaVersion(ctx, v1.ID)
 	require.NoError(t, err)
 	assert.True(t, v1Refetched.IsActive,
 		"previous version must remain active under multi-schema semantics")
@@ -123,7 +121,7 @@ func TestFormSchemaService_GetActive_NoRowsErrSentinel(t *testing.T) {
 
 	_, err := svc.GetActive(ctx)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrNoActiveSchema),
+	assert.True(t, errors.Is(err, capability.ErrNoActiveSchema),
 		"GetActive on a tenant with no schema must return ErrNoActiveSchema")
 }
 
@@ -349,7 +347,7 @@ func TestFormSchemaService_RenameSchema_RejectsCollisionWithOtherSchema(t *testi
 	require.NoError(t, err)
 
 	_, err = svc.RenameSchema(ctx, a.ID, "Ferien")
-	require.ErrorIs(t, err, enrollmentService.ErrFormSchemaNameExists,
+	require.ErrorIs(t, err, capability.ErrFormSchemaNameExists,
 		"renaming onto an existing schema name must be refused, not split the lineage")
 }
 
@@ -394,7 +392,7 @@ func TestFormSchemaService_RenameSchema_RejectsNonPositiveID(t *testing.T) {
 	ctx := testpkg.TenantContext(tenantID)
 
 	_, err := svc.RenameSchema(ctx, 0, "Egal")
-	require.ErrorIs(t, err, enrollmentService.ErrFormSchemaNotFound,
+	require.ErrorIs(t, err, capability.ErrFormSchemaNotFound,
 		"a non-positive id can never identify a schema")
 }
 
@@ -407,19 +405,16 @@ func TestFormSchemaService_RenameSchema_MissingSchemaReturnsNotFound(t *testing.
 	// No row carries this id, so FindByID returns sql.ErrNoRows wrapped in a
 	// DatabaseError; the service must map that to the typed not-found sentinel.
 	_, err := svc.RenameSchema(ctx, 999999999, "Egal")
-	require.ErrorIs(t, err, enrollmentService.ErrFormSchemaNotFound)
+	require.ErrorIs(t, err, capability.ErrFormSchemaNotFound)
 }
 
 // newSchemaServiceWithOwner injects an owner read failure without replacing storage.
-func newSchemaServiceWithOwner(repo enrollmentService.FormSchemaOwner) enrollmentService.FormSchemaService {
-	return enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  repo,
-		Logger: slog.Default(),
-	})
+func newSchemaServiceWithOwner(repo enrollmentTest.FormSchemaRecords) capability.FormSchemaAdministration {
+	return enrollmentTest.NewFormSchemas(repo, nil, slog.Default())
 }
 
 type activeSchemaReadFailure struct {
-	enrollmentService.FormSchemaOwner
+	enrollmentTest.FormSchemaRecords
 	err error
 }
 
@@ -435,8 +430,8 @@ func TestFormSchemaService_ActiveReadFailureStopsPublish(t *testing.T) {
 	svc := newSchemaServiceWithOwner(activeSchemaReadFailure{err: unavailable})
 	_, err := svc.GetActive(ctx)
 	require.ErrorIs(t, err, unavailable)
-	require.NotErrorIs(t, err, enrollmentService.ErrNoActiveSchema)
-	_, err = svc.PublishForm(ctx, enrollmentService.PublishFormInput{})
+	require.NotErrorIs(t, err, capability.ErrNoActiveSchema)
+	_, err = svc.PublishForm(ctx, capability.PublishFormInput{})
 	require.ErrorIs(t, err, unavailable, "a read failure must not enter the default-schema creation path")
 }
 
@@ -539,7 +534,7 @@ func TestFormSchemaService_RenameThenFailedPublish_RollsBackRename(t *testing.T)
 	// rename back when the subsequent publication rejects a reserved core key.
 	newName := "Herbstfest"
 	ctx := testpkg.WithTenantRuntime(t, testpkg.TenantContext(tenantID), db)
-	failed, txErr := svc.PublishFormVersion(ctx, enrollmentService.PublishFormVersionInput{
+	failed, txErr := svc.PublishFormVersion(ctx, capability.PublishFormVersionInput{
 		ID: lineageID, Name: &newName, ActorID: creatorID,
 		Fields: []capability.FormField{
 			{Key: "guardian_email", Label: "Email", Type: capability.FormFieldText, SortOrder: 0},
@@ -561,7 +556,7 @@ func TestFormSchemaService_RenameThenFailedPublish_RollsBackRename(t *testing.T)
 			"the rename must roll back when the publish in the same transaction fails")
 		return nil
 	}))
-	retried, err := svc.PublishFormVersion(ctx, enrollmentService.PublishFormVersionInput{
+	retried, err := svc.PublishFormVersion(ctx, capability.PublishFormVersionInput{
 		ID: lineageID, Name: &newName, ActorID: creatorID, Fields: field,
 	})
 	require.NoError(t, err)
@@ -589,7 +584,7 @@ func TestFormSchemaService_PublishForm_WithNameCreatesNamedSchema(t *testing.T) 
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	schema, err := svc.PublishForm(ctx, enrollmentService.PublishFormInput{
+	schema, err := svc.PublishForm(ctx, capability.PublishFormInput{
 		Name:    "Klassenanmeldung",
 		Fields:  publishFormFields(),
 		ActorID: creatorID,
@@ -607,7 +602,7 @@ func TestFormSchemaService_PublishForm_NoNameNoActiveCreatesStandardformular(t *
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	schema, err := svc.PublishForm(ctx, enrollmentService.PublishFormInput{
+	schema, err := svc.PublishForm(ctx, capability.PublishFormInput{
 		Fields:  publishFormFields(),
 		ActorID: creatorID,
 	})
@@ -623,7 +618,7 @@ func TestFormSchemaService_PublishForm_NoNameWithActiveUpdatesActive(t *testing.
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	first, err := svc.PublishForm(ctx, enrollmentService.PublishFormInput{
+	first, err := svc.PublishForm(ctx, capability.PublishFormInput{
 		Name:    "Standardformular",
 		Fields:  publishFormFields(),
 		ActorID: creatorID,
@@ -631,7 +626,7 @@ func TestFormSchemaService_PublishForm_NoNameWithActiveUpdatesActive(t *testing.
 	require.NoError(t, err)
 	require.Equal(t, 1, first.Version)
 
-	second, err := svc.PublishForm(ctx, enrollmentService.PublishFormInput{
+	second, err := svc.PublishForm(ctx, capability.PublishFormInput{
 		Fields: []capability.FormField{
 			{Key: "diet", Label: "Diät", Type: capability.FormFieldText, SortOrder: 0},
 		},
@@ -649,7 +644,7 @@ func TestFormSchemaService_PublishFormVersion_WithNameRenamesAndPublishes(t *tes
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	first, err := svc.PublishForm(ctx, enrollmentService.PublishFormInput{
+	first, err := svc.PublishForm(ctx, capability.PublishFormInput{
 		Name:    "Ferienprogramm alt",
 		Fields:  publishFormFields(),
 		ActorID: creatorID,
@@ -657,7 +652,7 @@ func TestFormSchemaService_PublishFormVersion_WithNameRenamesAndPublishes(t *tes
 	require.NoError(t, err)
 
 	newName := "Ferienprogramm neu"
-	version, err := svc.PublishFormVersion(ctx, enrollmentService.PublishFormVersionInput{
+	version, err := svc.PublishFormVersion(ctx, capability.PublishFormVersionInput{
 		ID:      first.ID,
 		Name:    &newName,
 		Fields:  publishFormFields(),
@@ -682,7 +677,7 @@ func TestFormSchemaService_PublishFormVersion_BlankNameSkipsRename(t *testing.T)
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	first, err := svc.PublishForm(ctx, enrollmentService.PublishFormInput{
+	first, err := svc.PublishForm(ctx, capability.PublishFormInput{
 		Name:    "Klassenanmeldung",
 		Fields:  publishFormFields(),
 		ActorID: creatorID,
@@ -690,7 +685,7 @@ func TestFormSchemaService_PublishFormVersion_BlankNameSkipsRename(t *testing.T)
 	require.NoError(t, err)
 
 	blank := "   "
-	version, err := svc.PublishFormVersion(ctx, enrollmentService.PublishFormVersionInput{
+	version, err := svc.PublishFormVersion(ctx, capability.PublishFormVersionInput{
 		ID:      first.ID,
 		Name:    &blank,
 		Fields:  publishFormFields(),
@@ -708,13 +703,13 @@ func TestFormSchemaService_PublishFormVersion_RenameCollisionWrapsError(t *testi
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	target, err := svc.PublishForm(ctx, enrollmentService.PublishFormInput{
+	target, err := svc.PublishForm(ctx, capability.PublishFormInput{
 		Name:    "Anmeldung A",
 		Fields:  publishFormFields(),
 		ActorID: creatorID,
 	})
 	require.NoError(t, err)
-	_, err = svc.PublishForm(ctx, enrollmentService.PublishFormInput{
+	_, err = svc.PublishForm(ctx, capability.PublishFormInput{
 		Name:    "Anmeldung B",
 		Fields:  publishFormFields(),
 		ActorID: creatorID,
@@ -722,16 +717,16 @@ func TestFormSchemaService_PublishFormVersion_RenameCollisionWrapsError(t *testi
 	require.NoError(t, err)
 
 	collidingName := "Anmeldung B"
-	_, err = svc.PublishFormVersion(ctx, enrollmentService.PublishFormVersionInput{
+	_, err = svc.PublishFormVersion(ctx, capability.PublishFormVersionInput{
 		ID:      target.ID,
 		Name:    &collidingName,
 		Fields:  publishFormFields(),
 		ActorID: creatorID,
 	})
 	require.Error(t, err)
-	assert.ErrorIs(t, err, enrollmentService.ErrFormSchemaNameExists,
+	assert.ErrorIs(t, err, capability.ErrFormSchemaNameExists,
 		"a rename onto an existing lineage name surfaces the collision sentinel")
-	var renameErr enrollmentService.RenameStepError
+	var renameErr capability.RenameStepError
 	assert.ErrorAs(t, err, &renameErr,
 		"a rename-step failure is wrapped so the handler can map it distinctly")
 

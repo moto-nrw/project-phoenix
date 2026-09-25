@@ -23,7 +23,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	permissions2 "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -124,7 +123,7 @@ func (m *mockDecisionService) ListChildOfferings(_ context.Context, _ int64) (ma
 	return m.listChildOffResult, m.listChildOffErr
 }
 
-func (m *mockDecisionService) ListOfferingAdjustments(_ context.Context, _, _ int64) ([]*auditModels.EnrollmentOfferingAdjustment, error) {
+func (m *mockDecisionService) ListOfferingAdjustments(_ context.Context, _, _ int64) ([]*enrollmentService.OfferingAdjustment, error) {
 	return nil, nil
 }
 

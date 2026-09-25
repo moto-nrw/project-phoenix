@@ -7,6 +7,8 @@ import (
 	"context"
 	"net/http"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
@@ -36,14 +38,14 @@ type CareOfferingCatalog interface {
 
 // Resource bundles the handler methods + their dependencies.
 type Resource struct {
-	FormSchemaService     enrollmentService.FormSchemaService
+	FormSchemaService     capability.FormSchemaAdministration
 	CareOfferingService   CareOfferingCatalog
 	RequestService        enrollmentService.RequestService
-	CaptchaService        *enrollmentService.CaptchaService
-	PhaseService          enrollmentService.PhaseService
-	PhaseExpiryService    enrollmentService.PhaseExpiryService
+	CaptchaService        capability.CaptchaVerifier
+	PhaseService          capability.PhaseAdministration
+	PhaseExpiryService    capability.PhaseExpiryWarnings
 	DecisionService       enrollmentService.DecisionService
-	ReportService         enrollmentService.ReportService
+	ReportService         capability.Reports
 	RolloverService       enrollmentService.RolloverService
 	ChangeRequestService  enrollmentService.ChangeRequestService
 	DeletionService       enrollmentService.EnrollmentDeletionService
@@ -66,13 +68,13 @@ type Resource struct {
 // admin review/accept/reject UI; slice 2 also wires the
 // GuardianInvitations runtime so post-approval invites can fire.
 func NewResource(
-	formSchemaSvc enrollmentService.FormSchemaService,
+	formSchemaSvc capability.FormSchemaAdministration,
 	careOfferingSvc CareOfferingCatalog,
 	requestSvc enrollmentService.RequestService,
-	captchaSvc *enrollmentService.CaptchaService,
-	phaseSvc enrollmentService.PhaseService,
+	captchaSvc capability.CaptchaVerifier,
+	phaseSvc capability.PhaseAdministration,
 	decisionSvc enrollmentService.DecisionService,
-	reportSvc enrollmentService.ReportService,
+	reportSvc capability.Reports,
 	rolloverSvc enrollmentService.RolloverService,
 	changeRequestSvc enrollmentService.ChangeRequestService,
 	deletionSvc enrollmentService.EnrollmentDeletionService,

@@ -1,6 +1,7 @@
 package enrollment
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -94,6 +95,13 @@ func matchScalar(operator string, actual, expected any) bool {
 	default:
 		return true
 	}
+}
+
+// conditionValuesEqual compares a submitted answer against a condition
+// value tolerant of the JSON round-trip (bool vs "true", number vs
+// string), which is enough for boolean/select controlling fields.
+func conditionValuesEqual(a, b any) bool {
+	return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b)
 }
 
 // selectedOfferingNames resolves a child's selected offering ids to a set
@@ -933,4 +941,81 @@ func scheduleHasAnyTime(value any) bool {
 		}
 	}
 	return false
+}
+
+// The answer decoders below read the parent's stored answers for the
+// visibility and departure checks of the retained intake. The decision flow
+// moved into the Enrollment owner with its own copy (#3564); these stay with
+// the intake until #3565 moves it too.
+
+// decodeDepartureDays decodes a FormFieldWeekdayMode submission (mon..fri →
+// alone/bus/pickup) into the unified per-weekday departure model.
+func decodeDepartureDays(raw any) (users.DepartureDays, error) {
+	var modes capability.WeekdayMode
+	if err := decodeStructured(raw, &modes); err != nil {
+		return nil, fmt.Errorf("decode weekday_mode: %w", err)
+	}
+	if err := modes.Validate(); err != nil {
+		return nil, err
+	}
+	out := users.DepartureDays{}
+	for day, mode := range modes {
+		switch mode {
+		case capability.WeekdayModeBus:
+			out[day] = users.DepartureBus
+		case capability.WeekdayModePickup:
+			out[day] = users.DeparturePickup
+		case capability.WeekdayModeAccompanied:
+			out[day] = users.DepartureAccompanied
+		}
+	}
+	return out.Normalize(), nil
+}
+
+// weekdayAnswerDepartureModes maps the form's weekday mode values onto the
+// departure plan.
+var weekdayAnswerDepartureModes = map[string]users.DepartureMode{
+	capability.WeekdayModeAlone:       users.DepartureAlone,
+	capability.WeekdayModeBus:         users.DepartureBus,
+	capability.WeekdayModePickup:      users.DeparturePickup,
+	capability.WeekdayModeAccompanied: users.DepartureAccompanied,
+}
+
+func decodeAllowedDepartureModes(raw any) (users.AllowedDepartureModes, error) {
+	var modes capability.WeekdayMultiMode
+	if err := decodeStructured(raw, &modes); err != nil {
+		return nil, fmt.Errorf("decode weekday_multi_mode: %w", err)
+	}
+	if err := modes.Validate(); err != nil {
+		return nil, err
+	}
+	out := users.AllowedDepartureModes{}
+	for day, rawModes := range modes {
+		for _, mode := range rawModes {
+			if mapped, ok := weekdayAnswerDepartureModes[mode]; ok {
+				out[day] = append(out[day], mapped)
+			}
+		}
+	}
+	return out.Normalize(), nil
+}
+
+// stringValue extracts a trimmed string from a raw any value. Returns
+// "" for non-string or whitespace-only inputs.
+func stringValue(v any) string {
+	if s, ok := v.(string); ok {
+		return strings.TrimSpace(s)
+	}
+	return ""
+}
+
+// decodeStructured marshals raw → JSON → out so a value pulled out of a
+// JSONB column can be read into the typed form-schema structs without
+// per-type destructuring code.
+func decodeStructured(raw any, out any) error {
+	bs, err := json.Marshal(raw)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(bs, out)
 }

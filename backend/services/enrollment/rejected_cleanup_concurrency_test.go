@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -23,7 +25,7 @@ import (
 )
 
 type cleanupLockSignalRepository struct {
-	enrollmentService.RejectedRequestCleaner
+	testutil.EnrollmentDeletionOwner
 	targetRequestID int64
 	lockStarted     chan struct{}
 	once            sync.Once
@@ -56,7 +58,7 @@ func (r *cleanupLockSignalRepository) RequestByID(ctx context.Context, requestID
 	if requestID == r.targetRequestID {
 		r.once.Do(func() { close(r.lockStarted) })
 	}
-	return r.RejectedRequestCleaner.RequestByID(ctx, requestID, forUpdate)
+	return r.EnrollmentDeletionOwner.RequestByID(ctx, requestID, forUpdate)
 }
 
 func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *testing.T) {
@@ -131,22 +133,19 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 
 	lockStarted := make(chan struct{})
 	requestRepo := &cleanupLockSignalRepository{
-		RejectedRequestCleaner: repos.Enrollment(),
-		targetRequestID:        request.ID,
-		lockStarted:            lockStarted,
+		EnrollmentDeletionOwner: repos.Enrollment(),
+		targetRequestID:         request.ID,
+		lockStarted:             lockStarted,
 	}
-	cleaner := enrollmentService.NewRejectedEnrollmentCleanupService(
-		requestRepo,
-		repos.Enrollment(),
-		repos.Enrollment(),
-		newTestEnrollmentDelivery(t, db),
-		cleanupRetentionSettings{days: 30},
-		db,
-		slog.New(slog.DiscardHandler),
-	)
+	cleaner := testutil.NewEnrollmentDeletionModule(testutil.EnrollmentDeletionSources{
+		Owner:    requestRepo,
+		Delivery: newTestEnrollmentDelivery(t, db),
+		Settings: cleanupRetentionSettings{days: 30},
+		Logger:   slog.New(slog.DiscardHandler),
+	}).Cleanup
 
 	type cleanupOutcome struct {
-		result enrollmentService.RejectedEnrollmentCleanupResult
+		result capability.RejectedEnrollmentCleanupResult
 		err    error
 	}
 	finished := make(chan cleanupOutcome, 1)
@@ -279,22 +278,19 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 		return nil
 	}))
 
-	cleaner := enrollmentService.NewRejectedEnrollmentCleanupService(
-		repos.Enrollment(),
-		repos.Enrollment(),
-		repos.Enrollment(),
-		deliveryPort,
-		cleanupRetentionSettings{days: 30},
-		db,
-		slog.New(slog.DiscardHandler),
-	)
-	var result enrollmentService.RejectedEnrollmentCleanupResult
+	cleaner := testutil.NewEnrollmentDeletionModule(testutil.EnrollmentDeletionSources{
+		Owner:    repos.Enrollment(),
+		Delivery: deliveryPort,
+		Settings: cleanupRetentionSettings{days: 30},
+		Logger:   slog.New(slog.DiscardHandler),
+	}).Cleanup
+	var result capability.RejectedEnrollmentCleanupResult
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, scope.TenantID, func(ctx context.Context, _ bun.Tx) error {
 		var cleanupErr error
 		result, cleanupErr = cleaner.CleanupRejectedEnrollments(ctx)
 		return cleanupErr
 	}))
-	require.Equal(t, enrollmentService.RejectedEnrollmentCleanupResult{
+	require.Equal(t, capability.RejectedEnrollmentCleanupResult{
 		DeletedRequests:    1,
 		DeletedLateInvites: 1,
 		DeletedOutboxRows:  1,

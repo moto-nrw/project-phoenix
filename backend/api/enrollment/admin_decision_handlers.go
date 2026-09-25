@@ -18,7 +18,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -367,7 +366,7 @@ func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *en
 	detail.ConsentFlags = summary.Request.ConsentFlags
 
 	if rs.FormSchemaService != nil && summary.Request.SchemaID != nil {
-		if fs, err := rs.FormSchemaService.GetByID(ctx, *summary.Request.SchemaID); err == nil && fs != nil {
+		if fs, err := rs.FormSchemaService.SchemaVersion(ctx, *summary.Request.SchemaID); err == nil && fs != nil {
 			detail.SchemaFields, detail.SchemaLegalBlocks = toAdminSchemaMetadata(fs)
 		}
 	}
@@ -825,7 +824,7 @@ func (rs *Resource) listAdminChildOfferingAdjustments(w http.ResponseWriter, r *
 	if !ok {
 		return
 	}
-	var rows []*auditModels.EnrollmentOfferingAdjustment
+	var rows []*enrollmentService.OfferingAdjustment
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		list, listErr := rs.DecisionService.ListOfferingAdjustments(ctx, requestID, childID)
 		rows = list
@@ -864,7 +863,7 @@ func toAdminChildOffering(row enrollmentService.ChildOfferingRow) AdminRequestCh
 	}
 }
 
-func toAdminOfferingAdjustment(row *auditModels.EnrollmentOfferingAdjustment) AdminOfferingAdjustment {
+func toAdminOfferingAdjustment(row *enrollmentService.OfferingAdjustment) AdminOfferingAdjustment {
 	return AdminOfferingAdjustment{
 		ID:                 strconv.FormatInt(row.ID, 10),
 		RequestID:          strconv.FormatInt(row.RequestID, 10),

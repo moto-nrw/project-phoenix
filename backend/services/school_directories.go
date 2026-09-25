@@ -6,8 +6,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // Organisation & Tenancy owns platform.schools (#3253). Every retained
@@ -31,12 +31,12 @@ type enrollmentSchoolDirectory struct {
 	schools organizationtenancy.Query
 }
 
-func (d enrollmentSchoolDirectory) FindSchool(ctx context.Context, id int64) (*enrollment.School, error) {
+func (d enrollmentSchoolDirectory) FindSchool(ctx context.Context, id int64) (*enrollmentOwner.School, error) {
 	school, found, err := findSchool(ctx, d.schools, id)
 	if err != nil || !found {
 		return nil, err
 	}
-	return &enrollment.School{
+	return &enrollmentOwner.School{
 		Name: school.Name, Subdomain: school.Subdomain, Settings: school.Settings, Deleted: school.IsDeleted(),
 	}, nil
 }

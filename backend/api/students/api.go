@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
@@ -212,7 +213,7 @@ type ResourceConfig struct {
 	OGSGroupLiveService     grouplive.Query
 	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
-	EnrollmentFormSchema    enrollmentService.FormSchemaService
+	EnrollmentFormSchema    enrollmentOwner.FormSchemaAdministration
 	// OfferingPickupTimes is Care Plan's offering pickup projection (#3560):
 	// the reset of a manual weekly Gehzeit onto the Angebots-Gehzeit.
 	// Optional for bare test Resources; the reset route answers 500 without

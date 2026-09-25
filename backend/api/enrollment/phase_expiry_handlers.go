@@ -6,9 +6,10 @@ import (
 	"net/http"
 	"strconv"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 type PhaseExpiryWarningResponse struct {
@@ -29,7 +30,7 @@ func (rs *Resource) listPhaseExpiryWarnings(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var warnings []*enrollmentService.PhaseExpiryWarning
+	var warnings []*capability.PhaseExpiryWarning
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		var listErr error
 		warnings, listErr = rs.PhaseExpiryService.ListWarnings(ctx, timezone.TodayDate())
@@ -47,7 +48,7 @@ func (rs *Resource) listPhaseExpiryWarnings(w http.ResponseWriter, r *http.Reque
 	common.Respond(w, r, http.StatusOK, response, "Phase expiry warnings retrieved")
 }
 
-func toPhaseExpiryWarningResponse(warning *enrollmentService.PhaseExpiryWarning) PhaseExpiryWarningResponse {
+func toPhaseExpiryWarningResponse(warning *capability.PhaseExpiryWarning) PhaseExpiryWarningResponse {
 	response := PhaseExpiryWarningResponse{
 		SourcePhaseID:      strconv.FormatInt(warning.SourcePhaseID, 10),
 		SourcePhaseName:    warning.SourcePhaseName,

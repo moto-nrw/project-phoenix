@@ -34,7 +34,7 @@ func TestCarePeriodReadPreservesFailureWithoutPartialResults(t *testing.T) {
 		{name: "invalid end after valid row", result: carePeriodReadResult{periods: []*capability.StudentCarePeriod{valid, {ServiceStartDate: "2026-09-01", ServiceEndDate: "2027-02-30"}}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			periods, err := ReadStudentCarePeriods(t.Context(), tc.result, 0)
+			periods, err := capability.StudentCarePeriodRecords(t.Context(), tc.result, 0)
 			require.Error(t, err)
 			require.Nil(t, periods, "failed reads must not expose a partial care-period history")
 			if tc.result.err != nil {

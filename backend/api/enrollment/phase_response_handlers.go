@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"strconv"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // PhaseResponseRowResponse is one expected child of the response overview
@@ -41,7 +42,7 @@ type PhaseResponseOverviewResponse struct {
 	Excluded   []PhaseResponseExclusionResponse `json:"excluded"`
 }
 
-func toPhaseResponseOverviewResponse(overview *enrollmentService.PhaseResponseOverview) PhaseResponseOverviewResponse {
+func toPhaseResponseOverviewResponse(overview *capability.PhaseResponseOverview) PhaseResponseOverviewResponse {
 	response := PhaseResponseOverviewResponse{
 		Applicable: overview.Applicable,
 		Expected:   overview.Expected,
@@ -81,14 +82,14 @@ func (rs *Resource) getPhaseResponseOverview(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	var overview *enrollmentService.PhaseResponseOverview
+	var overview *capability.PhaseResponseOverview
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		value, err := rs.PhaseService.ResponseOverview(ctx, id)
 		overview = value
 		return err
 	})
 	if err != nil {
-		if errors.Is(err, enrollmentService.ErrPhaseNotFound) {
+		if errors.Is(err, capability.ErrPhaseNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
 		}

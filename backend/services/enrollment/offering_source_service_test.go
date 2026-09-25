@@ -899,7 +899,7 @@ func TestOfferingDelete_DegradesSourcedTemplate(t *testing.T) {
 	offering := createSourceOffering(t, env, "LoeschQuelle", nil)
 	template := createSourcedTemplate(t, env, "LoeschTermin", offering.ID, []int{2}, period)
 
-	detacher, ok := env.bookings.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	detacher, ok := env.bookings.(capability.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the sourced-template detach contract")
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offering.ID, offeringResyncToday))
 
@@ -971,7 +971,7 @@ func TestOfferingDetach_KeepsRemainingSources(t *testing.T) {
 	require.Len(t, loadTemplateEnrollments(t, env, template.ID), 2,
 		"both offerings' children must be planned before the detach")
 
-	detacher, ok := env.bookings.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	detacher, ok := env.bookings.(capability.SourcedTemplateResyncer)
 	require.True(t, ok)
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, offeringResyncToday))
 
@@ -1054,7 +1054,7 @@ func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 	template.CalendarPeriodID = &shortPeriod.ID
 	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.Update(ctx, template))
 
-	detacher, ok := env.bookings.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	detacher, ok := env.bookings.(capability.SourcedTemplateResyncer)
 	require.True(t, ok)
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, offeringResyncToday))
 
@@ -1264,7 +1264,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 	_, err = env.db.NewRaw(`UPDATE enrollment.care_offerings SET is_active = false WHERE id = ?`, offeringB.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	detacher, ok := env.bookings.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	detacher, ok := env.bookings.(capability.SourcedTemplateResyncer)
 	require.True(t, ok)
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, offeringResyncToday))
 
@@ -1426,20 +1426,17 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 	testpkg.CreateTestInstanceStudent(t, env.db, planned.ID, studentID, "expected")
 
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	phaseSvc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
-		Owner:                  repoFactory.Enrollment(),
-		CareOfferingRepo:       enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
+	sourcedResyncer, ok := env.bookings.(capability.SourcedTemplateResyncer)
+	require.True(t, ok, "decision service must implement the delete-side detach")
+	phaseSvc := phaseFixture.NewPhases(phaseFixture.PhaseDependencies{
+		Records:                repoFactory.Enrollment(),
+		Offerings:              phaseOfferings{rows: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan())},
 		LockTemplateRecurrence: func(context.Context) error { return nil },
-		DB:                     env.db,
+		SourcedTemplates:       func() capability.SourcedTemplateResyncer { return sourcedResyncer },
 		Today:                  func() timezone.Date { return offeringResyncToday },
 	})
-	binder, ok := phaseSvc.(enrollmentService.CareOfferingSourceResyncBinder)
-	require.True(t, ok, "phase service must accept the sourced-template resyncer")
-	sourcedResyncer, ok := env.bookings.(enrollmentService.CareOfferingSourcedTemplateResyncer)
-	require.True(t, ok, "decision service must implement the delete-side detach")
-	binder.SetSourcedTemplateResyncer(sourcedResyncer)
 
-	require.NoError(t, phaseSvc.Delete(ctx, env.sourcePhase.ID))
+	require.NoError(t, phaseSvc.DeletePhase(ctx, env.sourcePhase.ID))
 
 	assert.Empty(t, loadTemplateEnrollments(t, env, template.ID),
 		"the not-yet-effective sourced rows must be retired with the phase")
@@ -2118,7 +2115,7 @@ func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
 	require.Len(t, rows, 1)
 	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays)
 
-	sourcedResyncer, ok := env.bookings.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	sourcedResyncer, ok := env.bookings.(capability.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-update resync")
 	svc := enrollmentService.NewCareOfferingRows(testCareOfferingCatalog(t, env.db,
 		testutil.WithCareOfferingToday(func() timezone.Date { return offeringResyncToday }),
@@ -2167,7 +2164,7 @@ func TestResyncSourcedTemplates_InvalidSourceSkipVsReject(t *testing.T) {
 	require.NoError(t, resyncAll.ResyncOfferingSourcedTemplates(ctx, offeringResyncToday),
 		"the tenant-wide resync must skip a drifted-invalid template with a warning")
 
-	scoped, ok := env.bookings.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	scoped, ok := env.bookings.(capability.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-scoped resync")
 	err := scoped.ResyncTemplatesSourcedFromOffering(ctx, offering.ID, offeringResyncToday)
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid,
@@ -2208,7 +2205,7 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 			Exec(context.Background())
 	})
 
-	sourcedResyncer, ok := env.bookings.(enrollmentService.CareOfferingSourcedTemplateResyncer)
+	sourcedResyncer, ok := env.bookings.(capability.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-update resync")
 	svc := enrollmentService.NewCareOfferingRows(testCareOfferingCatalog(t, env.db,
 		testutil.WithCareOfferingToday(func() timezone.Date { return offeringResyncToday }),

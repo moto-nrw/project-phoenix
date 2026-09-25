@@ -769,29 +769,29 @@ func TestParseCareUsageExportRequestTreatsEmptyCareOfferingIDsAsExplicit(t *test
 func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 	t.Parallel()
 
-	report := &enrollmentService.CareUsageReport{
-		Phase: enrollmentService.CareUsagePhase{ID: 9007199254740993, Name: "Demo"},
-		Filters: enrollmentService.CareUsageAppliedFilters{
+	report := &capability.CareUsageReport{
+		Phase: capability.CareUsagePhase{ID: 9007199254740993, Name: "Demo"},
+		Filters: capability.CareUsageAppliedFilters{
 			PhaseID:         9007199254740993,
 			Status:          "all",
 			CareOfferingIDs: []int64{9007199254740995},
 			Weekday:         "mon",
 			PickupTime:      "14:30",
 		},
-		Totals: enrollmentService.CareUsageTotals{
+		Totals: capability.CareUsageTotals{
 			Children:            1,
 			ByDayCount:          map[string]int{"1": 1},
 			ByWeekdayPickupTime: map[string]map[string]int{"mon": {"14:30": 1}},
 		},
-		ByOffering: []enrollmentService.CareUsageOfferingStat{
+		ByOffering: []capability.CareUsageOfferingStat{
 			{OfferingID: 9007199254740995, OfferingName: "OGS", Children: 1, ByDayCount: map[string]int{"1": 1}},
 		},
-		FilterOptions: enrollmentService.CareUsageFilterOptions{
-			Offerings: []enrollmentService.CareUsageOfferingOption{
+		FilterOptions: capability.CareUsageFilterOptions{
+			Offerings: []capability.CareUsageOfferingOption{
 				{ID: 9007199254740995, Name: "OGS"},
 			},
 		},
-		Rows: []enrollmentService.CareUsageRow{
+		Rows: []capability.CareUsageRow{
 			{
 				RequestID:         9007199254740997,
 				ChildID:           9007199254740999,
@@ -806,7 +806,7 @@ func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 				GuardianLastName:  "Muster",
 				GuardianEmail:     "eva@example.test",
 				SubmittedAt:       time.Date(2026, 6, 18, 11, 15, 0, 0, time.UTC),
-				Offerings: []enrollmentService.CareUsageRowOffering{
+				Offerings: []capability.CareUsageRowOffering{
 					{ID: 9007199254740995, Name: "OGS", Days: []string{"mon"}, DaysSource: "selected", DaysOfWeekMode: "parent_choice"},
 				},
 			},
@@ -838,10 +838,10 @@ func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 func TestCareUsageReportResponseSerializesExplicitEmptyCareOfferingIDs(t *testing.T) {
 	t.Parallel()
 
-	report := &enrollmentService.CareUsageReport{
-		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
-		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all", CareOfferingIDs: []int64{}},
-		Totals:  enrollmentService.CareUsageTotals{ByDayCount: map[string]int{"0": 1}},
+	report := &capability.CareUsageReport{
+		Phase:   capability.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: capability.CareUsageAppliedFilters{PhaseID: 42, Status: "all", CareOfferingIDs: []int64{}},
+		Totals:  capability.CareUsageTotals{ByDayCount: map[string]int{"0": 1}},
 	}
 
 	raw, err := json.Marshal(toCareUsageReportResponse(report))
@@ -856,14 +856,14 @@ func TestCareUsageReportResponseSerializesExplicitEmptyCareOfferingIDs(t *testin
 func TestCareUsageReportResponseSerializesEmptyDaySlicesAsArrays(t *testing.T) {
 	t.Parallel()
 
-	report := &enrollmentService.CareUsageReport{
-		Phase: enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
-		Filters: enrollmentService.CareUsageAppliedFilters{
+	report := &capability.CareUsageReport{
+		Phase: capability.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: capability.CareUsageAppliedFilters{
 			PhaseID: 42,
 			Status:  "all",
 		},
-		Totals: enrollmentService.CareUsageTotals{ByDayCount: map[string]int{"0": 1}},
-		Rows: []enrollmentService.CareUsageRow{
+		Totals: capability.CareUsageTotals{ByDayCount: map[string]int{"0": 1}},
+		Rows: []capability.CareUsageRow{
 			{
 				RequestID:         10,
 				ChildID:           20,
@@ -877,7 +877,7 @@ func TestCareUsageReportResponseSerializesEmptyDaySlicesAsArrays(t *testing.T) {
 				GuardianLastName:  "Muster",
 				GuardianEmail:     "eva@example.test",
 				SubmittedAt:       time.Date(2026, 6, 18, 11, 15, 0, 0, time.UTC),
-				Offerings: []enrollmentService.CareUsageRowOffering{
+				Offerings: []capability.CareUsageRowOffering{
 					{ID: 1, Name: "OGS", Days: nil, DaysSource: "selected", DaysOfWeekMode: "parent_choice"},
 				},
 			},
@@ -899,11 +899,11 @@ func TestCareUsageReportResponseSerializesEmptyDaySlicesAsArrays(t *testing.T) {
 func TestCareUsageReportResponseSerializesDayProvenance(t *testing.T) {
 	t.Parallel()
 
-	report := &enrollmentService.CareUsageReport{
-		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
-		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
-		Totals:  enrollmentService.CareUsageTotals{ByDayCount: map[string]int{"5": 1}},
-		Rows: []enrollmentService.CareUsageRow{
+	report := &capability.CareUsageReport{
+		Phase:   capability.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: capability.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
+		Totals:  capability.CareUsageTotals{ByDayCount: map[string]int{"5": 1}},
+		Rows: []capability.CareUsageRow{
 			{
 				RequestID:         10,
 				ChildID:           20,
@@ -917,7 +917,7 @@ func TestCareUsageReportResponseSerializesDayProvenance(t *testing.T) {
 				GuardianLastName:  "Muster",
 				GuardianEmail:     "eva@example.test",
 				SubmittedAt:       time.Date(2026, 6, 18, 11, 15, 0, 0, time.UTC),
-				Offerings: []enrollmentService.CareUsageRowOffering{
+				Offerings: []capability.CareUsageRowOffering{
 					{
 						ID:                    1,
 						Name:                  "Randstunde",
@@ -947,7 +947,7 @@ func TestCareUsageReportResponseSerializesDayProvenance(t *testing.T) {
 func TestCareUsageOfferingDayDetailsIncludesDayProvenance(t *testing.T) {
 	t.Parallel()
 
-	got := careUsageOfferingDayDetails([]enrollmentService.CareUsageRowOffering{
+	got := careUsageOfferingDayDetails([]capability.CareUsageRowOffering{
 		{
 			Name:                  "Randstunde",
 			Days:                  []string{"mon", "tue", "wed", "thu", "fri"},
@@ -965,10 +965,10 @@ func TestCareUsageOfferingDayDetailsIncludesDayProvenance(t *testing.T) {
 func TestBuildCareUsageRecordDocumentUsesPickupPlanningBuckets(t *testing.T) {
 	t.Parallel()
 
-	report := &enrollmentService.CareUsageReport{
-		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
-		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
-		Totals: enrollmentService.CareUsageTotals{
+	report := &capability.CareUsageReport{
+		Phase:   capability.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: capability.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
+		Totals: capability.CareUsageTotals{
 			Children: 3,
 			ByWeekdayPickupTime: map[string]map[string]int{
 				"mon": {"15:30": 2, "16:00": 1},
@@ -976,7 +976,7 @@ func TestBuildCareUsageRecordDocumentUsesPickupPlanningBuckets(t *testing.T) {
 				"fri": {"16:00": 3},
 			},
 		},
-		FilterOptions: enrollmentService.CareUsageFilterOptions{
+		FilterOptions: capability.CareUsageFilterOptions{
 			PickupTimes: []string{"14:45", "15:30"},
 		},
 	}
@@ -999,10 +999,10 @@ func TestBuildCareUsageRecordDocumentUsesPickupPlanningBuckets(t *testing.T) {
 func TestBuildCareUsageExportFile_DOCX(t *testing.T) {
 	t.Parallel()
 
-	report := &enrollmentService.CareUsageReport{
-		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
-		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
-		Totals: enrollmentService.CareUsageTotals{
+	report := &capability.CareUsageReport{
+		Phase:   capability.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: capability.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
+		Totals: capability.CareUsageTotals{
 			Children:   0,
 			ByDayCount: map[string]int{"1": 0, "2": 0, "3": 0, "4": 0, "5": 0},
 		},

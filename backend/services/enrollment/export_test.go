@@ -20,7 +20,11 @@ func ReadOwnerRequestChildrenForTest(ctx context.Context, owner RequestChildrenR
 
 // ReadOwnerChildForTest loads a service-shaped fixture through the owner query.
 func ReadOwnerChildForTest(ctx context.Context, owner ChildIDReader, id int64) (*RequestChild, error) {
-	return offeringChildByID(ctx, owner, id)
+	value, err := owner.ChildByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return intakeChildValue(value)
 }
 
 // UpdateOwnerChildForTest writes service-shaped fixture data through the owner.
@@ -69,4 +73,13 @@ func OwnerPhaseForTest(phase *capability.Phase) *capability.Phase {
 // paths. The parity test supplies their common clock snapshot (#2185).
 func WriteSelectionDateForTest(phase *capability.Phase, today timezone.Date) timezone.Date {
 	return offeringSelectionDateOn(phase, today)
+}
+
+// ChangeRequestApplierForTest applies change requests through the owner flow
+// behind a decision service built by NewDecisionService, the way the root
+// binds the applier over the same flow.
+func ChangeRequestApplierForTest(svc DecisionService, bookings CareBookingGates) ChangeRequestDecisionApplier {
+	contract, _ := svc.(decisionContract)
+	owner, _ := contract.owner.(capability.ApprovedChildChanges)
+	return NewChangeRequestDecisionApplier(owner, bookings)
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -57,18 +57,18 @@ func TestParseCareUsageExportRequestLayout(t *testing.T) {
 	})
 }
 
-func compactLayoutTestReport() *enrollmentService.CareUsageReport {
+func compactLayoutTestReport() *capability.CareUsageReport {
 	grade := int16(1)
 	phone := "0151 2345678"
-	return &enrollmentService.CareUsageReport{
-		Phase: enrollmentService.CareUsagePhase{ID: 42, Name: "Schuljahr 2026/27"},
-		Filters: enrollmentService.CareUsageAppliedFilters{
+	return &capability.CareUsageReport{
+		Phase: capability.CareUsagePhase{ID: 42, Name: "Schuljahr 2026/27"},
+		Filters: capability.CareUsageAppliedFilters{
 			PhaseID:    42,
 			Status:     "approved",
 			PickupTime: "14:30",
 		},
-		Totals: enrollmentService.CareUsageTotals{Children: 3},
-		Rows: []enrollmentService.CareUsageRow{
+		Totals: capability.CareUsageTotals{Children: 3},
+		Rows: []capability.CareUsageRow{
 			{
 				RequestID:         1,
 				ChildFirstName:    "Ida",
@@ -88,7 +88,7 @@ func compactLayoutTestReport() *enrollmentService.CareUsageReport {
 				TargetSchoolClass: testpkg.StrPtr("1a"),
 				EffectiveDays:     []string{"mon", "tue"},
 				PickupByDay:       map[string]string{"mon": "14:30"},
-				Offerings: []enrollmentService.CareUsageRowOffering{
+				Offerings: []capability.CareUsageRowOffering{
 					{ID: 7, Name: "Betreuung bis 16:00 Uhr", Days: []string{"tue"}},
 				},
 				GuardianFirstName: "Anna",
@@ -195,7 +195,7 @@ func TestBuildCareUsageCompactTableDocumentPrefersScheduleAndAllGuardians(t *tes
 	// The maintained Kind-Gehzeit (#2290) outranks the enrollment-form
 	// snapshot, exactly like the class-roster export.
 	report.Rows[0].SchedulePickupByDay = map[string]string{"mon": "15:00"}
-	report.Rows[0].Guardians = []enrollmentService.ClassRosterGuardian{
+	report.Rows[0].Guardians = []capability.ClassRosterGuardian{
 		{Name: "Carla Conrad", Email: "carla@example.org"},
 		{Name: "Kai Conrad", Phone: "0170 111"},
 	}

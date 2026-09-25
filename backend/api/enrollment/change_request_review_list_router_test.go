@@ -66,10 +66,7 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 	reviewer.SetTenantID(tenantID)
 	require.NoError(t, db.NewInsert().Model(reviewer).ModelTableExpr("users.persons").Scan(ctx))
 
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  repos.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentAPI.NewTestFormSchemas(repos.Enrollment())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular "+t.Name(), []capability.FormField{
 		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
 	}, accountID)
@@ -92,8 +89,10 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 		Children:         repos.Enrollment(),
 		Guardians:        repos.Enrollment(),
 		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repos.CarePlan),
+		Capacity:         testutil.NewEnrollmentOfferingCapacity(enrollmentService.NewCareOfferingRepository(repos.CarePlan), repos.Enrollment(), settings),
 		Catalog:          repos.Enrollment(),
 		SchoolRepo:       capabilitySchools{schools: repos.School},
+		Notifications:    enrollmentAPI.NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
 		RateLimitRepo:    repos.Enrollment(),
 		OutboxEnqueuer:   discardingOutbox{},
 		Settings:         settings,
@@ -108,8 +107,9 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 		Guardians:           repos.Enrollment(),
 		LateInviteRepo:      repos.Enrollment(),
 		CareOfferingRepo:    enrollmentService.NewCareOfferingRepository(repos.CarePlan),
+		Capacity:            testutil.NewEnrollmentOfferingCapacity(enrollmentService.NewCareOfferingRepository(repos.CarePlan), repos.Enrollment(), settings),
 		Catalog:             repos.Enrollment(),
-		SchoolRepo:          capabilitySchools{schools: repos.School},
+		Notifications:       enrollmentAPI.NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
 		GuardianProfileRepo: repos.GuardianProfile,
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		PersonRepo:          repos.Person,

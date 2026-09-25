@@ -6,6 +6,12 @@ the runtime after the Timetable & Activities cutover in
 The measurement does not change product behavior or architecture policy.
 Raw measurements, interpretation, and acceptance belong in the issue, not here.
 
+Since [#3411](https://github.com/moto-nrw/project-phoenix/issues/3411) the
+default workload is `checkpoint-1-v2` (see
+[below](#workload-checkpoint-1-v2)). `checkpoint-1-v1` stays selectable with
+`-runtime-checkpoint-workload=checkpoint-1-v1`, for the comparison with #3019
+and #3020 and for bridge runs.
+
 ## Reproduce version `checkpoint-1-v1`
 
 1. Check out the workload commit linked in #3019. Install the pinned Devbox
@@ -14,6 +20,8 @@ Raw measurements, interpretation, and acceptance belong in the issue, not here.
    Do not point the test at a development, staging, or production database.
 2. Run only the production-router test in a fresh process. The output path
    must not exist; a failed setup cannot leave an older report looking current.
+   On a commit after #3411, add `-runtime-checkpoint-workload=checkpoint-1-v1`;
+   without it the test measures `checkpoint-1-v2`.
 
    ```bash
    checkpoint_dir=$(mktemp -d)
@@ -76,6 +84,91 @@ The opt-in helper runs before the existing route/auth goldens. It uses their
 `api.WithRuntime` instance and `Runtime.Handler`, including production module
 wiring and the `phoenix_auth` pool. It adds no composition root. Ordinary test
 runs do not execute the measurement. The helper refuses a broader `-run` filter.
+
+Since #3411 every HTTP result and worker result also records
+`jsonb_recordsets`: the `jsonb_to_recordset` call sites its measured samples
+reached, with calls and the minimum and maximum set size. This adds no
+statement; the sizes are read from the counted statement text. Samples recorded
+before that field existed are unmeasured, not empty.
+
+## Workload `checkpoint-1-v2`
+
+[#3411](https://github.com/moto-nrw/project-phoenix/issues/3411) extends the
+default workload to the flows the #2580 migration rebuilt. The run command is
+the one above without the workload option. Evidence of the bridge run on one
+commit, with the comparisons against #3019 and #3020:
+[checkpoint-1-v2-3411.md](checkpoint-1-v2-3411.md).
+
+**Serial part.** The twenty `checkpoint-1-v1` scenarios run first, unchanged
+and in the same order, with the same fixtures in the same tenant. Their
+numbers stay comparable with #3019 and #3020; the bridge run proves it. Then
+35 scenarios follow, each with at least one stable failure path:
+
+| Surface | Scenarios |
+|---|---|
+| Identity & Access | `POST /auth/login` (200, wrong password 401), `POST /auth/refresh` with the latest rotated refresh token (200, malformed token 401), `POST /auth/mfa/verify` (200, wrong code 401), `POST /auth/passkeys/login/options` (200, foreign origin 401) |
+| Device scan (kiosk) | `POST /api/iot/checkin` (200, unknown device key 401), `POST /api/iot/pickup-query` (200, missing PIN 401), `GET /api/iot/status` (200, wrong PIN 401), `GET /api/iot/rfid/{tagId}` (200, key without `Bearer` 401), `POST /api/iot/staff-clock` alternating check-in and check-out (200, wrong PIN 401) |
+| `/api/students` | the list (200, unknown `view` 400), the aggregated change-request queue (200, unknown `view` 400), a care-schedule decision (200, unknown request 404), the withdrawal queue (200, unknown `state` 400), the withdrawal deletion impact (200, unknown task 404) |
+| Cross-module writes | care end: preview (200, day in the past 400), confirmation (200), re-plan of an already planned end (200), stale token (409); student deletion through `deleteConfirmed` with one companion (200, stale fingerprint 409) |
+
+The kiosk scenarios keep the PyrePortal contract: the device key goes in
+`Authorization: Bearer`, the school's device PIN in `X-Staff-PIN`, and the
+German and English error strings are the unchanged ones. The report lists the
+header names each scenario sends under `environment.scenario_headers`, never
+their values.
+
+These scenarios run in a second test tenant. Their fixtures (kiosk room and
+open session, booked activities, companions, a parent chain) would otherwise
+change what the `checkpoint-1-v1` room, activity and message scenarios read.
+Setup and every preparation run outside the timed window: a fresh MFA
+challenge row per verify (the production mock mailer cannot deliver a code;
+the wrong-code sample resets the lockout counter first), a parent
+care-schedule request per decision, a freshly booked child per care end, and a
+freshly linked child plus its deletion preview per deletion. Children a
+measured request ended are deleted before the next preparation, so the
+tenant's volume stays flat. `final_state` counts approved decisions, ended
+cares, deletions and staff-clock transitions, and proves that the stale
+deletion left its child in place.
+
+**Contention part.** After the three serial runs and their worker scenarios,
+three contention runs follow, each with 5 warmup and 30 measured rounds. A
+round builds one subject with two linked companions and fetches both deletion
+previews outside timing, then releases `-runtime-checkpoint-concurrency`
+requests at once (default 16, above the pool of 12 connections that
+`-parallel 8` gives the `phoenix_auth` pool):
+
+- slot 0 deletes the subject through the locked path, slot 1 deletes a
+  companion whose graph contains the subject;
+- the other slots cycle through `PUT /api/students/{subject}`,
+  `PUT /api/students/{second companion}`, the companion's deletion preview and
+  the student list.
+
+Each operation lists the statuses the owners document for the race it can
+lose (404 once the child is gone, 409 for a changed preview or companion
+list). Any other status fails the run: in a warmup round at once, in a
+measured round after the report is written. The concurrency must be at least
+six, one slot per operation. A round's
+leftovers are deleted outside measurement. The report's `concurrent_runs`
+carry, per run, the concurrency, the pool size, per-request latency, queries
+and statuses, the pool waits of the measured rounds (`sql.DBStats` deltas),
+the sampled lock waits, the `pg_stat_database.deadlocks` delta and the
+unit-of-work retry and rollback counters. HTTP transactions do not retry
+deadlocks or serialization failures, so a deadlock would surface as an
+unexpected status, not as a retry. The top-level `concurrency` field is the
+serial runs' concurrency, one.
+
+The reporter summarizes the contention runs under `concurrent` and the set
+sizes under `jsonb_recordsets`, and reads `.json`, `.json.gz` and `.json.xz`.
+
+**Bridge runs.** A workload change needs `checkpoint-1-v1` and the new version
+measured on one commit. Compare them over their shared scenarios with
+`--bridge`, which lists the scenarios only one side defines instead of
+refusing them:
+
+```bash
+python3 scripts/runtime-checkpoint-compare.py --bridge \
+  v1/summary.json v2/summary.json bridge
+```
 
 ## Workload contract
 

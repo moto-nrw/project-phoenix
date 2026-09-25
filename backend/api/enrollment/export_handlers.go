@@ -88,7 +88,7 @@ func (rs *Resource) exportPhaseRegistrations(w http.ResponseWriter, r *http.Requ
 		return nil
 	})
 	if err != nil {
-		if errors.Is(err, enrollmentService.ErrPhaseNotFound) {
+		if errors.Is(err, capability.ErrPhaseNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
 		}

@@ -43,6 +43,25 @@ test('reports release, finalize and deploy for backend and frontend', t => {
   assert.doesNotMatch(result.stdout + result.stderr, /warning/);
 });
 
+test('without sentry-cli on PATH the script runs sentry-cli 3.8.0 through npx', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'moto-sentry-deploy-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const calls = join(directory, 'calls');
+  const npx = join(directory, 'npx');
+  writeFileSync(npx, `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> "${calls}"\n`);
+  chmodSync(npx, 0o755);
+  const result = spawnSync('bash', [script, release, 'demo'], {
+    env: { PATH: `${directory}:/usr/bin:/bin`, SENTRY_AUTH_TOKEN: token, SENTRY_ORG: 'moto' },
+    encoding: 'utf8', timeout: 5000,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const lines = readFileSync(calls, 'utf8').trim().split('\n');
+  assert.equal(lines.length, 3);
+  for (const line of lines) {
+    assert.match(line, /^--yes @sentry\/cli@3\.8\.0 (releases|deploys) /);
+  }
+});
+
 test('an unreachable Sentry only warns and keeps the deploy green', t => {
   const result = report(t, { cliExit: 1 });
   assert.equal(result.status, 0, result.stderr);

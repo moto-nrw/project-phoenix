@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -103,7 +102,7 @@ func (s *Service) GetChildCareOfferings(ctx context.Context, accountID, studentI
 		Offerings: []CareOfferingSelection{},
 	}
 	today := s.todayDate()
-	var period *enrollmentSvc.StudentCarePeriod
+	var period *CarePeriod
 	var canRequest bool
 	var changesDisabledReason string
 	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
@@ -130,7 +129,7 @@ func (s *Service) loadChildCareOfferings(
 	studentID int64,
 	today timezone.Date,
 	view *ChildCareOfferings,
-) (*enrollmentSvc.StudentCarePeriod, error) {
+) (*CarePeriod, error) {
 	period, err := s.currentCarePeriod(ctx, studentID, today)
 	if err != nil {
 		return nil, err
@@ -141,7 +140,7 @@ func (s *Service) loadChildCareOfferings(
 		view.PeriodEnd = period.ServiceEndDate
 		// Shared with the staff views so both sides answer "what is booked,
 		// what starts later" from the same day (#2185).
-		offeringDate := enrollmentSvc.BookingViewDate(today, period.ServiceEndDate)
+		offeringDate := careplan.BookingViewDate(today, period.ServiceEndDate)
 		view.Offerings, err = s.carePeriodOfferings(ctx, period.RequestChildID, offeringDate)
 		if err != nil {
 			return nil, err
@@ -371,11 +370,11 @@ func (s *Service) currentCarePeriod(
 	ctx context.Context,
 	studentID int64,
 	today timezone.Date,
-) (*enrollmentSvc.StudentCarePeriod, error) {
+) (*CarePeriod, error) {
 	if s.CarePeriods == nil {
 		return nil, nil
 	}
-	periods, err := enrollmentSvc.ReadStudentCarePeriods(ctx, s.CarePeriods, studentID)
+	periods, err := s.CarePeriods.CarePeriods(ctx, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("list care periods: %w", err)
 	}
@@ -383,7 +382,7 @@ func (s *Service) currentCarePeriod(
 		return nil, nil
 	}
 	// Repository order is latest window first.
-	var upcoming, past *enrollmentSvc.StudentCarePeriod
+	var upcoming, past *CarePeriod
 	for _, candidate := range periods {
 		switch {
 		case !candidate.ServiceStartDate.After(today) && !candidate.ServiceEndDate.Before(today):
@@ -408,7 +407,7 @@ func (s *Service) carePeriodOfferings(
 	if s.OfferingHistory == nil || s.CareOfferingRepo == nil {
 		return []CareOfferingSelection{}, nil
 	}
-	links, err := enrollmentSvc.ReadOfferingHistory(ctx, s.OfferingHistory, requestChildID)
+	links, err := s.OfferingHistory.OfferingHistory(ctx, requestChildID)
 	if err != nil {
 		return nil, fmt.Errorf("list child offerings: %w", err)
 	}
@@ -441,7 +440,7 @@ func (s *Service) carePeriodOfferings(
 	return items, nil
 }
 
-func uniqueOfferingIDs(links []*enrollmentSvc.RequestChildOffering) []int64 {
+func uniqueOfferingIDs(links []*OfferingBooking) []int64 {
 	ids := make([]int64, 0, len(links))
 	seen := make(map[int64]bool, len(links))
 	for _, link := range links {
@@ -456,7 +455,7 @@ func uniqueOfferingIDs(links []*enrollmentSvc.RequestChildOffering) []int64 {
 
 func careOfferingSelection(
 	offering *enrollmentModels.CareOffering,
-	link *enrollmentSvc.RequestChildOffering,
+	link *OfferingBooking,
 	today timezone.Date,
 ) (CareOfferingSelection, bool) {
 	if offering == nil {
@@ -481,7 +480,7 @@ func careOfferingSelection(
 	return item, true
 }
 
-func careOfferingDays(offering *enrollmentModels.CareOffering, link *enrollmentSvc.RequestChildOffering) []string {
+func careOfferingDays(offering *enrollmentModels.CareOffering, link *OfferingBooking) []string {
 	if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
 		return offering.AvailableDays
 	}
@@ -559,7 +558,7 @@ func (s *Service) resolveOfferingChangeAvailabilityForStudent(
 	ctx context.Context,
 	child *Child,
 	studentID int64,
-	period *enrollmentSvc.StudentCarePeriod,
+	period *CarePeriod,
 	today timezone.Date,
 ) (bool, string) {
 	if period == nil {
@@ -589,7 +588,7 @@ func (s *Service) hasCarePeriodOnOrAfter(ctx context.Context, studentID int64, d
 	if s.CarePeriods == nil {
 		return false
 	}
-	periods, err := enrollmentSvc.ReadStudentCarePeriods(ctx, s.CarePeriods, studentID)
+	periods, err := s.CarePeriods.CarePeriods(ctx, studentID)
 	if err != nil {
 		return false
 	}

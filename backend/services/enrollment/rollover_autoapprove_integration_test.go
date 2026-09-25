@@ -3,6 +3,8 @@ package enrollment_test
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 
@@ -44,49 +46,47 @@ func setupAutoApproveIntegrationEnv(t *testing.T) (*rolloverTestEnv, func()) {
 
 func setupAutoApproveIntegrationEnvWithSettings(
 	t *testing.T,
-	settings enrollmentService.DecisionSettingsResolver,
+	settings testutil.EnrollmentDecisionSettings,
 ) (*rolloverTestEnv, func()) {
 	t.Helper()
 	env, cleanup := setupRolloverTest(t)
 
 	repoFactory := testRepositories(t, env.db)
 
-	decision := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
-		Requests:                  repoFactory.Enrollment(),
-		Children:                  repoFactory.Enrollment(),
-		CareBookings:              testBookings(t, env, settings),
-		CareOfferingRepo:          enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
-		Phases:                    repoFactory.Enrollment(),
-		PersonRepo:                repoFactory.Person,
-		StaffRepo:                 repoFactory.Staff,
-		StudentRepo:               repoFactory.Student,
-		StudentGuardianRepo:       repoFactory.StudentGuardian,
-		GuardianProfileRepo:       repoFactory.GuardianProfile,
-		GuardianAccess:            testGuardianAccess(env.db),
-		StudentEnrollment:         testStudentEnrollment(env.db),
-		DepartureCompanions:       repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
-		DeleteDepartureCompanions: repoFactory.CarePlan().DeleteCompanionEdges,
-		OutboxEnqueuer:            env.outbox,
-		StudentAudit:              usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
-		FrontendURL:               "http://localhost:3000",
-		ParentsURL:                "http://parents.localhost:3000",
-		Settings:                  settings,
-		Logger:                    slog.Default(),
-	})
+	decision := newTestDecisions(testutil.EnrollmentDecisionSources{
+		Requests:          repoFactory.Enrollment(),
+		Children:          repoFactory.Enrollment(),
+		CareBookings:      testBookings(t, env, settings),
+		CareOfferings:     enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
+		Phases:            repoFactory.Enrollment(),
+		Persons:           repoFactory.Person,
+		Staff:             repoFactory.Staff,
+		Students:          repoFactory.Student,
+		StudentGuardians:  repoFactory.StudentGuardian,
+		GuardianProfiles:  repoFactory.GuardianProfile,
+		GuardianAccess:    testGuardianAccess(env.db),
+		StudentEnrollment: testStudentEnrollment(env.db),
+		Companions:        repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
+		DeleteCompanions:  repoFactory.CarePlan().DeleteCompanionEdges,
+		StudentAudit:      usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
+		FrontendURL:       "http://localhost:3000",
+		ParentsURL:        "http://parents.localhost:3000",
+		Settings:          settings,
+		Logger:            slog.Default(),
+	}, env.outbox)
 
 	// Rebuild the rollover service so DecisionService is injected.
-	env.rolloverSvc = enrollmentService.NewRolloverService(enrollmentService.RolloverServiceConfig{
-		Bookings:              requestTestBookingCommands(),
-		Phases:                env.repos.Enrollment(),
-		Requests:              env.repos.Enrollment(),
-		Children:              env.repos.Enrollment(),
-		OfferingCatalogCloner: env.offeringCloner,
-		OutboxEnqueuer:        env.outbox,
-		Settings:              env.settings,
-		DecisionService:       decision,
-		ParentsURL:            "http://parents.localhost:3000",
-		DB:                    env.db,
-		Logger:                slog.Default(),
+	env.rolloverSvc = newTestRolloverService(testutil.EnrollmentRolloverSources{
+		Bookings:   requestTestBookingCommands(),
+		Phases:     env.repos.Enrollment(),
+		Requests:   env.repos.Enrollment(),
+		Children:   env.repos.Enrollment(),
+		Catalog:    env.offeringCloner,
+		Outbox:     env.outbox,
+		Settings:   env.settings,
+		Decisions:  decision,
+		ParentsURL: "http://parents.localhost:3000",
+		Logger:     slog.Default(),
 	})
 
 	return env, cleanup

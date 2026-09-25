@@ -40,52 +40,6 @@ func offeringSelectionDateOn(phase *enrollmentOwner.Phase, today timezone.Date) 
 	return today
 }
 
-func offeringsByID(offerings []*enrollmentModels.CareOffering) map[int64]*enrollmentModels.CareOffering {
-	byID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
-	for _, offering := range offerings {
-		if offering != nil {
-			byID[offering.ID] = offering
-		}
-	}
-	return byID
-}
-
-func offeringIDsFromLinks(links []*RequestChildOffering) []int64 {
-	ids := make([]int64, 0, len(links))
-	seen := make(map[int64]bool, len(links))
-	for _, link := range links {
-		if link == nil || link.CareOfferingID <= 0 || seen[link.CareOfferingID] {
-			continue
-		}
-		seen[link.CareOfferingID] = true
-		ids = append(ids, link.CareOfferingID)
-	}
-	return ids
-}
-
-func requestChildOfferingLinksHaveCareDays(
-	links []*RequestChildOffering,
-	offerings map[int64]*enrollmentModels.CareOffering,
-) bool {
-	for _, link := range links {
-		if link == nil {
-			continue
-		}
-		offering := offerings[link.CareOfferingID]
-		if offering == nil || !offering.CountsAsCare {
-			continue
-		}
-		hasCareDays := len(link.SelectedDays) > 0
-		if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
-			hasCareDays = len(offering.AvailableDays) > 0
-		}
-		if hasCareDays {
-			return true
-		}
-	}
-	return false
-}
-
 // SchoolClassGradeLevel derives the numeric Jahrgang from the free-text
 // school class ("3a" -> 3), the grade Care Plan's Jahrgang filters of
 // offering-sourced Regeltermine match on (#2137). Classes without a

@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -144,18 +144,19 @@ func (p TimetablePeople) StudentAttends(ctx context.Context, studentID int64, da
 }
 
 // TimetableSupervisionSheets serves the per-child sheet of the school portal
-// (#2527) from the enrollment report, which audits every read.
+// (#2527) from the class-day capability, which audits every read.
 type TimetableSupervisionSheets struct {
-	report enrollment.ReportService
+	classDay classday.ClassDay
 }
 
-// NewTimetableSupervisionSheets binds the sheet port to the report.
-func NewTimetableSupervisionSheets(report enrollment.ReportService) TimetableSupervisionSheets {
-	return TimetableSupervisionSheets{report: report}
+// NewTimetableSupervisionSheets binds the sheet port to the class-day
+// capability.
+func NewTimetableSupervisionSheets(classDay classday.ClassDay) TimetableSupervisionSheets {
+	return TimetableSupervisionSheets{classDay: classDay}
 }
 
-// SupervisionStudentSheet builds the sheet. A request the report refuses as
-// an invalid filter carries SupervisionSheetRefused().
+// SupervisionStudentSheet builds the sheet. A request the capability refuses
+// as an invalid filter carries SupervisionSheetRefused().
 func (s TimetableSupervisionSheets) SupervisionStudentSheet(
 	ctx context.Context,
 	studentID int64,
@@ -164,7 +165,7 @@ func (s TimetableSupervisionSheets) SupervisionStudentSheet(
 	actorAccountID int64,
 	actorRole string,
 ) (any, error) {
-	sheet, err := s.report.SupervisionStudentSheet(ctx, enrollment.SupervisionSheetInput{
+	sheet, err := s.classDay.SupervisionStudentSheet(ctx, classday.SupervisionSheetInput{
 		StudentID:         studentID,
 		Date:              date,
 		CompanionBoundary: companionBoundary,
@@ -172,7 +173,7 @@ func (s TimetableSupervisionSheets) SupervisionStudentSheet(
 		ActorRole:         actorRole,
 	})
 	if err != nil {
-		if errors.Is(err, enrollment.ErrReportInvalidFilter) {
+		if errors.Is(err, classday.ErrInvalidReportFilter) {
 			return nil, supervisionSheetRefusal{err: err}
 		}
 		return nil, err

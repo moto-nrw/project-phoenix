@@ -20,12 +20,18 @@ import (
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
+)
+
+// CarePeriod and OfferingBooking are the Enrollment values the root binds
+// behind CarePeriods and OfferingHistory.
+type (
+	CarePeriod      = care.CarePeriod
+	OfferingBooking = care.OfferingBooking
 )
 
 // Dependencies are the collaborators of the guardian portal. Optional
@@ -61,8 +67,8 @@ type Dependencies struct {
 	CareExceptions    care.CareExceptions
 	PickupAutoExcusal careplan.PickupAutoExcusal
 
-	CarePeriods      enrollmentSvc.StudentCarePeriodReader
-	OfferingHistory  enrollmentSvc.OfferingHistoryReader
+	CarePeriods      care.CarePeriodReads
+	OfferingHistory  care.OfferingHistoryReads
 	CareOfferingRepo enrollmentModels.CareOfferingRepository
 	OfferingChanges  care.OfferingChangeRequests
 

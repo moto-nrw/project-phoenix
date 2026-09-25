@@ -2,18 +2,22 @@
 // projection that are not yet served by a public owner facade: the care-day
 // derivation, the effective arrival/pickup times and pickup baselines of the
 // retained schedule services, the tenant settings, the caller's read access,
-// the pure care-plan rules, and the enrollment report the school portal shows.
-// modules/classday/compose binds them; the application never sees the legacy
-// types behind them.
+// the pure care-plan rules, and the school-portal caller. modules/classday/compose
+// binds them; the application never sees the legacy types behind them.
 package ports
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/classday"
 )
+
+// ErrClassArrivalExceptionsNotConfigured marks a deployment without the
+// class arrival exception store. The day report still serves the sheet
+// without the exception line.
+var ErrClassArrivalExceptionsNotConfigured = errors.New("class arrival exceptions are not configured")
 
 // CareDay is the derived per-child, per-day care-plan verdict. The values
 // mirror the schedule domain's CareDayStatus so the same string reaches the
@@ -114,23 +118,4 @@ type Caller interface {
 	// StaffID returns the caller's users.staff row;
 	// classday.ErrStaffRecordRequired when the account has none.
 	StaffID(ctx context.Context) (int64, error)
-}
-
-// DayReports builds the per-class day view.
-type DayReports interface {
-	// ClassDay builds the report; classday.ErrInvalidReportFilter when the
-	// class is empty.
-	ClassDay(ctx context.Context, schoolClass string, date timezone.Date, actor classday.Actor) (*classday.DayReport, error)
-}
-
-// ArrivalExceptions is the write seam for class-wide arrival day exceptions.
-// Errors are the classday sentinels.
-type ArrivalExceptions interface {
-	SchoolMayWrite(ctx context.Context) (bool, error)
-	ListForClass(ctx context.Context, schoolClass string, from, to timezone.Date) ([]classday.ArrivalException, error)
-	// Set stores the exception; date is the already resolved calendar day of
-	// in.Date.
-	Set(ctx context.Context, in classday.ArrivalExceptionWrite, date timezone.Date) (*classday.ArrivalException, error)
-	Clear(ctx context.Context, schoolClass string, date timezone.Date) error
-	EarliestBlockStart(ctx context.Context, schoolClass string, date timezone.Date) (string, error)
 }

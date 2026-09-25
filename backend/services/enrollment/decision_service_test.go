@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -100,7 +102,7 @@ func setupDecisionTest(t *testing.T) (*decisionTestEnv, func()) {
 
 func setupDecisionTestWithSettings(
 	t *testing.T,
-	settings enrollmentService.DecisionSettingsResolver,
+	settings testutil.EnrollmentDecisionSettings,
 ) (*decisionTestEnv, func()) {
 	t.Helper()
 	env, cleanup := setupRolloverTest(t)
@@ -111,7 +113,7 @@ func setupDecisionTestWithSettings(
 
 func newDecisionServiceForTest(
 	env *rolloverTestEnv,
-	settings enrollmentService.DecisionSettingsResolver,
+	settings testutil.EnrollmentDecisionSettings,
 	lockTemplateRecurrence func(context.Context) error,
 ) enrollmentService.DecisionService {
 	return newDecisionServiceForTestWithDependencies(env, settings, lockTemplateRecurrence, nil, nil)
@@ -119,26 +121,26 @@ func newDecisionServiceForTest(
 
 func newDecisionServiceForTestWithCareWithdrawal(
 	env *rolloverTestEnv,
-	settings enrollmentService.DecisionSettingsResolver,
+	settings testutil.EnrollmentDecisionSettings,
 	lockTemplateRecurrence func(context.Context) error,
-	careWithdrawal enrollmentService.CareWithdrawalReconciler,
+	careWithdrawal enrollmentTest.CareWithdrawalReconciler,
 ) enrollmentService.DecisionService {
 	return newDecisionServiceForTestWithDependencies(env, settings, lockTemplateRecurrence, careWithdrawal, nil)
 }
 
 func newDecisionServiceForTestWithConsentAuditor(
 	env *rolloverTestEnv,
-	studentConsents enrollmentService.StudentConsentAuditor,
+	studentConsents testutil.EnrollmentConsentAuditor,
 ) enrollmentService.DecisionService {
 	return newDecisionServiceForTestWithDependencies(env, nil, nil, nil, studentConsents)
 }
 
 func newDecisionServiceForTestWithDependencies(
 	env *rolloverTestEnv,
-	settings enrollmentService.DecisionSettingsResolver,
+	settings testutil.EnrollmentDecisionSettings,
 	lockTemplateRecurrence func(context.Context) error,
-	careWithdrawal enrollmentService.CareWithdrawalReconciler,
-	studentConsents enrollmentService.StudentConsentAuditor,
+	careWithdrawal enrollmentTest.CareWithdrawalReconciler,
+	studentConsents testutil.EnrollmentConsentAuditor,
 	outboxes ...platformModels.OutboxEnqueuer,
 ) enrollmentService.DecisionService {
 	return newDecisionServiceForTestWithPickupExtensions(nil, env, settings, lockTemplateRecurrence, careWithdrawal, studentConsents, outboxes...)
@@ -147,10 +149,10 @@ func newDecisionServiceForTestWithDependencies(
 func newDecisionServiceForTestWithPickupExtensions(
 	t *testing.T,
 	env *rolloverTestEnv,
-	settings enrollmentService.DecisionSettingsResolver,
+	settings testutil.EnrollmentDecisionSettings,
 	lockTemplateRecurrence func(context.Context) error,
-	careWithdrawal enrollmentService.CareWithdrawalReconciler,
-	studentConsents enrollmentService.StudentConsentAuditor,
+	careWithdrawal enrollmentTest.CareWithdrawalReconciler,
+	studentConsents testutil.EnrollmentConsentAuditor,
 	outboxes ...platformModels.OutboxEnqueuer,
 ) enrollmentService.DecisionService {
 	if careWithdrawal == nil {
@@ -168,16 +170,16 @@ func newDecisionServiceForTestWithPickupExtensions(
 // withdrawal follow-up and the fixed decision day.
 func newBookingsForTest(
 	env *rolloverTestEnv,
-	settings enrollmentService.DecisionSettingsResolver,
+	settings testutil.EnrollmentDecisionSettings,
 	lockTemplateRecurrence func(context.Context) error,
-	careWithdrawal enrollmentService.CareWithdrawalReconciler,
+	careWithdrawal enrollmentTest.CareWithdrawalReconciler,
 ) careplan.BookingMaterializationCapability {
 	if careWithdrawal == nil {
 		careWithdrawal = newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
 			BookingsAuthoritative: testBookingsAuthority(settings),
 		})
 	}
-	var bookingSettings enrollmentService.DecisionSettingsResolver = registryDefaultDecisionSettings{}
+	var bookingSettings testutil.EnrollmentDecisionSettings = registryDefaultDecisionSettings{}
 	if settings != nil {
 		bookingSettings = settings
 	}
@@ -209,7 +211,7 @@ func (registryDefaultDecisionSettings) ResolveBool(_ context.Context, key string
 // testBookings composes the booking materialization over the env's catalog
 // with the suite's settings, on the real calendar day, for suites that build
 // their own decision service.
-func testBookings(t *testing.T, env *rolloverTestEnv, settings enrollmentService.DecisionSettingsResolver) careplan.BookingMaterializationCapability {
+func testBookings(t *testing.T, env *rolloverTestEnv, settings testutil.EnrollmentDecisionSettings) careplan.BookingMaterializationCapability {
 	t.Helper()
 	options := []testutil.BookingMaterializationOption{testutil.WithBookingCatalog(env.offeringCatalog)}
 	if settings != nil {
@@ -221,13 +223,28 @@ func testBookings(t *testing.T, env *rolloverTestEnv, settings enrollmentService
 func newDecisionServiceForTestWithBookings(
 	t *testing.T,
 	env *rolloverTestEnv,
-	bookings enrollmentService.DecisionBookings,
-	settings enrollmentService.DecisionSettingsResolver,
+	bookings enrollmentTest.DecisionBookings,
+	settings testutil.EnrollmentDecisionSettings,
 	lockTemplateRecurrence func(context.Context) error,
-	careWithdrawal enrollmentService.CareWithdrawalReconciler,
-	studentConsents enrollmentService.StudentConsentAuditor,
+	careWithdrawal enrollmentTest.CareWithdrawalReconciler,
+	studentConsents testutil.EnrollmentConsentAuditor,
 	outboxes ...platformModels.OutboxEnqueuer,
 ) enrollmentService.DecisionService {
+	return enrollmentService.NewDecisionService(newDecisionsForTestWithBookings(t, env, bookings, settings, lockTemplateRecurrence, careWithdrawal, studentConsents, outboxes...))
+}
+
+// newDecisionsForTestWithBookings composes the decision flow the suites drive,
+// the way the root binds it.
+func newDecisionsForTestWithBookings(
+	t *testing.T,
+	env *rolloverTestEnv,
+	bookings enrollmentTest.DecisionBookings,
+	settings testutil.EnrollmentDecisionSettings,
+	lockTemplateRecurrence func(context.Context) error,
+	careWithdrawal enrollmentTest.CareWithdrawalReconciler,
+	studentConsents testutil.EnrollmentConsentAuditor,
+	outboxes ...platformModels.OutboxEnqueuer,
+) *enrollmentTest.Decisions {
 	repoFactory := env.repos
 	var outbox platformModels.OutboxEnqueuer = env.outbox
 	if len(outboxes) > 0 {
@@ -243,42 +260,43 @@ func newDecisionServiceForTestWithBookings(
 		pickupBaselines := newPickupBaselineService(repoFactory.CarePlan(), approvedOfferingTestProjection(repoFactory))
 		pickupAutoExcusal = newPickupExcusal(t, env.db, repoFactory.CarePlan(), pickupBaselines, env.timetable, true)
 	}
-	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
-		Requests:                     repoFactory.Enrollment(),
-		Children:                     repoFactory.Enrollment(),
-		Guardians:                    repoFactory.Enrollment(),
-		LateInviteRepo:               repoFactory.Enrollment(),
-		CareOfferingRepo:             enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
-		Phases:                       repoFactory.Enrollment(),
-		Schemas:                      repoFactory.Enrollment(),
-		OfferingAdjustmentRepo:       repoFactory.EnrollmentOfferingAdjustment,
-		RestorationAuditRepo:         repoFactory.EnrollmentRestorationAudit,
-		PersonRepo:                   repoFactory.Person,
-		StaffRepo:                    repoFactory.Staff,
-		StudentRepo:                  repoFactory.Student,
-		StudentGuardianRepo:          repoFactory.StudentGuardian,
-		GuardianProfileRepo:          repoFactory.GuardianProfile,
-		GuardianPhoneRepo:            repoFactory.GuardianPhoneNumber,
-		PickupScheduleRepo:           repoFactory.StudentPickupSchedule,
-		ArrivalScheduleRepo:          repoFactory.StudentArrivalSchedule,
-		CareBookings:                 bookings,
-		GuardianAccess:               testGuardianAccess(env.db),
-		StudentEnrollment:            testStudentEnrollment(env.db),
-		DepartureCompanions:          repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
-		DeleteDepartureCompanions:    repoFactory.CarePlan().DeleteCompanionEdges,
-		OutboxEnqueuer:               outbox,
-		StudentAudit:                 usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
-		StudentConsents:              studentConsents,
-		CareWithdrawal:               careWithdrawal,
-		FrontendURL:                  "http://localhost:3000",
-		ParentsURL:                   "http://parents.localhost:3000",
-		Settings:                     settings,
-		LockTemplateRecurrence:       lockTemplateRecurrence,
-		SnapshotPickupWeekdayChanges: snapshotPickupWeekdayChanges(pickupAutoExcusal),
-		RecordPickupWeekdayChanges:   recordPickupWeekdayChanges(pickupAutoExcusal),
-		Logger:                       slog.Default(),
-		Today:                        func() timezone.Date { return decisionTestToday },
-	})
+	return newTestDecisions(testutil.EnrollmentDecisionSources{
+		Requests:               repoFactory.Enrollment(),
+		Children:               repoFactory.Enrollment(),
+		Guardians:              repoFactory.Enrollment(),
+		LateInvites:            repoFactory.Enrollment(),
+		CareOfferings:          enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),
+		Phases:                 repoFactory.Enrollment(),
+		Schemas:                repoFactory.Enrollment(),
+		OfferingAdjustments:    repoFactory.EnrollmentOfferingAdjustment,
+		Restorations:           repoFactory.EnrollmentRestorationAudit,
+		Persons:                repoFactory.Person,
+		Staff:                  repoFactory.Staff,
+		Students:               repoFactory.Student,
+		StudentGuardians:       repoFactory.StudentGuardian,
+		GuardianProfiles:       repoFactory.GuardianProfile,
+		GuardianPhones:         repoFactory.GuardianPhoneNumber,
+		PickupSchedules:        repositories.NewEnrollmentPickupSchedules(repoFactory.StudentPickupSchedule),
+		ArrivalSchedules:       repositories.NewEnrollmentArrivalSchedules(repoFactory.StudentArrivalSchedule),
+		CareBookings:           bookings,
+		GuardianAccess:         testGuardianAccess(env.db),
+		StudentEnrollment:      testStudentEnrollment(env.db),
+		Companions:             repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
+		DeleteCompanions:       repoFactory.CarePlan().DeleteCompanionEdges,
+		StudentAudit:           usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
+		StudentConsents:        studentConsents,
+		CareWithdrawal:         careWithdrawal,
+		FrontendURL:            "http://localhost:3000",
+		ParentsURL:             "http://parents.localhost:3000",
+		Settings:               settings,
+		LockTemplateRecurrence: lockTemplateRecurrence,
+		Pickups: enrollmentTest.WeeklyPickupHooks{
+			Snapshot:      snapshotPickupWeekdayChanges(pickupAutoExcusal),
+			RecordChanges: recordPickupWeekdayChanges(pickupAutoExcusal),
+		},
+		Logger: slog.Default(),
+		Today:  func() timezone.Date { return decisionTestToday },
+	}, outbox)
 }
 
 func snapshotPickupWeekdayChanges(syncer careplan.PickupAutoExcusal) func(context.Context, int64, timezone.Date) (map[int]string, error) {
@@ -314,7 +332,7 @@ func (a failingStudentConsentAuditor) RecordTransitions(
 	return a.err
 }
 
-func testBookingsAuthority(settings enrollmentService.DecisionSettingsResolver) func(context.Context) (bool, error) {
+func testBookingsAuthority(settings testutil.EnrollmentDecisionSettings) func(context.Context) (bool, error) {
 	return func(ctx context.Context) (bool, error) {
 		if settings == nil {
 			return false, nil
@@ -325,9 +343,7 @@ func testBookingsAuthority(settings enrollmentService.DecisionSettingsResolver) 
 
 func changeRequestApplierForTest(t *testing.T, env *decisionTestEnv) enrollmentService.ChangeRequestDecisionApplier {
 	t.Helper()
-	applier, ok := env.decision.(enrollmentService.ChangeRequestDecisionApplier)
-	require.True(t, ok, "decision service must implement the change-request applier contract")
-	return applier
+	return enrollmentService.ChangeRequestApplierForTest(env.decision, env.bookings)
 }
 
 func assertOfferingAdjustmentWaitsForRecurrenceGate(
@@ -471,10 +487,7 @@ func submitDecisionSiblings(t *testing.T, env *decisionTestEnv, guardianEmail st
 func publishDecisionScheduleSchema(t *testing.T, env *decisionTestEnv, key, target string) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  env.repos.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(env.repos.Enrollment(), nil, slog.Default())
 	field := capability.FormField{
 		Key:         key,
 		Label:       "Schedule",
@@ -523,10 +536,7 @@ func publishLegacyDuplicateTargetSchema(t *testing.T, env *decisionTestEnv, name
 func publishDecisionContactListSchema(t *testing.T, env *decisionTestEnv) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  env.repos.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(env.repos.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 2", []capability.FormField{{
 		Key:         "contacts",
 		Label:       "Weitere Kontakte",
@@ -1602,10 +1612,7 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedContactList(t *tes
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  env.repos.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(env.repos.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 3", []capability.FormField{{
 		Key:         "contacts",
 		Label:       "Weitere Kontakte",
@@ -1859,10 +1866,7 @@ func TestDecisionService_Decide_ContactListSelfGuardianDoesNotAbortApproval(t *t
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  env.repos.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(env.repos.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 4", []capability.FormField{{
 		Key:         "contacts",
 		Label:       "Weitere Kontakte",
@@ -1942,10 +1946,7 @@ func TestDecisionService_Decide_AppliesDepartureField(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// Pin a schema that carries the unified departure field onto the phase.
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  env.repos.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(env.repos.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 5", []capability.FormField{{
 		Key:         "departure",
 		Label:       "Geh- und Abholregelung",
@@ -2010,10 +2011,7 @@ func TestDecisionService_Decide_AppliesCoupledCompanionNote(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  env.repos.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(env.repos.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 6", []capability.FormField{{
 		Key:         "allowed_modes",
 		Label:       "Erlaubte Heimwege",
@@ -2081,10 +2079,7 @@ func TestDecisionService_Decide_SkipsCompanionNoteWithoutAccompanied(t *testing.
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  env.repos.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(env.repos.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 7", []capability.FormField{{
 		Key:         "allowed_modes",
 		Label:       "Erlaubte Heimwege",
@@ -4042,11 +4037,11 @@ func TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure(t *testing.
 	createChildOfferingLink(t, env, childID, offering.ID, nil, nil)
 
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	degraded := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
-		Requests:         repoFactory.Enrollment(),
-		Children:         repoFactory.Enrollment(),
-		CareOfferingRepo: catalogFailureRepo{enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan())},
-		Phases:           repoFactory.Enrollment(),
+	degraded := newTestDecisionService(testutil.EnrollmentDecisionSources{
+		Requests:      repoFactory.Enrollment(),
+		Children:      repoFactory.Enrollment(),
+		CareOfferings: catalogFailureRepo{enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan())},
+		Phases:        repoFactory.Enrollment(),
 	})
 
 	rows, err := degraded.ListChildOfferings(ctx, reqID)
@@ -4120,12 +4115,12 @@ func TestBookingViewDate(t *testing.T) {
 
 	today := timezone.NewDate(2026, 8, 8)
 
-	assert.Equal(t, today, enrollmentService.BookingViewDate(today, timezone.NewDate(2027, 7, 31)),
+	assert.Equal(t, today, careplan.BookingViewDate(today, timezone.NewDate(2027, 7, 31)),
 		"inside or ahead of the period the reference date is simply today")
-	assert.Equal(t, today, enrollmentService.BookingViewDate(today, timezone.Date("")),
+	assert.Equal(t, today, careplan.BookingViewDate(today, timezone.Date("")),
 		"a missing period end must not move the reference date")
 	assert.Equal(t, timezone.NewDate(2026, 7, 31),
-		enrollmentService.BookingViewDate(today, timezone.NewDate(2026, 7, 31)),
+		careplan.BookingViewDate(today, timezone.NewDate(2026, 7, 31)),
 		"after the period ended the final state is what a reader needs")
 }
 
@@ -4739,20 +4734,20 @@ func createAdjustmentCareOfferingWith(t *testing.T, env *decisionTestEnv, name s
 
 type offeringStudentTestDirectory struct{ students usersModels.StudentRepository }
 
-func (d offeringStudentTestDirectory) ListOfferingStudents(ctx context.Context, ids []int64) ([]enrollmentService.OfferingStudent, error) {
+func (d offeringStudentTestDirectory) ListOfferingStudents(ctx context.Context, ids []int64) ([]enrollmentTest.OfferingStudent, error) {
 	students, err := d.students.FindByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]enrollmentService.OfferingStudent, 0, len(students))
+	rows := make([]enrollmentTest.OfferingStudent, 0, len(students))
 	for _, student := range students {
-		rows = append(rows, enrollmentService.OfferingStudent{ID: student.ID, SchoolClass: student.SchoolClass, Alumnus: student.IsAlumnus()})
+		rows = append(rows, enrollmentTest.OfferingStudent{ID: student.ID, SchoolClass: student.SchoolClass, Alumnus: student.IsAlumnus()})
 	}
 	return rows, nil
 }
 
-func approvedOfferingTestProjection(repos *repositories.Factory) *enrollmentService.ApprovedOfferingProjection {
-	return enrollmentService.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudentTestDirectory{repos.Student})
+func approvedOfferingTestProjection(repos *repositories.Factory) *enrollmentTest.ApprovedOfferingProjection {
+	return enrollmentTest.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudentTestDirectory{repos.Student})
 }
 
 // newPickupExcusal uses the same configured Timetable instance as the fixture's

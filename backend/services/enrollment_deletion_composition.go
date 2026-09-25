@@ -3,18 +3,18 @@ package services
 import (
 	"context"
 
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 type enrollmentGuardianDirectory struct{ guardians peopledirectory.GuardianQuery }
 
-func (d enrollmentGuardianDirectory) ListGuardiansByAccount(ctx context.Context, accountIDs []int64) ([]enrollment.DirectoryGuardian, error) {
+func (d enrollmentGuardianDirectory) ListGuardiansByAccount(ctx context.Context, accountIDs []int64) ([]enrollmentCompose.DirectoryGuardian, error) {
 	guardians, err := d.guardians.ListGuardiansByAccount(ctx, accountIDs)
 	return toEnrollmentGuardians(guardians), err
 }
 
-func (d enrollmentGuardianDirectory) ListGuardiansByID(ctx context.Context, ids []int64) ([]enrollment.DirectoryGuardian, error) {
+func (d enrollmentGuardianDirectory) ListGuardiansByID(ctx context.Context, ids []int64) ([]enrollmentCompose.DirectoryGuardian, error) {
 	guardians, err := d.guardians.ListGuardiansByID(ctx, ids)
 	return toEnrollmentGuardians(guardians), err
 }
@@ -23,10 +23,10 @@ func (d enrollmentGuardianDirectory) CountGuardianLinks(ctx context.Context, ids
 	return d.guardians.CountGuardianLinks(ctx, ids)
 }
 
-func toEnrollmentGuardians(guardians []peopledirectory.Guardian) []enrollment.DirectoryGuardian {
-	result := make([]enrollment.DirectoryGuardian, 0, len(guardians))
+func toEnrollmentGuardians(guardians []peopledirectory.Guardian) []enrollmentCompose.DirectoryGuardian {
+	result := make([]enrollmentCompose.DirectoryGuardian, 0, len(guardians))
 	for _, guardian := range guardians {
-		result = append(result, enrollment.DirectoryGuardian{ID: guardian.ID, AccountID: guardian.AccountID})
+		result = append(result, enrollmentCompose.DirectoryGuardian{ID: guardian.ID, AccountID: guardian.AccountID})
 	}
 	return result
 }

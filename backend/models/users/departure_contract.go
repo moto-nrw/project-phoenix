@@ -48,6 +48,3 @@ func DepartureDaysFromLegacy(bus BusDays, pickup PickupDays) DepartureDays {
 func AllowedDepartureModesFromDeparture(days DepartureDays) AllowedDepartureModes {
 	return departure.AllowedDepartureModesFromDeparture(days)
 }
-func AllowedDepartureModesFromLegacy(bus BusDays, pickup PickupDays) AllowedDepartureModes {
-	return departure.AllowedDepartureModesFromLegacy(bus, pickup)
-}

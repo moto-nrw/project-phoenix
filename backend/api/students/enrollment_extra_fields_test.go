@@ -32,12 +32,12 @@ func (f *fakeEnrollmentDecisionService) ListByStudent(_ context.Context, student
 }
 
 type fakeEnrollmentFormSchemaService struct {
-	enrollmentService.FormSchemaService
+	capability.FormSchemaAdministration
 	schemas map[int64]*capability.FormSchema
 	err     error
 }
 
-func (f *fakeEnrollmentFormSchemaService) GetByID(_ context.Context, id int64) (*capability.FormSchema, error) {
+func (f *fakeEnrollmentFormSchemaService) SchemaVersion(_ context.Context, id int64) (*capability.FormSchema, error) {
 	if f.err != nil {
 		return nil, f.err
 	}

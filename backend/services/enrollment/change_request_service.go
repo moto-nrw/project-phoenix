@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
@@ -83,7 +84,6 @@ type CompanionGraphCoordinator interface {
 type ChangeRequestDecisionApplier interface {
 	LockOfferingDerivedWrites(ctx context.Context) error
 	applyApprovedChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*RequestChild, error)
-	applyApprovedChangeRequestOfferingsWithResult(ctx context.Context, input UpdateChildOfferingsInput) (*appliedOfferingAdjustment, error)
 	SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*RequestChild, error)
 	// ReconcileOfferingPickupForStudents refreshes dependent state
 	// after an approved change replaced the students' offering bookings.
@@ -128,10 +128,15 @@ type ChangeRequestServiceConfig struct {
 	Guardians IntakeGuardians
 	// LateInviteRepo restores the original invite identity when an accountless
 	// late-invite renewal is re-authorized during change-request approval.
-	LateInviteRepo      DecisionLateInvites
-	CareOfferingRepo    enrollmentModels.CareOfferingRepository
-	Catalog             IntakeCatalog
-	SchoolRepo          SchoolDirectory
+	LateInviteRepo   DecisionLateInvites
+	CareOfferingRepo enrollmentModels.CareOfferingRepository
+	// Capacity is the Enrollment owner's capacity gate an approval re-runs
+	// for children moved onto another offering.
+	Capacity capability.OfferingCapacity
+	Catalog  IntakeCatalog
+	// Notifications brands the change-request mails and notifies the
+	// capacity decisions an approval produces.
+	Notifications       capability.Notifications
 	GuardianProfileRepo userModels.GuardianProfileRepository
 	GuardianPhoneRepo   userModels.GuardianPhoneNumberRepository
 	// PersonRepo resolves the deciding staffer's display name for the review
@@ -804,7 +809,7 @@ func (s *changeRequestService) ensureCanCreate(ctx context.Context, req *enrollm
 	if err != nil || phase == nil || !phase.IsActive {
 		return ErrChangeRequestNotAllowed
 	}
-	if !IsEnrollmentWindowOpen(phase, time.Now()) {
+	if !phase.EnrollmentWindowOpen(time.Now()) {
 		return ErrEnrollmentWindowClosed
 	}
 	return nil
@@ -955,7 +960,7 @@ func (s *changeRequestService) prepareProposed(
 		// The selection this preserves is the one in force now, not every
 		// interval the child ever held: a superseded booking restored here
 		// would be written back as a live one.
-		existingLinks, linkErr := readOwnerOfferingBatchSelections(
+		existingLinks, linkErr := capability.OfferingSelectionRecordsForChildrenAt(
 			ctx, s.Children, childIDs, currentOfferingSelectionDate(phase),
 		)
 		if linkErr != nil {
@@ -1076,7 +1081,7 @@ func (s *changeRequestService) changeRequestOfferingCatalogs(
 		childIndexByID[child.ID] = i
 	}
 
-	links, err := readOwnerOfferingBatchSelections(ctx, s.Children, childIDs, onDate)
+	links, err := capability.OfferingSelectionRecordsForChildrenAt(ctx, s.Children, childIDs, onDate)
 	if err != nil {
 		return nil, nil, fmt.Errorf("change request: load current child offerings: %w", err)
 	}
@@ -1289,7 +1294,7 @@ func (s *changeRequestService) legalBlocksForRequest(ctx context.Context, schema
 }
 
 func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollmentModels.Request, children []*RequestChild) (map[string]any, error) {
-	guardians, err := listIntakeGuardians(ctx, s.Guardians, req.ID)
+	guardians, err := s.Guardians.RequestGuardians(ctx, []int64{req.ID})
 	if err != nil {
 		return nil, fmt.Errorf("change request: list guardians: %w", err)
 	}
@@ -1309,7 +1314,7 @@ func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollm
 	// approval to. Pinned to the phase start it would keep reporting a booking
 	// an approved dated change has already replaced - and the approval would
 	// then write that stale selection back over the newer one.
-	links, err := readOwnerOfferingBatchSelections(ctx, s.Children, childIDs, currentOfferingSelectionDate(phase))
+	links, err := capability.OfferingSelectionRecordsForChildrenAt(ctx, s.Children, childIDs, currentOfferingSelectionDate(phase))
 	if err != nil {
 		return nil, fmt.Errorf("change request: list child offerings: %w", err)
 	}
@@ -1442,7 +1447,7 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *Cha
 	}
 	var previousGuardians []*capability.RequestGuardian
 	if s.Guardians != nil {
-		previousGuardians, err = listIntakeGuardians(ctx, s.Guardians, req.ID)
+		previousGuardians, err = s.Guardians.RequestGuardians(ctx, []int64{req.ID})
 		if err != nil {
 			return fmt.Errorf("change request approve: list previous guardians: %w", err)
 		}
@@ -1468,7 +1473,7 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *Cha
 			return err
 		}
 		for i, guardian := range prepared.AdditionalGuardians {
-			if err := createIntakeGuardian(ctx, s.Guardians, &capability.RequestGuardian{
+			if err := s.Guardians.CreateRequestGuardian(ctx, &capability.RequestGuardian{
 				RequestID:         req.ID,
 				FirstName:         guardian.FirstName,
 				LastName:          guardian.LastName,
@@ -1616,13 +1621,10 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *Cha
 		if err != nil {
 			return fmt.Errorf("change request approve: refresh capacity decisions: %w", err)
 		}
-		if err := enqueueDecisionNotifications(ctx, decisionNotificationDependencies{
-			requests:   s.Requests,
-			settings:   s.Settings,
-			outbox:     s.OutboxEnqueuer,
-			schools:    s.SchoolRepo,
-			parentsURL: s.ParentsURL,
-		}, req, refreshedChildren, phase, newlyWaitlisted); err != nil {
+		if err := notifyDecisions(ctx, s.Notifications, decisionNotice{
+			Request: req, Children: refreshedChildren, Phase: phase,
+			ImmediateChildIDs: newlyWaitlisted, ParentsURL: s.ParentsURL,
+		}); err != nil {
 			return fmt.Errorf("change request approve: notify capacity decisions: %w", err)
 		}
 	}
@@ -1667,6 +1669,7 @@ func (s *changeRequestService) changeRequestCapacityOverrides(
 	rs := &requestService{RequestServiceConfig: RequestServiceConfig{
 		Children:         s.Children,
 		CareOfferingRepo: s.CareOfferingRepo,
+		Capacity:         s.Capacity,
 		Settings:         s.Settings,
 	}}
 	candidateOverrides, err := rs.applyCapacityOverflowWithReplacedChildren(ctx, phase, candidates, preservedChildIDs)
@@ -1872,7 +1875,7 @@ func childStatusCountsForCapacity(status string) bool {
 
 func (s *changeRequestService) ensureNoActiveDuplicateForApproval(ctx context.Context, req *enrollmentModels.Request, prepared SubmitRequest) error {
 	emailLC := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
-	if err := s.Requests.AcquireSubmissionDedupLock(ctx, req.PhaseID, fnvHash64(emailLC)); err != nil {
+	if err := s.Requests.AcquireSubmissionDedupLock(ctx, req.PhaseID, capability.SubmissionDedupLockKey(emailLC)); err != nil {
 		return fmt.Errorf("change request approve: acquire duplicate lock: %w", err)
 	}
 
@@ -2029,7 +2032,7 @@ func (s *changeRequestService) validateAccountLinkedGuardianEdits(ctx context.Co
 	if len(editReq.AdditionalGuardians) == 0 || s.Guardians == nil {
 		return nil
 	}
-	existing, err := listIntakeGuardians(ctx, s.Guardians, req.ID)
+	existing, err := s.Guardians.RequestGuardians(ctx, []int64{req.ID})
 	if err != nil {
 		return fmt.Errorf("change request: list guardians for account guardrail: %w", err)
 	}
@@ -2037,7 +2040,7 @@ func (s *changeRequestService) validateAccountLinkedGuardianEdits(ctx context.Co
 	for _, guardian := range editReq.AdditionalGuardians {
 		emails = append(emails, optionalLowerEmail(guardian.Email))
 	}
-	profiles, err := findGuardianProfilesByEmails(ctx, s.GuardianProfileRepo, emails)
+	profiles, err := guardianProfilesByEmails(ctx, s.GuardianProfileRepo, emails)
 	if err != nil {
 		return fmt.Errorf("change request: load co-guardian profiles for account guardrail: %w", err)
 	}
@@ -2158,6 +2161,34 @@ func trimmedOptionalString(value *string) string {
 		return ""
 	}
 	return strings.TrimSpace(*value)
+}
+
+// guardianProfilesByEmails resolves the tenant's profiles of the given
+// addresses in one query, keyed by the lower-cased, trimmed address.
+func guardianProfilesByEmails(ctx context.Context, repo userModels.GuardianProfileRepository, emails []string) (map[string]*userModels.GuardianProfile, error) {
+	normalized := make([]string, 0, len(emails))
+	seen := make(map[string]bool, len(emails))
+	for _, email := range emails {
+		email = strings.ToLower(strings.TrimSpace(email))
+		if email != "" && !seen[email] {
+			seen[email] = true
+			normalized = append(normalized, email)
+		}
+	}
+	result := make(map[string]*userModels.GuardianProfile, len(normalized))
+	if len(normalized) == 0 {
+		return result, nil
+	}
+	profiles, err := repo.FindByEmails(ctx, normalized)
+	if err != nil {
+		return nil, err
+	}
+	for _, profile := range profiles {
+		if profile != nil && profile.Email != nil {
+			result[strings.ToLower(strings.TrimSpace(*profile.Email))] = profile
+		}
+	}
+	return result, nil
 }
 
 func optionalLowerEmail(value *string) string {
@@ -2629,7 +2660,7 @@ func (s *changeRequestService) enqueueAdminNotification(ctx context.Context, ten
 		}
 		for _, admin := range (&requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings}}).resolveAdminEmails(txCtx) {
 			payload := s.emailPayload(txCtx, req, changeRequestID, admin)
-			payload[EnrollmentPayloadAdminURL] = s.adminURL(changeRequestID)
+			payload[capability.EnrollmentPayloadAdminURL] = s.adminURL(changeRequestID)
 			if enqueueErr := s.OutboxEnqueuer.EnqueueOutbox(txCtx, platformModels.OutboxEnqueueRequest{
 				Kind:              kind,
 				Payload:           payload,
@@ -2696,17 +2727,17 @@ func (s *changeRequestService) logChangeRequestNotificationFailure(err error, te
 }
 
 func (s *changeRequestService) emailPayload(ctx context.Context, req *enrollmentModels.Request, changeRequestID int64, recipient string) map[string]any {
-	schoolName, logoURL := emailBrandForSchool(ctx, s.SchoolRepo, req.TenantID, s.ParentsURL)
+	schoolName, logoURL := schoolBrand(ctx, s.Notifications, req.TenantID, s.ParentsURL)
 	return map[string]any{
-		EnrollmentPayloadGuardianFirstName: req.GuardianFirstName,
-		EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
-		EnrollmentPayloadGuardianEmail:     req.GuardianEmail,
-		EnrollmentPayloadSchoolName:        schoolName,
-		EnrollmentPayloadStatusURL:         enrollmentStatusURL(s.ParentsURL, req.StatusToken),
-		EnrollmentPayloadLogoURL:           logoURL,
-		EnrollmentPayloadMotoLogoURL:       motoLogoURL(s.ParentsURL),
-		EnrollmentPayloadRecipientEmail:    recipient,
-		"change_request_id":                strconv.FormatInt(changeRequestID, 10),
+		capability.EnrollmentPayloadGuardianFirstName: req.GuardianFirstName,
+		capability.EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
+		capability.EnrollmentPayloadGuardianEmail:     req.GuardianEmail,
+		capability.EnrollmentPayloadSchoolName:        schoolName,
+		capability.EnrollmentPayloadStatusURL:         capability.StatusURL(s.ParentsURL, req.StatusToken),
+		capability.EnrollmentPayloadLogoURL:           logoURL,
+		capability.EnrollmentPayloadMotoLogoURL:       emailbranding.MotoLogoURL(s.ParentsURL),
+		capability.EnrollmentPayloadRecipientEmail:    recipient,
+		"change_request_id":                           strconv.FormatInt(changeRequestID, 10),
 	}
 }
 
@@ -2724,5 +2755,5 @@ func (s *changeRequestService) intakePhase(ctx context.Context, id int64) (*capa
 
 func (s *changeRequestService) intakeSchema(ctx context.Context, id int64) (*capability.FormSchema, error) {
 	value, err := s.Catalog.Schema(ctx, id)
-	return cloneSchema(value), err
+	return capability.CopyFormSchema(value), err
 }

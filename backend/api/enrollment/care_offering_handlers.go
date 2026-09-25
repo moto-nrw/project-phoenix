@@ -832,8 +832,14 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 				return loadErr
 			}
 			data = loaded
-			captcha.Enabled = rs.CaptchaService.IsEnabled(txCtx)
-			captcha.SiteKey = rs.CaptchaService.SiteKey(txCtx)
+			captcha.Enabled, loadErr = rs.CaptchaService.IsEnabled(txCtx)
+			if loadErr != nil {
+				return loadErr
+			}
+			captcha.SiteKey, loadErr = rs.CaptchaService.SiteKey(txCtx)
+			if loadErr != nil {
+				return loadErr
+			}
 			return nil
 		})
 	}
