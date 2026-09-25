@@ -111,19 +111,23 @@ type AdminRequestSchemaFieldOption struct {
 // AdminRequestChild is one child within an admin summary/detail
 // payload.
 type AdminRequestChild struct {
-	ID                string         `json:"id"`
-	FirstName         string         `json:"first_name"`
-	LastName          string         `json:"last_name"`
-	DateOfBirth       string         `json:"date_of_birth"`
-	TargetGradeLevel  *int16         `json:"target_grade_level,omitempty"`
-	TargetSchoolClass *string        `json:"target_school_class,omitempty"`
-	Status            string         `json:"status"`
-	StatusReason      *string        `json:"status_reason,omitempty"`
-	ReviewedAt        *time.Time     `json:"reviewed_at,omitempty"`
-	ReviewedBy        *int64         `json:"reviewed_by,omitempty"`
-	ActivationMode    string         `json:"activation_mode"`
-	CreatedStudentID  string         `json:"created_student_id,omitempty"`
-	CustomData        map[string]any `json:"custom_data,omitempty"`
+	ID                string     `json:"id"`
+	FirstName         string     `json:"first_name"`
+	LastName          string     `json:"last_name"`
+	DateOfBirth       string     `json:"date_of_birth"`
+	TargetGradeLevel  *int16     `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string    `json:"target_school_class,omitempty"`
+	Status            string     `json:"status"`
+	StatusReason      *string    `json:"status_reason,omitempty"`
+	ReviewedAt        *time.Time `json:"reviewed_at,omitempty"`
+	ReviewedBy        *int64     `json:"reviewed_by,omitempty"`
+	ActivationMode    string     `json:"activation_mode"`
+	CreatedStudentID  string     `json:"created_student_id,omitempty"`
+	// ReviewReason says why an open enrollment was left to the school,
+	// e.g. child_quota_reached for a renewal the automatic approval held
+	// back (#3570). Cleared by the next decision.
+	ReviewReason *string        `json:"review_reason,omitempty"`
+	CustomData   map[string]any `json:"custom_data,omitempty"`
 	// Offerings is the per-child Betreuungsangebote selection that is on
 	// file RIGHT NOW — exactly the set a correction replaces. Populated
 	// only on the detail endpoint (listing endpoints leave it empty to
@@ -220,6 +224,7 @@ func toAdminRequestSummary(s *enrollmentService.RequestSummary) AdminRequestSumm
 			ReviewedBy:        c.ReviewedBy,
 			ActivationMode:    c.ActivationMode,
 			CreatedStudentID:  optionalInt64String(c.CreatedStudentID),
+			ReviewReason:      c.ReviewReason,
 			CustomData:        c.CustomData,
 		})
 	}
@@ -644,6 +649,7 @@ func newAdminRequestChild(child *enrollmentService.RequestChild) AdminRequestChi
 		ReviewedBy:        child.ReviewedBy,
 		ActivationMode:    child.ActivationMode,
 		CreatedStudentID:  optionalInt64String(child.CreatedStudentID),
+		ReviewReason:      child.ReviewReason,
 	}
 }
 

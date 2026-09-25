@@ -157,8 +157,6 @@ jobs:
               - 'scripts/test-changed.sh'
               - 'scripts/test-changed_test.sh'
               - 'scripts/test-run-id.sh'
-              - '.claude/hooks/guard-absolute-rules.sh'
-              - '.claude/hooks/guard-absolute-rules_test.sh'
             frontend-test-infra:
               - 'frontend/package.json'
               - 'frontend/pnpm-lock.yaml'
@@ -179,6 +177,7 @@ jobs:
               - 'scripts/check-migration-evidence*'
               - 'scripts/release-backup*'
               - 'scripts/demo-environment.test.mjs'
+              - 'scripts/report-sentry-deploy*'
               - 'scripts/create-demo-env.py'
               - 'scripts/test-support/release-docker.mjs'
               - 'scripts/deploy-remote.sh'
@@ -191,7 +190,7 @@ jobs:
               - 'package.json'
 
       - name: Verify pre-push failure and selection behavior
-        run: node --test scripts/pre-push.test.mjs scripts/check-release-architecture.test.mjs scripts/check-migration-evidence.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/posthog-dashboards.test.mjs
+        run: node --test scripts/pre-push.test.mjs scripts/check-release-architecture.test.mjs scripts/check-migration-evidence.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/posthog-dashboards.test.mjs
 
       - name: Verify complete release restore with PostgreSQL
         if: steps.filter.outputs.ci == 'true'

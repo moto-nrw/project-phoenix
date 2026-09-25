@@ -290,7 +290,7 @@ func TestResolveGroupsBroadScope(t *testing.T) {
 			return []Session{
 				{ID: 12, RoomID: int64Ptr(22), RoomName: "Adler"},
 				{ID: 13, RoomID: int64Ptr(22), RoomName: "Adler"},
-				{ID: 11, Name: "Malen", RoomID: int64Ptr(21), RoomName: "Zebra", RoomColor: &color},
+				{ID: 11, Name: "Malen", RoomID: int64Ptr(21), RoomName: "Zebra", RoomColor: &color, ParticipantLimit: intPtr(12)},
 			}, nil
 		},
 		supervisedByStaff: func(_ context.Context, staffID int64) (map[int64]struct{}, error) {
@@ -308,6 +308,9 @@ func TestResolveGroupsBroadScope(t *testing.T) {
 	assert.Equal(t, "Zebra", groups[2].RoomName)
 	assert.Equal(t, &color, groups[2].RoomColor)
 	assert.Equal(t, "Malen", groups[2].Name)
+	require.NotNil(t, groups[2].ParticipantLimit, "the tab carries its activity's limit (#3634)")
+	assert.Equal(t, 12, *groups[2].ParticipantLimit)
+	assert.Nil(t, groups[0].ParticipantLimit, "a session without a limit carries none")
 	assert.Equal(t, "Adler", groups[0].Name, "sessions without an activity carry the room name")
 	assert.True(t, groups[0].IsCurrentUserSupervising)
 	assert.False(t, groups[1].IsCurrentUserSupervising)
@@ -855,7 +858,7 @@ func TestProjectionWireShape(t *testing.T) {
 	projection := emptyProjection()
 	projection.BusinessDay = "2026-08-19"
 	projection.SpontaneousStartAvailability = SpontaneousStartAvailability{Available: true}
-	projection.Groups = []Group{{ID: 11, Name: "Malen", RoomID: &roomID, RoomName: "Zebra", RoomColor: &color, IsCurrentUserSupervising: true, CanAssign: true}, {ID: 12, Name: "Adler"}}
+	projection.Groups = []Group{{ID: 11, Name: "Malen", RoomID: &roomID, RoomName: "Zebra", RoomColor: &color, IsCurrentUserSupervising: true, CanAssign: true, ParticipantLimit: intPtr(45)}, {ID: 12, Name: "Adler"}}
 	projection.SelectedGroupID = int64Ptr(11)
 	projection.UnclaimedGroups = []UnclaimedGroup{{ID: 13, RoomName: "Igel"}}
 	projection.CurrentStaffID = int64Ptr(7)
@@ -864,7 +867,7 @@ func TestProjectionWireShape(t *testing.T) {
 	projection.OpenRooms = []OpenRoom{{RoomID: 31, Name: "Schulhof", IsUserSupervising: true, ActiveGroupIDs: []string{"11", "14"}, HasOccupyingSession: true, StudentCount: 1,
 		Students: []OpenRoomStudent{{Visit: Visit{StudentID: 2, StudentName: "Max Hof", ActiveGroupID: 14, CheckInTime: entry}, Independent: true}},
 		Sessions: []OpenRoomSession{
-			{ActiveGroupID: 11, Title: "Malen", IsUserSupervising: true, CanAssign: true, Block: &OpenRoomBlock{InstanceID: 5, StartTime: "14:00", EndTime: "15:00", IsUserAssigned: true, CanOperate: true}},
+			{ActiveGroupID: 11, Title: "Malen", IsUserSupervising: true, CanAssign: true, ParticipantLimit: intPtr(45), Block: &OpenRoomBlock{InstanceID: 5, StartTime: "14:00", EndTime: "15:00", IsUserAssigned: true, CanOperate: true}},
 			{ActiveGroupID: 14, Independent: true, StudentCount: 1},
 		}}}
 	projection.Capabilities = Capabilities{WebSpontaneousActivitiesEnabled: true}
@@ -881,14 +884,14 @@ func TestProjectionWireShape(t *testing.T) {
 	require.NoError(t, err)
 
 	want := `{"business_day":"2026-08-19","spontaneous_start_availability":{"available":true},` +
-		`"groups":[{"id":"11","name":"Malen","room_id":"21","room_name":"Zebra","room_color":"#83CD2D","is_current_user_supervising":true,"can_assign":true},` +
+		`"groups":[{"id":"11","name":"Malen","room_id":"21","room_name":"Zebra","room_color":"#83CD2D","is_current_user_supervising":true,"can_assign":true,"participant_limit":45},` +
 		`{"id":"12","name":"Adler","is_current_user_supervising":false,"can_assign":false}],` +
 		`"selected_group_id":"11","unclaimed_groups":[{"id":"13","room_name":"Igel"}],"current_staff_id":"7",` +
 		`"educational_groups":[{"id":"41","name":"Bären","room_name":"Igel"}],` +
 		`"schulhof_status":{"exists":true,"room_name":"Schulhof","is_user_supervising":false,"supervisor_count":0,"student_count":0,"supervisors":[{"id":1,"staff_id":7,"name":"Erika","is_current_user":true}]},` +
 		`"open_rooms":[{"room_id":"31","name":"Schulhof","is_user_supervising":true,"active_group_ids":["11","14"],"has_occupying_session":true,"student_count":1,` +
 		`"students":[{"student_id":"2","student_name":"Max Hof","school_class":"","group_name":"","active_group_id":"14","check_in_time":"2026-08-19T06:00:00Z","sick":false,"excused":false,"independent":true}],` +
-		`"sessions":[{"active_group_id":"11","title":"Malen","independent":false,"is_user_supervising":true,"can_assign":true,"student_count":0,` +
+		`"sessions":[{"active_group_id":"11","title":"Malen","independent":false,"is_user_supervising":true,"can_assign":true,"student_count":0,"participant_limit":45,` +
 		`"block":{"instance_id":"5","start_time":"14:00","end_time":"15:00","is_user_assigned":true,"can_operate":true}},` +
 		`{"active_group_id":"14","title":"","independent":true,"is_user_supervising":false,"can_assign":false,"student_count":1,"block":null}]}],` +
 		`"capabilities":{"web_spontaneous_activities_enabled":true},` +

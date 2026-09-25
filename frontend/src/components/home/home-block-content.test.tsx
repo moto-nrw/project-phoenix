@@ -190,7 +190,7 @@ describe("HomeBlockContent — Listen", () => {
     );
 
     expect(screen.getByText("Schach")).toBeInTheDocument();
-    expect(screen.getByText("· Sport · 8/10 Teilnehmer")).toBeInTheDocument();
+    expect(screen.getByText("· Sport · 8 / 10 Teilnehmer")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Laufende Aktivitäten/ }),
     ).toHaveAttribute("href", "/test-tenant/activities");
@@ -204,6 +204,56 @@ describe("HomeBlockContent — Listen", () => {
     expect(
       screen.getByRole("link", { name: "Schach: Aktivitäten öffnen" }),
     ).toHaveAttribute("href", "/test-tenant/activities");
+  });
+
+  // #3634: überbucht ist ein eigener, lesbarer Zustand, nicht nur ein
+  // roter Punkt; voll (= Grenze) und ohne Grenze bleiben ohne Warnung.
+  it("markiert eine überbuchte Aktivität mit Text und Hinweis", () => {
+    const currentActivities: DashboardAnalytics["currentActivities"] = [
+      {
+        id: "1",
+        name: "Fußball",
+        category: "Sport",
+        participants: 66,
+        maxCapacity: 45,
+        status: "overbooked",
+      },
+      {
+        id: "2",
+        name: "Basteln",
+        category: "Kreativ",
+        participants: 12,
+        maxCapacity: 12,
+        status: "full",
+      },
+      {
+        id: "3",
+        name: "Lesen",
+        category: "Ruhe",
+        participants: 7,
+        maxCapacity: null,
+        status: "active",
+      },
+    ];
+    render(
+      <HomeBlockContent
+        blockKey="section.current_activities"
+        data={data({ analytics: { ...analytics, currentActivities } })}
+      />,
+    );
+
+    expect(
+      screen.getByText("· Sport · 66 / 45 Teilnehmer"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Überbucht")).toHaveLength(1);
+    expect(screen.getByText("Überbucht")).toHaveAttribute(
+      "title",
+      "Mehr Kinder als erlaubt (höchstens 45). Am Tablet kann sich jetzt kein Kind anmelden. Das geht wieder unter 45 Kindern oder mit höherer Grenze.",
+    );
+    expect(
+      screen.getByText("· Kreativ · 12 / 12 Teilnehmer"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("· Ruhe · 7 Teilnehmer")).toBeInTheDocument();
   });
 
   it("sagt es, wenn keine Aktivität läuft", () => {
@@ -227,6 +277,43 @@ describe("HomeBlockContent — Listen", () => {
     expect(
       screen.getByText("· Gruppe · Raum 101 · 15 Kinder"),
     ).toBeInTheDocument();
+  });
+
+  // #3634: eine Aktivität mit Grenze zeigt „Anzahl / Grenze“ und über der
+  // Grenze „Überbucht“ als Text.
+  it("zeigt bei einer Aktivität mit Grenze Anzahl, Grenze und Überbuchung", () => {
+    const activeGroupsSummary: DashboardAnalytics["activeGroupsSummary"] = [
+      {
+        type: "activity",
+        name: "Fußball",
+        location: "Turnhalle",
+        studentCount: 25,
+        maxCapacity: 20,
+        status: "active",
+      },
+      {
+        type: "activity",
+        name: "Basteln",
+        location: "Kreativraum",
+        studentCount: 12,
+        maxCapacity: 12,
+        status: "active",
+      },
+    ];
+    render(
+      <HomeBlockContent
+        blockKey="section.active_groups"
+        data={data({ analytics: { ...analytics, activeGroupsSummary } })}
+      />,
+    );
+
+    expect(
+      screen.getByText("· Aktivität · Turnhalle · 25 / 20 Kinder"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("· Aktivität · Kreativraum · 12 / 12 Kinder"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Überbucht")).toHaveLength(1);
   });
 
   it("führt eine Zeile der laufenden Betreuung in die Betreuungsgruppen", () => {

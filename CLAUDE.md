@@ -28,7 +28,7 @@ All paths below are relative to the repository root.
   Parent-child access requires relationship-level permissions, not membership alone.
 - **Production data:** use localhost for moto API calls. Read
   [.claude/rules/no-production-requests.md](.claude/rules/no-production-requests.md)
-  before constructing requests; the staging/production domain guard stays active.
+  before constructing requests; never target staging or production domains.
   The seeder is dev-only; production infrastructure uses migrations or admin UI.
 - **Secrets:** keep credentials out of source and output. Edit deployed envs
   only through SOPS, not ciphertext or SSH `.env` edits. Read

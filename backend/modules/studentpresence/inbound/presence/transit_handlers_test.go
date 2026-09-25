@@ -197,3 +197,43 @@ func TestAssignTransitStudents(t *testing.T) {
 		assert.True(t, calledAssign)
 	})
 }
+
+// TestAssignTransitStudentsParticipantLimitWire pins the #3632 wire contract
+// #3633 builds its message on: 409, the stable code and the numbers, kept
+// apart from the room capacity refusal.
+func TestAssignTransitStudentsParticipantLimitWire(t *testing.T) {
+	t.Parallel()
+	rs := resourceForTest(Resource{
+		Operations: &stubPresenceOperations{
+			assignTransitStudents: func(context.Context, []int64, int64, studentpresence.StudentMoveAuthorization) (studentpresence.TransitAssignResult, error) {
+				return studentpresence.TransitAssignResult{}, &studentpresence.OperationError{
+					Op: "AssignTransitStudentsToActiveGroup",
+					Err: &studentpresence.ActivityParticipantLimitError{
+						ActivityID: 7, ActivityName: "Fußball", CurrentOccupancy: 63, MaxParticipants: 45, Incoming: 3,
+					},
+				}
+			},
+		},
+	})
+	req := httptest.NewRequest(
+		testutil.MethodPost,
+		"/api/active/visits/transit/assign",
+		bytes.NewBufferString(`{"student_ids":[42,84,85],"active_group_id":99}`),
+	)
+	req = withAdminMoveContext(req)
+	w := httptest.NewRecorder()
+
+	rs.assignTransitStudents(w, req)
+
+	require.Equal(t, testutil.StatusConflict, w.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, studentpresence.ActivityParticipantLimitCode, body["code"])
+	assert.Equal(t, map[string]any{
+		"activity_id":       float64(7),
+		"activity_name":     "Fußball",
+		"current_occupancy": float64(63),
+		"max_participants":  float64(45),
+		"incoming_students": float64(3),
+	}, body["details"])
+}

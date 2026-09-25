@@ -423,8 +423,11 @@ func buildRecentActivity(activeGroups []*ports.ActiveGroup, activityGroupsByID m
 	return recentActivity
 }
 
-// buildCurrentActivities builds the current activities list
-func buildCurrentActivities(allActivityGroups []*ports.SessionActivity, activeGroups []*ports.ActiveGroup, roomData *dashboardRoomData) []CurrentActivity {
+// buildCurrentActivities builds the current activities list. Participants
+// are the open visits of the activity's session, the number the terminal
+// compares with the limit (#3634); a room shared with other sessions does
+// not add their children.
+func buildCurrentActivities(allActivityGroups []*ports.SessionActivity, activeGroups []*ports.ActiveGroup, visitsByGroupID map[int64][]studentpresence.Visit) []CurrentActivity {
 	currentActivities := []CurrentActivity{}
 
 	for _, actGroup := range allActivityGroups {
@@ -432,7 +435,7 @@ func buildCurrentActivities(allActivityGroups []*ports.SessionActivity, activeGr
 			break
 		}
 
-		hasActiveSession, participantCount := findActiveSessionForActivity(actGroup.ID, activeGroups, roomData)
+		hasActiveSession, participantCount := findActiveSessionForActivity(actGroup.ID, activeGroups, visitsByGroupID)
 		if !hasActiveSession {
 			continue
 		}
@@ -461,26 +464,28 @@ func buildCurrentActivities(allActivityGroups []*ports.SessionActivity, activeGr
 // findActiveSessionForActivity checks if an activity has an active session and returns participant count.
 // Spontaneous sessions (TemplateID ok == false) can never match since they
 // have no parent template id to compare against.
-func findActiveSessionForActivity(activityID int64, activeGroups []*ports.ActiveGroup, roomData *dashboardRoomData) (bool, int) {
+func findActiveSessionForActivity(activityID int64, activeGroups []*ports.ActiveGroup, visitsByGroupID map[int64][]studentpresence.Visit) (bool, int) {
 	for _, group := range activeGroups {
 		templateID, ok := group.TemplateID()
 		if group.IsActive() && ok && templateID == activityID {
-			participantCount := 0
-			if studentSet, ok := roomData.roomStudentsMap[group.RoomID]; ok {
-				participantCount = len(studentSet)
-			}
-			return true, participantCount
+			return true, len(visitsByGroupID[group.ID])
 		}
 	}
 	return false, 0
 }
 
-// determineActivityStatus returns the status string based on capacity
+// determineActivityStatus returns the status string based on capacity.
+// "overbooked" is its own state (#3634): web assignments may exceed the
+// limit, and the terminal then rejects every further check-in until the
+// session drops below it again. "full" keeps meaning exactly at the limit.
 func determineActivityStatus(participants, maxCapacity int) string {
 	if maxCapacity <= 0 {
 		return "active"
 	}
-	if participants >= maxCapacity {
+	if participants > maxCapacity {
+		return "overbooked"
+	}
+	if participants == maxCapacity {
 		return "full"
 	}
 	if participants > int(float64(maxCapacity)*0.8) {
@@ -489,8 +494,10 @@ func determineActivityStatus(participants, maxCapacity int) string {
 	return "active"
 }
 
-// buildActiveGroupsSummary builds the active groups summary list
-func buildActiveGroupsSummary(activeGroups []*ports.ActiveGroup, activityGroupsByID map[int64]*ports.SessionActivity, roomData *dashboardRoomData) []ActiveGroupInfo {
+// buildActiveGroupsSummary builds the active groups summary list. A session
+// whose activity has a limit counts its own open visits, the number the
+// terminal compares with that limit (#3634); others keep the room's count.
+func buildActiveGroupsSummary(activeGroups []*ports.ActiveGroup, activityGroupsByID map[int64]*ports.SessionActivity, roomData *dashboardRoomData, visitsByGroupID map[int64][]studentpresence.Visit) []ActiveGroupInfo {
 	summary := []ActiveGroupInfo{}
 
 	for _, group := range activeGroups {
@@ -504,15 +511,17 @@ func buildActiveGroupsSummary(activeGroups []*ports.ActiveGroup, activityGroupsB
 		groupName, groupType := resolveGroupNameAndType(group.GroupID, activityGroupsByID)
 		location := resolveRoomName(group.RoomID, roomData.roomByID)
 
-		studentCount := 0
-		if studentSet, ok := roomData.roomStudentsMap[group.RoomID]; ok {
-			studentCount = len(studentSet)
+		studentCount := len(roomData.roomStudentsMap[group.RoomID])
+		limit := sessionParticipantLimit(group, activityGroupsByID)
+		if limit != nil {
+			studentCount = len(visitsByGroupID[group.ID])
 		}
 
 		groupInfo := ActiveGroupInfo{
 			Name:         groupName,
 			Type:         groupType,
 			StudentCount: studentCount,
+			MaxCapacity:  limit,
 			Location:     location,
 			Status:       "active",
 		}
@@ -520,6 +529,16 @@ func buildActiveGroupsSummary(activeGroups []*ports.ActiveGroup, activityGroupsB
 	}
 
 	return summary
+}
+
+// sessionParticipantLimit is the limit of the session's activity; nil for a
+// spontaneous session or an activity without one.
+func sessionParticipantLimit(group *ports.ActiveGroup, activityGroupsByID map[int64]*ports.SessionActivity) *int {
+	templateID, ok := group.TemplateID()
+	if !ok || activityGroupsByID[templateID] == nil {
+		return nil
+	}
+	return activityGroupsByID[templateID].ParticipantLimit()
 }
 
 // resolveGroupName gets the display name for a group via the pre-loaded

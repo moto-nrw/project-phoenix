@@ -561,6 +561,38 @@ describe("AdminEnrollmentPhaseDetail", () => {
     );
   });
 
+  it("keeps the table when a quick decision is refused (#3570)", async () => {
+    const message =
+      "Das Kinderkontingent Ihrer Schule ist voll. Die Kontingentzahl beträgt 115 von 115 Kindern. Für weitere Kinder melden Sie sich bitte beim moto-Team.";
+    mocks.decideAdminChild.mockRejectedValue(new Error(message));
+    await renderPhase();
+
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+    await waitFor(() => {
+      expect(mocks.toastError).toHaveBeenCalledWith(message);
+    });
+    expect(screen.getByRole("button", { name: "Bestätigen" })).toBeVisible();
+  });
+
+  it("marks the row of a renewal the Kinderkontingent held back (#3570)", async () => {
+    mocks.listAdminRequests.mockResolvedValue(
+      requests.map((request) => ({
+        ...request,
+        children: request.children.map((child) =>
+          child.id === "20"
+            ? { ...child, review_reason: "child_quota_reached" }
+            : child,
+        ),
+      })),
+    );
+    await renderPhase();
+
+    expect(
+      await screen.findAllByText("Wegen Kinderkontingent offen"),
+    ).toHaveLength(1);
+  });
+
   it("warns before a quick approval in an optional phase without an offering", async () => {
     mocks.getCareUsageReport.mockResolvedValue(
       report({

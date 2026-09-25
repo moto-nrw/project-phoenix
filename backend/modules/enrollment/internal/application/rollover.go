@@ -31,6 +31,7 @@ type (
 		ChildrenByID(context.Context, []int64) ([]*enrollment.RequestChild, error)
 		ChildrenByPhaseStatuses(context.Context, int64, []string) ([]*enrollment.RequestChild, error)
 		ReviewRolloverChild(context.Context, int64, string, *string, *int16, int64) error
+		HoldAutoRenewedChild(context.Context, int64, string) (bool, error)
 		TransitionPhaseChildren(context.Context, int64, string, string) (int, error)
 	}
 	// RolloverCatalogCloner copies a phase's care-offering catalog into the

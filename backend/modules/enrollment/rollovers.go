@@ -50,6 +50,9 @@ type DeadlineWorkerSummary struct {
 	AutoRenewedToApproved     int // populated only on rollover_auto_approve=true phases
 	PendingRenewalToWithdrawn int
 	AutoApproveErrors         int
+	// AutoApproveChildQuotaHeld counts renewals the automatic approval
+	// skipped because they would exceed the Kinderkontingent (#3570).
+	AutoApproveChildQuotaHeld int
 }
 
 // CreatePhaseFromSourceRequest is the admin-facing input for the

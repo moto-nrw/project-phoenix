@@ -72,25 +72,61 @@ func TestValidateServeConfig_RejectsRandomJWTSecret(t *testing.T) {
 	assert.Contains(t, err.Error(), "AUTH_JWT_SECRET=random")
 }
 
-func TestValidateServeConfig_SentryDSNRequiresEnvironment(t *testing.T) {
+// #3638: the Sentry environment is APP_ENV. With a DSN set, only the four
+// reporting environments may start; test, dev and local need an empty DSN.
+func TestValidateServeConfig_SentryDSNRejectsUnknownAppEnv(t *testing.T) {
 	t.Parallel()
-	config := validServeConfig()
-	config.SentryDSN = "https://example@sentry.io/123"
+	for _, appEnv := range []string{"test", "dev", "local", "prod"} {
+		t.Run(appEnv, func(t *testing.T) {
+			t.Parallel()
+			config := validServeConfig()
+			config.AppEnv = appEnv
+			config.SentryDSN = "https://example@sentry.io/123"
+			config.SentryPyrePortalDSN = "https://kiosk@sentry.io/456"
 
-	err := validateServeConfig(config)
+			err := validateServeConfig(config)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "SENTRY_ENVIRONMENT")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), `APP_ENV="`+appEnv+`"`)
+			assert.Contains(t, err.Error(), "production, staging, demo, development")
+		})
+	}
 }
 
-func TestValidateServeConfig_SentryEnvironmentPasses(t *testing.T) {
+func TestValidateServeConfig_WithoutSentryDSNAllowsLocalAppEnv(t *testing.T) {
+	t.Parallel()
+	for _, appEnv := range []string{"dev", "local"} {
+		config := validServeConfig()
+		config.AppEnv = appEnv
+
+		require.NoError(t, validateServeConfig(config), appEnv)
+	}
+}
+
+func TestValidateServeConfig_SentryDSNAcceptsReportingAppEnv(t *testing.T) {
+	t.Parallel()
+	for _, appEnv := range []string{"production", "staging", "demo", "development"} {
+		config := validServeConfig()
+		config.AppEnv = appEnv
+		config.SentryDSN = "https://example@sentry.io/123"
+		config.SentryPyrePortalDSN = "https://kiosk@sentry.io/456"
+
+		require.NoError(t, validateServeConfig(config), appEnv)
+	}
+}
+
+func TestSentryClientOptions_UsesAppEnvAsEnvironment(t *testing.T) {
 	t.Parallel()
 	config := validServeConfig()
-	config.SentryDSN = "https://example@sentry.io/123"
-	config.SentryEnvironment = "staging"
-	config.SentryPyrePortalDSN = "https://kiosk@sentry.io/456"
+	config.AppEnv = "demo"
+	config.SentryDSN = " https://example@sentry.io/123 "
 
-	require.NoError(t, validateServeConfig(config))
+	options := sentryClientOptions(config)
+
+	assert.Equal(t, "demo", options.Environment)
+	assert.Equal(t, "https://example@sentry.io/123", options.Dsn)
+	assert.Equal(t, release, options.Release)
+	require.NotNil(t, options.BeforeSend)
 }
 
 // #3645: a backend that reports to Sentry relays the kiosks' reports too, so
@@ -98,8 +134,8 @@ func TestValidateServeConfig_SentryEnvironmentPasses(t *testing.T) {
 func TestValidateServeConfig_SentryDSNRequiresPyrePortalDSN(t *testing.T) {
 	t.Parallel()
 	config := validServeConfig()
+	config.AppEnv = "staging"
 	config.SentryDSN = "https://example@sentry.io/123"
-	config.SentryEnvironment = "staging"
 
 	err := validateServeConfig(config)
 
@@ -164,6 +200,30 @@ func TestScrubSentryEvent_RedactsFeedTokens(t *testing.T) {
 	if url, ok := scrubbed.Breadcrumbs[0].Data["url"].(string); ok {
 		assert.NotContains(t, url, requestToken)
 	}
+}
+
+// Issue #3640: background failures carry error texts, and a mail server's
+// rejection names the recipient. No e-mail address may reach Sentry.
+func TestScrubSentryEvent_RedactsEmailAddresses(t *testing.T) {
+	t.Parallel()
+	const address = "parent.name+ogs@example-school.de"
+	event := &sentry.Event{
+		Message:   "delivery to " + address + " failed",
+		Exception: []sentry.Exception{{Value: "550 5.1.1 <" + address + ">: Recipient address rejected"}},
+		Breadcrumbs: []*sentry.Breadcrumb{{
+			Message: "email send attempt failed",
+			Data:    map[string]any{"error": "rcpt " + address + " refused", "attempt": 2},
+		}},
+	}
+
+	scrubbed := scrubSentryEvent(event)
+
+	assert.NotContains(t, scrubbed.Message, address)
+	require.Len(t, scrubbed.Exception, 1)
+	assert.Equal(t, "550 5.1.1 <[email]>: Recipient address rejected", scrubbed.Exception[0].Value)
+	require.Len(t, scrubbed.Breadcrumbs, 1)
+	assert.Equal(t, "rcpt [email] refused", scrubbed.Breadcrumbs[0].Data["error"])
+	assert.Equal(t, 2, scrubbed.Breadcrumbs[0].Data["attempt"])
 }
 
 func validServeConfig() serveConfig {

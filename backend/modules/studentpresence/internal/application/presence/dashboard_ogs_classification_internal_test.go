@@ -200,7 +200,7 @@ func TestBuildActiveGroupsSummaryLabelsCollidingSessionAsActivity(t *testing.T) 
 		activeSession(1002, &care, 502),
 	}
 
-	summary := buildActiveGroupsSummary(sessions, templates, emptyRoomData())
+	summary := buildActiveGroupsSummary(sessions, templates, emptyRoomData(), nil)
 	require.Len(t, summary, 2)
 
 	assert.Equal(t, "Fußball", summary[0].Name)

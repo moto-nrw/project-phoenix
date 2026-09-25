@@ -145,6 +145,10 @@ func (f *fakeSettingsResolver) SessionInactivityTimeoutMinutes(context.Context) 
 	return 0, nil
 }
 
+func (f *fakeSettingsResolver) WebParticipantLimitEnforced(context.Context) (bool, error) {
+	return false, nil
+}
+
 // registryDefaultSettings answers both clear-mode questions with the value an
 // unconfigured tenant gets: a sick note ends at the next check-in, an excuse
 // at the end of the day. That the registry declares these defaults is asserted
