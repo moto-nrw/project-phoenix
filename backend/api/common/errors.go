@@ -130,6 +130,23 @@ func ErrorInvalidRequest(err error) render.Renderer {
 	return newErrResponse(http.StatusBadRequest, err)
 }
 
+// CodeCompanionLockBusy marks the retriable 409 raised when a linked child's
+// row is held by a concurrent edit. It exists because the student PUT answers
+// 409 for two very different reasons, and only this one has nothing for the
+// user to confirm — the client keys its "Ergänzen?" question off the ABSENCE of
+// this code (and off the conflicts list the other 409 carries). Every flow that
+// rewrites a departure plan answers with it, so it lives with the shared
+// renderers rather than with one route.
+const CodeCompanionLockBusy = "companion_lock_busy"
+
+// CodeCompanionWouldLoseDeparture marks the 400 raised when removing a link
+// would leave the OTHER child with an accompanied departure plan and no way to
+// say who it walks home with. The client keys the user-actionable German
+// message off this code: the save paths reduce a failed student PUT to a
+// generic "Fehler beim Speichern", which hides the one instruction that lets
+// the user get out of the refusal (fix that child's Heimweg first).
+const CodeCompanionWouldLoseDeparture = "companion_would_lose_departure"
+
 // ErrorInvalidRequestWithCode returns a 400 Bad Request with a stable
 // error code so the frontend can map to a localized German message
 // without parsing the free-form error string.

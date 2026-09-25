@@ -54,8 +54,8 @@
       "backend/modules/careplan/contracttest/offering_change_request_service_test.go",
       "backend/modules/careplan/contracttest/offering_change_request_automatic_test.go",
       "backend/modules/careplan/contracttest/offering_change_full_withdrawal_test.go",
-      "backend/api/students/pickup_adjustment_handlers_test.go",
-      "backend/api/students/offering_request_review_handlers_test.go"
+      "backend/modules/peopledirectory/inbound/students/pickup_adjustment_handlers_test.go",
+      "backend/modules/peopledirectory/inbound/students/offering_request_review_handlers_test.go"
     ],
     "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
     "thresholds": "The suites pass, the ported suites keep their assertions, and the architecture check reports no new violation and no stale baseline entry.",

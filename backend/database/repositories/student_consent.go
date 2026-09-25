@@ -107,10 +107,45 @@ func (s *StudentConsents) RecordTransitions(
 	actorAccountID *int64,
 	changedAt time.Time,
 ) error {
+	if after == nil || after.ID <= 0 {
+		if s.trail == nil {
+			return fmt.Errorf("student consent recorder: repository not wired")
+		}
+		return fmt.Errorf("student consent recorder: persisted student is required")
+	}
+	var beforeSnapshot peopleModule.StudentConsentSnapshot
+	if before != nil {
+		beforeSnapshot = studentConsentSnapshot(before)
+	}
+	return s.RecordStudentConsentTransitions(ctx, beforeSnapshot, studentConsentSnapshot(after), source, actorAccountID, changedAt)
+}
+
+// CurrentStudentConsents resolves the four consent states of a child the
+// caller already read, in the owner's projection.
+func (s *StudentConsents) CurrentStudentConsents(
+	ctx context.Context,
+	snapshot peopleModule.StudentConsentSnapshot,
+	canManagePhoto bool,
+) ([]peopleModule.StudentConsentState, error) {
+	if snapshot.StudentID <= 0 {
+		return nil, fmt.Errorf("student consent reader: persisted student is required")
+	}
+	return s.directory.CurrentStudentConsents(ctx, snapshot, canManagePhoto)
+}
+
+// RecordStudentConsentTransitions is RecordTransitions over the owner's
+// consent snapshots: one trail entry per consent timestamp that moved.
+func (s *StudentConsents) RecordStudentConsentTransitions(
+	ctx context.Context,
+	before, after peopleModule.StudentConsentSnapshot,
+	source string,
+	actorAccountID *int64,
+	changedAt time.Time,
+) error {
 	if s.trail == nil {
 		return fmt.Errorf("student consent recorder: repository not wired")
 	}
-	if after == nil || after.ID <= 0 {
+	if after.StudentID <= 0 {
 		return fmt.Errorf("student consent recorder: persisted student is required")
 	}
 	for _, field := range consentFields(before, after) {
@@ -128,7 +163,7 @@ func (s *StudentConsents) RecordTransitions(
 				CreatedAt: eventTime,
 				UpdatedAt: eventTime,
 			},
-			StudentID:      after.ID,
+			StudentID:      after.StudentID,
 			ConsentKey:     field.key,
 			Action:         action,
 			Source:         source,
@@ -141,19 +176,12 @@ func (s *StudentConsents) RecordTransitions(
 	return nil
 }
 
-func consentFields(before, after *userModels.Student) []studentConsentField {
-	var beforeAGB, beforeDataProcessing, beforeEmail, beforePhoto *time.Time
-	if before != nil {
-		beforeAGB = before.AGBAcceptedAt
-		beforeDataProcessing = before.DataProcessingAcceptedAt
-		beforeEmail = before.EmailContactAcceptedAt
-		beforePhoto = before.PhotoConsentGivenAt
-	}
+func consentFields(before, after peopleModule.StudentConsentSnapshot) []studentConsentField {
 	return []studentConsentField{
-		{key: auditModels.StudentConsentAGB, before: beforeAGB, after: after.AGBAcceptedAt},
-		{key: auditModels.StudentConsentDataProcessing, before: beforeDataProcessing, after: after.DataProcessingAcceptedAt},
-		{key: auditModels.StudentConsentEmailContact, before: beforeEmail, after: after.EmailContactAcceptedAt},
-		{key: auditModels.StudentConsentPhoto, before: beforePhoto, after: after.PhotoConsentGivenAt},
+		{key: auditModels.StudentConsentAGB, before: before.AGBAcceptedAt, after: after.AGBAcceptedAt},
+		{key: auditModels.StudentConsentDataProcessing, before: before.DataProcessingAcceptedAt, after: after.DataProcessingAcceptedAt},
+		{key: auditModels.StudentConsentEmailContact, before: before.EmailContactAcceptedAt, after: after.EmailContactAcceptedAt},
+		{key: auditModels.StudentConsentPhoto, before: before.PhotoConsentGivenAt, after: after.PhotoConsentGivenAt},
 	}
 }
 

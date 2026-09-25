@@ -39,7 +39,6 @@ import (
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
-	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
 	"github.com/moto-nrw/project-phoenix/database"
@@ -92,6 +91,7 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
+	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	schoolCalendarModule "github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
@@ -1380,19 +1380,19 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		return fmt.Errorf("request review projection: %w", err)
 	}
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
-		PersonService:                api.Services.Users,
 		PeopleDirectory:              api.Services.PeopleDirectory,
-		StudentService:               api.Services.Students.Directory,
+		Persons:                      services.NewStudentRoutePersons(api.Services.Users),
 		CompanionService:             api.Services.Students.Companions,
 		ClassListEntries:             classListEntryStudentsReader{entries: api.membership},
 		ChildQuota:                   childQuotaStudentsReader{usages: api.membership},
 		StudentDeletion:              api.Services.StudentDeletion,
 		CareLifecycleService:         api.Services.CareLifecycle,
-		StudentAuditService:          api.Services.StudentAudit,
+		StudentAuditService:          api.Services.PeopleDirectory,
 		SchoolGroups:                 studentSchoolGroups{Service: api.Services.Education},
 		UserContextService:           api.Services.UserContext,
 		ActiveService:                api.Services.Active,
 		DeviceAuthenticator:          deviceAuth.Device(),
+		AuthenticatedDevice:          deviceauth.DeviceID,
 		PickupScheduleService:        api.Services.PickupSchedule,
 		WeekdayPickupNotes:           modules.repositories.CarePlan(),
 		PartialAbsenceService:        api.Services.PartialAbsence,
@@ -1425,13 +1425,12 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Broadcaster:                  api.Services.RealtimeHub,
 		ParentEventEmitter:           api.Services.ParentEventEmitter,
 		AbsenceNotifier:              api.Services.AbsenceNotifier,
-		StudentPhotos:                api.Services.StudentPhotos,
+		StudentPhotos:                api.Services.PeopleDirectory,
 		StudentConsents:              api.Services.StudentConsents,
 		PrivacyConsents:              presence,
 		StudentDocumentService:       api.Services.StudentDocuments,
 		ListExportService:            lists.NewRenderer(),
 		Logger:                       logger.With("handler", "students"),
-		DB:                           db,
 	})
 	api.Statistics = statisticsAPI.NewResource(api.Services.Statistics, api.Services.ListExport, db, logger.With("handler", "statistics"))
 	api.Messaging = messagingAPI.NewResource(api.Services.Messaging, db)

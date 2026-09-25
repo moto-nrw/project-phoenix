@@ -32,3 +32,16 @@ func CanModifyStudent(ctx context.Context, granted []string, student interface{ 
 	allowed, _ := authorize.CanModifyStudent(ctx, granted, student, userCtx, "modify")
 	return allowed
 }
+
+// CanUpdateStudent is CanModifyStudent for an update, with the refusal the
+// caller renders as its 403 reason ("only staff members can update student
+// data", ...).
+func CanUpdateStudent(ctx context.Context, granted []string, student interface{ IsAuthorizationStudent() bool }, userCtx StudentAccessUserContext) (bool, error) {
+	return authorize.CanUpdateStudent(ctx, granted, student, userCtx)
+}
+
+// CanDeleteStudent is CanModifyStudent for a deletion, with the refusal the
+// caller renders as its 403 reason.
+func CanDeleteStudent(ctx context.Context, granted []string, student interface{ IsAuthorizationStudent() bool }, userCtx StudentAccessUserContext) (bool, error) {
+	return authorize.CanDeleteStudent(ctx, granted, student, userCtx)
+}

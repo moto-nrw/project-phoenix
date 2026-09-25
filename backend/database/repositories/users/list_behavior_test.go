@@ -6,6 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,7 @@ func TestStudentClassRosterHydratesOrdersAndReturnsNilWhenEmpty(t *testing.T) {
 	hydrated := &userModels.Student{
 		PersonID:    person.ID,
 		SchoolClass: class,
-		BusDays:     userModels.BusDaysFromLegacyFlag(true),
+		BusDays:     departure.BusDaysFromLegacyFlag(true),
 	}
 	require.NoError(t, repo.Create(ctx, hydrated))
 	second := testpkg.CreateTestStudent(t, db, "Student list", "Second", class)

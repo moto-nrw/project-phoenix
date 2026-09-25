@@ -262,6 +262,59 @@ four export paths render byte for byte what they did; the root binds its
 `document-rendering.contract.list-renderer`) are anchored to that new
 contract point. 19 `api/students` keys are gone (463 → 444).
 
+#2731 closed the carrier of `api/students`: its 37 remaining keys, the
+root's `api -> api/students` key (#2750) and `api/enrollment -> api/students`
+(#2734) are gone, and with the list snapshot that moved from `api/common`
+into the routes three #2738 model keys of `api/common` fell too
+(444 -> 402). No route path, status code, error body,
+middleware chain or authorization check changed; the route and middleware
+goldens are byte-identical.
+
+- The routes moved file for file to `modules/peopledirectory/inbound/students`
+  (package `students`), classified `people-directory`/`http` with
+  `adapter-test` for both test roles. PR mode rejects an owner change of an
+  existing path and a new permission on the existing `inbound-students`/`http`
+  point, so the `inbound-students` owner is deleted with its package entry and
+  its rules moved to the new point, like #2732's timetable routes. The new
+  point's other target dependencies are the ones the other owners' HTTP
+  adapters hold: `api/common`, the session token adapter (ADR 0031, also for
+  the adapter tests), the permission registry, the public contracts of
+  Security Runtime and Settings Platform, the tenant runtime, the shared value
+  helpers of `legacy-shared`, the Delivery Platform broadcaster and People
+  Directory's own `departure` contract.
+- A child is read and written through People Directory's public capability.
+  The routes carry it as their own `Student` view over
+  `peopledirectory.StudentRecord` (`student_record.go`), with the same
+  translation the retained `database/repositories` seams applied, so the
+  departure-plan baseline, the companion refusals and the not-found shapes the
+  handlers branch on are unchanged. The change history, the photo lifecycle
+  and the consent projection are consumer-owned ports in the owner's types,
+  bound to the People Directory capability; the Audit Platform consent trail
+  takes snapshots (`repositories.StudentConsents.RecordStudentConsentTransitions`).
+- The person half the retained person service still decides (person writes
+  with their account and RFID-card checks, the student-aware bracelet
+  assignment, the dated day-log roster, the staff member behind a person) is
+  the `PersonRecords` port, bound over that service by
+  `services.NewStudentRoutePersons`. The group teachers the detail lists are
+  plain `GroupTeacher` values. The companion sentinels and the companion link
+  helpers moved to the `departure` contract; `models/users` aliases them, so
+  every `errors.Is` keeps matching.
+- `bun`, `*bun.DB` and `database/sql` left the package: the handler
+  transactions join the request's through `tenant.WithinTenant`, and the device
+  routes read the kiosk through the Device Fleet authenticator's `DeviceID`.
+  The school-class grammar and the weekday names are local copies, the RFID
+  request type is declared next to its route, and `auth/authorize` became the
+  Security Runtime capability. `api/enrollment` renders the two shared
+  companion codes from `api/common`.
+- The route suites compose the owner through
+  `services/student_http_test_helpers.go` behind `api/testutil` and import
+  neither repositories nor retained models or services.
+- The move put the handlers under the module ratchets (Rule 16): `Router` and
+  eleven handlers were split into named steps and five files fell below 800
+  lines. No allowlist entry was added.
+- The named File Storage adapter exception stays (see below), re-anchored and
+  now tracked by #2706.
+
 #2762 cut the execution and the attendance of a block over to Student
 Presence (migration 1.15.415, one release with the caller switch). Timetable
 & Activities keeps the plan in `schedule.activity_instances` and
@@ -2350,9 +2403,13 @@ permissions are the inbound target shape. The
 package existed before the move and imported the old path as debt under
 #2731, which PR mode cannot carry over to the new target. It is a
 [named exception](https://github.com/moto-nrw/project-phoenix/issues/2580#issuecomment-5638973300)
-to rule 5 of `backend/CLAUDE.md`, still tracked by #2731; it goes when the
-student document handlers move to the public File Storage capability, and no
-new caller may rely on it. The file store handlers' equivalent exception went
+to rule 5 of `backend/CLAUDE.md`. #2731 re-anchored it on the People
+Directory student routes as `people-directory.http.file-storage-adapter`
+without widening it: the public File Storage capability offers no child
+document storage, and adding it is capability work a Contract step may not
+do. It is tracked by #2706 with the rest of the document coordinator's debt;
+it goes when the student document handlers move to the public File Storage
+capability, and no new caller may rely on it. The file store handlers' equivalent exception went
 with #2707. The generic file-metadata repository
 (`database/repositories/documents`) and model (`models/documents`) keep their
 five `document-rendering` debt entries under #2706: their tables belong to
