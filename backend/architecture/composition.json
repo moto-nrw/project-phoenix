@@ -20918,12 +20918,12 @@
         },
         {
           "file": "services/factory.go",
-          "line": 453,
+          "line": 447,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 503,
+          "line": 497,
           "declaration": "newFactory"
         },
         {
