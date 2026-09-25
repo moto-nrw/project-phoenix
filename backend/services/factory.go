@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
 	"github.com/moto-nrw/project-phoenix/analytics"
@@ -235,10 +237,10 @@ type Factory struct {
 	StudentDeletion      *studentdeletion.Workflow
 	CareLifecycle        careplan.CareLifecycle
 	StudentAudit         users.StudentAuditService
-	MasterDataReview     users.MasterDataReviewService
+	MasterDataReview     masterdatarequests.Decisions
 	CareRequests         carerequests.Service
 	ExcusedRequests      careplan.ExcusedAbsenceRequests
-	ParentRequests       *users.ParentRequestCoordinator
+	ParentRequests       parentrequests.Coordinator
 	// RequestReviewPolicy is the one cross-domain decision about WHO may see
 	// and decide parent requests. The API layer reads it to explain an empty
 	// queue; the four request services enforce it per child.
@@ -2179,7 +2181,7 @@ func newFactory(
 	// One append-only ledger for every parent request, shared by all four
 	// domains so a request's history survives edits, decisions and corrections
 	// the request rows themselves overwrite (#2267).
-	parentRequestEvents := users.NewParentRequestEventRecorder(repos.ParentRequestEvent)
+	parentRequestEvents := repos.ParentRequestEvent
 
 	// The sharing rules live in the parents domain, which is composed after the
 	// request services it serves, so the sharing port resolves that service
@@ -2750,58 +2752,46 @@ func newFactory(
 		AttendanceCorrections: attendanceCorrections,
 		Deviations:            staffDeviations,
 	}
-	masterDataReviewService := users.NewMasterDataReviewServiceWithAuditAndPolicy(authjwt.PermissionsFromCtx,
-		repos.StudentDataChangeRequest,
-		repos.Student,
-		repos.Person,
-		userContextService,
-		pillEmitter,
-		studentAuditService,
-		requestReviewPolicy,
-		parentRequestEvents,
-		logger.With("service", "master-data-review"),
-		realtimeHub,
-	)
-	// Co-guardian notices (#2267, story 47). A staff decision on one parent.s
-	// request tells the OTHER guardians that the child.s care changed. Whoever
+	// Stammdaten decisions (#3354) are Care Plan's: the request, the decision,
+	// the correction and the co-guardian notice. People Directory keeps the
+	// child's record and its change history behind the decision's records
+	// port; the review scope is the one the Stammdaten queue is listed with.
+	masterDataDecisions, err := newMasterDataDecisions(masterDataDecisionWiring{
+		carePlan: repos.CarePlan(), fields: persons, students: repos.Student, persons: repos.Person,
+		audit: studentAuditService, scope: parentRequestWriteScope(requestReviewPolicy),
+		emitter: pillEmitter, broadcaster: realtimeHub, events: parentRequestEvents, shares: requestShares,
+		logger: logger.With("service", "master-data-review"), today: today,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose master data decisions: %w", err)
+	}
+	// Co-guardian notices (#2267, story 47). A staff decision on one parent's
+	// request tells the OTHER guardians that the child's care changed. Whoever
 	// the parent explicitly shared the request with gets the full pill; every
 	// other guardian gets a neutral line with no reason and no author.
 	//
-	// Bound deliberately AFTER the request services and parentService exist:
-	// the sharing rules live in the parents domain, and the request domains
-	// must not import it just to ask who a request was shared with. The
-	// master-data service takes it by setter; the care, excused and offering
-	// requests read it lazily through requestShares.
+	// The sharing rules live in the parents domain, which is composed after
+	// the request services, and the request domains must not import it just to
+	// ask who a request was shared with. Every request domain reads it lazily
+	// through requestShares, which resolves the parents service bound here.
 	var _ parentmessaging.ShareVisibilityResolver = parentService
 	if resolver, ok := any(parentService).(parentmessaging.ShareVisibilityResolver); ok {
 		requestShareVisibility = resolver
-		for _, service := range []any{
-			masterDataReviewService,
-		} {
-			if sink, ok := service.(interface {
-				SetRequestShareVisibility(parentmessaging.ShareVisibilityResolver)
-			}); ok {
-				sink.SetRequestShareVisibility(resolver)
-			}
-		}
 	}
 
-	excusedCoordinatorPort := excusedRequestCoordinatorPort{requests: excusedRequestService}
-	parentRequestCoordinator := users.NewParentRequestCoordinator(authjwt.PermissionsFromCtx,
-		masterDataReviewService.(users.MasterDataBulkReviewPort),
-		excusedCoordinatorPort,
-	)
-	// Conflict-resolution ports (#2267, stories 6-10) — injected by setter, so
-	// adding a domain to the resolver never rewrites the bulk-approval
-	// constructor above. All five request kinds are wired here or the resolve
-	// route answers conflict_kind_unsupported for the missing one.
-	parentRequestCoordinator.SetMasterDataConflictPort(masterDataReviewService.(users.ParentRequestConflictPort))
-	parentRequestCoordinator.SetExcusedConflictPort(excusedCoordinatorPort)
-	parentRequestCoordinator.SetCareConflictPort(careRequestService.(users.ParentRequestConflictPort))
-	parentRequestCoordinator.SetOfferingConflictPort(offeringChangeConflictPort{changes: offeringChanges})
-	// The resolver records ONLY the staff-entered result. Every verdict it
-	// takes goes through a domain Decide, which writes its own decided event.
-	parentRequestCoordinator.SetEventRecorder(parentRequestEvents)
+	// The cross-kind bulk approval and conflict resolution (#2267, stories
+	// 6-10) coordinate the four request queues. Every queue is bound at
+	// construction, or the resolve route would answer conflict_kind_unsupported
+	// for the missing one. The coordinator records ONLY the staff-entered
+	// result; every verdict it takes goes through a queue's own decision,
+	// which writes its own decided event.
+	parentRequestCoordinator, err := newParentRequestCoordinator(parentRequestCoordinatorWiring{
+		masterData: masterDataDecisions, excused: excusedRequestService, care: careRequestService,
+		offering: offeringChangeConflictPort{changes: offeringChanges}, events: parentRequestEvents,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose parent request coordinator: %w", err)
+	}
 
 	factory = &Factory{
 		settingsRuntimeDB:       db,
@@ -2903,7 +2893,7 @@ func newFactory(
 		CareLifecycle:        careLifecycleService,
 		StudentAudit:         studentAuditService,
 		StudentConsents:      studentConsentService,
-		MasterDataReview:     masterDataReviewService,
+		MasterDataReview:     masterDataDecisions,
 		CareRequests:         careRequestService,
 		ExcusedRequests:      excusedRequestService,
 		ParentRequests:       parentRequestCoordinator,

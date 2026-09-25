@@ -16,42 +16,25 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 func init() { testutil.SeedTestJWTConfig() }
 
 type fakeMasterDataReviewService struct {
-	items       []*userService.MasterDataReviewItem
-	listErr     error
-	decided     *userService.MasterDataReviewItem
-	decideErr   error
-	gotInput    userService.MasterDataReviewDecideInput
-	history     []*userService.MasterDataHistoryItem
-	historyNext *userService.HistoryCursor
-	historyErr  error
-	gotBefore   time.Time
-	gotBeforeID int64
-	gotLimit    int
+	decided   *masterdatarequests.ReviewItem
+	decideErr error
+	gotInput  masterdatarequests.DecideInput
 }
 
-func (f *fakeMasterDataReviewService) ListHistory(_ context.Context, filters modelBase.RequestQueueFilters) ([]*userService.MasterDataHistoryItem, *userService.HistoryCursor, error) {
-	f.gotBefore = filters.BeforeInstant
-	f.gotBeforeID = filters.BeforeID
-	f.gotLimit = filters.Limit
-	return f.history, f.historyNext, f.historyErr
-}
-
-func (f *fakeMasterDataReviewService) ListPending(context.Context, modelBase.RequestQueueFilters) ([]*userService.MasterDataReviewItem, *userService.HistoryCursor, error) {
-	return f.items, nil, f.listErr
-}
-
-func (f *fakeMasterDataReviewService) Decide(_ context.Context, input userService.MasterDataReviewDecideInput) (*userService.MasterDataReviewItem, error) {
+func (f *fakeMasterDataReviewService) Decide(_ context.Context, input masterdatarequests.DecideInput) (*masterdatarequests.ReviewItem, error) {
 	f.gotInput = input
 	return f.decided, f.decideErr
+}
+
+func (*fakeMasterDataReviewService) Correct(context.Context, int64, bool, string, string, int64) error {
+	return nil
 }
 
 func staffRequest(method, path, body string, requestID string) *http.Request {
@@ -64,23 +47,19 @@ func staffRequest(method, path, body string, requestID string) *http.Request {
 	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 }
 
-func reviewItem(status string) *userService.MasterDataReviewItem {
-	return &userService.MasterDataReviewItem{
-		Request:   reviewRow(status),
+func reviewItem(status string) *masterdatarequests.ReviewItem {
+	return &masterdatarequests.ReviewItem{
+		Request: &masterdatarequests.Request{
+			ID: 100, CreatedAt: time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC),
+			StudentID: 42,
+			Target:    masterdatarequests.TargetPerson,
+			FieldKey:  "first_name",
+			OldValue:  json.RawMessage(`"Lara"`),
+			NewValue:  json.RawMessage(`"Lea"`),
+			Status:    status,
+		},
 		FirstName: "Lara",
 		LastName:  "Beispiel",
-	}
-}
-
-func reviewRow(status string) *usersModels.StudentDataChangeRequest {
-	return &usersModels.StudentDataChangeRequest{
-		Model:     modelBase.Model{ID: 100, CreatedAt: time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)},
-		StudentID: 42,
-		Target:    usersModels.DataChangeTargetPerson,
-		FieldKey:  "first_name",
-		OldValue:  json.RawMessage(`"Lara"`),
-		NewValue:  json.RawMessage(`"Lea"`),
-		Status:    status,
 	}
 }
 
@@ -105,7 +84,7 @@ func TestMasterDataChangeRequestRoutesRequireUsersUpdate(t *testing.T) {
 func TestDecideMasterDataChangeRequest_ForwardsDecisionAndReviewer(t *testing.T) {
 	t.Parallel()
 
-	svc := &fakeMasterDataReviewService{decided: reviewItem(usersModels.DataChangeStatusApproved)}
+	svc := &fakeMasterDataReviewService{decided: reviewItem(masterdatarequests.StatusApproved)}
 	rs := &Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: svc}}
 	req := staffRequest(
 		http.MethodPost,
@@ -157,10 +136,10 @@ func TestDecideMasterDataChangeRequest_MapsServiceErrors(t *testing.T) {
 		want int
 		code string
 	}{
-		{name: "not found", err: userService.ErrReviewNotFound, want: http.StatusNotFound},
-		{name: "not pending", err: userService.ErrReviewNotPending, want: http.StatusConflict, code: "change_request_not_pending"},
-		{name: "stale", err: userService.ErrReviewStaleValue, want: http.StatusConflict, code: "change_request_stale"},
-		{name: "invalid target", err: userService.ErrReviewInvalidTarget, want: http.StatusBadRequest},
+		{name: "not found", err: masterdatarequests.ErrReviewNotFound, want: http.StatusNotFound},
+		{name: "not pending", err: masterdatarequests.ErrReviewNotPending, want: http.StatusConflict, code: "change_request_not_pending"},
+		{name: "stale", err: masterdatarequests.ErrReviewStaleValue, want: http.StatusConflict, code: "change_request_stale"},
+		{name: "invalid target", err: masterdatarequests.ErrReviewInvalidTarget, want: http.StatusBadRequest},
 		{name: "internal", err: errors.New("boom"), want: http.StatusInternalServerError},
 	}
 

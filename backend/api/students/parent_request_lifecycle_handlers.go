@@ -10,8 +10,8 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -82,7 +82,7 @@ func (rs *Resource) markParentRequestDone(w http.ResponseWriter, r *http.Request
 	if service == nil {
 		// The type has no effective scope, so it is never past. Answering the
 		// same code a future request gets keeps the client's branch single.
-		renderError(w, r, parentRequestLifecycleErrorRenderer(userService.ErrParentRequestNotPast))
+		renderError(w, r, parentRequestLifecycleErrorRenderer(parentrequests.ErrNotPast))
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())

@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // lifecycleExcusedFake records the arguments the route forwards and returns a
@@ -132,8 +132,8 @@ func TestMarkParentRequestDone_MapsLifecycleSentinels(t *testing.T) {
 		code string
 		want int
 	}{
-		{"stale version", userService.ErrParentRequestStale, "change_request_stale", http.StatusConflict},
-		{"still in the future", userService.ErrParentRequestNotPast, "request_not_past", http.StatusConflict},
+		{"stale version", parentrequests.ErrStale, "change_request_stale", http.StatusConflict},
+		{"still in the future", parentrequests.ErrNotPast, "request_not_past", http.StatusConflict},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -202,7 +202,7 @@ func TestCorrectParentRequestDecision_UnsupportedKindsNameTheReason(t *testing.T
 func TestCorrectParentRequestDecision_MapsNotDecided(t *testing.T) {
 	t.Parallel()
 
-	fake := &lifecycleExcusedFake{correctErr: userService.ErrParentRequestNotDecided}
+	fake := &lifecycleExcusedFake{correctErr: parentrequests.ErrNotDecided}
 	rs := NewResource(ResourceConfig{ExcusedRequestService: fake})
 	rr := httptest.NewRecorder()
 	rs.correctParentRequestDecision(rr, lifecycleRequest(t, "excused", "7", `{"approve":true}`))
