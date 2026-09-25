@@ -145,7 +145,9 @@ requests at once (default 16, above the pool of 12 connections that
 
 Each operation lists the statuses the owners document for the race it can
 lose (404 once the child is gone, 409 for a changed preview or companion
-list); any other status fails the run after the report is written. A round's
+list). Any other status fails the run: in a warmup round at once, in a
+measured round after the report is written. The concurrency must be at least
+six, one slot per operation. A round's
 leftovers are deleted outside measurement. The report's `concurrent_runs`
 carry, per run, the concurrency, the pool size, per-request latency, queries
 and statuses, the pool waits of the measured rounds (`sql.DBStats` deltas),

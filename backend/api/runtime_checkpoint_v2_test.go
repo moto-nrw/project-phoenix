@@ -84,6 +84,9 @@ type targetRiskWorkload struct {
 	// removes real bookings and the removal sets carry rows.
 	bookedActivities []int64
 
+	owned        map[string]bool
+	slotCounters []*testpkg.QueryCounter
+
 	decided, deleted, staffClocks, careEnded int
 }
 
@@ -322,13 +325,16 @@ const (
 
 // owns reports whether the scenario is one of this workload's additions;
 // the checkpoint-1-v1 scenarios keep their own token and tenant.
+// The set is built once: owns runs inside the timed window of every
+// scenario, the checkpoint-1-v1 ones included.
 func (w *targetRiskWorkload) owns(scenario checkpointScenario) bool {
-	for _, own := range w.scenarios() {
-		if own.Name == scenario.Name {
-			return true
+	if w.owned == nil {
+		w.owned = map[string]bool{}
+		for _, own := range w.scenarios() {
+			w.owned[own.Name] = true
 		}
 	}
-	return false
+	return w.owned[scenario.Name]
 }
 
 func (w *targetRiskWorkload) scenarios() []checkpointScenario {
@@ -626,9 +632,9 @@ func contentionOperations() []*checkpointConcurrentOperation {
 // work retries are measured over the measured rounds only.
 func (w *targetRiskWorkload) measureContention(t *testing.T, production *Runtime, concurrency int) checkpointConcurrentRun {
 	t.Helper()
-	require.GreaterOrEqual(t, concurrency, 2, "the contention run needs the deletion and at least one other writer")
-	api := production.api
 	operations := contentionOperations()
+	require.GreaterOrEqual(t, concurrency, len(operations), "every contention operation needs at least one slot per round")
+	api := production.api
 	slots := make([]*checkpointConcurrentOperation, concurrency)
 	for i := range slots {
 		index := i
@@ -638,10 +644,12 @@ func (w *targetRiskWorkload) measureContention(t *testing.T, production *Runtime
 		slots[i] = operations[index]
 		slots[i].Slots++
 	}
-	counters := make([]*testpkg.QueryCounter, concurrency)
-	for i := range counters {
-		counters[i] = testpkg.CaptureQueriesForContext(t, api.db)
+	// bun never removes a query hook, so the scoped counters are created once
+	// and reused by every contention run instead of piling up per run.
+	for len(w.slotCounters) < concurrency {
+		w.slotCounters = append(w.slotCounters, testpkg.CaptureQueriesForContext(t, api.db))
 	}
+	counters := w.slotCounters[:concurrency]
 	run := checkpointConcurrentRun{Name: "contention.student-graph", Concurrency: concurrency, PoolMaxOpen: api.db.Stats().MaxOpenConnections, WarmupRounds: 5, MeasuredRounds: 30, Operations: operations}
 	deadlocks := func() int64 {
 		var count int64
