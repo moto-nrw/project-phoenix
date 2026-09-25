@@ -12,6 +12,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -40,7 +41,7 @@ type offeringChangeInputs struct {
 	Bookings    careplan.BookingMaterializationCapability
 	Reviews     offeringChangeReviewPolicy
 	Emitter     *parentmessaging.Emitter
-	Events      users.ParentRequestEventRecorder
+	Events      usersModels.ParentRequestEventRepository
 	Shares      carePlanCompose.ShareVisibility
 	Today       func() calendar.Date
 	Logger      *slog.Logger
@@ -56,7 +57,7 @@ func newOfferingChanges(inputs offeringChangeInputs) (careplan.OfferingChangeCap
 	}
 	var ledger carePlanCompose.RequestLedger
 	if inputs.Events != nil {
-		ledger = excusedRequestLedger{events: inputs.Events}
+		ledger = newParentRequestLedger(inputs.Events)
 	}
 	var catalog carePlanCompose.OfferingChangeCatalog = inputs.CarePlan
 	if inputs.Catalog != nil {
@@ -132,13 +133,13 @@ func mapOfferingLifecycleError(err error) error {
 	case err == nil:
 		return nil
 	case errors.Is(err, careplan.ErrParentRequestStale):
-		return users.ErrParentRequestStale
+		return parentrequests.ErrStale
 	case errors.Is(err, careplan.ErrParentRequestReasonRequired):
 		return users.ErrParentRequestReasonRequired
 	case errors.Is(err, careplan.ErrParentRequestPast):
-		return users.ErrParentRequestPast
+		return parentrequests.ErrPast
 	case errors.Is(err, careplan.ErrParentRequestNotPast):
-		return users.ErrParentRequestNotPast
+		return parentrequests.ErrNotPast
 	default:
 		return err
 	}
@@ -150,28 +151,28 @@ type offeringChangeConflictPort struct {
 	changes careplan.OfferingChangeConflicts
 }
 
-var _ users.ParentRequestConflictPort = offeringChangeConflictPort{}
+var _ carePlanCompose.ParentRequestConflicts = offeringChangeConflictPort{}
 
-func (p offeringChangeConflictPort) ConflictCandidate(ctx context.Context, requestID int64) (*users.ParentRequestConflictCandidate, error) {
+func (p offeringChangeConflictPort) ConflictCandidate(ctx context.Context, requestID int64) (*carePlanCompose.ConflictCandidate, error) {
 	candidate, err := p.changes.ConflictCandidate(ctx, requestID)
 	if err != nil {
 		return nil, err
 	}
-	return &users.ParentRequestConflictCandidate{StudentID: candidate.StudentID, UpdatedAt: candidate.UpdatedAt}, nil
+	return &carePlanCompose.ConflictCandidate{StudentID: candidate.StudentID, UpdatedAt: candidate.UpdatedAt}, nil
 }
 
 func (p offeringChangeConflictPort) LockConflictRequest(ctx context.Context, requestID int64) error {
 	return p.changes.LockConflictRequest(ctx, requestID)
 }
 
-func (p offeringChangeConflictPort) DecideConflictRequest(ctx context.Context, decision users.ParentRequestConflictDecision) error {
+func (p offeringChangeConflictPort) DecideConflictRequest(ctx context.Context, decision carePlanCompose.ConflictDecision) error {
 	return p.changes.DecideConflictRequest(ctx, careplan.OfferingConflictDecision{
 		RequestID: decision.RequestID, Approve: decision.Approve, Reason: decision.Reason,
 		ReviewerID: decision.ReviewerID, ActorRole: decision.ActorRole, ExpectedVersion: decision.ExpectedVersion,
 	})
 }
 
-func (p offeringChangeConflictPort) WriteStaffValue(ctx context.Context, write users.ParentRequestStaffValueWrite) error {
+func (p offeringChangeConflictPort) WriteStaffValue(ctx context.Context, write carePlanCompose.StaffValueWrite) error {
 	effectiveFrom, selections, err := parseStaffOfferingValue(write.Value)
 	if err != nil {
 		return err

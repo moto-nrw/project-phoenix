@@ -10,6 +10,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -35,7 +37,7 @@ const (
 // Per-route tables prepend their own domain sentinels and then append these,
 // so one sentinel can never render two different codes on two routes.
 var parentRequestSharedRules = []common.ErrorRule{
-	{Target: userService.ErrParentRequestStale, Render: func(err error) render.Renderer {
+	{Target: parentrequests.ErrStale, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, codeChangeRequestStale)
 	}},
 	// The Care Plan excused-absence workflow (#3093) answers with its own
@@ -78,25 +80,33 @@ var parentRequestSharedRules = []common.ErrorRule{
 			codeReasonRequired,
 		)
 	}},
-	{Target: userService.ErrParentRequestPast, Render: func(error) render.Renderer {
+	// The Care Plan Stammdaten decision and the cross-kind commands (#3354)
+	// raise the parent-request contract's reason sentinel.
+	{Target: parentrequests.ErrReasonRequired, Render: func(error) render.Renderer {
+		return common.ErrorInvalidRequestMessageWithCode(
+			"Bitte tragen Sie eine Begründung ein.",
+			codeReasonRequired,
+		)
+	}},
+	{Target: parentrequests.ErrPast, Render: func(error) render.Renderer {
 		return common.ErrorConflictMessageWithCode(
 			"Diese Anfrage betrifft nur vergangene Tage. Sie können sie nur ablehnen oder als erledigt markieren.",
 			codeRequestPast,
 		)
 	}},
-	{Target: userService.ErrParentRequestNotPast, Render: func(error) render.Renderer {
+	{Target: parentrequests.ErrNotPast, Render: func(error) render.Renderer {
 		return common.ErrorConflictMessageWithCode(
 			"Diese Anfrage betrifft noch kommende Tage. Bitte entscheiden Sie sie.",
 			codeRequestNotPast,
 		)
 	}},
-	{Target: userService.ErrParentRequestNotDecided, Render: func(error) render.Renderer {
+	{Target: parentrequests.ErrNotDecided, Render: func(error) render.Renderer {
 		return common.ErrorConflictMessageWithCode(
 			"Diese Anfrage ist noch nicht entschieden. Es gibt nichts zu korrigieren.",
 			codeRequestNotDecided,
 		)
 	}},
-	{Target: userService.ErrParentRequestCorrectionUnsupported, Render: func(err error) render.Renderer {
+	{Target: parentrequests.ErrCorrectionUnsupported, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, codeCorrectionUnsupp)
 	}},
 }
@@ -137,26 +147,26 @@ func isParentRequestMissing(err error) bool {
 	return errors.Is(err, excusedrequests.ErrExcusedRequestNotFound) ||
 		errors.Is(err, carerequests.ErrNotFound) ||
 		errors.Is(err, careplan.ErrOfferingChangeNotFound) ||
-		errors.Is(err, userService.ErrReviewNotFound)
+		errors.Is(err, masterdatarequests.ErrReviewNotFound)
 }
 
 func isParentRequestNotPending(err error) bool {
 	return errors.Is(err, excusedrequests.ErrExcusedRequestNotPending) ||
 		errors.Is(err, carerequests.ErrNotPending) ||
 		errors.Is(err, careplan.ErrOfferingChangeNotPending) ||
-		errors.Is(err, userService.ErrReviewNotPending)
+		errors.Is(err, masterdatarequests.ErrReviewNotPending)
 }
 
 func isParentRequestForbidden(err error) bool {
 	return errors.Is(err, excusedrequests.ErrExcusedRequestForbidden) ||
 		errors.Is(err, carerequests.ErrCareRequestForbidden) ||
 		errors.Is(err, careplan.ErrOfferingChangeForbidden) ||
-		errors.Is(err, userService.ErrReviewForbidden)
+		errors.Is(err, masterdatarequests.ErrReviewForbidden)
 }
 
 // isParentRequestNotDecided matches the union of the domains' "there is no
 // decision here to correct" sentinels.
 func isParentRequestNotDecided(err error) bool {
 	return errors.Is(err, excusedrequests.ErrExcusedRequestNotDecided) || errors.Is(err, excusedrequests.ErrParentRequestNotDecided) ||
-		errors.Is(err, userService.ErrParentRequestNotDecided)
+		errors.Is(err, parentrequests.ErrNotDecided)
 }

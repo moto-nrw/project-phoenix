@@ -11,7 +11,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +24,7 @@ func (s captchaSchoolLookup) GetSchoolBySlug(context.Context, string) (*PublicSc
 }
 
 type captchaBlockedSubmission struct {
-	enrollmentService.RequestService
+	RequestService
 }
 
 type requiredCaptchaSettings struct{}

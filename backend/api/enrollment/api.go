@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -33,22 +32,22 @@ type CareOfferingCatalog interface {
 	Update(ctx context.Context, offering *enrollmentModels.CareOffering) error
 	Delete(ctx context.Context, id int64) error
 	Clone(ctx context.Context, sourceID int64, targetPhaseID int64) (*enrollmentModels.CareOffering, error)
-	ListBookingStats(ctx context.Context, phaseID int64) ([]enrollmentService.CareOfferingBookingStat, error)
+	ListBookingStats(ctx context.Context, phaseID int64) ([]CareOfferingBookingStat, error)
 }
 
 // Resource bundles the handler methods + their dependencies.
 type Resource struct {
 	FormSchemaService     capability.FormSchemaAdministration
 	CareOfferingService   CareOfferingCatalog
-	RequestService        enrollmentService.RequestService
+	RequestService        RequestService
 	CaptchaService        capability.CaptchaVerifier
 	PhaseService          capability.PhaseAdministration
 	PhaseExpiryService    capability.PhaseExpiryWarnings
-	DecisionService       enrollmentService.DecisionService
+	DecisionService       DecisionService
 	ReportService         capability.Reports
-	RolloverService       enrollmentService.RolloverService
-	ChangeRequestService  enrollmentService.ChangeRequestService
-	DeletionService       enrollmentService.EnrollmentDeletionService
+	RolloverService       RolloverService
+	ChangeRequestService  ChangeRequestService
+	DeletionService       EnrollmentDeletionService
 	GuardianInvitations   GuardianInvitationRuntime
 	GuardianProfileLoader *usersService.GuardianProfileLoader
 	SchoolService         SchoolDirectory
@@ -70,14 +69,14 @@ type Resource struct {
 func NewResource(
 	formSchemaSvc capability.FormSchemaAdministration,
 	careOfferingSvc CareOfferingCatalog,
-	requestSvc enrollmentService.RequestService,
+	requestSvc RequestService,
 	captchaSvc capability.CaptchaVerifier,
 	phaseSvc capability.PhaseAdministration,
-	decisionSvc enrollmentService.DecisionService,
+	decisionSvc DecisionService,
 	reportSvc capability.Reports,
-	rolloverSvc enrollmentService.RolloverService,
-	changeRequestSvc enrollmentService.ChangeRequestService,
-	deletionSvc enrollmentService.EnrollmentDeletionService,
+	rolloverSvc RolloverService,
+	changeRequestSvc ChangeRequestService,
+	deletionSvc EnrollmentDeletionService,
 	guardianInvitations GuardianInvitationRuntime,
 	guardianProfileLoader *usersService.GuardianProfileLoader,
 	schoolService SchoolDirectory,

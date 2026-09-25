@@ -11,7 +11,7 @@ import type {
  *
  * Mirrors the backend evaluation semantics in
  * models/enrollment/form_schema.go (VisibilityCondition) + the
- * guardian-level skip in services/enrollment/form_schema_service.go.
+ * guardian-level skip in modules/enrollment/internal/application/form_visibility.go.
  */
 export interface ConditionContext {
   /** Guardian-level custom answers (request-level custom_data). */

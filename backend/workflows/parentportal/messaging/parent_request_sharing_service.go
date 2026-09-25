@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
@@ -197,7 +196,7 @@ func (s *Service) createRequestShare(ctx context.Context, accountID, studentID i
 	// The ledger records WHETHER a request was shared and with how many
 	// co-guardians. The recipient account ids stay in the share event itself,
 	// which is the row the visibility rules read.
-	return usersSvc.RecordParentRequestEvent(ctx, s.ParentRequestEvents, usersSvc.ParentRequestEventInput{
+	return care.RecordRequestEvent(ctx, s.ParentRequestEvents, care.RequestLedgerEntry{
 		StudentID:      studentID,
 		RequestType:    requestType,
 		RequestID:      requestID,

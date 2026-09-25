@@ -17,7 +17,6 @@ import (
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
@@ -79,7 +78,7 @@ type Config struct {
 	OfferingChangeRequestRepo OfferingChangeRequestReads
 	FamilyProtectionEvents    FamilyProtectionReads
 	ParentRequestShares       usersModels.ParentRequestShareEventRepository
-	ParentRequestEvents       usersSvc.ParentRequestEventRecorder
+	ParentRequestEvents       usersModels.ParentRequestEventRepository
 }
 
 // Service implements the retained messaging portal operations.

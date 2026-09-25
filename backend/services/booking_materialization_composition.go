@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -451,7 +450,7 @@ func (e bookingEnrollment) ApprovedChildren(ctx context.Context, offeringIDs []i
 				SelectedDays: link.SelectedDays, ManualSelectedDays: link.ManualSelectedDays,
 				AutomaticSelectedDays: link.AutomaticSelectedDays, ValidFrom: link.ValidFrom, ValidUntil: link.ValidUntil,
 			},
-			StudentID: child.StudentID, SchoolClass: child.SchoolClass, GradeLevel: enrollment.SchoolClassGradeLevel(child.SchoolClass),
+			StudentID: child.StudentID, SchoolClass: child.SchoolClass, GradeLevel: enrollmentOwner.SchoolClassGradeLevel(child.SchoolClass),
 		})
 	}
 	return result, nil
@@ -473,7 +472,7 @@ func (s bookingStudents) Student(ctx context.Context, id int64, lock bool) (care
 	if err != nil {
 		return careplanCompose.BookingStudent{}, err
 	}
-	student := careplanCompose.BookingStudent{ID: row.ID, GradeLevel: enrollment.SchoolClassGradeLevel(row.SchoolClass)}
+	student := careplanCompose.BookingStudent{ID: row.ID, GradeLevel: enrollmentOwner.SchoolClassGradeLevel(row.SchoolClass)}
 	// Both enrollment dates are validated, as the decision's student read
 	// always did; only the care end bounds the rosters.
 	if row.EnrolledFrom != "" {

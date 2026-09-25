@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -202,7 +202,7 @@ func TestAggregatedChangeRequests_GroupLeaderPolicyAtRouterAndBulkSeam(t *testin
 	bulkBody := func(rows ...*userModels.StudentDataChangeRequest) *strings.Reader {
 		refs := make([]string, 0, len(rows))
 		for _, row := range rows {
-			refs = append(refs, fmt.Sprintf(`{"kind":"master_data","id":"%d","expected_version":"%s"}`, row.ID, userService.ParentRequestVersion(row.UpdatedAt)))
+			refs = append(refs, fmt.Sprintf(`{"kind":"master_data","id":"%d","expected_version":"%s"}`, row.ID, careplan.ParentRequestVersion(row.UpdatedAt)))
 		}
 		return strings.NewReader(`{"requests":[` + strings.Join(refs, ",") + `],"reason":"Geprüft"}`)
 	}

@@ -26,8 +26,8 @@
   "runtime_evidence": {
     "source": "Local run on the PR branch at commit 54495195ba; this key is a test-scope import edge, so the evidence is the affected test suite and the architecture check, not a runtime benchmark.",
     "sources": [
-      "backend/services/enrollment/offering_arrival_projection_test.go",
-      "backend/services/enrollment/timetable_arrival_projection_test.go",
+      "backend/modules/careplan/contracttest/offering_arrival_projection_test.go",
+      "backend/modules/careplan/contracttest/timetable_arrival_projection_test.go",
       "https://github.com/moto-nrw/project-phoenix/pull/3485"
     ],
     "workload": "go test ./services/enrollment/ -count=1 through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",

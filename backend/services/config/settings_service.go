@@ -1188,7 +1188,7 @@ func slotListCutoffLockKey(tenantID int64) string {
 // that guards the enrollment class-restriction / class-collection invariant.
 // Two writes can otherwise race: one disabling concrete-class collection
 // (validateClassCollectionGuard here) and one activating a class-restricted
-// phase (validateEligibleClassesCollectable in services/enrollment). Under READ
+// phase (validateEligibleClassesCollectable in modules/enrollment). Under READ
 // COMMITTED each reads the other's pre-commit state, both pass, and they commit
 // an active restricted phase with class collection off — every submission then
 // fails class_not_eligible. Both sides take THIS lock on the same key, so the

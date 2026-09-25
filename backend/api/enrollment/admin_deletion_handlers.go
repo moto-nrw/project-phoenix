@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 type AdminEnrollmentDeletionCounts struct {
@@ -141,13 +140,13 @@ func parseEnrollmentDeletionIDs(w http.ResponseWriter, r *http.Request) (int64, 
 
 func renderEnrollmentDeletionError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, enrollmentService.ErrEnrollmentDeletionNotFound):
+	case errors.Is(err, capability.ErrEnrollmentDeletionNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, enrollmentService.ErrEnrollmentDeletionInvalidReason):
+	case errors.Is(err, capability.ErrEnrollmentDeletionInvalidReason):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, enrollmentService.ErrEnrollmentDeletionStudentExists):
+	case errors.Is(err, capability.ErrEnrollmentDeletionStudentExists):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.student_exists"))
-	case errors.Is(err, enrollmentService.ErrEnrollmentDeletionNotAllowed):
+	case errors.Is(err, capability.ErrEnrollmentDeletionNotAllowed):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.child_deletion_not_allowed"))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))

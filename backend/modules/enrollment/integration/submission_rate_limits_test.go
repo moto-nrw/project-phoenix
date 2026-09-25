@@ -35,8 +35,9 @@ func setupRateLimitTest(t *testing.T) (*bun.DB, *enrollmentCapability.Module, in
 // runUnscoped runs a closure with NO tenant in context. The rate limit
 // repo's raw INSERT addresses tenant_id explicitly, so a tenant tx
 // wrapper would just add a wasted RLS predicate. Match production:
-// services/enrollment/request_service.go passes the tenant_id as an
-// argument rather than via context.
+// modules/enrollment/internal/application/intake_late_invites.go
+// (countRateLimitAttempt) passes the tenant_id as an argument rather
+// than via context.
 func runUnscoped(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) error {
 	t.Helper()
 	return tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {

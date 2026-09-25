@@ -595,13 +595,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/peopledirectory/peopletest",
-      "owner": "people-directory",
-      "role": "test-support",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/devicescan",
       "owner": "process-device-scan",
       "role": "public",
@@ -1827,6 +1820,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/careplan/parentrequests",
+      "owner": "care-plan",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/settings/review",
       "owner": "settings-platform",
       "role": "contract",
@@ -1845,20 +1845,6 @@
       "owner": "request-review-view",
       "role": "compose",
       "internal_test_role": "workflow-integration-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "services/enrollment",
-      "owner": "enrollment",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "services/enrollment/enrollmenttest",
-      "owner": "test-support",
-      "role": "test-support",
-      "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -5160,17 +5146,6 @@
       "target_role": "public"
     },
     {
-      "id": "care-schedule-cutover.enrollment.module-behavior-test.care-plan.compose.test-construction",
-      "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "care-plan",
-      "target_role": "compose"
-    },
-    {
       "id": "care-schedule-cutover.parent-portal.workflow-integration-test.care-plan.compose.test-construction",
       "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
       "scopes": [
@@ -5279,17 +5254,6 @@
       "source_role": "http",
       "target_owner": "care-plan",
       "target_role": "public"
-    },
-    {
-      "id": "care-schedule-cutover.enrollment.module-behavior-test.care-plan.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "care-plan",
-      "target_role": "contract"
     },
     {
       "id": "care-schedule-cutover.legacy-composition.compose.care-plan.contract",
@@ -6399,28 +6363,6 @@
       "target_role": "contract"
     },
     {
-      "id": "enrollment.behavior-test.people-test",
-      "description": "Enrollment behavior tests compose the owner through its new focused test support (#2699).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "people-directory",
-      "target_role": "test-support"
-    },
-    {
-      "id": "people-directory.test-support.compose",
-      "description": "Focused student test support constructs the public owner composition (#2699).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "test-support",
-      "target_owner": "people-directory",
-      "target_role": "compose"
-    },
-    {
       "id": "inbound-students.http.student-presence-public",
       "description": "Student history, exports and day logs consume the owner attendance DTOs.",
       "scopes": [
@@ -6520,17 +6462,6 @@
       "target_owner": "workforce",
       "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
-    },
-    {
-      "id": "enrollment.module-behavior-test.presence-compose",
-      "description": "Existing integration fixtures construct the owner facade for migrated visit records.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "student-presence",
-      "target_role": "compose"
     },
     {
       "id": "emergency-snapshot.adapter-test.presence-compose",
@@ -12014,28 +11945,6 @@
       "target_role": "contract"
     },
     {
-      "id": "enrollment.behavior-test.delivery-contract",
-      "description": "Enrollment deletion integration tests verify cancellation through the Delivery contract.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "delivery-platform",
-      "target_role": "contract"
-    },
-    {
-      "id": "enrollment.behavior-test.delivery-compose",
-      "description": "Enrollment deletion integration tests construct the real Delivery capability.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "delivery-platform",
-      "target_role": "compose"
-    },
-    {
       "id": "delivery.port-domain",
       "description": "Delivery ports express persistence and provider operations using their own domain values.",
       "scopes": [
@@ -14068,17 +13977,6 @@
       "target_role": "public"
     },
     {
-      "id": "people-directory.behavior-test.communication-support",
-      "description": "Master-data review behavior tests compose the real parent-event emitter through Communication test support.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "module-behavior-test",
-      "target_owner": "communication",
-      "target_role": "test-support"
-    },
-    {
       "id": "inbound-students.adapter-test.communication-support",
       "description": "Student handler tests compose the real guardian wake through Communication test support.",
       "scopes": [
@@ -14846,17 +14744,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "enrollment-test.to.care-plan-support",
-      "description": "Enrollment behavior tests compose Care Plan fixtures through its test support.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "care-plan",
-      "target_role": "test-support"
-    },
-    {
       "id": "slot-list-support.to.legacy-composition",
       "description": "Slot-list test support narrows the legacy factory to student schedule adapters.",
       "scopes": [
@@ -14866,17 +14753,6 @@
       "source_role": "test-support",
       "target_owner": "legacy-composition",
       "target_role": "compose"
-    },
-    {
-      "id": "enrollment-test.to.care-plan-public",
-      "description": "Phase-expiry behavior tests bind the Care Plan projection port.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "care-plan",
-      "target_role": "public"
     },
     {
       "id": "care-plan.integration-test.security-application",
@@ -15806,17 +15682,6 @@
       "source_owner": "parent-portal",
       "source_role": "compose",
       "target_owner": "timetable-activities",
-      "target_role": "domain"
-    },
-    {
-      "id": "parent-portal.compose.enrollment.domain",
-      "description": "Wire the guardian portal workflow (#3420): pass care offering and offering change rows (models/enrollment) to the flows. Compatibility binding of the retained read models the portal flows still consume; it falls together with the parent-portal.application compatibility bindings when the flows read through owner queries.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "compose",
-      "target_owner": "enrollment",
       "target_role": "domain"
     },
     {
@@ -18317,17 +18182,6 @@
       "source_role": "module-internal-test",
       "target_owner": "identity-access",
       "target_role": "public"
-    },
-    {
-      "id": "enrollment.behavior-test.identity-access-compose",
-      "description": "Enrollment decision behavior tests compose the real Identity & Access capability.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "identity-access",
-      "target_role": "compose"
     },
     {
       "id": "inbound-enrollment.adapter-test.identity-access-compose",
@@ -21080,17 +20934,6 @@
       "target_role": "http"
     },
     {
-      "id": "people-directory.application.care-plan-absence-records",
-      "description": "The parent request coordinator classifies the excused-request sentinels of modules/careplan/absencerecords (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "application",
-      "target_owner": "care-plan",
-      "target_role": "contract"
-    },
-    {
       "id": "student-presence.e2e-test.care-plan-absence-records",
       "description": "The retained presence service and repository tests arrange and assert status days as Care Plan absence records (#3422).",
       "scopes": [
@@ -21179,17 +21022,6 @@
       "target_role": "public"
     },
     {
-      "id": "care-schedule-cutover.enrollment.module-behavior-test.timetable-activities.public",
-      "description": "Bind the native Timetable contract formerly exposed through Care Schedule (#3351, ADR 0030).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "timetable-activities",
-      "target_role": "public"
-    },
-    {
       "id": "care-plan.contracttest.people-directory.public",
       "description": "Verify native directory plans and audit snapshots through request approval in the new cross-owner contract suite (#3351).",
       "scopes": [
@@ -21199,17 +21031,6 @@
       "source_role": "e2e-test",
       "target_owner": "people-directory",
       "target_role": "public"
-    },
-    {
-      "id": "care-schedule-cutover.enrollment.module-behavior-test.timetable-activities.compose",
-      "description": "Construct native class-arrival projections in the retained enrollment integration fixture (#3351, ADR 0030).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "timetable-activities",
-      "target_role": "compose"
     },
     {
       "id": "timetable-activities.adapter-test.compose",
@@ -21803,17 +21624,6 @@
       ],
       "source_owner": "enrollment",
       "source_role": "application",
-      "target_owner": "school-calendar",
-      "target_role": "public"
-    },
-    {
-      "id": "timetable-planning-cutover.enrollment.module-behavior-test.school-calendar.public",
-      "description": "The Enrollment behaviour suites read calendar periods through the School Calendar's public contract (timetable planning dissolution, ADR 0038).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
       "target_owner": "school-calendar",
       "target_role": "public"
     },

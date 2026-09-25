@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"time"
 
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -11,7 +13,6 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -43,7 +44,7 @@ func NewClassDayTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() 
 	}
 	careplanCompose.WireCareParticipation(active.CareDay, care.CareLifecycle)
 	reports := newEnrollmentReports(enrollmentReportSources{
-		Owner: r.Enrollment(), Offerings: enrollment.NewCareOfferingRepository(r.CarePlan), AccessLog: r.DataAccessLog,
+		Owner: r.Enrollment(), Offerings: enrollmentCompose.NewCareOfferingRecords(r.CarePlan), AccessLog: r.DataAccessLog,
 		Students: r.Student, Persons: r.Person, Groups: repositories.NewGroupNames(r.Group), StudentGuardians: r.StudentGuardian,
 		Companions: repositories.NewStudentCompanionRepository(r.CarePlan), ClassListEntries: NewClassListEntryRosterReader(r.Membership),
 		PickupSchedules: active.PickupSchedule, CareParticipation: care.CareLifecycle, Settings: active.Settings,

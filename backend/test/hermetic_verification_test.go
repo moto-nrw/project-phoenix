@@ -419,7 +419,6 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"api/enrollment/export_handlers_test.go",                 // Pure unit test for the phase-export builders against an in-memory PhaseExport; int64 literals are sentinel schema/grade values, not DB rows
 		"guardian_related_accounts_errors_test.go",               // Pure mock-injection unit tests for the related-accounts error/best-effort branches; int64 literals are fake IDs in stack-allocated mocks, not DB rows
 		"services/parentmessaging/parentmessaging_test.go",       // Pure unit tests for the messaging core against narrow fakes (no DB); int64 literals are in-memory sentinel IDs (thread/account/ref), not DB rows
-		"services/enrollment/class_day_service_test.go",          // Pure unit tests against the classRosterTestService fakes (no DB); int64 literals are fake student/phase IDs in stack-allocated structs, not DB rows
 	}
 
 	files, err := goSourceIndex(root)
@@ -514,11 +513,11 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"SetupAPITest",
 		"setupAPITest",
 		"setupTestContext",                 // Indirect setup via shared helper (calls SetupAPITest)
-		"setupRolloverTest",                // services/enrollment rollover integration tests — wraps SetupTestDB
-		"setupRequestTest",                 // services/enrollment request-service integration tests — wraps SetupTestDB
-		"setupDecisionTest",                // services/enrollment decision integration tests — wraps setupRolloverTest
-		"setupCareTest",                    // services/enrollment care-offering integration tests — wraps SetupTestDB
-		"setupAutoApproveIntegrationEnv",   // services/enrollment auto-approve integration tests — wraps setupRolloverTest
+		"setupRolloverTest",                // api/enrollment rollover integration tests — wraps SetupTestDB
+		"setupRequestTest",                 // api/enrollment intake integration tests — wraps SetupTestDB
+		"setupDecisionTest",                // api/enrollment and careplan contracttest decision integration tests — wraps setupRolloverTest
+		"setupCareTest",                    // careplan contracttest care-offering integration tests — wraps SetupTestDB
+		"setupAutoApproveIntegrationEnv",   // api/enrollment auto-approve integration tests — wraps setupRolloverTest
 		"setupGuardianInvitationTest",      // services/auth guardian invitation + related-accounts tests — wraps SetupTestDB
 		"makeScenario",                     // modules/timetable/compose/httpintegration materialization/split/lifecycle integration tests — wraps SetupTestDB
 		"makeRosterChain",                  // modules/timetable/compose/httpintegration split-series roster tests (#2187) — wraps makeSeriesChain → makeScenario

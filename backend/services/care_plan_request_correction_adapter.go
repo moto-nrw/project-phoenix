@@ -10,8 +10,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 func (s *careScheduleRequestService) Correct(ctx context.Context, id int64, approve bool, version, reason string, actorID int64) error {
@@ -22,10 +22,10 @@ func (s *careScheduleRequestService) Correct(ctx context.Context, id int64, appr
 	}
 	err = service.Correct(ctx, id, approve, version, reason, actorID)
 	if errors.Is(err, careplan.ErrParentRequestNotDecided) {
-		return usersService.ErrParentRequestNotDecided
+		return parentrequests.ErrNotDecided
 	}
 	if errors.Is(err, careplan.ErrParentRequestCorrectionUnsupported) {
-		return fmt.Errorf("%w%s", usersService.ErrParentRequestCorrectionUnsupported, strings.TrimPrefix(err.Error(), careplan.ErrParentRequestCorrectionUnsupported.Error()))
+		return fmt.Errorf("%w%s", parentrequests.ErrCorrectionUnsupported, strings.TrimPrefix(err.Error(), careplan.ErrParentRequestCorrectionUnsupported.Error()))
 	}
 	return legacyEditError(err)
 }

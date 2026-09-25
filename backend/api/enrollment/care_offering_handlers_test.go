@@ -10,10 +10,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,7 +45,7 @@ type mockCareOfferingService struct {
 	cloneResult             *enrollmentModels.CareOffering
 	cloneErr                error
 	bookingStatsPhaseID     int64
-	bookingStatsResult      []enrollmentService.CareOfferingBookingStat
+	bookingStatsResult      []CareOfferingBookingStat
 	bookingStatsErr         error
 }
 
@@ -85,7 +86,7 @@ func (m *mockCareOfferingService) Clone(_ context.Context, sourceID int64, targe
 	return m.cloneResult, m.cloneErr
 }
 
-func (m *mockCareOfferingService) ListBookingStats(_ context.Context, phaseID int64) ([]enrollmentService.CareOfferingBookingStat, error) {
+func (m *mockCareOfferingService) ListBookingStats(_ context.Context, phaseID int64) ([]CareOfferingBookingStat, error) {
 	m.bookingStatsPhaseID = phaseID
 	return m.bookingStatsResult, m.bookingStatsErr
 }
@@ -226,7 +227,7 @@ func TestGetCareOfferingHandler_HappyPath(t *testing.T) {
 func TestGetCareOfferingHandler_NotFoundReturns404(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockCareOfferingService{getByIDErr: enrollmentService.ErrCareOfferingNotFound}
+	mock := &mockCareOfferingService{getByIDErr: capability.ErrCareOfferingNotFound}
 	router := buildCareOfferingRouter(mock)
 	w := executeCareJSON(t, router, http.MethodGet, "/enrollment/care-offerings/1234", nil)
 	assert.Equal(t, http.StatusNotFound, w.Code)
@@ -296,7 +297,7 @@ func TestCreateCareOfferingHandler_ServiceErrorReturnsGeneric500(t *testing.T) {
 func TestCreateCareOfferingHandler_DomainValidationReturns400(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockCareOfferingService{createErr: fmt.Errorf("%w: invalid linked template", enrollmentService.ErrCareOfferingInvalid)}
+	mock := &mockCareOfferingService{createErr: fmt.Errorf("%w: invalid linked template", capability.ErrCareOfferingInvalid)}
 	router := buildCareOfferingRouter(mock)
 	w := executeCareJSON(t, router, http.MethodPost, "/enrollment/care-offerings",
 		validOfferingBody(5678, "OGS"))
@@ -306,7 +307,7 @@ func TestCreateCareOfferingHandler_DomainValidationReturns400(t *testing.T) {
 func TestCreateCareOfferingHandler_TemplatePeriodMismatchReturnsStableCode(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockCareOfferingService{createErr: fmt.Errorf("validate linked template: %w", enrollmentService.ErrCareOfferingTemplatePeriodMismatch)}
+	mock := &mockCareOfferingService{createErr: fmt.Errorf("validate linked template: %w", capability.ErrCareOfferingTemplatePeriodMismatch)}
 	router := buildCareOfferingRouter(mock)
 	w := executeCareJSON(t, router, http.MethodPost, "/enrollment/care-offerings",
 		validOfferingBody(5678, "OGS"))
@@ -322,7 +323,7 @@ func TestCreateCareOfferingHandler_MissingDaysReturnsStableCode(t *testing.T) {
 	// the renderer must still resolve the specific sentinel so the admin
 	// editor can show the localized "pick at least one day" message (#1885).
 	mock := &mockCareOfferingService{createErr: fmt.Errorf("%w: validate care offering: %w",
-		enrollmentService.ErrCareOfferingInvalid, enrollmentService.ErrCareOfferingDaysRequired)}
+		capability.ErrCareOfferingInvalid, capability.ErrCareOfferingDaysRequired)}
 	router := buildCareOfferingRouter(mock)
 	w := executeCareJSON(t, router, http.MethodPost, "/enrollment/care-offerings",
 		validOfferingBody(5678, "OGS"))
@@ -335,7 +336,7 @@ func TestCreateCareOfferingHandler_MissingPickupTimesReturnsStableCode(t *testin
 	t.Parallel()
 
 	mock := &mockCareOfferingService{createErr: fmt.Errorf("%w: validate care offering: %w",
-		enrollmentService.ErrCareOfferingInvalid, enrollmentService.ErrCareOfferingPickupTimesRequired)}
+		capability.ErrCareOfferingInvalid, capability.ErrCareOfferingPickupTimesRequired)}
 	router := buildCareOfferingRouter(mock)
 	w := executeCareJSON(t, router, http.MethodPost, "/enrollment/care-offerings",
 		validOfferingBody(5678, "OGS"))
@@ -426,7 +427,7 @@ func TestUpdateCareOfferingHandler_TemplatePeriodMismatchReturnsStableCode(t *te
 
 	mock := &mockCareOfferingService{
 		getByIDResult: makeOfferingModel(1234, 5678, "X"),
-		updateErr:     enrollmentService.ErrCareOfferingTemplatePeriodMismatch,
+		updateErr:     capability.ErrCareOfferingTemplatePeriodMismatch,
 	}
 	router := buildCareOfferingRouter(mock)
 	w := executeCareJSON(t, router, http.MethodPut, "/enrollment/care-offerings/1234",
@@ -548,7 +549,7 @@ func TestListCareOfferingBookingStatsHandler_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	capacity := 20
-	mock := &mockCareOfferingService{bookingStatsResult: []enrollmentService.CareOfferingBookingStat{
+	mock := &mockCareOfferingService{bookingStatsResult: []CareOfferingBookingStat{
 		{
 			OfferingID:        1234,
 			Capacity:          &capacity,
@@ -576,7 +577,7 @@ func TestListCareOfferingBookingStatsHandler_HappyPath(t *testing.T) {
 func TestListCareOfferingBookingStatsHandler_OmitsCapacityWhenUnlimited(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockCareOfferingService{bookingStatsResult: []enrollmentService.CareOfferingBookingStat{
+	mock := &mockCareOfferingService{bookingStatsResult: []CareOfferingBookingStat{
 		{OfferingID: 1234, Booked: 3, GradeLevels: map[int]int{}},
 	}}
 	router := buildCareOfferingRouter(mock)
@@ -603,7 +604,7 @@ func TestListCareOfferingBookingStatsHandler_InvalidPhaseIsABadRequest(t *testin
 	t.Parallel()
 
 	mock := &mockCareOfferingService{
-		bookingStatsErr: fmt.Errorf("phase does not exist: %w", enrollmentService.ErrCareOfferingInvalid),
+		bookingStatsErr: fmt.Errorf("phase does not exist: %w", capability.ErrCareOfferingInvalid),
 	}
 	router := buildCareOfferingRouter(mock)
 
@@ -629,7 +630,7 @@ func TestListCareOfferingBookingStatsHandler_ServiceErrorReturnsGeneric500(t *te
 func TestCareOfferingRouter_BookingStatsIsNotTreatedAsAnID(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockCareOfferingService{bookingStatsResult: []enrollmentService.CareOfferingBookingStat{}}
+	mock := &mockCareOfferingService{bookingStatsResult: []CareOfferingBookingStat{}}
 	rs := &Resource{CareOfferingService: mock}
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))

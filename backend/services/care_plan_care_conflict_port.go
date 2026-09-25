@@ -8,33 +8,34 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 )
 
-// The retained coordinator's port only translates values and errors. Care Plan
+// The coordinator's care port only translates values and errors. Care Plan
 // owns pending checks, conflict-key parsing, day locks, and staff writes.
-var _ usersService.ParentRequestConflictPort = (*careScheduleRequestService)(nil)
+var _ carePlanCompose.ParentRequestConflicts = (*careScheduleRequestService)(nil)
 
-func (s *careScheduleRequestService) ConflictCandidate(ctx context.Context, id int64) (*usersService.ParentRequestConflictCandidate, error) {
+func (s *careScheduleRequestService) ConflictCandidate(ctx context.Context, id int64) (*carePlanCompose.ConflictCandidate, error) {
 	row, err := s.requests.conflicts.ConflictCandidate(ctx, id)
 	if err != nil {
 		return nil, legacyConflictError(err)
 	}
-	return &usersService.ParentRequestConflictCandidate{StudentID: row.StudentID, UpdatedAt: row.UpdatedAt}, nil
+	return &carePlanCompose.ConflictCandidate{StudentID: row.StudentID, UpdatedAt: row.UpdatedAt}, nil
 }
 
 func (s *careScheduleRequestService) LockConflictRequest(ctx context.Context, id int64) error {
 	return legacyConflictError(s.requests.conflicts.LockConflictRequest(ctx, id))
 }
 
-func (s *careScheduleRequestService) DecideConflictRequest(ctx context.Context, decision usersService.ParentRequestConflictDecision) error {
+func (s *careScheduleRequestService) DecideConflictRequest(ctx context.Context, decision carePlanCompose.ConflictDecision) error {
 	return legacyConflictError(s.requests.conflicts.DecideConflictRequest(ctx, carerequests.DecideInput{
 		RequestID: decision.RequestID, Approve: decision.Approve, Reason: decision.Reason,
 		ReviewedBy: decision.ReviewerID, ExpectedVersion: decision.ExpectedVersion,
 	}))
 }
 
-func (s *careScheduleRequestService) WriteStaffValue(ctx context.Context, write usersService.ParentRequestStaffValueWrite) error {
+func (s *careScheduleRequestService) WriteStaffValue(ctx context.Context, write carePlanCompose.StaffValueWrite) error {
 	pickup, ok := write.Value["value"].(string)
 	if !ok {
 		return carerequests.ErrInvalidPayload
@@ -47,7 +48,7 @@ func (s *careScheduleRequestService) WriteStaffValue(ctx context.Context, write 
 
 func legacyConflictError(err error) error {
 	if errors.Is(err, carerequests.ErrStaffValueUnsupported) {
-		return usersService.ErrStaffValueUnsupported
+		return parentrequests.ErrStaffValueUnsupported
 	}
 	return legacyEditError(err)
 }

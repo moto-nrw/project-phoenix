@@ -23,7 +23,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // keysetPage mimics the real services' contract: rows sorted newest-first,
@@ -37,7 +36,7 @@ func keysetPage[T any](
 	filters modelBase.RequestQueueFilters,
 	key func(T) (time.Time, int64),
 	child func(T) (studentID int64, name string),
-) ([]T, *userService.HistoryCursor) {
+) ([]T, *excusedrequests.Cursor) {
 	matched := make([]T, 0, len(rows))
 	for _, row := range rows {
 		instant, id := key(row)
@@ -59,7 +58,7 @@ func keysetPage[T any](
 	}
 	matched = matched[:filters.Limit]
 	instant, id := key(matched[len(matched)-1])
-	return matched, &userService.HistoryCursor{UpdatedAt: instant, ID: id}
+	return matched, &excusedrequests.Cursor{UpdatedAt: instant, ID: id}
 }
 
 func urgencyRows[T any](rows []T, filters modelBase.RequestQueueFilters, urgent func(T) bool) []T {
@@ -257,11 +256,8 @@ func legacyQueueFilters(filter excusedrequests.QueueFilter) modelBase.RequestQue
 	}
 }
 
-func excusedCursor(next *userService.HistoryCursor) *excusedrequests.Cursor {
-	if next == nil {
-		return nil
-	}
-	return &excusedrequests.Cursor{UpdatedAt: next.UpdatedAt, ID: next.ID}
+func excusedCursor(next *excusedrequests.Cursor) *excusedrequests.Cursor {
+	return next
 }
 
 type aggFakes struct {

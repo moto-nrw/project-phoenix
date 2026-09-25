@@ -84,6 +84,44 @@ func MaterializeAdjustments(
 	return out, nil
 }
 
+// MaterializeChild materializes one child against the child's own catalog,
+// the way a change request validates each child separately: an unknown
+// offering is closed before any availability rule is read, and index names
+// the child in the errors that locate it. On success the child's selection is
+// replaced by its materialization.
+func MaterializeChild(index int, child *Child, catalog map[int64]*Offering, selectionMode string) ([]Selection, error) {
+	for _, id := range child.OfferingIDs {
+		if _, ok := catalog[id]; !ok {
+			return nil, fmt.Errorf("child %d: %w", index, ErrCareOfferingClosed)
+		}
+	}
+	available, err := availableCareOfferingsForGrade(catalog, child.TargetGradeLevel)
+	if err != nil {
+		return nil, fmt.Errorf("child %d: %w", index, err)
+	}
+	if err := validateOfferingSelectionsForChild(*child, catalog, available); err != nil {
+		return nil, fmt.Errorf("child %d: %w", index, err)
+	}
+	manualChild := cloneChildrenOfferingSelections([]Child{*child})[0]
+	selections, err := materializeOfferingSelections(*child, available)
+	if err != nil {
+		return nil, fmt.Errorf("child %d: %w", index, err)
+	}
+	child.OfferingIDs, child.OfferingDays = selectionPayload(selections, available)
+	if err := validateOfferingGroupRulesWithMissingRequiredAllowed([]Child{*child}, available, false); err != nil {
+		return nil, err
+	}
+	if err := validateRequiredOfferings([]Child{*child}, available); err != nil {
+		return nil, err
+	}
+	if len(catalog) == 0 || hasChoosableCareOffering(available) {
+		if err := validateCareOfferingSelectionMode([]Child{manualChild}, available, selectionMode); err != nil {
+			return nil, err
+		}
+	}
+	return selections, nil
+}
+
 func materializedSelectionsHaveCareDays(
 	selections []Selection,
 	offerings map[int64]*Offering,

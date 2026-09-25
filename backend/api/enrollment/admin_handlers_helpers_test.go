@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // mkRequest constructs an enrollment request with the supplied IDs.
@@ -23,8 +22,8 @@ func mkRequest(id int64, phaseID int64) *enrollmentModels.Request {
 }
 
 // mkChild does the same for RequestChild.
-func mkChild(id int64) *enrollmentService.RequestChild {
-	return &enrollmentService.RequestChild{
+func mkChild(id int64) *RequestChild {
+	return &RequestChild{
 		ID: id,
 	}
 }
@@ -56,13 +55,13 @@ func TestToAdminRequestSummary_StringifiesIDsAndFormatsDOB(t *testing.T) {
 	child.Status = "submitted"
 	child.ActivationMode = "auto"
 
-	in := &enrollmentService.RequestSummary{
+	in := &RequestSummary{
 		Request: req,
 		Phase: &capability.Phase{
 			Name:                      "Schuljahr 2026/27",
 			CareOfferingSelectionMode: capability.PhaseCareOfferingSelectionOptional,
 		},
-		Children: []*enrollmentService.RequestChild{child},
+		Children: []*RequestChild{child},
 	}
 	out := toAdminRequestSummary(in)
 	assert.Equal(t, "1234", out.ID, "int64 ID stringified per CLAUDE rule 4")
@@ -87,9 +86,9 @@ func TestToAdminRequestSummary_DoesNotExposeStatusToken(t *testing.T) {
 	req := mkRequest(1234, 5678)
 	req.StatusToken = "token-abc"
 
-	out := toAdminRequestSummary(&enrollmentService.RequestSummary{
+	out := toAdminRequestSummary(&RequestSummary{
 		Request:  req,
-		Children: []*enrollmentService.RequestChild{},
+		Children: []*RequestChild{},
 	})
 	raw, err := json.Marshal(out)
 	require.NoError(t, err)
@@ -103,10 +102,10 @@ func TestToAdminRequestSummary_NilPhaseLeavesPhaseNameEmpty(t *testing.T) {
 
 	// Listing endpoints intentionally skip Phase to keep the payload
 	// light. The shaper must not panic on a nil Phase pointer.
-	in := &enrollmentService.RequestSummary{
+	in := &RequestSummary{
 		Request:  mkRequest(1234, 5678),
 		Phase:    nil,
-		Children: []*enrollmentService.RequestChild{},
+		Children: []*RequestChild{},
 	}
 	out := toAdminRequestSummary(in)
 	assert.Equal(t, "", out.PhaseName, "nil phase → empty PhaseName (no panic)")
@@ -118,7 +117,7 @@ func TestToAdminRequestSummary_EmptyChildrenSliceNotNil(t *testing.T) {
 
 	// JSON consumers (frontend list page) iterate Children without a
 	// null check; "" / nil distinction matters when marshalling.
-	in := &enrollmentService.RequestSummary{
+	in := &RequestSummary{
 		Request:  mkRequest(1234, 5678),
 		Children: nil,
 	}
@@ -142,9 +141,9 @@ func TestToAdminRequestSummary_PreservesNilOptionalPointers(t *testing.T) {
 	child.DateOfBirth = "2018-03-04"
 	child.Status = "submitted"
 
-	in := &enrollmentService.RequestSummary{
+	in := &RequestSummary{
 		Request:  req,
-		Children: []*enrollmentService.RequestChild{child},
+		Children: []*RequestChild{child},
 	}
 	out := toAdminRequestSummary(in)
 	assert.Nil(t, out.GuardianPhone)
@@ -172,9 +171,9 @@ func TestToAdminRequestSummary_TargetGradeLevelPassesThrough(t *testing.T) {
 	child.ReviewedAt = &reviewed
 	child.ReviewedBy = &reviewer
 
-	in := &enrollmentService.RequestSummary{
+	in := &RequestSummary{
 		Request:  mkRequest(1234, 5678),
-		Children: []*enrollmentService.RequestChild{child},
+		Children: []*RequestChild{child},
 	}
 	out := toAdminRequestSummary(in)
 	require.NotNil(t, out.Children[0].TargetGradeLevel)
@@ -194,9 +193,9 @@ func TestToAdminRequestSummary_PreservesCustomDataMap(t *testing.T) {
 	child.DateOfBirth = "2018-03-04"
 	child.CustomData = map[string]any{"allergies": "Nüsse"}
 
-	in := &enrollmentService.RequestSummary{
+	in := &RequestSummary{
 		Request:  mkRequest(1234, 5678),
-		Children: []*enrollmentService.RequestChild{child},
+		Children: []*RequestChild{child},
 	}
 	out := toAdminRequestSummary(in)
 	require.Len(t, out.Children, 1)

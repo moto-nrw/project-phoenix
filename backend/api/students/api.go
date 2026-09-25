@@ -16,6 +16,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
@@ -26,7 +28,6 @@ import (
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -181,7 +182,7 @@ type ResourceConfig struct {
 	// exit, which is deliberately NOT a deletion.
 	CareLifecycleService    careplan.CareLifecycle
 	StudentAuditService     userService.StudentAuditService
-	MasterDataReviewService userService.MasterDataReviewService
+	MasterDataReviewService masterdatarequests.Decisions
 	CareRequestService      carerequests.Decisions
 	CareRequestReviews      careplan.CareScheduleReviewQuery
 	// OfferingChangeService backs the post-enrollment offering-change queue
@@ -189,12 +190,12 @@ type ResourceConfig struct {
 	OfferingChangeService    careplan.OfferingChangeRequests
 	PickupAdjustmentService  careplan.PickupAdjustments
 	ExcusedRequestService    excusedrequests.Service
-	ParentRequestBulkService userService.ParentRequestBulkService
+	ParentRequestBulkService parentrequests.BulkApprover
 	// ParentRequestConflictService resolves a whole conflict group at once
 	// (#2267). Optional: a bare test Resource answers 500 rather than
 	// silently deciding requests one by one, which is the bug the group
 	// exists to prevent.
-	ParentRequestConflictService userService.ParentRequestConflictService
+	ParentRequestConflictService parentrequests.ConflictResolver
 	// FamilyProtection is the People Directory owner capability behind the
 	// per-child privacy ledger (#3349). Optional: a bare test Resource answers
 	// 500 rather than reaching the ledger through a second path.
@@ -212,7 +213,7 @@ type ResourceConfig struct {
 	StudentHistoryService   studentpresence.StudentHistory
 	OGSGroupLiveService     grouplive.Query
 	ActivityService         activityService.ActivityService
-	EnrollmentDecision      enrollmentService.DecisionService
+	EnrollmentDecision      enrollmentOwner.Decisions
 	EnrollmentFormSchema    enrollmentOwner.FormSchemaAdministration
 	// OfferingPickupTimes is Care Plan's offering pickup projection (#3560):
 	// the reset of a manual weekly Gehzeit onto the Angebots-Gehzeit.
