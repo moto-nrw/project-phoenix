@@ -53,7 +53,6 @@ import (
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
 	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
-	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
@@ -1473,7 +1472,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		api.Services.EnrollmentCaptcha,
 		api.Services.EnrollmentPhase,
 		api.Services.EnrollmentDecision,
-		api.Services.EnrollmentReport,
+		api.Services.EnrollmentReports,
 		api.Services.EnrollmentRollover,
 		api.Services.EnrollmentChangeRequest,
 		api.Services.EnrollmentDeletion,
@@ -1572,13 +1571,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, db, logger.With("handler", "birthdays"))
 	api.UserContext = meAPI.NewResource(api.Services.UserContext.Caller(), api.Services.UserContext)
 	// The school portal's class-day surface reads the class-day projection
-	// (#2701); the projection binds the retained enrollment report and the
+	// (#2701): the day report over Enrollment's day roster and the
 	// arrival-exception write seam (#2970) behind its one public capability.
-	api.ClassDay = classdayHTTP.NewResource(classdayCompose.NewClassDay(classdayCompose.ClassDayDependencies{
-		Reports:           api.Services.EnrollmentReport,
-		Caller:            api.Services.UserContext,
-		ArrivalExceptions: api.Services.ClassDayArrivalExceptions,
-	}), db, logger.With("handler", "class-day"))
+	api.ClassDay = classdayHTTP.NewResource(api.Services.ClassDay, db, logger.With("handler", "class-day"))
 	api.ClassListEntries = newClassListEntriesResource(api.membership, db, logger.With("handler", "class-list-entries"))
 	api.Substitutions = workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(api.Services.Substitution), db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
@@ -1608,7 +1603,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		SettingsService:         api.Services.Settings,
 		SlotListsService:        api.Services.SlotLists,
 		OfferingSourceOptions:   services.NewTimetableOfferingSources(api.Services.EnrollmentCareOffering),
-		SupervisionSheets:       services.NewTimetableSupervisionSheets(api.Services.EnrollmentReport),
+		SupervisionSheets:       services.NewTimetableSupervisionSheets(api.Services.ClassDay),
 		PlanExportService:       api.Services.PlanExport,
 		PickupExtensions:        pickupExtensions,
 		Staffing:                timetableStaffingAnnouncer(api.Services.Instance),

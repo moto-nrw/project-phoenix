@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
@@ -85,9 +85,9 @@ func classListEntryMatchesSearch(entry ClassListEntry, search string) bool {
 // and an invented value is exactly what #2382 forbids.
 func classListEntryExportRow(entry ClassListEntry) listexport.Row {
 	return listexport.Row{Values: map[listexport.ColumnID]string{
-		listexport.ColumnName:              strings.TrimSpace(entry.FirstName+" "+entry.LastName) + " (" + enrollmentService.ClassListEntryNoCareLabel + ")",
+		listexport.ColumnName:              strings.TrimSpace(entry.FirstName+" "+entry.LastName) + " (" + capability.ClassListEntryNoCareLabel + ")",
 		listexport.ColumnSchoolClass:       entry.SchoolClass,
-		listexport.ColumnEnrollmentSummary: enrollmentService.ClassListEntryNoCareLabel,
+		listexport.ColumnEnrollmentSummary: capability.ClassListEntryNoCareLabel,
 		listexport.ColumnWeeklyMonday:      "—",
 		listexport.ColumnWeeklyTuesday:     "—",
 		listexport.ColumnWeeklyWednesday:   "—",

@@ -45,7 +45,7 @@ type Resource struct {
 	PhaseService          capability.PhaseAdministration
 	PhaseExpiryService    capability.PhaseExpiryWarnings
 	DecisionService       enrollmentService.DecisionService
-	ReportService         enrollmentService.ReportService
+	ReportService         capability.Reports
 	RolloverService       enrollmentService.RolloverService
 	ChangeRequestService  enrollmentService.ChangeRequestService
 	DeletionService       enrollmentService.EnrollmentDeletionService
@@ -74,7 +74,7 @@ func NewResource(
 	captchaSvc capability.CaptchaVerifier,
 	phaseSvc capability.PhaseAdministration,
 	decisionSvc enrollmentService.DecisionService,
-	reportSvc enrollmentService.ReportService,
+	reportSvc capability.Reports,
 	rolloverSvc enrollmentService.RolloverService,
 	changeRequestSvc enrollmentService.ChangeRequestService,
 	deletionSvc enrollmentService.EnrollmentDeletionService,

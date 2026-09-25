@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -141,7 +140,7 @@ func (s *Service) loadChildCareOfferings(
 		view.PeriodEnd = period.ServiceEndDate
 		// Shared with the staff views so both sides answer "what is booked,
 		// what starts later" from the same day (#2185).
-		offeringDate := enrollmentSvc.BookingViewDate(today, period.ServiceEndDate)
+		offeringDate := careplan.BookingViewDate(today, period.ServiceEndDate)
 		view.Offerings, err = s.carePeriodOfferings(ctx, period.RequestChildID, offeringDate)
 		if err != nil {
 			return nil, err

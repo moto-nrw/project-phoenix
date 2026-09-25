@@ -656,7 +656,7 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 		childIDs = append(childIDs, child.ID)
 	}
 	today := s.todayDate()
-	onDate := BookingViewDate(today, timezone.Date(phase.ServiceEndDate))
+	onDate := careplan.BookingViewDate(today, timezone.Date(phase.ServiceEndDate))
 	// The date the WRITE path treats as "now".
 	selectionDate := offeringSelectionDateOn(phase, today)
 	links, err := capability.OfferingHistoryRecordsForChildren(ctx, s.Children, childIDs)
@@ -864,7 +864,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		childIDs = append(childIDs, c.ID)
 	}
 
-	links, err := capability.OfferingSelectionRecordsForChildrenAt(ctx, s.Children, childIDs, reportOfferingDate(s.todayDate(), phase))
+	links, err := capability.OfferingSelectionRecordsForChildrenAt(ctx, s.Children, childIDs, capability.ReportOfferingDate(s.todayDate(), phase))
 	if err != nil {
 		return nil, fmt.Errorf("decision: export load offerings: %w", err)
 	}
@@ -1065,7 +1065,7 @@ func filterOfferingsAtPhaseDate(
 		if phase == nil {
 			continue
 		}
-		onDate := reportOfferingDate(today, phase)
+		onDate := capability.ReportOfferingDate(today, phase)
 		if (link.ValidFrom == nil || !timezone.Date(*link.ValidFrom).After(onDate)) &&
 			(link.ValidUntil == nil || timezone.Date(*link.ValidUntil).After(onDate)) {
 			filtered = append(filtered, link)
@@ -1103,6 +1103,38 @@ func groupChildrenByRequest(children []*RequestChild, requestCount int) map[int6
 		childrenByRequest[c.RequestID] = append(childrenByRequest[c.RequestID], c)
 	}
 	return childrenByRequest
+}
+
+// exportAuditEntry validates the acting account, defaults the role (the
+// actor_role column is NOT NULL and never carries an empty string), and
+// builds the base DataAccessLog row of the decision flow's export audits.
+// Metadata stays with each writer - it is the observable audit content and
+// differs per export. The reports moved behind Enrollment's access-log port
+// (#3563); the decision exports follow when the decision flow moves (#3564).
+func exportAuditEntry(errPrefix string, actorAccountID int64, actorRole, resourceType string, rangeStart, rangeEnd, accessedAt time.Time) (*auditModels.DataAccessLog, error) {
+	if actorAccountID <= 0 {
+		return nil, fmt.Errorf("%s: actor account id required", errPrefix)
+	}
+	if strings.TrimSpace(actorRole) == "" {
+		actorRole = "unknown"
+	}
+	return &auditModels.DataAccessLog{
+		ActorAccountID: actorAccountID,
+		ActorRole:      actorRole,
+		ResourceType:   resourceType,
+		RangeStart:     rangeStart,
+		RangeEnd:       rangeEnd,
+		AccessedAt:     accessedAt,
+	}, nil
+}
+
+// writeExportAudit persists the audit row, wrapping failures with the
+// writer's historical error prefix.
+func writeExportAudit(ctx context.Context, repo auditModels.DataAccessLogRepository, entry *auditModels.DataAccessLog, errPrefix string) error {
+	if err := repo.Create(ctx, entry); err != nil {
+		return fmt.Errorf("%s write: %w", errPrefix, err)
+	}
+	return nil
 }
 
 func (s *decisionService) RecordPhaseExportAudit(ctx context.Context, actorAccountID int64, actorRole string, phase *capability.Phase, format, statusFilter string, requestCount, childCount int) error {

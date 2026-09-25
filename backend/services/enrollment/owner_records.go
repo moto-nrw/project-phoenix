@@ -199,6 +199,23 @@ func intakeChildValues(values []*capability.RequestChild) ([]*RequestChild, erro
 	}
 	return result, nil
 }
+
+// Enrollment owner reads of the decision flow: the admin request list, the
+// children of requests with their offering selections, and the phases.
+type (
+	ReportRequests interface {
+		AdminRequests(context.Context, capability.RequestListFilters) ([]*capability.Request, error)
+	}
+	ReportChildren interface {
+		RequestChildOfferingsForChildrenAtDate(context.Context, []int64, capability.Date) ([]*capability.RequestChildOffering, error)
+		ChildrenForRequests(context.Context, []int64) ([]*capability.RequestChild, error)
+	}
+	PhaseReader interface {
+		Phase(context.Context, int64) (*capability.Phase, error)
+		Phases(context.Context) ([]*capability.Phase, error)
+	}
+)
+
 func listIntakeChildrenForRequests(ctx context.Context, owner ReportChildren, requestIDs []int64) ([]*RequestChild, error) {
 	values, err := owner.ChildrenForRequests(ctx, requestIDs)
 	if err != nil {

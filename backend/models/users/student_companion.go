@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 )
 
 // Sentinel errors for companion links ("läuft mit", Laufgemeinschaft).
@@ -71,18 +72,6 @@ var CompanionWeekdayKeys = map[int]string{
 	3: PickupDayWednesday,
 	4: PickupDayThursday,
 	5: PickupDayFriday,
-}
-
-// CompanionWeekdayShortLabels are the German two-letter weekday labels the
-// offline lists (Tagesliste, Wochenliste, Klassenliste) already use for the
-// departure plan. Kept next to the weekday maps so a companion detail never
-// renders a different abbreviation than the plan it belongs to.
-var CompanionWeekdayShortLabels = map[string]string{
-	PickupDayMonday:    "Mo",
-	PickupDayTuesday:   "Di",
-	PickupDayWednesday: "Mi",
-	PickupDayThursday:  "Do",
-	PickupDayFriday:    "Fr",
 }
 
 // StudentCompanion is one undirected "walks home with" edge between two
@@ -157,14 +146,26 @@ func WithAccompaniedDays(allowed AllowedDepartureModes, days []string) AllowedDe
 }
 
 // CompanionLink is the per-child view of the edges: one companion plus every
-// weekday they walk together. This is the shape the child detail view edits and
-// the API speaks; it is not persisted.
-type CompanionLink struct {
-	CompanionStudentID int64    `json:"companion_student_id"`
-	FirstName          string   `json:"first_name,omitempty"`
-	LastName           string   `json:"last_name,omitempty"`
-	Weekdays           []string `json:"weekdays"`
+// weekday they walk together. People Directory's departure contract owns it.
+type CompanionLink = departure.CompanionLink
+
+// CompanionWeekdayShortLabels are the German two-letter weekday labels of the
+// offline lists; People Directory's departure contract owns them.
+var CompanionWeekdayShortLabels = departure.CompanionWeekdayShortLabels
+
+// FilterCompanionLinksToDays keeps only the weekdays the given set allows; see
+// departure.FilterCompanionLinksToDays.
+func FilterCompanionLinksToDays(links []CompanionLink, allowedDays map[string]bool) []CompanionLink {
+	return departure.FilterCompanionLinksToDays(links, allowedDays)
 }
+
+// CompanionDisplayName is the companion's full name; see
+// departure.CompanionDisplayName.
+func CompanionDisplayName(link CompanionLink) string { return departure.CompanionDisplayName(link) }
+
+// FormatCompanionLinks renders the "läuft mit" links for the offline lists; see
+// departure.FormatCompanionLinks.
+func FormatCompanionLinks(links []CompanionLink) string { return departure.FormatCompanionLinks(links) }
 
 // CompanionDaysFromLinks folds a link list into the per-weekday cover set
 // Student.DepartureCompanionDays expects: the days on which the child has a
@@ -177,37 +178,6 @@ func CompanionDaysFromLinks(links []CompanionLink) map[string]bool {
 		}
 	}
 	return days
-}
-
-// FilterCompanionLinksToDays keeps only the weekdays the given set allows and
-// drops a link that has none left. Pure derivation: it writes nothing and never
-// widens.
-//
-// It exists for readers that render a companion list NEXT TO a departure plan
-// the links were not reconciled against — the class roster prints a plan taken
-// from the approved enrollment phase, while the links belong to the live child
-// and follow every later Stammdaten edit. Printing them unfiltered puts "Di:
-// Bus" and "läuft dienstags mit Mia" on the same line of the sheet staff carry
-// to the door. The update path has no use for this: there the links are trimmed
-// against the plan being written (TrimCompanionsToDays), which also refuses to
-// strand the child at the far end.
-func FilterCompanionLinksToDays(links []CompanionLink, allowedDays map[string]bool) []CompanionLink {
-	filtered := make([]CompanionLink, 0, len(links))
-	for _, link := range links {
-		kept := make([]string, 0, len(link.Weekdays))
-		for _, day := range link.Weekdays {
-			if allowedDays[day] {
-				kept = append(kept, day)
-			}
-		}
-		if len(kept) == 0 {
-			continue
-		}
-		copied := link
-		copied.Weekdays = kept
-		filtered = append(filtered, copied)
-	}
-	return filtered
 }
 
 // CompanionLinksFingerprint is an order-independent fingerprint of a companion
@@ -243,49 +213,4 @@ func CompanionLinksFingerprint(links []CompanionLink) string {
 	}
 	sort.Strings(entries)
 	return strings.Join(entries, "|")
-}
-
-// CompanionDisplayName is the companion's full name, falling back to the id for
-// a link whose names were not joined in.
-func CompanionDisplayName(link CompanionLink) string {
-	name := strings.TrimSpace(link.FirstName + " " + link.LastName)
-	if name == "" {
-		return "Kind #" + strconv.FormatInt(link.CompanionStudentID, 10)
-	}
-	return name
-}
-
-// FormatCompanionLinks renders the structured "läuft mit" links for the offline
-// lists: "Mia Schulz (Mo, Di), Tom Meier".
-//
-// Every export that prints an accompanied departure needs it. A child whose
-// "mit wem" is answered by links may legitimately have NO free-text note (the
-// note is only required for a day no link covers), so a list built from the
-// note alone would tell staff "Mit anderem Kind" and nothing else — on the one
-// sheet they use when the app is not at hand. The weekdays are named unless the
-// link covers all five, so a Monday-only Laufgemeinschaft cannot be read as a
-// standing arrangement.
-func FormatCompanionLinks(links []CompanionLink) string {
-	parts := make([]string, 0, len(links))
-	for _, link := range links {
-		requested := make(map[string]bool, len(link.Weekdays))
-		for _, day := range link.Weekdays {
-			requested[day] = true
-		}
-		days := make([]string, 0, len(PickupDayOrder))
-		for _, day := range PickupDayOrder {
-			if requested[day] {
-				days = append(days, CompanionWeekdayShortLabels[day])
-			}
-		}
-		if len(days) == 0 {
-			continue
-		}
-		part := CompanionDisplayName(link)
-		if len(days) < len(PickupDayOrder) {
-			part += " (" + strings.Join(days, ", ") + ")"
-		}
-		parts = append(parts, part)
-	}
-	return strings.Join(parts, ", ")
 }
