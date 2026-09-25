@@ -5,16 +5,16 @@ import (
 	"testing"
 	"time"
 
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -24,7 +24,7 @@ func TestOfferingChangeRequestService_Create_RequiresAndAuditsCompleteWithdrawal
 	authoritative := true
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	defer cleanup()
-	env.settings.boolValues[configModel.KeyEnrollmentBookingsAuthoritative] = true
+	env.settings.boolValues[enrollmentKeys.BookingsAuthoritative] = true
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "ParentCompleteWithdrawal")
 	input := careplan.CreateOfferingChangeInput{
@@ -35,8 +35,8 @@ func TestOfferingChangeRequestService_Create_RequiresAndAuditsCompleteWithdrawal
 	}
 
 	_, err := svc.SubmitOfferingChange(offeringChangeAdminContext(t), input)
-	require.ErrorIs(t, err, enrollmentService.ErrCompleteWithdrawalConfirmationRequired)
-	pending, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).GetPendingForStudent(testpkg.Ctx(t), fx.studentID)
+	require.ErrorIs(t, err, careplan.ErrCompleteWithdrawalConfirmationRequired)
+	pending, err := pendingOfferingChangeForStudent(testpkg.Ctx(t), env.repos.CarePlan(), fx.studentID)
 	require.NoError(t, err)
 	assert.Nil(t, pending, "the first unconfirmed attempt must not store a request")
 
@@ -54,16 +54,16 @@ func TestDirectOfferingAdjustment_PreviewRejectsCompleteWithdrawalWhenBookingsAr
 	authoritative := false
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	defer cleanup()
-	env.settings.boolValues[configModel.KeyEnrollmentBookingsAuthoritative] = false
+	env.settings.boolValues[enrollmentKeys.BookingsAuthoritative] = false
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	direct, ok := svc.(careplan.DirectOfferingAdjustments)
 	require.True(t, ok)
 	fx := setupOfferingChangeFixture(t, env, "DirectPreviewNonAuthoritativeWithdrawal")
 	env.sourcePhase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
-	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.sourcePhase)))
+	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
 	fx.oldOffering.IsRequired = true
-	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, fx.oldOffering))
+	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, fx.oldOffering))
 
 	_, err := direct.PreviewDirectOfferingAdjustment(ctx, careplan.DirectOfferingAdjustmentInput{
 		StudentID: fx.studentID, EffectiveFrom: fx.switchDate, Selections: []careplan.OfferingChangeSelection{},
@@ -77,7 +77,7 @@ func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation
 	authoritative := true
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	defer cleanup()
-	env.settings.boolValues[configModel.KeyEnrollmentBookingsAuthoritative] = true
+	env.settings.boolValues[enrollmentKeys.BookingsAuthoritative] = true
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "StaffCompleteWithdrawal")
@@ -91,8 +91,8 @@ func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID, ActorRole: "admin",
 	}
 	err = svc.Decide(ctx, decision)
-	require.ErrorIs(t, err, enrollmentService.ErrCompleteWithdrawalConfirmationRequired)
-	stillPending, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
+	require.ErrorIs(t, err, careplan.ErrCompleteWithdrawalConfirmationRequired)
+	stillPending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, stillPending.Status)
 	pendingCompletions, _, err := env.repos.CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{
@@ -103,7 +103,7 @@ func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation
 
 	decision.CompleteWithdrawalConfirmed = true
 	require.NoError(t, svc.Decide(ctx, decision))
-	decided, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
+	decided, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusApproved, decided.Status)
 	pendingCompletions, _, err = env.repos.CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{
@@ -152,7 +152,7 @@ func TestOfferingChangeRequestService_Decide_ReportsAppliedWithdrawalResult(t *t
 	authoritative := true
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	defer cleanup()
-	env.settings.boolValues[configModel.KeyEnrollmentBookingsAuthoritative] = true
+	env.settings.boolValues[enrollmentKeys.BookingsAuthoritative] = true
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "WithdrawalStateDrift")
@@ -173,7 +173,7 @@ func TestOfferingChangeRequestService_Decide_ReportsAppliedWithdrawalResult(t *t
 	require.NoError(t, svc.Decide(ctx, careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID, ActorRole: "admin",
 	}))
-	decided, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
+	decided, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.True(t, decided.CompleteWithdrawalConfirmed)
 	assert.False(t, decided.ApprovedCompleteWithdrawal)
@@ -195,7 +195,7 @@ func TestOfferingChangeRequestService_Decide_RequiresConfirmationAfterTargetBeco
 	authoritative := true
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	defer cleanup()
-	env.settings.boolValues[configModel.KeyEnrollmentBookingsAuthoritative] = true
+	env.settings.boolValues[enrollmentKeys.BookingsAuthoritative] = true
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "WithdrawalInverseDrift")
@@ -218,14 +218,14 @@ func TestOfferingChangeRequestService_Decide_RequiresConfirmationAfterTargetBeco
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID, ActorRole: "admin",
 	}
 	err = svc.Decide(ctx, decision)
-	require.ErrorIs(t, err, enrollmentService.ErrCompleteWithdrawalConfirmationRequired)
-	stillPending, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
+	require.ErrorIs(t, err, careplan.ErrCompleteWithdrawalConfirmationRequired)
+	stillPending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, stillPending.Status)
 
 	decision.CompleteWithdrawalConfirmed = true
 	require.NoError(t, svc.Decide(ctx, decision))
-	decided, err := enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).FindByID(ctx, row.ID)
+	decided, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.True(t, decided.ApprovedCompleteWithdrawal)
 }
@@ -236,7 +236,7 @@ func TestOfferingChangeRequestService_GetForStudent_DropsOldWithdrawalAfterCareR
 	authoritative := true
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	defer cleanup()
-	env.settings.boolValues[configModel.KeyEnrollmentBookingsAuthoritative] = true
+	env.settings.boolValues[enrollmentKeys.BookingsAuthoritative] = true
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "WithdrawalStatusResume")
@@ -318,14 +318,14 @@ func TestOfferingChangeRequestService_ListPending_MarksRequiredCareWithdrawal(t 
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	env.settings.boolValues[configModel.KeyEnrollmentBookingsAuthoritative] = true
+	env.settings.boolValues[enrollmentKeys.BookingsAuthoritative] = true
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "RequiredFullWithdrawal")
 	env.sourcePhase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
-	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.sourcePhase)))
+	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, ownerPhaseForTest(env.sourcePhase)))
 	fx.oldOffering.IsRequired = true
-	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, fx.oldOffering))
+	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, fx.oldOffering))
 
 	row, err := svc.SubmitOfferingChange(ctx, careplan.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,

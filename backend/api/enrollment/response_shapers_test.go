@@ -11,7 +11,6 @@ import (
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -100,7 +99,7 @@ func TestRenderPublicEnrollmentError_EnrollmentDisabled404WithCode(t *testing.T)
 	// derzeit nicht möglich" instead of a generic error.
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/x", nil)
-	renderPublicEnrollmentError(w, r, enrollmentService.ErrEnrollmentDisabled)
+	renderPublicEnrollmentError(w, r, capability.ErrEnrollmentDisabled)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentDisabled)
 }
@@ -113,7 +112,7 @@ func TestRenderPublicEnrollmentError_WindowClosed404WithCode(t *testing.T) {
 	// Anmeldefrist instead of "nicht gefunden".
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/x", nil)
-	renderPublicEnrollmentError(w, r, enrollmentService.ErrEnrollmentWindowClosed)
+	renderPublicEnrollmentError(w, r, capability.ErrEnrollmentWindowClosed)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentWindowClosed)
 }

@@ -25,7 +25,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -208,15 +207,16 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 		testutil.WithBookingCatalog(testutil.NewCareOfferingCatalog(t, db).Catalog),
 		testutil.WithBookingSettings(offeringGuardSettings(false)),
 	).Bookings
-	decision := newOfferingGuardDecisionService(repos, false, repos.Enrollment(), guardianAccess, studentEnrollment, bookings)
-	requests := enrollmentService.NewRequestService(enrollmentService.RequestServiceConfig{
+	decisions := newOfferingGuardDecisions(repos, false, repos.Enrollment(), guardianAccess, studentEnrollment, bookings)
+	decision := enrollmentAPI.NewDecisionService(testutil.PublicEnrollmentDecisions(decisions))
+	requests := enrollmentAPI.NewRequestService(testutil.NewEnrollmentIntake(testutil.EnrollmentIntakeSources{
 		Requests: repos.Enrollment(), Children: repos.Enrollment(), Guardians: repos.Enrollment(),
-		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repos.CarePlan), Catalog: repos.Enrollment(),
+		CareOfferingRepo: testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan), Catalog: repos.Enrollment(),
 		SchoolRepo: capabilitySchools{schools: repos.School}, RateLimitRepo: repos.Enrollment(),
 		LateInviteRepo: repos.Enrollment(), OutboxEnqueuer: discardingOutbox{}, Settings: stubTakeoverSettings{},
-		ManualDecider: decision, FrontendURL: "http://localhost:3000", ParentsURL: "http://parents.localhost:3000",
-		DB: db, Logger: slog.Default(),
-	})
+		ManualDecider: decisions, FrontendURL: "http://localhost:3000", ParentsURL: "http://parents.localhost:3000",
+		Logger: slog.Default(),
+	}))
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requests, nil, nil, decision, nil, nil, nil,
 		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil, db,

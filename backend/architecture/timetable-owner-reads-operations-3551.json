@@ -39,7 +39,7 @@
     "sources": [
       "backend/modules/timetable/http/deviation_history.go",
       "backend/modules/timetable/http/timetable_data_ports_test.go",
-      "backend/services/enrollment/timetable_arrival_projection_test.go",
+      "backend/modules/careplan/contracttest/timetable_arrival_projection_test.go",
       "backend/test/query_budgets.go",
       "https://github.com/moto-nrw/project-phoenix/pull/3606"
     ],

@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -57,7 +56,7 @@ func TestBookingCapacityCutoverPreservesBoundariesAndTenantIsolation(t *testing.
 	for i, own := range schools {
 		foreign := schools[1-i]
 		for _, window := range []struct {
-			from, until enrollment.Date
+			from, until enrollmentTest.Date
 			want        int
 		}{
 			{"2030-01-01", "2030-01-02", 1},
@@ -77,7 +76,7 @@ func TestBookingCapacityCutoverPreservesBoundariesAndTenantIsolation(t *testing.
 		require.Equal(t, 2, peak)
 		grades, err := projection.OfferingGradeCounts(own.ctx, []int64{own.offeringID, foreign.offeringID}, "2030-01-01", "2030-01-05")
 		require.NoError(t, err)
-		require.Equal(t, []*enrollment.OfferingGradeCount{
+		require.Equal(t, []*enrollmentTest.OfferingGradeCount{
 			{CareOfferingID: own.offeringID, GradeLevel: new(int16(1)), Count: 2},
 			{CareOfferingID: own.offeringID, GradeLevel: new(int16(2)), Count: 1},
 			{CareOfferingID: own.offeringID, Count: 1},

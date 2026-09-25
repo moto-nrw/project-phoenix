@@ -1,4 +1,4 @@
-package enrollment
+package selection
 
 import (
 	"errors"
@@ -7,29 +7,25 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
-// Pure-function tests for resolveManualSelectedDays — no DB required, so
-// they run in every CI invocation regardless of test DB availability.
+// Pure-function tests for resolveManualSelectedDays — no DB required.
 // resolveManualSelectedDays is the contract enforced at submit time:
 // parent-supplied day picks are validated against the offering's day mode
-// + available_days. The decision service also relies on the dedup pass.
-// The "parent-choice offering needs at least one pick" rule lives at the
-// caller (materializeOfferingSelections) via
-// errParentChoiceOfferingMissingDays.
+// + available_days. The "parent-choice offering needs at least one pick"
+// rule lives at the caller (materializeOfferingSelections), which refuses
+// with ErrDaySelectionRequired (parentChoiceMissingDays).
 
-func fixedOffering(days ...string) *enrollmentModels.CareOffering {
-	return &enrollmentModels.CareOffering{
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+func fixedOffering(days ...string) *Offering {
+	return &Offering{
+		DaysOfWeekMode: daysOfWeekModeFixed,
 		AvailableDays:  days,
 	}
 }
 
-func parentChoiceOffering(days ...string) *enrollmentModels.CareOffering {
-	return &enrollmentModels.CareOffering{
-		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+func parentChoiceOffering(days ...string) *Offering {
+	return &Offering{
+		DaysOfWeekMode: daysOfWeekModeParentChoice,
 		AvailableDays:  days,
 	}
 }
@@ -52,7 +48,7 @@ func TestResolveSelectedDays_FixedRejectsParentPicks(t *testing.T) {
 
 // Empty picks on a parent-choice offering pass resolveManualSelectedDays
 // (it returns an empty set) — the rejection is the caller's job, using the
-// errParentChoiceOfferingMissingDays sentinel. Pin both halves of that
+// parentChoiceMissingDays() sentinel. Pin both halves of that
 // contract here.
 func TestResolveSelectedDays_ParentChoiceEmptyPicksRejected(t *testing.T) {
 	t.Parallel()
@@ -61,8 +57,8 @@ func TestResolveSelectedDays_ParentChoiceEmptyPicksRejected(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, got)
 
-	require.Error(t, errParentChoiceOfferingMissingDays)
-	assert.Contains(t, errParentChoiceOfferingMissingDays.Error(), "at least one day")
+	require.Error(t, parentChoiceMissingDays())
+	assert.Contains(t, parentChoiceMissingDays().Error(), "at least one day")
 }
 
 func TestResolveSelectedDays_ParentChoiceSubsetOK(t *testing.T) {
@@ -104,7 +100,7 @@ func TestResolveSelectedDays_ParentInputErrorsWrapInvalidSubmission(t *testing.T
 		"missing picks": func() error {
 			// Rejected by the caller via the sentinel, not by
 			// resolveManualSelectedDays itself.
-			return errParentChoiceOfferingMissingDays
+			return parentChoiceMissingDays()
 		},
 		"fixed rejects picks": func() error {
 			_, err := resolveManualSelectedDays(fixedOffering("mon"), []string{"mon"})
@@ -131,7 +127,7 @@ func TestResolveSelectedDays_ParentInputErrorsCarrySpecificSentinels(t *testing.
 	assert.True(t, errors.Is(err, ErrSelectedDayNotAvailable),
 		"subset violation must wrap ErrSelectedDayNotAvailable, got %q", err)
 
-	assert.True(t, errors.Is(errParentChoiceOfferingMissingDays, ErrDaySelectionRequired))
+	assert.True(t, errors.Is(parentChoiceMissingDays(), ErrDaySelectionRequired))
 
 	_, err = resolveManualSelectedDays(fixedOffering("mon"), []string{"mon"})
 	require.Error(t, err)
@@ -142,7 +138,7 @@ func TestResolveSelectedDays_ParentInputErrorsCarrySpecificSentinels(t *testing.
 func TestResolveSelectedDays_RejectsUnknownMode(t *testing.T) {
 	t.Parallel()
 
-	bogus := &enrollmentModels.CareOffering{
+	bogus := &Offering{
 		DaysOfWeekMode: "weird",
 		AvailableDays:  []string{"mon"},
 	}

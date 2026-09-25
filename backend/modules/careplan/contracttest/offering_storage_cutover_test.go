@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -27,7 +26,7 @@ func TestOfferingStorageOwnerCommandsRollbackAtEveryBoundary(t *testing.T) {
 			injected := errors.New("failure after owner command")
 			run := func(fail bool) error {
 				return tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
-					if err := choices.RecordSubmittedOfferingChoices(txCtx, childID, []enrollment.SubmittedOfferingChoice{{CareOfferingID: offering.ID, SelectedDays: []string{"mon"}, Notes: new("submitted")}}); err != nil {
+					if err := choices.RecordSubmittedOfferingChoices(txCtx, childID, []enrollmentTest.SubmittedOfferingChoice{{CareOfferingID: offering.ID, SelectedDays: []string{"mon"}, Notes: new("submitted")}}); err != nil {
 						return err
 					}
 					if fail && boundary == "Enrollment" {

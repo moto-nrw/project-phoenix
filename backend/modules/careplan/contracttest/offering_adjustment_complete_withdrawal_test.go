@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"testing"
 
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,10 +15,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -48,7 +48,7 @@ type completeWithdrawalFixture struct {
 	requestID, childID int64
 	studentID          int64
 	careID, lunchID    int64
-	baseInput          enrollmentService.UpdateChildOfferingsInput
+	baseInput          enrollmentTest.UpdateChildOfferingsInput
 }
 
 func TestDecisionService_CompleteWithdrawalRequiresConfirmationAndPersistsTaskAtomically(t *testing.T) {
@@ -70,14 +70,14 @@ func newCompleteWithdrawalFixture(t *testing.T) *completeWithdrawalFixture {
 	requestID, childID := submitOneChild(t, env, "complete-withdrawal@example.com", "Lina", "Abmeldung")
 	care := createWithdrawalOffering(t, env, "Ganztag", true)
 	lunch := createWithdrawalOffering(t, env, "Mittagessen", false)
-	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
-		RequestID: requestID, ChildID: childID, Status: enrollmentService.DecisionApproved, ReviewedBy: env.creatorID,
+	outcome, err := env.decision.Decide(ctx, enrollmentTest.DecideInput{
+		RequestID: requestID, ChildID: childID, Status: enrollmentTest.DecisionApproved, ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, outcome.Child.CreatedStudentID)
 	fixture := &completeWithdrawalFixture{t: t, env: env, ctx: ctx, requestID: requestID, childID: childID,
 		studentID: *outcome.Child.CreatedStudentID, careID: care.ID, lunchID: lunch.ID}
-	fixture.baseInput = enrollmentService.UpdateChildOfferingsInput{RequestID: requestID, ChildID: childID,
+	fixture.baseInput = enrollmentTest.UpdateChildOfferingsInput{RequestID: requestID, ChildID: childID,
 		ActorAccountID: env.creatorID, ActorRole: "admin", Reason: "Betreuung geändert"}
 	withCare := fixture.baseInput
 	withCare.Offerings = withdrawalSelection(care.ID)
@@ -92,18 +92,18 @@ func createWithdrawalOffering(t *testing.T, env *decisionTestEnv, name string, c
 	})
 }
 
-func withdrawalSelection(offeringID int64) []enrollmentService.OfferingAdjustmentSelection {
-	return []enrollmentService.OfferingAdjustmentSelection{{OfferingID: offeringID, SelectedDays: []string{"mon"}}}
+func withdrawalSelection(offeringID int64) []enrollmentTest.OfferingAdjustmentSelection {
+	return []enrollmentTest.OfferingAdjustmentSelection{{OfferingID: offeringID, SelectedDays: []string{"mon"}}}
 }
 
-func (f *completeWithdrawalFixture) apply(decision enrollmentService.DecisionService, input enrollmentService.UpdateChildOfferingsInput) error {
+func (f *completeWithdrawalFixture) apply(decision enrollmentTest.PublicDecisions, input enrollmentTest.UpdateChildOfferingsInput) error {
 	return testpkg.WithTenantTx(f.t, f.ctx, f.env.db, testpkg.Tenant(f.t), func(txCtx context.Context, _ bun.Tx) error {
 		_, err := decision.UpdateChildOfferings(txCtx, input)
 		return err
 	})
 }
 
-func (f *completeWithdrawalFixture) withoutCareInput() enrollmentService.UpdateChildOfferingsInput {
+func (f *completeWithdrawalFixture) withoutCareInput() enrollmentTest.UpdateChildOfferingsInput {
 	input := f.baseInput
 	input.Offerings = withdrawalSelection(f.lunchID)
 	return input
@@ -111,7 +111,7 @@ func (f *completeWithdrawalFixture) withoutCareInput() enrollmentService.UpdateC
 
 func (f *completeWithdrawalFixture) assertUnconfirmedChangeRollsBack() {
 	err := f.apply(f.env.decision, f.withoutCareInput())
-	require.ErrorIs(f.t, err, enrollmentService.ErrCompleteWithdrawalConfirmationRequired)
+	require.ErrorIs(f.t, err, enrollmentTest.ErrCompleteWithdrawalConfirmationRequired)
 	links, err := f.env.repos.Enrollment().RequestChildOfferingHistory(f.ctx, f.childID)
 	require.NoError(f.t, err)
 	require.Len(f.t, links, 1, "the warning response must roll the booking mutation back")
@@ -122,7 +122,7 @@ func (f *completeWithdrawalFixture) assertUnconfirmedChangeRollsBack() {
 
 func (f *completeWithdrawalFixture) assertTaskFailureRollsBack() {
 	authoritative := true
-	failing := newDecisionServiceForTestWithCareWithdrawal(f.env.rolloverTestEnv,
+	failing := newDecisionServiceForTestWithCareWithdrawal(f.env,
 		stubActivationSettings{bookingsAuthoritative: &authoritative}, nil, failingCareWithdrawalReconciler{})
 	input := f.withoutCareInput()
 	input.CompleteWithdrawalConfirmed = true
@@ -181,7 +181,7 @@ func (f *completeWithdrawalFixture) assertCareExitCompletesSource(pending *userM
 func newWithdrawalLifecycle(env *decisionTestEnv) careplan.CareLifecycle {
 	return newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
-			return env.settings.ResolveBool(ctx, configModel.KeyEnrollmentBookingsAuthoritative)
+			return env.settings.ResolveBool(ctx, enrollmentKeys.BookingsAuthoritative)
 		},
 	})
 }
@@ -223,27 +223,27 @@ func newNonAuthoritativeWithdrawalFixture(t *testing.T) *nonAuthoritativeWithdra
 	email := fmt.Sprintf("non-authoritative-withdrawal-%d@example.com", testpkg.UniqueSuffix())
 	requestID, childID := submitOneChild(t, env, email, "Toni", "Optional")
 	care := createWithdrawalOffering(t, env, "Ganztag", true)
-	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
-		RequestID: requestID, ChildID: childID, Status: enrollmentService.DecisionApproved, ReviewedBy: env.creatorID,
+	outcome, err := env.decision.Decide(ctx, enrollmentTest.DecideInput{
+		RequestID: requestID, ChildID: childID, Status: enrollmentTest.DecisionApproved, ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
 	return &nonAuthoritativeWithdrawalFixture{t: t, env: env, ctx: ctx,
 		requestID: requestID, childID: childID, studentID: *outcome.Child.CreatedStudentID, careID: care.ID}
 }
 
-func (f *nonAuthoritativeWithdrawalFixture) apply(offerings []enrollmentService.OfferingAdjustmentSelection) error {
+func (f *nonAuthoritativeWithdrawalFixture) apply(offerings []enrollmentTest.OfferingAdjustmentSelection) error {
 	return f.applyInput(offerings, false)
 }
 
-func (f *nonAuthoritativeWithdrawalFixture) applyConfirmed(offerings []enrollmentService.OfferingAdjustmentSelection) error {
+func (f *nonAuthoritativeWithdrawalFixture) applyConfirmed(offerings []enrollmentTest.OfferingAdjustmentSelection) error {
 	return f.applyInput(offerings, true)
 }
 
 func (f *nonAuthoritativeWithdrawalFixture) applyInput(
-	offerings []enrollmentService.OfferingAdjustmentSelection, confirmed bool,
+	offerings []enrollmentTest.OfferingAdjustmentSelection, confirmed bool,
 ) error {
 	return testpkg.WithTenantTx(f.t, f.ctx, f.env.db, testpkg.Tenant(f.t), func(ctx context.Context, _ bun.Tx) error {
-		_, err := f.env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		_, err := f.env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
 			RequestID: f.requestID, ChildID: f.childID, Offerings: offerings,
 			ActorAccountID: f.env.creatorID, ActorRole: "admin", Reason: "Betreuung geändert",
 			CompleteWithdrawalConfirmed: confirmed,
@@ -257,12 +257,12 @@ type withdrawalRaceFixture struct {
 	env               *decisionTestEnv
 	ctx               context.Context
 	lifecycle         careplan.CareLifecycle
-	decision          enrollmentService.DecisionService
+	decision          enrollmentTest.PublicDecisions
 	recurrenceGate    func(context.Context) error
 	completionWaiting chan struct{}
 	studentID, careID int64
 	originalEnd       *timezone.Date
-	input             enrollmentService.UpdateChildOfferingsInput
+	input             enrollmentTest.UpdateChildOfferingsInput
 }
 
 func TestDecisionService_RebookingWinsAgainstConcurrentWithdrawalCompletion(t *testing.T) {
@@ -277,40 +277,40 @@ func newWithdrawalRaceFixture(t *testing.T) *withdrawalRaceFixture {
 	authoritative := true
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	t.Cleanup(cleanup)
-	fixture := &withdrawalRaceFixture{t: t, env: env, ctx: testpkg.Ctx(t), completionWaiting: make(chan struct{})}
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-10))
-	fixture.wireRaceServices(&authoritative)
+	completionWaiting := make(chan struct{})
+	recurrenceGate := func(ctx context.Context) error {
+		return repositories.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(ctx)
+	}
+	lifecycle := newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
+		LockCareBookingWrites: func(ctx context.Context) error {
+			close(completionWaiting)
+			return recurrenceGate(ctx)
+		},
+		BookingsAuthoritative: func(context.Context) (bool, error) { return authoritative, nil },
+	})
+	fixture := &withdrawalRaceFixture{
+		t: t, env: env, ctx: testpkg.Ctx(t), completionWaiting: completionWaiting,
+		lifecycle: lifecycle, recurrenceGate: recurrenceGate,
+		decision: newDecisionServiceForTestWithCareWithdrawal(env,
+			stubActivationSettings{bookingsAuthoritative: &authoritative}, recurrenceGate, lifecycle),
+	}
 	fixture.seedRaceStudent()
 	return fixture
-}
-
-func (f *withdrawalRaceFixture) wireRaceServices(authoritative *bool) {
-	f.recurrenceGate = func(ctx context.Context) error {
-		return repositories.MustNewTimetableRecurrenceLock(f.env.db).LockRecurrenceWrites(ctx)
-	}
-	f.lifecycle = newTestCareLifecycle(f.env.db, repositories.CareLifecycleTestConfig{
-		LockCareBookingWrites: func(ctx context.Context) error {
-			close(f.completionWaiting)
-			return f.recurrenceGate(ctx)
-		},
-		BookingsAuthoritative: func(context.Context) (bool, error) { return *authoritative, nil },
-	})
-	f.decision = newDecisionServiceForTestWithCareWithdrawal(f.env.rolloverTestEnv,
-		stubActivationSettings{bookingsAuthoritative: authoritative}, f.recurrenceGate, f.lifecycle)
 }
 
 func (f *withdrawalRaceFixture) seedRaceStudent() {
 	requestID, childID := submitOneChild(f.t, f.env, "concurrent-withdrawal@example.com", "Mara", "Wiederbuchung")
 	care := createWithdrawalOffering(f.t, f.env, "Ganztag", true)
-	outcome, err := f.env.decision.Decide(f.ctx, enrollmentService.DecideInput{
-		RequestID: requestID, ChildID: childID, Status: enrollmentService.DecisionApproved, ReviewedBy: f.env.creatorID,
+	outcome, err := f.env.decision.Decide(f.ctx, enrollmentTest.DecideInput{
+		RequestID: requestID, ChildID: childID, Status: enrollmentTest.DecisionApproved, ReviewedBy: f.env.creatorID,
 	})
 	require.NoError(f.t, err)
 	f.studentID, f.careID = *outcome.Child.CreatedStudentID, care.ID
 	student, err := f.env.repos.Student.FindByID(f.ctx, f.studentID)
 	require.NoError(f.t, err)
 	f.originalEnd = student.EnrolledUntil
-	f.input = enrollmentService.UpdateChildOfferingsInput{
+	f.input = enrollmentTest.UpdateChildOfferingsInput{
 		RequestID: requestID, ChildID: childID, ActorAccountID: f.env.creatorID,
 		ActorRole: "admin", Reason: "Betreuung geändert", Offerings: withdrawalSelection(care.ID),
 	}

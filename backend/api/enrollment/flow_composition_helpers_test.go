@@ -28,18 +28,6 @@ func (s factorySchools) FindSchool(ctx context.Context, id int64) (*enrollmentOw
 	}, nil
 }
 
-// decisionMailOutbox puts Enrollment's decision mails on the platform outbox
-// the way the composition root binds them, so the suites keep asserting on
-// the recorded outbox kinds.
-type decisionMailOutbox struct{ outbox platformModels.OutboxEnqueuer }
-
-func (o decisionMailOutbox) EnqueueMail(ctx context.Context, mail enrollmentAPI.TestMail) error {
-	return o.outbox.EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
-		Kind: mail.Kind, Payload: mail.Payload, RelatedEntityType: mail.RelatedEntityType,
-		RelatedEntityID: mail.RelatedEntityID, IdempotencyKey: mail.IdempotencyKey,
-	})
-}
-
 // notificationModeSettings reads the decision notification mode from a
 // suite's settings double.
 type notificationModeSettings struct {
@@ -132,20 +120,21 @@ func newTestDecisions(src testutil.EnrollmentDecisionSources, outboxes ...platfo
 }
 
 func newTestDecisionService(src testutil.EnrollmentDecisionSources, outboxes ...platformModels.OutboxEnqueuer) enrollmentAPI.DecisionService {
-	return enrollmentAPI.NewDecisionService(newTestDecisions(src, outboxes...))
+	return newFlowDecisionService(newTestDecisions(src, outboxes...))
 }
 
-// newTestRequestService composes the retained intake; without an explicit
-// gate it binds the owner's capacity gate over the suite's offerings,
-// children and settings, the way the root binds it.
+// newTestRequestService composes the intake; without an explicit gate it
+// binds the owner's capacity gate over the suite's offerings, children and
+// settings, the way the root binds it.
 func newTestRequestService(cfg testutil.EnrollmentIntakeSources) enrollmentAPI.RequestService {
 	if cfg.Notifications == nil {
 		cfg.Notifications = testNotifications(cfg.Requests, cfg.Settings, cfg.OutboxEnqueuer, cfg.SchoolRepo)
 	}
 	if cfg.Capacity == nil {
-		cfg.Capacity = testutil.NewEnrollmentOfferingCapacity(cfg.CareOfferingRepo, cfg.Children, cfg.Settings)
+		offerings, _ := cfg.CareOfferingRepo.(capacityOfferings)
+		cfg.Capacity = testutil.NewEnrollmentOfferingCapacity(offerings, cfg.Children, cfg.Settings)
 	}
-	return enrollmentAPI.NewRequestService(cfg)
+	return enrollmentAPI.NewRequestService(testutil.NewEnrollmentIntake(cfg))
 }
 
 func newTestChangeRequestService(cfg testutil.EnrollmentChangeRequestSources) enrollmentAPI.ChangeRequestService {
@@ -153,9 +142,15 @@ func newTestChangeRequestService(cfg testutil.EnrollmentChangeRequestSources) en
 		cfg.Notifications = testNotifications(cfg.Requests, cfg.Settings, cfg.OutboxEnqueuer, nil)
 	}
 	if cfg.Capacity == nil {
-		cfg.Capacity = testutil.NewEnrollmentOfferingCapacity(cfg.CareOfferingRepo, cfg.Children, cfg.Settings)
+		offerings, _ := cfg.CareOfferingRepo.(capacityOfferings)
+		cfg.Capacity = testutil.NewEnrollmentOfferingCapacity(offerings, cfg.Children, cfg.Settings)
 	}
-	return enrollmentAPI.NewChangeRequestService(cfg)
+	return enrollmentAPI.NewChangeRequestService(testutil.NewEnrollmentChangeRequests(cfg))
+}
+
+// capacityOfferings locks the offerings a capacity check claims.
+type capacityOfferings interface {
+	ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error)
 }
 
 func newTestRolloverService(src testutil.EnrollmentRolloverSources) enrollmentAPI.RolloverService {
@@ -168,15 +163,11 @@ func newTestRolloverService(src testutil.EnrollmentRolloverSources) enrollmentAP
 	return enrollmentAPI.NewRolloverService(testutil.NewEnrollmentRollovers(src))
 }
 
-// testNotifications composes Enrollment's parent mails for a retained
-// service under test: the owner pins the mode, the suite's settings choose
-// it, and the suite's outbox records the mails.
+// testNotifications composes Enrollment's parent mails for a flow under
+// test: the owner pins the mode, the suite's settings choose it, and the
+// suite's outbox records the mails.
 func testNotifications(modes enrollmentAPI.TestNotificationModePin, settings interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 }, outbox platformModels.OutboxEnqueuer, schools enrollmentOwner.SchoolDirectory) enrollmentOwner.Notifications {
-	deps := enrollmentAPI.TestNotificationDependencies{Modes: modes, Settings: notificationModeSettings{settings: settings}, Schools: schools}
-	if outbox != nil {
-		deps.Outbox = decisionMailOutbox{outbox: outbox}
-	}
-	return enrollmentAPI.NewTestNotifications(deps)
+	return enrollmentAPI.NewTestFlowNotifications(modes, notificationModeSettings{settings: settings}, outbox, schools)
 }

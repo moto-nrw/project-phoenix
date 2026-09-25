@@ -23,7 +23,6 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -84,12 +83,12 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 	phase.TenantID = tenantID
 	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
 
-	requestSvc := enrollmentService.NewRequestService(enrollmentService.RequestServiceConfig{
+	requestSvc := enrollmentAPI.NewRequestService(testutil.NewEnrollmentIntake(testutil.EnrollmentIntakeSources{
 		Requests:         repos.Enrollment(),
 		Children:         repos.Enrollment(),
 		Guardians:        repos.Enrollment(),
-		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repos.CarePlan),
-		Capacity:         testutil.NewEnrollmentOfferingCapacity(enrollmentService.NewCareOfferingRepository(repos.CarePlan), repos.Enrollment(), settings),
+		CareOfferingRepo: testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan),
+		Capacity:         testutil.NewEnrollmentOfferingCapacity(testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
 		Catalog:          repos.Enrollment(),
 		SchoolRepo:       capabilitySchools{schools: repos.School},
 		Notifications:    enrollmentAPI.NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
@@ -98,16 +97,15 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 		Settings:         settings,
 		FrontendURL:      "http://localhost:3000",
 		ParentsURL:       "http://parents.localhost:3000",
-		DB:               db,
 		Logger:           slog.Default(),
-	})
-	changeRequestSvc := enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
+	}))
+	changeRequestSvc := enrollmentAPI.NewChangeRequestService(testutil.NewEnrollmentChangeRequests(testutil.EnrollmentChangeRequestSources{
 		Requests:            repos.Enrollment(),
 		Children:            repos.Enrollment(),
 		Guardians:           repos.Enrollment(),
 		LateInviteRepo:      repos.Enrollment(),
-		CareOfferingRepo:    enrollmentService.NewCareOfferingRepository(repos.CarePlan),
-		Capacity:            testutil.NewEnrollmentOfferingCapacity(enrollmentService.NewCareOfferingRepository(repos.CarePlan), repos.Enrollment(), settings),
+		CareOfferingRepo:    testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan),
+		Capacity:            testutil.NewEnrollmentOfferingCapacity(testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
 		Catalog:             repos.Enrollment(),
 		Notifications:       enrollmentAPI.NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
 		GuardianProfileRepo: repos.GuardianProfile,
@@ -119,16 +117,15 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 		OutboxEnqueuer:      discardingOutbox{},
 		FrontendURL:         "http://localhost:3000",
 		ParentsURL:          "http://parents.localhost:3000",
-		DB:                  db,
 		Logger:              slog.Default(),
-	})
+	}))
 
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requestSvc, nil, nil, nil, nil, nil, changeRequestSvc,
 		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil, db,
 	)
 
-	submitted, err := requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+	submitted, err := requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
 		TenantID:          tenantID,
 		PhaseID:           phase.ID,
 		GuardianFirstName: "Annegret",
@@ -140,7 +137,7 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 			"email_contact":   true,
 			"photo":           false,
 		},
-		Children: []enrollmentService.SubmitChild{
+		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        "Quirina",
 				LastName:         "Zoffenbach",

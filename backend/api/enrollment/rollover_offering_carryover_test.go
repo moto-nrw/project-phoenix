@@ -3,6 +3,9 @@ package enrollment_test
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -19,7 +22,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -297,7 +299,7 @@ func TestRolloverService_CreatePhaseFromSource_RejectsConflictingLegacyGroupRule
 			validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
 		return createErr
 	})
-	require.ErrorIs(t, err, capability.ErrCareOfferingGroupRuleConflict)
+	require.ErrorIs(t, err, careplan.ErrCareOfferingGroupRuleConflict)
 	exists, findErr := env.repos.Enrollment().HasRolloverSuccessor(ctx, env.sourcePhase.ID)
 	require.NoError(t, findErr)
 	assert.False(t, exists)
@@ -362,12 +364,12 @@ func TestRolloverService_CreatePhaseFromSource_ValidatesInactiveSelectedTemplate
 	period := createCareOfferingTestPeriod(t, env.db, "rollover-inactive-selected",
 		timezone.NewDate(2026, 8, 1), timezone.NewDate(2028, 8, 31))
 	group := createCareOfferingTemplateGroup(t, env.db, "rollover-inactive-selected")
-	schedule := &activitiesModels.Schedule{
-		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: group.ID,
+	schedule := &careTemplateSchedule{
+		Weekday: timetable.WeekdayMonday, ActivityGroupID: group.ID,
 		CalendarPeriodID: &period.ID,
 	}
 	schedule.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.ActivitySchedule.Create(ctx, schedule))
+	require.NoError(t, createCareTemplateScheduleRow(ctx, env.db, schedule))
 
 	offering := sourceOffering(t, env, &enrollmentModels.CareOffering{
 		Name:            "Inaktive Auswahl ohne Zeitfenster",
@@ -554,8 +556,8 @@ func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t
 		timezone.NewDate(2026, 8, 1),
 		timezone.NewDate(2028, 8, 31),
 	)
-	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayTuesday, &period.ID)
-	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayThursday, &period.ID)
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayTuesday, &period.ID)
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayThursday, &period.ID)
 
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:         env.sourcePhase.ID,
@@ -624,7 +626,7 @@ func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t
 	require.NoError(t, err)
 
 	// Freigabe materialized the carried weekdays into the linked template.
-	var rows []activitiesModels.StudentEnrollment
+	var rows []studentEnrollment
 	require.NoError(t, env.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
@@ -635,6 +637,6 @@ func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t
 	require.Len(t, rows, 1)
 	require.NotNil(t, rows[0].EnrollmentRequestChildID)
 	assert.Equal(t, rolledChildID, *rows[0].EnrollmentRequestChildID)
-	assert.Equal(t, []int{activitiesModels.WeekdayTuesday, activitiesModels.WeekdayThursday}, rows[0].SelectedWeekdays,
+	assert.Equal(t, []int{timetable.WeekdayTuesday, timetable.WeekdayThursday}, rows[0].SelectedWeekdays,
 		"the carried weekday selection must reach the template roster")
 }

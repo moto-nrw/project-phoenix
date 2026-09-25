@@ -17,12 +17,30 @@ type (
 	EnrollmentSubmissionRateLimiter = services.EnrollmentSubmissionRateLimiter
 	EnrollmentGuardianAuthorizer    = services.EnrollmentGuardianAuthorizer
 	EnrollmentChangeRequestRecords  = services.EnrollmentChangeRequestRecords
+
+	EnrollmentFlowDataAccessLog           = services.EnrollmentFlowDataAccessLog
+	EnrollmentFlowDataAccessLogs          = services.EnrollmentFlowDataAccessLogs
+	EnrollmentFlowDeletionAudit           = services.EnrollmentFlowDeletionAudit
+	EnrollmentFlowDeletionAudits          = services.EnrollmentFlowDeletionAudits
+	EnrollmentFlowOfferingAdjustmentAudit = services.EnrollmentFlowOfferingAdjustmentAudit
+	EnrollmentFlowRestorationAudit        = services.EnrollmentFlowRestorationAudit
+)
+
+// Resource types of the enrollment exports in the data-access log.
+const (
+	EnrollmentFlowPhaseExportResource   = services.EnrollmentFlowPhaseExportResource
+	EnrollmentFlowStudentExportResource = services.EnrollmentFlowStudentExportResource
 )
 
 var (
 	// NewTestCarePlan composes Care Plan's capability over the test
 	// database.
 	NewTestCarePlan = careplantest.NewCarePlan
+	// NewTestOfferingBookings composes Care Plan's effective-booking owner.
+	NewTestOfferingBookings = careplantest.NewOfferingBookings
+	// NewStoredPickupBaselines reads pickup baselines with booking
+	// authority off.
+	NewStoredPickupBaselines = careplantest.NewStoredPickupBaselines
 	// NewEnrollmentFlowDelivery composes the Delivery platform with a
 	// provider that accepts every send.
 	NewEnrollmentFlowDelivery = services.NewEnrollmentFlowDelivery

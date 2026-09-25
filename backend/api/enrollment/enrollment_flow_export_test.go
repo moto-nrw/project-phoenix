@@ -25,7 +25,6 @@ type (
 	TestApprovedOfferingProjection = enrollmentTest.ApprovedOfferingProjection
 	TestFormSchemaRecords          = enrollmentTest.FormSchemaRecords
 	TestNotificationModePin        = enrollmentTest.NotificationModePin
-	TestNotificationSettings       = enrollmentTest.NotificationSettings
 	TestDecisions                  = enrollmentTest.Decisions
 	TestDecisionPhases             = enrollmentTest.DecisionPhases
 	TestDecisionSchemas            = enrollmentTest.DecisionSchemas

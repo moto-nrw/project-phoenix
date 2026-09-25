@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
@@ -16,7 +16,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -91,7 +90,7 @@ func createArrivalOffering(t *testing.T, env *decisionTestEnv, name string, days
 		CountsAsCare:   true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, enrollmentSvc.NewCareOfferingRepository(env.repos.CarePlan()).Create(testpkg.Ctx(t), offering))
+	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Create(testpkg.Ctx(t), offering))
 	return offering
 }
 
@@ -215,7 +214,7 @@ func TestArrivalProjection_BookingEndStopsTheArrival(t *testing.T) {
 	secondMonday := firstMonday.AddDays(7)
 
 	// Abmeldung: the booking stops at the second Monday (half-open window).
-	err := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, capability.Date(secondMonday), nil)
+	err := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(secondMonday), nil)
 	require.NoError(t, err)
 
 	baseline := bookingModeArrivalBaseline(t, env, true)

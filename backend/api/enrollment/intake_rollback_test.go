@@ -41,7 +41,7 @@ func (r *failingSubmissionRateLimiter) IncrementAttempts(ctx context.Context, te
 	if keyType == r.failKey {
 		return nil, r.failure
 	}
-	return r.SubmissionRateLimiter.IncrementAttempts(ctx, tenantID, keyType, key, window)
+	return r.EnrollmentSubmissionRateLimiter.IncrementAttempts(ctx, tenantID, keyType, key, window)
 }
 
 func TestPublicIntakeRejectsRateLimitStorageFailures(t *testing.T) {
@@ -53,7 +53,7 @@ func TestPublicIntakeRejectsRateLimitStorageFailures(t *testing.T) {
 			env, cleanup := setupRequestTest(t)
 			defer cleanup()
 			failure := errors.New("injected throttle storage failure")
-			limiter := &failingSubmissionRateLimiter{SubmissionRateLimiter: env.config.RateLimitRepo, failKey: keyType, failure: failure}
+			limiter := &failingSubmissionRateLimiter{EnrollmentSubmissionRateLimiter: env.config.RateLimitRepo, failKey: keyType, failure: failure}
 			config := env.config
 			config.RateLimitRepo = limiter
 			service := newTestRequestService(config)
@@ -86,28 +86,28 @@ func (w *failingIntakeWrites) afterWrite() error {
 }
 
 func (w *failingIntakeWrites) InsertRequest(ctx context.Context, request *capability.Request) error {
-	if err := w.IntakeRequests.InsertRequest(ctx, request); err != nil {
+	if err := w.EnrollmentIntakeRequests.InsertRequest(ctx, request); err != nil {
 		return err
 	}
 	return w.afterWrite()
 }
 
 func (w *failingIntakeWrites) InsertChild(ctx context.Context, child *capability.RequestChild) error {
-	if err := w.IntakeChildren.InsertChild(ctx, child); err != nil {
+	if err := w.EnrollmentIntakeChildren.InsertChild(ctx, child); err != nil {
 		return err
 	}
 	return w.afterWrite()
 }
 
 func (w *failingIntakeWrites) CreateRequestGuardian(ctx context.Context, guardian *capability.RequestGuardian) error {
-	if err := w.IntakeGuardians.CreateRequestGuardian(ctx, guardian); err != nil {
+	if err := w.EnrollmentIntakeGuardians.CreateRequestGuardian(ctx, guardian); err != nil {
 		return err
 	}
 	return w.afterWrite()
 }
 
 func (w *failingIntakeWrites) MarkLateInviteUsed(ctx context.Context, inviteID, requestID int64, at time.Time) error {
-	if err := w.IntakeLateInvites.MarkLateInviteUsed(ctx, inviteID, requestID, at); err != nil {
+	if err := w.EnrollmentIntakeLateInvites.MarkLateInviteUsed(ctx, inviteID, requestID, at); err != nil {
 		return err
 	}
 	return w.afterWrite()
@@ -131,10 +131,10 @@ func TestPublicIntakeRollsBackAfterEveryRequestInviteGuardianAndChildWrite(t *te
 			env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingBlock
 			failure := errors.New("injected failure after intake write")
 			writes := &failingIntakeWrites{
-				IntakeRequests: env.config.Requests, IntakeChildren: env.config.Children,
-				IntakeGuardians:   env.config.Guardians,
-				IntakeLateInvites: enrollmentAPI.NewTestModule(),
-				failAfter:         failAfter, failure: failure,
+				EnrollmentIntakeRequests: env.config.Requests, EnrollmentIntakeChildren: env.config.Children,
+				EnrollmentIntakeGuardians:   env.config.Guardians,
+				EnrollmentIntakeLateInvites: enrollmentAPI.NewTestModule(),
+				failAfter:                   failAfter, failure: failure,
 			}
 			config := env.config
 			config.Requests = writes
@@ -288,7 +288,7 @@ type failingIntakeOfferingLinks struct {
 
 func (r *failingIntakeOfferingLinks) RecordSubmittedOfferingChoices(ctx context.Context, childID int64, choices []capability.SubmittedOfferingChoice) error {
 	for _, choice := range choices {
-		if err := r.IntakeChildren.RecordSubmittedOfferingChoices(ctx, childID, []capability.SubmittedOfferingChoice{choice}); err != nil {
+		if err := r.EnrollmentIntakeChildren.RecordSubmittedOfferingChoices(ctx, childID, []capability.SubmittedOfferingChoice{choice}); err != nil {
 			return err
 		}
 		r.writes++
@@ -312,11 +312,11 @@ func TestPublicIntakeRollsBackAfterEachOfferingLinkWrite(t *testing.T) {
 			var offeringIDs []int64
 			for _, name := range []string{"First", "Second"} {
 				offering := &enrollmentModels.CareOffering{PhaseID: env.phaseID, Name: name, DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true}
-				require.NoError(t, env.config.CareOfferingRepo.Create(ctx, offering))
+				require.NoError(t, newCareOfferingFixtures(testRepositories(t, env.db).CarePlan()).Create(ctx, offering))
 				offeringIDs = append(offeringIDs, offering.ID)
 			}
 			failure := errors.New("injected after offering link write")
-			links := &failingIntakeOfferingLinks{IntakeChildren: env.config.Children, failAfter: failAfter, failure: failure}
+			links := &failingIntakeOfferingLinks{EnrollmentIntakeChildren: env.config.Children, failAfter: failAfter, failure: failure}
 			config := env.config
 			config.Children = links
 			service := newTestRequestService(config)
@@ -351,7 +351,7 @@ func TestPublicIntakeRollsBackAfterCarePlanBookingCommand(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 	offering := &enrollmentModels.CareOffering{PhaseID: env.phaseID, Name: "Care", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true}
-	require.NoError(t, env.config.CareOfferingRepo.Create(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(testRepositories(t, env.db).CarePlan()).Create(ctx, offering))
 	failure := errors.New("injected after Care Plan booking command")
 	config := env.config
 	calls := 0

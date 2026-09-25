@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // TestOfferingChangeRequestService_ListHistory proves the staff history:
@@ -80,9 +79,9 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 	require.NoError(t, err)
 	// Withdrawal was retired in #2267 (guardians edit instead); the status
 	// stays valid for historic rows, so it is written through the repository.
-	require.NoError(t, enrollmentService.NewOfferingChangeRepository(env.repos.CarePlan(), nil).Decide(
-		ctx, withdrawn.ID, enrollmentModels.OfferingChangeStatusWithdrawn, nil, nil, false,
-	))
+	require.NoError(t, env.repos.CarePlan().DecideOfferingChange(ctx, careplan.DecideOfferingChange{
+		ID: withdrawn.ID, Status: enrollmentModels.OfferingChangeStatusWithdrawn,
+	}))
 
 	items, _, err = offeringReviewQueueForTest(t, env).ListHistory(ctx, careplan.RequestQueueFilter{Limit: 25})
 	require.NoError(t, err)

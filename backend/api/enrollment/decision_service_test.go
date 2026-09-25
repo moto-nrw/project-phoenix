@@ -10,25 +10,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -115,15 +112,6 @@ func newDecisionServiceForTest(
 	lockTemplateRecurrence func(context.Context) error,
 ) enrollmentAPI.DecisionService {
 	return newDecisionServiceForTestWithDependencies(env, settings, lockTemplateRecurrence, nil, nil)
-}
-
-func newDecisionServiceForTestWithCareWithdrawal(
-	env *rolloverTestEnv,
-	settings testutil.EnrollmentDecisionSettings,
-	lockTemplateRecurrence func(context.Context) error,
-	careWithdrawal enrollmentAPI.TestCareWithdrawalReconciler,
-) enrollmentAPI.DecisionService {
-	return newDecisionServiceForTestWithDependencies(env, settings, lockTemplateRecurrence, careWithdrawal, nil)
 }
 
 func newDecisionServiceForTestWithConsentAuditor(
@@ -228,7 +216,7 @@ func newDecisionServiceForTestWithBookings(
 	studentConsents testutil.EnrollmentConsentAuditor,
 	outboxes ...platformModels.OutboxEnqueuer,
 ) enrollmentAPI.DecisionService {
-	return enrollmentAPI.NewDecisionService(newDecisionsForTestWithBookings(t, env, bookings, settings, lockTemplateRecurrence, careWithdrawal, studentConsents, outboxes...))
+	return newFlowDecisionService(newDecisionsForTestWithBookings(t, env, bookings, settings, lockTemplateRecurrence, careWithdrawal, studentConsents, outboxes...))
 }
 
 // newDecisionsForTestWithBookings composes the decision flow the suites drive,
@@ -281,7 +269,7 @@ func newDecisionsForTestWithBookings(
 		StudentEnrollment:      testStudentEnrollment(env.db),
 		Companions:             repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteCompanions:       repoFactory.CarePlan().DeleteCompanionEdges,
-		StudentAudit:           usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
+		StudentAudit:           testutil.NewEnrollmentFlowStudentAudit(env.db, testpkg.RequestAuditActor),
 		StudentConsents:        studentConsents,
 		CareWithdrawal:         careWithdrawal,
 		FrontendURL:            "http://localhost:3000",
@@ -341,7 +329,29 @@ func testBookingsAuthority(settings testutil.EnrollmentDecisionSettings) func(co
 
 func changeRequestApplierForTest(t *testing.T, env *decisionTestEnv) enrollmentAPI.ChangeRequestDecisionApplier {
 	t.Helper()
-	return enrollmentAPI.ChangeRequestApplierForTest(env.decision, env.bookings)
+	return enrollmentAPI.ChangeRequestApplierForTest(decisionOwner(t, env.decision))
+}
+
+// flowDecisionService is the decoded decision flow together with the owner
+// it decodes, so the change-request suites apply approved changes through the
+// same owner, the way the root binds both.
+type flowDecisionService struct {
+	enrollmentAPI.DecisionService
+	owner *enrollmentAPI.TestDecisions
+}
+
+func newFlowDecisionService(owner *enrollmentAPI.TestDecisions) enrollmentAPI.DecisionService {
+	return flowDecisionService{
+		DecisionService: enrollmentAPI.NewDecisionService(testutil.PublicEnrollmentDecisions(owner)),
+		owner:           owner,
+	}
+}
+
+func decisionOwner(t *testing.T, svc enrollmentAPI.DecisionService) *enrollmentAPI.TestDecisions {
+	t.Helper()
+	flow, ok := svc.(flowDecisionService)
+	require.True(t, ok, "the decision service must come from the flow suites' composition")
+	return flow.owner
 }
 
 func assertOfferingAdjustmentWaitsForRecurrenceGate(
@@ -1129,9 +1139,9 @@ func TestDecisionService_Decide_ApprovedCreatesDownstreamRecords(t *testing.T) {
 	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	require.Len(t, links, 1)
-	assert.Equal(t, authorize.GuardianRolePrimaryGuardian, links[0].GuardianRole)
-	assert.True(t, authorize.StudentGuardianHasPermission(links[0], authorize.GuardianPermissionPortalAccess))
-	assert.True(t, authorize.StudentGuardianHasPermission(links[0], authorize.GuardianPermissionEnrollmentSubmit))
+	assert.Equal(t, securityruntime.GuardianRolePrimaryGuardian, links[0].GuardianRole)
+	assert.True(t, guardianLinkHasPermission(links[0], careplan.GuardianPermissionPortalAccess))
+	assert.True(t, guardianLinkHasPermission(links[0], careplan.GuardianPermissionEnrollmentSubmit))
 }
 
 // TestDecisionService_Decide_ApprovedLinksAdditionalGuardians verifies the
@@ -1177,16 +1187,16 @@ func TestDecisionService_Decide_ApprovedLinksAdditionalGuardians(t *testing.T) {
 	for _, l := range links {
 		if l.IsPrimary {
 			primaryCount++
-			assert.Equal(t, authorize.GuardianRolePrimaryGuardian, l.GuardianRole)
-			assert.True(t, authorize.StudentGuardianHasPermission(l, authorize.GuardianPermissionPortalAccess))
-			assert.True(t, authorize.StudentGuardianHasPermission(l, authorize.GuardianPermissionEnrollmentSubmit))
+			assert.Equal(t, securityruntime.GuardianRolePrimaryGuardian, l.GuardianRole)
+			assert.True(t, guardianLinkHasPermission(l, careplan.GuardianPermissionPortalAccess))
+			assert.True(t, guardianLinkHasPermission(l, careplan.GuardianPermissionEnrollmentSubmit))
 			continue
 		}
 		assert.True(t, l.IsEmergencyContact, "co-guardians mapped like primary: emergency contact")
 		assert.True(t, l.CanPickup, "co-guardians mapped like primary: can pick up")
-		assert.Equal(t, authorize.GuardianRoleEmergency, l.GuardianRole)
-		assert.False(t, authorize.StudentGuardianHasPermission(l, authorize.GuardianPermissionPortalAccess))
-		assert.False(t, authorize.StudentGuardianHasPermission(l, authorize.GuardianPermissionEnrollmentSubmit))
+		assert.Equal(t, securityruntime.GuardianRoleEmergency, l.GuardianRole)
+		assert.False(t, guardianLinkHasPermission(l, careplan.GuardianPermissionPortalAccess))
+		assert.False(t, guardianLinkHasPermission(l, careplan.GuardianPermissionEnrollmentSubmit))
 	}
 	assert.Equal(t, 1, primaryCount, "exactly one primary guardian")
 
@@ -1254,8 +1264,8 @@ func TestDecisionService_SyncApprovedChildData_RelinksPrimaryGuardian(t *testing
 	require.Len(t, afterLinks, 1)
 	assert.True(t, afterLinks[0].IsPrimary)
 	assert.NotEqual(t, oldProfileID, afterLinks[0].GuardianProfileID)
-	assert.Equal(t, authorize.GuardianRolePrimaryGuardian, afterLinks[0].GuardianRole)
-	assert.True(t, authorize.StudentGuardianHasPermission(afterLinks[0], authorize.GuardianPermissionPortalAccess))
+	assert.Equal(t, securityruntime.GuardianRolePrimaryGuardian, afterLinks[0].GuardianRole)
+	assert.True(t, guardianLinkHasPermission(afterLinks[0], careplan.GuardianPermissionPortalAccess))
 
 	newProfile, err := env.repos.GuardianProfile.FindByEmail(ctx, "new-primary@example.com")
 	require.NoError(t, err)
@@ -1508,8 +1518,8 @@ func TestDecisionService_SyncApprovedChildData_UpgradesExistingContactListLinkFo
 	assert.False(t, upgraded.IsPrimary)
 	assert.True(t, upgraded.IsEmergencyContact)
 	assert.True(t, upgraded.CanPickup)
-	assert.Equal(t, authorize.GuardianRoleEmergency, upgraded.GuardianRole)
-	assert.False(t, authorize.StudentGuardianHasPermission(upgraded, authorize.GuardianPermissionPortalAccess))
+	assert.Equal(t, securityruntime.GuardianRoleEmergency, upgraded.GuardianRole)
+	assert.False(t, guardianLinkHasPermission(upgraded, careplan.GuardianPermissionPortalAccess))
 }
 
 func TestDecisionService_Decide_UpdatesStandaloneCoGuardianNameWhenReusingEmail(t *testing.T) {
@@ -1853,8 +1863,8 @@ func TestDecisionService_SyncApprovedChildData_UpdatesExistingContactListPermiss
 	require.NotNil(t, contactLink)
 	assert.False(t, contactLink.CanPickup)
 	assert.False(t, contactLink.IsEmergencyContact)
-	assert.Equal(t, authorize.GuardianRoleCustom, contactLink.GuardianRole)
-	assert.False(t, authorize.StudentGuardianHasPermission(contactLink, authorize.GuardianPermissionPortalAccess))
+	assert.Equal(t, securityruntime.GuardianRoleCustom, contactLink.GuardianRole)
+	assert.False(t, guardianLinkHasPermission(contactLink, careplan.GuardianPermissionPortalAccess))
 }
 
 func TestDecisionService_Decide_ContactListSelfGuardianDoesNotAbortApproval(t *testing.T) {
@@ -2553,7 +2563,7 @@ func TestDecisionService_SyncApprovedChildData_RecordsLaterPickupExtension(t *te
 		Where("student_id = ?", *outcome.Child.CreatedStudentID).
 		Scan(ctx, &task)
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.WeekdayMonday, task.Weekday)
+	assert.Equal(t, timetable.WeekdayMonday, task.Weekday)
 	assert.Equal(t, "14:45", task.PreviousPickup)
 	assert.Equal(t, "16:00", task.Pickup)
 }
@@ -2569,7 +2579,7 @@ func TestDecisionService_Decide_ExistingStudentRecordsLaterPickupExtension(t *te
 	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
 	existing := testpkg.CreateTestStudent(t, env.db, "Mara", "Bestand", "2a")
 	author := testpkg.CreateTestStaff(t, env.db, "Betreuer", "Bestand")
-	testpkg.CreateTestPickupSchedule(t, env.db, existing.ID, scheduleModels.WeekdayMonday, author.ID, "14:45")
+	testpkg.CreateTestPickupSchedule(t, env.db, existing.ID, timetable.WeekdayMonday, author.ID, "14:45")
 
 	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-extension-existing@example.com", "Mara", "Bestand", map[string]any{
 		"pickup_times": map[string]any{"mon": "16:00"},
@@ -2584,7 +2594,7 @@ func TestDecisionService_Decide_ExistingStudentRecordsLaterPickupExtension(t *te
 	err = env.db.NewSelect().TableExpr(`schedule.pickup_extension_tasks`).ColumnExpr("COUNT(*)").
 		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("student_id = ?", existing.ID).
-		Where("weekday = ?", scheduleModels.WeekdayMonday).
+		Where("weekday = ?", timetable.WeekdayMonday).
 		Scan(ctx, &taskCount)
 	require.NoError(t, err)
 	assert.Equal(t, 1, taskCount)
@@ -2784,7 +2794,7 @@ func TestDecisionService_SyncApprovedChildData_AuditsTrackedStudentChanges(t *te
 	history, err := env.repos.StudentFieldEdit.GetByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
-	assert.Equal(t, auditModels.StudentFieldHealthInfo, history[0].FieldName)
+	assert.Equal(t, peopledirectory.StudentFieldHealthInfo, history[0].FieldName)
 	assert.Equal(t, env.creatorID, history[0].EditedBy)
 	require.NotNil(t, history[0].OldValue)
 	require.NotNil(t, history[0].NewValue)
@@ -2858,7 +2868,7 @@ func TestDecisionService_SyncApprovedChildData_AuditsPersistedChangeDespiteTarge
 	history, err := env.repos.StudentFieldEdit.GetByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
-	assert.Equal(t, auditModels.StudentFieldHealthInfo, history[0].FieldName)
+	assert.Equal(t, peopledirectory.StudentFieldHealthInfo, history[0].FieldName)
 	assert.Equal(t, actor.ID, history[0].EditedBy)
 	require.NotNil(t, history[0].OldValue)
 	require.NotNil(t, history[0].NewValue)
@@ -2948,7 +2958,7 @@ func TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBa
 	// The already-enrolled student, carrying a live pickup schedule row.
 	existing := testpkg.CreateTestStudent(t, env.db, "Mara", "Bestand", "2a")
 	scheduleAuthor := testpkg.CreateTestStaff(t, env.db, "Betreuer", "Bestand")
-	seededPickup := testpkg.CreateTestPickupSchedule(t, env.db, existing.ID, scheduleModels.WeekdayMonday, scheduleAuthor.ID, "14:45")
+	seededPickup := testpkg.CreateTestPickupSchedule(t, env.db, existing.ID, timetable.WeekdayMonday, scheduleAuthor.ID, "14:45")
 
 	// A fresh submission carrying a resubmitted pickup schedule, matched to the
 	// existing student so approval renews it instead of creating a duplicate.
@@ -3266,9 +3276,9 @@ func TestDecisionService_Decide_ExistingStudentKeepsForeignPrimaryGuardianLink(t
 		IsEmergencyContact: true,
 		CanPickup:          true,
 	}
-	authorize.ApplyStudentGuardianRole(otherLink, authorize.GuardianRolePrimaryGuardian)
 	otherLink.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.StudentGuardian.Create(ctx, otherLink))
+	testpkg.SetTestStudentGuardianLinkRole(t, env.db, otherLink.ID, securityruntime.GuardianRolePrimaryGuardian)
 
 	reqID, childID := submitReEnrollment(t, env, "Sven", "Zweitkind", "submitting-parent@example.com", nil,
 		"Jonte", "Zweitkind", map[string]any{
@@ -3344,9 +3354,9 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 
 	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Fixed-Days")
 	room := testpkg.CreateTestRoom(t, env.db, "Decision-Fixed-Days")
-	group := &activitiesModels.Group{
+	group := &careTemplateGroup{
 		Name:            "Decision Fixed Days",
-		Type:            activitiesModels.GroupTypeCare,
+		Type:            timetable.GroupTypeCare,
 		CategoryID:      category.ID,
 		MaxParticipants: 20,
 		IsOpen:          true,
@@ -3354,12 +3364,12 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 		PlannedRoomID:   &room.ID,
 	}
 	group.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
+	require.NoError(t, createCareTemplateGroupRow(ctx, env.db, group))
 	period := createCareOfferingTestPeriod(t, env.db, "decision-fixed-days",
 		timezone.NewDate(2026, 8, 1),
 		timezone.NewDate(2027, 8, 31))
-	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayTuesday, &period.ID)
-	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayThursday, &period.ID)
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayTuesday, &period.ID)
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayThursday, &period.ID)
 	defer func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("activities.schedules").
@@ -3413,7 +3423,7 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 	require.NoError(t, err)
 	require.NotNil(t, outcome.Child.CreatedStudentID)
 
-	var rows []activitiesModels.StudentEnrollment
+	var rows []studentEnrollment
 	require.NoError(t, env.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
@@ -3435,44 +3445,44 @@ func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t 
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	period := &scheduleModels.CalendarPeriod{
-		Name: "decision-split-series-" + t.Name(), PeriodType: scheduleModels.PeriodTypeCustom,
-		StartDate: scheduleModels.NewDate(2026, 8, 1), EndDate: scheduleModels.NewDate(2027, 8, 31),
+	period := &calendarPeriod{
+		Name: "decision-split-series-" + t.Name(), PeriodType: schoolcalendar.PeriodTypeCustom,
+		StartDate: timezone.NewDate(2026, 8, 1), EndDate: timezone.NewDate(2027, 8, 31),
 		WeekCycleLength: 1, IsActive: true,
 	}
 	period.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.CalendarPeriod.Create(ctx, period))
+	require.NoError(t, createCalendarPeriodRow(ctx, env.db, period))
 	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Split-Series")
 	rootRoom := testpkg.CreateTestRoom(t, env.db, "Decision-Split-Root")
 	successorRoom := testpkg.CreateTestRoom(t, env.db, "Decision-Split-Successor")
 	timeframe := testpkg.CreateTestTimeframeForTenant(t, env.db, testpkg.Tenant(t), "Decision Split")
-	root := &activitiesModels.Group{
-		Name: "Decision Split Root", Type: activitiesModels.GroupTypeCare,
+	root := &careTemplateGroup{
+		Name: "Decision Split Root", Type: timetable.GroupTypeCare,
 		CategoryID: category.ID, MaxParticipants: 20, IsOpen: true,
 		IsTemplate: true, CalendarPeriodID: &period.ID, PlannedRoomID: &rootRoom.ID,
 	}
 	root.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.ActivityGroup.Create(ctx, root))
-	successor := &activitiesModels.Group{
-		Name: "Decision Split Successor", Type: activitiesModels.GroupTypeCare,
+	require.NoError(t, createCareTemplateGroupRow(ctx, env.db, root))
+	successor := &careTemplateGroup{
+		Name: "Decision Split Successor", Type: timetable.GroupTypeCare,
 		CategoryID: category.ID, MaxParticipants: 20, IsOpen: true,
 		IsTemplate: true, CalendarPeriodID: &period.ID, SeriesRootID: &root.ID, PlannedRoomID: &successorRoom.ID,
 	}
 	successor.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.ActivityGroup.Create(ctx, successor))
+	require.NoError(t, createCareTemplateGroupRow(ctx, env.db, successor))
 	boundary := timezone.NewDate(2027, 1, 1)
-	rootSchedule := &activitiesModels.Schedule{
-		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: root.ID,
-		ValidUntil: activityDatePtr(&boundary), TimeframeID: &timeframe.ID,
+	rootSchedule := &careTemplateSchedule{
+		Weekday: timetable.WeekdayMonday, ActivityGroupID: root.ID,
+		ValidUntil: &boundary, TimeframeID: &timeframe.ID,
 	}
 	rootSchedule.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.ActivitySchedule.Create(ctx, rootSchedule))
-	successorSchedule := &activitiesModels.Schedule{
-		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: successor.ID,
-		ValidFrom: activityDatePtr(&boundary), TimeframeID: &timeframe.ID,
+	require.NoError(t, createCareTemplateScheduleRow(ctx, env.db, rootSchedule))
+	successorSchedule := &careTemplateSchedule{
+		Weekday: timetable.WeekdayMonday, ActivityGroupID: successor.ID,
+		ValidFrom: &boundary, TimeframeID: &timeframe.ID,
 	}
 	successorSchedule.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.ActivitySchedule.Create(ctx, successorSchedule))
+	require.NoError(t, createCareTemplateScheduleRow(ctx, env.db, successorSchedule))
 	defer func() {
 		_, _ = env.db.NewDelete().TableExpr("activities.schedules").
 			Where("activity_group_id IN (?)", bun.List([]int64{root.ID, successor.ID})).Exec(context.Background())
@@ -3513,7 +3523,7 @@ func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t 
 
 	assertSeriesRoster := func() {
 		rows := listStudentEnrollmentRowsForDecisionTest(t, env, *outcome.Child.CreatedStudentID)
-		byGroup := make(map[int64]activitiesModels.StudentEnrollment, len(rows))
+		byGroup := make(map[int64]studentEnrollment, len(rows))
 		for _, row := range rows {
 			if row.EnrollmentRequestChildID != nil && *row.EnrollmentRequestChildID == childID {
 				byGroup[row.ActivityGroupID] = row
@@ -3521,8 +3531,8 @@ func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t 
 		}
 		require.Contains(t, byGroup, root.ID)
 		require.Contains(t, byGroup, successor.ID)
-		assert.Equal(t, []int{activitiesModels.WeekdayMonday}, byGroup[root.ID].SelectedWeekdays)
-		assert.Equal(t, []int{activitiesModels.WeekdayMonday}, byGroup[successor.ID].SelectedWeekdays)
+		assert.Equal(t, []int{timetable.WeekdayMonday}, byGroup[root.ID].SelectedWeekdays)
+		assert.Equal(t, []int{timetable.WeekdayMonday}, byGroup[successor.ID].SelectedWeekdays)
 	}
 	assertSeriesRoster()
 
@@ -3563,16 +3573,16 @@ func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering
 	ctx := testpkg.Ctx(t)
 
 	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Legacy-Linked")
-	group := &activitiesModels.Group{
+	group := &careTemplateGroup{
 		Name:            "Decision Legacy Linked",
-		Type:            activitiesModels.GroupTypeCare,
+		Type:            timetable.GroupTypeCare,
 		CategoryID:      category.ID,
 		MaxParticipants: 20,
 		IsOpen:          true,
 		IsTemplate:      false,
 	}
 	group.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
+	require.NoError(t, createCareTemplateGroupRow(ctx, env.db, group))
 
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:         env.sourcePhase.ID,
@@ -3619,7 +3629,7 @@ func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering
 	require.NoError(t, err)
 	require.NotNil(t, outcome.Child.CreatedStudentID)
 
-	var rows []activitiesModels.StudentEnrollment
+	var rows []studentEnrollment
 	require.NoError(t, env.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
@@ -3644,16 +3654,16 @@ func TestDecisionService_Decide_RolloverApprovalMaterializesClonedOffering(t *te
 	ctx := testpkg.Ctx(t)
 
 	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Rollover-Linked")
-	group := &activitiesModels.Group{
+	group := &careTemplateGroup{
 		Name:            "Decision Rollover Linked",
-		Type:            activitiesModels.GroupTypeCare,
+		Type:            timetable.GroupTypeCare,
 		CategoryID:      category.ID,
 		MaxParticipants: 20,
 		IsOpen:          true,
 		IsTemplate:      false,
 	}
 	group.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
+	require.NoError(t, createCareTemplateGroupRow(ctx, env.db, group))
 
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:         env.sourcePhase.ID,
@@ -3740,7 +3750,7 @@ func TestDecisionService_Decide_RolloverApprovalMaterializesClonedOffering(t *te
 	assert.Equal(t, studentID, *rolloverOutcome.Child.CreatedStudentID)
 
 	count, err := env.db.NewSelect().
-		Model((*activitiesModels.StudentEnrollment)(nil)).
+		Model((*studentEnrollment)(nil)).
 		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
 		Where(`"student_enrollment".tenant_id = ?`, testpkg.Tenant(t)).
 		Where(`"student_enrollment".student_id = ?`, studentID).
@@ -3778,9 +3788,9 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 
 	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Empty-Days")
 	room := testpkg.CreateTestRoom(t, env.db, "Decision-Empty-Days")
-	group := &activitiesModels.Group{
+	group := &careTemplateGroup{
 		Name:            "Decision Empty Days",
-		Type:            activitiesModels.GroupTypeCare,
+		Type:            timetable.GroupTypeCare,
 		CategoryID:      category.ID,
 		MaxParticipants: 20,
 		IsOpen:          true,
@@ -3788,11 +3798,11 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 		PlannedRoomID:   &room.ID,
 	}
 	group.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
+	require.NoError(t, createCareTemplateGroupRow(ctx, env.db, group))
 	period := createCareOfferingTestPeriod(t, env.db, "decision-empty-days",
 		timezone.NewDate(2026, 8, 1),
 		timezone.NewDate(2027, 8, 31))
-	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayTuesday, &period.ID)
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayTuesday, &period.ID)
 	defer func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("activities.schedules").
@@ -4010,7 +4020,7 @@ func TestDecisionService_ListChildOfferings_MatchesWritePathSelection(t *testing
 // catalogFailureRepo makes only the catalog batch lookup fail; every other
 // method keeps the real behaviour through the embedded repository.
 type catalogFailureRepo struct {
-	enrollmentModels.CareOfferingRepository
+	careOfferingReads
 }
 
 func (catalogFailureRepo) ListByIDs(_ context.Context, _ []int64) ([]*enrollmentModels.CareOffering, error) {
@@ -4038,7 +4048,7 @@ func TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure(t *testing.
 	degraded := newTestDecisionService(testutil.EnrollmentDecisionSources{
 		Requests:      repoFactory.Enrollment(),
 		Children:      repoFactory.Enrollment(),
-		CareOfferings: catalogFailureRepo{newCareOfferingFixtures(repoFactory.CarePlan())},
+		CareOfferings: catalogFailureRepo{testutil.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan())},
 		Phases:        repoFactory.Enrollment(),
 	})
 
@@ -4394,13 +4404,14 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOffer
 	require.NotNil(t, rows[0].EnrollmentRequestChildID)
 	assert.Equal(t, submitted.Children[0].ID, *rows[0].EnrollmentRequestChildID)
 
-	manualEnrollment := &activitiesModels.StudentEnrollment{
+	manualValidUntil := string(env.sourcePhase.ServiceEndDate)
+	manualEnrollment, err := env.timetable.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
 		StudentID:       *outcome.Child.CreatedStudentID,
 		ActivityGroupID: oldGroup.ID,
-		ValidFrom:       activitiesModels.Date(env.sourcePhase.ServiceStartDate),
-		ValidUntil:      activityDatePtr(&env.sourcePhase.ServiceEndDate),
-	}
-	require.NoError(t, env.repos.StudentEnrollment.Create(ctx, manualEnrollment))
+		ValidFrom:       string(env.sourcePhase.ServiceStartDate),
+		ValidUntil:      &manualValidUntil,
+	})
+	require.NoError(t, err)
 	_, err = env.db.NewRaw(`
 		UPDATE activities.student_enrollments
 		SET created_at = NOW() + INTERVAL '10 minutes',
@@ -4425,7 +4436,7 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOffer
 
 	rows = listStudentEnrollmentRowsForDecisionTest(t, env, *outcome.Child.CreatedStudentID)
 	require.Len(t, rows, 2)
-	byGroupID := map[int64]activitiesModels.StudentEnrollment{}
+	byGroupID := map[int64]studentEnrollment{}
 	for _, row := range rows {
 		byGroupID[row.ActivityGroupID] = row
 	}
@@ -4496,13 +4507,14 @@ func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAf
 		Exec(ctx)
 	require.NoError(t, err)
 
-	manualEnrollment := &activitiesModels.StudentEnrollment{
+	manualValidUntil := string(env.sourcePhase.ServiceEndDate)
+	manualEnrollment, err := env.timetable.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
 		StudentID:       *outcome.Child.CreatedStudentID,
 		ActivityGroupID: oldGroup.ID,
-		ValidFrom:       activitiesModels.Date(env.sourcePhase.ServiceStartDate),
-		ValidUntil:      activityDatePtr(&env.sourcePhase.ServiceEndDate),
-	}
-	require.NoError(t, env.repos.StudentEnrollment.Create(ctx, manualEnrollment))
+		ValidFrom:       string(env.sourcePhase.ServiceStartDate),
+		ValidUntil:      &manualValidUntil,
+	})
+	require.NoError(t, err)
 	_, err = env.db.NewRaw(`
 		UPDATE activities.student_enrollments
 		SET created_at = NOW() + INTERVAL '10 minutes',
@@ -4627,9 +4639,9 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterPhase
 	require.Len(t, rows, 1)
 	assert.NotEqual(t, initialFrom, rows[0].ValidFrom)
 	assert.NotEqual(t, initialUntil, *rows[0].ValidUntil)
-	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceStartDate), rows[0].ValidFrom)
+	assert.Equal(t, timezone.Date(env.sourcePhase.ServiceStartDate), rows[0].ValidFrom)
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, activitiesModels.Date(timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *rows[0].ValidUntil)
+	assert.Equal(t, timezone.Date(timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *rows[0].ValidUntil)
 }
 
 func TestDecisionService_ApprovalUsesExclusiveEndForOneDayPhase(t *testing.T) {
@@ -4687,15 +4699,15 @@ func TestDecisionService_ApprovalUsesExclusiveEndForOneDayPhase(t *testing.T) {
 
 	rows := listStudentEnrollmentRowsForDecisionTest(t, env, *outcome.Child.CreatedStudentID)
 	require.Len(t, rows, 1)
-	assert.Equal(t, activitiesModels.Date(serviceDay), rows[0].ValidFrom)
+	assert.Equal(t, timezone.Date(serviceDay), rows[0].ValidFrom)
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, activitiesModels.Date(serviceDay.AddDays(1)), *rows[0].ValidUntil)
+	assert.Equal(t, timezone.Date(serviceDay.AddDays(1)), *rows[0].ValidUntil)
 }
 
-func listStudentEnrollmentRowsForDecisionTest(t *testing.T, env *decisionTestEnv, studentID int64) []activitiesModels.StudentEnrollment {
+func listStudentEnrollmentRowsForDecisionTest(t *testing.T, env *decisionTestEnv, studentID int64) []studentEnrollment {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	var rows []activitiesModels.StudentEnrollment
+	var rows []studentEnrollment
 	require.NoError(t, env.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
@@ -4750,29 +4762,11 @@ func approvedOfferingTestProjection(repos *repositories.Factory) *enrollmentAPI.
 
 // newPickupExcusal uses the same configured Timetable instance as the fixture's
 // repositories, including its Care Plan reads and student-before-day locks.
-func newPickupExcusal(t *testing.T, db *bun.DB, records compose.PickupExcusalRecords, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) careplan.PickupAutoExcusal {
+func newPickupExcusal(t *testing.T, db *bun.DB, records careplan.Capability, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) careplan.PickupAutoExcusal {
 	t.Helper()
-	adapter := pickupExcusalTimetable{partialAbsencePreview{reads: repositories.NewPartialAbsencePreview(db)}, tt, db}
-	deps := compose.PickupExcusalDependencies{DB: db, Records: records, Baselines: baselines, Blocks: repositories.NewStudentPresenceForTests(db), Preview: adapter}
-	if extensions {
-		deps.Extensions = adapter
-	}
-	service, err := compose.NewPickupAutoExcusal(deps)
+	service, err := testutil.NewEnrollmentFlowPickupExcusal(db, records, baselines, tt, extensions)
 	require.NoError(t, err)
 	return service
-}
-
-type pickupExcusalTimetable struct {
-	partialAbsencePreview
-	timetable.Capability
-	db *bun.DB
-}
-
-func (a pickupExcusalTimetable) RecordPickupDayExtension(ctx context.Context, input compose.PickupDayExtension) error {
-	return a.Capability.RecordPickupDayExtension(ctx, timetable.PickupDayExtension(input))
-}
-func (a pickupExcusalTimetable) RecordPickupWeekdayExtension(ctx context.Context, input compose.PickupWeekdayExtension) error {
-	return a.Capability.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension(input))
 }
 
 // newTestCareLifecycle composes Care Plan's lifecycle over the test database,
@@ -4784,32 +4778,11 @@ func newTestCareLifecycle(db *bun.DB, config repositories.CareLifecycleTestConfi
 		panic(err)
 	}
 	if config.Audit == nil {
-		config.Audit = usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(db))
+		config.Audit = testutil.NewEnrollmentFlowStudentAudit(db, testpkg.RequestAuditActor)
 	}
 	lifecycle, err := repos.NewCareLifecycle(config)
 	if err != nil {
 		panic(err)
 	}
 	return lifecycle
-}
-
-// partialAbsenceReads is the joined block read the preview builds on.
-type partialAbsenceReads interface {
-	FindPartialAbsenceBlocks(context.Context, int64, string, time.Time) ([]scheduleModels.PartialAbsenceBlock, error)
-}
-
-// partialAbsencePreview serves the Care Plan's partial absence preview port
-// the way the retained services do (#2762).
-type partialAbsencePreview struct{ reads partialAbsenceReads }
-
-func (p partialAbsencePreview) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date timezone.Date, clock time.Time) ([]carerequests.Block, error) {
-	rows, err := p.reads.FindPartialAbsenceBlocks(ctx, studentID, date.String(), clock)
-	if err != nil {
-		return nil, err
-	}
-	blocks := make([]carerequests.Block, 0, len(rows))
-	for _, row := range rows {
-		blocks = append(blocks, carerequests.Block{ID: row.ID, Title: row.Title, StartTime: row.StartTime, EndTime: row.EndTime})
-	}
-	return blocks, nil
 }

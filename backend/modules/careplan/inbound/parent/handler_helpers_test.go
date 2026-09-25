@@ -18,7 +18,6 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -35,17 +34,17 @@ func (s *parentSubmitSchoolStub) GetSchoolBySubdomain(context.Context, string) (
 }
 
 type parentSubmitRequestStub struct {
-	enrollmentService.RequestService
+	enrollmentAPI.RequestService
 	called bool
-	got    enrollmentService.SubmitRequest
+	got    enrollmentAPI.SubmitRequest
 }
 
-func (s *parentSubmitRequestStub) Submit(_ context.Context, req enrollmentService.SubmitRequest) (*enrollmentService.SubmitResult, error) {
+func (s *parentSubmitRequestStub) Submit(_ context.Context, req enrollmentAPI.SubmitRequest) (*enrollmentAPI.SubmitResult, error) {
 	s.called = true
 	s.got = req
 	request := &enrollmentModels.Request{StatusToken: "status-token"}
 	request.ID = 99001
-	return &enrollmentService.SubmitResult{Request: request, StatusURL: "/status/status-token"}, nil
+	return &enrollmentAPI.SubmitResult{Request: request, StatusURL: "/status/status-token"}, nil
 }
 
 func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermission(t *testing.T) {

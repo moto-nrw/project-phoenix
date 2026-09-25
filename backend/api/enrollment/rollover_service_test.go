@@ -94,7 +94,6 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 		OutboxEnqueuer:   outbox,
 		Settings:         settings,
 		FrontendURL:      "http://localhost:3000",
-		DB:               db,
 		Logger:           slog.Default(),
 	})
 

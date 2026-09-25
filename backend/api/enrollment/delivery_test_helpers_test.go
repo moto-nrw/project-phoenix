@@ -5,39 +5,21 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	orm "github.com/uptrace/bun"
 )
 
-type testDeliveryProvider struct{}
-
-func (testDeliveryProvider) SendEmail(context.Context, delivery.ClaimedIntent) (delivery.ProviderResult, error) {
-	return delivery.ProviderResult{}, nil
-}
-
-func (testDeliveryProvider) SendPush(context.Context, delivery.ClaimedIntent) (delivery.ProviderResult, error) {
-	return delivery.ProviderResult{}, nil
-}
-
-type testGuardianDirectory struct{}
-
-func (testGuardianDirectory) ResolveGuardianDisplays(context.Context, []int64) ([]delivery.GuardianDisplay, error) {
-	return nil, nil
-}
-
 type testEnrollmentDelivery struct{ module *delivery.Module }
 
 func newTestEnrollmentDelivery(t *testing.T, db *orm.DB) testEnrollmentDelivery {
 	t.Helper()
-	runtime, err := deliveryCompose.New(deliveryCompose.Dependencies{
-		DB: db, Provider: testDeliveryProvider{}, People: testGuardianDirectory{}, Observe: func(delivery.Observation) {},
-	})
+	module, err := testutil.NewEnrollmentFlowDelivery(db)
 	require.NoError(t, err)
-	return testEnrollmentDelivery{module: runtime.Module}
+	return testEnrollmentDelivery{module: module}
 }
 
 func (a testEnrollmentDelivery) CountRelatedEmails(ctx context.Context, relatedType string, relatedID int64) (int, error) {

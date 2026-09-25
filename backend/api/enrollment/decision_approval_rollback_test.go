@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -31,7 +32,7 @@ func (b accountBeforeRosterBookings) ResyncOfferingSourcedTemplates(ctx context.
 	if err := b.check(ctx); err != nil {
 		return err
 	}
-	return b.DecisionBookings.ResyncOfferingSourcedTemplates(ctx, effectiveFrom)
+	return b.TestDecisionBookings.ResyncOfferingSourcedTemplates(ctx, effectiveFrom)
 }
 
 func TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync(t *testing.T) {
@@ -47,7 +48,7 @@ func TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync(t *testing.
 	require.NoError(t, err)
 	var txDB bun.IDB
 	checked := false
-	bookings := accountBeforeRosterBookings{DecisionBookings: newBookingsForTest(env.rolloverTestEnv, nil, nil, nil), check: func(txCtx context.Context) error {
+	bookings := accountBeforeRosterBookings{TestDecisionBookings: newBookingsForTest(env.rolloverTestEnv, nil, nil, nil), check: func(txCtx context.Context) error {
 		checked = true
 		var granted bool
 		if err := txDB.NewRaw("SELECT EXISTS (SELECT 1 FROM auth.account_roles ar JOIN auth.roles r ON r.id = ar.role_id WHERE ar.account_id = ? AND ar.tenant_id = ? AND LOWER(r.name) = 'guardian')", account.ID, testpkg.Tenant(t)).Scan(txCtx, &granted); err != nil {
@@ -103,9 +104,9 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 
 	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Fixed-Days")
 	room := testpkg.CreateTestRoom(t, env.db, "Decision-Fixed-Days")
-	group := &activitiesModels.Group{
+	group := &careTemplateGroup{
 		Name:            "Decision Fixed Days",
-		Type:            activitiesModels.GroupTypeCare,
+		Type:            timetable.GroupTypeCare,
 		CategoryID:      category.ID,
 		MaxParticipants: 20,
 		IsOpen:          true,
@@ -113,12 +114,12 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 		PlannedRoomID:   &room.ID,
 	}
 	group.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
+	require.NoError(t, createCareTemplateGroupRow(ctx, env.db, group))
 	period := createCareOfferingTestPeriod(t, env.db, "decision-fixed-days",
 		timezone.NewDate(2026, 8, 1),
 		timezone.NewDate(2027, 8, 31))
-	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayTuesday, &period.ID)
-	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayThursday, &period.ID)
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayTuesday, &period.ID)
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayThursday, &period.ID)
 	defer func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("activities.schedules").
@@ -216,7 +217,7 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 	require.NoError(t, err)
 	require.NotNil(t, outcome.Child.CreatedStudentID)
 
-	var rows []activitiesModels.StudentEnrollment
+	var rows []studentEnrollment
 	require.NoError(t, env.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).

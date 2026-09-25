@@ -8,7 +8,7 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	testutil "github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	peopleTest "github.com/moto-nrw/project-phoenix/modules/peopledirectory/peopletest"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
@@ -336,7 +336,11 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	assert.Equal(t, 1, snapshots[0].AffectedChildren)
 }
 
-type expiryStudentDirectory struct{ query peopleTest.StudentQuery }
+type expiryStudentDirectory struct {
+	query interface {
+		ListEnrolledStudents(context.Context) ([]peopledirectory.Student, error)
+	}
+}
 
 func (d expiryStudentDirectory) ListEnrolledStudents(ctx context.Context) ([]capability.PhaseExpiryStudent, error) {
 	students, err := d.query.ListEnrolledStudents(ctx)
@@ -368,7 +372,7 @@ func (d phaseExpiryCareOfferingDirectory) ListCareOfferings(ctx context.Context)
 func newPhaseExpiryProjection(t *testing.T, db *bun.DB) *enrollmentAPI.TestPhaseExpirySnapshots {
 	t.Helper()
 	owner := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
-	students, err := peopleTest.NewStudentQuery(db)
+	students, err := repositories.NewPeopleDirectory(db)
 	require.NoError(t, err)
 	return enrollmentAPI.NewTestPhaseExpirySnapshots(owner, expiryStudentDirectory{students}, phaseExpiryCareOfferingDirectory{testutil.NewTestCarePlan(t, db)}, owner)
 }

@@ -11,7 +11,7 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -194,7 +194,7 @@ func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(
 			validatorCalls++
 			assert.Equal(t, created.ID, phaseID)
 			assert.Equal(t, enrollmentOwner.Date(timezone.Date(originalEnd).AddDays(7)), enrollmentOwner.Date(replacement.ServiceEndDate))
-			return fmt.Errorf("%w: synthetic uncovered occurrence", enrollmentOwner.ErrCareOfferingInvalid)
+			return fmt.Errorf("%w: synthetic uncovered occurrence", careplan.ErrCareOfferingConfigInvalid)
 		},
 		Logger: slog.Default(),
 	})
@@ -657,20 +657,20 @@ func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentOwner.PhaseAdminis
 func TestPhaseService_Create_WithCalendarPeriodLink(t *testing.T) {
 	t.Parallel()
 
-	svc, repoFactory, db, cleanup := phaseServiceWithCalendarPeriods(t)
+	svc, _, db, cleanup := phaseServiceWithCalendarPeriods(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	period := &scheduleModels.CalendarPeriod{
+	period := &calendarPeriod{
 		Name:            "period-" + t.Name(),
-		PeriodType:      scheduleModels.PeriodTypeSemester,
-		StartDate:       scheduleModels.NewDate(2026, 8, 1),
-		EndDate:         scheduleModels.NewDate(2027, 1, 31),
+		PeriodType:      schoolcalendar.PeriodTypeSemester,
+		StartDate:       timezone.NewDate(2026, 8, 1),
+		EndDate:         timezone.NewDate(2027, 1, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
 	period.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repoFactory.CalendarPeriod.Create(ctx, period))
+	require.NoError(t, createCalendarPeriodRow(ctx, db, period))
 	defer func() {
 		_, _ = db.NewDelete().
 			TableExpr("schedule.calendar_periods").
@@ -698,20 +698,20 @@ func TestPhaseService_Create_WithCalendarPeriodLink(t *testing.T) {
 func TestPhaseService_Update_PersistsCalendarPeriodLink(t *testing.T) {
 	t.Parallel()
 
-	svc, repoFactory, db, cleanup := phaseServiceWithCalendarPeriods(t)
+	svc, _, db, cleanup := phaseServiceWithCalendarPeriods(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	period := &scheduleModels.CalendarPeriod{
+	period := &calendarPeriod{
 		Name:            "period-" + t.Name(),
-		PeriodType:      scheduleModels.PeriodTypeSemester,
-		StartDate:       scheduleModels.NewDate(2026, 8, 1),
-		EndDate:         scheduleModels.NewDate(2027, 1, 31),
+		PeriodType:      schoolcalendar.PeriodTypeSemester,
+		StartDate:       timezone.NewDate(2026, 8, 1),
+		EndDate:         timezone.NewDate(2027, 1, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
 	period.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repoFactory.CalendarPeriod.Create(ctx, period))
+	require.NoError(t, createCalendarPeriodRow(ctx, db, period))
 	defer func() {
 		_, _ = db.NewDelete().
 			TableExpr("schedule.calendar_periods").

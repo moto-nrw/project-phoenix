@@ -25,6 +25,8 @@ type (
 	SubmitResult       = enrollment.SubmitResult
 	CareBookingInput   = enrollment.CareBookingInput
 	School             = enrollment.School
+	Notifications      = enrollment.Notifications
+	FormField          = enrollment.FormField
 
 	ChangeRequests           = enrollment.ChangeRequests
 	CreateChangeRequestInput = enrollment.CreateChangeRequestInput
@@ -36,12 +38,17 @@ type (
 	OfferingGradeCount              = enrollment.OfferingGradeCount
 
 	Intake                = compose.Intake
+	CareOfferingRecords   = compose.CareOfferingRecords
 	CareOfferingRows      = compose.CareOfferingRows
 	OfferingChangeRecords = compose.OfferingChangeRecords
 )
 
-// DecisionApproved is the approval decision.
-const DecisionApproved = enrollment.DecisionApproved
+// DecisionApproved is the approval decision; FormFieldText a free-text
+// form field.
+const (
+	DecisionApproved = enrollment.DecisionApproved
+	FormFieldText    = enrollment.FormFieldText
+)
 
 // The public refusals the suite asserts with errors.Is.
 var (

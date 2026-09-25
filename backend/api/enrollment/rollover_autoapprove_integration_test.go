@@ -3,16 +3,18 @@ package enrollment_test
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
-
 	"log/slog"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
@@ -21,8 +23,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -69,7 +69,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		StudentEnrollment: testStudentEnrollment(env.db),
 		Companions:        repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteCompanions:  repoFactory.CarePlan().DeleteCompanionEdges,
-		StudentAudit:      usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(env.db)),
+		StudentAudit:      testutil.NewEnrollmentFlowStudentAudit(env.db, testpkg.RequestAuditActor),
 		FrontendURL:       "http://localhost:3000",
 		ParentsURL:        "http://parents.localhost:3000",
 		Settings:          settings,
@@ -346,9 +346,9 @@ func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T)
 	history, err := env.repos.StudentFieldEdit.GetByStudentID(ctx, existing.ID)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
-	assert.Equal(t, auditModels.StudentFieldStatus, history[0].FieldName)
-	assert.Equal(t, auditModels.StudentFieldEditSystemActorID, history[0].EditedBy)
-	assert.Equal(t, auditModels.StudentFieldEditSystemActorName, history[0].EditedByName)
+	assert.Equal(t, peopledirectory.StudentFieldStatus, history[0].FieldName)
+	assert.Equal(t, peopledirectory.StudentAuditSystemActorID, history[0].EditedBy)
+	assert.Equal(t, peopledirectory.StudentAuditSystemActorName, history[0].EditedByName)
 }
 
 func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecomesPending(t *testing.T) {
@@ -506,7 +506,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 		timezone.NewDate(2027, 8, 1),
 		timezone.NewDate(2028, 8, 31),
 	)
-	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayTuesday, &period.ID)
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayTuesday, &period.ID)
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:         env.sourcePhase.ID,
 		ActivityGroupID: &group.ID,

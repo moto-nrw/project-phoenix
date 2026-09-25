@@ -317,6 +317,9 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsCountsManualAutoTargetF
 	requireSelectionError(t, err, selection.ErrCareOfferingExactlyOneRequired, enrollment.ErrCareOfferingExactlyOneRequired)
 }
 
+// TestOrdinarySaveStillEnforcesRequiredCare pins that the complete
+// withdrawal Care Plan's offering adjustments allow (#3561) never reaches an
+// ordinary enrollment save: required care and the minimum selection hold.
 func TestOrdinarySaveStillEnforcesRequiredCare(t *testing.T) {
 	t.Parallel()
 	care := &enrollmentModels.CareOffering{

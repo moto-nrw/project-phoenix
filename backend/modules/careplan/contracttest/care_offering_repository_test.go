@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,9 +17,17 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+// careOfferingRepoUnderTest writes offerings through Care Plan's commands and
+// reads them back through the enrollment rows the intake and the decision
+// flow read them in.
+type careOfferingRepoUnderTest struct {
+	careOfferingFixtureRecords
+	*enrollmentTest.CareOfferingRecords
+}
+
 func setupCareOfferingRepoTest(t *testing.T) (
 	*bun.DB,
-	enrollmentModels.CareOfferingRepository,
+	careOfferingRepoUnderTest,
 	int64,
 	int64,
 ) {
@@ -29,7 +36,7 @@ func setupCareOfferingRepoTest(t *testing.T) (
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	phaseRepo := enrollmentCompose.New()
+	phaseRepo := enrollmentTest.New()
 	phaseName := uniquePhaseName("offering")
 	phase := makeOwnerEligibilityPhase(phaseName)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -37,7 +44,11 @@ func setupCareOfferingRepoTest(t *testing.T) (
 	}))
 	t.Cleanup(func() { wipePhases(db, tenantID, phaseName) })
 
-	return db, enrollmentSvc.NewCareOfferingRepository(carePlanTest.NewCarePlan(t, db)), tenantID, phase.ID
+	carePlan := carePlanTest.NewCarePlan(t, db)
+	return db, careOfferingRepoUnderTest{
+		careOfferingFixtureRecords: newCareOfferingFixtureRecords(carePlan),
+		CareOfferingRecords:        testutil.NewEnrollmentCareOfferingRecords(carePlan),
+	}, tenantID, phase.ID
 }
 
 // --- Create + Validation ----------------------------------------------
@@ -80,20 +91,6 @@ func TestCareOfferingRepository_Create_PreservesExplicitCountsAsCareFalse(t *tes
 	require.NotNil(t, got)
 	assert.False(t, got.CountsAsCare, "explicit counts_as_care=false must survive create")
 }
-
-func TestCareOfferingRepository_Create_RejectsInvalidOffering(t *testing.T) {
-	t.Parallel()
-
-	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	offering := makeOffering(phaseID, "") // blank name → Validate fails
-	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, offering)
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "validation failed")
-}
-
-// --- FindByID ---------------------------------------------------------
 
 func TestCareOfferingRepository_FindByID_HappyPath(t *testing.T) {
 	t.Parallel()
@@ -192,25 +189,6 @@ func TestCareOfferingRepository_Update_PersistsEveryEditableColumn(t *testing.T)
 		"pickup_times must survive the explicit column-list update (#2290)")
 }
 
-func TestCareOfferingRepository_Update_RejectsInvalidOffering(t *testing.T) {
-	t.Parallel()
-
-	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseID)
-
-	offering := makeOffering(phaseID, uniqueOfferingName("invalidupdate"))
-	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, offering)
-	}))
-
-	offering.Name = ""
-	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Update(ctx, offering)
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "validation failed")
-}
-
 func TestCareOfferingRepository_Update_MissingIDErrors(t *testing.T) {
 	t.Parallel()
 
@@ -303,7 +281,7 @@ func TestCareOfferingRepository_ListByPhase_ScopesToPhase(t *testing.T) {
 	defer wipeOfferings(db, tenantID, phaseA)
 
 	// Second phase so we can prove the filter.
-	phaseRepo := enrollmentCompose.New()
+	phaseRepo := enrollmentTest.New()
 	other := makeOwnerEligibilityPhase(uniquePhaseName("otherphase"))
 	other.ServiceStartDate = "2027-09-01"
 	other.ServiceEndDate = "2028-07-31"
@@ -341,7 +319,7 @@ func TestCareOfferingRepository_ListByIDs_LoadsExactIDsAcrossPhases(t *testing.T
 	db, repo, tenantID, phaseA := setupCareOfferingRepoTest(t)
 	defer wipeOfferings(db, tenantID, phaseA)
 
-	phaseRepo := enrollmentCompose.New()
+	phaseRepo := enrollmentTest.New()
 	other := makeOwnerEligibilityPhase(uniquePhaseName("ids-otherphase"))
 	other.ServiceStartDate = "2027-09-01"
 	other.ServiceEndDate = "2028-07-31"

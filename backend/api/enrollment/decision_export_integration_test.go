@@ -11,12 +11,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Integration coverage for the ExportPhase coupling: loading the phase
@@ -32,7 +30,7 @@ import (
 // data-loading repos from the env plus the supplied audit repo, so a
 // test can swap in a failing stub. Mirrors the export half of
 // setupDecisionTest's config (which omits the audit repo).
-func newExportDecisionService(env *decisionTestEnv, auditRepo auditModels.DataAccessLogRepository) enrollmentAPI.DecisionService {
+func newExportDecisionService(env *decisionTestEnv, auditRepo testutil.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
 	return newTestDecisionService(testutil.EnrollmentDecisionSources{
 		Requests:      env.repos.Enrollment(),
 		Children:      env.repos.Enrollment(),
@@ -67,7 +65,7 @@ func (failingPhaseRepo) Phase(_ context.Context, _ int64) (*capability.Phase, er
 // newExportDecisionServiceFailingSchema mirrors newExportDecisionService
 // but swaps in a schema reader whose Schema always errors, so a test
 // can prove the export fails closed when a pinned schema cannot be loaded.
-func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo auditModels.DataAccessLogRepository) enrollmentAPI.DecisionService {
+func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo testutil.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
 	return newTestDecisionService(testutil.EnrollmentDecisionSources{
 		Requests:      env.repos.Enrollment(),
 		Children:      env.repos.Enrollment(),
@@ -80,7 +78,7 @@ func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo audit
 	})
 }
 
-func newExportDecisionServiceFailingPhase(env *decisionTestEnv, auditRepo auditModels.DataAccessLogRepository) enrollmentAPI.DecisionService {
+func newExportDecisionServiceFailingPhase(env *decisionTestEnv, auditRepo testutil.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
 	return newTestDecisionService(testutil.EnrollmentDecisionSources{
 		Requests:      env.repos.Enrollment(),
 		Children:      env.repos.Enrollment(),
@@ -160,7 +158,7 @@ func TestDecisionService_ExportPhase_LoadsDataAndRecordsAudit(t *testing.T) {
 	// the counts that match the disclosed payload.
 	require.Len(t, audit.entries, 1, "ExportPhase must record exactly one audit row")
 	entry := audit.entries[0]
-	assert.Equal(t, auditModels.ResourceTypeEnrollmentPhaseExport, entry.ResourceType)
+	assert.Equal(t, testutil.EnrollmentFlowPhaseExportResource, entry.ResourceType)
 	assert.Equal(t, actorID, entry.ActorAccountID)
 	md := entry.GetMetadata()
 	assert.Equal(t, env.sourcePhase.ID, md["phase_id"])
@@ -261,7 +259,7 @@ func TestDecisionService_ExportStudent_LoadsDataAndRecordsAudit(t *testing.T) {
 
 	require.Len(t, audit.entries, 1)
 	entry := audit.entries[0]
-	assert.Equal(t, auditModels.ResourceTypeEnrollmentStudentExport, entry.ResourceType)
+	assert.Equal(t, testutil.EnrollmentFlowStudentExportResource, entry.ResourceType)
 	require.NotNil(t, entry.StudentID)
 	assert.Equal(t, studentID, *entry.StudentID)
 	md := entry.GetMetadata()

@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -30,7 +29,7 @@ func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module := repositories.NewEnrollmentBookingProjection(enrollmentTest.New())
-	const validUntil = enrollment.Date("2031-02-01")
+	const validUntil = enrollmentTest.Date("2031-02-01")
 	schools := make([]careExitOfferingSchool, 0, 2)
 	for _, school := range []string{"first", "second"} {
 		t.Run(school, func(t *testing.T) {
@@ -91,8 +90,8 @@ func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 			require.Equal(t, []string{"mon", "wed"}, link.SelectedDays)
 		}
 		require.Nil(t, audit[0].ValidFrom)
-		require.Equal(t, enrollment.Date("2031-03-01"), *audit[1].ValidFrom)
-		require.Equal(t, enrollment.Date("2031-01-01"), *audit[2].ValidUntil)
+		require.Equal(t, enrollmentTest.Date("2031-03-01"), *audit[1].ValidFrom)
+		require.Equal(t, enrollmentTest.Date("2031-01-01"), *audit[2].ValidUntil)
 
 		links, err := module.CareExitOfferingLinks(ctx, []int64{school.studentID, schools[1-i].studentID})
 		require.NoError(t, err)
@@ -152,9 +151,9 @@ func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 		require.Equal(t, validUntil, *afterEnd[0].ValidUntil, "the running link is capped")
 		require.Equal(t, school.ended, afterEnd[1].ID)
 
-		restores := make([]enrollment.CareExitOfferingSnapshotRestore, 0, len(snapshots))
+		restores := make([]enrollmentTest.CareExitOfferingSnapshotRestore, 0, len(snapshots))
 		for _, snapshot := range snapshots {
-			restores = append(restores, enrollment.CareExitOfferingSnapshotRestore{SourceRowID: snapshot.SourceRowID, WasDeleted: snapshot.WasDeleted, Snapshot: snapshot.Snapshot})
+			restores = append(restores, enrollmentTest.CareExitOfferingSnapshotRestore{SourceRowID: snapshot.SourceRowID, WasDeleted: snapshot.WasDeleted, Snapshot: snapshot.Snapshot})
 		}
 		foreignRestored, err := module.RestoreCareExitOfferingLinks(foreignCtx, restores)
 		require.NoError(t, err)
@@ -185,7 +184,7 @@ func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 		require.Equal(t, school.running, afterRestore[0].ID)
 		require.Nil(t, afterRestore[0].ValidUntil, "the capped link recovers its open end")
 		require.Equal(t, school.future, afterRestore[1].ID, "the deleted link keeps its original id")
-		require.Equal(t, enrollment.Date("2031-03-01"), *afterRestore[1].ValidFrom)
+		require.Equal(t, enrollmentTest.Date("2031-03-01"), *afterRestore[1].ValidFrom)
 		restored, err = module.RestoreCareExitOfferingLinks(ctx, restores)
 		require.NoError(t, err)
 		require.Zero(t, restored, "replaying the ledger again is a no-op")
@@ -207,7 +206,7 @@ func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 		require.Error(t, snapshotErr)
 		_, endErr := module.EndCareExitOfferingLinks(txCtx, []int64{schools[0].requestChildID}, nil, validUntil)
 		require.Error(t, endErr)
-		_, restoreErr := module.RestoreCareExitOfferingLinks(txCtx, []enrollment.CareExitOfferingSnapshotRestore{{SourceRowID: beforeFailure[0].SourceRowID, WasDeleted: beforeFailure[0].WasDeleted, Snapshot: beforeFailure[0].Snapshot}})
+		_, restoreErr := module.RestoreCareExitOfferingLinks(txCtx, []enrollmentTest.CareExitOfferingSnapshotRestore{{SourceRowID: beforeFailure[0].SourceRowID, WasDeleted: beforeFailure[0].WasDeleted, Snapshot: beforeFailure[0].Snapshot}})
 		require.Error(t, restoreErr)
 		return err
 	})

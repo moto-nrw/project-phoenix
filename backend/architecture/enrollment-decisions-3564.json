@@ -72,8 +72,8 @@
       "backend/modules/enrollment/internal/application/guardian_resolve_test.go",
       "backend/modules/enrollment/internal/application/rejected_cleanup_test.go",
       "backend/modules/enrollment/integration/rejected_cleanup_savepoint_test.go",
-      "backend/services/enrollment/decision_service_test.go",
-      "backend/services/enrollment/deletion_service_integration_test.go"
+      "backend/api/enrollment/decision_service_test.go",
+      "backend/api/enrollment/deletion_service_integration_test.go"
     ],
     "workload": "Affected Go package suites against the local PostgreSQL test database, the moved unit suites and source-level architecture checks.",
     "thresholds": "No new forbidden import, rule or composition target; ten listed legacy keys retired; the moved suites retain their assertions and scripts/backend-architecture.sh check passes.",

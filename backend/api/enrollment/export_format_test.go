@@ -8,7 +8,6 @@ import (
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -97,16 +96,16 @@ func TestGradeLabel(t *testing.T) {
 func TestActivationSummary(t *testing.T) {
 	t.Parallel()
 
-	scheduled := &enrollmentService.RequestChild{ActivationMode: enrollmentModels.ChildActivationScheduled}
+	scheduled := &RequestChild{ActivationMode: enrollmentModels.ChildActivationScheduled}
 	if got := activationSummary(scheduled); got != "Geplant" {
 		t.Errorf("scheduled w/o date = %q, want Geplant", got)
 	}
-	immediate := &enrollmentService.RequestChild{ActivationMode: enrollmentModels.ChildActivationImmediate}
+	immediate := &RequestChild{ActivationMode: enrollmentModels.ChildActivationImmediate}
 	if got := activationSummary(immediate); got != "Sofort" {
 		t.Errorf("immediate = %q, want Sofort", got)
 	}
 	on := timezone.Date("2026-08-01")
-	dated := &enrollmentService.RequestChild{ActivationMode: enrollmentModels.ChildActivationScheduled, ActivateOn: &on}
+	dated := &RequestChild{ActivationMode: enrollmentModels.ChildActivationScheduled, ActivateOn: &on}
 	if got := activationSummary(dated); got != "Geplant (01.08.2026)" {
 		t.Errorf("dated = %q, want 'Geplant (01.08.2026)'", got)
 	}
@@ -289,7 +288,7 @@ func TestFormatOfferings_FallsBackToAvailableDaysAndOfferingID(t *testing.T) {
 	}
 	// No name + no selected days → "Angebot #<id>" using the offering's
 	// available days as the displayed schedule.
-	rows := []enrollmentService.ChildOfferingRow{
+	rows := []ChildOfferingRow{
 		{OfferingID: 42, AvailableDays: []string{"mon", "tue"}},
 	}
 	if got := formatOfferings(rows); got != "Angebot #42 (Mo, Di)" {

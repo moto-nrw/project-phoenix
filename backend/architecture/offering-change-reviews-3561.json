@@ -51,9 +51,9 @@
   "runtime_evidence": {
     "source": "Local run on the PR branch stacked on the #3560 branch (321b7bb5bf). The move rebinds the reviews' reads and writes to the owner operations the retained repositories delegated to, so the evidence is the unchanged behaviour suites plus the architecture check, not a benchmark rerun.",
     "sources": [
-      "backend/services/enrollment/offering_change_request_service_test.go",
-      "backend/services/enrollment/offering_change_request_automatic_test.go",
-      "backend/services/enrollment/offering_change_full_withdrawal_test.go",
+      "backend/modules/careplan/contracttest/offering_change_request_service_test.go",
+      "backend/modules/careplan/contracttest/offering_change_request_automatic_test.go",
+      "backend/modules/careplan/contracttest/offering_change_full_withdrawal_test.go",
       "backend/api/students/pickup_adjustment_handlers_test.go",
       "backend/api/students/offering_request_review_handlers_test.go"
     ],

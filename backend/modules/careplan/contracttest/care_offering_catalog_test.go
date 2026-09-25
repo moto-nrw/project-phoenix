@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	phaseFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -15,9 +15,6 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/services/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +25,7 @@ import (
 // test database, served in enrollment rows, and creates a phase the offerings
 // can FK against. Phase model replaced calendar periods as the parent entity
 // for care offerings (migration 1.15.68).
-func setupCareTest(t *testing.T, options ...testutil.CareOfferingCatalogOption) (*bun.DB, enrollmentService.CareOfferingRows, *phaseFixture.Phase, func()) {
+func setupCareTest(t *testing.T, options ...testutil.CareOfferingCatalogOption) (*bun.DB, *enrollmentTest.CareOfferingRows, *enrollmentTest.Phase, func()) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	// Register pool closure before fixture cleanups. testing.Cleanup runs in
@@ -38,17 +35,17 @@ func setupCareTest(t *testing.T, options ...testutil.CareOfferingCatalogOption) 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := careOfferingRows(t, db, options...)
 
-	phase := &phaseFixture.Phase{
+	phase := &enrollmentTest.Phase{
 		Name:             uniqueSchemaName("phase-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: phaseFixture.Date(timezone.NewDate(2026, 9, 1)),
-		ServiceEndDate:   phaseFixture.Date(timezone.NewDate(2027, 7, 31)),
+		ServiceStartDate: enrollmentTest.Date(timezone.NewDate(2026, 9, 1)),
+		ServiceEndDate:   enrollmentTest.Date(timezone.NewDate(2027, 7, 31)),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
 	phase.TenantID = testpkg.Tenant(t)
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, enrollmentService.InsertOwnerPhaseForTest(ctx, repoFactory.Enrollment(), phase))
+	require.NoError(t, insertOwnerPhaseForTest(ctx, repoFactory.Enrollment(), phase))
 
 	cleanup := func() {
 		bg := context.Background()
@@ -68,12 +65,12 @@ func setupCareTest(t *testing.T, options ...testutil.CareOfferingCatalogOption) 
 // careOfferingRows composes the catalog in rows with a pickup resync bound
 // (as the old service tests always bound one) plus the given options, which
 // are applied after it and may replace it.
-func careOfferingRows(t *testing.T, db *bun.DB, options ...testutil.CareOfferingCatalogOption) enrollmentService.CareOfferingRows {
+func careOfferingRows(t *testing.T, db *bun.DB, options ...testutil.CareOfferingCatalogOption) *enrollmentTest.CareOfferingRows {
 	t.Helper()
 	all := append([]testutil.CareOfferingCatalogOption{
-		testutil.WithCareOfferingPickupResync(&enrollmenttest.PickupResyncer{}),
+		testutil.WithCareOfferingPickupResync(&pickupResyncer{}),
 	}, options...)
-	return enrollmentService.NewCareOfferingRows(testCareOfferingCatalog(t, db, all...))
+	return enrollmentTest.NewCareOfferingRows(testCareOfferingCatalog(t, db, all...))
 }
 
 func baseLinkedOffering(t *testing.T, phaseID int64, groupID int64) *enrollmentModels.CareOffering {
@@ -102,7 +99,7 @@ func TestCareOfferingCatalog_Create_RequiresPickupTimesForActiveCareDays(t *test
 
 	_, err := svc.Create(testpkg.Ctx(t), offering)
 
-	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingPickupTimesRequired)
+	require.ErrorIs(t, err, enrollmentTest.ErrCareOfferingPickupTimesRequired)
 }
 
 func TestCareOfferingCatalog_Create_AllowsMissingPickupTimesOutsideActiveCare(t *testing.T) {
@@ -225,7 +222,7 @@ func TestCareOfferingCatalog_ListActiveByPhase_FiltersInactive(t *testing.T) {
 	_, err = svc.Create(ctx, inactive)
 	require.NoError(t, err)
 
-	records := enrollmentService.NewCareOfferingRepository(testRepositories(t, db).CarePlan())
+	records := testutil.NewEnrollmentCareOfferingRecords(testRepositories(t, db).CarePlan())
 	publicList, err := records.ListActiveByPhase(ctx, phase.ID)
 	require.NoError(t, err)
 	require.Len(t, publicList, 1, "ListActiveByPhase must drop is_active=false rows")
@@ -241,7 +238,7 @@ func TestCareOfferingCatalog_GetByID_NotFoundSentinel(t *testing.T) {
 
 	_, err := svc.GetByID(ctx, 999_999_999)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingNotFound))
+	assert.True(t, errors.Is(err, enrollmentTest.ErrCareOfferingNotFound))
 }
 
 func TestCareOfferingCatalog_Update_AppliesChanges(t *testing.T) {
@@ -350,7 +347,7 @@ func TestCareOfferingCatalog_Create_RejectsIncompatibleSplitSeriesSegment(t *tes
 	require.NoError(t, repos.ActivitySchedule.Create(ctx, successorSchedule))
 
 	_, err := svc.Create(ctx, baseLinkedOffering(t, phase.ID, root.ID))
-	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingTemplatePeriodMismatch)
+	require.ErrorIs(t, err, enrollmentTest.ErrCareOfferingTemplatePeriodMismatch)
 }
 
 func TestCareOfferingCatalog_Create_RejectsTemplateOutsidePhaseWindow(t *testing.T) {
@@ -389,7 +386,7 @@ func TestCareOfferingCatalog_Create_RejectsUnavailableOfferingWeekday(t *testing
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayTuesday, &period.ID)
 
 	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
-	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
+	require.ErrorIs(t, err, enrollmentTest.ErrCareOfferingInvalid)
 	require.ErrorContains(t, err, "weekday")
 }
 
@@ -398,16 +395,16 @@ func TestCareOfferingCatalog_Create_RejectsAdvertisedDayAbsentFromShortPhase(t *
 
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
-	phase.ServiceStartDate = phaseFixture.Date(timezone.NewDate(2026, time.April, 21)) // Tuesday
-	phase.ServiceEndDate = phaseFixture.Date(timezone.NewDate(2026, time.April, 22))   // Wednesday
-	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Enrollment().UpdatePhase(testpkg.Ctx(t), enrollmentService.OwnerPhaseForTest(phase)))
+	phase.ServiceStartDate = enrollmentTest.Date(timezone.NewDate(2026, time.April, 21)) // Tuesday
+	phase.ServiceEndDate = enrollmentTest.Date(timezone.NewDate(2026, time.April, 22))   // Wednesday
+	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
 	period := createCareOfferingTestPeriod(t, db, "care-zero-occurrence-period",
 		timezone.NewDate(2026, 4, 1), timezone.NewDate(2026, 4, 30))
 	group := createCareOfferingTemplateGroup(t, db, "care-zero-occurrence-template")
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
 
 	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
-	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
+	require.ErrorIs(t, err, enrollmentTest.ErrCareOfferingInvalid)
 	require.ErrorContains(t, err, "has no occurrence during the enrollment phase")
 }
 
@@ -437,7 +434,7 @@ func TestCareOfferingCatalog_Create_RequiresEveryABWeekOccurrence(t *testing.T) 
 	offering := baseLinkedOffering(t, phase.ID, group.ID)
 
 	_, err := svc.Create(testpkg.Ctx(t), offering)
-	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
+	require.ErrorIs(t, err, enrollmentTest.ErrCareOfferingInvalid)
 
 	weekB := &activitiesModels.Schedule{
 		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: group.ID,
@@ -457,9 +454,9 @@ func TestCareOfferingCatalog_Create_AllowsNonOccurrencePhaseBoundaries(t *testin
 
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
-	phase.ServiceStartDate = phaseFixture.Date(timezone.NewDate(2026, time.April, 17)) // Friday
-	phase.ServiceEndDate = phaseFixture.Date(timezone.NewDate(2026, time.April, 26))   // Sunday
-	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Enrollment().UpdatePhase(testpkg.Ctx(t), enrollmentService.OwnerPhaseForTest(phase)))
+	phase.ServiceStartDate = enrollmentTest.Date(timezone.NewDate(2026, time.April, 17)) // Friday
+	phase.ServiceEndDate = enrollmentTest.Date(timezone.NewDate(2026, time.April, 26))   // Sunday
+	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
 	period := createCareOfferingTestPeriod(t, db, "care-boundary-period",
 		timezone.NewDate(2026, 4, 1), timezone.NewDate(2026, 4, 30))
 	group := createCareOfferingTemplateGroup(t, db, "care-boundary-template")
@@ -495,7 +492,7 @@ func TestCareOfferingCatalog_Create_ActiveOfferingRequiresActivePeriod(t *testin
 	offering := baseLinkedOffering(t, phase.ID, group.ID)
 
 	_, err := svc.Create(testpkg.Ctx(t), offering)
-	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
+	require.ErrorIs(t, err, enrollmentTest.ErrCareOfferingInvalid)
 	require.ErrorContains(t, err, "active calendar period")
 
 	offering.IsActive = false
@@ -578,7 +575,7 @@ func TestCareOfferingCatalog_Create_RejectsPhaseOutsideTemplatePeriod(t *testing
 	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingTemplatePeriodMismatch)
+	assert.ErrorIs(t, err, enrollmentTest.ErrCareOfferingTemplatePeriodMismatch)
 	assert.Contains(t, err.Error(), "phase must be within")
 }
 
@@ -603,7 +600,7 @@ func TestCareOfferingCatalog_Update_RejectsPhaseOutsideTemplatePeriod(t *testing
 	err = svc.Update(ctx, created)
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingTemplatePeriodMismatch)
+	assert.ErrorIs(t, err, enrollmentTest.ErrCareOfferingTemplatePeriodMismatch)
 }
 
 func TestCareOfferingCatalog_Update_RejectsUnavailableOfferingWeekday(t *testing.T) {
@@ -623,7 +620,7 @@ func TestCareOfferingCatalog_Update_RejectsUnavailableOfferingWeekday(t *testing
 	created.AvailableDays = []string{"mon", "tue"}
 	err = svc.Update(ctx, created)
 
-	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
+	require.ErrorIs(t, err, enrollmentTest.ErrCareOfferingInvalid)
 	require.ErrorContains(t, err, "weekday")
 }
 
@@ -643,7 +640,7 @@ func TestCareOfferingCatalog_Update_RefreshesPickupProjectionConsumers(t *testin
 	require.NoError(t, err)
 
 	// A fresh recorder bound after the create, as the old test rebound it.
-	resyncer := &enrollmenttest.PickupResyncer{}
+	resyncer := &pickupResyncer{}
 	svc = careOfferingRows(t, db, testutil.WithCareOfferingPickupResync(resyncer))
 	created.PickupTimes = map[string]string{"mon": "15:00"}
 
@@ -675,16 +672,16 @@ func TestCareOfferingCatalog_Clone_RepointsToTargetPhase(t *testing.T) {
 
 	// Build a second phase as the clone target.
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	target := &phaseFixture.Phase{
+	target := &enrollmentTest.Phase{
 		Name:             uniqueSchemaName("phase-clone-target-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: phaseFixture.Date(timezone.NewDate(2027, 9, 1)),
-		ServiceEndDate:   phaseFixture.Date(timezone.NewDate(2028, 7, 31)),
+		ServiceStartDate: enrollmentTest.Date(timezone.NewDate(2027, 9, 1)),
+		ServiceEndDate:   enrollmentTest.Date(timezone.NewDate(2028, 7, 31)),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
 	target.TenantID = testpkg.Tenant(t)
-	require.NoError(t, enrollmentService.InsertOwnerPhaseForTest(ctx, repoFactory.Enrollment(), target))
+	require.NoError(t, insertOwnerPhaseForTest(ctx, repoFactory.Enrollment(), target))
 	t.Cleanup(func() {
 		bg := context.Background()
 		_, _ = db.NewDelete().
@@ -729,16 +726,16 @@ func TestCareOfferingCatalog_Clone_ClearsLinkedTemplateAcrossPhases(t *testing.T
 	require.NoError(t, err)
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	target := &phaseFixture.Phase{
+	target := &enrollmentTest.Phase{
 		Name:             uniqueSchemaName("phase-clone-linked-target-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: phaseFixture.Date(timezone.NewDate(2027, 9, 1)),
-		ServiceEndDate:   phaseFixture.Date(timezone.NewDate(2028, 7, 31)),
+		ServiceStartDate: enrollmentTest.Date(timezone.NewDate(2027, 9, 1)),
+		ServiceEndDate:   enrollmentTest.Date(timezone.NewDate(2028, 7, 31)),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
 	target.TenantID = testpkg.Tenant(t)
-	require.NoError(t, enrollmentService.InsertOwnerPhaseForTest(ctx, repoFactory.Enrollment(), target))
+	require.NoError(t, insertOwnerPhaseForTest(ctx, repoFactory.Enrollment(), target))
 	t.Cleanup(func() {
 		bg := context.Background()
 		_, _ = db.NewDelete().
@@ -781,7 +778,7 @@ func TestCareOfferingCatalog_Delete_RemovesRow(t *testing.T) {
 
 	_, err = svc.GetByID(ctx, created.ID)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingNotFound))
+	assert.True(t, errors.Is(err, enrollmentTest.ErrCareOfferingNotFound))
 }
 
 // #2147 review round 11: deleting an offering must retire its sourced
@@ -845,14 +842,14 @@ func TestCareOfferingCatalog_RejectsMixedRuleInSameGroup(t *testing.T) {
 	// A non-optional rule differing from the group's existing rule is rejected.
 	_, err = svc.Create(ctx, groupOffering("B", enrollmentModels.SelectionRuleAtLeastOne))
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingGroupRuleConflict))
+	assert.True(t, errors.Is(err, enrollmentTest.ErrCareOfferingGroupRuleConflict))
 
 	// An optional (or empty-rule) sibling in a non-optional group is ALSO
 	// rejected — the submit path counts all members, so the group must be
 	// homogeneous.
 	_, err = svc.Create(ctx, groupOffering("C", enrollmentModels.SelectionRuleOptional))
 	require.Error(t, err, "optional sibling in an exactly_one group must be rejected")
-	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingGroupRuleConflict))
+	assert.True(t, errors.Is(err, enrollmentTest.ErrCareOfferingGroupRuleConflict))
 
 	// A matching rule is accepted.
 	_, err = svc.Create(ctx, groupOffering("D", enrollmentModels.SelectionRuleExactlyOne))
@@ -863,7 +860,7 @@ func TestCareOfferingCatalog_RejectsMixedRuleInSameGroup(t *testing.T) {
 	first.SelectionRule = enrollmentModels.SelectionRuleAtMostOne
 	err = svc.Update(ctx, first)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingGroupRuleConflict))
+	assert.True(t, errors.Is(err, enrollmentTest.ErrCareOfferingGroupRuleConflict))
 }
 
 func TestCareOfferingCatalog_RejectsAutoAddTriggersInExclusiveSelectionGroup(t *testing.T) {
@@ -982,24 +979,6 @@ func testRepositories(t *testing.T, db *bun.DB) *repositories.Factory {
 	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	return factory
-}
-
-// testGuardianAccess composes the production Identity & Access capability the
-// decision service grants parent portal access through.
-func testGuardianAccess(db *bun.DB) phaseFixture.DecisionGuardianAccess {
-	module, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
-	if err != nil {
-		panic(err)
-	}
-	return module
-}
-
-func testStudentEnrollment(db *bun.DB) phaseFixture.DecisionStudentEnrollment {
-	module, err := repositories.NewPeopleDirectory(db)
-	if err != nil {
-		panic(err)
-	}
-	return module
 }
 
 func testActivityScheduleRepository(t *testing.T, db *bun.DB) activitiesModels.ScheduleRepository {

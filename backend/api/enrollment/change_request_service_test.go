@@ -52,7 +52,6 @@ func newChangeRequestServiceForTestWithAuthorizer(
 		OutboxEnqueuer:      env.outbox,
 		FrontendURL:         "http://localhost:3000",
 		ParentsURL:          "http://parents.localhost:3000",
-		DB:                  env.db,
 		Logger:              slog.Default(),
 	})
 }
@@ -115,12 +114,12 @@ func newChangeRequestServiceWithDecisionAndIntakeForTest(
 		GuardianPhoneRepo:   env.repos.GuardianPhoneNumber,
 		StudentRepo:         env.repos.Student,
 		GuardianAuthorizer:  env.repos.StudentGuardian,
-		DecisionService:     changeRequestApplierForTest(t, env),
+		Decisions:           decisionOwner(t, env.decision),
+		BookingGates:        env.bookings,
 		Settings:            env.settings,
 		OutboxEnqueuer:      env.outbox,
 		FrontendURL:         "http://localhost:3000",
 		ParentsURL:          "http://parents.localhost:3000",
-		DB:                  env.db,
 		Logger:              slog.Default(),
 	})
 }
@@ -133,7 +132,7 @@ func (r failAdminAuditChangeRequestIntake) InsertChangeRequest(ctx context.Conte
 	if row.Origin == capability.ChangeRequestOriginAdmin {
 		return errors.New("forced admin correction audit failure")
 	}
-	return r.ChangeRequestIntakeRequests.InsertChangeRequest(ctx, row)
+	return r.EnrollmentChangeRequestRecords.InsertChangeRequest(ctx, row)
 }
 
 // liftTakeoverStamp clears created_student_id on the request's children and
@@ -1165,7 +1164,7 @@ func TestChangeRequestService_CorrectApprovedChildData_RollsBackRejectedRequestW
 	require.NoError(t, err)
 
 	failingService := newChangeRequestServiceWithDecisionAndIntakeForTest(t, env, failAdminAuditChangeRequestIntake{
-		ChangeRequestIntakeRequests: env.repos.Enrollment(),
+		EnrollmentChangeRequestRecords: env.repos.Enrollment(),
 	})
 	err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, correctionErr := failingService.CorrectApprovedChildData(txCtx, enrollmentAPI.CorrectApprovedChildDataInput{
@@ -1750,28 +1749,28 @@ func (r failingChangeRequestReader) ChangeRequestByID(ctx context.Context, id in
 	if r.fail == "read" {
 		return nil, fmt.Errorf("change request read: %w", context.Canceled)
 	}
-	return r.ChangeRequestIntakeRequests.ChangeRequestByID(ctx, id)
+	return r.EnrollmentChangeRequestRecords.ChangeRequestByID(ctx, id)
 }
 
 func (r failingChangeRequestReader) ChangeRequestByIDForUpdate(ctx context.Context, id int64) (*capability.ChangeRequest, error) {
 	if r.fail == "lock" {
 		return nil, fmt.Errorf("change request lock: %w", context.Canceled)
 	}
-	return r.ChangeRequestIntakeRequests.ChangeRequestByIDForUpdate(ctx, id)
+	return r.EnrollmentChangeRequestRecords.ChangeRequestByIDForUpdate(ctx, id)
 }
 
 func (r failingChangeRequestReader) RequestByID(ctx context.Context, id int64, lock bool) (*capability.Request, error) {
 	if r.fail == "parent" {
 		return nil, fmt.Errorf("parent request read: %w", context.Canceled)
 	}
-	return r.ChangeRequestIntakeRequests.RequestByID(ctx, id, lock)
+	return r.EnrollmentChangeRequestRecords.RequestByID(ctx, id, lock)
 }
 
 func (r failingChangeRequestReader) RequestByToken(ctx context.Context, token string, lock bool) (*capability.Request, error) {
 	if r.fail == "token" {
 		return nil, fmt.Errorf("request token read: %w", context.Canceled)
 	}
-	return r.ChangeRequestIntakeRequests.RequestByToken(ctx, token, lock)
+	return r.EnrollmentChangeRequestRecords.RequestByToken(ctx, token, lock)
 }
 
 type failingChangeRequestCatalog struct {
@@ -1801,10 +1800,10 @@ func TestChangeRequestService_PreservesReadFailures(t *testing.T) {
 		t.Run(tc.operation+"/"+tc.fail, func(t *testing.T) {
 			svc := newTestChangeRequestService(testutil.EnrollmentChangeRequestSources{
 				Bookings: requestTestBookingCommands(),
-				Requests: failingChangeRequestReader{ChangeRequestIntakeRequests: env.config.Requests.(testutil.EnrollmentChangeRequestRecords), fail: tc.fail},
+				Requests: failingChangeRequestReader{EnrollmentChangeRequestRecords: env.config.Requests.(testutil.EnrollmentChangeRequestRecords), fail: tc.fail},
 				Children: env.config.Children, Settings: env.settings,
-				Catalog: failingChangeRequestCatalog{IntakeCatalog: env.config.Catalog},
-				DB:      env.db, ParentsURL: "http://parents.localhost:3000",
+				Catalog:    failingChangeRequestCatalog{EnrollmentIntakeCatalog: env.config.Catalog},
+				ParentsURL: "http://parents.localhost:3000",
 			})
 			var readErr error
 			switch tc.operation {

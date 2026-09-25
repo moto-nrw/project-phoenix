@@ -21,7 +21,6 @@ import (
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
@@ -81,7 +80,7 @@ func TestParsePhaseExportRequest(t *testing.T) {
 // sampleExport builds an in-memory PhaseExport (no DB) covering the
 // shapes the renderers must handle: guardian + child custom fields,
 // a select with an option label, consents, and an offering.
-func sampleExport() *enrollmentService.PhaseExport {
+func sampleExport() *PhaseExport {
 	schema := &capability.FormSchema{
 		Fields: []capability.FormField{
 			{Key: "notes", Label: "Hinweise", Type: capability.FormFieldText, SortOrder: 1},
@@ -108,7 +107,7 @@ func sampleExport() *enrollmentService.PhaseExport {
 	}
 
 	grade := int16(1)
-	child := &enrollmentService.RequestChild{
+	child := &RequestChild{
 		FirstName:        "Lina",
 		LastName:         "Muster",
 		DateOfBirth:      "2018-05-12",
@@ -118,20 +117,20 @@ func sampleExport() *enrollmentService.PhaseExport {
 		CustomData:       map[string]any{"bus": true, "meal": "veg"},
 	}
 
-	offerings := []enrollmentService.ChildOfferingRow{
+	offerings := []ChildOfferingRow{
 		{OfferingName: "Kernzeit", AvailableDays: []string{"mon", "tue"}},
 	}
 
-	return &enrollmentService.PhaseExport{
+	return &PhaseExport{
 		Phase:   &capability.Phase{Name: "Schuljahr 2026/27"},
 		Schemas: map[int64]*capability.FormSchema{schema.ID: schema},
-		Rows: []enrollmentService.ExportRequestRow{
-			{Request: req, Children: []enrollmentService.ExportChildRow{{Child: child, Offerings: offerings}}},
+		Rows: []ExportRequestRow{
+			{Request: req, Children: []ExportChildRow{{Child: child, Offerings: offerings}}},
 		},
 	}
 }
 
-func sampleStudentEnrollmentExport() *enrollmentService.StudentEnrollmentExport {
+func sampleStudentEnrollmentExport() *StudentEnrollmentExport {
 	data := sampleExport()
 	phase := data.Phase
 	phase.ID = 7801
@@ -139,7 +138,7 @@ func sampleStudentEnrollmentExport() *enrollmentService.StudentEnrollmentExport 
 	withdrawnAt := time.Date(2026, 6, 2, 9, 30, 0, 0, time.UTC)
 	data.Rows[0].Request.WithdrawnAt = &withdrawnAt
 
-	return &enrollmentService.StudentEnrollmentExport{
+	return &StudentEnrollmentExport{
 		StudentID: 8801,
 		Schemas:   data.Schemas,
 		Phases:    map[int64]*capability.Phase{phase.ID: phase},
@@ -426,7 +425,7 @@ func TestPhaseExport_IncludesAdditionalGuardians(t *testing.T) {
 	}
 }
 
-func statusExportSample() *enrollmentService.PhaseExport {
+func statusExportSample() *PhaseExport {
 	mkReq := func(first, last string) *enrollmentModels.Request {
 		return &enrollmentModels.Request{
 			GuardianFirstName: first,
@@ -436,24 +435,24 @@ func statusExportSample() *enrollmentService.PhaseExport {
 			ConsentFlags:      map[string]any{},
 		}
 	}
-	mkChild := func(first, last, status string) enrollmentService.ExportChildRow {
-		return enrollmentService.ExportChildRow{Child: &enrollmentService.RequestChild{
+	mkChild := func(first, last, status string) ExportChildRow {
+		return ExportChildRow{Child: &RequestChild{
 			FirstName:   first,
 			LastName:    last,
 			DateOfBirth: "2018-01-01",
 			Status:      status,
 		}}
 	}
-	return &enrollmentService.PhaseExport{
+	return &PhaseExport{
 		Phase: &capability.Phase{Name: "P"},
-		Rows: []enrollmentService.ExportRequestRow{
-			{Request: mkReq("Gesa", "Submitted"), Children: []enrollmentService.ExportChildRow{mkChild("Sina", "Ziegler", enrollmentModels.ChildStatusSubmitted)}},
-			{Request: mkReq("Gesa", "Approved"), Children: []enrollmentService.ExportChildRow{
+		Rows: []ExportRequestRow{
+			{Request: mkReq("Gesa", "Submitted"), Children: []ExportChildRow{mkChild("Sina", "Ziegler", enrollmentModels.ChildStatusSubmitted)}},
+			{Request: mkReq("Gesa", "Approved"), Children: []ExportChildRow{
 				mkChild("Aaron", "Meyer", enrollmentModels.ChildStatusApproved),
 				mkChild("Lena", "Alt", enrollmentModels.ChildStatusApproved),
 			}},
-			{Request: mkReq("Gesa", "Rejected"), Children: []enrollmentService.ExportChildRow{mkChild("Ben", "Rose", enrollmentModels.ChildStatusRejected)}},
-			{Request: mkReq("Gesa", "Waitlist"), Children: []enrollmentService.ExportChildRow{mkChild("Mia", "Klein", enrollmentModels.ChildStatusWaitlisted)}},
+			{Request: mkReq("Gesa", "Rejected"), Children: []ExportChildRow{mkChild("Ben", "Rose", enrollmentModels.ChildStatusRejected)}},
+			{Request: mkReq("Gesa", "Waitlist"), Children: []ExportChildRow{mkChild("Mia", "Klein", enrollmentModels.ChildStatusWaitlisted)}},
 		},
 	}
 }
@@ -527,8 +526,8 @@ func TestBuildPhaseExportTable_InsertsStatusGroupRows(t *testing.T) {
 func TestBuildPhaseExportRecords_OrdersChildrenBySurname(t *testing.T) {
 	t.Parallel()
 
-	mk := func(first, last string) enrollmentService.ExportChildRow {
-		return enrollmentService.ExportChildRow{Child: &enrollmentService.RequestChild{
+	mk := func(first, last string) ExportChildRow {
+		return ExportChildRow{Child: &RequestChild{
 			FirstName: first, LastName: last,
 			Status:      enrollmentModels.ChildStatusApproved,
 			DateOfBirth: "2018-01-01",
@@ -536,12 +535,12 @@ func TestBuildPhaseExportRecords_OrdersChildrenBySurname(t *testing.T) {
 	}
 	reqA := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "A", SubmittedAt: time.Now()}
 	reqB := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "B", SubmittedAt: time.Now()}
-	data := &enrollmentService.PhaseExport{
+	data := &PhaseExport{
 		Phase: &capability.Phase{Name: "P"},
-		Rows: []enrollmentService.ExportRequestRow{
+		Rows: []ExportRequestRow{
 			// Submission order is deliberately NOT alphabetical.
-			{Request: reqB, Children: []enrollmentService.ExportChildRow{mk("Max", "Muster"), mk("Lina", "Muster")}},
-			{Request: reqA, Children: []enrollmentService.ExportChildRow{mk("Ava", "schmidt"), mk("Tim", "Braun")}},
+			{Request: reqB, Children: []ExportChildRow{mk("Max", "Muster"), mk("Lina", "Muster")}},
+			{Request: reqA, Children: []ExportChildRow{mk("Ava", "schmidt"), mk("Tim", "Braun")}},
 		},
 	}
 
@@ -562,8 +561,8 @@ func TestBuildPhaseExportRecords_OrdersChildrenBySurname(t *testing.T) {
 func TestPhaseExport_PDFAndXLSXShareRowOrder(t *testing.T) {
 	t.Parallel()
 
-	mk := func(first, last string) enrollmentService.ExportChildRow {
-		return enrollmentService.ExportChildRow{Child: &enrollmentService.RequestChild{
+	mk := func(first, last string) ExportChildRow {
+		return ExportChildRow{Child: &RequestChild{
 			FirstName: first, LastName: last,
 			Status:      enrollmentModels.ChildStatusApproved,
 			DateOfBirth: "2018-01-01",
@@ -571,11 +570,11 @@ func TestPhaseExport_PDFAndXLSXShareRowOrder(t *testing.T) {
 	}
 	reqA := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "A", SubmittedAt: time.Now()}
 	reqB := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "B", SubmittedAt: time.Now()}
-	data := &enrollmentService.PhaseExport{
+	data := &PhaseExport{
 		Phase: &capability.Phase{Name: "P"},
-		Rows: []enrollmentService.ExportRequestRow{
-			{Request: reqB, Children: []enrollmentService.ExportChildRow{mk("Max", "Muster"), mk("Lina", "Muster")}},
-			{Request: reqA, Children: []enrollmentService.ExportChildRow{mk("Ava", "schmidt"), mk("Tim", "Braun")}},
+		Rows: []ExportRequestRow{
+			{Request: reqB, Children: []ExportChildRow{mk("Max", "Muster"), mk("Lina", "Muster")}},
+			{Request: reqA, Children: []ExportChildRow{mk("Ava", "schmidt"), mk("Tim", "Braun")}},
 		},
 	}
 
@@ -607,9 +606,9 @@ func TestPhaseExport_PDFAndXLSXShareRowOrder(t *testing.T) {
 func TestBuildPhaseExportRecords_ChildlessRegistrationKeepsGuardian(t *testing.T) {
 	t.Parallel()
 
-	data := &enrollmentService.PhaseExport{
+	data := &PhaseExport{
 		Phase: &capability.Phase{Name: "P"},
-		Rows: []enrollmentService.ExportRequestRow{
+		Rows: []ExportRequestRow{
 			{Request: &enrollmentModels.Request{
 				GuardianFirstName: "Solo", GuardianLastName: "Parent",
 				GuardianEmail: "solo@example.test", SubmittedAt: time.Now(),
@@ -1261,7 +1260,7 @@ func TestExportPhaseRegistrations_ServiceErrorIs500(t *testing.T) {
 func TestExportStudentEnrollmentRequests_StudentNotFoundIs404(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockDecisionService{exportStudentErr: enrollmentService.ErrDecisionStudentNotFound}
+	mock := &mockDecisionService{exportStudentErr: capability.ErrDecisionStudentNotFound}
 	rs := &Resource{DecisionService: mock, ListExportService: listexport.NewService()}
 	router := buildExportRouter(rs, jwt.AppClaims{
 		ID:    exportTestActorID,

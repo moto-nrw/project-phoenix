@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
@@ -21,15 +22,31 @@ import (
 
 // Ports of the intake and change requests the flow suites wrap in doubles.
 type (
-	EnrollmentIntakeRequests          = enrollmentCompose.IntakeRequests
-	EnrollmentIntakeChildren          = enrollmentCompose.IntakeChildren
-	EnrollmentIntakeGuardians         = enrollmentCompose.IntakeGuardians
-	EnrollmentIntakeLateInvites       = enrollmentCompose.IntakeLateInvites
-	EnrollmentIntakeCatalog           = enrollmentCompose.IntakeCatalog
-	EnrollmentSubmissionRateLimiter   = enrollmentCompose.SubmissionRateLimiter
-	EnrollmentGuardianAuthorizer      = enrollmentCompose.GuardianStudentAuthorizer
-	EnrollmentChangeRequestRecords    = enrollmentCompose.ChangeRequestRecords
-	EnrollmentCareOfferingCatalogRows = enrollmentCompose.CareOfferingRows
+	EnrollmentIntakeRequests        = enrollmentCompose.IntakeRequests
+	EnrollmentIntakeChildren        = enrollmentCompose.IntakeChildren
+	EnrollmentIntakeGuardians       = enrollmentCompose.IntakeGuardians
+	EnrollmentIntakeLateInvites     = enrollmentCompose.IntakeLateInvites
+	EnrollmentIntakeCatalog         = enrollmentCompose.IntakeCatalog
+	EnrollmentSubmissionRateLimiter = enrollmentCompose.SubmissionRateLimiter
+	EnrollmentGuardianAuthorizer    = enrollmentCompose.GuardianStudentAuthorizer
+	EnrollmentChangeRequestRecords  = enrollmentCompose.ChangeRequestRecords
+)
+
+// Audit rows and ports of the decision flow the flow suites record into and
+// read back.
+type (
+	EnrollmentFlowDataAccessLog           = auditModels.DataAccessLog
+	EnrollmentFlowDataAccessLogs          = auditModels.DataAccessLogRepository
+	EnrollmentFlowDeletionAudit           = auditModels.EnrollmentDeletion
+	EnrollmentFlowDeletionAudits          = auditModels.EnrollmentDeletionRepository
+	EnrollmentFlowOfferingAdjustmentAudit = auditModels.EnrollmentOfferingAdjustment
+	EnrollmentFlowRestorationAudit        = auditModels.EnrollmentRestoration
+)
+
+// Resource types of the enrollment exports in the data-access log.
+const (
+	EnrollmentFlowPhaseExportResource   = auditModels.ResourceTypeEnrollmentPhaseExport
+	EnrollmentFlowStudentExportResource = auditModels.ResourceTypeEnrollmentStudentExport
 )
 
 // NewEnrollmentFlowDelivery composes the Delivery platform over the test

@@ -3,14 +3,14 @@ package contracttest_test
 import (
 	"context"
 
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	phaseFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,8 +22,6 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/services/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -66,7 +64,7 @@ func createSourceOffering(t *testing.T, env *decisionTestEnv, name string, activ
 		IsActive:        true,
 	}
 	offering.TenantID = testpkg.Tenant(t)
-	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offering))
+	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Create(ctx, offering))
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("enrollment.care_offerings").
@@ -87,16 +85,16 @@ func submitAndApproveOfferingChild(
 ) (studentID, requestChildID int64) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentTest.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Quelle",
 		GuardianEmail:     guardianEmail,
-		ConsentFlags: map[string]any{
+		ConsentFlags: rawJSON(t, map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
-		},
-		Children: []enrollmentService.SubmitChild{{
+		}),
+		Children: []enrollmentTest.SubmitChild{{
 			FirstName:        firstName,
 			LastName:         "Quelle",
 			DateOfBirth:      timezone.NewDate(2018, 4, 15),
@@ -106,13 +104,13 @@ func submitAndApproveOfferingChild(
 	})
 	require.NoError(t, err)
 	require.Len(t, submitted.Children, 1)
-	var outcome *enrollmentService.DecideOutcome
+	var outcome *enrollmentTest.DecideOutcome
 	err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var decideErr error
-		outcome, decideErr = env.decision.Decide(txCtx, enrollmentService.DecideInput{
+		outcome, decideErr = env.decision.Decide(txCtx, enrollmentTest.DecideInput{
 			RequestID:  submitted.Request.ID,
 			ChildID:    submitted.Children[0].ID,
-			Status:     enrollmentService.DecisionApproved,
+			Status:     enrollmentTest.DecisionApproved,
 			ReviewedBy: env.creatorID,
 		})
 		return decideErr
@@ -372,8 +370,8 @@ func TestResyncTemplateOfferingRoster_SeedsFutureDatedLinkFromItsStart(t *testin
 	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		childID,
-		capability.Date(switchDate),
-		[]*capability.RequestChildOffering{{CareOfferingID: offering.ID}},
+		enrollmentTest.Date(switchDate),
+		[]*enrollmentTest.RequestChildOffering{{CareOfferingID: offering.ID}},
 	))
 
 	template := createSourcedTemplate(t, env, "SpaeterWechselTermin", offering.ID, []int{2}, period)
@@ -410,7 +408,7 @@ func TestResyncTemplateOfferingRoster_CapsRowAtLinkEnd(t *testing.T) {
 	// The child leaves the offering mid-phase: the link is closed at the
 	// switch date and nothing follows it.
 	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, capability.Date(switchDate), nil))
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(switchDate), nil))
 
 	template := createSourcedTemplate(t, env, "EndetFrueherTermin", offering.ID, []int{2}, period)
 	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(ctx,
@@ -611,12 +609,12 @@ func TestResyncTemplateOfferingRoster_GapBetweenLinksStaysUnplanned(t *testing.T
 
 	leaveDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
 	rejoinDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(90)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, capability.Date(leaveDate), nil))
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(leaveDate), nil))
 	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		childID,
-		capability.Date(rejoinDate),
-		[]*capability.RequestChildOffering{{CareOfferingID: offering.ID}},
+		enrollmentTest.Date(rejoinDate),
+		[]*enrollmentTest.RequestChildOffering{{CareOfferingID: offering.ID}},
 	))
 
 	template := createSourcedTemplate(t, env, "LueckeTermin", offering.ID, []int{2}, period)
@@ -673,7 +671,7 @@ func TestResyncTemplateOfferingRoster_ShrinksRetainedRowToLinkEnd(t *testing.T) 
 
 	// The child leaves the offering mid-phase AFTER the row was seeded.
 	capDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(45)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, capability.Date(capDate), nil))
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(capDate), nil))
 
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
 	rows = loadTemplateEnrollments(t, env, template.ID)
@@ -718,8 +716,8 @@ func TestResyncTemplateOfferingRoster_SourceSwitchRespectsNewLinkStart(t *testin
 	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		childID,
-		capability.Date(switchDate),
-		[]*capability.RequestChildOffering{{CareOfferingID: offeringB.ID}},
+		enrollmentTest.Date(switchDate),
+		[]*enrollmentTest.RequestChildOffering{{CareOfferingID: offeringB.ID}},
 	))
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, timetable.OfferingRosterResyncInput{
 		TemplateID:       template.ID,
@@ -800,14 +798,14 @@ func TestSyncApprovedChildData_ClassChangeResyncsSourcedTemplates(t *testing.T) 
 
 	// The confirmed edit carries the new Jahrgang on the request child; the
 	// sync re-derives school_class from it.
-	child, err := enrollmentService.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	child, err := readOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
 	newGrade := int16(3)
 	child.TargetGradeLevel = &newGrade
-	require.NoError(t, enrollmentService.UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
+	require.NoError(t, updateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
 
 	applier := changeRequestApplierForTest(t, env)
-	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentTest.ApprovedChildSync{
 		RequestID:      child.RequestID,
 		ChildID:        childID,
 		ActorAccountID: env.creatorID,
@@ -847,16 +845,16 @@ func TestDecide_ExistingStudentClassChangeResyncsSourcedTemplates(t *testing.T) 
 	// Matching pins the child to the already-created student, the way an
 	// existing_students phase does at submission time.
 	grade := int16(3)
-	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentTest.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Erneuerung",
 		GuardianEmail:     "renewal-jg-neu@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: rawJSON(t, map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
-		},
-		Children: []enrollmentService.SubmitChild{{
+		}),
+		Children: []enrollmentTest.SubmitChild{{
 			FirstName:        "Runa-Neu",
 			LastName:         "Erneuerung",
 			DateOfBirth:      timezone.NewDate(2018, 4, 15),
@@ -867,10 +865,10 @@ func TestDecide_ExistingStudentClassChangeResyncsSourcedTemplates(t *testing.T) 
 	require.Len(t, submitted.Children, 1)
 	matchChildToExistingStudent(t, env, submitted.Children[0].ID, studentID)
 
-	_, err = env.decision.Decide(ctx, enrollmentService.DecideInput{
+	_, err = env.decision.Decide(ctx, enrollmentTest.DecideInput{
 		RequestID:  submitted.Request.ID,
 		ChildID:    submitted.Children[0].ID,
-		Status:     enrollmentService.DecisionApproved,
+		Status:     enrollmentTest.DecisionApproved,
 		ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
@@ -899,7 +897,7 @@ func TestOfferingDelete_DegradesSourcedTemplate(t *testing.T) {
 	offering := createSourceOffering(t, env, "LoeschQuelle", nil)
 	template := createSourcedTemplate(t, env, "LoeschTermin", offering.ID, []int{2}, period)
 
-	detacher, ok := env.bookings.(capability.SourcedTemplateResyncer)
+	detacher, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the sourced-template detach contract")
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offering.ID, offeringResyncToday))
 
@@ -971,7 +969,7 @@ func TestOfferingDetach_KeepsRemainingSources(t *testing.T) {
 	require.Len(t, loadTemplateEnrollments(t, env, template.ID), 2,
 		"both offerings' children must be planned before the detach")
 
-	detacher, ok := env.bookings.(capability.SourcedTemplateResyncer)
+	detacher, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok)
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, offeringResyncToday))
 
@@ -1054,7 +1052,7 @@ func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 	template.CalendarPeriodID = &shortPeriod.ID
 	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.Update(ctx, template))
 
-	detacher, ok := env.bookings.(capability.SourcedTemplateResyncer)
+	detacher, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok)
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, offeringResyncToday))
 
@@ -1091,16 +1089,16 @@ func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
 
 	// One child holds BOTH offerings (same request), one child only offering B.
 	grade := int16(2)
-	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentTest.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Union",
 		GuardianEmail:     "union-both@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: rawJSON(t, map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
-		},
-		Children: []enrollmentService.SubmitChild{{
+		}),
+		Children: []enrollmentTest.SubmitChild{{
 			FirstName:        "Uma",
 			LastName:         "Union",
 			DateOfBirth:      timezone.NewDate(2018, 4, 15),
@@ -1110,10 +1108,10 @@ func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, submitted.Children, 1)
-	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+	outcome, err := env.decision.Decide(ctx, enrollmentTest.DecideInput{
 		RequestID:  submitted.Request.ID,
 		ChildID:    submitted.Children[0].ID,
-		Status:     enrollmentService.DecisionApproved,
+		Status:     enrollmentTest.DecisionApproved,
 		ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
@@ -1205,7 +1203,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 		IsActive:       true,
 	}
 	offeringA.TenantID = testpkg.Tenant(t)
-	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Create(ctx, offeringA))
+	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Create(ctx, offeringA))
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("enrollment.care_offerings").
@@ -1221,16 +1219,16 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 	// One child holds BOTH offerings; the approval fan-out seeds the union
 	// row shaped by A (first in the array): Mo–Fr.
 	grade := int16(2)
-	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentTest.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Breit",
 		GuardianEmail:     "drift-breit@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: rawJSON(t, map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
-		},
-		Children: []enrollmentService.SubmitChild{{
+		}),
+		Children: []enrollmentTest.SubmitChild{{
 			FirstName:        "Bea",
 			LastName:         "Breit",
 			DateOfBirth:      timezone.NewDate(2018, 4, 15),
@@ -1240,10 +1238,10 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, submitted.Children, 1)
-	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+	outcome, err := env.decision.Decide(ctx, enrollmentTest.DecideInput{
 		RequestID:  submitted.Request.ID,
 		ChildID:    submitted.Children[0].ID,
-		Status:     enrollmentService.DecisionApproved,
+		Status:     enrollmentTest.DecisionApproved,
 		ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
@@ -1264,7 +1262,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 	_, err = env.db.NewRaw(`UPDATE enrollment.care_offerings SET is_active = false WHERE id = ?`, offeringB.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	detacher, ok := env.bookings.(capability.SourcedTemplateResyncer)
+	detacher, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok)
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, offeringResyncToday))
 
@@ -1337,7 +1335,7 @@ func TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource(t *t
 	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.Update(ctx, template))
 
 	_, childID := submitAndApproveOfferingChild(t, env, offeringA.ID, "korrektur-multi@example.com", "Kim", 2)
-	child, err := enrollmentService.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	child, err := readOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
@@ -1345,13 +1343,13 @@ func TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource(t *t
 
 	// Undated correction: the selection was wrong from the start, switch the
 	// child from offering A to B (both feed the same template).
-	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID:      child.RequestID,
 		ChildID:        childID,
 		ActorAccountID: env.creatorID,
 		ActorRole:      "admin",
 		Reason:         "Tippfehler in der Anmeldung",
-		Offerings: []enrollmentService.OfferingAdjustmentSelection{
+		Offerings: []enrollmentTest.OfferingAdjustmentSelection{
 			{OfferingID: offeringB.ID},
 		},
 	})
@@ -1426,13 +1424,13 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 	testpkg.CreateTestInstanceStudent(t, env.db, planned.ID, studentID, "expected")
 
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	sourcedResyncer, ok := env.bookings.(capability.SourcedTemplateResyncer)
+	sourcedResyncer, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the delete-side detach")
-	phaseSvc := phaseFixture.NewPhases(phaseFixture.PhaseDependencies{
+	phaseSvc := enrollmentTest.NewPhases(enrollmentTest.PhaseDependencies{
 		Records:                repoFactory.Enrollment(),
-		Offerings:              phaseOfferings{rows: enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan())},
+		Offerings:              phaseOfferings{carePlan: repoFactory.CarePlan()},
 		LockTemplateRecurrence: func(context.Context) error { return nil },
-		SourcedTemplates:       func() capability.SourcedTemplateResyncer { return sourcedResyncer },
+		SourcedTemplates:       func() enrollmentTest.SourcedTemplateResyncer { return sourcedResyncer },
 		Today:                  func() timezone.Date { return offeringResyncToday },
 	})
 
@@ -1692,7 +1690,7 @@ func TestResyncTemplateOfferingRoster_PreservesManualOccurrenceRemoval(t *testin
 	// The child leaves the offering four weeks later: the resync resizes the
 	// enrollment row while the occurrence date stays covered.
 	switchDate := occurrenceDate.AddDays(28)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, capability.Date(switchDate), nil))
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(switchDate), nil))
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
 
 	rows := loadTemplateEnrollments(t, env, template.ID)
@@ -1761,16 +1759,16 @@ func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
 	template := createSourcedTemplate(t, env, "LinkFensterTermin", offering.ID, []int{2}, period)
 
 	grade := int16(2)
-	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentTest.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Fenster",
 		GuardianEmail:     "link-window@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: rawJSON(t, map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
-		},
-		Children: []enrollmentService.SubmitChild{{
+		}),
+		Children: []enrollmentTest.SubmitChild{{
 			FirstName:        "Fenja",
 			LastName:         "Fenster",
 			DateOfBirth:      timezone.NewDate(2018, 4, 15),
@@ -1784,12 +1782,12 @@ func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
 
 	// The child leaves the offering mid-phase BEFORE the request is decided.
 	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, capability.Date(switchDate), nil))
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(switchDate), nil))
 
-	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+	outcome, err := env.decision.Decide(ctx, enrollmentTest.DecideInput{
 		RequestID:  submitted.Request.ID,
 		ChildID:    childID,
-		Status:     enrollmentService.DecisionApproved,
+		Status:     enrollmentTest.DecisionApproved,
 		ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
@@ -1857,7 +1855,7 @@ func TestUpdateChildOfferings_DatedSwitchReconcilesMaterializedOccurrences(t *te
 	template := createSourcedTemplate(t, env, "InstanzWechselTermin", offering.ID, []int{2}, period)
 
 	studentID, childID := submitAndApproveOfferingChild(t, env, offering.ID, "instanz-wechsel@example.com", "Iwa", 2)
-	child, err := enrollmentService.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	child, err := readOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
 
 	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
@@ -1870,14 +1868,14 @@ func TestUpdateChildOfferings_DatedSwitchReconcilesMaterializedOccurrences(t *te
 	registerSourcedInstanceCleanup(t, env, planned.ID)
 	testpkg.CreateTestInstanceStudent(t, env.db, planned.ID, studentID, "expected")
 
-	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID:      child.RequestID,
 		ChildID:        childID,
 		ActorAccountID: env.creatorID,
 		ActorRole:      "admin",
 		Reason:         "Wechsel zum Halbjahr",
 		EffectiveFrom:  &switchDate,
-		Offerings: []enrollmentService.OfferingAdjustmentSelection{
+		Offerings: []enrollmentTest.OfferingAdjustmentSelection{
 			{OfferingID: otherOffering.ID},
 		},
 	})
@@ -1908,7 +1906,7 @@ func TestUpdateChildOfferings_DatedKeepRespectsSegmentEnd(t *testing.T) {
 	template := createSourcedTemplateSegment(t, env, "SegmentBehaltTermin", offering.ID, []int{2}, period, nil, &splitDate)
 
 	_, childID := submitAndApproveOfferingChild(t, env, offering.ID, "segment-behalt@example.com", "Seba", 2)
-	child, err := enrollmentService.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	child, err := readOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
 
 	rows := loadTemplateEnrollments(t, env, template.ID)
@@ -1919,14 +1917,14 @@ func TestUpdateChildOfferings_DatedKeepRespectsSegmentEnd(t *testing.T) {
 	// The switch keeps the same offering with unchanged days, so the existing
 	// row is retained rather than capped and re-seeded.
 	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
-	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID:      child.RequestID,
 		ChildID:        childID,
 		ActorAccountID: env.creatorID,
 		ActorRole:      "admin",
 		Reason:         "Korrektur ohne Angebotswechsel",
 		EffectiveFrom:  &switchDate,
-		Offerings: []enrollmentService.OfferingAdjustmentSelection{
+		Offerings: []enrollmentTest.OfferingAdjustmentSelection{
 			{OfferingID: offering.ID},
 		},
 	})
@@ -1960,20 +1958,20 @@ func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t
 	sourceOffering := createSourceOffering(t, env, "LegacyMischQuelle", nil)
 	sourceOffering.AvailableDays = []string{"tue"}
 	sourceOffering.PickupTimes = carePickupTimes("tue")
-	require.NoError(t, enrollmentService.NewCareOfferingRepository(env.repos.CarePlan()).Update(ctx, sourceOffering))
+	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, sourceOffering))
 
 	// The child holds BOTH offerings.
 	grade := int16(2)
-	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentTest.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Misch",
 		GuardianEmail:     "legacy-misch@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: rawJSON(t, map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
-		},
-		Children: []enrollmentService.SubmitChild{{
+		}),
+		Children: []enrollmentTest.SubmitChild{{
 			FirstName:        "Mila",
 			LastName:         "Misch",
 			DateOfBirth:      timezone.NewDate(2018, 4, 15),
@@ -1984,10 +1982,10 @@ func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t
 	require.NoError(t, err)
 	require.Len(t, submitted.Children, 1)
 	childID := submitted.Children[0].ID
-	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+	outcome, err := env.decision.Decide(ctx, enrollmentTest.DecideInput{
 		RequestID:  submitted.Request.ID,
 		ChildID:    childID,
-		Status:     enrollmentService.DecisionApproved,
+		Status:     enrollmentTest.DecisionApproved,
 		ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
@@ -2059,8 +2057,8 @@ func TestResyncTemplateOfferingRoster_FutureLegacyLinkDoesNotSuppressEarlierSour
 	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		childID,
-		capability.Date(legacyStart),
-		[]*capability.RequestChildOffering{
+		enrollmentTest.Date(legacyStart),
+		[]*enrollmentTest.RequestChildOffering{
 			{CareOfferingID: sourceOffering.ID},
 			{CareOfferingID: legacyOffering.ID},
 		},
@@ -2115,12 +2113,12 @@ func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
 	require.Len(t, rows, 1)
 	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays)
 
-	sourcedResyncer, ok := env.bookings.(capability.SourcedTemplateResyncer)
+	sourcedResyncer, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-update resync")
-	svc := enrollmentService.NewCareOfferingRows(testCareOfferingCatalog(t, env.db,
+	svc := enrollmentTest.NewCareOfferingRows(testCareOfferingCatalog(t, env.db,
 		testutil.WithCareOfferingToday(func() timezone.Date { return offeringResyncToday }),
 		testutil.WithCareOfferingRosterResync(sourcedResyncer),
-		testutil.WithCareOfferingPickupResync(&enrollmenttest.PickupResyncer{}),
+		testutil.WithCareOfferingPickupResync(&pickupResyncer{}),
 	))
 
 	offering.AvailableDays = []string{"tue"}
@@ -2164,7 +2162,7 @@ func TestResyncSourcedTemplates_InvalidSourceSkipVsReject(t *testing.T) {
 	require.NoError(t, resyncAll.ResyncOfferingSourcedTemplates(ctx, offeringResyncToday),
 		"the tenant-wide resync must skip a drifted-invalid template with a warning")
 
-	scoped, ok := env.bookings.(capability.SourcedTemplateResyncer)
+	scoped, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-scoped resync")
 	err := scoped.ResyncTemplatesSourcedFromOffering(ctx, offering.ID, offeringResyncToday)
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid,
@@ -2188,16 +2186,16 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 	offering := createSourceOffering(t, env, "PhasenWechsel", nil)
 	createSourcedTemplate(t, env, "PhasenTermin", offering.ID, nil, period)
 
-	latePhase := &phaseFixture.Phase{
+	latePhase := &enrollmentTest.Phase{
 		Name:             uniqueSchemaName("late-phase-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: phaseFixture.Date(timezone.NewDate(2027, 9, 1)),
-		ServiceEndDate:   phaseFixture.Date(timezone.NewDate(2028, 7, 31)),
+		ServiceStartDate: enrollmentTest.Date(timezone.NewDate(2027, 9, 1)),
+		ServiceEndDate:   enrollmentTest.Date(timezone.NewDate(2028, 7, 31)),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
 	latePhase.TenantID = testpkg.Tenant(t)
-	require.NoError(t, enrollmentService.InsertOwnerPhaseForTest(ctx, env.repos.Enrollment(), latePhase))
+	require.NoError(t, insertOwnerPhaseForTest(ctx, env.repos.Enrollment(), latePhase))
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("enrollment.phases").
@@ -2205,17 +2203,17 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 			Exec(context.Background())
 	})
 
-	sourcedResyncer, ok := env.bookings.(capability.SourcedTemplateResyncer)
+	sourcedResyncer, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-update resync")
-	svc := enrollmentService.NewCareOfferingRows(testCareOfferingCatalog(t, env.db,
+	svc := enrollmentTest.NewCareOfferingRows(testCareOfferingCatalog(t, env.db,
 		testutil.WithCareOfferingToday(func() timezone.Date { return offeringResyncToday }),
 		testutil.WithCareOfferingRosterResync(sourcedResyncer),
-		testutil.WithCareOfferingPickupResync(&enrollmenttest.PickupResyncer{}),
+		testutil.WithCareOfferingPickupResync(&pickupResyncer{}),
 	))
 
 	offering.PhaseID = latePhase.ID
 	err := svc.Update(ctx, offering)
-	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid,
+	require.ErrorIs(t, err, enrollmentTest.ErrCareOfferingInvalid,
 		"an edit invalidating a sourced template must be rejected as client-correctable")
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
 	assert.True(t, tenant.RollbackRequested(ctx),

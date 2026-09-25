@@ -268,7 +268,6 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 		OutboxEnqueuer:   outbox,
 		Settings:         settings,
 		FrontendURL:      "http://localhost:3000",
-		DB:               db,
 		Logger:           slog.Default(),
 	}
 	svc := newTestRequestService(config)
@@ -2303,7 +2302,7 @@ func TestRequestService_Submit_RateLimitPersistsWhenOuterTxRollsBack(t *testing.
 // --- Capacity overflow ---
 
 type lockedCareOfferingRepo struct {
-	enrollmentModels.CareOfferingRepository
+	careOfferingReads
 	lockedOfferings []*enrollmentModels.CareOffering
 }
 
@@ -2367,8 +2366,8 @@ func TestRequestService_Submit_UsesCapacityFromLockedOfferings(t *testing.T) {
 	lockedOffering.Capacity = &lockedCapacity
 	config := env.config
 	config.CareOfferingRepo = &lockedCareOfferingRepo{
-		CareOfferingRepository: config.CareOfferingRepo,
-		lockedOfferings:        []*enrollmentModels.CareOffering{&lockedOffering},
+		careOfferingReads: config.CareOfferingRepo.(careOfferingReads),
+		lockedOfferings:   []*enrollmentModels.CareOffering{&lockedOffering},
 	}
 	svc := newTestRequestService(config)
 
@@ -3496,7 +3495,7 @@ func TestRequestService_Edit_AdminContextPropagatesSchemaFailure(t *testing.T) {
 	require.NoError(t, err)
 	lookupErr := errors.New("schema lookup failed")
 	config := env.config
-	config.Catalog = failingEditSchemaCatalog{IntakeCatalog: config.Catalog, err: lookupErr}
+	config.Catalog = failingEditSchemaCatalog{EnrollmentIntakeCatalog: config.Catalog, err: lookupErr}
 	svc := newTestRequestService(config)
 	name := "Changed"
 	err = tenant.WithAdminTx(ctx, env.db, func(adminCtx context.Context, _ bun.Tx) error {

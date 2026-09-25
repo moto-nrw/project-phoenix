@@ -17,7 +17,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -27,10 +26,10 @@ import (
 // Submit flow, withdraw through the parent-facing Withdraw flow — so the
 // restore undoes exactly the state production produces.
 
-func listRestorationAuditRows(t *testing.T, env *decisionTestEnv, requestID int64) []*auditModels.EnrollmentRestoration {
+func listRestorationAuditRows(t *testing.T, env *decisionTestEnv, requestID int64) []*testutil.EnrollmentFlowRestorationAudit {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	var rows []*auditModels.EnrollmentRestoration
+	var rows []*testutil.EnrollmentFlowRestorationAudit
 	err := env.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`audit.enrollment_restorations AS "enrollment_restoration"`).
@@ -39,7 +38,7 @@ func listRestorationAuditRows(t *testing.T, env *decisionTestEnv, requestID int6
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
-			Model((*auditModels.EnrollmentRestoration)(nil)).
+			Model((*testutil.EnrollmentFlowRestorationAudit)(nil)).
 			ModelTableExpr(`audit.enrollment_restorations AS "enrollment_restoration"`).
 			Where(`"enrollment_restoration".request_id = ?`, requestID).
 			Exec(testpkg.Ctx(t))

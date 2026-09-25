@@ -69,7 +69,7 @@ func newCompanionSyncApplier(
 		ParentsURL:          "http://parents.localhost:3000",
 		Logger:              slog.Default(),
 	}, env.outbox)
-	return enrollmentAPI.NewChangeRequestDecisionApplier(decisions, bookings)
+	return enrollmentAPI.ChangeRequestApplierForTest(decisions)
 }
 
 // publishCompanionModesSchema pins the phase to a form whose single field

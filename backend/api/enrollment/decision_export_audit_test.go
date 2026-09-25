@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
@@ -19,11 +18,11 @@ import (
 // captures the rows written, so the export-audit unit tests assert the
 // shape of the row without a database.
 type stubAccessLogRepo struct {
-	entries []*auditModels.DataAccessLog
+	entries []*testutil.EnrollmentFlowDataAccessLog
 	err     error
 }
 
-func (s *stubAccessLogRepo) Create(_ context.Context, entry *auditModels.DataAccessLog) error {
+func (s *stubAccessLogRepo) Create(_ context.Context, entry *testutil.EnrollmentFlowDataAccessLog) error {
 	if s.err != nil {
 		return s.err
 	}
@@ -47,7 +46,7 @@ func samplePhaseForAudit() *enrollmentModels.Phase {
 	return p
 }
 
-func newAuditDecisionService(repo auditModels.DataAccessLogRepository) enrollmentAPI.DecisionService {
+func newAuditDecisionService(repo testutil.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
 	return newTestDecisionService(testutil.EnrollmentDecisionSources{
 		DataAccessLog: repo,
 	})
@@ -69,8 +68,8 @@ func TestRecordPhaseExportAudit_WritesRowWithPhaseWindowAndMetadata(t *testing.T
 	}
 	e := repo.entries[0]
 
-	if e.ResourceType != auditModels.ResourceTypeEnrollmentPhaseExport {
-		t.Errorf("resource_type = %q, want %q", e.ResourceType, auditModels.ResourceTypeEnrollmentPhaseExport)
+	if e.ResourceType != testutil.EnrollmentFlowPhaseExportResource {
+		t.Errorf("resource_type = %q, want %q", e.ResourceType, testutil.EnrollmentFlowPhaseExportResource)
 	}
 	if e.ActorAccountID != 4242 {
 		t.Errorf("actor_account_id = %d, want 4242", e.ActorAccountID)

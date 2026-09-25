@@ -45,10 +45,10 @@
   "runtime_evidence": {
     "source": "Local run on the PR branch stacked on the #3559 branch (714a4fffed). The move rebinds the materialization's reads and writes to the owner operations the retained repositories delegated to, so the evidence is the unchanged behaviour and query-budget suites plus the architecture check, not a benchmark rerun.",
     "sources": [
-      "backend/services/enrollment/offering_source_service_test.go",
-      "backend/services/enrollment/offering_adjustment_dated_test.go",
-      "backend/services/enrollment/offering_pickup_projection_test.go",
-      "backend/services/enrollment/n_plus_one_query_budget_test.go",
+      "backend/modules/careplan/contracttest/offering_source_service_test.go",
+      "backend/modules/careplan/contracttest/offering_adjustment_dated_test.go",
+      "backend/modules/careplan/contracttest/offering_pickup_projection_test.go",
+      "backend/api/enrollment/n_plus_one_query_budget_test.go",
       "backend/test/query_budgets.go"
     ],
     "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",

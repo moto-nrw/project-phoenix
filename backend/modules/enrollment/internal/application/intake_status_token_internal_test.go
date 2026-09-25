@@ -1,7 +1,6 @@
 package application
 
 import (
-	"crypto/rand"
 	"encoding/base64"
 	"testing"
 
@@ -9,12 +8,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Status tokens of an intake composed with the CSPRNG the root binds.
+// Status tokens of an intake. The root binds the CSPRNG as the entropy
+// source; module-internal tests may not import crypto, so these use a source
+// that fills every draw with fresh bytes and pin that each token consumes one
+// full 32-byte draw.
 
 func statusTokenIntake() *Intake {
+	var draw byte
 	return NewIntake(IntakeDependencies{Random: func(b []byte) error {
-		_, err := rand.Read(b)
-		return err
+		draw++
+		for i := range b {
+			b[i] = draw ^ byte(i*37)
+		}
+		return nil
 	}})
 }
 
@@ -25,7 +31,7 @@ func TestNewStatusToken_DecodesToThirtyTwoBytes(t *testing.T) {
 	require.NoError(t, err)
 	raw, err := base64.RawURLEncoding.DecodeString(token)
 	require.NoError(t, err, "token must be RawURLEncoding base64")
-	assert.Len(t, raw, 32, "32 random bytes per CSPRNG guarantee")
+	assert.Len(t, raw, 32, "32 random bytes per token")
 }
 
 func TestNewStatusToken_UnpaddedRawURLEncoding(t *testing.T) {
@@ -55,7 +61,7 @@ func TestNewStatusToken_TokensAreDistinct(t *testing.T) {
 		token, err := svc.newStatusToken()
 		require.NoError(t, err)
 		_, dup := seen[token]
-		require.False(t, dup, "CSPRNG must produce distinct tokens")
+		require.False(t, dup, "every token must come from a fresh draw")
 		seen[token] = struct{}{}
 	}
 }
