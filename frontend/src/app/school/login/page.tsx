@@ -28,6 +28,7 @@ import {
   MFAApiError,
   type MFATokenResponse,
 } from "~/lib/mfa-api";
+import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "SchoolLoginPage" });
@@ -221,6 +222,7 @@ function LoginForm() {
       }
       logger.error("school login failed", {
         error: err instanceof Error ? err.message : String(err),
+        status: errorStatus(err),
       });
     } finally {
       setIsLoading(false);

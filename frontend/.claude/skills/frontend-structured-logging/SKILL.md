@@ -94,6 +94,14 @@ When replacing `console.*` calls:
 
 Configure via `NEXT_PUBLIC_LOG_LEVEL` environment variable (default: `debug` in dev, `info` in production).
 
+Every `error` entry becomes its own Sentry event (`src/lib/logger-sentry.ts`). For
+failures the app expects, the logger does this itself: an `error` whose context
+names a dropped connection (`error` ends in `Failed to fetch` / `Load failed`) or
+`status` 401/409 is written as `warn` with `expected_failure` (`src/lib/expected-failure.ts`).
+So pass `status: errorStatus(err)` when the caught error carries one. 403, 5xx and
+exceptions stay `error`. The global test mock skips this step, so tests still see
+`console.error`.
+
 ## Error Handling Pattern (Copy-Paste Ready)
 
 ### In React components / hooks

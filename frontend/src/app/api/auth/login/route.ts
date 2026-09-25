@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
     return out;
   } catch (error) {
-    logger.error("login failed", {
+    logger.error("login proxy failed", {
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json(

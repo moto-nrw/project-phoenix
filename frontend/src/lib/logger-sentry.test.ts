@@ -67,10 +67,22 @@ describe("reportLogToSentry", () => {
   it("does not send expected noise as events", () => {
     reportLogToSentry(entry({ msg: "sse connection error" }));
     reportLogToSentry(entry({ msg: "parent login failed", context: "server" }));
-    reportLogToSentry(entry({ msg: "login failed" }));
-    reportLogToSentry(entry({ msg: "school login failed", context: "server" }));
+    reportLogToSentry(entry({ msg: "login failed", status: 401 }));
+    reportLogToSentry(entry({ msg: "login failed", error: "Failed to fetch" }));
+    reportLogToSentry(
+      entry({ msg: "school login failed", context: "server", status: 403 }),
+    );
 
     expect(captureMessage).not.toHaveBeenCalled();
+  });
+
+  it("still sends a login that failed on the server side", () => {
+    reportLogToSentry(entry({ msg: "login failed", status: 502 }));
+    reportLogToSentry(
+      entry({ msg: "school login failed", context: "server", status: 500 }),
+    );
+
+    expect(captureMessage).toHaveBeenCalledTimes(2);
   });
 
   it("sends server errors as events without breadcrumbs", () => {
