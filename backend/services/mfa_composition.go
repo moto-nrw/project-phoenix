@@ -301,7 +301,10 @@ func (l operatorActionLog) RecordOperatorActionAsync(entry identityaccess.Operat
 				l.logger.Error("operator audit goroutine panic recovered",
 					slog.String("action", entry.Action),
 					slog.String("error", fmt.Sprintf("panic in operator mfa audit logging: %v", recovered)))
-				sentry.CurrentHub().Recover(recovered)
+				sentry.WithScope(func(scope *sentry.Scope) {
+					scope.SetTag("job", "operator-audit-log")
+					sentry.CurrentHub().Recover(recovered)
+				})
 				sentry.Flush(2 * time.Second)
 			}
 		}()

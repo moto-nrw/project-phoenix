@@ -50,6 +50,7 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		"/parent/me/notification-preferences/parent_message",
 		"/parent/me/messages/children/44",
 		"/api/messages/threads/91",
+		"/api/messages/threads/91/unread",
 		"/parent/me/messages/children/44",
 		"/parent/me/children/44/guardians",
 		"/parent/me/children/44/guardians/93/pickup",

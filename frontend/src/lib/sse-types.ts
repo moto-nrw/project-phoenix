@@ -74,6 +74,11 @@ type SSEEventType =
   // open chat to refresh its "Gelesen" receipts only — no new message, no unread
   // badge change. See backend/realtime/events.go EventParentMessageRead.
   | "parent_message_read"
+  // Parent-OGS messaging: staff marked a conversation unread for the team, or
+  // the mark ended (#3654). Refreshes the unread badge, inbox and child cards
+  // only; an open conversation must NOT reload on it, because loading would end
+  // the mark. See backend/realtime/events.go EventParentMessageUnreadChanged.
+  | "parent_message_unread_changed"
   // OGS-internal colleague chat (#2598). Unlike parent_message this reaches ONLY
   // the conversation's participants, so it keeps its thread_id on the wire.
   | "staff_message"

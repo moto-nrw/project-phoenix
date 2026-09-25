@@ -36,7 +36,7 @@ func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 			slog.Int("status", errResp.HTTPStatusCode),
 			slog.String("error", errResp.Err.Error()),
 		)
-		noteServerError(r.Context(), errResp.Err)
+		noteServerError(r.Context(), errResp.Err, errResp.Code)
 	}
 	if err := render.Render(w, r, renderer); err != nil {
 		slog.Default().Error("error rendering error response", slog.String("error", err.Error()))

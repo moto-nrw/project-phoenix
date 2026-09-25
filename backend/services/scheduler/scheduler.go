@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -627,8 +626,7 @@ func (s *Scheduler) runMinutePolling(task *ScheduledTask, panicName, startupMsg 
 				slog.String("job_id", task.Name),
 				slog.String("error", err.Error()),
 			)
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
+			reportJobPanic(startJobRunReport(context.Background(), task.Name), r)
 		}
 	}()
 
@@ -670,8 +668,7 @@ func (s *Scheduler) runIntervalPolling(task *ScheduledTask, panicName, startupMs
 				slog.String("job_id", task.Name),
 				slog.String("error", err.Error()),
 			)
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
+			reportJobPanic(startJobRunReport(context.Background(), task.Name), r)
 		}
 	}()
 
@@ -704,6 +701,9 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 			slog.String("error", err.Error()),
 		)
 	}
+	// Sentry sees the run once it failed for good or panicked (#3640); its
+	// failed attempts collect as breadcrumbs until then.
+	ctx = startJobRunReport(ctx, task.Name)
 	failures := &jobCommandFailures{}
 	ctx = context.WithValue(ctx, jobCommandFailuresKey{}, failures)
 	ctx = context.WithValue(ctx, workerJobIDKey{}, JobID(task.Name))
@@ -720,8 +720,7 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 			)
 			// Report and swallow the panic so only this run fails; re-panicking
 			// would end the polling loop until the next restart (#3597).
-			sentry.CurrentHub().Recover(recovered)
-			sentry.Flush(2 * time.Second)
+			reportJobPanic(ctx, recovered)
 			return
 		}
 		if commandErr := failures.result(); commandErr != nil {
@@ -732,6 +731,9 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 				slog.Duration("duration", duration),
 				slog.String("error", commandErr.Error()),
 			)
+			if !stoppedByShutdown(ctx, commandErr) {
+				reportJobRunFailure(ctx, commandErr)
+			}
 			return
 		}
 		s.observeWorkerRun(JobID(task.Name), "completed", duration)
@@ -741,6 +743,36 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 		)
 	}()
 	check(ctx, task)
+}
+
+// stoppedByShutdown reports whether the run only failed because the
+// scheduler stopped under it. Like a request the client canceled, that is no
+// defect and no Sentry event.
+func stoppedByShutdown(ctx context.Context, err error) bool {
+	return ctx.Err() != nil && onlyCancellationErrors(err)
+}
+
+// errors.Is on errors.Join would hide a real failure beside a cancellation.
+func onlyCancellationErrors(err error) bool {
+	if err == nil {
+		return false
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		parts := joined.Unwrap()
+		if len(parts) == 0 {
+			return false
+		}
+		for _, part := range parts {
+			if !onlyCancellationErrors(part) {
+				return false
+			}
+		}
+		return true
+	}
+	if wrapped := errors.Unwrap(err); wrapped != nil {
+		return onlyCancellationErrors(wrapped)
+	}
+	return errors.Is(err, context.Canceled)
 }
 
 // scheduleCleanupTask schedules the daily cleanup task using minute-polling.
@@ -1009,8 +1041,7 @@ func (s *Scheduler) runTokenCleanupTask(task *ScheduledTask) {
 				slog.String("job_id", task.Name),
 				slog.String("error", err.Error()),
 			)
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
+			reportJobPanic(startJobRunReport(context.Background(), task.Name), r)
 		}
 	}()
 
@@ -1052,7 +1083,8 @@ func (s *Scheduler) executeTokenCleanup(ctx context.Context, task *ScheduledTask
 	}()
 
 	if err := s.runCleanupJobs(ctx); err != nil {
-		recordJobCommandFailure(ctx, err)
+		// runCleanupJobs left a breadcrumb for every failed cleanup job.
+		addJobCommandFailure(ctx, err)
 	}
 }
 
@@ -1105,6 +1137,7 @@ func (s *Scheduler) runCleanupJobs(ctx context.Context) error {
 			count, err = job.Run(ctx)
 		}
 		if err != nil {
+			recordStandingJobFailure(ctx, 0, "cleanup job failed", err, map[string]any{"cleanup_job": job.Description})
 			if !s.traceWorkerFailure(ctx, job.Description, "transaction_failure", err) {
 				logger.ErrorContext(ctx, "cleanup job failed", slog.String("job", job.Description))
 			}

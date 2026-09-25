@@ -11,6 +11,7 @@ function dispatchActivity(
     threadId?: string | null;
     studentId?: string | null;
     source?: string | null;
+    unreadOnly?: boolean;
   } = {},
   eventName = "messages-activity",
 ) {
@@ -33,6 +34,30 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 // Basic event handling
 // ---------------------------------------------------------------------------
+
+describe("useMessagesActivity — unread-only changes (#3654)", () => {
+  it("refetches a list view when only the unread mark changed", () => {
+    const onMatch = vi.fn();
+    renderHook(() => useMessagesActivity({ onMatch, marksRead: false }));
+
+    act(() => {
+      dispatchActivity({ unreadOnly: true });
+    });
+
+    expect(onMatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not reload an open conversation, which would end the mark", () => {
+    const onMatch = vi.fn();
+    renderHook(() => useMessagesActivity({ onMatch, threadId: "t1" }));
+
+    act(() => {
+      dispatchActivity({ unreadOnly: true });
+    });
+
+    expect(onMatch).not.toHaveBeenCalled();
+  });
+});
 
 describe("useMessagesActivity — basic dispatch", () => {
   it("calls onMatch when a messages-activity event fires with no id filters", () => {
