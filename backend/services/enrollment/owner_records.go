@@ -70,13 +70,6 @@ type RequestChild struct {
 	ReviewReason          *string `json:"review_reason,omitempty"`
 }
 
-func offeringChildByID(ctx context.Context, owner ChildIDReader, id int64) (*RequestChild, error) {
-	value, err := owner.ChildByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return intakeChildValue(value)
-}
 func createIntakeChild(ctx context.Context, owner ChildCreator, child *RequestChild) error {
 	value, err := intakeChildInput(child)
 	if err != nil {

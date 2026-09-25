@@ -20,7 +20,11 @@ func ReadOwnerRequestChildrenForTest(ctx context.Context, owner RequestChildrenR
 
 // ReadOwnerChildForTest loads a service-shaped fixture through the owner query.
 func ReadOwnerChildForTest(ctx context.Context, owner ChildIDReader, id int64) (*RequestChild, error) {
-	return offeringChildByID(ctx, owner, id)
+	value, err := owner.ChildByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return intakeChildValue(value)
 }
 
 // UpdateOwnerChildForTest writes service-shaped fixture data through the owner.
