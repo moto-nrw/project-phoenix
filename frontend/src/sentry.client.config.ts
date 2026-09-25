@@ -3,7 +3,7 @@ import {
   sampleBrowserTrace,
   scrubEvent,
   scrubSpan,
-  scrubTransaction,
+  sentryDataCollection,
 } from "./sentry.shared";
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
@@ -25,6 +25,7 @@ if (dsn) {
   Sentry.init({
     dsn,
     environment,
+    dataCollection: sentryDataCollection,
 
     // Page loads, navigations and their Web Vitals for a 5 % sample. The
     // default browserTracingIntegration measures them and sends trace
@@ -36,7 +37,8 @@ if (dsn) {
     initialScope: { tags: { portal: currentPortal() } },
 
     beforeSend: scrubEvent,
-    beforeSendTransaction: scrubTransaction,
+    // Spans are streamed: the page view span carries the page URL and the
+    // referrer, so scrubSpan also covers what a transaction held in v10.
     beforeSendSpan: scrubSpan,
   });
 }

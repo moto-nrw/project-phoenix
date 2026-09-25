@@ -14,6 +14,22 @@ minimumReleaseAgeExclude:
   - "@storybook/react-vite@10.6.0"
   - "@storybook/builder-vite@10.6.0"
   - vite-plugin-storybook-nextjs@10.6.0
+  # Sentry SDK 11.0.0 (2026-09-23): PyrePortal already reports with v11, and
+  # #3595/#3687 move both apps together. Only the packages of that one release.
+  - "@sentry/nextjs@11.0.0"
+  - "@sentry/browser@11.0.0"
+  - "@sentry/browser-utils@11.0.0"
+  - "@sentry/bundler-plugins@11.0.0"
+  - "@sentry/core@11.0.0"
+  - "@sentry/feedback@11.0.0"
+  - "@sentry/node@11.0.0"
+  - "@sentry/opentelemetry@11.0.0"
+  - "@sentry/react@11.0.0"
+  - "@sentry/replay@11.0.0"
+  - "@sentry/replay-canvas@11.0.0"
+  - "@sentry/server-runtime-injection@11.0.0"
+  - "@sentry/server-utils@11.0.0"
+  - "@sentry/vercel-edge@11.0.0"
 
 # next-auth has exactly ONE provenance-signed release in its 727-version history:
 # 0.0.0-manual.2824fa11 (canary, 2025-10-26). Under trustPolicy: no-downgrade that
