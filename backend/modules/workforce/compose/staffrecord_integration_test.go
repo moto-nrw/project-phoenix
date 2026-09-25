@@ -260,6 +260,65 @@ func TestStaffQualificationsRetireInsteadOfDelete(t *testing.T) {
 	require.ErrorContains(t, err, "permission denied", "the tenant role cannot hard-delete qualifications")
 }
 
+func TestStaffQualificationReplacementPersistsSubmittedOrder(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	staff := testpkg.CreateTestStaff(t, db, "Qualifikation", "Reihenfolge")
+	capability := buildWorkforce(t, db)
+	first, err := capability.ReplaceStaffQualifications(ctx, staff.ID, []workforce.StaffQualification{{Name: "Erste Hilfe"}, {Name: "Schwimmschein"}})
+	require.NoError(t, err)
+
+	reordered, err := capability.ReplaceStaffQualifications(ctx, staff.ID, []workforce.StaffQualification{{Name: "Schwimmschein"}, {Name: "Erste Hilfe"}})
+	require.NoError(t, err)
+	require.Len(t, reordered, 2)
+	assert.Equal(t, first[1].ID, reordered[0].ID)
+	assert.Equal(t, first[0].ID, reordered[1].ID)
+
+	listed, err := capability.ListStaffQualifications(ctx, staff.ID)
+	require.NoError(t, err)
+	require.Len(t, listed, 2)
+	assert.Equal(t, reordered[0].ID, listed[0].ID)
+	assert.Equal(t, reordered[1].ID, listed[1].ID)
+}
+
+func TestStaffQualificationReplacementsSerialize(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	staff := testpkg.CreateTestStaff(t, db, "Qualifikation", "Parallel")
+	capability := buildWorkforce(t, db)
+	started := make(chan struct{})
+	finished := make(chan error, 1)
+
+	err := testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, err := capability.ReplaceStaffQualifications(txCtx, staff.ID, []workforce.StaffQualification{{Name: "Erste Hilfe"}})
+		if err != nil {
+			return err
+		}
+		go func() {
+			close(started)
+			_, err := capability.ReplaceStaffQualifications(ctx, staff.ID, []workforce.StaffQualification{{Name: "Schwimmschein"}})
+			finished <- err
+		}()
+		<-started
+		select {
+		case <-finished:
+			return errors.New("second replacement finished before first committed")
+		case <-time.After(150 * time.Millisecond):
+			return nil
+		}
+	})
+	require.NoError(t, err)
+	require.NoError(t, <-finished)
+	listed, err := capability.ListStaffQualifications(ctx, staff.ID)
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	assert.Equal(t, "Schwimmschein", listed[0].Name)
+}
+
 func TestStaffDocumentsFollowTheLegacyRowRules(t *testing.T) {
 	t.Parallel()
 

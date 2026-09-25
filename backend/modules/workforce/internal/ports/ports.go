@@ -266,6 +266,8 @@ type StaffAssignments interface {
 // there is none, opens one.
 type Transaction interface {
 	RunWrite(context.Context, func(context.Context) error) error
+	// LockStaffQualifications serializes list replacements per staff member.
+	LockStaffQualifications(ctx context.Context, staffID int64) error
 	// LockStaffBalance serializes writes that change a staff member's Soll.
 	LockStaffBalance(ctx context.Context, staffID int64) error
 	// LockStaffAbsence serializes overlap-sensitive absence writes of one

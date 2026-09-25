@@ -50,6 +50,7 @@ type staffQualificationRow struct {
 	ID            int64         `bun:"id,pk,autoincrement"`
 	TenantID      int64         `bun:"tenant_id,notnull"`
 	StaffID       int64         `bun:"staff_id,notnull"`
+	SortOrder     int           `bun:"sort_order,notnull"`
 	Name          string        `bun:"name,notnull"`
 	AcquiredOn    *calendarDate `bun:"acquired_on,type:date"`
 	ExpiresOn     *calendarDate `bun:"expires_on,type:date"`
@@ -176,7 +177,7 @@ func (s *Store) ListStaffQualifications(ctx context.Context, staffID int64) ([]d
 		ModelTableExpr(tableStaffQualifications+` AS "staff_qualification"`).
 		Where(`"staff_qualification".staff_id = ?`, staffID).
 		Where(`"staff_qualification".deleted_at IS NULL`), aliasStaffQualification, tenantID).
-		OrderExpr(`"staff_qualification".id ASC`)
+		OrderExpr(`"staff_qualification".sort_order ASC, "staff_qualification".id ASC`)
 	stats, err := scanAll(ctx, query, "list staff qualifications")
 	if err != nil {
 		return nil, stats, err
@@ -211,7 +212,7 @@ func (s *Store) UpdateStaffQualification(ctx context.Context, value domain.Staff
 	row := staffQualificationFromDomain(value)
 	query := withTenant(db.NewUpdate().Model(row).
 		ModelTableExpr(tableStaffQualifications+` AS "staff_qualification"`).
-		Column("acquired_on", "expires_on").
+		Column("acquired_on", "expires_on", "sort_order").
 		Set("updated_at = NOW()").
 		WherePK().
 		Where(`"staff_qualification".staff_id = ?`, value.StaffID).
@@ -561,7 +562,7 @@ func staffMasterDataToDomain(row staffMasterDataRow) domain.StaffMasterData {
 
 func staffQualificationFromDomain(value domain.StaffQualification) *staffQualificationRow {
 	return &staffQualificationRow{
-		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, Name: value.Name,
+		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, SortOrder: value.SortOrder, Name: value.Name,
 		AcquiredOn: optionalCalendarDate(value.AcquiredOn), ExpiresOn: optionalCalendarDate(value.ExpiresOn),
 		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
@@ -571,7 +572,7 @@ func staffQualificationsToDomain(rows []staffQualificationRow) []domain.StaffQua
 	result := make([]domain.StaffQualification, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, domain.StaffQualification{
-			ID: row.ID, TenantID: row.TenantID, StaffID: row.StaffID, Name: row.Name,
+			ID: row.ID, TenantID: row.TenantID, StaffID: row.StaffID, SortOrder: row.SortOrder, Name: row.Name,
 			AcquiredOn: calendarDateString(row.AcquiredOn), ExpiresOn: calendarDateString(row.ExpiresOn),
 			CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		})

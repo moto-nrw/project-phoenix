@@ -91,6 +91,9 @@ func (s *Service) ReplaceStaffQualifications(ctx context.Context, staffID int64,
 	}
 	err = s.run("replace_staff_qualifications", func(stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
+			if lockErr := s.transaction.LockStaffQualifications(txCtx, staffID); lockErr != nil {
+				return lockErr
+			}
 			live, listStats, listErr := s.store.ListStaffQualifications(txCtx, staffID)
 			stats.Add(listStats)
 			if listErr != nil {
@@ -129,10 +132,10 @@ func (s *Service) applyQualificationPlan(ctx context.Context, staffID int64, pla
 				result[index] = updated
 				continue
 			}
-			// A concurrent replace retired the row since the list was read;
-			// the submitted row then starts a new one.
+			// A writer outside this replacement path may have retired the row.
 			pending = append(pending, pendingInsert{index: index, value: domain.StaffQualification{
-				StaffID: staffID, Name: row.value.Name, AcquiredOn: row.value.AcquiredOn, ExpiresOn: row.value.ExpiresOn,
+				StaffID: staffID, SortOrder: row.value.SortOrder, Name: row.value.Name,
+				AcquiredOn: row.value.AcquiredOn, ExpiresOn: row.value.ExpiresOn,
 			}})
 		case qualificationInsert:
 			pending = append(pending, pendingInsert{index: index, value: row.value})
@@ -166,6 +169,14 @@ type plannedQualification struct {
 	value  domain.StaffQualification
 }
 
+func (row plannedQualification) atPosition(index int) plannedQualification {
+	if row.action == qualificationKeep && row.value.SortOrder != index {
+		row.action = qualificationUpdate
+	}
+	row.value.SortOrder = index
+	return row
+}
+
 // qualificationReplacePlan holds one planned write per submitted row, in
 // submitted order, and the live rows to retire.
 type qualificationReplacePlan struct {
@@ -197,6 +208,7 @@ func planQualificationReplace(live, submitted []domain.StaffQualification) quali
 		if plan.rows[index].action == qualificationInsert {
 			plan.rows[index].value = row
 		}
+		plan.rows[index] = plan.rows[index].atPosition(index)
 	}
 	for _, row := range live {
 		if !paired[row.ID] {

@@ -14,9 +14,9 @@ func TestPlanQualificationReplace(t *testing.T) {
 
 	live := []domain.StaffQualification{
 		{ID: 101, Name: "Fortbildung", AcquiredOn: "2024-01-01"},
-		{ID: 102, Name: "Fortbildung", AcquiredOn: "2025-01-01"},
-		{ID: 103, Name: "Schwimmschein"},
-		{ID: 104, Name: "Erste Hilfe", ExpiresOn: "2026-01-01"},
+		{ID: 102, SortOrder: 1, Name: "Fortbildung", AcquiredOn: "2025-01-01"},
+		{ID: 103, SortOrder: 2, Name: "Schwimmschein"},
+		{ID: 104, SortOrder: 3, Name: "Erste Hilfe", ExpiresOn: "2026-01-01"},
 	}
 	submitted := []domain.StaffQualification{
 		{Name: "Fortbildung", AcquiredOn: "2025-01-01"},
@@ -28,10 +28,10 @@ func TestPlanQualificationReplace(t *testing.T) {
 	plan := planQualificationReplace(live, submitted)
 
 	assert.Equal(t, []plannedQualification{
-		{action: qualificationKeep, value: live[1]},
-		{action: qualificationUpdate, value: domain.StaffQualification{ID: 104, Name: "Erste Hilfe", ExpiresOn: "2028-01-01"}},
-		{action: qualificationKeep, value: live[0]},
-		{action: qualificationInsert, value: submitted[3]},
+		{action: qualificationUpdate, value: domain.StaffQualification{ID: 102, Name: "Fortbildung", AcquiredOn: "2025-01-01"}},
+		{action: qualificationUpdate, value: domain.StaffQualification{ID: 104, SortOrder: 1, Name: "Erste Hilfe", ExpiresOn: "2028-01-01"}},
+		{action: qualificationUpdate, value: domain.StaffQualification{ID: 101, SortOrder: 2, Name: "Fortbildung", AcquiredOn: "2024-01-01"}},
+		{action: qualificationInsert, value: domain.StaffQualification{SortOrder: 3, Name: "Fortbildung", AcquiredOn: "2026-01-01"}},
 	}, plan.rows, "equal rows pair before a same-name row takes the dates")
 	assert.Equal(t, []int64{103}, plan.retire)
 
