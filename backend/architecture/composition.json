@@ -2975,7 +2975,7 @@
       "declaration": "newDeletionTestFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        43
+        44
       ],
       "tables": []
     },
@@ -3178,7 +3178,7 @@
       "declaration": "TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox",
       "target": "database/repositories.NewFactory",
       "lines": [
-        69
+        70
       ],
       "tables": [
         "enrollment.request_children",
@@ -3192,7 +3192,7 @@
       "declaration": "TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        186
+        187
       ],
       "tables": [
         "enrollment.late_invites",
@@ -3618,7 +3618,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        364
+        365
       ],
       "tables": []
     },
@@ -3628,7 +3628,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_FreeSlotComesBackSubmitted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        303
+        304
       ],
       "tables": []
     },
@@ -3638,8 +3638,8 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity",
       "target": "database/repositories.NewFactory",
       "lines": [
-        410,
-        419
+        411,
+        420
       ],
       "tables": []
     },
@@ -3649,7 +3649,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_RejectModeFailsWhenFull",
       "target": "database/repositories.NewFactory",
       "lines": [
-        462
+        463
       ],
       "tables": []
     },
@@ -3659,7 +3659,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        264
+        265
       ],
       "tables": []
     },
@@ -3669,7 +3669,7 @@
       "declaration": "newRestoreDecisionServiceForRequestEnv",
       "target": "database/repositories.NewFactory",
       "lines": [
-        219
+        220
       ],
       "tables": []
     },
