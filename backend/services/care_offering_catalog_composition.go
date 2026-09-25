@@ -12,9 +12,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -384,6 +384,6 @@ func (careOfferingSourceRules) IsRejection(err error) bool {
 
 // EnrollmentCareOfferingRows serves the Care Plan catalog to the enrollment
 // routes in the enrollment rows they still render.
-func (f *Factory) EnrollmentCareOfferingRows() enrollment.CareOfferingRows {
-	return enrollment.NewCareOfferingRows(f.EnrollmentCareOffering)
+func (f *Factory) EnrollmentCareOfferingRows() *enrollmentCompose.CareOfferingRows {
+	return enrollmentCompose.NewCareOfferingRows(f.EnrollmentCareOffering)
 }

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
@@ -29,4 +30,16 @@ func toEnrollmentGuardians(guardians []peopledirectory.Guardian) []enrollmentCom
 		result = append(result, enrollmentCompose.DirectoryGuardian{ID: guardian.ID, AccountID: guardian.AccountID})
 	}
 	return result
+}
+
+// EnrollmentRejectedCleanup runs Enrollment's retention cleanup of rejected
+// enrollments for the scheduler, which reads only the counts.
+type EnrollmentRejectedCleanup struct {
+	cleaner enrollmentOwner.RejectedEnrollmentCleaner
+}
+
+// CleanupRejectedEnrollments runs the cleanup for the tenant in context.
+func (c EnrollmentRejectedCleanup) CleanupRejectedEnrollments(ctx context.Context) (int, int64, int64, error) {
+	result, err := c.cleaner.CleanupRejectedEnrollments(ctx)
+	return result.DeletedRequests, result.DeletedLateInvites, result.DeletedOutboxRows, err
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Ports the composition root binds for Enrollment's application services.
@@ -60,6 +61,18 @@ func tenantRuntime() application.Runtime {
 		IsSavepointControl:  func(err error) bool { return errors.Is(err, tenant.ErrSavepointControl) },
 		WithinCurrentTenant: tenant.WithinCurrentTenant,
 		AfterCommit:         tenant.RegisterAfterCommit,
+		AdminTx: func(ctx context.Context, fn func(context.Context) error) error {
+			return tenant.WithAdminTx(ctx, (*bun.DB)(nil), func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
+		},
+		TenantTx: func(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
+			return tenant.WithTenantTx(ctx, (*bun.DB)(nil), tenantID, func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
+		},
+		WithTenant:         tenant.WithTenantID,
+		IsAdminTx:          tenant.IsAdminTx,
+		WithoutTransaction: tenant.ContextWithoutTransaction,
+		DetachTransaction: func(ctx context.Context) context.Context {
+			return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
+		},
 	}
 }
 
