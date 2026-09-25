@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 import { withInvitationOwnerSession } from "~/lib/invitation-owner-session.server";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 
 const logger = createLogger({ component: "InvitationAcceptRoute" });
 
@@ -47,20 +48,7 @@ export async function POST(request: NextRequest) {
         },
       );
 
-      if (response.status === 204) {
-        return new NextResponse(null, { status: 204 });
-      }
-
-      const contentType = response.headers.get("Content-Type") ?? "";
-      let payloadBody: unknown = null;
-      if (contentType.includes("application/json")) {
-        payloadBody = await response.json();
-      } else {
-        const text = await response.text();
-        payloadBody = text ? { error: text } : null;
-      }
-
-      return NextResponse.json(payloadBody ?? {}, { status: response.status });
+      return forwardBackendResponse(response);
     };
     return body.existingAccount
       ? await withInvitationOwnerSession(request, forward)

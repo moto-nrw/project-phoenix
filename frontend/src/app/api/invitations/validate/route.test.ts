@@ -56,12 +56,7 @@ describe("GET /api/invitations/validate", () => {
       email: "teacher@example.com",
       status: "pending",
     };
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      headers: new Headers({ "Content-Type": "application/json" }),
-      json: async () => mockInvitation,
-    });
+    mockFetch.mockResolvedValueOnce(Response.json(mockInvitation));
 
     const request = createMockRequest("/api/invitations/validate?token=abc123");
     const response = await GET(request);
@@ -75,12 +70,9 @@ describe("GET /api/invitations/validate", () => {
   });
 
   it("handles invalid token (404)", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      headers: new Headers({ "Content-Type": "application/json" }),
-      json: async () => ({ error: "Invitation not found" }),
-    });
+    mockFetch.mockResolvedValueOnce(
+      Response.json({ error: "Invitation not found" }, { status: 404 }),
+    );
 
     const request = createMockRequest(
       "/api/invitations/validate?token=invalid",
@@ -93,12 +85,9 @@ describe("GET /api/invitations/validate", () => {
   });
 
   it("handles expired token (410)", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 410,
-      headers: new Headers({ "Content-Type": "application/json" }),
-      json: async () => ({ error: "Invitation expired" }),
-    });
+    mockFetch.mockResolvedValueOnce(
+      Response.json({ error: "Invitation expired" }, { status: 410 }),
+    );
 
     const request = createMockRequest(
       "/api/invitations/validate?token=expired",
@@ -111,41 +100,33 @@ describe("GET /api/invitations/validate", () => {
   });
 
   it("handles non-JSON response from backend", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      headers: new Headers({ "Content-Type": "text/plain" }),
-      text: async () => "Internal server error",
-      json: async () => {
-        throw new Error("Not JSON");
-      },
-    });
+    mockFetch.mockResolvedValueOnce(
+      new Response("Internal server error", {
+        status: 500,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
 
     const request = createMockRequest("/api/invitations/validate?token=test");
     const response = await GET(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal server error");
+    expect(await response.text()).toBe("Internal server error");
   });
 
   it("handles empty non-JSON response", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 503,
-      headers: new Headers({ "Content-Type": "text/plain" }),
-      text: async () => "",
-      json: async () => {
-        throw new Error("Not JSON");
-      },
-    });
+    mockFetch.mockResolvedValueOnce(
+      new Response("", {
+        status: 503,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
 
     const request = createMockRequest("/api/invitations/validate?token=test");
     const response = await GET(request);
 
     expect(response.status).toBe(503);
-    const json = await parseJsonResponse(response);
-    expect(json).toEqual({});
+    expect(await response.text()).toBe("");
   });
 
   it("handles fetch errors", async () => {

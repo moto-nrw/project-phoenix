@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import { DEMO_TOKEN_COOKIE, demoBackendUrl } from "../forward";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 
 const logger = createLogger({ component: "DemoResetRoute" });
 
@@ -41,10 +42,11 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({ token }),
     });
+    if (!backend.ok) return forwardBackendResponse(backend);
     const payload = (await backend.json().catch(() => ({}))) as {
       entry_url?: unknown;
     };
-    if (!backend.ok || typeof payload.entry_url !== "string") {
+    if (typeof payload.entry_url !== "string") {
       return NextResponse.json(payload, { status: backend.status });
     }
     const fragment = new URLSearchParams({ restarted: "1" });

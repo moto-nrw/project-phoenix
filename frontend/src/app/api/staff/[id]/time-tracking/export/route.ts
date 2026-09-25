@@ -1,3 +1,4 @@
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
@@ -32,12 +33,7 @@ async function GETHandler(
       },
     );
 
-    if (!backendResponse.ok) {
-      const body = await backendResponse.text().catch(() => "");
-      return new Response(body || "Export failed", {
-        status: backendResponse.status,
-      });
-    }
+    if (!backendResponse.ok) return forwardBackendResponse(backendResponse);
 
     if (!backendResponse.body) {
       return new Response("No response body from backend", { status: 502 });

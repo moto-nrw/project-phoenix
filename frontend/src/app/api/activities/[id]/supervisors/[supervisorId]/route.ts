@@ -1,6 +1,7 @@
 // src/app/api/activities/[id]/supervisors/[supervisorId]/route.ts
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { apiPut, handleApiError } from "~/lib/api-helpers.server";
 import { createPutHandler } from "~/lib/route-wrapper.server";
 import { auth, uncachedAuth } from "~/server/auth";
@@ -126,19 +127,7 @@ export const DELETE = withTenantAuth(
         if (response.status === 401) {
           return createTokenExpiredResponse();
         }
-
-        const contentType = response.headers.get("content-type") ?? "";
-
-        if (contentType.includes("application/json")) {
-          const payload = (await response.json()) as Record<string, unknown>;
-          return NextResponse.json(payload, { status: response.status });
-        }
-
-        const errorMessage = await response.text();
-        return NextResponse.json(
-          { error: errorMessage || `API error (${response.status})` },
-          { status: response.status },
-        );
+        return forwardBackendResponse(response);
       }
 
       return NextResponse.json({ success: true });

@@ -1,3 +1,4 @@
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
@@ -66,8 +67,7 @@ async function PUTHandler(request: NextRequest) {
         }),
       },
     );
-    const payload = await upstream.json().catch(() => ({}));
-    return NextResponse.json(payload, { status: upstream.status });
+    return forwardBackendResponse(upstream);
   } catch (error) {
     logger.error("admin_child_offerings_update_failed", {
       error: error instanceof Error ? error.message : String(error),

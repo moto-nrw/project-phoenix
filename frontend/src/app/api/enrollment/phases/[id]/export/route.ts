@@ -4,6 +4,7 @@ import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 
 const logger = createLogger({ component: "EnrollmentPhaseExportRoute" });
 
@@ -28,10 +29,7 @@ async function proxyExport(phaseId: string, body: string, token: string) {
   );
 
   if (!response.ok) {
-    return NextResponse.json(
-      { error: await response.text() },
-      { status: response.status },
-    );
+    return forwardBackendResponse(response);
   }
 
   const contentType =

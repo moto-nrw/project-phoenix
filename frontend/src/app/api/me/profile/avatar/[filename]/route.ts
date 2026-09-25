@@ -4,6 +4,7 @@ import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { handleApiError } from "~/lib/api-helpers.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 
 // GET handler for fetching avatar images
 // Note: This doesn't use createGetHandler because we need to return raw image data
@@ -61,15 +62,7 @@ export const GET = withTenantAuth(
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        return NextResponse.json(
-          {
-            error: errorText || `Failed to fetch avatar: ${response.status}`,
-            success: false,
-            message: errorText || `Failed to fetch avatar: ${response.status}`,
-          },
-          { status: response.status },
-        );
+        return forwardBackendResponse(response);
       }
 
       // Get the image data and content type

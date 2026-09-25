@@ -134,8 +134,8 @@ describe("POST /api/auth/login", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ message: string }>(response);
-    expect(json.message).toBe("Server Error");
+    expect(response.headers.get("Content-Type")).toBe("text/plain");
+    expect(await response.text()).toBe("Server Error");
   });
 
   it("handles JSON parse error from backend", async () => {
@@ -154,8 +154,8 @@ describe("POST /api/auth/login", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(200);
-    const json = await parseJsonResponse<{ message: string }>(response);
-    expect(json.message).toBe("invalid json");
+    expect(response.headers.get("Content-Type")).toBe("application/json");
+    expect(await response.text()).toBe("invalid json");
   });
 
   it("returns fallback payload when backend sends an empty JSON body", async () => {
@@ -174,8 +174,7 @@ describe("POST /api/auth/login", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(200);
-    const json = await parseJsonResponse<{ message: string }>(response);
-    expect(json.message).toBe("Empty response");
+    expect(await response.text()).toBe("");
   });
 
   it("returns fallback message when backend sends an empty non-JSON body", async () => {
@@ -194,8 +193,7 @@ describe("POST /api/auth/login", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(502);
-    const json = await parseJsonResponse<{ message: string }>(response);
-    expect(json.message).toBe("Request failed with no response");
+    expect(await response.text()).toBe("");
   });
 
   it("returns 500 when fetch throws an error", async () => {

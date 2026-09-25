@@ -4,6 +4,7 @@ import { createDeleteHandler } from "~/lib/route-wrapper.server";
 import type { BackendProfile } from "~/lib/profile-helpers";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
+import { backendResponseError } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "AvatarRoute" });
 
@@ -102,10 +103,7 @@ export const POST = createFileUploadHandler<BackendProfile>(
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        errorText || `Upload failed with status ${response.status}`,
-      );
+      throw await backendResponseError(response);
     }
 
     const responseData = (await response.json()) as ProfileResponse;
@@ -139,10 +137,7 @@ export const DELETE = createDeleteHandler(
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        errorText || `Delete failed with status ${response.status}`,
-      );
+      throw await backendResponseError(response);
     }
 
     const responseData = (await response.json()) as ProfileResponse;

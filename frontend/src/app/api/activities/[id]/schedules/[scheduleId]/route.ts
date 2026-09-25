@@ -1,6 +1,11 @@
 // app/api/activities/[id]/schedules/[scheduleId]/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
+import {
+  apiGet,
+  apiPut,
+  apiDelete,
+  ApiResponseError,
+} from "~/lib/api-helpers.server";
 import {
   createGetHandler,
   createPutHandler,
@@ -48,6 +53,7 @@ export const GET = createGetHandler(
         `Unexpected response structure from schedule API for activity ${id}, schedule ${scheduleId}`,
       );
     } catch (error) {
+      if (error instanceof ApiResponseError) throw error;
       // Properly propagate the error for handling in the service layer
       throw new Error(
         JSON.stringify({
@@ -110,6 +116,7 @@ export const PUT = createPutHandler(
         `Unexpected response structure from schedule update API for activity ${id}, schedule ${scheduleId}`,
       );
     } catch (error) {
+      if (error instanceof ApiResponseError) throw error;
       // Properly propagate the error for handling in the service layer
       throw new Error(
         JSON.stringify({
@@ -147,6 +154,7 @@ export const DELETE = createDeleteHandler(
         message: `Schedule ${scheduleId} deleted successfully`,
       };
     } catch (error) {
+      if (error instanceof ApiResponseError) throw error;
       // Properly propagate the error for handling in the service layer
       throw new Error(
         JSON.stringify({

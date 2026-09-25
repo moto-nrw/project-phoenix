@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { schoolAuth } from "~/server/auth/school";
 import { withSchoolAuth } from "~/server/auth/school-route";
 import { incomingAnalyticsSessionHeaders } from "../analytics-session-header.server";
-import { handleApiError } from "../api-helpers.server";
+import { backendResponseError, handleApiError } from "../api-helpers.server";
 import { makeProxyFactories } from "../route-proxy-factory.server";
 import {
   extractParams,
@@ -61,8 +61,7 @@ async function schoolServerFetch<T>(
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`API error (${response.status}): ${errorText}`);
+    throw await backendResponseError(response);
   }
 
   return parseResponse<T>(response);

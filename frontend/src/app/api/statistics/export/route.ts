@@ -1,3 +1,4 @@
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // app/api/statistics/export/route.ts
 import type { NextRequest } from "next/server";
 import { auth, uncachedAuth } from "~/server/auth";
@@ -30,11 +31,9 @@ async function proxyExport(query: string, token: string): Promise<Response> {
   );
 
   if (!backendResponse.ok) {
-    const body = await backendResponse.text().catch(() => "");
-    return new Response(body || "Export failed", {
-      status: backendResponse.status,
-      headers: { "Cache-Control": "no-store" },
-    });
+    const response = forwardBackendResponse(backendResponse);
+    response.headers.set("Cache-Control", "no-store");
+    return response;
   }
   if (!backendResponse.body) {
     return new Response("No response body from backend", { status: 502 });

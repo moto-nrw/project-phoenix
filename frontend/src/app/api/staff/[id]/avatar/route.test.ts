@@ -116,10 +116,7 @@ describe("GET /api/staff/[id]/avatar", () => {
   });
 
   it("passes backend error statuses through unchanged", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 404,
-    });
+    mockFetch.mockResolvedValue(new Response("Not found", { status: 404 }));
 
     const response = await GET(
       new NextRequest("http://localhost:3000/api/staff/42/avatar"),

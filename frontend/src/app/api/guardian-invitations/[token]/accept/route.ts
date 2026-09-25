@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { analyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 
 const logger = createLogger({ component: "GuardianInvitationAcceptRoute" });
 
@@ -43,16 +44,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     );
 
-    const contentType = response.headers.get("Content-Type") ?? "";
-    let payloadBody: unknown = null;
-    if (contentType.includes("application/json")) {
-      payloadBody = await response.json();
-    } else {
-      const text = await response.text();
-      payloadBody = text ? { error: text } : null;
-    }
-
-    return NextResponse.json(payloadBody ?? {}, { status: response.status });
+    return forwardBackendResponse(response);
   } catch (error) {
     logger.error("guardian_invitation_accept_failed", {
       error: error instanceof Error ? error.message : String(error),

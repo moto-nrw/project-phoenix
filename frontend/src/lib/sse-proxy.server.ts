@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { type Logger } from "~/lib/logger";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
@@ -69,15 +70,10 @@ export async function proxySSEStream(
 
     if (!backendResponse.ok) {
       cleanup();
-      const body = await backendResponse.text().catch(() => "");
       logger.error("SSE backend connection failed", {
         status: backendResponse.status,
-        error: body,
       });
-      // Propagate backend status to client for accurate diagnostics (e.g. 401/403).
-      return new Response(body || "SSE connection failed", {
-        status: backendResponse.status,
-      });
+      return forwardBackendResponse(backendResponse);
     }
 
     if (!backendResponse.body) {

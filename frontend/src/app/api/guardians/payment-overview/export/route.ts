@@ -1,3 +1,4 @@
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "~/server/auth";
@@ -6,24 +7,6 @@ import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "GuardianPaymentExportRoute" });
-
-// The backend renders errors as {"status":"error","error":"..."}. Forward the
-// inner human-readable string so the toast shows a clean message instead of the
-// raw JSON envelope.
-async function extractBackendError(response: Response): Promise<string> {
-  const text = await response.text();
-  if (!text)
-    return "Der Export hat nicht geklappt. Bitte noch einmal versuchen.";
-  try {
-    const parsed = JSON.parse(text) as { error?: unknown };
-    if (typeof parsed.error === "string" && parsed.error.trim()) {
-      return parsed.error;
-    }
-  } catch {
-    // Not JSON — forward the raw text.
-  }
-  return text;
-}
 
 async function proxyExport(body: string, token: string) {
   const { getServerApiUrl } = await import("~/lib/server-api-url");
@@ -41,12 +24,7 @@ async function proxyExport(body: string, token: string) {
     },
   );
 
-  if (!response.ok) {
-    return NextResponse.json(
-      { error: await extractBackendError(response) },
-      { status: response.status },
-    );
-  }
+  if (!response.ok) return forwardBackendResponse(response);
 
   const contentType =
     response.headers.get("content-type") ?? "application/octet-stream";

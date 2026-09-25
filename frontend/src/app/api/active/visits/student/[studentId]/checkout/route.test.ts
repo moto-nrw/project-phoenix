@@ -27,22 +27,6 @@ vi.mock("~/server/auth", () => ({
 // Mock global fetch
 global.fetch = mockFetch as unknown as typeof fetch;
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: vi.fn(),
-  apiPost: vi.fn(),
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    // Match the real handleApiError regex pattern
-    const regex = /API error[:\s(]+(\d{3})/;
-    const match = error instanceof Error ? regex.exec(error.message) : null;
-    const status = match?.[1] ? Number.parseInt(match[1], 10) : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
-
 // ============================================================================
 // Test Helpers
 // ============================================================================
@@ -134,10 +118,7 @@ describe("POST /api/active/visits/student/[studentId]/checkout", () => {
       },
     };
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockResponse,
-    } as Response);
+    mockFetch.mockResolvedValueOnce(Response.json(mockResponse));
 
     const request = createMockRequest(
       "/api/active/visits/student/456/checkout",
@@ -165,10 +146,12 @@ describe("POST /api/active/visits/student/[studentId]/checkout", () => {
   });
 
   it("handles backend errors gracefully", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      text: async () => "Student not found",
-    } as Response);
+    mockFetch.mockResolvedValueOnce(
+      new Response("Student not found", {
+        status: 404,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
 
     const request = createMockRequest(
       "/api/active/visits/student/999/checkout",
@@ -180,14 +163,12 @@ describe("POST /api/active/visits/student/[studentId]/checkout", () => {
       createMockContext({ studentId: "999" }),
     );
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(404);
+    expect(await response.text()).toBe("Student not found");
   });
 
   it("handles empty error response", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      text: async () => "",
-    } as Response);
+    mockFetch.mockResolvedValueOnce(new Response("", { status: 500 }));
 
     const request = createMockRequest(
       "/api/active/visits/student/999/checkout",
@@ -200,5 +181,6 @@ describe("POST /api/active/visits/student/[studentId]/checkout", () => {
     );
 
     expect(response.status).toBe(500);
+    expect(await response.text()).toBe("");
   });
 });

@@ -161,8 +161,7 @@ describe("POST /api/invitations/accept", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Server Error");
+    expect(await response.text()).toBe("Server Error");
   });
 
   it("returns an empty 204 response", async () => {

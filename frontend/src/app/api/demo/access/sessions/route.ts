@@ -6,6 +6,7 @@ import {
   DEMO_TOKEN_COOKIE_OPTIONS,
   demoBackendUrl,
 } from "../forward";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 
 const logger = createLogger({ component: "DemoSessionRoute" });
 
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({ token, role }),
     });
+    if (!backend.ok) return forwardBackendResponse(backend);
     const payload: unknown = await backend.json().catch(() => ({}));
     const response = NextResponse.json(payload, { status: backend.status });
     if (backend.ok && linkToken) {

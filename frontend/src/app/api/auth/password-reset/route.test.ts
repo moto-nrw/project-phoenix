@@ -148,8 +148,9 @@ describe("POST /api/auth/password-reset", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Invalid email format");
+    await expect(response.json()).resolves.toEqual({
+      message: "Invalid email format",
+    });
   });
 
   it("handles non-JSON error response", async () => {
@@ -166,8 +167,8 @@ describe("POST /api/auth/password-reset", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Server Error");
+    expect(response.headers.get("Content-Type")).toContain("text/plain");
+    expect(await response.text()).toBe("Server Error");
   });
 
   it("handles empty error response body", async () => {
@@ -184,10 +185,7 @@ describe("POST /api/auth/password-reset", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe(
-      "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail",
-    );
+    expect(await response.text()).toBe("");
   });
 
   it("handles JSON parse error in error response", async () => {
@@ -204,10 +202,8 @@ describe("POST /api/auth/password-reset", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe(
-      "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail",
-    );
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    expect(await response.text()).toBe("invalid json");
   });
 
   it("returns 500 on fetch failure", async () => {

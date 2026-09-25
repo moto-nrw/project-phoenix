@@ -72,11 +72,12 @@ describe("GET /api/operator/provisioning/schools/summaries", () => {
 
   it("returns 401 with TOKEN_EXPIRED when the backend returns 401 and refresh fails", async () => {
     mockAuth.mockResolvedValue({ user: { token: "stale-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 401,
-      text: async () => "expired",
-    });
+    mockFetch.mockResolvedValue(
+      new Response("expired", {
+        status: 401,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/provisioning/schools/summaries",
@@ -91,11 +92,12 @@ describe("GET /api/operator/provisioning/schools/summaries", () => {
   // Negative paths — ensure non-401 backend errors propagate verbatim.
   it("forwards a backend 500 with the same status code", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 500,
-      text: async () => JSON.stringify({ error: "school summaries failed" }),
-    });
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "school summaries failed" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/provisioning/schools/summaries",

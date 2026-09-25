@@ -4,6 +4,7 @@ import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { handleApiError } from "~/lib/api-helpers.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import {
   encodePathSegment,
   isStringParam,
@@ -57,10 +58,7 @@ export const GET = withTenantAuth(
       }
 
       if (!response.ok) {
-        return NextResponse.json(
-          { error: "Avatar not found", success: false },
-          { status: response.status },
-        );
+        return forwardBackendResponse(response);
       }
 
       const contentType = response.headers.get("content-type") ?? "image/jpeg";

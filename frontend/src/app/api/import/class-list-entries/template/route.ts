@@ -1,3 +1,4 @@
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
@@ -25,13 +26,7 @@ async function GETHandler(request: NextRequest) {
       },
     );
 
-    if (!response.ok) {
-      const error = await response.text();
-      return NextResponse.json(
-        { error: error || "Failed to download template" },
-        { status: response.status },
-      );
-    }
+    if (!response.ok) return forwardBackendResponse(response);
 
     const contentType =
       response.headers.get("Content-Type") ?? "text/csv; charset=utf-8";

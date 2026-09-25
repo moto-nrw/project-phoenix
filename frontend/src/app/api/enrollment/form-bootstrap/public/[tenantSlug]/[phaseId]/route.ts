@@ -4,6 +4,7 @@ import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import {
   getOriginalRequestHost,
   hostnameFromAuthority,
@@ -54,10 +55,10 @@ async function GETHandler(request: NextRequest, context: RouteContext) {
     );
     if (lateInvite) backendUrl.searchParams.set("late_invite", lateInvite);
     const response = await fetch(backendUrl, { cache: "no-store" });
-    const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      return NextResponse.json(payload, { status: response.status });
+      return forwardBackendResponse(response);
     }
+    const payload = await response.json().catch(() => ({}));
 
     // The parent portal uses the same public metadata, but tenant cookies are
     // domain-scoped across tenant subdomains in production. The proxy-owned

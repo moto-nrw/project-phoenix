@@ -4,6 +4,7 @@ import { withSchoolAuth } from "~/server/auth/school-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 
 const logger = createLogger({ component: "SchoolAuthLogoutRoute" });
 
@@ -30,22 +31,12 @@ async function POSTHandler(request: NextRequest) {
       },
     });
 
-    if (!response.ok && response.status !== 204) {
-      const errorText = await response.text();
-      logger.error("logout backend error", {
-        status: response.status,
-        error: errorText,
-      });
-    }
-
-    // Always return success to client
-    return new NextResponse(null, { status: 204 });
+    return forwardBackendResponse(response);
   } catch (error) {
     logger.error("logout failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    // Still return success - logout should always succeed on client side
-    return new NextResponse(null, { status: 204 });
+    return NextResponse.json({ error: "Backend unavailable" }, { status: 502 });
   }
 }
 

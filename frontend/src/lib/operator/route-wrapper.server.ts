@@ -1,7 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { withOperatorAuth } from "~/server/auth/operator-route";
-import { handleApiError } from "../api-helpers.server";
+import { ApiResponseError, handleApiError } from "../api-helpers.server";
+import { forwardBackendResponse } from "../backend-proxy-response.server";
 import { recordBackendProxyMetric } from "../backend-proxy-metrics";
 import { sanitizeEndpoint } from "../log-sanitize";
 import { makeProxyFactories } from "../route-proxy-factory.server";
@@ -71,7 +72,10 @@ async function operatorServerFetch<T>(
     if (!response.ok) {
       outcome = "backend_error";
       const errorText = await response.text();
-      throw new Error(`API error (${response.status}): ${errorText}`);
+      throw new ApiResponseError(response.status, errorText, {
+        contentType: response.headers.get("Content-Type"),
+        retryAfter: response.headers.get("Retry-After"),
+      });
     }
 
     return parseResponse<T>(response);
@@ -269,45 +273,6 @@ export function createOperatorDeleteHandler<T>(handler: NoBodyHandler<T>) {
     }
     return NextResponse.json(wrapInApiResponse(data));
   });
-}
-
-/**
- * Forwards a backend Response to a NextResponse verbatim:
- * - 204 → empty-body NextResponse with status 204
- * - JSON content-type → pass-through with original status
- * - Non-JSON → { message } envelope (429 gets a friendly German message)
- *
- * Shared by all proxy helpers below so their response-forwarding behavior
- * stays identical.
- *
- * Error-key convention: the operator backend's ErrResponse struct serializes
- * with `json:"message"` (backend/api/common/operator_errors.go), so operator API
- * errors natively ship as { status, message } — distinct from the main/tenant
- * backend which uses `json:"error"`. This helper keeps the operator-native
- * `message` key intact on both forwarded JSON and the synthetic non-JSON
- * envelope so that proxy output stays consistent with what the operator
- * backend itself emits. Operator-side consumers should dual-read
- * `data.message ?? data.error` (see frontend/src/lib/operator/api-helpers.ts)
- * to stay robust against any intermediate layer that normalizes to `error`.
- */
-async function forwardBackendResponse(
-  response: Response,
-): Promise<NextResponse> {
-  if (response.status === 204) {
-    return new NextResponse(null, { status: 204 });
-  }
-
-  const contentType = response.headers.get("content-type");
-  if (!contentType?.includes("application/json")) {
-    const message =
-      response.status === 429
-        ? "Zu viele Anfragen. Bitte versuchen Sie es später erneut."
-        : (await response.text()) || response.statusText;
-    return NextResponse.json({ message }, { status: response.status });
-  }
-
-  const data: unknown = await response.json();
-  return NextResponse.json(data, { status: response.status });
 }
 
 /**

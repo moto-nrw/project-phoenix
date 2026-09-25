@@ -140,7 +140,7 @@ describe("forwardJsonPost", () => {
     expect(await res.json()).toEqual({ error: "Invalid credentials" });
   });
 
-  it("wraps non-JSON bodies in a {message} envelope", async () => {
+  it("forwards non-JSON bodies unchanged", async () => {
     globalThis.fetch = mockFetchResponse({
       status: 502,
       body: "Bad Gateway",
@@ -153,13 +153,11 @@ describe("forwardJsonPost", () => {
     );
 
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ message: "Bad Gateway" });
+    expect(res.headers.get("Content-Type")).toBe("text/plain");
+    expect(await res.text()).toBe("Bad Gateway");
   });
 
-  it("falls back to {message} when the response claims JSON but body isn't valid JSON", async () => {
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
+  it("forwards malformed backend JSON unchanged", async () => {
     globalThis.fetch = mockFetchResponse({
       status: 500,
       body: "not-json-at-all",
@@ -172,9 +170,8 @@ describe("forwardJsonPost", () => {
     );
 
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ message: "not-json-at-all" });
-    expect(consoleError).toHaveBeenCalled();
-    consoleError.mockRestore();
+    expect(res.headers.get("Content-Type")).toBe("application/json");
+    expect(await res.text()).toBe("not-json-at-all");
   });
 
   it("treats fetch rejections as 500 Internal Server Error", async () => {
@@ -218,7 +215,7 @@ describe("forwardJsonPost", () => {
     expect((init as RequestInit).body).toBeUndefined();
   });
 
-  it("returns {message: 'Empty response'} when JSON body is empty/null", async () => {
+  it("keeps an empty backend body empty", async () => {
     globalThis.fetch = mockFetchResponse({
       status: 200,
       body: "",
@@ -231,6 +228,6 @@ describe("forwardJsonPost", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ message: "Empty response" });
+    expect(await res.text()).toBe("");
   });
 });
