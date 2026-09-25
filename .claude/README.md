@@ -57,9 +57,7 @@ hooks, but runtime tool matchers still determine which calls are intercepted.
 | `check-commit-message.sh` | Commit convention validation |
 | `check-env-files.sh` | Session-start env file check |
 | `skill-reminder.sh` | Task-relevant skill pointers |
-| `subagent-reminder.sh` | Delegation guidance subject to session instructions |
 | `scripts/quorum-rerequest.sh --stop-hook` | Re-request quorum after pushed review fixes |
-| `scripts/stop-quality-gate.sh --stop-hook` | Changed-area build/vet/frontend checks |
 
 No hook enforces the absolute rules (production requests, SOPS ciphertext,
 RLS in migrations, commit-hook bypass); agents follow the prose rules. Keep
