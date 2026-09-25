@@ -1214,6 +1214,157 @@ describe("TimeTrackingPage", () => {
       });
     });
 
+    it("reports a refresh failure after successfully ending a timed break", async () => {
+      const toast = {
+        success: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        warning: vi.fn(),
+        remove: vi.fn(),
+      };
+      vi.mocked(useToast).mockReturnValue(toast);
+      const logError = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        setupDefaultMocks({ currentSession: mockActiveSession });
+        vi.mocked(timeTrackingService.getSessionBreaks)
+          .mockResolvedValueOnce([
+            {
+              id: "50",
+              sessionId: "100",
+              startedAt: new Date(Date.now() - 90 * 60 * 1000).toISOString(),
+              endedAt: null,
+              durationMinutes: 0,
+              plannedEndTime: new Date(Date.now() - 1000).toISOString(),
+            },
+          ])
+          .mockResolvedValue([]);
+        vi.mocked(timeTrackingService.endBreak).mockResolvedValue({
+          ...mockActiveSession,
+          breakMinutes: 90,
+        });
+        mockMutate.mockRejectedValue(new Error("session refresh failed"));
+
+        render(<TimeTrackingPage />);
+
+        await waitFor(() => {
+          expect(timeTrackingService.endBreak).toHaveBeenCalledTimes(1);
+          expect(timeTrackingService.getSessionBreaks).toHaveBeenCalledTimes(2);
+          expect(toast.error).toHaveBeenCalledWith(
+            "Fehler beim Beenden der Pause",
+          );
+        });
+        expect(logError).toHaveBeenCalledWith("end_break_failed", {
+          error: "session refresh failed",
+          status: undefined,
+        });
+      } finally {
+        mockMutate.mockReset();
+        logError.mockRestore();
+      }
+    });
+
+    it("silently reconciles an already-ended timed break without retrying", async () => {
+      const toast = {
+        success: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        warning: vi.fn(),
+        remove: vi.fn(),
+      };
+      vi.mocked(useToast).mockReturnValue(toast);
+      const logError = vi.spyOn(console, "error").mockImplementation(() => {});
+      const logWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        setupDefaultMocks({ currentSession: mockActiveSession });
+        const activeBreak = {
+          id: "50",
+          sessionId: "100",
+          startedAt: new Date(Date.now() - 90 * 60 * 1000).toISOString(),
+          endedAt: null,
+          durationMinutes: 0,
+          plannedEndTime: new Date(Date.now() - 1000).toISOString(),
+        };
+        vi.mocked(timeTrackingService.getSessionBreaks)
+          .mockResolvedValueOnce([activeBreak])
+          .mockResolvedValue([]);
+        vi.mocked(timeTrackingService.endBreak).mockRejectedValue(
+          Object.assign(new Error("no active break found"), { status: 404 }),
+        );
+
+        render(<TimeTrackingPage />);
+
+        await waitFor(() => {
+          expect(timeTrackingService.endBreak).toHaveBeenCalledTimes(1);
+          expect(timeTrackingService.getSessionBreaks).toHaveBeenCalledTimes(2);
+          expect(mockMutate).toHaveBeenCalledTimes(2);
+          expect(
+            screen.queryByLabelText("Pause beenden"),
+          ).not.toBeInTheDocument();
+        });
+        expect(toast.error).not.toHaveBeenCalled();
+        expect(logError).not.toHaveBeenCalledWith(
+          "end_break_failed",
+          expect.anything(),
+        );
+        expect(logWarn).toHaveBeenCalledWith("end_break_failed", {
+          error: "no active break found",
+          status: 404,
+        });
+      } finally {
+        logError.mockRestore();
+        logWarn.mockRestore();
+      }
+    });
+
+    it("reports a failed timed break end once even when breaks cannot refresh", async () => {
+      const toast = {
+        success: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        warning: vi.fn(),
+        remove: vi.fn(),
+      };
+      vi.mocked(useToast).mockReturnValue(toast);
+      const logError = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        setupDefaultMocks({ currentSession: mockActiveSession });
+        vi.mocked(timeTrackingService.getSessionBreaks)
+          .mockResolvedValueOnce([
+            {
+              id: "50",
+              sessionId: "100",
+              startedAt: new Date(Date.now() - 90 * 60 * 1000).toISOString(),
+              endedAt: null,
+              durationMinutes: 0,
+              plannedEndTime: new Date(Date.now() - 1000).toISOString(),
+            },
+          ])
+          .mockRejectedValue(new Error("refresh failed"));
+        vi.mocked(timeTrackingService.endBreak).mockRejectedValue(
+          Object.assign(new Error("server unavailable"), { status: 500 }),
+        );
+
+        render(<TimeTrackingPage />);
+
+        await waitFor(() => {
+          expect(timeTrackingService.endBreak).toHaveBeenCalledTimes(1);
+          expect(timeTrackingService.getSessionBreaks).toHaveBeenCalledTimes(2);
+          expect(mockMutate).toHaveBeenCalledTimes(2);
+          expect(toast.error).toHaveBeenCalledWith(
+            "Fehler beim Beenden der Pause",
+          );
+        });
+        expect(logError).toHaveBeenCalledWith("end_break_failed", {
+          error: "server unavailable",
+          status: 500,
+        });
+        expect(screen.getByLabelText("Pause beenden")).toBeInTheDocument();
+        expect(timeTrackingService.endBreak).toHaveBeenCalledTimes(1);
+      } finally {
+        logError.mockRestore();
+      }
+    });
+
     it("shows Heute and Woche footer stats", () => {
       setupDefaultMocks({ currentSession: mockActiveSession });
       render(<TimeTrackingPage />);
@@ -4501,7 +4652,7 @@ describe("TimeTrackingPage", () => {
       }
     });
 
-    it("maps 'no active break found' for endBreak", async () => {
+    it("silently reconciles a manually ended break after a 404", async () => {
       const mockToast = {
         success: vi.fn(),
         error: vi.fn(),
@@ -4511,18 +4662,20 @@ describe("TimeTrackingPage", () => {
       };
       vi.mocked(useToast).mockReturnValue(mockToast);
       setupDefaultMocks({ currentSession: mockActiveSession });
-      vi.mocked(timeTrackingService.getSessionBreaks).mockResolvedValue([
-        {
-          id: "50",
-          sessionId: "100",
-          startedAt: new Date().toISOString(),
-          endedAt: null,
-          durationMinutes: 0,
-          plannedEndTime: null,
-        },
-      ]);
+      vi.mocked(timeTrackingService.getSessionBreaks)
+        .mockResolvedValueOnce([
+          {
+            id: "50",
+            sessionId: "100",
+            startedAt: new Date().toISOString(),
+            endedAt: null,
+            durationMinutes: 0,
+            plannedEndTime: null,
+          },
+        ])
+        .mockResolvedValue([]);
       vi.mocked(timeTrackingService.endBreak).mockRejectedValue(
-        new Error("no active break found"),
+        Object.assign(new Error("no active break found"), { status: 404 }),
       );
 
       render(<TimeTrackingPage />);
@@ -4536,10 +4689,13 @@ describe("TimeTrackingPage", () => {
       });
 
       await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith(
-          "Keine aktive Pause vorhanden.",
-        );
+        expect(timeTrackingService.getSessionBreaks).toHaveBeenCalledTimes(2);
+        expect(mockMutate).toHaveBeenCalledTimes(2);
+        expect(
+          screen.queryByLabelText("Pause beenden"),
+        ).not.toBeInTheDocument();
       });
+      expect(mockToast.error).not.toHaveBeenCalled();
     });
 
     it("maps 'absence not found' error", async () => {
