@@ -186,6 +186,8 @@ function NewsCardState({
   }
 
   const children = item.children ?? [];
+  if (children.length === 0) return null;
+
   const answered = children.filter(
     (child) => child.selected_options.length > 0,
   );

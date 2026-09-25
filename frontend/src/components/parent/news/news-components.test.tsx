@@ -347,6 +347,14 @@ describe("Umfrage answering in the detail view", () => {
     expect(screen.queryByRole("radio", { name: "Ja" })).not.toBeInTheDocument();
   });
 
+  it("shows no answer status when no child can answer the poll", () => {
+    render(<NewsCard item={poll({ children: [] })} onOpen={vi.fn()} />);
+
+    expect(screen.getByText("Umfrage")).toBeInTheDocument();
+    expect(screen.queryByText("Antwort nötig")).not.toBeInTheDocument();
+    expect(screen.queryByText("Beantwortet")).not.toBeInTheDocument();
+  });
+
   it("shows no status line and no tint on an unread message that asks for nothing", () => {
     render(<NewsCard item={announcement({ read: false })} onOpen={vi.fn()} />);
     const card = screen.getByRole("button", { name: /Sommerfest/ });
@@ -579,6 +587,7 @@ describe("isOpenPoll", () => {
     expect(
       isOpenPoll(poll({ response_deadline: "2020-01-01T00:00:00Z" })),
     ).toBe(false);
+    expect(isOpenPoll(poll({ children: [] }))).toBe(false);
     expect(isOpenPoll(poll({ response_type: "none" }))).toBe(false);
   });
 });
