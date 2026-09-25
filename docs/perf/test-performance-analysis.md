@@ -172,7 +172,7 @@ Maßnahmen 1 bis 4 sind umgesetzt und nachgemessen:
 - **Maßnahme 2** (`test-changed.sh --fast` / Selektor `--direct`): Depth-1-Importer statt transitiver Closure, ohne das automatisch angehängte `test`-Package; Default-Modus byte-identisch, per Fixture-Kette in `backend-affected-packages_test.sh` gepinnt.
 - **Maßnahme 3**: `test-backend.sh` läuft `-p 10` (lokal `max_connections=300`, Kommentar korrigiert), `test-changed.sh` cappt `-p` bei 8. Messwert: Volllauf mit kaltem Ergebnis-Cache 111 s bei `-p 10` gegenüber 99,6 s bei `-p 6` in der Analyse — im Rahmen der Lauf-zu-Lauf-Streuung, kein belegter Gewinn; der eigentliche Hebel ist der Cache.
 - **Maßnahme 4** (`backend/test/source_index_test.go`): ein gemeinsamer, pro Root einmal gebauter Datei-Index ersetzt die Baum-Walks von `walkGoFilesRaw` und den drei Ad-hoc-Walkern in `hermetic_verification_test.go`. Solo-Zeit des `test`-Packages: **6,7 s statt 9,1 s**; `scanTree`/`scanRatchetPattern` und die AST-Ratchets sind bewusst eine spätere PR.
-- **Vorbedingung**: der PreToolUse-Hook `guard-absolute-rules.sh` blockte jede Skript-Ausführung und damit die hier vorgeschriebenen Wrapper; er vettet jetzt git-getrackte Repo-Skripte (Testtabelle in `.claude/hooks/guard-absolute-rules_test.sh`, auch als CI-Step).
+- **Vorbedingung**: der damalige PreToolUse-Guard-Hook blockte jede Skript-Ausführung und damit die hier vorgeschriebenen Wrapper; er wurde später vollständig entfernt.
 
 ## Rohdaten
 

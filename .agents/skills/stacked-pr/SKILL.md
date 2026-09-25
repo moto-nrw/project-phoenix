@@ -45,7 +45,7 @@ bash scripts/pre-push.sh <parent-branch>
 
 Green there is the real result, so push with `git push --no-verify` and record in
 the PR body that the suite ran against the parent. (The commit hook stays on:
-`git commit --no-verify` is blocked and stays blocked.)
+never use `git commit --no-verify`.)
 
 ## Keep the stack current
 
