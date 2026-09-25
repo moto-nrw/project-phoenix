@@ -5,7 +5,6 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -31,7 +30,7 @@ type enrollmentReportSources struct {
 	AccessLog         auditModels.DataAccessLogRepository
 	Students          userModels.StudentRepository
 	Persons           userModels.PersonRepository
-	Groups            educationModels.GroupRepository
+	Groups            enrollmentCompose.RosterGroups
 	StudentGuardians  userModels.StudentGuardianRepository
 	Companions        enrollmentCompose.RosterCompanions
 	ClassListEntries  enrollmentCompose.ClassListEntries
@@ -69,7 +68,7 @@ func newEnrollmentReports(sources enrollmentReportSources) enrollmentOwner.Repor
 		deps.Persons = enrollmentRosterPersons{repo: sources.Persons}
 	}
 	if sources.Groups != nil {
-		deps.Groups = enrollmentRosterGroups{repo: sources.Groups}
+		deps.Groups = sources.Groups
 	}
 	if sources.StudentGuardians != nil {
 		deps.GuardianContacts = enrollmentRosterGuardianContacts{repo: sources.StudentGuardians}
@@ -109,24 +108,6 @@ func (b enrollmentRosterPersons) PersonsByID(ctx context.Context, personIDs []in
 	for id, person := range persons {
 		if person != nil {
 			out[id] = &enrollmentCompose.RosterPerson{FirstName: person.FirstName, LastName: person.LastName}
-		}
-	}
-	return out, nil
-}
-
-type enrollmentRosterGroups struct {
-	repo educationModels.GroupRepository
-}
-
-func (b enrollmentRosterGroups) GroupNamesByID(ctx context.Context, groupIDs []int64) (map[int64]string, error) {
-	groups, err := b.repo.FindByIDs(ctx, groupIDs)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[int64]string, len(groups))
-	for id, group := range groups {
-		if group != nil {
-			out[id] = group.Name
 		}
 	}
 	return out, nil

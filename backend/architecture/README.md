@@ -863,10 +863,13 @@ the consumer-owned read seams, and `compose` binds them. The projection reads
 `schedule.activity_instances`, `schedule.instance_students`, `active.visits`,
 `active.attendance`, `users.students`, `users.persons`, `education.groups`, the
 rooms and the Care Plan status days and pickup exceptions only through the public
-owner facades (`class-day-view.from.*`). Its `class-day-view.compose.*`
+owner facades (`class-day-view.from.*`). Since #3563 the application also
+builds the school portal's day report, the supervision sheet and the class-wide
+arrival exceptions itself; Enrollment's class roster of a day reaches it
+through the `DayRosters` port the root binds. Its `class-day-view.compose.*`
 permissions for the retained schedule services (care-day derivation, effective
-times, pickup baselines), the enrollment report and class-day write seam, the
-settings service, the user context and the JWT permission check exist only
+times, pickup baselines), the settings service, the user context and the JWT
+permission check exist only
 because PR mode cannot record debt for a package the candidate creates. They are
 compatibility bindings, not target dependencies: convert them to exact debt with
 the rule above once the packages exist at a base SHA, and remove each binding
@@ -1452,6 +1455,51 @@ unchanged; 21 files are deleted and the key count falls from 535 to 529
   compose the owner through `modules/enrollment/enrollmenttest`; the external
   `api/enrollment` router suites reach it through exported helpers of the
   package's internal tests.
+
+#3563 (E2 under #2733) moved the school portal's class day report, the
+supervision sheet and the class-wide arrival exceptions into the Class Day View
+application (`modules/classday/internal/application`, behind the one
+`classday.ClassDay` capability, which gained `SupervisionStudentSheet`), and
+the care usage and class roster reports with their export audit into
+Enrollment (`modules/enrollment/internal/application`, published as
+`enrollment.Reports`, composed by `modules/enrollment/compose.NewReports`).
+The five retained files are deleted; routes, status codes, error texts, the
+report and export output, the GDPR access-log rows, authorization and tenant
+scoping are unchanged. The key count falls from 529 to 523
+(`internal/collation`, `internal/sliceutil` and `models/education` in
+production, three test keys), and eight rules that no import used any more are
+deleted, among them `class-day-view.compose.enrollment-application` and
+`parent-portal.application.enrollment-application`. No rule is added.
+
+- Enrollment publishes the class roster of a day
+  (`Reports.ClassRosterDay`: covering phases, merged roster rows and each
+  student's departure modes for the weekday). Class Day View reads it through
+  its own `DayRosters` port, which `services` binds; a direct
+  `class-day-view.compose → enrollment/public` import would have been a new
+  permission.
+- Neither application may import People Directory's domain, the audit or
+  settings models, the realtime hub or the tenant runtime. Students, persons,
+  guardian contacts, status days, the care-offering setting, the GDPR access
+  log and the after-commit arrival announcement reach them through ports
+  `services` binds; Care Plan's effective times, care days and class arrival
+  exceptions reach Class Day View through its compose bindings, which also
+  keep Care Plan's refusal texts on the wire. Group names come from the
+  retained group repository through `repositories.NewGroupNames`.
+- The companion link helpers (`FilterCompanionLinksToDays`,
+  `CompanionDisplayName`, `FormatCompanionLinks`) moved from `models/users` to
+  People Directory's departure contract (`modules/peopledirectory/departure`),
+  aliased from `models/users` and the People Directory facade.
+- The reports sort with the settings of `internal/collation` through
+  `golang.org/x/text/collate`, which the policy keeps out of an owner's
+  application; a table test pins the order against the shared cases.
+- `BookingViewDate` moved to Care Plan (`careplan.BookingViewDate`), so the
+  guardian portal no longer imports the retained Enrollment application;
+  `ReportOfferingDate` is public in `modules/enrollment` for the retained
+  decision flow, which keeps its own export audit writer until #3564.
+- `services.Factory` keeps its field names: `EnrollmentReport` now holds
+  `enrollment.Reports` and `ClassDayArrivalExceptions` the whole
+  `classday.ClassDay` capability, so the composition surface does not grow
+  (615 → 610 targets).
 
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`

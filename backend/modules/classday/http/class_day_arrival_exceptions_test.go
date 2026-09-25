@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
+	"github.com/moto-nrw/project-phoenix/modules/classday"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -50,28 +50,27 @@ type arrivalExceptionFixture struct {
 	staffID   int64
 	class     string
 	openWrite func(t *testing.T)
-	// retainedMondayReport marshals the retained enrollment report of the
-	// class for arrivalExceptionMonday, the value the projection serves.
+	// retainedMondayReport marshals the day report of the class for
+	// arrivalExceptionMonday as the capability builds it, the value the
+	// route serves.
 	retainedMondayReport func(t *testing.T) []byte
 }
 
 // setupArrivalExceptionRoute wires the class-day resource with its write
-// seam (#2970) the way api/base.go does. It also returns a reader of the
-// retained enrollment report the projection forwards to.
+// seam (#2970) the way the service factory composes it. It also returns a
+// reader of the day report the capability builds.
 func setupArrivalExceptionRoute(t *testing.T) (*testpkg.DB, func(t *testing.T, class string, accountID int64) []byte, chi.Router) {
 	t.Helper()
 	db, factory := testutil.SetupClassDayModule(t)
 	retainedMondayReport := func(t *testing.T, class string, accountID int64) []byte {
 		t.Helper()
-		report, err := factory.EnrollmentReport.ClassDay(testpkg.Ctx(t), class, arrivalExceptionMonday, accountID, "lehrkraft")
+		report, err := factory.ClassDay.DayReport(testpkg.Ctx(t), class, classday.Date(arrivalExceptionMonday), classday.Actor{AccountID: accountID, Roles: "lehrkraft"})
 		require.NoError(t, err)
 		body, err := json.Marshal(report)
 		require.NoError(t, err)
 		return body
 	}
-	return db, retainedMondayReport, classdayhttp.NewResource(classdayCompose.NewClassDay(classdayCompose.ClassDayDependencies{
-		Reports: factory.EnrollmentReport, Caller: factory.UserContext, ArrivalExceptions: factory.ClassDayArrivalExceptions,
-	}), db, nil).SchoolRouter()
+	return db, retainedMondayReport, classdayhttp.NewResource(factory.ClassDay, db, nil).SchoolRouter()
 }
 
 // setupArrivalExceptionFixture builds one Lehrkraft with an assigned class

@@ -15253,17 +15253,6 @@
       "target_role": "domain"
     },
     {
-      "id": "parent-portal.application.enrollment-application",
-      "description": "Compatibility binding of the retained parent-portal coordinator to the retained care-period readers and offering-change and course request service (services/enrollment); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "application",
-      "target_owner": "enrollment",
-      "target_role": "application"
-    },
-    {
       "id": "parent-portal.application.care-plan-domain",
       "description": "Compatibility binding of the retained parent-portal coordinator to the retained parent child repository (models/parent); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
       "scopes": [
@@ -16850,17 +16839,6 @@
       "target_role": "application"
     },
     {
-      "id": "class-day-view.port.public",
-      "description": "The class-day ports carry the projection's own contract types (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "port",
-      "target_owner": "class-day-view",
-      "target_role": "public"
-    },
-    {
       "id": "class-day-view.port.calendar-date",
       "description": "The class-day ports read owner facts by calendar day (#2701).",
       "scopes": [
@@ -17069,17 +17047,6 @@
       "target_role": "domain"
     },
     {
-      "id": "class-day-view.compose.enrollment-application",
-      "description": "Compatibility binding (#2701): the day-report and arrival-exception ports forward to the retained enrollment report and class-day write seam until Enrollment exposes them publicly.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "compose",
-      "target_owner": "enrollment",
-      "target_role": "application"
-    },
-    {
       "id": "class-day-view.compose.document-rendering",
       "description": "The class-day composition hands the Document Rendering renderer to the application (#2701).",
       "scopes": [
@@ -17154,17 +17121,6 @@
       "source_role": "adapter-test",
       "target_owner": "identity-access",
       "target_role": "adapter"
-    },
-    {
-      "id": "inbound-classday.adapter-test.class-day-compose",
-      "description": "Class-day handler tests compose the projection over the test modules (#2701).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-classday",
-      "source_role": "adapter-test",
-      "target_owner": "class-day-view",
-      "target_role": "compose"
     },
     {
       "id": "inbound-school.http-common",
@@ -17253,17 +17209,6 @@
       "source_role": "adapter-test",
       "target_owner": "inbound-classday",
       "target_role": "http"
-    },
-    {
-      "id": "inbound-school.adapter-test.class-day-compose",
-      "description": "School-portal handler tests compose the class-day projection over the test modules (#2701).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "adapter-test",
-      "target_owner": "class-day-view",
-      "target_role": "compose"
     },
     {
       "id": "inbound-school.adapter-test.identity-adapter",
@@ -17484,17 +17429,6 @@
       "source_role": "http",
       "target_owner": "class-day-view",
       "target_role": "public"
-    },
-    {
-      "id": "root-composition.to.class-day-compose",
-      "description": "The production root composes the class-day projection's school-portal capability (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "class-day-view",
-      "target_role": "compose"
     },
     {
       "id": "root-composition.to.class-day-http",
@@ -21276,28 +21210,6 @@
       "source_role": "module-behavior-test",
       "target_owner": "timetable-activities",
       "target_role": "compose"
-    },
-    {
-      "id": "enrollment.application.care-plan-absence-records",
-      "description": "The class day view reads the scheduled day statuses as Care Plan absence records through its own port (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "application",
-      "target_owner": "care-plan",
-      "target_role": "contract"
-    },
-    {
-      "id": "enrollment.module-internal-test.care-plan-absence-records",
-      "description": "The class day tests fake the status-day port with Care Plan absence records (#3422).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-internal-test",
-      "target_owner": "care-plan",
-      "target_role": "contract"
     },
     {
       "id": "timetable-activities.adapter-test.compose",

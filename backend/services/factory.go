@@ -263,15 +263,19 @@ type Factory struct {
 	Delivery          *deliveryModule.Module
 
 	// Enrollment domain (parent-enrollment PR 5+).
-	EnrollmentFormSchema      enrollmentOwner.FormSchemaAdministration
-	EnrollmentCareOffering    careplan.CareOfferingCapability
-	EnrollmentCaptcha         enrollmentOwner.CaptchaVerifier
-	EnrollmentRequest         enrollment.RequestService
-	EnrollmentPhase           enrollmentOwner.PhaseAdministration
-	EnrollmentPhaseExpiry     enrollmentOwner.PhaseExpiryWarnings
-	EnrollmentDecision        enrollment.DecisionService
-	EnrollmentReports         enrollmentOwner.Reports
-	ClassDay                  classday.ClassDay
+	EnrollmentFormSchema   enrollmentOwner.FormSchemaAdministration
+	EnrollmentCareOffering careplan.CareOfferingCapability
+	EnrollmentCaptcha      enrollmentOwner.CaptchaVerifier
+	EnrollmentRequest      enrollment.RequestService
+	EnrollmentPhase        enrollmentOwner.PhaseAdministration
+	EnrollmentPhaseExpiry  enrollmentOwner.PhaseExpiryWarnings
+	EnrollmentDecision     enrollment.DecisionService
+	EnrollmentReport       enrollmentOwner.Reports
+	// ClassDayArrivalExceptions carries the school portal's whole class-day
+	// capability: the day report, the supervision sheet and the arrival
+	// exception write seam (#2970, #3563). The field keeps its name because
+	// the composition surface only shrinks (#2747).
+	ClassDayArrivalExceptions classday.ClassDay
 	EnrollmentRollover        enrollment.RolloverService
 	EnrollmentChangeRequest   enrollment.ChangeRequestService
 	EnrollmentDeletion        enrollment.EnrollmentDeletionService
@@ -2084,7 +2088,7 @@ func newFactory(
 		AccessLog:         repos.DataAccessLog,
 		Students:          repos.Student,
 		Persons:           repos.Person,
-		Groups:            repos.Group,
+		Groups:            repositories.NewGroupNames(repos.Group),
 		StudentGuardians:  repos.StudentGuardian,
 		Companions:        repositories.NewStudentCompanionRepository(repos.CarePlan()),
 		ClassListEntries:  NewClassListEntryRosterReader(membership),
@@ -2944,8 +2948,8 @@ func newFactory(
 		EnrollmentPhase:           enrollmentPhaseService,
 		EnrollmentPhaseExpiry:     enrollmentPhaseExpiryService,
 		EnrollmentDecision:        enrollmentDecisionService,
-		EnrollmentReports:         enrollmentReports,
-		ClassDay:                  classDayService,
+		EnrollmentReport:          enrollmentReports,
+		ClassDayArrivalExceptions: classDayService,
 		EnrollmentRollover:        enrollmentRolloverService,
 		EnrollmentChangeRequest:   enrollmentChangeRequestService,
 		EnrollmentDeletion:        enrollmentDeletionService,

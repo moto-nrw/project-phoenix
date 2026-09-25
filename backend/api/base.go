@@ -1472,7 +1472,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		api.Services.EnrollmentCaptcha,
 		api.Services.EnrollmentPhase,
 		api.Services.EnrollmentDecision,
-		api.Services.EnrollmentReports,
+		api.Services.EnrollmentReport,
 		api.Services.EnrollmentRollover,
 		api.Services.EnrollmentChangeRequest,
 		api.Services.EnrollmentDeletion,
@@ -1573,7 +1573,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// The school portal's class-day surface reads the class-day projection
 	// (#2701): the day report over Enrollment's day roster and the
 	// arrival-exception write seam (#2970) behind its one public capability.
-	api.ClassDay = classdayHTTP.NewResource(api.Services.ClassDay, db, logger.With("handler", "class-day"))
+	api.ClassDay = classdayHTTP.NewResource(api.Services.ClassDayArrivalExceptions, db, logger.With("handler", "class-day"))
 	api.ClassListEntries = newClassListEntriesResource(api.membership, db, logger.With("handler", "class-list-entries"))
 	api.Substitutions = workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(api.Services.Substitution), db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
@@ -1603,7 +1603,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		SettingsService:         api.Services.Settings,
 		SlotListsService:        api.Services.SlotLists,
 		OfferingSourceOptions:   services.NewTimetableOfferingSources(api.Services.EnrollmentCareOffering),
-		SupervisionSheets:       services.NewTimetableSupervisionSheets(api.Services.ClassDay),
+		SupervisionSheets:       services.NewTimetableSupervisionSheets(api.Services.ClassDayArrivalExceptions),
 		PlanExportService:       api.Services.PlanExport,
 		PickupExtensions:        pickupExtensions,
 		Staffing:                timetableStaffingAnnouncer(api.Services.Instance),

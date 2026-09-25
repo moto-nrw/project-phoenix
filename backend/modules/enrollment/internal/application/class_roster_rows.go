@@ -308,6 +308,23 @@ type classRosterContactAccumulator struct {
 	order    []string
 }
 
+// add folds one (guardian, phone number) row into the guardian's contact:
+// the first name and e-mail win, the phone numbers join.
+func (acc *classRosterContactAccumulator) add(key, name, email, phone string) {
+	contact, exists := acc.contacts[key]
+	if !exists {
+		acc.order = append(acc.order, key)
+	}
+	if contact.Name == "" {
+		contact.Name = name
+	}
+	if contact.Email == "" {
+		contact.Email = email
+	}
+	contact.Phone = joinUnique(contact.Phone, phone)
+	acc.contacts[key] = contact
+}
+
 func classRosterStudentGuardianContactsFromRows(rows []GuardianContactRow) map[int64][]enrollment.ClassRosterGuardian {
 	byStudent := map[int64]*classRosterContactAccumulator{}
 	for _, row := range rows {
@@ -320,24 +337,12 @@ func classRosterStudentGuardianContactsFromRows(rows []GuardianContactRow) map[i
 		if name == "" && email == "" && phone == "" {
 			continue
 		}
-		key := classRosterStudentGuardianContactKey(row)
 		acc := byStudent[row.StudentID]
 		if acc == nil {
 			acc = &classRosterContactAccumulator{contacts: map[string]enrollment.ClassRosterGuardian{}}
 			byStudent[row.StudentID] = acc
 		}
-		contact, exists := acc.contacts[key]
-		if !exists {
-			acc.order = append(acc.order, key)
-		}
-		if contact.Name == "" {
-			contact.Name = name
-		}
-		if contact.Email == "" {
-			contact.Email = email
-		}
-		contact.Phone = joinUnique(contact.Phone, phone)
-		acc.contacts[key] = contact
+		acc.add(classRosterStudentGuardianContactKey(row), name, email, phone)
 	}
 	out := make(map[int64][]enrollment.ClassRosterGuardian, len(byStudent))
 	for studentID, acc := range byStudent {

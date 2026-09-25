@@ -177,9 +177,11 @@ var modulePassthroughBudgets = map[string]int{
 	// forward and the internal-only AdministrativelyVisibleStudentIDs.
 	// Shrink-only from here like every other entry.
 	"modules/careplan": 111,
-	// The caller, report and arrival-exception ports reached straight
-	// through, most of them behind a nil-port guard and a date parse.
-	"modules/classday": 9,
+	// The caller and arrival-exception ports reached straight through, most
+	// of them behind a nil-port guard and a date parse. 9 → 6 with #3563: the
+	// day report is built in the projection instead of forwarded to the
+	// retained enrollment report.
+	"modules/classday": 6,
 	// Announcement and feed writes, each one store call behind the shared
 	// mutateExisting/run helpers.
 	"modules/communication": 6,
