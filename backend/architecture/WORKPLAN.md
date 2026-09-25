@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 25.09.2026 · Ratchet 463 · Composition 604 · Policy-Epoche 31 · 4 Regeln mit
+Stand 25.09.2026 · Ratchet 444 · Composition 604 · Policy-Epoche 31 · 4 Regeln mit
 `convert it to exact debt` · 20.013 LOC unter `modules/*/legacy`
 
-Summenprobe: 173 + 27 + 4 + 56 + 27 + 19 + 157 = 463 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 173 + 27 + 4 + 37 + 27 + 19 + 157 = 444 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -42,14 +42,14 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#3416](https://github.com/moto-nrw/project-phoenix/issues/3416) `issue`-Feld an Policy-Regeln und `rules.stale`
 - [ ] [#3423](https://github.com/moto-nrw/project-phoenix/issues/3423) Die acht neuen Quality-Ratchets auf null fahren
 
-## api/students · 56 Keys
+## api/students · 37 Keys
 
 - [x] [#3351](https://github.com/moto-nrw/project-phoenix/issues/3351) `modules/careplan/legacy/careschedule` auflösen — 9.561 LOC (nativ in Care Plan, ADR 0030)
 - [x] [#3352](https://github.com/moto-nrw/project-phoenix/issues/3352) Status-Tage und Präsenz-Reads → `modules/studentpresence` — die 16 Produktionsdateien hängen seit #3422 am öffentlichen Vertrag (`StatusDays`, `StatusDayOverviews`, `StudentHistory`); `api/students` bindet die Präsenz jetzt über den eigenen Port `StudentPresence` statt der ganzen `Presence`-Komposition, 0 Keys, keine Regel geändert
 - [ ] [#3353](https://github.com/moto-nrw/project-phoenix/issues/3353) Offering-Change- und Pickup-Entscheidungen → Owner-Commands
 - [x] [#3354](https://github.com/moto-nrw/project-phoenix/issues/3354) Stammdaten- und Elternantrags-Reviews → Owner-Module — Entscheidung, Korrektur, Mitsorgeberechtigten-Hinweis und Ledger der Stammdaten-Anfragen nativ in `modules/careplan` (`masterdatarequests.Decisions`), Sammelfreigabe und Konfliktauflösung als Care-Plan-Koordinator über alle vier Queues (`parentrequests.Coordinator`, neues Contract-Paket ohne neue Regel), acht Dateien aus `services/users` gelöscht, 5 Keys weniger (468 → 463), 2 verwaiste Regeln gelöscht, Composition 607 → 604
-- [ ] [#3356](https://github.com/moto-nrw/project-phoenix/issues/3356) Settings-, Listenexport-, Messaging-, IoT-, Aktivitäts- und Schulstruktur-Kanten
-- [ ] [#2731](https://github.com/moto-nrw/project-phoenix/issues/2731) Carrier — 56
+- [x] [#3356](https://github.com/moto-nrw/project-phoenix/issues/3356) Settings-, Listenexport-, Messaging-, IoT-, Aktivitäts- und Schulstruktur-Kanten — `api/students` liest Settings, weckt Sorgeberechtigte, liest Gruppen und Anmeldungen und stößt den Regeltermin-Resync über eigene Ports an (`TenantSettings`, `GuardianWake`, `SchoolGroups`, `ActiveEnrollments`, `OfferingSourceResyncer`), die Root bindet die Owner; die vier Exporte füllen den neuen Document-Rendering-Vertrag `modules/documentrendering/lists` (zwei Regeln am neuen Contract-Punkt); Audit-Vokabular und Sweep-Batchgröße (`careplan.StudentDocumentSweepBatchSize`) ohne `models/*`; 19 Keys weniger (463 → 444), Composition 604 → 604
+- [ ] [#2731](https://github.com/moto-nrw/project-phoenix/issues/2731) Carrier — 37
 
 ## Identity · 4 Keys
 
