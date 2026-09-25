@@ -197,6 +197,36 @@ describe("OpenRoomSections (#3281)", () => {
     ).toBeInTheDocument();
   });
 
+  // #3634: the section header shows count against limit and names an
+  // overbooked session in text, with the hint where staff look.
+  it("marks an overbooked block and explains the terminal stop", () => {
+    renderRoom([
+      {
+        ...block("foreign", { canOperate: false }),
+        studentCount: 66,
+        participantLimit: 45,
+      },
+      {
+        ...block("own", { own: true, canOperate: true }),
+        studentCount: 12,
+        participantLimit: 12,
+      },
+    ]);
+
+    const overbooked = screen.getByRole("heading", { name: "GT foreign" })
+      .parentElement!.parentElement!;
+    expect(within(overbooked).getByText("66 / 45 Kinder")).toBeInTheDocument();
+    expect(within(overbooked).getByText("Überbucht")).toBeInTheDocument();
+    expect(
+      within(overbooked).getByText(
+        /Mehr Kinder als erlaubt \(höchstens 45\)\. Am Tablet kann sich jetzt kein Kind anmelden/,
+      ),
+    ).toBeInTheDocument();
+
+    expect(screen.getByText("12 / 12 Kinder")).toBeInTheDocument();
+    expect(screen.getAllByText("Überbucht")).toHaveLength(1);
+  });
+
   it("shows a foreign block read-only once opened", () => {
     renderRoom([
       block("own", { own: true, canOperate: true }),
