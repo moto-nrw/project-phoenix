@@ -753,6 +753,36 @@
       "legacy": "quota_exceeded"
     },
     {
+      "code": "general.business_rejection",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "general.business_rejection"
+    },
+    {
+      "code": "general.input",
+      "class": "input",
+      "parameters": [],
+      "legacy": "general.input"
+    },
+    {
+      "code": "general.permission",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "general.permission"
+    },
+    {
+      "code": "general.server",
+      "class": "server",
+      "parameters": [],
+      "legacy": "general.server"
+    },
+    {
+      "code": "general.unavailable",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "general.unavailable"
+    },
+    {
       "code": "grade_transition.graduates_checked_in",
       "class": "business_rejection",
       "parameters": [],

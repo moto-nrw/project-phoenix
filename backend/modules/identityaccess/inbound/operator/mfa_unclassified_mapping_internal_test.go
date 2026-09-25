@@ -31,7 +31,7 @@ func TestMapOperatorMFAErrorUnclassifiedOutcomeWireContract(t *testing.T) {
 
 			assert.Equal(t, http.StatusInternalServerError, recorder.Code)
 			assert.Equal(t,
-				"{\"status\":\"error\",\"message\":\"MFA operation failed\"}\n",
+				"{\"status\":\"error\",\"message\":\"MFA operation failed\",\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler\",\"title\":\"Internal Server Error\",\"detail\":\"MFA operation failed\",\"instance\":\"\",\"code\":\"general.server\"}\n",
 				recorder.Body.String(),
 			)
 		})

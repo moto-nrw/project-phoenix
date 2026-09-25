@@ -313,7 +313,7 @@ func TestCreateCareOfferingHandler_TemplatePeriodMismatchReturnsStableCode(t *te
 		validOfferingBody(5678, "OGS"))
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
-	assert.JSONEq(t, `{"status":"error","error":"validate linked template: care offering phase must be within the linked timetable template period","code":"enrollment.care_offering_template_period_mismatch"}`, w.Body.String())
+	assert.JSONEq(t, `{"status":"error","error":"validate linked template: care offering phase must be within the linked timetable template period","code":"enrollment.care_offering_template_period_mismatch","type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Bad Request","detail":"validate linked template: care offering phase must be within the linked timetable template period","instance":""}`, w.Body.String())
 }
 
 func TestCreateCareOfferingHandler_MissingDaysReturnsStableCode(t *testing.T) {
