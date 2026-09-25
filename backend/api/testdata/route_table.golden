@@ -724,6 +724,7 @@ POST /api/iot/staff-clock
 POST /api/iot/staff-clock/state
 POST /api/iot/staff/{staffId}/rfid
 POST /api/me/profile/avatar
+POST /api/messages/mark-all-read
 POST /api/messages/threads
 POST /api/messages/threads/open
 POST /api/messages/threads/{threadId}

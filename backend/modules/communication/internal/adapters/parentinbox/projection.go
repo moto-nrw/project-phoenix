@@ -70,6 +70,8 @@ type inboxRow struct {
 	LastMessagePayload     map[string]any `bun:"last_message_payload"`
 	LastMessageReadByStaff bool           `bun:"last_message_read_by_staff"`
 	UnreadCount            int            `bun:"unread_count"`
+	ReadBoundAt            *time.Time     `bun:"read_bound_at"`
+	ReadBoundMessageID     *int64         `bun:"read_bound_message_id"`
 }
 
 func inboxValues(rows []inboxRow) []*domain.ParentInboxThread {
@@ -86,6 +88,7 @@ func inboxValues(rows []inboxRow) []*domain.ParentInboxThread {
 			LastMessagePayload:     row.LastMessagePayload,
 			LastMessageReadByStaff: row.LastMessageReadByStaff,
 			UnreadCount:            row.UnreadCount,
+			ReadBoundAt:            row.ReadBoundAt, ReadBoundMessageID: row.ReadBoundMessageID,
 		})
 	}
 	return threads
@@ -212,7 +215,17 @@ func (p *Projection) ListInboxForStaff(ctx context.Context, accountID int64, all
 	query = query.Where(threadHasMessages)
 	query = withTenant(query, "t", tenantID)
 	if onlyUnread {
-		query = query.Where(staffUnreadThread, accountID)
+		query = query.Where(staffUnreadThread, accountID).
+			Join(`LEFT JOIN LATERAL (
+				SELECT cm.created_at AS read_bound_at, cm.id AS read_bound_message_id
+				FROM users.parent_messages cm
+				WHERE cm.thread_id = t.id AND cm.tenant_id = t.tenant_id
+				  AND `+counterpartUnreadCMForStaff+`
+				  AND `+notReaderAuthoredCM+`
+				ORDER BY cm.created_at DESC, cm.id DESC LIMIT 1
+			) AS read_bound ON TRUE`, accountID).
+			ColumnExpr("read_bound.read_bound_at").
+			ColumnExpr("read_bound.read_bound_message_id")
 	}
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("list parent message inbox: %w", err)
