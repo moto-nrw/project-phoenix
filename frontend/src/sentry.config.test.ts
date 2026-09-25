@@ -58,11 +58,24 @@ describe("Sentry runtime configs", () => {
     },
   );
 
-  it("does not start Sentry without a DSN", async () => {
-    vi.stubEnv("NEXT_PUBLIC_SENTRY_DSN", "");
+  it.each(["client", "server", "edge"] as const)(
+    "the %s config does not start Sentry without a DSN",
+    async (config) => {
+      vi.stubEnv("NEXT_PUBLIC_SENTRY_DSN", "");
 
-    await import("./sentry.server.config");
+      await import(`./sentry.${config}.config.ts`);
 
-    expect(mockInit).not.toHaveBeenCalled();
+      expect(mockInit).not.toHaveBeenCalled();
+    },
+  );
+
+  it("the client config tags errors and spans with the portal", async () => {
+    const { options } = await initOptionsOf("client");
+
+    // Scope tags reach errors only; streamed spans carry attributes.
+    expect(options.initialScope).toStrictEqual({
+      tags: { portal: "tenant" },
+      attributes: { portal: "tenant" },
+    });
   });
 });

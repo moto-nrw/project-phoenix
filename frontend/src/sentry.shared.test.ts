@@ -455,6 +455,23 @@ describe("scrubSpan", () => {
     expect(result.attributes).toStrictEqual({ "user.id": "17" });
   });
 
+  it("strips auth and cookie headers, whatever their case", () => {
+    const span = makeSpan({
+      is_segment: true,
+      attributes: {
+        "http.request.header.authorization": ["Bearer secret-token"],
+        "http.request.header.Cookie": ["session=abc123"],
+        "http.request.header.user_agent": ["Firefox"],
+      },
+    });
+
+    const result = scrubSpan(span);
+
+    expect(result.attributes).toStrictEqual({
+      "http.request.header.user_agent": ["Firefox"],
+    });
+  });
+
   it("leaves spans without URLs untouched", () => {
     const span = makeSpan({
       name: "Click",

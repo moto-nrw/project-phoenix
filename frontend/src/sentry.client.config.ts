@@ -34,7 +34,11 @@ if (dsn) {
     replaysSessionSampleRate: 0,
     replaysOnErrorSampleRate: 0,
 
-    initialScope: { tags: { portal: currentPortal() } },
+    // Tags reach error events, attributes reach the streamed spans.
+    initialScope: {
+      tags: { portal: currentPortal() },
+      attributes: { portal: currentPortal() },
+    },
 
     beforeSend: scrubEvent,
     // Spans are streamed: the page view span carries the page URL and the

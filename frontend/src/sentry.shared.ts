@@ -95,6 +95,12 @@ const personalSpanAttributeKeys = [
   "http.client_ip",
 ];
 
+// Request headers that carry credentials, as scrubEvent strips them.
+const credentialHeaderAttributes = new Set([
+  "http.request.header.authorization",
+  "http.request.header.cookie",
+]);
+
 /**
  * beforeSendSpan: removes query strings, fragments and feed tokens from a
  * span's name and attributes (url.full, the referrer list of a page view,
@@ -106,6 +112,11 @@ export function scrubSpan(span: SpanJSON): SpanJSON {
   const attributes = span.attributes;
   for (const key of [...querySpanAttributeKeys, ...personalSpanAttributeKeys]) {
     delete attributes[key];
+  }
+  for (const key of Object.keys(attributes)) {
+    if (credentialHeaderAttributes.has(key.toLowerCase())) {
+      delete attributes[key];
+    }
   }
   for (const [key, value] of Object.entries(attributes)) {
     attributes[key] = scrubAttributeValue(value);
@@ -169,10 +180,11 @@ const webVitalOpPrefixes = ["ui.webvital.", "ui.interaction."];
 
 /**
  * Browser tracesSampler: 5 % of page loads and navigations, each decided in
- * the browser because the server never samples. A Web Vital span is kept only
- * inside a page view that was already sampled, because the SDK sends LCP, CLS
- * and INP as root spans of their own after the page load ended. Every other
- * root span stays unmeasured, also inside a sampled page view.
+ * the browser because the server never samples. With span streaming, LCP, CLS
+ * and INP are child spans of their page view and inherit its decision without
+ * asking the sampler. The Web Vital rule covers the case where the SDK starts
+ * one as a root span: it is kept only inside a page view that was already
+ * sampled. Every other root span stays unmeasured.
  */
 export function sampleBrowserTrace(context: TracesSamplingContext): number {
   const op = context.attributes?.[spanOpAttribute];
