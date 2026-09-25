@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
@@ -48,7 +47,7 @@ func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
 	response := authExec(t, tc, req, testutil.AdminTestClaims(int(actor.ID)), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, response.Code, "Body: %s", response.Body.String())
 
-	var deletionAudit auditModels.StudentDeletion
+	var deletionAudit studentDeletionRow
 	require.NoError(t, tc.db.NewSelect().Model(&deletionAudit).
 		Where(`tenant_id = ? AND student_id = ?`, student.TenantID, student.ID).
 		Scan(testpkg.Ctx(t)))
@@ -56,14 +55,14 @@ func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
 	assert.Equal(t, studentdeletion.ReasonGraduatePurge, deletionAudit.Reason)
 	assert.Equal(t, 1, deletionAudit.Counts.TimetableAssignments)
 
-	var dataAudit auditModels.DataDeletion
+	var dataAudit dataDeletionRow
 	require.NoError(t, tc.db.NewSelect().Model(&dataAudit).
-		Where(`tenant_id = ? AND student_id = ? AND deletion_type = ?`, student.TenantID, student.ID, auditModels.DeletionTypeManual).
+		Where(`tenant_id = ? AND student_id = ? AND deletion_type = ?`, student.TenantID, student.ID, auditDeletionTypeManual).
 		Scan(testpkg.Ctx(t)))
 	assert.Equal(t, 3, dataAudit.RecordsDeleted, "graduate purge deletes the student, person, and retained timetable assignment")
 	assert.Equal(t, studentdeletion.ReasonGraduatePurge, dataAudit.DeletionReason)
 	assert.Equal(t, true, dataAudit.Metadata["student_deletion"])
-	assert.Equal(t, auditModels.StudentDeletionCounts{TimetableAssignments: 1}, deletionAudit.Counts)
+	assert.Equal(t, studentDeletionCountsRow{TimetableAssignments: 1}, deletionAudit.Counts)
 
 	var assignmentCount int
 	require.NoError(t, tc.db.NewSelect().TableExpr(`schedule.instance_students`).ColumnExpr("COUNT(*)").

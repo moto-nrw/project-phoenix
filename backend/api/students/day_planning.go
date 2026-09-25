@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -205,7 +204,7 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 
 	applyDayPlanning(responses, arrivals, pickups, attendances, timetableIDs, isToday)
 	if isToday {
-		careDayEnd, err := rs.SettingsService.ResolveString(ctx, configModel.KeySessionEndTime)
+		careDayEnd, err := rs.SettingsService.ResolveString(ctx, settingSessionEndTime)
 		if err != nil {
 			return dayPlanningTimes{}, err
 		}
@@ -239,7 +238,7 @@ func (rs *Resource) CountAtSchoolToday(ctx context.Context, studentIDs []int64) 
 	if err != nil {
 		return 0, err
 	}
-	careDayEnd, err := rs.SettingsService.ResolveString(ctx, configModel.KeySessionEndTime)
+	careDayEnd, err := rs.SettingsService.ResolveString(ctx, settingSessionEndTime)
 	if err != nil {
 		return 0, err
 	}

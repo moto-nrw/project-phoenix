@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
@@ -127,13 +126,13 @@ func (rs *Resource) getStudentChangeHistory(w http.ResponseWriter, r *http.Reque
 // before the category moved into the field name) is shown only to a caller who
 // may see every category — an unreadable label must not default to visible.
 func (rs *Resource) canSeeChangeHistoryEntry(fieldName string, userPermissions []string) bool {
-	if !auditModels.IsStudentDocumentField(fieldName) {
+	category, isDocument := documentHistoryCategory(fieldName)
+	if !isDocument {
 		return true
 	}
 	if rs.StudentDocumentService == nil {
 		return false
 	}
-	category := auditModels.StudentDocumentCategoryFromField(fieldName)
 	if category == "" {
 		return rs.StudentDocumentService.CanSeeEveryStudentDocumentCategory(userPermissions)
 	}

@@ -8,8 +8,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -125,15 +125,15 @@ func TestAttendanceExportRows_SameSlotReentryIsCoveredByWindow(t *testing.T) {
 func TestAttendanceExportDocument_RendersEverySupportedFormat(t *testing.T) {
 	t.Parallel()
 
-	renderer := listexport.NewService()
-	doc := listexport.Document{
+	renderer := lists.NewRenderer()
+	doc := lists.Document{
 		Title: "Anwesenheit je Betreuungsangebot", GeneratedAt: time.Now(),
 		Columns: attendanceExportColumns(),
-		Rows: []listexport.Row{{Values: map[listexport.ColumnID]string{
+		Rows: []lists.Row{{Values: map[lists.ColumnID]string{
 			attendanceColumnDate: "15.07.2026", attendanceColumnOffering: "Morgenbetreuung",
 		}}},
 	}
-	for _, format := range []listexport.Format{listexport.FormatPDF, listexport.FormatDOCX, listexport.FormatXLSX} {
+	for _, format := range []lists.Format{lists.FormatPDF, lists.FormatDOCX, lists.FormatXLSX} {
 		t.Run(string(format), func(t *testing.T) {
 			file, err := renderer.Render(doc, format, "anwesenheit")
 			require.NoError(t, err)
@@ -149,13 +149,13 @@ func TestAttendanceExportDocument_RendersEverySupportedFormat(t *testing.T) {
 func TestAttendanceSessionExportColumns_OmitsPlanColumns(t *testing.T) {
 	t.Parallel()
 
-	ids := make([]listexport.ColumnID, 0, 5)
+	ids := make([]lists.ColumnID, 0, 5)
 	for _, column := range attendanceSessionExportColumns() {
 		ids = append(ids, column.ID)
 	}
 	assert.NotContains(t, ids, attendanceColumnOffering)
 	assert.NotContains(t, ids, attendanceColumnAssignment)
-	assert.Equal(t, []listexport.ColumnID{
+	assert.Equal(t, []lists.ColumnID{
 		attendanceColumnDate, attendanceColumnWindow, attendanceColumnStatus,
 		attendanceColumnCheckIn, attendanceColumnCheckOut,
 	}, ids)

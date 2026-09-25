@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 
@@ -1388,10 +1389,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		StudentDeletion:              api.Services.StudentDeletion,
 		CareLifecycleService:         api.Services.CareLifecycle,
 		StudentAuditService:          api.Services.StudentAudit,
-		EducationService:             api.Services.Education,
+		SchoolGroups:                 studentSchoolGroups{Service: api.Services.Education},
 		UserContextService:           api.Services.UserContext,
 		ActiveService:                api.Services.Active,
-		IoTService:                   api.Services.IoT,
 		DeviceAuthenticator:          deviceAuth.Device(),
 		PickupScheduleService:        api.Services.PickupSchedule,
 		WeekdayPickupNotes:           modules.repositories.CarePlan(),
@@ -1416,7 +1416,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		AbsenceOverview:              api.Services.AbsenceOverview,
 		StudentHistoryService:        api.Services.StudentHistory,
 		OGSGroupLiveService:          api.Services.OGSGroupLive,
-		ActivityService:              api.Services.Activities,
+		ActiveEnrollments:            studentActiveEnrollments{enrollments: api.Services.Activities},
 		EnrollmentDecision:           api.Services.EnrollmentDecision,
 		OfferingPickupTimes:          api.Services.EnrollmentCareOffering,
 		EnrollmentFormSchema:         api.Services.EnrollmentFormSchema,
@@ -1429,7 +1429,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		StudentConsents:              api.Services.StudentConsents,
 		PrivacyConsents:              presence,
 		StudentDocumentService:       api.Services.StudentDocuments,
-		ListExportService:            api.Services.ListExport,
+		ListExportService:            lists.NewRenderer(),
 		Logger:                       logger.With("handler", "students"),
 		DB:                           db,
 	})

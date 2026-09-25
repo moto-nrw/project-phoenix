@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -196,7 +196,7 @@ func TestAggregatedChangeRequests_GroupLeaderPolicyAtRouterAndBulkSeam(t *testin
 		return env
 	}
 	assert.Empty(t, list().Data.Items, "group leaders are disabled by default")
-	require.NoError(t, tc.resource.SettingsService.SetValue(testpkg.Ctx(t), configModels.KeyParentRequestGroupLeaderReviewEnabled, true, nil, nil))
+	require.NoError(t, tc.settings().SetValue(testpkg.Ctx(t), settings.KeyParentRequestGroupLeaderReviewEnabled, true, nil, nil))
 	require.Len(t, list().Data.Items, 2, "the enabled leader sees only their own group")
 
 	bulkBody := func(rows ...*userModels.StudentDataChangeRequest) *strings.Reader {

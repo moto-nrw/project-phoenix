@@ -10,8 +10,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -206,11 +206,11 @@ func TestWeekdayPickupNoteSurvivesBookingBoundary(t *testing.T) {
 	t.Parallel()
 
 	tc := setupStudentsRoute(t)
-	require.NoError(t, tc.resource.SettingsService.SetValue(
-		testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
+	require.NoError(t, tc.settings().SetValue(
+		testpkg.Ctx(t), settings.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
 	))
 	t.Cleanup(func() {
-		_ = tc.resource.SettingsService.ResetValue(testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, nil, nil)
+		_ = tc.settings().ResetValue(testpkg.Ctx(t), settings.KeyEnrollmentBookingsAuthoritative, nil, nil)
 	})
 	noted := testpkg.CreateTestStudent(t, tc.db, "Unbooked", "Noted", "WDN2")
 	silent := testpkg.CreateTestStudent(t, tc.db, "Unbooked", "Silent", "WDN2")

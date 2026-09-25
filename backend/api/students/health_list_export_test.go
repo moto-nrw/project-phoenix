@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 )
 
 func healthListStudents() []StudentResponse {
@@ -30,7 +30,7 @@ func responseIDs(students []StudentResponse) []int64 {
 func TestHealthListFilterKeepsOnlyChildrenWithNote(t *testing.T) {
 	t.Parallel()
 
-	got := applyExportFilters(healthListStudents(), studentExportFilters{}, listexport.PresetHealthList, testExportDate)
+	got := applyExportFilters(healthListStudents(), studentExportFilters{}, lists.PresetHealthList, testExportDate)
 
 	assert.Equal(t, []int64{1}, responseIDs(got))
 }
@@ -39,7 +39,7 @@ func TestHealthListFilterIncludesChildrenWithoutNoteOnRequest(t *testing.T) {
 	t.Parallel()
 
 	got := applyExportFilters(healthListStudents(),
-		studentExportFilters{IncludeWithoutHealthInfo: true}, listexport.PresetHealthList, testExportDate)
+		studentExportFilters{IncludeWithoutHealthInfo: true}, lists.PresetHealthList, testExportDate)
 
 	assert.Equal(t, []int64{1, 2, 3}, responseIDs(got))
 }
@@ -49,7 +49,7 @@ func TestHealthListFilterIncludesChildrenWithoutNoteOnRequest(t *testing.T) {
 func TestOtherPresetsIgnoreHealthScope(t *testing.T) {
 	t.Parallel()
 
-	got := applyExportFilters(healthListStudents(), studentExportFilters{}, listexport.PresetBlankChecklist, testExportDate)
+	got := applyExportFilters(healthListStudents(), studentExportFilters{}, lists.PresetBlankChecklist, testExportDate)
 
 	assert.Equal(t, []int64{1, 2, 3}, responseIDs(got))
 }
@@ -72,9 +72,9 @@ func TestAddHealthInfoCells(t *testing.T) {
 
 	require.NoError(t, addHealthInfoCells(sources, students))
 
-	assert.Equal(t, "Nussallergie", sources[0].row.Values[listexport.ColumnHealthInfo])
-	assert.Equal(t, "Nicht hinterlegt", sources[1].row.Values[listexport.ColumnHealthInfo])
-	assert.Equal(t, "Nicht hinterlegt", sources[2].row.Values[listexport.ColumnHealthInfo])
+	assert.Equal(t, "Nussallergie", sources[0].row.Values[lists.ColumnHealthInfo])
+	assert.Equal(t, "Nicht hinterlegt", sources[1].row.Values[lists.ColumnHealthInfo])
+	assert.Equal(t, "Nicht hinterlegt", sources[2].row.Values[lists.ColumnHealthInfo])
 }
 
 // A row set that no longer lines up with the children is refused rather than
@@ -91,21 +91,21 @@ func TestAddHealthInfoCellsRefusesMisalignedRows(t *testing.T) {
 func TestHealthListDocumentFilterLabels(t *testing.T) {
 	t.Parallel()
 
-	withNote := exportDocumentFilterLabels(studentExportRequest{Preset: listexport.PresetHealthList}, testExportDate, true)
+	withNote := exportDocumentFilterLabels(studentExportRequest{Preset: lists.PresetHealthList}, testExportDate, true)
 	assert.Contains(t, withNote, healthListOnlyWithNoteLabel)
 
 	everyone := exportDocumentFilterLabels(studentExportRequest{
-		Preset:  listexport.PresetHealthList,
+		Preset:  lists.PresetHealthList,
 		Filters: studentExportFilters{IncludeWithoutHealthInfo: true},
 	}, testExportDate, true)
 	assert.NotContains(t, everyone, healthListOnlyWithNoteLabel)
 
-	other := exportDocumentFilterLabels(studentExportRequest{Preset: listexport.PresetOGSWeekly}, testExportDate, true)
+	other := exportDocumentFilterLabels(studentExportRequest{Preset: lists.PresetOGSWeekly}, testExportDate, true)
 	assert.NotContains(t, other, healthListOnlyWithNoteLabel)
 }
 
 func TestExportTitleHealthList(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "Gesundheitsliste", exportTitle(studentExportRequest{Preset: listexport.PresetHealthList}))
+	assert.Equal(t, "Gesundheitsliste", exportTitle(studentExportRequest{Preset: lists.PresetHealthList}))
 }

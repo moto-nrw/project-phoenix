@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -28,13 +28,13 @@ type createStudentResponse struct {
 func TestCreateStudent_WithGuardians(t *testing.T) {
 	t.Parallel()
 
-	for _, presenceMode := range []string{configModel.PresenceModeBinary, configModel.PresenceModeDetailed} {
+	for _, presenceMode := range []string{settings.PresenceModeBinary, settings.PresenceModeDetailed} {
 		t.Run(presenceMode, func(t *testing.T) {
 			testpkg.OwnTenant(t)
 			t.Parallel()
 			tc := setupStudentsRoute(t)
-			require.NoError(t, tc.resource.SettingsService.SetValue(testpkg.Ctx(t), configModel.KeyPresenceMode, presenceMode, nil, nil))
-			require.NoError(t, tc.resource.SettingsService.SetValue(testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, false, nil, nil))
+			require.NoError(t, tc.settings().SetValue(testpkg.Ctx(t), settings.KeyPresenceMode, presenceMode, nil, nil))
+			require.NoError(t, tc.settings().SetValue(testpkg.Ctx(t), settings.KeyEnrollmentBookingsAuthoritative, false, nil, nil))
 
 			body := map[string]interface{}{
 				"first_name":   "Guarded",

@@ -55,7 +55,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        309
+        310
       ],
       "tables": []
     },
@@ -19427,27 +19427,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 162,
+          "line": 163,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 512,
+          "line": 513,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 675,
+          "line": 676,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 926,
+          "line": 927,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1338,
+          "line": 1339,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -19457,7 +19457,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 309,
+          "line": 310,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -19467,22 +19467,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 163,
+          "line": 164,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 381,
+          "line": 382,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 426,
+          "line": 427,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 672,
+          "line": 673,
           "declaration": "type API"
         },
         {

@@ -10,9 +10,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -27,8 +25,8 @@ var errPrivacyConsentsUnavailable = errors.New("privacy consent capability is no
 // default. The Settings Platform lookup lives here because this resource holds
 // the settings service; the fallback rule belongs to Student Presence.
 func (rs *Resource) defaultDataRetentionDays(ctx context.Context) int {
-	return studentpresence.DataRetentionDaysOrDefault(configService.ResolveIntOrDefault(
-		ctx, rs.SettingsService, configModel.KeyPrivacyConsentRetentionDays, 0, rs.Logger))
+	return studentpresence.DataRetentionDaysOrDefault(resolveIntSetting(
+		ctx, rs.SettingsService, settingPrivacyConsentRetentionDays, 0, rs.Logger))
 }
 
 // getStudentPrivacyConsent handles getting a student's privacy consent

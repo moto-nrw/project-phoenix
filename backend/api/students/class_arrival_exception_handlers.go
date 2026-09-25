@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -106,11 +105,11 @@ func (rs *Resource) canEditClassArrivalExceptions(r *http.Request) (bool, error)
 	if rs.SettingsService == nil {
 		return false, errors.New("settings service is not configured")
 	}
-	editors, err := rs.SettingsService.ResolveString(r.Context(), configModel.KeyClassArrivalExceptionEditors)
+	editors, err := rs.SettingsService.ResolveString(r.Context(), settingClassArrivalExceptionEditors)
 	if err != nil {
 		return false, fmt.Errorf("resolve class arrival exception editors: %w", err)
 	}
-	return editors == configModel.ClassArrivalExceptionEditorsAllStaff, nil
+	return editors == classArrivalExceptionEditorsAllStaff, nil
 }
 
 // requireClassArrivalExceptionEditor renders 403 unless the caller may write.

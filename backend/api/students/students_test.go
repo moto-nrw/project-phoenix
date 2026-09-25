@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/students"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -560,18 +559,19 @@ func TestGetStudentIncludesConsentWithdrawalForStaff(t *testing.T) {
 		Exec(t.Context())
 	require.NoError(t, err)
 
-	change := &auditModel.StudentConsentChange{
-		Model:      auditModel.Model{CreatedAt: withdrawnAt, UpdatedAt: withdrawnAt},
+	change := &studentConsentChangeRow{
+		TenantID:   testpkg.Tenant(t),
 		StudentID:  student.ID,
-		ConsentKey: auditModel.StudentConsentPhoto,
-		Action:     auditModel.StudentConsentWithdrawn,
-		Source:     auditModel.StudentConsentSourceParentPortal,
+		ConsentKey: auditConsentPhoto,
+		Action:     auditConsentWithdrawn,
+		Source:     auditConsentSourceParentPortal,
+		CreatedAt:  withdrawnAt,
+		UpdatedAt:  withdrawnAt,
 	}
-	change.SetTenantID(testpkg.Tenant(t))
 	_, err = tc.db.NewInsert().Model(change).Returning("id").Exec(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_, _ = tc.db.NewDelete().Model((*auditModel.StudentConsentChange)(nil)).
+		_, _ = tc.db.NewDelete().Model((*studentConsentChangeRow)(nil)).
 			Where("id = ?", change.ID).
 			Exec(context.Background())
 	})

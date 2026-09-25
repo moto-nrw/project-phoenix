@@ -3,7 +3,7 @@ package students
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,8 +46,8 @@ func TestBuildGroupedExportRowsInsertsHeadingsAtBoundaries(t *testing.T) {
 	assert.Empty(t, rows[4].GroupTitle)
 	assert.Equal(t, "Ohne Klasse", rows[5].GroupTitle)
 	assert.Empty(t, rows[6].GroupTitle)
-	assert.Equal(t, "Finn Becker", rows[1].Values[listexport.ColumnName])
-	assert.Equal(t, "Ida Conrad", rows[6].Values[listexport.ColumnName])
+	assert.Equal(t, "Finn Becker", rows[1].Values[lists.ColumnName])
+	assert.Equal(t, "Ida Conrad", rows[6].Values[lists.ColumnName])
 }
 
 func TestBuildGroupedExportRowsMergesClassLabelVariants(t *testing.T) {

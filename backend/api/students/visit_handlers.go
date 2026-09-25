@@ -9,9 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // getStudentCurrentLocation handles getting a student's current location with scheduled checkout info
@@ -33,7 +31,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 
 	// Determine if user has full access to student location details
 	hasFullAccess := rs.checkStudentReadAccess(r, student)
-	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
+	photosEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingStudentPhotosEnabled, false, rs.Logger)
 
 	// Build student response
 	response, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
@@ -123,7 +121,7 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 	}
 
 	// Get the educational group
-	group, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
+	group, err := rs.SchoolGroups.GetGroup(r.Context(), *student.GroupID)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to get student's group", err))
 		return
@@ -162,11 +160,7 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 	}
 
 	// Build and return the response
-	groupRoomName := ""
-	if group.Room != nil {
-		groupRoomName = group.Room.Name
-	}
-	response := buildGroupRoomResponse(activeGroup, *group.RoomID, groupRoomName)
+	response := buildGroupRoomResponse(activeGroup, *group.RoomID, group.RoomName)
 	common.Respond(w, r, http.StatusOK, response, "Student room status retrieved successfully")
 }
 

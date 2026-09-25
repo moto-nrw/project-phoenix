@@ -18,15 +18,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/uptrace/bun"
@@ -77,20 +74,12 @@ func (rs *Resource) parseAndGetStudentIncludingAlumni(w http.ResponseWriter, r *
 }
 
 func (rs *Resource) prefetchListSettings(ctx context.Context) (context.Context, error) {
-	batch, ok := rs.SettingsService.(configService.BatchSettingsService)
-	if !ok {
-		return ctx, nil
-	}
-	snapshot, err := batch.ResolveMany(ctx, []string{
-		configModel.KeyEnrollmentBookingsAuthoritative,
-		configModel.KeyPresenceMode,
-		configModel.KeySessionEndTime,
-		configModel.KeyStudentPhotosEnabled,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return configService.WithSettingsSnapshot(ctx, snapshot), nil
+	return common.PrefetchSettingsOrError(ctx, rs.SettingsService,
+		settingEnrollmentBookingsAuthoritative,
+		settingPresenceMode,
+		settingSessionEndTime,
+		settingStudentPhotosEnabled,
+	)
 }
 
 // listStudents handles listing all students with staff-based filtering
@@ -144,25 +133,16 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Bulk load all related data
-	studentIDs, personIDs, groupIDs := collectIDsFromStudents(students)
-	dataSnapshot, err := common.LoadStudentDataSnapshot(
-		r.Context(),
-		rs.PersonService,
-		rs.EducationService,
-		rs.ActiveService,
-		studentIDs,
-		personIDs,
-		groupIDs,
-	)
+	dataSnapshot, groups, err := rs.loadStudentListData(r.Context(), students)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 	// Resolve once per request. populatePhotoFields runs per student.
-	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
+	photosEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingStudentPhotosEnabled, false, rs.Logger)
 
 	// Build and filter responses
-	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot, photosEnabled)
+	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot, groups, photosEnabled)
 
 	if !isToday {
 		// The row-seeded Sick/Excused flags describe today; a non-today view
@@ -529,9 +509,9 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	hasFullAccess := rs.checkStudentReadAccess(r, student)
 	hasWriteAccess := rs.checkStudentFullAccess(r, student)
 
-	attendanceLogEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, rs.Logger)
-	feedbackEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyFeedbackEnabled, false, rs.Logger)
-	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
+	attendanceLogEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingAttendanceLogEnabled, false, rs.Logger)
+	feedbackEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingFeedbackEnabled, false, rs.Logger)
+	photosEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingStudentPhotosEnabled, false, rs.Logger)
 
 	studentResponse, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       student,
@@ -879,7 +859,7 @@ func (rs *Resource) respondCreatedStudent(w http.ResponseWriter, r *http.Request
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	hasFullAccess := authorize.HasAdminWildcard(userPermissions)
 
-	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
+	photosEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingStudentPhotosEnabled, false, rs.Logger)
 	response, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       student,
 		Person:        person,
@@ -1496,7 +1476,7 @@ func (rs *Resource) recordConsentTransition(ctx context.Context, effectiveConsen
 		ctx,
 		before,
 		after,
-		auditModels.StudentConsentSourceTenantPortal,
+		consentSourceTenantPortal,
 		jwt.ActorAccountIDFromCtx(ctx),
 		changedAt,
 	)
@@ -1583,7 +1563,7 @@ func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request
 
 	group := rs.getStudentGroup(r.Context(), updatedStudent)
 
-	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
+	photosEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingStudentPhotosEnabled, false, rs.Logger)
 	response, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       updatedStudent,
 		Person:        person,

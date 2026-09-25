@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -27,17 +27,17 @@ func TestGetArrivalSettings(t *testing.T) {
 
 	t.Run("bookings supply care days in booking mode", func(t *testing.T) {
 		ctx := testpkg.Ctx(t)
-		require.NoError(t, tc.resource.SettingsService.SetValue(
+		require.NoError(t, tc.settings().SetValue(
 			ctx,
-			configModel.KeyEnrollmentBookingsAuthoritative,
+			settings.KeyEnrollmentBookingsAuthoritative,
 			true,
 			nil,
 			nil,
 		))
 		t.Cleanup(func() {
-			require.NoError(t, tc.resource.SettingsService.ResetValue(
+			require.NoError(t, tc.settings().ResetValue(
 				testpkg.Ctx(t),
-				configModel.KeyEnrollmentBookingsAuthoritative,
+				settings.KeyEnrollmentBookingsAuthoritative,
 				nil,
 				nil,
 			))
@@ -69,10 +69,10 @@ func TestGetArrivalSettingsSchoolPeriods(t *testing.T) {
 	t.Run("maintained lessons come back in lesson order, gaps left out", func(t *testing.T) {
 		ctx := testpkg.Ctx(t)
 		for period, endTime := range map[int]string{6: "13:20", 5: "12:35", 4: ""} {
-			key := configModel.SchoolPeriodEndKey(period)
-			require.NoError(t, tc.resource.SettingsService.SetValue(ctx, key, endTime, nil, nil))
+			key := settings.SchoolPeriodEndKey(period)
+			require.NoError(t, tc.settings().SetValue(ctx, key, endTime, nil, nil))
 			t.Cleanup(func() {
-				require.NoError(t, tc.resource.SettingsService.ResetValue(testpkg.Ctx(t), key, nil, nil))
+				require.NoError(t, tc.settings().ResetValue(testpkg.Ctx(t), key, nil, nil))
 			})
 		}
 
@@ -85,8 +85,8 @@ func TestGetArrivalSettingsSchoolPeriods(t *testing.T) {
 	})
 
 	t.Run("a value that is no clock time is refused", func(t *testing.T) {
-		err := tc.resource.SettingsService.SetValue(
-			testpkg.Ctx(t), configModel.SchoolPeriodEndKey(1), "nach der Pause", nil, nil)
+		err := tc.settings().SetValue(
+			testpkg.Ctx(t), settings.SchoolPeriodEndKey(1), "nach der Pause", nil, nil)
 		require.Error(t, err)
 	})
 }
@@ -110,12 +110,12 @@ func TestGetArrivalSettingsCareTimePresets(t *testing.T) {
 	t.Run("maintained presets come back as clock times", func(t *testing.T) {
 		ctx := testpkg.Ctx(t)
 		for key, value := range map[string]string{
-			configModel.KeyCareDefaultArrivalTime: "12:30",
-			configModel.KeyCareDefaultPickupTime:  "16:00",
+			settings.KeyCareDefaultArrivalTime: "12:30",
+			settings.KeyCareDefaultPickupTime:  "16:00",
 		} {
-			require.NoError(t, tc.resource.SettingsService.SetValue(ctx, key, value, nil, nil))
+			require.NoError(t, tc.settings().SetValue(ctx, key, value, nil, nil))
 			t.Cleanup(func() {
-				require.NoError(t, tc.resource.SettingsService.ResetValue(testpkg.Ctx(t), key, nil, nil))
+				require.NoError(t, tc.settings().ResetValue(testpkg.Ctx(t), key, nil, nil))
 			})
 		}
 
@@ -128,8 +128,8 @@ func TestGetArrivalSettingsCareTimePresets(t *testing.T) {
 	})
 
 	t.Run("a value that is no clock time is refused", func(t *testing.T) {
-		err := tc.resource.SettingsService.SetValue(
-			testpkg.Ctx(t), configModel.KeyCareDefaultPickupTime, "nachmittags", nil, nil)
+		err := tc.settings().SetValue(
+			testpkg.Ctx(t), settings.KeyCareDefaultPickupTime, "nachmittags", nil, nil)
 		require.Error(t, err)
 	})
 }

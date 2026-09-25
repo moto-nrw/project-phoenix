@@ -17,11 +17,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -33,11 +32,11 @@ import (
 const studentExportPageSize = 5000
 
 type studentExportRequest struct {
-	Format  listexport.Format     `json:"format"`
-	Preset  listexport.Preset     `json:"preset"`
-	Title   string                `json:"title"`
-	Filters studentExportFilters  `json:"filters"`
-	Columns []listexport.ColumnID `json:"columns"`
+	Format  lists.Format         `json:"format"`
+	Preset  lists.Preset         `json:"preset"`
+	Title   string               `json:"title"`
+	Filters studentExportFilters `json:"filters"`
+	Columns []lists.ColumnID     `json:"columns"`
 }
 
 type studentExportFilters struct {
@@ -105,15 +104,14 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	studentIDs, personIDs, groupIDs := collectIDsFromStudents(students)
-	dataSnapshot, err := common.LoadStudentDataSnapshot(r.Context(), rs.PersonService, rs.EducationService, rs.ActiveService, studentIDs, personIDs, groupIDs)
+	dataSnapshot, groups, err := rs.loadStudentListData(r.Context(), students)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	accessCtx := rs.determineStudentAccess(r)
-	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot, false)
+	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot, groups, false)
 	if exportNeedsPhotoConsentFilter(req.Filters) {
 		populateExportPhotoConsentFilterData(responses, students)
 	}
@@ -141,7 +139,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	columns := listexport.ResolveColumns(req.Columns, req.Preset)
+	columns := lists.ResolveColumns(req.Columns, req.Preset)
 	if err := rs.enrichExportCompanions(r, responses, columns, accessCtx); err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -170,7 +168,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rows := buildExportRowSources(sources, req.Filters.GroupByClass)
-	doc := listexport.Document{
+	doc := lists.Document{
 		Title:       exportTitle(req),
 		Subtitle:    rs.exportSubtitle(r, len(sources)),
 		GeneratedAt: time.Now(),
@@ -204,8 +202,8 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 // Which is also why the error is fatal to the caller: it now only runs where a
 // missing name makes the document wrong rather than merely less detailed — see
 // enrichWithCompanionLinks.
-func (rs *Resource) enrichExportCompanions(r *http.Request, responses []StudentResponse, columns []listexport.Column, accessCtx *studentAccessContext) error {
-	if !exportHasColumn(columns, listexport.ColumnDeparture) {
+func (rs *Resource) enrichExportCompanions(r *http.Request, responses []StudentResponse, columns []lists.Column, accessCtx *studentAccessContext) error {
+	if !exportHasColumn(columns, lists.ColumnDeparture) {
 		return nil
 	}
 	return rs.enrichWithCompanionLinks(r.Context(), responses, accessCtx)
@@ -261,13 +259,13 @@ func decodeStudentExportRequest(r *http.Request) (studentExportRequest, error) {
 		return req, err
 	}
 	if req.Format == "" {
-		req.Format = listexport.FormatPDF
+		req.Format = lists.FormatPDF
 	}
 	if req.Preset == "" {
-		req.Preset = listexport.PresetOGSWeekly
+		req.Preset = lists.PresetOGSWeekly
 	}
 	switch req.Format {
-	case listexport.FormatPDF, listexport.FormatDOCX, listexport.FormatXLSX:
+	case lists.FormatPDF, lists.FormatDOCX, lists.FormatXLSX:
 	default:
 		return req, fmt.Errorf("unsupported export format %q", req.Format)
 	}
@@ -460,13 +458,13 @@ func matchesExportYearFilter(schoolClass, raw string) bool {
 	return slices.Contains(years, schoolYear(schoolClass))
 }
 
-func applyExportFilters(students []StudentResponse, filters studentExportFilters, preset listexport.Preset, planningDate timezone.Date) []StudentResponse {
+func applyExportFilters(students []StudentResponse, filters studentExportFilters, preset lists.Preset, planningDate timezone.Date) []StudentResponse {
 	// Months were validated when the request was decoded.
 	months, _ := parseExportMonths(filters.Months)
 	// The birthday preset demands a birthday even without a month filter, so a
 	// child with no stored date is dropped rather than printed as a blank row.
-	byBirthday := preset == listexport.PresetBirthdayList || len(months) > 0
-	withHealthInfoOnly := preset == listexport.PresetHealthList && !filters.IncludeWithoutHealthInfo
+	byBirthday := preset == lists.PresetBirthdayList || len(months) > 0
+	withHealthInfoOnly := preset == lists.PresetHealthList && !filters.IncludeWithoutHealthInfo
 	filtered := make([]StudentResponse, 0, len(students))
 	for _, student := range students {
 		if withHealthInfoOnly && !hasHealthInfo(student) {
@@ -511,7 +509,7 @@ func exportStudentMatchesFilters(student StudentResponse, filters studentExportF
 // than depending on a caller to pass the matching sort; an explicit sort still
 // wins for the rare pickup/arrival view of the same list.
 func exportSortMode(req studentExportRequest) string {
-	if req.Filters.Sort == "" && req.Preset == listexport.PresetBirthdayList {
+	if req.Filters.Sort == "" && req.Preset == lists.PresetBirthdayList {
 		return "birthday"
 	}
 	return req.Filters.Sort
@@ -587,14 +585,14 @@ func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64, pla
 	return result, nil
 }
 
-func (rs *Resource) loadActiveEnrollmentSummaries(r *http.Request, studentIDs []int64, onDate timezone.Date, columns []listexport.Column) (map[int64]string, error) {
-	if !columnsContain(columns, listexport.ColumnEnrollmentSummary) {
+func (rs *Resource) loadActiveEnrollmentSummaries(r *http.Request, studentIDs []int64, onDate timezone.Date, columns []lists.Column) (map[int64]string, error) {
+	if !columnsContain(columns, lists.ColumnEnrollmentSummary) {
 		return map[int64]string{}, nil
 	}
-	if rs.ActivityService == nil {
+	if rs.ActiveEnrollments == nil {
 		return nil, errors.New("activity service is not configured")
 	}
-	groupsByStudent, err := rs.ActivityService.GetActiveStudentEnrollmentsByStudentIDs(r.Context(), studentIDs, onDate)
+	groupsByStudent, err := rs.ActiveEnrollments.ActiveEnrollmentGroups(r.Context(), studentIDs, onDate)
 	if err != nil {
 		return nil, err
 	}
@@ -608,16 +606,13 @@ func (rs *Resource) loadActiveEnrollmentSummaries(r *http.Request, studentIDs []
 // enrollmentSummaryLabel renders the export's "angemeldet" cell for one child:
 // the deduplicated, alphabetically sorted list of active activity-group names,
 // or "Keine Anmeldung" when the child has no active enrollment.
-func enrollmentSummaryLabel(groups []*activitiesModels.Group) string {
+func enrollmentSummaryLabel(groups []ActiveEnrollmentGroup) string {
 	if len(groups) == 0 {
 		return "Keine Anmeldung"
 	}
 	names := make([]string, 0, len(groups))
 	seen := make(map[string]bool, len(groups))
 	for _, group := range groups {
-		if group == nil {
-			continue
-		}
 		name := strings.TrimSpace(group.Name)
 		if name == "" {
 			name = "Gruppe #" + strconv.FormatInt(group.ID, 10)
@@ -635,7 +630,7 @@ func enrollmentSummaryLabel(groups []*activitiesModels.Group) string {
 	return "Angemeldet: " + strings.Join(names, ", ")
 }
 
-func columnsContain(columns []listexport.Column, id listexport.ColumnID) bool {
+func columnsContain(columns []lists.Column, id lists.ColumnID) bool {
 	for _, column := range columns {
 		if column.ID == id {
 			return true
@@ -698,29 +693,29 @@ func ageExportCell(birthday string, onDate timezone.Date) string {
 // buildExportRow renders one child into the generic list document.
 //
 // It deliberately carries NO health note. The generic export never resolves
-// ColumnHealthInfo (see listexport.ColumnCatalog); the one child list that
+// ColumnHealthInfo (see the renderer's column catalog behind lists.ResolveColumns); the one child list that
 // prints it, the Gesundheitsliste, fills the cell afterwards together with its
 // audit record (finalizeExportSources), so no other preset can reach it.
-func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) listexport.Row {
-	return listexport.Row{Values: map[listexport.ColumnID]string{
-		listexport.ColumnName:              strings.TrimSpace(student.FirstName + " " + student.LastName),
-		listexport.ColumnSchoolClass:       student.SchoolClass,
-		listexport.ColumnGroup:             student.GroupName,
-		listexport.ColumnEnrollmentSummary: enrollmentSummaries[student.ID],
-		listexport.ColumnCareDays:          careDays(plan),
-		listexport.ColumnWeeklyMonday:      weeklyCell(plan, schedule.WeekdayMonday),
-		listexport.ColumnWeeklyTuesday:     weeklyCell(plan, schedule.WeekdayTuesday),
-		listexport.ColumnWeeklyWednesday:   weeklyCell(plan, schedule.WeekdayWednesday),
-		listexport.ColumnWeeklyThursday:    weeklyCell(plan, schedule.WeekdayThursday),
-		listexport.ColumnWeeklyFriday:      weeklyCell(plan, schedule.WeekdayFriday),
-		listexport.ColumnDailyStatus:       dailyStatusExportCell(student, isToday),
-		listexport.ColumnPlannedArrival:    base.Deref(student.ArrivalTime),
-		listexport.ColumnPlannedPickup:     base.Deref(student.PickupTime),
-		listexport.ColumnDeparture:         departureExportCell(student),
-		listexport.ColumnDailyNotes:        dailyNotes(student),
-		listexport.ColumnCurrentLocation:   student.Location,
-		listexport.ColumnBirthday:          birthdayExportCell(student.Birthday),
-		listexport.ColumnAge:               ageExportCell(student.Birthday, onDate),
+func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) lists.Row {
+	return lists.Row{Values: map[lists.ColumnID]string{
+		lists.ColumnName:              strings.TrimSpace(student.FirstName + " " + student.LastName),
+		lists.ColumnSchoolClass:       student.SchoolClass,
+		lists.ColumnGroup:             student.GroupName,
+		lists.ColumnEnrollmentSummary: enrollmentSummaries[student.ID],
+		lists.ColumnCareDays:          careDays(plan),
+		lists.ColumnWeeklyMonday:      weeklyCell(plan, schedule.WeekdayMonday),
+		lists.ColumnWeeklyTuesday:     weeklyCell(plan, schedule.WeekdayTuesday),
+		lists.ColumnWeeklyWednesday:   weeklyCell(plan, schedule.WeekdayWednesday),
+		lists.ColumnWeeklyThursday:    weeklyCell(plan, schedule.WeekdayThursday),
+		lists.ColumnWeeklyFriday:      weeklyCell(plan, schedule.WeekdayFriday),
+		lists.ColumnDailyStatus:       dailyStatusExportCell(student, isToday),
+		lists.ColumnPlannedArrival:    base.Deref(student.ArrivalTime),
+		lists.ColumnPlannedPickup:     base.Deref(student.PickupTime),
+		lists.ColumnDeparture:         departureExportCell(student),
+		lists.ColumnDailyNotes:        dailyNotes(student),
+		lists.ColumnCurrentLocation:   student.Location,
+		lists.ColumnBirthday:          birthdayExportCell(student.Birthday),
+		lists.ColumnAge:               ageExportCell(student.Birthday, onDate),
 	}}
 }
 
@@ -769,7 +764,7 @@ func sentenceCase(value string) string {
 
 // exportHasColumn reports whether the resolved column set carries the given
 // column.
-func exportHasColumn(columns []listexport.Column, id listexport.ColumnID) bool {
+func exportHasColumn(columns []lists.Column, id lists.ColumnID) bool {
 	for _, column := range columns {
 		if column.ID == id {
 			return true
@@ -926,23 +921,23 @@ func exportTitle(req studentExportRequest) string {
 		return title
 	}
 	switch req.Preset {
-	case listexport.PresetOGSCompact:
+	case lists.PresetOGSCompact:
 		return "OGS Kompaktliste"
-	case listexport.PresetClassRoster:
+	case lists.PresetClassRoster:
 		return "Klassenliste"
-	case listexport.PresetDailyPlanning:
+	case lists.PresetDailyPlanning:
 		// "Tagesplanung", nicht "Tagesliste": der Name kollidierte mit den
 		// slot-basierten Tageslisten aus dem Betreuungsplan (#1565).
 		return "Tagesplanung"
-	case listexport.PresetAttendanceSnapshot:
+	case lists.PresetAttendanceSnapshot:
 		return "Anwesenheitsliste"
-	case listexport.PresetPickupList:
+	case lists.PresetPickupList:
 		return "Abholliste"
-	case listexport.PresetBlankChecklist:
+	case lists.PresetBlankChecklist:
 		return "Checkliste"
-	case listexport.PresetBirthdayList:
+	case lists.PresetBirthdayList:
 		return "Geburtstagsliste"
-	case listexport.PresetHealthList:
+	case lists.PresetHealthList:
 		return "Gesundheitsliste"
 	default:
 		return "OGS Wochenliste"

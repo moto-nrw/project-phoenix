@@ -236,6 +236,32 @@ reads were already native (#3182) and still go through `modules/requestreview`.
 No rule was added: five resolved `services/users` keys and the two rules only
 the deleted coordinator and its tests used are gone.
 
+#3356 cuts the six owner edges `api/students` held besides its carrier's
+shared plumbing. The HTTP role may not import these owners' public packages,
+and PR mode refuses a new rule between points that already exist, so five of
+them became consumer-owned ports of the students inbound, bound by the root:
+`TenantSettings` (the Settings Platform service as is: override, else
+registry default, with the keys pinned to `modules/settings` by a test),
+`GuardianWake` (the Communication parent event emitter; the
+`parent_child_updated` fan-out is unchanged), `SchoolGroups` (the School
+Structure group service, reduced to id, name and room), `ActiveEnrollments`
+(the Timetable enrollment read behind the "angemeldet" column) and
+`OfferingSourceResyncer` (Care Plan's booking materialization; the recurrence
+gate is still taken before the student row locks). The unused
+`services/iot` field is gone; the device authenticator already came from the
+Device Fleet composition. The audit rows keep going through Student
+Presence's `RecordDataAccess` and the consent and change-history ports; the
+stored resource types, consent source and document field names they carry
+are spelled out in the inbound, and the sweep's batch size is Care Plan's
+`StudentDocumentSweepBatchSize`. The list export is the one edge that needed
+the owner itself: `modules/documentrendering/lists` is a new Document
+Rendering contract that names the list renderer's document types, so the
+four export paths render byte for byte what they did; the root binds its
+`NewRenderer`. Its three rules (`inbound-students.http.document-rendering-lists`,
+`root-composition.compose.document-rendering-lists` and
+`document-rendering.contract.list-renderer`) are anchored to that new
+contract point. 19 `api/students` keys are gone (463 → 444).
+
 #2762 cut the execution and the attendance of a block over to Student
 Presence (migration 1.15.415, one release with the caller switch). Timetable
 & Activities keeps the plan in `schedule.activity_instances` and
