@@ -10,7 +10,6 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +22,7 @@ func setupSchemaTest(t *testing.T) (*bun.DB, capability.FormSchemaAdministration
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := flowRepositories(t, db)
 	svc := enrollmentAPI.NewTestFormSchemas(repoFactory.Enrollment())
 
 	// Need a real auth.accounts row to satisfy the created_by FK.

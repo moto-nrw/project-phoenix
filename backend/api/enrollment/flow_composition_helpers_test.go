@@ -16,7 +16,9 @@ import (
 // factorySchools reads the seeded schools through the repository factory's
 // Organisation & Tenancy capability, the owner the serving root binds.
 // Callers pass a factory built on the pool from testpkg.SetupTestDB.
-type factorySchools struct{ repos *repositories.Factory }
+type factorySchools struct {
+	repos *repositories.EnrollmentFlowTestRepositories
+}
 
 func (s factorySchools) FindSchool(ctx context.Context, id int64) (*enrollmentOwner.School, error) {
 	school, err := s.repos.School.FindSchool(ctx, id)

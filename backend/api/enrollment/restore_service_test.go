@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -218,7 +217,7 @@ func TestDecisionService_RestoreWithdrawn_PhaseInactive(t *testing.T) {
 // restore through the real decision service against the same DB.
 func newRestoreDecisionServiceForRequestEnv(t *testing.T, env *requestTestEnv) enrollmentAPI.DecisionService {
 	t.Helper()
-	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repoFactory := flowRepositories(t, env.db)
 	return newTestDecisionService(testutil.EnrollmentDecisionSources{
 		Requests:      repoFactory.Enrollment(),
 		Children:      repoFactory.Enrollment(),
@@ -263,7 +262,7 @@ func TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren(t *testi
 	assert.Equal(t, []int64{resA.Children[0].ID}, outcome.WaitlistedChildIDs,
 		"the offering is full again, so the restored child must come back waitlisted, not submitted")
 
-	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repoFactory := flowRepositories(t, env.db)
 	children, err := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, repoFactory.Enrollment(), resA.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 1)
@@ -302,7 +301,7 @@ func TestDecisionService_RestoreWithdrawn_FreeSlotComesBackSubmitted(t *testing.
 	require.Len(t, outcome.RestoredChildIDs, 1)
 	assert.Empty(t, outcome.WaitlistedChildIDs)
 
-	children, err := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment(), resA.Request.ID)
+	children, err := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, flowRepositories(t, env.db).Enrollment(), resA.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 1)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, children[0].Status)
@@ -363,7 +362,7 @@ func TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted(t *testi
 	assert.Empty(t, outcome.WaitlistedChildIDs,
 		"the claims never overlap, so the restore must come back submitted")
 
-	children, err := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment(), resA.Request.ID)
+	children, err := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, flowRepositories(t, env.db).Enrollment(), resA.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 1)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, children[0].Status)
@@ -409,7 +408,7 @@ func TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity(t *t
 	// either interval fits alone but the overlap cannot.
 	one := 1
 	offering.Capacity = &one
-	require.NoError(t, newCareOfferingFixtures(repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).CarePlan()).Update(ctx, offering))
+	require.NoError(t, newCareOfferingFixtures(flowRepositories(t, env.db).CarePlan()).Update(ctx, offering))
 
 	decision := newRestoreDecisionServiceForRequestEnv(t, env)
 	outcome, err := decision.RestoreWithdrawn(ctx, res.Request.ID, env.creatorID)
@@ -418,7 +417,7 @@ func TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity(t *t
 	require.Len(t, outcome.WaitlistedChildIDs, 1,
 		"the overlapping restored claims share the single slot, so exactly one child must be waitlisted")
 
-	children, err := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment(), res.Request.ID)
+	children, err := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, flowRepositories(t, env.db).Enrollment(), res.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 2)
 	statuses := map[string]int{}
@@ -461,7 +460,7 @@ func TestDecisionService_RestoreWithdrawn_RejectModeFailsWhenFull(t *testing.T) 
 		"reject-mode phase must refuse the restore instead of overbooking")
 
 	// Nothing changed on the withdrawn request.
-	children, listErr := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment(), resA.Request.ID)
+	children, listErr := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, flowRepositories(t, env.db).Enrollment(), resA.Request.ID)
 	require.NoError(t, listErr)
 	require.Len(t, children, 1)
 	assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, children[0].Status)

@@ -31,7 +31,7 @@ import (
 type deletionTestFixture struct {
 	t     *testing.T
 	db    *bun.DB
-	repos *repositories.Factory
+	repos *repositories.EnrollmentFlowTestRepositories
 	scope testpkg.TenantScope
 	actor int64
 	phase int64
@@ -39,7 +39,7 @@ type deletionTestFixture struct {
 
 func newDeletionTestFixture(t *testing.T, db *bun.DB, label string) *deletionTestFixture {
 	t.Helper()
-	f := &deletionTestFixture{t: t, db: db, repos: repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)), scope: testpkg.NewTenantScope(t, db)}
+	f := &deletionTestFixture{t: t, db: db, repos: flowRepositories(t, db), scope: testpkg.NewTenantScope(t, db)}
 	account := testpkg.CreateTestAccount(t, db, "enrollment-deletion-"+label)
 	f.actor = account.ID
 	phase := &capability.Phase{

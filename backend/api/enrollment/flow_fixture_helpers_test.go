@@ -169,11 +169,18 @@ func (f recordCareBookingsFunc) RecordCareBookings(ctx context.Context, childID 
 	return f(ctx, childID, bookings)
 }
 
-func testRepositories(t *testing.T, db *bun.DB) *repositories.Factory {
+func testRepositories(t *testing.T, db *bun.DB) *repositories.EnrollmentFlowTestRepositories {
 	t.Helper()
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
+	return flowRepositories(t, db)
+}
+
+// flowRepositories composes the repositories the enrollment flow suites run
+// on over the suite's database.
+func flowRepositories(t testing.TB, db *bun.DB) *repositories.EnrollmentFlowTestRepositories {
+	t.Helper()
+	repos, err := repositories.NewEnrollmentFlowTestRepositories(db)
 	require.NoError(t, err)
-	return factory
+	return repos
 }
 
 func testGuardianAccess(db *bun.DB) enrollmentAPI.TestDecisionGuardianAccess {

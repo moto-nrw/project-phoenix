@@ -33,7 +33,7 @@ type rolloverTestEnv struct {
 	// this env over the test tenant.
 	tb             testing.TB
 	db             *bun.DB
-	repos          *repositories.Factory
+	repos          *repositories.EnrollmentFlowTestRepositories
 	timetable      timetable.Capability
 	rolloverSvc    enrollmentAPI.RolloverService
 	requestSvc     enrollmentAPI.RequestService
@@ -57,8 +57,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	// into subsequent tests in the package-isolated database.
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 
-	timetableDeps := repositories.NewUnobservedTimetableDependencies(db)
-	repoFactory := repositories.NewFactory(db, timetableDeps)
+	repoFactory := flowRepositories(t, db)
 	settings := newStubRequestSettings()
 	settings.boolValues[configModel.KeyEnrollmentEnabled] = true
 	settings.boolValues[configModel.KeyEnrollmentAllowSubmissionEdit] = true
@@ -137,7 +136,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 		tb:              t,
 		db:              db,
 		repos:           repoFactory,
-		timetable:       timetableDeps.Capability,
+		timetable:       repoFactory.Timetable,
 		rolloverSvc:     rolloverSvc,
 		requestSvc:      requestSvc,
 		offeringCloner:  offeringCloner,

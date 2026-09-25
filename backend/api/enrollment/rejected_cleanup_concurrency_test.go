@@ -15,7 +15,6 @@ import (
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -68,7 +67,7 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	ctx := scope.Context()
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := flowRepositories(t, db)
 
 	phase := &capability.Phase{
 		Name:             fmt.Sprintf("cleanup-concurrency-%d", scope.TenantID),
@@ -185,7 +184,7 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := flowRepositories(t, db)
 	creator := testpkg.CreateTestAccount(t, db, "rejected-cleanup-late-invite")
 	var _, requestID, outboxID, linkedInviteID, unrelatedInviteID int64
 	defer func() {

@@ -22,11 +22,11 @@ import (
 
 // setupFullSchemaTest provides repositories for phase and request fixtures
 // used to verify the schema owner's reference checks.
-func setupFullSchemaTest(t *testing.T) (*bun.DB, enrollmentCapability.FormSchemaAdministration, int64, *repositories.Factory) {
+func setupFullSchemaTest(t *testing.T) (*bun.DB, enrollmentCapability.FormSchemaAdministration, int64, *repositories.EnrollmentFlowTestRepositories) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := flowRepositories(t, db)
 	svc := enrollmentAPI.NewTestFormSchemas(repoFactory.Enrollment())
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "Form", "Editor2")

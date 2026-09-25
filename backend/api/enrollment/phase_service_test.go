@@ -24,12 +24,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func setupPhaseTest(t *testing.T) (enrollmentOwner.PhaseAdministration, *repositories.Factory, *bun.DB, func()) {
+func setupPhaseTest(t *testing.T) (enrollmentOwner.PhaseAdministration, *repositories.EnrollmentFlowTestRepositories, *bun.DB, func()) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 	phaseNamePrefix := "phase-" + t.Name()
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := flowRepositories(t, db)
 	svc := enrollmentAPI.NewTestPhases(enrollmentAPI.TestPhaseDependencies{
 		Records:   repoFactory.Enrollment(),
 		Offerings: phaseOfferings{rows: newCareOfferingFixtures(repoFactory.CarePlan())},
@@ -642,7 +642,7 @@ func (r findByIDErrorPhaseRepo) Phase(context.Context, int64) (*enrollmentOwner.
 
 // phaseServiceWithCalendarPeriods wires the optional CalendarPeriods dep
 // on top of the standard setup so the link validation actually runs.
-func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentOwner.PhaseAdministration, *repositories.Factory, *bun.DB, func()) {
+func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentOwner.PhaseAdministration, *repositories.EnrollmentFlowTestRepositories, *bun.DB, func()) {
 	t.Helper()
 	_, repoFactory, db, cleanup := setupPhaseTest(t)
 	svc := enrollmentAPI.NewTestPhases(enrollmentAPI.TestPhaseDependencies{

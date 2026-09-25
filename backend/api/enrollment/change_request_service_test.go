@@ -10,7 +10,6 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	testutil "github.com/moto-nrw/project-phoenix/api/testutil"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -26,7 +25,7 @@ import (
 // These tests use setupRequestTest from request_service_test.go; that helper
 // calls testpkg.SetupTestDB and owns cleanup for the shared request fixtures.
 func newChangeRequestServiceForTest(env *requestTestEnv) enrollmentAPI.ChangeRequestService {
-	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repoFactory := env.repos
 	return newChangeRequestServiceForTestWithAuthorizer(env, repoFactory.StudentGuardian)
 }
 
@@ -34,7 +33,7 @@ func newChangeRequestServiceForTestWithAuthorizer(
 	env *requestTestEnv,
 	authorizer testutil.EnrollmentGuardianAuthorizer,
 ) enrollmentAPI.ChangeRequestService {
-	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repoFactory := env.repos
 	return newTestChangeRequestService(testutil.EnrollmentChangeRequestSources{
 		Bookings:            requestTestBookingCommands(),
 		Requests:            repoFactory.Enrollment(),
@@ -247,7 +246,7 @@ func proposedChangeSubmission(t *testing.T, env *requestTestEnv, result *enrollm
 func enableChangeRequestMode(t *testing.T, env *requestTestEnv, childID int64) {
 	t.Helper()
 	reason := "Warteliste"
-	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment().UpdateChildStatus(
+	require.NoError(t, flowRepositories(t, env.db).Enrollment().UpdateChildStatus(
 		testpkg.Ctx(t),
 		childID,
 		enrollmentModels.ChildStatusWaitlisted,
@@ -466,7 +465,7 @@ func TestChangeRequestService_Approve_RejectsStaleBaseSnapshot(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repoFactory := flowRepositories(t, env.db)
 	newer, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, repoFactory.Enrollment(), result.Request.ID)
 	require.NoError(t, err)
 	newer.GuardianLastName = "Neuer"
@@ -522,7 +521,7 @@ func TestChangeRequestService_Approve_RejectsActiveDuplicateAfterRename(t *testi
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, capability.ErrDuplicateEnrollment))
 
-	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment(), firstResult.Children[0].ID)
+	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, flowRepositories(t, env.db).Enrollment(), firstResult.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Lina", child.FirstName)
 }
@@ -544,7 +543,7 @@ func TestChangeRequestService_Approve_PreservesAdditionalGuardianProfileID(t *te
 	require.NoError(t, err)
 	enableChangeRequestMode(t, env, result.Children[0].ID)
 
-	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repoFactory := flowRepositories(t, env.db)
 	profile := &usersModels.GuardianProfile{
 		FirstName:              "Opa",
 		LastName:               "Schmidt",
@@ -619,7 +618,7 @@ func TestChangeRequestService_Create_AllowsKeepingInactiveCurrentOffering(t *tes
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repoFactory := flowRepositories(t, env.db)
 	offering := setupCareOfferingForCapacity(t, env, 10)
 
 	req := validSubmission(t, env.phaseID)
@@ -652,7 +651,7 @@ func TestChangeRequestService_Create_PreservesGradeCapabilityForInactiveConditio
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repoFactory := flowRepositories(t, env.db)
 	env.settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = false
 	offering := setupCareOfferingForCapacity(t, env, 10)
 	offering.AvailabilityRule = requestTestGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1)
@@ -693,7 +692,7 @@ func TestChangeRequestService_Approve_PreservesHiddenOfferingsAcrossDisabledToEn
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repoFactory := flowRepositories(t, env.db)
 	offering := setupCareOfferingForCapacity(t, env, 10)
 
 	request := validSubmission(t, env.phaseID)
@@ -1363,7 +1362,7 @@ func TestChangeRequestService_Create_RejectsInactiveOfferingOnlyCurrentForAnothe
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repoFactory := flowRepositories(t, env.db)
 	firstOffering := setupCareOfferingForCapacity(t, env, 10)
 	secondOffering := setupCareOfferingForCapacity(t, env, 10)
 	secondOffering.Name = "Second inactive slot"
@@ -1441,7 +1440,7 @@ func TestChangeRequestService_Approve_DoesNotReopenUnchangedRejectedChild(t *tes
 	result, err := env.svc.Submit(ctx, base)
 	require.NoError(t, err)
 	require.Len(t, result.Children, 2)
-	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repoFactory := flowRepositories(t, env.db)
 	reason := "kein Platz"
 	require.NoError(t, repoFactory.Enrollment().UpdateChildStatus(ctx, result.Children[0].ID, enrollmentModels.ChildStatusRejected, &reason, env.creatorID))
 	svc := newChangeRequestServiceForTest(env)
@@ -1478,7 +1477,7 @@ func TestChangeRequestService_Approve_WaitlistsNonApprovedChildMovedOntoFullOffe
 	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 1)
-	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repoFactory := flowRepositories(t, env.db)
 
 	holderReq := validSubmission(t, env.phaseID)
 	holderReq.GuardianEmail = "holder-change-request-waitlist@example.com"
@@ -1539,7 +1538,7 @@ func TestChangeRequestService_Approve_DoesNotDoubleCountPreservedOfferingCapacit
 	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 2)
-	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repoFactory := flowRepositories(t, env.db)
 
 	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "preserved-capacity-change-request@example.com"
@@ -1600,7 +1599,7 @@ func TestChangeRequestService_Approve_RejectsNonApprovedChildMovedOntoFullOfferi
 	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
 	offering := setupCareOfferingForCapacity(t, env, 1)
-	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repoFactory := flowRepositories(t, env.db)
 
 	holderReq := validSubmission(t, env.phaseID)
 	holderReq.GuardianEmail = "holder-change-request-reject@example.com"

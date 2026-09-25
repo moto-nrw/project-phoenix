@@ -7,7 +7,6 @@ import (
 
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -38,7 +37,7 @@ func TestRequestService_LoadPublicFormBootstrap_ReturnsValidLateInvitePrefill(t 
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repos := flowRepositories(t, env.db)
 	config := env.config
 	config.LateInviteRepo = repos.Enrollment()
 	svc := newTestRequestService(config)

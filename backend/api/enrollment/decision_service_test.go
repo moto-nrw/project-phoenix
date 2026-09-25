@@ -4044,7 +4044,7 @@ func TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure(t *testing.
 	offering := createAdjustmentCareOffering(t, env, "Randstunde Katalogausfall")
 	createChildOfferingLink(t, env, childID, offering.ID, nil, nil)
 
-	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repoFactory := flowRepositories(t, env.db)
 	degraded := newTestDecisionService(testutil.EnrollmentDecisionSources{
 		Requests:      repoFactory.Enrollment(),
 		Children:      repoFactory.Enrollment(),
@@ -4756,7 +4756,7 @@ func (d offeringStudentTestDirectory) ListOfferingStudents(ctx context.Context, 
 	return rows, nil
 }
 
-func approvedOfferingTestProjection(repos *repositories.Factory) *enrollmentAPI.TestApprovedOfferingProjection {
+func approvedOfferingTestProjection(repos *repositories.EnrollmentFlowTestRepositories) *enrollmentAPI.TestApprovedOfferingProjection {
 	return enrollmentAPI.NewTestApprovedOfferingProjection(repos.Enrollment(), offeringStudentTestDirectory{repos.Student})
 }
 
