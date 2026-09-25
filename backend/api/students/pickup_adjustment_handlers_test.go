@@ -15,10 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -42,8 +41,8 @@ func TestPickupAdjustmentProtectedRouterRequiresExplicitExceptionAndAuditsApply(
 	tc := setupStudentsRoute(t, fixedCalendarClock)
 	student := testpkg.CreateTestStudent(t, tc.db, "PickupAdjustment", "Child", "PA1")
 	staff, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "PickupAdjustment", "Staff")
-	require.NoError(t, tc.resource.SettingsService.SetValue(
-		testpkg.Ctx(t), configModels.KeyRequirePickupOfferingReview, true, nil, nil,
+	require.NoError(t, tc.settings().SetValue(
+		testpkg.Ctx(t), settings.KeyRequirePickupOfferingReview, true, nil, nil,
 	))
 	effectiveFrom := studentsTestToday.String()
 	body := map[string]any{
@@ -145,7 +144,7 @@ func TestPickupAdjustmentProtectedRouterRequiresExplicitExceptionAndAuditsApply(
 	history, err = tc.resource.StudentAuditService.GetChangeHistory(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, history)
-	assert.Equal(t, auditModels.StudentFieldPickupSchedule, history[0].FieldName)
+	assert.Equal(t, auditFieldPickupSchedule, history[0].FieldName)
 	assert.Contains(t, valueOrEmpty(history[0].NewValue), "Dauerhafte Ausnahme")
 }
 
@@ -156,8 +155,8 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	student := testpkg.CreateTestStudent(t, tc.db, "PickupOffer", "Child", "PO1")
 	staff, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "PickupOffer", "Staff")
 	fixture := setupCorrectionFixture(t, tc, student.ID, student.TenantID, "Child")
-	require.NoError(t, tc.resource.SettingsService.SetValue(
-		testpkg.Ctx(t), configModels.KeyRequirePickupOfferingReview, true, nil, nil,
+	require.NoError(t, tc.settings().SetValue(
+		testpkg.Ctx(t), settings.KeyRequirePickupOfferingReview, true, nil, nil,
 	))
 	for offering, pickupTime := range map[*enrollmentModels.CareOffering]string{
 		fixture.ganztag: "16:00",
@@ -359,8 +358,8 @@ func TestPickupAdjustmentProtectedRouterRollsBackKnownErrorAfterOfferingWrite(t 
 	student := testpkg.CreateTestStudent(t, tc.db, "PickupRollback", "Child", "PR1")
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "PickupRollback", "Staff")
 	fixture := setupCorrectionFixture(t, tc, student.ID, student.TenantID, "Child")
-	require.NoError(t, tc.resource.SettingsService.SetValue(
-		testpkg.Ctx(t), configModels.KeyRequirePickupOfferingReview, true, nil, nil,
+	require.NoError(t, tc.settings().SetValue(
+		testpkg.Ctx(t), settings.KeyRequirePickupOfferingReview, true, nil, nil,
 	))
 	for offering, pickupTime := range map[*enrollmentModels.CareOffering]string{
 		fixture.ganztag: "16:00", fixture.mittag: "14:30",
@@ -411,8 +410,8 @@ func TestBulkPickupAdjustmentRequiresAndAuditsExplicitExceptions(t *testing.T) {
 	first := testpkg.CreateTestStudent(t, tc.db, "BulkPickupReview1", "Child", "BPR1")
 	second := testpkg.CreateTestStudent(t, tc.db, "BulkPickupReview2", "Child", "BPR2")
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BulkPickupReview", "Staff")
-	require.NoError(t, tc.resource.SettingsService.SetValue(
-		testpkg.Ctx(t), configModels.KeyRequirePickupOfferingReview, true, nil, nil,
+	require.NoError(t, tc.settings().SetValue(
+		testpkg.Ctx(t), settings.KeyRequirePickupOfferingReview, true, nil, nil,
 	))
 	body := map[string]any{
 		"student_ids": []int64{first.ID, second.ID},
@@ -435,7 +434,7 @@ func TestBulkPickupAdjustmentRequiresAndAuditsExplicitExceptions(t *testing.T) {
 		history, err := tc.resource.StudentAuditService.GetChangeHistory(testpkg.Ctx(t), studentID)
 		require.NoError(t, err)
 		require.NotEmpty(t, history)
-		assert.Equal(t, auditModels.StudentFieldPickupSchedule, history[0].FieldName)
+		assert.Equal(t, auditFieldPickupSchedule, history[0].FieldName)
 		assert.Contains(t, valueOrEmpty(history[0].OldValue), "Kein Wochenplan")
 		assert.Contains(t, valueOrEmpty(history[0].NewValue), "Mo 16:20 Uhr")
 	}

@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,10 +21,10 @@ import (
 func enableAttendanceLog(t *testing.T, tc *testContext) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	err := tc.resource.SettingsService.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil)
+	err := tc.settings().SetValue(ctx, settings.KeyAttendanceLogEnabled, true, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_ = tc.resource.SettingsService.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+		_ = tc.settings().ResetValue(ctx, settings.KeyAttendanceLogEnabled, nil, nil)
 	})
 }
 

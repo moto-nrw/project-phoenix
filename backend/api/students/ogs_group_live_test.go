@@ -15,8 +15,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -60,11 +60,11 @@ type ogsLiveEnvelope struct {
 func setOGSLiveOverviewScope(t *testing.T, tc *testContext, scope string) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.resource.SettingsService.SetValue(
-		ctx, configModel.KeyOperationalOverviewScope, scope, nil, nil,
+	require.NoError(t, tc.settings().SetValue(
+		ctx, settings.KeyOperationalOverviewScope, scope, nil, nil,
 	))
 	t.Cleanup(func() {
-		_ = tc.resource.SettingsService.ResetValue(ctx, configModel.KeyOperationalOverviewScope, nil, nil)
+		_ = tc.settings().ResetValue(ctx, settings.KeyOperationalOverviewScope, nil, nil)
 	})
 }
 
@@ -97,7 +97,7 @@ func TestOGSGroupLive_GroupVisibilityScope(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, tc.db, otherGroup.ID, other.ID)
 
 	t.Run("all_staff shows personal and additional groups to verified staff", func(t *testing.T) {
-		setOGSLiveOverviewScope(t, tc, configModel.OverviewScopeAllStaff)
+		setOGSLiveOverviewScope(t, tc, settings.OverviewScopeAllStaff)
 		req := testutil.NewRequest("GET", "/ogs-group-live", nil)
 		rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(ownerAccount.ID)), ogsLivePerms)
 		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
@@ -115,7 +115,7 @@ func TestOGSGroupLive_GroupVisibilityScope(t *testing.T) {
 	})
 
 	t.Run("all_staff keeps personal navigation without groups:read", func(t *testing.T) {
-		setOGSLiveOverviewScope(t, tc, configModel.OverviewScopeAllStaff)
+		setOGSLiveOverviewScope(t, tc, settings.OverviewScopeAllStaff)
 		req := testutil.NewRequest("GET", "/ogs-group-live", nil)
 		rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(ownerAccount.ID)), []string{"users:read"})
 		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
@@ -133,7 +133,7 @@ func TestOGSGroupLive_GroupVisibilityScope(t *testing.T) {
 	})
 
 	t.Run("legacy caregiver without permissions keeps personal navigation", func(t *testing.T) {
-		setOGSLiveOverviewScope(t, tc, configModel.OverviewScopeAllStaff)
+		setOGSLiveOverviewScope(t, tc, settings.OverviewScopeAllStaff)
 		navigationReq := testutil.NewRequest("GET", "/ogs-group-navigation", nil)
 		navigationRR := authExec(t, tc, navigationReq, testutil.TeacherTestClaims(int(ownerAccount.ID)), nil)
 		require.Equal(t, http.StatusOK, navigationRR.Code, "body: %s", navigationRR.Body.String())
@@ -143,7 +143,7 @@ func TestOGSGroupLive_GroupVisibilityScope(t *testing.T) {
 	})
 
 	t.Run("personal scope hides groups without a fixed or transferred responsibility", func(t *testing.T) {
-		setOGSLiveOverviewScope(t, tc, configModel.OverviewScopeOwn)
+		setOGSLiveOverviewScope(t, tc, settings.OverviewScopeOwn)
 		req := testutil.NewRequest("GET", "/ogs-group-live", nil)
 		rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(ownerAccount.ID)), ogsLivePerms)
 		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
@@ -159,7 +159,7 @@ func TestOGSGroupLive_AdminSeesAllGroupsInPersonalScope(t *testing.T) {
 	t.Parallel()
 
 	tc := setupStudentsRoute(t)
-	setOGSLiveOverviewScope(t, tc, configModel.OverviewScopeOwn)
+	setOGSLiveOverviewScope(t, tc, settings.OverviewScopeOwn)
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Scope", "Admin")
 	first := testpkg.CreateTestEducationGroup(t, tc.db, "Admin First")
 	second := testpkg.CreateTestEducationGroup(t, tc.db, "Admin Second")
@@ -192,7 +192,7 @@ func TestOGSGroupLive_HandoverMovesGroupIntoPersonalSection(t *testing.T) {
 	t.Parallel()
 
 	tc := setupStudentsRoute(t)
-	setOGSLiveOverviewScope(t, tc, configModel.OverviewScopeAllStaff)
+	setOGSLiveOverviewScope(t, tc, settings.OverviewScopeAllStaff)
 	owner, _ := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Transfer", "Owner")
 	substitute, substituteAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Transfer", "Substitute")
 	ownedGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Transfer Owned")
@@ -221,7 +221,7 @@ func TestOGSGroupLive_SchoolScopeCannotOpenTenantGroupView(t *testing.T) {
 	t.Parallel()
 
 	tc := setupStudentsRoute(t)
-	setOGSLiveOverviewScope(t, tc, configModel.OverviewScopeAllStaff)
+	setOGSLiveOverviewScope(t, tc, settings.OverviewScopeAllStaff)
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "School", "Portal")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "School Assigned")
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
@@ -286,11 +286,11 @@ func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 	// Tracking indicators: enable the feature with one label so the aggregate
 	// exercises the settings-gated ActiveService path.
 	settingsCtx := testpkg.Ctx(t)
-	require.NoError(t, tc.resource.SettingsService.SetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
-	require.NoError(t, tc.resource.SettingsService.SetValue(settingsCtx, configModel.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
+	require.NoError(t, tc.settings().SetValue(settingsCtx, settings.KeyTrackingIndicatorsEnabled, true, nil, nil))
+	require.NoError(t, tc.settings().SetValue(settingsCtx, settings.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
 	t.Cleanup(func() {
-		_ = tc.resource.SettingsService.ResetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, nil, nil)
-		_ = tc.resource.SettingsService.ResetValue(settingsCtx, configModel.KeyTrackingIndicator1, nil, nil)
+		_ = tc.settings().ResetValue(settingsCtx, settings.KeyTrackingIndicatorsEnabled, nil, nil)
+		_ = tc.settings().ResetValue(settingsCtx, settings.KeyTrackingIndicator1, nil, nil)
 	})
 
 	req := testutil.NewRequest("GET", "/ogs-group-live", nil)
@@ -342,11 +342,11 @@ func TestOGSGroupLive_UsesBookingBoundaryAndKeepsPresentChildren(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t)
 	repos := newStudentTestRepositories(tc.db)
-	require.NoError(t, tc.resource.SettingsService.SetValue(
-		testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
+	require.NoError(t, tc.settings().SetValue(
+		testpkg.Ctx(t), settings.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
 	))
 	t.Cleanup(func() {
-		_ = tc.resource.SettingsService.ResetValue(testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, nil, nil)
+		_ = tc.settings().ResetValue(testpkg.Ctx(t), settings.KeyEnrollmentBookingsAuthoritative, nil, nil)
 	})
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSGrenze", "Leitung")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "OGSGrenzgruppe")
@@ -383,11 +383,11 @@ func TestOGSGroupLive_KeepsOpenVisitWithoutAttendance(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t)
 	repos := newStudentTestRepositories(tc.db)
-	require.NoError(t, tc.resource.SettingsService.SetValue(
-		testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
+	require.NoError(t, tc.settings().SetValue(
+		testpkg.Ctx(t), settings.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
 	))
 	t.Cleanup(func() {
-		_ = tc.resource.SettingsService.ResetValue(testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, nil, nil)
+		_ = tc.settings().ResetValue(testpkg.Ctx(t), settings.KeyEnrollmentBookingsAuthoritative, nil, nil)
 	})
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSBesuch", "Leitung")
@@ -547,7 +547,7 @@ func TestOGSGroupLive_ErrorContract(t *testing.T) {
 	t.Parallel()
 
 	tc := setupStudentsRoute(t)
-	setOGSLiveOverviewScope(t, tc, configModel.OverviewScopeOwn)
+	setOGSLiveOverviewScope(t, tc, settings.OverviewScopeOwn)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSErr", "Leader")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "OGSErrGroup")

@@ -175,9 +175,13 @@ const (
 	StudentDocumentSweepSettle = "settle"
 )
 
+// StudentDocumentSweepBatchSize caps each list one recovery pass reads: the
+// soft-deleted documents and the queued orphan cleanups.
+const StudentDocumentSweepBatchSize = 200
+
 // StudentDocumentFileSweep reports one recovery pass. DeletedListed and
 // OrphansListed are the batch sizes read, so a caller can tell a full batch
-// (more rows waiting) from a drained queue.
+// (StudentDocumentSweepBatchSize, more rows waiting) from a drained queue.
 type StudentDocumentFileSweep struct {
 	Removed       int
 	DeletedListed int

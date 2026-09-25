@@ -3,7 +3,7 @@ package students
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -13,7 +13,7 @@ import (
 func TestClassListEntryExportEligibleTreatsAllAsInactive(t *testing.T) {
 	t.Parallel()
 
-	eligible := classListEntryExportEligible(listexport.PresetClassRoster, studentExportFilters{
+	eligible := classListEntryExportEligible(lists.PresetClassRoster, studentExportFilters{
 		Status:       "all",
 		Bus:          "all",
 		PhotoConsent: "all",
@@ -22,7 +22,7 @@ func TestClassListEntryExportEligibleTreatsAllAsInactive(t *testing.T) {
 	})
 	assert.True(t, eligible, "explicit 'all' filters keep every student and must keep the entries")
 
-	assert.True(t, classListEntryExportEligible(listexport.PresetClassRoster, studentExportFilters{}),
+	assert.True(t, classListEntryExportEligible(lists.PresetClassRoster, studentExportFilters{}),
 		"an unfiltered class roster carries the entries")
 }
 
@@ -45,10 +45,10 @@ func TestClassListEntryExportEligibleActiveFilterExcludesEntries(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.False(t, classListEntryExportEligible(listexport.PresetClassRoster, tt.filters))
+			assert.False(t, classListEntryExportEligible(lists.PresetClassRoster, tt.filters))
 		})
 	}
 
-	assert.False(t, classListEntryExportEligible(listexport.PresetOGSWeekly, studentExportFilters{}),
+	assert.False(t, classListEntryExportEligible(lists.PresetOGSWeekly, studentExportFilters{}),
 		"only the class roster preset carries entries")
 }

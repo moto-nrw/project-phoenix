@@ -469,6 +469,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/documentrendering/lists",
+      "owner": "document-rendering",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "database/repositories/studentintegration",
       "owner": "legacy-composition",
       "role": "compose",
@@ -9282,6 +9289,39 @@
       "source_role": "public",
       "target_owner": "care-plan",
       "target_role": "contract"
+    },
+    {
+      "id": "inbound-students.http.document-rendering-lists",
+      "description": "The student list, Gesundheitsliste, attendance-history and day-log exports fill and render the Document Rendering list contract (#3356).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "document-rendering",
+      "target_role": "contract"
+    },
+    {
+      "id": "root-composition.compose.document-rendering-lists",
+      "description": "The production root binds the students routes to the list renderer of the Document Rendering list contract (#3356).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "contract"
+    },
+    {
+      "id": "document-rendering.contract.list-renderer",
+      "description": "The list contract names the list renderer's document types and hands out the renderer (#3356).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "contract",
+      "target_owner": "document-rendering",
+      "target_role": "application"
     },
     {
       "id": "inbound-students.to.care-plan-contract",

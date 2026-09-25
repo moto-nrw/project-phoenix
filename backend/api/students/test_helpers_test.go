@@ -24,13 +24,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
@@ -41,7 +41,10 @@ type testContext struct {
 	careRequests carerequests.Submissions
 	db           *bun.DB
 	resource     *studentsAPI.Resource
-	broadcaster  *testpkg.RecordingBroadcaster
+	// settingsService is the Settings Platform service the resource was
+	// built with; settings() hands it to fixtures that write overrides.
+	settingsService studentsAPI.TenantSettings
+	broadcaster     *testpkg.RecordingBroadcaster
 	// clock is the fixed clock the services run on; nil means the real one.
 	clock func() time.Time
 	// newPickupAdjustments rebinds the pickup adjustment to other offering
@@ -55,6 +58,19 @@ func newStudentTestRepositories(db *bun.DB) repositories.StudentTestRepositories
 		panic(err)
 	}
 	return repos
+}
+
+// settingsWriter is the override half of the Settings Platform service the
+// fixtures write through; the resource itself only reads.
+type settingsWriter interface {
+	SetValue(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
+	ResetValue(ctx context.Context, key string, changedBy *int64, userPermissions []string) error
+}
+
+// settings returns the Settings Platform service the resource was built
+// with, for fixtures that write tenant overrides.
+func (tc *testContext) settings() settingsWriter {
+	return tc.settingsService.(settingsWriter)
 }
 
 // setupStudentsRoute initializes the production students resource.
@@ -80,6 +96,52 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	)
 
 	studentPhotos := svc.NewStudentPhotos(broadcaster, studentsAPI.NewPhotoUnlinker(slog.Default(), "public"))
+
+	education := svc.Education
+	schoolGroups := fixtureSchoolGroups{
+		get: func(ctx context.Context, id int64) (*studentsAPI.SchoolGroup, error) {
+			group, err := education.GetGroup(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			roomName := ""
+			if group.Room != nil {
+				roomName = group.Room.Name
+			}
+			return schoolGroupView(group.ID, group.Name, group.RoomID, roomName), nil
+		},
+		byIDs: func(ctx context.Context, ids []int64) (map[int64]*studentsAPI.SchoolGroup, error) {
+			groups, err := education.GetGroupsByIDs(ctx, ids)
+			if err != nil {
+				return nil, err
+			}
+			views := make(map[int64]*studentsAPI.SchoolGroup, len(groups))
+			for id, group := range groups {
+				roomName := ""
+				if group.Room != nil {
+					roomName = group.Room.Name
+				}
+				views[id] = schoolGroupView(group.ID, group.Name, group.RoomID, roomName)
+			}
+			return views, nil
+		},
+		list: func(ctx context.Context) ([]*studentsAPI.SchoolGroup, error) {
+			groups, err := education.ListGroups(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+			views := make([]*studentsAPI.SchoolGroup, 0, len(groups))
+			for _, group := range groups {
+				roomName := ""
+				if group.Room != nil {
+					roomName = group.Room.Name
+				}
+				views = append(views, schoolGroupView(group.ID, group.Name, group.RoomID, roomName))
+			}
+			return views, nil
+		},
+		teachers: education.GetGroupTeachers,
+	}
 
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
@@ -190,10 +252,9 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		StudentDeletion:        studentDeletion,
 		StudentService:         userService.NewStudentService(repositories.NewStudentDirectory(svc.PeopleDirectory), svc.PeopleDirectory, repoFactory.Student),
 		CompanionService:       repositories.MustNewStudentCompanions(repoFactory.CarePlan, repoFactory.Student, svc.PeopleDirectory, svc.StudentAudit),
-		EducationService:       svc.Education,
+		SchoolGroups:           schoolGroups,
 		UserContextService:     svc.UserContext,
 		ActiveService:          svc.Active,
-		IoTService:             svc.IoT,
 		DeviceAuthenticator:    testutil.NewDeviceAuthenticators(svc.IoT.Fleet(), testutil.DeviceSchools(t, db), svc.Settings, testDevicePIN).Device(),
 		PickupScheduleService:  svc.PickupSchedule,
 		WeekdayPickupNotes:     repoFactory.CarePlan,
@@ -237,7 +298,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		ParentEventEmitter:       parentEventEmitter,
 		StudentPhotos:            studentPhotos,
 		StudentConsents:          repositories.NewStudentConsents(db),
-		ListExportService:        listexport.NewService(),
+		ListExportService:        lists.NewRenderer(),
 		Logger:                   slog.Default(),
 		Now:                      firstClock(clocks),
 		DB:                       db,
@@ -247,6 +308,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		careRequests:         svc.CareRequests,
 		db:                   db,
 		resource:             resource,
+		settingsService:      svc.Settings,
 		broadcaster:          broadcaster,
 		clock:                firstClock(clocks),
 		newPickupAdjustments: svc.NewPickupAdjustments,

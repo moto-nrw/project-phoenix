@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -149,13 +148,13 @@ func TestBuildDayLogResponse_OmitsStudentBeforeScheduledArrival(t *testing.T) {
 	now := time.Date(2026, time.July, 26, 8, 0, 0, 0, timezone.Berlin)
 	date := timezone.DateFromTime(now)
 	arrival := timezone.NormalizeWallClock(now.Add(2 * time.Hour))
-	group := &educationModel.Group{Name: "Gruppe A"}
+	group := &SchoolGroup{Name: "Gruppe A"}
 	group.ID = 1
 	student := &usersModel.Student{}
 	student.ID = 10
 	student.GroupID = &group.ID
 
-	response := buildDayLogResponse(date, []*educationModel.Group{group}, &dayLogData{
+	response := buildDayLogResponse(date, []*SchoolGroup{group}, &dayLogData{
 		studentsByGroup:     map[int64][]*usersModel.Student{group.ID: {student}},
 		persons:             map[int64]*usersModel.Person{},
 		attendanceByStudent: map[int64][]*studentpresence.Attendance{},
@@ -181,7 +180,7 @@ func TestBuildDayLogResponse_SkipsDerivedVerdictBeforeEnrollmentStart(t *testing
 	now := time.Date(2026, time.July, 26, 12, 0, 0, 0, timezone.Berlin)
 	date := timezone.DateFromTime(now)
 	startsLater := date.AddDays(7)
-	group := &educationModel.Group{Name: "Gruppe A"}
+	group := &SchoolGroup{Name: "Gruppe A"}
 	group.ID = 1
 
 	notYetStarted := &usersModel.Student{Status: usersModel.StudentStatusActive, EnrolledFrom: &startsLater}
@@ -191,7 +190,7 @@ func TestBuildDayLogResponse_SkipsDerivedVerdictBeforeEnrollmentStart(t *testing
 	checkedIn.ID = 11
 	checkedIn.GroupID = &group.ID
 
-	response := buildDayLogResponse(date, []*educationModel.Group{group}, &dayLogData{
+	response := buildDayLogResponse(date, []*SchoolGroup{group}, &dayLogData{
 		studentsByGroup: map[int64][]*usersModel.Student{group.ID: {notYetStarted, checkedIn}},
 		persons:         map[int64]*usersModel.Person{},
 		attendanceByStudent: map[int64][]*studentpresence.Attendance{
@@ -235,9 +234,9 @@ func TestLoadDayLogData_PassesFrozenDayToRosterEligibility(t *testing.T) {
 		},
 	}
 
-	group := &educationModel.Group{Name: "Gruppe A"}
+	group := &SchoolGroup{Name: "Gruppe A"}
 	group.ID = 1
-	_, err := rs.loadDayLogData(context.Background(), []*educationModel.Group{group}, clock.today, clock)
+	_, err := rs.loadDayLogData(context.Background(), []*SchoolGroup{group}, clock.today, clock)
 
 	require.ErrorIs(t, err, rosterQueried)
 	assert.Equal(t, timezone.NewDate(2026, time.July, 26), gotDate)

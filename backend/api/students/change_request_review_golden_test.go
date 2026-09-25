@@ -19,10 +19,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -232,7 +232,7 @@ func TestRequestReviewGolden(t *testing.T) {
 
 	// Once the school lets group leaders decide, the leader reviews exactly
 	// the children of the group they lead: Golda Aster, not Golda Birke.
-	require.NoError(t, tc.resource.SettingsService.SetValue(ctx, configModels.KeyParentRequestGroupLeaderReviewEnabled, true, nil, nil))
+	require.NoError(t, tc.settings().SetValue(ctx, settings.KeyParentRequestGroupLeaderReviewEnabled, true, nil, nil))
 	groupAbsenceReviewer := goldenCaller{claims: testutil.TeacherTestClaims(int(leaderAccount.ID)), perms: []string{"users:read", "users:absence"}}
 	rec.list("group-leader-enabled/open", "view=open&search=Golda", groupLeader)
 	rec.list("group-leader-enabled/history", "view=history&search=Golda", groupLeader)

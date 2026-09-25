@@ -1,0 +1,126 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3020",
+    "#3354"
+  ],
+  "owner_and_capability": "Settings Platform, Document Rendering, Communication, Device Fleet, Timetable & Activities, School Structure and Audit Platform — the api/students edges to the six owners outside its carrier's shared plumbing: consumer-owned ports (TenantSettings, GuardianWake, SchoolGroups, ActiveEnrollments, OfferingSourceResyncer) bound by the root, and the Document Rendering list contract modules/documentrendering/lists (#3356)",
+  "affected_packages": [
+    "api/students",
+    "api",
+    "models/audit",
+    "api/common",
+    "modules/documentrendering/lists",
+    "modules/settings",
+    "modules/careplan",
+    "modules/careplan/internal/adapters/postgres"
+  ],
+  "affected_tables": [
+    "config.setting_values",
+    "education.groups",
+    "activities.student_enrollments",
+    "audit.data_access_log",
+    "audit.student_consent_changes",
+    "audit.student_field_edits",
+    "users.student_documents",
+    "users.student_document_file_cleanup"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/audit",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/config",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/education",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/services/education",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/services/listexport",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/education",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/services/listexport",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/services/parentmessaging",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/activities",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/audit",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/documents",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/education",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/services/activities",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/services/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/services/education",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/services/iot",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/services/listexport",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/services/parentmessaging"
+  ],
+  "atomic_cutover": "Switch every api/students production and test file off services/config, models/config, services/listexport, models/documents, services/parentmessaging, services/iot, services/activities, models/activities, services/education, models/education and models/audit in one PR. Bind the consumer-owned ports at the root, render the exports through the new Document Rendering list contract, and keep the same settings resolution, rendered files, guardian fan-out, IoT error strings and recurrence lock order.",
+  "tests": [
+    "api/students suites against the local test database: exports, day log, status-day overview, attendance history, student list and detail, guardian wake, class resync and the settings-driven routes.",
+    "TestTenantSettingKeysMatchTheRegistry pins every local settings key and value to the Settings Platform public names; TestResolveSettingFallsBackOnlyWhenTheReadFails and TestDocumentHistoryCategory cover the new helpers.",
+    "scripts/backend-architecture.sh check --base-ref e519cfe4ba46d26d27fcf0d2facf289797128bb2: no new violation, 19 legacy keys retired (463 to 444), composition surface 604 to 604."
+  ],
+  "runtime_evidence": {
+    "source": "Local verification on the branch stacked on #3354; behavior and architecture checks, not a latency benchmark.",
+    "sources": [
+      "backend/api/students/tenant_settings_test.go",
+      "backend/api/students/status_day_overview_test.go",
+      "backend/api/students/update_class_resync_test.go",
+      "backend/api/students/guardian_wake_test.go"
+    ],
+    "workload": "Affected Go package suites against the local test database and the architecture ratchet against the stacked parent branch.",
+    "thresholds": "Preserve settings resolution, rendered export documents, response bodies, error strings and query budgets; retire exactly the 19 listed legacy keys; add no violation; keep the composition surface.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "No schema or row-update contract changes; the routes write the same rows through the same services."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The existing query-budget tests of the student list and exports passed unchanged; the group bulk read moved from the shared snapshot into the SchoolGroups port with the same statement."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "This ownership move was not latency benchmarked; no remote call is added."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "This ownership move was not latency benchmarked; no remote call is added."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "The api/students suites passed with the existing error texts, including the group-lookup and settings failure paths."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "The database pool and acquisition path are unchanged."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "The recurrence gate is still taken before the student row locks; no lock was added."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No lock order was changed or deadlock benchmark run."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The student document sweep keeps its batch size; no job path changed."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No background job retry policy is involved."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No background job queue is involved."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The suites passed for a failing group lookup, an unavailable settings read and a missing guardian wake."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data migration; reverting the PR restores the previous imports and bindings."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "The architecture ratchet passed against the stacked parent: 444 legacy keys remain, composition surface 604 to 604."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR as one unit to restore the direct owner imports and root bindings. No data cleanup is needed.",
+  "exit_criterion": "No api/students production or test file imports the eleven listed owner packages, all 19 listed legacy keys are absent, and validate-ticket --all --base-ref accepts their retirement."
+}

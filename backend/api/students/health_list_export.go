@@ -10,10 +10,9 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
 // The Gesundheitsliste (#3323) is the child list of stored health notes. It
@@ -42,7 +41,7 @@ func (rs *Resource) finalizeExportSources(r *http.Request, req studentExportRequ
 	if errResp := exportSelectionCapError(len(sources)); errResp != nil {
 		return errResp
 	}
-	if req.Preset != listexport.PresetHealthList {
+	if req.Preset != lists.PresetHealthList {
 		return nil
 	}
 	if err := addHealthInfoCells(sources, responses); err != nil {
@@ -63,7 +62,7 @@ func addHealthInfoCells(sources []exportRowSource, responses []StudentResponse) 
 		return errors.New("health list rows do not match the exported children")
 	}
 	for i := range sources {
-		sources[i].row.Values[listexport.ColumnHealthInfo] = healthInfoExportCell(responses[i].HealthInfo)
+		sources[i].row.Values[lists.ColumnHealthInfo] = healthInfoExportCell(responses[i].HealthInfo)
 	}
 	return nil
 }
@@ -73,7 +72,7 @@ func addHealthInfoCells(sources []exportRowSource, responses []StudentResponse) 
 // cell says so in words, as the Notfallliste does (#2609): an empty cell reads
 // as "no allergies", which is the one reading that could get a child hurt.
 func healthInfoExportCell(note string) string {
-	note = listexport.SanitizeUserText(note)
+	note = lists.SanitizeUserText(note)
 	if strings.TrimSpace(note) == "" {
 		return healthInfoMissingLabel
 	}
@@ -97,7 +96,7 @@ func (rs *Resource) writeHealthListAudit(r *http.Request, req studentExportReque
 	entry := &studentpresence.DataAccessEvent{
 		ActorAccountID: int64(claims.ID),
 		ActorRole:      actorRole,
-		ResourceType:   auditModels.ResourceTypeStudentHealthListExport,
+		ResourceType:   dataAccessStudentHealthListExport,
 		RangeStart:     today.BerlinMidnight(),
 		RangeEnd:       today.EndOfDay(),
 		AccessedAt:     time.Now(),
@@ -108,7 +107,7 @@ func (rs *Resource) writeHealthListAudit(r *http.Request, req studentExportReque
 	}
 	if err := rs.StudentHistoryService.RecordDataAccess(r.Context(), entry); err != nil {
 		logger.Error("audit log write failed, refusing to export health list",
-			slog.String("resource_type", auditModels.ResourceTypeStudentHealthListExport),
+			slog.String("resource_type", dataAccessStudentHealthListExport),
 			slog.String("error", err.Error()),
 		)
 		return err
@@ -121,7 +120,7 @@ func (rs *Resource) writeHealthListAudit(r *http.Request, req studentExportReque
 // on it only means "no note stored" when the page says so.
 func exportDocumentFilterLabels(req studentExportRequest, planningDate timezone.Date, isToday bool) []string {
 	labels := exportFilterLabelsForDate(req.Filters, planningDate, isToday)
-	if req.Preset == listexport.PresetHealthList && !req.Filters.IncludeWithoutHealthInfo {
+	if req.Preset == lists.PresetHealthList && !req.Filters.IncludeWithoutHealthInfo {
 		labels = append(labels, healthListOnlyWithNoteLabel)
 	}
 	return labels
