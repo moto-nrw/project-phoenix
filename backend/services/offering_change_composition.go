@@ -14,7 +14,6 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -320,7 +319,7 @@ func offeringPendingError(op string, err error) error {
 // offeringChangeEnrollmentReads is the part of the Enrollment owner an
 // offering change reads.
 type offeringChangeEnrollmentReads interface {
-	enrollment.StudentCarePeriodReader
+	StudentCarePeriods(context.Context, int64) ([]*enrollmentOwner.StudentCarePeriod, error)
 	RequestByID(context.Context, int64, bool) (*enrollmentOwner.Request, error)
 	ChildByID(context.Context, int64) (*enrollmentOwner.RequestChild, error)
 	ChildrenByID(context.Context, []int64) ([]*enrollmentOwner.RequestChild, error)
@@ -336,7 +335,7 @@ type offeringChangeEnrollmentReads interface {
 type offeringChangeEnrollment struct{ owner offeringChangeEnrollmentReads }
 
 func (e offeringChangeEnrollment) StudentCarePeriods(ctx context.Context, studentID int64) ([]carePlanCompose.OfferingCarePeriod, error) {
-	periods, err := enrollment.ReadStudentCarePeriods(ctx, e.owner, studentID)
+	periods, err := enrollmentOwner.StudentCarePeriodRecords(ctx, e.owner, studentID)
 	if err != nil {
 		return nil, err
 	}

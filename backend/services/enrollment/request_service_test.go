@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -153,7 +155,7 @@ func TestRequestService_RollsBackDurableOutboxWrite(t *testing.T) {
 			outbox := &failAfterDurableEnqueue{module: delivery.module, err: failure, failAt: failAt}
 			config := env.config
 			config.OutboxEnqueuer = outbox
-			svc := enrollmentService.NewRequestService(config)
+			svc := newTestRequestService(config)
 			input := validSubmission(t, env.phaseID)
 			offering := setupCareOfferingForCapacity(t, env, 10)
 			input.Children[0].OfferingIDs = []int64{offering.ID}
@@ -270,17 +272,14 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 		DB:               db,
 		Logger:           slog.Default(),
 	}
-	svc := enrollmentService.NewRequestService(config)
+	svc := newTestRequestService(config)
 
 	ctx := testpkg.Ctx(t)
 
 	// FormSchema is required for Submit (FK on enrollment.requests.schema_id).
 	// Use the form_schema service to publish a minimal active version.
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "Submission", "Tester")
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  repoFactory.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(repoFactory.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag", []enrollmentCapability.FormField{
 		{Key: "allergies", Label: "Allergien", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
 	}, account.ID)
@@ -431,7 +430,7 @@ func TestRequestService_SubmitLateInviteRenewalUsesInviteEmailForAuthorization(t
 	config := env.config
 	config.StudentRepo = repos.Student
 	config.GuardianAuthorizer = authorizer
-	svc := enrollmentService.NewRequestService(config)
+	svc := newTestRequestService(config)
 	created, err := svc.CreateLateInvite(ctx, enrollmentService.CreateLateInviteInput{
 		PhaseID:       env.phaseID,
 		GuardianEmail: "invited@example.test",
@@ -496,7 +495,7 @@ func withLateInviteRenewalFixture(
 	config := env.config
 	config.StudentRepo = repos.Student
 	config.GuardianAuthorizer = authorizer
-	svc := enrollmentService.NewRequestService(config)
+	svc := newTestRequestService(config)
 	created, err := svc.CreateLateInvite(ctx, enrollmentService.CreateLateInviteInput{
 		PhaseID:       env.phaseID,
 		GuardianEmail: inviteEmail,
@@ -2372,7 +2371,7 @@ func TestRequestService_Submit_UsesCapacityFromLockedOfferings(t *testing.T) {
 		CareOfferingRepository: config.CareOfferingRepo,
 		lockedOfferings:        []*enrollmentModels.CareOffering{&lockedOffering},
 	}
-	svc := enrollmentService.NewRequestService(config)
+	svc := newTestRequestService(config)
 
 	request := validSubmission(t, env.phaseID)
 	request.GuardianEmail = "locked-capacity@example.com"
@@ -2945,10 +2944,7 @@ func TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSch
 	require.NoError(t, err)
 	require.Nil(t, submitted.Request.SchemaID)
 
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  repoFactory.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(repoFactory.Enrollment(), nil, slog.Default())
 	laterSchema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 2", []enrollmentCapability.FormField{
 		{
 			Key:       "later_required",
@@ -2998,10 +2994,7 @@ func TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted(
 	// Schema: per-child boolean controller "has_allergy" + per-child REQUIRED
 	// text "which_allergy" that is only visible when has_allergy == true.
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  repoFactory.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(repoFactory.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 3", []enrollmentCapability.FormField{
 		{Key: "has_allergy", Label: "Allergie?", Type: enrollmentCapability.FormFieldBoolean, AppliesToCh: true, SortOrder: 0},
 		{
@@ -3048,10 +3041,7 @@ func TestRequestService_Submit_VisibleRequiredFieldStillEnforced(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  repoFactory.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(repoFactory.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 4", []enrollmentCapability.FormField{
 		{Key: "has_allergy", Label: "Allergie?", Type: enrollmentCapability.FormFieldBoolean, AppliesToCh: true, SortOrder: 0},
 		{
@@ -3087,10 +3077,7 @@ func TestRequestService_Submit_RequiredStructuredFieldValidatesEntries(t *testin
 	ctx := testpkg.Ctx(t)
 
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  repoFactory.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(repoFactory.Enrollment(), nil, slog.Default())
 	// Required per-child contact_list (canonical target student.contacts).
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 5", []enrollmentCapability.FormField{
 		{
@@ -3127,10 +3114,7 @@ func publishPickupSchema(t *testing.T, env *requestTestEnv, allowed []string) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  repoFactory.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentTest.NewFormSchemas(repoFactory.Enrollment(), nil, slog.Default())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 6", []enrollmentCapability.FormField{
 		{
 			Key: "schedule_pickup", Label: "Abholzeiten",
@@ -3456,11 +3440,11 @@ func TestRequestService_Edit_AdminContextUsesPinnedSchema(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 	owner, ok := env.config.Catalog.(interface {
-		enrollmentService.FormSchemaOwner
+		enrollmentTest.FormSchemaRecords
 		UpdatePhase(context.Context, *enrollmentCapability.Phase) error
 	})
 	require.True(t, ok)
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{Owner: owner})
+	schemaSvc := enrollmentTest.NewFormSchemas(owner, nil, nil)
 	schema, err := schemaSvc.CreateSchemaWithLegal(ctx, "Admin edit schema", []enrollmentCapability.FormField{
 		{Key: "show_details", Label: "Show details", Type: enrollmentCapability.FormFieldBoolean},
 		{Key: "details", Label: "Details", Type: enrollmentCapability.FormFieldText, SortOrder: 1,
@@ -3514,7 +3498,7 @@ func TestRequestService_Edit_AdminContextPropagatesSchemaFailure(t *testing.T) {
 	lookupErr := errors.New("schema lookup failed")
 	config := env.config
 	config.Catalog = failingEditSchemaCatalog{IntakeCatalog: config.Catalog, err: lookupErr}
-	svc := enrollmentService.NewRequestService(config)
+	svc := newTestRequestService(config)
 	name := "Changed"
 	err = tenant.WithAdminTx(ctx, env.db, func(adminCtx context.Context, _ bun.Tx) error {
 		return svc.Edit(adminCtx, result.Request.StatusToken, enrollmentService.EditPatch{GuardianFirstName: &name})

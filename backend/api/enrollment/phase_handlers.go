@@ -15,7 +15,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // PhaseResponse is the wire shape returned to admin UIs. Int64 IDs are
@@ -352,7 +351,7 @@ func (rs *Resource) listPhases(w http.ResponseWriter, r *http.Request) {
 
 	var phases []*enrollmentOwner.Phase
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		list, listErr := rs.PhaseService.List(ctx)
+		list, listErr := rs.PhaseService.AllPhases(ctx)
 		phases = list
 		return listErr
 	})
@@ -380,12 +379,12 @@ func (rs *Resource) getPhase(w http.ResponseWriter, r *http.Request) {
 
 	var phase *enrollmentOwner.Phase
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		p, e := rs.PhaseService.GetByID(ctx, id)
+		p, e := rs.PhaseService.PhaseByID(ctx, id)
 		phase = p
 		return e
 	})
 	if err != nil {
-		if errors.Is(err, enrollmentService.ErrPhaseNotFound) {
+		if errors.Is(err, enrollmentOwner.ErrPhaseNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
 		}
@@ -413,7 +412,7 @@ func (rs *Resource) createPhase(w http.ResponseWriter, r *http.Request) {
 
 	var created *enrollmentOwner.Phase
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
-		p, e := rs.PhaseService.Create(ctx, model)
+		p, e := rs.PhaseService.CreatePhase(ctx, model)
 		created = p
 		return e
 	})
@@ -485,13 +484,13 @@ const (
 // must not reach the UI (#3263).
 func phaseWriteErrorRenderer(err error) render.Renderer {
 	switch {
-	case errors.Is(err, enrollmentService.ErrPhaseDuplicateName):
-		return common.ErrorConflictWithCode(enrollmentService.ErrPhaseDuplicateName, ErrCodePhaseNameExists)
-	case errors.Is(err, enrollmentService.ErrPhaseCareOfferingConflict):
-		return common.ErrorConflictWithCode(enrollmentService.ErrPhaseCareOfferingConflict, ErrCodePhaseCareOfferingConflict)
-	case errors.Is(err, enrollmentService.ErrPhaseNotFound):
+	case errors.Is(err, enrollmentOwner.ErrPhaseDuplicateName):
+		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseDuplicateName, ErrCodePhaseNameExists)
+	case errors.Is(err, enrollmentOwner.ErrPhaseCareOfferingConflict):
+		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseCareOfferingConflict, ErrCodePhaseCareOfferingConflict)
+	case errors.Is(err, enrollmentOwner.ErrPhaseNotFound):
 		return common.ErrorNotFound(err)
-	case errors.Is(err, enrollmentService.ErrInvalidPhase):
+	case errors.Is(err, enrollmentOwner.ErrInvalidPhase):
 		return common.ErrorInvalidRequest(err)
 	default:
 		return common.ErrorInternalServer(err)
@@ -511,15 +510,15 @@ func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
 			// A PUT without calendar_period_id keeps the stored link; only an
 			// explicit null (or value) changes it. The fetch also surfaces
 			// ErrPhaseNotFound before the update runs.
-			existing, getErr := rs.PhaseService.GetByID(ctx, model.ID)
+			existing, getErr := rs.PhaseService.PhaseByID(ctx, model.ID)
 			if getErr != nil {
 				return getErr
 			}
 			req.hydrateOmittedFields(model, existing)
-			return rs.PhaseService.Update(ctx, model)
+			return rs.PhaseService.UpdatePhase(ctx, model)
 		},
 		func(ctx context.Context, id int64) (*enrollmentOwner.Phase, error) {
-			return rs.PhaseService.GetByID(ctx, id)
+			return rs.PhaseService.PhaseByID(ctx, id)
 		},
 		func(p *enrollmentOwner.Phase) any { return toPhaseResponse(p) },
 		"Phase updated",
@@ -537,10 +536,10 @@ func (rs *Resource) deletePhase(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		return rs.PhaseService.Delete(ctx, id)
+		return rs.PhaseService.DeletePhase(ctx, id)
 	})
 	if err != nil {
-		if errors.Is(err, enrollmentService.ErrPhaseNotFound) {
+		if errors.Is(err, enrollmentOwner.ErrPhaseNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
 		}
@@ -569,14 +568,14 @@ func (rs *Resource) getPhaseDeleteImpact(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var impact *enrollmentService.PhaseDeleteImpact
+	var impact *enrollmentOwner.PhaseDeleteImpact
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		i, e := rs.PhaseService.DeleteImpact(ctx, id)
 		impact = i
 		return e
 	})
 	if err != nil {
-		if errors.Is(err, enrollmentService.ErrPhaseNotFound) {
+		if errors.Is(err, enrollmentOwner.ErrPhaseNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
 		}

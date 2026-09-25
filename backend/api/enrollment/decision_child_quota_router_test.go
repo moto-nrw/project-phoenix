@@ -183,9 +183,7 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 	repos, err := repositories.NewEnrollmentTestRepositories(db, repositories.NewTestAuditStore(db))
 	require.NoError(t, err)
 	_, reviewer := testpkg.CreateTestStaffWithAccount(t, db, "Rita", "Pruefung")
-	schema, err := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner: repos.Enrollment(), Logger: slog.Default(),
-	}).CreateSchema(ctx, "Testformular "+t.Name(), []capability.FormField{
+	schema, err := enrollmentAPI.NewTestFormSchemas(repos.Enrollment()).CreateSchema(ctx, "Testformular "+t.Name(), []capability.FormField{
 		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
 	}, reviewer.ID)
 	require.NoError(t, err)

@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 24.09.2026 · Ratchet 535 · Composition 615 · Policy-Epoche 30 · 4 Regeln mit
+Stand 25.09.2026 · Ratchet 529 · Composition 614 · Policy-Epoche 31 · 4 Regeln mit
 `convert it to exact debt` · 20.013 LOC unter `modules/*/legacy`
 
-Summenprobe: 237 + 29 + 4 + 59 + 28 + 19 + 159 = 535 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 231 + 29 + 4 + 59 + 28 + 19 + 159 = 529 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -16,9 +16,9 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [x] [#3414](https://github.com/moto-nrw/project-phoenix/issues/3414) Projection-Owner `operator-dashboard-view` bleibt (ADR 0033)
 - [ ] Gehört der Träger-Strang [#2809](https://github.com/moto-nrw/project-phoenix/issues/2809) / [#2821](https://github.com/moto-nrw/project-phoenix/issues/2821) zu #2580?
 
-## Jetzt vergebbar · 237 Keys
+## Jetzt vergebbar · 231 Keys
 
-- [ ] [#2733](https://github.com/moto-nrw/project-phoenix/issues/2733) services/enrollment, repositories/enrollment — 54 (`database/repositories/enrollment` gelöscht, 7 Keys weg; die `services/enrollment`-Keys fallen über #3558 bis #3565; #3559 hat den Care-Offering-Katalog nach `modules/careplan` verschoben, ohne Key; #3560 die Buchungs-Materialisierung, zwei erledigte Keys entfernt; #3561 die Angebotswechsel-, Kurs- und Abholzeit-Reviews, vier erledigte Keys entfernt, darunter `crypto/subtle`, `legacy/jwt` und `services/parentmessaging`)
+- [ ] [#2733](https://github.com/moto-nrw/project-phoenix/issues/2733) services/enrollment, repositories/enrollment — 48 (`database/repositories/enrollment` gelöscht, 7 Keys weg; die `services/enrollment`-Keys fallen über #3558 bis #3565; #3559 hat den Care-Offering-Katalog nach `modules/careplan` verschoben, ohne Key; #3560 die Buchungs-Materialisierung, zwei erledigte Keys entfernt; #3561 die Angebotswechsel-, Kurs- und Abholzeit-Reviews, vier erledigte Keys entfernt, darunter `crypto/subtle`, `legacy/jwt` und `services/parentmessaging`; #3562 Phasen, Formulare, Captcha und Eltern-Mails nach `modules/enrollment/internal/application`, sechs erledigte Keys entfernt, darunter `email`, `pgdriver` und `net/http`, Policy-Epoche 30 → 31, Kompositionsregel per ADR 0041)
 - [ ] [#2742](https://github.com/moto-nrw/project-phoenix/issues/2742) services/education, repositories/education, api/groups, api/admin — 63
 - [ ] [#2728](https://github.com/moto-nrw/project-phoenix/issues/2728) services/users — 42
 - [ ] [#2734](https://github.com/moto-nrw/project-phoenix/issues/2734) api/enrollment — 32

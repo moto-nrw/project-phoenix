@@ -8,6 +8,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/uptrace/bun"
@@ -44,24 +45,41 @@ var (
 	ErrRolloverSourceAlreadyRolled = errors.New("source phase already rolled forward")
 )
 
-// phaseNameUniqueConstraint is the Postgres constraint name from
-// migration 1.15.67 — kept in sync via grep, not via import, because
-// the migration declares it inline.
-const phaseNameUniqueConstraint = "enrollment_phases_unique_name"
-
 // rolloverSourceChildUniqueIndex is the Postgres index name from
 // migration 1.15.73 that enforces "each source child rolled at most
-// once". Kept as a string constant for the same reason as the phase
-// name constraint above.
+// once". Kept in sync via grep, not via import, because the migration
+// declares it inline.
 const rolloverSourceChildUniqueIndex = "uq_enrollment_request_children_rollover_source"
 
-// isPhaseDuplicateName reports whether err is a PostgreSQL 23505
-// raised by the unique(tenant_id, name) constraint on
-// enrollment.phases. Race-safe: we don't pre-check, we just translate
-// the DB error into the sentinel so the handler can return 409.
-func isPhaseDuplicateName(err error) bool {
-	return base.IsUniqueViolationOn(err, phaseNameUniqueConstraint)
-}
+// Enrollment owner ports of the rollover; the root binds the owner.
+type (
+	RolloverPhases interface {
+		Phase(context.Context, int64) (*capability.Phase, error)
+		InsertPhase(context.Context, *capability.Phase) error
+		HasRolloverSuccessor(context.Context, int64) (bool, error)
+		PhasesWithExpiredRolloverDeadline(context.Context, time.Time) ([]*capability.Phase, error)
+	}
+	RolloverRequests interface {
+		RequestCreator
+		RequestBatchReader
+	}
+	RolloverChildren interface {
+		capability.SubmittedOfferingCommands
+		RequestChildOfferingsAtDate(context.Context, int64, capability.Date) ([]*capability.RequestChildOffering, error)
+		RequestChildOfferingsForChildrenAtDate(context.Context, []int64, capability.Date) ([]*capability.RequestChildOffering, error)
+		ChildCreator
+		ChildrenByID(context.Context, []int64) ([]*capability.RequestChild, error)
+		ChildrenByPhaseStatuses(context.Context, int64, []string) ([]*capability.RequestChild, error)
+		ReviewRolloverChild(context.Context, int64, string, *string, *int16, int64) error
+		HoldAutoRenewedChild(context.Context, int64, string) (bool, error)
+		TransitionPhaseChildren(context.Context, int64, string, string) (int, error)
+	}
+	// PhaseEligibilityGuard rejects an eligibility restriction the school
+	// cannot collect. The Enrollment phase administration implements it.
+	PhaseEligibilityGuard interface {
+		CheckEligibilityCollectable(ctx context.Context, phase *capability.Phase) error
+	}
+)
 
 // isRolloverSourceAlreadyRolled reports whether err is the 23505
 // raised by the partial unique index that pins each source child to
@@ -264,9 +282,13 @@ type RolloverServiceConfig struct {
 	// offerings) the catalog is not cloned and any carried booking fails
 	// the rollover instead of persisting a source-phase reference.
 	OfferingCatalogCloner RolloverOfferingCatalogCloner
-	SchoolRepo            SchoolDirectory
-	OutboxEnqueuer        platformModels.OutboxEnqueuer
-	Settings              RequestSettingsResolver
+	Notifications         capability.Notifications
+	// PhaseEligibility rejects an eligibility restriction the school cannot
+	// collect before the rollover activates it. Nil skips the guard (tests
+	// without settings).
+	PhaseEligibility PhaseEligibilityGuard
+	OutboxEnqueuer   platformModels.OutboxEnqueuer
+	Settings         RequestSettingsResolver
 	// DecisionService is consumed by RunDeadlineWorker only when a
 	// phase carries rollover_auto_approve = true. Optional — leave
 	// nil to disable auto-approve regardless of the phase flag
@@ -275,6 +297,15 @@ type RolloverServiceConfig struct {
 	ParentsURL      string
 	DB              *bun.DB
 	Logger          *slog.Logger
+}
+
+// checkEligibilityCollectable applies the Enrollment eligibility guard when
+// one is bound.
+func (s *rolloverService) checkEligibilityCollectable(ctx context.Context, phase *capability.Phase) error {
+	if s.PhaseEligibility == nil {
+		return nil
+	}
+	return s.PhaseEligibility.CheckEligibilityCollectable(ctx, phase)
 }
 
 // NewRolloverService builds the service. Nil logger falls back to
@@ -481,14 +512,11 @@ func (s *rolloverService) createRolloverPhase(ctx context.Context, tenantID int6
 	// otherwise bypasses. runCreate wraps this in a tenant tx, so the shared
 	// lock inside serializes it against a concurrent class-collection toggle
 	// (#1663).
-	if err := ensureEligibleGradeLevelsCollectable(ctx, s.Settings, phase.EligibleGradeLevels); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrRolloverInvalidRequest, err)
-	}
-	if err := ensureEligibleClassesCollectable(ctx, s.Settings, phase.EligibleSchoolClasses); err != nil {
+	if err := s.checkEligibilityCollectable(ctx, phase); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrRolloverInvalidRequest, err)
 	}
 	if err := s.Phases.InsertPhase(ctx, phase); err != nil {
-		if isPhaseDuplicateName(err) {
+		if errors.Is(err, capability.ErrPhaseNameTaken) {
 			return nil, fmt.Errorf("%w: %q", ErrRolloverDuplicateName, req.Name)
 		}
 		return nil, fmt.Errorf("rollover: create phase: %w", err)
@@ -703,25 +731,25 @@ func (s *rolloverService) enqueueRenewalEmail(ctx context.Context, newPhase *cap
 		kind = platformModels.EmailKindEnrollmentRolloverOptIn
 	}
 
-	schoolName, logoURL := emailBrandForSchool(ctx, s.SchoolRepo, req.TenantID, s.ParentsURL)
-	footerLogoURL := motoLogoURL(s.ParentsURL)
+	schoolName, logoURL := schoolBrand(ctx, s.Notifications, req.TenantID, s.ParentsURL)
+	footerLogoURL := emailbranding.MotoLogoURL(s.ParentsURL)
 	deadlineStr := ""
 	if newPhase.RolloverDeadline != nil {
 		deadlineStr = newPhase.RolloverDeadline.Format("02.01.2006")
 	}
 
 	payload := map[string]any{
-		EnrollmentPayloadGuardianFirstName: req.GuardianFirstName,
-		EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
-		EnrollmentPayloadGuardianEmail:     req.GuardianEmail,
-		EnrollmentPayloadSchoolName:        schoolName,
-		EnrollmentPayloadPhaseName:         newPhase.Name,
-		EnrollmentPayloadStatusURL:         enrollmentStatusURL(s.ParentsURL, req.StatusToken),
-		EnrollmentPayloadLogoURL:           logoURL,
-		EnrollmentPayloadMotoLogoURL:       footerLogoURL,
-		EnrollmentPayloadChildNames:        childNames,
-		EnrollmentPayloadRecipientEmail:    req.GuardianEmail,
-		EnrollmentPayloadRolloverDeadline:  deadlineStr,
+		capability.EnrollmentPayloadGuardianFirstName: req.GuardianFirstName,
+		capability.EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
+		capability.EnrollmentPayloadGuardianEmail:     req.GuardianEmail,
+		capability.EnrollmentPayloadSchoolName:        schoolName,
+		capability.EnrollmentPayloadPhaseName:         newPhase.Name,
+		capability.EnrollmentPayloadStatusURL:         capability.StatusURL(s.ParentsURL, req.StatusToken),
+		capability.EnrollmentPayloadLogoURL:           logoURL,
+		capability.EnrollmentPayloadMotoLogoURL:       footerLogoURL,
+		capability.EnrollmentPayloadChildNames:        childNames,
+		capability.EnrollmentPayloadRecipientEmail:    req.GuardianEmail,
+		capability.EnrollmentPayloadRolloverDeadline:  deadlineStr,
 	}
 	if err := s.OutboxEnqueuer.EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
 		Kind:              kind,

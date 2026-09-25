@@ -1416,6 +1416,43 @@ falls from 540 to 535 and no rule was added (one stale test rule is gone).
   `api/testutil.NewOfferingChanges` and assert the staff queue through
   `api/testutil.NewOfferingReviewQuery`.
 
+#3562 (E1 of the `services/enrollment` dissolution under #2733) moved
+Enrollment's phases, form schemas, the phase-response overview, the
+phase-expiry warnings, the approved-offering projection, captcha
+verification and the parent mail renderers and decision notifications into
+`modules/enrollment/internal/application` (`enrollment`/`application`, the
+same point as the retained package), composed by `modules/enrollment/compose`
+and published through `modules/enrollment` (`PhaseAdministration`,
+`FormSchemaAdministration`, `PhaseExpiryWarnings`, `CaptchaVerifier`,
+`Notifications`, `MailRenderers`). The Turnstile call is the adapter
+`modules/enrollment/internal/adapters/turnstile` (`enrollment`/`adapter`).
+Routes, status codes, error texts, authorization and tenant scoping are
+unchanged; 21 files are deleted and the key count falls from 535 to 529
+(`email`, `pgdriver` and `net/http` in production, three test keys).
+
+- The composition could not construct its application under an ordinary
+  `enrollment.compose.application` rule, because `services/enrollment`
+  already holds that point at the base. ADR 0041 grants exactly that
+  production permission in epoch 31 while the retained package exists.
+- Settings reach the application through typed ports (`CollectionSettings`,
+  `CaptchaSettings`, `NotificationSettings`) that `services` binds over the
+  settings resolver; the captcha keeps its deployment fallbacks there. Mails
+  leave as `application.Mail` intents that `services` puts on the platform
+  outbox; the renderers take the stored JSON payload.
+- The Postgres adapter marks a duplicate phase name and a missing form schema
+  or calendar period with `ErrPhaseNameTaken` and `ErrPhaseReferenceMissing`,
+  so neither the phase administration nor the rollover reads driver errors.
+- The decoded request and child glue (`services/enrollment/owner_records.go`)
+  stays with the retained decision, rollover and intake flows until #3564 and
+  #3565 move them: the public contract may not carry the decoded answer maps.
+- The guardian portal reads care periods and offering history through its own
+  ports (`care.CarePeriodReads`, `care.OfferingHistoryReads`), which removes
+  the two parent-portal rules to the retained Enrollment application.
+- The behaviour suites stay in the `services/enrollment` test package and
+  compose the owner through `modules/enrollment/enrollmenttest`; the external
+  `api/enrollment` router suites reach it through exported helpers of the
+  package's internal tests.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).

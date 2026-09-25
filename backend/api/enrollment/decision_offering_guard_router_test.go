@@ -251,7 +251,8 @@ func newOfferingGuardDecisionService(repos repositories.EnrollmentTestRepositori
 		GuardianAccess:    guardianAccess,
 		StudentEnrollment: studentEnrollment,
 		OutboxEnqueuer:    discardingOutbox{}, Settings: offeringGuardSettings(offeringsEnabled),
-		ParentsURL: "http://parents.localhost:3000", Logger: slog.Default(),
+		Notifications: enrollmentAPI.NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: offeringGuardSettings(offeringsEnabled)}, discardingOutbox{}, nil),
+		ParentsURL:    "http://parents.localhost:3000", Logger: slog.Default(),
 	})
 }
 

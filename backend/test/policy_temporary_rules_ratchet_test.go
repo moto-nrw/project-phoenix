@@ -89,7 +89,10 @@ import (
 // fifteen grants only they used, all conversion promises, lowering the totals
 // to 50 and 108. Its lifecycle move then deleted the nest itself with every
 // grant that still named #3424 and the four stale grants that reached only
-// the nest, lowering the totals to 4 and 62.
+// the nest, lowering the totals to 4 and 62. #3562 moved the parent
+// portal's care-period and offering-history reads behind its own ports and
+// retired the two parent-portal grants to the retained Enrollment
+// application, lowering the wider total to 60.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -144,7 +147,7 @@ const (
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 62
+	policyTempRulesCompatTotal = 60
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the

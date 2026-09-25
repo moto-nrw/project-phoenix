@@ -45,7 +45,7 @@ func samplePhaseForAudit() *enrollmentModels.Phase {
 }
 
 func newAuditDecisionService(repo auditModels.DataAccessLogRepository) enrollmentService.DecisionService {
-	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+	return newTestDecisionService(enrollmentService.DecisionServiceConfig{
 		DataAccessLogRepo: repo,
 	})
 }

@@ -2965,7 +2965,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        4044
+        4025
       ],
       "tables": []
     },
@@ -3000,7 +3000,7 @@
       "declaration": "setupSchemaTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        27
+        28
       ],
       "tables": [
         "auth.accounts",
@@ -3114,7 +3114,7 @@
       "declaration": "TestSourcedRosterRows_AppearInTemplateListReads",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2314
+        2311
       ],
       "tables": []
     },
@@ -3144,7 +3144,7 @@
       "declaration": "createSourcedTemplateSegment",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1497
+        1494
       ],
       "tables": []
     },
@@ -3154,7 +3154,7 @@
       "declaration": "setupPhaseTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        32
+        34
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -3206,7 +3206,7 @@
       "declaration": "TestRequestService_Edit_LocksAfterReviewStarted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1355
+        1354
       ],
       "tables": []
     },
@@ -3216,7 +3216,7 @@
       "declaration": "TestRequestService_GetByStatusToken_RedactsReasonWhenPhaseDisablesIt",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1277
+        1276
       ],
       "tables": []
     },
@@ -3226,7 +3226,7 @@
       "declaration": "TestRequestService_GetByStatusToken_SurfacesReasonWhenPhaseEnablesIt",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1303
+        1302
       ],
       "tables": []
     },
@@ -3236,7 +3236,7 @@
       "declaration": "TestRequestService_GetEditDraft_ChangeRequestIncludesInactiveCurrentOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1506
+        1505
       ],
       "tables": []
     },
@@ -3246,7 +3246,7 @@
       "declaration": "TestRequestService_GetEditDraft_DirectEditRejectsInactiveCurrentOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1588
+        1587
       ],
       "tables": []
     },
@@ -3256,7 +3256,7 @@
       "declaration": "TestRequestService_GetEditDraft_PreservesGradeCapabilityForInactiveConditionalOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1542
+        1541
       ],
       "tables": []
     },
@@ -3266,7 +3266,7 @@
       "declaration": "TestRequestService_ReplaceEditable_AllowsSubmittedEditsAfterEnrollmentWindowClosed",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1619
+        1618
       ],
       "tables": []
     },
@@ -3276,7 +3276,7 @@
       "declaration": "TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSchemaChange",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2933
+        2932
       ],
       "tables": [
         "enrollment.phases"
@@ -3288,7 +3288,7 @@
       "declaration": "TestRequestService_ReplaceEditable_CapacityWaitlistQueuesDecisionDigest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1862
+        1861
       ],
       "tables": []
     },
@@ -3298,7 +3298,7 @@
       "declaration": "TestRequestService_ReplaceEditable_DisabledOfferingsFollowVerifiedChildIdentity",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1902
+        1901
       ],
       "tables": []
     },
@@ -3308,7 +3308,7 @@
       "declaration": "TestRequestService_ReplaceEditable_LocksAfterReviewStarted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1479
+        1478
       ],
       "tables": []
     },
@@ -3318,7 +3318,7 @@
       "declaration": "TestRequestService_SubmitLateInviteRenewalUsesInviteEmailForAuthorization",
       "target": "database/repositories.NewFactory",
       "lines": [
-        413
+        412
       ],
       "tables": [
         "enrollment.phases",
@@ -3331,7 +3331,7 @@
       "declaration": "TestRequestService_Submit_AllowsHistoricalPhaseWithCareOfferings",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2392
+        2391
       ],
       "tables": []
     },
@@ -3341,7 +3341,7 @@
       "declaration": "TestRequestService_Submit_AtLeastOneCountsOnlyChoosableOfferings",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1189
+        1188
       ],
       "tables": []
     },
@@ -3351,7 +3351,7 @@
       "declaration": "TestRequestService_Submit_BasisPhaseNoFallback",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2896
+        2895
       ],
       "tables": [
         "enrollment.phases"
@@ -3363,7 +3363,7 @@
       "declaration": "TestRequestService_Submit_CapacityNullMeansUnlimited",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2684
+        2683
       ],
       "tables": []
     },
@@ -3373,7 +3373,7 @@
       "declaration": "TestRequestService_Submit_CapacityOverflowWaitlist",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2440
+        2439
       ],
       "tables": []
     },
@@ -3383,7 +3383,7 @@
       "declaration": "TestRequestService_Submit_EnforcesExactlyOneCareOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1102
+        1101
       ],
       "tables": []
     },
@@ -3393,7 +3393,7 @@
       "declaration": "TestRequestService_Submit_EnforcesPhaseCareOfferingSelectionMode",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1085
+        1084
       ],
       "tables": []
     },
@@ -3403,7 +3403,7 @@
       "declaration": "TestRequestService_Submit_ExactlyOneCountsOnlyChoosableOfferings",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1131
+        1130
       ],
       "tables": []
     },
@@ -3413,7 +3413,7 @@
       "declaration": "TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3000
+        2996
       ],
       "tables": []
     },
@@ -3423,7 +3423,7 @@
       "declaration": "TestRequestService_Submit_MixedCapacityWaitlistPinsDigestWithoutSendingEarly",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2545
+        2544
       ],
       "tables": []
     },
@@ -3433,7 +3433,7 @@
       "declaration": "TestRequestService_Submit_OffListPickupOnNonCareDayIsPrunedNotRejected",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3253
+        3237
       ],
       "tables": []
     },
@@ -3443,7 +3443,7 @@
       "declaration": "TestRequestService_Submit_PrunesNonCareDayPickupTimes",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3185
+        3169
       ],
       "tables": []
     },
@@ -3453,7 +3453,7 @@
       "declaration": "TestRequestService_Submit_RateLimitTenantIsolation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2242
+        2241
       ],
       "tables": [
         "enrollment.submission_rate_limits"
@@ -3465,7 +3465,7 @@
       "declaration": "TestRequestService_Submit_RejectsInactiveOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1068
+        1067
       ],
       "tables": []
     },
@@ -3475,7 +3475,7 @@
       "declaration": "TestRequestService_Submit_RejectsOutsideWindow",
       "target": "database/repositories.NewFactory",
       "lines": [
-        732
+        731
       ],
       "tables": []
     },
@@ -3485,7 +3485,7 @@
       "declaration": "TestRequestService_Submit_RequiredStructuredFieldValidatesEntries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3089
+        3079
       ],
       "tables": []
     },
@@ -3495,7 +3495,7 @@
       "declaration": "TestRequestService_Submit_VisibleRequiredFieldStillEnforced",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3050
+        3043
       ],
       "tables": []
     },
@@ -3505,7 +3505,7 @@
       "declaration": "TestRequestService_Withdraw_DigestFailureRollsBackStatus",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2093
+        2092
       ],
       "tables": []
     },
@@ -3515,7 +3515,7 @@
       "declaration": "TestRequestService_Withdraw_FinalSiblingEnqueuesDecisionDigest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2057
+        2056
       ],
       "tables": []
     },
@@ -3525,7 +3525,7 @@
       "declaration": "TestRequestService_Withdraw_NonFinalIgnoresNotificationSettingFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2129
+        2128
       ],
       "tables": []
     },
@@ -3535,7 +3535,7 @@
       "declaration": "TestRequestService_Withdraw_PerChildRejectsApproved",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2025
+        2024
       ],
       "tables": []
     },
@@ -3545,7 +3545,7 @@
       "declaration": "publishPickupSchema",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3129
+        3116
       ],
       "tables": []
     },
@@ -3555,7 +3555,7 @@
       "declaration": "restrictClassesForEditDraftTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3326
+        3310
       ],
       "tables": []
     },
@@ -3565,7 +3565,7 @@
       "declaration": "setPhaseOverflowMode",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2354
+        2353
       ],
       "tables": []
     },
@@ -3575,7 +3575,7 @@
       "declaration": "setupCareOfferingForCapacity",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2319
+        2318
       ],
       "tables": []
     },
@@ -3585,7 +3585,7 @@
       "declaration": "setupRequestTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        243
+        245
       ],
       "tables": [
         "auth.accounts",
@@ -3603,7 +3603,7 @@
       "declaration": "withLateInviteRenewalFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        465
+        464
       ],
       "tables": [
         "enrollment.late_invites",
@@ -3679,7 +3679,7 @@
       "declaration": "setupRolloverTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        62
+        64
       ],
       "tables": [
         "auth.accounts",
@@ -20918,12 +20918,12 @@
         },
         {
           "file": "services/factory.go",
-          "line": 451,
+          "line": 447,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 501,
+          "line": 497,
           "declaration": "newFactory"
         },
         {

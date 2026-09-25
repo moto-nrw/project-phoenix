@@ -216,7 +216,7 @@ func TestDecisionService_RestoreWithdrawn_PhaseInactive(t *testing.T) {
 func newRestoreDecisionServiceForRequestEnv(t *testing.T, env *requestTestEnv) enrollmentService.DecisionService {
 	t.Helper()
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+	return newTestDecisionService(enrollmentService.DecisionServiceConfig{
 		Requests:             repoFactory.Enrollment(),
 		Children:             repoFactory.Enrollment(),
 		CareOfferingRepo:     enrollmentService.NewCareOfferingRepository(repoFactory.CarePlan()),

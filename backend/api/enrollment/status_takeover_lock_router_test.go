@@ -88,6 +88,18 @@ func (discardingOutbox) EnqueueOutbox(context.Context, platformModels.OutboxEnqu
 	return nil
 }
 
+// notifyModeSettings reads the decision notification mode from a suite's
+// settings double, the way the root binds the parent notifications.
+type notifyModeSettings struct {
+	settings interface {
+		ResolveString(ctx context.Context, key string) (string, error)
+	}
+}
+
+func (s notifyModeSettings) NotifyPerDecision(ctx context.Context) (string, error) {
+	return s.settings.ResolveString(ctx, configModel.KeyEnrollmentNotifyPerDecision)
+}
+
 func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
@@ -106,10 +118,7 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 	}
 	person.SetTenantID(tenantID)
 	require.NoError(t, db.NewInsert().Model(person).ModelTableExpr("users.persons").Scan(ctx))
-	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Owner:  repos.Enrollment(),
-		Logger: slog.Default(),
-	})
+	schemaSvc := enrollmentAPI.NewTestFormSchemas(repos.Enrollment())
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular "+t.Name(), []capability.FormField{
 		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
 	}, account.ID)
@@ -134,6 +143,7 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 		CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repos.CarePlan),
 		Catalog:          repos.Enrollment(),
 		SchoolRepo:       capabilitySchools{schools: repos.School},
+		Notifications:    enrollmentAPI.NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
 		RateLimitRepo:    repos.Enrollment(),
 		OutboxEnqueuer:   discardingOutbox{},
 		Settings:         settings,
@@ -149,7 +159,7 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 		LateInviteRepo:      repos.Enrollment(),
 		CareOfferingRepo:    enrollmentService.NewCareOfferingRepository(repos.CarePlan),
 		Catalog:             repos.Enrollment(),
-		SchoolRepo:          capabilitySchools{schools: repos.School},
+		Notifications:       enrollmentAPI.NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
 		GuardianProfileRepo: repos.GuardianProfile,
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		StudentRepo:         repos.Student,

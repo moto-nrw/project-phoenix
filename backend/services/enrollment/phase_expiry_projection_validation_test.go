@@ -5,19 +5,20 @@ import (
 	"errors"
 	"testing"
 
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func TestPhaseExpiryProjection_ListSnapshots_RequiresDatesAndTenant(t *testing.T) {
 	t.Parallel()
 
-	repo := enrollmentService.NewPhaseExpiryProjection(nil, nil, nil, nil)
+	repo := enrollmentTest.NewPhaseExpirySnapshots(nil, nil, nil, nil)
 	_, err := repo.ListSnapshots(context.Background(), timezone.Date(""), timezone.Date(""))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "dates are required")
@@ -40,17 +41,17 @@ func TestPhaseExpiryProjection_ListSnapshots_RequiresDatesAndTenant(t *testing.T
 }
 
 type failingExpiryStudents struct {
-	enrollmentService.PhaseExpiryStudents
+	capability.PhaseExpiryStudents
 	err error
 }
 
-func (s failingExpiryStudents) ListEnrolledStudents(context.Context) ([]enrollmentService.PhaseExpiryStudent, error) {
+func (s failingExpiryStudents) ListEnrolledStudents(context.Context) ([]capability.PhaseExpiryStudent, error) {
 	return nil, s.err
 }
 
 type failingExpiryOfferings struct{ err error }
 
-func (s failingExpiryOfferings) ListCareOfferings(context.Context) ([]enrollmentService.PhaseExpiryOffering, error) {
+func (s failingExpiryOfferings) ListCareOfferings(context.Context) ([]capability.PhaseExpiryOffering, error) {
 	return nil, s.err
 }
 
@@ -84,7 +85,7 @@ func TestPhaseExpiryProjection_ListSnapshots_PreservesDependencyFailures(t *test
 			case "enrollment":
 				ownerErr = failure
 			}
-			repo := enrollmentService.NewPhaseExpiryProjection(failingExpiryOwner{err: ownerErr}, failingExpiryStudents{err: studentsErr}, failingExpiryOfferings{err: offeringsErr}, failingExpiryBookings{err: bookingsErr})
+			repo := enrollmentTest.NewPhaseExpirySnapshots(failingExpiryOwner{err: ownerErr}, failingExpiryStudents{err: studentsErr}, failingExpiryOfferings{err: offeringsErr}, failingExpiryBookings{err: bookingsErr})
 			snapshots, err := repo.ListSnapshots(testpkg.Ctx(t), timezone.NewDate(2027, 1, 2), timezone.NewDate(2027, 2, 1))
 			require.ErrorIs(t, err, failure)
 			require.Nil(t, snapshots)

@@ -96,6 +96,13 @@ func matchScalar(operator string, actual, expected any) bool {
 	}
 }
 
+// conditionValuesEqual compares a submitted answer against a condition
+// value tolerant of the JSON round-trip (bool vs "true", number vs
+// string), which is enough for boolean/select controlling fields.
+func conditionValuesEqual(a, b any) bool {
+	return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b)
+}
+
 // selectedOfferingNames resolves a child's selected offering ids to a set
 // of lowercased names for care-offering condition matching.
 func selectedOfferingNames(child SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) map[string]bool {

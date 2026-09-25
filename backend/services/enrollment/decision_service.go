@@ -186,6 +186,40 @@ type RequestFilters struct {
 	ChildStatus string // matches when ANY child carries this status
 }
 
+// Enrollment owner ports of the decision flow; the root binds the owner.
+type (
+	DecisionChildren interface {
+		OfferingCapacityReader
+		OfferingSelectionBatchReader
+		OfferingSelectionReader
+		ChildIDReader
+		RequestChildrenReader
+		ReportChildren
+		RestoreWithdrawnChildren(context.Context, int64, []int64) ([]int64, error)
+		UpdateChildStatus(context.Context, int64, string, *string, int64) error
+		UpdateChildActivationPlan(context.Context, int64, string, *capability.Date) error
+		LinkCreatedStudent(context.Context, int64, int64) error
+	}
+	DecisionRequests interface {
+		RequestIDReader
+		ReportRequests
+		SetRequestWithdrawal(context.Context, int64, *time.Time) error
+		AcquireSubmissionDedupLock(context.Context, int64, uint64) error
+		AcquireExistingStudentMatchLock(context.Context, int64) error
+		ActiveDuplicateChildren(context.Context, int64, string, []capability.DuplicateChildKey, int64) ([]capability.DuplicateChildKey, error)
+		HasActiveRequestForMatchedStudent(context.Context, int64, int64, int64) (bool, error)
+		PinDecisionNotificationMode(context.Context, int64, string) (string, error)
+	}
+	DecisionGuardians interface {
+		GuardianReader
+		StampRequestGuardianProfile(context.Context, int64, int64) error
+	}
+	PhaseBatchReader interface {
+		PhaseReader
+		PhasesByID(context.Context, []int64) ([]*capability.Phase, error)
+	}
+)
+
 // DecisionService backs the admin review UI. Slice 2 wires the full
 // approval pipeline: status mutation + downstream record creation
 // (users.persons / users.students / users.guardian_profiles /
@@ -384,17 +418,18 @@ type DecisionLateInvites interface {
 }
 
 type DecisionServiceConfig struct {
-	Requests                  DecisionRequests
-	Children                  DecisionChildren
-	Guardians                 DecisionGuardians
-	LateInviteRepo            DecisionLateInvites
-	CareOfferingRepo          enrollmentModels.CareOfferingRepository
-	Phases                    PhaseBatchReader
-	Schemas                   SchemaReader                        // needed to look up FormField.Target for each submitted answer
-	DataAccessLogRepo         auditModels.DataAccessLogRepository // append-only GDPR audit row written on phase export
-	OfferingAdjustmentRepo    auditModels.EnrollmentOfferingAdjustmentRepository
-	RestorationAuditRepo      auditModels.EnrollmentRestorationRepository // append-only trail for RestoreWithdrawn (#2157)
-	SchoolRepo                SchoolDirectory
+	Requests               DecisionRequests
+	Children               DecisionChildren
+	Guardians              DecisionGuardians
+	LateInviteRepo         DecisionLateInvites
+	CareOfferingRepo       enrollmentModels.CareOfferingRepository
+	Phases                 PhaseBatchReader
+	Schemas                SchemaReader                        // needed to look up FormField.Target for each submitted answer
+	DataAccessLogRepo      auditModels.DataAccessLogRepository // append-only GDPR audit row written on phase export
+	OfferingAdjustmentRepo auditModels.EnrollmentOfferingAdjustmentRepository
+	RestorationAuditRepo   auditModels.EnrollmentRestorationRepository // append-only trail for RestoreWithdrawn (#2157)
+	// Notifications sends the parent decision mails.
+	Notifications             capability.Notifications
 	PersonRepo                users.PersonRepository
 	StaffRepo                 users.StaffRepository
 	StudentRepo               users.StudentRepository
@@ -581,7 +616,7 @@ func (s *decisionService) assemble(ctx context.Context, req *enrollmentModels.Re
 	}
 	var guardians []*capability.RequestGuardian
 	if s.Guardians != nil {
-		guardians, err = listIntakeGuardians(ctx, s.Guardians, req.ID)
+		guardians, err = s.Guardians.RequestGuardians(ctx, []int64{req.ID})
 		if err != nil {
 			return nil, fmt.Errorf("decision: list guardians for request %d: %w", req.ID, err)
 		}
@@ -624,11 +659,11 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 	onDate := BookingViewDate(today, timezone.Date(phase.ServiceEndDate))
 	// The date the WRITE path treats as "now".
 	selectionDate := offeringSelectionDateOn(phase, today)
-	links, err := readOwnerOfferingBatchHistory(ctx, s.Children, childIDs)
+	links, err := capability.OfferingHistoryRecordsForChildren(ctx, s.Children, childIDs)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list child offering history: %w", err)
 	}
-	currentLinks, err := readOwnerOfferingBatchSelections(ctx, s.Children, childIDs, selectionDate)
+	currentLinks, err := capability.OfferingSelectionRecordsForChildrenAt(ctx, s.Children, childIDs, selectionDate)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list current child offerings: %w", err)
 	}
@@ -811,8 +846,8 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 	if err != nil {
 		// Map a missing/unreachable phase to the not-found sentinel so the
 		// handler can answer 404 rather than 500. Mirrors phaseService.GetByID,
-		// which collapses every FindByID error to ErrPhaseNotFound.
-		return nil, fmt.Errorf("decision: export load phase %d: %w", phaseID, ErrPhaseNotFound)
+		// which collapses every FindByID error to capability.ErrPhaseNotFound.
+		return nil, fmt.Errorf("decision: export load phase %d: %w", phaseID, capability.ErrPhaseNotFound)
 	}
 
 	reqIDs := make([]int64, 0, len(requests))
@@ -829,7 +864,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		childIDs = append(childIDs, c.ID)
 	}
 
-	links, err := readOwnerOfferingBatchSelections(ctx, s.Children, childIDs, reportOfferingDate(s.todayDate(), phase))
+	links, err := capability.OfferingSelectionRecordsForChildrenAt(ctx, s.Children, childIDs, reportOfferingDate(s.todayDate(), phase))
 	if err != nil {
 		return nil, fmt.Errorf("decision: export load offerings: %w", err)
 	}
@@ -853,7 +888,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 	// public status page. Defensive against an unwired repo.
 	guardiansByRequest := make(map[int64][]*capability.RequestGuardian)
 	if s.Guardians != nil {
-		guardians, gerr := listIntakeGuardiansForRequests(ctx, s.Guardians, reqIDs)
+		guardians, gerr := s.Guardians.RequestGuardians(ctx, reqIDs)
 		if gerr != nil {
 			return nil, fmt.Errorf("decision: export load co-guardians: %w", gerr)
 		}
@@ -938,7 +973,7 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 		childIDs = append(childIDs, child.ID)
 	}
 
-	links, err := readOwnerOfferingBatchHistory(ctx, s.Children, childIDs)
+	links, err := capability.OfferingHistoryRecordsForChildren(ctx, s.Children, childIDs)
 	if err != nil {
 		return nil, fmt.Errorf("decision: export student load offerings: %w", err)
 	}
@@ -1307,13 +1342,10 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	// failure rolls back the decision so a retry can safely enqueue it; the
 	// tenant-scoped idempotency key prevents duplicate rows after retries.
 	if !input.SuppressParentEmail && isParentVisibleDecision(input.Status) {
-		if err := enqueueDecisionNotifications(ctx, decisionNotificationDependencies{
-			requests:   s.Requests,
-			settings:   s.Settings,
-			outbox:     s.OutboxEnqueuer,
-			schools:    s.SchoolRepo,
-			parentsURL: s.ParentsURL,
-		}, request, children, phase, map[int64]struct{}{target.ID: {}}); err != nil {
+		if err := notifyDecisions(ctx, s.Notifications, decisionNotice{
+			Request: request, Children: children, Phase: phase,
+			ImmediateChildIDs: map[int64]struct{}{target.ID: {}}, ParentsURL: s.ParentsURL,
+		}); err != nil {
 			return nil, err
 		}
 	}
@@ -1337,7 +1369,7 @@ func (s *decisionService) validateApprovalOfferingSelection(
 		phase.CareOfferingSelectionMode == capability.PhaseCareOfferingSelectionOptional {
 		return nil
 	}
-	links, err := readOwnerOfferingSelections(
+	links, err := capability.OfferingSelectionRecordsAt(
 		ctx, s.Children,
 		child.ID,
 		timezone.Date(phase.ServiceStartDate),
@@ -2014,7 +2046,7 @@ func (s *decisionService) reconcileExistingStudentCareRenewal(
 	if s.CareWithdrawal == nil {
 		return nil
 	}
-	links, err := readOwnerOfferingSelections(ctx, s.Children, requestChildID, timezone.Date(phase.ServiceStartDate))
+	links, err := capability.OfferingSelectionRecordsAt(ctx, s.Children, requestChildID, timezone.Date(phase.ServiceStartDate))
 	if err != nil {
 		return fmt.Errorf("decision: list renewed care offerings: %w", err)
 	}
@@ -2248,7 +2280,7 @@ func (s *decisionService) linkAdditionalGuardians(
 	if s.Guardians == nil {
 		return nil
 	}
-	extras, err := listIntakeGuardians(ctx, s.Guardians, request.ID)
+	extras, err := s.Guardians.RequestGuardians(ctx, []int64{request.ID})
 	if err != nil {
 		return fmt.Errorf("list additional guardians: %w", err)
 	}
@@ -2429,7 +2461,7 @@ func (s *decisionService) reconcileApprovedChildGuardians(
 	if err := s.linkAdditionalGuardians(ctx, request, studentID); err != nil {
 		return currentProfileIDs, fmt.Errorf("decision: relink additional guardians: %w", err)
 	}
-	current, err := listIntakeGuardians(ctx, s.Guardians, request.ID)
+	current, err := s.Guardians.RequestGuardians(ctx, []int64{request.ID})
 	if err != nil {
 		return currentProfileIDs, fmt.Errorf("decision: list current additional guardians: %w", err)
 	}
@@ -2872,7 +2904,7 @@ func (s *decisionService) applyTargetedFields(
 		return false, fmt.Errorf("load pinned schema for targeted fields: %w", err)
 	}
 	if schema == nil {
-		return false, fmt.Errorf("%w: %d", ErrFormSchemaNotFound, *request.SchemaID)
+		return false, fmt.Errorf("%w: %d", capability.ErrFormSchemaNotFound, *request.SchemaID)
 	}
 	consentBefore := *student
 

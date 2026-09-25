@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 
@@ -150,7 +152,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	studentPhotoService := newStudentPhotos(realtimeHub, nil)
 	users.WirePersonCareParticipation(usersService, careParticipationResolver(careLifecycleService))
 	careplanCompose.WireCareParticipation(careDayService, careLifecycleService)
-	approvedOfferings := enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
+	approvedOfferings := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
 	pickupBaselines, err := careplanCompose.NewPickupBaselines(repos.CarePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
 		return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
@@ -228,7 +230,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		DataAccessLogRepo:         repos.DataAccessLog,
 		OfferingAdjustmentRepo:    repos.EnrollmentOfferingAdjustment,
 		RestorationAuditRepo:      repos.EnrollmentRestorationAudit,
-		SchoolRepo:                enrollmentSchoolDirectory{schools: repos.School},
+		Notifications:             newEnrollmentNotifications(repos.Enrollment(), settingsService, outboxEnqueuer{outbox: emailOutboxService}, enrollmentSchoolDirectory{schools: repos.School}),
 		PersonRepo:                repos.Person,
 		StaffRepo:                 repos.Staff,
 		StudentRepo:               repos.Student,
