@@ -73,6 +73,9 @@ func (s *service) prepareVisitCheckIn(ctx context.Context, visit *studentpresenc
 		if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
 			return err
 		}
+		if err := s.ensureActivityParticipantLimit(ctx, targetGroup, 1); err != nil {
+			return err
+		}
 	}
 
 	// Handle attendance (create new or update on re-entry)
@@ -270,19 +273,28 @@ func (s *service) lockVisitTransferTarget(ctx context.Context, groupID int64) (*
 }
 
 // ensureVisitTransferCapacity checks the target room has space when a visit
-// is reopened, or moved while still open into another room.
+// is reopened, or moved while still open into another room, and that the
+// target activity has space when the visit enters its session (#3632).
 func (s *service) ensureVisitTransferCapacity(ctx context.Context, existing, updated *studentpresence.Visit, targetGroup *ports.ActiveGroup, isReopening bool) error {
 	if isReopening {
-		return s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1)
+		if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
+			return err
+		}
+		return s.ensureActivityParticipantLimit(ctx, targetGroup, 1)
 	}
 	sourceGroup, err := s.GroupRepo.FindByID(ctx, existing.ActiveGroupID)
 	if err != nil || sourceGroup == nil {
 		return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
 	}
-	if updated.ExitTime == nil && sourceGroup.RoomID != targetGroup.RoomID {
-		return s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1)
+	if updated.ExitTime != nil {
+		return nil
 	}
-	return nil
+	if sourceGroup.RoomID != targetGroup.RoomID {
+		if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
+			return err
+		}
+	}
+	return s.ensureActivityParticipantLimit(ctx, targetGroup, 1)
 }
 
 // syncMovedVisitAttendance mirrors a transfer independently of SSE. The

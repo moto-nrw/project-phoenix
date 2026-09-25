@@ -170,6 +170,11 @@ func (s *service) assignStudentsInTransit(ctx context.Context, targetGroup *port
 		if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, incoming); err != nil {
 			return err
 		}
+		// All or nothing: a bulk assignment that does not fit is refused as
+		// a whole instead of assigning the first children that fit.
+		if err := s.ensureActivityParticipantLimit(ctx, targetGroup, incoming); err != nil {
+			return err
+		}
 	}
 
 	for _, studentID := range studentIDs {
