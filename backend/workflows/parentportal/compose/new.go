@@ -81,7 +81,7 @@ type Dependencies struct {
 	StudentAudit        usersSvc.StudentChangeRecorder
 	StudentConsents     care.StudentConsentService
 	StudentPhotos       func() care.StudentPhotoUnlinker
-	ParentRequestEvents usersSvc.ParentRequestEventRecorder
+	ParentRequestEvents usersModels.ParentRequestEventRepository
 	GuardianInvites     care.GuardianAccess
 	GuardianInvitations care.GuardianInvitationReads
 

@@ -13,8 +13,8 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -163,7 +163,7 @@ func (s *Service) submitMasterDataField(ctx context.Context, submission masterDa
 		}
 		return nil, err
 	}
-	if err := usersSvc.RecordParentRequestEvent(ctx, s.ParentRequestEvents, usersSvc.ParentRequestEventInput{
+	if err := RecordRequestEvent(ctx, s.ParentRequestEvents, RequestLedgerEntry{
 		StudentID:      submission.studentID,
 		RequestType:    usersModels.ParentRequestTypeMasterData,
 		RequestID:      row.ID,
@@ -297,8 +297,8 @@ func (s *Service) editMasterDataRequestInTx(
 	if req.Status != usersModels.DataChangeStatusPending {
 		return nil, usersModels.ErrChangeRequestNotPending
 	}
-	if expectedVersion != "" && usersSvc.ParentRequestVersion(req.UpdatedAt) != expectedVersion {
-		return nil, usersSvc.ErrParentRequestStale
+	if expectedVersion != "" && careplan.ParentRequestVersion(req.UpdatedAt) != expectedVersion {
+		return nil, parentrequests.ErrStale
 	}
 	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
 	if err != nil {
@@ -328,7 +328,7 @@ func (s *Service) editMasterDataRequestInTx(
 	if err != nil {
 		return nil, err
 	}
-	if err := usersSvc.RecordParentRequestEvent(ctx, s.ParentRequestEvents, usersSvc.ParentRequestEventInput{
+	if err := RecordRequestEvent(ctx, s.ParentRequestEvents, RequestLedgerEntry{
 		StudentID:      row.StudentID,
 		RequestType:    usersModels.ParentRequestTypeMasterData,
 		RequestID:      row.ID,

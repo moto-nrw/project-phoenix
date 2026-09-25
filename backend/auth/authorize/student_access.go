@@ -88,18 +88,6 @@ func CanDeleteStudent(
 	return CanModifyStudent(ctx, userPermissions, student, userCtx, "delete")
 }
 
-// WritableStudentFilter returns a predicate reporting whether the caller may
-// WRITE a given student, resolving the caller's staff record once so a
-// caller-side loop (e.g. filtering a review queue) does not re-resolve it per
-// student. The predicate is the set form of CanModifyStudent: admin or
-// verified staff → every student; otherwise none.
-func WritableStudentFilter(ctx context.Context, userPermissions []string, userCtx StudentAccessUserContext) func(authorizationStudent) bool {
-	if HasAdminWildcard(userPermissions) || isVerifiedStaff(ctx, userCtx) {
-		return func(student authorizationStudent) bool { return student != nil && student.IsAuthorizationStudent() }
-	}
-	return func(authorizationStudent) bool { return false }
-}
-
 // isVerifiedStaff reports whether the caller has a staff record in the current
 // tenant. Guests and guardians authenticate against the same tenant portal, so
 // the gates check this rather than trusting a permission alone.

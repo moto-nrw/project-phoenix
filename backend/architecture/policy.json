@@ -1820,6 +1820,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/careplan/parentrequests",
+      "owner": "care-plan",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/settings/review",
       "owner": "settings-platform",
       "role": "contract",
@@ -13970,17 +13977,6 @@
       "target_role": "public"
     },
     {
-      "id": "people-directory.behavior-test.communication-support",
-      "description": "Master-data review behavior tests compose the real parent-event emitter through Communication test support.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "module-behavior-test",
-      "target_owner": "communication",
-      "target_role": "test-support"
-    },
-    {
       "id": "inbound-students.adapter-test.communication-support",
       "description": "Student handler tests compose the real guardian wake through Communication test support.",
       "scopes": [
@@ -20936,17 +20932,6 @@
       "source_role": "adapter-test",
       "target_owner": "identity-access",
       "target_role": "http"
-    },
-    {
-      "id": "people-directory.application.care-plan-absence-records",
-      "description": "The parent request coordinator classifies the excused-request sentinels of modules/careplan/absencerecords (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "application",
-      "target_owner": "care-plan",
-      "target_role": "contract"
     },
     {
       "id": "student-presence.e2e-test.care-plan-absence-records",

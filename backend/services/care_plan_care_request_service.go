@@ -125,7 +125,7 @@ type careScheduleRequestService struct {
 	// shareVisibility answers who the parent explicitly shared a request
 	// with; nil means nobody was, so every co-guardian gets the neutral line.
 	shareVisibility parentmessaging.ShareVisibilityResolver
-	events          usersService.ParentRequestEventRecorder
+	events          *parentRequestLedger
 	today           func() timezone.Date
 
 	// requests holds the native request capabilities, bound once at construction.
@@ -168,7 +168,7 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
 	reviewPolicy RequestReviewPolicy,
-	events usersService.ParentRequestEventRecorder,
+	events usersModels.ParentRequestEventRepository,
 	logger *slog.Logger,
 	studentAudit usersService.StudentChangeRecorder,
 	options ...CareRequestOption,
@@ -178,7 +178,7 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	}
 	svc := newCareScheduleRequestService(
 		requestRecords, people, arrival, pickup, userContext,
-		emitter, broadcaster, reviewPolicy, events, logger, studentAudit,
+		emitter, broadcaster, reviewPolicy, newParentRequestLedger(events), logger, studentAudit,
 	)
 	svc.attendance = attendance
 	svc.pickupAutoExcusal = pickupAutoExcusal
@@ -242,7 +242,7 @@ func newCareScheduleRequestService(
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
 	reviewPolicy RequestReviewPolicy,
-	events usersService.ParentRequestEventRecorder,
+	events *parentRequestLedger,
 	logger *slog.Logger,
 	studentAudit usersService.StudentChangeRecorder,
 ) *careScheduleRequestService {
@@ -312,7 +312,7 @@ func (s *careScheduleRequestService) recordCareRequestEvent(
 	actorAccountID int64,
 	payload map[string]any,
 ) error {
-	if err := usersService.RecordParentRequestEvent(ctx, s.events, usersService.ParentRequestEventInput{
+	if err := s.events.Record(ctx, compose.RequestLedgerEntry{
 		StudentID:      req.StudentID,
 		RequestType:    careRequestLedgerType(req),
 		RequestID:      req.ID,

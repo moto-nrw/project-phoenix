@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -25,7 +27,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
@@ -51,8 +52,8 @@ type StudentTestModule struct {
 	OfferingChanges    careplan.OfferingChangeCapability
 	PickupAdjustments  careplan.PickupAdjustments
 	ExcusedRequests    careplan.ExcusedAbsenceRequests
-	MasterDataReview   users.MasterDataReviewService
-	ParentRequests     *users.ParentRequestCoordinator
+	MasterDataReview   masterdatarequests.Decisions
+	ParentRequests     parentrequests.Coordinator
 	OGSGroupLive       grouplive.Query
 	StudentPhotos      users.StudentPhotoService
 	// NewStudentPhotos rebinds the photo lifecycle to the caller's broadcaster
@@ -273,7 +274,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	}))
 	offeringResync = careBookings
 	requestReviewPolicy := NewParentRequestReviewPolicy(userContextService.Caller().ParentRequestReviews)
-	parentRequestEvents := users.NewParentRequestEventRecorder(repos.ParentRequestEvent)
+	parentRequestEvents := repos.ParentRequestEvent
 	careRequestService := NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CarePlan,
 		persons,
@@ -321,28 +322,22 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	masterDataReviewService := users.NewMasterDataReviewServiceWithAuditAndPolicy(authjwt.PermissionsFromCtx,
-		repos.StudentDataChangeRequest,
-		repos.Student,
-		repos.Person,
-		userContextService,
-		pillEmitter,
-		studentAuditService,
-		requestReviewPolicy,
-		parentRequestEvents,
-		logger.With("service", "master-data-review"),
-		realtimeHub,
-	)
-	excusedCoordinatorPort := excusedRequestCoordinatorPort{requests: excusedRequestService}
-	parentRequestCoordinator := users.NewParentRequestCoordinator(authjwt.PermissionsFromCtx,
-		masterDataReviewService.(users.MasterDataBulkReviewPort),
-		excusedCoordinatorPort,
-	)
-	parentRequestCoordinator.SetMasterDataConflictPort(masterDataReviewService.(users.ParentRequestConflictPort))
-	parentRequestCoordinator.SetExcusedConflictPort(excusedCoordinatorPort)
-	parentRequestCoordinator.SetCareConflictPort(careRequestService.(users.ParentRequestConflictPort))
-	parentRequestCoordinator.SetOfferingConflictPort(offeringChangeConflictPort{changes: offeringChanges})
-	parentRequestCoordinator.SetEventRecorder(parentRequestEvents)
+	masterDataDecisions, err := newMasterDataDecisions(masterDataDecisionWiring{
+		carePlan: repos.CarePlan, fields: persons, students: repos.Student, persons: repos.Person,
+		audit: studentAuditService, scope: parentRequestWriteScope(requestReviewPolicy),
+		emitter: pillEmitter, broadcaster: realtimeHub, events: parentRequestEvents,
+		logger: logger.With("service", "master-data-review"),
+	})
+	if err != nil {
+		return StudentTestModule{}, err
+	}
+	parentRequestCoordinator, err := newParentRequestCoordinator(parentRequestCoordinatorWiring{
+		masterData: masterDataDecisions, excused: excusedRequestService, care: careRequestService,
+		offering: offeringChangeConflictPort{changes: offeringChanges}, events: parentRequestEvents,
+	})
+	if err != nil {
+		return StudentTestModule{}, err
+	}
 	scheduleSubstitution, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
 		Deviations: live.Deviations, Staff: repos.Staff, Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
 		ActivityInstances: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
@@ -405,7 +400,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		Schools: repos.School, CareLifecycle: careLifecycleService, StudentAudit: studentAuditService,
 		PartialAbsence: partialAbsenceService, EnrollmentDecision: enrollmentDecisionService, CareRequests: careRequestService,
 		OfferingChanges: offeringChanges, PickupAdjustments: pickupAdjustments, ExcusedRequests: excusedRequestService,
-		MasterDataReview: masterDataReviewService, ParentRequests: parentRequestCoordinator, OGSGroupLive: ogsGroupLiveService,
+		MasterDataReview: masterDataDecisions, ParentRequests: parentRequestCoordinator, OGSGroupLive: ogsGroupLiveService,
 	}, nil
 }
 

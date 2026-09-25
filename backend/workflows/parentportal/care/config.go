@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
@@ -63,7 +64,7 @@ type Config struct {
 	// photo lifecycle, and the parent-request ledger.
 	StudentAudit        usersSvc.StudentChangeRecorder
 	StudentConsents     StudentConsentService
-	ParentRequestEvents usersSvc.ParentRequestEventRecorder
+	ParentRequestEvents usersModels.ParentRequestEventRepository
 	// StudentPhotos resolves the photo lifecycle when a withdrawal needs it.
 	// The API bootstrap builds that service after this one, so the
 	// composition passes a resolver instead of setting it afterwards.

@@ -209,6 +209,33 @@ two consumers that could only reach the adapter and the moved behavior suites
 use the one-time replacement path of
 [ADR 0035](../../docs/adr/0035-care-lifecycle-cutover-replaces-legacy-permissions.md).
 
+#3354 moves the staff side of the parent requests out of `services/users`.
+`users.student_data_change_requests` was always Care Plan's; the decision on a
+Stammdaten request now is too. `internal/application` decides, corrects and
+notifies (the stale-value and invalid-target checks, the correction that
+restores the old value only while the approval's value is still live, the
+co-guardian notice, the ledger entry), `internal/domain` holds the value rules
+(departure plans, JSON baselines), and the contract is
+`masterdatarequests.Decisions` with the sentinels the students routes render.
+The child's record itself stays People Directory's: the decision reaches the
+person and student rows, the "läuft mit" reconciliation and the change
+history through the consumer-owned `MasterDataRecords` port, and the bulk
+facts through People Directory's field review, the same facts the open queue
+shows. The cross-queue commands, bulk approval and conflict resolution, are a
+Care Plan coordinator over the four queues it owns (the contract
+`modules/careplan/parentrequests`, a package the candidate creates, with the
+`parent requests: …` sentinels byte for byte); the care-schedule and offering
+queues contribute through their root adapters, the excused queue through
+Care Plan's own composition. The permission model stays with its owner: the
+root hands the coordinator the caller's rights, evaluated by
+`securityruntime.ParentRequestReviewRights`. The shared ledger
+`users.parent_request_events` stays People Directory's; every queue records
+through its ledger port, the root binds it to the retained repository, and
+the parents portal reads and appends through that repository directly. The
+reads were already native (#3182) and still go through `modules/requestreview`.
+No rule was added: five resolved `services/users` keys and the two rules only
+the deleted coordinator and its tests used are gone.
+
 #2762 cut the execution and the attendance of a block over to Student
 Presence (migration 1.15.415, one release with the caller switch). Timetable
 & Activities keeps the plan in `schedule.activity_instances` and

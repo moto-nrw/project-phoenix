@@ -8,7 +8,6 @@ import (
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // The change requests as these routes speak them: the owner's cases with
@@ -97,8 +96,16 @@ type ChangeRequestService interface {
 	Reject(ctx context.Context, changeRequestID int64, input ReviewChangeRequestInput) (*ChangeRequestAggregate, error)
 	Approve(ctx context.Context, changeRequestID int64, input ReviewChangeRequestInput) (*ChangeRequestAggregate, error)
 	CorrectApprovedChildData(ctx context.Context, input CorrectApprovedChildDataInput) (*ChangeRequestAggregate, error)
-	ListForReview(ctx context.Context, query ChangeRequestReviewQuery) ([]*ChangeRequestReviewRow, *usersService.HistoryCursor, error)
+	ListForReview(ctx context.Context, query ChangeRequestReviewQuery) ([]*ChangeRequestReviewRow, *ChangeRequestReviewCursor, error)
 	CountOpenForReview(ctx context.Context, statuses []string) (int, error)
+}
+
+// ChangeRequestReviewCursor is the keyset position after one page of the
+// review list: the instant the page sorted on and the row id. A nil cursor
+// means the page was the last one.
+type ChangeRequestReviewCursor struct {
+	UpdatedAt time.Time
+	ID        int64
 }
 
 // NewChangeRequestService decodes the owner's change requests for these
@@ -219,7 +226,7 @@ func (s changeRequestService) CorrectApprovedChildData(ctx context.Context, inpu
 	return changeRequestCase(s.owner.CorrectApprovedChildData(ctx, input))
 }
 
-func (s changeRequestService) ListForReview(ctx context.Context, query ChangeRequestReviewQuery) ([]*ChangeRequestReviewRow, *usersService.HistoryCursor, error) {
+func (s changeRequestService) ListForReview(ctx context.Context, query ChangeRequestReviewQuery) ([]*ChangeRequestReviewRow, *ChangeRequestReviewCursor, error) {
 	items, cursor, err := s.owner.ListForReview(ctx, query)
 	if err != nil {
 		return nil, nil, err
@@ -235,9 +242,9 @@ func (s changeRequestService) ListForReview(ctx context.Context, query ChangeReq
 			Children: item.Children, GuardianName: item.GuardianName, ReviewerName: item.ReviewerName,
 		})
 	}
-	var next *usersService.HistoryCursor
+	var next *ChangeRequestReviewCursor
 	if cursor != nil {
-		next = &usersService.HistoryCursor{UpdatedAt: cursor.UpdatedAt, ID: cursor.ID}
+		next = &ChangeRequestReviewCursor{UpdatedAt: cursor.UpdatedAt, ID: cursor.ID}
 	}
 	return rows, next, nil
 }

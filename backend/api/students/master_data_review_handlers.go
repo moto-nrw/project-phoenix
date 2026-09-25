@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // MasterDataChangeRequestResponse is the staff-facing projection of one parent
@@ -30,12 +29,12 @@ type DecideMasterDataChangeRequestBody struct {
 }
 
 var masterDataDecisionErrorRenderer = common.RulesRenderer(parentRequestRules(
-	common.ErrorRule{Target: userService.ErrReviewNotFound, Render: common.ErrorNotFound},
-	common.ErrorRule{Target: userService.ErrReviewForbidden, Render: common.ErrorForbidden},
-	common.ErrorRule{Target: userService.ErrReviewNotPending, Render: conflictWithCode("change_request_not_pending")},
-	common.ErrorRule{Target: userService.ErrReviewStaleValue, Render: conflictWithCode(codeChangeRequestStale)},
-	common.ErrorRule{Target: userService.ErrReviewInvalidTarget, Render: common.ErrorInvalidRequest},
-	common.ErrorRule{Target: userService.ErrReviewInvalidValue, Render: common.ErrorInvalidRequest},
+	common.ErrorRule{Target: masterdatarequests.ErrReviewNotFound, Render: common.ErrorNotFound},
+	common.ErrorRule{Target: masterdatarequests.ErrReviewForbidden, Render: common.ErrorForbidden},
+	common.ErrorRule{Target: masterdatarequests.ErrReviewNotPending, Render: conflictWithCode("change_request_not_pending")},
+	common.ErrorRule{Target: masterdatarequests.ErrReviewStaleValue, Render: conflictWithCode(codeChangeRequestStale)},
+	common.ErrorRule{Target: masterdatarequests.ErrReviewInvalidTarget, Render: common.ErrorInvalidRequest},
+	common.ErrorRule{Target: masterdatarequests.ErrReviewInvalidValue, Render: common.ErrorInvalidRequest},
 ), masterDataDecisionFallback)
 
 // Approving an allowed_departure_modes change rewrites the child's departure
@@ -70,7 +69,7 @@ func (rs *Resource) decideMasterDataChangeRequest(w http.ResponseWriter, r *http
 	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
-	item, err := rs.MasterDataReviewService.Decide(r.Context(), userService.MasterDataReviewDecideInput{
+	item, err := rs.MasterDataReviewService.Decide(r.Context(), masterdatarequests.DecideInput{
 		RequestID:       requestID,
 		Approve:         *body.Approve,
 		Reason:          body.Reason,
@@ -83,14 +82,6 @@ func (rs *Resource) decideMasterDataChangeRequest(w http.ResponseWriter, r *http
 		return
 	}
 
-	request := item.Request
-	response := requestreviewcompose.ToMasterDataChangeRequestResponse(&masterdatarequests.ReviewItem{
-		Request: &masterdatarequests.Request{
-			ID: request.ID, StudentID: request.StudentID, Target: request.Target, FieldKey: request.FieldKey,
-			OldValue: request.OldValue, NewValue: request.NewValue, Status: request.Status,
-			CreatedAt: request.CreatedAt, ReviewedAt: request.ReviewedAt,
-		},
-		FirstName: item.FirstName, LastName: item.LastName,
-	})
+	response := requestreviewcompose.ToMasterDataChangeRequestResponse(item)
 	common.Respond(w, r, http.StatusOK, response, "Decision applied")
 }

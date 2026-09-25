@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // Anmeldungsänderungen in the request module (#2435). The Eltern tab shows all
@@ -256,7 +255,7 @@ func (rs *Resource) listChangeRequestReviewEntries(w http.ResponseWriter, r *htt
 	}
 
 	var items []*ChangeRequestReviewRow
-	var next *usersService.HistoryCursor
+	var next *ChangeRequestReviewCursor
 	txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
 		rows, cursor, listErr := rs.ChangeRequestService.ListForReview(ctx, q)
 		if listErr != nil {
@@ -280,7 +279,7 @@ func (rs *Resource) listChangeRequestReviewEntries(w http.ResponseWriter, r *htt
 	common.Respond(w, r, http.StatusOK, page, "Enrollment change requests retrieved")
 }
 
-func encodeReviewListCursor(cursor *usersService.HistoryCursor) string {
+func encodeReviewListCursor(cursor *ChangeRequestReviewCursor) string {
 	raw, err := json.Marshal(reviewListCursor{Instant: cursor.UpdatedAt, ID: cursor.ID})
 	if err != nil {
 		return ""
