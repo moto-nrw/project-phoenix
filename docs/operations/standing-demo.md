@@ -126,8 +126,12 @@ NFC guards hide device and RFID screens from school admins.
    the private local database. Do not paste the JSON into logs or tickets.
 
 The first run needs `OPERATOR_EMAIL`, `OPERATOR_PASSWORD` and `OGS_DEVICE_PIN`
-from the normal local environment. Staff/admin passwords are generated for
-this school. A restart reads the existing state and does not seed another
+from the normal local environment. `OGS_DEVICE_PIN` must be exactly four
+digits: the seeder writes it into the school's `security.ogs_device_pin`
+setting before the first device request, because device auth checks that
+setting (default 1234) and uses the variable only when the setting is empty.
+The demo process refuses to start with any other shape. Staff/admin passwords
+are generated for this school. A restart reads the existing state and does not seed another
 school. Ctrl+C stops the runner; it does not delete the school.
 
 ### Local public demo
@@ -139,10 +143,12 @@ switch), run a separate worktree in demo mode:
 1. In the worktree's `.env` set `APP_ENV=demo`, `NEXT_PUBLIC_APP_ENV=demo`
    and `DEMO_MAX_ACTIVE_SCHOOLS=20`; the demo routes exist only there.
 2. Start the application with `devbox run dev up`.
-3. Run the demo process with `APP_ENV=development`, because under `demo` it
-   accepts only the Compose host `server`, and point `DEMO_DB_DSN` at the
-   published Postgres port (one line):
-   `CGO_ENABLED=0 devbox run dev backend env APP_ENV=development 'DEMO_DB_DSN=postgres://phoenix_demo@localhost:<POSTGRES_HOST_PORT>/postgres?sslmode=require' go run . demo --url http://localhost:<SERVER_HOST_PORT>`
+3. Run the demo process against the loopback address, because under `demo`
+   it accepts only the Compose host `server` or a loopback IP, and point
+   `DEMO_DB_DSN` at the published Postgres port (one line):
+   `CGO_ENABLED=0 devbox run dev backend env 'DEMO_DB_DSN=postgres://phoenix_demo@localhost:<POSTGRES_HOST_PORT>/postgres?sslmode=require' go run . demo --url http://127.0.0.1:<SERVER_HOST_PORT>`
+   The native server sees this process as a loopback peer, so with
+   `RATE_LIMIT_ENABLED=true` the seed runs unthrottled as on the deployed demo.
 4. Request a demo as the website would:
    `curl -X POST http://localhost:<SERVER_HOST_PORT>/demo/access-requests -H 'Content-Type: application/json' -d '{"email":"test@example.com","school_name":"OGS Test","first_name":"Kim","last_name":"Test","src":"local"}'`
 5. Open the link from the mail in Mailpit (`MAILPIT_HOST_PORT`). The waiting
@@ -182,8 +188,24 @@ only where the current Compose file lists it.
   a person yet; check `docker compose ps` when the demo looks static.
 
 The `:demo` tag is the environment tag, not a separate release stream. The
-sidecar shares the server's network, uses only `http://server:8080`, and
-publishes no ports. No additional SOPS keys are introduced.
+sidecar shares the server's network namespace, calls only
+`http://127.0.0.1:8080`, and publishes no ports. No additional SOPS keys are
+introduced.
+
+- **Rate limits:** one seeded school costs more than a thousand API calls under
+  one account, and its first tick sends a few hundred device calls. Under
+  `APP_ENV=demo` the general and the auth rate limiters therefore let loopback
+  peers through; that is only the sidecar and the server itself. Public
+  traffic reaches the container from Docker's bridge gateway (Caddy on the
+  host via the published port) and always carries `X-Forwarded-For`, so it
+  keeps the configured limits. The exemption applies only to requests without
+  that header, because the server takes the client address from it.
+  `scripts/check-runtime-env.py` pins the sidecar command to the loopback URL.
+- **Device PIN:** `OGS_DEVICE_PIN` in `demo.sops.env` must be exactly four
+  digits (`^\d{4}$`, the pattern of `security.ogs_device_pin`). The seeder
+  writes it into every demo school it creates; a six-digit value stops the
+  demo process at start. Rotate it with `sops set` only; schools seeded
+  earlier keep the PIN they were seeded with.
 
 The sidecar receives only its explicit environment allowlist: environment and
 timezone, maintenance DB DSN and pool settings, operator bootstrap credentials,

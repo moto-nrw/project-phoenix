@@ -205,6 +205,8 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		operatorLoginStep{},
 		bootstrapTenantStep{seeder: seeder},
 		configureProfileStep{definition: seeder.definition},
+		// Before the first step that authenticates as a device.
+		configureDevicePINStep{},
 		seedMasterDataStep{seeder: seeder},
 		seedPlanningDemoStep{},
 		seedStudentStatusVariantsStep{},

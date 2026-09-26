@@ -40,6 +40,11 @@ type demoScheduler struct {
 }
 
 func runDemoSchools(ctx context.Context, schools *backendapi.DemoRuntime, baseURL, heartbeat string, once bool) error {
+	// Every order is seeded with this configuration. A broken one stops the
+	// process here instead of failing each visitor's order in turn.
+	if err := checkDemoProvisioning(demoProvisioningCredentials()); err != nil {
+		return err
+	}
 	adapter := newSeedCommandAdapter(baseURL, false)
 	if err := waitDemoServer(ctx, adapter); err != nil {
 		return err

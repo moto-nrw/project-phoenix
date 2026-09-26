@@ -11,6 +11,12 @@ func TestDemoTargetAllowsOnlyDemoOrLocalInternalServer(t *testing.T) {
 		allowed          bool
 	}{
 		{"demo", "http://server:8080", true},
+		// The deployed sidecar shares the server's network namespace and
+		// calls it on loopback, which the demo's rate limiters exempt.
+		{"demo", "http://127.0.0.1:8080", true},
+		{"demo", "http://[::1]:8080", true},
+		{"demo", "http://host.docker.internal:8080", false},
+		{"demo", "http://172.18.0.1:8080", false},
 		{"local", "http://localhost:8080", true},
 		{"development", "http://127.0.0.1:8080", true},
 		{"demo", "http://localhost:8080", false},

@@ -889,7 +889,7 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL,
 	if err != nil {
 		return nil, err
 	}
-	setupRateLimiting(api.Router, securityLogger, sessionAuth)
+	setupRateLimiting(api.Router, securityLogger, sessionAuth, demoLoopbackExempt())
 	// One verifier serves every route: it only parses the presented token, and
 	// each protected group still rejects through the Authenticator and its
 	// scope gate. A group mounted without it fails closed.
@@ -1118,8 +1118,17 @@ func setupSecurityLogging(router chi.Router) *customMiddleware.SecurityLogger {
 	return securityLogger
 }
 
+// demoLoopbackExempt reports whether the rate limiters let loopback peers
+// through. Only the public demo does: its demo process shares the server
+// container's network namespace and drives more than a thousand API calls per
+// seeded school under one account. Public requests never arrive from
+// loopback (see customMiddleware.RateLimiter.ExemptLoopback).
+func demoLoopbackExempt() bool {
+	return services.IsDemoEnvironment(viper.GetString("app_env"))
+}
+
 // setupRateLimiting configures rate limiting middleware if enabled
-func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger, tokenAuth *projectJWT.TokenAuth) {
+func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger, tokenAuth *projectJWT.TokenAuth, exemptLoopback bool) {
 	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
 		return
 	}
@@ -1138,6 +1147,9 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 	})
 	generalRateLimiter.SetRejectObserver(observability.RecordRateLimitRejection)
 	generalRateLimiter.SetKeyFunc(identityRateLimitKey(tokenAuth))
+	if exemptLoopback {
+		generalRateLimiter.ExemptLoopback()
+	}
 	if securityLogger != nil {
 		generalRateLimiter.SetLogger(securityLogger)
 	}
@@ -1777,8 +1789,8 @@ type authRateLimiters struct {
 
 // buildAuthRateLimiters constructs the stricter auth-endpoint rate limiters
 // from RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE (default 5), wiring the security
-// logger when present.
-func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, configuredLimit string) authRateLimiters {
+// logger when present. exemptLoopback lets loopback peers through (demo only).
+func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, configuredLimit string, exemptLoopback bool) authRateLimiters {
 	authLimit := 5 // default: 5 requests per minute for auth
 	if limit := configuredLimit; limit != "" {
 		if parsed, err := strconv.Atoi(limit); err == nil && parsed > 0 {
@@ -1789,6 +1801,11 @@ func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, conf
 		auth:         customMiddleware.NewRateLimiter(authLimit, 10), // allow reasonable burst for login attempts
 		emailConfirm: customMiddleware.NewRateLimiter(authLimit, 10),
 		invitation:   customMiddleware.NewRateLimiter(authLimit, 10),
+	}
+	if exemptLoopback {
+		limiters.auth.ExemptLoopback()
+		limiters.emailConfirm.ExemptLoopback()
+		limiters.invitation.ExemptLoopback()
 	}
 	if securityLogger != nil {
 		limiters.auth.SetLogger(securityLogger)
@@ -1810,7 +1827,7 @@ func (a *API) registerRoutesWithRateLimiting(requestFeed *requestFeedHTTP.Resour
 	// zero-value limiters carry nil fields and the setters below are skipped.
 	var limiters authRateLimiters
 	if a.rateLimiting {
-		limiters = buildAuthRateLimiters(securityLogger, a.authRateLimit)
+		limiters = buildAuthRateLimiters(securityLogger, a.authRateLimit, demoLoopbackExempt())
 	}
 
 	a.registerPublicRoutes(requestFeed)
