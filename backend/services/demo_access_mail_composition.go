@@ -80,8 +80,10 @@ func (m demoAccessMail) SendDemoAccessLink(ctx context.Context, access identitya
 		Subject:  "Ihr Link zur moto-Demo",
 		Template: email.TemplateDemoAccess,
 		Content: map[string]any{
-			"EntryURL": entryURL,
-			"LogoURL":  m.logoURL,
+			"EntryURL":       entryURL,
+			"LogoURL":        m.logoURL,
+			"MotoLogoURL":    m.logoURL,
+			"PoweredByLabel": "Ihr Team von",
 		},
 	})
 }

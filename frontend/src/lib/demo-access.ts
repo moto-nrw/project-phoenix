@@ -75,8 +75,8 @@ export function demoRoleLabel(role: DemoRole): string {
   return DEMO_ROLES.find((entry) => entry.role === role)?.label ?? role;
 }
 
-export const DEMO_ROLE_CHOICE_TITLE = "Wie möchten Sie moto ansehen?";
-export const DEMO_ROLE_CHOICE_HINT = "Sie können das später oben wechseln.";
+export const DEMO_ROLE_CHOICE_TITLE = "Wie möchten Sie starten?";
+export const DEMO_ROLE_CHOICE_HINT = "Wählen Sie eine Rolle für Ihre Demo.";
 
 /**
  * What a visitor of the public demo sees on the way in.

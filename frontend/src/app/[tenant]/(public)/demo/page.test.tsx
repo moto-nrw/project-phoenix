@@ -143,14 +143,20 @@ describe("DemoEntryPage", () => {
 
     expect(await screen.findByText(DEMO_ROLE_CHOICE_TITLE)).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const cards = screen.getAllByRole("button");
-    expect(cards.map((card) => card.textContent)).toEqual([
-      expect.stringContaining("Betreuungskraft"),
-      expect.stringContaining("OGS-Leitung"),
-      expect.stringContaining("Elternteil"),
-      expect.stringContaining("Alle Funktionen"),
-    ]);
-    fireEvent.click(screen.getByRole("button", { name: /OGS-Leitung/ }));
+    expect(screen.getAllByRole("radio")).toHaveLength(4);
+    const start = screen.getByRole("button", { name: "Demo starten" });
+    expect(start).toBeDisabled();
+    fireEvent.click(screen.getByRole("radio", { name: "Betreuungskraft" }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(signIn).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("radio", { name: "OGS-Leitung" }));
+    expect(
+      screen.getByRole("radio", { name: "Betreuungskraft" }),
+    ).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: "OGS-Leitung" })).toBeChecked();
+    expect(start).toBeEnabled();
+    fireEvent.click(start);
 
     await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
     const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
@@ -230,7 +236,9 @@ describe("DemoEntryPage", () => {
     open("#token=secret-token");
 
     expect(await screen.findByText(DEMO_ROLE_CHOICE_TITLE)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Elternteil/ }));
+    fireEvent.click(screen.getByRole("radio", { name: "Elternteil" }));
+    expect(assign).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Demo starten" }));
 
     await waitFor(() =>
       expect(assign).toHaveBeenCalledWith(

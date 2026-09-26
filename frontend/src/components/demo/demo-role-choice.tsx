@@ -1,6 +1,10 @@
+"use client";
+
+import { useState } from "react";
 import { DemoShell } from "~/components/demo/demo-shell";
+import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
-import { SectionCard } from "~/components/ui/section-card";
+import { Radio } from "~/components/ui/radio";
 import {
   DEMO_ROLE_CHOICE_HINT,
   DEMO_ROLE_CHOICE_TITLE,
@@ -8,39 +12,72 @@ import {
   type DemoRole,
 } from "~/lib/demo-access";
 
-// Role cards of the demo entry page (#3467). A link from the website or a
-// fair QR code usually brings a role; a link without one asks here.
 export function DemoRoleChoice({
   onChoose,
 }: {
   readonly onChoose: (role: DemoRole) => void;
 }) {
+  const [selectedRole, setSelectedRole] = useState<DemoRole | null>(null);
   return (
-    <DemoShell>
-      <SectionCard
-        headingLevel={1}
-        title={DEMO_ROLE_CHOICE_TITLE}
-        description={DEMO_ROLE_CHOICE_HINT}
-        className="w-full max-w-md"
+    <DemoShell
+      title={DEMO_ROLE_CHOICE_TITLE}
+      description={DEMO_ROLE_CHOICE_HINT}
+    >
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (selectedRole) onChoose(selectedRole);
+        }}
       >
-        <div className="flex flex-col gap-3">
+        <fieldset className="flex min-w-0 flex-col gap-3">
+          <legend className="sr-only">Rolle für die Demo</legend>
           {DEMO_ROLES.map((entry) => (
             <ChoiceTile
               key={entry.role}
-              as="button"
-              className="flex-col items-start gap-1 p-4"
-              onClick={() => onChoose(entry.role)}
+              as="label"
+              selected={selectedRole === entry.role}
+              className="gap-3 p-4 focus-within:ring-0"
             >
-              <span className="text-base font-semibold text-gray-900">
-                {entry.label}
-              </span>
-              <span className="font-normal text-gray-600">
-                {entry.description}
+              <Radio
+                name="demo-role"
+                value={entry.role}
+                checked={selectedRole === entry.role}
+                onChange={() => setSelectedRole(entry.role)}
+                aria-labelledby={`demo-role-${entry.role}-label`}
+                aria-describedby={`demo-role-${entry.role}-description`}
+                required
+              />
+              <span className="min-w-0 space-y-1">
+                <span
+                  id={`demo-role-${entry.role}-label`}
+                  className="block text-sm font-semibold text-gray-900"
+                >
+                  {entry.label}
+                </span>
+                <span
+                  id={`demo-role-${entry.role}-description`}
+                  className="block text-sm leading-5 font-normal text-gray-600"
+                >
+                  {entry.description}
+                </span>
               </span>
             </ChoiceTile>
           ))}
+        </fieldset>
+        <div className="mt-6 space-y-3">
+          <Button
+            type="submit"
+            size="md"
+            className="h-10 w-full font-semibold shadow-sm hover:shadow-sm"
+            disabled={!selectedRole}
+          >
+            Demo starten
+          </Button>
+          <p className="text-center text-xs leading-5 text-gray-500">
+            Sie können die Rolle später wechseln.
+          </p>
         </div>
-      </SectionCard>
+      </form>
     </DemoShell>
   );
 }

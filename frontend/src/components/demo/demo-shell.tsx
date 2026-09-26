@@ -15,29 +15,62 @@ import {
   DEMO_WEBSITE_URL,
 } from "~/lib/demo-access";
 
-// Page frame of every public demo screen (opening, setup lines, role cards,
-// problems): the dotted app background with the moto mark above the card, as
-// on the 404 page, so the demo opens in the look of the app. Below the card
-// the visitor reads that the demo is recorded (#3603).
-export function DemoShell({ children }: { readonly children: ReactNode }) {
+// A titled demo screen groups its header, content and privacy notice in one card.
+export function DemoShell({
+  children,
+  title,
+  description,
+}: {
+  readonly children: ReactNode;
+  readonly title?: string;
+  readonly description?: string;
+}) {
+  const Container = title ? SectionCard : "div";
   return (
     <main className="moto-dotted-background moto-dotted-background--fullscreen flex min-h-dvh flex-col items-center justify-center px-4 py-10">
       {/* `relative` lifts the content above the pattern's ::before layer. */}
-      <div className="relative flex w-full max-w-md flex-col items-center gap-8">
-        <MotoBrand />
+      <Container
+        className={`relative w-full ${title ? "max-w-lg" : "flex max-w-md flex-col items-center gap-8"}`}
+        {...(title
+          ? {
+              bodyClassName: "flex flex-col gap-6",
+              overflow: "visible" as const,
+            }
+          : {})}
+      >
+        {title && (
+          <span className="border-moto-green/45 bg-moto-demo-green-soft text-moto-demo-green-strong absolute -top-4 right-5 rotate-3 rounded-full border px-4 py-2 text-xs font-semibold shadow-[0_3px_18px_rgba(131,205,45,0.18)] sm:right-7 sm:text-sm">
+            Demo
+          </span>
+        )}
+        <header className="space-y-5 text-center">
+          <MotoBrand />
+          {title && (
+            <div className="space-y-2">
+              <h1 className="text-2xl font-semibold tracking-tight text-gray-950">
+                {title}
+              </h1>
+              {description && (
+                <p className="text-sm leading-6 text-gray-600">{description}</p>
+              )}
+            </div>
+          )}
+        </header>
         {children}
-        <p className="text-center text-xs leading-5 text-gray-500">
-          {DEMO_RECORDING_NOTICE}{" "}
-          <a
-            href={DEMO_PRIVACY_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline underline-offset-2 hover:text-gray-700"
-          >
-            {DEMO_RECORDING_PRIVACY_LINK}
-          </a>
-        </p>
-      </div>
+        <footer className={title ? "border-t border-gray-200 pt-5" : undefined}>
+          <p className="text-center text-xs leading-5 text-gray-500">
+            {DEMO_RECORDING_NOTICE}{" "}
+            <a
+              href={DEMO_PRIVACY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-gray-700"
+            >
+              {DEMO_RECORDING_PRIVACY_LINK}
+            </a>
+          </p>
+        </footer>
+      </Container>
     </main>
   );
 }

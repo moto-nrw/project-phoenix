@@ -29,12 +29,17 @@ func TestDemoAccessMailRenders(t *testing.T) {
 	entryURL := "https://messe-demo.demo.example/demo#token=abc123"
 	html, text := renderDemoMail(t, "demo-access.html", map[string]any{
 		"PersonName": "Kim Beispiel", "EntryURL": entryURL, "LogoURL": "https://demo.example/logo.png",
+		"MotoLogoURL": "https://demo.example/logo.png", "PoweredByLabel": "Ihr Team von",
 	})
 	assert.Contains(t, html, `href="`+entryURL+`">Demo öffnen</a>`)
+	assert.Contains(t, html, `<img src="https://demo.example/logo.png" alt="moto" />`)
+	assert.NotContains(t, html, "<strong>moto</strong>")
 	// The text part has no button: the address stands alone on its line.
 	assert.Contains(t, text, entryURL+"\r\n")
 	assert.NotContains(t, text, entryURL+" ")
 	for _, part := range []string{html, text} {
+		assert.Contains(t, part, "Ihr Team von")
+		assert.NotContains(t, part, "Unterstützt von")
 		assert.Contains(t, part, "Guten Tag,")
 		assert.NotContains(t, part, "Kim Beispiel", "nothing the public form carried reaches the mail")
 		assert.Contains(t, part, "14 Tage gültig")
