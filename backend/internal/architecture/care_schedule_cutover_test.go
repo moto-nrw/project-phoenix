@@ -17,8 +17,10 @@ func careScheduleCutoverPolicy(t *testing.T) *Policy {
 		t.Fatal(err)
 	}
 	p.PolicyEpoch = 17
-	if !slices.ContainsFunc(p.Owners, func(owner Owner) bool { return owner.ID == "inbound-schedules" }) {
-		p.Owners = append(p.Owners, Owner{ID: "inbound-schedules", Kind: "inbound"})
+	for _, retired := range []string{"inbound-schedules", "inbound-students"} {
+		if !slices.ContainsFunc(p.Owners, func(owner Owner) bool { return owner.ID == retired }) {
+			p.Owners = append(p.Owners, Owner{ID: retired, Kind: "inbound"})
+		}
 	}
 	p.Packages = []Package{
 		{Path: "api/students", Owner: "inbound-students", Role: "http", InternalTestRole: "adapter-test", ExternalTestRole: "adapter-test"},

@@ -1,55 +1,19 @@
 package users
 
 import (
-	"errors"
-	"sort"
-	"strconv"
-	"strings"
-
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 )
 
-// Sentinel errors for companion links ("läuft mit", Laufgemeinschaft).
+// Sentinel errors for companion links ("läuft mit", Laufgemeinschaft). People
+// Directory's departure contract owns them; these names are the same values,
+// so every errors.Is call site keeps matching whichever package it names.
 var (
-	// ErrCompanionSelfLink is returned when a child is linked to itself.
-	ErrCompanionSelfLink = errors.New("a child cannot be its own departure companion")
-
-	// ErrCompanionInvalidWeekday is returned for a weekday outside Mon..Fri.
-	ErrCompanionInvalidWeekday = errors.New("companion weekday must be one of mon/tue/wed/thu/fri")
-
-	// ErrCompanionStudentIDRequired is returned when an edge is built without a
-	// usable child id on one end — which is what a missing or non-positive
-	// companion_student_id in the request body decodes to. A sentinel, not a
-	// fresh error: the handler's error table maps it to a 400, whereas an
-	// untyped error would leak malformed client input as a 500.
-	ErrCompanionStudentIDRequired = errors.New("Bitte ein Kind für die Laufgemeinschaft auswählen.") //nolint:staticcheck // user-facing German message
-
-	// ErrCompanionWouldLoseDeparture indicates that removing a link would leave
-	// the OTHER child with an accompanied ("Anderes Kind") departure plan and no
-	// remaining detail — neither another link nor a free-text note. Refused
-	// rather than silently narrowing that child's plan: one child's edit must
-	// never change another child's departure permissions, and leaving the
-	// contradiction in place would block every later edit of that child.
-	//
-	// Lives in the model layer (not services/users) because the repository's
-	// shared departure-plan write path enforces the same invariant for callers
-	// that bypass the student service (enrollment approval, imports); the
-	// services package re-exports it so existing errors.Is call sites keep
-	// matching the same instance.
-	ErrCompanionWouldLoseDeparture = errors.New("Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.") //nolint:staticcheck // ST1005: user-facing German message
-
-	// ErrCompanionLockBusy indicates that a linked child's row is currently
-	// locked by another transaction that this one may NOT wait for without
-	// risking a deadlock — the companion graph is discovered while locks are
-	// already held, so an id below the ones we hold has to be taken without
-	// waiting (see the lock protocol on StudentRepository.lockCompanionFarEnds
-	// and api/students lockStudentCompanionGraph).
-	//
-	// It is a transient, retriable conflict, not a data problem: the same
-	// request succeeds once the other edit commits. Mapped to 409 so the client
-	// can say "please try again" instead of showing a 500 for a legitimate edit.
-	ErrCompanionLockBusy = errors.New("Ein verknüpftes Kind wird gerade an anderer Stelle bearbeitet. Bitte in einem Moment erneut speichern.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCompanionSelfLink           = departure.ErrCompanionSelfLink
+	ErrCompanionInvalidWeekday     = departure.ErrCompanionInvalidWeekday
+	ErrCompanionStudentIDRequired  = departure.ErrCompanionStudentIDRequired
+	ErrCompanionWouldLoseDeparture = departure.ErrCompanionWouldLoseDeparture
+	ErrCompanionLockBusy           = departure.ErrCompanionLockBusy
 )
 
 // CompanionWeekdayNumbers maps the weekday keys used across the departure model
@@ -152,55 +116,3 @@ type CompanionLink = departure.CompanionLink
 // CompanionWeekdayShortLabels are the German two-letter weekday labels of the
 // offline lists; People Directory's departure contract owns them.
 var CompanionWeekdayShortLabels = departure.CompanionWeekdayShortLabels
-
-// FormatCompanionLinks renders the "läuft mit" links for the offline lists; see
-// departure.FormatCompanionLinks.
-func FormatCompanionLinks(links []CompanionLink) string { return departure.FormatCompanionLinks(links) }
-
-// CompanionDaysFromLinks folds a link list into the per-weekday cover set
-// Student.DepartureCompanionDays expects: the days on which the child has a
-// structured "mit wem" answer.
-func CompanionDaysFromLinks(links []CompanionLink) map[string]bool {
-	days := make(map[string]bool, len(PickupDayOrder))
-	for _, link := range links {
-		for _, day := range link.Weekdays {
-			days[day] = true
-		}
-	}
-	return days
-}
-
-// CompanionLinksFingerprint is an order-independent fingerprint of a companion
-// list: the state a client read, in one comparable string.
-//
-// It exists because the submitted list REPLACES the stored one. Two staff
-// members editing the same child from the same snapshot both send a complete
-// list, and the row locks only decide who writes first — the second write would
-// otherwise delete the links the first one just committed, with nothing in the
-// data to notice it. The client echoes the fingerprint of the list it loaded
-// and the write path compares it against the stored links while holding the
-// subject's row lock (see validateCompanionUpdate).
-//
-// The format is MIRRORED by companionsFingerprint() in
-// frontend/src/lib/student-companion-api.ts, which the forms already use for
-// their dirty check — "<id>:<mon,tue,…>" per link, links sorted as strings and
-// joined with "|". Both sides build it from the same wire data, so the strings
-// match byte for byte; change one and you must change the other.
-func CompanionLinksFingerprint(links []CompanionLink) string {
-	entries := make([]string, 0, len(links))
-	for _, link := range links {
-		requested := make(map[string]bool, len(link.Weekdays))
-		for _, day := range link.Weekdays {
-			requested[day] = true
-		}
-		days := make([]string, 0, len(PickupDayOrder))
-		for _, day := range PickupDayOrder {
-			if requested[day] {
-				days = append(days, day)
-			}
-		}
-		entries = append(entries, strconv.FormatInt(link.CompanionStudentID, 10)+":"+strings.Join(days, ","))
-	}
-	sort.Strings(entries)
-	return strings.Join(entries, "|")
-}

@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 25.09.2026 · Ratchet 444 · Composition 604 · Policy-Epoche 31 · 4 Regeln mit
+Stand 25.09.2026 · Ratchet 402 · Composition 603 · Policy-Epoche 31 · 4 Regeln mit
 `convert it to exact debt` · 20.013 LOC unter `modules/*/legacy`
 
-Summenprobe: 173 + 27 + 4 + 37 + 27 + 19 + 157 = 444 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 169 + 27 + 4 + 0 + 27 + 19 + 156 = 402 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -16,13 +16,13 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [x] [#3414](https://github.com/moto-nrw/project-phoenix/issues/3414) Projection-Owner `operator-dashboard-view` bleibt (ADR 0033)
 - [ ] Gehört der Träger-Strang [#2809](https://github.com/moto-nrw/project-phoenix/issues/2809) / [#2821](https://github.com/moto-nrw/project-phoenix/issues/2821) zu #2580?
 
-## Jetzt vergebbar · 173 Keys
+## Jetzt vergebbar · 169 Keys
 
 - [ ] [#2733](https://github.com/moto-nrw/project-phoenix/issues/2733) services/enrollment, repositories/enrollment — 0 (`database/repositories/enrollment` gelöscht, 7 Keys weg; die `services/enrollment`-Keys fallen über #3558 bis #3565; #3559 hat den Care-Offering-Katalog nach `modules/careplan` verschoben, ohne Key; #3560 die Buchungs-Materialisierung, zwei erledigte Keys entfernt; #3561 die Angebotswechsel-, Kurs- und Abholzeit-Reviews, vier erledigte Keys entfernt, darunter `crypto/subtle`, `legacy/jwt` und `services/parentmessaging`; #3562 Phasen, Formulare, Captcha und Eltern-Mails nach `modules/enrollment/internal/application`, sechs erledigte Keys entfernt, darunter `email`, `pgdriver` und `net/http`, Policy-Epoche 30 → 31, Kompositionsregel per ADR 0041; #3563 Klassentag, Aufsichtsblatt und Ankunftsausnahmen nach `modules/classday`, Care-Usage- und Klassenlisten-Reports nach `modules/enrollment`, sechs erledigte Keys entfernt, darunter `internal/collation`, `internal/sliceutil` und `models/education`, acht verwaiste Regeln gelöscht, ohne neue Regel; #3564 Entscheidung, Wiederherstellung, Rollover, Löschung und Aufbewahrungs-Cleanup nach `modules/enrollment`, acht erledigte Keys entfernt, darunter `models/audit`, `models/base`, `models/schedule`, `realtime`, `services/import` und `bun.DB.RunInTx`, ohne neue Regel; #3565 Intake und Änderungsanträge nach `modules/enrollment`, `services/enrollment` gelöscht, die letzten 45 Keys entfernt, 14 verwaiste Regeln gelöscht, ohne neue Regel)
 - [ ] [#2742](https://github.com/moto-nrw/project-phoenix/issues/2742) services/education, repositories/education, api/groups, api/admin — 63
 - [ ] [#2728](https://github.com/moto-nrw/project-phoenix/issues/2728) services/users — 37 (#3354: fünf erledigte Keys entfernt, darunter `cmp`, `realtime` und `services/parentmessaging`)
-- [ ] [#2734](https://github.com/moto-nrw/project-phoenix/issues/2734) api/enrollment — 27 (#3564: `models/audit` in Produktion und internen Tests entfernt; #3565: `services/enrollment` in Produktion und Tests entfernt)
-- [ ] [#2738](https://github.com/moto-nrw/project-phoenix/issues/2738) api/common — 23
+- [ ] [#2734](https://github.com/moto-nrw/project-phoenix/issues/2734) api/enrollment — 26 (#2731: `api/students` entfernt, die Companion-Codes kommen aus `api/common`; #3564: `models/audit` in Produktion und internen Tests entfernt; #3565: `services/enrollment` in Produktion und Tests entfernt)
+- [ ] [#2738](https://github.com/moto-nrw/project-phoenix/issues/2738) api/common — 20 (#2731: die Listen-Snapshot-Hilfe zog mit den Schülerrouten um, drei Modell-Keys weg)
 - [ ] [#2727](https://github.com/moto-nrw/project-phoenix/issues/2727) database/repositories/users — 14
 - [ ] [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) models/users — 9
 
@@ -42,14 +42,14 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#3416](https://github.com/moto-nrw/project-phoenix/issues/3416) `issue`-Feld an Policy-Regeln und `rules.stale`
 - [ ] [#3423](https://github.com/moto-nrw/project-phoenix/issues/3423) Die acht neuen Quality-Ratchets auf null fahren
 
-## api/students · 37 Keys
+## api/students · 0 Keys
 
 - [x] [#3351](https://github.com/moto-nrw/project-phoenix/issues/3351) `modules/careplan/legacy/careschedule` auflösen — 9.561 LOC (nativ in Care Plan, ADR 0030)
 - [x] [#3352](https://github.com/moto-nrw/project-phoenix/issues/3352) Status-Tage und Präsenz-Reads → `modules/studentpresence` — die 16 Produktionsdateien hängen seit #3422 am öffentlichen Vertrag (`StatusDays`, `StatusDayOverviews`, `StudentHistory`); `api/students` bindet die Präsenz jetzt über den eigenen Port `StudentPresence` statt der ganzen `Presence`-Komposition, 0 Keys, keine Regel geändert
-- [ ] [#3353](https://github.com/moto-nrw/project-phoenix/issues/3353) Offering-Change- und Pickup-Entscheidungen → Owner-Commands
+- [x] [#3353](https://github.com/moto-nrw/project-phoenix/issues/3353) Offering-Change- und Pickup-Entscheidungen → Owner-Commands
 - [x] [#3354](https://github.com/moto-nrw/project-phoenix/issues/3354) Stammdaten- und Elternantrags-Reviews → Owner-Module — Entscheidung, Korrektur, Mitsorgeberechtigten-Hinweis und Ledger der Stammdaten-Anfragen nativ in `modules/careplan` (`masterdatarequests.Decisions`), Sammelfreigabe und Konfliktauflösung als Care-Plan-Koordinator über alle vier Queues (`parentrequests.Coordinator`, neues Contract-Paket ohne neue Regel), acht Dateien aus `services/users` gelöscht, 5 Keys weniger (468 → 463), 2 verwaiste Regeln gelöscht, Composition 607 → 604
 - [x] [#3356](https://github.com/moto-nrw/project-phoenix/issues/3356) Settings-, Listenexport-, Messaging-, IoT-, Aktivitäts- und Schulstruktur-Kanten — `api/students` liest Settings, weckt Sorgeberechtigte, liest Gruppen und Anmeldungen und stößt den Regeltermin-Resync über eigene Ports an (`TenantSettings`, `GuardianWake`, `SchoolGroups`, `ActiveEnrollments`, `OfferingSourceResyncer`), die Root bindet die Owner; die vier Exporte füllen den neuen Document-Rendering-Vertrag `modules/documentrendering/lists` (drei Regeln am neuen Contract-Punkt); Audit-Vokabular und Sweep-Batchgröße (`careplan.StudentDocumentSweepBatchSize`) ohne `models/*`; 19 Keys weniger (463 → 444), Composition 604 → 604
-- [ ] [#2731](https://github.com/moto-nrw/project-phoenix/issues/2731) Carrier — 37
+- [x] [#2731](https://github.com/moto-nrw/project-phoenix/issues/2731) Carrier geschlossen — `api/students` Datei für Datei nach `modules/peopledirectory/inbound/students` (`people-directory`/`http`), Owner `inbound-students` gelöscht; Schülerzeilen über die People-Directory-Capability, Personen-Schreibpfade über den Port `PersonRecords` (`services.NewStudentRoutePersons`); alle 37 Keys plus `api -> api/students` (#2750) und `api/enrollment -> api/students` (#2734) weg, dazu drei `api/common`-Keys (#2738) mit dem umgezogenen Listen-Snapshot (444 → 402), Composition 604 → 603; die File-Storage-Ausnahme bleibt, jetzt unter #2706
 
 ## Identity · 4 Keys
 
@@ -90,11 +90,11 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Spur A · 19 Keys
 
-- [ ] [#2706](https://github.com/moto-nrw/project-phoenix/issues/2706) Dokument-Rendering — 19, blockiert durch #2727, #2729, #2731
+- [ ] [#2706](https://github.com/moto-nrw/project-phoenix/issues/2706) Dokument-Rendering — 19, blockiert durch #2727, #2729
 
-## Endkette · 157 Keys
+## Endkette · 156 Keys
 
-- [ ] [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) root api, cmd, main composition — 65
+- [ ] [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) root api, cmd, main composition — 64 (#2731: `api -> api/students` entfernt)
 - [ ] [#2748](https://github.com/moto-nrw/project-phoenix/issues/2748) shared test und E2E composition — 40 (Schnitt 1: `internal/testdb` ohne `crypto`, E2E ohne `jwt`, `tenant`, `auth/device`, `models/users`, `models/audit`; Epoche 24 gewährt dem Fixture-Owner per ADR 0039 eigenes Werkzeug, `tenant-runtime/public`, `legacy-shared/domain` und `security-runtime/contract`; die restlichen Keys zeigen auf Pakete, die andere Carrier auflösen: `models/*` #2729/#2742/#2733, `services/users` #2728, `database/repositories/*` #2727, Settings, Root-Composition #2747/#2750, Stundenplan-Zeilen #3424 — keine Regel dafür)
 - [ ] [#2743](https://github.com/moto-nrw/project-phoenix/issues/2743) repository Factory — 17
 - [ ] [#2747](https://github.com/moto-nrw/project-phoenix/issues/2747) service Factory — 31

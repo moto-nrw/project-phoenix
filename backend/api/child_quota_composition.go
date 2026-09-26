@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/api/students"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 

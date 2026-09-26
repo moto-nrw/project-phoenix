@@ -6,6 +6,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
+// HistoryInstanceCancelled is the status of a history slot whose block
+// occurrence was cancelled; its bookings survive the cancellation.
+const HistoryInstanceCancelled = "cancelled"
+
 type HistorySlot struct {
 	Instance   *HistorySlotInstance
 	Attendance *HistorySlotAttendance

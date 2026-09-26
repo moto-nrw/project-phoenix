@@ -1,0 +1,175 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2662",
+    "#2663",
+    "#2668",
+    "#2679",
+    "#2680",
+    "#2681",
+    "#2682",
+    "#2691",
+    "#2701",
+    "#2705",
+    "#2709",
+    "#2710",
+    "#2711",
+    "#3349",
+    "#3350",
+    "#3351",
+    "#3352",
+    "#3353",
+    "#3354",
+    "#3355",
+    "#3356"
+  ],
+  "owner_and_capability": "People Directory — the student routes as the owner's HTTP adapter (modules/peopledirectory/inbound/students), contract step for #2731: api/students moves file for file to a new people-directory/http point and reaches other owners only through public contracts and consumer-owned ports",
+  "affected_packages": [
+    "api/students",
+    "modules/peopledirectory/inbound/students",
+    "modules/peopledirectory/departure",
+    "models/users",
+    "modules/securityruntime",
+    "modules/devicefleet/deviceauth",
+    "modules/careplan/carerequests",
+    "modules/studentpresence",
+    "api/common",
+    "api",
+    "api/enrollment",
+    "api/testutil",
+    "services",
+    "database/repositories",
+    "test"
+  ],
+  "affected_tables": [
+    "users.students",
+    "users.persons",
+    "users.student_companions",
+    "audit.student_field_edits",
+    "audit.student_consent_changes"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/models/education",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/models/users",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/api/common",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/database/repositories",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/enrollment",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/iot",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/schedule",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/users",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/services/users",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/api/common",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/database/repositories",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/internal/strutil",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/base",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/schedule",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/users",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/services/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/common|github.com/moto-nrw/project-phoenix/models/education",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/enrollment|github.com/moto-nrw/project-phoenix/api/students",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|cmp",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|database/sql",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/api/common",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/api/iot/data",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/auth/authorize",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/auth/authorize/permissions",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/auth/device",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/internal/collation",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/internal/schoolclass",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/internal/strutil",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/schedule",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/realtime",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/services/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/uptrace/bun",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/api/students"
+  ],
+  "atomic_cutover": "One code-only change: the files of api/students move file for file to modules/peopledirectory/inbound/students (package students), classified people-directory/http, and the inbound-students owner is deleted with its package entry; its rules move to the new point. The routes read and write a child through the People Directory capability, carried as the routes' own Student view over peopledirectory.StudentRecord with the translation the retained database/repositories seams applied. The change history, the photo lifecycle and the consent projection are ports in the owner's types bound to the capability; the person writes, the student-aware bracelet assignment, the dated day-log roster and the staff lookup are the PersonRecords port, which services.NewStudentRoutePersons binds over the retained person service. bun and database/sql leave the package (tenant.WithinTenant, Device Fleet DeviceID), auth/authorize becomes the Security Runtime capability, and the companion sentinels and link helpers move to the departure contract with models/users aliasing them. The route suites compose the owner through services/student_http_test_helpers.go behind api/testutil.",
+  "tests": [
+    "modules/peopledirectory/inbound/students: every route suite of the former api/students package (1,501 tests), now composed through services/student_http_test_helpers.go behind api/testutil against the isolated PostgreSQL test database, including the query-budget tests of the student list, the care withdrawals and the OGS group live projection.",
+    "api TestFullProductionRouterGolden: route table and middleware table unchanged.",
+    "go test ./test (ratchets, hermetic and module checks) and go test ./internal/architecture, scripts/test-changed.sh origin/development without --fast, golangci-lint on the affected packages.",
+    "scripts/backend-architecture.sh check with exactly the listed keys absent from legacy.jsonl and none added; scripts/backend-architecture.sh validate-ticket --all."
+  ],
+  "runtime_evidence": {
+    "source": "Local runs on the #2731 branch (work/2731-contract-legacy-architecture-edges-from-api-stud) on 2026-09-25 against the local postgres-test server.",
+    "sources": [
+      "backend/modules/peopledirectory/inbound/students/routes.go",
+      "backend/modules/peopledirectory/inbound/students/student_record.go",
+      "backend/services/student_route_persons.go",
+      "backend/services/student_http_test_helpers.go",
+      "backend/api/testdata/route_table.golden",
+      "backend/test/query_budgets.go"
+    ],
+    "workload": "No load run. Go suites through scripts/run-go-toolchain.sh and scripts/test-changed.sh origin/development against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "Code-only contract: every affected suite passes, the route and middleware goldens and the query-budget register stay unchanged, and scripts/backend-architecture.sh check passes with exactly the listed keys removed, no key added and a composition surface that does not grow.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "The move relocates the HTTP adapter and replaces imports by public contracts and ports; the routes issue the same writes through the same owner capabilities."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The query-budget tests of the student list, the care withdrawals and the OGS group live projection passed against test/query_budgets.go, whose register this change leaves untouched."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #2731 names zero old callers and zero listed keys as the gate for a code-only contract, and the routes call the same owner capabilities."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #2731 names zero old callers and zero listed keys as the gate for a code-only contract, and the routes call the same owner capabilities."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed with 402 remaining keys and a composition surface of 604 -> 603; golangci-lint on the affected packages reported 0 issues; scripts/test-changed.sh origin/development reported all 172 affected packages ok."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection acquisition or pool setting changed; the handler transactions join the request's tenant transaction as before (tenant.WithinTenant instead of the generic WithTenantTx wrapper that ignored its database argument)."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "The advisory gates and row locks of the student writes are taken in the same order through the owner's commands, so no lock behaviour can differ."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No statement or transaction boundary changed, so no lock ordering can differ."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The student routes have no worker or scheduler path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The student routes have no worker or scheduler path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The student routes have no worker or scheduler path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The update rollback on a refused PUT, the graduation race of the delete, the not-found shapes of the locked reads and the status-day refusals keep their responses in the route suites."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data write path or schema change. Reverting the change restores api/students, its owner entry, rules and baseline entries."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "go build ./... passed and TestFullProductionRouterGolden mounted the production router with an unchanged route and middleware table. No manual application start or HTTP smoke run was made."
+    }
+  },
+  "rollback_and_cleanup": "Revert the code-only change if a hidden caller appears. No table, migration or configuration is touched, and nothing remains to clean up.",
+  "exit_criterion": "api/students no longer exists; modules/peopledirectory/inbound/students compiles through public contracts and consumer-owned ports only; every listed key is absent from legacy.jsonl; scripts/backend-architecture.sh check passes with no key added, no temporary policy rule added and no ownership of a data object changed."
+}

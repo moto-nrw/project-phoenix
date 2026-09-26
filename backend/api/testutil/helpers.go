@@ -574,6 +574,12 @@ func NewDeviceAuthenticators(
 	})
 }
 
+// AuthenticatedDeviceID reads the kiosk the device authenticator admitted on
+// a request, as production binds it for routes that attribute the kiosk.
+func AuthenticatedDeviceID(ctx context.Context) (string, bool) {
+	return deviceauth.DeviceID(ctx)
+}
+
 // DevicePrincipal converts a device row into the principal the device auth
 // middleware binds to a request, so handler tests see exactly what
 // production handlers see. It never copies the API key.
