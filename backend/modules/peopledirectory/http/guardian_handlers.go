@@ -964,7 +964,7 @@ func (rs *GuardianResource) addPhoneNumber(w http.ResponseWriter, r *http.Reques
 		PhoneNumber: req.PhoneNumber, PhoneType: req.PhoneType, Label: req.Label, IsPrimary: req.IsPrimary,
 	})
 	if err != nil {
-		rs.fail(w, r, FailureInternal, err)
+		rs.moduleFailure(w, r, err)
 		return
 	}
 	rs.succeed(w, r, http.StatusCreated, newPhoneNumberResponse(phone), "Phone number added successfully")
@@ -983,7 +983,7 @@ func (rs *GuardianResource) updatePhoneNumber(w http.ResponseWriter, r *http.Req
 	if err := rs.directory.UpdateGuardianPhone(r.Context(), phone.ID, peopledirectory.GuardianPhoneUpdate{
 		PhoneNumber: req.PhoneNumber, PhoneType: req.PhoneType, Label: req.Label, IsPrimary: req.IsPrimary, Priority: req.Priority,
 	}); err != nil {
-		rs.fail(w, r, FailureInternal, err)
+		rs.moduleFailure(w, r, err)
 		return
 	}
 	rs.respondPhone(w, r, phone.ID, "Phone number updated successfully")
@@ -995,7 +995,7 @@ func (rs *GuardianResource) deletePhoneNumber(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if err := rs.directory.DeleteGuardianPhone(r.Context(), phone.ID); err != nil {
-		rs.fail(w, r, FailureInternal, err)
+		rs.moduleFailure(w, r, err)
 		return
 	}
 	rs.succeed(w, r, http.StatusOK, nil, "Phone number deleted successfully")
@@ -1007,7 +1007,7 @@ func (rs *GuardianResource) setPrimaryPhone(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if err := rs.directory.SetPrimaryGuardianPhone(r.Context(), phone.ID); err != nil {
-		rs.fail(w, r, FailureInternal, err)
+		rs.moduleFailure(w, r, err)
 		return
 	}
 	rs.respondPhone(w, r, phone.ID, "Phone number set as primary successfully")
@@ -1018,7 +1018,7 @@ func (rs *GuardianResource) setPrimaryPhone(w http.ResponseWriter, r *http.Reque
 func (rs *GuardianResource) respondPhone(w http.ResponseWriter, r *http.Request, phoneID int64, message string) {
 	updated, err := rs.directory.FindGuardianPhone(r.Context(), phoneID)
 	if err != nil {
-		rs.fail(w, r, FailureInternal, err)
+		rs.moduleFailure(w, r, err)
 		return
 	}
 	rs.succeed(w, r, http.StatusOK, newPhoneNumberResponse(updated), message)

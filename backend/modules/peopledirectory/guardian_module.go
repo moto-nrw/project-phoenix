@@ -239,7 +239,7 @@ func (m *Module) AddGuardianPhone(ctx context.Context, guardianID int64, input G
 		return GuardianPhone{}, invalidGuardian("guardian ID is required")
 	}
 	if strings.TrimSpace(input.PhoneNumber) == "" {
-		return GuardianPhone{}, invalidGuardian("phone_number is required")
+		return GuardianPhone{}, invalidGuardian("Telefonnummer ist erforderlich")
 	}
 	return guardianQuery(m, "add_guardian_phone", func(p GuardianProvider) (GuardianPhone, error) {
 		return p.AddGuardianPhone(ctx, guardianID, input)
