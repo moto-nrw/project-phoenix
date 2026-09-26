@@ -485,10 +485,12 @@ export function useTimetableActions(
       if (isReopenUnavailableError(err)) {
         clearReopenable();
       }
+      // A full room says which one and where to change it (#3633).
       setError(
-        err instanceof Error
-          ? err.message
-          : "Aktivität konnte nicht wieder geöffnet werden.",
+        capacityErrorMessage(err) ??
+          (err instanceof Error
+            ? err.message
+            : "Aktivität konnte nicht wieder geöffnet werden."),
       );
     }
   }, [

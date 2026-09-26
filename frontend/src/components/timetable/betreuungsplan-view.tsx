@@ -93,6 +93,7 @@ import {
   mapPeriodsForDates,
   uniqueAssignedPeriods,
 } from "~/lib/calendar-period-helpers";
+import { capacityErrorMessage } from "~/lib/capacity-error";
 import { timetableService } from "~/lib/timetable-api";
 import {
   DENSITY_TO_HOUR_HEIGHT_PX,
@@ -945,10 +946,12 @@ function TimetablesContent() {
           instance_id: selectedInstance.id,
           error: err instanceof Error ? err.message : String(err),
         });
+        // Reopening into a full room names the room (#3633).
         toast.error(
-          err instanceof Error
-            ? err.message
-            : "Aktion konnte nicht durchgeführt werden",
+          capacityErrorMessage(err) ??
+            (err instanceof Error
+              ? err.message
+              : "Aktion konnte nicht durchgeführt werden"),
         );
         throw err;
       }

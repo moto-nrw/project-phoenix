@@ -21,8 +21,8 @@ function detailsObject(value: unknown): Record<string, unknown> {
 
 /**
  * Liest Code und Details aus einem geworfenen API-Fehler: direkt vom Fehler
- * (`code`, `details`) oder aus der rohen Antwort in `body`, die
- * fetchWithAuth mitträgt.
+ * (`code`, `details`, etwa bei ApiError) oder aus der rohen Antwort in
+ * `body`, die der Service-Factory-Client mitträgt.
  */
 export function readCodedApiError(err: unknown): CodedApiError | null {
   if (typeof err !== "object" || err === null) return null;

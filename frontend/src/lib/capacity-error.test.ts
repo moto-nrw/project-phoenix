@@ -54,10 +54,10 @@ describe("capacityErrorMessage", () => {
     });
 
     expect(capacityErrorMessage(activity)).toBe(
-      "In der Aktivität „Fußball“ sind nur noch 2 Plätze frei (43 von 45 Kindern). Sie haben 3 Kinder gewählt. Die Grenze ändern Sie unter Datenverwaltung → Aktivitäten bei „Maximale Teilnehmer“.",
+      "In der Aktivität „Fußball“ sind nur noch 2 Plätze frei (43 von 45 Kindern). Es sollen 3 Kinder dazukommen. Die Grenze ändern Sie unter Datenverwaltung → Aktivitäten bei „Maximale Teilnehmer“.",
     );
     expect(capacityErrorMessage(room)).toBe(
-      "Im Raum „Mensa“ ist nur noch 1 Platz frei (29 von 30 Plätzen). Sie haben 2 Kinder gewählt. Die Grenze ändern Sie unter Datenverwaltung → Räume bei „Maximale Belegung“.",
+      "Im Raum „Mensa“ ist nur noch 1 Platz frei (29 von 30 Plätzen). Es sollen 2 Kinder dazukommen. Die Grenze ändern Sie unter Datenverwaltung → Räume bei „Maximale Belegung“.",
     );
   });
 

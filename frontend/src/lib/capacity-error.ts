@@ -76,7 +76,7 @@ function occupancySentence(
   if (incoming > 1 && free > 0) {
     const places =
       free === 1 ? "ist nur noch 1 Platz" : `sind nur noch ${free} Plätze`;
-    return `${kind.inside}${name} ${places} frei ${occupancy}. Sie haben ${incoming} Kinder gewählt.`;
+    return `${kind.inside}${name} ${places} frei ${occupancy}. Es sollen ${incoming} Kinder dazukommen.`;
   }
   return `${kind.subject}${name} ist voll ${occupancy}.`;
 }

@@ -657,7 +657,7 @@ describe("StudentsInRoomSection", () => {
           incoming_students: 2,
         },
         message:
-          "In der Aktivität „Fußball“ ist nur noch 1 Platz frei (19 von 20 Kindern). Sie haben 2 Kinder gewählt. Die Grenze ändern Sie unter Datenverwaltung → Aktivitäten bei „Maximale Teilnehmer“.",
+          "In der Aktivität „Fußball“ ist nur noch 1 Platz frei (19 von 20 Kindern). Es sollen 2 Kinder dazukommen. Die Grenze ändern Sie unter Datenverwaltung → Aktivitäten bei „Maximale Teilnehmer“.",
       },
       {
         kind: "room",
