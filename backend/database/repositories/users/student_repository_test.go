@@ -10,6 +10,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -79,7 +80,7 @@ func TestStudentRepository_Create(t *testing.T) {
 		student := &users.Student{
 			PersonID:    person.ID,
 			SchoolClass: "2c",
-			BusDays:     users.BusDaysFromLegacyFlag(true),
+			BusDays:     departure.BusDaysFromLegacyFlag(true),
 		}
 
 		err := repo.Create(ctx, student)

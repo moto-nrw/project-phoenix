@@ -14,7 +14,6 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -361,9 +360,9 @@ func mapChangeRequestError(w http.ResponseWriter, r *http.Request, err error) {
 	// the client shows its clean German instruction instead of the wrapped
 	// sync context (#1694).
 	case errors.Is(err, userModels.ErrCompanionWouldLoseDeparture):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(userModels.ErrCompanionWouldLoseDeparture, studentsAPI.CodeCompanionWouldLoseDeparture))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(userModels.ErrCompanionWouldLoseDeparture, common.CodeCompanionWouldLoseDeparture))
 	case errors.Is(err, userModels.ErrCompanionLockBusy):
-		common.RenderError(w, r, common.ErrorConflictWithCode(userModels.ErrCompanionLockBusy, studentsAPI.CodeCompanionLockBusy))
+		common.RenderError(w, r, common.ErrorConflictWithCode(userModels.ErrCompanionLockBusy, common.CodeCompanionLockBusy))
 	default:
 		mapEditError(w, r, err)
 	}

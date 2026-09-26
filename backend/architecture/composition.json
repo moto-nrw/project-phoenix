@@ -1324,7 +1324,7 @@
       "declaration": "TestGuardianProfileRepositoryListWithOptionsPreservesDefaultOrderAndEmptySlice",
       "target": "database/repositories.NewFactory",
       "lines": [
-        52
+        53
       ],
       "tables": []
     },
@@ -1334,7 +1334,7 @@
       "declaration": "TestStudentClassRosterHydratesOrdersAndReturnsNilWhenEmpty",
       "target": "database/repositories.NewFactory",
       "lines": [
-        22
+        23
       ],
       "tables": []
     },
@@ -2155,7 +2155,7 @@
       "declaration": "TestStudentRepository_AssignToGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        352
+        353
       ],
       "tables": []
     },
@@ -2165,7 +2165,7 @@
       "declaration": "TestStudentRepository_ClassRoster",
       "target": "database/repositories.NewFactory",
       "lines": [
-        456
+        457
       ],
       "tables": []
     },
@@ -2175,7 +2175,7 @@
       "declaration": "TestStudentRepository_CountEnrolledLeavesGraduatesOut",
       "target": "database/repositories.NewFactory",
       "lines": [
-        482
+        483
       ],
       "tables": [
         "users.student_school_memberships"
@@ -2187,7 +2187,7 @@
       "declaration": "TestStudentRepository_CountWithOptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        534
+        535
       ],
       "tables": []
     },
@@ -2197,7 +2197,7 @@
       "declaration": "TestStudentRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        48
+        49
       ],
       "tables": []
     },
@@ -2207,7 +2207,7 @@
       "declaration": "TestStudentRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        239
+        240
       ],
       "tables": [
         "users.persons"
@@ -2219,7 +2219,7 @@
       "declaration": "TestStudentRepository_FindByGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        284
+        285
       ],
       "tables": []
     },
@@ -2229,7 +2229,7 @@
       "declaration": "TestStudentRepository_FindByGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        317
+        318
       ],
       "tables": []
     },
@@ -2239,7 +2239,7 @@
       "declaration": "TestStudentRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        159
+        160
       ],
       "tables": []
     },
@@ -2249,7 +2249,7 @@
       "declaration": "TestStudentRepository_FindByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        841
+        842
       ],
       "tables": []
     },
@@ -2259,7 +2259,7 @@
       "declaration": "TestStudentRepository_FindByPersonID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        183
+        184
       ],
       "tables": []
     },
@@ -2269,7 +2269,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        680
+        681
       ],
       "tables": [
         "users.student_school_memberships"
@@ -2281,7 +2281,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroupsImmediateActivation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        768
+        769
       ],
       "tables": [
         "users.student_school_memberships"
@@ -2293,7 +2293,7 @@
       "declaration": "TestStudentRepository_ListByGroupIDsIncludingAlumni",
       "target": "database/repositories.NewFactory",
       "lines": [
-        505
+        506
       ],
       "tables": [
         "users.student_school_memberships"
@@ -2305,7 +2305,7 @@
       "declaration": "TestStudentRepository_RemoveFromGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        375
+        376
       ],
       "tables": [
         "users.student_school_memberships"
@@ -2317,7 +2317,7 @@
       "declaration": "TestStudentRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        206
+        207
       ],
       "tables": []
     },
@@ -2327,7 +2327,7 @@
       "declaration": "newGroupProjectionFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        565
+        566
       ],
       "tables": []
     },

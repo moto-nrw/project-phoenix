@@ -29,7 +29,7 @@
   "runtime_evidence": {
     "source": "Local run on the PR branch at origin/development 44bd4230a4. The change retargets error sentinels and handler mappings; request paths execute the same statements, so the evidence is the unchanged behaviour and query-budget suites plus the architecture check, not a benchmark rerun.",
     "sources": [
-      "backend/api/students/care_plan_decision_errors_golden_test.go",
+      "backend/modules/peopledirectory/inbound/students/care_plan_decision_errors_golden_test.go",
       "backend/modules/enrollment/internal/application/public_errors_internal_test.go",
       "backend/test/query_budgets.go",
       "https://github.com/moto-nrw/project-phoenix/pull/3581"
