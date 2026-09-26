@@ -24,6 +24,18 @@ func TestSeederFailsFastWithoutAdapter(t *testing.T) {
 	require.EqualError(t, err, "seed API adapter is required")
 }
 
+// The seed takes the visitor's name as given and makes none up, so a visitor
+// needs both names.
+func TestSeederRefusesAVisitorWithOneName(t *testing.T) {
+	t.Parallel()
+
+	for _, options := range []SeedOptions{{VisitorFirstName: "Kim"}, {VisitorLastName: "Beispiel"}} {
+		_, err := NewSeeder(newSeedTestAdapter("http://localhost:8080"), newSeedTestRandom(), false, options).
+			Seed(t.Context(), "operator@example.com", "secret", "1234")
+		require.EqualError(t, err, "a demo visitor needs a first and a last name")
+	}
+}
+
 func TestGenerateSeedPassword(t *testing.T) {
 	t.Parallel()
 	random := newSeedTestRandom()

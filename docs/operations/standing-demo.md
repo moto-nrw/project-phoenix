@@ -20,9 +20,10 @@ school of #3461 stays selectable as the fallback (see below).
    operator login, because every operator login drives the second factor.
 3. A seed names the school after the OGS and renames one caregiver with a
    group and shifts (seed person Julia Klein) and one parent with a child in
-   that group (Sabine Schneider) to the prospect. Only the name is taken: the
-   prospect's address never reaches the queue, so it cannot become an account
-   or guardian address. Until the demo roles exist the visitor's caregiver has
+   that group (Sabine Schneider) to the prospect's first and last name, exactly
+   as the form gave them (migration 1.15.425 split older orders at the first
+   space). Only the name is taken: the prospect's address never reaches the
+   queue, so it cannot become an account or guardian address. Until the demo roles exist the visitor's caregiver has
    the administrator role, and the demo access signs in as that account.
 4. After the seed the process runs the school's first tick, which rebuilds
    rooms and attendance at any hour and on any weekday, and only then sets
@@ -143,7 +144,7 @@ switch), run a separate worktree in demo mode:
    published Postgres port (one line):
    `CGO_ENABLED=0 devbox run dev backend env APP_ENV=development 'DEMO_DB_DSN=postgres://phoenix_demo@localhost:<POSTGRES_HOST_PORT>/postgres?sslmode=require' go run . demo --url http://localhost:<SERVER_HOST_PORT>`
 4. Request a demo as the website would:
-   `curl -X POST http://localhost:<SERVER_HOST_PORT>/demo/access-requests -H 'Content-Type: application/json' -d '{"email":"test@example.com","school_name":"OGS Test","person_name":"Kim Test","src":"local"}'`
+   `curl -X POST http://localhost:<SERVER_HOST_PORT>/demo/access-requests -H 'Content-Type: application/json' -d '{"email":"test@example.com","school_name":"OGS Test","first_name":"Kim","last_name":"Test","src":"local"}'`
 5. Open the link from the mail in Mailpit (`MAILPIT_HOST_PORT`). The waiting
    room forwards to `<slug>.localhost` once the process logs `demo school ready`.
 

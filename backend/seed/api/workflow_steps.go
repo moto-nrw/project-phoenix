@@ -65,7 +65,7 @@ func (seedMasterDataStep) Name() string { return "Stammdaten seeding" }
 func (s seedMasterDataStep) Run(ctx context.Context, rt *Runtime) error {
 	fixedSeeder := NewFixedSeeder(rt.Client, rt.Verbose, s.seeder.options.StaffPassword)
 	fixedSeeder.accountScope = s.seeder.accountScope()
-	fixedSeeder.visitorName = s.seeder.options.VisitorName
+	fixedSeeder.visitor = visitorName{first: s.seeder.options.VisitorFirstName, last: s.seeder.options.VisitorLastName}
 	fixedResult, err := fixedSeeder.Seed(ctx)
 	if err != nil {
 		return err

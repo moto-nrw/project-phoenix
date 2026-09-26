@@ -87,14 +87,15 @@ func (m demoAccessMail) SendDemoAccessLink(ctx context.Context, access identitya
 }
 
 func (m demoAccessMail) SendDemoLead(ctx context.Context, access identityaccess.DemoAccessMessage) {
+	personName := access.FirstName + " " + access.LastName
 	m.dispatch(ctx, "demo_lead", access.AccessID, email.Message{
 		From:     m.from,
 		To:       demoContact,
-		ReplyTo:  email.NewEmail(access.PersonName, access.Email),
+		ReplyTo:  email.NewEmail(personName, access.Email),
 		Subject:  "Neuer Demo-Zugang: " + access.SchoolName,
 		Template: email.TemplateDemoLead,
 		Content: map[string]any{
-			"PersonName":   access.PersonName,
+			"PersonName":   personName,
 			"OGSName":      access.SchoolName,
 			"Email":        access.Email,
 			"Source":       access.Source,
