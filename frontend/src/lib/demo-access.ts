@@ -95,8 +95,8 @@ export function demoSetupTitle(schoolName?: string): string {
 }
 
 // What a seed does, in the visitor's words (#3464). The status only says
-// "preparing", so the lines follow the usual duration of a seed: one line per
-// three polls, the last one waits for "ready".
+// "preparing", so the lines follow the usual duration of a seed of about
+// 30 to 40 seconds by the time waited; the last one waits for "ready".
 export const DEMO_SETUP_STEPS = [
   "Schule anlegen",
   "Kinder und Gruppen eintragen",
@@ -118,14 +118,16 @@ export const DEMO_ENTRY_RETRY = "Noch einmal versuchen";
 /** The action of every other problem: only a new request helps. */
 export const DEMO_ENTRY_NEW_LINK = "Neuen Link anfordern";
 
-const POLLS_PER_SETUP_STEP = 3;
+/** When each setup line starts, in milliseconds after the wait began. */
+const DEMO_SETUP_STEP_STARTS_MS = [0, 10_000, 25_000] as const;
 
-/** Index of the setup line that runs after the given number of polls. */
-export function demoSetupStep(polls: number): number {
-  return Math.min(
-    Math.floor(polls / POLLS_PER_SETUP_STEP),
-    DEMO_SETUP_STEPS.length - 1,
-  );
+/** Index of the setup line that runs after the given time of waiting. */
+export function demoSetupStep(elapsedMs: number): number {
+  const started = DEMO_SETUP_STEP_STARTS_MS.filter(
+    (start) => elapsedMs >= start,
+  ).length;
+  // A clock set back while waiting keeps the first line.
+  return Math.max(started - 1, 0);
 }
 
 export const DEMO_ENTRY_PROBLEMS: Record<
@@ -191,25 +193,71 @@ export function demoEntryEvent(link: DemoLink): DemoEntryEvent {
   return link.switched ? "demo_role_switched" : "demo_entered";
 }
 
+// The link of the entry page in this tab. The fragment leaves the address
+// bar, so a reload of the waiting room or an entry page finds it here.
+const DEMO_LINK_KEY = "moto-demo-link";
+
+function storeDemoLink(link: DemoLink): void {
+  try {
+    globalThis.sessionStorage.setItem(DEMO_LINK_KEY, JSON.stringify(link));
+  } catch {
+    // Without storage a reload shows the problem of a missing link.
+  }
+}
+
+function readStoredDemoLink(): DemoLink | null {
+  try {
+    const raw = globalThis.sessionStorage.getItem(DEMO_LINK_KEY);
+    if (!raw) return null;
+    const stored = JSON.parse(raw) as Partial<DemoLink>;
+    if (typeof stored.token !== "string" || !stored.token) return null;
+    const link: DemoLink = isDemoRole(stored.role)
+      ? { token: stored.token, role: stored.role }
+      : { token: stored.token };
+    if (stored.switched === true) link.switched = true;
+    if (stored.restarted === true) link.restarted = true;
+    return link;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Reads `#token=…&role=…` and removes the fragment from the address bar.
- * An unknown role counts as none: the entry page then asks for one.
+ * Forgets the stored link once the visitor is signed in. A restart and a
+ * role switch through another app bring a new fragment, which replaces the
+ * stored link anyway. Only a way back to an entry page without a fragment
+ * could find it later and sign in again, perhaps in a role the visitor has
+ * left in the banner since.
+ */
+function forgetDemoLink(): void {
+  try {
+    globalThis.sessionStorage.removeItem(DEMO_LINK_KEY);
+  } catch {
+    // Without storage there is nothing to forget.
+  }
+}
+
+/**
+ * Reads `#token=…&role=…`, removes the fragment from the address bar and
+ * keeps the link for a reload in this tab. Without a token in the fragment it
+ * returns the kept link. An unknown role counts as none: the entry page then
+ * asks for one.
  */
 export function takeDemoLinkFromFragment(): DemoLink | null {
   const fragment = new URLSearchParams(globalThis.location.hash.slice(1));
+  if (!fragment.has("token")) return readStoredDemoLink();
+  globalThis.history.replaceState(
+    null,
+    "",
+    globalThis.location.pathname + globalThis.location.search,
+  );
   const token = fragment.get("token")?.trim();
-  if (fragment.has("token")) {
-    globalThis.history.replaceState(
-      null,
-      "",
-      globalThis.location.pathname + globalThis.location.search,
-    );
-  }
   if (!token) return null;
   const role = fragment.get("role");
   const link: DemoLink = isDemoRole(role) ? { token, role } : { token };
   if (fragment.get("switched") === "1") link.switched = true;
   if (fragment.get("restarted") === "1") link.restarted = true;
+  storeDemoLink(link);
   return link;
 }
 
@@ -317,8 +365,10 @@ async function fetchDemoAccessProgress(
 }
 
 const POLL_INTERVAL_MS = 2000;
-// Two minutes; a demo school that is not ready by then will not become so.
-const MAX_POLLS = 60;
+// The page waits as long as the backend reports "preparing": with several
+// seeds at once a school can take a few minutes. Five minutes only guard
+// against a seed that hangs without ever reporting "failed".
+const MAX_WAIT_MS = 5 * 60_000;
 
 export type DemoWaitOutcome =
   | { phase: "ready"; schoolUrl?: string; schoolName?: string }
@@ -333,14 +383,16 @@ export interface DemoSetupProgress {
 
 /**
  * Polls until the demo school can be entered (#3463). `failed` is a wait that
- * ran out; `unavailable` is a school that could not be set up at all.
+ * ran past the safety limit; `unavailable` is a school the backend reports as
+ * failed, which no further wait can fix.
  */
 export async function waitForDemoSchool(
   token: string,
   run: { cancelled: boolean },
   onPreparing: (progress: DemoSetupProgress) => void,
 ): Promise<DemoWaitOutcome> {
-  for (let attempt = 0; !run.cancelled; attempt++) {
+  const startedAt = Date.now();
+  while (!run.cancelled) {
     const progress = await fetchDemoAccessProgress(token);
     if (run.cancelled) break;
     if (progress.status === "invalid") return { phase: "invalid" };
@@ -352,10 +404,11 @@ export async function waitForDemoSchool(
         schoolName: progress.schoolName,
       };
     }
-    if (attempt >= MAX_POLLS) return { phase: "failed" };
+    const waited = Date.now() - startedAt;
+    if (waited >= MAX_WAIT_MS) return { phase: "failed" };
     onPreparing({
       schoolName: progress.schoolName,
-      step: demoSetupStep(attempt),
+      step: demoSetupStep(waited),
     });
     await new Promise<void>((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
@@ -472,6 +525,7 @@ export async function startDemoSession(
   });
   if (result?.error) return false;
   saveDemoVisit({ ...session.visit, pending });
+  forgetDemoLink();
   return true;
 }
 
