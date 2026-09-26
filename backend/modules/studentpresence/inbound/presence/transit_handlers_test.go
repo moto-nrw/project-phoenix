@@ -237,3 +237,43 @@ func TestAssignTransitStudentsParticipantLimitWire(t *testing.T) {
 		"incoming_students": float64(3),
 	}, body["details"])
 }
+
+// TestAssignTransitStudentsRoomCapacityWire pins the #3633 wire contract of a
+// full room: 409, its own code and the numbers the client names, so staff can
+// tell a full room from a full activity.
+func TestAssignTransitStudentsRoomCapacityWire(t *testing.T) {
+	t.Parallel()
+	rs := resourceForTest(Resource{
+		Operations: &stubPresenceOperations{
+			assignTransitStudents: func(context.Context, []int64, int64, studentpresence.StudentMoveAuthorization) (studentpresence.TransitAssignResult, error) {
+				return studentpresence.TransitAssignResult{}, &studentpresence.OperationError{
+					Op: "AssignTransitStudentsToActiveGroup",
+					Err: &studentpresence.RoomCapacityError{
+						RoomID: 12, RoomName: "Turnhalle", CurrentOccupancy: 29, MaxCapacity: 30, Incoming: 2,
+					},
+				}
+			},
+		},
+	})
+	req := httptest.NewRequest(
+		testutil.MethodPost,
+		"/api/active/visits/transit/assign",
+		bytes.NewBufferString(`{"student_ids":[42,84],"active_group_id":99}`),
+	)
+	req = withAdminMoveContext(req)
+	w := httptest.NewRecorder()
+
+	rs.assignTransitStudents(w, req)
+
+	require.Equal(t, testutil.StatusConflict, w.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, studentpresence.RoomCapacityCode, body["code"])
+	assert.Equal(t, map[string]any{
+		"room_id":           float64(12),
+		"room_name":         "Turnhalle",
+		"current_occupancy": float64(29),
+		"max_capacity":      float64(30),
+		"incoming_students": float64(2),
+	}, body["details"])
+}

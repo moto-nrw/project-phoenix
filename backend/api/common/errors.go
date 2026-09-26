@@ -297,6 +297,19 @@ func ErrorBusinessRejection(err error) render.Renderer {
 	return ErrorConflictWithDetails(rejection, rejection.ErrorCode(), details)
 }
 
+// ErrorBusinessRejectionOr renders like ErrorBusinessRejection. An error
+// without a typed rejection in its chain, a bare sentinel whose raiser knows
+// no numbers, still answers 409 with fallbackCode instead of a server error,
+// so the client can name the refusal without details.
+func ErrorBusinessRejectionOr(fallbackCode string) func(error) render.Renderer {
+	return func(err error) render.Renderer {
+		if IsBusinessRejection(err) {
+			return ErrorBusinessRejection(err)
+		}
+		return ErrorConflictWithCode(err, fallbackCode)
+	}
+}
+
 // detailsObject turns a rejection's typed details into the wire map.
 func detailsObject(value any) (map[string]any, error) {
 	if value == nil {

@@ -646,6 +646,68 @@ describe("StudentsInRoomSection", () => {
       );
     });
 
+    it.each([
+      {
+        kind: "activity",
+        code: "presence.activity_participant_limit_reached",
+        details: {
+          activity_name: "Fußball",
+          current_occupancy: 19,
+          max_participants: 20,
+          incoming_students: 2,
+        },
+        message:
+          "In der Aktivität „Fußball“ ist nur noch 1 Platz frei (19 von 20 Kindern). Sie haben 2 Kinder gewählt. Die Grenze ändern Sie unter Datenverwaltung → Aktivitäten bei „Maximale Teilnehmer“.",
+      },
+      {
+        kind: "room",
+        code: "presence.room_capacity_exceeded",
+        details: {},
+        message:
+          "Der Raum ist voll. Die Grenze ändern Sie unter Datenverwaltung → Räume bei „Maximale Belegung“.",
+      },
+    ])(
+      "says the $kind is full when the move is refused (#3633)",
+      async ({ code, details, message }) => {
+        setSWR({
+          data: {
+            students: [
+              makeStudent({ id: "7", first_name: "Anna" }),
+              makeStudent({
+                id: "8",
+                first_name: "Ben",
+                second_name: "Schulz",
+              }),
+            ],
+          },
+        });
+        mockMoveStudentsToActiveGroup.mockRejectedValue(
+          Object.assign(
+            new Error("Move students to active group failed: 409"),
+            {
+              status: 409,
+              code,
+              details,
+            },
+          ),
+        );
+
+        render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+        fireEvent.click(
+          screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
+        );
+        fireEvent.click(
+          screen.getByRole("checkbox", { name: /Ben Schulz auswählen/ }),
+        );
+        fireEvent.click(screen.getByLabelText("Zielraum"));
+        fireEvent.click(screen.getByRole("option", { name: "Raum 6" }));
+        fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
+
+        expect(await screen.findByText(message)).toBeTruthy();
+        expect(mockToastSuccess).not.toHaveBeenCalled();
+      },
+    );
+
     it("keeps the move action disabled when no target room is selected", () => {
       setSWR({ data: { students: [makeStudent({ id: "7" })] } });
 

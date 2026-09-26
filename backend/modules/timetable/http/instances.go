@@ -319,12 +319,13 @@ var instanceLifecycleErrorRules = []common.ErrorRule{
 	{Target: timetable.ErrInstanceCompleteEarly, Render: conflictCode("complete_too_early")},
 	{Target: timetable.ErrCompletionConfirmationStale, Render: conflictCode("completion_confirmation_stale")},
 	{Target: timetable.ErrTimetableOperationForbidden, Render: common.ErrorForbidden},
+	// A full room names itself with code and, when known, numbers (#3633).
+	{Target: studentpresence.ErrRoomCapacityExceeded, Render: common.ErrorBusinessRejectionOr(studentpresence.RoomCapacityCode)},
 	{
 		Match: func(err error) bool {
 			return errors.Is(err, timetable.ErrTimetableOperationConflict) ||
 				errors.Is(err, studentpresence.ErrStudentAlreadyActive) ||
-				errors.Is(err, studentpresence.ErrRoomConflict) ||
-				errors.Is(err, studentpresence.ErrRoomCapacityExceeded)
+				errors.Is(err, studentpresence.ErrRoomConflict)
 		},
 		Render: common.ErrorConflict,
 	},

@@ -29,6 +29,7 @@ import {
 } from "~/components/active-supervisions/timetable-roster";
 import type { SpontaneousActivityStartPayload } from "~/components/active-supervisions/spontaneous-activity-start";
 import type { ActiveSupervisionRoom } from "~/components/active-supervisions/view-model";
+import { capacityErrorMessage } from "~/lib/capacity-error";
 
 const logger = createLogger({ component: "ActiveSupervisionsPage" });
 
@@ -311,7 +312,8 @@ export function useTimetableActions(
   const reportOperationFailure = useCallback(
     (err: unknown, fallback: string, show: (message: string) => void) => {
       if (!isTimetableOperationForbidden(err)) {
-        show(fallback);
+        // A full room or activity says which one is full (#3633).
+        show(capacityErrorMessage(err) ?? fallback);
         return;
       }
       show(TIMETABLE_OPERATION_FORBIDDEN_MESSAGE);
