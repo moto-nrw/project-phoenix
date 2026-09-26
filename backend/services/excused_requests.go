@@ -2,20 +2,17 @@ package services
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // excusedRequestReviewPolicy is the one method of the parent-request review
@@ -33,7 +30,7 @@ type excusedRequestWiring struct {
 	scope       carePlanCompose.ReviewScopeResolver
 	emitter     *parentmessaging.Emitter
 	broadcaster realtime.Broadcaster
-	events      users.ParentRequestEventRecorder
+	events      usersModels.ParentRequestEventRepository
 	notifier    notifications.AbsenceNotifier
 	shares      carePlanCompose.ShareVisibility
 	observe     CarePlanObserver
@@ -66,7 +63,7 @@ func newExcusedAbsenceRequests(wiring excusedRequestWiring) (*carePlanCompose.Ex
 	}
 	var ledger carePlanCompose.RequestLedger
 	if wiring.events != nil {
-		ledger = excusedRequestLedger{events: wiring.events}
+		ledger = newParentRequestLedger(wiring.events)
 	}
 	var notifier carePlanCompose.AbsenceNotifier
 	if wiring.notifier != nil {
@@ -165,109 +162,4 @@ func (n excusedAbsenceNotifier) NotifyAbsenceReported(ctx context.Context, repor
 		TenantID: report.TenantID, StudentIDs: report.StudentIDs, Status: report.Status, Dates: dates,
 		FromParent: report.FromParent, ActorAccountID: report.ActorAccountID, ExcludedAccountIDs: report.ExcludedAccountIDs,
 	})
-}
-
-// excusedRequestLedger writes the workflow's history into the shared
-// parent-request ledger.
-type excusedRequestLedger struct {
-	events users.ParentRequestEventRecorder
-}
-
-func (l excusedRequestLedger) Record(ctx context.Context, entry carePlanCompose.RequestLedgerEntry) error {
-	return users.RecordParentRequestEvent(ctx, l.events, users.ParentRequestEventInput{
-		StudentID: entry.StudentID, RequestType: entry.RequestType, RequestID: entry.RequestID,
-		EventType: entry.EventType, ActorAccountID: entry.ActorAccountID, UpdatedAt: entry.UpdatedAt, Payload: entry.Payload,
-	})
-}
-
-// excusedRequestCoordinatorPort presents the Care Plan workflow to the
-// cross-kind parent-request coordinator in the coordinator's own vocabulary.
-type excusedRequestCoordinatorPort struct {
-	requests careplan.ExcusedAbsenceRequests
-}
-
-var (
-	_ users.ExcusedBulkReviewPort     = excusedRequestCoordinatorPort{}
-	_ users.ParentRequestConflictPort = excusedRequestCoordinatorPort{}
-)
-
-func (p excusedRequestCoordinatorPort) GetExcusedBulkCandidate(ctx context.Context, requestID int64) (*users.ExcusedBulkCandidate, error) {
-	candidate, err := p.requests.GetExcusedBulkCandidate(ctx, requestID)
-	if err != nil || candidate == nil {
-		return nil, mapExcusedRequestError(err)
-	}
-	return &users.ExcusedBulkCandidate{ID: candidate.ID, StudentID: candidate.StudentID, UpdatedAt: candidate.UpdatedAt, Eligible: candidate.Eligible}, nil
-}
-
-func (p excusedRequestCoordinatorPort) LockExcusedBulkRequest(ctx context.Context, requestID int64) error {
-	return mapExcusedRequestError(p.requests.LockExcusedBulkRequest(ctx, requestID))
-}
-
-func (p excusedRequestCoordinatorPort) ApproveExcusedBulk(ctx context.Context, requestID int64, reason string, reviewerID int64, expectedVersion string) error {
-	return mapExcusedRequestError(p.requests.ApproveExcusedBulk(ctx, requestID, reason, reviewerID, expectedVersion))
-}
-
-func (p excusedRequestCoordinatorPort) ConflictCandidate(ctx context.Context, requestID int64) (*users.ParentRequestConflictCandidate, error) {
-	candidate, err := p.requests.ConflictCandidate(ctx, requestID)
-	if err != nil {
-		return nil, mapExcusedRequestError(err)
-	}
-	return &users.ParentRequestConflictCandidate{StudentID: candidate.StudentID, UpdatedAt: candidate.UpdatedAt}, nil
-}
-
-func (p excusedRequestCoordinatorPort) LockConflictRequest(ctx context.Context, requestID int64) error {
-	return mapExcusedRequestError(p.requests.LockConflictRequest(ctx, requestID))
-}
-
-func (p excusedRequestCoordinatorPort) DecideConflictRequest(ctx context.Context, decision users.ParentRequestConflictDecision) error {
-	return mapExcusedRequestError(p.requests.DecideConflictRequest(ctx, careplan.ExcusedConflictDecision{
-		RequestID: decision.RequestID, Approve: decision.Approve, Reason: decision.Reason,
-		ReviewerID: decision.ReviewerID, ExpectedVersion: decision.ExpectedVersion,
-	}))
-}
-
-// WriteStaffValue reads {"value": "<status>"} from the coordinator payload;
-// anything else is the workflow's invalid-status sentinel, never a 500.
-func (p excusedRequestCoordinatorPort) WriteStaffValue(ctx context.Context, write users.ParentRequestStaffValueWrite) error {
-	status, ok := write.Value["value"].(string)
-	if !ok {
-		return careplan.ErrAbsenceRequestInvalidStatus
-	}
-	return mapExcusedRequestError(p.requests.WriteStaffValue(ctx, careplan.ExcusedStaffValueWrite{
-		StudentID: write.StudentID, RequestIDs: write.RequestIDs, Reason: write.Reason, Status: status,
-	}))
-}
-
-// mapExcusedRequestError translates the Care Plan sentinels into the ones
-// the cross-kind coordinator and its routes match on. Domain-specific
-// sentinels pass through unchanged.
-func mapExcusedRequestError(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, careplan.ErrExcusedRequestNotFound):
-		return absencerecords.ErrExcusedRequestNotFound
-	case errors.Is(err, careplan.ErrExcusedRequestNotPending):
-		return absencerecords.ErrExcusedRequestNotPending
-	case errors.Is(err, careplan.ErrExcusedRequestNotDecided):
-		return absencerecords.ErrExcusedRequestNotDecided
-	case errors.Is(err, careplan.ErrParentRequestStale):
-		return users.ErrParentRequestStale
-	case errors.Is(err, careplan.ErrParentRequestDecisionRace):
-		return users.ErrParentRequestDecisionRace
-	case errors.Is(err, careplan.ErrParentRequestReasonRequired):
-		return users.ErrParentRequestReasonRequired
-	case errors.Is(err, careplan.ErrParentRequestPast):
-		return users.ErrParentRequestPast
-	case errors.Is(err, careplan.ErrParentRequestNotPast):
-		return users.ErrParentRequestNotPast
-	case errors.Is(err, careplan.ErrParentRequestNotDecided):
-		return users.ErrParentRequestNotDecided
-	case errors.Is(err, careplan.ErrParentRequestCorrectionUnsupported):
-		return users.ErrParentRequestCorrectionUnsupported
-	case errors.Is(err, careplan.ErrStaffValueUnsupported):
-		return users.ErrStaffValueUnsupported
-	default:
-		return err
-	}
 }

@@ -308,7 +308,9 @@ export default function DayLogPage() {
       .catch((error: unknown) => {
         if (cancelled) return;
         setData(null);
-        setErrorCode(error instanceof DayLogError ? error.code : "unknown");
+        setErrorCode(
+          error instanceof DayLogError ? error.legacyCode : "unknown",
+        );
         logger.error("day_log_fetch_failed", {
           date: dateISO,
           error: error instanceof Error ? error.message : String(error),

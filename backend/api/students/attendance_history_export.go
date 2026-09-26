@@ -12,29 +12,27 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
 type attendanceExportOptions struct {
-	Format listexport.Format
+	Format lists.Format
 	From   timezone.Date
 	To     timezone.Date
 }
 
 const (
-	attendanceExportDateLayout                     = "02.01.2006"
-	attendanceColumnDate       listexport.ColumnID = "date"
-	attendanceColumnOffering   listexport.ColumnID = "care_offering"
-	attendanceColumnWindow     listexport.ColumnID = "time_window"
-	attendanceColumnStatus     listexport.ColumnID = "slot_status"
-	attendanceColumnCheckIn    listexport.ColumnID = "checked_in_at"
-	attendanceColumnCheckOut   listexport.ColumnID = "checked_out_at"
-	attendanceColumnAssignment listexport.ColumnID = "assignment"
+	attendanceExportDateLayout                = "02.01.2006"
+	attendanceColumnDate       lists.ColumnID = "date"
+	attendanceColumnOffering   lists.ColumnID = "care_offering"
+	attendanceColumnWindow     lists.ColumnID = "time_window"
+	attendanceColumnStatus     lists.ColumnID = "slot_status"
+	attendanceColumnCheckIn    lists.ColumnID = "checked_in_at"
+	attendanceColumnCheckOut   lists.ColumnID = "checked_out_at"
+	attendanceColumnAssignment lists.ColumnID = "assignment"
 )
 
 func (rs *Resource) exportStudentAttendanceHistory(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +45,7 @@ func (rs *Resource) exportStudentAttendanceHistory(w http.ResponseWriter, r *htt
 		return
 	}
 
-	visibleDays := config.ResolveIntOrDefault(r.Context(), rs.SettingsService, configModel.KeyAttendanceVisibleDays, 30, logger)
+	visibleDays := resolveIntSetting(r.Context(), rs.SettingsService, settingAttendanceVisibleDays, 30, logger)
 	options, err := parseAttendanceExportOptions(r, visibleDays, rs.todayDate())
 	if err != nil {
 		renderError(w, r, common.ErrorInvalidRequest(err))
@@ -77,7 +75,7 @@ func (rs *Resource) exportStudentAttendanceHistory(w http.ResponseWriter, r *htt
 
 func (rs *Resource) checkAttendanceExportAccess(w http.ResponseWriter, r *http.Request, student *usersModel.Student) bool {
 	logger := rs.attendanceHistoryLogger()
-	if !config.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, logger) {
+	if !resolveBoolSetting(r.Context(), rs.SettingsService, settingAttendanceLogEnabled, false, logger) {
 		renderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
 		return false
 	}
@@ -93,11 +91,11 @@ func (rs *Resource) checkAttendanceExportAccess(w http.ResponseWriter, r *http.R
 }
 
 func parseAttendanceExportOptions(r *http.Request, visibleDays int, today timezone.Date) (attendanceExportOptions, error) {
-	options := attendanceExportOptions{Format: listexport.Format(strings.TrimSpace(r.URL.Query().Get("format")))}
+	options := attendanceExportOptions{Format: lists.Format(strings.TrimSpace(r.URL.Query().Get("format")))}
 	if options.Format == "" {
-		options.Format = listexport.FormatPDF
+		options.Format = lists.FormatPDF
 	}
-	if options.Format != listexport.FormatPDF && options.Format != listexport.FormatDOCX && options.Format != listexport.FormatXLSX {
+	if options.Format != lists.FormatPDF && options.Format != lists.FormatDOCX && options.Format != lists.FormatXLSX {
 		return options, fmt.Errorf("unsupported export format %q", options.Format)
 	}
 	options.To = today
@@ -129,14 +127,14 @@ func parseAttendanceExportOptions(r *http.Request, visibleDays int, today timezo
 
 func (rs *Resource) buildAttendanceExportDocument(
 	ctx context.Context, studentID int64, from, to timezone.Date,
-) (listexport.Document, error) {
+) (lists.Document, error) {
 	slots, err := rs.StudentHistoryService.GetSlotAttendanceByStudentAndDateRange(ctx, studentID, from, to)
 	if err != nil {
-		return listexport.Document{}, err
+		return lists.Document{}, err
 	}
 	attendance, err := rs.StudentHistoryService.GetAttendanceByStudentAndDateRange(ctx, studentID, from, to)
 	if err != nil {
-		return listexport.Document{}, err
+		return lists.Document{}, err
 	}
 	// Without a care plan there is nothing to report assignments against: the
 	// document drops the offering/assignment columns and lists the observed
@@ -145,13 +143,13 @@ func (rs *Resource) buildAttendanceExportDocument(
 	// student without bookings at a plan-keeping school keeps the full layout.
 	expectSlots, err := rs.resolveSlotExpectation(ctx, slots, from, to)
 	if err != nil {
-		return listexport.Document{}, err
+		return lists.Document{}, err
 	}
 	title, columns := "Anwesenheit je Betreuungsangebot", attendanceExportColumns()
 	if !expectSlots {
 		title, columns = "Anwesenheit", attendanceSessionExportColumns()
 	}
-	return listexport.Document{
+	return lists.Document{
 		Title:       title,
 		Subtitle:    fmt.Sprintf("Kind-ID %d · %s bis %s", studentID, from.Format(attendanceExportDateLayout), to.Format(attendanceExportDateLayout)),
 		GeneratedAt: time.Now(), Columns: columns,
@@ -159,8 +157,8 @@ func (rs *Resource) buildAttendanceExportDocument(
 	}, nil
 }
 
-func attendanceExportColumns() []listexport.Column {
-	return []listexport.Column{
+func attendanceExportColumns() []lists.Column {
+	return []lists.Column{
 		{ID: attendanceColumnDate, Label: "Datum"}, {ID: attendanceColumnOffering, Label: "Betreuungsangebot"},
 		{ID: attendanceColumnWindow, Label: "Zeitslot"}, {ID: attendanceColumnStatus, Label: "Status"},
 		{ID: attendanceColumnCheckIn, Label: "Anwesend ab"}, {ID: attendanceColumnCheckOut, Label: "Anwesend bis"},
@@ -170,8 +168,8 @@ func attendanceExportColumns() []listexport.Column {
 
 // attendanceSessionExportColumns is the plan-free variant: the rows still carry
 // the offering/assignment values, they are simply not rendered.
-func attendanceSessionExportColumns() []listexport.Column {
-	return []listexport.Column{
+func attendanceSessionExportColumns() []lists.Column {
+	return []lists.Column{
 		{ID: attendanceColumnDate, Label: "Datum"},
 		{ID: attendanceColumnWindow, Label: "Zeitraum"}, {ID: attendanceColumnStatus, Label: "Status"},
 		{ID: attendanceColumnCheckIn, Label: "Anwesend ab"}, {ID: attendanceColumnCheckOut, Label: "Anwesend bis"},
@@ -181,11 +179,11 @@ func attendanceSessionExportColumns() []listexport.Column {
 // attendanceExportRows merges slot rows and unassigned observed sessions into
 // one chronologically sorted list (date, then start clock time) so multi-day
 // exports read in order regardless of which source a row came from.
-func attendanceExportRows(slots []*studentpresence.HistorySlot, attendanceRows []*studentpresence.Attendance) []listexport.Row {
+func attendanceExportRows(slots []*studentpresence.HistorySlot, attendanceRows []*studentpresence.Attendance) []lists.Row {
 	type sortableExportRow struct {
 		date  timezone.Date
 		clock string // HH:MM:SS in Berlin, orders rows within a day
-		row   listexport.Row
+		row   lists.Row
 	}
 	entries := make([]sortableExportRow, 0, len(slots)+len(attendanceRows))
 	coverageByDate := make(map[timezone.Date][]slotCoverage, len(slots))
@@ -226,19 +224,19 @@ func attendanceExportRows(slots []*studentpresence.HistorySlot, attendanceRows [
 		}
 		return entries[i].clock < entries[j].clock
 	})
-	rows := make([]listexport.Row, len(entries))
+	rows := make([]lists.Row, len(entries))
 	for i, entry := range entries {
 		rows[i] = entry.row
 	}
 	return rows
 }
 
-func slotExportRow(row *studentpresence.HistorySlot) listexport.Row {
+func slotExportRow(row *studentpresence.HistorySlot) lists.Row {
 	assignment := "Gebucht"
 	if row.Attendance.IsUnplanned {
 		assignment = "Ungeplant, ohne Buchung"
 	}
-	return listexport.Row{Values: map[listexport.ColumnID]string{
+	return lists.Row{Values: map[lists.ColumnID]string{
 		attendanceColumnDate: row.Instance.Date.Format(attendanceExportDateLayout), attendanceColumnOffering: row.Instance.Title,
 		attendanceColumnWindow:  row.Instance.StartTime.Format("15:04") + "–" + row.Instance.EndTime.Format("15:04"),
 		attendanceColumnStatus:  attendanceSlotStatusLabel(row.Attendance.Status, row.Attendance.Substatus),
@@ -251,8 +249,8 @@ func slotExportRow(row *studentpresence.HistorySlot) listexport.Row {
 // assignment is deliberately neutral: whether a booking existed is unknown
 // here (zero or several candidate slots) — "Ungeplant, ohne Buchung" is
 // reserved for persisted walk-in slot rows (is_unplanned).
-func unassignedExportRow(attendance *studentpresence.Attendance) listexport.Row {
-	return listexport.Row{Values: map[listexport.ColumnID]string{
+func unassignedExportRow(attendance *studentpresence.Attendance) lists.Row {
+	return lists.Row{Values: map[lists.ColumnID]string{
 		attendanceColumnDate: timezone.Date(attendance.Date).Format(attendanceExportDateLayout), attendanceColumnOffering: "Ohne Zuordnung",
 		attendanceColumnWindow: exportOptionalTime(&attendance.CheckInTime) + "–" + exportOptionalTime(attendance.CheckOutTime),
 		attendanceColumnStatus: "Anwesend", attendanceColumnCheckIn: exportOptionalTime(&attendance.CheckInTime),

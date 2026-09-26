@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -13,7 +15,6 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -82,7 +83,7 @@ func NewBookingMaterializationTestModule(db *bun.DB, unit tenant.UnitOfWork, opt
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	approved := enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: people})
+	approved := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: people})
 	pickup, err := careplanCompose.NewPickupBaselines(repos.CarePlan, approved, func(ctx context.Context) (bool, error) {
 		return settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})

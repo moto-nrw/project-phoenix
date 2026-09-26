@@ -58,6 +58,9 @@ var errorRules = []common.ErrorRule{
 	{Target: studentpresence.ErrInvalidTimeRange, Render: statusText(http.StatusBadRequest, "Invalid Time Range")},
 	{Target: studentpresence.ErrRoomConflict, Render: statusText(http.StatusConflict, "Room Conflict")},
 	{Target: studentpresence.ErrRoomCapacityExceeded, Render: statusText(http.StatusConflict, "Room Capacity Exceeded")},
+	// A web assignment beyond the activity's participant limit (#3632) is a
+	// business rejection: 409 with its code and the numbers as details.
+	{Target: studentpresence.ErrActivityParticipantLimitExceeded, Render: common.ErrorBusinessRejection},
 	{Target: studentpresence.ErrNoRoomAvailable, Render: statusText(http.StatusBadRequest, "No Room Available")},
 	{Target: studentpresence.ErrStudentNotFound, Render: statusText(http.StatusNotFound, "Student Not Found")},
 	{Target: studentpresence.ErrStaffNotFound, Render: statusText(http.StatusNotFound, "Staff Not Found")},

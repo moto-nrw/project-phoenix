@@ -66,7 +66,20 @@ func TestCarePlanDecisionErrorsGolden(t *testing.T) {
 			var body common.ErrResponse
 			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
 			body.HTTPStatusCode = recorder.Code
-			assertDecisionErrorGolden(t, tt, &body)
+			wireWant := tt
+			if wireWant.code == "" {
+				wireWant.code = common.ErrorClassCode(tt.status)
+				wantType := "https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen"
+				if tt.status == http.StatusForbidden {
+					wantType = "https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen"
+				}
+				assert.Equal(t, wantType, body.Type)
+			}
+			assertDecisionErrorGolden(t, wireWant, &body)
+			assert.Equal(t, "error", body.Status)
+			assert.Equal(t, tt.text, body.Detail)
+			assert.Equal(t, http.StatusText(tt.status), body.Title)
+			assert.Empty(t, body.Instance) // Direct renderer has no RequestID middleware.
 		}
 	})
 

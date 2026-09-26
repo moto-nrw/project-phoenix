@@ -145,7 +145,7 @@ describe("DemoWaitingRoomPage", () => {
 
     expect(
       await screen.findByText(
-        "Es liegt nicht an Ihnen. Bitte fordern Sie auf unserer Website einen neuen Link an.",
+        "Die Demo konnte nicht vorbereitet werden. Auf unserer Website bekommen Sie sofort einen neuen Link.",
       ),
     ).toBeInTheDocument();
     expect(

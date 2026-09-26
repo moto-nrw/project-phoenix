@@ -71,11 +71,7 @@ describe("/api/operator/provisioning/schools/[id]/accounts/[accountId]/caregiver
   });
 
   it("proxies GET requests to the operator backend endpoint", async () => {
-    mockFetch.mockResolvedValue({
-      status: 200,
-      text: async () => JSON.stringify({ ok: true }),
-      headers: new Headers({ "Content-Type": "application/json" }),
-    });
+    mockFetch.mockResolvedValue(Response.json({ ok: true }));
 
     const response = await GET(
       new NextRequest(
@@ -103,16 +99,10 @@ describe("/api/operator/provisioning/schools/[id]/accounts/[accountId]/caregiver
       user: { token: "operator-token-refreshed" },
     });
     mockFetch
-      .mockResolvedValueOnce({
-        status: 401,
-        text: async () => JSON.stringify({ error: "expired" }),
-        headers: new Headers({ "Content-Type": "application/json" }),
-      })
-      .mockResolvedValueOnce({
-        status: 200,
-        text: async () => JSON.stringify({ deleted: true }),
-        headers: new Headers({ "Content-Type": "application/json" }),
-      });
+      .mockResolvedValueOnce(
+        Response.json({ error: "expired" }, { status: 401 }),
+      )
+      .mockResolvedValueOnce(Response.json({ deleted: true }));
 
     const response = await DELETE(
       new NextRequest(

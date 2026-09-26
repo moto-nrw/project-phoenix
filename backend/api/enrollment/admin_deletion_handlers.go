@@ -9,9 +9,8 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 type AdminEnrollmentDeletionCounts struct {
@@ -69,7 +68,7 @@ func (rs *Resource) previewEnrollmentDeletion(w http.ResponseWriter, r *http.Req
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("enrollment deletion service not configured")))
 		return
 	}
-	var impact *enrollmentModels.DeletionImpact
+	var impact *capability.DeletionImpact
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		var previewErr error
 		if childID > 0 {
@@ -113,7 +112,7 @@ func (rs *Resource) executeEnrollmentDeletion(w http.ResponseWriter, r *http.Req
 		return
 	}
 	actorAccountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-	var impact *enrollmentModels.DeletionImpact
+	var impact *capability.DeletionImpact
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		var deleteErr error
 		if childID > 0 {
@@ -141,20 +140,20 @@ func parseEnrollmentDeletionIDs(w http.ResponseWriter, r *http.Request) (int64, 
 
 func renderEnrollmentDeletionError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, enrollmentService.ErrEnrollmentDeletionNotFound):
+	case errors.Is(err, capability.ErrEnrollmentDeletionNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, enrollmentService.ErrEnrollmentDeletionInvalidReason):
+	case errors.Is(err, capability.ErrEnrollmentDeletionInvalidReason):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, enrollmentService.ErrEnrollmentDeletionStudentExists):
+	case errors.Is(err, capability.ErrEnrollmentDeletionStudentExists):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.student_exists"))
-	case errors.Is(err, enrollmentService.ErrEnrollmentDeletionNotAllowed):
+	case errors.Is(err, capability.ErrEnrollmentDeletionNotAllowed):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.child_deletion_not_allowed"))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}
 }
 
-func toAdminEnrollmentDeletionImpact(impact *enrollmentModels.DeletionImpact) AdminEnrollmentDeletionImpact {
+func toAdminEnrollmentDeletionImpact(impact *capability.DeletionImpact) AdminEnrollmentDeletionImpact {
 	if impact == nil {
 		return AdminEnrollmentDeletionImpact{}
 	}
@@ -176,7 +175,7 @@ func toAdminEnrollmentDeletionImpact(impact *enrollmentModels.DeletionImpact) Ad
 	}
 }
 
-func toAdminEnrollmentDeletionCounts(counts enrollmentModels.DeletionCounts) AdminEnrollmentDeletionCounts {
+func toAdminEnrollmentDeletionCounts(counts capability.DeletionCounts) AdminEnrollmentDeletionCounts {
 	return AdminEnrollmentDeletionCounts{
 		Requests:                  counts.Requests,
 		RequestChildren:           counts.RequestChildren,

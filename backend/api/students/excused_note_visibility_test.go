@@ -21,8 +21,8 @@ import (
 // blocker. The pending excused-absence badge carries the parent's note and
 // belongs to the users:update-gated review queue (Änderungsanfragen). The
 // enrichment also runs inside the users:read student list/detail/export handlers,
-// and PendingByStudentForDate scopes only to children the caller may WRITE
-// (WritableStudentFilter) — it never checks the users:update permission. So a
+// and PendingByStudentForDate scopes only to children the caller may review
+// — it never checks the users:update permission. So a
 // read-only staff member would otherwise receive pending_excused_note for a
 // child while being unable to open or decide the queue. The fix gates the whole enrichment on
 // users:update; this test pins that only that permission flips the note on.

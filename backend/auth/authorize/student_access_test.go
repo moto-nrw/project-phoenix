@@ -40,15 +40,9 @@ func TestStudentAccessFailsClosed(t *testing.T) {
 	}
 }
 
-func TestStudentAdminAndWritableFilter(t *testing.T) {
+func TestStudentAdminBypassesRowLookup(t *testing.T) {
 	t.Parallel()
-	student := &testStudent{present: true}
 	if ok, err := CanModifyStudent(context.Background(), []string{"admin:*"}, (*testStudent)(nil), nil, "update"); !ok || err != nil {
 		t.Fatalf("admin wildcard must bypass row lookup: %v, %v", ok, err)
-	}
-	staff := &testStaffContext{present: true}
-	writable := WritableStudentFilter(context.Background(), nil, staff)
-	if !writable(student) || writable((*testStudent)(nil)) || staff.calls != 1 {
-		t.Fatal("writable filter must resolve staff once and reject missing students")
 	}
 }

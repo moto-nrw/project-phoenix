@@ -53,18 +53,17 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent | null {
   return event;
 }
 
-type TransactionEvent = Parameters<
-  NonNullable<BrowserOptions["beforeSendTransaction"]>
->[0];
-
-/**
- * beforeSendTransaction: a sampled page view carries the page URL and the
- * referrer in its request data, which beforeSendSpan does not see. They get
- * the same scrubbing as an error event.
- */
-export function scrubTransaction(event: TransactionEvent): TransactionEvent {
-  scrubRequestAndUser(event);
-  return event;
+/** A browser fetch with no HTTP response is not a defect owned by the client. */
+export function scrubClientEvent(event: ErrorEvent): ErrorEvent | null {
+  const isNetworkFailure = event.exception?.values?.some(
+    (exception) =>
+      (exception.type === "TypeError" &&
+        /^(?:Failed to fetch|Load failed|NetworkError when attempting to fetch resource\.?)$/.test(
+          exception.value ?? "",
+        )) ||
+      (exception.type === "AxiosError" && exception.value === "Network Error"),
+  );
+  return isNetworkFailure ? null : scrubEvent(event);
 }
 
 function scrubRequestAndUser(event: Event): void {
@@ -90,34 +89,92 @@ function scrubRequestAndUser(event: Event): void {
 
 type SpanJSON = Parameters<NonNullable<BrowserOptions["beforeSendSpan"]>>[0];
 
-// Span data keys that hold nothing but a query string or a fragment.
-const querySpanDataKeys = [
+// Span attributes that hold nothing but a query string or a fragment.
+const querySpanAttributeKeys = [
   "http.query",
   "http.fragment",
   "url.query",
   "url.fragment",
 ];
 
+// Personal fields the SDK copies onto spans from the scope user and the
+// request. As on error events, only the account ID (`user.id`) stays.
+const personalSpanAttributeKeys = [
+  "user.email",
+  "user.name",
+  "user.username",
+  "user.ip_address",
+  "client.address",
+  "http.client_ip",
+];
+
+// Request headers that carry credentials, as scrubEvent strips them.
+const credentialHeaderAttributes = new Set([
+  "http.request.header.authorization",
+  "http.request.header.cookie",
+]);
+
 /**
  * beforeSendSpan: removes query strings, fragments and feed tokens from a
- * span's name and data (url, http.url, url.full, lcp.url, …), the same data
- * boundary as for error events. Paths with IDs stay.
+ * span's name and attributes (url.full, the referrer list of a page view,
+ * browser.web_vital.lcp.url, …) and every personal field but the account ID,
+ * the same data boundary as for error events. Paths with IDs stay.
  */
 export function scrubSpan(span: SpanJSON): SpanJSON {
-  if (span.description) {
-    span.description = scrubText(span.description);
+  span.name = scrubText(span.name);
+  const attributes = span.attributes;
+  for (const key of [...querySpanAttributeKeys, ...personalSpanAttributeKeys]) {
+    delete attributes[key];
   }
-  const data = span.data;
-  for (const key of querySpanDataKeys) {
-    delete data[key];
-  }
-  for (const [key, value] of Object.entries(data)) {
-    if (typeof value === "string") {
-      data[key] = scrubText(value);
+  for (const key of Object.keys(attributes)) {
+    if (credentialHeaderAttributes.has(key.toLowerCase())) {
+      delete attributes[key];
     }
+  }
+  for (const [key, value] of Object.entries(attributes)) {
+    attributes[key] = scrubAttributeValue(value);
   }
   return span;
 }
+
+// An attribute is a string, a list, or an object carrying the value and its
+// unit.
+function scrubAttributeValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    return scrubText(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item: unknown) =>
+      typeof item === "string" ? scrubText(item) : item,
+    );
+  }
+  if (isRecord(value) && typeof value.value === "string") {
+    return { ...value, value: scrubText(value.value) };
+  }
+  return value;
+}
+
+/**
+ * What the SDK may collect on its own, the same in the browser, the BFF and
+ * the edge. v11 collects user data (with the IP), cookies, all headers, bodies
+ * and query strings unless told otherwise. The request URL is not covered;
+ * scrubEvent and scrubSpan remove its query string.
+ */
+export const sentryDataCollection = {
+  userInfo: false,
+  cookies: false,
+  httpHeaders: {
+    request: { allow: ["user-agent", "referer"] },
+    response: false,
+  },
+  httpBodies: [],
+  urlQueryParams: false,
+  graphQL: { document: false, variables: false },
+  genAI: { inputs: false, outputs: false },
+  databaseQueryData: false,
+  queues: false,
+  stackFrameVariables: false,
+} satisfies BrowserOptions["dataCollection"];
 
 /** Share of page loads and navigations the browser measures. */
 export const pageViewTraceSampleRate = 0.05;
@@ -136,10 +193,11 @@ const webVitalOpPrefixes = ["ui.webvital.", "ui.interaction."];
 
 /**
  * Browser tracesSampler: 5 % of page loads and navigations, each decided in
- * the browser because the server never samples. A Web Vital span is kept only
- * inside a page view that was already sampled, because the SDK sends LCP, CLS
- * and INP as root spans of their own after the page load ended. Every other
- * root span stays unmeasured, also inside a sampled page view.
+ * the browser because the server never samples. With span streaming, LCP, CLS
+ * and INP are child spans of their page view and inherit its decision without
+ * asking the sampler. The Web Vital rule covers the case where the SDK starts
+ * one as a root span: it is kept only inside a page view that was already
+ * sampled. Every other root span stays unmeasured.
  */
 export function sampleBrowserTrace(context: TracesSamplingContext): number {
   const op = context.attributes?.[spanOpAttribute];

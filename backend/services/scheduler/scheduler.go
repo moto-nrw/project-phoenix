@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -23,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
@@ -56,6 +54,14 @@ type StaffMessageCleanupResult struct {
 // StaffMessageCleanup is supplied by the composition root. The scheduler
 // owns when cleanup runs but remains independent of the Communication module.
 type StaffMessageCleanup func(context.Context) (StaffMessageCleanupResult, error)
+
+// RejectedEnrollmentCleaner removes the rejected enrollments of the tenant in
+// context after their retention window and reports how many requests, late
+// invites and outbox rows it removed. The composition root supplies it; the
+// scheduler owns when it runs but stays independent of Enrollment.
+type RejectedEnrollmentCleaner interface {
+	CleanupRejectedEnrollments(ctx context.Context) (requests int, lateInvites, outboxRows int64, err error)
+}
 
 // CleanupJob represents a single cleanup task that can be executed.
 type CleanupJob struct {
@@ -178,7 +184,7 @@ type Scheduler struct {
 	pwaUsageCleanup            pwaSvc.UsageService
 	staffMessageCleanup        StaffMessageCleanup
 	bookingConsistency         auditModel.BookingConsistencyRepository
-	enrollmentRejectedCleanup  enrollmentSvc.RejectedEnrollmentCleaner
+	enrollmentRejectedCleanup  RejectedEnrollmentCleaner
 	autoStart                  timetable.InstanceAutoStart
 	autoEnd                    timetable.InstanceAutoEnd
 	settings                   SettingsResolver
@@ -627,8 +633,7 @@ func (s *Scheduler) runMinutePolling(task *ScheduledTask, panicName, startupMsg 
 				slog.String("job_id", task.Name),
 				slog.String("error", err.Error()),
 			)
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
+			reportJobPanic(startJobRunReport(context.Background(), task.Name), r)
 		}
 	}()
 
@@ -670,8 +675,7 @@ func (s *Scheduler) runIntervalPolling(task *ScheduledTask, panicName, startupMs
 				slog.String("job_id", task.Name),
 				slog.String("error", err.Error()),
 			)
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
+			reportJobPanic(startJobRunReport(context.Background(), task.Name), r)
 		}
 	}()
 
@@ -704,6 +708,9 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 			slog.String("error", err.Error()),
 		)
 	}
+	// Sentry sees the run once it failed for good or panicked (#3640); its
+	// failed attempts collect as breadcrumbs until then.
+	ctx = startJobRunReport(ctx, task.Name)
 	failures := &jobCommandFailures{}
 	ctx = context.WithValue(ctx, jobCommandFailuresKey{}, failures)
 	ctx = context.WithValue(ctx, workerJobIDKey{}, JobID(task.Name))
@@ -720,8 +727,7 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 			)
 			// Report and swallow the panic so only this run fails; re-panicking
 			// would end the polling loop until the next restart (#3597).
-			sentry.CurrentHub().Recover(recovered)
-			sentry.Flush(2 * time.Second)
+			reportJobPanic(ctx, recovered)
 			return
 		}
 		if commandErr := failures.result(); commandErr != nil {
@@ -732,6 +738,9 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 				slog.Duration("duration", duration),
 				slog.String("error", commandErr.Error()),
 			)
+			if !stoppedByShutdown(ctx, commandErr) {
+				reportJobRunFailure(ctx, commandErr)
+			}
 			return
 		}
 		s.observeWorkerRun(JobID(task.Name), "completed", duration)
@@ -741,6 +750,36 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 		)
 	}()
 	check(ctx, task)
+}
+
+// stoppedByShutdown reports whether the run only failed because the
+// scheduler stopped under it. Like a request the client canceled, that is no
+// defect and no Sentry event.
+func stoppedByShutdown(ctx context.Context, err error) bool {
+	return ctx.Err() != nil && onlyCancellationErrors(err)
+}
+
+// errors.Is on errors.Join would hide a real failure beside a cancellation.
+func onlyCancellationErrors(err error) bool {
+	if err == nil {
+		return false
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		parts := joined.Unwrap()
+		if len(parts) == 0 {
+			return false
+		}
+		for _, part := range parts {
+			if !onlyCancellationErrors(part) {
+				return false
+			}
+		}
+		return true
+	}
+	if wrapped := errors.Unwrap(err); wrapped != nil {
+		return onlyCancellationErrors(wrapped)
+	}
+	return errors.Is(err, context.Canceled)
 }
 
 // scheduleCleanupTask schedules the daily cleanup task using minute-polling.
@@ -938,19 +977,19 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 	}
 
 	if s.enrollmentRejectedCleanup != nil {
-		result, cleanupErr := s.enrollmentRejectedCleanup.CleanupRejectedEnrollments(ctx)
+		requests, lateInvites, outboxRows, cleanupErr := s.enrollmentRejectedCleanup.CleanupRejectedEnrollments(ctx)
 		if cleanupErr != nil {
 			s.getLogger().Error("rejected enrollment cleanup failed",
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", cleanupErr.Error()))
 			return false
 		}
-		if result.DeletedRequests > 0 {
+		if requests > 0 {
 			s.getLogger().Info("rejected enrollment cleanup completed",
 				slog.Int64("tenant_id", tenantID),
-				slog.Int("requests_deleted", result.DeletedRequests),
-				slog.Int64("late_invites_deleted", result.DeletedLateInvites),
-				slog.Int64("outbox_rows_deleted", result.DeletedOutboxRows))
+				slog.Int("requests_deleted", requests),
+				slog.Int64("late_invites_deleted", lateInvites),
+				slog.Int64("outbox_rows_deleted", outboxRows))
 		}
 	}
 
@@ -1009,8 +1048,7 @@ func (s *Scheduler) runTokenCleanupTask(task *ScheduledTask) {
 				slog.String("job_id", task.Name),
 				slog.String("error", err.Error()),
 			)
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
+			reportJobPanic(startJobRunReport(context.Background(), task.Name), r)
 		}
 	}()
 
@@ -1052,7 +1090,8 @@ func (s *Scheduler) executeTokenCleanup(ctx context.Context, task *ScheduledTask
 	}()
 
 	if err := s.runCleanupJobs(ctx); err != nil {
-		recordJobCommandFailure(ctx, err)
+		// runCleanupJobs left a breadcrumb for every failed cleanup job.
+		addJobCommandFailure(ctx, err)
 	}
 }
 
@@ -1105,6 +1144,7 @@ func (s *Scheduler) runCleanupJobs(ctx context.Context) error {
 			count, err = job.Run(ctx)
 		}
 		if err != nil {
+			recordStandingJobFailure(ctx, 0, "cleanup job failed", err, map[string]any{"cleanup_job": job.Description})
 			if !s.traceWorkerFailure(ctx, job.Description, "transaction_failure", err) {
 				logger.ErrorContext(ctx, "cleanup job failed", slog.String("job", job.Description))
 			}

@@ -556,6 +556,23 @@ describe("Header", () => {
       expect(localStorage.getItem("sidebar-collapsed")).toBeNull();
     });
 
+    it("ignores autofill keydowns without a key", () => {
+      render(
+        <div>
+          <Header />
+          <input aria-label="Testfeld" />
+        </div>,
+      );
+
+      const event = new KeyboardEvent("keydown", { bubbles: true });
+      Object.defineProperty(event, "key", { value: undefined });
+
+      expect(() =>
+        screen.getByLabelText("Testfeld").dispatchEvent(event),
+      ).not.toThrow();
+      expect(localStorage.getItem("sidebar-collapsed")).toBeNull();
+    });
+
     it("ignores Ctrl+B with additional modifiers", () => {
       render(<Header />);
 

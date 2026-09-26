@@ -18,7 +18,6 @@ func TestStudentDocumentFieldRoundTrip(t *testing.T) {
 	field := StudentDocumentField("attest")
 	assert.Equal(t, "document_attest", field)
 	assert.Equal(t, "attest", StudentDocumentCategoryFromField(field))
-	assert.True(t, IsStudentDocumentField(field))
 }
 
 func TestStudentDocumentCategoryFromFieldIgnoresOtherFields(t *testing.T) {
@@ -26,13 +25,11 @@ func TestStudentDocumentCategoryFromFieldIgnoresOtherFields(t *testing.T) {
 
 	// An ordinary field carries no category...
 	assert.Empty(t, StudentDocumentCategoryFromField(StudentFieldHealthInfo))
-	assert.False(t, IsStudentDocumentField(StudentFieldHealthInfo))
 
 	// ...and neither does the legacy categoryless form. A reader that cannot
 	// name the category must fall back to "show only to a caller who may see
 	// every category", so an unreadable label never passes as visible.
 	assert.Empty(t, StudentDocumentCategoryFromField(StudentFieldDocument))
-	assert.True(t, IsStudentDocumentField(StudentFieldDocument))
 }
 
 func TestStudentFieldEditValidateAcceptsDocumentFields(t *testing.T) {

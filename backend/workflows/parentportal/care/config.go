@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -55,8 +55,8 @@ type Config struct {
 
 	// Enrollment: the booked care offerings behind the child and the
 	// post-enrollment change-request lifecycle.
-	CarePeriods      enrollmentSvc.StudentCarePeriodReader
-	OfferingHistory  enrollmentSvc.OfferingHistoryReader
+	CarePeriods      CarePeriodReads
+	OfferingHistory  OfferingHistoryReads
 	CareOfferingRepo CareOfferingReads
 	OfferingChanges  OfferingChangeRequests
 
@@ -64,7 +64,7 @@ type Config struct {
 	// photo lifecycle, and the parent-request ledger.
 	StudentAudit        usersSvc.StudentChangeRecorder
 	StudentConsents     StudentConsentService
-	ParentRequestEvents usersSvc.ParentRequestEventRecorder
+	ParentRequestEvents usersModels.ParentRequestEventRepository
 	// StudentPhotos resolves the photo lifecycle when a withdrawal needs it.
 	// The API bootstrap builds that service after this one, so the
 	// composition passes a resolver instead of setting it afterwards.

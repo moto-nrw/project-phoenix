@@ -124,8 +124,10 @@ describe("MFAApiError", () => {
     expect(err.code).toBe("use_parent_portal");
   });
 
-  it("leaves code undefined when none is given", () => {
-    expect(new MFAApiError(401, "Invalid code").code).toBeUndefined();
+  it("uses the permission class code when none is given", () => {
+    expect(new MFAApiError(401, "Invalid code").code).toBe(
+      "general.permission",
+    );
   });
 });
 
@@ -163,7 +165,7 @@ describe("login error bodies", () => {
     });
   });
 
-  it("leaves code undefined when the body carries none", async () => {
+  it("uses the permission class code when the body carries none", async () => {
     mockErrorBody(401, {
       status: "error",
       error: "invalid username or password",
@@ -171,6 +173,6 @@ describe("login error bodies", () => {
 
     await expect(
       login("tenant", { email: "a@b.de", password: "pw", tenantSlug: "s" }),
-    ).rejects.toMatchObject({ status: 401, code: undefined });
+    ).rejects.toMatchObject({ status: 401, code: "general.permission" });
   });
 });

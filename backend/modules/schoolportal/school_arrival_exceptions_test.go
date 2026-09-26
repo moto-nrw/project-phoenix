@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
@@ -29,14 +28,12 @@ import (
 // school token with the permission gets 403 school_write_disabled while the
 // school keeps operations.school_portal_write_scope at its default "none".
 // setupSchoolArrivalExceptionRoute wires the school portal with the class-day
-// write seam (#2970) the way api/base.go does; the other school surfaces stay
+// write seam (#2970) the way the service factory composes it; the other school surfaces stay
 // unmounted.
 func setupSchoolArrivalExceptionRoute(t *testing.T) (*testpkg.DB, *schoolportal.Resource) {
 	t.Helper()
 	db, services := testutil.SetupSchoolModule(t)
-	classDay := classdayhttp.NewResource(classdayCompose.NewClassDay(classdayCompose.ClassDayDependencies{
-		Reports: services.EnrollmentReport, Caller: services.UserContext, ArrivalExceptions: services.ClassDayArrivalExceptions,
-	}), db, nil)
+	classDay := classdayhttp.NewResource(services.ClassDay, db, nil)
 	return db, schoolportal.NewResource(portaltest.AuthRuntime(services.SchoolAuth), portaltest.MFARuntime(services.SchoolMFA), schoolportal.PasswordResetRuntime{}, classDay, nil, nil, nil, nil)
 }
 

@@ -12,8 +12,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -165,8 +165,8 @@ func TestClassArrivalExceptionsEditorsSettingGatesStaff(t *testing.T) {
 
 	// The school opens it up.
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.resource.SettingsService.SetValue(
-		ctx, configModel.KeyClassArrivalExceptionEditors, configModel.ClassArrivalExceptionEditorsAllStaff, nil, nil,
+	require.NoError(t, tc.settings().SetValue(
+		ctx, settings.KeyClassArrivalExceptionEditors, settings.ClassArrivalExceptionEditorsAllStaff, nil, nil,
 	))
 
 	rr = authExec(t, tc, testutil.NewRequest("GET", "/class-arrival-exceptions/CAE3", nil), claims, staffPerms)

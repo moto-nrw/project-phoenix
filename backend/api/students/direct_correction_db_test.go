@@ -18,10 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -115,10 +113,10 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	// service the admin route calls: the child stays in Ganztag and is taken
 	// out of Mittagessen. The frozen before/after snapshots must show that.
 	err := testpkg.WithTenantTx(t, t.Context(), tc.db, student.TenantID, func(ctx context.Context, _ bun.Tx) error {
-		_, updateErr := tc.resource.EnrollmentDecision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		_, updateErr := tc.resource.EnrollmentDecision.UpdateChildOfferings(ctx, capability.UpdateChildOfferingsInput{
 			RequestID:      fixture.child.RequestID,
 			ChildID:        fixture.child.ID,
-			Offerings:      []enrollmentService.OfferingAdjustmentSelection{{OfferingID: fixture.ganztag.ID}},
+			Offerings:      []capability.OfferingAdjustmentSelection{{OfferingID: fixture.ganztag.ID}},
 			Reason:         "Telefonisch gemeldet",
 			ActorAccountID: account.ID,
 			ActorRole:      "admin",
@@ -183,8 +181,8 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 		Column("source").Where("request_child_id = ?", fixture.child.ID).
 		OrderExpr("id").Scan(t.Context(), &sources))
 	assert.Equal(t, []string{
-		auditModels.OfferingAdjustmentSourceDirect,
-		auditModels.OfferingAdjustmentSourceRequest,
+		auditOfferingAdjustmentSourceDirect,
+		auditOfferingAdjustmentSourceRequest,
 	}, sources, "the two write paths must stamp different sources")
 
 	// The working list never shows corrections, not even when asked for them.
@@ -203,12 +201,12 @@ func TestOfferingWithdrawalApprovalRequiresUpdateButNotDeletePermission(t *testi
 	student := testpkg.CreateTestStudent(t, tc.db, "Komplett", "Abmeldung", "WA1")
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
-	require.NoError(t, tc.resource.SettingsService.SetValue(
-		testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
+	require.NoError(t, tc.settings().SetValue(
+		testpkg.Ctx(t), settings.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
 	))
 	t.Cleanup(func() {
-		require.NoError(t, tc.resource.SettingsService.ResetValue(
-			testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, nil, nil,
+		require.NoError(t, tc.settings().ResetValue(
+			testpkg.Ctx(t), settings.KeyEnrollmentBookingsAuthoritative, nil, nil,
 		))
 	})
 

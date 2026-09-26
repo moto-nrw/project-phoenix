@@ -8,9 +8,12 @@ import React, {
   useMemo,
   useRef,
   useState,
+  type RefObject,
 } from "react";
 import { Toast } from "~/components/ui/toast";
+import { clientEnv } from "~/env.client";
 import { normalizeLocale, type AppLocale } from "~/i18n/locales";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 
@@ -26,6 +29,8 @@ interface ToastOptions {
     label: string;
     onClick: () => void;
   };
+  requestId?: string;
+  requestIdLabel?: string;
 }
 
 interface ToastItemData {
@@ -34,6 +39,8 @@ interface ToastItemData {
   message: string;
   duration: number;
   action?: ToastOptions["action"];
+  requestId?: string;
+  requestIdLabel?: string;
 }
 
 interface ToastAPI {
@@ -49,6 +56,9 @@ const ToastContext = createContext<ToastAPI | undefined>(undefined);
 const toastLabelsByLocale = {
   de: {
     close: "Schließen",
+    copyRequestId: "Vorgangskennung kopieren",
+    copySucceeded: "Kopiert.",
+    copyFailed: "Kopieren nicht möglich.",
     typeTitles: {
       success: "Erfolgreich!",
       error: "Fehler",
@@ -59,6 +69,9 @@ const toastLabelsByLocale = {
   },
   en: {
     close: "Close",
+    copyRequestId: "Copy request ID",
+    copySucceeded: "Copied.",
+    copyFailed: "Could not copy.",
     typeTitles: {
       success: "Success!",
       error: "Error",
@@ -69,6 +82,9 @@ const toastLabelsByLocale = {
   },
   ru: {
     close: "Закрыть",
+    copyRequestId: "Скопировать номер запроса",
+    copySucceeded: "Скопировано.",
+    copyFailed: "Не удалось скопировать.",
     typeTitles: {
       success: "Успешно!",
       error: "Ошибка",
@@ -79,6 +95,9 @@ const toastLabelsByLocale = {
   },
   sq: {
     close: "Mbyll",
+    copyRequestId: "Kopjo numrin e kërkesës",
+    copySucceeded: "U kopjua.",
+    copyFailed: "Nuk u kopjua.",
     typeTitles: {
       success: "Me sukses!",
       error: "Gabim",
@@ -89,6 +108,9 @@ const toastLabelsByLocale = {
   },
   pl: {
     close: "Zamknij",
+    copyRequestId: "Kopiuj numer żądania",
+    copySucceeded: "Skopiowano.",
+    copyFailed: "Nie udało się skopiować.",
     typeTitles: {
       success: "Sukces!",
       error: "Błąd",
@@ -99,6 +121,9 @@ const toastLabelsByLocale = {
   },
   tr: {
     close: "Kapat",
+    copyRequestId: "İstek kimliğini kopyala",
+    copySucceeded: "Kopyalandı.",
+    copyFailed: "Kopyalanamadı.",
     typeTitles: {
       success: "Başarılı!",
       error: "Hata",
@@ -109,6 +134,9 @@ const toastLabelsByLocale = {
   },
   uk: {
     close: "Закрити",
+    copyRequestId: "Копіювати номер запиту",
+    copySucceeded: "Скопійовано.",
+    copyFailed: "Не вдалося скопіювати.",
     typeTitles: {
       success: "Успішно!",
       error: "Помилка",
@@ -121,10 +149,24 @@ const toastLabelsByLocale = {
   AppLocale,
   {
     readonly close: string;
+    readonly copyRequestId: string;
+    readonly copySucceeded: string;
+    readonly copyFailed: string;
     readonly typeTitles: Readonly<Record<ToastType, string>>;
     actionInstruction: (label: string) => string;
   }
 >;
+
+// Kept small so a failed presenter chunk can still show a localized message.
+const emergencyErrorByLocale: Record<AppLocale, string> = {
+  de: "{object} konnte nicht bearbeitet werden. Bitte versuchen Sie es später.",
+  en: "{object} could not be processed. Please try later.",
+  pl: "Nie udało się przetworzyć: {object}. Spróbuj później.",
+  ru: "Не удалось обработать: {object}. Повторите позже.",
+  sq: "Nuk u përpunua: {object}. Provoni më vonë.",
+  tr: "{object} işlenemedi. Daha sonra deneyin.",
+  uk: "Не вдалося обробити: {object}. Спробуйте пізніше.",
+};
 
 export function useToast() {
   const ctx = useContext(ToastContext);
@@ -233,6 +275,11 @@ function ToastRow({
       accessibleLabel={`${labels.typeTitles[item.type]}: ${item.message}`}
       closeLabel={labels.close}
       onClose={dismissWithExitAnimation}
+      requestId={item.requestId}
+      requestIdLabel={item.requestIdLabel}
+      copyRequestIdLabel={labels.copyRequestId}
+      copySucceededLabel={labels.copySucceeded}
+      copyFailedLabel={labels.copyFailed}
       action={
         item.action
           ? {
@@ -283,13 +330,18 @@ export function ToastProvider({
       const id =
         options?.id ?? `${now}-${Math.random().toString(36).slice(2, 8)}`;
 
-      // Keep short, passive feedback out of the way; callers with an action or
-      // a longer explanation opt into a longer duration.
-      const duration = options?.duration ?? 1500;
+      // Errors must not disappear on a timer; success feedback lasts four seconds.
+      const duration =
+        type === "error"
+          ? 0
+          : type === "success"
+            ? 4000
+            : (options?.duration ?? 1500);
 
-      // Log error toasts for monitoring
+      // A breadcrumb, not a Sentry event: the caller that failed reports the
+      // cause itself, so an error here would count every failure twice (#3694).
       if (type === "error") {
-        logger.error("user-facing error displayed", {
+        logger.warn("user-facing error displayed", {
           message: message.substring(0, 100), // Truncate for logging
           toast_type: type,
           source: "toast_context",
@@ -299,11 +351,20 @@ export function ToastProvider({
       setItems((prev) => {
         const next: ToastItemData[] = [
           ...prev,
-          { id, type, message, duration, action: options?.action },
+          {
+            id,
+            type,
+            message,
+            duration,
+            action: options?.action,
+            requestId: options?.requestId,
+            requestIdLabel: options?.requestIdLabel,
+          },
         ];
         if (next.length > MAX_VISIBLE) {
-          // remove oldest to keep at most MAX_VISIBLE visible
-          next.shift();
+          // Never evict an error that the person has not dismissed.
+          const removable = next.findIndex((item) => item.type !== "error");
+          if (removable >= 0) next.splice(removable, 1);
         }
         return next;
       });
@@ -326,7 +387,7 @@ export function ToastProvider({
     <ToastContext.Provider value={api}>
       {children}
 
-      <div className="pointer-events-none fixed inset-x-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[9000] mx-auto flex max-w-sm flex-col gap-2 md:hidden">
+      <div className="pointer-events-none fixed inset-x-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[9000] mx-auto flex max-h-[70vh] max-w-sm flex-col gap-2 overflow-y-auto md:hidden">
         {isMobile &&
           items.map((item) => (
             <ToastRow
@@ -340,7 +401,7 @@ export function ToastProvider({
           ))}
       </div>
 
-      <div className="pointer-events-none fixed right-6 bottom-6 z-[9000] hidden max-w-sm flex-col items-stretch justify-end gap-2 md:flex">
+      <div className="pointer-events-none fixed right-6 bottom-6 z-[9000] hidden max-h-[70vh] max-w-sm flex-col items-stretch justify-end gap-2 overflow-y-auto md:flex">
         {!isMobile &&
           items.map((item) => (
             <ToastRow
@@ -355,4 +416,100 @@ export function ToastProvider({
       </div>
     </ToastContext.Provider>
   );
+}
+
+interface ApiErrorDisplayOptions {
+  /** Localized noun phrase with article, for example "die Gruppe". */
+  object: string;
+  retry?: () => void;
+}
+
+export function loginUrl(host: string, path: string): string {
+  for (const [hostname, prefix] of [
+    [clientEnv.NEXT_PUBLIC_PARENTS_HOSTNAME, "/parents"],
+    [clientEnv.NEXT_PUBLIC_SCHOOL_HOSTNAME, "/school"],
+    [clientEnv.NEXT_PUBLIC_OPERATOR_HOSTNAME, "/operator"],
+  ]) {
+    if (host === hostname || path.startsWith(`${prefix}/`)) {
+      return `${host === hostname ? "" : prefix}/login?error=SessionExpired`;
+    }
+  }
+  return "/?error=SessionExpired";
+}
+
+/** Opt-in display path for screens migrated in #2520. */
+export function useApiErrorDisplay(
+  formRef?: RefObject<HTMLFormElement | null>,
+) {
+  const toast = useToast();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const firstField = Object.keys(fieldErrors)[0];
+    if (!firstField) return;
+    const controls = (formRef?.current ?? document).querySelectorAll<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >("input[name], textarea[name], select[name]");
+    const control = [...controls].find((item) => item.name === firstField);
+    control?.focus();
+  }, [fieldErrors, formRef]);
+
+  const show = useCallback(
+    async (error: unknown, options: ApiErrorDisplayOptions) => {
+      const locale = normalizeLocale(document.documentElement.lang);
+      // The provider is mounted on every route. Load the catalog only when a
+      // screen actually uses the opt-in error path.
+      let presenter: typeof import("~/lib/error-presentation");
+      try {
+        presenter = await import("~/lib/error-presentation");
+      } catch {
+        if (error instanceof ApiError && error.status === 401) {
+          window.location.assign(
+            loginUrl(window.location.host, window.location.pathname),
+          );
+          return;
+        }
+        setFieldErrors({});
+        const message = emergencyErrorByLocale[locale].replace(
+          "{object}",
+          options.object,
+        );
+        toast.error(message.charAt(0).toUpperCase() + message.slice(1));
+        return;
+      }
+      const { presentError, errorDisplayLabels } = presenter;
+      const presentation = presentError(error, options.object, locale);
+      if (presentation.requiresLogin) {
+        window.location.assign(
+          loginUrl(window.location.host, window.location.pathname),
+        );
+        return presentation;
+      }
+      const labels = errorDisplayLabels(locale);
+      setFieldErrors(
+        Object.fromEntries(
+          presentation.fields.map((field) => [field, labels.fieldCheck]),
+        ),
+      );
+      toast.error(presentation.message, {
+        action:
+          presentation.retryable && options.retry
+            ? {
+                label: labels.retry,
+                onClick: options.retry,
+              }
+            : undefined,
+        requestId: presentation.requestId,
+        requestIdLabel: labels.requestId,
+      });
+      return presentation;
+    },
+    [toast],
+  );
+
+  return {
+    show,
+    fieldError: (name: string) => fieldErrors[name],
+    clearFieldErrors: () => setFieldErrors({}),
+  };
 }

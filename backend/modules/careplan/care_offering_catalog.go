@@ -9,8 +9,8 @@ import (
 
 // The error contract of the care-offering catalog (#3559). Handlers render
 // err.Error() to administrators, so every text is byte-identical to the
-// services/enrollment value it replaces; services/enrollment points its
-// legacy names at these values while its routes still speak enrollment rows.
+// retained services/enrollment value it replaced; Enrollment marks these
+// values with its public mirrors for the enrollment routes (#3565).
 var (
 	// ErrCareOfferingConfigInvalid classifies a catalog or timetable-link
 	// configuration an administrator can correct. Infrastructure failures

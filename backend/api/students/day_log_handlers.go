@@ -14,15 +14,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // Group day log ("Tagesauswertung", issue #1456): for one calendar day and one
@@ -119,7 +115,7 @@ func (rs *Resource) getStudentsDayLog(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := rs.dayLogLogger()
 
-	if !configService.ResolveBoolOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, logger) {
+	if !resolveBoolSetting(ctx, rs.SettingsService, settingAttendanceLogEnabled, false, logger) {
 		renderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
 		return
 	}
@@ -214,7 +210,7 @@ var errInvalidDayLogGroupID = errors.New("invalid group_id")
 // narrowed to the requested group_id. Admins see all groups. Every other
 // caller must have a linked staff record; verified staff see all groups
 // (#2329 — the former gdpr.attendance_log_scope per-group filter is gone).
-func (rs *Resource) resolveDayLogGroups(r *http.Request, date timezone.Date, logger *slog.Logger) ([]*educationModel.Group, error) {
+func (rs *Resource) resolveDayLogGroups(r *http.Request, date timezone.Date, logger *slog.Logger) ([]*SchoolGroup, error) {
 	ctx := r.Context()
 
 	groups, err := rs.permittedDayLogGroups(ctx, date, logger)
@@ -232,9 +228,9 @@ func (rs *Resource) resolveDayLogGroups(r *http.Request, date timezone.Date, log
 
 // permittedDayLogGroups yields the unfiltered permitted set, or an empty set
 // when the caller is not staff at all. Errors here are dependency failures.
-func (rs *Resource) permittedDayLogGroups(ctx context.Context, date timezone.Date, logger *slog.Logger) ([]*educationModel.Group, error) {
+func (rs *Resource) permittedDayLogGroups(ctx context.Context, date timezone.Date, logger *slog.Logger) ([]*SchoolGroup, error) {
 	if authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx)) {
-		return rs.EducationService.ListGroups(ctx, nil)
+		return rs.SchoolGroups.ListGroups(ctx)
 	}
 
 	_, staff, err := rs.UserContextService.CurrentStaffID(ctx)
@@ -248,7 +244,7 @@ func (rs *Resource) permittedDayLogGroups(ctx context.Context, date timezone.Dat
 		return nil, nil
 	}
 
-	return rs.EducationService.ListGroups(ctx, nil)
+	return rs.SchoolGroups.ListGroups(ctx)
 }
 
 // renderDayLogGroupError separates the two failure classes of
@@ -269,7 +265,7 @@ func renderDayLogGroupError(w http.ResponseWriter, r *http.Request, err error, l
 	renderError(w, r, common.ErrorForbidden(err))
 }
 
-func filterDayLogGroups(r *http.Request, groups []*educationModel.Group) ([]*educationModel.Group, error) {
+func filterDayLogGroups(r *http.Request, groups []*SchoolGroup) ([]*SchoolGroup, error) {
 	raw := strings.TrimSpace(r.URL.Query().Get("group_id"))
 	if raw == "" {
 		if len(groups) == 0 {
@@ -283,7 +279,7 @@ func filterDayLogGroups(r *http.Request, groups []*educationModel.Group) ([]*edu
 	}
 	for _, group := range groups {
 		if group != nil && group.ID == groupID {
-			return []*educationModel.Group{group}, nil
+			return []*SchoolGroup{group}, nil
 		}
 	}
 	return nil, errors.New("not_group_supervisor")
@@ -300,7 +296,7 @@ type dayLogData struct {
 	clock               dayLogClock
 }
 
-func (rs *Resource) loadDayLogData(ctx context.Context, groups []*educationModel.Group, date timezone.Date, clock dayLogClock) (*dayLogData, error) {
+func (rs *Resource) loadDayLogData(ctx context.Context, groups []*SchoolGroup, date timezone.Date, clock dayLogClock) (*dayLogData, error) {
 	groupIDs := make([]int64, 0, len(groups))
 	for _, group := range groups {
 		groupIDs = append(groupIDs, group.ID)
@@ -408,7 +404,7 @@ func (rs *Resource) dayLogNow() time.Time {
 	return time.Now()
 }
 
-func buildDayLogResponse(date timezone.Date, groups []*educationModel.Group, data *dayLogData) dayLogResponse {
+func buildDayLogResponse(date timezone.Date, groups []*SchoolGroup, data *dayLogData) dayLogResponse {
 	resp := dayLogResponse{Date: date.String(), Groups: make([]dayLogGroup, 0, len(groups))}
 	for _, group := range groups {
 		entry := dayLogGroup{
@@ -614,7 +610,7 @@ func dayLogStatusLabel(status, source string) string {
 
 // writeDayLogAudit records the group-scoped access in audit.data_access_log.
 // Like the per-student history: no audit record, no data.
-func (rs *Resource) writeDayLogAudit(r *http.Request, date timezone.Date, groups []*educationModel.Group, logger *slog.Logger) error {
+func (rs *Resource) writeDayLogAudit(r *http.Request, date timezone.Date, groups []*SchoolGroup, logger *slog.Logger) error {
 	if rs.StudentHistoryService == nil {
 		logger.Error("audit log repo not configured, refusing to serve day log")
 		return errors.New("audit log repository not configured")
@@ -633,7 +629,7 @@ func (rs *Resource) writeDayLogAudit(r *http.Request, date timezone.Date, groups
 	entry := &studentpresence.DataAccessEvent{
 		ActorAccountID: int64(claims.ID),
 		ActorRole:      actorRole,
-		ResourceType:   auditModels.ResourceTypeAttendanceDayLog,
+		ResourceType:   dataAccessAttendanceDayLog,
 		RangeStart:     date.BerlinMidnight(),
 		RangeEnd:       date.EndOfDay(),
 		AccessedAt:     time.Now(),
@@ -642,7 +638,7 @@ func (rs *Resource) writeDayLogAudit(r *http.Request, date timezone.Date, groups
 
 	if err := rs.StudentHistoryService.RecordDataAccess(r.Context(), entry); err != nil {
 		logger.Error("audit log write failed, refusing to serve day log",
-			slog.String("resource_type", auditModels.ResourceTypeAttendanceDayLog),
+			slog.String("resource_type", dataAccessAttendanceDayLog),
 			slog.String("error", err.Error()),
 		)
 		return err

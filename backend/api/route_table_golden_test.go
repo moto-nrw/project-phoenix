@@ -27,6 +27,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -42,6 +43,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/stretchr/testify/require"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -204,6 +206,7 @@ var chiParamPattern = regexp.MustCompile(`\{[^}]+\}`)
 
 func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *API) {
 	t.Parallel()
+	const requestID = "8dc3a9ca-8ac7-4b8e-9bfa-3c17760d92c0"
 
 	var iotRoutes []string
 	walkErr := chi.Walk(apiInstance.Router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
@@ -226,10 +229,16 @@ func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *API) {
 		probePath = strings.ReplaceAll(probePath, "*", "x")
 
 		req := httptest.NewRequest(method, probePath, nil)
+		req.Header.Set(middleware.RequestIDHeader, requestID)
 		rec := httptest.NewRecorder()
 		apiInstance.Router.ServeHTTP(rec, req)
 
 		body := strings.TrimSpace(rec.Body.String())
+		var problem map[string]any
+		require.NoError(t, json.Unmarshal([]byte(body), &problem), "%s %s", method, pattern)
+		require.Equal(t, requestID, problem["instance"], "%s %s", method, pattern)
+		require.NotEmpty(t, problem["code"], "%s %s", method, pattern)
+		require.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"), "%s %s", method, pattern)
 		lines = append(lines, fmt.Sprintf("%s %s -> %d %s", method, pattern, rec.Code, body))
 	}
 	got := strings.Join(lines, "\n") + "\n"

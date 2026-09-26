@@ -15,29 +15,27 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 type fakeEnrollmentDecisionService struct {
-	enrollmentService.DecisionService
-	summaries []*enrollmentService.RequestSummary
+	capability.Decisions
+	summaries []*capability.DecisionSummary
 	studentID int64
 }
 
-func (f *fakeEnrollmentDecisionService) ListByStudent(_ context.Context, studentID int64) ([]*enrollmentService.RequestSummary, error) {
+func (f *fakeEnrollmentDecisionService) StudentDecisionRequests(_ context.Context, studentID int64) ([]*capability.DecisionSummary, error) {
 	f.studentID = studentID
 	return f.summaries, nil
 }
 
 type fakeEnrollmentFormSchemaService struct {
-	enrollmentService.FormSchemaService
+	capability.FormSchemaAdministration
 	schemas map[int64]*capability.FormSchema
 	err     error
 }
 
-func (f *fakeEnrollmentFormSchemaService) GetByID(_ context.Context, id int64) (*capability.FormSchema, error) {
+func (f *fakeEnrollmentFormSchemaService) SchemaVersion(_ context.Context, id int64) (*capability.FormSchema, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -55,37 +53,37 @@ func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing
 	schemaID := int64(42)
 	submittedAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
 	decision := &fakeEnrollmentDecisionService{
-		summaries: []*enrollmentService.RequestSummary{
+		summaries: []*capability.DecisionSummary{
 			{
-				Request: &enrollmentModels.Request{
+				Request: &capability.Request{
 					ID:          77,
 					SchemaID:    &schemaID,
 					PhaseID:     5,
 					SubmittedAt: submittedAt,
-					CustomData: map[string]any{
+					CustomData: rawEnrollmentJSON(t, map[string]any{
 						"guardian_question": "must not leak",
-					},
+					}),
 				},
 				Phase: &capability.Phase{
 					ID:   5,
 					Name: "Anmeldung 2026",
 				},
-				Children: []*enrollmentService.RequestChild{
+				Children: []*capability.RequestChild{
 					{
 						ID:               701,
 						CreatedStudentID: &linkedStudentID,
-						CustomData: map[string]any{
+						CustomData: rawEnrollmentJSON(t, map[string]any{
 							"swimming_level": "safe",
 							"pickup_note":    "Oma darf abholen",
 							"empty":          nil,
-						},
+						}),
 					},
 					{
 						ID:               702,
 						CreatedStudentID: &otherStudentID,
-						CustomData: map[string]any{
+						CustomData: rawEnrollmentJSON(t, map[string]any{
 							"swimming_level": "other child",
-						},
+						}),
 					},
 				},
 			},
@@ -180,18 +178,18 @@ func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaLookupFails(t *testing.T
 	linkedStudentID := student.ID
 	schemaID := int64(42)
 	tc.resource.EnrollmentDecision = &fakeEnrollmentDecisionService{
-		summaries: []*enrollmentService.RequestSummary{
+		summaries: []*capability.DecisionSummary{
 			{
-				Request: &enrollmentModels.Request{
+				Request: &capability.Request{
 					ID:       77,
 					SchemaID: &schemaID,
 				},
-				Children: []*enrollmentService.RequestChild{
+				Children: []*capability.RequestChild{
 					{
 						CreatedStudentID: &linkedStudentID,
-						CustomData: map[string]any{
+						CustomData: rawEnrollmentJSON(t, map[string]any{
 							"swimming_level": "safe",
-						},
+						}),
 					},
 				},
 			},
@@ -222,18 +220,18 @@ func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaIsMissing(t *testing.T) 
 	linkedStudentID := student.ID
 	schemaID := int64(42)
 	tc.resource.EnrollmentDecision = &fakeEnrollmentDecisionService{
-		summaries: []*enrollmentService.RequestSummary{
+		summaries: []*capability.DecisionSummary{
 			{
-				Request: &enrollmentModels.Request{
+				Request: &capability.Request{
 					ID:       77,
 					SchemaID: &schemaID,
 				},
-				Children: []*enrollmentService.RequestChild{
+				Children: []*capability.RequestChild{
 					{
 						CreatedStudentID: &linkedStudentID,
-						CustomData: map[string]any{
+						CustomData: rawEnrollmentJSON(t, map[string]any{
 							"swimming_level": "safe",
-						},
+						}),
 					},
 				},
 			},
@@ -253,4 +251,13 @@ func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaIsMissing(t *testing.T) 
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	assert.Equal(t, "failed to load enrollment extra fields", body.Error)
 	assert.NotContains(t, rr.Body.String(), "enrollment schema 42 not found")
+}
+
+// rawEnrollmentJSON encodes custom answers the way the Enrollment owner hands
+// them over: as raw JSON.
+func rawEnrollmentJSON(t *testing.T, value map[string]any) json.RawMessage {
+	t.Helper()
+	raw, err := json.Marshal(value)
+	require.NoError(t, err)
+	return raw
 }

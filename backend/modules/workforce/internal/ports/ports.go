@@ -124,8 +124,14 @@ type StaffRecordStore interface {
 	CreateStaffMasterData(context.Context, domain.StaffMasterData) (domain.StaffMasterData, domain.OperationStats, error)
 	UpdateStaffMasterData(context.Context, domain.StaffMasterData) (domain.StaffMasterData, bool, domain.OperationStats, error)
 
+	// ListStaffQualifications returns the live rows; retired rows stay in
+	// the table as history (ADR 0021).
 	ListStaffQualifications(ctx context.Context, staffID int64) ([]domain.StaffQualification, domain.OperationStats, error)
-	DeleteStaffQualifications(ctx context.Context, staffID int64) (domain.OperationStats, error)
+	// RetireStaffQualifications soft-deletes the given live rows of one
+	// staff member.
+	RetireStaffQualifications(ctx context.Context, staffID int64, ids []int64) (domain.OperationStats, error)
+	// UpdateStaffQualification rewrites the dates of one live row.
+	UpdateStaffQualification(context.Context, domain.StaffQualification) (domain.StaffQualification, bool, domain.OperationStats, error)
 	InsertStaffQualifications(context.Context, []domain.StaffQualification) ([]domain.StaffQualification, domain.OperationStats, error)
 
 	FindStaffFinancialData(ctx context.Context, staffID int64) (domain.StaffFinancialData, bool, domain.OperationStats, error)
@@ -260,6 +266,8 @@ type StaffAssignments interface {
 // there is none, opens one.
 type Transaction interface {
 	RunWrite(context.Context, func(context.Context) error) error
+	// LockStaffQualifications serializes list replacements per staff member.
+	LockStaffQualifications(ctx context.Context, staffID int64) error
 	// LockStaffBalance serializes writes that change a staff member's Soll.
 	LockStaffBalance(ctx context.Context, staffID int64) error
 	// LockStaffAbsence serializes overlap-sensitive absence writes of one

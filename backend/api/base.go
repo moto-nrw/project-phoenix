@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 
@@ -53,7 +54,6 @@ import (
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
 	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
-	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
@@ -861,6 +861,7 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL,
 
 	// Setup router middleware
 	api.Router.Use(func(next http.Handler) http.Handler { return requestIDMiddleware(tracer, next) })
+	api.Router.Use(apiCommon.ProblemResponseMiddleware)
 	api.Router.Use(apiCommon.TenantRuntimeMiddleware(tenantRuntime))
 	api.Router.Use(apiCommon.AuthorizationObserverMiddleware(func(event apiCommon.AuthorizationEvent) {
 		observability.RecordAuthorizationEvent(event.Outcome, event.Reason, event.Elapsed)
@@ -893,6 +894,8 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL,
 	// each protected group still rejects through the Authenticator and its
 	// scope gate. A group mounted without it fails closed.
 	api.Router.Use(sessionAuth.Verifier())
+	// Sentry events name the session they affect (#3643).
+	api.Router.Use(apiCommon.SentrySessionContext)
 	// Core actions of the portals reach the usage analytics once their
 	// response is 2xx (#3602). After the verifier, which names the session.
 	api.Router.Use(coreActionAnalytics(serviceFactory.Tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(serviceFactory.Settings, logger)))
@@ -1387,10 +1390,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		StudentDeletion:              api.Services.StudentDeletion,
 		CareLifecycleService:         api.Services.CareLifecycle,
 		StudentAuditService:          api.Services.StudentAudit,
-		EducationService:             api.Services.Education,
+		SchoolGroups:                 studentSchoolGroups{Service: api.Services.Education},
 		UserContextService:           api.Services.UserContext,
 		ActiveService:                api.Services.Active,
-		IoTService:                   api.Services.IoT,
 		DeviceAuthenticator:          deviceAuth.Device(),
 		PickupScheduleService:        api.Services.PickupSchedule,
 		WeekdayPickupNotes:           modules.repositories.CarePlan(),
@@ -1415,7 +1417,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		AbsenceOverview:              api.Services.AbsenceOverview,
 		StudentHistoryService:        api.Services.StudentHistory,
 		OGSGroupLiveService:          api.Services.OGSGroupLive,
-		ActivityService:              api.Services.Activities,
+		ActiveEnrollments:            studentActiveEnrollments{enrollments: api.Services.Activities},
 		EnrollmentDecision:           api.Services.EnrollmentDecision,
 		OfferingPickupTimes:          api.Services.EnrollmentCareOffering,
 		EnrollmentFormSchema:         api.Services.EnrollmentFormSchema,
@@ -1428,7 +1430,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		StudentConsents:              api.Services.StudentConsents,
 		PrivacyConsents:              presence,
 		StudentDocumentService:       api.Services.StudentDocuments,
-		ListExportService:            api.Services.ListExport,
+		ListExportService:            lists.NewRenderer(),
 		Logger:                       logger.With("handler", "students"),
 		DB:                           db,
 	})
@@ -1469,13 +1471,13 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
 		api.Services.EnrollmentCareOfferingRows(),
-		api.Services.EnrollmentRequest,
+		enrollmentAPI.NewRequestService(api.Services.EnrollmentRequest),
 		api.Services.EnrollmentCaptcha,
 		api.Services.EnrollmentPhase,
-		api.Services.EnrollmentDecision,
+		enrollmentAPI.NewDecisionService(api.Services.EnrollmentDecision),
 		api.Services.EnrollmentReport,
-		api.Services.EnrollmentRollover,
-		api.Services.EnrollmentChangeRequest,
+		enrollmentAPI.NewRolloverService(api.Services.EnrollmentRollover),
+		enrollmentAPI.NewChangeRequestService(api.Services.EnrollmentChangeRequest),
 		api.Services.EnrollmentDeletion,
 		enrollmentGuardianInvitations(api.Services.GuardianInvitation),
 		api.Services.GuardianProfileLoader,
@@ -1572,13 +1574,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, db, logger.With("handler", "birthdays"))
 	api.UserContext = meAPI.NewResource(api.Services.UserContext.Caller(), api.Services.UserContext)
 	// The school portal's class-day surface reads the class-day projection
-	// (#2701); the projection binds the retained enrollment report and the
+	// (#2701): the day report over Enrollment's day roster and the
 	// arrival-exception write seam (#2970) behind its one public capability.
-	api.ClassDay = classdayHTTP.NewResource(classdayCompose.NewClassDay(classdayCompose.ClassDayDependencies{
-		Reports:           api.Services.EnrollmentReport,
-		Caller:            api.Services.UserContext,
-		ArrivalExceptions: api.Services.ClassDayArrivalExceptions,
-	}), db, logger.With("handler", "class-day"))
+	api.ClassDay = classdayHTTP.NewResource(api.Services.ClassDayArrivalExceptions, db, logger.With("handler", "class-day"))
 	api.ClassListEntries = newClassListEntriesResource(api.membership, db, logger.With("handler", "class-list-entries"))
 	api.Substitutions = workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(api.Services.Substitution), db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
@@ -1608,7 +1606,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		SettingsService:         api.Services.Settings,
 		SlotListsService:        api.Services.SlotLists,
 		OfferingSourceOptions:   services.NewTimetableOfferingSources(api.Services.EnrollmentCareOffering),
-		SupervisionSheets:       services.NewTimetableSupervisionSheets(api.Services.EnrollmentReport),
+		SupervisionSheets:       services.NewTimetableSupervisionSheets(api.Services.ClassDayArrivalExceptions),
 		PlanExportService:       api.Services.PlanExport,
 		PickupExtensions:        pickupExtensions,
 		Staffing:                timetableStaffingAnnouncer(api.Services.Instance),
@@ -1676,7 +1674,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Resets:                parentPasswordResets(api.Services.ParentPasswordResetRuntime()),
 		Parent:                api.Services.Parent,
 		Calendar:              api.Services.Calendar,
-		Requests:              api.Services.EnrollmentRequest,
+		Requests:              enrollmentAPI.NewRequestService(api.Services.EnrollmentRequest),
 		GuardianProfileLoader: api.Services.GuardianProfileLoader,
 		Schools:               parentSchoolDirectory{schools: api.Services.Schools},
 		Push:                  api.Services.PushSubscriptions,

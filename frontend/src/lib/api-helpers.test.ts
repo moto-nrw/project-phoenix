@@ -995,6 +995,52 @@ describe("apiGet (server-side)", () => {
     });
   });
 
+  it.each([
+    ["GET", "/api/items", undefined],
+    ["POST", "/api/items", { name: "conflicting item" }],
+  ] as const)(
+    "forwards a %s conflict body and status unchanged through the proxy",
+    async (method, endpoint, requestBody) => {
+      const backendBody = JSON.stringify({
+        type: "/help/fehlermeldungen#konflikt",
+        title: "Conflict",
+        status: 409,
+        error: "item already exists",
+        code: "item_conflict",
+        details: { item_id: "42" },
+        errors: [{ field: "name", code: "duplicate" }],
+        instance: "/api/items/42",
+      });
+      mockNextHeaders.mockResolvedValueOnce(new Headers());
+      mockFetch.mockResolvedValueOnce(
+        new Response(backendBody, {
+          status: 409,
+          headers: { "Content-Type": "application/problem+json" },
+        }),
+      );
+
+      let thrown: unknown;
+      try {
+        if (method === "GET") await apiGet(endpoint, "token");
+        else await apiPost(endpoint, "token", requestBody);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(ServerApiResponseError);
+      const response = handleApiError(thrown);
+      expect(response.status).toBe(409);
+      expect(response.headers.get("Content-Type")).toBe(
+        "application/problem+json",
+      );
+      expect(await response.text()).toBe(backendBody);
+      expect(mockFetch).toHaveBeenCalledWith(
+        `http://backend.test${endpoint}`,
+        expect.objectContaining({ method }),
+      );
+    },
+  );
+
   it("forwards the canonical client IP and user agent headers to the backend", async () => {
     mockNextHeaders.mockResolvedValueOnce(
       new Headers({

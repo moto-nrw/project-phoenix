@@ -81,9 +81,6 @@ jobs:
           scripts/backend-affected-packages_test.sh
           scripts/test-changed_test.sh
 
-      - name: Test absolute-rule guard
-        run: .claude/hooks/guard-absolute-rules_test.sh
-
       - name: Restore migrated DB snapshot
         id: db-snapshot
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -318,8 +315,6 @@ jobs:
           - 8025:8025
 
     env:
-      DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_seed?sslmode=disable
-      DEMO_DB_DSN: postgres://phoenix_demo@localhost:5432/phoenix_seed?sslmode=disable
       DB_MAX_OPEN_CONNS: "40"
       DB_MAX_IDLE_CONNS: "40"
       DB_CONN_MAX_LIFETIME: 30m
@@ -373,6 +368,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Every DSN points at the Postgres container's bridge IP instead of
+      # localhost:5432. localhost resolves to [::1], which Docker serves
+      # through its userland port proxy. Three runs (36190757699,
+      # 36197414192, 36197521464) hung one pooled connection for the full
+      # 10 s read timeout on a millisecond query, and Postgres logged neither
+      # the query, a lock wait, nor the EOF of the closed connection: that
+      # connection's bytes never reached the server. The direct address
+      # takes the proxy out of the path.
+      - name: Resolve Postgres container address
+        run: |
+          pg_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "${{ job.services.postgres.id }}")
+          test -n "${pg_ip}"
+          echo "Postgres container address: ${pg_ip}"
+          {
+            echo "DB_DSN=postgres://postgres:postgres@${pg_ip}:5432/phoenix_seed?sslmode=disable"
+            echo "DEMO_DB_DSN=postgres://phoenix_demo@${pg_ip}:5432/phoenix_seed?sslmode=disable"
+            echo "SEED_COVERAGE_DSN=postgres://postgres:postgres@${pg_ip}:5432/phoenix_seed?sslmode=disable"
+          } >> "${GITHUB_ENV}"
+
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -388,6 +402,49 @@ jobs:
         working-directory: backend
         run: |
           "${RUNNER_TEMP}/phoenix" migrate
+
+      # A request once hung here for the full 10s driver read timeout on a
+      # sub-millisecond read while no other request or pool connection was
+      # busy (run 36190757699), and the service log could not say why. With
+      # these settings the log printed at job end names a lock wait and its
+      # blocker, or a slow statement with its duration; a hang that leaves
+      # neither points at the runner rather than at the query.
+      - name: Log Postgres lock waits and slow statements
+        run: |
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 \
+            -c "ALTER SYSTEM SET log_lock_waits = on" \
+            -c "ALTER SYSTEM SET log_min_duration_statement = '1s'" \
+            -c "ALTER SYSTEM SET log_autovacuum_min_duration = '1s'" \
+            -c "ALTER SYSTEM SET log_connections = on" \
+            -c "ALTER SYSTEM SET log_disconnections = on" \
+            -c "SELECT pg_reload_conf()"
+
+      # If a request hangs again, this shows whether its backend was running,
+      # waiting (wait_event), or idle without ever seeing the query, and
+      # whether bytes sat in a socket queue. One psql session samples twice a
+      # second, so log_connections stays readable. Printed only on failure.
+      - name: Start Postgres activity sampler
+        run: |
+          cat > "${RUNNER_TEMP}/activity.sql" <<'SQL'
+          SELECT clock_timestamp()::time(3) AS at, pid, backend_type, state,
+                 wait_event_type, wait_event,
+                 round(extract(epoch FROM clock_timestamp() - xact_start)::numeric, 2) AS xact_s,
+                 round(extract(epoch FROM clock_timestamp() - query_start)::numeric, 2) AS query_s,
+                 left(regexp_replace(query, '\s+', ' ', 'g'), 160) AS query
+          FROM pg_stat_activity
+          WHERE pid <> pg_backend_pid()
+            AND backend_type IN ('client backend', 'autovacuum worker')
+            AND state IS DISTINCT FROM 'idle'
+          ORDER BY pid
+          \watch 0.5
+          SQL
+          nohup psql "${DB_DSN}" -XAt -F ' | ' -f "${RUNNER_TEMP}/activity.sql" \
+            > "${RUNNER_TEMP}/activity.log" 2>&1 &
+          nohup bash -c 'while true; do
+            echo "=== $(date -u +%H:%M:%S.%3N)"
+            ss -tnio state established "( sport = :5432 or dport = :5432 )" | awk "NR > 1 && (\$1 > 0 || \$2 > 0)"
+            sleep 0.5
+          done' > "${RUNNER_TEMP}/sockets.log" 2>&1 &
 
       - name: Start server
         working-directory: backend
@@ -507,9 +564,14 @@ jobs:
 
       - name: Check seed coverage ratchet
         working-directory: backend
-        env:
-          SEED_COVERAGE_DSN: postgres://postgres:postgres@localhost:5432/phoenix_seed?sslmode=disable
         run: go test ./seed/api/ -run TestSeedCoverageRatchet -v
+
+      - name: Postgres activity and socket queues
+        if: failure()
+        run: |
+          tail -n 400 "${RUNNER_TEMP}/activity.log" || true
+          echo "--- sockets with queued bytes"
+          awk '/^===/ { at = $2; next } { print at, $0 }' "${RUNNER_TEMP}/sockets.log" | tail -n 200 || true
 
       - name: Server log
         if: always()

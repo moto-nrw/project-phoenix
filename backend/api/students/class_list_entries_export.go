@@ -8,8 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // This file merges the class-list-only entries (#2382) into the student
@@ -24,8 +24,8 @@ import (
 // semantically — the merged list would claim they matched the filter. The
 // enum filters share the student side's isActiveFilterValue semantics: an
 // explicit "all" filters nothing there, so it must not drop the entries here.
-func classListEntryExportEligible(preset listexport.Preset, f studentExportFilters) bool {
-	if preset != listexport.PresetClassRoster {
+func classListEntryExportEligible(preset lists.Preset, f studentExportFilters) bool {
+	if preset != lists.PresetClassRoster {
 		return false
 	}
 	return f.GroupID == "" && f.RoomID == "" &&
@@ -83,16 +83,16 @@ func classListEntryMatchesSearch(entry ClassListEntry, search string) bool {
 // marker, class, and "—" in the weekday cells like a non-care day of a
 // student row. Every other column stays empty — the entry has no data there,
 // and an invented value is exactly what #2382 forbids.
-func classListEntryExportRow(entry ClassListEntry) listexport.Row {
-	return listexport.Row{Values: map[listexport.ColumnID]string{
-		listexport.ColumnName:              strings.TrimSpace(entry.FirstName+" "+entry.LastName) + " (" + enrollmentService.ClassListEntryNoCareLabel + ")",
-		listexport.ColumnSchoolClass:       entry.SchoolClass,
-		listexport.ColumnEnrollmentSummary: enrollmentService.ClassListEntryNoCareLabel,
-		listexport.ColumnWeeklyMonday:      "—",
-		listexport.ColumnWeeklyTuesday:     "—",
-		listexport.ColumnWeeklyWednesday:   "—",
-		listexport.ColumnWeeklyThursday:    "—",
-		listexport.ColumnWeeklyFriday:      "—",
+func classListEntryExportRow(entry ClassListEntry) lists.Row {
+	return lists.Row{Values: map[lists.ColumnID]string{
+		lists.ColumnName:              strings.TrimSpace(entry.FirstName+" "+entry.LastName) + " (" + capability.ClassListEntryNoCareLabel + ")",
+		lists.ColumnSchoolClass:       entry.SchoolClass,
+		lists.ColumnEnrollmentSummary: capability.ClassListEntryNoCareLabel,
+		lists.ColumnWeeklyMonday:      "—",
+		lists.ColumnWeeklyTuesday:     "—",
+		lists.ColumnWeeklyWednesday:   "—",
+		lists.ColumnWeeklyThursday:    "—",
+		lists.ColumnWeeklyFriday:      "—",
 	}}
 }
 
@@ -105,7 +105,7 @@ type exportRowSource struct {
 	// entryTie breaks ties between a student and an entry deterministically
 	// (students first) without ever comparing IDs across the two kinds.
 	entryTie bool
-	row      listexport.Row
+	row      lists.Row
 }
 
 // mergeClassListEntrySources loads, filters and interleaves the class-list
@@ -201,13 +201,13 @@ func stableSortRowSources(sources []exportRowSource, nameSorted bool) {
 // buildExportRowSources renders the final rows (grouped or flat) from the
 // merged sources, reusing the exact heading semantics of
 // the grouped export builder.
-func buildExportRowSources(sources []exportRowSource, grouped bool) []listexport.Row {
-	rows := make([]listexport.Row, 0, len(sources))
+func buildExportRowSources(sources []exportRowSource, grouped bool) []lists.Row {
+	rows := make([]lists.Row, 0, len(sources))
 	currentClass := ""
 	for i, source := range sources {
 		if class := strings.TrimSpace(source.schoolClass); grouped && (i == 0 || collation.CompareSchoolClasses(class, currentClass) != 0) {
 			currentClass = class
-			rows = append(rows, listexport.Row{GroupTitle: listexport.ClassGroupTitle(class)})
+			rows = append(rows, lists.Row{GroupTitle: lists.ClassGroupTitle(class)})
 		}
 		rows = append(rows, source.row)
 	}

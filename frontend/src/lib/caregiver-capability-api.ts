@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "CaregiverCapabilityAPI" });
@@ -175,12 +176,12 @@ interface CapabilityErrorPayload {
   blockers?: string[];
 }
 
-export class CaregiverCapabilityApiError extends Error {
+export class CaregiverCapabilityApiError extends ApiError {
   status: number;
   blockers: string[];
 
   constructor(message: string, status: number, blockers: string[] = []) {
-    super(message);
+    super(message, status);
     this.name = "CaregiverCapabilityApiError";
     this.status = status;
     this.blockers = blockers;
@@ -259,9 +260,11 @@ async function parseCapabilityResponse(
 async function handleCapabilityError(response: Response): Promise<never> {
   let message = response.statusText || "Unbekannter Fehler";
   let blockers: string[] = [];
+  let body: unknown;
 
   try {
     const payload = (await response.json()) as CapabilityErrorPayload;
+    body = payload;
     message = payload.message ?? payload.error ?? message;
     blockers = (payload.blockers ?? []).map((blocker) =>
       translateCapabilityBlocker(blocker),
@@ -273,7 +276,10 @@ async function handleCapabilityError(response: Response): Promise<never> {
     });
   }
 
-  throw new CaregiverCapabilityApiError(message, response.status, blockers);
+  throw enrichApiError(
+    new CaregiverCapabilityApiError(message, response.status, blockers),
+    body,
+  );
 }
 
 async function requestCapability(

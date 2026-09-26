@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"regexp"
 	"slices"
 	"strings"
 	"syscall"
@@ -41,16 +42,8 @@ var serveCmd = &cobra.Command{
 		})
 		applog.ConfigureDefault(logger)
 
-		if dsn := strings.TrimSpace(config.SentryDSN); dsn != "" {
-			sentryEnv := strings.TrimSpace(config.SentryEnvironment)
-			err := sentry.Init(sentry.ClientOptions{
-				Dsn:         dsn,
-				Environment: sentryEnv,
-				BeforeSend: func(event *sentry.Event, hint *sentry.EventHint) *sentry.Event {
-					return scrubSentryEvent(event)
-				},
-			})
-			if err != nil {
+		if strings.TrimSpace(config.SentryDSN) != "" {
+			if err := sentry.Init(sentryClientOptions(config)); err != nil {
 				return fmt.Errorf("initialize sentry: %w", err)
 			}
 			defer sentry.Flush(2 * time.Second)
@@ -76,6 +69,27 @@ var serveCmd = &cobra.Command{
 	},
 }
 
+// release is the full commit SHA of the deployed build. The image build sets
+// it through -ldflags from the SENTRY_RELEASE build argument (#3638), the same
+// value the frontend reports. Local builds leave it empty.
+var release string
+
+// sentryEnvironments are the APP_ENV values a backend may report under. The
+// Sentry environment is APP_ENV itself, so demo events filter apart from
+// schools and staging without a second variable that could drift.
+var sentryEnvironments = []string{"production", "staging", "demo", "development"}
+
+func sentryClientOptions(config serveConfig) sentry.ClientOptions {
+	return sentry.ClientOptions{
+		Dsn:         strings.TrimSpace(config.SentryDSN),
+		Environment: strings.TrimSpace(config.AppEnv),
+		Release:     release,
+		BeforeSend: func(event *sentry.Event, hint *sentry.EventHint) *sentry.Event {
+			return scrubSentryEvent(event)
+		},
+	}
+}
+
 func scrubSentryEvent(event *sentry.Event) *sentry.Event {
 	if event == nil {
 		return event
@@ -85,16 +99,23 @@ func scrubSentryEvent(event *sentry.Event) *sentry.Event {
 	// transaction name / breadcrumbs), so a failing feed request would otherwise
 	// ship a replayable capability token to Sentry. Redact it everywhere the SDK
 	// may have recorded the path.
-	event.Message = appmiddleware.RedactFeedToken(event.Message)
+	//
+	// Error texts reach Sentry as exception values and, from background work,
+	// as breadcrumbs (#3640). A mail server's rejection names the recipient's
+	// e-mail address, which must never leave for Sentry (#3590).
+	event.Message = scrubSentryText(event.Message)
 	event.Transaction = appmiddleware.RedactFeedToken(event.Transaction)
+	for i := range event.Exception {
+		event.Exception[i].Value = scrubSentryText(event.Exception[i].Value)
+	}
 	for _, bc := range event.Breadcrumbs {
 		if bc == nil {
 			continue
 		}
-		bc.Message = appmiddleware.RedactFeedToken(bc.Message)
+		bc.Message = scrubSentryText(bc.Message)
 		for key, value := range bc.Data {
 			if s, ok := value.(string); ok {
-				bc.Data[key] = appmiddleware.RedactFeedToken(s)
+				bc.Data[key] = scrubSentryText(s)
 			}
 		}
 	}
@@ -112,6 +133,14 @@ func scrubSentryEvent(event *sentry.Event) *sentry.Event {
 		}
 	}
 	return event
+}
+
+// sentryEmailAddress matches an e-mail address inside free text.
+var sentryEmailAddress = regexp.MustCompile(`[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}`)
+
+// scrubSentryText redacts feed tokens and e-mail addresses in free text.
+func scrubSentryText(s string) string {
+	return sentryEmailAddress.ReplaceAllString(appmiddleware.RedactFeedToken(s), "[email]")
 }
 
 func init() {
@@ -136,7 +165,7 @@ type serveConfig struct {
 	JWTSecret, JWTExpiry, JWTRefreshExpiry                     string
 	FrontendURL, PublicAPIURL, ParentsURL, PhoenixAuthPassword string
 	DatabaseDSN, TestDatabaseDSN                               string
-	SentryDSN, SentryEnvironment, SentryPyrePortalDSN          string
+	SentryDSN, SentryPyrePortalDSN                             string
 	LogLevel                                                   string
 	LogTextLogging, EnableCORS                                 bool
 }
@@ -150,9 +179,8 @@ func currentServeConfig() serveConfig {
 		PublicAPIURL: viper.GetString("next_public_api_url"),
 		ParentsURL:   viper.GetString("parents_url"), PhoenixAuthPassword: viper.GetString("phoenix_auth_password"),
 		DatabaseDSN: viper.GetString("db_dsn"), TestDatabaseDSN: viper.GetString("test_db_dsn"),
-		SentryDSN: viper.GetString("sentry_dsn"), SentryEnvironment: viper.GetString("sentry_environment"),
-		SentryPyrePortalDSN: viper.GetString("sentry_pyreportal_dsn"),
-		LogLevel:            viper.GetString("log_level"), EnableCORS: viper.GetBool("enable_cors"),
+		SentryDSN: viper.GetString("sentry_dsn"), SentryPyrePortalDSN: viper.GetString("sentry_pyreportal_dsn"),
+		LogLevel: viper.GetString("log_level"), EnableCORS: viper.GetBool("enable_cors"),
 	}
 }
 
@@ -180,9 +208,6 @@ func validateServeConfig(config serveConfig) error {
 		}
 	}
 
-	if strings.TrimSpace(config.SentryDSN) != "" && strings.TrimSpace(config.SentryEnvironment) == "" {
-		missing = append(missing, "SENTRY_ENVIRONMENT")
-	}
 	// The kiosks report through the backend (#3645), so a backend that
 	// reports to Sentry must know where their reports go.
 	if strings.TrimSpace(config.SentryDSN) != "" && strings.TrimSpace(config.SentryPyrePortalDSN) == "" {
@@ -192,6 +217,13 @@ func validateServeConfig(config serveConfig) error {
 	if len(missing) > 0 {
 		slices.Sort(missing)
 		return fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
+	}
+
+	// test, dev and local stay possible without a DSN; with one, an unknown
+	// APP_ENV would file events under an environment nobody filters for.
+	if strings.TrimSpace(config.SentryDSN) != "" && !slices.Contains(sentryEnvironments, appEnv) {
+		return fmt.Errorf("APP_ENV=%q is not allowed with SENTRY_DSN set; use one of: %s",
+			appEnv, strings.Join(sentryEnvironments, ", "))
 	}
 
 	if config.JWTSecret == "random" {

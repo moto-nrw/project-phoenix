@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/services"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -27,7 +26,7 @@ func buildSharingAtCreationServices(t *testing.T) (*parentService.Portal, parent
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	excused, err := services.NewTestExcusedAbsenceRequests(services.ExcusedRequestTestOptions{
-		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: usersSvc.NewParentRequestEventRecorder(repos.ParentRequestEvent), Logger: slog.Default(),
+		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: repos.ParentRequestEvent, Logger: slog.Default(),
 	})
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
@@ -42,7 +41,7 @@ func buildSharingAtCreationServices(t *testing.T) (*parentService.Portal, parent
 		StudentGuardianRepo:    repos.StudentGuardian,
 		FamilyProtectionEvents: repos.FamilyProtection,
 		ParentRequestShares:    repos.ParentRequestShare,
-		ParentRequestEvents:    usersSvc.NewParentRequestEventRecorder(repos.ParentRequestEvent),
+		ParentRequestEvents:    repos.ParentRequestEvent,
 		ExcusedRequests:        excused,
 		ExcusedRequestRepo:     repos.ExcusedAbsenceRequest,
 		Settings: excusedApprovalSettings{

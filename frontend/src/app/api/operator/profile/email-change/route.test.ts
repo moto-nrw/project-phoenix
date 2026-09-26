@@ -67,12 +67,12 @@ describe("POST /api/operator/profile/email-change", () => {
 
   it("proxies successful response", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({ message: "E-Mail-Änderung eingeleitet" }),
-    });
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ message: "E-Mail-Änderung eingeleitet" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     const request = createMockRequest({
       email: "new@test.com",

@@ -7,6 +7,12 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 
@@ -21,14 +27,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/education"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -43,13 +47,13 @@ type StudentTestModule struct {
 	CareLifecycle      careplan.CareLifecycle
 	StudentAudit       users.StudentAuditService
 	PartialAbsence     careplan.PartialAbsenceService
-	EnrollmentDecision enrollment.DecisionService
+	EnrollmentDecision enrollmentOwner.Decisions
 	CareRequests       carerequests.Service
 	OfferingChanges    careplan.OfferingChangeCapability
 	PickupAdjustments  careplan.PickupAdjustments
 	ExcusedRequests    careplan.ExcusedAbsenceRequests
-	MasterDataReview   users.MasterDataReviewService
-	ParentRequests     *users.ParentRequestCoordinator
+	MasterDataReview   masterdatarequests.Decisions
+	ParentRequests     parentrequests.Coordinator
 	OGSGroupLive       grouplive.Query
 	StudentPhotos      users.StudentPhotoService
 	// NewStudentPhotos rebinds the photo lifecycle to the caller's broadcaster
@@ -150,7 +154,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	studentPhotoService := newStudentPhotos(realtimeHub, nil)
 	users.WirePersonCareParticipation(usersService, careParticipationResolver(careLifecycleService))
 	careplanCompose.WireCareParticipation(careDayService, careLifecycleService)
-	approvedOfferings := enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
+	approvedOfferings := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
 	pickupBaselines, err := careplanCompose.NewPickupBaselines(repos.CarePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
 		return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
@@ -217,59 +221,60 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
-		Requests:                  repos.Enrollment(),
-		Children:                  repos.Enrollment(),
-		Guardians:                 repos.Enrollment(),
-		LateInviteRepo:            repos.Enrollment(),
-		CareOfferingRepo:          enrollment.NewCareOfferingRepository(repos.CarePlan),
-		Phases:                    repos.Enrollment(),
-		Schemas:                   repos.Enrollment(),
-		DataAccessLogRepo:         repos.DataAccessLog,
-		OfferingAdjustmentRepo:    repos.EnrollmentOfferingAdjustment,
-		RestorationAuditRepo:      repos.EnrollmentRestorationAudit,
-		SchoolRepo:                enrollmentSchoolDirectory{schools: repos.School},
-		PersonRepo:                repos.Person,
-		StaffRepo:                 repos.Staff,
-		StudentRepo:               repos.Student,
-		StudentGuardianRepo:       repos.StudentGuardian,
-		GuardianFinancialAudit:    repos.GuardianFinancialChange,
-		GuardianProfileRepo:       repos.GuardianProfile,
-		GuardianPhoneRepo:         repos.GuardianPhoneNumber,
-		PickupScheduleRepo:        repos.StudentPickupSchedule,
-		ArrivalScheduleRepo:       repos.StudentArrivalSchedule,
-		CareBookings:              careBookings,
-		GuardianAccess:            guardianAccess,
-		StudentEnrollment:         persons,
-		DepartureCompanions:       repositories.NewStudentCompanionRepository(repos.CarePlan),
-		DeleteDepartureCompanions: repos.CarePlan.DeleteCompanionEdges,
-		OutboxEnqueuer:            outboxEnqueuer{outbox: emailOutboxService},
-		StudentAudit:              studentAuditService,
-		StudentConsents:           studentConsentService,
-		CareWithdrawal:            careLifecycleService,
-		Broadcaster:               realtimeHub,
-		FrontendURL:               frontendURL,
-		ParentsURL:                parentsURL,
-		Settings:                  settingsService,
-		LockTemplateRecurrence:    recurrenceLock.LockRecurrenceWrites,
-		ResyncPickupAutoExcusals:  resyncPickupAutoExcusals,
-		LockPickupStudents: func(ctx context.Context, studentIDs []int64) error {
-			for _, studentID := range studentIDs {
-				if err := persons.LockStudent(ctx, studentID); err != nil {
-					if errors.Is(err, peopledirectory.ErrStudentNotFound) {
-						continue
+	enrollmentDecisionService := enrollmentCompose.PublicDecisions(NewEnrollmentDecisions(EnrollmentDecisionSources{
+		Requests:               repos.Enrollment(),
+		Children:               repos.Enrollment(),
+		Guardians:              repos.Enrollment(),
+		LateInvites:            repos.Enrollment(),
+		CareOfferings:          enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),
+		Phases:                 repos.Enrollment(),
+		Schemas:                repos.Enrollment(),
+		DataAccessLog:          repos.DataAccessLog,
+		OfferingAdjustments:    repos.EnrollmentOfferingAdjustment,
+		Restorations:           repos.EnrollmentRestorationAudit,
+		Notifications:          newEnrollmentNotifications(repos.Enrollment(), settingsService, outboxEnqueuer{outbox: emailOutboxService}, enrollmentSchoolDirectory{schools: repos.School}),
+		Persons:                repos.Person,
+		Staff:                  repos.Staff,
+		Students:               repos.Student,
+		StudentGuardians:       repos.StudentGuardian,
+		GuardianFinancialAudit: repos.GuardianFinancialChange,
+		GuardianProfiles:       repos.GuardianProfile,
+		GuardianPhones:         repos.GuardianPhoneNumber,
+		PickupSchedules:        repositories.NewEnrollmentPickupSchedules(repos.StudentPickupSchedule),
+		ArrivalSchedules:       repositories.NewEnrollmentArrivalSchedules(repos.StudentArrivalSchedule),
+		CareBookings:           careBookings,
+		GuardianAccess:         guardianAccess,
+		StudentEnrollment:      persons,
+		Companions:             repositories.NewStudentCompanionRepository(repos.CarePlan),
+		DeleteCompanions:       repos.CarePlan.DeleteCompanionEdges,
+		StudentAudit:           studentAuditService,
+		StudentConsents:        studentConsentService,
+		CareWithdrawal:         careLifecycleService,
+		Broadcaster:            realtimeHub,
+		FrontendURL:            frontendURL,
+		ParentsURL:             parentsURL,
+		Settings:               settingsService,
+		LockTemplateRecurrence: recurrenceLock.LockRecurrenceWrites,
+		Pickups: enrollmentCompose.WeeklyPickupHooks{
+			LockStudents: func(ctx context.Context, studentIDs []int64) error {
+				for _, studentID := range studentIDs {
+					if err := persons.LockStudent(ctx, studentID); err != nil {
+						if errors.Is(err, peopledirectory.ErrStudentNotFound) {
+							continue
+						}
+						return err
 					}
-					return err
 				}
-			}
-			return nil
+				return nil
+			},
+			ResyncExcusal: resyncPickupAutoExcusals,
 		},
 		Logger: logger.With("service", "enrollment-decision"),
 		Today:  today,
-	})
+	}))
 	offeringResync = careBookings
 	requestReviewPolicy := NewParentRequestReviewPolicy(userContextService.Caller().ParentRequestReviews)
-	parentRequestEvents := users.NewParentRequestEventRecorder(repos.ParentRequestEvent)
+	parentRequestEvents := repos.ParentRequestEvent
 	careRequestService := NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CarePlan,
 		persons,
@@ -317,28 +322,22 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	masterDataReviewService := users.NewMasterDataReviewServiceWithAuditAndPolicy(authjwt.PermissionsFromCtx,
-		repos.StudentDataChangeRequest,
-		repos.Student,
-		repos.Person,
-		userContextService,
-		pillEmitter,
-		studentAuditService,
-		requestReviewPolicy,
-		parentRequestEvents,
-		logger.With("service", "master-data-review"),
-		realtimeHub,
-	)
-	excusedCoordinatorPort := excusedRequestCoordinatorPort{requests: excusedRequestService}
-	parentRequestCoordinator := users.NewParentRequestCoordinator(authjwt.PermissionsFromCtx,
-		masterDataReviewService.(users.MasterDataBulkReviewPort),
-		excusedCoordinatorPort,
-	)
-	parentRequestCoordinator.SetMasterDataConflictPort(masterDataReviewService.(users.ParentRequestConflictPort))
-	parentRequestCoordinator.SetExcusedConflictPort(excusedCoordinatorPort)
-	parentRequestCoordinator.SetCareConflictPort(careRequestService.(users.ParentRequestConflictPort))
-	parentRequestCoordinator.SetOfferingConflictPort(offeringChangeConflictPort{changes: offeringChanges})
-	parentRequestCoordinator.SetEventRecorder(parentRequestEvents)
+	masterDataDecisions, err := newMasterDataDecisions(masterDataDecisionWiring{
+		carePlan: repos.CarePlan, fields: persons, students: repos.Student, persons: repos.Person,
+		audit: studentAuditService, scope: parentRequestWriteScope(requestReviewPolicy),
+		emitter: pillEmitter, broadcaster: realtimeHub, events: parentRequestEvents,
+		logger: logger.With("service", "master-data-review"),
+	})
+	if err != nil {
+		return StudentTestModule{}, err
+	}
+	parentRequestCoordinator, err := newParentRequestCoordinator(parentRequestCoordinatorWiring{
+		masterData: masterDataDecisions, excused: excusedRequestService, care: careRequestService,
+		offering: offeringChangeConflictPort{changes: offeringChanges}, events: parentRequestEvents,
+	})
+	if err != nil {
+		return StudentTestModule{}, err
+	}
 	scheduleSubstitution, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
 		Deviations: live.Deviations, Staff: repos.Staff, Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
 		ActivityInstances: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
@@ -401,7 +400,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		Schools: repos.School, CareLifecycle: careLifecycleService, StudentAudit: studentAuditService,
 		PartialAbsence: partialAbsenceService, EnrollmentDecision: enrollmentDecisionService, CareRequests: careRequestService,
 		OfferingChanges: offeringChanges, PickupAdjustments: pickupAdjustments, ExcusedRequests: excusedRequestService,
-		MasterDataReview: masterDataReviewService, ParentRequests: parentRequestCoordinator, OGSGroupLive: ogsGroupLiveService,
+		MasterDataReview: masterDataDecisions, ParentRequests: parentRequestCoordinator, OGSGroupLive: ogsGroupLiveService,
 	}, nil
 }
 

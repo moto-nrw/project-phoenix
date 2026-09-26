@@ -189,7 +189,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/schoolstructure/internal/adapters/postgres/transition_store.go:(*Store).ListTransitions":                                64,
 	"modules/schoolstructure/internal/application/transition.go:(*Service).UpdateTransition":                                         63,
 	"modules/statistics/http/response.go:toReportResponse":                                                                           78,
-	"modules/studentpresence/inbound/presence/analytics_handlers.go:(*Resource).getDashboardAnalytics":                               69,
 	"modules/studentpresence/inbound/presence/api.go:(*Resource).Router":                                                             131,
 	"modules/studentpresence/inbound/presence/checkin.go:(*Resource).parseAndValidateCheckinRequest":                                 62,
 	"modules/studentpresence/inbound/presence/groups_handlers.go:(*Resource).buildVisitDisplayResponses":                             68,

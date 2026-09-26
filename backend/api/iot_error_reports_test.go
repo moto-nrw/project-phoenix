@@ -204,9 +204,19 @@ func checkIoTErrorReportsRelay(t *testing.T, router http.Handler, fake *fakeSent
 			w := post(envelope, busy)
 			require.Equal(t, http.StatusOK, w.Code, "envelope %d", i+1)
 		}
-		w := post(envelope, busy)
+		// The token bucket refills one token per second. A busy full-router
+		// test may take over a second to send 60 envelopes, so the 61st may
+		// legitimately succeed. The fixed-time unit test pins the exact burst.
+		var w *httptest.ResponseRecorder
+		for attempt := 61; attempt <= 120; attempt++ {
+			w = post(envelope, busy)
+			if w.Code == http.StatusTooManyRequests {
+				break
+			}
+			require.Equal(t, http.StatusOK, w.Code, "envelope %d", attempt)
+		}
 
-		assert.Equal(t, http.StatusTooManyRequests, w.Code)
+		require.Equal(t, http.StatusTooManyRequests, w.Code)
 		assert.Contains(t, w.Body.String(), "too many error reports")
 		assert.Equal(t, "60", w.Header().Get("Retry-After"))
 		assert.Equal(t, http.StatusOK, post(envelope, quiet).Code, "the quota is per device")

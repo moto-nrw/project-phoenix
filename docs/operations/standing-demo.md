@@ -43,7 +43,7 @@ school of #3461 stays selectable as the fallback (see below).
    the school the broken attempt left under the slug (schools are never
    hard-deleted and keep their unique subdomain) and seeds with a fresh
    account scope. Account emails and usernames carry the slug's random
-   suffix (`demo11.k3m9xp@mail.de`), the repetition `k3m9xp-2`: usernames end
+   suffix (`julia.klein@demo-k3m9xp.moto-ogs.de`), the repetition `k3m9xp-2`: usernames end
    at 30 characters, and the abandoned school keeps its accounts. A seed that
    fails because the operator cannot sign in (the second factor allows three
    codes in 15 minutes) is not counted: the order returns to the queue and

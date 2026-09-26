@@ -177,9 +177,11 @@ var modulePassthroughBudgets = map[string]int{
 	// forward and the internal-only AdministrativelyVisibleStudentIDs.
 	// Shrink-only from here like every other entry.
 	"modules/careplan": 111,
-	// The caller, report and arrival-exception ports reached straight
-	// through, most of them behind a nil-port guard and a date parse.
-	"modules/classday": 9,
+	// The caller and arrival-exception ports reached straight through, most
+	// of them behind a nil-port guard and a date parse. 9 → 6 with #3563: the
+	// day report is built in the projection instead of forwarded to the
+	// retained enrollment report.
+	"modules/classday": 6,
 	// Announcement and feed writes, each one store call behind the shared
 	// mutateExisting/run helpers.
 	"modules/communication": 6,
@@ -192,6 +194,14 @@ var modulePassthroughBudgets = map[string]int{
 	// Session lifecycle (6) plus the school-name lookup and the service
 	// facade's device read.
 	"modules/devicescan": 8,
+	// First measured with #3562, when phases, form schemas, captcha and the
+	// parent mails moved out of services/enrollment. form_schemas.go carries
+	// 11: the transactional wrapper runs each schema write in one tenant
+	// transaction, and the reads forward to the owner's records. Phases (3:
+	// the listings and the lookup that maps a miss to ErrPhaseNotFound),
+	// captcha (2: the tenant settings reads), the school brand and the
+	// approved-offering read by care offering follow.
+	"modules/enrollment": 17,
 	// The target-state read, which only maps the port error to ErrUnavailable.
 	"modules/exporttransfer": 1,
 	// Room and toilet reads/writes in service.go.

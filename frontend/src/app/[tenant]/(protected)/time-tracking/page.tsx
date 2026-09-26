@@ -125,6 +125,7 @@ import { useAbsenceTypeSelect } from "~/components/staff/use-absence-type-select
 import { absenceRequestFor, selectValueFor } from "~/lib/absence-type-select";
 import { formatWeekLabel } from "~/lib/timetable-helpers";
 import { createLogger } from "~/lib/logger";
+import { errorStatus } from "~/lib/expected-failure";
 
 const logger = createLogger({ component: "TimeTrackingPage" });
 
@@ -645,6 +646,7 @@ function ClockInCard({
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   // Mutex to prevent race condition in auto-end break effect
   const autoEndInFlightRef = useRef(false);
+  const autoEndAttemptedBreakIdRef = useRef<string | null>(null);
   // Anchor for the desktop break-duration popover; dismissal is handled by
   // document listeners scoped to this subtree (see effect below).
   const breakMenuRef = useRef<HTMLDivElement>(null);
@@ -742,9 +744,11 @@ function ClockInCard({
   useEffect(() => {
     if (
       shouldAutoEndBreak(countdownRemainingSecs, isOnBreak, actionLoading) &&
-      !autoEndInFlightRef.current
+      !autoEndInFlightRef.current &&
+      activeBreak?.id !== autoEndAttemptedBreakIdRef.current
     ) {
       autoEndInFlightRef.current = true;
+      autoEndAttemptedBreakIdRef.current = activeBreak?.id ?? null;
       void (async () => {
         setActionLoading(true);
         try {
@@ -756,7 +760,13 @@ function ClockInCard({
         }
       })();
     }
-  }, [countdownRemainingSecs, isOnBreak, actionLoading, onEndBreak]);
+  }, [
+    countdownRemainingSecs,
+    isOnBreak,
+    actionLoading,
+    activeBreak?.id,
+    onEndBreak,
+  ]);
 
   // Clear planned break when break ends externally
   useEffect(() => {
@@ -3489,17 +3499,37 @@ function TimeTrackingContent() {
   );
 
   const handleEndBreak = useCallback(async () => {
+    let endBreakFailed = false;
     try {
       await timeTrackingService.endBreak();
-      await Promise.all([
-        mutateCurrentSession(),
-        mutateHistory(),
-        refreshTableData(),
-        fetchBreaks(),
-      ]);
     } catch (err) {
+      endBreakFailed = true;
+      const status = errorStatus(err);
+      const context = {
+        error: err instanceof Error ? err.message : String(err),
+        status,
+      };
+      if (status === 404) {
+        logger.warn("end_break_failed", context);
+      } else {
+        logger.error("end_break_failed", context);
+        toast.error(friendlyError(err, "Fehler beim Beenden der Pause"));
+      }
+    }
+    const refreshResults = await Promise.allSettled([
+      mutateCurrentSession(),
+      mutateHistory(),
+      refreshTableData(),
+      fetchBreaks(),
+    ]);
+    const failedRefresh = refreshResults.find(
+      (result) => result.status === "rejected",
+    );
+    if (!endBreakFailed && failedRefresh?.status === "rejected") {
+      const err: unknown = failedRefresh.reason;
       logger.error("end_break_failed", {
         error: err instanceof Error ? err.message : String(err),
+        status: errorStatus(err),
       });
       toast.error(friendlyError(err, "Fehler beim Beenden der Pause"));
     }

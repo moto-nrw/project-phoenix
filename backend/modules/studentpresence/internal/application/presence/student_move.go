@@ -321,10 +321,38 @@ func (s *service) ensureCapacityForStudentMove(
 		}
 	}
 
-	if incoming == 0 {
-		return nil
+	if incoming > 0 {
+		if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, incoming); err != nil {
+			return err
+		}
 	}
-	return s.ensureRoomCapacity(ctx, targetGroup.RoomID, incoming)
+
+	// The participant limit counts the session, not the room: a child moving
+	// between two sessions of one room enters the target activity (#3632).
+	// All or nothing, like the room check.
+	return s.ensureActivityParticipantLimit(ctx, targetGroup, countStudentsEnteringSession(targetGroup, openAttendance, currentVisits, studentIDs))
+}
+
+// countStudentsEnteringSession counts the present children a move adds to
+// the target session: every child with open attendance that is not already
+// in it.
+func countStudentsEnteringSession(
+	targetGroup *ports.ActiveGroup,
+	openAttendance map[int64]studentpresence.Attendance,
+	currentVisits map[int64]*studentpresence.Visit,
+	studentIDs []int64,
+) int {
+	entering := 0
+	for _, studentID := range studentIDs {
+		if !studentHasOpenAttendance(openAttendance, studentID) {
+			continue
+		}
+		if visit := currentVisits[studentID]; visit != nil && visit.ActiveGroupID == targetGroup.ID {
+			continue
+		}
+		entering++
+	}
+	return entering
 }
 
 // moveSourceGroupIDs lists every session other than the target that a child

@@ -1,0 +1,109 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3020",
+    "#2733",
+    "#3561"
+  ],
+  "owner_and_capability": "Enrollment — phase administration, form schemas, phase response overview, expiry warnings, approved-offering projection, captcha verification and parent notifications in modules/enrollment (#3562)",
+  "affected_packages": [
+    "services/enrollment",
+    "services",
+    "modules/enrollment",
+    "modules/enrollment/compose",
+    "modules/enrollment/internal/application",
+    "modules/enrollment/internal/adapters/postgres",
+    "modules/enrollment/internal/adapters/turnstile",
+    "api/enrollment"
+  ],
+  "affected_tables": [
+    "enrollment.phases",
+    "enrollment.form_schemas",
+    "enrollment.requests",
+    "enrollment.request_children"
+  ],
+  "exact_ratchet_keys": [
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/email",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/internal/schoolclass",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/platform",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/email",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/uptrace/bun/driver/pgdriver",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|net/http"
+  ],
+  "atomic_cutover": "The phase, schema, expiry, response, projection, captcha and notification implementations move together from services/enrollment to the Enrollment application. Compose binds typed settings, Care Plan reads, the platform outbox and a Turnstile adapter; the Postgres adapter translates phase constraint errors. The 21 retained implementation files are deleted with no second provider. The remaining request and decision flows continue to own their decoded answer maps until #3564 and #3565.",
+  "tests": [
+    "The moved phase, form-schema, expiry, response and notification suites run through modules/enrollment/enrollmenttest and the retained enrollment service tests.",
+    "The public enrollment router suites exercise the composed captcha verifier and unchanged submission contract.",
+    "scripts/backend-architecture.sh check and scripts/test-changed.sh origin/development without --fast verify the architecture ratchet and affected packages."
+  ],
+  "runtime_evidence": {
+    "source": "PR #3675 on the #3562 branch after the Enrollment application cutover. The PR description records the local architecture, lint, vet and changed-package test runs; the evidence is behavioral and structural, not a latency benchmark.",
+    "sources": [
+      "https://github.com/moto-nrw/project-phoenix/pull/3675",
+      "backend/modules/enrollment/internal/application/captcha_test.go",
+      "backend/services/enrollment_application_composition_test.go"
+    ],
+    "workload": "Affected Go package suites against the local PostgreSQL test database in the original PR run, plus focused captcha unit tests and source-level architecture checks after the tenant-settings correction.",
+    "thresholds": "No new forbidden import or composition target; six listed legacy keys retired; the affected behavior suites retain their existing contracts and scripts/backend-architecture.sh check passes.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "This cutover changes implementation ownership and bindings, not the schema or row-update statements; the existing tenant transaction remains the write boundary."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No query-count measurement was made for this cutover; the moved workflows retain their repository calls and one tenant transaction per write."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run for this code relocation; no new network round trip was added to phase or schema requests."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run for this code relocation; no new network round trip was added to phase or schema requests."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "The original PR run reported scripts/test-changed.sh origin/development passing, go vet clean and golangci-lint with zero findings. The later captcha unit tests, vet and lint also passed; the new binding propagates settings resolution errors."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection-pool configuration or acquisition path changes; phase and schema operations still use the ambient tenant transaction."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "The cutover keeps the phase and schema locking operations inside their existing tenant transactions; no lock-wait sampling was made."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No lock order changes were intended or measured in this code relocation."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "Expiry warnings use the existing scheduler binding; no duration measurement was made for this ownership move."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The cutover does not change scheduler retry policy."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The moved expiry warnings do not introduce a job queue."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The phase and schema behavior suites cover validation and constraint failures. The focused captcha tests verify provider rejection, missing keys and settings resolution errors."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No schema or data migration accompanies this code cutover; reverting the PR restores the former service implementations and bindings."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "The original PR run reported scripts/backend-architecture.sh check passing at 529 legacy keys and a composition surface of 614. The same architecture check passed after the captcha binding correction."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR as a unit to restore the former services/enrollment implementations, provider binding and policy classification. No data cleanup is required.",
+  "exit_criterion": "The moved phase, form-schema, expiry, response, projection, captcha and notification implementations have one Enrollment owner; the six listed legacy keys are absent, no new key is added, and validate-ticket --all --base-ref accepts their retirement."
+}

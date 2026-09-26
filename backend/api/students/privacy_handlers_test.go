@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -34,7 +34,7 @@ func TestGetStudentPrivacyConsent(t *testing.T) {
 	})
 
 	t.Run("success_returns_configured_retention_default", func(t *testing.T) {
-		require.NoError(t, tc.resource.SettingsService.SetValue(testpkg.Ctx(t), configModel.KeyPrivacyConsentRetentionDays, 12, nil, nil))
+		require.NoError(t, tc.settings().SetValue(testpkg.Ctx(t), settings.KeyPrivacyConsentRetentionDays, 12, nil, nil))
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/privacy-consent", student.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})

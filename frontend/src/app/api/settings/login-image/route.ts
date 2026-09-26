@@ -1,3 +1,4 @@
+import { backendResponseError } from "~/lib/api-helpers.server";
 import { revalidateTag } from "next/cache";
 import type { NextRequest } from "next/server";
 import {
@@ -101,12 +102,7 @@ export const POST = createFileUploadHandler<LoginImageResponse>(
       }),
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `API error (${response.status}): ${errorText || response.statusText}`,
-      );
-    }
+    if (!response.ok) throw await backendResponseError(response);
 
     const data = ((await response.json()) as { data: LoginImageResponse }).data;
 
@@ -133,12 +129,7 @@ export const DELETE = createDeleteHandler(
       }),
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `API error (${response.status}): ${errorText || response.statusText}`,
-      );
-    }
+    if (!response.ok) throw await backendResponseError(response);
 
     revalidateTenantCache(request);
 
@@ -161,12 +152,7 @@ export const GET = createGetHandler(
       }),
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `API error (${response.status}): ${errorText || response.statusText}`,
-      );
-    }
+    if (!response.ok) throw await backendResponseError(response);
 
     const responseData = (await response.json()) as {
       data: { login_image_url: string | null; can_edit: boolean };

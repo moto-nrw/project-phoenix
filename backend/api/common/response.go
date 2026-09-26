@@ -54,9 +54,10 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, status int, errorM
 	if status >= 500 {
 		slog.Default().ErrorContext(r.Context(), "server error",
 			slog.Int("status", status),
+			slog.String("correlation_id", requestID(r)),
 			slog.String("error", errorMsg),
 		)
-		noteServerError(r.Context(), errors.New(errorMsg))
+		noteServerError(r.Context(), errors.New(errorMsg), "")
 	}
 	render.Status(r, status)
 	render.JSON(w, r, map[string]string{

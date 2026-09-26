@@ -243,11 +243,11 @@ describe("deleteGradeTransition", () => {
     expect((err as TransitionRequestError).code).toBe(NOT_DRAFT_CODE);
   });
 
-  it("leaves the code undefined when the backend sends none", async () => {
+  it("uses the server class code when the backend sends none", async () => {
     stubOnce(fail(500, { error: "boom" }));
 
     const err = await deleteGradeTransition("7").catch((e: unknown) => e);
-    expect((err as TransitionRequestError).code).toBeUndefined();
+    expect((err as TransitionRequestError).code).toBe("general.server");
     expect((err as TransitionRequestError).message).toBe("boom");
   });
 });
@@ -379,7 +379,7 @@ describe("applyGradeTransition", () => {
 
     const err = await applyGradeTransition("7").catch((e: unknown) => e);
     expect((err as TransitionRequestError).message).toBe("HTTP 500");
-    expect((err as TransitionRequestError).code).toBeUndefined();
+    expect((err as TransitionRequestError).code).toBe("general.server");
   });
 });
 

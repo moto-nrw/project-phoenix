@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -20,12 +19,18 @@ import (
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
+)
+
+// CarePeriod and OfferingBooking are the Enrollment values the root binds
+// behind CarePeriods and OfferingHistory.
+type (
+	CarePeriod      = care.CarePeriod
+	OfferingBooking = care.OfferingBooking
 )
 
 // Dependencies are the collaborators of the guardian portal. Optional
@@ -61,9 +66,9 @@ type Dependencies struct {
 	CareExceptions    care.CareExceptions
 	PickupAutoExcusal careplan.PickupAutoExcusal
 
-	CarePeriods      enrollmentSvc.StudentCarePeriodReader
-	OfferingHistory  enrollmentSvc.OfferingHistoryReader
-	CareOfferingRepo enrollmentModels.CareOfferingRepository
+	CarePeriods      care.CarePeriodReads
+	OfferingHistory  care.OfferingHistoryReads
+	CareOfferingRepo care.CareOfferingReads
 	OfferingChanges  care.OfferingChangeRequests
 
 	// CareProfiles writes the child's care profile (health information, live
@@ -76,7 +81,7 @@ type Dependencies struct {
 	StudentAudit        usersSvc.StudentChangeRecorder
 	StudentConsents     care.StudentConsentService
 	StudentPhotos       func() care.StudentPhotoUnlinker
-	ParentRequestEvents usersSvc.ParentRequestEventRecorder
+	ParentRequestEvents usersModels.ParentRequestEventRepository
 	GuardianInvites     care.GuardianAccess
 	GuardianInvitations care.GuardianInvitationReads
 
@@ -89,7 +94,7 @@ type Dependencies struct {
 	AnnouncementRepo          usersModels.ParentAnnouncementRepository
 	CareRequestRepo           scheduleModels.CareScheduleChangeRequestRepository
 	ExcusedRequestRepo        messaging.ExcusedRequestReads
-	OfferingChangeRequestRepo enrollmentModels.OfferingChangeRequestRepository
+	OfferingChangeRequestRepo messaging.OfferingChangeRequestReads
 	FamilyProtectionEvents    usersModels.FamilyProtectionEventRepository
 	ParentRequestShares       usersModels.ParentRequestShareEventRepository
 

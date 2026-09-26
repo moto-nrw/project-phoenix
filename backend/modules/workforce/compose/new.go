@@ -116,6 +116,20 @@ func (transaction) RunWrite(ctx context.Context, callback func(context.Context) 
 	return tenant.WithinCurrentTenant(ctx, callback)
 }
 
+func (t transaction) LockStaffQualifications(ctx context.Context, staffID int64) error {
+	if staffID <= 0 {
+		return errors.New("workforce compose: staff id is required")
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return errors.New("workforce compose: tenant id is required")
+	}
+	if err := t.acquireXactLock(ctx, fmt.Sprintf("staff-qualifications:%d:%d", tenantID, staffID)); err != nil {
+		return fmt.Errorf("lock staff qualification writes: %w", err)
+	}
+	return nil
+}
+
 // LockStaffBalance serializes every writer that changes one staff member's
 // target working time, so a template refresh and a manual schedule change
 // cannot interleave into a half-closed version history.

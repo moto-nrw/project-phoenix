@@ -903,16 +903,7 @@ func careOfferingSeedTranslations(offering seedCareOffering) map[string]map[stri
 
 func (s parentEnrollmentSeedStep) enrollmentSubmissionWithDays(phaseID int64, offerings map[string]int64, childFirstName, childLastName, dob string, grade int16, guardianFirstName, guardianLastName, guardianEmail, source string, offeringIDs []int64, selectedDaysByOffering map[int64][]string) map[string]any {
 	phone := "+49 221 555 990"
-	// Names carry real umlauts (bbcdda558), but the canonical email pattern
-	// (users.ValidateOptionalEmail) only accepts ASCII — transliterate for
-	// the derived address or the public submit rejects the whole seed run.
-	emailLocalPart := strings.NewReplacer(
-		"ä", "ae",
-		"ö", "oe",
-		"ü", "ue",
-		"ß", "ss",
-	).Replace(strings.ReplaceAll(strings.ToLower(guardianFirstName+"."+guardianLastName), " ", "."))
-	additionalEmail := emailLocalPart + ".2@example.test"
+	additionalEmail := emailLocalPart(guardianFirstName, guardianLastName) + ".2@example.test"
 	offeringDays := []map[string]any{}
 	for _, offeringID := range offeringIDs {
 		days, ok := selectedDaysByOffering[offeringID]

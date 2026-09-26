@@ -12,8 +12,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -73,24 +74,32 @@ func (rs *Resource) resolveRequestConflict(w http.ResponseWriter, r *http.Reques
 // toInput parses the wire body. Only shape errors are decided here — whether
 // the command makes sense (one outcome, versions matching, one child) is the
 // coordinator's call, so the rules cannot drift between the two.
-func (b *resolveConflictBody) toInput() (userService.ResolveConflictInput, error) {
+func (b *resolveConflictBody) toInput() (parentrequests.ResolveConflictInput, error) {
 	requestIDs, err := parseConflictIDs(b.RequestIDs)
 	if err != nil {
-		return userService.ResolveConflictInput{}, err
+		return parentrequests.ResolveConflictInput{}, err
 	}
 	var chosen int64
 	if strings.TrimSpace(b.ChosenRequestID) != "" {
 		chosen, err = strconv.ParseInt(b.ChosenRequestID, 10, 64)
 		if err != nil || chosen <= 0 {
-			return userService.ResolveConflictInput{}, errors.New("invalid chosen request id")
+			return parentrequests.ResolveConflictInput{}, errors.New("invalid chosen request id")
 		}
 	}
-	return userService.ResolveConflictInput{
-		Kind:             userService.ParentRequestKind(b.Kind),
+	// The typed result travels to the request kind unread; an absent or null
+	// value means none was typed.
+	var staffValue json.RawMessage
+	if b.StaffValue != nil {
+		if staffValue, err = json.Marshal(b.StaffValue); err != nil {
+			return parentrequests.ResolveConflictInput{}, errors.New("invalid staff value")
+		}
+	}
+	return parentrequests.ResolveConflictInput{
+		Kind:             parentrequests.Kind(b.Kind),
 		RequestIDs:       requestIDs,
 		ExpectedVersions: b.ExpectedVersions,
 		ChosenRequestID:  chosen,
-		StaffValue:       b.StaffValue,
+		StaffValue:       staffValue,
 		None:             b.None,
 		ConflictKey:      strings.TrimSpace(b.ConflictKey),
 		Reason:           strings.TrimSpace(b.Reason),
@@ -112,14 +121,14 @@ func parseConflictIDs(raw []string) ([]int64, error) {
 // resolveConflictErrorRenderer answers for five domains at once, so it carries
 // the union of their sentinels next to the shared parent-request codes.
 var resolveConflictErrorRenderer = common.RulesRenderer(parentRequestRules(
-	common.ErrorRule{Target: userService.ErrInvalidConflictResolution, Render: common.ErrorInvalidRequest},
-	common.ErrorRule{Target: userService.ErrConflictKindUnsupported, Render: func(error) render.Renderer {
+	common.ErrorRule{Target: parentrequests.ErrInvalidConflictResolution, Render: common.ErrorInvalidRequest},
+	common.ErrorRule{Target: parentrequests.ErrConflictKindUnsupported, Render: func(error) render.Renderer {
 		return common.ErrorInvalidRequestMessageWithCode(
 			"Für diese Art von Anfrage kann kein gemeinsames Ergebnis festgelegt werden.",
 			codeConflictKindUnsupported,
 		)
 	}},
-	common.ErrorRule{Target: userService.ErrStaffValueUnsupported, Render: func(error) render.Renderer {
+	common.ErrorRule{Target: parentrequests.ErrStaffValueUnsupported, Render: func(error) render.Renderer {
 		return common.ErrorInvalidRequestMessageWithCode(
 			"Für diese Anfragen können Sie keinen eigenen Wert eintragen.",
 			codeStaffValueUnsupported,
@@ -131,18 +140,18 @@ var resolveConflictErrorRenderer = common.RulesRenderer(parentRequestRules(
 			codeStaffValueInvalid,
 		)
 	}},
-	common.ErrorRule{Target: userService.ErrParentRequestNotFound, Render: common.ErrorNotFound},
+	common.ErrorRule{Target: parentrequests.ErrNotFound, Render: common.ErrorNotFound},
 	common.ErrorRule{Match: isParentRequestMissing, Render: common.ErrorNotFound},
 	common.ErrorRule{Match: isParentRequestNotPending, Render: conflictWithCode("change_request_not_pending")},
 	common.ErrorRule{Match: isParentRequestForbidden, Render: common.ErrorForbidden},
-	common.ErrorRule{Target: userService.ErrParentRequestForbidden, Render: common.ErrorForbidden},
+	common.ErrorRule{Target: parentrequests.ErrForbidden, Render: common.ErrorForbidden},
 ), common.ErrorInternalServer)
 
 // isConflictStaffValueInvalid matches the five domains' "the value you typed
 // is not usable" sentinels. They are client errors, never 500s.
 func isConflictStaffValueInvalid(err error) bool {
-	return errors.Is(err, userService.ErrReviewInvalidValue) ||
-		errors.Is(err, userService.ErrReviewInvalidTarget) ||
+	return errors.Is(err, masterdatarequests.ErrReviewInvalidValue) ||
+		errors.Is(err, masterdatarequests.ErrReviewInvalidTarget) ||
 		errors.Is(err, excusedrequests.ErrAbsenceRequestInvalidStatus) ||
 		errors.Is(err, carerequests.ErrInvalidPayload) ||
 		errors.Is(err, careplan.ErrOfferingChangeInvalid)

@@ -1,14 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { addBreadcrumb, captureMessage } = vi.hoisted(() => ({
+const { addBreadcrumb, captureMessage, captureException } = vi.hoisted(() => ({
   addBreadcrumb: vi.fn(),
   captureMessage: vi.fn(),
+  captureException: vi.fn(),
 }));
-vi.mock("@sentry/nextjs", () => ({ addBreadcrumb, captureMessage }));
+vi.mock("@sentry/nextjs", () => ({
+  addBreadcrumb,
+  captureMessage,
+  captureException,
+}));
+
+vi.unmock("~/lib/logger");
 
 const { reportLogToSentry } = await import("./logger-sentry");
+const { createLogger } = await import("./logger");
 
-function entry(overrides: Record<string, unknown>) {
+function entry(overrides: Record<string, unknown> = {}) {
   return {
     timestamp: "2026-09-23T14:15:08.000Z",
     level: "error" as const,
@@ -21,82 +29,47 @@ function entry(overrides: Record<string, unknown>) {
 }
 
 describe("reportLogToSentry", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+  beforeEach(() => vi.clearAllMocks());
 
-  it("turns a handled client error into a Sentry event grouped by message", () => {
-    reportLogToSentry(entry({ error: "Failed to fetch", route: "/news" }));
+  it("records an error as a breadcrumb without creating an event", () => {
+    reportLogToSentry(entry({ error: "Invalid response format" }));
 
-    expect(captureMessage).toHaveBeenCalledWith(
-      "parent_news_poll_answer_failed",
-      {
-        level: "error",
-        tags: { component: "ParentNews", log_source: "logger" },
-        extra: { error: "Failed to fetch", route: "/news" },
-        fingerprint: ["logger", "ParentNews", "parent_news_poll_answer_failed"],
-      },
-    );
-  });
-
-  it("records client info and warnings only as breadcrumbs", () => {
-    reportLogToSentry(entry({ level: "info", msg: "poll_opened" }));
-    reportLogToSentry(entry({ level: "warn", msg: "poll_slow" }));
-
+    expect(addBreadcrumb).toHaveBeenCalledWith({
+      category: "log.ParentNews",
+      message: "parent_news_poll_answer_failed",
+      level: "error",
+      data: { error: "Invalid response format" },
+    });
     expect(captureMessage).not.toHaveBeenCalled();
-    expect(addBreadcrumb).toHaveBeenCalledTimes(2);
-    expect(addBreadcrumb).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        category: "log.ParentNews",
-        message: "poll_slow",
-        level: "warning",
-      }),
-    );
+    expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("keeps debug output out of Sentry", () => {
+  it("keeps debug out of breadcrumbs and records server errors only as breadcrumbs", () => {
     reportLogToSentry(entry({ level: "debug" }));
+    reportLogToSentry(entry({ context: "server" }));
 
-    expect(addBreadcrumb).not.toHaveBeenCalled();
-    expect(captureMessage).not.toHaveBeenCalled();
-  });
-
-  it("does not send expected noise as events", () => {
-    reportLogToSentry(entry({ msg: "sse connection error" }));
-    reportLogToSentry(entry({ msg: "parent login failed", context: "server" }));
-
-    expect(captureMessage).not.toHaveBeenCalled();
-  });
-
-  it("sends server errors as events without breadcrumbs", () => {
-    reportLogToSentry(entry({ msg: "api route error", context: "server" }));
-
-    expect(addBreadcrumb).not.toHaveBeenCalled();
-    expect(captureMessage).toHaveBeenCalledTimes(1);
-  });
-
-  it("tags an event with the error code and Vorgangskennung the entry carries", () => {
-    reportLogToSentry(
-      entry({
-        msg: "api route error",
-        component: "ApiHelpers",
-        context: "server",
-        status: 503,
-        error_code: "db_unavailable",
-        request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10",
-      }),
+    expect(addBreadcrumb).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ level: "error" }),
     );
+    expect(captureMessage).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
 
-    expect(captureMessage).toHaveBeenCalledWith(
-      "api route error",
+  it("treats a client network failure as a warning breadcrumb, not an event", () => {
+    createLogger({ component: "Probe" }).error("request_failed", {
+      error: "TypeError: Failed to fetch",
+    });
+
+    expect(addBreadcrumb).toHaveBeenCalledWith(
       expect.objectContaining({
-        tags: {
-          component: "ApiHelpers",
-          log_source: "logger",
-          error_code: "db_unavailable",
-          request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10",
-        },
+        category: "log.Probe",
+        level: "warning",
+        data: expect.objectContaining({
+          expected_failure: "network",
+        }) as unknown,
       }),
     );
+    expect(captureMessage).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
   });
 });

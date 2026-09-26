@@ -50,12 +50,11 @@ const defaultSession: ExtendedSession = {
 };
 
 function createMockResponse(data: unknown, status = 200) {
-  return Promise.resolve({
-    ok: status >= 200 && status < 300,
-    status,
-    json: () => Promise.resolve(data),
-    text: () => Promise.resolve(JSON.stringify(data)),
-  } as Response);
+  return Promise.resolve(
+    status === 204
+      ? new Response(null, { status })
+      : Response.json(data, { status }),
+  );
 }
 
 // ============================================================================

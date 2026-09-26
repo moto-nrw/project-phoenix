@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { fetchStudents } from "~/lib/student-api";
 import {
@@ -220,6 +221,7 @@ export function useTimetableActions(
         logger.error("failed to start planned timetable instance", {
           instance_id: instance.id,
           error: err instanceof Error ? err.message : String(err),
+          status: errorStatus(err),
         });
         setError("Geplante Aktivität konnte nicht gestartet werden.");
       } finally {
@@ -336,6 +338,7 @@ export function useTimetableActions(
           action,
           student_id: row.studentId,
           error: err instanceof Error ? err.message : String(err),
+          status: errorStatus(err),
         });
         reportOperationFailure(
           err,
@@ -443,6 +446,7 @@ export function useTimetableActions(
       logger.error("failed to complete timetable instance", {
         instance_id: activeTimetableInstanceId,
         error: err instanceof Error ? err.message : String(err),
+        status: errorStatus(err),
       });
       reportOperationFailure(
         err,

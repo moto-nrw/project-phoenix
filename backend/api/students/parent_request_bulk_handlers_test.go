@@ -11,17 +11,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type bulkServiceStub struct {
-	input userService.BulkApproveParentRequestsInput
+	input parentrequests.BulkApproveInput
 	err   error
 }
 
-func (s *bulkServiceStub) BulkApprove(_ context.Context, input userService.BulkApproveParentRequestsInput) error {
+func (s *bulkServiceStub) BulkApprove(_ context.Context, input parentrequests.BulkApproveInput) error {
 	s.input = input
 	return s.err
 }
@@ -41,15 +41,15 @@ func TestBulkApproveParentRequestsForwardsCompleteSelection(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, int64(55), svc.input.ReviewerID)
 	assert.Equal(t, "Geprüft", svc.input.Reason)
-	assert.Equal(t, []userService.ParentRequestRef{
-		{Kind: userService.ParentRequestKindMasterData, ID: 12, ExpectedVersion: "v1"},
-		{Kind: userService.ParentRequestKindExcused, ID: 13, ExpectedVersion: "v2"},
+	assert.Equal(t, []parentrequests.Ref{
+		{Kind: parentrequests.KindMasterData, ID: 12, ExpectedVersion: "v1"},
+		{Kind: parentrequests.KindExcused, ID: 13, ExpectedVersion: "v2"},
 	}, svc.input.Requests)
 }
 
 func TestBulkApproveParentRequestsReturnsConflictAndMarksRollback(t *testing.T) {
 	t.Parallel()
-	svc := &bulkServiceStub{err: userService.ErrParentRequestStale}
+	svc := &bulkServiceStub{err: parentrequests.ErrStale}
 	rs := &Resource{ResourceConfig: ResourceConfig{ParentRequestBulkService: svc}}
 	ctx := tenant.WithRollbackMarker(context.WithValue(t.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 55}))
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"users:update"})

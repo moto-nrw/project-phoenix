@@ -12,11 +12,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -41,7 +41,7 @@ func TestParentAbsenceReviewScopeKeepsReadsAndDecisionsConsistent(t *testing.T) 
 	}))
 	setScope := func(scope string) {
 		t.Helper()
-		require.NoError(t, tc.resource.SettingsService.SetValue(testpkg.Ctx(t), configModel.KeyParentAbsenceReviewScope, scope, nil, nil))
+		require.NoError(t, tc.settings().SetValue(testpkg.Ctx(t), settings.KeyParentAbsenceReviewScope, scope, nil, nil))
 	}
 	checkReads := func(actor jwt.AppClaims, allowed bool) {
 		t.Helper()
@@ -90,19 +90,19 @@ func TestParentAbsenceReviewScopeKeepsReadsAndDecisionsConsistent(t *testing.T) 
 		require.Equal(t, want, rr.Code, rr.Body.String())
 	}
 
-	setScope(configModel.ParentAbsenceReviewScopeAdmins)
+	setScope(settings.ParentAbsenceReviewScopeAdmins)
 	checkReads(claims, false)
 	decide(claims, http.StatusForbidden)
 	checkReads(testutil.AdminTestClaims(int(account.ID)), true)
-	setScope(configModel.ParentAbsenceReviewScopeGroupLeaders)
+	setScope(settings.ParentAbsenceReviewScopeGroupLeaders)
 	checkReads(claims, false)
 	decide(claims, http.StatusForbidden)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 	checkReads(claims, true)
-	setScope(configModel.ParentAbsenceReviewScopeAdmins)
+	setScope(settings.ParentAbsenceReviewScopeAdmins)
 	checkReads(claims, false)
 	decide(claims, http.StatusForbidden)
-	setScope(configModel.ParentAbsenceReviewScopeAllStaff)
+	setScope(settings.ParentAbsenceReviewScopeAllStaff)
 	_, unassignedAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Unassigned", "Reviewer")
 	unassigned := testutil.TeacherTestClaims(int(unassignedAccount.ID))
 	checkReads(unassigned, true)
@@ -135,8 +135,8 @@ func TestParentAbsenceReviewScopeKeepsReadsAndDecisionsConsistent(t *testing.T) 
 
 	// Direct team reports can remain admin-only while this independent
 	// parent-request policy allows an unassigned reviewer to approve.
-	require.NoError(t, tc.resource.SettingsService.SetValue(testpkg.Ctx(t), configModel.KeyStudentAbsenceEditScope,
-		configModel.StudentAbsenceEditScopeAdmins, nil, nil))
+	require.NoError(t, tc.settings().SetValue(testpkg.Ctx(t), settings.KeyStudentAbsenceEditScope,
+		settings.StudentAbsenceEditScopeAdmins, nil, nil))
 	date := timezone.TodayDate().AddDays(1)
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), tc.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 		request, err := tc.resource.ExcusedRequestService.CreateRequest(ctx, chain.StudentID, chain.AccountID,

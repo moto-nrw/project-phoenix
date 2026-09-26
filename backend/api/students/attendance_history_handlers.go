@@ -13,14 +13,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // attendanceHistoryResponse is the shape returned by GET /students/{id}/attendance-history.
@@ -132,7 +129,7 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 	}
 
 	// 1. Feature gate
-	if !configService.ResolveBoolOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, logger) {
+	if !resolveBoolSetting(ctx, rs.SettingsService, settingAttendanceLogEnabled, false, logger) {
 		renderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
 		return
 	}
@@ -144,8 +141,8 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 	}
 
 	// 3. Resolve caps
-	attendanceCap := configService.ResolveIntOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceVisibleDays, 30, logger)
-	roomCap := configService.ResolveIntOrDefault(ctx, rs.SettingsService, configModel.KeyRoomDetailVisibleDays, 7, logger)
+	attendanceCap := resolveIntSetting(ctx, rs.SettingsService, settingAttendanceVisibleDays, 30, logger)
+	roomCap := resolveIntSetting(ctx, rs.SettingsService, settingRoomDetailVisibleDays, 7, logger)
 	if roomCap > attendanceCap {
 		// Room detail cap must never exceed the attendance cap — silently clamp.
 		roomCap = attendanceCap
@@ -698,7 +695,7 @@ func (rs *Resource) writeAttendanceHistoryAudit(r *http.Request, studentID int64
 	entry := &studentpresence.DataAccessEvent{
 		ActorAccountID: actorAccountID,
 		ActorRole:      actorRole,
-		ResourceType:   auditModels.ResourceTypeAttendanceHistory,
+		ResourceType:   dataAccessAttendanceHistory,
 		StudentID:      &studentIDPtr,
 		RangeStart:     start,
 		RangeEnd:       end,
@@ -708,7 +705,7 @@ func (rs *Resource) writeAttendanceHistoryAudit(r *http.Request, studentID int64
 	if err := rs.StudentHistoryService.RecordDataAccess(r.Context(), entry); err != nil {
 		logger.Error("audit log write failed, refusing to serve attendance history",
 			slog.Int64("student_id", studentID),
-			slog.String("resource_type", auditModels.ResourceTypeAttendanceHistory),
+			slog.String("resource_type", dataAccessAttendanceHistory),
 			slog.String("error", err.Error()),
 		)
 		return err

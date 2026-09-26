@@ -1,3 +1,4 @@
+import { backendResponseError } from "~/lib/api-helpers.server";
 import type { NextRequest } from "next/server";
 import {
   createFileUploadHandler,
@@ -46,12 +47,7 @@ export const POST = createFileUploadHandler<LegalAGBDocumentResponse>(
       }),
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `API error (${response.status}): ${errorText || response.statusText}`,
-      );
-    }
+    if (!response.ok) throw await backendResponseError(response);
 
     return ((await response.json()) as { data: LegalAGBDocumentResponse }).data;
   },
@@ -73,12 +69,7 @@ export const DELETE = createDeleteHandler(
       }),
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `API error (${response.status}): ${errorText || response.statusText}`,
-      );
-    }
+    if (!response.ok) throw await backendResponseError(response);
 
     return null;
   },

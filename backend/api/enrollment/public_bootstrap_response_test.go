@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 func TestBuildPublicEnrollmentFormBootstrapResponse_IncludesLateInvitePrefill(t *testing.T) {
@@ -18,7 +17,7 @@ func TestBuildPublicEnrollmentFormBootstrapResponse_IncludesLateInvitePrefill(t 
 	firstName := "Mara"
 	lastName := "Muster"
 	response := BuildPublicEnrollmentFormBootstrapResponse(
-		&enrollmentService.PublicFormBootstrapData{
+		&PublicFormBootstrapData{
 			Phase: &capability.Phase{
 				CareOfferingSelectionMode: capability.PhaseCareOfferingSelectionOptional,
 			},

@@ -319,7 +319,7 @@ func (p PresenceOperations) DashboardAnalytics(ctx context.Context) (studentpres
 	}
 	for _, item := range analytics.ActiveGroupsSummary {
 		result.ActiveGroupsSummary = append(result.ActiveGroupsSummary, studentpresence.ActiveGroupInfo{
-			Name: item.Name, Type: item.Type, StudentCount: item.StudentCount, Location: item.Location, Status: item.Status,
+			Name: item.Name, Type: item.Type, StudentCount: item.StudentCount, MaxCapacity: item.MaxCapacity, Location: item.Location, Status: item.Status,
 		})
 	}
 	return result, nil

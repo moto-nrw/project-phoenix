@@ -10,6 +10,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // The personnel record family (#2690): users.staff_master_data,
@@ -92,7 +93,7 @@ func TestStaffMasterDataAndFinancialRowsAreTenantIsolated(t *testing.T) {
 }
 
 // ReplaceStaffQualifications rewrites the list in one unit of work: a rejected
-// row or a failure after the delete leaves the previous list in place.
+// row or a failure after the write leaves the previous list in place.
 func TestStaffQualificationsReplaceAtomically(t *testing.T) {
 	t.Parallel()
 
@@ -160,6 +161,162 @@ func TestStaffQualificationsReplaceAtomically(t *testing.T) {
 	listed, err = capability.ListStaffQualifications(ctx, staff.ID)
 	require.NoError(t, err)
 	assert.Empty(t, listed)
+}
+
+// Removing a qualification retires the row instead of deleting it (ADR 0021,
+// #3399): the list hides it, the table keeps it as history, and saving the same
+// list again leaves the rows untouched.
+func TestStaffQualificationsRetireInsteadOfDelete(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	staff := testpkg.CreateTestStaff(t, db, "Qualifikation", "Historie")
+	capability := buildWorkforce(t, db)
+	type storedRow struct {
+		ID        int64
+		Name      string
+		ExpiresOn string
+		Retired   bool
+	}
+	storedRows := func() []storedRow {
+		t.Helper()
+		var rows []storedRow
+		require.NoError(t, db.NewSelect().TableExpr("users.staff_qualifications").
+			ColumnExpr("id, name, coalesce(expires_on::text, '') AS expires_on, deleted_at IS NOT NULL AS retired").
+			Where("tenant_id = ? AND staff_id = ?", testpkg.Tenant(t), staff.ID).OrderExpr("id").Scan(ctx, &rows))
+		return rows
+	}
+	firstAid := workforce.StaffQualification{Name: "Erste Hilfe", AcquiredOn: "2025-02-01", ExpiresOn: "2027-02-01"}
+	swimming := workforce.StaffQualification{Name: "Schwimmschein"}
+
+	first, err := capability.ReplaceStaffQualifications(ctx, staff.ID, []workforce.StaffQualification{firstAid, swimming})
+	require.NoError(t, err)
+	require.Len(t, first, 2)
+	for range 3 {
+		again, err := capability.ReplaceStaffQualifications(ctx, staff.ID, []workforce.StaffQualification{firstAid, swimming})
+		require.NoError(t, err)
+		require.Len(t, again, 2)
+		assert.Equal(t, first[0].ID, again[0].ID, "an unchanged row keeps its identity")
+		assert.Equal(t, first[1].ID, again[1].ID)
+	}
+	require.Len(t, storedRows(), 2, "saving the same list leaves no retired duplicates")
+
+	kept, err := capability.ReplaceStaffQualifications(ctx, staff.ID, []workforce.StaffQualification{firstAid})
+	require.NoError(t, err)
+	require.Len(t, kept, 1)
+	assert.Equal(t, first[0].ID, kept[0].ID)
+	listed, err := capability.ListStaffQualifications(ctx, staff.ID)
+	require.NoError(t, err)
+	require.Len(t, listed, 1, "the list hides the removed qualification")
+	assert.Equal(t, "Erste Hilfe", listed[0].Name)
+	assert.Equal(t, []storedRow{
+		{ID: first[0].ID, Name: "Erste Hilfe", ExpiresOn: "2027-02-01"},
+		{ID: first[1].ID, Name: "Schwimmschein", Retired: true},
+	}, storedRows(), "the removed qualification stays as history")
+
+	renewed := firstAid
+	renewed.ExpiresOn = "2029-02-01"
+	changed, err := capability.ReplaceStaffQualifications(ctx, staff.ID, []workforce.StaffQualification{renewed, swimming})
+	require.NoError(t, err)
+	require.Len(t, changed, 2)
+	assert.Equal(t, first[0].ID, changed[0].ID, "new dates continue the row of the same name")
+	assert.Equal(t, "2029-02-01", changed[0].ExpiresOn)
+	assert.NotEqual(t, first[1].ID, changed[1].ID, "a re-added qualification is a new row")
+	listed, err = capability.ListStaffQualifications(ctx, staff.ID)
+	require.NoError(t, err)
+	require.Len(t, listed, 2)
+	assert.Equal(t, "Erste Hilfe", listed[0].Name, "updating in place keeps the list order")
+	assert.Equal(t, "2029-02-01", listed[0].ExpiresOn)
+
+	renamed := renewed
+	renamed.Name = "Erste-Hilfe-Kurs"
+	_, err = capability.ReplaceStaffQualifications(ctx, staff.ID, []workforce.StaffQualification{renamed, swimming})
+	require.NoError(t, err)
+	rows := storedRows()
+	require.Len(t, rows, 4)
+	assert.Equal(t, storedRow{ID: first[0].ID, Name: "Erste Hilfe", ExpiresOn: "2029-02-01", Retired: true}, rows[0],
+		"a renamed qualification retires the old name")
+	assert.Equal(t, storedRow{ID: changed[1].ID, Name: "Schwimmschein"}, rows[2])
+	assert.Equal(t, storedRow{ID: rows[3].ID, Name: "Erste-Hilfe-Kurs", ExpiresOn: "2029-02-01"}, rows[3])
+
+	for range 2 {
+		_, err = capability.ReplaceStaffQualifications(ctx, staff.ID, nil)
+		require.NoError(t, err)
+	}
+	listed, err = capability.ListStaffQualifications(ctx, staff.ID)
+	require.NoError(t, err)
+	assert.Empty(t, listed)
+	rows = storedRows()
+	require.Len(t, rows, 4, "removing everything retires, it does not delete")
+	for _, row := range rows {
+		assert.True(t, row.Retired)
+	}
+
+	err = testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+		_, err := tx.NewDelete().TableExpr("users.staff_qualifications").Where("staff_id = ?", staff.ID).Exec(txCtx)
+		return err
+	})
+	require.ErrorContains(t, err, "permission denied", "the tenant role cannot hard-delete qualifications")
+}
+
+func TestStaffQualificationReplacementPersistsSubmittedOrder(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	staff := testpkg.CreateTestStaff(t, db, "Qualifikation", "Reihenfolge")
+	capability := buildWorkforce(t, db)
+	first, err := capability.ReplaceStaffQualifications(ctx, staff.ID, []workforce.StaffQualification{{Name: "Erste Hilfe"}, {Name: "Schwimmschein"}})
+	require.NoError(t, err)
+
+	reordered, err := capability.ReplaceStaffQualifications(ctx, staff.ID, []workforce.StaffQualification{{Name: "Schwimmschein"}, {Name: "Erste Hilfe"}})
+	require.NoError(t, err)
+	require.Len(t, reordered, 2)
+	assert.Equal(t, first[1].ID, reordered[0].ID)
+	assert.Equal(t, first[0].ID, reordered[1].ID)
+
+	listed, err := capability.ListStaffQualifications(ctx, staff.ID)
+	require.NoError(t, err)
+	require.Len(t, listed, 2)
+	assert.Equal(t, reordered[0].ID, listed[0].ID)
+	assert.Equal(t, reordered[1].ID, listed[1].ID)
+}
+
+func TestStaffQualificationReplacementsSerialize(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	staff := testpkg.CreateTestStaff(t, db, "Qualifikation", "Parallel")
+	capability := buildWorkforce(t, db)
+	started := make(chan struct{})
+	finished := make(chan error, 1)
+
+	err := testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, err := capability.ReplaceStaffQualifications(txCtx, staff.ID, []workforce.StaffQualification{{Name: "Erste Hilfe"}})
+		if err != nil {
+			return err
+		}
+		go func() {
+			close(started)
+			_, err := capability.ReplaceStaffQualifications(ctx, staff.ID, []workforce.StaffQualification{{Name: "Schwimmschein"}})
+			finished <- err
+		}()
+		<-started
+		select {
+		case <-finished:
+			return errors.New("second replacement finished before first committed")
+		case <-time.After(150 * time.Millisecond):
+			return nil
+		}
+	})
+	require.NoError(t, err)
+	require.NoError(t, <-finished)
+	listed, err := capability.ListStaffQualifications(ctx, staff.ID)
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	assert.Equal(t, "Schwimmschein", listed[0].Name)
 }
 
 func TestStaffDocumentsFollowTheLegacyRowRules(t *testing.T) {

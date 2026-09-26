@@ -457,7 +457,7 @@ func TestErrorConflictWithCode(t *testing.T) {
 	assert.Equal(t, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS", resp["code"])
 }
 
-func TestErrorConflictWithCode_OmitsEmptyCode(t *testing.T) {
+func TestErrorConflictWithoutDomainCodeUsesClassCode(t *testing.T) {
 	t.Parallel()
 
 	testErr := errors.New("conflict")
@@ -472,8 +472,8 @@ func TestErrorConflictWithCode_OmitsEmptyCode(t *testing.T) {
 	var resp map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	_, hasCode := resp["code"]
-	assert.False(t, hasCode, "code field should be omitted when empty")
+	assert.Equal(t, "general.business_rejection", resp["code"])
+	assert.Equal(t, "conflict", resp["error"])
 }
 
 // =============================================================================

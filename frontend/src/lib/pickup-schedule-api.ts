@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 // Pickup Schedule API Client
 // Calls Next.js API routes which proxy to the Go backend
 
@@ -40,12 +41,9 @@ export interface BulkPickupResult {
   students_affected: number;
 }
 
-export class PickupScheduleApiError extends Error {
-  constructor(
-    message: string,
-    readonly code?: string,
-  ) {
-    super(message);
+export class PickupScheduleApiError extends ApiError {
+  constructor(message: string, code?: string) {
+    super(message, undefined, { code });
     this.name = "PickupScheduleApiError";
   }
 }
@@ -310,9 +308,13 @@ async function throwResponseError(
   const errorMessage = isErrorResponse(error)
     ? translateApiError(error.code ?? error.error ?? fallback)
     : translateApiError(`${fallback}: ${response.statusText}`);
-  throw new PickupScheduleApiError(
-    errorMessage,
-    isErrorResponse(error) ? error.code : undefined,
+  throw enrichApiError(
+    new PickupScheduleApiError(
+      errorMessage,
+      isErrorResponse(error) ? error.code : undefined,
+    ),
+    error,
+    response.status,
   );
 }
 

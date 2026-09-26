@@ -18,8 +18,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
@@ -41,14 +41,14 @@ const (
 // promoted-field access; Layout is presentation-only and never reaches the
 // service.
 type careUsageExportParams struct {
-	enrollmentService.CareUsageFilters
+	capability.CareUsageFilters
 	Layout string
 }
 
 // careUsageExportPayload carries the fetched report together with the
 // requested layout into the build step of the generic exportReport flow.
 type careUsageExportPayload struct {
-	report *enrollmentService.CareUsageReport
+	report *capability.CareUsageReport
 	layout string
 }
 
@@ -76,12 +76,12 @@ type careUsageExportFiltersRequest struct {
 }
 
 type careUsageReportResponse struct {
-	Phase         careUsagePhaseResponse            `json:"phase"`
-	Filters       careUsageAppliedFiltersResponse   `json:"filters"`
-	Totals        enrollmentService.CareUsageTotals `json:"totals"`
-	ByOffering    []careUsageOfferingStatResponse   `json:"by_offering"`
-	FilterOptions careUsageFilterOptionsResponse    `json:"filter_options"`
-	Rows          []careUsageRowResponse            `json:"rows"`
+	Phase         careUsagePhaseResponse          `json:"phase"`
+	Filters       careUsageAppliedFiltersResponse `json:"filters"`
+	Totals        capability.CareUsageTotals      `json:"totals"`
+	ByOffering    []careUsageOfferingStatResponse `json:"by_offering"`
+	FilterOptions careUsageFilterOptionsResponse  `json:"filter_options"`
+	Rows          []careUsageRowResponse          `json:"rows"`
 }
 
 type careUsagePhaseResponse struct {
@@ -159,7 +159,7 @@ func (rs *Resource) getCareUsageReport(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	var report *enrollmentService.CareUsageReport
+	var report *capability.CareUsageReport
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		out, e := rs.ReportService.CareUsage(ctx, filters)
 		if e != nil {
@@ -169,15 +169,15 @@ func (rs *Resource) getCareUsageReport(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
-		if errors.Is(err, enrollmentService.ErrReportPhaseNotFound) {
+		if errors.Is(err, capability.ErrReportPhaseNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
 		}
-		if errors.Is(err, enrollmentService.ErrReportExportTooLarge) {
+		if errors.Is(err, capability.ErrReportExportTooLarge) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
-		if errors.Is(err, enrollmentService.ErrReportInvalidFilter) {
+		if errors.Is(err, capability.ErrReportInvalidFilter) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
@@ -223,15 +223,15 @@ func exportReport[F, R any](rs *Resource, w http.ResponseWriter, r *http.Request
 		return nil
 	})
 	if err != nil {
-		if errors.Is(err, enrollmentService.ErrReportPhaseNotFound) {
+		if errors.Is(err, capability.ErrReportPhaseNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
 		}
-		if errors.Is(err, enrollmentService.ErrReportExportTooLarge) {
+		if errors.Is(err, capability.ErrReportExportTooLarge) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
-		if errors.Is(err, enrollmentService.ErrReportInvalidFilter) {
+		if errors.Is(err, capability.ErrReportInvalidFilter) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
@@ -265,14 +265,14 @@ func (rs *Resource) exportCareUsageReport(w http.ResponseWriter, r *http.Request
 
 func (rs *Resource) exportClassRosterReport(w http.ResponseWriter, r *http.Request) {
 	exportReport(rs, w, r, parseClassRosterExportRequest,
-		func(ctx context.Context, filters enrollmentService.ClassRosterFilters, actorAccountID int64, actorRole, format string) (*enrollmentService.ClassRosterReport, error) {
+		func(ctx context.Context, filters capability.ClassRosterFilters, actorAccountID int64, actorRole, format string) (*capability.ClassRosterReport, error) {
 			return rs.ReportService.ExportClassRoster(ctx, filters, actorAccountID, actorRole, format)
 		}, buildClassRosterExportFile)
 }
 
-func parseCareUsageFiltersFromQuery(r *http.Request) (enrollmentService.CareUsageFilters, error) {
+func parseCareUsageFiltersFromQuery(r *http.Request) (capability.CareUsageFilters, error) {
 	q := r.URL.Query()
-	var filters enrollmentService.CareUsageFilters
+	var filters capability.CareUsageFilters
 	phaseID, err := strconv.ParseInt(q.Get("phase_id"), 10, 64)
 	if err != nil || phaseID <= 0 {
 		return filters, errors.New("phase_id is required")
@@ -413,13 +413,13 @@ func parseCareUsageExportRequest(r *http.Request) (listexport.Format, careUsageE
 	return format, careUsageExportParams{CareUsageFilters: filters, Layout: layout}, nil
 }
 
-func parseClassRosterExportRequest(r *http.Request) (listexport.Format, enrollmentService.ClassRosterFilters, error) {
+func parseClassRosterExportRequest(r *http.Request) (listexport.Format, capability.ClassRosterFilters, error) {
 	var body classRosterExportRequest
 	if r.Body != nil {
 		raw, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
 		if len(raw) > 0 {
 			if err := json.Unmarshal(raw, &body); err != nil {
-				return "", enrollmentService.ClassRosterFilters{}, fmt.Errorf("invalid export request body: %w", err)
+				return "", capability.ClassRosterFilters{}, fmt.Errorf("invalid export request body: %w", err)
 			}
 		}
 	}
@@ -430,22 +430,22 @@ func parseClassRosterExportRequest(r *http.Request) (listexport.Format, enrollme
 	switch format {
 	case listexport.FormatPDF, listexport.FormatDOCX, listexport.FormatXLSX:
 	default:
-		return "", enrollmentService.ClassRosterFilters{}, fmt.Errorf("unsupported export format %q (use pdf, docx or xlsx)", format)
+		return "", capability.ClassRosterFilters{}, fmt.Errorf("unsupported export format %q (use pdf, docx or xlsx)", format)
 	}
 	phaseID, err := parseClassRosterPhaseID(body.Filters.PhaseID)
 	if err != nil {
-		return "", enrollmentService.ClassRosterFilters{}, err
+		return "", capability.ClassRosterFilters{}, err
 	}
-	filters := enrollmentService.ClassRosterFilters{
+	filters := capability.ClassRosterFilters{
 		PhaseID:     phaseID,
 		SchoolClass: strings.TrimSpace(body.Filters.SchoolClass),
 		AllClasses:  body.Filters.AllClasses,
 	}
 	if filters.AllClasses && filters.SchoolClass != "" {
-		return "", enrollmentService.ClassRosterFilters{}, errors.New("school_class and all_classes are mutually exclusive")
+		return "", capability.ClassRosterFilters{}, errors.New("school_class and all_classes are mutually exclusive")
 	}
 	if !filters.AllClasses && filters.SchoolClass == "" {
-		return "", enrollmentService.ClassRosterFilters{}, errors.New("school_class is required")
+		return "", capability.ClassRosterFilters{}, errors.New("school_class is required")
 	}
 	return format, filters, nil
 }
@@ -469,12 +469,12 @@ func parseClassRosterPhaseID(raw json.RawMessage) (int64, error) {
 	return 0, errors.New("phase_id must be positive")
 }
 
-func (req careUsageExportFiltersRequest) toServiceFilters() (enrollmentService.CareUsageFilters, error) {
+func (req careUsageExportFiltersRequest) toServiceFilters() (capability.CareUsageFilters, error) {
 	phaseID, err := parseRequiredPositiveInt64(req.PhaseID, "filters.phase_id")
 	if err != nil {
-		return enrollmentService.CareUsageFilters{}, err
+		return capability.CareUsageFilters{}, err
 	}
-	filters := enrollmentService.CareUsageFilters{
+	filters := capability.CareUsageFilters{
 		PhaseID:    phaseID,
 		Status:     req.Status,
 		DayCount:   req.DayCount,
@@ -486,7 +486,7 @@ func (req careUsageExportFiltersRequest) toServiceFilters() (enrollmentService.C
 	if strings.TrimSpace(req.CareOfferingID) != "" {
 		careOfferingID, err := parseRequiredPositiveInt64(req.CareOfferingID, "filters.care_offering_id")
 		if err != nil {
-			return enrollmentService.CareUsageFilters{}, err
+			return capability.CareUsageFilters{}, err
 		}
 		filters.CareOfferingIDs = append(filters.CareOfferingIDs, careOfferingID)
 		filters.CareOfferingIDsSet = true
@@ -497,7 +497,7 @@ func (req careUsageExportFiltersRequest) toServiceFilters() (enrollmentService.C
 	for _, raw := range req.CareOfferingIDs {
 		careOfferingID, err := parseRequiredPositiveInt64(raw, "filters.care_offering_ids")
 		if err != nil {
-			return enrollmentService.CareUsageFilters{}, err
+			return capability.CareUsageFilters{}, err
 		}
 		filters.CareOfferingIDs = append(filters.CareOfferingIDs, careOfferingID)
 	}
@@ -516,7 +516,7 @@ func parseRequiredPositiveInt64(raw, field string) (int64, error) {
 	return id, nil
 }
 
-func toCareUsageReportResponse(report *enrollmentService.CareUsageReport) *careUsageReportResponse {
+func toCareUsageReportResponse(report *capability.CareUsageReport) *careUsageReportResponse {
 	if report == nil {
 		return nil
 	}
@@ -608,14 +608,14 @@ func buildCareUsageExport(svc *listexport.RendererService, payload careUsageExpo
 	return buildCareUsageExportFile(svc, payload.report, format)
 }
 
-func careUsageExportFilename(report *enrollmentService.CareUsageReport) string {
+func careUsageExportFilename(report *capability.CareUsageReport) string {
 	if name := strings.TrimSpace(report.Phase.Name); name != "" {
 		return "Anmelde-Auswertung " + name
 	}
 	return "Anmelde-Auswertung"
 }
 
-func buildCareUsageExportFile(svc *listexport.RendererService, report *enrollmentService.CareUsageReport, format listexport.Format) (listexport.File, error) {
+func buildCareUsageExportFile(svc *listexport.RendererService, report *capability.CareUsageReport, format listexport.Format) (listexport.File, error) {
 	filename := careUsageExportFilename(report)
 	switch format {
 	case listexport.FormatDOCX:
@@ -634,7 +634,7 @@ func buildCareUsageExportFile(svc *listexport.RendererService, report *enrollmen
 // pickup columns. Rows are sorted by target class; when the result spans more
 // than one class, each class gets a heading row (a new page in the PDF),
 // mirroring the "Alle Klassen" roster behavior.
-func buildCareUsageCompactTableDocument(report *enrollmentService.CareUsageReport) listexport.Document {
+func buildCareUsageCompactTableDocument(report *capability.CareUsageReport) listexport.Document {
 	cols := []listexport.Column{
 		{ID: listexport.ColumnName, Label: "Name"},
 		{ID: listexport.ColumnSchoolClass, Label: "Zielklasse"},
@@ -682,7 +682,7 @@ func buildCareUsageCompactTableDocument(report *enrollmentService.CareUsageRepor
 	}
 }
 
-func careUsageClassLabel(row enrollmentService.CareUsageRow) string {
+func careUsageClassLabel(row capability.CareUsageRow) string {
 	return schoolClassLabel(row.TargetSchoolClass, row.TargetGradeLevel)
 }
 
@@ -699,7 +699,7 @@ func careUsageGroupTitle(class string) string {
 // careUsageSpansMultipleClasses reports whether the class-sorted rows cover
 // more than one logical class (comparator equivalence, so "1a"/"1A" count as
 // one). Single-class results skip the group headings.
-func careUsageSpansMultipleClasses(sorted []enrollmentService.CareUsageRow) bool {
+func careUsageSpansMultipleClasses(sorted []capability.CareUsageRow) bool {
 	for i := 1; i < len(sorted); i++ {
 		if collation.CompareSchoolClasses(careUsageClassLabel(sorted[i]), careUsageClassLabel(sorted[0])) != 0 {
 			return true
@@ -708,7 +708,7 @@ func careUsageSpansMultipleClasses(sorted []enrollmentService.CareUsageRow) bool
 	return false
 }
 
-func careUsageWeeklyCell(row enrollmentService.CareUsageRow, day string) string {
+func careUsageWeeklyCell(row capability.CareUsageRow, day string) string {
 	careDays := row.CareDays
 	if careDays == nil {
 		careDays = row.EffectiveDays
@@ -721,7 +721,7 @@ func careUsageWeeklyCell(row enrollmentService.CareUsageRow, day string) string 
 	)
 }
 
-func careUsageDailyOfferingNames(row enrollmentService.CareUsageRow, day string) []string {
+func careUsageDailyOfferingNames(row capability.CareUsageRow, day string) []string {
 	names := make([]string, 0, len(row.Offerings))
 	for _, offering := range row.Offerings {
 		if containsReportDay(offering.Days, day) {
@@ -734,18 +734,18 @@ func careUsageDailyOfferingNames(row enrollmentService.CareUsageRow, day string)
 // careUsageGuardians prefers the enriched full contact list; rows built
 // without enrichment (older callers, tests) fall back to the submitting
 // guardian carried on the flat fields.
-func careUsageGuardians(row enrollmentService.CareUsageRow) []enrollmentService.ClassRosterGuardian {
+func careUsageGuardians(row capability.CareUsageRow) []capability.ClassRosterGuardian {
 	if len(row.Guardians) > 0 {
 		return row.Guardians
 	}
-	return []enrollmentService.ClassRosterGuardian{{
+	return []capability.ClassRosterGuardian{{
 		Name:  strings.TrimSpace(row.GuardianFirstName + " " + row.GuardianLastName),
 		Email: row.GuardianEmail,
 		Phone: base.Deref(row.GuardianPhone),
 	}}
 }
 
-func buildClassRosterExportFile(svc *listexport.RendererService, report *enrollmentService.ClassRosterReport, format listexport.Format) (listexport.File, error) {
+func buildClassRosterExportFile(svc *listexport.RendererService, report *capability.ClassRosterReport, format listexport.Format) (listexport.File, error) {
 	filename := "Klassenliste " + strings.TrimSpace(report.Filters.SchoolClass)
 	if report.Filters.AllClasses {
 		filename = "Klassenlisten"
@@ -756,7 +756,7 @@ func buildClassRosterExportFile(svc *listexport.RendererService, report *enrollm
 	return svc.Render(buildClassRosterTableDocument(report), format, filename)
 }
 
-func buildClassRosterTableDocument(report *enrollmentService.ClassRosterReport) listexport.Document {
+func buildClassRosterTableDocument(report *capability.ClassRosterReport) listexport.Document {
 	cols := []listexport.Column{
 		{ID: listexport.ColumnName, Label: "Name"},
 		{ID: listexport.ColumnSchoolClass, Label: "Klasse"},
@@ -783,7 +783,7 @@ func buildClassRosterTableDocument(report *enrollmentService.ClassRosterReport) 
 			// Class-list-only entry (#2382): the child has no OGS record at
 			// all. The marker sits in the name cell because the roster table
 			// has no status column — every weekday cell stays "—".
-			name += " (" + enrollmentService.ClassListEntryNoCareLabel + ")"
+			name += " (" + capability.ClassListEntryNoCareLabel + ")"
 		}
 		rows = append(rows, listexport.Row{Values: map[listexport.ColumnID]string{
 			listexport.ColumnName:             name,
@@ -807,7 +807,7 @@ func buildClassRosterTableDocument(report *enrollmentService.ClassRosterReport) 
 	}
 }
 
-func classRosterTitle(report *enrollmentService.ClassRosterReport) string {
+func classRosterTitle(report *capability.ClassRosterReport) string {
 	title := "Klassenliste"
 	if report == nil {
 		return title
@@ -823,7 +823,7 @@ func classRosterTitle(report *enrollmentService.ClassRosterReport) string {
 	return title
 }
 
-func classRosterSubtitle(report *enrollmentService.ClassRosterReport) string {
+func classRosterSubtitle(report *capability.ClassRosterReport) string {
 	if report == nil {
 		return "0 Kinder"
 	}
@@ -834,7 +834,7 @@ func classRosterSubtitle(report *enrollmentService.ClassRosterReport) string {
 	return subtitle
 }
 
-func classRosterFilterLabels(report *enrollmentService.ClassRosterReport) []string {
+func classRosterFilterLabels(report *capability.ClassRosterReport) []string {
 	if report == nil {
 		return nil
 	}
@@ -853,7 +853,7 @@ func classRosterFilterLabels(report *enrollmentService.ClassRosterReport) []stri
 // day's own Geh-/Abholregelung ("14:30 Uhr, wird abgeholt"). The former
 // summarized "Geh-/Abholweise" week column is folded in here per day (#2254);
 // days without care stay "—" and carry no departure text.
-func classRosterWeeklyCell(row enrollmentService.ClassRosterRow, day string) string {
+func classRosterWeeklyCell(row capability.ClassRosterRow, day string) string {
 	isCareDay := containsReportDay(row.CareDays, day)
 	cell := weeklyPickupCell(
 		isCareDay,
@@ -892,7 +892,7 @@ func weeklyPickupCell(isCareDay bool, schedulePickup, snapshotPickup string, off
 	return "Keine Abholzeit"
 }
 
-func classRosterDailyOfferings(row enrollmentService.ClassRosterRow, day string) []string {
+func classRosterDailyOfferings(row capability.ClassRosterRow, day string) []string {
 	normalizedDay := strings.ToLower(strings.TrimSpace(day))
 	if normalizedDay == "" {
 		return nil
@@ -938,7 +938,7 @@ func normalizedClassRosterOfferingNames(names []string) []string {
 	return out
 }
 
-func classRosterGuardianContactsLabel(guardians []enrollmentService.ClassRosterGuardian) string {
+func classRosterGuardianContactsLabel(guardians []capability.ClassRosterGuardian) string {
 	parts := make([]string, 0, len(guardians))
 	for _, guardian := range guardians {
 		name := strings.TrimSpace(guardian.Name)
@@ -970,7 +970,7 @@ func containsReportDay(days []string, needle string) bool {
 	return false
 }
 
-func buildCareUsageTableDocument(report *enrollmentService.CareUsageReport) listexport.Document {
+func buildCareUsageTableDocument(report *capability.CareUsageReport) listexport.Document {
 	cols := []listexport.Column{
 		{ID: "child_last_name", Label: "Kind Nachname"},
 		{ID: "child_first_name", Label: "Kind Vorname"},
@@ -1021,7 +1021,7 @@ func buildCareUsageTableDocument(report *enrollmentService.CareUsageReport) list
 	}
 }
 
-func buildCareUsageRecordDocument(report *enrollmentService.CareUsageReport) listexport.RecordDocument {
+func buildCareUsageRecordDocument(report *capability.CareUsageReport) listexport.RecordDocument {
 	records := make([]listexport.Record, 0, len(report.Rows)+1)
 	records = append(records, listexport.Record{
 		Title:  "Einsatzplanung nach Gehzeit",
@@ -1053,14 +1053,14 @@ func buildCareUsageRecordDocument(report *enrollmentService.CareUsageReport) lis
 	}
 }
 
-func careUsageTitle(report *enrollmentService.CareUsageReport) string {
+func careUsageTitle(report *capability.CareUsageReport) string {
 	if report != nil && strings.TrimSpace(report.Phase.Name) != "" {
 		return "Auswertung " + strings.TrimSpace(report.Phase.Name)
 	}
 	return "Anmelde-Auswertung"
 }
 
-func careUsageSubtitle(report *enrollmentService.CareUsageReport) string {
+func careUsageSubtitle(report *capability.CareUsageReport) string {
 	if report == nil {
 		return "0 Kinder"
 	}
@@ -1070,7 +1070,7 @@ func careUsageSubtitle(report *enrollmentService.CareUsageReport) string {
 	return fmt.Sprintf("%d Kinder", report.Totals.Children)
 }
 
-func careUsageFilterLabels(report *enrollmentService.CareUsageReport) []string {
+func careUsageFilterLabels(report *capability.CareUsageReport) []string {
 	if report == nil {
 		return nil
 	}
@@ -1104,7 +1104,7 @@ func careUsageFilterLabels(report *enrollmentService.CareUsageReport) []string {
 	return labels
 }
 
-func careUsageOfferingNameByID(report *enrollmentService.CareUsageReport, id int64) string {
+func careUsageOfferingNameByID(report *capability.CareUsageReport, id int64) string {
 	for _, option := range report.FilterOptions.Offerings {
 		if option.ID == id {
 			return option.Name
@@ -1113,7 +1113,7 @@ func careUsageOfferingNameByID(report *enrollmentService.CareUsageReport, id int
 	return "Angebot #" + strconv.FormatInt(id, 10)
 }
 
-func careUsageOfferingNames(offerings []enrollmentService.CareUsageRowOffering) string {
+func careUsageOfferingNames(offerings []capability.CareUsageRowOffering) string {
 	parts := make([]string, 0, len(offerings))
 	for _, offering := range offerings {
 		parts = append(parts, offering.Name)
@@ -1121,7 +1121,7 @@ func careUsageOfferingNames(offerings []enrollmentService.CareUsageRowOffering) 
 	return strings.Join(parts, "; ")
 }
 
-func careUsageOfferingDayDetails(offerings []enrollmentService.CareUsageRowOffering) string {
+func careUsageOfferingDayDetails(offerings []capability.CareUsageRowOffering) string {
 	parts := make([]string, 0, len(offerings))
 	for _, offering := range offerings {
 		details := careUsageOfferingDayDetail(offering)
@@ -1134,7 +1134,7 @@ func careUsageOfferingDayDetails(offerings []enrollmentService.CareUsageRowOffer
 	return strings.Join(parts, "; ")
 }
 
-func careUsageOfferingDayDetail(offering enrollmentService.CareUsageRowOffering) string {
+func careUsageOfferingDayDetail(offering capability.CareUsageRowOffering) string {
 	automatic := formatDayCodes(offering.AutomaticSelectedDays)
 	manualDays := offering.ManualSelectedDays
 	if len(manualDays) == 0 && offering.DaysSource == "selected" && len(offering.AutomaticSelectedDays) == 0 {
@@ -1153,7 +1153,7 @@ func careUsageOfferingDayDetail(offering enrollmentService.CareUsageRowOffering)
 	return formatDayCodes(offering.Days)
 }
 
-func careUsagePickupPlanningFields(report *enrollmentService.CareUsageReport) []listexport.Field {
+func careUsagePickupPlanningFields(report *capability.CareUsageReport) []listexport.Field {
 	pickupTimes := careUsagePickupPlanningTimes(report)
 	fields := make([]listexport.Field, 0, len(weekdayOrder)*len(pickupTimes))
 	for _, day := range weekdayOrder {
@@ -1171,7 +1171,7 @@ func careUsagePickupPlanningFields(report *enrollmentService.CareUsageReport) []
 	return fields
 }
 
-func careUsagePickupPlanningTimes(report *enrollmentService.CareUsageReport) []string {
+func careUsagePickupPlanningTimes(report *capability.CareUsageReport) []string {
 	if report == nil {
 		return nil
 	}

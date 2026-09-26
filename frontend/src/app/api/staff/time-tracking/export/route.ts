@@ -1,3 +1,5 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
@@ -31,12 +33,7 @@ async function GETHandler(request: NextRequest) {
       },
     );
 
-    if (!backendResponse.ok) {
-      const body = await backendResponse.text().catch(() => "");
-      return new Response(body || "Export failed", {
-        status: backendResponse.status,
-      });
-    }
+    if (!backendResponse.ok) return forwardBackendResponse(backendResponse);
 
     if (!backendResponse.body) {
       return new Response("No response body from backend", { status: 502 });
@@ -56,6 +53,7 @@ async function GETHandler(request: NextRequest) {
 
     return new Response(backendResponse.body, { headers });
   } catch (error) {
+    captureBffException(error, request);
     logger.error("staff time export proxy error", {
       error: error instanceof Error ? error.message : String(error),
     });

@@ -1063,3 +1063,6 @@ func (detailedPresenceSettings) OperationalOverviewScope(context.Context) (strin
 func (detailedPresenceSettings) SessionInactivityTimeoutMinutes(context.Context) (int, error) {
 	return 0, nil
 }
+func (detailedPresenceSettings) WebParticipantLimitEnforced(context.Context) (bool, error) {
+	return false, nil
+}

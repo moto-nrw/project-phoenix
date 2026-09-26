@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -85,7 +86,7 @@ func renderParentRequestError(w http.ResponseWriter, r *http.Request, err error)
 	switch {
 	// The Care Plan excused-absence workflow (#3093) raises its own lifecycle
 	// sentinels; they render the same wire codes as the shared ones.
-	case errors.Is(err, usersService.ErrParentRequestStale), errors.Is(err, careplan.ErrParentRequestStale):
+	case errors.Is(err, parentrequests.ErrStale), errors.Is(err, careplan.ErrParentRequestStale):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "change_request_stale"))
 	case errors.Is(err, usersService.ErrParentRequestReasonRequired), errors.Is(err, careplan.ErrParentRequestReasonRequired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "reason_required"))

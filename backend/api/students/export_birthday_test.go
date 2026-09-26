@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 )
 
 // birthdayFixtures covers the cases a birthday list has to get right: two
@@ -81,7 +81,7 @@ func TestDecodeStudentExportRequestAcceptsValidMonths(t *testing.T) {
 	got, err := decodeStudentExportRequest(req)
 
 	require.NoError(t, err)
-	assert.Equal(t, listexport.PresetBirthdayList, got.Preset)
+	assert.Equal(t, lists.PresetBirthdayList, got.Preset)
 	assert.Equal(t, []string{"09", "10"}, got.Filters.Months)
 }
 
@@ -125,7 +125,7 @@ func TestApplyExportFiltersBirthdayMonths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := applyExportFilters(birthdayFixtures(),
-				studentExportFilters{Months: tt.months}, listexport.PresetBirthdayList, testExportDate)
+				studentExportFilters{Months: tt.months}, lists.PresetBirthdayList, testExportDate)
 
 			assert.Equal(t, tt.wantIDs, exportedIDs(got))
 		})
@@ -137,7 +137,7 @@ func TestApplyExportFiltersBirthdayMonths(t *testing.T) {
 func TestApplyExportFiltersBirthdayPresetDropsChildrenWithoutBirthday(t *testing.T) {
 	t.Parallel()
 
-	got := applyExportFilters(birthdayFixtures(), studentExportFilters{}, listexport.PresetBirthdayList, testExportDate)
+	got := applyExportFilters(birthdayFixtures(), studentExportFilters{}, lists.PresetBirthdayList, testExportDate)
 
 	assert.Equal(t, []int64{101, 102, 103, 104}, exportedIDs(got))
 }
@@ -148,7 +148,7 @@ func TestApplyExportFiltersMonthsDropChildrenWithoutBirthdayOnAnyPreset(t *testi
 	t.Parallel()
 
 	got := applyExportFilters(birthdayFixtures(),
-		studentExportFilters{Months: []string{"09"}}, listexport.PresetOGSWeekly, testExportDate)
+		studentExportFilters{Months: []string{"09"}}, lists.PresetOGSWeekly, testExportDate)
 
 	assert.Equal(t, []int64{101, 102}, exportedIDs(got))
 }
@@ -158,7 +158,7 @@ func TestApplyExportFiltersMonthsDropChildrenWithoutBirthdayOnAnyPreset(t *testi
 func TestApplyExportFiltersKeepsBirthdaylessChildrenOnOtherPresets(t *testing.T) {
 	t.Parallel()
 
-	got := applyExportFilters(birthdayFixtures(), studentExportFilters{}, listexport.PresetOGSWeekly, testExportDate)
+	got := applyExportFilters(birthdayFixtures(), studentExportFilters{}, lists.PresetOGSWeekly, testExportDate)
 
 	assert.Equal(t, []int64{101, 102, 103, 104, 105}, exportedIDs(got))
 }
@@ -167,7 +167,7 @@ func TestApplyExportFiltersBirthdayEmptyInput(t *testing.T) {
 	t.Parallel()
 
 	got := applyExportFilters([]StudentResponse{},
-		studentExportFilters{Months: []string{"09"}}, listexport.PresetBirthdayList, testExportDate)
+		studentExportFilters{Months: []string{"09"}}, lists.PresetBirthdayList, testExportDate)
 
 	assert.Empty(t, got)
 }
@@ -219,7 +219,7 @@ func TestExportSortModeDerivedFromBirthdayPreset(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, "birthday", exportSortMode(studentExportRequest{
-		Preset: listexport.PresetBirthdayList,
+		Preset: lists.PresetBirthdayList,
 	}))
 }
 
@@ -227,7 +227,7 @@ func TestExportSortModeKeepsExplicitSort(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, "pickup", exportSortMode(studentExportRequest{
-		Preset:  listexport.PresetBirthdayList,
+		Preset:  lists.PresetBirthdayList,
 		Filters: studentExportFilters{Sort: "pickup"},
 	}))
 }
@@ -236,7 +236,7 @@ func TestExportSortModeLeavesOtherPresetsAlone(t *testing.T) {
 	t.Parallel()
 
 	assert.Empty(t, exportSortMode(studentExportRequest{
-		Preset: listexport.PresetOGSWeekly,
+		Preset: lists.PresetOGSWeekly,
 	}))
 }
 
@@ -282,8 +282,8 @@ func TestBuildExportRowRendersBirthdayAndAge(t *testing.T) {
 		StudentResponse{ID: 101, FirstName: "Mila", LastName: "Anders", Birthday: "2018-09-02"},
 		weeklySchedule{}, map[int64]string{}, testExportDate, true)
 
-	assert.Equal(t, "02.09.2018", row.Values[listexport.ColumnBirthday])
-	assert.Equal(t, "7", row.Values[listexport.ColumnAge])
+	assert.Equal(t, "02.09.2018", row.Values[lists.ColumnBirthday])
+	assert.Equal(t, "7", row.Values[lists.ColumnAge])
 }
 
 func TestBuildExportRowLeavesBirthdayCellsEmptyWithoutBirthday(t *testing.T) {
@@ -293,8 +293,8 @@ func TestBuildExportRowLeavesBirthdayCellsEmptyWithoutBirthday(t *testing.T) {
 		StudentResponse{ID: 105, FirstName: "Jonas", LastName: "Ernst"},
 		weeklySchedule{}, map[int64]string{}, testExportDate, true)
 
-	assert.Empty(t, row.Values[listexport.ColumnBirthday])
-	assert.Empty(t, row.Values[listexport.ColumnAge])
+	assert.Empty(t, row.Values[lists.ColumnBirthday])
+	assert.Empty(t, row.Values[lists.ColumnAge])
 }
 
 // The generic child export must not carry the health note: the decision whether
@@ -308,16 +308,16 @@ func TestGenericExportCarriesNoHealthInfo(t *testing.T) {
 		StudentResponse{ID: 101, FirstName: "Mila", LastName: "Anders", HealthInfo: "Nussallergie"},
 		weeklySchedule{}, map[int64]string{}, testExportDate, true)
 
-	assert.Empty(t, row.Values[listexport.ColumnHealthInfo],
+	assert.Empty(t, row.Values[lists.ColumnHealthInfo],
 		"generic export rows must not carry the health note")
 
-	columns := listexport.ResolveColumns(
-		[]listexport.ColumnID{listexport.ColumnName, listexport.ColumnHealthInfo},
-		listexport.PresetOGSWeekly)
+	columns := lists.ResolveColumns(
+		[]lists.ColumnID{lists.ColumnName, lists.ColumnHealthInfo},
+		lists.PresetOGSWeekly)
 
-	assert.False(t, exportHasColumn(columns, listexport.ColumnHealthInfo),
+	assert.False(t, exportHasColumn(columns, lists.ColumnHealthInfo),
 		"a requested health column must not resolve in a generic export")
-	assert.True(t, exportHasColumn(columns, listexport.ColumnName),
+	assert.True(t, exportHasColumn(columns, lists.ColumnName),
 		"the remaining requested columns stay untouched")
 }
 
@@ -325,9 +325,9 @@ func TestExportTitleBirthdayList(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, "Geburtstagsliste",
-		exportTitle(studentExportRequest{Preset: listexport.PresetBirthdayList}))
+		exportTitle(studentExportRequest{Preset: lists.PresetBirthdayList}))
 	assert.Equal(t, "Wer hat wann Geburtstag",
-		exportTitle(studentExportRequest{Preset: listexport.PresetBirthdayList, Title: "Wer hat wann Geburtstag"}))
+		exportTitle(studentExportRequest{Preset: lists.PresetBirthdayList, Title: "Wer hat wann Geburtstag"}))
 }
 
 func TestBirthdayMonthFilterLabel(t *testing.T) {

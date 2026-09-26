@@ -56,16 +56,13 @@ hooks, but runtime tool matchers still determine which calls are intercepted.
 | `format-go.sh`, `format-typescript.sh` | Formatting after matching edits |
 | `check-commit-message.sh` | Commit convention validation |
 | `check-env-files.sh` | Session-start env file check |
-| `guard-absolute-rules.sh` | Block moto staging/production requests, ciphertext hand-edits, RLS disabling in migrations, commit-hook bypass, and untracked/outside-repo script execution |
 | `skill-reminder.sh` | Task-relevant skill pointers |
-| `subagent-reminder.sh` | Delegation guidance subject to session instructions |
 | `scripts/quorum-rerequest.sh --stop-hook` | Re-request quorum after pushed review fixes |
-| `scripts/stop-quality-gate.sh --stop-hook` | Changed-area build/vet/frontend checks |
 
-The Codex config matches shell PreToolUse calls, not Edit/Write for the guard;
-Claude wires both. Keep lefthook and CI backstops. The guard resolves tracked
-scripts against payload `cwd`, falling back to the hook process working directory.
-Do not assume a hook ran merely because a config file exists.
+No hook enforces the absolute rules (production requests, SOPS ciphertext,
+RLS in migrations, commit-hook bypass); agents follow the prose rules. Keep
+lefthook and CI backstops. Do not assume a hook ran merely because a config
+file exists.
 
 ### Git quality gates
 

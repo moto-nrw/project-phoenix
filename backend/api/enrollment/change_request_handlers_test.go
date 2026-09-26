@@ -10,8 +10,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 type parentReplyCall struct {
@@ -22,7 +20,7 @@ type parentReplyCall struct {
 // capturingChangeRequestService stays package-local under the shared-double
 // rule's channel-capture exception.
 type capturingChangeRequestService struct {
-	enrollmentService.ChangeRequestService
+	ChangeRequestService
 	calls chan parentReplyCall
 }
 
@@ -34,10 +32,10 @@ func (s *capturingChangeRequestService) ParentReply(
 	_ context.Context,
 	token string,
 	changeRequestID int64,
-	_ enrollmentService.ChangeRequestMessageInput,
-) (*enrollmentService.ChangeRequestAggregate, error) {
+	_ ChangeRequestMessageInput,
+) (*ChangeRequestAggregate, error) {
 	s.calls <- parentReplyCall{token: token, changeRequestID: changeRequestID}
-	return &enrollmentService.ChangeRequestAggregate{}, nil
+	return &ChangeRequestAggregate{}, nil
 }
 
 func TestReplyToChangeRequestAcceptsPositiveID(t *testing.T) {
@@ -77,7 +75,7 @@ func TestReplyToChangeRequestRejectsInvalidIDs(t *testing.T) {
 			resource.replyToChangeRequest(recorder, newChangeRequestReplyRequest("status-token", test.id))
 
 			require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
-			assert.JSONEq(t, `{"status":"error","error":"invalid change request"}`, recorder.Body.String())
+			assert.JSONEq(t, `{"status":"error","error":"invalid change request","code":"general.input","type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Bad Request","detail":"invalid change request","instance":""}`, recorder.Body.String())
 			assertNoParentReplyCall(t, service.calls)
 		})
 	}
@@ -93,7 +91,7 @@ func TestReplyToChangeRequestRejectsMissingTokenIndependently(t *testing.T) {
 	resource.replyToChangeRequest(recorder, newChangeRequestReplyRequest("   ", "42"))
 
 	require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
-	assert.JSONEq(t, `{"status":"error","error":"invalid change request"}`, recorder.Body.String())
+	assert.JSONEq(t, `{"status":"error","error":"invalid change request","code":"general.input","type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Bad Request","detail":"invalid change request","instance":""}`, recorder.Body.String())
 	assertNoParentReplyCall(t, service.calls)
 }
 

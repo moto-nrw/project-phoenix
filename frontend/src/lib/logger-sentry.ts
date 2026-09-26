@@ -1,11 +1,9 @@
 /**
  * Forwards structured log entries to Sentry.
  *
- * Handled errors (a failed save that shows an inline error) never reach
- * Sentry's automatic capture, and the logs alone cannot show what a user did
- * before a crash. So every error-level entry becomes a Sentry event, and on
- * the client every info-or-higher entry becomes a breadcrumb that later
- * events carry along.
+ * Structured logs become breadcrumbs for independently reported exceptions.
+ * A log level alone does not decide whether a failure is a defect, so logging
+ * never creates a Sentry event.
  *
  * Entries arrive already redacted by the logger; Sentry's beforeSend scrubber
  * (sentry.shared.ts) runs on top.
@@ -20,16 +18,6 @@ interface SentryLogEntry {
   context: "server" | "client";
   [key: string]: unknown;
 }
-
-/**
- * Error-level messages that are expected noise, not defects: the SSE stream
- * reconnects on its own (about 700 entries a day in production), and a wrong
- * parent password is user input. They stay in the logs.
- */
-const NOT_SENT_TO_SENTRY = new Set([
-  "sse connection error",
-  "parent login failed",
-]);
 
 const BREADCRUMB_LEVEL: Record<SentryLogEntry["level"], Sentry.SeverityLevel> =
   {
@@ -55,23 +43,10 @@ function entryDetails(entry: SentryLogEntry): Record<string, unknown> {
   );
 }
 
-// Entry fields that become tags, so Sentry can filter by them (#3590): the
-// backend's error code and the Vorgangskennung, when the entry carries them.
-const TAG_KEYS = ["error_code", "request_id"] as const;
-
-function searchableTags(entry: SentryLogEntry): Record<string, string> {
-  const tags: Record<string, string> = {};
-  for (const key of TAG_KEYS) {
-    const value = entry[key];
-    if (typeof value === "string" && value !== "") tags[key] = value;
-  }
-  return tags;
-}
-
 export function reportLogToSentry(entry: SentryLogEntry): void {
   const component = entry.component ?? "unknown";
 
-  if (entry.context === "client" && entry.level !== "debug") {
+  if (entry.level !== "debug") {
     Sentry.addBreadcrumb({
       category: `log.${component}`,
       message: entry.msg,
@@ -79,13 +54,4 @@ export function reportLogToSentry(entry: SentryLogEntry): void {
       data: entryDetails(entry),
     });
   }
-
-  if (entry.level !== "error" || NOT_SENT_TO_SENTRY.has(entry.msg)) return;
-
-  Sentry.captureMessage(entry.msg, {
-    level: "error",
-    tags: { component, log_source: "logger", ...searchableTags(entry) },
-    extra: entryDetails(entry),
-    fingerprint: ["logger", component, entry.msg],
-  });
 }

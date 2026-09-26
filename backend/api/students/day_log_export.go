@@ -10,18 +10,16 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 )
 
 const (
-	dayLogColumnName    listexport.ColumnID = "name"
-	dayLogColumnClass   listexport.ColumnID = "school_class"
-	dayLogColumnStatus  listexport.ColumnID = "day_status"
-	dayLogColumnFrom    listexport.ColumnID = "present_from"
-	dayLogColumnUntil   listexport.ColumnID = "present_until"
-	dayLogColumnDetails listexport.ColumnID = "details"
+	dayLogColumnName    lists.ColumnID = "name"
+	dayLogColumnClass   lists.ColumnID = "school_class"
+	dayLogColumnStatus  lists.ColumnID = "day_status"
+	dayLogColumnFrom    lists.ColumnID = "present_from"
+	dayLogColumnUntil   lists.ColumnID = "present_until"
+	dayLogColumnDetails lists.ColumnID = "details"
 )
 
 // exportStudentsDayLog handles GET /students/day-log/export?date=&group_id=&format=.
@@ -31,7 +29,7 @@ func (rs *Resource) exportStudentsDayLog(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	logger := rs.dayLogLogger()
 
-	if !configService.ResolveBoolOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, logger) {
+	if !resolveBoolSetting(ctx, rs.SettingsService, settingAttendanceLogEnabled, false, logger) {
 		renderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
 		return
 	}
@@ -82,23 +80,23 @@ func (rs *Resource) exportStudentsDayLog(w http.ResponseWriter, r *http.Request)
 	_, _ = w.Write(file.Data)
 }
 
-func parseDayLogExportFormat(r *http.Request) (listexport.Format, error) {
-	format := listexport.Format(strings.TrimSpace(r.URL.Query().Get("format")))
+func parseDayLogExportFormat(r *http.Request) (lists.Format, error) {
+	format := lists.Format(strings.TrimSpace(r.URL.Query().Get("format")))
 	if format == "" {
-		format = listexport.FormatPDF
+		format = lists.FormatPDF
 	}
-	if format != listexport.FormatPDF && format != listexport.FormatDOCX && format != listexport.FormatXLSX {
+	if format != lists.FormatPDF && format != lists.FormatDOCX && format != lists.FormatXLSX {
 		return format, fmt.Errorf("unsupported export format %q", format)
 	}
 	return format, nil
 }
 
-func buildDayLogExportDocument(log dayLogResponse, date timezone.Date) listexport.Document {
-	doc := listexport.Document{
+func buildDayLogExportDocument(log dayLogResponse, date timezone.Date) lists.Document {
+	doc := lists.Document{
 		Title:       "Tagesauswertung",
 		Subtitle:    "Anwesenheit am " + date.Format("02.01.2006"),
 		GeneratedAt: time.Now(),
-		Columns: []listexport.Column{
+		Columns: []lists.Column{
 			{ID: dayLogColumnName, Label: "Name"},
 			{ID: dayLogColumnClass, Label: "Klasse"},
 			{ID: dayLogColumnStatus, Label: "Status"},
@@ -119,10 +117,10 @@ func buildDayLogExportDocument(log dayLogResponse, date timezone.Date) listexpor
 		// renderers: a Values-less row carrying only GroupTitle opens the
 		// section, the data rows that follow carry no GroupTitle.
 		if grouped {
-			doc.Rows = append(doc.Rows, listexport.Row{GroupTitle: group.Name})
+			doc.Rows = append(doc.Rows, lists.Row{GroupTitle: group.Name})
 		}
 		for _, student := range group.Students {
-			doc.Rows = append(doc.Rows, listexport.Row{Values: map[listexport.ColumnID]string{
+			doc.Rows = append(doc.Rows, lists.Row{Values: map[lists.ColumnID]string{
 				dayLogColumnName:    student.LastName + ", " + student.FirstName,
 				dayLogColumnClass:   student.SchoolClass,
 				dayLogColumnStatus:  student.Label,

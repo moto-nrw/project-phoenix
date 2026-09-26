@@ -23,10 +23,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	permissions2 "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // mockDecisionService is a hand-rolled fake that records inputs and
@@ -35,34 +33,34 @@ import (
 // for when the second consumer shows up.
 type mockDecisionService struct {
 	// List
-	listFilters       enrollmentService.RequestFilters
-	listResult        []*enrollmentService.RequestSummary
+	listFilters       RequestFilters
+	listResult        []*RequestSummary
 	listErr           error
 	listCalls         int
 	listStudentID     int64
-	listStudentResult []*enrollmentService.RequestSummary
+	listStudentResult []*RequestSummary
 	listStudentErr    error
 	getRequestID      int64
-	getResult         *enrollmentService.RequestSummary
+	getResult         *RequestSummary
 	getErr            error
 
-	listChildOffResult map[int64]enrollmentService.ChildOfferingSet
+	listChildOffResult map[int64]ChildOfferingSet
 	listChildOffErr    error
 
-	updateChildOffResult *enrollmentService.RequestChild
+	updateChildOffResult *RequestChild
 	updateChildOffErr    error
-	updateChildOffInput  enrollmentService.UpdateChildOfferingsInput
+	updateChildOffInput  UpdateChildOfferingsInput
 
-	decideInput  enrollmentService.DecideInput
+	decideInput  DecideInput
 	decideCalls  int
-	decideResult *enrollmentService.DecideOutcome
+	decideResult *DecideOutcome
 	decideErrs   []error
 	decideErr    error
 
 	restoreRequestID  int64
 	restoreRestoredBy int64
 	restoreCalls      int
-	restoreResult     *enrollmentService.RestoreOutcome
+	restoreResult     *RestoreOutcome
 	restoreErr        error
 
 	// ExportPhase: records the args the handler forwards (so a handler
@@ -74,30 +72,30 @@ type mockDecisionService struct {
 	exportFormat        string
 	exportChildStatus   string
 	exportCalls         int
-	exportResult        *enrollmentService.PhaseExport
+	exportResult        *PhaseExport
 	exportErr           error
 	exportStudentID     int64
-	exportStudentResult *enrollmentService.StudentEnrollmentExport
+	exportStudentResult *StudentEnrollmentExport
 	exportStudentErr    error
 }
 
-func (m *mockDecisionService) List(_ context.Context, f enrollmentService.RequestFilters) ([]*enrollmentService.RequestSummary, error) {
+func (m *mockDecisionService) List(_ context.Context, f RequestFilters) ([]*RequestSummary, error) {
 	m.listFilters = f
 	m.listCalls++
 	return m.listResult, m.listErr
 }
 
-func (m *mockDecisionService) ListByStudent(_ context.Context, studentID int64) ([]*enrollmentService.RequestSummary, error) {
+func (m *mockDecisionService) ListByStudent(_ context.Context, studentID int64) ([]*RequestSummary, error) {
 	m.listStudentID = studentID
 	return m.listStudentResult, m.listStudentErr
 }
 
-func (m *mockDecisionService) Get(_ context.Context, id int64) (*enrollmentService.RequestSummary, error) {
+func (m *mockDecisionService) Get(_ context.Context, id int64) (*RequestSummary, error) {
 	m.getRequestID = id
 	return m.getResult, m.getErr
 }
 
-func (m *mockDecisionService) Decide(_ context.Context, input enrollmentService.DecideInput) (*enrollmentService.DecideOutcome, error) {
+func (m *mockDecisionService) Decide(_ context.Context, input DecideInput) (*DecideOutcome, error) {
 	m.decideInput = input
 	m.decideCalls++
 	if len(m.decideErrs) > 0 {
@@ -108,27 +106,27 @@ func (m *mockDecisionService) Decide(_ context.Context, input enrollmentService.
 	return m.decideResult, m.decideErr
 }
 
-func (m *mockDecisionService) RestoreWithdrawn(_ context.Context, requestID, restoredBy int64) (*enrollmentService.RestoreOutcome, error) {
+func (m *mockDecisionService) RestoreWithdrawn(_ context.Context, requestID, restoredBy int64) (*RestoreOutcome, error) {
 	m.restoreRequestID = requestID
 	m.restoreRestoredBy = restoredBy
 	m.restoreCalls++
 	return m.restoreResult, m.restoreErr
 }
 
-func (m *mockDecisionService) UpdateChildOfferings(_ context.Context, input enrollmentService.UpdateChildOfferingsInput) (*enrollmentService.RequestChild, error) {
+func (m *mockDecisionService) UpdateChildOfferings(_ context.Context, input UpdateChildOfferingsInput) (*RequestChild, error) {
 	m.updateChildOffInput = input
 	return m.updateChildOffResult, m.updateChildOffErr
 }
 
-func (m *mockDecisionService) ListChildOfferings(_ context.Context, _ int64) (map[int64]enrollmentService.ChildOfferingSet, error) {
+func (m *mockDecisionService) ListChildOfferings(_ context.Context, _ int64) (map[int64]ChildOfferingSet, error) {
 	return m.listChildOffResult, m.listChildOffErr
 }
 
-func (m *mockDecisionService) ListOfferingAdjustments(_ context.Context, _, _ int64) ([]*auditModels.EnrollmentOfferingAdjustment, error) {
+func (m *mockDecisionService) ListOfferingAdjustments(_ context.Context, _, _ int64) ([]*OfferingAdjustment, error) {
 	return nil, nil
 }
 
-func (m *mockDecisionService) ExportPhase(_ context.Context, phaseID, actorAccountID int64, actorRole, format, childStatusFilter string) (*enrollmentService.PhaseExport, error) {
+func (m *mockDecisionService) ExportPhase(_ context.Context, phaseID, actorAccountID int64, actorRole, format, childStatusFilter string) (*PhaseExport, error) {
 	m.exportCalls++
 	m.exportPhaseID = phaseID
 	m.exportActorID = actorAccountID
@@ -138,7 +136,7 @@ func (m *mockDecisionService) ExportPhase(_ context.Context, phaseID, actorAccou
 	return m.exportResult, m.exportErr
 }
 
-func (m *mockDecisionService) ExportStudent(_ context.Context, studentID, actorAccountID int64, actorRole, format string) (*enrollmentService.StudentEnrollmentExport, error) {
+func (m *mockDecisionService) ExportStudent(_ context.Context, studentID, actorAccountID int64, actorRole, format string) (*StudentEnrollmentExport, error) {
 	m.exportStudentID = studentID
 	m.exportActorID = actorAccountID
 	m.exportActorRole = actorRole
@@ -150,7 +148,7 @@ func (m *mockDecisionService) RecordPhaseExportAudit(_ context.Context, _ int64,
 	return nil
 }
 
-func buildAdminDecisionRouter(svc enrollmentService.DecisionService) chi.Router {
+func buildAdminDecisionRouter(svc DecisionService) chi.Router {
 	rs := &Resource{
 		DecisionService: svc,
 		// db nil → runInTenantTx short-circuits straight to the closure.
@@ -167,7 +165,7 @@ func buildAdminDecisionRouter(svc enrollmentService.DecisionService) chi.Router 
 	return r
 }
 
-func buildProtectedAdminDecisionRouter(svc enrollmentService.DecisionService) chi.Router {
+func buildProtectedAdminDecisionRouter(svc DecisionService) chi.Router {
 	rs := &Resource{
 		DecisionService: svc,
 		// db nil → runInTenantTx short-circuits straight to the closure.
@@ -209,8 +207,8 @@ func executeAdminJSONWithPermissions(t *testing.T, router chi.Router, method, pa
 }
 
 // makeReqSummary builds an enrollment request summary with the supplied IDs.
-func makeReqSummary(id, phaseID int64, children ...*enrollmentService.RequestChild) *enrollmentService.RequestSummary {
-	return &enrollmentService.RequestSummary{
+func makeReqSummary(id, phaseID int64, children ...*RequestChild) *RequestSummary {
+	return &RequestSummary{
 		Request: &enrollmentModels.Request{
 			ID:                id,
 			PhaseID:           phaseID,
@@ -224,8 +222,8 @@ func makeReqSummary(id, phaseID int64, children ...*enrollmentService.RequestChi
 	}
 }
 
-func makeChildSummary(id int64, firstName, lastName, status string) *enrollmentService.RequestChild {
-	return &enrollmentService.RequestChild{
+func makeChildSummary(id int64, firstName, lastName, status string) *RequestChild {
+	return &RequestChild{
 		ID:             id,
 		FirstName:      firstName,
 		LastName:       lastName,
@@ -249,7 +247,7 @@ func TestListAdminRequestsHandler_HappyPathReturns200(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockDecisionService{
-		listResult: []*enrollmentService.RequestSummary{
+		listResult: []*RequestSummary{
 			makeReqSummary(1234, 5678, makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusSubmitted)),
 		},
 	}
@@ -269,7 +267,7 @@ func TestListAdminRequestsHandler_ConfigReadDoesNotReturnStatusToken(t *testing.
 	)
 	summary.Request.StatusToken = "leaked-token"
 	mock := &mockDecisionService{
-		listResult: []*enrollmentService.RequestSummary{summary},
+		listResult: []*RequestSummary{summary},
 	}
 	router := buildProtectedAdminDecisionRouter(mock)
 	w := executeAdminJSONWithPermissions(t, router, http.MethodGet, "/enrollment/admin/requests", []string{"config:read"})
@@ -284,11 +282,11 @@ func TestAdminRequestRoutes_DetailRequiresConfigManage(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockDecisionService{
-		listResult: []*enrollmentService.RequestSummary{
+		listResult: []*RequestSummary{
 			makeReqSummary(1234, 5678, makeChildSummary(99, "Lina", "Kind", enrollmentModels.ChildStatusSubmitted)),
 		},
 		getResult: makeReqSummary(1234, 5678, makeChildSummary(99, "Lina", "Kind", enrollmentModels.ChildStatusSubmitted)),
-		listStudentResult: []*enrollmentService.RequestSummary{
+		listStudentResult: []*RequestSummary{
 			makeReqSummary(1234, 5678, makeChildSummary(99, "Lina", "Kind", enrollmentModels.ChildStatusSubmitted)),
 		},
 	}
@@ -313,7 +311,7 @@ func TestAdminRequestRoutes_DetailRequiresConfigManage(t *testing.T) {
 func TestListAdminRequestsHandler_PhaseFilterParsed(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockDecisionService{listResult: []*enrollmentService.RequestSummary{}}
+	mock := &mockDecisionService{listResult: []*RequestSummary{}}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests?phase_id=42", nil)
 	require.Equal(t, http.StatusOK, w.Code)
@@ -324,7 +322,7 @@ func TestListAdminRequestsHandler_PhaseFilterParsed(t *testing.T) {
 func TestListAdminRequestsHandler_ChildStatusFilterParsed(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockDecisionService{listResult: []*enrollmentService.RequestSummary{}}
+	mock := &mockDecisionService{listResult: []*RequestSummary{}}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests?child_status=waitlisted", nil)
 	require.Equal(t, http.StatusOK, w.Code)
@@ -390,7 +388,7 @@ func TestGetAdminRequestHandler_NegativeIDRejected(t *testing.T) {
 func TestGetAdminRequestHandler_NotFoundMapped(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockDecisionService{getErr: enrollmentService.ErrDecisionRequestNotFound}
+	mock := &mockDecisionService{getErr: capability.ErrDecisionRequestNotFound}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests/1234", nil)
 	assert.Equal(t, http.StatusNotFound, w.Code)
@@ -450,8 +448,8 @@ func TestGetAdminRequestHandler_StitchesChildOfferings(t *testing.T) {
 		getResult: makeReqSummary(1234, 5678,
 			makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusSubmitted),
 		),
-		listChildOffResult: map[int64]enrollmentService.ChildOfferingSet{
-			99: {Current: []enrollmentService.ChildOfferingRow{{
+		listChildOffResult: map[int64]ChildOfferingSet{
+			99: {Current: []ChildOfferingRow{{
 				OfferingID:     7777,
 				OfferingName:   "OGS-Nachmittag",
 				DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
@@ -487,8 +485,8 @@ func TestGetAdminRequestHandler_ReportsInclusiveOfferingEndDate(t *testing.T) {
 		getResult: makeReqSummary(1234, 5678,
 			makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
 		),
-		listChildOffResult: map[int64]enrollmentService.ChildOfferingSet{
-			99: {Current: []enrollmentService.ChildOfferingRow{{
+		listChildOffResult: map[int64]ChildOfferingSet{
+			99: {Current: []ChildOfferingRow{{
 				OfferingID:     7777,
 				OfferingName:   "OGS-Nachmittag",
 				DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
@@ -519,14 +517,14 @@ func TestGetAdminRequestHandler_SeparatesUpcomingOfferings(t *testing.T) {
 		getResult: makeReqSummary(1234, 5678,
 			makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
 		),
-		listChildOffResult: map[int64]enrollmentService.ChildOfferingSet{
+		listChildOffResult: map[int64]ChildOfferingSet{
 			99: {
-				Current: []enrollmentService.ChildOfferingRow{{
+				Current: []ChildOfferingRow{{
 					OfferingID:     7777,
 					OfferingName:   "Jetzt gebucht",
 					DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 				}},
-				Upcoming: []enrollmentService.ChildOfferingRow{{
+				Upcoming: []ChildOfferingRow{{
 					OfferingID:     8888,
 					OfferingName:   "Ab September",
 					DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
@@ -673,7 +671,7 @@ func TestDecideAdminChildHandler_HappyPathReturns200(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockDecisionService{
-		decideResult: &enrollmentService.DecideOutcome{
+		decideResult: &DecideOutcome{
 			Child: makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
 		},
 	}
@@ -684,7 +682,7 @@ func TestDecideAdminChildHandler_HappyPathReturns200(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, int64(1234), mock.decideInput.RequestID)
 	assert.Equal(t, int64(99), mock.decideInput.ChildID)
-	assert.Equal(t, enrollmentService.DecisionApproved, mock.decideInput.Status)
+	assert.Equal(t, capability.DecisionApproved, mock.decideInput.Status)
 	assert.Equal(t, "OK", mock.decideInput.Reason)
 	assert.Contains(t, w.Body.String(), `"status":"approved"`)
 }
@@ -693,7 +691,7 @@ func TestDecideAdminChildHandler_RetriesTransientDatabaseError(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockDecisionService{
-		decideResult: &enrollmentService.DecideOutcome{
+		decideResult: &DecideOutcome{
 			Child: makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
 		},
 		decideErrs: []error{
@@ -716,7 +714,7 @@ func TestDecideAdminChildHandler_DoesNotRetryAfterDecisionBodySucceeded(t *testi
 	t.Parallel()
 
 	mock := &mockDecisionService{
-		decideResult: &enrollmentService.DecideOutcome{
+		decideResult: &DecideOutcome{
 			Child: makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
 		},
 	}
@@ -814,7 +812,7 @@ func TestDecideAdminChildHandler_TransientDatabaseErrorMapsTo503AfterRetry(t *te
 func TestDecideAdminChildHandler_ChildNotFoundMapsTo404(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockDecisionService{decideErr: enrollmentService.ErrDecisionChildNotFound}
+	mock := &mockDecisionService{decideErr: capability.ErrDecisionChildNotFound}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
 		"/enrollment/admin/requests/1234/children/99/decide",
@@ -825,7 +823,7 @@ func TestDecideAdminChildHandler_ChildNotFoundMapsTo404(t *testing.T) {
 func TestDecideAdminChildHandler_RequestNotFoundMapsTo404(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockDecisionService{decideErr: enrollmentService.ErrDecisionRequestNotFound}
+	mock := &mockDecisionService{decideErr: capability.ErrDecisionRequestNotFound}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
 		"/enrollment/admin/requests/1234/children/99/decide",
@@ -836,7 +834,7 @@ func TestDecideAdminChildHandler_RequestNotFoundMapsTo404(t *testing.T) {
 func TestDecideAdminChildHandler_InvalidStatusMapsTo400(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockDecisionService{decideErr: enrollmentService.ErrDecisionInvalidStatus}
+	mock := &mockDecisionService{decideErr: capability.ErrDecisionInvalidStatus}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
 		"/enrollment/admin/requests/1234/children/99/decide",
@@ -847,7 +845,7 @@ func TestDecideAdminChildHandler_InvalidStatusMapsTo400(t *testing.T) {
 func TestDecideAdminChildHandler_AlreadyTerminalMapsTo400(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockDecisionService{decideErr: enrollmentService.ErrDecisionAlreadyTerminal}
+	mock := &mockDecisionService{decideErr: capability.ErrDecisionAlreadyTerminal}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
 		"/enrollment/admin/requests/1234/children/99/decide",
@@ -858,7 +856,7 @@ func TestDecideAdminChildHandler_AlreadyTerminalMapsTo400(t *testing.T) {
 func TestDecideAdminChildHandler_InvalidDataMapsTo400(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockDecisionService{decideErr: enrollmentService.ErrDecisionInvalidData}
+	mock := &mockDecisionService{decideErr: capability.ErrDecisionInvalidData}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
 		"/enrollment/admin/requests/1234/children/99/decide",
@@ -914,7 +912,7 @@ func TestRestoreAdminRequestHandler_HappyPathReturns200(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockDecisionService{
-		restoreResult: &enrollmentService.RestoreOutcome{RestoredChildIDs: []int64{7, 8}},
+		restoreResult: &RestoreOutcome{RestoredChildIDs: []int64{7, 8}},
 	}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
@@ -928,7 +926,7 @@ func TestRestoreAdminRequestHandler_HappyPathReturns200(t *testing.T) {
 func TestRestoreAdminRequestHandler_RequestNotFoundMapsTo404(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockDecisionService{restoreErr: enrollmentService.ErrDecisionRequestNotFound}
+	mock := &mockDecisionService{restoreErr: capability.ErrDecisionRequestNotFound}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
 		"/enrollment/admin/requests/1234/restore", nil)
@@ -938,7 +936,7 @@ func TestRestoreAdminRequestHandler_RequestNotFoundMapsTo404(t *testing.T) {
 func TestRestoreAdminRequestHandler_NothingWithdrawnMapsTo400(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockDecisionService{restoreErr: enrollmentService.ErrRestoreNothingWithdrawn}
+	mock := &mockDecisionService{restoreErr: capability.ErrRestoreNothingWithdrawn}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
 		"/enrollment/admin/requests/1234/restore", nil)
@@ -948,7 +946,7 @@ func TestRestoreAdminRequestHandler_NothingWithdrawnMapsTo400(t *testing.T) {
 func TestRestoreAdminRequestHandler_PhaseInactiveMapsTo409(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockDecisionService{restoreErr: enrollmentService.ErrRestorePhaseInactive}
+	mock := &mockDecisionService{restoreErr: capability.ErrRestorePhaseInactive}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
 		"/enrollment/admin/requests/1234/restore", nil)
@@ -959,7 +957,7 @@ func TestRestoreAdminRequestHandler_PhaseInactiveMapsTo409(t *testing.T) {
 func TestRestoreAdminRequestHandler_DuplicateMapsTo409(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockDecisionService{restoreErr: enrollmentService.ErrRestoreDuplicateActive}
+	mock := &mockDecisionService{restoreErr: capability.ErrRestoreDuplicateActive}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodPost,
 		"/enrollment/admin/requests/1234/restore", nil)

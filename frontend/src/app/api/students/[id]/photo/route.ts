@@ -1,3 +1,4 @@
+import { backendResponseError } from "~/lib/api-helpers.server";
 // Student photo upload + delete proxy. Mirrors /api/me/profile/avatar
 // (magic-byte + MIME + size validation). On 401 we refresh the access
 // token via uncachedAuth() and retry once.
@@ -16,9 +17,6 @@ import {
   WEBP_SIGNATURE,
   validateImageMagicBytes,
 } from "~/lib/image-magic-bytes";
-import { createLogger } from "~/lib/logger";
-
-const logger = createLogger({ component: "StudentPhotoRoute" });
 
 interface BackendPhotoResponse {
   status?: string;
@@ -102,23 +100,7 @@ export const POST = createFileUploadHandler<UploadResult>(
       }
     }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error("student_photo_upload_proxy_failed", {
-        student_id: studentId,
-        status: response.status,
-        error: errorText,
-      });
-      // Format the message so handleApiError can extract the status code
-      // — anything else gets collapsed into a 500. This matters in
-      // practice for the 4xx cases the backend already speaks: 400
-      // missing consent, 403 photos feature disabled, 409 consent-
-      // withdrawal race during upload. Without this format every one of
-      // those would surface as an internal-server error in the proxy.
-      throw new Error(
-        `API error (${response.status}): ${errorText || "Upload fehlgeschlagen"}`,
-      );
-    }
+    if (!response.ok) throw await backendResponseError(response);
 
     const body = (await response.json()) as BackendPhotoResponse;
     const photoUrl = body.data?.photo_url;
@@ -144,14 +126,8 @@ export const POST = createFileUploadHandler<UploadResult>(
 // 401 retry mirrors the POST handler above. createDeleteHandler hands us a
 // single cached token; when it has expired but the NextAuth refresh token is
 // still valid the backend returns 401, and without the inline retry the user
-// sees a hard "Foto konnte nicht entfernt werden" error until they reload
-// the page. The generic createDeleteHandler retry path only triggers on
-// errors whose message includes the literal "API error (401)" (see
-// route-wrapper.ts is401Error), and we throw the backend body / a German
-// fallback instead — so the wrapper-level retry never fires here. We do the
-// refresh ourselves rather than reshaping the thrown message because the
-// upload path next door already owns this pattern; doing the same thing the
-// same way keeps both photo-mutation entry points symmetric.
+// sees a hard failure until they reload the page. The upload path next door
+// already owns this inline refresh pattern, so DELETE keeps the same behavior.
 export const DELETE = createDeleteHandler(
   async (request: NextRequest, token: string) => {
     const studentId = extractStudentIdFromUrl(request);
@@ -171,16 +147,7 @@ export const DELETE = createDeleteHandler(
       }
     }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      // Match the upload path's error envelope so handleApiError preserves
-      // the status code instead of collapsing 4xx into 500. Same rationale
-      // applies on delete: a 403 (feature disabled) or 404 (no photo) must
-      // not surface as an internal error.
-      throw new Error(
-        `API error (${response.status}): ${errorText || "Foto konnte nicht entfernt werden"}`,
-      );
-    }
+    if (!response.ok) throw await backendResponseError(response);
     return { success: true };
   },
 );

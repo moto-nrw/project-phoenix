@@ -12,6 +12,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -20,12 +22,12 @@ import (
 )
 
 type conflictServiceStub struct {
-	input  userService.ResolveConflictInput
+	input  parentrequests.ResolveConflictInput
 	called bool
 	err    error
 }
 
-func (s *conflictServiceStub) ResolveConflict(_ context.Context, input userService.ResolveConflictInput) error {
+func (s *conflictServiceStub) ResolveConflict(_ context.Context, input parentrequests.ResolveConflictInput) error {
 	s.called = true
 	s.input = input
 	return s.err
@@ -64,7 +66,7 @@ func TestResolveRequestConflictForwardsTheWholeGroup(t *testing.T) {
 	rs.resolveRequestConflict(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-	assert.Equal(t, userService.ParentRequestKindExcused, svc.input.Kind)
+	assert.Equal(t, parentrequests.KindExcused, svc.input.Kind)
 	assert.Equal(t, []int64{12, 13}, svc.input.RequestIDs)
 	assert.Equal(t, []string{"v1", "v2"}, svc.input.ExpectedVersions)
 	assert.Equal(t, int64(13), svc.input.ChosenRequestID)
@@ -84,7 +86,7 @@ func TestResolveRequestConflictForwardsAStaffValueUnread(t *testing.T) {
 	rs.resolveRequestConflict(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-	assert.Equal(t, map[string]any{"value": "15:30"}, svc.input.StaffValue,
+	assert.JSONEq(t, `{"value":"15:30"}`, string(svc.input.StaffValue),
 		"the handler must not interpret a domain payload")
 	assert.Zero(t, svc.input.ChosenRequestID)
 }
@@ -124,17 +126,18 @@ func TestResolveRequestConflictErrorCodes(t *testing.T) {
 		want int
 		code string
 	}{
-		{name: "stale group", err: userService.ErrParentRequestStale, want: http.StatusConflict, code: codeChangeRequestStale},
+		{name: "stale group", err: parentrequests.ErrStale, want: http.StatusConflict, code: codeChangeRequestStale},
 		{name: "missing reason", err: userService.ErrParentRequestReasonRequired, want: http.StatusBadRequest, code: codeReasonRequired},
-		{name: "malformed command", err: userService.ErrInvalidConflictResolution, want: http.StatusBadRequest},
-		{name: "kind without a domain", err: userService.ErrConflictKindUnsupported, want: http.StatusBadRequest, code: codeConflictKindUnsupported},
-		{name: "domain takes no typed value", err: userService.ErrStaffValueUnsupported, want: http.StatusBadRequest, code: codeStaffValueUnsupported},
+		{name: "missing reason (Care Plan coordinator)", err: parentrequests.ErrReasonRequired, want: http.StatusBadRequest, code: codeReasonRequired},
+		{name: "malformed command", err: parentrequests.ErrInvalidConflictResolution, want: http.StatusBadRequest},
+		{name: "kind without a domain", err: parentrequests.ErrConflictKindUnsupported, want: http.StatusBadRequest, code: codeConflictKindUnsupported},
+		{name: "domain takes no typed value", err: parentrequests.ErrStaffValueUnsupported, want: http.StatusBadRequest, code: codeStaffValueUnsupported},
 		{name: "absence value invalid", err: excusedrequests.ErrAbsenceRequestInvalidStatus, want: http.StatusBadRequest, code: codeStaffValueInvalid},
 		{name: "care value invalid", err: carerequests.ErrInvalidPayload, want: http.StatusBadRequest, code: codeStaffValueInvalid},
 		{name: "offering value invalid", err: careplan.ErrOfferingChangeInvalid, want: http.StatusBadRequest, code: codeStaffValueInvalid},
-		{name: "Stammdaten value invalid", err: userService.ErrReviewInvalidValue, want: http.StatusBadRequest, code: codeStaffValueInvalid},
-		{name: "request gone", err: userService.ErrParentRequestNotFound, want: http.StatusNotFound},
-		{name: "kind not permitted", err: userService.ErrParentRequestForbidden, want: http.StatusForbidden},
+		{name: "Stammdaten value invalid", err: masterdatarequests.ErrReviewInvalidValue, want: http.StatusBadRequest, code: codeStaffValueInvalid},
+		{name: "request gone", err: parentrequests.ErrNotFound, want: http.StatusNotFound},
+		{name: "kind not permitted", err: parentrequests.ErrForbidden, want: http.StatusForbidden},
 	}
 
 	for _, tt := range tests {

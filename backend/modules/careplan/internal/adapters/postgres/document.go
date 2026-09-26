@@ -4,12 +4,13 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/uptrace/bun"
 )
 
 const (
-	careDocumentCleanupBatchSize    = 200
+	careDocumentCleanupBatchSize    = careplan.StudentDocumentSweepBatchSize
 	careDocumentRequestCleanupLimit = 10
 )
 

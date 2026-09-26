@@ -12,8 +12,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -129,7 +127,7 @@ func parseStatusDayOverviewFilters(r *http.Request, page, pageSize int) (student
 	return studentpresence.StatusDayOverviewFilters{Query: r.URL.Query().Get("q"), Status: status, Page: page, PageSize: pageSize}, nil
 }
 
-func (rs *Resource) writeStatusDayOverviewAudit(r *http.Request, from, to timezone.Date, groups []*educationModel.Group, logger *slog.Logger) error {
+func (rs *Resource) writeStatusDayOverviewAudit(r *http.Request, from, to timezone.Date, groups []*SchoolGroup, logger *slog.Logger) error {
 	if rs.StudentHistoryService == nil {
 		logger.Error("audit log repo not configured, refusing to serve absence overview")
 		return errors.New("audit log repository not configured")
@@ -147,7 +145,7 @@ func (rs *Resource) writeStatusDayOverviewAudit(r *http.Request, from, to timezo
 	entry := &studentpresence.DataAccessEvent{
 		ActorAccountID: int64(claims.ID),
 		ActorRole:      actorRole,
-		ResourceType:   auditModels.ResourceTypeStudentStatusDayOverview,
+		ResourceType:   dataAccessStudentStatusDayOverview,
 		RangeStart:     from.BerlinMidnight(),
 		RangeEnd:       to.EndOfDay(),
 		AccessedAt:     time.Now(),
@@ -156,7 +154,7 @@ func (rs *Resource) writeStatusDayOverviewAudit(r *http.Request, from, to timezo
 
 	if err := rs.StudentHistoryService.RecordDataAccess(r.Context(), entry); err != nil {
 		logger.Error("audit log write failed, refusing to serve absence overview",
-			slog.String("resource_type", auditModels.ResourceTypeStudentStatusDayOverview),
+			slog.String("resource_type", dataAccessStudentStatusDayOverview),
 			slog.String("error", err.Error()),
 		)
 		return err

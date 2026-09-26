@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -65,7 +65,7 @@ func TestExportRequestToListParamsFetchesAllRows(t *testing.T) {
 	t.Parallel()
 
 	params := exportRequestToListParams(studentExportRequest{
-		Preset: listexport.PresetBirthdayList,
+		Preset: lists.PresetBirthdayList,
 		// No search / group / class: without fetchAll this would paginate.
 		Filters: studentExportFilters{Months: []string{"09"}},
 	}, testExportDate)
@@ -155,7 +155,7 @@ func TestApplyExportFiltersAdministrativeFilters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := applyExportFilters(students, tt.filters, listexport.PresetOGSWeekly, testExportDate)
+			got := applyExportFilters(students, tt.filters, lists.PresetOGSWeekly, testExportDate)
 			gotIDs := make([]int64, 0, len(got))
 			for _, student := range got {
 				gotIDs = append(gotIDs, student.ID)
@@ -175,7 +175,7 @@ func TestApplyExportFiltersClassTripStatus(t *testing.T) {
 		{ID: 104, Location: "Zuhause"},
 	}
 
-	got := applyExportFilters(students, studentExportFilters{Status: "klassenfahrt"}, listexport.PresetOGSWeekly, testExportDate)
+	got := applyExportFilters(students, studentExportFilters{Status: "klassenfahrt"}, lists.PresetOGSWeekly, testExportDate)
 
 	require.Len(t, got, 1)
 	assert.Equal(t, int64(101), got[0].ID)
@@ -201,11 +201,11 @@ func TestPopulateExportPhotoConsentFilterDataSupportsFeatureOffResponses(t *test
 	require.NotNil(t, responses[1].PhotoConsentGiven)
 	assert.False(t, *responses[1].PhotoConsentGiven)
 
-	yes := applyExportFilters(responses, studentExportFilters{PhotoConsent: "yes"}, listexport.PresetOGSWeekly, testExportDate)
+	yes := applyExportFilters(responses, studentExportFilters{PhotoConsent: "yes"}, lists.PresetOGSWeekly, testExportDate)
 	require.Len(t, yes, 1)
 	assert.Equal(t, int64(101), yes[0].ID)
 
-	no := applyExportFilters(responses, studentExportFilters{PhotoConsent: "no"}, listexport.PresetOGSWeekly, testExportDate)
+	no := applyExportFilters(responses, studentExportFilters{PhotoConsent: "no"}, lists.PresetOGSWeekly, testExportDate)
 	require.Len(t, no, 1)
 	assert.Equal(t, int64(102), no[0].ID)
 }
@@ -298,7 +298,7 @@ func TestApplyExportFiltersCombinedWithDayStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := applyExportFilters(students, tt.filters, listexport.PresetOGSWeekly, testExportDate)
+			got := applyExportFilters(students, tt.filters, lists.PresetOGSWeekly, testExportDate)
 			gotIDs := make([]int64, 0, len(got))
 			for _, student := range got {
 				gotIDs = append(gotIDs, student.ID)
@@ -373,7 +373,7 @@ func TestApplyExportFiltersMultipleSchoolYears(t *testing.T) {
 		{ID: 203, SchoolClass: "Klasse 4b"},
 	}
 
-	got := applyExportFilters(students, studentExportFilters{Year: "3,4"}, listexport.PresetOGSWeekly, testExportDate)
+	got := applyExportFilters(students, studentExportFilters{Year: "3,4"}, lists.PresetOGSWeekly, testExportDate)
 
 	gotIDs := make([]int64, 0, len(got))
 	for _, student := range got {
@@ -506,12 +506,12 @@ func TestBuildExportRowsIncludesDailyStatus(t *testing.T) {
 	}, testExportDate, true), false)
 
 	require.Len(t, rows, len(students))
-	assert.Equal(t, "Angemeldet: OGS", rows[0].Values[listexport.ColumnEnrollmentSummary])
-	assert.Equal(t, "Kommt heute", rows[0].Values[listexport.ColumnDailyStatus])
-	assert.Equal(t, "Krank", rows[1].Values[listexport.ColumnDailyStatus])
-	assert.Equal(t, "Entschuldigt", rows[2].Values[listexport.ColumnDailyStatus])
-	assert.Equal(t, "Klassenfahrt", rows[3].Values[listexport.ColumnDailyStatus])
-	assert.Equal(t, "Arzttermin", rows[4].Values[listexport.ColumnDailyStatus])
+	assert.Equal(t, "Angemeldet: OGS", rows[0].Values[lists.ColumnEnrollmentSummary])
+	assert.Equal(t, "Kommt heute", rows[0].Values[lists.ColumnDailyStatus])
+	assert.Equal(t, "Krank", rows[1].Values[lists.ColumnDailyStatus])
+	assert.Equal(t, "Entschuldigt", rows[2].Values[lists.ColumnDailyStatus])
+	assert.Equal(t, "Klassenfahrt", rows[3].Values[lists.ColumnDailyStatus])
+	assert.Equal(t, "Arzttermin", rows[4].Values[lists.ColumnDailyStatus])
 }
 
 // TestDepartureExportCell pins the accompanied companion-note rendering in the

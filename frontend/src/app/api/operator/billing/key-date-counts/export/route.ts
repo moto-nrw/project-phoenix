@@ -1,3 +1,5 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import type { NextRequest } from "next/server";
 import { createLogger } from "~/lib/logger";
 import { getServerApiUrl } from "~/lib/server-api-url";
@@ -29,11 +31,9 @@ async function proxyExport(query: string, token: string): Promise<Response> {
   );
 
   if (!backendResponse.ok) {
-    const body = await backendResponse.text().catch(() => "");
-    return new Response(body || "Export failed", {
-      status: backendResponse.status,
-      headers: { "Cache-Control": "no-store" },
-    });
+    const response = forwardBackendResponse(backendResponse);
+    response.headers.set("Cache-Control", "no-store");
+    return response;
   }
   if (!backendResponse.body) {
     return new Response("No response body from backend", { status: 502 });
@@ -76,6 +76,7 @@ async function GETHandler(request: NextRequest) {
     }
     return await proxyExport(query, refreshed.user.token);
   } catch (error) {
+    captureBffException(error, request);
     logger.error("operator billing export proxy failed", {
       error: error instanceof Error ? error.message : String(error),
     });

@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // schoolPeriodResponse is one lesson the school has an end time for (#3372).
@@ -34,27 +33,27 @@ func (rs *Resource) getArrivalSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	keys := []string{
-		configModel.KeyEnrollmentBookingsAuthoritative,
-		configModel.KeyCareDefaultArrivalTime,
-		configModel.KeyCareDefaultPickupTime,
+		settingEnrollmentBookingsAuthoritative,
+		settingCareDefaultArrivalTime,
+		settingCareDefaultPickupTime,
 	}
-	for period := 1; period <= configModel.SchoolPeriodCount; period++ {
-		keys = append(keys, configModel.SchoolPeriodEndKey(period))
+	for period := 1; period <= schoolPeriodCount; period++ {
+		keys = append(keys, schoolPeriodEndSetting(period))
 	}
 	ctx := common.PrefetchSettings(r.Context(), rs.SettingsService, keys...)
 
 	bookingsAuthoritative, err := rs.SettingsService.ResolveBool(
 		ctx,
-		configModel.KeyEnrollmentBookingsAuthoritative,
+		settingEnrollmentBookingsAuthoritative,
 	)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(fmt.Errorf("resolve arrival settings: %w", err)))
 		return
 	}
 
-	periods := make([]schoolPeriodResponse, 0, configModel.SchoolPeriodCount)
-	for period := 1; period <= configModel.SchoolPeriodCount; period++ {
-		endTime, resolveErr := rs.SettingsService.ResolveString(ctx, configModel.SchoolPeriodEndKey(period))
+	periods := make([]schoolPeriodResponse, 0, schoolPeriodCount)
+	for period := 1; period <= schoolPeriodCount; period++ {
+		endTime, resolveErr := rs.SettingsService.ResolveString(ctx, schoolPeriodEndSetting(period))
 		if resolveErr != nil {
 			renderError(w, r, common.ErrorInternalServer(fmt.Errorf("resolve school period %d: %w", period, resolveErr)))
 			return
@@ -65,7 +64,7 @@ func (rs *Resource) getArrivalSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	presets := make(map[string]string, 2)
-	for _, key := range []string{configModel.KeyCareDefaultArrivalTime, configModel.KeyCareDefaultPickupTime} {
+	for _, key := range []string{settingCareDefaultArrivalTime, settingCareDefaultPickupTime} {
 		value, resolveErr := rs.SettingsService.ResolveString(ctx, key)
 		if resolveErr != nil {
 			renderError(w, r, common.ErrorInternalServer(fmt.Errorf("resolve %s: %w", key, resolveErr)))
@@ -81,7 +80,7 @@ func (rs *Resource) getArrivalSettings(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, arrivalSettingsResponse{
 		CareDaysSource:     careDaysSource,
 		SchoolPeriods:      periods,
-		DefaultArrivalTime: presets[configModel.KeyCareDefaultArrivalTime],
-		DefaultPickupTime:  presets[configModel.KeyCareDefaultPickupTime],
+		DefaultArrivalTime: presets[settingCareDefaultArrivalTime],
+		DefaultPickupTime:  presets[settingCareDefaultPickupTime],
 	}, "Arrival settings retrieved successfully")
 }

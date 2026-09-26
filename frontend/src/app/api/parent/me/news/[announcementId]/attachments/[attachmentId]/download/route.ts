@@ -1,3 +1,4 @@
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Anhänge einer Elternmitteilung (#2890), Elternseite: die Datei selbst.
 //
 // Eigener Handler statt des JSON-Proxys, weil hier Bytes durchlaufen. Der
@@ -51,7 +52,7 @@ async function GETHandler(
       attachment_id: attachmentId,
       status: upstream.status,
     });
-    return new NextResponse(null, { status: upstream.status });
+    return forwardBackendResponse(upstream);
   }
 
   const headers = new Headers();

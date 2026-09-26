@@ -1,7 +1,7 @@
 // API route for immediate student check-in
 
 import { createPostHandler } from "~/lib/route-wrapper.server";
-import { getServerApiUrl } from "~/lib/server-api-url";
+import { apiPost } from "~/lib/api-helpers.server";
 
 interface CheckinBody {
   active_group_id: number;
@@ -19,31 +19,11 @@ export const POST = createPostHandler<unknown, CheckinBody>(
       throw new Error("active_group_id is required");
     }
 
-    const response = await fetch(
-      `${getServerApiUrl()}/api/active/visits/student/${studentId}/checkin`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ active_group_id: body.active_group_id }),
-      },
+    const response = await apiPost<{ data: unknown }>(
+      `/api/active/visits/student/${encodeURIComponent(studentId)}/checkin`,
+      token,
+      { active_group_id: body.active_group_id },
     );
-
-    if (!response.ok) {
-      const error = await response.text();
-      // Include status code in error message so handleApiError can extract and propagate it
-      throw new Error(
-        `API error (${response.status}): ${error || "Failed to check in student"}`,
-      );
-    }
-
-    const data = (await response.json()) as {
-      status: string;
-      message: string;
-      data: unknown;
-    };
-    return data.data;
+    return response.data;
   },
 );

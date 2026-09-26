@@ -16,19 +16,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	activityService "github.com/moto-nrw/project-phoenix/services/activities"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	educationService "github.com/moto-nrw/project-phoenix/services/education"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/uptrace/bun"
@@ -139,10 +136,9 @@ var _ StudentPresence = studentpresence.Presence(nil)
 type ResourceConfig struct {
 	PersonService          userService.PersonService
 	PeopleDirectory        peopleModule.Capability
-	EducationService       educationService.Service
+	SchoolGroups           SchoolGroups
 	UserContextService     CallerContext
 	ActiveService          StudentPresence
-	IoTService             iotSvc.Service
 	PickupScheduleService  careplan.PickupScheduleService
 	WeekdayPickupNotes     WeekdayPickupNoteReplacer
 	PartialAbsenceService  careplan.PartialAbsenceService
@@ -155,7 +151,7 @@ type ResourceConfig struct {
 	// what bare test Resources rely on.
 	CareDayService  careplan.CareDayQuery
 	SchoolService   SchoolDirectory
-	SettingsService configService.SettingsService
+	SettingsService TenantSettings
 	StudentService  userService.StudentService
 	// CompanionService is the Care Plan "läuft mit" graph (#3350): the links
 	// themselves and the lock protocol every writer of them shares. It is a
@@ -180,7 +176,7 @@ type ResourceConfig struct {
 	// exit, which is deliberately NOT a deletion.
 	CareLifecycleService    careplan.CareLifecycle
 	StudentAuditService     userService.StudentAuditService
-	MasterDataReviewService userService.MasterDataReviewService
+	MasterDataReviewService masterdatarequests.Decisions
 	CareRequestService      carerequests.Decisions
 	CareRequestReviews      careplan.CareScheduleReviewQuery
 	// OfferingChangeService backs the post-enrollment offering-change queue
@@ -188,12 +184,12 @@ type ResourceConfig struct {
 	OfferingChangeService    careplan.OfferingChangeRequests
 	PickupAdjustmentService  careplan.PickupAdjustments
 	ExcusedRequestService    excusedrequests.Service
-	ParentRequestBulkService userService.ParentRequestBulkService
+	ParentRequestBulkService parentrequests.BulkApprover
 	// ParentRequestConflictService resolves a whole conflict group at once
 	// (#2267). Optional: a bare test Resource answers 500 rather than
 	// silently deciding requests one by one, which is the bug the group
 	// exists to prevent.
-	ParentRequestConflictService userService.ParentRequestConflictService
+	ParentRequestConflictService parentrequests.ConflictResolver
 	// FamilyProtection is the People Directory owner capability behind the
 	// per-child privacy ledger (#3349). Optional: a bare test Resource answers
 	// 500 rather than reaching the ledger through a second path.
@@ -210,9 +206,11 @@ type ResourceConfig struct {
 	AbsenceOverview         studentpresence.StatusDayOverviews
 	StudentHistoryService   studentpresence.StudentHistory
 	OGSGroupLiveService     grouplive.Query
-	ActivityService         activityService.ActivityService
-	EnrollmentDecision      enrollmentService.DecisionService
-	EnrollmentFormSchema    enrollmentService.FormSchemaService
+	// ActiveEnrollments backs the export's "angemeldet" column. Optional:
+	// an export that asks for the column answers 500 without it.
+	ActiveEnrollments    ActiveEnrollments
+	EnrollmentDecision   enrollmentOwner.Decisions
+	EnrollmentFormSchema enrollmentOwner.FormSchemaAdministration
 	// OfferingPickupTimes is Care Plan's offering pickup projection (#3560):
 	// the reset of a manual weekly Gehzeit onto the Angebots-Gehzeit.
 	// Optional for bare test Resources; the reset route answers 500 without
@@ -222,7 +220,7 @@ type ResourceConfig struct {
 	// Regeltermine after a direct school_class edit, in the same transaction —
 	// the same hook a grade transition uses (#2147 review round 10). Optional:
 	// nil skips the resync (bare test Resources).
-	OfferingSourceResyncer educationService.OfferingSourceResyncer
+	OfferingSourceResyncer OfferingSourceResyncer
 	// LockTemplateRecurrence takes the tenant-wide recurrence gate the resync
 	// requires. It must be acquired BEFORE the student row locks (see
 	// applyStudentUpdate for the ordering rationale). Required whenever
@@ -234,7 +232,7 @@ type ResourceConfig struct {
 	// parents-app tab refetches the child's care state live (#1725). Optional —
 	// nil is a no-op (the guardian helper guards on it), so tests that build a
 	// bare Resource keep working.
-	ParentEventEmitter *parentmessaging.Emitter
+	ParentEventEmitter GuardianWake
 	AbsenceNotifier    notificationsService.AbsenceNotifier
 	StudentPhotos      userService.StudentPhotoService
 	// StudentConsents serves the shared consent projection (People Directory)
@@ -248,7 +246,7 @@ type ResourceConfig struct {
 	PrivacyConsents PrivacyConsentCapability
 	// StudentDocumentService backs the child's Dokumente tab (#777).
 	StudentDocumentService careplan.StudentDocuments
-	ListExportService      *listexport.RendererService
+	ListExportService      lists.Renderer
 	Logger                 *slog.Logger
 	Now                    func() time.Time
 	DB                     *bun.DB

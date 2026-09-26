@@ -26,7 +26,6 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -52,7 +51,7 @@ type offeringGuardHarness struct {
 }
 
 type failingAtDateOfferingReader struct {
-	enrollmentService.DecisionChildren
+	enrollmentAPI.TestDecisionChildren
 }
 
 func (f failingAtDateOfferingReader) RequestChildOfferingsAtDate(context.Context, int64, capability.Date) ([]*capability.RequestChildOffering, error) {
@@ -121,7 +120,7 @@ func setupOfferingGuardRouterTest(
 	phase := createOfferingGuardPhase(t, repos, ctx, selectionMode)
 	request, child := createOfferingGuardChild(t, repos, ctx, phase.ID)
 	attachOfferingGuardLink(t, repos, ctx, phase, child.ID, linkFixture)
-	children := enrollmentService.DecisionChildren(repos.Enrollment())
+	children := enrollmentAPI.TestDecisionChildren(repos.Enrollment())
 	if failOfferingLookup {
 		children = failingAtDateOfferingReader{children}
 	}
@@ -214,7 +213,7 @@ func attachOfferingGuardLink(t *testing.T, repos repositories.EnrollmentTestRepo
 			AvailableDays: []string{"mon", "tue", "wed", "thu", "fri"}, IsActive: true,
 			IsRequired: required, CountsAsCare: true,
 		}
-		require.NoError(t, enrollmentService.NewCareOfferingRepository(repos.CarePlan).Create(ctx, offering))
+		require.NoError(t, newCareOfferingFixtures(repos.CarePlan).Create(ctx, offering))
 		return &capability.RequestChildOffering{RequestChildID: childID, CareOfferingID: offering.ID}
 	}
 	link := createLink("Ganztag", fixture == requiredOnly)
@@ -240,18 +239,25 @@ func datePointers(from, until timezone.Date) (*capability.Date, *capability.Date
 	return &start, &end
 }
 
-func newOfferingGuardDecisionService(repos repositories.EnrollmentTestRepositories, offeringsEnabled bool, children enrollmentService.DecisionChildren, guardianAccess enrollmentService.DecisionGuardianAccess, studentEnrollment enrollmentService.DecisionStudentEnrollment, bookings enrollmentService.DecisionBookings) enrollmentService.DecisionService {
-	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+func newOfferingGuardDecisionService(repos repositories.EnrollmentTestRepositories, offeringsEnabled bool, children enrollmentAPI.TestDecisionChildren, guardianAccess enrollmentAPI.TestDecisionGuardianAccess, studentEnrollment enrollmentAPI.TestDecisionStudentEnrollment, bookings enrollmentAPI.TestDecisionBookings) enrollmentAPI.DecisionService {
+	return enrollmentAPI.NewDecisionService(testutil.PublicEnrollmentDecisions(newOfferingGuardDecisions(repos, offeringsEnabled, children, guardianAccess, studentEnrollment, bookings)))
+}
+
+// newOfferingGuardDecisions composes the decision flow the guard suites
+// drive, the way the root binds it.
+func newOfferingGuardDecisions(repos repositories.EnrollmentTestRepositories, offeringsEnabled bool, children enrollmentAPI.TestDecisionChildren, guardianAccess enrollmentAPI.TestDecisionGuardianAccess, studentEnrollment enrollmentAPI.TestDecisionStudentEnrollment, bookings enrollmentAPI.TestDecisionBookings) *enrollmentAPI.TestDecisions {
+	return testutil.NewEnrollmentDecisions(testutil.EnrollmentDecisionSources{
 		Requests: repos.Enrollment(), Children: children, Guardians: repos.Enrollment(),
-		LateInviteRepo: repos.Enrollment(), CareOfferingRepo: enrollmentService.NewCareOfferingRepository(repos.CarePlan),
-		Phases: repos.Enrollment(), Schemas: repos.Enrollment(), PersonRepo: repos.Person, StaffRepo: repos.Staff,
-		StudentRepo: repos.Student, StudentGuardianRepo: repos.StudentGuardian, GuardianProfileRepo: repos.GuardianProfile,
-		GuardianPhoneRepo: repos.GuardianPhoneNumber, PickupScheduleRepo: repos.StudentPickupSchedule,
-		ArrivalScheduleRepo: repos.StudentArrivalSchedule, CareBookings: bookings,
+		LateInvites: repos.Enrollment(), CareOfferings: testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan),
+		Phases: repos.Enrollment(), Schemas: repos.Enrollment(), Persons: repos.Person, Staff: repos.Staff,
+		Students: repos.Student, StudentGuardians: repos.StudentGuardian, GuardianProfiles: repos.GuardianProfile,
+		GuardianPhones: repos.GuardianPhoneNumber, PickupSchedules: repositories.NewEnrollmentPickupSchedules(repos.StudentPickupSchedule),
+		ArrivalSchedules: repositories.NewEnrollmentArrivalSchedules(repos.StudentArrivalSchedule), CareBookings: bookings,
 		GuardianAccess:    guardianAccess,
 		StudentEnrollment: studentEnrollment,
-		OutboxEnqueuer:    discardingOutbox{}, Settings: offeringGuardSettings(offeringsEnabled),
-		ParentsURL: "http://parents.localhost:3000", Logger: slog.Default(),
+		Settings:          offeringGuardSettings(offeringsEnabled),
+		Notifications:     enrollmentAPI.NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: offeringGuardSettings(offeringsEnabled)}, discardingOutbox{}, nil),
+		ParentsURL:        "http://parents.localhost:3000", Logger: slog.Default(),
 	})
 }
 
