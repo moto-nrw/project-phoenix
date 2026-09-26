@@ -134,7 +134,7 @@ func (d *DemoAccess) schoolFor(ctx context.Context, access, known domain.DemoAcc
 			return known.SchoolSlug, nil
 		}
 	}
-	return d.schools.PrepareDemoSchool(ctx, access.SchoolName, access.PersonName)
+	return d.schools.PrepareDemoSchool(ctx, access.SchoolName, access.FirstName, access.LastName)
 }
 
 // Status reports the progress of the token's demo school and the access
@@ -268,7 +268,7 @@ func (d *DemoAccess) Reset(ctx context.Context, token, clientIP string) (domain.
 // access along and ends the old school's sessions. A failed school has no
 // sessions to end.
 func (d *DemoAccess) replaceSchool(ctx context.Context, access domain.DemoAccess, entry domain.DemoSchoolEntry) error {
-	newSlug, err := d.schools.ReplaceDemoSchool(ctx, access.SchoolSlug, access.SchoolName, access.PersonName)
+	newSlug, err := d.schools.ReplaceDemoSchool(ctx, access.SchoolSlug, access.SchoolName, access.FirstName, access.LastName)
 	if err != nil {
 		return err
 	}

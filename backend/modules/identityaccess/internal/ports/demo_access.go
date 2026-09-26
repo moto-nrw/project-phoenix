@@ -37,7 +37,7 @@ type DemoSchools interface {
 	// a school of its own that is queued for seeding, or the standing school.
 	// It reports domain.ErrDemoCapacityReached when no further school may
 	// be queued (#3466).
-	PrepareDemoSchool(ctx context.Context, schoolName, personName string) (slug string, err error)
+	PrepareDemoSchool(ctx context.Context, schoolName, firstName, lastName string) (slug string, err error)
 	// DemoSchoolEntry reports the school's progress. A school that is
 	// unknown, inactive or deleted is still preparing.
 	DemoSchoolEntry(ctx context.Context, slug string) (domain.DemoSchoolEntry, error)
@@ -47,7 +47,7 @@ type DemoSchools interface {
 	// ReplaceDemoSchool hides the school and queues a fresh one with the same
 	// names (#3470); it returns the new school's slug. The standing school is
 	// shared and reports domain.ErrDemoAccessInvalid.
-	ReplaceDemoSchool(ctx context.Context, slug, schoolName, personName string) (newSlug string, err error)
+	ReplaceDemoSchool(ctx context.Context, slug, schoolName, firstName, lastName string) (newSlug string, err error)
 }
 
 // DemoAccessMail sends the two mails of the public demo (#3465). Sending is

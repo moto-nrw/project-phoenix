@@ -51,13 +51,13 @@ type DemoSessions = ports.DemoSessions
 // is seeded, exists and is active. MarkDemoSchoolUsed notes an entry into the
 // school.
 type DemoSchools interface {
-	PrepareDemoSchool(ctx context.Context, schoolName, personName string) (slug string, err error)
+	PrepareDemoSchool(ctx context.Context, schoolName, firstName, lastName string) (slug string, err error)
 	DemoSchoolEntry(ctx context.Context, slug string) (identityaccess.DemoSchoolEntry, error)
 	MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error
 	// ReplaceDemoSchool hides the school and queues a fresh one with the
 	// same names, returning its slug (#3470). The standing school reports
 	// identityaccess.ErrDemoAccessInvalid: it is shared and never restarts.
-	ReplaceDemoSchool(ctx context.Context, slug, schoolName, personName string) (newSlug string, err error)
+	ReplaceDemoSchool(ctx context.Context, slug, schoolName, firstName, lastName string) (newSlug string, err error)
 }
 
 type demoSchoolsPort struct{ schools DemoSchools }
@@ -66,8 +66,8 @@ func (p demoSchoolsPort) MarkDemoSchoolUsed(ctx context.Context, slug string, us
 	return p.schools.MarkDemoSchoolUsed(ctx, slug, usedAt)
 }
 
-func (p demoSchoolsPort) ReplaceDemoSchool(ctx context.Context, slug, schoolName, personName string) (string, error) {
-	newSlug, err := p.schools.ReplaceDemoSchool(ctx, slug, schoolName, personName)
+func (p demoSchoolsPort) ReplaceDemoSchool(ctx context.Context, slug, schoolName, firstName, lastName string) (string, error) {
+	newSlug, err := p.schools.ReplaceDemoSchool(ctx, slug, schoolName, firstName, lastName)
 	switch {
 	case errors.Is(err, identityaccess.ErrDemoCapacityReached):
 		return "", domain.ErrDemoCapacityReached
@@ -77,8 +77,8 @@ func (p demoSchoolsPort) ReplaceDemoSchool(ctx context.Context, slug, schoolName
 	return newSlug, err
 }
 
-func (p demoSchoolsPort) PrepareDemoSchool(ctx context.Context, schoolName, personName string) (string, error) {
-	slug, err := p.schools.PrepareDemoSchool(ctx, schoolName, personName)
+func (p demoSchoolsPort) PrepareDemoSchool(ctx context.Context, schoolName, firstName, lastName string) (string, error) {
+	slug, err := p.schools.PrepareDemoSchool(ctx, schoolName, firstName, lastName)
 	if errors.Is(err, identityaccess.ErrDemoCapacityReached) {
 		return "", domain.ErrDemoCapacityReached
 	}
@@ -137,7 +137,7 @@ type demoAccessMail struct{ mail identityaccess.DemoAccessMail }
 
 func demoAccessMessage(access domain.DemoAccess) identityaccess.DemoAccessMessage {
 	return identityaccess.DemoAccessMessage{
-		AccessID: access.ID, Email: access.Email, PersonName: access.PersonName,
+		AccessID: access.ID, Email: access.Email, FirstName: access.FirstName, LastName: access.LastName,
 		SchoolName: access.SchoolName, Source: access.Source, ContactOptIn: access.ContactOptIn,
 	}
 }
@@ -154,7 +154,7 @@ type demoAccessEngine struct{ flows *application.DemoAccess }
 
 func (e demoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error {
 	return demoAccessError(e.flows.Request(ctx, domain.DemoAccess{
-		Email: request.Email, PersonName: request.PersonName, SchoolName: request.SchoolName,
+		Email: request.Email, FirstName: request.FirstName, LastName: request.LastName, SchoolName: request.SchoolName,
 		Source: request.Source, ContactOptIn: request.ContactOptIn, Role: domain.DemoRole(request.Role),
 	}, request.ClientIP, request.EntryURLPrefix))
 }

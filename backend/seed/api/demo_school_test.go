@@ -168,7 +168,7 @@ func TestFixedSeeder_SeedStaffAccounts_NamesOneCaregiverAfterTheVisitor(t *testi
 
 	fs := NewFixedSeeder(newTestClient(srv.URL, false), false, "")
 	fs.accountScope = "ogs-nord-k3m9xp"
-	fs.visitorName = "  Anna   Müller "
+	fs.visitor = visitorName{first: "Anna", last: "Müller"}
 	fs.roleIDs["admin"], fs.roleIDs["user"], fs.roleIDs["guest"] = 1, 2, 3
 
 	require.NoError(t, fs.seedStaffAccounts(context.Background(), &FixedResult{}))
@@ -188,16 +188,16 @@ func TestFixedSeeder_SeedStaffAccounts_NamesOneCaregiverAfterTheVisitor(t *testi
 func TestVisitorDisplayName(t *testing.T) {
 	t.Parallel()
 
-	first, last := visitorDisplayName("", true, "Julia", "Klein", "Julia", "Klein")
+	first, last := visitorDisplayName(visitorName{}, true, "Julia", "Klein", "Julia", "Klein")
 	assert.Equal(t, "Julia Klein", first+" "+last, "without a visitor the seed names stay")
-	first, last = visitorDisplayName("Maria von Berg", true, "Julia", "Klein", "Julia", "Klein")
-	assert.Equal(t, []string{"Maria", "von Berg"}, []string{first, last})
-	first, last = visitorDisplayName("Kim", true, "Sabine", "Schneider", "Sabine", "Schneider")
-	assert.Equal(t, []string{"Kim", "Schneider"}, []string{first, last}, "a single name keeps the family name of the child")
-	first, last = visitorDisplayName("Kim", true, "Julia", "Klein", "Julia", "Klein")
-	assert.Equal(t, []string{"Kim", "Schneider"}, []string{first, last}, "the caregiver has the same family name as the parent")
-	first, last = visitorDisplayName("Kim Beispiel", false, "Petra", "Meyer", "Sabine", "Schneider")
+	first, last = visitorDisplayName(visitorName{first: "Anna Lena", last: "von Berg"}, true, "Julia", "Klein", "Julia", "Klein")
+	assert.Equal(t, []string{"Anna Lena", "von Berg"}, []string{first, last}, "the given names are taken unchanged")
+	first, last = visitorDisplayName(visitorName{first: "Anna Lena", last: "von Berg"}, true, "Sabine", "Schneider", "Sabine", "Schneider")
+	assert.Equal(t, []string{"Anna Lena", "von Berg"}, []string{first, last}, "the parent carries the same name as the caregiver")
+	first, last = visitorDisplayName(visitorName{first: "Kim", last: "Beispiel"}, false, "Petra", "Meyer", "Sabine", "Schneider")
 	assert.Equal(t, "Petra Meyer", first+" "+last)
+	first, last = visitorDisplayName(visitorName{first: "petra", last: "meyer"}, false, "Petra", "Meyer", "Sabine", "Schneider")
+	assert.Equal(t, "Sabine Schneider", first+" "+last, "a seed person of the visitor's name takes the displaced name")
 }
 
 // A repeated seed finds the school a broken attempt left under its slug. It

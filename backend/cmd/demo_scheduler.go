@@ -140,7 +140,8 @@ func (s *demoScheduler) seedAndTick(ctx context.Context, order backendapi.DemoSc
 	}
 	if !order.Seeded {
 		options := seedapi.SeedOptions{
-			TenantSlug: order.Slug, SchoolName: order.SchoolName, VisitorName: order.PersonName,
+			TenantSlug: order.Slug, SchoolName: order.SchoolName,
+			VisitorFirstName: order.FirstName, VisitorLastName: order.LastName,
 			AccountScope: demoAccountScope(order.Slug, order.Attempts),
 			// The broken attempt keeps its school and accounts; move both aside.
 			ReplaceAbandoned: order.Attempts > 1,

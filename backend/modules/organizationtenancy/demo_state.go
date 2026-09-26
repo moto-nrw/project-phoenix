@@ -60,10 +60,13 @@ func (d *DemoSchools) WithDemoLease(ctx context.Context, name string, run func(c
 
 // DemoSchoolOrder is a demo school of the public demo waiting for its seed
 // (#3463). Seeded reports a stored seed state: only the first tick is missing.
+// FirstName and LastName are the visitor's name the seed gives one caregiver
+// and one parent, unchanged.
 type DemoSchoolOrder struct {
 	Slug       string
 	SchoolName string
-	PersonName string
+	FirstName  string
+	LastName   string
 	Attempts   int
 	Seeded     bool
 }
@@ -117,7 +120,7 @@ type DemoSchoolProgress struct {
 }
 
 type DemoOrderEngine interface {
-	OrderDemoSchool(ctx context.Context, schoolName, personName string) (slug string, err error)
+	OrderDemoSchool(ctx context.Context, schoolName, firstName, lastName string) (slug string, err error)
 	DemoSchoolProgress(ctx context.Context, slug string) (*DemoSchoolProgress, error)
 	MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error
 	RetireDemoSchool(ctx context.Context, slug string) error
@@ -138,11 +141,11 @@ func NewDemoSchoolOrders(engine DemoOrderEngine) *DemoSchoolOrders {
 // OrderDemoSchool queues a school named schoolName and returns its slug: the
 // name as a DNS label plus a random suffix. It reports ErrDemoCapacityReached
 // while the configured number of active demo schools exists.
-func (d *DemoSchoolOrders) OrderDemoSchool(ctx context.Context, schoolName, personName string) (string, error) {
-	if schoolName == "" || personName == "" {
-		return "", fmt.Errorf("demo school and person name are required")
+func (d *DemoSchoolOrders) OrderDemoSchool(ctx context.Context, schoolName, firstName, lastName string) (string, error) {
+	if schoolName == "" || firstName == "" || lastName == "" {
+		return "", fmt.Errorf("demo school name and the visitor's first and last name are required")
 	}
-	return d.engine.OrderDemoSchool(ctx, schoolName, personName)
+	return d.engine.OrderDemoSchool(ctx, schoolName, firstName, lastName)
 }
 
 // DemoSchoolProgress returns nil for a slug nobody ordered.

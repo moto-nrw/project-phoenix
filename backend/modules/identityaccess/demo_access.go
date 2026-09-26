@@ -45,7 +45,8 @@ func (e *DemoAccessRateLimitError) RetryAfterSeconds(now time.Time) int {
 // DemoAccessRequest carries what a prospect submits.
 type DemoAccessRequest struct {
 	Email        string
-	PersonName   string
+	FirstName    string
+	LastName     string
 	SchoolName   string
 	Source       string
 	ContactOptIn bool
@@ -80,7 +81,8 @@ type DemoSchoolEntry struct {
 type DemoAccessMessage struct {
 	AccessID     int64
 	Email        string
-	PersonName   string
+	FirstName    string
+	LastName     string
 	SchoolName   string
 	Source       string
 	ContactOptIn bool

@@ -108,7 +108,8 @@ func watchDemoLease(ctx context.Context, tx bun.Tx, cancel context.CancelFunc, f
 type DemoOrder struct {
 	Name       string `bun:"name"`
 	SchoolName string `bun:"school_name"`
-	PersonName string `bun:"person_name"`
+	FirstName  string `bun:"first_name"`
+	LastName   string `bun:"last_name"`
 	Attempts   int    `bun:"attempts"`
 	Seeded     bool   `bun:"seeded"`
 }
@@ -132,7 +133,7 @@ func (s *DemoStateStore) Claim(ctx context.Context) (*DemoOrder, error) {
 			SELECT name FROM platform.demo_school_states
 			WHERE status = 'preparing' AND claimed_at IS NULL
 			ORDER BY created_at, name LIMIT 1 FOR UPDATE SKIP LOCKED)
-		RETURNING state.name, state.school_name, state.person_name, state.attempts, state.seed_state IS NOT NULL AS seeded`).Scan(ctx, &order)
+		RETURNING state.name, state.school_name, state.first_name, state.last_name, state.attempts, state.seed_state IS NOT NULL AS seeded`).Scan(ctx, &order)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -245,7 +246,7 @@ type DemoProgress struct {
 // ones and ready ones whose school is not deleted. A failed order holds none.
 // The lock makes concurrent orders take turns until the caller's transaction
 // ends, so they cannot pass the count together.
-func (s *DemoOrderStore) Enqueue(ctx context.Context, name, schoolName, personName string, maxActive int) error {
+func (s *DemoOrderStore) Enqueue(ctx context.Context, name, schoolName, firstName, lastName string, maxActive int) error {
 	db, err := s.database(ctx)
 	if err != nil {
 		return err
@@ -263,8 +264,8 @@ func (s *DemoOrderStore) Enqueue(ctx context.Context, name, schoolName, personNa
 	if active >= maxActive {
 		return ErrDemoCapacityReached
 	}
-	_, err = db.NewRaw(`INSERT INTO platform.demo_school_states (name, school_name, person_name) VALUES (?, ?, ?)`,
-		name, schoolName, personName).Exec(ctx)
+	_, err = db.NewRaw(`INSERT INTO platform.demo_school_states (name, school_name, first_name, last_name) VALUES (?, ?, ?, ?)`,
+		name, schoolName, firstName, lastName).Exec(ctx)
 	if err != nil {
 		if isIntegrityViolation(err) {
 			return ErrDemoOrderExists

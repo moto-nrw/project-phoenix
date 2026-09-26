@@ -536,8 +536,8 @@ jobs:
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
-            "INSERT INTO platform.demo_school_states (name, school_name, person_name)
-             SELECT 'ogs-smoke-' || i || '-k3m9x' || i, 'OGS Smoke ' || i, 'Kim Beispiel' FROM generate_series(1, 3) AS i"
+            "INSERT INTO platform.demo_school_states (name, school_name, first_name, last_name)
+             SELECT 'ogs-smoke-' || i || '-k3m9x' || i, 'OGS Smoke ' || i, 'Kim', 'Beispiel' FROM generate_series(1, 3) AS i"
           LOG_LEVEL=info "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once 2>&1 | grep -E 'demo school (ready|order failed)' || true
           not_ready=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%' AND status <> 'ready'")
           visitors=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM users.persons p JOIN platform.demo_school_states d ON d.tenant_id = p.tenant_id JOIN users.staff s ON s.person_id = p.id WHERE d.name LIKE 'ogs-smoke-%' AND p.first_name = 'Kim' AND p.last_name = 'Beispiel'")

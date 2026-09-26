@@ -90,7 +90,8 @@ func (rs *DemoResource) Router() chi.Router {
 type demoAccessRequestBody struct {
 	Email        string `json:"email"`
 	SchoolName   string `json:"school_name"`
-	PersonName   string `json:"person_name"`
+	FirstName    string `json:"first_name"`
+	LastName     string `json:"last_name"`
 	ContactOptIn bool   `json:"contact_opt_in"`
 	Source       string `json:"src"`
 	// Role preselects the demo role; the entry page then skips its cards.
@@ -107,7 +108,7 @@ func (rs *DemoResource) requestAccess(w http.ResponseWriter, r *http.Request) {
 	// subdomain exists only after its seed (#3463). The fragment keeps the
 	// token out of every server and proxy log.
 	err := rs.accesses.RequestDemoAccess(r.Context(), identityaccess.DemoAccessRequest{
-		Email: body.Email, PersonName: body.PersonName, SchoolName: body.SchoolName,
+		Email: body.Email, FirstName: body.FirstName, LastName: body.LastName, SchoolName: body.SchoolName,
 		Source: body.Source, ContactOptIn: body.ContactOptIn, Role: body.Role, ClientIP: getClientIP(r),
 		EntryURLPrefix: rs.origins.Waiting + "/demo#token=",
 	})
