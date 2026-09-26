@@ -121,7 +121,7 @@ func (e demoEnv) post(t *testing.T, path string, body any) *httptest.ResponseRec
 }
 
 // requestToken asks for a demo access and reads the token from the mailed
-// link: the answer never carries it (#3465).
+// link, which every stored access gets (#3465).
 func (e demoEnv) requestToken(t *testing.T) string {
 	t.Helper()
 	return e.requestTokenWith(t, e.requestBody(t))
@@ -129,15 +129,40 @@ func (e demoEnv) requestToken(t *testing.T) string {
 
 func (e demoEnv) requestTokenWith(t *testing.T, body map[string]any) string {
 	t.Helper()
+	token, _ := e.requestAccess(t, body)
+	return token
+}
+
+// demoRequestAnswer is the whole answer to a demo access request; decoding
+// rejects any other field.
+type demoRequestAnswer struct {
+	LinkSent bool    `json:"link_sent"`
+	Link     *string `json:"link"`
+}
+
+// requestAccess asks for a demo access and returns the mailed link after the
+// waiting room's prefix (the token, then any role) and the link the answer
+// carried, empty when it carried none. An
+// answered link is always the mailed one.
+func (e demoEnv) requestAccess(t *testing.T, body map[string]any) (token, answered string) {
+	t.Helper()
 	links := len(e.mailedLinks())
 	rr := e.post(t, "/demo/access-requests", body)
 	require.Equal(t, http.StatusAccepted, rr.Code, rr.Body.String())
-	require.JSONEq(t, `{"link_sent":true}`, rr.Body.String(), "the answer is the same for every address")
+	decoder := json.NewDecoder(rr.Body)
+	decoder.DisallowUnknownFields()
+	var answer demoRequestAnswer
+	require.NoError(t, decoder.Decode(&answer))
+	require.True(t, answer.LinkSent)
 	require.Eventually(t, func() bool { return len(e.mailedLinks()) == links+1 },
 		2*time.Second, 10*time.Millisecond, "the link mail: %v", e.mails.Templates())
 	entryURL := e.mailedLinks()[links]
 	require.True(t, strings.HasPrefix(entryURL, demoEntryPrefix), entryURL)
-	return strings.TrimPrefix(entryURL, demoEntryPrefix)
+	if answer.Link != nil {
+		require.Equal(t, entryURL, *answer.Link, "the answer carries the mailed link")
+		answered = *answer.Link
+	}
+	return strings.TrimPrefix(entryURL, demoEntryPrefix), answered
 }
 
 // mailedLinks are the entry URLs of the link mails that left so far.

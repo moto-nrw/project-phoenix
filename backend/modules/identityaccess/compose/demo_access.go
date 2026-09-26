@@ -152,11 +152,15 @@ func (m demoAccessMail) SendDemoLead(ctx context.Context, access domain.DemoAcce
 
 type demoAccessEngine struct{ flows *application.DemoAccess }
 
-func (e demoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error {
-	return demoAccessError(e.flows.Request(ctx, domain.DemoAccess{
+func (e demoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) (identityaccess.DemoAccessRequested, error) {
+	entryURL, err := e.flows.Request(ctx, domain.DemoAccess{
 		Email: request.Email, FirstName: request.FirstName, LastName: request.LastName, SchoolName: request.SchoolName,
 		Source: request.Source, ContactOptIn: request.ContactOptIn, Role: domain.DemoRole(request.Role),
-	}, request.ClientIP, request.EntryURLPrefix))
+	}, request.ClientIP, request.EntryURLPrefix)
+	if err != nil {
+		return identityaccess.DemoAccessRequested{}, demoAccessError(err)
+	}
+	return identityaccess.DemoAccessRequested{EntryURL: entryURL}, nil
 }
 
 func (e demoAccessEngine) DemoAccessStatus(ctx context.Context, token string) (identityaccess.DemoAccessProgress, error) {

@@ -59,6 +59,14 @@ type DemoAccessRequest struct {
 	EntryURLPrefix string
 }
 
+// DemoAccessRequested is the answer to a demo access request. EntryURL is
+// the mailed link, set only when the request prepared a new demo school for
+// the address; a reused school and a request within the cooldown leave it
+// empty.
+type DemoAccessRequested struct {
+	EntryURL string
+}
+
 // Progress of the demo school behind a demo access.
 const (
 	DemoSchoolPreparing = "preparing"
@@ -96,7 +104,7 @@ type DemoAccessMail interface {
 
 // DemoAccessEngine is the composed implementation behind DemoAccess.
 type DemoAccessEngine interface {
-	RequestDemoAccess(ctx context.Context, request DemoAccessRequest) error
+	RequestDemoAccess(ctx context.Context, request DemoAccessRequest) (DemoAccessRequested, error)
 	DemoAccessStatus(ctx context.Context, token string) (DemoAccessProgress, error)
 	RedeemDemoAccess(ctx context.Context, token, role, ipAddress, userAgent string) (DemoEntry, error)
 	ResetDemoAccess(ctx context.Context, token, clientIP string) error
@@ -160,7 +168,7 @@ func NewDemoAccess(engine DemoAccessEngine) *DemoAccess {
 	return &DemoAccess{engine: engine}
 }
 
-func (d *DemoAccess) RequestDemoAccess(ctx context.Context, request DemoAccessRequest) error {
+func (d *DemoAccess) RequestDemoAccess(ctx context.Context, request DemoAccessRequest) (DemoAccessRequested, error) {
 	return d.engine.RequestDemoAccess(ctx, request)
 }
 

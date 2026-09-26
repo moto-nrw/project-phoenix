@@ -91,6 +91,14 @@ type authTestSettings struct {
 	// demoOperatorWithoutSecondFactor composes the operator login the way
 	// APP_ENV=demo does (#3460).
 	demoOperatorWithoutSecondFactor bool
+	// logger receives the module's logs; nil uses slog.Default().
+	logger *slog.Logger
+}
+
+// WithAuthTestLogger composes the module on the given logger, so a test can
+// prove what the flows never log.
+func WithAuthTestLogger(logger *slog.Logger) AuthTestOption {
+	return func(s *authTestSettings) { s.logger = logger }
 }
 
 // WithDemoOperatorWithoutSecondFactor composes the operator login of the
@@ -169,7 +177,6 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	logger := slog.Default()
 	command, err := auditSvc.NewCommand(repositories.NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
 	if err != nil {
 		return AuthTestModule{}, err
@@ -182,6 +189,10 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	settingsOverrides := authTestSettings{mailer: email.NewMockMailer(), rateLimitEnabled: cfg.RateLimitEnabled, demoMaxActiveSchools: 300}
 	for _, option := range options {
 		option(&settingsOverrides)
+	}
+	logger := settingsOverrides.logger
+	if logger == nil {
+		logger = slog.Default()
 	}
 	mailer := settingsOverrides.mailer
 	dispatcher := email.NewDispatcher(mailer, logger)

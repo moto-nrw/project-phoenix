@@ -47,9 +47,11 @@ func NewDemoAccess(deps DemoAccessDependencies) (*DemoAccess, error) {
 	}, nil
 }
 
-// Request stores a demo access and mails its link (#3465). The link leaves
-// by mail only, so nobody enters a demo with somebody else's address and the
-// answer tells nothing about the address. Every request stores its own
+// Request stores a demo access and mails its link (#3465). It returns the
+// same link only when this request prepared a new demo school, so the
+// website can send the visitor straight in; a reused school's link leaves by
+// mail only, so nobody enters another person's demo school with that
+// person's address. Every request stores its own
 // access: earlier links stay valid until they expire, and the prospect's
 // latest details are kept. An address inside its cooldown gets nothing new.
 // The team hears of a first access and of a changed contact consent. An
@@ -62,41 +64,44 @@ func NewDemoAccess(deps DemoAccessDependencies) (*DemoAccess, error) {
 // configured number is refused by PrepareDemoSchool; such a request gives
 // its places in both windows back, so retries at the capacity do not end in
 // a rate limit once a place is free again.
-func (d *DemoAccess) Request(ctx context.Context, access domain.DemoAccess, clientIP, entryURLPrefix string) error {
+func (d *DemoAccess) Request(ctx context.Context, access domain.DemoAccess, clientIP, entryURLPrefix string) (entryURL string, err error) {
 	if err := access.Normalize(); err != nil {
-		return err
+		return "", err
 	}
 	at := d.now()
 	if err := d.perIP.admit(clientIP, at); err != nil {
-		return err
+		return "", err
 	}
 	if err := d.perAddress.admit(access.Email, at); err != nil {
 		d.perIP.withdraw(clientIP, at)
-		return err
+		return "", err
 	}
-	err := d.request(ctx, access, entryURLPrefix)
+	entryURL, err = d.request(ctx, access, entryURLPrefix)
 	if errors.Is(err, domain.ErrDemoCapacityReached) {
 		d.perIP.withdraw(clientIP, at)
 		d.perAddress.withdraw(access.Email, at)
 	}
-	return err
+	return entryURL, err
 }
 
-func (d *DemoAccess) request(ctx context.Context, access domain.DemoAccess, entryURLPrefix string) error {
+// request returns the mailed entry URL when the access enters a demo school
+// this request prepared, and nothing when it reuses the address's school or
+// the address is cooling down.
+func (d *DemoAccess) request(ctx context.Context, access domain.DemoAccess, entryURLPrefix string) (string, error) {
 	raw, fingerprint, err := d.tokens.NewToken()
 	if err != nil {
-		return fmt.Errorf("mint demo access token: %w", err)
+		return "", fmt.Errorf("mint demo access token: %w", err)
 	}
 	access.TokenHash = fingerprint
 	access.ExpiresAt = d.now().Add(domain.DemoAccessLifetime)
-	var stored, lead bool
+	var stored, lead, prepared bool
 	err = d.adminTx(ctx, func(txCtx context.Context) error {
 		known, found, findErr := d.store.FindActiveDemoAccessByEmail(txCtx, access.Email, d.now())
 		if findErr != nil || (found && known.CoolingDown(d.now())) {
 			return findErr
 		}
 		var txErr error
-		if access.SchoolSlug, txErr = d.schoolFor(txCtx, access, known, found); txErr != nil {
+		if access.SchoolSlug, prepared, txErr = d.schoolFor(txCtx, access, known, found); txErr != nil {
 			return txErr
 		}
 		stored, lead = true, !found || known.ContactOptIn != access.ContactOptIn
@@ -104,10 +109,10 @@ func (d *DemoAccess) request(ctx context.Context, access domain.DemoAccess, entr
 		return txErr
 	})
 	if err != nil {
-		return fmt.Errorf("store demo access: %w", err)
+		return "", fmt.Errorf("store demo access: %w", err)
 	}
 	if !stored {
-		return nil
+		return "", nil
 	}
 	entryURL := entryURLPrefix + raw
 	if access.Role != "" {
@@ -118,23 +123,27 @@ func (d *DemoAccess) request(ctx context.Context, access domain.DemoAccess, entr
 	if lead {
 		d.mail.SendDemoLead(ctx, access)
 	}
-	return nil
+	if !prepared {
+		return "", nil
+	}
+	return entryURL, nil
 }
 
 // schoolFor returns the school a new access enters: the school of the
 // address's newest unexpired access unless that school failed, otherwise a
-// new one.
-func (d *DemoAccess) schoolFor(ctx context.Context, access, known domain.DemoAccess, found bool) (string, error) {
+// new one. prepared reports the latter.
+func (d *DemoAccess) schoolFor(ctx context.Context, access, known domain.DemoAccess, found bool) (slug string, prepared bool, err error) {
 	if found {
 		entry, err := d.schools.DemoSchoolEntry(ctx, known.SchoolSlug)
 		if err != nil {
-			return "", err
+			return "", false, err
 		}
 		if entry.Status != domain.DemoSchoolFailed {
-			return known.SchoolSlug, nil
+			return known.SchoolSlug, false, nil
 		}
 	}
-	return d.schools.PrepareDemoSchool(ctx, access.SchoolName, access.FirstName, access.LastName)
+	slug, err = d.schools.PrepareDemoSchool(ctx, access.SchoolName, access.FirstName, access.LastName)
+	return slug, err == nil, err
 }
 
 // Status reports the progress of the token's demo school and the access

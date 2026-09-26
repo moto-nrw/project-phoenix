@@ -18,7 +18,7 @@ import (
 // DemoAccesses is the Identity & Access capability behind the public demo
 // routes (#3462).
 type DemoAccesses interface {
-	RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error
+	RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) (identityaccess.DemoAccessRequested, error)
 	DemoAccessStatus(ctx context.Context, token string) (identityaccess.DemoAccessProgress, error)
 	RedeemDemoAccess(ctx context.Context, token, role, ipAddress, userAgent string) (identityaccess.DemoEntry, error)
 	ResetDemoAccess(ctx context.Context, token, clientIP string) error
@@ -98,6 +98,13 @@ type demoAccessRequestBody struct {
 	Role string `json:"role"`
 }
 
+// demoAccessRequestResponse is the answer to a demo access request. Link is
+// the mailed entry link and comes back only for a new demo school.
+type demoAccessRequestResponse struct {
+	LinkSent bool   `json:"link_sent"`
+	Link     string `json:"link,omitempty"`
+}
+
 func (rs *DemoResource) requestAccess(w http.ResponseWriter, r *http.Request) {
 	var body demoAccessRequestBody
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<14)).Decode(&body); err != nil {
@@ -107,7 +114,7 @@ func (rs *DemoResource) requestAccess(w http.ResponseWriter, r *http.Request) {
 	// The link leads to the waiting room on the main domain: the school's
 	// subdomain exists only after its seed (#3463). The fragment keeps the
 	// token out of every server and proxy log.
-	err := rs.accesses.RequestDemoAccess(r.Context(), identityaccess.DemoAccessRequest{
+	requested, err := rs.accesses.RequestDemoAccess(r.Context(), identityaccess.DemoAccessRequest{
 		Email: body.Email, FirstName: body.FirstName, LastName: body.LastName, SchoolName: body.SchoolName,
 		Source: body.Source, ContactOptIn: body.ContactOptIn, Role: body.Role, ClientIP: getClientIP(r),
 		EntryURLPrefix: rs.origins.Waiting + "/demo#token=",
@@ -116,11 +123,19 @@ func (rs *DemoResource) requestAccess(w http.ResponseWriter, r *http.Request) {
 		rs.renderError(w, r, err)
 		return
 	}
-	// The link leaves by mail only (#3465): the caller may not be the person
-	// the address belongs to, and one answer for every address tells nothing
-	// about who asked for a demo before.
+	// The link is always mailed (#3465). The answer carries it too only when
+	// this request prepared a new demo school, so the website can send the
+	// visitor straight in; a reused school and a request within the cooldown
+	// answer without it. The accepted tradeoff:
+	//   - The direct link skips the confirmation that the address is the
+	//     caller's. The school is synthetic, and the capacity limit and the
+	//     windows per IP address and per address still hold.
+	//   - Whether a link comes back tells that the address asked for a demo
+	//     in the last 14 days.
+	//   - Nobody enters another person's existing demo school through this
+	//     answer: that school's link leaves by mail only.
 	render.Status(r, http.StatusAccepted)
-	render.JSON(w, r, map[string]bool{"link_sent": true})
+	render.JSON(w, r, demoAccessRequestResponse{LinkSent: true, Link: requested.EntryURL})
 }
 
 func (rs *DemoResource) accessStatus(w http.ResponseWriter, r *http.Request) {

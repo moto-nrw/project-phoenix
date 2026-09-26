@@ -182,7 +182,7 @@ not composed. The backend routes are public, take no cookies, and rely on
 
 | Route | Contract |
 |---|---|
-| `POST /demo/access-requests` | `email`, `school_name`, `first_name`, `last_name` (both required, at most 120 bytes each, whitespace runs collapsed; the demo school's caregiver and parent carry exactly these names), `contact_opt_in`, optional `src` and `role` (a demo role, appended to the mailed link as `&role=`) → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid`; `429 demo_access_rate_limited` with `Retry-After` (seconds); `503 demo_capacity_reached` |
+| `POST /demo/access-requests` | `email`, `school_name`, `first_name`, `last_name` (both required, at most 120 bytes each, whitespace runs collapsed; the demo school's caregiver and parent carry exactly these names), `contact_opt_in`, optional `src` and `role` (a demo role, appended to the mailed link as `&role=`) → `202 {link_sent: true, link?}`: `link` is the mailed link, present only when this request prepared a new demo school; `422 demo_access_invalid`; `429 demo_access_rate_limited` with `Retry-After` (seconds); `503 demo_capacity_reached` |
 | `GET /demo/access/status` | token in `Authorization: Bearer` → `{status: preparing\|ready\|failed, school_name}` (the OGS name the prospect gave, shown while waiting, #3464), plus `school_url` (origin of the demo school) when `ready` |
 | `POST /demo/access/sessions` | `{token, role?}` → `{access_token, refresh_token, demo: {access_id, role, src, fixed_role}}` (tenant session; parents portal session for `role: parent`, #3468); `409 demo_school_preparing`; `422 demo_access_invalid` for an unknown role |
 | `POST /demo/access/reset` | `{token}` → `202 {status: "preparing", entry_url}` (#3470): a fresh demo school is queued for the same access with the same names, the old one is soft-deleted and its sessions are revoked; `entry_url` is the waiting room with the token in the fragment, as in the mailed link. `409 demo_school_preparing` while the current school is still being seeded; `422 demo_access_invalid` for the shared standing school; `429 demo_access_rate_limited` with `Retry-After`, because a restart counts against the same per-address and per-IP windows as a request; `503 demo_capacity_reached` never for a restart, because the old school gives its place back first |
@@ -284,10 +284,17 @@ for the expiry (#3470), may read `id`, `school_slug` and `expires_at` of
 `auth.demo_accesses` and delete rows, and read and set `deleted_at` of
 `platform.schools`; it never sees an address or a name (migration 1.15.412).
 
-Mails (#3465): the entry link leaves by mail only (`demo-access.html`,
-Reply-To `kontakt@moto.nrw`), and the answer is the same for every address,
-so it neither hands a demo to somebody who typed a foreign address nor tells
-who asked before. The mail carries nothing the form submitted. Every request
+Mails (#3465): every stored access mails its entry link (`demo-access.html`,
+Reply-To `kontakt@moto.nrw`). The answer carries the same link only when the
+request prepared a new demo school (an address without an active access, or
+one whose school failed; under the standing-school fallback that is the
+shared standing school), so the website can send the visitor straight in.
+A reused school and a request within the cooldown answer `{link_sent: true}`
+alone, so nobody enters another person's demo school with a foreign
+address. Accepted tradeoff: the direct link skips the check that the address
+is the caller's (the school is synthetic; capacity and both request windows
+still hold), and whether `link` comes back tells whether the address asked
+for a demo in the last 14 days. The mail carries nothing the form submitted. Every request
 stores its own access with the submitted details; earlier links stay valid
 until they expire. An address waits 10 minutes for its next link: within
 that cooldown a request stores and mails nothing. The team is mailed

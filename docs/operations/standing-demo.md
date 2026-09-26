@@ -11,7 +11,9 @@ school of #3461 stays selectable as the fallback (see below).
    name as a DNS label plus six random characters. The link it mails (#3465)
    points at the waiting room `FRONTEND_URL/demo`, because `https://<slug>.<TENANT_DOMAIN>`
    answers only once the school exists; the waiting room sends the visitor
-   there when the status turns `ready`. The serving backend may
+   there when the status turns `ready`. The answer carries the same link as
+   `link` when the request queued this new school, so the website can send
+   the visitor straight to the waiting room. The serving backend may
    only insert an order, read `name`, `status`, `tenant_id` and
    `visitor_account_id`, and stamp `last_used_at`; `seed_state` with its credentials and `status` stay
    out of its reach (column grants, `phoenix_admin` bypasses row security).

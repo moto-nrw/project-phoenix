@@ -3,6 +3,7 @@ package testutil
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"testing"
 
@@ -99,6 +100,11 @@ func WithStandingDemoSchool(slug string) AuthTestOption {
 // environment's mail lock, so a test reads the mails the demo flows send.
 func WithDemoCapturingMailer(mails *testpkg.CapturingMailer) AuthTestOption {
 	return services.WithAuthTestMailer(mails.InDemoEnvironment())
+}
+
+// WithAuthTestLogger composes the module on the given logger.
+func WithAuthTestLogger(logger *slog.Logger) AuthTestOption {
+	return services.WithAuthTestLogger(logger)
 }
 
 // SetupAuthModuleOn composes the auth test module over db with the options.
