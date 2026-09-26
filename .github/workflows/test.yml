@@ -351,10 +351,12 @@ jobs:
       TENANT_DOMAIN: localhost
       # api/server.go refuses to build the server without it.
       METRICS_BEARER_TOKEN: ci-metrics-token
-      # No tenant override exists on a fresh seed, so device auth falls back to
-      # this env var. It must match the seeder's --pin, or every RFID call in
-      # the simulation returns 401.
-      OGS_DEVICE_PIN: "1234"
+      # Device auth checks the school's security.ogs_device_pin setting, whose
+      # registry default is 1234, and uses this env var only when the setting
+      # resolves empty. The seeder writes its --pin into that setting. A PIN
+      # other than the default proves that write; with 1234 a missing write
+      # stays green here and every RFID call on the public demo returns 401.
+      OGS_DEVICE_PIN: "4711"
       EMAIL_SMTP_HOST: localhost
       EMAIL_SMTP_PORT: 1025
       EMAIL_FROM_ADDRESS: noreply@localhost
@@ -467,7 +469,7 @@ jobs:
           "${RUNNER_TEMP}/phoenix" seed \
             --email "${OPERATOR_EMAIL}" \
             --password "${OPERATOR_PASSWORD}" \
-            --pin 1234 \
+            --pin "${OGS_DEVICE_PIN}" \
             --url http://localhost:8080 \
             --tenant-slug vollbetrieb \
             --staff-password 'SeedSmoke1234%' \
@@ -500,7 +502,7 @@ jobs:
             "${RUNNER_TEMP}/phoenix" seed \
               --email "${OPERATOR_EMAIL}" \
               --password "${OPERATOR_PASSWORD}" \
-              --pin 1234 \
+              --pin "${OGS_DEVICE_PIN}" \
               --url http://localhost:8080 \
               --profile vollbetrieb \
               --tenant-slug "${slug}" \

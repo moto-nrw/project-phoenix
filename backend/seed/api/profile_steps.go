@@ -41,6 +41,25 @@ func (s configureProfileStep) Run(_ context.Context, rt *Runtime) error {
 	return nil
 }
 
+// configureDevicePINStep makes the seed's staff PIN the school's device PIN.
+// Device auth resolves security.ogs_device_pin, whose registry default is
+// 1234, and uses OGS_DEVICE_PIN only when the setting resolves empty. Without
+// this write every device call of a school seeded with another PIN fails with
+// 401. The setting is admin-only, so the school admin writes it. Its
+// dependency on attendance.nfc_enabled only hides it in the settings screen;
+// the write also succeeds while NFC is off, as on the public demo.
+type configureDevicePINStep struct{}
+
+func (configureDevicePINStep) Name() string { return "Configuring device PIN" }
+
+func (configureDevicePINStep) Run(_ context.Context, rt *Runtime) error {
+	path := "/api/settings/values/" + profileSettingDevicePIN
+	if _, err := rt.Client.PutWithAuth(rt.TenantAuth, path, map[string]any{"value": rt.StaffPIN}); err != nil {
+		return fmt.Errorf("set device PIN: %w", err)
+	}
+	return nil
+}
+
 type verifyProfileStep struct {
 	definition demoProfileDefinition
 }

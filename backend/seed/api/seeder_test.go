@@ -723,6 +723,35 @@ func TestSeeder_Seed_UsesStateSink(t *testing.T) {
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
+// The public demo seeds with a PIN other than the registry default 1234.
+// Device auth checks the school's security.ogs_device_pin setting, so the
+// seeder must write that setting before its first device request. That the
+// write succeeds with NFC off, as on the demo, is the settings service's
+// contract (TestSetValue_DevicePINWritableWhileNFCDisabled).
+func TestSeeder_Seed_DemoSchoolUsesItsOwnDevicePIN(t *testing.T) {
+	t.Parallel()
+	trace := &fullSeedAPITrace{enforceDevicePIN: true}
+	srv := fullSeedAPIMock(t, trace)
+	defer srv.Close()
+	var saved *SeedState
+	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{
+		OnlyProfile: DefaultProfileKey,
+		SaveState: func(_ context.Context, state *SeedState) error {
+			saved = state
+			return nil
+		},
+	})
+	_, err := s.Seed(context.Background(), "operator@example.test", "test-password", "4711")
+	require.NoError(t, err)
+	assert.Equal(t, "4711", trace.devicePIN)
+	assert.Positive(t, trace.deviceRequests, "the seed must exercise device auth")
+	assert.Zero(t, trace.rejectedDevicePINs)
+	require.NotNil(t, saved)
+	profile, err := saved.SelectProfile(DefaultProfileKey)
+	require.NoError(t, err)
+	assert.Equal(t, "4711", profile.Credentials.DevicePIN, "the demo ticks authenticate with the stored PIN")
+}
+
 func TestSeeder_Seed_StateSinkFailureFailsRun(t *testing.T) {
 	t.Parallel()
 	srv := fullSeedAPIMock(t)
@@ -894,6 +923,12 @@ type fullSeedAPITrace struct {
 	withdrawalToday            seedDate
 	rateLimitStudentOnce       bool
 	rateLimitStudentRejections int
+	// enforceDevicePIN makes the mock check X-Staff-PIN like device auth:
+	// against the written security.ogs_device_pin, else its default 1234.
+	enforceDevicePIN   bool
+	devicePIN          string
+	deviceRequests     int
+	rejectedDevicePINs int
 }
 
 func assertWithdrawalSeedTrace(t *testing.T, trace *fullSeedAPITrace) {
@@ -913,6 +948,40 @@ func assertWithdrawalSeedTrace(t *testing.T, trace *fullSeedAPITrace) {
 	assert.Equal(t, dates[0].AddDays(7), dates[2])
 	assert.Equal(t, 1, trace.withdrawalPreviews)
 	assert.Equal(t, 1, trace.withdrawalEnds)
+}
+
+// serveDevicePIN stores a written device PIN and rejects device requests whose
+// PIN differs from the school's, as device auth does. It reports whether it
+// answered the request.
+func serveDevicePIN(t *testing.T, trace *fullSeedAPITrace, w seedHTTPResponseWriter, r *seedHTTPRequest) bool {
+	t.Helper()
+	if r.Method == seedHTTPMethodPut && r.URL.Path == "/api/settings/values/"+profileSettingDevicePIN {
+		var body struct {
+			Value string `json:"value"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		trace.devicePIN = body.Value
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": nil})
+		return true
+	}
+	pin := r.Header.Get("X-Staff-PIN")
+	if pin == "" {
+		return false
+	}
+	trace.deviceRequests++
+	expected := trace.devicePIN
+	if expected == "" {
+		expected = "1234" // registry default of security.ogs_device_pin
+	}
+	if pin == expected {
+		return false
+	}
+	trace.rejectedDevicePINs++
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(seedHTTPStatusUnauthorized)
+	_, _ = fmt.Fprint(w, `{"status":"error","error":"invalid staff PIN"}`)
+	return true
 }
 
 // fullSeedAPIMock creates a comprehensive mock server for the full seed workflow.
@@ -944,6 +1013,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			trace.rateLimitStudentRejections++
 			w.Header().Set("Retry-After", "2")
 			w.WriteHeader(429)
+			return
+		}
+		if trace != nil && trace.enforceDevicePIN && serveDevicePIN(t, trace, w, r) {
 			return
 		}
 		if weeklyMock.serve(t, w, r) {
