@@ -20,6 +20,7 @@ const {
   mockStart,
   mockComplete,
   mockCancel,
+  mockReopen,
   mockApplyDeviations,
   mockPatchAttendance,
   mockDeleteCancelled,
@@ -41,6 +42,7 @@ const {
   mockStart: vi.fn(),
   mockComplete: vi.fn(),
   mockCancel: vi.fn(),
+  mockReopen: vi.fn(),
   mockApplyDeviations: vi.fn(),
   mockPatchAttendance: vi.fn(),
   mockDeleteCancelled: vi.fn(),
@@ -144,6 +146,7 @@ vi.mock("~/lib/timetable-api", () => ({
     start: mockStart,
     complete: mockComplete,
     cancel: mockCancel,
+    reopen: mockReopen,
     applyDeviations: mockApplyDeviations,
     patchAttendance: mockPatchAttendance,
     deleteCancelled: mockDeleteCancelled,
@@ -431,7 +434,7 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
     instance: { id: string } | null;
     onClose: () => void;
     onLifecycleAction: (
-      action: "start" | "complete" | "cancel",
+      action: "start" | "complete" | "cancel" | "reopen",
     ) => Promise<void>;
     onDeleteCancelled: (instance: { id: string }) => Promise<void>;
     onDeleteFollowing: (instance: {
@@ -479,6 +482,13 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
         </button>
         <button type="button" onClick={() => void onLifecycleAction("cancel")}>
           detail-cancel
+        </button>
+        {/* Ein fehlgeschlagener Schritt wirft nach der Meldung weiter. */}
+        <button
+          type="button"
+          onClick={() => void onLifecycleAction("reopen").catch(() => null)}
+        >
+          detail-reopen
         </button>
         <button type="button" onClick={() => void onDeleteCancelled(instance)}>
           detail-delete
@@ -1529,6 +1539,31 @@ describe("BetreuungsplanView", () => {
 
     fireEvent.click(screen.getByText("detail-delete"));
     await waitFor(() => expect(mockDeleteCancelled).toHaveBeenCalledWith("42"));
+  });
+
+  it("names the full room when reopening is refused (#3633)", async () => {
+    mockReopen.mockRejectedValue(
+      Object.assign(new Error("room capacity exceeded: Turnhalle (30/30)"), {
+        status: 409,
+        code: "presence.room_capacity_exceeded",
+        details: {
+          room_name: "Turnhalle",
+          current_occupancy: 30,
+          max_capacity: 30,
+          incoming_students: 1,
+        },
+      }),
+    );
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("detail-reopen"));
+
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Der Raum „Turnhalle“ ist voll (30 von 30 Plätzen). Die Grenze ändern Sie unter Datenverwaltung → Räume bei „Maximale Belegung“.",
+      ),
+    );
   });
 
   it("ends following instances from the slide-over", async () => {

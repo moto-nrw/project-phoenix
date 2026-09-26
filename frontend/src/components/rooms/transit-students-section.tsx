@@ -33,6 +33,7 @@ import {
   useAttendanceWebEnabled,
   useSchoolWideAttendanceMoves,
 } from "~/lib/tenant-context";
+import { capacityErrorMessage } from "~/lib/capacity-error";
 
 const DETAIL_CARD_CLASS =
   "moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-6";
@@ -304,7 +305,8 @@ export function TransitStudentsSection({
       setSubmitError(
         releaseRemoved
           ? "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum."
-          : "Die ausgewählten Kinder konnten nicht zugewiesen werden.",
+          : (capacityErrorMessage(err) ??
+              "Die ausgewählten Kinder konnten nicht zugewiesen werden."),
       );
     } finally {
       setSubmitting(false);

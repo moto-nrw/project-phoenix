@@ -180,6 +180,7 @@ const (
 	CodePickupPreviewStale                               = "pickup.preview_stale"
 	CodePickupResolutionRequired                         = "pickup.resolution_required"
 	CodePresenceActivityParticipantLimitReached          = "presence.activity_participant_limit_reached"
+	CodePresenceRoomCapacityExceeded                     = "presence.room_capacity_exceeded"
 	CodeRolloverDuplicateName                            = "rollover.duplicate_name"
 	CodeRolloverInvalidRequest                           = "rollover.invalid_request"
 	CodeRolloverReviewInvalid                            = "rollover.review_invalid"
@@ -456,6 +457,7 @@ var errorClassByWireCode = map[string]string{
 	"pickup.preview_stale":                                 "business_rejection",
 	"pickup.resolution_required":                           "input",
 	"presence.activity_participant_limit_reached":          "business_rejection",
+	"presence.room_capacity_exceeded":                      "business_rejection",
 	"rollover.duplicate_name":                              "business_rejection",
 	"rollover.invalid_request":                             "input",
 	"rollover.review_invalid":                              "input",

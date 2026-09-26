@@ -563,6 +563,56 @@ describe("active-service", () => {
         expect(result.assigned).toEqual([50]);
       });
 
+      it("keeps the code and details of a refused assignment (#3633)", async () => {
+        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 409,
+          text: () =>
+            Promise.resolve(
+              JSON.stringify({
+                error: "room capacity exceeded: Aula (30/30)",
+                code: "presence.room_capacity_exceeded",
+                details: { room_name: "Aula", max_capacity: 30 },
+              }),
+            ),
+        } as Response);
+
+        await expect(
+          activeService.assignTransitStudents(["50"], "1"),
+        ).rejects.toMatchObject({
+          message: "Assign transit students failed: 409",
+          status: 409,
+          code: "presence.room_capacity_exceeded",
+          details: { room_name: "Aula", max_capacity: 30 },
+        });
+      });
+
+      it("keeps the code and details when moving into a full room (#3633)", async () => {
+        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 409,
+          text: () =>
+            Promise.resolve(
+              JSON.stringify({
+                error: "room capacity exceeded: Aula (30/30)",
+                code: "presence.room_capacity_exceeded",
+                details: { room_name: "Aula", max_capacity: 30 },
+              }),
+            ),
+        } as Response);
+
+        await expect(
+          activeService.moveStudentsToOpenRoom(["50"], "7"),
+        ).rejects.toMatchObject({
+          message: "Move students to open room failed: 409",
+          status: 409,
+          code: "presence.room_capacity_exceeded",
+          details: { room_name: "Aula", max_capacity: 30 },
+        });
+      });
+
       it("moves students to an active group through the batch move endpoint", async () => {
         const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
         mockFetch.mockResolvedValueOnce({

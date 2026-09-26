@@ -198,6 +198,8 @@ export const ERROR_CATALOG = {
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "presence.activity_participant_limit_reached":
         "Im Angebot {activity_name} ist kein Platz mehr. Bitte wählen Sie ein anderes Angebot.",
+      "presence.room_capacity_exceeded":
+        "Der Raum {room_name} ist voll ({current_occupancy} von {max_capacity} Plätzen).",
       "rollover.invalid_request":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "rollover.review_invalid":

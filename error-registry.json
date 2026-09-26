@@ -1101,6 +1101,18 @@
       "legacy": "presence.activity_participant_limit_reached"
     },
     {
+      "code": "presence.room_capacity_exceeded",
+      "class": "business_rejection",
+      "parameters": [
+        "room_id",
+        "room_name",
+        "current_occupancy",
+        "max_capacity",
+        "incoming_students"
+      ],
+      "legacy": "presence.room_capacity_exceeded"
+    },
+    {
       "code": "rollover.duplicate_name",
       "class": "business_rejection",
       "parameters": [],

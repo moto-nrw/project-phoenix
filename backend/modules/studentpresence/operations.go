@@ -76,12 +76,24 @@ func (e *OperationError) Unwrap() error {
 	return e.Err
 }
 
+// RoomCapacityCode is the stable error code of a web admission refused
+// because the room is full (#3633). Clients map it to their own text. The
+// kiosk keeps its own ROOM_CAPACITY_EXCEEDED contract.
+const RoomCapacityCode = "presence.room_capacity_exceeded"
+
 // RoomCapacityError reports a presence admission beyond the room's capacity.
+// CurrentOccupancy is the number of open visits in the room before the write,
+// Incoming the number of children the write would add.
+//
+// It is a business rejection like ActivityParticipantLimitError: ErrorCode
+// and ErrorDetails let an HTTP adapter answer 409 with the code and the
+// numbers, so staff can tell a full room from a full activity.
 type RoomCapacityError struct {
 	RoomID           int64
 	RoomName         string
 	CurrentOccupancy int
 	MaxCapacity      int
+	Incoming         int
 }
 
 func (e *RoomCapacityError) Error() string {
@@ -89,6 +101,24 @@ func (e *RoomCapacityError) Error() string {
 }
 
 func (e *RoomCapacityError) Unwrap() error { return ErrRoomCapacityExceeded }
+
+func (e *RoomCapacityError) ErrorCode() string { return RoomCapacityCode }
+
+// RoomCapacityDetails are the values a room refusal names, in wire form.
+type RoomCapacityDetails struct {
+	RoomID           int64  `json:"room_id"`
+	RoomName         string `json:"room_name"`
+	CurrentOccupancy int    `json:"current_occupancy"`
+	MaxCapacity      int    `json:"max_capacity"`
+	IncomingStudents int    `json:"incoming_students"`
+}
+
+func (e *RoomCapacityError) ErrorDetails() any {
+	return RoomCapacityDetails{
+		RoomID: e.RoomID, RoomName: e.RoomName,
+		CurrentOccupancy: e.CurrentOccupancy, MaxCapacity: e.MaxCapacity, IncomingStudents: e.Incoming,
+	}
+}
 
 // ActivityParticipantLimitCode is the stable error code of a web assignment
 // refused because the activity's participant limit is reached (#3632).

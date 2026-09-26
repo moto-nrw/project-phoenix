@@ -34,7 +34,7 @@ var scheduleErrorRules = []common.ErrorRule{
 	{Target: timetableModule.ErrInvalidRecurrenceRange, Render: common.ErrorInvalidRequest},
 	{Target: timetableModule.ErrInvalidTimeRange, Render: common.ErrorInvalidRequest},
 	{Target: timetableModule.ErrInvalidDuration, Render: common.ErrorInvalidRequest},
-	{Target: studentpresence.ErrRoomCapacityExceeded, Render: common.ErrorConflict},
+	{Target: studentpresence.ErrRoomCapacityExceeded, Render: common.ErrorBusinessRejectionOr(studentpresence.RoomCapacityCode)},
 }
 
 // SchedulesErrorRenderer renders an error to an HTTP response based on the schedule

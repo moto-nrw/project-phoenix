@@ -46,6 +46,7 @@ import {
   type SupervisionStartState,
   type SupervisionViewIntent,
 } from "./view-model";
+import { capacityErrorMessage } from "~/lib/capacity-error";
 
 const logger = createLogger({ component: "SchoolSupervisionsView" });
 
@@ -191,7 +192,11 @@ export function SchoolSupervisionsView() {
   );
 
   const report = useCallback((event: string, err: unknown) => {
-    setError(GENERIC_ERROR);
+    // Ein voller Raum oder eine volle Aktivität sagt, was voll ist (#3633).
+    // Die Grenze ändert die OGS, nicht die Lehrkraft.
+    setError(
+      capacityErrorMessage(err, { canChangeLimit: false }) ?? GENERIC_ERROR,
+    );
     logger.error(event, {
       error: err instanceof Error ? err.message : String(err),
     });
