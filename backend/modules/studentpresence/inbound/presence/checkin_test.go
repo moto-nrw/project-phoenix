@@ -360,6 +360,17 @@ func TestCheckinStudent_Integration(t *testing.T) {
 
 		assert.Equal(t, testutil.StatusConflict, rr.Code)
 		assert.Contains(t, rr.Body.String(), "room capacity exceeded")
+		// #3633: the refusal names the room with its code and numbers.
+		var response map[string]any
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+		assert.Equal(t, studentpresence.RoomCapacityCode, response["code"])
+		assert.Equal(t, map[string]any{
+			"room_id":           float64(room.ID),
+			"room_name":         room.Name,
+			"current_occupancy": float64(1),
+			"max_capacity":      float64(1),
+			"incoming_students": float64(1),
+		}, response["details"])
 	})
 
 	t.Run("successful checkin creates visit", func(t *testing.T) {
@@ -416,4 +427,52 @@ func testPresenceQueries(t *testing.T, db *testpkg.DB) *studentpresence.Module {
 	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	return module
+}
+
+// TestCheckinStudent_ActivityFull pins that a manual check-in refused by the
+// activity's participant limit answers 409 with the activity code and numbers
+// (#3633), not the server error it answered before.
+func TestCheckinStudent_ActivityFull(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	testpkg.EnsureWebManualDevice(t, db)
+	ctx := testpkg.Ctx(t)
+	_, err := db.NewRaw(`
+		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
+		VALUES (?, 'attendance.web_exceed_participant_limit_enabled', 'false', NULL)
+		ON CONFLICT (tenant_id, setting_key)
+		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+	`, testpkg.Tenant(t)).Exec(ctx)
+	require.NoError(t, err)
+
+	handler := setupCheckinRoute(t, db)
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "FullActivity", "Teacher")
+	educationGroup := testpkg.CreateTestEducationGroup(t, db, "Full Activity Group")
+	testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
+	student := testpkg.CreateTestStudent(t, db, "FullActivity", "Incoming", "4c")
+	testpkg.AssignStudentToGroup(t, db, student.ID, educationGroup.ID)
+	existingStudent := testpkg.CreateTestStudent(t, db, "FullActivity", "Existing", "4c")
+	activity := testpkg.CreateTestActivityGroup(t, db, "Betreuung")
+	_, err = db.NewRaw(`UPDATE activities.groups SET max_participants = 1 WHERE id = ?`, activity.ID).Exec(ctx)
+	require.NoError(t, err)
+	room := testpkg.CreateTestRoom(t, db, "Roomy Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	_ = testpkg.CreateTestVisit(t, db, existingStudent.ID, activeGroup.ID, time.Now(), nil)
+
+	token := testpkg.CreateTestJWT(t, account.ID, []string{permissions.VisitsUpdate})
+	req := makeCheckinRequest(t, student.ID, presence.CheckinRequest{ActiveGroupID: activeGroup.ID}, token)
+	rr := httptest.NewRecorder()
+	testpkg.SessionVerifier(handler.Router()).ServeHTTP(rr, req)
+
+	require.Equal(t, testutil.StatusConflict, rr.Code, "Response body: %s", rr.Body.String())
+	var response map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	assert.Equal(t, studentpresence.ActivityParticipantLimitCode, response["code"])
+	details, ok := response["details"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, float64(activity.ID), details["activity_id"])
+	assert.Equal(t, float64(1), details["current_occupancy"])
+	assert.Equal(t, float64(1), details["max_participants"])
+	assert.Equal(t, float64(1), details["incoming_students"])
 }

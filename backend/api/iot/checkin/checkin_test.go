@@ -567,7 +567,39 @@ func TestDeviceCheckin_ActivityCapacityExceeded(t *testing.T) {
 	require.Equal(t, 409, rr.Code, rr.Body.String())
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	assert.Equal(t, "ACTIVITY_CAPACITY_EXCEEDED", response["code"])
-	assert.NotContains(t, response, "details", "activity details stay hidden by default")
+	// Since #3633 the kiosk names the full activity by default, like a full
+	// room: the generic hint was read as "room full" in production.
+	details, ok := response["details"].(map[string]any)
+	require.True(t, ok, "activity details are disclosed by default")
+	assert.Equal(t, "Tiny Activity", details["activity_name"])
+	assert.EqualValues(t, 1, details["current_occupancy"])
+	assert.EqualValues(t, 1, details["max_capacity"])
+}
+
+// TestDeviceCheckin_ActivityCapacityExceededDetailsDisabled pins that a
+// school which switched the activity details off keeps the bare 409.
+func TestDeviceCheckin_ActivityCapacityExceededDetailsDisabled(t *testing.T) {
+	t.Parallel()
+	k := setupCheckinRoute(t)
+	_, err := k.db.NewRaw(`
+		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
+		VALUES (?, 'checkin.activity_capacity_details_enabled', 'false', NULL)
+	`, testpkg.Tenant(t)).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	staff, _, _ := k.staff(t, "ActCapOff", "Staff")
+	room := testpkg.CreateTestRoom(t, k.db, "Activity Cap Off Room")
+	activity := testpkg.CreateTestActivityGroupWithLimit(t, k.db, "Tiny Hidden Activity", 1)
+	session := testpkg.CreateTestActiveGroup(t, k.db, activity.ID, room.ID)
+	existing := testpkg.CreateTestStudent(t, k.db, "Existing", "ActCapOff", "1a")
+	testpkg.CreateTestVisit(t, k.db, existing.ID, session.ID, time.Now().Add(-10*time.Minute), nil)
+	tag, _, _ := k.studentCard(t, "Over", "ActCapOff", "1b")
+
+	rr := k.call(t, "POST", "/checkin", checkinBody(tag, room.ID), k.device(t, "act-cap-off"), staff)
+
+	require.Equal(t, 409, rr.Code, rr.Body.String())
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	assert.Equal(t, "ACTIVITY_CAPACITY_EXCEEDED", response["code"])
+	assert.NotContains(t, response, "details", "a stored false keeps the details hidden")
 }
 
 // ---------------------------------------------------------------------------

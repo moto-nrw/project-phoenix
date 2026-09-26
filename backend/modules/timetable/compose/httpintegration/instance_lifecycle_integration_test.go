@@ -867,6 +867,13 @@ func TestInstance_Reopen_RejectsRoomCapacity(t *testing.T) {
 	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, studentpresence.ErrRoomCapacityExceeded)
+	// #3633: the refusal carries the numbers the client names.
+	capacityErr, ok := errors.AsType[*studentpresence.RoomCapacityError](err)
+	require.True(t, ok, "reopen refuses with the typed room error")
+	assert.Equal(t, s.roomID, capacityErr.RoomID)
+	assert.NotEmpty(t, capacityErr.RoomName)
+	assert.Equal(t, 1, capacityErr.MaxCapacity)
+	assert.Equal(t, 2, capacityErr.Incoming)
 }
 
 func TestInstance_Reopen_RejectsNonActor(t *testing.T) {
