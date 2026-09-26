@@ -99,6 +99,26 @@ describe("translateApiError", () => {
     );
   });
 
+  // Since #3549 the backend answers invalid contact input with a 400 carrying
+  // the German reason instead of a 500 with "validation failed: <reason>".
+  it("translates the German contact validation reasons", () => {
+    expect(translateApiError("ungültiges E-Mail-Format")).toBe(
+      "Ungültiges E-Mail-Format",
+    );
+    expect(translateApiError("ungültiges Telefonnummer-Format")).toBe(
+      "Ungültiges Telefonnummernformat (nur Ziffern, Leerzeichen, +, -, Klammern)",
+    );
+    expect(
+      translateApiError("Telefonnummer muss mindestens 3 Ziffern enthalten"),
+    ).toBe("Telefonnummer muss mindestens 3 Ziffern enthalten");
+    expect(translateApiError("Telefonnummer ist erforderlich")).toBe(
+      "Telefonnummer ist erforderlich",
+    );
+    expect(translateApiError("ungültige bevorzugte Kontaktmethode")).toBe(
+      "Ungültige bevorzugte Kontaktmethode",
+    );
+  });
+
   it("falls back to generic 'validation failed' when reason is unknown", () => {
     expect(translateApiError("validation failed: some unknown reason")).toBe(
       "Validierung fehlgeschlagen",
@@ -178,8 +198,8 @@ describe("errorTranslations", () => {
     }
   });
 
-  it("has exactly 12 error translations", () => {
-    expect(Object.keys(errorTranslations).length).toBe(12);
+  it("has exactly 17 error translations", () => {
+    expect(Object.keys(errorTranslations).length).toBe(17);
   });
 });
 

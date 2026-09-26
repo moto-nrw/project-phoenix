@@ -156,6 +156,10 @@ func (s *GuardianService) CreateGuardian(ctx context.Context, req GuardianCreate
 
 	profile.SetTenantID(tenant.FromContext(ctx))
 
+	if err := profile.Validate(); err != nil {
+		return nil, newGuardianValidationError(err)
+	}
+
 	// Reject a duplicate email up front. The tenant-scoped UNIQUE(tenant_id,
 	// email) index forbids two guardians sharing an email, so without this
 	// pre-check the INSERT fails with a raw 23505 that surfaces to the user as a
@@ -264,6 +268,10 @@ func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 	}
 	if req.LanguagePreference != "" {
 		profile.LanguagePreference = req.LanguagePreference
+	}
+
+	if err := profile.Validate(); err != nil {
+		return newGuardianValidationError(err)
 	}
 
 	if err := s.GuardianProfileRepo.Update(ctx, profile); err != nil {
@@ -698,6 +706,14 @@ func germanGuardianValidationMessage(err error) string {
 	}
 }
 
+// newGuardianValidationError classifies a model Validate() failure as bad
+// input (HTTP 400) with the German reason. The repositories run the same
+// Validate() but wrap it as a plain error, which renders as a 500 (#3549), so
+// write paths call this before the first repository write.
+func newGuardianValidationError(err error) *ValidationError {
+	return &ValidationError{Err: errors.New(germanGuardianValidationMessage(err))}
+}
+
 // ValidateNewGuardians checks guardian input (profile, relationship type,
 // emergency priority, phone numbers, and duplicate email) WITHOUT writing
 // anything. Callers that persist a student and its guardians in one
@@ -1116,6 +1132,10 @@ func (s *GuardianService) AddPhoneNumber(ctx context.Context, guardianID int64, 
 	}
 	phone.SetTenantID(tenant.FromContext(ctx))
 
+	if err := phone.Validate(); err != nil {
+		return nil, newGuardianValidationError(err)
+	}
+
 	// If setting as primary, unset existing primaries first
 	if isPrimary && count > 0 {
 		if err := s.GuardianPhoneNumberRepo.UnsetAllPrimary(ctx, guardianID); err != nil {
@@ -1163,6 +1183,10 @@ func (s *GuardianService) UpdatePhoneNumber(ctx context.Context, phoneID int64, 
 	}
 	if req.Priority != nil {
 		phone.Priority = *req.Priority
+	}
+
+	if err := phone.Validate(); err != nil {
+		return newGuardianValidationError(err)
 	}
 
 	// Handle primary flag change
