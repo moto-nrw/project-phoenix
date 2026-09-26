@@ -620,6 +620,9 @@ func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request
 	case errors.Is(err, studentpresence.ErrRoomCapacityExceeded):
 		// A full room names itself with code and numbers (#3633).
 		common.RenderError(w, r, common.ErrorBusinessRejectionOr(studentpresence.RoomCapacityCode)(err))
+	case errors.Is(err, studentpresence.ErrActivityParticipantLimitExceeded):
+		// A full activity names itself too (#3632, #3633).
+		common.RenderError(w, r, common.ErrorBusinessRejection(err))
 	case errors.Is(err, studentpresence.ErrStudentAlreadyActive), errors.Is(err, studentpresence.ErrRoomConflict),
 		errors.Is(err, studentpresence.ErrStudentsNotPresent), errors.Is(err, studentpresence.ErrGroupAlreadyEnded):
 		common.RenderError(w, r, common.ErrorConflict(err))
