@@ -943,17 +943,6 @@ export function PersonalInfoReadOnly({
             </div>
           </DataField>
         )}
-        {student.supervisor_notes && (
-          <DataField label="Betreuernotizen" fullWidth>
-            <span className="flex items-start gap-1.5">
-              <span className="min-w-0 flex-1">{student.supervisor_notes}</span>
-              <FieldHistoryInfo
-                studentId={student.id}
-                fields={["supervisor_notes"]}
-              />
-            </span>
-          </DataField>
-        )}
         {student.extra_info && (
           <DataField label="Elternnotizen" fullWidth>
             <span className="flex items-start gap-1.5">

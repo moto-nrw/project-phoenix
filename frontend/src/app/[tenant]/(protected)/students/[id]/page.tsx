@@ -53,6 +53,8 @@ import { StudentRecordActions } from "~/components/students/student-record-actio
 import { ParentMessagesCard } from "~/components/students/parent-messages-card";
 import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";
 import { StudentDokumenteTab } from "~/components/students/dokumente-tab";
+import { StudentNotizenTab } from "~/components/students/student-notizen-tab";
+import { StudentPermanentNotesCard } from "~/components/students/student-permanent-notes-card";
 import {
   AggregatedRequestList,
   type AggregatedRequestFilters,
@@ -120,6 +122,7 @@ const EMPTY_GROUP_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [];
 // criterion: "navigate directly to the relevant section").
 type StudentTabId =
   | "stammdaten"
+  | "notizen"
   | "nachrichten"
   | "erziehungsberechtigte"
   | "betreuungsplan"
@@ -131,6 +134,7 @@ type StudentTabId =
 
 const TAB_LABELS: Record<StudentTabId, string> = {
   stammdaten: "Stammdaten",
+  notizen: "Notizen",
   nachrichten: "Nachrichten",
   erziehungsberechtigte: "Erziehungsberechtigte",
   betreuungsplan: "Betreuungsplan",
@@ -146,6 +150,7 @@ const TAB_LABELS: Record<StudentTabId, string> = {
 // parent-message overview (the backend gates per-child read access anyway).
 const FULL_ACCESS_BASE_TABS: StudentTabId[] = [
   "stammdaten",
+  "notizen",
   "nachrichten",
   "erziehungsberechtigte",
   "betreuungsplan",
@@ -156,12 +161,14 @@ const FULL_ACCESS_BASE_TABS: StudentTabId[] = [
 ];
 const LIMITED_ACCESS_BASE_TABS: StudentTabId[] = [
   "stammdaten",
+  "notizen",
   "erziehungsberechtigte",
   "aenderungsprotokoll",
   "historie",
 ];
 const FULL_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "stammdaten",
+  "notizen",
   "nachrichten",
   "erziehungsberechtigte",
   "betreuungsplan",
@@ -173,6 +180,7 @@ const FULL_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
 ];
 const LIMITED_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "stammdaten",
+  "notizen",
   "erziehungsberechtigte",
   "anmeldungen",
   "aenderungsprotokoll",
@@ -1665,6 +1673,15 @@ function LimitedAccessView({
       >
         <SupervisorsCard supervisors={supervisors} studentName={student.name} />
         <PersonalInfoReadOnly student={student} />
+        <StudentPermanentNotesCard studentId={student.id} />
+      </StudentTabPanel>
+
+      <StudentTabPanel
+        value="notizen"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        <StudentNotizenTab studentId={student.id} />
       </StudentTabPanel>
 
       <StudentTabPanel

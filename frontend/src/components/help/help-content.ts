@@ -2725,7 +2725,7 @@ function activitiesCatalogTopic(): HelpTopic {
  * Live geprueft: `Neues Kind` ist ein einziges Fenster. Pflicht sind nur
  * `Vorname`, `Nachname` und `Klasse`; darunter folgen die Abschnitte
  * `Erziehungsberechtigte`, `Betreuungszeiten`, `Gesundheitsinformationen`,
- * `Betreuernotizen`, `Elternnotizen`, `Datenschutz` und `Erlaubte Heimwege`
+ * `Elternnotizen`, `Datenschutz` und `Erlaubte Heimwege`
  * -- alle vor `Erstellen`, alle freiwillig. Deshalb tragen die Schritte nur
  * den Weg, nicht jedes Feld.
  *
@@ -2778,7 +2778,7 @@ function createStudentTopic(): HelpTopic {
     result:
       "Ein einzeln angelegtes Kind steht sofort unter `Kinderdaten`. Nach einem Import meldet moto, wie viele Kinder angelegt und wie viele aktualisiert wurden.",
     notes: [
-      "Im Fenster stehen weiter unten `Erziehungsberechtigte`, `Betreuungszeiten`, `Gesundheitsinformationen`, Notizen, `Datenschutz` und `Erlaubte Heimwege`.",
+      "Im Fenster stehen weiter unten `Erziehungsberechtigte`, `Betreuungszeiten`, `Gesundheitsinformationen`, `Elternnotizen`, `Datenschutz` und `Erlaubte Heimwege`.",
       "Bei einem Geschwisterkind wählen Sie `Vorhandene/n suchen`. Dann teilen beide dieselben Erziehungsberechtigten.",
       "Ein Auge neben einer Angabe heißt: Eltern sehen sie.",
       "In der Vorlage erklärt das Blatt `Hinweise` jede Spalte.",
@@ -3043,7 +3043,8 @@ function manageStudentTopic(): HelpTopic {
       {
         title: "Was in welchem Reiter steht",
         steps: [
-          "`Stammdaten`: Name, Klasse, Gruppe, Adresse und Notizen.",
+          "`Stammdaten`: Name, Klasse, Gruppe, Adresse und die dauerhaften Hinweise zum Kind.",
+          "`Notizen`: Einträge zu diesem Kind, mit Datum und Verfasser.",
           "`Erziehungsberechtigte`: wer das Kind abholen darf und wer erreichbar ist.",
           "`Betreuungszeiten`: der Wochenplan und einzelne Ausnahmen.",
           "`Betreuungsplan`: die geplante Betreuung Woche für Woche.",
@@ -3075,9 +3076,80 @@ function manageStudentTopic(): HelpTopic {
     ],
     related: [
       HELP_TOPICS.studentSearch,
+      HELP_TOPICS.studentNotes,
       HELP_TOPICS.leadCareTimes,
       HELP_TOPICS.leadInviteGuardians,
     ],
+  };
+}
+
+/**
+ * Der Reiter `Notizen` der Kindakte (#3632). Sichtbar fuer jeden, der das
+ * Kind lesen darf; WELCHE Notizen erscheinen, entscheidet der Server je
+ * Notiz. Deshalb tragen die Schritte die Reichweite als Auswahl, nicht als
+ * Recht.
+ *
+ * Live geprueft: `Neue Notiz` oeffnet ein Formular im Reiter, kein Fenster.
+ * Die Auswahl `Gruppenleitung` erscheint nur bei einer Notiz, die zu einem
+ * Angebot oder einer Gruppe gehoert -- im Formular des Reiters also nicht.
+ * An keine Einstellung gebunden.
+ */
+function studentNotesTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.studentNotes,
+    title: "Notizen zu einem Kind",
+    question: "Wie halte ich etwas zu einem Kind fest?",
+    summary:
+      "Im Reiter `Notizen` der Kindakte. Sie wählen bei jeder Notiz, wer sie liest.",
+    group: "kinder",
+    audience: ["caregiver", "lead"],
+    icon: "NotePencil",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Eine Notiz schreiben",
+        steps: [
+          "Öffnen Sie die Karte des Kindes.",
+          "Wählen Sie den Reiter `Notizen`.",
+          "Wählen Sie `Neue Notiz`.",
+          "Schreiben Sie kurz und sachlich, was war.",
+          "Wählen Sie unter `Wer sieht die Notiz?` die Reichweite.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
+        title: "Die drei Reichweiten",
+        steps: [
+          "`Ganzes Team`: alle, die das Kind sehen dürfen.",
+          "`Betreuungsteam des Kindes`: wer das Kind wirklich hat, über seine Gruppe, seine Klasse oder ein Angebot.",
+          "`Gruppenleitung`: nur die Leitung der Gruppe, zu der die Notiz gehört.",
+        ],
+        ordered: false,
+      },
+      {
+        title: "Dauerhafte Hinweise",
+        steps: [
+          "Wählen Sie beim Schreiben unter `Art` den Eintrag `Dauerhafter Hinweis`.",
+          "Der Hinweis steht danach auch im Reiter `Stammdaten`.",
+        ],
+      },
+    ],
+    result:
+      "Die Notiz steht sofort in der Kindakte, mit Datum und Ihrem Namen.",
+    notes: [
+      "Eltern sehen Notizen nie.",
+      "Gesundheitsangaben gehören nicht in eine Notiz, sondern in die `Gesundheitsinformationen` der Stammdaten.",
+      "Ändern kann eine Notiz nur, wer sie geschrieben hat.",
+      "Entfernen kann sie die Leitung der Gruppe.",
+    ],
+    differences: [
+      "Sie sehen weniger Notizen als eine Kollegin? Dann hat sie das Kind, Sie nicht. Die Reichweite entscheidet das je Notiz.",
+      "Ein Hinweis trägt `Übernommen aus den Betreuernotizen`? Der stammt aus dem früheren Textfeld und hat deshalb keinen Verfasser.",
+    ],
+    troubleshootingDetails: [
+      "Es fehlt `Neue Notiz`? Dann dürfen Sie dieses Kind nur lesen.",
+    ],
+    related: [HELP_TOPICS.leadManageStudent, HELP_TOPICS.studentSearch],
   };
 }
 
@@ -5172,6 +5244,7 @@ function leadTopics(
 
     // --- Kinder verwalten ---
     manageStudentTopic(),
+    studentNotesTopic(),
     endCareTopic(),
     deleteStudentTopic(),
     gradeTransitionTopic(),

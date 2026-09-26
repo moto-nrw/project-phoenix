@@ -3,7 +3,6 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import {
   PersonalInfoSection,
   HealthInfoSection,
-  SupervisorNotesSection,
   AdditionalInfoSection,
   PrivacyConsentSection,
   BusStatusSection,
@@ -50,13 +49,6 @@ export const PersonalInfoWithErrors: Story = {
 export const HealthInfo: Story = {
   name: "HealthInfoSection",
   render: () => <HealthInfoSection value={null} onChange={noopStringChange} />,
-};
-
-export const SupervisorNotes: Story = {
-  name: "SupervisorNotesSection",
-  render: () => (
-    <SupervisorNotesSection value={null} onChange={noopStringChange} />
-  ),
 };
 
 export const AdditionalInfo: Story = {
