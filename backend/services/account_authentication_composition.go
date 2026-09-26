@@ -202,11 +202,11 @@ type demoSchoolDirectory struct {
 	standing string
 }
 
-func (d demoSchoolDirectory) PrepareDemoSchool(ctx context.Context, schoolName, personName string) (string, error) {
+func (d demoSchoolDirectory) PrepareDemoSchool(ctx context.Context, schoolName, firstName, lastName string) (string, error) {
 	if d.standing != "" {
 		return d.standing, nil
 	}
-	slug, err := d.orders.OrderDemoSchool(ctx, schoolName, personName)
+	slug, err := d.orders.OrderDemoSchool(ctx, schoolName, firstName, lastName)
 	if errors.Is(err, organizationtenancy.ErrDemoCapacityReached) {
 		return "", identityaccess.ErrDemoCapacityReached
 	}
@@ -218,14 +218,14 @@ func (d demoSchoolDirectory) PrepareDemoSchool(ctx context.Context, schoolName, 
 // at the capacity; both happen in the caller's transaction, so a refused
 // order leaves the old school as it was. The standing school is shared: a
 // restart is refused.
-func (d demoSchoolDirectory) ReplaceDemoSchool(ctx context.Context, slug, schoolName, personName string) (string, error) {
+func (d demoSchoolDirectory) ReplaceDemoSchool(ctx context.Context, slug, schoolName, firstName, lastName string) (string, error) {
 	if d.standing != "" || slug == StandingDemoSchoolSlug {
 		return "", identityaccess.ErrDemoAccessInvalid
 	}
 	if err := d.orders.RetireDemoSchool(ctx, slug); err != nil {
 		return "", err
 	}
-	return d.PrepareDemoSchool(ctx, schoolName, personName)
+	return d.PrepareDemoSchool(ctx, schoolName, firstName, lastName)
 }
 
 // MarkDemoSchoolUsed notes an entry. The standing school has no order and is

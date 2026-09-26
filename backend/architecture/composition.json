@@ -19447,7 +19447,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 1340,
+          "line": 1352,
           "declaration": "initializeAPIResources"
         }
       ]

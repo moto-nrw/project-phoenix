@@ -32,7 +32,7 @@ func orderDemoSchool(t *testing.T, db *bun.DB, schoolName string) string {
 const testDemoCapacity = 300
 
 func orderDemoSchoolWithin(ctx context.Context, schoolName string, maxActive int) (string, error) {
-	return NewDemoSchoolOrders(strings.NewReader("k3m9xp"), maxActive).OrderDemoSchool(ctx, schoolName, "Kim Beispiel")
+	return NewDemoSchoolOrders(strings.NewReader("k3m9xp"), maxActive).OrderDemoSchool(ctx, schoolName, "Anna Lena", "von Berg")
 }
 
 func demoSchoolProgress(t *testing.T, db *bun.DB, slug string) *organizationtenancy.DemoSchoolProgress {
@@ -44,6 +44,17 @@ func demoSchoolProgress(t *testing.T, db *bun.DB, slug string) *organizationtena
 		return err
 	}))
 	return progress
+}
+
+// An order names the visitor with first and last name; neither may be
+// missing, so the seed never has to make one up.
+func TestOrderDemoSchoolRequiresFirstAndLastName(t *testing.T) {
+	t.Parallel()
+	orders := NewDemoSchoolOrders(strings.NewReader("k3m9xp"), testDemoCapacity)
+	for _, name := range [][2]string{{"Kim", ""}, {"", "Beispiel"}} {
+		_, err := orders.OrderDemoSchool(t.Context(), "OGS Nord", name[0], name[1])
+		assert.Error(t, err, "first %q, last %q", name[0], name[1])
+	}
 }
 
 // The queue is shared state, so the test owns its database.
@@ -67,7 +78,7 @@ func TestDemoSchoolQueueSeedsInOrderRepeatsOnceAndFails(t *testing.T) {
 	order, err := queue.ClaimDemoSchoolOrder(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, order)
-	assert.Equal(t, organizationtenancy.DemoSchoolOrder{Slug: first, SchoolName: "OGS Nord", PersonName: "Kim Beispiel", Attempts: 1}, *order)
+	assert.Equal(t, organizationtenancy.DemoSchoolOrder{Slug: first, SchoolName: "OGS Nord", FirstName: "Anna Lena", LastName: "von Berg", Attempts: 1}, *order)
 	other, err := queue.ClaimDemoSchoolOrder(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, other)

@@ -22,9 +22,9 @@ func (s *Store) InsertDemoAccess(ctx context.Context, access domain.DemoAccess) 
 		return 0, err
 	}
 	var id int64
-	err = db.NewRaw(`INSERT INTO auth.demo_accesses (email, person_name, school_name, source, contact_opt_in, token_hash, expires_at, school_slug)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-		access.Email, access.PersonName, access.SchoolName, access.Source, access.ContactOptIn, access.TokenHash, access.ExpiresAt, access.SchoolSlug).Scan(ctx, &id)
+	err = db.NewRaw(`INSERT INTO auth.demo_accesses (email, first_name, last_name, school_name, source, contact_opt_in, token_hash, expires_at, school_slug)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+		access.Email, access.FirstName, access.LastName, access.SchoolName, access.Source, access.ContactOptIn, access.TokenHash, access.ExpiresAt, access.SchoolSlug).Scan(ctx, &id)
 	if err != nil {
 		return 0, fmt.Errorf("identity access postgres: insert demo access: %w", err)
 	}
@@ -44,14 +44,15 @@ func (s *Store) FindActiveDemoAccessByEmail(ctx context.Context, email string, n
 	}
 	var row struct {
 		ID           int64     `bun:"id"`
-		PersonName   string    `bun:"person_name"`
+		FirstName    string    `bun:"first_name"`
+		LastName     string    `bun:"last_name"`
 		SchoolName   string    `bun:"school_name"`
 		Source       string    `bun:"source"`
 		ContactOptIn bool      `bun:"contact_opt_in"`
 		CreatedAt    time.Time `bun:"created_at"`
 		SchoolSlug   string    `bun:"school_slug"`
 	}
-	err = db.NewRaw(`SELECT id, person_name, school_name, source, contact_opt_in, created_at, school_slug FROM auth.demo_accesses
+	err = db.NewRaw(`SELECT id, first_name, last_name, school_name, source, contact_opt_in, created_at, school_slug FROM auth.demo_accesses
 		WHERE email = ? AND expires_at > ? ORDER BY id DESC LIMIT 1`, email, now).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.DemoAccess{}, false, nil
@@ -60,7 +61,7 @@ func (s *Store) FindActiveDemoAccessByEmail(ctx context.Context, email string, n
 		return domain.DemoAccess{}, false, fmt.Errorf("identity access postgres: find demo access by address: %w", err)
 	}
 	return domain.DemoAccess{
-		ID: row.ID, Email: email, PersonName: row.PersonName, SchoolName: row.SchoolName,
+		ID: row.ID, Email: email, FirstName: row.FirstName, LastName: row.LastName, SchoolName: row.SchoolName,
 		Source: row.Source, ContactOptIn: row.ContactOptIn, CreatedAt: row.CreatedAt, SchoolSlug: row.SchoolSlug,
 	}, true, nil
 }
@@ -76,10 +77,11 @@ func (s *Store) FindDemoAccessByTokenHash(ctx context.Context, tokenHash string)
 		ExpiresAt  time.Time `bun:"expires_at"`
 		SchoolSlug string    `bun:"school_slug"`
 		SchoolName string    `bun:"school_name"`
-		PersonName string    `bun:"person_name"`
+		FirstName  string    `bun:"first_name"`
+		LastName   string    `bun:"last_name"`
 		Source     string    `bun:"source"`
 	}
-	err = db.NewRaw(`SELECT id, email, expires_at, school_slug, school_name, person_name, source FROM auth.demo_accesses WHERE token_hash = ?`, tokenHash).Scan(ctx, &row)
+	err = db.NewRaw(`SELECT id, email, expires_at, school_slug, school_name, first_name, last_name, source FROM auth.demo_accesses WHERE token_hash = ?`, tokenHash).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.DemoAccess{}, false, nil
 	}
@@ -88,7 +90,7 @@ func (s *Store) FindDemoAccessByTokenHash(ctx context.Context, tokenHash string)
 	}
 	return domain.DemoAccess{
 		ID: row.ID, Email: row.Email, TokenHash: tokenHash, ExpiresAt: row.ExpiresAt,
-		SchoolSlug: row.SchoolSlug, SchoolName: row.SchoolName, PersonName: row.PersonName, Source: row.Source,
+		SchoolSlug: row.SchoolSlug, SchoolName: row.SchoolName, FirstName: row.FirstName, LastName: row.LastName, Source: row.Source,
 	}, true, nil
 }
 

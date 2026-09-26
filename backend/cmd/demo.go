@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"log/slog"
 	mathrand "math/rand"
+	"net"
 	"net/url"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -64,7 +66,7 @@ var demoCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(demoCmd)
-	demoCmd.Flags().String("url", "http://localhost:8080", "Internal backend URL (demo: http://server:8080)")
+	demoCmd.Flags().String("url", "http://localhost:8080", "Internal backend URL (demo: http://127.0.0.1:8080)")
 	demoCmd.Flags().Bool("once", false, "Provision or reload the school, execute one tick and exit (smoke verification)")
 	demoCmd.Flags().String("heartbeat", "", "File rewritten after every successful tick; the container healthcheck reads its age")
 }
@@ -80,11 +82,28 @@ func validateDemoTarget(baseURL, environment string) error {
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return fmt.Errorf("demo URL must use HTTP or HTTPS")
 	}
-	if strings.EqualFold(strings.TrimSpace(environment), "demo") && parsed.Hostname() != "server" {
-		return fmt.Errorf("APP_ENV=demo requires the internal server host")
+	if strings.EqualFold(strings.TrimSpace(environment), "demo") && !isDemoInternalHost(parsed.Hostname()) {
+		return fmt.Errorf("APP_ENV=demo requires the internal server host or a loopback address")
 	}
 	return nil
 }
+
+// isDemoInternalHost accepts the Compose host of the server and a loopback IP.
+// The deployed sidecar shares the server's network namespace and calls
+// 127.0.0.1, which the demo's rate limiters exempt; a public host never
+// qualifies.
+func isDemoInternalHost(hostname string) bool {
+	if hostname == "server" {
+		return true
+	}
+	ip := net.ParseIP(hostname)
+	return ip != nil && ip.IsLoopback()
+}
+
+// demoDevicePINPattern is the pattern of the security.ogs_device_pin setting.
+// The seeder writes OGS_DEVICE_PIN into that setting, which rejects any other
+// shape, so a mismatch fails before the operator login instead of mid-seed.
+var demoDevicePINPattern = regexp.MustCompile(`^\d{4}$`)
 
 // writeDemoHeartbeat records a successful tick for the container healthcheck. Only
 // the file's modification time matters; an empty path disables the heartbeat.
@@ -231,9 +250,9 @@ func (s *demoSchool) run(ctx context.Context, once, stopOnLogin bool, ticked fun
 // provisionDemoSchool seeds the school of options and stores its state under
 // its slug. Tenant slug and school name come from the caller.
 func provisionDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, adapter seedapi.Adapter, options seedapi.SeedOptions) error {
-	email, password, pin := viper.GetString("operator_email"), viper.GetString("operator_password"), viper.GetString("ogs_device_pin")
-	if email == "" || password == "" || pin == "" {
-		return fmt.Errorf("demo provisioning requires OPERATOR_EMAIL, OPERATOR_PASSWORD and OGS_DEVICE_PIN")
+	email, password, pin := demoProvisioningCredentials()
+	if err := checkDemoProvisioning(email, password, pin); err != nil {
+		return err
 	}
 	staffPassword, err := seedapi.GenerateSeedPassword(services.SecureRandomSource())
 	if err != nil {
@@ -255,6 +274,21 @@ func provisionDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, a
 	}
 	_, err = seedapi.NewSeeder(adapter, services.SecureRandomSource(), false, options).Seed(ctx, email, password, pin)
 	return err
+}
+
+func demoProvisioningCredentials() (email, password, pin string) {
+	return viper.GetString("operator_email"), viper.GetString("operator_password"), viper.GetString("ogs_device_pin")
+}
+
+// checkDemoProvisioning rejects a configuration that cannot seed a school.
+func checkDemoProvisioning(email, password, pin string) error {
+	if email == "" || password == "" || pin == "" {
+		return fmt.Errorf("demo provisioning requires OPERATOR_EMAIL, OPERATOR_PASSWORD and OGS_DEVICE_PIN")
+	}
+	if !demoDevicePINPattern.MatchString(pin) {
+		return fmt.Errorf("OGS_DEVICE_PIN must be exactly four digits, the format of the school's device PIN setting")
+	}
+	return nil
 }
 
 func demoVisitsQuery(runtime *backendapi.DemoRuntime, schoolID int64, profile *seedapi.SeedProfile) (func(context.Context) ([]simulate.DemoVisit, error), error) {
