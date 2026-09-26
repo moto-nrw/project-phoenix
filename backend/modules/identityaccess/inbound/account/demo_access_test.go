@@ -100,7 +100,7 @@ func (e demoEnv) requestBodyFor(t *testing.T, address string) map[string]any {
 		require.NoError(t, err)
 	})
 	return map[string]any{
-		"email": address, "school_name": "OGS Beispiel", "person_name": "Kim Beispiel", "contact_opt_in": true, "src": "messe",
+		"email": address, "school_name": "OGS Beispiel", "first_name": "Kim", "last_name": "Beispiel", "contact_opt_in": true, "src": "messe",
 	}
 }
 
@@ -194,10 +194,16 @@ func TestDemoAccessRequestRejectsInvalidFields(t *testing.T) {
 	t.Parallel()
 	env := newDemoEnv(t)
 	for name, body := range map[string]map[string]any{
-		"no address":     {"email": "", "school_name": "OGS", "person_name": "Kim"},
-		"broken address": {"email": "kim(at)ogs", "school_name": "OGS", "person_name": "Kim"},
-		"no school name": {"email": "kim@ogs.de", "school_name": " ", "person_name": "Kim"},
-		"no person name": {"email": "kim@ogs.de", "school_name": "OGS", "person_name": ""},
+		"no address":         {"email": "", "school_name": "OGS", "first_name": "Kim", "last_name": "Beispiel"},
+		"broken address":     {"email": "kim(at)ogs", "school_name": "OGS", "first_name": "Kim", "last_name": "Beispiel"},
+		"no school name":     {"email": "kim@ogs.de", "school_name": " ", "first_name": "Kim", "last_name": "Beispiel"},
+		"no first name":      {"email": "kim@ogs.de", "school_name": "OGS", "first_name": "", "last_name": "Beispiel"},
+		"no last name":       {"email": "kim@ogs.de", "school_name": "OGS", "first_name": "Kim"},
+		"blank last name":    {"email": "kim@ogs.de", "school_name": "OGS", "first_name": "Kim", "last_name": " \t "},
+		"last name too long": {"email": "kim@ogs.de", "school_name": "OGS", "first_name": "Kim", "last_name": strings.Repeat("x", 121)},
+		// The website sends person_name alongside while it moves over; the
+		// backend no longer reads it, so it cannot stand in for the names.
+		"only person name": {"email": "kim@ogs.de", "school_name": "OGS", "person_name": "Kim Beispiel"},
 	} {
 		rr := env.post(t, "/demo/access-requests", body)
 		assert.Equal(t, http.StatusUnprocessableEntity, rr.Code, name)

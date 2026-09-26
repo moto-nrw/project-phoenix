@@ -2074,7 +2074,8 @@
         "resolution_required": "{object} could not be saved. Please check your entries."
       },
       "presence": {
-        "activity_participant_limit_reached": "{object} could not be changed. Please check its current status."
+        "activity_participant_limit_reached": "{object} could not be changed. Please check its current status.",
+        "room_capacity_exceeded": "{object} could not be changed. Please check its current status."
       },
       "rollover": {
         "duplicate_name": "{object} could not be changed. Please check its current status.",

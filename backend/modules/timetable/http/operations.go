@@ -617,9 +617,14 @@ func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "completion_confirmation_stale"))
 	case errors.Is(err, timetable.ErrInstanceNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, studentpresence.ErrRoomCapacityExceeded):
+		// A full room names itself with code and numbers (#3633).
+		common.RenderError(w, r, common.ErrorBusinessRejectionOr(studentpresence.RoomCapacityCode)(err))
+	case errors.Is(err, studentpresence.ErrActivityParticipantLimitExceeded):
+		// A full activity names itself too (#3632, #3633).
+		common.RenderError(w, r, common.ErrorBusinessRejection(err))
 	case errors.Is(err, studentpresence.ErrStudentAlreadyActive), errors.Is(err, studentpresence.ErrRoomConflict),
-		errors.Is(err, studentpresence.ErrRoomCapacityExceeded), errors.Is(err, studentpresence.ErrStudentsNotPresent),
-		errors.Is(err, studentpresence.ErrGroupAlreadyEnded):
+		errors.Is(err, studentpresence.ErrStudentsNotPresent), errors.Is(err, studentpresence.ErrGroupAlreadyEnded):
 		common.RenderError(w, r, common.ErrorConflict(err))
 	case errors.Is(err, studentpresence.ErrStudentNotFound), errors.Is(err, studentpresence.ErrVisitNotFound),
 		// A graduated (alumnus) student left on a roster is treated like an

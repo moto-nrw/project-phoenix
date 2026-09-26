@@ -2074,7 +2074,8 @@
         "resolution_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
       },
       "presence": {
-        "activity_participant_limit_reached": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+        "activity_participant_limit_reached": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "room_capacity_exceeded": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "rollover": {
         "duplicate_name": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

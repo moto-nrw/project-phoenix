@@ -137,11 +137,13 @@ def check_demo_runtime(path):
         raise ValueError("demo-runtime: must not receive env files, volumes or published ports")
     if raw.get("network_mode") != "service:server" or not raw.get("read_only"):
         raise ValueError("demo-runtime: must share the server network with a read-only filesystem")
-    command = ["./main", "demo", "--url", "http://server:8080", "--heartbeat", "/tmp/demo-heartbeat"]
+    # Loopback in the shared network namespace: only this peer is exempt from
+    # the demo server's rate limits (see docs/operations/standing-demo.md).
+    command = ["./main", "demo", "--url", "http://127.0.0.1:8080", "--heartbeat", "/tmp/demo-heartbeat"]
     # Fallback of #3463: both processes must agree on the standing demo school.
     fallback = "--demo-standing-school"
     if raw.get("command") not in (command, command + [fallback]):
-        raise ValueError("demo-runtime: must use the guarded command and internal server host")
+        raise ValueError("demo-runtime: must use the guarded command and the server's loopback address")
     if (fallback in raw["command"]) != (fallback in services["server"].get("command", [])):
         raise ValueError("demo-runtime: server and sidecar must both select the standing demo school, or neither")
     if raw["image"] != services["server"]["image"]:

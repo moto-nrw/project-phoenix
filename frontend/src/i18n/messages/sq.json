@@ -2074,7 +2074,8 @@
         "resolution_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
       },
       "presence": {
-        "activity_participant_limit_reached": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+        "activity_participant_limit_reached": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "room_capacity_exceeded": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "rollover": {
         "duplicate_name": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

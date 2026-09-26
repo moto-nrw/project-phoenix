@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -17,6 +18,9 @@ import (
 type settingsTestContext struct {
 	db       *testpkg.DB
 	resource *configAPI.SettingsResource
+	settings interface {
+		ResolveStringForTenant(context.Context, int64, string) (string, error)
+	}
 }
 
 func setupSettingsModule(t *testing.T) *settingsTestContext {
@@ -42,6 +46,7 @@ func setupSettingsModule(t *testing.T) *settingsTestContext {
 	return &settingsTestContext{
 		db:       db,
 		resource: resource,
+		settings: svc.Settings,
 	}
 }
 
@@ -150,6 +155,54 @@ func TestSettingsSetHomeLayout_LegacyPayloadPreservesArrangement(t *testing.T) {
 	data, ok = response["data"].(map[string]interface{})
 	require.True(t, ok)
 	assert.Empty(t, data["blocks"])
+}
+
+// The demo seeder writes the device PIN into schools with NFC off. The PIN's
+// dependency on attendance.nfc_enabled hides it in the settings screen, but
+// the school admin's write must still succeed and reach device auth.
+func TestSettingsSetValue_DevicePINWritableWhileNFCDisabled(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupSettingsModule(t)
+	router := ctx.resource.SettingsRouter()
+	const key = "security.ogs_device_pin"
+
+	schema := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "GET", "/schema", nil, testutil.WithTestTenant(t)))
+	testutil.AssertSuccessResponse(t, schema, 200)
+	var envelope struct {
+		Data struct {
+			Tabs []struct {
+				Categories []struct {
+					Items []struct {
+						Key     string `json:"key"`
+						Visible bool   `json:"visible"`
+					} `json:"items"`
+				} `json:"categories"`
+			} `json:"tabs"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(schema.Body.Bytes(), &envelope))
+	found := false
+	for _, tab := range envelope.Data.Tabs {
+		for _, category := range tab.Categories {
+			for _, item := range category.Items {
+				if item.Key == key {
+					found = true
+					assert.False(t, item.Visible, "a fresh school has NFC off, which hides the PIN")
+				}
+			}
+		}
+	}
+	require.True(t, found, "the school admin schema lists the device PIN")
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/"+key, map[string]interface{}{"value": "4711"},
+		testutil.WithTestTenant(t),
+	)
+	testutil.AssertSuccessResponse(t, testutil.ExecuteRequest(router, req), 200)
+
+	pin, err := ctx.settings.ResolveStringForTenant(testpkg.Ctx(t), testpkg.Tenant(t), key)
+	require.NoError(t, err)
+	assert.Equal(t, "4711", pin, "device auth resolves the written PIN")
 }
 
 func TestSettingsSetValue_InvalidKey(t *testing.T) {

@@ -3,7 +3,7 @@ import { getCachedSession, sessionFetch } from "./session-cache";
 import api from "./api";
 import { resolveApiUrl } from "./api-url";
 import { createLogger } from "~/lib/logger";
-import type { ApiError } from "~/lib/api-error";
+import { apiErrorFromBody, type ApiError } from "~/lib/api-error";
 
 const logger = createLogger({ component: "ActiveService" });
 import {
@@ -167,10 +167,30 @@ async function executeProxyFetch(
       status: response.status,
       error: errorText,
     });
-    throw new Error(`${operationName} failed: ${response.status}`);
+    // Code and details stay on the error (ADR 0006), so a refusal such as a
+    // full room or activity can name itself in the UI.
+    throw proxyError(
+      `${operationName} failed: ${response.status}`,
+      response.status,
+      errorText,
+    );
   }
 
   return response;
+}
+
+function proxyError(
+  message: string,
+  status: number,
+  errorText: string,
+): ApiError {
+  let body: unknown;
+  try {
+    body = JSON.parse(errorText);
+  } catch {
+    body = undefined;
+  }
+  return apiErrorFromBody(message, status, body);
 }
 
 /**
@@ -962,7 +982,7 @@ export const activeService = {
    * Records that the children now use a released room (#3066): an independent
    * room stay, not participation in an activity running there. Rejects with an
    * ApiError whose `code` is `room_not_released` when the release was removed
-   * after the room list was loaded.
+   * after the room list was loaded, or a full room's code and details.
    */
   moveStudentsToOpenRoom: async (
     studentIds: string[],
@@ -976,22 +996,16 @@ export const activeService = {
       }),
     });
     if (!response.ok) {
-      let code: string | undefined;
-      try {
-        code = ((await response.json()) as { code?: string }).code;
-      } catch {
-        code = undefined;
-      }
+      const error = proxyError(
+        `Move students to open room failed: ${response.status}`,
+        response.status,
+        await response.text(),
+      );
       logger.error("proxy fetch failed", {
         operation: "Move students to open room",
         status: response.status,
-        code,
+        code: error.code,
       });
-      const error = new Error(
-        `Move students to open room failed: ${response.status}`,
-      ) as ApiError;
-      error.status = response.status;
-      error.code = code;
       throw error;
     }
     const payload = (await response.json()) as ApiResponse<StudentMoveResult>;

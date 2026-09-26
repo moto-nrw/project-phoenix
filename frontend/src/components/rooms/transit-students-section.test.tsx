@@ -743,6 +743,51 @@ describe("TransitStudentsSection booking into a released room", () => {
     expect(mutateStudents).not.toHaveBeenCalled();
   });
 
+  it.each([
+    {
+      kind: "activity",
+      code: "presence.activity_participant_limit_reached",
+      details: {
+        activity_name: "Betreuung",
+        current_occupancy: 45,
+        max_participants: 45,
+        incoming_students: 1,
+      },
+      message:
+        "Die Aktivität „Betreuung“ ist voll (45 von 45 Kindern). Die Grenze ändern Sie unter Datenverwaltung → Aktivitäten bei „Maximale Teilnehmer“.",
+    },
+    {
+      kind: "room",
+      code: "presence.room_capacity_exceeded",
+      details: {
+        room_name: "Aula",
+        current_occupancy: 30,
+        max_capacity: 30,
+        incoming_students: 1,
+      },
+      message:
+        "Der Raum „Aula“ ist voll (30 von 30 Plätzen). Die Grenze ändern Sie unter Datenverwaltung → Räume bei „Maximale Belegung“.",
+    },
+  ])(
+    "says the $kind is full when the assignment is refused (#3633)",
+    async ({ code, details, message }) => {
+      const full = new Error("Assign transit students failed: 409") as ApiError;
+      full.status = 409;
+      full.code = code;
+      full.details = details;
+      vi.mocked(activeService.assignTransitStudents).mockRejectedValue(full);
+      render(<TransitStudentsSection />);
+
+      fireEvent.click(screen.getByLabelText("Mila Sommer auswählen"));
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      fireEvent.click(screen.getByRole("option", { name: "Aula · Gruppe A" }));
+      fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
+
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(mockToastSuccess).not.toHaveBeenCalled();
+    },
+  );
+
   it("keeps the children unassigned when the booking fails", async () => {
     vi.mocked(activeService.moveStudentsToOpenRoom).mockRejectedValue(
       new Error("Move students to open room failed: 500"),

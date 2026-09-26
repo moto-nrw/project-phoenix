@@ -43,6 +43,7 @@ import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { createLogger } from "~/lib/logger";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+import { capacityErrorMessage } from "~/lib/capacity-error";
 
 const logger = createLogger({ component: "StudentsInRoomSection" });
 const EMPTY_STUDENTS: Student[] = [];
@@ -425,7 +426,8 @@ export function StudentsInRoomSection({
         type: "error",
         message: releaseRemoved
           ? "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum."
-          : "Die ausgewählten Kinder konnten nicht bewegt werden.",
+          : (capacityErrorMessage(err) ??
+            "Die ausgewählten Kinder konnten nicht bewegt werden."),
       });
       await refreshRoomConsumers();
     }

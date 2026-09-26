@@ -12,24 +12,24 @@ const (
 	visitorGuardianIndex = 0
 )
 
+// visitorName is the prospect's first and last name as the demo access
+// stored them. Both are empty for a school without a visitor.
+type visitorName struct{ first, last string }
+
+func (v visitorName) empty() bool { return v.first == "" && v.last == "" }
+
 // visitorDisplayName returns the name a seeded person is created with. The
+// visitor's person takes the given first and last name unchanged. The
 // internal keys keep the seed names. A seed person who happens to share the
 // visitor's name takes the displaced name, so the visitor appears once.
-func visitorDisplayName(visitor string, isVisitor bool, first, last, displacedFirst, displacedLast string) (string, string) {
-	visitor = strings.Join(strings.Fields(visitor), " ")
-	if visitor == "" {
+func visitorDisplayName(visitor visitorName, isVisitor bool, first, last, displacedFirst, displacedLast string) (string, string) {
+	if visitor.empty() {
 		return first, last
 	}
-	visitorFirst, visitorLast, ok := strings.Cut(visitor, " ")
-	if !ok {
-		// A single name takes the family name of the visitor's child, in the
-		// OGS app as in the parents app, so the visitor has one name.
-		visitorLast = DemoGuardians[visitorGuardianIndex].LastName
-	}
 	if isVisitor {
-		return visitorFirst, visitorLast
+		return visitor.first, visitor.last
 	}
-	if strings.EqualFold(first, visitorFirst) && strings.EqualFold(last, visitorLast) {
+	if strings.EqualFold(first, visitor.first) && strings.EqualFold(last, visitor.last) {
 		return displacedFirst, displacedLast
 	}
 	return first, last

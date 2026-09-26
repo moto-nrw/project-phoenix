@@ -79,9 +79,10 @@ func (d *DemoRuntime) RetireDemoSchools(ctx context.Context, slugs []string) (in
 // DemoSchoolOrder is a demo school of the public demo waiting for its seed
 // (#3463). Seeded orders only miss their first tick.
 type DemoSchoolOrder struct {
-	Slug, SchoolName, PersonName string
-	Attempts                     int
-	Seeded                       bool
+	Slug, SchoolName    string
+	FirstName, LastName string
+	Attempts            int
+	Seeded              bool
 }
 
 // ReleaseDemoSchoolOrders returns the orders of a stopped process to the queue.
@@ -96,7 +97,8 @@ func (d *DemoRuntime) ClaimDemoSchoolOrder(ctx context.Context) (*DemoSchoolOrde
 		return nil, err
 	}
 	return &DemoSchoolOrder{
-		Slug: order.Slug, SchoolName: order.SchoolName, PersonName: order.PersonName, Attempts: order.Attempts, Seeded: order.Seeded,
+		Slug: order.Slug, SchoolName: order.SchoolName, FirstName: order.FirstName, LastName: order.LastName,
+		Attempts: order.Attempts, Seeded: order.Seeded,
 	}, nil
 }
 

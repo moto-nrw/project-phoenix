@@ -57,7 +57,9 @@ var errorRules = []common.ErrorRule{
 	{Target: studentpresence.ErrCannotDeleteActiveGroup, Render: statusText(http.StatusBadRequest, "Cannot Delete Active Group With Active Visits")},
 	{Target: studentpresence.ErrInvalidTimeRange, Render: statusText(http.StatusBadRequest, "Invalid Time Range")},
 	{Target: studentpresence.ErrRoomConflict, Render: statusText(http.StatusConflict, "Room Conflict")},
-	{Target: studentpresence.ErrRoomCapacityExceeded, Render: statusText(http.StatusConflict, "Room Capacity Exceeded")},
+	// A full room is a business rejection too (#3633): 409 with its code and
+	// the numbers, keeping the package's historical status text.
+	{Target: studentpresence.ErrRoomCapacityExceeded, Render: roomCapacityRejection},
 	// A web assignment beyond the activity's participant limit (#3632) is a
 	// business rejection: 409 with its code and the numbers as details.
 	{Target: studentpresence.ErrActivityParticipantLimitExceeded, Render: common.ErrorBusinessRejection},
@@ -69,6 +71,17 @@ var errorRules = []common.ErrorRule{
 	// a graduation race must not fall through to a 500 (#405).
 	{Target: studentpresence.ErrStudentGraduated, Render: statusText(http.StatusNotFound, "Student Graduated")},
 	{Target: studentpresence.ErrStudentCareEnded, Render: statusText(http.StatusNotFound, "Student Care Ended")},
+}
+
+// roomCapacityRejection answers a full room with 409, the room code and, when
+// the typed error is in the chain, its numbers. The status keeps this
+// package's human-readable classification.
+func roomCapacityRejection(err error) render.Renderer {
+	renderer := common.ErrorBusinessRejectionOr(studentpresence.RoomCapacityCode)(err)
+	if resp, ok := renderer.(*common.ErrResponse); ok && resp.HTTPStatusCode == http.StatusConflict {
+		resp.Status = "Room Capacity Exceeded"
+	}
+	return renderer
 }
 
 // ErrorRenderer returns a render.Renderer for the given error

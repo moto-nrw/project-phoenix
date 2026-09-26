@@ -952,3 +952,33 @@ func checkTimetableConflictWiring(t *testing.T, api *API) {
 	assert.Same(t, api.Services.TimetableData.ConflictDetection, api.Timetable.ConflictDetection,
 		"the routes and the instance lifecycle share one composed capability")
 }
+
+// The demo exempts its demo process (a loopback peer) from the auth limiters;
+// every other environment keeps limiting loopback like any other address.
+func TestBuildAuthRateLimitersExemptLoopbackOnlyWhenAsked(t *testing.T) {
+	t.Parallel()
+
+	for _, exempt := range []bool{true, false} {
+		limiters := buildAuthRateLimiters(nil, "1", exempt)
+		for name, limiter := range map[string]*customMiddleware.RateLimiter{
+			"auth": limiters.auth, "email confirm": limiters.emailConfirm, "invitation": limiters.invitation,
+		} {
+			handler := limiter.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			last := 0
+			for range 11 { // one more than the burst of 10
+				req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
+				req.RemoteAddr = "127.0.0.1:54321"
+				rr := httptest.NewRecorder()
+				handler.ServeHTTP(rr, req)
+				last = rr.Code
+			}
+			want := http.StatusTooManyRequests
+			if exempt {
+				want = http.StatusNoContent
+			}
+			assert.Equal(t, want, last, "%s limiter, exempt=%v", name, exempt)
+		}
+	}
+}

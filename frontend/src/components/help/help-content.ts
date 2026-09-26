@@ -2640,6 +2640,11 @@ function roomsCatalogTopic(presenceMode: HelpPresenceMode): HelpTopic {
     troubleshootingDetails: [
       "Fehlt `Datenverwaltung` in der Seitenleiste? Dann fehlen Ihnen die Leitungsrechte. Fragen Sie Ihre Leitung.",
       "Lässt sich ein Raum nicht löschen? Dann ist er gerade belegt. Oder ein Betreuungsangebot braucht ihn.",
+      ...(tracksRooms
+        ? [
+            "Meldet moto oder das Tablet, der Raum ist voll? Dann ist `Maximale Belegung` erreicht. Erhöhen Sie die Zahl hier. Ist dagegen die Aktivität voll, ändern Sie `Maximale Teilnehmer` unter `Aktivitäten`.",
+          ]
+        : []),
     ],
     related: [
       HELP_TOPICS.leadGroups,
@@ -2785,7 +2790,7 @@ function activitiesCatalogTopic(): HelpTopic {
     troubleshootingDetails: [
       "Fehlt `Datenverwaltung` in der Seitenleiste? Dann fehlen Ihnen die Leitungsrechte. Fragen Sie Ihre Leitung.",
       "Fehlt die passende `Kategorie`? Legen Sie sie in der `Datenverwaltung` unter `Terminkategorien` an.",
-      "Nimmt das Tablet keine Kinder mehr an? Dann ist die Aktivität voll. Steht bei ihr `Überbucht`, sind sogar mehr Kinder da als erlaubt. Es kommen erst wieder Kinder dazu, wenn es weniger als `Maximale Teilnehmer` sind. Oder Sie erhöhen die Zahl.",
+      "Meldet moto oder das Tablet, die Aktivität ist voll? Dann ist `Maximale Teilnehmer` erreicht. Steht bei ihr `Überbucht`, sind sogar mehr Kinder da als erlaubt. Es kommen erst wieder Kinder dazu, wenn es weniger sind. Oder Sie erhöhen die Zahl. Die Grenze des Raums hilft hier nicht.",
     ],
     related: [
       HELP_TOPICS.leadRooms,

@@ -2074,7 +2074,8 @@
         "resolution_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
       },
       "presence": {
-        "activity_participant_limit_reached": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+        "activity_participant_limit_reached": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "room_capacity_exceeded": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "rollover": {
         "duplicate_name": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

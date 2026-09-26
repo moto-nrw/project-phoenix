@@ -172,9 +172,12 @@ services:
   # Fallback to the one standing demo school: append "--demo-standing-school"
   # to this command AND to the server's command; check-runtime-env.py rejects
   # a stack where only one of them carries it.
+  # It calls the server on 127.0.0.1 in the shared network namespace. Under
+  # APP_ENV=demo the server's rate limiters exempt loopback peers, and public
+  # traffic arrives from the Docker gateway, never from loopback.
   demo-runtime:
     image: ghcr.io/moto-nrw/phoenix-server:demo
-    command: ["./main", "demo", "--url", "http://server:8080", "--heartbeat", "/tmp/demo-heartbeat"]
+    command: ["./main", "demo", "--url", "http://127.0.0.1:8080", "--heartbeat", "/tmp/demo-heartbeat"]
     restart: unless-stopped
     depends_on:
       server:

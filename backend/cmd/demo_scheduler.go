@@ -40,6 +40,11 @@ type demoScheduler struct {
 }
 
 func runDemoSchools(ctx context.Context, schools *backendapi.DemoRuntime, baseURL, heartbeat string, once bool) error {
+	// Every order is seeded with this configuration. A broken one stops the
+	// process here instead of failing each visitor's order in turn.
+	if err := checkDemoProvisioning(demoProvisioningCredentials()); err != nil {
+		return err
+	}
 	adapter := newSeedCommandAdapter(baseURL, false)
 	if err := waitDemoServer(ctx, adapter); err != nil {
 		return err
@@ -140,7 +145,8 @@ func (s *demoScheduler) seedAndTick(ctx context.Context, order backendapi.DemoSc
 	}
 	if !order.Seeded {
 		options := seedapi.SeedOptions{
-			TenantSlug: order.Slug, SchoolName: order.SchoolName, VisitorName: order.PersonName,
+			TenantSlug: order.Slug, SchoolName: order.SchoolName,
+			VisitorFirstName: order.FirstName, VisitorLastName: order.LastName,
 			AccountScope: demoAccountScope(order.Slug, order.Attempts),
 			// The broken attempt keeps its school and accounts; move both aside.
 			ReplaceAbandoned: order.Attempts > 1,

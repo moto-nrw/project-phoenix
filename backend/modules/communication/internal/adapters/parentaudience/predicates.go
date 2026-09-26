@@ -78,18 +78,29 @@ const studentTargetMatchBound = studentTargetMatchPrefix + activeEnrollmentBound
 // Bind order: today, today, today.
 const studentTargetMatchFeed = studentTargetMatchPrefix + activeEnrollmentFeed
 
-// reachedStudentsBound joins the announcement's targets to every live,
-// non-graduated child they reach. Graduated (alumnus) students are
-// soft-deleted: their guardians drop out of every audience once the child
-// has left the OGS.
+// reachedStudentsBound is every live, non-graduated child an announcement's
+// targets reach, as the derived table s with the columns id, announcement_id
+// and tenant_id. Graduated (alumnus) students are soft-deleted: their
+// guardians drop out of every audience once the child has left the OGS.
 //
-// Bind order: school, school, today, today, today.
+// The set is a MATERIALIZED CTE on purpose. A school seeded or imported after
+// the last ANALYZE has a tenant_id the planner estimates at about one row per
+// table; joined in one statement with the guardian links, that estimate
+// produced nested loops that re-ran the whole student join per guardian and
+// exceeded the 10 s read timeout. Computed once, the set stays linear in the
+// guardian join whatever the statistics say.
+//
+// Bind order: school, school, today, today, today, announcement, school.
 const reachedStudentsBound = `
-			FROM users.parent_announcement_targets pt
-			JOIN users.student_profiles s ON s.tenant_id = ?` + studentMembershipJoins + ` AND (` + studentTargetMatchBound + `
-			)
-			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
-			AND sm.status <> 'alumnus'`
+			FROM (WITH reached AS MATERIALIZED (
+				SELECT DISTINCT s.id, pt.announcement_id, pt.tenant_id
+				FROM users.parent_announcement_targets pt
+				JOIN users.student_profiles s ON s.tenant_id = ?` + studentMembershipJoins + ` AND (` + studentTargetMatchBound + `
+				)
+				JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+					AND sm.status <> 'alumnus'
+				WHERE pt.announcement_id = ? AND pt.tenant_id = ?
+			) SELECT id, announcement_id, tenant_id FROM reached) s`
 
 // portalGuardiansBound continues reachedStudentsBound with the guardians who
 // hold parent_portal.access on the child, a linked account, and an ACTIVE
@@ -130,13 +141,6 @@ const pollGuardiansForAccountBound = `
 			JOIN auth.account_tenants act ON act.account_id = gp.account_id
 				AND act.tenant_id = gp.tenant_id AND act.status = 'active'`
 
-// announcementTargetsBound closes a reached-students query on one
-// announcement.
-//
-// Bind order: announcement, school.
-const announcementTargetsBound = `
-			WHERE pt.announcement_id = ? AND pt.tenant_id = ?`
-
 // pendingApplicantsCTE binds the Enrollment-owned applicant rows as a record
 // set, so the audience can be joined without reading Enrollment's tables.
 //
@@ -172,10 +176,10 @@ const pendingApplicantAccountsBound = `
 // reaches right now: the student-based targets plus the pending_enrollment
 // target.
 //
-// Bind order: school, school, today, today, today, guardian links of the
-// school, school, announcement, school, announcement, school.
+// Bind order: school, school, today, today, today, announcement, school,
+// guardian links of the school, school, announcement, school.
 const audienceAccountsBound = `
-			SELECT DISTINCT gp.account_id AS account_id` + reachedStudentsBound + portalGuardiansBound + announcementTargetsBound + `
+			SELECT DISTINCT gp.account_id AS account_id` + reachedStudentsBound + portalGuardiansBound + `
 			UNION
 			SELECT DISTINCT COALESCE(req.guardian_account_id, ea.id) AS account_id` + pendingApplicantAccountsBound + `
 				AND COALESCE(req.guardian_account_id, ea.id) IS NOT NULL`
@@ -223,8 +227,8 @@ const reachedAccountFeed = `(
 
 // reachedAccountBound is reachedAccountFeed for one bound announcement.
 //
-// Bind order: school, school, today, today, today, guardian links of the
-// school, school, account, announcement, school, school, account, account,
+// Bind order: school, school, today, today, today, announcement, school,
+// guardian links of the school, school, account, school, account, account,
 // announcement, school.
 const reachedAccountBound = `(
 		EXISTS (
@@ -235,7 +239,6 @@ const reachedAccountBound = `(
 				AND gp.account_id = ?
 			JOIN auth.account_tenants act ON act.account_id = gp.account_id
 				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
-			WHERE pt.announcement_id = ? AND pt.tenant_id = ?
 		)
 		OR EXISTS (
 			SELECT 1
@@ -305,27 +308,27 @@ const liveAnnouncementPredicate = `
 // Staff results must include every child the announcement reaches, even if
 // no guardian may answer the poll.
 //
-// Bind order: school, school, today, today, today, guardian links of the
-// school, school, announcement, school.
+// Bind order: school, school, today, today, today, announcement, school,
+// guardian links of the school, school.
 const pollAudienceStudentsBound = `
-			SELECT DISTINCT s.id AS student_id` + reachedStudentsBound + portalGuardiansBound + announcementTargetsBound
+			SELECT DISTINCT s.id AS student_id` + reachedStudentsBound + portalGuardiansBound
 
 // pollAnswerableStudentsBound is the subset of the audience for which at least
 // one guardian currently has poll.response: the completion denominator and
 // reminder source.
 //
-// Bind order: school, school, today, today, today, guardian links of the
-// school, school, announcement, school.
+// Bind order: school, school, today, today, today, announcement, school,
+// guardian links of the school, school.
 const pollAnswerableStudentsBound = `
-			SELECT DISTINCT s.id AS student_id` + reachedStudentsBound + pollGuardiansBound + announcementTargetsBound
+			SELECT DISTINCT s.id AS student_id` + reachedStudentsBound + pollGuardiansBound
 
 // pollAnswerableStudentsForAccountBound narrows pollAnswerableStudentsBound to
 // one guardian's children.
 //
-// Bind order: school, school, today, today, today, guardian links of the
-// school, school, account, announcement, school.
+// Bind order: school, school, today, today, today, announcement, school,
+// guardian links of the school, school, account.
 const pollAnswerableStudentsForAccountBound = `
-			SELECT DISTINCT s.id AS student_id` + reachedStudentsBound + pollGuardiansForAccountBound + announcementTargetsBound
+			SELECT DISTINCT s.id AS student_id` + reachedStudentsBound + pollGuardiansForAccountBound
 
 // letterReachedStudentsBound is every child the announcement's targets reach
 // with NO guardian requirement at all. A letter to the whole school reaches
@@ -334,4 +337,4 @@ const pollAnswerableStudentsForAccountBound = `
 //
 // Bind order: school, school, today, today, today, announcement, school.
 const letterReachedStudentsBound = `
-			SELECT DISTINCT s.id AS student_id` + reachedStudentsBound + announcementTargetsBound
+			SELECT DISTINCT s.id AS student_id` + reachedStudentsBound

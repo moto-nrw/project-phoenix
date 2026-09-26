@@ -57,3 +57,16 @@ func TestDemoTickerEndingKeepsItsSuccessor(t *testing.T) {
 	tickers.remove("a", second)
 	assert.Equal(t, []string{"a"}, tickers.keepOnly([]string{"a"}))
 }
+
+// The seeder writes OGS_DEVICE_PIN into security.ogs_device_pin, which accepts
+// exactly four digits. Any other value must stop the demo process before it
+// signs in or fails a visitor's order.
+func TestCheckDemoProvisioningRequiresAFourDigitPIN(t *testing.T) {
+	t.Parallel()
+	assert.NoError(t, checkDemoProvisioning("operator@example.test", "secret", "4711"))
+	for _, pin := range []string{"", "123", "12345", "483920", "12a4", " 4711"} {
+		assert.Error(t, checkDemoProvisioning("operator@example.test", "secret", pin), "pin %q", pin)
+	}
+	assert.Error(t, checkDemoProvisioning("", "secret", "4711"))
+	assert.Error(t, checkDemoProvisioning("operator@example.test", "", "4711"))
+}

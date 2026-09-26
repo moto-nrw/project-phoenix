@@ -101,6 +101,15 @@ export const errorTranslations: Record<string, string> = {
   "phone number must contain at least 3 digits":
     "Telefonnummer muss mindestens 3 Ziffern enthalten",
   "phone number is required": "Telefonnummer ist erforderlich",
+  // Invalid contact input comes back as a 400 with a German reason (#3549);
+  // without these patterns it would fall through to the generic catch-all.
+  "ungültiges e-mail-format": "Ungültiges E-Mail-Format",
+  "ungültiges telefonnummer-format":
+    "Ungültiges Telefonnummernformat (nur Ziffern, Leerzeichen, +, -, Klammern)",
+  "telefonnummer muss mindestens 3 ziffern enthalten":
+    "Telefonnummer muss mindestens 3 Ziffern enthalten",
+  "telefonnummer ist erforderlich": "Telefonnummer ist erforderlich",
+  "ungültige bevorzugte kontaktmethode": "Ungültige bevorzugte Kontaktmethode",
   unauthorized: "Keine Berechtigung",
   forbidden: "Zugriff verweigert",
 };

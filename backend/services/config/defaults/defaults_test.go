@@ -1705,10 +1705,10 @@ func TestCheckinCapacityDetailSettings(t *testing.T) {
 		assert.Equal(t, true, def.DependsOn.Value)
 	}
 
-	// Activity defaults to false: the rich kiosk message was never visible
-	// before issue #1879, so it stays opt-in.
+	// Activity defaults to true since #3633, like the room: the generic hint
+	// without the activity's name was read as "room full" in production.
 	activity := config.GetDefinition(config.KeyCheckinActivityCapacityDetailsEnabled)
-	assert.Equal(t, false, activity.Default, "activity capacity details should default to false (opt-in)")
+	assert.Equal(t, true, activity.Default, "activity capacity details should default to true (names the full activity)")
 
 	// Room defaults to true: schools already see the rich room message today.
 	room := config.GetDefinition(config.KeyCheckinRoomCapacityDetailsEnabled)
@@ -1789,7 +1789,7 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"checkout.raumwechsel_enabled", true},
 		{"checkout.schulhof_enabled", false},
 		{"checkout.wc_enabled", false},
-		{"checkin.activity_capacity_details_enabled", false},
+		{"checkin.activity_capacity_details_enabled", true},
 		{"checkin.room_capacity_details_enabled", true},
 		{"tracking.indicators_enabled", false},
 		{"tracking.indicator_1", ""},

@@ -2074,7 +2074,8 @@
         "resolution_required": "Не удалось сохранить: {object}. Проверьте введённые данные."
       },
       "presence": {
-        "activity_participant_limit_reached": "Не удалось изменить: {object}. Проверьте текущее состояние."
+        "activity_participant_limit_reached": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "room_capacity_exceeded": "Не удалось изменить: {object}. Проверьте текущее состояние."
       },
       "rollover": {
         "duplicate_name": "Не удалось изменить: {object}. Проверьте текущее состояние.",

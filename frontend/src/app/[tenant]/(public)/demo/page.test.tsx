@@ -35,6 +35,7 @@ function open(hash: string) {
 
 beforeEach(() => {
   localStorage.clear();
+  sessionStorage.clear();
   signIn.mockReset().mockResolvedValue({ error: undefined });
   fetchMock.mockReset();
   assign.mockReset();
@@ -96,6 +97,35 @@ describe("DemoEntryPage", () => {
       src: "messe",
       pending: "demo_entered",
     });
+  });
+
+  // The tab keeps the link for a reload until the visitor is signed in. A way
+  // back to this page afterwards must not sign in again, perhaps in a role the
+  // visitor has left in the banner since.
+  it("forgets the kept link once the visitor is signed in", async () => {
+    fetchMock
+      .mockReturnValueOnce(json(200, { status: "ready" }))
+      .mockReturnValueOnce(
+        json(200, {
+          access_token: "access",
+          refresh_token: "refresh",
+          demo: { access_id: "4711", role: "lead" },
+        }),
+      );
+
+    const first = open("#token=secret-token&role=lead");
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+    expect(sessionStorage.getItem("moto-demo-link")).toBeNull();
+    first.unmount();
+    fetchMock.mockReset();
+
+    open("");
+
+    expect(
+      await screen.findByText("Dieser Link funktioniert nicht mehr"),
+    ).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("asks for a role when the link brings none", async () => {

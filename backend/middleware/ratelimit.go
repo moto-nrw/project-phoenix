@@ -29,6 +29,7 @@ type RateLimiter struct {
 	keyFunc        func(*http.Request) string
 	bucketFunc     func(*http.Request) string
 	rejectObserver func(bucket string)
+	exemptLoopback bool
 }
 
 // visitor tracks rate limiting for a single request key.
@@ -77,6 +78,34 @@ func (rl *RateLimiter) SetBucketFunc(bucketFunc func(*http.Request) string) {
 // middleware to a metrics implementation.
 func (rl *RateLimiter) SetRejectObserver(observer func(bucket string)) {
 	rl.rejectObserver = observer
+}
+
+// ExemptLoopback lets requests from a loopback TCP peer bypass the limiter.
+// The public demo enables it for its demo process, which shares the server
+// container's network namespace and calls the API on 127.0.0.1 while it
+// seeds and ticks demo schools. Everything else keeps its limits.
+func (rl *RateLimiter) ExemptLoopback() {
+	rl.exemptLoopback = true
+}
+
+// isLoopbackPeer reports whether the request's TCP peer is a loopback address.
+//
+// The root router rewrites RemoteAddr from the rightmost X-Forwarded-For entry
+// (ClientIPFromXFF and syncClientIPToRemoteAddr in api/base.go), so a request
+// that carries the header has a RemoteAddr chosen by a header, not by the
+// connection. Only a request without the header still holds the TCP peer, and
+// only such a request can be exempt.
+//
+// Public traffic never qualifies: Caddy on the host sets X-Forwarded-For and
+// reaches the container through Docker's published port, where the peer is
+// the bridge gateway (for example 172.18.0.1), never loopback. The container's
+// loopback is reachable only from inside the server's network namespace.
+func isLoopbackPeer(r *http.Request) bool {
+	if len(r.Header.Values("X-Forwarded-For")) > 0 {
+		return false
+	}
+	ip := net.ParseIP(GetClientIP(r))
+	return ip != nil && ip.IsLoopback()
 }
 
 func defaultRateLimitKey(r *http.Request) string {
@@ -165,6 +194,10 @@ func (rl *RateLimiter) cleanupVisitors() {
 func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if rl.exemptLoopback && isLoopbackPeer(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
 			bucket := rl.requestBucket(r)
 			limiter := rl.getVisitor(rl.requestKeyForBucket(r, bucket))
 			if !limiter.Allow() {

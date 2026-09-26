@@ -40,6 +40,7 @@ const READY = {
 
 beforeEach(() => {
   localStorage.clear();
+  sessionStorage.clear();
   signIn.mockReset().mockResolvedValue({ error: undefined });
   fetchMock.mockReset();
   assign.mockReset();

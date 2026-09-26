@@ -33,10 +33,12 @@ type SeedOptions struct {
 	OnlyProfile   string // Restrict the run to one profile; empty seeds all four
 	StatePath     string // Output path; empty uses DefaultSeedStatePath
 	StandingDemo  bool   // Keep simulation devices but disable their user interface
-	// VisitorName puts a prospect of the public demo into the school (#3463):
-	// one caregiver with a group and one parent carry this name. Only the
-	// name is taken; every account keeps its synthetic address.
-	VisitorName string
+	// VisitorFirstName and VisitorLastName put a prospect of the public demo
+	// into the school (#3463): one caregiver with a group and one parent
+	// carry exactly this name. Only the name is taken; every account keeps
+	// its synthetic address. Both are set, or neither.
+	VisitorFirstName string
+	VisitorLastName  string
 	// AccountScope replaces the tenant slug in account emails and usernames.
 	// A repeated seed of the same slug needs a fresh one: accounts are unique
 	// across the database and the abandoned school keeps its own.
@@ -114,6 +116,9 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 	}
 	if s.random == nil {
 		return nil, fmt.Errorf("seed random source is required")
+	}
+	if (s.options.VisitorFirstName == "") != (s.options.VisitorLastName == "") {
+		return nil, fmt.Errorf("a demo visitor needs a first and a last name")
 	}
 	if s.options.OnlyProfile != "" && s.options.OnlyProfile != s.definition.Key {
 		return nil, fmt.Errorf("a run can only be restricted to profile %q, got %q", s.definition.Key, s.options.OnlyProfile)
