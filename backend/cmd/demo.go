@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	mathrand "math/rand"
+	"net"
 	"net/url"
 	"os"
 	"os/signal"
@@ -65,7 +66,7 @@ var demoCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(demoCmd)
-	demoCmd.Flags().String("url", "http://localhost:8080", "Internal backend URL (demo: http://server:8080)")
+	demoCmd.Flags().String("url", "http://localhost:8080", "Internal backend URL (demo: http://127.0.0.1:8080)")
 	demoCmd.Flags().Bool("once", false, "Provision or reload the school, execute one tick and exit (smoke verification)")
 	demoCmd.Flags().String("heartbeat", "", "File rewritten after every successful tick; the container healthcheck reads its age")
 }
@@ -81,10 +82,22 @@ func validateDemoTarget(baseURL, environment string) error {
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return fmt.Errorf("demo URL must use HTTP or HTTPS")
 	}
-	if strings.EqualFold(strings.TrimSpace(environment), "demo") && parsed.Hostname() != "server" {
-		return fmt.Errorf("APP_ENV=demo requires the internal server host")
+	if strings.EqualFold(strings.TrimSpace(environment), "demo") && !isDemoInternalHost(parsed.Hostname()) {
+		return fmt.Errorf("APP_ENV=demo requires the internal server host or a loopback address")
 	}
 	return nil
+}
+
+// isDemoInternalHost accepts the Compose host of the server and a loopback IP.
+// The deployed sidecar shares the server's network namespace and calls
+// 127.0.0.1, which the demo's rate limiters exempt; a public host never
+// qualifies.
+func isDemoInternalHost(hostname string) bool {
+	if hostname == "server" {
+		return true
+	}
+	ip := net.ParseIP(hostname)
+	return ip != nil && ip.IsLoopback()
 }
 
 // demoDevicePINPattern is the pattern of the security.ogs_device_pin setting.
