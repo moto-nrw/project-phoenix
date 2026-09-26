@@ -62,7 +62,8 @@ nicht genutzt wird.
 
 Ein **Demo-Zugang** verbindet die E-Mail-Adresse eines Interessenten mit
 seiner Demo-Schule. Der Interessent betritt die Demo-Schule über einen Link
-aus einer E-Mail und wählt dort eine **Demo-Rolle** (Betreuungskraft,
+aus einer E-Mail (bei einer neuen Demo-Schule auch direkt von der Website)
+und wählt dort eine **Demo-Rolle** (Betreuungskraft,
 OGS-Leitung oder Elternteil), ohne sich ein Passwort zu setzen.
 
 _Vermeiden_: Demo-Tenant (klingt nach einer gemeinsamen Schule für alle),
