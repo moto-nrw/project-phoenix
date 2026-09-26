@@ -65,6 +65,15 @@ type FamilyProtectionCapability interface {
 	peopleModule.FamilyProtectionCommand
 }
 
+// StudentNotesCapability is the People Directory owner surface behind a
+// child's note card (#3632): the audience-filtered timeline and the writes.
+// Author names arrive resolved on the notes, so this resource never joins
+// accounts to persons itself.
+type StudentNotesCapability interface {
+	peopleModule.StudentNoteQuery
+	peopleModule.StudentNoteCommand
+}
+
 // StudentConsentCapability is the consent surface this resource needs for the
 // student rows it holds: the shared portal projection People Directory folds
 // together, and the Audit Platform trail every effective change appends to.
@@ -141,6 +150,7 @@ type ResourceConfig struct {
 	PeopleDirectory        peopleModule.Capability
 	EducationService       educationService.Service
 	UserContextService     CallerContext
+	StudentNotes           StudentNotesCapability
 	ActiveService          StudentPresence
 	IoTService             iotSvc.Service
 	PickupScheduleService  careplan.PickupScheduleService
@@ -326,6 +336,17 @@ func (rs *Resource) Router() chi.Router {
 		// Per-child change history (issue #1455). Full access (admin / group
 		// supervisor) is enforced inside the handler.
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/change-history", rs.getStudentChangeHistory)
+
+		// Child note card (#3632). users:read opens the door, exactly like the
+		// other per-child read surfaces; WHICH notes come back is decided per
+		// note by the caller's audience, and the write routes re-check
+		// authorship (edit) and group leadership (delete) inside the handler.
+		// Writing a note is not users:update: it adds a staff member's own
+		// entry, it does not change the child's master data.
+		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/notes", rs.listStudentNotes)
+		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/{id}/notes", rs.createStudentNote)
+		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Put("/{id}/notes/{noteId}", rs.updateStudentNote)
+		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Delete("/{id}/notes/{noteId}", rs.deleteStudentNote)
 
 		// Parent Stammdaten change-request decision (Track B). Requests can
 		// contain parent-submitted name, birthday, and departure-plan changes.

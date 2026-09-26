@@ -63,6 +63,7 @@ DELETE /api/students/{id}
 DELETE /api/students/{id}/arrival-exceptions/{exceptionId}
 DELETE /api/students/{id}/arrival-notes/{noteId}
 DELETE /api/students/{id}/documents/{documentId}
+DELETE /api/students/{id}/notes/{noteId}
 DELETE /api/students/{id}/partial-absences/{partialAbsenceId}
 DELETE /api/students/{id}/photo
 DELETE /api/students/{id}/pickup-exceptions/{exceptionId}
@@ -410,6 +411,7 @@ GET /api/students/{id}/documents/{documentId}/download
 GET /api/students/{id}/enrollment-extra-fields
 GET /api/students/{id}/family-protection
 GET /api/students/{id}/in-group-room
+GET /api/students/{id}/notes
 GET /api/students/{id}/partial-absences
 GET /api/students/{id}/photo/{filename}
 GET /api/students/{id}/pickup-schedules
@@ -800,6 +802,7 @@ POST /api/students/{id}/arrival-exceptions
 POST /api/students/{id}/arrival-notes
 POST /api/students/{id}/care-end/resume
 POST /api/students/{id}/documents
+POST /api/students/{id}/notes
 POST /api/students/{id}/partial-absences
 POST /api/students/{id}/photo
 POST /api/students/{id}/pickup-exceptions
@@ -1031,6 +1034,7 @@ PUT /api/students/{id}/arrival-exceptions/{exceptionId}
 PUT /api/students/{id}/arrival-notes/{noteId}
 PUT /api/students/{id}/arrival-schedules
 PUT /api/students/{id}/family-protection
+PUT /api/students/{id}/notes/{noteId}
 PUT /api/students/{id}/partial-absences/{partialAbsenceId}
 PUT /api/students/{id}/pickup-exceptions/{exceptionId}
 PUT /api/students/{id}/pickup-notes

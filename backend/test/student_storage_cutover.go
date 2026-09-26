@@ -91,6 +91,13 @@ func RestoreStudentStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 				  -- The membership's own link to its profile is owner storage,
 				  -- not a reference the cutover moved off users.students.
 				  AND con.conrelid <> 'users.student_school_memberships'::regclass
+				  -- Tables created AFTER the cutover never referenced
+				  -- users.students, so moving their keys onto it would restore
+				  -- a shape that never existed — and the cutover's own guard
+				  -- would then rightly refuse a key its static list does not
+				  -- name. They keep pointing at the profile, which the expand
+				  -- migration had already created by this point in history.
+				  AND con.conrelid <> to_regclass('users.student_notes')
 				ORDER BY con.conrelid::regclass::text, con.conname
 			LOOP
 				definition := replace(constraint_row.def,
@@ -115,7 +122,12 @@ func RestoreStudentStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 		FROM users.privacy_consents pc
 		JOIN users.students s ON pc.student_id = s.id
 		WHERE pc.expires_at < CURRENT_TIMESTAMP AND pc.accepted = true AND pc.renewal_required = true;
-		TRUNCATE users.student_care_profiles, users.student_school_memberships, users.student_profiles;
+		-- CASCADE, because the owner tables are emptied while the post-cutover
+		-- tables above still reference the profile. Those did not exist before
+		-- the cutover, so a restored historical state holds none of their rows
+		-- either; every other student reference was repointed onto
+		-- users.students a few lines up and is untouched by this.
+		TRUNCATE users.student_care_profiles, users.student_school_memberships, users.student_profiles CASCADE;
 		DELETE FROM platform.storage_backfill_checkpoints WHERE backfill = 'student-owner';
 	`); err != nil {
 		tb.Fatalf("restore student storage before cutover: %v", err)

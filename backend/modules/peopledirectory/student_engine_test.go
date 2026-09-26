@@ -334,3 +334,33 @@ func (e *recordingEngine) ListStudentRosterOverlapping(context.Context, string, 
 	e.calls++
 	return nil, nil
 }
+
+func (e *recordingEngine) ListStudentNotes(
+	_ context.Context, filter peopledirectory.StudentNoteFilter,
+) ([]peopledirectory.StudentNote, error) {
+	e.calls++
+	e.noteFilter = filter
+	return nil, nil
+}
+
+func (e *recordingEngine) CreateStudentNote(
+	_ context.Context, input peopledirectory.CreateStudentNote,
+) (peopledirectory.StudentNote, error) {
+	e.calls++
+	e.createdNote = input
+	return peopledirectory.StudentNote{ID: 1, StudentID: input.StudentID, Body: input.Body}, nil
+}
+
+func (e *recordingEngine) UpdateStudentNote(
+	_ context.Context, input peopledirectory.UpdateStudentNote,
+) (peopledirectory.StudentNote, error) {
+	e.calls++
+	e.updatedNote = input
+	return peopledirectory.StudentNote{ID: input.ID, Body: input.Body}, nil
+}
+
+func (e *recordingEngine) DeleteStudentNote(_ context.Context, input peopledirectory.DeleteStudentNote) error {
+	e.calls++
+	e.deletedNote = input
+	return nil
+}

@@ -121,10 +121,14 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 	}
 	studentPhotos := application.NewStudentPhotos(
 		postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), photoRuntime, transaction{}, observe, now)
+	studentNotes := application.NewStudentNotes(
+		postgres.NewStudentNoteStore(database), postgres.New(database),
+		postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery),
+		transaction{}, observe)
 	return peopledirectory.NewModule(engine{
 		service: service, students: students, guardians: guardians,
 		studentAudit: studentAudit, studentConsents: studentConsents,
-		studentPhotos: studentPhotos, observe: observe,
+		studentPhotos: studentPhotos, studentNotes: studentNotes, observe: observe,
 	}), nil
 }
 
@@ -174,6 +178,7 @@ type engine struct {
 	studentAudit    *application.StudentAuditService
 	studentConsents *application.StudentConsentService
 	studentPhotos   *application.StudentPhotoService
+	studentNotes    *application.StudentNoteService
 	observe         func(Observation)
 }
 
@@ -316,6 +321,14 @@ func mapError(err error) error {
 		return peopledirectory.ErrFamilyProtectionUnchanged
 	case errors.Is(err, domain.ErrFamilyProtectionInvalid):
 		return peopledirectory.ErrFamilyProtectionInvalid
+	case errors.Is(err, domain.ErrStudentNoteNotFound):
+		return peopledirectory.ErrStudentNoteNotFound
+	case errors.Is(err, domain.ErrStudentNoteNotAuthor):
+		return peopledirectory.ErrStudentNoteNotAuthor
+	case errors.Is(err, domain.ErrStudentNoteImmutable):
+		return peopledirectory.ErrStudentNoteImmutable
+	case errors.Is(err, domain.ErrStudentNoteInvalid):
+		return peopledirectory.ErrStudentNoteInvalid
 	default:
 		return err
 	}

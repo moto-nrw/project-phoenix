@@ -220,6 +220,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedAnnouncementsStep{},
 		seedStaffMessagingStep{},
 		seedStaffNoticesStep{},
+		seedStudentNotesStep{},
 		seedFileStorageStep{},
 		// Vor der App-Historie: der IoT-Sitzungsstart erzeugt den echten
 		// NFC-Arbeitsblock. Nach einem App-Checkout am selben Tag verhindert

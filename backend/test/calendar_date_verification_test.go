@@ -48,6 +48,10 @@ var unmappedDateColumns = map[string]string{
 	// adapters/postgres/store_test.go checks the persistence field types.
 	"users.student_school_memberships.enrolled_from":  "People Directory explicit projection uses *calendar.Date",
 	"users.student_school_memberships.enrolled_until": "People Directory explicit projection uses *calendar.Date",
+	// The child note card (#3632) has no table-bound model either: the day an
+	// entry describes is carried by the adapter-local studentNoteRow as a
+	// *calendar.Date and travels through the capability as the same type.
+	"users.student_notes.subject_date": "People Directory adapter row studentNoteRow uses *calendar.Date",
 	// Reminder push claims are written and deleted exclusively by the two
 	// SECURITY DEFINER functions from 001015255; the occurrence date is bound as
 	// a timezone.Date parameter there and never scanned into a struct, so the
