@@ -433,9 +433,10 @@ func (s *Store) FinalizeCancelled(ctx context.Context, transport domain.Transpor
 }
 
 func (s *Store) FinalizeDeferred(ctx context.Context, transport domain.Transport, id int64, token, reason string, nextRetryAt time.Time) (bool, error) {
+	now := time.Now()
 	var finalized bool
 	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
-		args := []any{reason, nextRetryAt, nextRetryAt, id, token}
+		args := []any{reason, nextRetryAt, now, id, token}
 		var result interface{ RowsAffected() (int64, error) }
 		var execErr error
 		switch transport {

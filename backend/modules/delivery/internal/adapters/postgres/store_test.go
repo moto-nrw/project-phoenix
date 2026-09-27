@@ -390,19 +390,28 @@ func TestStoreDeferredDeliveryKeepsItsAttemptBudget(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, claimed, 1)
 
-	finalized, err := store.FinalizeDeferred(ctx, domain.TransportEmail, enqueued.ID, *claimed[0].LeaseToken, "access email pending", time.Now().Add(time.Minute))
+	nextRetryAt := time.Now().Add(time.Minute)
+	finalized, err := store.FinalizeDeferred(ctx, domain.TransportEmail, enqueued.ID, *claimed[0].LeaseToken, "access email pending", nextRetryAt)
 	require.NoError(t, err)
 	require.True(t, finalized)
 
-	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	var timestamps struct {
+		UpdatedAt    time.Time `bun:"updated_at"`
+		DatabaseTime time.Time `bun:"database_time"`
+	}
+	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
 		status, found, statusErr := store.EmailStatus(txCtx, testpkg.Tenant(t), enqueued.ID)
 		require.NoError(t, statusErr)
 		require.True(t, found)
 		assert.Equal(t, string(domain.StatePending), status.Status)
 		assert.Zero(t, status.Attempts)
-		return nil
+		return tx.NewRaw(`SELECT updated_at, CURRENT_TIMESTAMP AS database_time
+			FROM platform.email_outbox WHERE tenant_id = ? AND id = ?`, testpkg.Tenant(t), enqueued.ID).
+			Scan(txCtx, &timestamps)
 	})
 	require.NoError(t, err)
+	assert.WithinDuration(t, timestamps.DatabaseTime, timestamps.UpdatedAt, time.Second)
+	assert.Less(t, timestamps.UpdatedAt, nextRetryAt)
 }
 
 func TestStoreStatusReadTracksDeliveryState(t *testing.T) {
