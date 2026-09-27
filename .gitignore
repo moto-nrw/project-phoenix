@@ -150,6 +150,7 @@ build/
 develop-eggs/
 dist/
 downloads/
+!frontend/public/downloads/
 eggs/
 .eggs/
 lib/

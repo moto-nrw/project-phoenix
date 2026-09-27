@@ -25,7 +25,7 @@ type GuardianEnrollmentClaims interface {
 // the enrollment claims an acceptance runs and the token lifetime.
 type GuardianInvitationTestConfig struct {
 	Audit       auditModels.Command
-	Outbox      platformModels.OutboxEnqueuer
+	Outbox      platformModels.OutboxResultEnqueuer
 	Enrollments GuardianEnrollmentClaims
 	Expiry      time.Duration
 	Logger      *slog.Logger
@@ -81,7 +81,7 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 			audit: audit, caregivers: caregivers,
 			guardianMail: &guardianInvitationWiring{
 				schools:     repos.School,
-				outbox:      func() platformModels.OutboxEnqueuer { return outbox },
+				outbox:      func() platformModels.OutboxResultEnqueuer { return outbox },
 				enrollments: claims,
 				parentsURL:  "http://localhost:3000", fallbackExpiry: expiry, logger: logger,
 			},
@@ -111,6 +111,10 @@ type discardingOutbox struct{}
 
 func (discardingOutbox) EnqueueOutbox(context.Context, platformModels.OutboxEnqueueRequest) error {
 	return nil
+}
+
+func (discardingOutbox) EnqueueOutboxWithResult(context.Context, platformModels.OutboxEnqueueRequest) (platformModels.OutboxEnqueued, error) {
+	return platformModels.OutboxEnqueued{ID: 1}, nil
 }
 
 // NewSchoolIdentityForTests returns the Identity & Access school identity

@@ -74,4 +74,8 @@ type InvitationOwnerTokens interface {
 // identity, and records the outcome back through the module.
 type SchoolInvitationDelivery interface {
 	DispatchSchoolInvitation(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, expiry time.Duration)
+	// QueueSchoolWelcome persists the welcome before the invitation commits.
+	// A resend calls DispatchSchoolInvitation only, so it never repeats the
+	// welcome.
+	QueueSchoolWelcome(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, rolePermissions []string) error
 }

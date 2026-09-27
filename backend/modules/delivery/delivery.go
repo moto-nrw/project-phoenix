@@ -53,6 +53,7 @@ type EmailIntent struct {
 	Payload        json.RawMessage
 	IdempotencyKey string
 	Related        RelatedEntity
+	DeliverAfter   time.Time
 }
 
 type EmailDelivery struct {
@@ -151,6 +152,7 @@ type Enqueued struct {
 
 var (
 	ErrCancelled           = errors.New("delivery: provider cancelled the intent")
+	ErrDeferred            = errors.New("delivery: provider deferred the intent")
 	ErrIdempotencyConflict = errors.New("delivery: idempotency key reused with different intent")
 )
 

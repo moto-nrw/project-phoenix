@@ -118,6 +118,11 @@ func (s *SchoolInvitation) CreateInvitation(ctx context.Context, request domain.
 	if validateErr := invitation.Validate(s.now()); validateErr != nil {
 		return domain.SchoolInvitation{}, failed(opCreateInvitation, validateErr)
 	}
+	portal := s.portalOf(role)
+	if request.SchoolName == "" {
+		request.SchoolName = s.schoolName(ctx, tenantID)
+	}
+	rolePermissions := s.rolePermissionNames(ctx, role.ID)
 	// Spending the address's previous invitations and storing the new one
 	// commit together, so a failed insert never burns the last usable link.
 	err = s.runtime.RunInTx(s.runtime.WithTenantID(ctx, tenantID), func(txCtx context.Context) error {
@@ -130,29 +135,51 @@ func (s *SchoolInvitation) CreateInvitation(ctx context.Context, request domain.
 		}
 		result = stored
 		result.RoleName = role.Name
+		if queueErr := s.delivery.QueueSchoolWelcome(txCtx, result, request.SchoolName, portal, rolePermissions); queueErr != nil {
+			return failed("queue welcome email", queueErr)
+		}
 		return nil
 	})
 	if err != nil {
 		return domain.SchoolInvitation{}, err
 	}
 	s.logCreated(result, request.CreatedBy)
+	s.mailAfterCommit(ctx, result, request.SchoolName, portal)
+	return result, nil
+}
 
-	portal := s.portalOf(role)
-	schoolName := request.SchoolName
-	if schoolName == "" {
-		schoolName = s.schoolName(ctx, result.TenantID)
-	}
+// mailAfterCommit queues the invitation mail after its transaction commits.
+// The welcome was persisted in that transaction and waits for the delivery
+// record, so a resend still mails the link alone.
+func (s *SchoolInvitation) mailAfterCommit(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal) {
 	s.runtime.RegisterAfterCommit(ctx, func() {
 		// Detach drops the request transaction and its commit hooks so the
 		// mail cannot join them. It also clears the tenant; put the
 		// invitation's school back so Reply-To still resolves (#1936).
 		dispatchCtx := s.runtime.Detach(ctx)
-		if result.TenantID > 0 {
-			dispatchCtx = s.runtime.WithTenantID(dispatchCtx, result.TenantID)
+		if invitation.TenantID > 0 {
+			dispatchCtx = s.runtime.WithTenantID(dispatchCtx, invitation.TenantID)
 		}
-		s.delivery.DispatchSchoolInvitation(dispatchCtx, result, schoolName, portal, s.expiry)
+		s.delivery.DispatchSchoolInvitation(dispatchCtx, invitation, schoolName, portal, s.expiry)
 	})
-	return result, nil
+}
+
+// rolePermissionNames lists the permissions of the invited role for the
+// welcome mail's help link. Best-effort: without them the link falls back to
+// the role name alone.
+func (s *SchoolInvitation) rolePermissionNames(ctx context.Context, roleID int64) []string {
+	permissions, err := s.roles.ListRolePermissions(ctx, roleID)
+	if err != nil {
+		s.logger.Warn("failed to list role permissions for welcome email",
+			slog.Int64("role_id", roleID),
+			slog.Any("error", err))
+		return nil
+	}
+	names := make([]string, 0, len(permissions))
+	for _, permission := range permissions {
+		names = append(names, permission.Name)
+	}
+	return names
 }
 
 // logCreated is the one log line an invitation writes (#2108): the handler
@@ -633,6 +660,37 @@ func (s *SchoolInvitation) RevokeInvitation(ctx context.Context, invitationID, a
 func (s *SchoolInvitation) RecordInvitationDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) error {
 	_, err := s.store.RecordSchoolInvitationDelivery(ctx, id, delivery.Bounded())
 	return err
+}
+
+// InvitationDeliverySent reports whether the transport accepted a still
+// redeemable invitation mail. The durable welcome renderer uses this to
+// preserve the invitation-before-welcome order and to cancel a welcome whose
+// invitation was spent or expired while it waited in the outbox.
+func (s *SchoolInvitation) InvitationDeliverySent(ctx context.Context, id int64) (bool, error) {
+	if id <= 0 {
+		return false, failed("find invitation delivery", domain.ErrInvitationNotFound)
+	}
+
+	invitation, found, _, err := s.store.FindSchoolInvitation(ctx, id)
+	if err != nil {
+		return false, failed("find invitation delivery", err)
+	}
+	if !found {
+		return false, failed("find invitation delivery", domain.ErrInvitationNotFound)
+	}
+	if invitation.UsedAt != nil {
+		return false, failed("find invitation delivery", domain.ErrInvitationUsed)
+	}
+	if !invitation.ExpiresAt.After(s.now()) {
+		return false, failed("find invitation delivery", domain.ErrInvitationExpired)
+	}
+	if invitation.Delivery.Error != nil {
+		return false, failed("find invitation delivery", domain.ErrInvitationDeliveryFailed)
+	}
+	if invitation.Delivery.SentAt == nil {
+		return false, nil
+	}
+	return true, nil
 }
 
 // InvitationSubdomain resolves the school subdomain an accepted invitation
