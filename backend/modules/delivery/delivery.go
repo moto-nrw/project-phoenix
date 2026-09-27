@@ -53,6 +53,7 @@ type EmailIntent struct {
 	Payload        json.RawMessage
 	IdempotencyKey string
 	Related        RelatedEntity
+	DeliverAfter   time.Time
 }
 
 type EmailDelivery struct {

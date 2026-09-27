@@ -35,10 +35,10 @@ type InvitationOwnerTokens interface {
 // the outcome back through the module.
 type SchoolInvitationDelivery interface {
 	DispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration)
-	// DispatchSchoolInvitationWithWelcome sends the invitation and queues its
-	// welcome only after SMTP accepted the invitation (#3534). A resend calls
-	// DispatchSchoolInvitation instead, so it never repeats the welcome.
-	DispatchSchoolInvitationWithWelcome(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration, rolePermissions []string)
+	// QueueSchoolWelcome persists the welcome before the invitation commits.
+	// A resend calls DispatchSchoolInvitation only, so it never repeats the
+	// welcome.
+	QueueSchoolWelcome(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, rolePermissions []string) error
 }
 
 // SchoolInvitationDependencies compose the invitation flows. They require
@@ -101,8 +101,8 @@ func (d schoolInvitationDelivery) DispatchSchoolInvitation(ctx context.Context, 
 	d.source.DispatchSchoolInvitation(ctx, publicSchoolInvitation(invitation), schoolName, identityaccess.InvitationPortal(portal), expiry)
 }
 
-func (d schoolInvitationDelivery) DispatchSchoolInvitationWithWelcome(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, expiry time.Duration, rolePermissions []string) {
-	d.source.DispatchSchoolInvitationWithWelcome(ctx, publicSchoolInvitation(invitation), schoolName, identityaccess.InvitationPortal(portal), expiry, rolePermissions)
+func (d schoolInvitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, rolePermissions []string) error {
+	return d.source.QueueSchoolWelcome(ctx, publicSchoolInvitation(invitation), schoolName, identityaccess.InvitationPortal(portal), rolePermissions)
 }
 
 func publicSchoolInvitation(invitation domain.SchoolInvitation) identityaccess.SchoolInvitation {
@@ -199,6 +199,14 @@ func (e engine) RecordSchoolInvitationDelivery(ctx context.Context, id int64, de
 		return errSchoolInvitationUnavailable
 	}
 	return invitationError(e.invitations.RecordInvitationDelivery(e.attach(ctx), id, domain.TokenDelivery(delivery)))
+}
+
+func (e engine) SchoolInvitationDeliverySent(ctx context.Context, id int64) (bool, error) {
+	if e.invitations == nil {
+		return false, errSchoolInvitationUnavailable
+	}
+	sent, err := e.invitations.InvitationDeliverySent(e.attach(ctx), id)
+	return sent, invitationError(err)
 }
 
 func (e engine) SchoolInvitationSubdomain(ctx context.Context, token string) string {

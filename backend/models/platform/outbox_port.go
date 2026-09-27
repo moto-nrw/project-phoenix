@@ -1,6 +1,9 @@
 package platform
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // OutboxEnqueueRequest is the transport-neutral enqueue input shared by the
 // feature services (auth, enrollment) and the platform outbox service. It
@@ -11,6 +14,7 @@ type OutboxEnqueueRequest struct {
 	RelatedEntityType string
 	RelatedEntityID   int64
 	IdempotencyKey    string
+	DeliverAfter      time.Time
 }
 
 // OutboxEnqueuer is the narrow contract feature services need from the

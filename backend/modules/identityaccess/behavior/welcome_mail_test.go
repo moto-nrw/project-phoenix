@@ -101,22 +101,25 @@ func TestCreateSchoolInvitationSendsOneWelcomeAndResendDoesNot(t *testing.T) {
 		ActorPermissions: []string{usersManagePermission},
 	})
 	require.NoError(t, err)
-	require.True(t, mailer.WaitForMessages(2, 5*time.Second), "create sends the invitation and the welcome")
-
-	welcome, ok := mailer.MessageWithTemplate("staff-welcome.html")
-	require.True(t, ok)
-	assert.Equal(t, address, welcome.To.Address)
-	assert.Equal(t, "Willkommen bei moto – OGS Am Berg", welcome.Subject)
-	helpURL, _ := welcome.Content.(map[string]any)["HelpURL"].(string)
+	require.True(t, mailer.WaitForMessages(1, 5*time.Second), "create sends the invitation")
+	rows := staffWelcomeOutbox(t, db, invitation.ID)
+	require.Len(t, rows, 1, "create persists one welcome")
+	assert.Equal(t, "staff_welcome", rows[0].Kind)
+	assert.Equal(t, "school_invitation", rows[0].RelatedEntityType)
+	assert.Equal(t, invitation.ID, rows[0].RelatedEntityID)
+	assert.WithinDuration(t, time.Now().Add(30*time.Second), rows[0].NextRetryAt, 5*time.Second,
+		"the durable row preserves the welcome delay")
+	payload := emailOutboxPayload(t, db, rows[0].ID)
+	helpURL, _ := payload["help_url"].(string)
 	assert.Contains(t, helpURL, "/help/einladung-annehmen-und-konto-einrichten?role=caregiver&"+welcomeSettingsQuery,
 		"a role without lead rights opens the caregiver article with the school's settings")
 	assert.NotContains(t, helpURL, "return_to")
 	assert.Equal(t, 1, countTemplate(mailer.Messages(), "invitation.html"))
 
 	require.NoError(t, module.Invitation.ResendSchoolInvitation(ctx, invitation.ID, creator.ID))
-	require.True(t, mailer.WaitForMessages(3, 5*time.Second), "the resend mails the link again")
+	require.True(t, mailer.WaitForMessages(2, 5*time.Second), "the resend mails the link again")
 	assert.Equal(t, 2, countTemplate(mailer.Messages(), "invitation.html"))
-	assert.Equal(t, 1, countTemplate(mailer.Messages(), "staff-welcome.html"), "a resend never welcomes again")
+	assert.Len(t, staffWelcomeOutbox(t, db, invitation.ID), 1, "a resend never welcomes again")
 }
 
 func TestSchoolWelcomeWaitsForAcceptedInvitation(t *testing.T) {
@@ -132,14 +135,21 @@ func TestSchoolWelcomeWaitsForAcceptedInvitation(t *testing.T) {
 	creator := testpkg.CreateTestAccount(t, db, "welcome-order-creator")
 	role := testpkg.CreateTestRole(t, db, "welcome-order-caregiver")
 
-	_, err = module.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
+	invitation, err := module.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 		Email: inviteeAddress("welcome-order"), RoleID: role.ID, CreatedBy: creator.ID,
 		ActorPermissions: []string{usersManagePermission},
 	})
 	require.NoError(t, err)
-	require.Eventually(t, func() bool { return len(mailer.sentTemplates()) == 2 }, 5*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return len(mailer.sentTemplates()) == 1 }, 5*time.Second, 10*time.Millisecond)
 	assert.Equal(t, 2, mailer.attempts())
-	assert.Equal(t, []string{"invitation.html", "staff-welcome.html"}, mailer.sentTemplates())
+	assert.Equal(t, []string{"invitation.html"}, mailer.sentTemplates())
+
+	rows := staffWelcomeOutbox(t, db, invitation.ID)
+	require.Len(t, rows, 1)
+	require.Eventually(t, func() bool {
+		sent, statusErr := module.Invitation.SchoolInvitationDeliverySent(ctx, invitation.ID)
+		return statusErr == nil && sent
+	}, 5*time.Second, 10*time.Millisecond)
 }
 
 // A role that carries config:manage is a lead, whatever the school calls it.
@@ -159,24 +169,26 @@ func TestSchoolWelcomeOpensTheLeadArticleForALeadRole(t *testing.T) {
 		SELECT ?, id FROM auth.permissions WHERE name = 'config:manage'`, role.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	_, err = module.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
+	invitation, err := module.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 		Email: inviteeAddress("welcome-lead"), RoleID: role.ID, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Grace"), LastName: testpkg.StrPtr("Hopper"),
 		ActorPermissions: []string{usersManagePermission},
 	})
 	require.NoError(t, err)
-	require.True(t, mailer.WaitForMessages(2, 5*time.Second))
-	welcome, ok := mailer.MessageWithTemplate("staff-welcome.html")
-	require.True(t, ok)
-	helpURL, _ := welcome.Content.(map[string]any)["HelpURL"].(string)
+	require.True(t, mailer.WaitForMessages(1, 5*time.Second))
+	rows := staffWelcomeOutbox(t, db, invitation.ID)
+	require.Len(t, rows, 1)
+	payload := emailOutboxPayload(t, db, rows[0].ID)
+	helpURL, _ := payload["help_url"].(string)
 	assert.Contains(t, helpURL, "/help/einladung-annehmen-und-konto-einrichten?role=lead&")
 }
 
 type outboxRow struct {
-	ID                int64  `bun:"id"`
-	Kind              string `bun:"kind"`
-	RelatedEntityType string `bun:"related_entity_type"`
-	RelatedEntityID   int64  `bun:"related_entity_id"`
+	ID                int64     `bun:"id"`
+	Kind              string    `bun:"kind"`
+	RelatedEntityType string    `bun:"related_entity_type"`
+	RelatedEntityID   int64     `bun:"related_entity_id"`
+	NextRetryAt       time.Time `bun:"next_retry_at"`
 }
 
 // guardianOutbox reads the queued mails of one guardian contact: its
@@ -202,6 +214,26 @@ func countKind(rows []outboxRow, kind string) int {
 		}
 	}
 	return count
+}
+
+func staffWelcomeOutbox(t *testing.T, db *bun.DB, invitationID int64) []outboxRow {
+	t.Helper()
+	var rows []outboxRow
+	require.NoError(t, db.NewRaw(`
+		SELECT id, kind, COALESCE(related_entity_type, '') AS related_entity_type, COALESCE(related_entity_id, 0) AS related_entity_id, next_retry_at
+		FROM platform.email_outbox
+		WHERE related_entity_type = 'school_invitation' AND related_entity_id = ?
+		ORDER BY id`, invitationID).Scan(context.Background(), &rows))
+	return rows
+}
+
+func emailOutboxPayload(t *testing.T, db *bun.DB, id int64) map[string]any {
+	t.Helper()
+	var raw string
+	require.NoError(t, db.NewRaw(`SELECT payload::text FROM platform.email_outbox WHERE id = ?`, id).Scan(context.Background(), &raw))
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal([]byte(raw), &payload))
+	return payload
 }
 
 func TestGuardianInvitationQueuesOneWelcomePerGuardianAndSchool(t *testing.T) {

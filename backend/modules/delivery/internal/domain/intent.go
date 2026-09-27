@@ -41,6 +41,7 @@ type EnqueueInput struct {
 	Related        RelatedEntity
 	Recipient      json.RawMessage
 	Payload        json.RawMessage
+	DeliverAfter   time.Time
 }
 
 type ProviderResult struct {

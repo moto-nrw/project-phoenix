@@ -126,6 +126,9 @@ type SchoolInvitations interface {
 	RevokeTenantSchoolInvitations(ctx context.Context, tenantID int64) (int, error)
 	DeleteExpiredSchoolInvitations(ctx context.Context) (int, error)
 	RecordSchoolInvitationDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
+	// SchoolInvitationDeliverySent reports whether the invitation mail was
+	// accepted by the transport. Delivery uses it to order its welcome mail.
+	SchoolInvitationDeliverySent(ctx context.Context, id int64) (bool, error)
 	// SchoolInvitationSubdomain resolves the school host of an accepted
 	// invitation; it is best-effort and answers "" when it cannot.
 	SchoolInvitationSubdomain(ctx context.Context, token string) string
@@ -165,6 +168,10 @@ func (m *Module) DeleteExpiredSchoolInvitations(ctx context.Context) (int, error
 
 func (m *Module) RecordSchoolInvitationDelivery(ctx context.Context, id int64, delivery TokenDelivery) error {
 	return m.engine.RecordSchoolInvitationDelivery(ctx, id, delivery)
+}
+
+func (m *Module) SchoolInvitationDeliverySent(ctx context.Context, id int64) (bool, error) {
+	return m.engine.SchoolInvitationDeliverySent(ctx, id)
 }
 
 func (m *Module) SchoolInvitationSubdomain(ctx context.Context, token string) string {

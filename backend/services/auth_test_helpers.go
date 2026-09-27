@@ -276,6 +276,8 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 			dispatcher: dispatcher, defaultFrom: defaultFrom, staffURL: frontendURL, schoolURL: schoolURL,
 			mailIdentity: identity, expiry: time.Duration(inviteHours) * time.Hour,
 			backoff: settingsOverrides.resetBackoff, settings: settings.Settings,
+			outbox:       func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: deliveryModule.EmailOutbox} },
+			welcomeDelay: staffWelcomeDelay,
 		},
 	})
 	if err != nil {

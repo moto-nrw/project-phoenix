@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -19,11 +20,13 @@ import (
 // message: the intent's identity and school, its template kind, the decoded
 // payload the producer queued and the delivery attempts made so far.
 type Intent struct {
-	ID       int64
-	TenantID int64
-	Kind     string
-	Payload  map[string]any
-	Attempts int
+	ID                int64
+	TenantID          int64
+	Kind              string
+	RelatedEntityType string
+	RelatedEntityID   int64
+	Payload           map[string]any
+	Attempts          int
 }
 
 // GetTenantID reports the school the intent was queued for.
@@ -111,6 +114,7 @@ type DurableEmail struct {
 	RelatedType    string
 	RelatedID      int64
 	IdempotencyKey string
+	DeliverAfter   time.Time
 }
 
 // DurableEmailResult reports the stored intent.
@@ -140,6 +144,7 @@ type EnqueueRequest struct {
 	RelatedEntityType string // optional, e.g., "enrollment_request"
 	RelatedEntityID   int64  // optional, paired with RelatedEntityType
 	IdempotencyKey    string // optional; duplicate tenant/key enqueues are ignored
+	DeliverAfter      time.Time
 }
 
 // Enqueued reports the intent an Enqueue call stored. ID is the stored
@@ -176,6 +181,7 @@ func (s *Service) Enqueue(ctx context.Context, req EnqueueRequest) (*Enqueued, e
 	stored, err := s.delivery.EnqueueEmail(ctx, DurableEmail{
 		TenantID: tenantID.Int64(), Template: req.Kind, Recipient: recipient, Payload: payload,
 		RelatedType: req.RelatedEntityType, RelatedID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey,
+		DeliverAfter: req.DeliverAfter,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("enqueue email outbox row: %w", err)

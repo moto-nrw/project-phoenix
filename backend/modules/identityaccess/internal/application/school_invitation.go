@@ -118,6 +118,11 @@ func (s *SchoolInvitation) CreateInvitation(ctx context.Context, request domain.
 	if validateErr := invitation.Validate(s.now()); validateErr != nil {
 		return domain.SchoolInvitation{}, failed(opCreateInvitation, validateErr)
 	}
+	portal := s.portalOf(role)
+	if request.SchoolName == "" {
+		request.SchoolName = s.schoolName(ctx, tenantID)
+	}
+	rolePermissions := s.rolePermissionNames(ctx, role.ID)
 	// Spending the address's previous invitations and storing the new one
 	// commit together, so a failed insert never burns the last usable link.
 	err = s.runtime.RunInTx(s.runtime.WithTenantID(ctx, tenantID), func(txCtx context.Context) error {
@@ -130,25 +135,23 @@ func (s *SchoolInvitation) CreateInvitation(ctx context.Context, request domain.
 		}
 		result = stored
 		result.RoleName = role.Name
+		if queueErr := s.delivery.QueueSchoolWelcome(txCtx, result, request.SchoolName, portal, rolePermissions); queueErr != nil {
+			return failed("queue welcome email", queueErr)
+		}
 		return nil
 	})
 	if err != nil {
 		return domain.SchoolInvitation{}, err
 	}
 	s.logCreated(result, request.CreatedBy)
-	s.mailAfterCommit(ctx, result, role, request.SchoolName)
+	s.mailAfterCommit(ctx, result, request.SchoolName, portal)
 	return result, nil
 }
 
-// mailAfterCommit queues the invitation mail and the welcome that follows
-// it (#3534) once the invitation is committed. Only a new invitation
-// welcomes the invitee; a resend mails the link alone.
-func (s *SchoolInvitation) mailAfterCommit(ctx context.Context, invitation domain.SchoolInvitation, role domain.ManagedRole, schoolName string) {
-	portal := s.portalOf(role)
-	if schoolName == "" {
-		schoolName = s.schoolName(ctx, invitation.TenantID)
-	}
-	rolePermissions := s.rolePermissionNames(ctx, role.ID)
+// mailAfterCommit queues the invitation mail after its transaction commits.
+// The welcome was persisted in that transaction and waits for the delivery
+// record, so a resend still mails the link alone.
+func (s *SchoolInvitation) mailAfterCommit(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal) {
 	s.runtime.RegisterAfterCommit(ctx, func() {
 		// Detach drops the request transaction and its commit hooks so the
 		// mail cannot join them. It also clears the tenant; put the
@@ -157,7 +160,7 @@ func (s *SchoolInvitation) mailAfterCommit(ctx context.Context, invitation domai
 		if invitation.TenantID > 0 {
 			dispatchCtx = s.runtime.WithTenantID(dispatchCtx, invitation.TenantID)
 		}
-		s.delivery.DispatchSchoolInvitationWithWelcome(dispatchCtx, invitation, schoolName, portal, s.expiry, rolePermissions)
+		s.delivery.DispatchSchoolInvitation(dispatchCtx, invitation, schoolName, portal, s.expiry)
 	})
 }
 
@@ -657,6 +660,20 @@ func (s *SchoolInvitation) RevokeInvitation(ctx context.Context, invitationID, a
 func (s *SchoolInvitation) RecordInvitationDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) error {
 	_, err := s.store.RecordSchoolInvitationDelivery(ctx, id, delivery.Bounded())
 	return err
+}
+
+// InvitationDeliverySent reports whether the transport accepted the
+// invitation mail. The durable welcome renderer uses this to preserve the
+// invitation-before-welcome order across process restarts.
+func (s *SchoolInvitation) InvitationDeliverySent(ctx context.Context, id int64) (bool, error) {
+	invitation, found, _, err := s.store.FindSchoolInvitation(ctx, id)
+	if err != nil {
+		return false, failed("find invitation delivery", err)
+	}
+	if !found {
+		return false, failed("find invitation delivery", domain.ErrInvitationNotFound)
+	}
+	return invitation.Delivery.SentAt != nil, nil
 }
 
 // InvitationSubdomain resolves the school subdomain an accepted invitation

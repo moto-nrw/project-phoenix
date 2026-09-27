@@ -184,6 +184,7 @@ func (a durableEmailAdapter) EnqueueEmail(ctx context.Context, input emailoutbox
 		Recipient: delivery.EmailRecipient{Address: input.Recipient}, Payload: input.Payload,
 		IdempotencyKey: input.IdempotencyKey,
 		Related:        delivery.RelatedEntity{Type: input.RelatedType, ID: input.RelatedID},
+		DeliverAfter:   input.DeliverAfter,
 	})
 	if err != nil {
 		return emailoutbox.DurableEmailResult{}, err
@@ -206,7 +207,7 @@ type outboxEnqueuer struct{ outbox *emailoutbox.Service }
 func (o outboxEnqueuer) EnqueueOutbox(ctx context.Context, req platformModels.OutboxEnqueueRequest) error {
 	_, err := o.outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
 		Kind: req.Kind, Payload: req.Payload, RelatedEntityType: req.RelatedEntityType,
-		RelatedEntityID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey,
+		RelatedEntityID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey, DeliverAfter: req.DeliverAfter,
 	})
 	return err
 }
@@ -260,7 +261,19 @@ func (p *deliveryProvider) SendEmail(ctx context.Context, intent delivery.Claime
 	if err := json.Unmarshal(intent.EmailPayload, &payload); err != nil {
 		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: decode email payload: %w", err)
 	}
-	row := &emailoutbox.Intent{ID: intent.ID, TenantID: intent.TenantID, Kind: intent.Template, Payload: payload, Attempts: intent.Attempts}
+	relatedType := ""
+	if intent.RelatedEntityType != nil {
+		relatedType = *intent.RelatedEntityType
+	}
+	relatedID := int64(0)
+	if intent.RelatedEntityID != nil {
+		relatedID = *intent.RelatedEntityID
+	}
+	row := &emailoutbox.Intent{
+		ID: intent.ID, TenantID: intent.TenantID, Kind: intent.Template,
+		RelatedEntityType: relatedType, RelatedEntityID: relatedID,
+		Payload: payload, Attempts: intent.Attempts,
+	}
 	renderer, err := p.registry.Lookup(intent.Template)
 	if err != nil {
 		return delivery.ProviderResult{}, err

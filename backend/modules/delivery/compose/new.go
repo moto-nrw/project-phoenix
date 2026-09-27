@@ -104,7 +104,7 @@ func (e moduleEngine) EnqueueEmail(ctx context.Context, input delivery.EmailInte
 	return e.enqueue(ctx, domain.EnqueueInput{
 		TenantID: input.TenantID, Transport: domain.TransportEmail, Template: input.Template,
 		IdempotencyKey: input.IdempotencyKey, Related: toDomainRelated(input.Related),
-		Recipient: recipient, Payload: input.Payload,
+		Recipient: recipient, Payload: input.Payload, DeliverAfter: input.DeliverAfter,
 	}, delivery.TransportEmail)
 }
 
@@ -223,7 +223,8 @@ type providerAdapter struct{ provider Provider }
 func (p providerAdapter) Send(ctx context.Context, intent domain.Intent) (domain.ProviderResult, error) {
 	claimed := delivery.ClaimedIntent{
 		ID: intent.ID, TenantID: intent.TenantID, Transport: delivery.Transport(intent.Transport),
-		Template: intent.Template, Attempts: intent.Attempts,
+		Template: intent.Template, RelatedEntityType: intent.RelatedEntityType,
+		RelatedEntityID: intent.RelatedEntityID, Attempts: intent.Attempts,
 	}
 	if intent.LeaseToken != nil {
 		claimed.LeaseToken = *intent.LeaseToken
