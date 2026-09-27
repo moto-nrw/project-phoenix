@@ -684,6 +684,9 @@ func (s *SchoolInvitation) InvitationDeliverySent(ctx context.Context, id int64)
 	if !invitation.ExpiresAt.After(s.now()) {
 		return false, failed("find invitation delivery", domain.ErrInvitationExpired)
 	}
+	if invitation.Delivery.Error != nil {
+		return false, failed("find invitation delivery", domain.ErrInvitationDeliveryFailed)
+	}
 	if invitation.Delivery.SentAt == nil {
 		return false, nil
 	}

@@ -18,6 +18,7 @@ var (
 	ErrInvitationNotFound          = errors.New("invitation not found")
 	ErrInvitationExpired           = errors.New("invitation has expired")
 	ErrInvitationUsed              = errors.New("invitation has already been used")
+	ErrInvitationDeliveryFailed    = errors.New("invitation delivery failed")
 	ErrInvitationTenantDeleted     = errors.New("the school for this invitation has been deleted")
 	ErrInvitationNameRequired      = errors.New("first name and last name are required")
 	// ErrInvitationOwnerRequired reports an acceptance for an address that

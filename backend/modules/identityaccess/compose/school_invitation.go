@@ -223,6 +223,7 @@ var invitationSentinels = []struct {
 	{domain.ErrInvitationNotFound, identityaccess.ErrInvitationNotFound},
 	{domain.ErrInvitationExpired, identityaccess.ErrInvitationExpired},
 	{domain.ErrInvitationUsed, identityaccess.ErrInvitationUsed},
+	{domain.ErrInvitationDeliveryFailed, identityaccess.ErrInvitationDeliveryFailed},
 	{domain.ErrInvitationTenantDeleted, identityaccess.ErrInvitationTenantDeleted},
 	{domain.ErrInvitationNameRequired, identityaccess.ErrInvitationNameRequired},
 	{domain.ErrInvitationOwnerRequired, identityaccess.ErrInvitationOwnerRequired},

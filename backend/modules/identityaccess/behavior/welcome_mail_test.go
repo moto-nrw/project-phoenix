@@ -53,6 +53,29 @@ type retryingInvitationMailer struct {
 	templates          []string
 }
 
+// permanentlyFailingInvitationMailer exhausts the invitation dispatcher's
+// retries so the welcome renderer can observe its terminal delivery state.
+type permanentlyFailingInvitationMailer struct {
+	mu                 sync.Mutex
+	invitationAttempts int
+}
+
+func (m *permanentlyFailingInvitationMailer) Send(message testpkg.EmailMessage) error {
+	if message.Template != "invitation.html" {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.invitationAttempts++
+	return errors.New("permanent invitation delivery failure")
+}
+
+func (m *permanentlyFailingInvitationMailer) attempts() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.invitationAttempts
+}
+
 func (m *retryingInvitationMailer) Send(message testpkg.EmailMessage) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -150,6 +173,31 @@ func TestSchoolWelcomeWaitsForAcceptedInvitation(t *testing.T) {
 		sent, statusErr := module.Invitation.SchoolInvitationDeliverySent(ctx, invitation.ID)
 		return statusErr == nil && sent
 	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func TestSchoolWelcomeRejectsPermanentlyFailedInvitation(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	mailer := &permanentlyFailingInvitationMailer{}
+	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db),
+		services.WithAuthTestMailer(mailer),
+		services.WithAuthTestPasswordResetBackoff(time.Millisecond),
+	)
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	creator := testpkg.CreateTestAccount(t, db, "welcome-failed-creator")
+	role := testpkg.CreateTestRole(t, db, "welcome-failed-caregiver")
+
+	invitation, err := module.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
+		Email: inviteeAddress("welcome-failed"), RoleID: role.ID, CreatedBy: creator.ID,
+		ActorPermissions: []string{usersManagePermission},
+	})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool { return mailer.attempts() == 3 }, 5*time.Second, 10*time.Millisecond)
+
+	sent, err := module.Invitation.SchoolInvitationDeliverySent(ctx, invitation.ID)
+	assert.False(t, sent)
+	require.ErrorIs(t, err, identityaccess.ErrInvitationDeliveryFailed)
 }
 
 func TestSchoolWelcomeRejectsRevokedAndReplacedInvitations(t *testing.T) {

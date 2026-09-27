@@ -242,7 +242,7 @@ func (d invitationDelivery) recordDelivery(ctx context.Context, meta email.Deliv
 	if result.Status == email.DeliveryStatusSent {
 		sentAt := result.SentAt
 		delivery.SentAt = &sentAt
-	} else if result.Err != nil {
+	} else if result.Final && result.Err != nil {
 		message := strings.TrimSpace(result.Err.Error())
 		delivery.Error = &message
 	}
