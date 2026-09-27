@@ -184,6 +184,34 @@ func TestDemoSchoolQueueRequeuesInterruptedDeferredSeed(t *testing.T) {
 	assert.False(t, claimed.Seeded, "a partial seed must be rebuilt, not replayed")
 }
 
+func TestDemoSchoolQueueRequeuesDeferredSeedBeforeItOpened(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	ctx := t.Context()
+
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{
+		SchoolID: schoolID, SeedJSON: []byte(`{"deferred_seed_pending":true}`),
+	}))
+
+	// Startup first releases the stale claim, then must discard the state that
+	// has not reached FinishDemoSchoolOrder yet.
+	require.NoError(t, queue.ReleaseDemoSchoolOrders(ctx))
+	require.NoError(t, queue.RequeueDeferredDemoSchoolOrders(ctx))
+	claimed, err := queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, claimed)
+	assert.Equal(t, slug, claimed.Slug)
+	assert.False(t, claimed.Seeded, "an interrupted core seed must be rebuilt before it opens")
+}
+
 // The serving backend queues and reads progress; the seed state with its
 // credentials stays out of its reach, and it cannot open a school itself.
 func TestDemoSchoolOrdersCannotReadOrForgeSeedState(t *testing.T) {

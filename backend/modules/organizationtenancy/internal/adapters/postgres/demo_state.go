@@ -139,14 +139,14 @@ func (s *DemoStateStore) ReleaseClaims(ctx context.Context) error {
 	return nil
 }
 
-// RequeueDeferred returns a school whose optional seed stopped after it
-// opened to the normal provisioning queue. Its partial API writes are never
+// RequeueDeferred returns a school whose optional seed stopped after its core
+// seed to the normal provisioning queue. Its partial API writes are never
 // retried in place: the next attempt retires that school and starts clean.
 func (s *DemoStateStore) RequeueDeferred(ctx context.Context, name string) error {
 	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states
 		SET status = 'preparing', claimed_at = NULL, tenant_id = NULL, seed_state = NULL,
 			visitor_account_id = NULL, visitor_parent_account_id = NULL
-		WHERE status = 'ready' AND seed_state->>'deferred_seed_pending' = 'true'
+		WHERE status IN ('preparing', 'ready') AND seed_state->>'deferred_seed_pending' = 'true'
 			AND (? = '' OR name = ?)`, name, name).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("requeue deferred demo school orders: %w", err)

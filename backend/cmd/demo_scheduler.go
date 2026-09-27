@@ -37,6 +37,8 @@ type demoScheduler struct {
 	expiry  *demoExpiry
 	work    sync.WaitGroup
 	seeds   chan struct{}
+
+	failedRequeues *demoDeferredRequeues
 }
 
 func runDemoSchools(ctx context.Context, schools *backendapi.DemoRuntime, baseURL, heartbeat string, once bool) error {
@@ -58,6 +60,7 @@ func runDemoSchools(ctx context.Context, schools *backendapi.DemoRuntime, baseUR
 	scheduler := &demoScheduler{
 		schools: schools, baseURL: baseURL, heartbeat: heartbeat, adapter: newSharedOperatorSession(adapter),
 		tickers: newDemoTickers(), expiry: newDemoExpiry(schools, time.Now), seeds: make(chan struct{}, demoSeedWorkers),
+		failedRequeues: newDemoDeferredRequeues(),
 	}
 	defer scheduler.work.Wait()
 	if once {
@@ -66,7 +69,12 @@ func runDemoSchools(ctx context.Context, schools *backendapi.DemoRuntime, baseUR
 	for {
 		// Expired accesses leave first (#3470), so a school hidden this poll
 		// gets no ticker and holds no place.
-		err := errors.Join(scheduler.expiry.run(ctx), scheduler.startOrders(ctx), scheduler.startTickers(ctx))
+		err := errors.Join(
+			scheduler.expiry.run(ctx),
+			scheduler.retryFailedDeferredRequeues(ctx),
+			scheduler.startOrders(ctx),
+			scheduler.startTickers(ctx),
+		)
 		if err != nil && ctx.Err() == nil {
 			slog.Warn("demo scheduler poll failed; retrying", "error", err)
 		}
@@ -125,6 +133,9 @@ func (s *demoScheduler) prepare(ctx context.Context, order backendapi.DemoSchool
 		)
 		if err := s.seedDeferred(ctx, order.Slug, deferred); err != nil && ctx.Err() == nil {
 			requeueErr := s.schools.RequeueDeferredDemoSchoolOrder(context.WithoutCancel(ctx), order.Slug)
+			if requeueErr != nil {
+				s.rememberFailedDeferredRequeue(order.Slug)
+			}
 			slog.Warn("demo school deferred seed failed; school will be rebuilt",
 				"school", order.Slug,
 				"error", errors.Join(err, requeueErr),
@@ -150,6 +161,51 @@ func (s *demoScheduler) prepare(ctx context.Context, order backendapi.DemoSchool
 		"final", failed,
 		"error", errors.Join(err, failErr),
 	)
+}
+
+func (s *demoScheduler) rememberFailedDeferredRequeue(slug string) { s.failedRequeues.add(slug) }
+
+func (s *demoScheduler) retryFailedDeferredRequeues(ctx context.Context) error {
+	return s.failedRequeues.retry(ctx, s.schools.RequeueDeferredDemoSchoolOrder)
+}
+
+// demoDeferredRequeues retains only runtime failures of named requeue writes.
+// Startup uses the database-wide recovery before workers can begin; polling
+// retries only these names so it cannot race an active deferred seed.
+type demoDeferredRequeues struct {
+	mu    sync.Mutex
+	slugs map[string]struct{}
+}
+
+func newDemoDeferredRequeues() *demoDeferredRequeues {
+	return &demoDeferredRequeues{slugs: make(map[string]struct{})}
+}
+
+func (r *demoDeferredRequeues) add(slug string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.slugs[slug] = struct{}{}
+}
+
+func (r *demoDeferredRequeues) retry(ctx context.Context, requeue func(context.Context, string) error) error {
+	r.mu.Lock()
+	slugs := make([]string, 0, len(r.slugs))
+	for slug := range r.slugs {
+		slugs = append(slugs, slug)
+	}
+	r.mu.Unlock()
+
+	var errs []error
+	for _, slug := range slugs {
+		if err := requeue(ctx, slug); err != nil {
+			errs = append(errs, fmt.Errorf("requeue deferred demo school %s: %w", slug, err))
+			continue
+		}
+		r.mu.Lock()
+		delete(r.slugs, slug)
+		r.mu.Unlock()
+	}
+	return errors.Join(errs...)
 }
 
 // seedDeferred completes an open school. The caller requeues a failure for a
