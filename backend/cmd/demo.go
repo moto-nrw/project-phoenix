@@ -261,6 +261,7 @@ func provisionDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, a
 	}
 	slug := options.TenantSlug
 	options.OnlyProfile, options.StaffPassword, options.StandingDemo = seedapi.DefaultProfileKey, staffPassword, true
+	stateSaved := false
 	options.SaveState = func(ctx context.Context, state *seedapi.SeedState) error {
 		profile, err := state.SelectProfile(seedapi.DefaultProfileKey)
 		if err != nil {
@@ -271,7 +272,15 @@ func provisionDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, a
 		if err != nil {
 			return err
 		}
-		return schools.RememberDemoSchool(ctx, slug, backendapi.DemoSchoolRecord{SchoolID: profile.School.ID, SeedJSON: raw})
+		record := backendapi.DemoSchoolRecord{SchoolID: profile.School.ID, SeedJSON: raw}
+		if stateSaved {
+			return schools.UpdateDemoSchool(ctx, slug, record)
+		}
+		if err := schools.RememberDemoSchool(ctx, slug, record); err != nil {
+			return err
+		}
+		stateSaved = true
+		return nil
 	}
 	result, err := seedapi.NewSeeder(adapter, services.SecureRandomSource(), false, options).Seed(ctx, email, password, pin)
 	if err != nil {

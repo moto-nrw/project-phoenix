@@ -138,14 +138,15 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 		return nil, s.formatProfileError(s.profile, workflow.Name, err)
 	}
 	if s.options.DeferHistory {
-		deferred := Workflow{Name: "deferred-demo", Steps: deferredDemoSteps(s)}
+		steps := append(deferredDemoSteps(s), buildStateStep{seeder: s})
+		nextStep := 0
 		runtime.Result.Deferred = func(ctx context.Context) error {
-			if err := deferred.Run(ctx, runtime); err != nil {
-				var stepErr *StepError
-				if errors.As(err, &stepErr) {
-					return s.formatProfileError(s.profile, stepErr.Step, stepErr.Err)
+			for nextStep < len(steps) {
+				step := steps[nextStep]
+				if err := step.Run(ctx, runtime); err != nil {
+					return s.formatProfileError(s.profile, step.Name(), err)
 				}
-				return s.formatProfileError(s.profile, deferred.Name, err)
+				nextStep++
 			}
 			return nil
 		}

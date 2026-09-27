@@ -223,13 +223,13 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedStaffMessagingStep{},
 		seedStaffNoticesStep{},
 		seedFileStorageStep{},
+		// Der einzige Block, der über die Stempeluhr läuft: nach ihm stempelt
+		// niemand mehr live, und die Historie kann neben der Simulation laufen.
+		seedWorkSessionBreakStep{},
 		// Vor der App-Historie: der IoT-Sitzungsstart erzeugt den echten
 		// NFC-Arbeitsblock. Nach einem App-Checkout am selben Tag verhindert
 		// die Zeiterfassung bewusst einen erneuten Auto-Check-in.
 		seedStatisticsDemoStep{},
-		// Der einzige Block, der über die Stempeluhr läuft: nach ihm stempelt
-		// niemand mehr live, und die Historie kann neben der Simulation laufen.
-		seedWorkSessionBreakStep{},
 	}
 	if !seeder.options.DeferHistory {
 		steps = append(steps, deferredPastSteps()...)

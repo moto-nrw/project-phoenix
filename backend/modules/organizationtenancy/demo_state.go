@@ -23,6 +23,7 @@ type DemoSchoolState struct {
 type DemoStateEngine interface {
 	LoadDemoSchool(context.Context, string) (*DemoSchoolState, error)
 	RememberDemoSchool(context.Context, string, DemoSchoolState) error
+	UpdateDemoSchool(context.Context, string, DemoSchoolState) error
 	WithDemoLease(context.Context, string, func(context.Context) error) error
 }
 
@@ -49,6 +50,15 @@ func (d *DemoSchools) RememberDemoSchool(ctx context.Context, name string, state
 		return fmt.Errorf("demo school name, school ID and seed state are required")
 	}
 	return d.engine.RememberDemoSchool(ctx, name, state)
+}
+
+// UpdateDemoSchool persists a later version of a state that this demo
+// process already stored. Initial writes stay protected by RememberDemoSchool.
+func (d *DemoSchools) UpdateDemoSchool(ctx context.Context, name string, state DemoSchoolState) error {
+	if name == "" || state.SchoolID <= 0 || len(state.SeedJSON) == 0 {
+		return fmt.Errorf("demo school name, school ID and seed state are required")
+	}
+	return d.engine.UpdateDemoSchool(ctx, name, state)
 }
 
 func (d *DemoSchools) WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error {

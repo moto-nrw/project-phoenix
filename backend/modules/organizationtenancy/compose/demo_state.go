@@ -30,6 +30,10 @@ func (e demoStateEngine) RememberDemoSchool(ctx context.Context, name string, st
 	return e.store.Remember(ctx, name, postgres.DemoState{TenantID: state.SchoolID, SeedJSON: string(state.SeedJSON)})
 }
 
+func (e demoStateEngine) UpdateDemoSchool(ctx context.Context, name string, state organizationtenancy.DemoSchoolState) error {
+	return e.store.Update(ctx, name, postgres.DemoState{TenantID: state.SchoolID, SeedJSON: string(state.SeedJSON)})
+}
+
 func (e demoStateEngine) WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error {
 	acquired, err := e.store.WithLease(ctx, name, run)
 	if err != nil {

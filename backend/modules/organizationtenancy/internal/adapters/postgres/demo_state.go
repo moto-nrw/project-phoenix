@@ -51,6 +51,21 @@ func (s *DemoStateStore) Remember(ctx context.Context, name string, state DemoSt
 	return nil
 }
 
+// Update persists a completed deferred seed without allowing a caller to
+// replace another school's state or create a state outside the initial write.
+func (s *DemoStateStore) Update(ctx context.Context, name string, state DemoState) error {
+	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states
+		SET seed_state = ?::jsonb
+		WHERE name = ? AND tenant_id = ? AND seed_state IS NOT NULL`, state.SeedJSON, name, state.TenantID).Exec(ctx)
+	if err != nil {
+		return errors.New("could not update demo school state")
+	}
+	if rows, err := result.RowsAffected(); err != nil || rows != 1 {
+		return errors.New("demo school state does not exist")
+	}
+	return nil
+}
+
 func (s *DemoStateStore) WithLease(ctx context.Context, name string, run func(context.Context) error) (bool, error) {
 	// The caller's cancellation stops the demo callback, but must not make
 	// database/sql roll back the lease transaction asynchronously. This method

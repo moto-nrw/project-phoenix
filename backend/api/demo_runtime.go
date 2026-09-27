@@ -135,6 +135,10 @@ func (d *DemoRuntime) RememberDemoSchool(ctx context.Context, name string, state
 	return d.schools.RememberDemoSchool(ctx, name, organizationtenancy.DemoSchoolState{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON})
 }
 
+func (d *DemoRuntime) UpdateDemoSchool(ctx context.Context, name string, state DemoSchoolRecord) error {
+	return d.schools.UpdateDemoSchool(ctx, name, organizationtenancy.DemoSchoolState{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON})
+}
+
 func (d *DemoRuntime) WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error {
 	return d.schools.WithDemoLease(ctx, name, run)
 }

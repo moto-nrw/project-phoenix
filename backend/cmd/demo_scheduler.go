@@ -22,6 +22,9 @@ const (
 	// (#3464). A visitor enters by redeeming the link; coming back later
 	// redeems it again and brings the simulation back.
 	demoInUseWindow = 30 * time.Minute
+	// A ready school retains its seed callback until every deferred step
+	// succeeds, so a temporary API or database failure cannot leave it partial.
+	demoDeferredRetryDelay = 5 * time.Second
 )
 
 // demoScheduler gives every demo access its own demo school (#3463): it
@@ -149,7 +152,13 @@ func (s *demoScheduler) seedDeferred(ctx context.Context, slug string, deferred 
 		return // A repetition of a seeded order has nothing left to seed.
 	}
 	started := time.Now()
-	if err := deferred(ctx); err != nil {
+	if err := retryDemoDeferredSeed(ctx, deferred, func(ctx context.Context, delay time.Duration, seedErr error) error {
+		slog.Warn("demo school history not seeded; retrying",
+			"school", slug,
+			"error", seedErr,
+		)
+		return waitDemoInterval(ctx, delay)
+	}); err != nil {
 		if ctx.Err() == nil {
 			slog.Warn("demo school history not seeded",
 				"school", slug,
@@ -162,6 +171,18 @@ func (s *demoScheduler) seedDeferred(ctx context.Context, slug string, deferred 
 		"school", slug,
 		"seconds", time.Since(started).Seconds(),
 	)
+}
+
+func retryDemoDeferredSeed(ctx context.Context, deferred func(context.Context) error, wait func(context.Context, time.Duration, error) error) error {
+	for {
+		if err := deferred(ctx); err == nil {
+			return nil
+		} else if ctx.Err() != nil {
+			return ctx.Err()
+		} else if err := wait(ctx, demoDeferredRetryDelay, err); err != nil {
+			return err
+		}
+	}
 }
 
 func (s *demoScheduler) seedAndTick(ctx context.Context, order backendapi.DemoSchoolOrder) (func(context.Context) error, error) {

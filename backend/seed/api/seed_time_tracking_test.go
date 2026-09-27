@@ -150,6 +150,10 @@ func TestFullDemoWorkflowDeferHistoryLeavesOutDeferredSteps(t *testing.T) {
 	assert.Len(t, deferred, len(full)-len(deferredDemoSteps(&Seeder{})))
 	assert.True(t, contains(deferred, parentEnrollmentSeedStep{}), "the visitor's parent account exists when the school opens")
 	assert.True(t, contains(deferred, seedWorkSessionBreakStep{}), "the live break block precedes the simulation")
+	stepIndex := func(steps []Step, want Step) int {
+		return slices.IndexFunc(steps, func(step Step) bool { return reflect.TypeOf(step) == reflect.TypeOf(want) })
+	}
+	assert.Less(t, stepIndex(deferred, seedWorkSessionBreakStep{}), stepIndex(deferred, seedStatisticsDemoStep{}), "the break block must be the first live stamp")
 }
 
 func TestExtractSessionID(t *testing.T) {
