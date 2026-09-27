@@ -151,11 +151,17 @@ func (s *demoScheduler) seedDeferred(ctx context.Context, slug string, deferred 
 	started := time.Now()
 	if err := deferred(ctx); err != nil {
 		if ctx.Err() == nil {
-			slog.Warn("demo school history not seeded", "school", slug, "error", err)
+			slog.Warn("demo school history not seeded",
+				"school", slug,
+				"error", err,
+			)
 		}
 		return
 	}
-	slog.Info("demo school history seeded", "school", slug, "seconds", time.Since(started).Seconds())
+	slog.Info("demo school history seeded",
+		"school", slug,
+		"seconds", time.Since(started).Seconds(),
+	)
 }
 
 func (s *demoScheduler) seedAndTick(ctx context.Context, order backendapi.DemoSchoolOrder) (func(context.Context) error, error) {
