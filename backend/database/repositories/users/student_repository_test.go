@@ -5,12 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,14 +44,14 @@ func TestStudentRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates student with valid data", func(t *testing.T) {
 		// Create person first
 		person := testpkg.CreateTestPerson(t, db, "Create", "Student")
 
-		student := &users.Student{
+		student := &testpkg.Student{
 			PersonID:    person.ID,
 			SchoolClass: "1a",
 		}
@@ -77,7 +75,7 @@ func TestStudentRepository_Create(t *testing.T) {
 
 		person := testpkg.CreateTestPerson(t, db, "BusDays", "All")
 
-		student := &users.Student{
+		student := &testpkg.Student{
 			PersonID:    person.ID,
 			SchoolClass: "2c",
 			BusDays:     departure.BusDaysFromLegacyFlag(true),
@@ -88,7 +86,7 @@ func TestStudentRepository_Create(t *testing.T) {
 
 		found, err := repo.FindByID(ctx, student.ID)
 		require.NoError(t, err)
-		for _, day := range users.BusDayOrder {
+		for _, day := range departure.BusDayOrder {
 			assert.True(t, found.BusDays[day], "bus_days should enable %s", day)
 		}
 
@@ -99,10 +97,10 @@ func TestStudentRepository_Create(t *testing.T) {
 
 		person := testpkg.CreateTestPerson(t, db, "BusDays", "Empty")
 
-		student := &users.Student{
+		student := &testpkg.Student{
 			PersonID:    person.ID,
 			SchoolClass: "2d",
-			BusDays:     users.BusDays{},
+			BusDays:     departure.BusDays{},
 		}
 
 		err := repo.Create(ctx, student)
@@ -124,7 +122,7 @@ func TestStudentRepository_Create(t *testing.T) {
 	t.Run("fails with invalid data - missing school class", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Invalid", "Student")
 
-		student := &users.Student{
+		student := &testpkg.Student{
 			PersonID:    person.ID,
 			SchoolClass: "", // Required field
 		}
@@ -137,10 +135,10 @@ func TestStudentRepository_Create(t *testing.T) {
 	t.Run("fails with invalid bus days before persistence", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Invalid", "BusDays")
 
-		student := &users.Student{
+		student := &testpkg.Student{
 			PersonID:    person.ID,
 			SchoolClass: "1a",
-			BusDays: users.BusDays{
+			BusDays: departure.BusDays{
 				"sat": true,
 			},
 		}
@@ -157,7 +155,7 @@ func TestStudentRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing student", func(t *testing.T) {
@@ -181,7 +179,7 @@ func TestStudentRepository_FindByPersonID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds student by person ID", func(t *testing.T) {
@@ -204,7 +202,7 @@ func TestStudentRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates student fields", func(t *testing.T) {
@@ -237,7 +235,7 @@ func TestStudentRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing student", func(t *testing.T) {
@@ -253,7 +251,7 @@ func TestStudentRepository_Delete(t *testing.T) {
 
 		// Cleanup person (student is already deleted)
 		_, _ = db.NewDelete().
-			Model((*users.Person)(nil)).
+			Model((*testpkg.Person)(nil)).
 			ModelTableExpr(`users.persons AS "person"`).
 			Where(`"person".id = ?`, personID).
 			Exec(ctx)
@@ -282,7 +280,7 @@ func TestStudentRepository_FindByGroupID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds students by group ID", func(t *testing.T) {
@@ -315,7 +313,7 @@ func TestStudentRepository_FindByGroupIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds students by multiple group IDs", func(t *testing.T) {
@@ -340,7 +338,7 @@ func TestStudentRepository_FindByGroupIDs(t *testing.T) {
 	})
 }
 
-// NOTE: AssignToGroup and RemoveFromGroup use Model((*users.Student)(nil)) which
+// NOTE: AssignToGroup and RemoveFromGroup use Model((*testpkg.Student)(nil)) which
 // doesn't properly set the schema-qualified table name. These tests verify the
 // methods exist but the implementation has a known issue with nil model table expressions.
 // In production, this may work if the PostgreSQL search_path includes the "users" schema.
@@ -350,7 +348,7 @@ func TestStudentRepository_AssignToGroup(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("assigns student to education group - verify method exists", func(t *testing.T) {
@@ -373,7 +371,7 @@ func TestStudentRepository_RemoveFromGroup(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("removes student from group - verify method exists", func(t *testing.T) {
@@ -407,7 +405,7 @@ func TestStudentClassReadUsesNativeDirectory(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.MustNewPeopleDirectory(db)
+	repo := testutil.NewPeopleRepositorySuitePeople(db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds students by school class (case-insensitive)", func(t *testing.T) {
@@ -454,7 +452,7 @@ func TestStudentRepository_ClassRoster(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("one class", func(t *testing.T) {
@@ -480,7 +478,7 @@ func TestStudentRepository_CountEnrolledLeavesGraduatesOut(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Counted", "Test", "1a")
@@ -489,7 +487,7 @@ func TestStudentRepository_CountEnrolledLeavesGraduatesOut(t *testing.T) {
 	require.Positive(t, before)
 
 	_, err = db.NewUpdate().TableExpr("users.student_school_memberships").
-		Set("status = ?", users.StudentStatusAlumnus).
+		Set("status = ?", testpkg.StudentStatusAlumnus).
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -503,14 +501,14 @@ func TestStudentRepository_ListByGroupIDsIncludingAlumni(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
 
 	group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("CandidateGroup%d", time.Now().UnixNano()))
 	student := testpkg.CreateTestStudent(t, db, "Candidate", "Test", "1a")
 	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("group_id = ?", group.ID).
-		Set("status = ?", users.StudentStatusAlumnus).
+		Set("status = ?", testpkg.StudentStatusAlumnus).
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -532,15 +530,15 @@ func TestStudentRepository_CountWithOptions(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("counts students with filter", func(t *testing.T) {
 		testpkg.CreateTestStudent(t, db, "Count1", "Test", "CountClass")
 		testpkg.CreateTestStudent(t, db, "Count2", "Test", "CountClass")
 
-		options := modelBase.NewQueryOptions()
-		filter := modelBase.NewFilter()
+		options := testpkg.NewQueryOptions()
+		filter := testpkg.NewQueryFilter()
 		filter.ILike("school_class", "%CountClass%")
 		options.Filter = filter
 
@@ -559,11 +557,11 @@ func TestStudentRepository_CountWithOptions(t *testing.T) {
 
 // newGroupProjectionFactory binds the School Structure owner so group names
 // on roster rows are resolved the way the production graph resolves them.
-func newGroupProjectionFactory(t *testing.T, db *bun.DB) *repositories.Factory {
+func newGroupProjectionFactory(t *testing.T, db *bun.DB) *testutil.PeopleRepositorySuiteFactory {
 	t.Helper()
-	groups, err := repositories.NewSchoolStructure(db)
+	groups, err := testutil.NewPeopleRepositorySuiteSchoolStructure(db)
 	require.NoError(t, err)
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := testutil.NewPeopleRepositorySuiteFactory(db)
 	factory.BindSchoolStructure(groups)
 	return factory
 }
@@ -678,23 +676,23 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
-	from := timezone.NewDate(2026, 6, 1)
-	to := timezone.NewDate(2026, 6, 10)
+	from := calendar.NewDate(2026, 6, 1)
+	to := calendar.NewDate(2026, 6, 10)
 
 	overlapping := testpkg.CreateTestStudent(t, db, "Historisch", "Dabei", "3a")
 	past := testpkg.CreateTestStudent(t, db, "Historisch", "Vorbei", "3a")
 	future := testpkg.CreateTestStudent(t, db, "Historisch", "Später", "3a")
 	alumnus := testpkg.CreateTestStudent(t, db, "Historisch", "Abgang", "3a")
 
-	overlappingUntil := timezone.NewDate(2026, 6, 5)
-	pastUntil := timezone.NewDate(2026, 5, 31)
-	futureFrom := timezone.NewDate(2026, 6, 11)
+	overlappingUntil := calendar.NewDate(2026, 6, 5)
+	pastUntil := calendar.NewDate(2026, 5, 31)
+	futureFrom := calendar.NewDate(2026, 6, 11)
 	for _, update := range []struct {
 		id     int64
 		column string
-		value  timezone.Date
+		value  calendar.Date
 	}{
 		{overlapping.ID, "enrolled_until", overlappingUntil},
 		{past.ID, "enrolled_until", pastUntil},
@@ -705,7 +703,7 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 	}
 	// A graduated child stays out even while the interval overlaps: alumni are
 	// soft-deleted, and the statistics room aggregate excludes them too (#2606).
-	_, err := db.NewUpdate().TableExpr(`users.student_school_memberships`).Set(`status = ?`, users.StudentStatusAlumnus).Where(`student_profile_id = ? AND deleted_at IS NULL`, alumnus.ID).Exec(ctx)
+	_, err := db.NewUpdate().TableExpr(`users.student_school_memberships`).Set(`status = ?`, testpkg.StudentStatusAlumnus).Where(`student_profile_id = ? AND deleted_at IS NULL`, alumnus.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	// A day after the window: nobody gets the immediate-activation override,
@@ -713,7 +711,7 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 	afterWindow := to.AddDays(1)
 	results, err := repo.FindOverlappingWithGroups(ctx, from, to, afterWindow)
 	require.NoError(t, err)
-	ids := make(map[int64]*users.StudentWithGroupInfo, len(results))
+	ids := make(map[int64]*testpkg.StudentWithGroupInfo, len(results))
 	for _, result := range results {
 		ids[result.ID] = result
 	}
@@ -726,7 +724,7 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 
 	_, err = db.NewUpdate().
 		TableExpr(`users.student_school_memberships`).
-		Set(`status = ?`, users.StudentStatusInactive).
+		Set(`status = ?`, testpkg.StudentStatusInactive).
 		Where(`student_profile_id = ? AND deleted_at IS NULL`, overlapping.ID).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -746,7 +744,7 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 
 	// Immediate activation deliberately applies from today onward. A child
 	// activated before the formal service start therefore remains eligible on
-	// a future kitchen-list date, matching users.EnrolledOn and slot lists.
+	// a future kitchen-list date, matching testpkg.EnrolledOn and slot lists.
 	futureList, err := repo.FindOverlappingWithGroups(ctx, to, to, to.AddDays(-1))
 	require.NoError(t, err)
 	futureListIDs := make(map[int64]bool, len(futureList))
@@ -757,7 +755,7 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 }
 
 // TestStudentRepository_FindOverlappingWithGroupsImmediateActivation pins the
-// enrollment rule of users.EnrolledOn at the query: a child activated
+// enrollment rule of testpkg.EnrolledOn at the query: a child activated
 // immediately (status active, enrolled_from still ahead) is in care from today
 // on, so a window containing today must list them — otherwise the statistics
 // drop their attendance and their room visits. The same child in status
@@ -766,25 +764,25 @@ func TestStudentRepository_FindOverlappingWithGroupsImmediateActivation(t *testi
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
-	from := timezone.NewDate(2026, 6, 1)
-	to := timezone.NewDate(2026, 6, 10)
-	insideWindow := timezone.NewDate(2026, 6, 9)
+	from := calendar.NewDate(2026, 6, 1)
+	to := calendar.NewDate(2026, 6, 10)
+	insideWindow := calendar.NewDate(2026, 6, 9)
 
 	activated := testpkg.CreateTestStudent(t, db, "Sofort", "Aktiv", "3a")
 	pending := testpkg.CreateTestStudent(t, db, "Noch", "Wartend", "3a")
 	dormant := testpkg.CreateTestStudent(t, db, "Ohne", "Zeitraum", "3a")
 
-	startsLater := timezone.NewDate(2026, 9, 1)
+	startsLater := calendar.NewDate(2026, 9, 1)
 	for _, update := range []struct {
 		id     int64
-		status users.StudentStatus
-		from   *timezone.Date
+		status testpkg.StudentStatus
+		from   *calendar.Date
 	}{
-		{activated.ID, users.StudentStatusActive, &startsLater},
-		{pending.ID, users.StudentStatusPending, &startsLater},
-		{dormant.ID, users.StudentStatusInactive, nil},
+		{activated.ID, testpkg.StudentStatusActive, &startsLater},
+		{pending.ID, testpkg.StudentStatusPending, &startsLater},
+		{dormant.ID, testpkg.StudentStatusInactive, nil},
 	} {
 		query := db.NewUpdate().TableExpr(`users.student_school_memberships`).Set(`status = ?`, update.status)
 		if update.from != nil {
@@ -794,10 +792,10 @@ func TestStudentRepository_FindOverlappingWithGroupsImmediateActivation(t *testi
 		require.NoError(t, err)
 	}
 
-	contains := func(today timezone.Date) map[int64]*users.StudentWithGroupInfo {
+	contains := func(today calendar.Date) map[int64]*testpkg.StudentWithGroupInfo {
 		results, err := repo.FindOverlappingWithGroups(ctx, from, to, today)
 		require.NoError(t, err)
-		ids := make(map[int64]*users.StudentWithGroupInfo, len(results))
+		ids := make(map[int64]*testpkg.StudentWithGroupInfo, len(results))
 		for _, result := range results {
 			ids[result.ID] = result
 		}
@@ -810,10 +808,10 @@ func TestStudentRepository_FindOverlappingWithGroupsImmediateActivation(t *testi
 	assert.NotContains(t, inWindow, dormant.ID, "an inactive row without an interval is no longer enrolled")
 
 	// The row must carry the lifecycle status, not only pass the WHERE clause:
-	// users.EnrolledOn reads it per day, so a zero value would drop the very
+	// testpkg.EnrolledOn reads it per day, so a zero value would drop the very
 	// child this query just admitted (#2606).
 	require.NotNil(t, inWindow[activated.ID])
-	assert.Equal(t, users.StudentStatusActive, inWindow[activated.ID].Status)
+	assert.Equal(t, testpkg.StudentStatusActive, inWindow[activated.ID].Status)
 
 	afterWindow := contains(to.AddDays(1))
 	assert.NotContains(t, afterWindow, activated.ID, "the override reaches today, not a window that ended before it")
@@ -839,7 +837,7 @@ func TestStudentRepository_FindByIDForUpdate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns the locked row", func(t *testing.T) {

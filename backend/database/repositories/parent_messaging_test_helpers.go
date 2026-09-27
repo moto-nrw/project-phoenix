@@ -13,7 +13,7 @@ import (
 // NewMessageableGuardianRepository binds the recipient lookup to the native
 // Identity capability for focused repository tests.
 func NewMessageableGuardianRepository(db *bun.DB) *usersRepo.MessageableGuardianRepository {
-	return usersRepo.NewMessageableGuardianRepository(db, newIdentityAccess(db, nil).FindActiveSchoolMemberships)
+	return usersRepo.NewMessageableGuardianRepository(peopleRuntime(db), newIdentityAccess(db, nil).FindActiveSchoolMemberships)
 }
 
 // ParentMessagingTestRepositories is the parent-conversation data layer for

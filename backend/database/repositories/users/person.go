@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
@@ -19,32 +17,32 @@ const errPersonNotFound = "no person found with ID %d"
 // unlinkField sets a person's column to NULL and handles common error patterns.
 // The column name is bound as a quoted identifier.
 func (r *PersonRepository) unlinkField(ctx context.Context, personID int64, fieldName, opName string) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
+	query := r.runtime.DB(ctx).NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set("? = NULL", bun.Ident(fieldName)).
 		Where(`"person".id = ?`, personID)
 
-	query = base.WithTenantFilter(ctx, query, "person")
+	query = withTenantFilter(ctx, r.runtime, query, "person")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{
+		return &users.DatabaseError{
 			Op:  opName,
-			Err: base.TranslateNotFound(err),
+			Err: translateNotFound(err),
 		}
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return &modelBase.DatabaseError{
+		return &users.DatabaseError{
 			Op:  opName + " - check rows affected",
-			Err: base.TranslateNotFound(err),
+			Err: translateNotFound(err),
 		}
 	}
 
 	if rowsAffected == 0 {
-		return &modelBase.DatabaseError{
+		return &users.DatabaseError{
 			Op:  opName,
 			Err: fmt.Errorf(errPersonNotFound, personID),
 		}
@@ -55,8 +53,7 @@ func (r *PersonRepository) unlinkField(ctx context.Context, personID int64, fiel
 
 // PersonRepository implements users.PersonRepository interface
 type PersonRepository struct {
-	*base.Repository[*users.Person]
-	db *bun.DB
+	runtime Runtime
 	// accounts resolves the login account Identity & Access owns; without it
 	// FindWithAccount fails closed instead of reading auth.accounts itself.
 	accounts AccountLookup
@@ -72,13 +69,8 @@ func WithAccountLookup(lookup AccountLookup) PersonOption {
 }
 
 // NewPersonRepository creates a new PersonRepository
-func NewPersonRepository(db *bun.DB, options ...PersonOption) users.PersonRepository {
-	repo := base.NewRepository[*users.Person](db, "users.persons", "Person")
-	repo.TenantScoped = true
-	repository := &PersonRepository{
-		Repository: repo,
-		db:         db,
-	}
+func NewPersonRepository(runtime Runtime, options ...PersonOption) users.PersonRepository {
+	repository := &PersonRepository{runtime: requireRuntime(runtime)}
 	for _, option := range options {
 		option(repository)
 	}
@@ -91,12 +83,12 @@ func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*user
 	normalizedTagID := users.NormalizeTagID(tagID)
 
 	person := new(users.Person)
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".tag_id = ?`, normalizedTagID)
 
-	query = base.WithTenantFilter(ctx, query, "person")
+	query = withTenantFilter(ctx, r.runtime, query, "person")
 
 	err := query.Scan(ctx)
 
@@ -105,9 +97,9 @@ func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*user
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{
+		return nil, &users.DatabaseError{
 			Op:  "find by tag ID",
-			Err: base.TranslateNotFound(err),
+			Err: translateNotFound(err),
 		}
 	}
 
@@ -117,12 +109,12 @@ func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*user
 // FindByAccountID retrieves a person by their account ID
 func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64) (*users.Person, error) {
 	person := new(users.Person)
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".account_id = ?`, accountID)
 
-	query = base.WithTenantFilter(ctx, query, "person")
+	query = withTenantFilter(ctx, r.runtime, query, "person")
 
 	err := query.Scan(ctx)
 
@@ -131,9 +123,9 @@ func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64)
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{
+		return nil, &users.DatabaseError{
 			Op:  "find by account ID",
-			Err: base.TranslateNotFound(err),
+			Err: translateNotFound(err),
 		}
 	}
 
@@ -148,17 +140,17 @@ func (r *PersonRepository) FindByAccountIDs(ctx context.Context, accountIDs []in
 	}
 
 	var persons []*users.Person
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(&persons).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".account_id IN (?)`, bun.List(accountIDs))
 
-	query = base.WithTenantFilter(ctx, query, "person")
+	query = withTenantFilter(ctx, r.runtime, query, "person")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{
+		return nil, &users.DatabaseError{
 			Op:  "find by account IDs",
-			Err: base.TranslateNotFound(err),
+			Err: translateNotFound(err),
 		}
 	}
 
@@ -177,16 +169,16 @@ func (r *PersonRepository) FindByAccountIDs(ctx context.Context, accountIDs []in
 // each other with stale full-row snapshots.
 func (r *PersonRepository) FindByIDForUpdate(ctx context.Context, id int64) (*users.Person, error) {
 	person := new(users.Person)
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".id = ?`, id).
 		For("UPDATE")
 
-	query = base.WithTenantFilter(ctx, query, "person")
+	query = withTenantFilter(ctx, r.runtime, query, "person")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find person for update", Err: base.TranslateNotFound(err)}
+		return nil, &users.DatabaseError{Op: "find person for update", Err: translateNotFound(err)}
 	}
 	return person, nil
 }
@@ -198,19 +190,19 @@ func (r *PersonRepository) FindByIDs(ctx context.Context, ids []int64) (map[int6
 	}
 
 	var persons []*users.Person
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(&persons).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".id IN (?)`, bun.List(ids))
 
-	query = base.WithTenantFilter(ctx, query, "person")
+	query = withTenantFilter(ctx, r.runtime, query, "person")
 
 	err := query.Scan(ctx)
 
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
+		return nil, &users.DatabaseError{
 			Op:  "find by IDs",
-			Err: base.TranslateNotFound(err),
+			Err: translateNotFound(err),
 		}
 	}
 
@@ -225,33 +217,33 @@ func (r *PersonRepository) FindByIDs(ctx context.Context, ids []int64) (map[int6
 
 // LinkToAccount associates a person with an account
 func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, accountID int64) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
+	query := r.runtime.DB(ctx).NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set("account_id = ?", accountID).
 		Where(`"person".id = ?`, personID)
 
-	query = base.WithTenantFilter(ctx, query, "person")
+	query = withTenantFilter(ctx, r.runtime, query, "person")
 
 	result, err := query.Exec(ctx)
 
 	if err != nil {
-		return &modelBase.DatabaseError{
+		return &users.DatabaseError{
 			Op:  "link to account",
-			Err: base.TranslateNotFound(err),
+			Err: translateNotFound(err),
 		}
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return &modelBase.DatabaseError{
+		return &users.DatabaseError{
 			Op:  "link to account - check rows affected",
-			Err: base.TranslateNotFound(err),
+			Err: translateNotFound(err),
 		}
 	}
 
 	if rowsAffected == 0 {
-		return &modelBase.DatabaseError{
+		return &users.DatabaseError{
 			Op:  "link to account",
 			Err: fmt.Errorf(errPersonNotFound, personID),
 		}
@@ -270,33 +262,33 @@ func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 	// Normalize the tag ID to match RFID card format
 	normalizedTagID := users.NormalizeTagID(tagID)
 
-	query := base.GetDB(ctx, r.db).NewUpdate().
+	query := r.runtime.DB(ctx).NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set("tag_id = ?", normalizedTagID).
 		Where(`"person".id = ?`, personID)
 
-	query = base.WithTenantFilter(ctx, query, "person")
+	query = withTenantFilter(ctx, r.runtime, query, "person")
 
 	result, err := query.Exec(ctx)
 
 	if err != nil {
-		return &modelBase.DatabaseError{
+		return &users.DatabaseError{
 			Op:  "link to RFID card",
-			Err: base.TranslateNotFound(err),
+			Err: translateNotFound(err),
 		}
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return &modelBase.DatabaseError{
+		return &users.DatabaseError{
 			Op:  "link to RFID card - check rows affected",
-			Err: base.TranslateNotFound(err),
+			Err: translateNotFound(err),
 		}
 	}
 
 	if rowsAffected == 0 {
-		return &modelBase.DatabaseError{
+		return &users.DatabaseError{
 			Op:  "link to RFID card",
 			Err: fmt.Errorf(errPersonNotFound, personID),
 		}
@@ -322,20 +314,20 @@ func (r *PersonRepository) Update(ctx context.Context, person *users.Person) err
 	}
 
 	// Explicitly update all person fields (including NULL values)
-	query := base.GetDB(ctx, r.db).NewUpdate().
+	query := r.runtime.DB(ctx).NewUpdate().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
 		Column("first_name", "last_name", "birthday", "tag_id", "account_id").
 		WherePK()
 
-	query = base.WithTenantFilter(ctx, query, "person")
+	query = withTenantFilter(ctx, r.runtime, query, "person")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to update person: %w", err)
 	}
 
-	return base.AssertRowsAffected(result, 1, "update person")
+	return assertRowsAffected(result, 1, "update person")
 }
 
 // AccountLookup resolves the login account behind a person. Identity &
@@ -348,22 +340,22 @@ type AccountLookup func(ctx context.Context, accountID int64) (*users.PersonAcco
 // owner through the bound lookup and is attached when the person has one.
 func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*users.Person, error) {
 	if r.accounts == nil {
-		return nil, &modelBase.DatabaseError{Op: "find with account", Err: errors.New("account lookup is required")}
+		return nil, &users.DatabaseError{Op: "find with account", Err: errors.New("account lookup is required")}
 	}
 
 	person := new(users.Person)
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".id = ?`, id).
 		Where(`"person".deleted_at IS NULL`)
 
-	query = base.WithTenantFilter(ctx, query, "person")
+	query = withTenantFilter(ctx, r.runtime, query, "person")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{
+		return nil, &users.DatabaseError{
 			Op:  "find with account",
-			Err: base.TranslateNotFound(err),
+			Err: translateNotFound(err),
 		}
 	}
 
@@ -372,7 +364,7 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 	}
 	account, err := r.accounts(ctx, *person.AccountID)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find with account", Err: err}
+		return nil, &users.DatabaseError{Op: "find with account", Err: err}
 	}
 	if account != nil && account.ID != 0 {
 		person.Account = account
@@ -383,8 +375,8 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 
 // Legacy method to maintain compatibility with old interface
 func (r *PersonRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.Person, error) {
-	options := modelBase.NewQueryOptions()
-	filter := modelBase.NewFilter()
+	options := users.NewQueryOptions()
+	filter := users.NewQueryFilter()
 
 	for field, value := range filters {
 		if value != nil {
@@ -397,7 +389,7 @@ func (r *PersonRepository) List(ctx context.Context, filters map[string]interfac
 }
 
 // applyPersonFilter applies a single filter based on field name
-func applyPersonFilter(filter *modelBase.Filter, field string, value interface{}) {
+func applyPersonFilter(filter *users.QueryFilter, field string, value interface{}) {
 	switch field {
 	case "first_name_like":
 		applyPersonStringLikeFilter(filter, "first_name", value)
@@ -413,14 +405,14 @@ func applyPersonFilter(filter *modelBase.Filter, field string, value interface{}
 }
 
 // applyPersonStringLikeFilter applies LIKE filter for string fields
-func applyPersonStringLikeFilter(filter *modelBase.Filter, column string, value interface{}) {
+func applyPersonStringLikeFilter(filter *users.QueryFilter, column string, value interface{}) {
 	if strValue, ok := value.(string); ok {
 		filter.Like(column, "%"+strValue+"%")
 	}
 }
 
 // applyNullableFieldFilter applies NULL/NOT NULL filter based on boolean value
-func applyNullableFieldFilter(filter *modelBase.Filter, column string, value interface{}) {
+func applyNullableFieldFilter(filter *users.QueryFilter, column string, value interface{}) {
 	if boolValue, ok := value.(bool); ok {
 		if boolValue {
 			filter.IsNotNull(column)
@@ -436,7 +428,7 @@ func applyNullableFieldFilter(filter *modelBase.Filter, column string, value int
 // statement; used by operator SoftDeletePerson. Cross-tenant by design when
 // the context carries no tenant (operator admin transactions).
 func (r *PersonRepository) AnonymizeAndSoftDelete(ctx context.Context, personID int64) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
+	query := r.runtime.DB(ctx).NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set(`first_name = ?`, "Gelöscht").
@@ -445,13 +437,74 @@ func (r *PersonRepository) AnonymizeAndSoftDelete(ctx context.Context, personID 
 		Set(`deleted_at = NOW()`).
 		Where(`"person".id = ?`, personID)
 
-	query = base.WithTenantFilter(ctx, query, "person")
+	query = withTenantFilter(ctx, r.runtime, query, "person")
 
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{
+		return &users.DatabaseError{
 			Op:  "anonymize and soft delete person",
-			Err: base.TranslateNotFound(err),
+			Err: translateNotFound(err),
 		}
 	}
 	return nil
+}
+
+// Create inserts a new person, stamping the context's tenant when the row has
+// none yet.
+func (r *PersonRepository) Create(ctx context.Context, person *users.Person) error {
+	if person == nil {
+		return fmt.Errorf("%s cannot be nil or zero value", "Person")
+	}
+	if err := person.Validate(); err != nil {
+		return err
+	}
+	ensureTenantID(ctx, r.runtime, person)
+	if _, err := r.runtime.DB(ctx).NewInsert().Model(person).ModelTableExpr(`users.persons`).Exec(ctx); err != nil {
+		return &users.DatabaseError{Op: "create", Err: err}
+	}
+	return nil
+}
+
+// FindByID retrieves a person by ID.
+func (r *PersonRepository) FindByID(ctx context.Context, id any) (*users.Person, error) {
+	person := new(users.Person)
+	query := r.runtime.DB(ctx).NewSelect().
+		Model(person).
+		ModelTableExpr(`users.persons AS "person"`).
+		Where(`"person".id = ?`, id)
+	query = withTenantFilter(ctx, r.runtime, query, "person")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &users.DatabaseError{Op: "find by id", Err: translateNotFound(err)}
+	}
+	return person, nil
+}
+
+// Delete removes a person row.
+func (r *PersonRepository) Delete(ctx context.Context, id any) error {
+	query := r.runtime.DB(ctx).NewDelete().
+		Model((*users.Person)(nil)).
+		ModelTableExpr(`users.persons AS "person"`).
+		Where(`"person".id = ?`, id)
+	query = withTenantFilter(ctx, r.runtime, query, "person")
+	if _, err := query.Exec(ctx); err != nil {
+		return &users.DatabaseError{Op: "delete", Err: err}
+	}
+	return nil
+}
+
+// ListWithOptions retrieves the persons matching the query options; no match
+// is an empty list, not nil.
+func (r *PersonRepository) ListWithOptions(ctx context.Context, options *users.QueryOptions) ([]*users.Person, error) {
+	persons := make([]*users.Person, 0)
+	query := r.runtime.DB(ctx).NewSelect().
+		Model(&persons).
+		ModelTableExpr(`users.persons AS "person"`)
+	query = withTenantFilter(ctx, r.runtime, query, "person")
+	if options != nil && options.Filter != nil {
+		options.Filter.WithTableAlias("person")
+	}
+	query = applyQueryOptions(query, options)
+	if err := query.Scan(ctx); err != nil {
+		return nil, &users.DatabaseError{Op: "list with options", Err: err}
+	}
+	return persons, nil
 }

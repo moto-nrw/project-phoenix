@@ -315,6 +315,38 @@ goldens are byte-identical.
 - The named File Storage adapter exception stays (see below), re-anchored and
   now tracked by #2706.
 
+#2727 closed the carrier of `database/repositories/users`: its 14 remaining
+keys are gone (402 -> 388), the package keeps its owner, role and tables, and
+no rule was added. The one rule that allowed the Communication suites to
+construct the retained person repository went stale with its last import and
+is deleted.
+
+- The retained repositories read the tenant and the ambient transaction
+  through the consumer-owned `Runtime` port. People Directory's composition
+  binds it over the tenant runtime (`compose.LegacyRepositoryRuntime`), and
+  `database/repositories` passes it to every constructor. The generic
+  repository of `database/repositories/base` is replaced by explicit CRUD
+  methods with literal table expressions and a local copy of the query-option
+  applicator; the error and query shapes the retained contracts name
+  (`DatabaseError`, the not-found sentinel, `QueryOptions`, the
+  unique-violation checks) come through the `models/users` vocabulary, so
+  callers that classify with `errors.As` keep matching. Calendar dates use
+  `sharedkernel/calendar`.
+- The authorization policy stays out of the package: the two stored
+  parent-portal permission keys the guardian reads filter on are local copies,
+  and a link without a role takes the default preset through the
+  `WithGuardianDefaultRole` option, which the composition binds over
+  `securityruntime.DefaultStudentGuardianRole` and `StudentGuardianRolePreset`;
+  without it the store refuses such a link. The legacy composition reads the
+  caller's school through `peopledirectory/compose` and the permission
+  matcher through `modules/securityruntime` instead of helpers of this package.
+- The 39 suites stay external tests of the package. They compose the retained
+  repositories and the legacy factory through `services/people_repository_suites.go`
+  behind `api/testutil`, and name rows, values and errors through
+  `test/people_repository_vocabulary.go` and the tenant helpers of
+  `test/tenant_runtime.go`. The 208 tests and their subtests are unchanged in
+  number and assertion.
+
 #2762 cut the execution and the attendance of a block over to Student
 Presence (migration 1.15.415, one release with the caller switch). Timetable
 & Activities keeps the plan in `schedule.activity_instances` and

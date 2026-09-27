@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 25.09.2026 · Ratchet 402 · Composition 603 · Policy-Epoche 31 · 4 Regeln mit
+Stand 27.09.2026 · Ratchet 388 · Composition 603 · Policy-Epoche 31 · 4 Regeln mit
 `convert it to exact debt` · 20.013 LOC unter `modules/*/legacy`
 
-Summenprobe: 169 + 27 + 4 + 0 + 27 + 19 + 156 = 402 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 155 + 27 + 4 + 0 + 27 + 19 + 156 = 388 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -16,14 +16,14 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [x] [#3414](https://github.com/moto-nrw/project-phoenix/issues/3414) Projection-Owner `operator-dashboard-view` bleibt (ADR 0033)
 - [ ] Gehört der Träger-Strang [#2809](https://github.com/moto-nrw/project-phoenix/issues/2809) / [#2821](https://github.com/moto-nrw/project-phoenix/issues/2821) zu #2580?
 
-## Jetzt vergebbar · 169 Keys
+## Jetzt vergebbar · 155 Keys
 
 - [ ] [#2733](https://github.com/moto-nrw/project-phoenix/issues/2733) services/enrollment, repositories/enrollment — 0 (`database/repositories/enrollment` gelöscht, 7 Keys weg; die `services/enrollment`-Keys fallen über #3558 bis #3565; #3559 hat den Care-Offering-Katalog nach `modules/careplan` verschoben, ohne Key; #3560 die Buchungs-Materialisierung, zwei erledigte Keys entfernt; #3561 die Angebotswechsel-, Kurs- und Abholzeit-Reviews, vier erledigte Keys entfernt, darunter `crypto/subtle`, `legacy/jwt` und `services/parentmessaging`; #3562 Phasen, Formulare, Captcha und Eltern-Mails nach `modules/enrollment/internal/application`, sechs erledigte Keys entfernt, darunter `email`, `pgdriver` und `net/http`, Policy-Epoche 30 → 31, Kompositionsregel per ADR 0041; #3563 Klassentag, Aufsichtsblatt und Ankunftsausnahmen nach `modules/classday`, Care-Usage- und Klassenlisten-Reports nach `modules/enrollment`, sechs erledigte Keys entfernt, darunter `internal/collation`, `internal/sliceutil` und `models/education`, acht verwaiste Regeln gelöscht, ohne neue Regel; #3564 Entscheidung, Wiederherstellung, Rollover, Löschung und Aufbewahrungs-Cleanup nach `modules/enrollment`, acht erledigte Keys entfernt, darunter `models/audit`, `models/base`, `models/schedule`, `realtime`, `services/import` und `bun.DB.RunInTx`, ohne neue Regel; #3565 Intake und Änderungsanträge nach `modules/enrollment`, `services/enrollment` gelöscht, die letzten 45 Keys entfernt, 14 verwaiste Regeln gelöscht, ohne neue Regel)
 - [ ] [#2742](https://github.com/moto-nrw/project-phoenix/issues/2742) services/education, repositories/education, api/groups, api/admin — 63
 - [ ] [#2728](https://github.com/moto-nrw/project-phoenix/issues/2728) services/users — 37 (#3354: fünf erledigte Keys entfernt, darunter `cmp`, `realtime` und `services/parentmessaging`)
 - [ ] [#2734](https://github.com/moto-nrw/project-phoenix/issues/2734) api/enrollment — 26 (#2731: `api/students` entfernt, die Companion-Codes kommen aus `api/common`; #3564: `models/audit` in Produktion und internen Tests entfernt; #3565: `services/enrollment` in Produktion und Tests entfernt)
 - [ ] [#2738](https://github.com/moto-nrw/project-phoenix/issues/2738) api/common — 20 (#2731: die Listen-Snapshot-Hilfe zog mit den Schülerrouten um, drei Modell-Keys weg)
-- [ ] [#2727](https://github.com/moto-nrw/project-phoenix/issues/2727) database/repositories/users — 14
+- [x] [#2727](https://github.com/moto-nrw/project-phoenix/issues/2727) database/repositories/users — 0 (alle 14 Keys weg, 402 → 388; Tenant und Transaktion über die Runtime aus `modules/peopledirectory/compose`, Fehler- und Query-Formen über das `models/users`-Vokabular, Kalender über `sharedkernel/calendar`, Berechtigungen über `modules/securityruntime`; die Suiten komponieren über `api/testutil` → `services` und benennen Zeilen über `test`; eine stale Communication-Regel gelöscht, Composition 603 → 603)
 - [ ] [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) models/users — 9
 
 ## Legacy-Nester auflösen · 31.074 LOC, 0 Keys
@@ -90,7 +90,7 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Spur A · 19 Keys
 
-- [ ] [#2706](https://github.com/moto-nrw/project-phoenix/issues/2706) Dokument-Rendering — 19, blockiert durch #2727, #2729
+- [ ] [#2706](https://github.com/moto-nrw/project-phoenix/issues/2706) Dokument-Rendering — 19, blockiert durch #2729
 
 ## Endkette · 156 Keys
 

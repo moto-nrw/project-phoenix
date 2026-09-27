@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,16 +19,16 @@ func TestGuardianPhoneNumberRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates phone number with valid data", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "create-phone")
 
-		phone := &users.GuardianPhoneNumber{
+		phone := &testpkg.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
 			PhoneNumber:       "+49 30 123456",
-			PhoneType:         users.PhoneTypeHome,
+			PhoneType:         testpkg.PhoneTypeHome,
 			IsPrimary:         true,
 			Priority:          1,
 		}
@@ -45,10 +44,10 @@ func TestGuardianPhoneNumberRepository_Create(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "phone-with-label")
 
 		label := "Büro"
-		phone := &users.GuardianPhoneNumber{
+		phone := &testpkg.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
 			PhoneNumber:       "+49 30 987654",
-			PhoneType:         users.PhoneTypeWork,
+			PhoneType:         testpkg.PhoneTypeWork,
 			Label:             &label,
 			IsPrimary:         false,
 			Priority:          2,
@@ -62,10 +61,10 @@ func TestGuardianPhoneNumberRepository_Create(t *testing.T) {
 	})
 
 	t.Run("fails with missing guardian profile ID", func(t *testing.T) {
-		phone := &users.GuardianPhoneNumber{
+		phone := &testpkg.GuardianPhoneNumber{
 			GuardianProfileID: 0, // Invalid
 			PhoneNumber:       "+49 30 123456",
-			PhoneType:         users.PhoneTypeMobile,
+			PhoneType:         testpkg.PhoneTypeMobile,
 		}
 
 		err := repo.Create(ctx, phone)
@@ -76,10 +75,10 @@ func TestGuardianPhoneNumberRepository_Create(t *testing.T) {
 	t.Run("fails with empty phone number", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "empty-phone")
 
-		phone := &users.GuardianPhoneNumber{
+		phone := &testpkg.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
 			PhoneNumber:       "",
-			PhoneType:         users.PhoneTypeMobile,
+			PhoneType:         testpkg.PhoneTypeMobile,
 		}
 
 		err := repo.Create(ctx, phone)
@@ -97,16 +96,16 @@ func TestGuardianPhoneNumberRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing phone number", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "find-phone")
 
-		phone := &users.GuardianPhoneNumber{
+		phone := &testpkg.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
 			PhoneNumber:       "+49 30 111111",
-			PhoneType:         users.PhoneTypeMobile,
+			PhoneType:         testpkg.PhoneTypeMobile,
 			IsPrimary:         true,
 			Priority:          1,
 		}
@@ -136,27 +135,27 @@ func TestGuardianPhoneNumberRepository_FindByGuardianID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds all phone numbers for guardian", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "find-all-phones")
 
 		// Create multiple phones
-		phone1 := &users.GuardianPhoneNumber{
+		phone1 := &testpkg.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
 			PhoneNumber:       "+49 30 111111",
-			PhoneType:         users.PhoneTypeMobile,
+			PhoneType:         testpkg.PhoneTypeMobile,
 			IsPrimary:         true,
 			Priority:          1,
 		}
 		err := repo.Create(ctx, phone1)
 		require.NoError(t, err)
 
-		phone2 := &users.GuardianPhoneNumber{
+		phone2 := &testpkg.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
 			PhoneNumber:       "+49 30 222222",
-			PhoneType:         users.PhoneTypeHome,
+			PhoneType:         testpkg.PhoneTypeHome,
 			IsPrimary:         false,
 			Priority:          2,
 		}
@@ -200,16 +199,16 @@ func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates phone number fields", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "update-phone")
 
-		phone := &users.GuardianPhoneNumber{
+		phone := &testpkg.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
 			PhoneNumber:       "+49 30 777888",
-			PhoneType:         users.PhoneTypeMobile,
+			PhoneType:         testpkg.PhoneTypeMobile,
 			IsPrimary:         false,
 			Priority:          1,
 		}
@@ -218,7 +217,7 @@ func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
 
 		// Update fields
 		phone.PhoneNumber = "+49 30 999000"
-		phone.PhoneType = users.PhoneTypeWork
+		phone.PhoneType = testpkg.PhoneTypeWork
 		label := "Updated Label"
 		phone.Label = &label
 		phone.IsPrimary = true
@@ -230,7 +229,7 @@ func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
 		updated, err := repo.FindByID(ctx, phone.ID)
 		require.NoError(t, err)
 		assert.Equal(t, "+49 30 999000", updated.PhoneNumber)
-		assert.Equal(t, users.PhoneTypeWork, updated.PhoneType)
+		assert.Equal(t, testpkg.PhoneTypeWork, updated.PhoneType)
 		assert.Equal(t, &label, updated.Label)
 		assert.True(t, updated.IsPrimary)
 	})
@@ -238,10 +237,10 @@ func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
 	t.Run("returns error for non-existent phone", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "update-nonexistent")
 
-		phone := &users.GuardianPhoneNumber{
+		phone := &testpkg.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
 			PhoneNumber:       "+49 30 123456",
-			PhoneType:         users.PhoneTypeMobile,
+			PhoneType:         testpkg.PhoneTypeMobile,
 		}
 		phone.ID = 999999 // Non-existent ID
 
@@ -260,16 +259,16 @@ func TestGuardianPhoneNumberRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing phone number", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-phone")
 
-		phone := &users.GuardianPhoneNumber{
+		phone := &testpkg.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
 			PhoneNumber:       "+49 30 111000",
-			PhoneType:         users.PhoneTypeMobile,
+			PhoneType:         testpkg.PhoneTypeMobile,
 			Priority:          1,
 		}
 		err := repo.Create(ctx, phone)
@@ -300,17 +299,17 @@ func TestGuardianPhoneNumberRepository_SetPrimary(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("sets phone as primary and unsets others", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "set-primary")
 
 		// Create first phone as primary
-		phone1 := &users.GuardianPhoneNumber{
+		phone1 := &testpkg.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
 			PhoneNumber:       "+49 30 222111",
-			PhoneType:         users.PhoneTypeMobile,
+			PhoneType:         testpkg.PhoneTypeMobile,
 			IsPrimary:         true,
 			Priority:          1,
 		}
@@ -318,10 +317,10 @@ func TestGuardianPhoneNumberRepository_SetPrimary(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create second phone as non-primary
-		phone2 := &users.GuardianPhoneNumber{
+		phone2 := &testpkg.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
 			PhoneNumber:       "+49 30 333111",
-			PhoneType:         users.PhoneTypeHome,
+			PhoneType:         testpkg.PhoneTypeHome,
 			IsPrimary:         false,
 			Priority:          2,
 		}
@@ -361,16 +360,16 @@ func TestGuardianPhoneNumberRepository_UnsetAllPrimary(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("unsets all primary flags", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "unset-primary")
 
-		phone := &users.GuardianPhoneNumber{
+		phone := &testpkg.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
 			PhoneNumber:       "+49 30 444111",
-			PhoneType:         users.PhoneTypeMobile,
+			PhoneType:         testpkg.PhoneTypeMobile,
 			IsPrimary:         true,
 			Priority:          1,
 		}
@@ -405,7 +404,7 @@ func TestGuardianPhoneNumberRepository_CountByGuardianID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("counts phone numbers correctly", func(t *testing.T) {
@@ -413,10 +412,10 @@ func TestGuardianPhoneNumberRepository_CountByGuardianID(t *testing.T) {
 
 		// Create multiple phones
 		for i := range 3 {
-			phone := &users.GuardianPhoneNumber{
+			phone := &testpkg.GuardianPhoneNumber{
 				GuardianProfileID: guardian.ID,
 				PhoneNumber:       fmt.Sprintf("+49 30 %d00%d00", i+1, i+1),
-				PhoneType:         users.PhoneTypeMobile,
+				PhoneType:         testpkg.PhoneTypeMobile,
 				IsPrimary:         i == 0,
 				Priority:          i + 1,
 			}
@@ -447,7 +446,7 @@ func TestGuardianPhoneNumberRepository_GetNextPriority(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns 1 for guardian with no phones", func(t *testing.T) {
@@ -462,10 +461,10 @@ func TestGuardianPhoneNumberRepository_GetNextPriority(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "next-priority")
 
 		// Create phone with priority 3
-		phone := &users.GuardianPhoneNumber{
+		phone := &testpkg.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
 			PhoneNumber:       "+49 30 555111",
-			PhoneType:         users.PhoneTypeMobile,
+			PhoneType:         testpkg.PhoneTypeMobile,
 			IsPrimary:         true,
 			Priority:          3,
 		}

@@ -5,18 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-func newCaregiverBindingLocker(db *bun.DB) userModels.CaregiverBindingLocker {
-	owners := repositories.NewCaregiverBindingOwners(repositories.NewUnobservedTimetableDependencies(db), repositories.NewStudentPresenceForTests(db))
-	return repoUsers.NewCaregiverBindingLocker(owners)
+func newCaregiverBindingLocker(db *bun.DB) testpkg.CaregiverBindingLocker {
+	return testutil.NewPeopleRepositorySuiteCaregiverBindingLocker(db)
 }
 
 func TestStaffRepository_ReleasesCaregiverBindingLocksOnRollback(t *testing.T) {
@@ -27,13 +23,13 @@ func TestStaffRepository_ReleasesCaregiverBindingLocksOnRollback(t *testing.T) {
 
 	holder, err := db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)
-	runtimeCtx := tenant.WithUnitOfWork(testpkg.Ctx(t), testpkg.TenantRuntime(t, db))
-	holderCtx := tenant.WithTransactionForTest(runtimeCtx, &holder)
+	runtimeCtx := testpkg.ContextWithTenantRuntime(testpkg.Ctx(t), testpkg.TenantRuntime(t, db))
+	holderCtx := testpkg.ContextWithTransaction(runtimeCtx, &holder)
 	require.NoError(t, holderRepo.LockCaregiverCapabilityBindings(holderCtx))
 
 	waiter, err := db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)
-	waiterCtx, cancel := context.WithTimeout(tenant.WithTransactionForTest(runtimeCtx, &waiter), 2*time.Second)
+	waiterCtx, cancel := context.WithTimeout(testpkg.ContextWithTransaction(runtimeCtx, &waiter), 2*time.Second)
 	defer cancel()
 	result := make(chan error, 1)
 	go func() { result <- holderRepo.LockCaregiverCapabilityBindings(waiterCtx) }()

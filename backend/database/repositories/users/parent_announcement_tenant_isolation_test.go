@@ -6,8 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	enrollmentAudience "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -27,11 +26,11 @@ func TestParentAnnouncement_TenantIsolation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, enrollmentAudience.New())
 	homeCtx := tenantCtx(t)
 
 	poll, options := pollAnnouncement(t, homeCtx, db, repo, chain.AccountID, chain.TenantID,
-		usersModels.ParentAnnouncementResponseSingleChoice)
+		testpkg.ParentAnnouncementResponseSingleChoice)
 	live, err := repo.MarkRead(homeCtx, chain.TenantID, poll.ID, chain.AccountID, *poll.PublishedAt)
 	require.NoError(t, err)
 	require.True(t, live, "the fixture read must land in the owning school")
@@ -72,7 +71,7 @@ func TestParentAnnouncement_TenantIsolation(t *testing.T) {
 	t.Run("audience, poll and read projections are scoped to the owning school", func(t *testing.T) {
 		stats, err := repo.Stats(foreignCtx, otherTenant, poll.ID)
 		require.NoError(t, err)
-		assert.Equal(t, &usersModels.AnnouncementStats{}, stats, "another school must not count this audience or its reads")
+		assert.Equal(t, &testpkg.AnnouncementStats{}, stats, "another school must not count this audience or its reads")
 
 		recipients, err := repo.AudienceRecipients(foreignCtx, otherTenant, poll.ID)
 		require.NoError(t, err)
@@ -88,7 +87,7 @@ func TestParentAnnouncement_TenantIsolation(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, children, "another school must not read the children's answers")
 
-		feed, err := repo.ListFeedForAccount(foreignCtx, chain.AccountID, usersModels.AnnouncementFeedScope{TenantIDs: []int64{otherTenant}})
+		feed, err := repo.ListFeedForAccount(foreignCtx, chain.AccountID, testpkg.AnnouncementFeedScope{TenantIDs: []int64{otherTenant}})
 		require.NoError(t, err)
 		assert.Empty(t, feed, "a feed scoped to another school must not surface the announcement")
 

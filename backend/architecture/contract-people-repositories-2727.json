@@ -1,0 +1,141 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2661",
+    "#2662",
+    "#2663",
+    "#2667",
+    "#2668",
+    "#2669",
+    "#2679",
+    "#2682",
+    "#2709",
+    "#2710",
+    "#2715",
+    "#2716",
+    "#2717",
+    "#3215",
+    "#3221",
+    "#3222",
+    "#3235"
+  ],
+  "owner_and_capability": "People Directory — the retained repositories of database/repositories/users (people-directory/postgres), contract step for #2727: the package reads the tenant and the transaction through a consumer-owned Runtime port bound by the owner's composition, names the shared repository shapes through the models/users vocabulary, and its suites compose through test support instead of the legacy composition",
+  "affected_packages": [
+    "database/repositories/users",
+    "database/repositories",
+    "modules/peopledirectory/compose",
+    "modules/securityruntime",
+    "models/users",
+    "modules/communication/internal/staffmessages",
+    "modules/emergencysnapshot/legacy",
+    "services",
+    "api/testutil",
+    "test"
+  ],
+  "affected_tables": [
+    "users.persons",
+    "users.students",
+    "users.guardian_profiles",
+    "users.guardian_phone_numbers",
+    "users.guardian_financial_data",
+    "users.student_guardian_relationships",
+    "users.student_family_protection_events",
+    "users.parent_request_events",
+    "users.parent_request_share_events"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/users|github.com/moto-nrw/project-phoenix/auth/authorize",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/users|github.com/moto-nrw/project-phoenix/database/repositories",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/users|github.com/moto-nrw/project-phoenix/database/repositories/users",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/users|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/users|github.com/moto-nrw/project-phoenix/models/activities",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/users|github.com/moto-nrw/project-phoenix/models/base",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/users|github.com/moto-nrw/project-phoenix/models/users",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/users|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/users|github.com/moto-nrw/project-phoenix/auth/authorize",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/users|github.com/moto-nrw/project-phoenix/auth/authorize/permissions",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/users|github.com/moto-nrw/project-phoenix/database/repositories/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/users|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/users|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/users|github.com/moto-nrw/project-phoenix/tenant"
+  ],
+  "atomic_cutover": "One code-only change: database/repositories/users drops its imports of auth/authorize, auth/authorize/permissions, database/repositories/base, internal/timezone, models/base and tenant. Its constructors take a Runtime (ambient transaction, tenant, transaction and savepoint runner) that modules/peopledirectory/compose.LegacyRepositoryRuntime binds over the tenant runtime and database/repositories passes in; the generic base repository becomes explicit CRUD methods with literal table expressions and a local query-option applicator; DatabaseError, the not-found sentinel, the query shapes and the unique-violation checks come through the models/users vocabulary; calendar dates use sharedkernel/calendar. The default guardian role is bound by the composition through a WithGuardianDefaultRole option over modules/securityruntime, and the helpers the legacy composition took from this package for the caller's school and the permission matcher move to peopledirectory/compose and modules/securityruntime. The 39 suites stay external tests and compose through services/people_repository_suites.go behind api/testutil, naming rows through test. The stale policy rule communication.messages.workflow-people-postgres is deleted.",
+  "tests": [
+    "database/repositories/users: all 208 tests (484 with subtests) of the retained suites against the isolated PostgreSQL test database, the same set as before the change, plus TestGuardianRelationshipLinkWithoutRoleNeedsTheDefaultRolePolicy for the bound default role.",
+    "modules/securityruntime: TestDefaultGuardianRolePresetMatchesThePolicy pins the composed default role to authorize.ApplyDefaultStudentGuardianRole; TestGuardianPermissionGranted pins the stored permission value rule; the permission registry pin now covers PermissionCalendarOwn.",
+    "go test ./test (ratchets, hermetic and module checks), scripts/test-changed.sh origin/development without --fast, golangci-lint on the affected packages.",
+    "scripts/backend-architecture.sh check with exactly the listed keys absent from legacy.jsonl and none added; scripts/backend-architecture.sh validate-ticket --all."
+  ],
+  "runtime_evidence": {
+    "source": "Local runs on the #2727 branch on 2026-09-27 against the local postgres-test server.",
+    "sources": [
+      "backend/database/repositories/users/runtime.go",
+      "backend/modules/peopledirectory/compose/legacy_repository_runtime.go",
+      "backend/database/repositories/people_repository_suites.go",
+      "backend/services/people_repository_suites.go",
+      "backend/test/people_repository_vocabulary.go"
+    ],
+    "workload": "No load run. Go suites through scripts/run-go-toolchain.sh and scripts/test-changed.sh origin/development against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "Code-only contract: every affected suite passes with the same test set, and scripts/backend-architecture.sh check passes with exactly the listed keys removed, no key added and a composition surface that does not grow.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "The repositories issue the same statements against the same tables; only the source of the transaction handle, the tenant and the error shape constructors changed."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No statement was added or removed: the explicit CRUD methods build the queries the generic repository built for the same tables and aliases."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #2727 names zero old callers and zero listed keys as the gate for a code-only contract, and the statements are unchanged."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #2727 names zero old callers and zero listed keys as the gate for a code-only contract, and the statements are unchanged."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed with 388 remaining keys and a composition surface of 603 -> 603; golangci-lint on the affected packages reported 0 issues; scripts/test-changed.sh origin/development reported all 166 affected packages ok (151 with tests)."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection acquisition or pool setting changed; outside a tenant transaction the repositories use the same pool as before."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "The row locks, the advisory lock of the guardian account link and the caregiver binding table locks are taken by the same statements in the same order."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No statement or transaction boundary changed, so no lock ordering can differ."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The change touches no worker or scheduler path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The change touches no worker or scheduler path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The change touches no worker or scheduler path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The fail-closed refusals of the relationship, recipient, colleague and profile stores without their owner queries, the rollback of a link after a failing owner command, and the not-found shapes the callers classify keep their results in the retained suites."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data write path or schema change. Reverting the change restores the imports, the helpers and the baseline entries."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "go build ./... passed; the retained suites and the affected packages ran through scripts/test-changed.sh. No manual application start or HTTP smoke run was made."
+    }
+  },
+  "rollback_and_cleanup": "Revert the code-only change if a hidden caller appears. No table, migration or configuration is touched, and nothing remains to clean up.",
+  "exit_criterion": "database/repositories/users imports none of the listed targets and its suites import neither the package nor the legacy composition, the retained models or the tenant runtime; every listed key is absent from legacy.jsonl; scripts/backend-architecture.sh check passes with no key added, no temporary policy rule added and no ownership of a data object changed."
+}

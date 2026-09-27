@@ -3,7 +3,7 @@ package users_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +16,7 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Staff
 	ctx := testpkg.Ctx(t)
 
 	t.Run("maps staff with an account and omits staff without one", func(t *testing.T) {
@@ -109,7 +109,7 @@ func TestStaffRepository_ListAllStaffAccountIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Staff
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists mapped staff and skips the rest", func(t *testing.T) {
