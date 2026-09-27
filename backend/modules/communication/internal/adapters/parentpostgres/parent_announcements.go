@@ -59,6 +59,7 @@ type parentAnnouncementRow struct {
 	ReminderAt              *time.Time `bun:"reminder_at"`
 	ReminderText            *string    `bun:"reminder_text"`
 	ReminderSentAt          *time.Time `bun:"reminder_sent_at"`
+	declarationColumns
 }
 
 func (r *parentAnnouncementRow) value() *domain.ParentAnnouncement {
@@ -72,7 +73,7 @@ func (r *parentAnnouncementRow) value() *domain.ParentAnnouncement {
 		ResponseType: r.ResponseType, ResponseDeadline: r.ResponseDeadline,
 		DeliveryMode: r.DeliveryMode, EmailAudience: r.EmailAudience, SystemKind: r.SystemKind,
 		ReminderAt: r.ReminderAt, ReminderText: r.ReminderText, ReminderSentAt: r.ReminderSentAt,
-		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, Declaration: r.declarationColumns.value(),
 	}
 }
 
@@ -85,6 +86,7 @@ func announcementRow(value *domain.ParentAnnouncement) *parentAnnouncementRow {
 		CreatedBy: value.CreatedBy, ResponseType: value.ResponseType, ResponseDeadline: value.ResponseDeadline,
 		DeliveryMode: value.DeliveryMode, EmailAudience: value.EmailAudience, SystemKind: value.SystemKind,
 		ReminderAt: value.ReminderAt, ReminderText: value.ReminderText, ReminderSentAt: value.ReminderSentAt,
+		declarationColumns: declarationRow(value.Declaration),
 	}
 }
 
@@ -294,8 +296,7 @@ func (s *AnnouncementStore) attachTargets(ctx context.Context, db bun.IDB, tenan
 // NULL, so a publish that lands between the service's read and this write
 // matches nothing and returns ErrParentAnnouncementPublished instead of
 // silently reverting the published wording. Editing a draft also invalidates
-// any read/ack rows and poll answers left over from a previous publication;
-// they belong to the retracted wording.
+// the read/ack rows and poll answers of the retracted wording.
 func (s *AnnouncementStore) UpdateDraft(ctx context.Context, announcement *domain.ParentAnnouncement) error {
 	if announcement == nil || announcement.ID <= 0 {
 		return errors.New("update parent announcement draft: announcement id is required")
@@ -324,7 +325,7 @@ func (s *AnnouncementStore) UpdateDraft(ctx context.Context, announcement *domai
 		Set("updated_at = ?", now).
 		Where(`"parent_announcement".id = ?`, announcement.ID).
 		Where(`"parent_announcement".published_at IS NULL`)
-	query = withTenant(query, parentAnnouncementAlias, tenantID)
+	query = withTenant(setDeclarationColumns(query, announcement.Declaration), parentAnnouncementAlias, tenantID)
 	result, err := query.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("update parent announcement draft: %w", err)
@@ -844,9 +845,8 @@ func (s *AnnouncementStore) MarkAcknowledged(ctx context.Context, tenantID, anno
 }
 
 // LockResponse serializes every answer replacement for one (poll, child) pair
-// within the caller's transaction. Option-level uniqueness alone is not
-// enough: two guardians could otherwise both delete and then insert a
-// different option for the same child.
+// in the caller's transaction: option uniqueness alone would let two guardians
+// both delete and then insert a different option for the same child.
 func (s *AnnouncementStore) LockResponse(ctx context.Context, announcementID, studentID int64) error {
 	db, _, err := s.database(ctx)
 	if err != nil {

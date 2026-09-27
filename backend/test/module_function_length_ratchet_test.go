@@ -70,7 +70,7 @@ const moduleFuncLenThreshold = 60
 // delete entries, never add one and never raise a number.
 var moduleFuncLenAllowlist = map[string]int{
 	"modules/appointments/recurrence.go:boundedRecurrenceDates":                                          117,
-	"modules/careplan/inbound/parent/api.go:(*Resource).RouterWithAuthRateLimiter":                       212,
+	"modules/careplan/inbound/parent/api.go:(*Resource).RouterWithAuthRateLimiter":                       211,
 	"modules/careplan/inbound/parent/child_write_handlers.go:(*Resource).submitSickNote":                 67,
 	"modules/careplan/inbound/parent/child_write_handlers.go:renderParentWriteError":                     162,
 	"modules/careplan/inbound/parent/enrollment_handlers.go:(*Resource).getEnrollmentBootstrap":          87,
@@ -105,7 +105,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/communication/internal/staffannouncements/poll.go:(*service).enqueueReminderEmails":                                     77,
 	"modules/communication/internal/staffannouncements/poll.go:(*service).pushPollReminder":                                          64,
 	"modules/communication/internal/staffannouncements/reminder.go:(*service).SendDueReminders":                                      72,
-	"modules/communication/internal/staffannouncements/service.go:(*service).Publish":                                                100,
+	"modules/communication/internal/staffannouncements/service.go:(*service).Publish":                                                86,
 	"modules/communication/internal/staffannouncements/service.go:(*service).Update":                                                 70,
 	"modules/communication/internal/staffannouncements/service.go:(*service).enqueueAnnouncementEmailsAs":                            131,
 	"modules/communication/internal/staffannouncements/service.go:(*service).notifyAnnouncementGuardiansWith":                        91,

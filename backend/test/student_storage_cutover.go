@@ -93,10 +93,16 @@ func RestoreStudentStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 				  AND con.conrelid <> 'users.student_school_memberships'::regclass
 				ORDER BY con.conrelid::regclass::text, con.conname
 			LOOP
-				definition := replace(constraint_row.def,
-					'REFERENCES users.student_profiles(', 'REFERENCES users.students(');
 				EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I',
 					constraint_row.child, constraint_row.conname);
+				-- Tables created after the Contract (1.15.399) never referenced
+				-- users.students, and the Cutover under test does not know
+				-- them: the restored world simply has no such link.
+				CONTINUE WHEN constraint_row.child IN (
+					'users.parent_announcement_declaration_submissions'
+				);
+				definition := replace(constraint_row.def,
+					'REFERENCES users.student_profiles(', 'REFERENCES users.students(');
 				-- NOT VALID keeps the restore off every dependent table's
 				-- rows. The referential actions the historical contracts rely
 				-- on — the delete cascades above all — are installed either

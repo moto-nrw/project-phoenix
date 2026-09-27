@@ -248,6 +248,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedParentEngagementStep{},
 		seedGradeTransitionStep{},
 		seedParentLetterStep{},
+		seedParentDeclarationStep{},
 		seedInactiveAccountStep{},
 		verifyProfileStep{definition: seeder.definition},
 	)

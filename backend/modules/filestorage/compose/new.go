@@ -454,6 +454,18 @@ func (e engine) CountAttachments(ctx context.Context, announcementID int64) (int
 	return count, mapError(err)
 }
 
+func (e engine) AttachmentDigests(ctx context.Context, announcementID int64, digest func(io.Reader) (string, int64, error)) ([]filestorage.AttachmentDigest, error) {
+	digests, err := e.service.AttachmentDigests(ctx, announcementID, digest)
+	if err != nil {
+		return nil, mapError(err)
+	}
+	out := make([]filestorage.AttachmentDigest, 0, len(digests))
+	for _, digest := range digests {
+		out = append(out, filestorage.AttachmentDigest(digest))
+	}
+	return out, nil
+}
+
 func (e engine) CleanupOrphanedFiles(ctx context.Context) (int, error) {
 	removed, err := e.service.CleanupOrphanedFiles(ctx)
 	return removed, mapError(err)

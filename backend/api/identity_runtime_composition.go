@@ -117,5 +117,6 @@ func parentPortalLogin(runtime services.ParentLoginRuntime) parentAPI.LoginRunti
 		InvalidCredentials: runtime.InvalidCredentials,
 		AccountInactive:    runtime.AccountInactive,
 		NotAGuardian:       runtime.NotAGuardian,
+		ConfirmPassword:    runtime.ConfirmPassword,
 	}
 }

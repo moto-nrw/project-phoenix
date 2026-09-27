@@ -531,6 +531,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/parent/me/children/{studentId}/sick-note"}:                                event("absence_request_submitted"),
 	{http.MethodPost, "/parent/me/messages/children/{studentId}"}:                                 event("parent_message_sent"),
 	{http.MethodPost, "/parent/me/news/{announcementId}/acknowledge"}:                             notCaptured,
+	{http.MethodPost, "/parent/me/news/{announcementId}/declaration"}:                             event("parent_declaration_submitted"),
 	{http.MethodPost, "/parent/me/news/{announcementId}/read"}:                                    notCaptured,
 	{http.MethodPost, "/parent/me/news/{announcementId}/respond"}:                                 notCaptured,
 	{http.MethodDelete, "/parent/me/notification-preferences/"}:                                   notCaptured,

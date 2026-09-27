@@ -22,6 +22,12 @@ const (
 	CodeCareCourseRequestInvalid                         = "care.course_request_invalid"
 	CodeCareCourseRequestNotOwn                          = "care.course_request_not_own"
 	CodeCareCourseRequestsDisabled                       = "care.course_requests_disabled"
+	CodeCareDeclarationActionNotAllowed                  = "care.declaration_action_not_allowed"
+	CodeCareDeclarationClosed                            = "care.declaration_closed"
+	CodeCareDeclarationNotPermitted                      = "care.declaration_not_permitted"
+	CodeCareDeclarationPasswordIncorrect                 = "care.declaration_password_incorrect"
+	CodeCareDeclarationPasswordRequired                  = "care.declaration_password_required"
+	CodeCareDeclarationVersionChanged                    = "care.declaration_version_changed"
 	CodeCareExcusedRequestNotPending                     = "care.excused_request_not_pending"
 	CodeCareExcusedRequestOverlap                        = "care.excused_request_overlap"
 	CodeCareFamilyProtection                             = "care.family_protection"
@@ -73,6 +79,7 @@ const (
 	CodeCommunicationAnnouncementNotPublished            = "communication.announcement_not_published"
 	CodeCommunicationAnnouncementPublishedImmutable      = "communication.announcement_published_immutable"
 	CodeCommunicationAnnouncementReminderSent            = "communication.announcement_reminder_sent"
+	CodeCommunicationDeclarationHasSubmissions           = "communication.declaration_has_submissions"
 	CodeCommunicationParentNewsDisabled                  = "communication.parent_news_disabled"
 	CodeCommunicationPollNotOpen                         = "communication.poll_not_open"
 	CodeCommunicationStaffCounterpartUnavailable         = "communication.staff_counterpart_unavailable"
@@ -299,6 +306,12 @@ var errorClassByWireCode = map[string]string{
 	"course_request_invalid":                               "input",
 	"course_request_not_own":                               "input",
 	"course_requests_disabled":                             "permission",
+	"declaration_action_not_allowed":                       "business_rejection",
+	"declaration_closed":                                   "business_rejection",
+	"declaration_not_permitted":                            "permission",
+	"declaration_password_incorrect":                       "input",
+	"declaration_password_required":                        "input",
+	"declaration_version_changed":                          "business_rejection",
 	"excused_request_not_pending":                          "business_rejection",
 	"excused_request_overlap":                              "business_rejection",
 	"family_protection":                                    "permission",
@@ -350,6 +363,7 @@ var errorClassByWireCode = map[string]string{
 	"announcement_not_published":                           "business_rejection",
 	"announcement_published_immutable":                     "business_rejection",
 	"announcement_reminder_sent":                           "business_rejection",
+	"declaration_has_submissions":                          "business_rejection",
 	"parent_news_disabled":                                 "permission",
 	"poll_not_open":                                        "business_rejection",
 	"staff_counterpart_unavailable":                        "unavailable",

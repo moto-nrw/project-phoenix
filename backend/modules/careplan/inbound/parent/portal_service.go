@@ -299,4 +299,9 @@ type PortalService interface {
 	// portal-enabled guardian of a child the poll reaches), with the same
 	// stale-version guard as MarkAnnouncementRead plus the answer deadline (#1371).
 	RespondToAnnouncement(ctx context.Context, accountID, announcementID, studentID int64, optionIDs []int64, expectedPublishedAt time.Time) error
+	// SubmitDeclaration records one Erklärung for one child (#3430); false =
+	// the same action was already the latest and nothing new was stored.
+	SubmitDeclaration(ctx context.Context, accountID, announcementID int64, in parentService.DeclarationInput, confirm parentService.PasswordConfirmer) (*usersModels.DeclarationSubmission, bool, error)
+	// DeclarationProof returns the account's own proof for one child.
+	DeclarationProof(ctx context.Context, accountID, announcementID, studentID int64) (*parentService.DeclarationProof, error)
 }

@@ -1,0 +1,236 @@
+package parentaudience
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
+	"github.com/uptrace/bun"
+)
+
+// Erklärungen (#3430). Who a declaration reaches and who may declare for each
+// reached child. A signer needs a linked account, an active membership at the
+// school, parent_portal.access AND parent_portal.declarations.submit on the
+// relationship to exactly that child: membership or a guardian link alone
+// never makes a signer.
+
+// declarationSignerPermissions is the jsonb a signer's relationship holds.
+const declarationSignerPermissions = `'{"parent_portal.access": true, "parent_portal.declarations.submit": true}'::jsonb`
+
+// declarationChildrenSQL lists every child the announcement reaches, with no
+// guardian requirement: a child nobody may declare for must stay visible.
+//
+// Bind order: school, school, today, today, today, announcement, school.
+const declarationChildrenSQL = `WITH reached AS (` + letterReachedStudentsBound + `)
+			SELECT s.id AS student_id,
+				COALESCE(p.first_name, '') AS first_name,
+				COALESCE(p.last_name, '')  AS last_name,
+				COALESCE(sm.school_class, '') AS school_class
+			FROM reached
+			JOIN users.student_profiles s ON s.id = reached.student_id` + studentMembershipJoins + `
+			JOIN users.persons p ON p.id = s.person_id
+			ORDER BY last_name ASC, first_name ASC, student_id ASC`
+
+type declarationChildRow struct {
+	AnnouncementID int64  `bun:"announcement_id"`
+	StudentID      int64  `bun:"student_id"`
+	FirstName      string `bun:"first_name"`
+	LastName       string `bun:"last_name"`
+	SchoolClass    string `bun:"school_class"`
+}
+
+func declarationChildren(rows []declarationChildRow) []*domain.DeclarationChild {
+	out := make([]*domain.DeclarationChild, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, &domain.DeclarationChild{
+			AnnouncementID: row.AnnouncementID, StudentID: row.StudentID, FirstName: row.FirstName,
+			LastName: row.LastName, SchoolClass: row.SchoolClass,
+		})
+	}
+	return out
+}
+
+// DeclarationChildren returns every child the declaration reaches.
+func (p *Projection) DeclarationChildren(ctx context.Context, schoolID, announcementID int64) ([]*domain.DeclarationChild, error) {
+	db, _, err := p.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	today := p.day()
+	var rows []declarationChildRow
+	if err := db.NewRaw(declarationChildrenSQL,
+		schoolID, schoolID, today, today, today, announcementID, schoolID,
+	).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("parent declaration children: %w", err)
+	}
+	for i := range rows {
+		rows[i].AnnouncementID = announcementID
+	}
+	return declarationChildren(rows), nil
+}
+
+// declarationSignersSQL lists the guardians who may declare for the given
+// children. A zero school leaves the school to the relationship row (the
+// cross-school feed); a positive one binds it.
+//
+// Bind order: guardian links, students.
+const declarationSignersSQL = `
+			SELECT sg.student_id, gp.id AS guardian_profile_id, gp.account_id,
+				COALESCE(gp.first_name, '') AS first_name,
+				COALESCE(gp.last_name, '') AS last_name,
+				COALESCE(lower(gp.email), '') AS email,
+				COALESCE(gp.portal_locale, 'de') AS portal_locale,
+				COALESCE(sg.guardian_role, '') AS guardian_role
+			FROM (?) sg
+			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = sg.tenant_id
+				AND gp.account_id IS NOT NULL
+			JOIN auth.account_tenants act ON act.account_id = gp.account_id
+				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
+			WHERE sg.student_id IN (?)
+				AND sg.permissions @> ` + declarationSignerPermissions + `
+			ORDER BY sg.student_id, gp.last_name, gp.first_name, gp.id`
+
+type declarationSignerRow struct {
+	StudentID         int64  `bun:"student_id"`
+	GuardianProfileID int64  `bun:"guardian_profile_id"`
+	AccountID         int64  `bun:"account_id"`
+	FirstName         string `bun:"first_name"`
+	LastName          string `bun:"last_name"`
+	Email             string `bun:"email"`
+	PortalLocale      string `bun:"portal_locale"`
+	GuardianRole      string `bun:"guardian_role"`
+}
+
+// DeclarationSigners returns the guardians who may declare for the children
+// of one school.
+func (p *Projection) DeclarationSigners(ctx context.Context, schoolID int64, studentIDs []int64) ([]*domain.DeclarationSigner, error) {
+	return p.declarationSigners(ctx, schoolID, studentIDs)
+}
+
+// DeclarationSignersForStudents is DeclarationSigners for children of several
+// schools; the ids come from an already authorized feed.
+func (p *Projection) DeclarationSignersForStudents(ctx context.Context, studentIDs []int64) ([]*domain.DeclarationSigner, error) {
+	return p.declarationSigners(ctx, 0, studentIDs)
+}
+
+func (p *Projection) declarationSigners(ctx context.Context, schoolID int64, studentIDs []int64) ([]*domain.DeclarationSigner, error) {
+	if len(studentIDs) == 0 {
+		return []*domain.DeclarationSigner{}, nil
+	}
+	db, _, err := p.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var rows []declarationSignerRow
+	if err := db.NewRaw(declarationSignersSQL, guardianLinks(db, schoolID), bun.List(studentIDs)).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("parent declaration signers: %w", err)
+	}
+	out := make([]*domain.DeclarationSigner, 0, len(rows))
+	for _, row := range rows {
+		signer := domain.DeclarationSigner(row)
+		out = append(out, &signer)
+	}
+	return out, nil
+}
+
+// declarationChildrenForAccountSQL is, per declaration, the account's
+// children the declaration reaches, whether or not the account may declare
+// for them: a pickup-only guardian still sees the Erklärung.
+//
+// Bind order: today, today, today, guardian links, account, announcements.
+const declarationChildrenForAccountSQL = `
+			SELECT DISTINCT a.id AS announcement_id, s.id AS student_id,
+				COALESCE(p.first_name, '') AS first_name,
+				COALESCE(p.last_name, '') AS last_name,
+				COALESCE(sm.school_class, '') AS school_class
+			FROM users.parent_announcements a
+			JOIN users.parent_announcement_targets pt
+				ON pt.announcement_id = a.id AND pt.tenant_id = a.tenant_id
+			JOIN users.student_profiles s ON s.tenant_id = a.tenant_id` + studentMembershipJoins + ` AND (` + studentTargetMatchFeed + `
+			)
+			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+				AND sm.status <> 'alumnus'
+			JOIN (?) sg ON sg.student_id = s.id AND sg.tenant_id = a.tenant_id
+				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
+			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = a.tenant_id
+				AND gp.account_id = ?
+			JOIN auth.account_tenants act ON act.account_id = gp.account_id
+				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
+			WHERE a.id IN (?)
+			ORDER BY last_name ASC, first_name ASC, student_id ASC`
+
+// DeclarationChildrenForAccount returns the account's reached children per
+// declaration announcement.
+func (p *Projection) DeclarationChildrenForAccount(ctx context.Context, accountID int64, announcementIDs []int64) ([]*domain.DeclarationChild, error) {
+	if len(announcementIDs) == 0 {
+		return []*domain.DeclarationChild{}, nil
+	}
+	db, _, err := p.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	today := p.day()
+	var rows []declarationChildRow
+	if err := db.NewRaw(declarationChildrenForAccountSQL,
+		today, today, today, guardianLinks(db, 0), accountID, bun.List(announcementIDs),
+	).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("parent declaration children for account: %w", err)
+	}
+	return declarationChildren(rows), nil
+}
+
+// holdDeclarationSignerSQL returns the relationship that authorizes the
+// account to declare for the child right now: the child is reached, the link
+// carries both permissions, the account is linked and active. FOR SHARE keeps
+// a concurrent revocation of the permission, the link or the membership
+// waiting behind the submission (or makes this read see it).
+//
+// Bind order: school, school, today, today, today, announcement, school,
+// guardian links of the school, school, account, student.
+const holdDeclarationSignerSQL = `
+			SELECT gp.id AS guardian_profile_id,
+				COALESCE(gp.first_name, '') AS first_name,
+				COALESCE(gp.last_name, '') AS last_name,
+				COALESCE(sg.guardian_role, '') AS guardian_role` + reachedStudentsBound + `
+			JOIN (?) sg ON sg.student_id = s.id
+				AND sg.permissions @> ` + declarationSignerPermissions + `
+			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
+				AND gp.account_id = ?
+			JOIN auth.account_tenants act ON act.account_id = gp.account_id
+				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
+			WHERE s.id = ?
+			ORDER BY gp.id
+			LIMIT 1
+			FOR SHARE OF sg, gp, act`
+
+type declarationSignerContextRow struct {
+	GuardianProfileID int64  `bun:"guardian_profile_id"`
+	FirstName         string `bun:"first_name"`
+	LastName          string `bun:"last_name"`
+	GuardianRole      string `bun:"guardian_role"`
+}
+
+// HoldDeclarationSigner reads and share-locks the authorizing relationship,
+// or returns nil when the account may not declare for the child.
+func (p *Projection) HoldDeclarationSigner(ctx context.Context, schoolID, announcementID, accountID, studentID int64) (*domain.DeclarationSignerContext, error) {
+	db, _, err := p.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	today := p.day()
+	var row declarationSignerContextRow
+	err = db.NewRaw(holdDeclarationSignerSQL,
+		schoolID, schoolID, today, today, today, announcementID, schoolID, guardianLinks(db, schoolID), schoolID, accountID,
+		studentID,
+	).Scan(ctx, &row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("hold parent declaration signer: %w", err)
+	}
+	signer := domain.DeclarationSignerContext(row)
+	return &signer, nil
+}

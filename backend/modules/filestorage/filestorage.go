@@ -252,6 +252,22 @@ type AttachmentCommand interface {
 type AttachmentPurger interface {
 	QueueAttachmentCleanupForAnnouncement(ctx context.Context, announcementID int64) error
 	CountAttachments(ctx context.Context, announcementID int64) (int, error)
+	// AttachmentDigests reads every live attachment through digest, in the
+	// caller's transaction. An Erklärung freezes the digests at publication
+	// (#3430); the caller supplies the hash, File Storage only reads.
+	AttachmentDigests(ctx context.Context, announcementID int64, digest func(io.Reader) (string, int64, error)) ([]AttachmentDigest, error)
+}
+
+// AttachmentDigest identifies one attachment by its content. It is an alias
+// of an unnamed struct on purpose: Communication declares the identical
+// shape, so this module satisfies Communication's port without either module
+// importing the other.
+type AttachmentDigest = struct {
+	AttachmentID int64
+	Filename     string
+	ContentType  string
+	SizeBytes    int64
+	SHA256       string
 }
 
 // Cleaner is the scheduler's entry point: it removes objects whose metadata
@@ -367,6 +383,10 @@ func (m *Module) QueueAttachmentCleanupForAnnouncement(ctx context.Context, anno
 
 func (m *Module) CountAttachments(ctx context.Context, announcementID int64) (int, error) {
 	return m.engine.CountAttachments(ctx, announcementID)
+}
+
+func (m *Module) AttachmentDigests(ctx context.Context, announcementID int64, digest func(io.Reader) (string, int64, error)) ([]AttachmentDigest, error) {
+	return m.engine.AttachmentDigests(ctx, announcementID, digest)
 }
 
 func (m *Module) CleanupOrphanedFiles(ctx context.Context) (int, error) {

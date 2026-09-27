@@ -428,7 +428,7 @@ func announcementValue(a *usersModels.ParentAnnouncement) *domain.ParentAnnounce
 		ResponseType: a.ResponseType, ResponseDeadline: a.ResponseDeadline,
 		DeliveryMode: a.DeliveryMode, EmailAudience: a.EmailAudience, SystemKind: a.SystemKind,
 		ReminderAt: a.ReminderAt, ReminderText: a.ReminderText, ReminderSentAt: a.ReminderSentAt,
-		CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt,
+		CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt, Declaration: domain.DeclarationSettings(a.Declaration),
 	}
 }
 
@@ -443,6 +443,7 @@ func announcementModel(value *domain.ParentAnnouncement) *usersModels.ParentAnno
 		CreatedBy: value.CreatedBy, ResponseType: value.ResponseType, ResponseDeadline: value.ResponseDeadline,
 		DeliveryMode: value.DeliveryMode, EmailAudience: value.EmailAudience, SystemKind: value.SystemKind,
 		ReminderAt: value.ReminderAt, ReminderText: value.ReminderText, ReminderSentAt: value.ReminderSentAt,
+		Declaration: usersModels.AnnouncementDeclarationSettings(value.Declaration),
 	}
 	a.ID = value.ID
 	a.CreatedAt = value.CreatedAt

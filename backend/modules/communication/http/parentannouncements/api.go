@@ -71,6 +71,9 @@ func (rs *Resource) Router() chi.Router {
 		// POST /remind above, which is the manual nudge to whoever still owes
 		// an answer.
 		r.With(announce, withTx).Put("/{announcementId}/reminder", rs.updateReminder)
+		// Erklärung (#3430): state per child, full history, proof export.
+		r.With(announce, withTx).Get("/{announcementId}/declaration-status", rs.declarationStatus)
+		r.With(announce, withTx).Get("/{announcementId}/declaration-export", rs.declarationExport)
 	})
 
 	return r
@@ -107,6 +110,8 @@ type announcementRequest struct {
 	// Berlin day and clock time into it) and an optional short wording.
 	ReminderAt   *time.Time `json:"reminder_at,omitempty"`
 	ReminderText *string    `json:"reminder_text,omitempty"`
+	// Erklärung settings (#3430), used with delivery_mode "declaration".
+	declarationSettingsRequest
 }
 
 // reminderRequest is the post-publish reminder edit. The raw value preserves
@@ -156,6 +161,7 @@ type announcementResponse struct {
 	ReminderAt     *time.Time `json:"reminder_at,omitempty"`
 	ReminderText   *string    `json:"reminder_text,omitempty"`
 	ReminderSentAt *time.Time `json:"reminder_sent_at,omitempty"`
+	declarationSettingsResponse
 }
 
 type statsResponse struct {
@@ -200,29 +206,30 @@ func toOptionResponses(options []announcementService.ParentAnnouncementOption) [
 
 func toAnnouncementResponse(a *announcementService.ParentAnnouncement) announcementResponse {
 	return announcementResponse{
-		ID:                      strconv.FormatInt(a.ID, 10),
-		Title:                   a.Title,
-		Body:                    a.Body,
-		Priority:                a.Priority,
-		LinkURL:                 a.LinkURL,
-		RequiresAcknowledgement: a.RequiresAcknowledgement,
-		SendEmail:               a.SendEmail,
-		Status:                  announcementStatus(a),
-		PublishedAt:             a.PublishedAt,
-		ExpiresAt:               a.ExpiresAt,
-		ReminderAt:              a.ReminderAt,
-		ReminderText:            a.ReminderText,
-		ReminderSentAt:          a.ReminderSentAt,
-		Active:                  a.Active,
-		CreatedAt:               a.CreatedAt,
-		UpdatedAt:               a.UpdatedAt,
-		Targets:                 toTargetResponses(a.Targets),
-		ResponseType:            a.ResponseType,
-		ResponseDeadline:        a.ResponseDeadline,
-		Options:                 toOptionResponses(a.Options),
-		DeliveryMode:            a.DeliveryMode,
-		EmailAudience:           a.EmailAudience,
-		SystemKind:              a.SystemKind,
+		ID:                          strconv.FormatInt(a.ID, 10),
+		Title:                       a.Title,
+		Body:                        a.Body,
+		Priority:                    a.Priority,
+		LinkURL:                     a.LinkURL,
+		RequiresAcknowledgement:     a.RequiresAcknowledgement,
+		SendEmail:                   a.SendEmail,
+		Status:                      announcementStatus(a),
+		PublishedAt:                 a.PublishedAt,
+		ExpiresAt:                   a.ExpiresAt,
+		ReminderAt:                  a.ReminderAt,
+		ReminderText:                a.ReminderText,
+		ReminderSentAt:              a.ReminderSentAt,
+		Active:                      a.Active,
+		CreatedAt:                   a.CreatedAt,
+		UpdatedAt:                   a.UpdatedAt,
+		Targets:                     toTargetResponses(a.Targets),
+		ResponseType:                a.ResponseType,
+		ResponseDeadline:            a.ResponseDeadline,
+		Options:                     toOptionResponses(a.Options),
+		DeliveryMode:                a.DeliveryMode,
+		EmailAudience:               a.EmailAudience,
+		SystemKind:                  a.SystemKind,
+		declarationSettingsResponse: toDeclarationSettingsResponse(a),
 	}
 }
 
@@ -244,6 +251,7 @@ func toInput(req announcementRequest) (announcementService.ParentAnnouncementInp
 		EmailAudience:           req.EmailAudience,
 		ReminderAt:              req.ReminderAt,
 		ReminderText:            req.ReminderText,
+		Declaration:             req.settings(),
 		Targets:                 make([]announcementService.ParentAnnouncementTargetInput, 0, len(req.Targets)),
 	}
 	for _, t := range req.Targets {
@@ -681,6 +689,10 @@ func renderAnnouncementError(w http.ResponseWriter, r *http.Request, err error) 
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_reminder_sent"))
 	case errors.Is(err, announcementService.ErrParentAnnouncementValidation):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, announcementService.ErrDeclarationHasSubmissions):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "declaration_has_submissions"))
+	case errors.Is(err, announcementService.ErrNotDeclaration):
+		common.RenderError(w, r, common.ErrorNotFound(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("announcement request failed", err))
 	}

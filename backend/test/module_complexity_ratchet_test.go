@@ -103,7 +103,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/communication/internal/staffannouncements/poll.go:normalizePollOptions":                            18,
 	"modules/communication/internal/staffannouncements/reminder.go:(*service).SendDueReminders":                 29,
 	"modules/communication/internal/staffannouncements/reminder.go:(*service).UpdateReminder":                   16,
-	"modules/communication/internal/staffannouncements/service.go:(*service).Publish":                           48,
+	"modules/communication/internal/staffannouncements/service.go:(*service).Publish":                           40,
 	"modules/communication/internal/staffannouncements/service.go:(*service).enqueueAnnouncementEmailsAs":       37,
 	"modules/communication/internal/staffannouncements/service.go:(*service).notifyAnnouncementGuardiansWith":   22,
 	"modules/communication/internal/staffannouncements/service.go:normalizeDelivery":                            17,

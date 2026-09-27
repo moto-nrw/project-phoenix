@@ -362,6 +362,14 @@ func (f *fakeParentService) RespondToAnnouncement(context.Context, int64, int64,
 	return nil
 }
 
+func (f *fakeParentService) SubmitDeclaration(context.Context, int64, int64, parentService.DeclarationInput, parentService.PasswordConfirmer) (*userModels.DeclarationSubmission, bool, error) {
+	return nil, false, parentService.ErrAnnouncementNotFound
+}
+
+func (f *fakeParentService) DeclarationProof(context.Context, int64, int64, int64) (*parentService.DeclarationProof, error) {
+	return nil, parentService.ErrAnnouncementNotFound
+}
+
 // withClaims attaches a parent account id to the request context the way the
 // JWT middleware does in production.
 func withClaims(r *http.Request, accountID int) *http.Request {

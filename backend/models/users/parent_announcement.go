@@ -79,7 +79,8 @@ const (
 
 // ValidAnnouncementDeliveryMode reports whether m is a known delivery mode.
 func ValidAnnouncementDeliveryMode(m string) bool {
-	return m == ParentAnnouncementDeliveryStandard || m == ParentAnnouncementDeliveryLetter
+	return m == ParentAnnouncementDeliveryStandard || m == ParentAnnouncementDeliveryLetter ||
+		m == ParentAnnouncementDeliveryDeclaration
 }
 
 // ValidAnnouncementEmailAudience reports whether a is a known e-mail audience.
@@ -184,6 +185,8 @@ type ParentAnnouncement struct {
 	// Options is attached the same way (ListOptions) and is empty for a plain
 	// Mitteilung.
 	Options []*ParentAnnouncementOption `bun:"-" json:"options,omitempty"`
+	// Declaration carries the Erklärung settings (#3430); zero for other modes.
+	Declaration AnnouncementDeclarationSettings `bun:"embed:declaration_" json:"-"`
 }
 
 // IsPublished reports whether the announcement has been published (vs draft).
@@ -409,6 +412,8 @@ type AnnouncementFeedItem struct {
 	// they come from separate batched queries, not this row's columns).
 	Options  []*ParentAnnouncementOption `bun:"-" json:"options,omitempty"`
 	Children []*AnnouncementPollChild    `bun:"-" json:"children,omitempty"`
+	// Declaration is attached for Erklärung items (#3430).
+	Declaration *AnnouncementFeedDeclaration `bun:"-" json:"-"`
 }
 
 // IsPoll reports whether the feed item asks the guardian a question.
@@ -515,6 +520,8 @@ type AnnouncementStats struct {
 // run inside a cross-tenant admin transaction (a guardian's children span
 // schools).
 type ParentAnnouncementRepository interface {
+	ParentDeclarationRepository
+
 	// --- staff authoring (tenant tx) ---
 	Create(ctx context.Context, a *ParentAnnouncement) error
 	Update(ctx context.Context, a *ParentAnnouncement) error
