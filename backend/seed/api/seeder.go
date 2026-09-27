@@ -49,6 +49,9 @@ type SeedOptions struct {
 	// SaveState replaces file output, allowing the demo process to persist
 	// credentials in the database. A failure fails the seed workflow.
 	SaveState func(context.Context, *SeedState) error
+	// DeferHistory leaves the deferred steps out of Seed: the school is usable
+	// without them, and SeedResult.Deferred runs them afterwards.
+	DeferHistory bool
 }
 
 // Seeder orchestrates the complete API-based seeding process
@@ -65,6 +68,8 @@ type Seeder struct {
 // SeedResult contains counts of created entities
 type SeedResult struct {
 	Fixed *FixedResult
+	// Deferred seeds what DeferHistory left out; nil without it.
+	Deferred func(context.Context) error
 }
 
 type bootstrapSeedState struct {
@@ -131,6 +136,19 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 			return nil, s.formatProfileError(s.profile, stepErr.Step, stepErr.Err)
 		}
 		return nil, s.formatProfileError(s.profile, workflow.Name, err)
+	}
+	if s.options.DeferHistory {
+		deferred := Workflow{Name: "deferred-demo", Steps: deferredDemoSteps()}
+		runtime.Result.Deferred = func(ctx context.Context) error {
+			if err := deferred.Run(ctx, runtime); err != nil {
+				var stepErr *StepError
+				if errors.As(err, &stepErr) {
+					return s.formatProfileError(s.profile, stepErr.Step, stepErr.Err)
+				}
+				return s.formatProfileError(s.profile, deferred.Name, err)
+			}
+			return nil
+		}
 	}
 	return runtime.Result, nil
 }

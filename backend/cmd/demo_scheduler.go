@@ -105,9 +105,11 @@ func (s *demoScheduler) startOrders(ctx context.Context) error {
 // prepare seeds the ordered school, runs its first tick and opens it. The
 // school is ready only once it is in its running state, whatever the hour
 // and weekday. A failed order is queued once more, then closed as failed.
+// The past (time-tracking history, course dates) follows once it is open,
+// on the same worker, so the visitor waits for the present only.
 func (s *demoScheduler) prepare(ctx context.Context, order backendapi.DemoSchoolOrder) {
 	started := time.Now()
-	err := s.seedAndTick(ctx, order)
+	deferred, err := s.seedAndTick(ctx, order)
 	if ctx.Err() != nil {
 		return // The next process releases the claim and tries again.
 	}
@@ -117,6 +119,7 @@ func (s *demoScheduler) prepare(ctx context.Context, order backendapi.DemoSchool
 			"attempt", order.Attempts,
 			"seconds", time.Since(started).Seconds(),
 		)
+		s.seedDeferred(ctx, order.Slug, deferred)
 		return
 	}
 	if s.adapter.paused() {
@@ -139,10 +142,27 @@ func (s *demoScheduler) prepare(ctx context.Context, order backendapi.DemoSchool
 	)
 }
 
-func (s *demoScheduler) seedAndTick(ctx context.Context, order backendapi.DemoSchoolOrder) error {
-	if order.Attempts > demoSeedAttempts {
-		return fmt.Errorf("demo school order used its attempts")
+// seedDeferred completes an open school. A failure costs the school only its
+// past; the order stays ready, since the visitor may already be inside.
+func (s *demoScheduler) seedDeferred(ctx context.Context, slug string, deferred func(context.Context) error) {
+	if deferred == nil {
+		return // A repetition of a seeded order has nothing left to seed.
 	}
+	started := time.Now()
+	if err := deferred(ctx); err != nil {
+		if ctx.Err() == nil {
+			slog.Warn("demo school history not seeded", "school", slug, "error", err)
+		}
+		return
+	}
+	slog.Info("demo school history seeded", "school", slug, "seconds", time.Since(started).Seconds())
+}
+
+func (s *demoScheduler) seedAndTick(ctx context.Context, order backendapi.DemoSchoolOrder) (func(context.Context) error, error) {
+	if order.Attempts > demoSeedAttempts {
+		return nil, fmt.Errorf("demo school order used its attempts")
+	}
+	var deferred func(context.Context) error
 	if !order.Seeded {
 		options := seedapi.SeedOptions{
 			TenantSlug: order.Slug, SchoolName: order.SchoolName,
@@ -150,19 +170,21 @@ func (s *demoScheduler) seedAndTick(ctx context.Context, order backendapi.DemoSc
 			AccountScope: demoAccountScope(order.Slug, order.Attempts),
 			// The broken attempt keeps its school and accounts; move both aside.
 			ReplaceAbandoned: order.Attempts > 1,
+			DeferHistory:     true,
 		}
-		if err := provisionDemoSchool(ctx, s.schools, s.adapter, options); err != nil {
-			return err
+		var err error
+		if deferred, err = provisionDemoSchool(ctx, s.schools, s.adapter, options); err != nil {
+			return nil, err
 		}
 	}
 	school, err := loadDemoSchool(ctx, s.schools, order.Slug, s.baseURL)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := school.run(ctx, true, true, func() {}); err != nil {
-		return err
+		return nil, err
 	}
-	return s.schools.FinishDemoSchoolOrder(ctx, order.Slug, school.visitorID, school.visitorParentID)
+	return deferred, s.schools.FinishDemoSchoolOrder(ctx, order.Slug, school.visitorID, school.visitorParentID)
 }
 
 // demoAccountScope is what the school's account emails and usernames carry.

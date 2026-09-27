@@ -125,7 +125,7 @@ func runStandingDemo(ctx context.Context, schools *backendapi.DemoRuntime, baseU
 	}
 	if saved == nil {
 		options := seedapi.SeedOptions{TenantSlug: standingDemoSlug, SchoolName: "moto Demo-Schule"}
-		if err := provisionDemoSchool(ctx, schools, adapter, options); err != nil {
+		if _, err := provisionDemoSchool(ctx, schools, adapter, options); err != nil {
 			return err
 		}
 	}
@@ -248,15 +248,16 @@ func (s *demoSchool) run(ctx context.Context, once, stopOnLogin bool, ticked fun
 }
 
 // provisionDemoSchool seeds the school of options and stores its state under
-// its slug. Tenant slug and school name come from the caller.
-func provisionDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, adapter seedapi.Adapter, options seedapi.SeedOptions) error {
+// its slug. Tenant slug and school name come from the caller. With
+// options.DeferHistory it returns the seed still to run; otherwise nil.
+func provisionDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, adapter seedapi.Adapter, options seedapi.SeedOptions) (func(context.Context) error, error) {
 	email, password, pin := demoProvisioningCredentials()
 	if err := checkDemoProvisioning(email, password, pin); err != nil {
-		return err
+		return nil, err
 	}
 	staffPassword, err := seedapi.GenerateSeedPassword(services.SecureRandomSource())
 	if err != nil {
-		return err
+		return nil, err
 	}
 	slug := options.TenantSlug
 	options.OnlyProfile, options.StaffPassword, options.StandingDemo = seedapi.DefaultProfileKey, staffPassword, true
@@ -272,8 +273,11 @@ func provisionDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, a
 		}
 		return schools.RememberDemoSchool(ctx, slug, backendapi.DemoSchoolRecord{SchoolID: profile.School.ID, SeedJSON: raw})
 	}
-	_, err = seedapi.NewSeeder(adapter, services.SecureRandomSource(), false, options).Seed(ctx, email, password, pin)
-	return err
+	result, err := seedapi.NewSeeder(adapter, services.SecureRandomSource(), false, options).Seed(ctx, email, password, pin)
+	if err != nil {
+		return nil, err
+	}
+	return result.Deferred, nil
 }
 
 func demoProvisioningCredentials() (email, password, pin string) {

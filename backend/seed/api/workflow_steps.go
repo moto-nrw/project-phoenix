@@ -227,18 +227,21 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		// NFC-Arbeitsblock. Nach einem App-Checkout am selben Tag verhindert
 		// die Zeiterfassung bewusst einen erneuten Auto-Check-in.
 		seedStatisticsDemoStep{},
-		seedTimeTrackingHistoryStep{},
-		seedDataAccessAuditStep{},
-		// Rührt weder an der Zeiterfassung noch am NFC-Block: legt nur
-		// vergangene Kurstermine samt Anwesenheit an (#2891).
-		seedCourseParticipationStep{},
+		// Der einzige Block, der über die Stempeluhr läuft: nach ihm stempelt
+		// niemand mehr live, und die Historie kann neben der Simulation laufen.
+		seedWorkSessionBreakStep{},
+	}
+	if !seeder.options.DeferHistory {
+		steps = append(steps, deferredDemoSteps()...)
+	}
+	steps = append(steps,
 		parentEnrollmentSeedStep{seeder: seeder},
 		seedParentEngagementStep{},
 		seedGradeTransitionStep{},
 		seedParentLetterStep{},
 		seedInactiveAccountStep{},
 		verifyProfileStep{definition: seeder.definition},
-	}
+	)
 	if seeder.options.OnlyProfile == "" {
 		steps = append(steps,
 			manualProfileStep{seeder: seeder},
@@ -253,4 +256,17 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		printSummaryStep{seeder: seeder},
 	)
 	return Workflow{Name: "full-demo", Steps: steps}
+}
+
+// deferredDemoSteps fill the past only: the time-tracking history, the export
+// that audits it, and past course dates. No later step reads them, so a demo
+// school opens without them and they follow while it runs (DeferHistory).
+func deferredDemoSteps() []Step {
+	return []Step{
+		seedTimeTrackingHistoryStep{},
+		seedDataAccessAuditStep{},
+		// Rührt weder an der Zeiterfassung noch am NFC-Block: legt nur
+		// vergangene Kurstermine samt Anwesenheit an (#2891).
+		seedCourseParticipationStep{},
+	}
 }
