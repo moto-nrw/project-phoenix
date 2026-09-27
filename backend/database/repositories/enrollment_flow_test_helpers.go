@@ -46,7 +46,7 @@ func NewEnrollmentFlowTestRepositories(db *bun.DB) (*EnrollmentFlowTestRepositor
 		School:                       organizations,
 		StudentGuardian:              NewStudentGuardianRepository(db),
 		GuardianProfile:              NewGuardianProfileRepository(db),
-		GuardianPhoneNumber:          usersRepo.NewGuardianPhoneNumberRepository(db),
+		GuardianPhoneNumber:          usersRepo.NewGuardianPhoneNumberRepository(peopleRuntime(db)),
 		EnrollmentOfferingAdjustment: auditRepo.NewEnrollmentOfferingAdjustmentRepository(audits),
 		EnrollmentRestorationAudit:   auditRepo.NewEnrollmentRestorationRepository(audits),
 		EnrollmentDeletionAudit:      auditRepo.NewEnrollmentDeletionRepository(audits),

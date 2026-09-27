@@ -9,8 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -23,12 +22,12 @@ func TestLetterChildStatuses_DerivesFulfilmentFromAcknowledgement(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
-		"Elternbrief", []*usersModels.ParentAnnouncementTarget{
-			{TargetType: usersModels.AnnouncementTargetSchoolAll},
+		"Elternbrief", []*testpkg.ParentAnnouncementTarget{
+			{TargetType: testpkg.AnnouncementTargetSchoolAll},
 		})
 
 	// Before anyone confirms, the child is reached but open.
@@ -72,12 +71,12 @@ func TestLetterChildStatuses_TenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
-		"Elternbrief", []*usersModels.ParentAnnouncementTarget{
-			{TargetType: usersModels.AnnouncementTargetSchoolAll},
+		"Elternbrief", []*testpkg.ParentAnnouncementTarget{
+			{TargetType: testpkg.AnnouncementTargetSchoolAll},
 		})
 
 	own, err := repo.LetterChildStatuses(ctx, chain.TenantID, letter.ID)
@@ -102,12 +101,12 @@ func TestResolveDeliveryRecipients_IncludesGuardiansWithoutPortalAccess(t *testi
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
-		"Elternbrief", []*usersModels.ParentAnnouncementTarget{
-			{TargetType: usersModels.AnnouncementTargetSchoolAll},
+		"Elternbrief", []*testpkg.ParentAnnouncementTarget{
+			{TargetType: testpkg.AnnouncementTargetSchoolAll},
 		})
 
 	before, err := repo.ResolveDeliveryRecipients(ctx, chain.TenantID, letter.ID)
@@ -142,7 +141,7 @@ func TestResolveDeliveryRecipients_IncludesGuardiansWithoutPortalAccess(t *testi
 	}
 }
 
-func childByID(children []*usersModels.AnnouncementLetterChildStatus, studentID int64) *usersModels.AnnouncementLetterChildStatus {
+func childByID(children []*testpkg.AnnouncementLetterChildStatus, studentID int64) *testpkg.AnnouncementLetterChildStatus {
 	for _, c := range children {
 		if c.StudentID == studentID {
 			return c
@@ -151,7 +150,7 @@ func childByID(children []*usersModels.AnnouncementLetterChildStatus, studentID 
 	return nil
 }
 
-func recipientByProfile(recipients []*usersModels.AnnouncementDeliveryRecipient, profileID int64) *usersModels.AnnouncementDeliveryRecipient {
+func recipientByProfile(recipients []*testpkg.AnnouncementDeliveryRecipient, profileID int64) *testpkg.AnnouncementDeliveryRecipient {
 	for _, r := range recipients {
 		if r.GuardianProfileID == profileID {
 			return r
@@ -170,12 +169,12 @@ func TestLetterChildStatuses_KeepsChildrenNobodyCanConfirmFor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
-		"Elternbrief", []*usersModels.ParentAnnouncementTarget{
-			{TargetType: usersModels.AnnouncementTargetSchoolAll},
+		"Elternbrief", []*testpkg.ParentAnnouncementTarget{
+			{TargetType: testpkg.AnnouncementTargetSchoolAll},
 		})
 
 	before, err := repo.LetterChildStatuses(ctx, chain.TenantID, letter.ID)

@@ -11,7 +11,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -62,7 +61,7 @@ func newServiceWithEnabled(t *testing.T, db *bun.DB, enabled bool, retentionDays
 	// go through the same path production uses. FindByAccountID only touches
 	// PersonRepo, so the rest of the DI bundle stays empty on purpose.
 	persons := userService.NewPersonService(userService.PersonServiceDependencies{
-		PersonRepo: repoUsers.NewPersonRepository(db),
+		PersonRepo: repositories.NewPersonRepository(db),
 	})
 
 	repos := newRepositories(t, db)

@@ -3,7 +3,6 @@ package users_test
 import (
 	"testing"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +32,7 @@ func TestParentMessaging_TenantIsolation(t *testing.T) {
 	thread := newThread(t, chain.StudentID, chain.AccountID)
 	require.NoError(t, repos.Thread.Create(homeCtx, thread))
 	message := newMessage(t, thread.ID, chain.StudentID, chain.AccountID,
-		usersModels.ParentMessageSenderGuardian, "Nur fuer diese Schule")
+		testpkg.ParentMessageSenderGuardian, "Nur fuer diese Schule")
 	require.NoError(t, repos.Message.Create(homeCtx, message))
 	advanced, err := repos.Read.MarkReadUpTo(
 		homeCtx, testpkg.Tenant(t), thread.ID, staffAccount.ID, message.CreatedAt, message.ID)

@@ -8,7 +8,7 @@ import (
 
 // TestStudentDocumentPermissionsMatchTheRegistry pins the restated names to
 // the permission registry: a renamed permission must not silently leave a
-// document category guarded by a name no role holds.
+// document category, or the own calendar, guarded by a name no role holds.
 func TestStudentDocumentPermissionsMatchTheRegistry(t *testing.T) {
 	t.Parallel()
 
@@ -17,6 +17,7 @@ func TestStudentDocumentPermissionsMatchTheRegistry(t *testing.T) {
 		PermissionStudentDocumentsLegal:  permissions.StudentDocumentsLegal,
 		PermissionUsersUpdate:            permissions.UsersUpdate,
 		PermissionUsersAbsence:           permissions.UsersAbsence,
+		PermissionCalendarOwn:            permissions.CalendarOwn,
 	} {
 		if restated != registered {
 			t.Errorf("restated permission %q, registry has %q", restated, registered)

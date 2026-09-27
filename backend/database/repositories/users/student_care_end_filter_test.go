@@ -5,9 +5,8 @@ import (
 	"testing"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +26,7 @@ func TestStudentRepository_EndedCareExcludedFromRosterReads(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := testutil.NewPeopleRepositorySuiteFactory(db)
 	ctx := testpkg.Ctx(t)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
@@ -50,12 +49,12 @@ func TestStudentRepository_EndedCareExcludedFromRosterReads(t *testing.T) {
 	assignGroup(t, db, lastDayToday.ID, group.ID)
 	assignGroup(t, db, departed.ID, group.ID)
 
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	yesterday := today.AddDays(-1)
 	// The interval's upper bound is INCLUSIVE: a child whose last care day is
 	// today is still there today and leaves tomorrow.
-	testpkg.SetStudentLifecycle(t, db, lastDayToday.ID, users.StudentStatusActive, nil, &today)
-	testpkg.SetStudentLifecycle(t, db, departed.ID, users.StudentStatusActive, nil, &yesterday)
+	testpkg.SetStudentLifecycle(t, db, lastDayToday.ID, testpkg.StudentStatusActive, nil, &today)
+	testpkg.SetStudentLifecycle(t, db, departed.ID, testpkg.StudentStatusActive, nil, &yesterday)
 
 	t.Run("FindAllWithGroups keeps the last care day and drops the day after", func(t *testing.T) {
 		infos, err := repos.Student.FindAllWithGroups(ctx)

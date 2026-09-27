@@ -300,7 +300,7 @@ func TestPersonIdentityFilteringMatchesRetainedReader(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Filtering", "Parity", "3a")
 	people, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
 	require.NoError(t, err)
-	old := usersRepo.NewPersonRepository(db)
+	old := usersRepo.NewPersonRepository(peopleCompose.NewLegacyRepositoryRuntime(db))
 	ids := []int64{student.PersonID}
 	beforeOld, err := old.FindByIDs(ctx, ids)
 	require.NoError(t, err)
@@ -443,7 +443,7 @@ func TestSnapshotInputsEnforceRLS(t *testing.T) {
 		PresenceMode: fakeMode{mode: "detailed"},
 		Students:     newOwnerStudentSource(t, db),
 		Persons:      people,
-		Contacts:     usersRepo.NewGuardianRelationshipRepository(db),
+		Contacts:     usersRepo.NewGuardianRelationshipRepository(peopleCompose.NewLegacyRepositoryRuntime(db)),
 		Rooms:        facilitiesModule,
 		Settings:     &fakeSettings{enabled: false},
 		Renderer:     listexport.NewService(),

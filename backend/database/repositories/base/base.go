@@ -531,30 +531,6 @@ func AssertRowsAffectedCount(actual, expected int64, op string) error {
 	return nil
 }
 
-// DatabaseErrorCause returns the driver error wrapped by DatabaseError. It
-// lets a typed repository method preserve its own operation name after
-// delegating query construction to a generic repository helper.
-func DatabaseErrorCause(err error) error {
-	var databaseErr *modelBase.DatabaseError
-	if errors.As(err, &databaseErr) && databaseErr.Err != nil {
-		err = databaseErr.Err
-	}
-	if cause, ok := RowsAffectedCause(err); ok {
-		return cause
-	}
-	return err
-}
-
-// RowsAffectedCause reports whether err came from reading a DML result's row
-// count and returns the underlying driver error.
-func RowsAffectedCause(err error) (error, bool) {
-	var rowsErr *rowsAffectedError
-	if errors.As(err, &rowsErr) {
-		return rowsErr.err, true
-	}
-	return nil, false
-}
-
 // TenantWhere returns a WHERE clause fragment and value for tenant filtering.
 // Use this in custom repository methods to add defense-in-depth tenant_id checks.
 func TenantWhere(ctx context.Context, alias string) (string, int64, bool) {

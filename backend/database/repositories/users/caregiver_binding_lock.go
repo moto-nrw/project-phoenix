@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -50,7 +49,7 @@ func (r *caregiverBindingLocker) LockCaregiverCapabilityBindings(ctx context.Con
 	}
 	for _, step := range steps {
 		if err := step.lock(ctx); err != nil {
-			return &modelBase.DatabaseError{
+			return &userModels.DatabaseError{
 				Op:  "lock caregiver capability binding table " + step.table,
 				Err: err,
 			}
