@@ -884,6 +884,8 @@ function routeRequest(request: NextRequest): NextResponse {
 export const config = {
   matcher: [
     // Next.js requires a literal so it can statically analyze the matcher.
-    "/((?!_next/static|_next/image|favicon\\.ico|favicon\\.png|apple-touch-icon\\.png|site\\.webmanifest|manifest\\.webmanifest|sw\\.js|favicons/|icons/|images/).*)",
+    // downloads/ holds public files that mails link on every host, such as
+    // the Elterninfo on the parents host (#3534).
+    "/((?!_next/static|_next/image|favicon\\.ico|favicon\\.png|apple-touch-icon\\.png|site\\.webmanifest|manifest\\.webmanifest|sw\\.js|favicons/|icons/|images/|downloads/).*)",
   ],
 };

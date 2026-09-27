@@ -31,17 +31,19 @@ type ProviderResult struct {
 const ProviderAcceptedStatusCode = 202
 
 type ClaimedIntent struct {
-	ID             int64
-	TenantID       int64
-	Transport      Transport
-	Template       string
-	EmailRecipient EmailRecipient
-	PushRecipient  PushRecipient
-	EmailPayload   json.RawMessage
-	PushPayload    PushPayload
-	Attempts       int
-	LeaseToken     string
-	LeaseExpiresAt time.Time
+	ID                int64
+	TenantID          int64
+	Transport         Transport
+	Template          string
+	RelatedEntityType *string
+	RelatedEntityID   *int64
+	EmailRecipient    EmailRecipient
+	PushRecipient     PushRecipient
+	EmailPayload      json.RawMessage
+	PushPayload       PushPayload
+	Attempts          int
+	LeaseToken        string
+	LeaseExpiresAt    time.Time
 }
 
 type WorkerStats struct {

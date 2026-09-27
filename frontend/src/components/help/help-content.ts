@@ -188,6 +188,9 @@ function invitationTopic(): HelpTopic {
     ],
     result:
       "Ihr moto-Konto ist eingerichtet und Sie können sich jetzt anmelden. Bewahren Sie Ihre E-Mail-Adresse und Ihr Passwort sicher auf und geben Sie beides nicht weiter.",
+    notes: [
+      "Zur Einladung bekommen Sie eine zweite E-Mail: `Willkommen bei moto`. Sie führt zu dieser Anleitung. Den Knopf `Einladung annehmen` finden Sie nur in der Einladungs-Mail.",
+    ],
     differences: [
       "Steht dort `Schule hinzufügen`? Dann haben Sie schon ein moto-Konto. Melden Sie sich an und wählen Sie `Einladung annehmen`. Ihr Passwort bleibt gleich.",
     ],
@@ -5347,6 +5350,7 @@ function parentAccountTopic(): HelpTopic {
     notes: [
       "Das Passwort braucht mindestens 8 Zeichen, einen Großbuchstaben, einen Kleinbuchstaben, eine Zahl und ein Sonderzeichen.",
       "Unter `Passwortanforderungen` sehen Sie, was noch fehlt.",
+      "Zur Einladung bekommen Sie eine zweite E-Mail: `Willkommen bei moto`. Sie führt zu dieser Anleitung und zur Elterninfo. Den Link zum Einrichten finden Sie nur in der Einladungs-E-Mail.",
     ],
     differences: [
       "Sie sehen `Konto erstellt`? Dann hat es geklappt. Melden Sie sich jetzt an.",
@@ -6313,6 +6317,7 @@ function teacherAccessTopic(): HelpTopic {
     notes: [
       "Haben Sie schon ein Konto? Dann melden Sie sich an und kehren zur Einladung zurück. Ihr Passwort bleibt unverändert.",
       "Der Link aus der E-Mail führt schon zur richtigen Adresse.",
+      "Zur Einladung bekommen Sie eine zweite E-Mail: `Willkommen bei moto`. Sie führt zu dieser Anleitung. Den Link zum Annehmen finden Sie nur in der Einladungs-Mail.",
     ],
     differences: [
       "moto schule hat eine eigene Adresse. Über die Adresse der OGS kommen Sie nicht hinein.",

@@ -31,6 +31,7 @@ type Mock struct {
 	ResolveBoolFn                                 func(ctx context.Context, key string) (bool, error)
 	ResolveBoolsFn                                func(ctx context.Context, keys []string) (map[string]bool, error)
 	ResolveBoolForTenantFn                        func(ctx context.Context, tenantID int64, key string) (bool, error)
+	ResolveBoolForTenantInTxFn                    func(ctx context.Context, tenantID int64, key string) (bool, error)
 	ResolveIntFn                                  func(ctx context.Context, key string) (int, error)
 	ResolveIntForTenantFn                         func(ctx context.Context, tenantID int64, key string) (int, error)
 	HasTenantOverrideFn                           func(ctx context.Context, key string) (bool, error)
@@ -151,6 +152,18 @@ func (m *Mock) ResolveBools(ctx context.Context, keys []string) (map[string]bool
 }
 
 func (m *Mock) ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error) {
+	if m.ResolveBoolForTenantFn != nil {
+		return m.ResolveBoolForTenantFn(ctx, tenantID, key)
+	}
+	return false, nil
+}
+
+// ResolveBoolForTenantInTx falls back to ResolveBoolForTenantFn so tests that
+// configure a tenant setting keep the same value inside an ambient transaction.
+func (m *Mock) ResolveBoolForTenantInTx(ctx context.Context, tenantID int64, key string) (bool, error) {
+	if m.ResolveBoolForTenantInTxFn != nil {
+		return m.ResolveBoolForTenantInTxFn(ctx, tenantID, key)
+	}
 	if m.ResolveBoolForTenantFn != nil {
 		return m.ResolveBoolForTenantFn(ctx, tenantID, key)
 	}

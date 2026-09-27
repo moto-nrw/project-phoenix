@@ -874,17 +874,25 @@ func (e *lifecycleEnrollments) ClaimGuardianEnrollments(_ context.Context, accou
 }
 
 type lifecycleDelivery struct {
-	emails       []domain.GuardianInvitation
-	accessEmails []domain.GuardianProfile
+	emails                []domain.GuardianInvitation
+	accessEmails          []domain.GuardianProfile
+	welcomeEmails         []domain.GuardianProfile
+	invitationMailQueued  bool
+	existingAccountQueued bool
 }
 
 func (lifecycleDelivery) InvitationExpiry(context.Context) time.Duration { return 48 * time.Hour }
 func (lifecycleDelivery) SchoolName(context.Context, int64) string       { return "OGS Musterschule" }
-func (d *lifecycleDelivery) EnqueueInvitationEmail(_ context.Context, invitation domain.GuardianInvitation, _ domain.GuardianProfile, _ string) {
+func (d *lifecycleDelivery) EnqueueInvitationEmail(_ context.Context, invitation domain.GuardianInvitation, _ domain.GuardianProfile, _ string) (int64, bool) {
 	d.emails = append(d.emails, invitation)
+	return int64(len(d.emails)), d.invitationMailQueued
 }
-func (d *lifecycleDelivery) EnqueueExistingAccountEmail(_ context.Context, profile domain.GuardianProfile, _ string) {
+func (d *lifecycleDelivery) EnqueueExistingAccountEmail(_ context.Context, profile domain.GuardianProfile, _ string) (int64, bool) {
 	d.accessEmails = append(d.accessEmails, profile)
+	return int64(len(d.accessEmails)), d.existingAccountQueued
+}
+func (d *lifecycleDelivery) EnqueueWelcomeEmail(_ context.Context, profile domain.GuardianProfile, _ int64, _ string, _ int64) {
+	d.welcomeEmails = append(d.welcomeEmails, profile)
 }
 
 type lifecycleFinancial struct {
@@ -936,7 +944,8 @@ func newLifecycleFixture(t *testing.T) *lifecycleFixture {
 	require.NoError(t, err)
 	f := &lifecycleFixture{
 		store: store, staff: newLifecycleStaff(), audit: &lifecyclePreviewAudit{},
-		guardians: newLifecycleGuardians(), invitations: newLifecycleInvitations(), delivery: &lifecycleDelivery{},
+		guardians: newLifecycleGuardians(), invitations: newLifecycleInvitations(),
+		delivery:    &lifecycleDelivery{invitationMailQueued: true, existingAccountQueued: true},
 		enrollments: newLifecycleEnrollments(), schools: schools,
 		financial: &lifecycleFinancial{}, runtime: runtime, sessions: store.fakeStore, persons: persons,
 	}

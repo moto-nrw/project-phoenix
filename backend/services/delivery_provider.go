@@ -184,6 +184,7 @@ func (a durableEmailAdapter) EnqueueEmail(ctx context.Context, input emailoutbox
 		Recipient: delivery.EmailRecipient{Address: input.Recipient}, Payload: input.Payload,
 		IdempotencyKey: input.IdempotencyKey,
 		Related:        delivery.RelatedEntity{Type: input.RelatedType, ID: input.RelatedID},
+		DeliverAfter:   input.DeliverAfter,
 	})
 	if err != nil {
 		return emailoutbox.DurableEmailResult{}, err
@@ -204,11 +205,19 @@ func guardianInvitationRenderer(render func(context.Context, map[string]any) (*e
 type outboxEnqueuer struct{ outbox *emailoutbox.Service }
 
 func (o outboxEnqueuer) EnqueueOutbox(ctx context.Context, req platformModels.OutboxEnqueueRequest) error {
-	_, err := o.outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
-		Kind: req.Kind, Payload: req.Payload, RelatedEntityType: req.RelatedEntityType,
-		RelatedEntityID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey,
-	})
+	_, err := o.EnqueueOutboxWithResult(ctx, req)
 	return err
+}
+
+func (o outboxEnqueuer) EnqueueOutboxWithResult(ctx context.Context, req platformModels.OutboxEnqueueRequest) (platformModels.OutboxEnqueued, error) {
+	stored, err := o.outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
+		Kind: req.Kind, Payload: req.Payload, RelatedEntityType: req.RelatedEntityType,
+		RelatedEntityID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey, DeliverAfter: req.DeliverAfter,
+	})
+	if err != nil {
+		return platformModels.OutboxEnqueued{}, err
+	}
+	return platformModels.OutboxEnqueued{ID: stored.ID}, nil
 }
 
 func (a durableEmailAdapter) CancelEmail(ctx context.Context, tenantID int64, relatedType string, relatedID int64, reason string) (int64, error) {
@@ -260,7 +269,19 @@ func (p *deliveryProvider) SendEmail(ctx context.Context, intent delivery.Claime
 	if err := json.Unmarshal(intent.EmailPayload, &payload); err != nil {
 		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: decode email payload: %w", err)
 	}
-	row := &emailoutbox.Intent{ID: intent.ID, TenantID: intent.TenantID, Kind: intent.Template, Payload: payload, Attempts: intent.Attempts}
+	relatedType := ""
+	if intent.RelatedEntityType != nil {
+		relatedType = *intent.RelatedEntityType
+	}
+	relatedID := int64(0)
+	if intent.RelatedEntityID != nil {
+		relatedID = *intent.RelatedEntityID
+	}
+	row := &emailoutbox.Intent{
+		ID: intent.ID, TenantID: intent.TenantID, Kind: intent.Template,
+		RelatedEntityType: relatedType, RelatedEntityID: relatedID,
+		Payload: payload, Attempts: intent.Attempts,
+	}
 	renderer, err := p.registry.Lookup(intent.Template)
 	if err != nil {
 		return delivery.ProviderResult{}, err
@@ -277,6 +298,9 @@ func (p *deliveryProvider) SendEmail(ctx context.Context, intent delivery.Claime
 	if err != nil {
 		if errors.Is(err, emailoutbox.ErrRenderCancelled) {
 			return delivery.ProviderResult{}, fmt.Errorf("%w: %v", delivery.ErrCancelled, err)
+		}
+		if errors.Is(err, emailoutbox.ErrRenderDeferred) {
+			return delivery.ProviderResult{}, fmt.Errorf("%w: %v", delivery.ErrDeferred, err)
 		}
 		return delivery.ProviderResult{}, err
 	}
