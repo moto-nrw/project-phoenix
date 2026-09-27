@@ -1398,6 +1398,10 @@ describe("StudentImportPage", () => {
       expect(
         screen.getByRole("button", { name: "80 Kinder importieren" }),
       ).toBeDisabled();
+      expect(
+        screen.getByText("80 Kinder neu in der Datei"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/bereit zum Import/)).not.toBeInTheDocument();
     });
 
     it("names the free Kinderkontingent and keeps the import open when it fits", async () => {

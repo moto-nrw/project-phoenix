@@ -324,7 +324,11 @@ export default function StudentImportPage() {
             errors: [],
             notes: [],
             first_name: `${importData.TotalRows} Kinder`,
-            last_name: "bereit zum Import",
+            // Passt die Datei nicht ins Kinderkontingent, ist nichts bereit.
+            last_name:
+              importData.child_quota?.fits === false
+                ? "neu in der Datei"
+                : "bereit zum Import",
             school_class: "",
             group_name: "",
             guardian_info: "",
