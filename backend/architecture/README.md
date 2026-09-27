@@ -341,7 +341,7 @@ is deleted.
   caller's school through `peopledirectory/compose` and the permission
   matcher through `modules/securityruntime` instead of helpers of this package.
 - The 39 suites stay external tests of the package. They compose the retained
-  repositories and the legacy factory through `services/people_repository_suites.go`
+  repositories and the legacy factory through `services/people_repository_test_helpers.go`
   behind `api/testutil`, and name rows, values and errors through
   `test/people_repository_vocabulary.go` and the tenant helpers of
   `test/tenant_runtime.go`. The 208 tests and their subtests are unchanged in

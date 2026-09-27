@@ -121,7 +121,7 @@
     },
     {
       "scope": "production",
-      "file": "database/repositories/people_repository_suites.go",
+      "file": "database/repositories/people_repository_test_helpers.go",
       "declaration": "NewRetainedRepositoryFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -18074,12 +18074,12 @@
           "declaration": "operatorRepositoriesOf"
         },
         {
-          "file": "services/people_repository_suites.go",
+          "file": "services/people_repository_test_helpers.go",
           "line": 24,
           "declaration": "type PeopleRepositorySuiteFactory, PeopleRepositorySuiteParentMessaging, PeopleRepositorySuiteCareLifecycle, PeopleRepositorySuiteAuditCommand, PeopleRepositorySuiteAnnouncementAudience, PeopleRepositorySuiteGuardianProfileOption, PeopleRepositorySuiteRelationshipOption, PeopleRepositorySuitePortalMemberships, PeopleRepositorySuiteSchoolMemberships, PeopleRepositorySuiteStaffAccounts, PeopleRepositorySuiteStaffMessageIdentity, PeopleRepositorySuiteSchoolRoleClass, PeopleRepositorySuitePickupCommand, PeopleRepositorySuiteAccessCommand, PeopleRepositorySuiteRecipients, PeopleRepositorySuiteColleagues, PeopleRepositorySuitePeople, PeopleRepositorySuiteSchoolStructure, PeopleRepositorySuiteCarePlan, PeopleRepositorySuiteCompanionLinks"
         },
         {
-          "file": "services/people_repository_suites.go",
+          "file": "services/people_repository_test_helpers.go",
           "line": 48,
           "declaration": "NewPeopleRepositorySuiteFactory"
         }
