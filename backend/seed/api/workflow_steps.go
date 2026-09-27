@@ -232,10 +232,13 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedWorkSessionBreakStep{},
 	}
 	if !seeder.options.DeferHistory {
-		steps = append(steps, deferredDemoSteps()...)
+		steps = append(steps, deferredPastSteps()...)
+	}
+	steps = append(steps, parentEnrollmentSeedStep{seeder: seeder})
+	if !seeder.options.DeferHistory {
+		steps = append(steps, parentRequestsSeedStep{seeder: seeder})
 	}
 	steps = append(steps,
-		parentEnrollmentSeedStep{seeder: seeder},
 		seedParentEngagementStep{},
 		seedGradeTransitionStep{},
 		seedParentLetterStep{},
@@ -249,19 +252,19 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedEnrollmentBookingsProfileStep{seeder: seeder},
 		)
 	}
+	if !seeder.options.DeferHistory {
+		steps = append(steps, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
+	}
 	steps = append(steps,
-		seedChildQuotaStep{},
-		seedBillingKeyDateCountsStep{},
 		buildStateStep{seeder: seeder},
 		printSummaryStep{seeder: seeder},
 	)
 	return Workflow{Name: "full-demo", Steps: steps}
 }
 
-// deferredDemoSteps fill the past only: the time-tracking history, the export
-// that audits it, and past course dates. No later step reads them, so a demo
-// school opens without them and they follow while it runs (DeferHistory).
-func deferredDemoSteps() []Step {
+// deferredPastSteps fill the past only: the time-tracking history, the export
+// that audits it, and past course dates. No later step reads them.
+func deferredPastSteps() []Step {
 	return []Step{
 		seedTimeTrackingHistoryStep{},
 		seedDataAccessAuditStep{},
@@ -269,4 +272,14 @@ func deferredDemoSteps() []Step {
 		// vergangene Kurstermine samt Anwesenheit an (#2891).
 		seedCourseParticipationStep{},
 	}
+}
+
+// deferredDemoSteps are what a demo school opens without (DeferHistory): the
+// past, then the parents' requests. The requests go after the history, since
+// the running simulation's parents may collide with them. The child quota is
+// sized to the children in care once the requests are decided, and the
+// billing snapshot counts them, so both follow.
+func deferredDemoSteps(seeder *Seeder) []Step {
+	return append(deferredPastSteps(),
+		parentRequestsSeedStep{seeder: seeder}, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
 }

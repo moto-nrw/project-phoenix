@@ -138,7 +138,7 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 		return nil, s.formatProfileError(s.profile, workflow.Name, err)
 	}
 	if s.options.DeferHistory {
-		deferred := Workflow{Name: "deferred-demo", Steps: deferredDemoSteps()}
+		deferred := Workflow{Name: "deferred-demo", Steps: deferredDemoSteps(s)}
 		runtime.Result.Deferred = func(ctx context.Context) error {
 			if err := deferred.Run(ctx, runtime); err != nil {
 				var stepErr *StepError

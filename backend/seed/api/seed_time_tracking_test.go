@@ -143,11 +143,12 @@ func TestFullDemoWorkflowDeferHistoryLeavesOutDeferredSteps(t *testing.T) {
 	}
 	full := fullDemoWorkflow(&Seeder{options: SeedOptions{OnlyProfile: DefaultProfileKey}}).Steps
 	deferred := fullDemoWorkflow(&Seeder{options: SeedOptions{OnlyProfile: DefaultProfileKey, DeferHistory: true}}).Steps
-	for _, step := range deferredDemoSteps() {
+	for _, step := range deferredDemoSteps(&Seeder{}) {
 		assert.True(t, contains(full, step), "%T runs in a full seed", step)
 		assert.False(t, contains(deferred, step), "%T waits for Deferred", step)
 	}
-	assert.Len(t, deferred, len(full)-len(deferredDemoSteps()))
+	assert.Len(t, deferred, len(full)-len(deferredDemoSteps(&Seeder{})))
+	assert.True(t, contains(deferred, parentEnrollmentSeedStep{}), "the visitor's parent account exists when the school opens")
 	assert.True(t, contains(deferred, seedWorkSessionBreakStep{}), "the live break block precedes the simulation")
 }
 
