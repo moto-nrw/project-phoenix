@@ -1,5 +1,3 @@
-import type { AlertType } from "~/components/ui/alert";
-
 /**
  * Kinderkontingent in der Import-Vorschau (#3571). Fehlt bei einer Schule
  * ohne Kinderkontingent. Die Namen der Plätze folgen den Details der
@@ -30,7 +28,7 @@ function freeSentence(free: number, fits: boolean): string {
  */
 export function importChildQuotaNotice(
   quota: ImportChildQuota | null | undefined,
-): { type: Extract<AlertType, "info" | "error">; message: string } | null {
+): { type: "info" | "error"; message: string } | null {
   if (!quota || quota.requested_places === 0) return null;
   const added = `Der Import würde ${childCount(quota.requested_places)} hinzufügen.`;
   const free = freeSentence(quota.free_places, quota.fits);
