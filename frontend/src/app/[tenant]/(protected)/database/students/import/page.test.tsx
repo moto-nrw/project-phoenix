@@ -1450,7 +1450,16 @@ describe("StudentImportPage", () => {
                 requested_places: 80,
               },
             }),
-        });
+        })
+        .mockResolvedValueOnce(
+          previewWithQuota({
+            booked_places: 200,
+            occupied_places: 150,
+            requested_places: 80,
+            free_places: 50,
+            fits: false,
+          }),
+        );
 
       render(<StudentImportPage />);
       fireEvent.click(screen.getByTestId("file-select-trigger"));
@@ -1465,10 +1474,16 @@ describe("StudentImportPage", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("alert-error")).toHaveTextContent(
-          "Das Kinderkontingent Ihrer Schule ist voll. Die Kontingentzahl beträgt 150 von 200 Kindern.",
+          "Der Import würde 80 Kinder hinzufügen. Im Kinderkontingent sind nur noch 50 frei. Der Import startet darum nicht.",
         );
       });
       expect(screen.queryByText(/child quota reached/)).not.toBeInTheDocument();
+      // Die neu geprüfte Vorschau sperrt den Knopf.
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: "80 Kinder importieren" }),
+        ).toBeDisabled();
+      });
     });
 
     it("keeps the saved rows when a later batch hits the Kinderkontingent", async () => {

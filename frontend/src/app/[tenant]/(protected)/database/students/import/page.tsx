@@ -407,10 +407,12 @@ export default function StudentImportPage() {
           });
           return;
         }
-        // Das Kinderkontingent lehnt den ganzen Import ab, bevor er startet.
-        const quotaRefusal = childQuotaMessage(result);
-        if (quotaRefusal) {
-          setError(quotaRefusal);
+        // Das Kinderkontingent lehnt den ganzen Import ab, bevor er startet:
+        // Zwischen Vorschau und Start kamen andere Kinder dazu. Die Vorschau
+        // wird neu geprüft; ihr Hinweis nennt dann den aktuellen Stand und
+        // sperrt den Knopf.
+        if (childQuotaMessage(result)) {
+          await handleFileUpload(uploadedFile);
           return;
         }
         throw new Error(
