@@ -2879,6 +2879,7 @@ function createStudentTopic(): HelpTopic {
     troubleshootingDetails: [
       "Fehlt die passende `Gruppe`? Legen Sie sie zuerst in der `Datenverwaltung` unter `Gruppen` an.",
       "Der grüne Knopf ist grau? Dann hat die Vorschau noch Fehler. Beheben Sie sie in der Datei und laden Sie erneut hoch.",
+      "Über der Vorschau steht rot, der Import würde mehr Kinder hinzufügen, als im Kinderkontingent frei sind? Dann startet der Import gar nicht. Nehmen Sie Kinder aus der Datei heraus oder melden Sie sich beim moto-Team. Kinder, die der Import nur aktualisiert, zählen dabei nicht.",
       "moto erkennt eine Zeile an Vorname, Nachname und Klasse. Bei einem Klassenwechsel an der Spalte `RFID-Karte` oder am Geburtstag.",
       "moto meldet, das Kinderkontingent ist voll? Dann ist die Kontingentzahl erreicht. Wie viel belegt ist, steht oben in `Kinderdaten`. Ihre Eingaben bleiben im Fenster. Für weitere Kinder melden Sie sich beim moto-Team.",
     ],

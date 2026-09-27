@@ -28,14 +28,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func fillChildQuota(t *testing.T, db *bun.DB, bundles, bundleSize int) {
-	t.Helper()
-	_, err := db.NewUpdate().TableExpr("platform.schools").
-		Set("child_quota_bundles = ?", bundles).Set("child_quota_bundle_size = ?", bundleSize).
-		Where("id = ?", testpkg.Tenant(t)).Exec(testpkg.Ctx(t))
-	require.NoError(t, err)
-}
-
 func requireChildQuotaRefusal(t *testing.T, rec *httptest.ResponseRecorder, booked, occupied int) {
 	t.Helper()
 	require.Equal(t, http.StatusConflict, rec.Code, "Body: %s", rec.Body.String())
@@ -83,7 +75,7 @@ func TestDecideAdminChild_NewChildRefusedByAFullKinderkontingent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	harness := setupOfferingGuardRouterTest(t, enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, false, false)
 	testpkg.CreateTestStudent(t, db, "Schon", "Da", "1a")
-	fillChildQuota(t, db, 1, 1)
+	testpkg.SetTestChildQuota(t, db, 1, 1)
 
 	rec := executeApprovalDecision(t, harness)
 
@@ -102,7 +94,7 @@ func TestDecideAdminChild_RenewalOfAnUncountedChildRefusedByAFullKinderkontingen
 	harness := setupOfferingGuardRouterTest(t, enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, false, false)
 	testpkg.CreateTestStudent(t, db, "Schon", "Da", "1a")
 	returning := matchExistingStudent(t, db, harness, usersModels.StudentStatusInactive)
-	fillChildQuota(t, db, 1, 1)
+	testpkg.SetTestChildQuota(t, db, 1, 1)
 
 	rec := executeApprovalDecision(t, harness)
 
@@ -121,7 +113,7 @@ func TestDecideAdminChild_RenewalOfADepartedChildRefusedByAFullKinderkontingent(
 		Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
 		Where("student_profile_id = ? AND deleted_at IS NULL", departed.ID).Exec(harness.ctx)
 	require.NoError(t, err)
-	fillChildQuota(t, db, 1, 1)
+	testpkg.SetTestChildQuota(t, db, 1, 1)
 
 	rec := executeApprovalDecision(t, harness)
 
@@ -134,7 +126,7 @@ func TestDecideAdminChild_RenewalOfACountedChildPassesAFullKinderkontingent(t *t
 	db := testpkg.SetupTestDB(t)
 	harness := setupOfferingGuardRouterTest(t, enrollmentModels.PhaseCareOfferingSelectionOptional, noOffering, false, false)
 	counted := matchExistingStudent(t, db, harness, usersModels.StudentStatusActive)
-	fillChildQuota(t, db, 1, 1)
+	testpkg.SetTestChildQuota(t, db, 1, 1)
 
 	rec := executeApprovalDecision(t, harness)
 
@@ -224,7 +216,7 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 	router := testpkg.TenantRuntimeMiddleware(t, db)(resource.Router())
 
 	testpkg.CreateTestStudent(t, db, "Schon", "Da", "1a")
-	fillChildQuota(t, db, 1, 1)
+	testpkg.SetTestChildQuota(t, db, 1, 1)
 
 	grade := int16(1)
 	payload, err := json.Marshal(enrollmentAPI.AdminManualApprovedEnrollmentRequest{

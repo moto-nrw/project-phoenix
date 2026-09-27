@@ -93,6 +93,9 @@ func newImports(wiring importWiring) imports {
 			FindRFIDCard:    wiring.Identity.FindRFIDCard,
 			Resolver:        resolver,
 			ConsentHistory:  wiring.ConsentHistory,
+			// The owner's Kontingentzahl rule, so the preview counts what
+			// the membership write will count (#3571).
+			CountsTowardChildQuota: schoolmembership.CountsTowardChildQuota,
 		},
 	), runtime)
 
