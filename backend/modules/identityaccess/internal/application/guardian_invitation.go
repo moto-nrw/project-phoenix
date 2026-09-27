@@ -75,7 +75,9 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 // welcome that follows it (#3534). A resend mails the link alone.
 func (l *AccountLifecycle) mailNewInvitation(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile) {
 	schoolName := l.delivery.SchoolName(ctx, invitation.TenantID)
-	l.delivery.EnqueueInvitationEmail(ctx, invitation, profile, schoolName)
+	if !l.delivery.EnqueueInvitationEmail(ctx, invitation, profile, schoolName) {
+		return
+	}
 	l.delivery.EnqueueWelcomeEmail(ctx, profile, invitation.TenantID, schoolName)
 }
 
@@ -84,7 +86,9 @@ func (l *AccountLifecycle) mailNewInvitation(ctx context.Context, invitation dom
 // sends the welcome once per guardian and school.
 func (l *AccountLifecycle) mailExistingAccountAccess(ctx context.Context, profile domain.GuardianProfile, tenantID int64) {
 	schoolName := l.delivery.SchoolName(ctx, tenantID)
-	l.delivery.EnqueueExistingAccountEmail(ctx, profile, schoolName)
+	if !l.delivery.EnqueueExistingAccountEmail(ctx, profile, schoolName) {
+		return
+	}
 	l.delivery.EnqueueWelcomeEmail(ctx, profile, tenantID, schoolName)
 }
 

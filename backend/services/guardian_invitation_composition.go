@@ -81,9 +81,11 @@ func (unsentGuardianMail) InvitationExpiry(context.Context) time.Duration {
 	return GuardianTokenExpiryFallback
 }
 func (unsentGuardianMail) SchoolName(context.Context, int64) string { return "" }
-func (unsentGuardianMail) EnqueueInvitationEmail(context.Context, identityaccess.GuardianInvitation, identityaccessCompose.GuardianProfile, string) {
+func (unsentGuardianMail) EnqueueInvitationEmail(context.Context, identityaccess.GuardianInvitation, identityaccessCompose.GuardianProfile, string) bool {
+	return false
 }
-func (unsentGuardianMail) EnqueueExistingAccountEmail(context.Context, identityaccessCompose.GuardianProfile, string) {
+func (unsentGuardianMail) EnqueueExistingAccountEmail(context.Context, identityaccessCompose.GuardianProfile, string) bool {
+	return false
 }
 func (unsentGuardianMail) EnqueueWelcomeEmail(context.Context, identityaccessCompose.GuardianProfile, int64, string) {
 }
@@ -131,12 +133,12 @@ func (d guardianInvitationDelivery) mailer() GuardianInvitationMailer {
 	})
 }
 
-func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation identityaccess.GuardianInvitation, profile identityaccessCompose.GuardianProfile, schoolName string) {
-	d.mailer().EnqueueInvitation(ctx, invitation.ID, invitation.Token, invitation.ExpiresAt, guardianMailRecipient(profile), schoolName)
+func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation identityaccess.GuardianInvitation, profile identityaccessCompose.GuardianProfile, schoolName string) bool {
+	return d.mailer().EnqueueInvitation(ctx, invitation.ID, invitation.Token, invitation.ExpiresAt, guardianMailRecipient(profile), schoolName)
 }
 
-func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile identityaccessCompose.GuardianProfile, schoolName string) {
-	d.mailer().EnqueueExistingAccount(ctx, guardianMailRecipient(profile), schoolName)
+func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile identityaccessCompose.GuardianProfile, schoolName string) bool {
+	return d.mailer().EnqueueExistingAccount(ctx, guardianMailRecipient(profile), schoolName)
 }
 
 // EnqueueWelcomeEmail queues the welcome that follows a new access (#3534).

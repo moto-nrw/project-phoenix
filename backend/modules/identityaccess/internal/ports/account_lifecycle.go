@@ -177,8 +177,12 @@ type GuardianEnrollments interface {
 type GuardianInvitationDelivery interface {
 	InvitationExpiry(ctx context.Context) time.Duration
 	SchoolName(ctx context.Context, tenantID int64) string
-	EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string)
-	EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string)
+	// EnqueueInvitationEmail reports whether the primary access mail was
+	// queued. A welcome must not follow a failed primary mail.
+	EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) bool
+	// EnqueueExistingAccountEmail reports whether the primary access mail was
+	// queued. A welcome must not follow a failed primary mail.
+	EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string) bool
 	// EnqueueWelcomeEmail queues the welcome that follows the first mail of
 	// a new access (#3534). A guardian gets it at most once per school; a
 	// resend never asks for it.

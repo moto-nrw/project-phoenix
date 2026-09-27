@@ -53,11 +53,11 @@ func NewGuardianInvitationMailer(cfg GuardianInvitationMailerConfig) GuardianInv
 // EnqueueInvitation queues the mail carrying the accept link. expiresAt
 // becomes the "valid for N hours" the mail states, floored at one hour so a
 // link that is about to expire never advertises zero.
-func (m GuardianInvitationMailer) EnqueueInvitation(ctx context.Context, invitationID int64, token string, expiresAt time.Time, recipient GuardianMailRecipient, schoolName string) {
+func (m GuardianInvitationMailer) EnqueueInvitation(ctx context.Context, invitationID int64, token string, expiresAt time.Time, recipient GuardianMailRecipient, schoolName string) bool {
 	if m.outbox == nil {
 		m.logger.Warn("guardian invitation: outbox enqueuer not configured, email skipped",
 			slog.Int64("invitation_id", invitationID))
-		return
+		return false
 	}
 	expiryHours := int(time.Until(expiresAt) / time.Hour)
 	if expiryHours < 1 {
@@ -75,19 +75,21 @@ func (m GuardianInvitationMailer) EnqueueInvitation(ctx context.Context, invitat
 		m.logger.Error("guardian invitation: outbox enqueue failed",
 			slog.Int64("invitation_id", invitationID),
 			slog.String("error", err.Error()))
+		return false
 	}
+	return true
 }
 
 // EnqueueExistingAccount queues the variant for an address that already owns
 // an account (#3320): no registration and no token, just the parents portal
 // login and a hint to use the existing credentials.
-func (m GuardianInvitationMailer) EnqueueExistingAccount(ctx context.Context, recipient GuardianMailRecipient, schoolName string) {
+func (m GuardianInvitationMailer) EnqueueExistingAccount(ctx context.Context, recipient GuardianMailRecipient, schoolName string) bool {
 	if strings.TrimSpace(recipient.Email) == "" {
-		return
+		return false
 	}
 	if m.outbox == nil {
 		m.logger.Warn("guardian portal access email: outbox enqueuer not configured, email skipped")
-		return
+		return false
 	}
 	payload := m.payload(recipient, "/login", schoolName)
 	payload[guardianPayloadExistingAccount] = true
@@ -97,7 +99,9 @@ func (m GuardianInvitationMailer) EnqueueExistingAccount(ctx context.Context, re
 	}); err != nil {
 		m.logger.Error("guardian portal access email: outbox enqueue failed",
 			slog.String("error", err.Error()))
+		return false
 	}
+	return true
 }
 
 // EnqueueWelcome queues the welcome that follows a new access (#3534): the

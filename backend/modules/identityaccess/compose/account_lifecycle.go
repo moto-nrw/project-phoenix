@@ -490,12 +490,12 @@ func (d guardianInvitationDelivery) SchoolName(ctx context.Context, tenantID int
 	return d.source.SchoolName(ctx, tenantID)
 }
 
-func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) {
-	d.source.EnqueueInvitationEmail(ctx, identityaccess.GuardianInvitation(invitation), GuardianProfile(profile), schoolName)
+func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) bool {
+	return d.source.EnqueueInvitationEmail(ctx, identityaccess.GuardianInvitation(invitation), GuardianProfile(profile), schoolName)
 }
 
-func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string) {
-	d.source.EnqueueExistingAccountEmail(ctx, GuardianProfile(profile), schoolName)
+func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string) bool {
+	return d.source.EnqueueExistingAccountEmail(ctx, GuardianProfile(profile), schoolName)
 }
 
 // --- engine methods -------------------------------------------------------
