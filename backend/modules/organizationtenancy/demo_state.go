@@ -84,6 +84,10 @@ type DemoSchoolOrder struct {
 // DemoQueueEngine is the demo process's side of the queue.
 type DemoQueueEngine interface {
 	ReleaseDemoSchoolOrders(context.Context) error
+	// RequeueDeferredDemoSchoolOrders discards interrupted optional seed work
+	// before it can be mistaken for a complete ready school.
+	RequeueDeferredDemoSchoolOrders(context.Context) error
+	RequeueDeferredDemoSchoolOrder(context.Context, string) error
 	ClaimDemoSchoolOrder(context.Context) (*DemoSchoolOrder, error)
 	// FinishDemoSchoolOrder opens the school and names the visitor's
 	// caregiver and parent account; zero names none.

@@ -90,6 +90,16 @@ func (d *DemoRuntime) ReleaseDemoSchoolOrders(ctx context.Context) error {
 	return d.queue.ReleaseDemoSchoolOrders(ctx)
 }
 
+// RequeueDeferredDemoSchoolOrders retries interrupted optional demo work as
+// a clean seed, rather than replaying partial API writes in the open school.
+func (d *DemoRuntime) RequeueDeferredDemoSchoolOrders(ctx context.Context) error {
+	return d.queue.RequeueDeferredDemoSchoolOrders(ctx)
+}
+
+func (d *DemoRuntime) RequeueDeferredDemoSchoolOrder(ctx context.Context, slug string) error {
+	return d.queue.RequeueDeferredDemoSchoolOrder(ctx, slug)
+}
+
 // ClaimDemoSchoolOrder takes the oldest waiting order, or nil.
 func (d *DemoRuntime) ClaimDemoSchoolOrder(ctx context.Context) (*DemoSchoolOrder, error) {
 	order, err := d.queue.ClaimDemoSchoolOrder(ctx)

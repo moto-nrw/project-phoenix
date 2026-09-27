@@ -1,22 +1,23 @@
 package api
 
 type Runtime struct {
-	Adapter            Adapter
-	Client             *Client
-	Verbose            bool
-	OperatorEmail      string
-	OperatorPassword   string
-	StaffPIN           string
-	OperatorAuth       AuthRef
-	TenantAuth         AuthRef
-	Bootstrap          *bootstrapSeedState
-	FixedSeeder        *FixedSeeder
-	Result             *SeedResult
-	State              *SeedState
-	AdditionalProfiles map[string]*SeedProfile
-	Parents            []ParentCredentials
-	Enrollment         SeedEnrollmentState
-	Values             map[string]any
+	Adapter             Adapter
+	Client              *Client
+	Verbose             bool
+	OperatorEmail       string
+	OperatorPassword    string
+	StaffPIN            string
+	OperatorAuth        AuthRef
+	TenantAuth          AuthRef
+	Bootstrap           *bootstrapSeedState
+	FixedSeeder         *FixedSeeder
+	Result              *SeedResult
+	State               *SeedState
+	AdditionalProfiles  map[string]*SeedProfile
+	Parents             []ParentCredentials
+	Enrollment          SeedEnrollmentState
+	DeferredSeedPending bool
+	Values              map[string]any
 }
 
 func newRuntime(seeder *Seeder, operatorEmail, operatorPassword, staffPIN string) *Runtime {

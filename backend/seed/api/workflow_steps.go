@@ -123,6 +123,7 @@ func (s buildStateStep) Run(ctx context.Context, rt *Runtime) error {
 	}
 
 	state := s.seeder.collectSeedState(rt.FixedSeeder, rt.StaffPIN, rt.Bootstrap)
+	state.DeferredSeedPending = rt.DeferredSeedPending
 	if virtual, ok := rt.Values["profile.virtual_device"].(SeedDevice); ok {
 		state.Devices[virtual.DeviceID] = virtual
 	}

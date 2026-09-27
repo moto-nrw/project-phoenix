@@ -146,6 +146,44 @@ func TestDemoSchoolQueueReleasesTheClaimsOfAStoppedProcess(t *testing.T) {
 	assert.True(t, order.Seeded)
 }
 
+func TestDemoSchoolQueueRequeuesInterruptedDeferredSeed(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	otherSchoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	ctx := t.Context()
+
+	interrupted := orderDemoSchool(t, db, "OGS Nord")
+	other := orderDemoSchool(t, db, "OGS Süd")
+	for _, order := range []struct {
+		slug     string
+		tenantID int64
+	}{
+		{slug: interrupted, tenantID: schoolID},
+		{slug: other, tenantID: otherSchoolID},
+	} {
+		_, err := queue.ClaimDemoSchoolOrder(ctx)
+		require.NoError(t, err)
+		require.NoError(t, schools.RememberDemoSchool(ctx, order.slug, organizationtenancy.DemoSchoolState{
+			SchoolID: order.tenantID, SeedJSON: []byte(`{"deferred_seed_pending":true}`),
+		}))
+		require.NoError(t, queue.FinishDemoSchoolOrder(ctx, order.slug, 0, 0))
+	}
+
+	require.NoError(t, queue.RequeueDeferredDemoSchoolOrder(ctx, interrupted))
+	assert.Equal(t, organizationtenancy.DemoSchoolPreparing, demoSchoolProgress(t, db, interrupted).Status)
+	assert.Equal(t, organizationtenancy.DemoSchoolReady, demoSchoolProgress(t, db, other).Status)
+	claimed, err := queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, claimed)
+	assert.Equal(t, interrupted, claimed.Slug)
+	assert.False(t, claimed.Seeded, "a partial seed must be rebuilt, not replayed")
+}
+
 // The serving backend queues and reads progress; the seed state with its
 // credentials stays out of its reach, and it cannot open a school itself.
 func TestDemoSchoolOrdersCannotReadOrForgeSeedState(t *testing.T) {

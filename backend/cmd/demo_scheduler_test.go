@@ -1,11 +1,8 @@
 package cmd
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -19,26 +16,6 @@ func TestDemoAccountScopeFitsTheUsernameLimit(t *testing.T) {
 	assert.Equal(t, "k3m9xp", demoAccountScope(slug, 1))
 	assert.Equal(t, "k3m9xp-2", demoAccountScope(slug, 2), "a repetition cannot reuse the accounts of the abandoned school")
 	assert.LessOrEqual(t, len(fmt.Sprintf("demo20-%s", demoAccountScope(slug, 2))), 30)
-}
-
-func TestRetryDemoDeferredSeedRetriesTemporaryFailures(t *testing.T) {
-	t.Parallel()
-
-	runs, waits := 0, 0
-	err := retryDemoDeferredSeed(context.Background(), func(context.Context) error {
-		runs++
-		if runs == 1 {
-			return errors.New("temporary failure")
-		}
-		return nil
-	}, func(context.Context, time.Duration, error) error {
-		waits++
-		return nil
-	})
-
-	assert.NoError(t, err)
-	assert.Equal(t, 2, runs)
-	assert.Equal(t, 1, waits)
 }
 
 // The simulation serves only demo schools in use (#3464): a school that falls

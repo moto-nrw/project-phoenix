@@ -753,6 +753,7 @@ func TestSeeder_Seed_DeferredStateSinkIncludesEnrollment(t *testing.T) {
 	require.Len(t, saved, 1)
 	profile, err := saved[0].SelectProfile(DefaultProfileKey)
 	require.NoError(t, err)
+	assert.True(t, saved[0].DeferredSeedPending)
 	assert.Empty(t, profile.Entities.Enrollment.Requests, "core state opens the school before requests exist")
 
 	require.NotNil(t, result.Deferred)
@@ -760,6 +761,7 @@ func TestSeeder_Seed_DeferredStateSinkIncludesEnrollment(t *testing.T) {
 	require.Len(t, saved, 2)
 	profile, err = saved[1].SelectProfile(DefaultProfileKey)
 	require.NoError(t, err)
+	assert.False(t, saved[1].DeferredSeedPending)
 	assert.NotEmpty(t, profile.Entities.Enrollment.Requests)
 	assert.NotEmpty(t, profile.Entities.Enrollment.Offerings)
 	assert.NotEmpty(t, profile.Entities.Enrollment.ParentActions)

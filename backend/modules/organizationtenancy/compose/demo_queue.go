@@ -24,6 +24,14 @@ func NewDemoSchoolQueue(db *bun.DB) (*organizationtenancy.DemoSchoolQueue, error
 
 type demoQueueEngine struct{ store *postgres.DemoStateStore }
 
+func (e demoQueueEngine) RequeueDeferredDemoSchoolOrders(ctx context.Context) error {
+	return e.store.RequeueDeferred(ctx, "")
+}
+
+func (e demoQueueEngine) RequeueDeferredDemoSchoolOrder(ctx context.Context, slug string) error {
+	return e.store.RequeueDeferred(ctx, slug)
+}
+
 func (e demoQueueEngine) ReleaseDemoSchoolOrders(ctx context.Context) error {
 	return e.store.ReleaseClaims(ctx)
 }

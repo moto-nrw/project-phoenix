@@ -129,6 +129,7 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 		return nil, fmt.Errorf("a run can only be restricted to profile %q, got %q", s.definition.Key, s.options.OnlyProfile)
 	}
 	runtime := newRuntime(s, email, password, staffPIN)
+	runtime.DeferredSeedPending = s.options.DeferHistory
 	workflow := fullDemoWorkflow(s)
 	if err := workflow.Run(ctx, runtime); err != nil {
 		var stepErr *StepError
@@ -139,14 +140,15 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 	}
 	if s.options.DeferHistory {
 		steps := append(deferredDemoSteps(s), buildStateStep{seeder: s})
-		nextStep := 0
 		runtime.Result.Deferred = func(ctx context.Context) error {
-			for nextStep < len(steps) {
-				step := steps[nextStep]
+			for index, step := range steps {
+				if index == len(steps)-1 {
+					runtime.DeferredSeedPending = false
+				}
 				if err := step.Run(ctx, runtime); err != nil {
+					runtime.DeferredSeedPending = true
 					return s.formatProfileError(s.profile, step.Name(), err)
 				}
-				nextStep++
 			}
 			return nil
 		}

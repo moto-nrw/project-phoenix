@@ -22,9 +22,6 @@ const (
 	// (#3464). A visitor enters by redeeming the link; coming back later
 	// redeems it again and brings the simulation back.
 	demoInUseWindow = 30 * time.Minute
-	// A ready school retains its seed callback until every deferred step
-	// succeeds, so a temporary API or database failure cannot leave it partial.
-	demoDeferredRetryDelay = 5 * time.Second
 )
 
 // demoScheduler gives every demo access its own demo school (#3463): it
@@ -53,6 +50,9 @@ func runDemoSchools(ctx context.Context, schools *backendapi.DemoRuntime, baseUR
 		return err
 	}
 	if err := schools.ReleaseDemoSchoolOrders(ctx); err != nil {
+		return err
+	}
+	if err := schools.RequeueDeferredDemoSchoolOrders(ctx); err != nil {
 		return err
 	}
 	scheduler := &demoScheduler{
@@ -109,7 +109,8 @@ func (s *demoScheduler) startOrders(ctx context.Context) error {
 // school is ready only once it is in its running state, whatever the hour
 // and weekday. A failed order is queued once more, then closed as failed.
 // The past (time-tracking history, course dates) follows once it is open,
-// on the same worker, so the visitor waits for the present only.
+// on the same worker. A failed deferred seed is rebuilt cleanly instead of
+// replaying partial API writes in the open school.
 func (s *demoScheduler) prepare(ctx context.Context, order backendapi.DemoSchoolOrder) {
 	started := time.Now()
 	deferred, err := s.seedAndTick(ctx, order)
@@ -122,7 +123,13 @@ func (s *demoScheduler) prepare(ctx context.Context, order backendapi.DemoSchool
 			"attempt", order.Attempts,
 			"seconds", time.Since(started).Seconds(),
 		)
-		s.seedDeferred(ctx, order.Slug, deferred)
+		if err := s.seedDeferred(ctx, order.Slug, deferred); err != nil && ctx.Err() == nil {
+			requeueErr := s.schools.RequeueDeferredDemoSchoolOrder(context.WithoutCancel(ctx), order.Slug)
+			slog.Warn("demo school deferred seed failed; school will be rebuilt",
+				"school", order.Slug,
+				"error", errors.Join(err, requeueErr),
+			)
+		}
 		return
 	}
 	if s.adapter.paused() {
@@ -145,44 +152,27 @@ func (s *demoScheduler) prepare(ctx context.Context, order backendapi.DemoSchool
 	)
 }
 
-// seedDeferred completes an open school. A failure costs the school only its
-// past; the order stays ready, since the visitor may already be inside.
-func (s *demoScheduler) seedDeferred(ctx context.Context, slug string, deferred func(context.Context) error) {
+// seedDeferred completes an open school. The caller requeues a failure for a
+// clean rebuild, so it never replays a partial history in place.
+func (s *demoScheduler) seedDeferred(ctx context.Context, slug string, deferred func(context.Context) error) error {
 	if deferred == nil {
-		return // A repetition of a seeded order has nothing left to seed.
+		return nil // A repetition of a seeded order has nothing left to seed.
 	}
 	started := time.Now()
-	if err := retryDemoDeferredSeed(ctx, deferred, func(ctx context.Context, delay time.Duration, seedErr error) error {
-		slog.Warn("demo school history not seeded; retrying",
-			"school", slug,
-			"error", seedErr,
-		)
-		return waitDemoInterval(ctx, delay)
-	}); err != nil {
+	if err := deferred(ctx); err != nil {
 		if ctx.Err() == nil {
 			slog.Warn("demo school history not seeded",
 				"school", slug,
 				"error", err,
 			)
 		}
-		return
+		return err
 	}
 	slog.Info("demo school history seeded",
 		"school", slug,
 		"seconds", time.Since(started).Seconds(),
 	)
-}
-
-func retryDemoDeferredSeed(ctx context.Context, deferred func(context.Context) error, wait func(context.Context, time.Duration, error) error) error {
-	for {
-		if err := deferred(ctx); err == nil {
-			return nil
-		} else if ctx.Err() != nil {
-			return ctx.Err()
-		} else if err := wait(ctx, demoDeferredRetryDelay, err); err != nil {
-			return err
-		}
-	}
+	return nil
 }
 
 func (s *demoScheduler) seedAndTick(ctx context.Context, order backendapi.DemoSchoolOrder) (func(context.Context) error, error) {
