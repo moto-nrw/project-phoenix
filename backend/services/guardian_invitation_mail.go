@@ -2,11 +2,14 @@ package services
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/delivery"
 )
 
 // The guardian invitation mail: this file writes the outbox payload the
@@ -97,13 +100,48 @@ func (m GuardianInvitationMailer) EnqueueExistingAccount(ctx context.Context, re
 	}
 }
 
+// EnqueueWelcome queues the welcome that follows a new access (#3534): the
+// help article for parents and the Elterninfo. The idempotency key names the
+// guardian contact, which belongs to one school, so a guardian is welcomed
+// once per school however often they are invited or linked to a child.
+func (m GuardianInvitationMailer) EnqueueWelcome(ctx context.Context, guardianProfileID int64, recipient GuardianMailRecipient, schoolName, helpURL string) {
+	if strings.TrimSpace(recipient.Email) == "" {
+		return
+	}
+	if m.outbox == nil {
+		m.logger.Warn("guardian welcome email: outbox enqueuer not configured, email skipped",
+			slog.Int64("guardian_profile_id", guardianProfileID))
+		return
+	}
+	payload := m.payload(recipient, "/login", schoolName)
+	delete(payload, guardianPayloadInvitationURL)
+	payload[guardianPayloadHelpURL] = helpURL
+	payload[guardianPayloadParentInfoURL] = portalOrigin(m.frontendURL) + parentInfoPath
+	err := m.outbox.EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
+		Kind:              platformModels.EmailKindGuardianWelcome,
+		Payload:           payload,
+		RelatedEntityType: platformModels.EmailRelatedTypeGuardianProfile,
+		RelatedEntityID:   guardianProfileID,
+		IdempotencyKey:    fmt.Sprintf("guardian_welcome:%d", guardianProfileID),
+	})
+	switch {
+	case err == nil:
+	case errors.Is(err, delivery.ErrIdempotencyConflict):
+		// Welcomed before, with other details (a new name or new settings):
+		// the guardian already has the mail.
+		m.logger.Debug("guardian welcome email already queued",
+			slog.Int64("guardian_profile_id", guardianProfileID))
+	default:
+		m.logger.Error("guardian welcome email: outbox enqueue failed",
+			slog.Int64("guardian_profile_id", guardianProfileID),
+			slog.String("error", err.Error()))
+	}
+}
+
 // payload builds the fields both variants share. linkPath is appended to the
 // parents portal origin.
 func (m GuardianInvitationMailer) payload(recipient GuardianMailRecipient, linkPath, schoolName string) map[string]any {
-	frontend := m.frontendURL
-	if frontend == "" {
-		frontend = "http://localhost:3000"
-	}
+	frontend := portalOrigin(m.frontendURL)
 	return map[string]any{
 		guardianPayloadRecipientEmail: strings.TrimSpace(recipient.Email),
 		guardianPayloadFirstName:      strings.TrimSpace(recipient.FirstName),

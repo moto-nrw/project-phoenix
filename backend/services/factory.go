@@ -1634,6 +1634,7 @@ func newFactory(
 		invitations: &invitationWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom, staffURL: frontendURL, schoolURL: schoolURL,
 			mailIdentity: tenantMailIdentity, expiry: invitationTokenExpiry,
+			settings: settingsService, welcomeDelay: staffWelcomeDelay,
 		},
 		// The lifecycle flows (#3225) read the retained role management back
 		// at call time; it is composed below.
@@ -1671,6 +1672,9 @@ func newFactory(
 	}))
 	renderers := map[string]emailoutbox.Renderer{
 		platformModels.EmailKindGuardianInvitation: guardianInvitationRenderer(NewGuardianInvitationRenderer(GuardianInvitationRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+		platformModels.EmailKindGuardianWelcome: guardianInvitationRenderer(NewGuardianWelcomeRenderer(GuardianInvitationRendererConfig{
 			DefaultFrom: defaultFrom,
 		})),
 		platformModels.EmailKindParentAnnouncement: emailoutbox.RendererFunc(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{

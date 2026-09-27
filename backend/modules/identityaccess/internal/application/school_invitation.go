@@ -136,23 +136,48 @@ func (s *SchoolInvitation) CreateInvitation(ctx context.Context, request domain.
 		return domain.SchoolInvitation{}, err
 	}
 	s.logCreated(result, request.CreatedBy)
+	s.mailAfterCommit(ctx, result, role, request.SchoolName)
+	return result, nil
+}
 
+// mailAfterCommit queues the invitation mail and the welcome that follows
+// it (#3534) once the invitation is committed. Only a new invitation
+// welcomes the invitee; a resend mails the link alone.
+func (s *SchoolInvitation) mailAfterCommit(ctx context.Context, invitation domain.SchoolInvitation, role domain.ManagedRole, schoolName string) {
 	portal := s.portalOf(role)
-	schoolName := request.SchoolName
 	if schoolName == "" {
-		schoolName = s.schoolName(ctx, result.TenantID)
+		schoolName = s.schoolName(ctx, invitation.TenantID)
 	}
+	rolePermissions := s.rolePermissionNames(ctx, role.ID)
 	s.runtime.RegisterAfterCommit(ctx, func() {
 		// Detach drops the request transaction and its commit hooks so the
 		// mail cannot join them. It also clears the tenant; put the
 		// invitation's school back so Reply-To still resolves (#1936).
 		dispatchCtx := s.runtime.Detach(ctx)
-		if result.TenantID > 0 {
-			dispatchCtx = s.runtime.WithTenantID(dispatchCtx, result.TenantID)
+		if invitation.TenantID > 0 {
+			dispatchCtx = s.runtime.WithTenantID(dispatchCtx, invitation.TenantID)
 		}
-		s.delivery.DispatchSchoolInvitation(dispatchCtx, result, schoolName, portal, s.expiry)
+		s.delivery.DispatchSchoolInvitation(dispatchCtx, invitation, schoolName, portal, s.expiry)
+		s.delivery.DispatchSchoolWelcome(dispatchCtx, invitation, schoolName, portal, rolePermissions)
 	})
-	return result, nil
+}
+
+// rolePermissionNames lists the permissions of the invited role for the
+// welcome mail's help link. Best-effort: without them the link falls back to
+// the role name alone.
+func (s *SchoolInvitation) rolePermissionNames(ctx context.Context, roleID int64) []string {
+	permissions, err := s.roles.ListRolePermissions(ctx, roleID)
+	if err != nil {
+		s.logger.Warn("failed to list role permissions for welcome email",
+			slog.Int64("role_id", roleID),
+			slog.Any("error", err))
+		return nil
+	}
+	names := make([]string, 0, len(permissions))
+	for _, permission := range permissions {
+		names = append(names, permission.Name)
+	}
+	return names
 }
 
 // logCreated is the one log line an invitation writes (#2108): the handler

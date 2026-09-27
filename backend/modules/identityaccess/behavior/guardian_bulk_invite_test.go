@@ -53,21 +53,24 @@ func TestBulkInviteToStudents_InvitesEachGuardianOnce(t *testing.T) {
 	assert.Equal(t, 1, result.Invited)
 	assert.Equal(t, 1, result.SkippedRestricted)
 	assert.Empty(t, result.Problems)
-	require.Len(t, outbox.Requests(), 1, "two children, one guardian, one mail")
+	require.Len(t, outbox.Requests(), 2, "two children, one guardian, one invitation and one welcome (#3534)")
 	assert.Equal(t, emailKindGuardianInvitation, outbox.Requests()[0].Kind)
+	assert.Equal(t, "guardian_welcome", outbox.Requests()[1].Kind)
+	assert.Equal(t, parent.ID, outbox.Requests()[1].RelatedEntityID)
 	assert.False(t, testpkg.StudentGuardianLinkGrantsPortalAccess(t, env.db, grandmaLink.ID), "the pickup-only contact is not upgraded")
 
 	again, err := env.service.BulkInviteToStudents(ctx, req)
 	require.NoError(t, err)
 	assert.Zero(t, again.Invited)
 	assert.Equal(t, 1, again.SkippedOpen)
-	assert.Len(t, outbox.Requests(), 1, "a repeated run does not mail again")
+	assert.Len(t, outbox.Requests(), 2, "a repeated run does not mail again")
 
 	req.ResendOpen = true
 	resent, err := env.service.BulkInviteToStudents(ctx, req)
 	require.NoError(t, err)
 	assert.Equal(t, 1, resent.Resent)
 	mailed := outbox.Requests()
-	require.Len(t, mailed, 2)
-	assert.Equal(t, mailed[0].RelatedEntityID, mailed[1].RelatedEntityID, "the same invitation is mailed again")
+	require.Len(t, mailed, 3, "a resend mails the link alone, without a second welcome")
+	assert.Equal(t, emailKindGuardianInvitation, mailed[2].Kind)
+	assert.Equal(t, mailed[0].RelatedEntityID, mailed[2].RelatedEntityID, "the same invitation is mailed again")
 }

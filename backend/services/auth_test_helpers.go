@@ -275,7 +275,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		invitations: &invitationWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom, staffURL: frontendURL, schoolURL: schoolURL,
 			mailIdentity: identity, expiry: time.Duration(inviteHours) * time.Hour,
-			backoff: settingsOverrides.resetBackoff,
+			backoff: settingsOverrides.resetBackoff, settings: settings.Settings,
 		},
 	})
 	if err != nil {

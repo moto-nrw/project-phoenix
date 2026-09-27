@@ -21,6 +21,10 @@ const (
 	// already owns an account: invitation_url is then the parents portal
 	// login, and the mail asks for the existing credentials (#3320).
 	guardianPayloadExistingAccount = "existing_account"
+	// The welcome mail (#3534) carries the help article and the Elterninfo
+	// instead of an accept link.
+	guardianPayloadHelpURL       = "help_url"
+	guardianPayloadParentInfoURL = "parent_info_url"
 )
 
 // GuardianInvitationRendererConfig is the closure-state for the
@@ -79,6 +83,45 @@ func NewGuardianInvitationRenderer(cfg GuardianInvitationRendererConfig) func(co
 			},
 		}
 		return msg, nil
+	}
+}
+
+// NewGuardianWelcomeRenderer returns the renderer of the queued welcome
+// mail (#3534): a greeting, the help article for parents and the Elterninfo.
+func NewGuardianWelcomeRenderer(cfg GuardianInvitationRendererConfig) func(context.Context, map[string]any) (*email.Message, error) {
+	return func(_ context.Context, payload map[string]any) (*email.Message, error) {
+		recipient, _ := payload[guardianPayloadRecipientEmail].(string)
+		if recipient == "" {
+			return nil, fmt.Errorf("guardian welcome payload missing recipient_email")
+		}
+		helpURL, _ := payload[guardianPayloadHelpURL].(string)
+		if helpURL == "" {
+			return nil, fmt.Errorf("guardian welcome payload missing help_url")
+		}
+		parentInfoURL, _ := payload[guardianPayloadParentInfoURL].(string)
+		firstName, _ := payload[guardianPayloadFirstName].(string)
+		lastName, _ := payload[guardianPayloadLastName].(string)
+		logoURL, _ := payload[guardianPayloadLogoURL].(string)
+		schoolName, _ := payload[guardianPayloadSchoolName].(string)
+
+		subject := "Willkommen bei moto"
+		if schoolName != "" {
+			subject = fmt.Sprintf("%s – %s", subject, schoolName)
+		}
+		return &email.Message{
+			From:     cfg.DefaultFrom,
+			To:       email.NewEmail("", recipient),
+			Subject:  subject,
+			Template: "guardian-welcome.html",
+			Content: map[string]any{
+				"HelpURL":       helpURL,
+				"ParentInfoURL": parentInfoURL,
+				"FirstName":     firstName,
+				"LastName":      lastName,
+				"LogoURL":       logoURL,
+				"SchoolName":    schoolName,
+			},
+		}, nil
 	}
 }
 

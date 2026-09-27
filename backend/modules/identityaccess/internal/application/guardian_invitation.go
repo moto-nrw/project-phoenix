@@ -67,8 +67,25 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 		slog.Int64("guardian_profile_id", profile.ID),
 		slog.Int64("created_by", request.CreatedBy),
 	)
-	l.delivery.EnqueueInvitationEmail(ctx, invitation, profile, l.delivery.SchoolName(ctx, invitation.TenantID))
+	l.mailNewInvitation(ctx, invitation, profile)
 	return invitation, nil
+}
+
+// mailNewInvitation queues the mail of a new token invitation and the
+// welcome that follows it (#3534). A resend mails the link alone.
+func (l *AccountLifecycle) mailNewInvitation(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile) {
+	schoolName := l.delivery.SchoolName(ctx, invitation.TenantID)
+	l.delivery.EnqueueInvitationEmail(ctx, invitation, profile, schoolName)
+	l.delivery.EnqueueWelcomeEmail(ctx, profile, invitation.TenantID, schoolName)
+}
+
+// mailExistingAccountAccess tells an account holder about access granted
+// without a token and welcomes them to the school (#3534); the delivery
+// sends the welcome once per guardian and school.
+func (l *AccountLifecycle) mailExistingAccountAccess(ctx context.Context, profile domain.GuardianProfile, tenantID int64) {
+	schoolName := l.delivery.SchoolName(ctx, tenantID)
+	l.delivery.EnqueueExistingAccountEmail(ctx, profile, schoolName)
+	l.delivery.EnqueueWelcomeEmail(ctx, profile, tenantID, schoolName)
 }
 
 // ValidateGuardianInvitation returns the public details of a redeemable

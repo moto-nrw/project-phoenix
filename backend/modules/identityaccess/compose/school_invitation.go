@@ -35,6 +35,9 @@ type InvitationOwnerTokens interface {
 // the outcome back through the module.
 type SchoolInvitationDelivery interface {
 	DispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration)
+	// DispatchSchoolWelcome mails the welcome that follows a new invitation
+	// (#3534); a resend never repeats it.
+	DispatchSchoolWelcome(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, rolePermissions []string)
 }
 
 // SchoolInvitationDependencies compose the invitation flows. They require
@@ -95,6 +98,10 @@ type schoolInvitationDelivery struct{ source SchoolInvitationDelivery }
 
 func (d schoolInvitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, expiry time.Duration) {
 	d.source.DispatchSchoolInvitation(ctx, publicSchoolInvitation(invitation), schoolName, identityaccess.InvitationPortal(portal), expiry)
+}
+
+func (d schoolInvitationDelivery) DispatchSchoolWelcome(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, rolePermissions []string) {
+	d.source.DispatchSchoolWelcome(ctx, publicSchoolInvitation(invitation), schoolName, identityaccess.InvitationPortal(portal), rolePermissions)
 }
 
 func publicSchoolInvitation(invitation domain.SchoolInvitation) identityaccess.SchoolInvitation {

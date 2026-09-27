@@ -85,6 +85,8 @@ func (unsentGuardianMail) EnqueueInvitationEmail(context.Context, identityaccess
 }
 func (unsentGuardianMail) EnqueueExistingAccountEmail(context.Context, identityaccessCompose.GuardianProfile, string) {
 }
+func (unsentGuardianMail) EnqueueWelcomeEmail(context.Context, identityaccessCompose.GuardianProfile, int64, string) {
+}
 
 // --- delivery ---------------------------------------------------------------
 
@@ -135,6 +137,13 @@ func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, 
 
 func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile identityaccessCompose.GuardianProfile, schoolName string) {
 	d.mailer().EnqueueExistingAccount(ctx, guardianMailRecipient(profile), schoolName)
+}
+
+// EnqueueWelcomeEmail queues the welcome that follows a new access (#3534).
+// The help link carries the school's settings as they stand now.
+func (d guardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, profile identityaccessCompose.GuardianProfile, tenantID int64, schoolName string) {
+	helpURL := welcomeHelpURL(ctx, d.wiring.parentsURL, welcomeHelpRoleParent, tenantID, d.wiring.settings, d.logger())
+	d.mailer().EnqueueWelcome(ctx, profile.ID, guardianMailRecipient(profile), schoolName, helpURL)
 }
 
 func guardianMailRecipient(profile identityaccessCompose.GuardianProfile) GuardianMailRecipient {

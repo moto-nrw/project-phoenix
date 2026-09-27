@@ -874,8 +874,9 @@ func (e *lifecycleEnrollments) ClaimGuardianEnrollments(_ context.Context, accou
 }
 
 type lifecycleDelivery struct {
-	emails       []domain.GuardianInvitation
-	accessEmails []domain.GuardianProfile
+	emails        []domain.GuardianInvitation
+	accessEmails  []domain.GuardianProfile
+	welcomeEmails []domain.GuardianProfile
 }
 
 func (lifecycleDelivery) InvitationExpiry(context.Context) time.Duration { return 48 * time.Hour }
@@ -885,6 +886,9 @@ func (d *lifecycleDelivery) EnqueueInvitationEmail(_ context.Context, invitation
 }
 func (d *lifecycleDelivery) EnqueueExistingAccountEmail(_ context.Context, profile domain.GuardianProfile, _ string) {
 	d.accessEmails = append(d.accessEmails, profile)
+}
+func (d *lifecycleDelivery) EnqueueWelcomeEmail(_ context.Context, profile domain.GuardianProfile, _ int64, _ string) {
+	d.welcomeEmails = append(d.welcomeEmails, profile)
 }
 
 type lifecycleFinancial struct {

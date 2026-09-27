@@ -74,4 +74,8 @@ type InvitationOwnerTokens interface {
 // identity, and records the outcome back through the module.
 type SchoolInvitationDelivery interface {
 	DispatchSchoolInvitation(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, expiry time.Duration)
+	// DispatchSchoolWelcome mails the welcome that follows a new invitation
+	// (#3534); a resend never repeats it. rolePermissions let the root pick
+	// the help article of the invited role.
+	DispatchSchoolWelcome(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, rolePermissions []string)
 }

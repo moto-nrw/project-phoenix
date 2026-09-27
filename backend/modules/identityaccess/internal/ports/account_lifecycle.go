@@ -179,6 +179,10 @@ type GuardianInvitationDelivery interface {
 	SchoolName(ctx context.Context, tenantID int64) string
 	EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string)
 	EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string)
+	// EnqueueWelcomeEmail queues the welcome that follows the first mail of
+	// a new access (#3534). A guardian gets it at most once per school; a
+	// resend never asks for it.
+	EnqueueWelcomeEmail(ctx context.Context, profile domain.GuardianProfile, tenantID int64, schoolName string)
 }
 
 // FinancialAudit is the consumer-owned port over the Audit platform's

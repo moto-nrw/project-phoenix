@@ -28,6 +28,10 @@ var invitationEmailBackoff = []time.Duration{
 	15 * time.Second,
 }
 
+// staffWelcomeDelay holds the welcome mail (#3534) behind the invitation
+// mail both leave with, so the inbox shows the invitation first.
+const staffWelcomeDelay = 30 * time.Second
+
 // systemRoleTranslations maps English system role names to the German
 // display names the invitation mail shows.
 var systemRoleTranslations = map[string]string{
@@ -59,6 +63,12 @@ type invitationWiring struct {
 	expiry       time.Duration
 	// backoff spaces the send retries; nil uses the production spacing.
 	backoff []time.Duration
+	// settings resolve the tenant settings the welcome mail's help link
+	// carries; nil leaves them out and /help asks.
+	settings tenantSettingsResolver
+	// welcomeDelay holds the welcome mail back so it lands after the
+	// invitation mail; zero sends at once.
+	welcomeDelay time.Duration
 }
 
 func invitationDependencies(wiring *invitationWiring, owners identityaccessCompose.InvitationOwnerTokens, invitations func() identityaccess.SchoolInvitations, logger *slog.Logger) *identityaccessCompose.SchoolInvitationDependencies {
@@ -78,6 +88,7 @@ func invitationDependencies(wiring *invitationWiring, owners identityaccessCompo
 		Delivery: invitationDelivery{
 			dispatcher: wiring.dispatcher, from: wiring.defaultFrom, staffURL: wiring.staffURL, schoolURL: wiring.schoolURL,
 			identity: wiring.mailIdentity, backoff: backoff, invitations: invitations, logger: logger,
+			settings: wiring.settings, welcomeDelay: wiring.welcomeDelay,
 		},
 		Passwords: passwordPolicy{},
 		Expiry:    wiring.expiry,
@@ -109,14 +120,12 @@ type invitationDelivery struct {
 	backoff     []time.Duration
 	invitations func() identityaccess.SchoolInvitations
 	logger      *slog.Logger
+	settings    tenantSettingsResolver
+	// welcomeDelay holds the welcome back behind the invitation mail.
+	welcomeDelay time.Duration
 }
 
-func (d invitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration) {
-	if d.dispatcher == nil {
-		d.logger.Warn("email dispatcher unavailable, skipping invitation email",
-			slog.Int64("invitation_id", invitation.ID))
-		return
-	}
+func (d invitationDelivery) portalURL(portal identityaccess.InvitationPortal) string {
 	frontend := d.staffURL
 	if frontend == "" {
 		frontend = "http://localhost:3000"
@@ -127,6 +136,16 @@ func (d invitationDelivery) DispatchSchoolInvitation(ctx context.Context, invita
 	if portal == identityaccess.InvitationPortalSchool && d.schoolURL != "" {
 		frontend = d.schoolURL
 	}
+	return frontend
+}
+
+func (d invitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration) {
+	if d.dispatcher == nil {
+		d.logger.Warn("email dispatcher unavailable, skipping invitation email",
+			slog.Int64("invitation_id", invitation.ID))
+		return
+	}
+	frontend := d.portalURL(portal)
 	subject := "Einladung zu moto"
 	if schoolName != "" {
 		subject = fmt.Sprintf("Einladung zu moto – %s", schoolName)
@@ -170,6 +189,74 @@ func (d invitationDelivery) DispatchSchoolInvitation(ctx context.Context, invita
 	})
 }
 
+// DispatchSchoolWelcome mails the welcome that follows a new invitation
+// (#3534): a greeting and the help article of the invited role, on the
+// portal the invitee signs in to. It runs on its own delivery type, so its
+// outcome never touches the invitation's delivery record: a failed welcome
+// leaves the invitation and its mail as they are.
+func (d invitationDelivery) DispatchSchoolWelcome(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, rolePermissions []string) {
+	if d.dispatcher == nil {
+		d.logger.Warn("email dispatcher unavailable, skipping welcome email",
+			slog.Int64("invitation_id", invitation.ID))
+		return
+	}
+	frontend := d.portalURL(portal)
+	role := staffHelpRole(portal == identityaccess.InvitationPortalSchool, invitation.RoleName, rolePermissions)
+	subject := "Willkommen bei moto"
+	if schoolName != "" {
+		subject = fmt.Sprintf("Willkommen bei moto – %s", schoolName)
+	}
+	replyIdentity := email.ResolveReplyToIdentity(ctx, d.identity, invitation.TenantID, d.logger)
+	message := email.Message{
+		From:     d.from,
+		ReplyTo:  email.NewEmail(replyIdentity.Name, replyIdentity.Address),
+		To:       email.NewEmail("", invitation.Email),
+		Subject:  subject,
+		Template: "staff-welcome.html",
+		Content: map[string]any{
+			"HelpURL":           welcomeHelpURL(ctx, frontend, role, invitation.TenantID, d.welcomeSettings(invitation.TenantID), d.logger),
+			"FirstName":         trimmedValue(invitation.FirstName),
+			"LogoURL":           fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontend),
+			"SchoolName":        schoolName,
+			"ReplyGoesToSchool": strings.TrimSpace(replyIdentity.Address) != "",
+		},
+	}
+	request := email.DeliveryRequest{
+		Message: message,
+		Metadata: email.DeliveryMetadata{
+			Type:        "staff_welcome",
+			ReferenceID: invitation.ID,
+			Recipient:   invitation.Email,
+		},
+		BackoffPolicy: d.backoff,
+		MaxAttempts:   3,
+		Callback: func(_ context.Context, result email.DeliveryResult) {
+			if result.Final && result.Status == email.DeliveryStatusFailed {
+				d.logger.Error("welcome email permanently failed",
+					slog.Int64("invitation_id", invitation.ID),
+					slog.String("recipient", identityaccessCompose.MaskEmail(invitation.Email)),
+					slog.Any("error", result.Err),
+				)
+			}
+		},
+	}
+	dispatchCtx := detachedContext(ctx)
+	if d.welcomeDelay <= 0 {
+		d.dispatcher.Dispatch(dispatchCtx, request)
+		return
+	}
+	time.AfterFunc(d.welcomeDelay, func() { d.dispatcher.Dispatch(dispatchCtx, request) })
+}
+
+// welcomeSettings binds the settings to the invitation's school; the
+// welcome leaves after commit, outside any tenant transaction.
+func (d invitationDelivery) welcomeSettings(tenantID int64) welcomeHelpSettings {
+	if d.settings == nil || tenantID <= 0 {
+		return nil
+	}
+	return schoolSettings{resolver: d.settings, tenantID: tenantID}
+}
+
 func (d invitationDelivery) recordDelivery(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {
 	delivery := identityaccess.TokenDelivery{RetryCount: baseRetry + result.Attempt}
 	if result.Status == email.DeliveryStatusSent {
@@ -193,6 +280,14 @@ func (d invitationDelivery) recordDelivery(ctx context.Context, meta email.Deliv
 			slog.Any("error", result.Err),
 		)
 	}
+}
+
+// trimmedValue reads an optional name for a mail greeting.
+func trimmedValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
 }
 
 // detachedContext isolates asynchronous work from the request transaction

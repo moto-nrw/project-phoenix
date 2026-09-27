@@ -1,0 +1,34 @@
+{{define "staff-welcome.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "moto-brand" .}}
+    <h1>Willkommen bei moto</h1>
+    {{if .FirstName}}
+    <p>Hallo {{.FirstName}},</p>
+    {{else}}
+    <p>Hallo,</p>
+    {{end}}
+    {{if .SchoolName}}
+    <p>schön, dass du bei <strong>{{.SchoolName}}</strong> mit moto arbeitest.</p>
+    {{else}}
+    <p>schön, dass du mit moto arbeitest.</p>
+    {{end}}
+    <p>Deine Einladung kommt in einer eigenen E-Mail. In der Hilfe steht Schritt für Schritt, wie du sie annimmst.</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.HelpURL}}">Zur Hilfe</a>
+    </div>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Falls der Button nicht funktioniert, kopiere diesen Link:</p>
+    <div class="link-box">
+        <a href="{{.HelpURL}}">{{.HelpURL}}</a>
+    </div>
+
+    {{if .ReplyGoesToSchool}}
+    <p class="security-note">Du hast eine Frage? Antworte einfach auf diese E-Mail. Die Antwort geht an deine OGS.</p>
+    {{end}}
+</div>
+
+{{template "footer" .}}
+{{end}}

@@ -167,16 +167,6 @@ type GuardianEnrollments interface {
 	ClaimGuardianEnrollments(ctx context.Context, accountID int64, email string) (int, error)
 }
 
-// GuardianInvitationDelivery mails a guardian invitation: the token expiry
-// the tenant configured, the school name for the mail and the outbox
-// enqueue the worker dispatches from.
-type GuardianInvitationDelivery interface {
-	InvitationExpiry(ctx context.Context) time.Duration
-	SchoolName(ctx context.Context, tenantID int64) string
-	EnqueueInvitationEmail(ctx context.Context, invitation identityaccess.GuardianInvitation, profile GuardianProfile, schoolName string)
-	EnqueueExistingAccountEmail(ctx context.Context, profile GuardianProfile, schoolName string)
-}
-
 // FinancialAudit records the removal of a child's payer.
 type FinancialAudit interface {
 	RecordPayerRemoved(ctx context.Context, guardianProfileID, studentID, actorAccountID int64) error
