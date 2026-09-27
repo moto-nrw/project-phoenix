@@ -53,8 +53,15 @@ func HTTPRuntime(db *bun.DB, people peopledirectory.Capability, membership schoo
 			return staffForAccount(ctx, id)
 		},
 		OpeningDecider: staffForAccount,
-		Success:        common.Respond,
-		Failure:        renderFailure,
+		ChildQuota: func(ctx context.Context) (importapi.ChildQuota, bool, error) {
+			usage, limited, err := membership.ChildQuotaUsage(ctx)
+			return importapi.ChildQuota{Booked: usage.Booked, Occupied: usage.Occupied}, limited, err
+		},
+		AdmitChildren: func(quota importapi.ChildQuota, requested int) error {
+			return schoolmembership.ChildQuotaUsage{Booked: quota.Booked, Occupied: quota.Occupied}.Admit(requested)
+		},
+		Success: common.Respond,
+		Failure: renderFailure,
 	}
 	if opening != nil {
 		runtime.ValidateOpeningDate = opening.ValidateDate
@@ -74,6 +81,10 @@ func accountID(ctx context.Context) (int64, error) {
 func renderFailure(w http.ResponseWriter, r *http.Request, failure importapi.Failure) {
 	var response render.Renderer
 	switch {
+	case common.IsBusinessRejection(failure.Cause):
+		// A refusal such as a full Kinderkontingent keeps its 409, code and
+		// details; a batch progress attached to it is not part of that answer.
+		response = common.ErrorBusinessRejection(failure.Cause)
 	case failure.Code != "":
 		response = &common.ErrResponse{Err: failure.Cause, HTTPStatusCode: failure.Status,
 			Status: "error", ErrorText: failure.Message, Code: failure.Code,

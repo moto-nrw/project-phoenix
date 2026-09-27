@@ -26,6 +26,11 @@ import {
   importBatchSavedCount,
   readImportBatchFailure,
 } from "~/lib/import-batch-result";
+import {
+  importChildQuotaNotice,
+  type ImportChildQuota,
+} from "~/lib/child-quota-import";
+import { childQuotaMessage } from "~/lib/child-quota-error";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 
@@ -78,6 +83,8 @@ interface ImportResult {
   Errors: ImportRowResult[];
   BulkActions: string[];
   DryRun: boolean;
+  /** Nur in der Vorschau einer Schule mit Kinderkontingent (#3571). */
+  child_quota?: ImportChildQuota;
 }
 
 // Status types for display
@@ -379,6 +386,12 @@ export default function StudentImportPage() {
       const result = (await response.json()) as Record<string, unknown>;
 
       if (!response.ok) {
+        // Das Kinderkontingent lehnt den ganzen Import ab, bevor er startet.
+        const quotaRefusal = childQuotaMessage(result);
+        if (quotaRefusal) {
+          setError(quotaRefusal);
+          return;
+        }
         const interrupted = readImportBatchFailure<ImportRowResult>(result);
         if (interrupted) {
           setImportResult(interrupted as ImportResult);
@@ -491,6 +504,11 @@ export default function StudentImportPage() {
         ? `${childCountLabel(importable)} aktualisieren`
         : `${childCountLabel(importable)} übernehmen`;
   const savedCount = importResult ? importBatchSavedCount(importResult) : 0;
+  // Passen die neuen Kinder nicht ins Kinderkontingent, startet der Import
+  // gar nicht (ganz oder gar nicht).
+  const quotaNotice = importInterrupted
+    ? null
+    : importChildQuotaNotice(importResult?.child_quota);
 
   // Statuszeile des Seitenkopfs: der Stand des Imports, nicht ein Erklärsatz.
   const statusLine = uploadedFile
@@ -647,6 +665,10 @@ export default function StudentImportPage() {
       {/* Preview Section */}
       {(previewData.length > 0 || importInterrupted) && !importComplete && (
         <>
+          {quotaNotice && (
+            <Alert type={quotaNotice.type} message={quotaNotice.message} />
+          )}
+
           {/* Statistics */}
           <StatsCards
             total={stats.total}
@@ -706,7 +728,10 @@ export default function StudentImportPage() {
               disabled={
                 isImporting ||
                 isLoading ||
-                (!importInterrupted && (stats.errors > 0 || importable === 0))
+                (!importInterrupted &&
+                  (stats.errors > 0 ||
+                    importable === 0 ||
+                    quotaNotice?.type === "error"))
               }
               onClick={() => void handleImport()}
             >

@@ -283,6 +283,7 @@ type Capability interface {
 	Query
 	Command
 	StaffIdentities
+	ChildQuotaUsages
 }
 
 type engine interface {

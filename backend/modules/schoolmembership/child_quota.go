@@ -71,6 +71,21 @@ type ChildQuotaUsage struct {
 	Occupied int
 }
 
+// Free is the number of children the Kinderkontingent still takes; never
+// negative when the Kontingentzahl is already above it.
+func (u ChildQuotaUsage) Free() int { return max(u.Booked-u.Occupied, 0) }
+
+// Admit judges requested new children against this usage by the rule every
+// counting write follows: adding nobody always passes. It takes no lock, so it
+// is a preflight only (#3571); the write itself stays checked under the quota
+// lock. It returns the refusal the write would raise, or nil.
+func (u ChildQuotaUsage) Admit(requested int) error {
+	if requested <= 0 || u.Occupied+requested <= u.Booked {
+		return nil
+	}
+	return &ChildQuotaReachedError{Booked: u.Booked, Occupied: u.Occupied, Requested: requested}
+}
+
 // ChildQuotaUsages reads the Kinderkontingent of the tenant in context.
 // limited is false when the school has none; the usage is then empty and
 // the Kontingentzahl is not counted.
