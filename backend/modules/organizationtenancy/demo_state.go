@@ -22,6 +22,7 @@ type DemoSchoolState struct {
 
 type DemoStateEngine interface {
 	LoadDemoSchool(context.Context, string) (*DemoSchoolState, error)
+	ReserveDemoSchool(context.Context, string, int64) error
 	RememberDemoSchool(context.Context, string, DemoSchoolState) error
 	UpdateDemoSchool(context.Context, string, DemoSchoolState) error
 	WithDemoLease(context.Context, string, func(context.Context) error) error
@@ -45,6 +46,15 @@ func (d *DemoSchools) LoadDemoSchool(ctx context.Context, name string) (*DemoSch
 	return d.engine.LoadDemoSchool(ctx, name)
 }
 
+// ReserveDemoSchool retains a newly bootstrapped school before its complete
+// seed state exists, so a later failed attempt can retire that school.
+func (d *DemoSchools) ReserveDemoSchool(ctx context.Context, name string, schoolID int64) error {
+	if name == "" || schoolID <= 0 {
+		return fmt.Errorf("demo school name and school ID are required")
+	}
+	return d.engine.ReserveDemoSchool(ctx, name, schoolID)
+}
+
 func (d *DemoSchools) RememberDemoSchool(ctx context.Context, name string, state DemoSchoolState) error {
 	if name == "" || state.SchoolID <= 0 || len(state.SeedJSON) == 0 {
 		return fmt.Errorf("demo school name, school ID and seed state are required")
@@ -52,8 +62,8 @@ func (d *DemoSchools) RememberDemoSchool(ctx context.Context, name string, state
 	return d.engine.RememberDemoSchool(ctx, name, state)
 }
 
-// UpdateDemoSchool persists a later version of a state that this demo
-// process already stored. Initial writes stay protected by RememberDemoSchool.
+// UpdateDemoSchool persists a complete state for a reserved or previously
+// stored school without allowing a caller to replace another school's state.
 func (d *DemoSchools) UpdateDemoSchool(ctx context.Context, name string, state DemoSchoolState) error {
 	if name == "" || state.SchoolID <= 0 || len(state.SeedJSON) == 0 {
 		return fmt.Errorf("demo school name, school ID and seed state are required")

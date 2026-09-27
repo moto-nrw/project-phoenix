@@ -141,6 +141,12 @@ func (d *DemoRuntime) LoadDemoSchool(ctx context.Context, name string) (*DemoSch
 	return &DemoSchoolRecord{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON}, nil
 }
 
+// ReserveDemoSchool remembers a newly bootstrapped school before its full
+// seed contract is available for persistence.
+func (d *DemoRuntime) ReserveDemoSchool(ctx context.Context, name string, schoolID int64) error {
+	return d.schools.ReserveDemoSchool(ctx, name, schoolID)
+}
+
 func (d *DemoRuntime) RememberDemoSchool(ctx context.Context, name string, state DemoSchoolRecord) error {
 	return d.schools.RememberDemoSchool(ctx, name, organizationtenancy.DemoSchoolState{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON})
 }

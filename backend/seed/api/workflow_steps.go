@@ -44,6 +44,11 @@ func (s bootstrapTenantStep) Run(ctx context.Context, rt *Runtime) error {
 		return err
 	}
 	rt.Bootstrap = bootstrapState
+	if s.seeder.options.SaveBootstrap != nil {
+		if err := s.seeder.options.SaveBootstrap(ctx, bootstrapState.SchoolID); err != nil {
+			return err
+		}
+	}
 
 	fmt.Printf("Logging in as invited school admin %s...\n", bootstrapState.AdminEmail)
 	tenantAuth, err := rt.Adapter.LoginTenant(ctx, bootstrapState.AdminEmail, bootstrapState.AdminPassword, bootstrapState.TenantSlug)

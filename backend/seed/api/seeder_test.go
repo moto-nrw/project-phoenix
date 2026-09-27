@@ -740,9 +740,14 @@ func TestSeeder_Seed_DeferredStateSinkIncludesEnrollment(t *testing.T) {
 	srv := fullSeedAPIMock(t)
 	defer srv.Close()
 	var saved []*SeedState
+	var bootstrappedSchoolID int64
 	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{
 		OnlyProfile:  DefaultProfileKey,
 		DeferHistory: true,
+		SaveBootstrap: func(_ context.Context, schoolID int64) error {
+			bootstrappedSchoolID = schoolID
+			return nil
+		},
 		SaveState: func(_ context.Context, state *SeedState) error {
 			saved = append(saved, state)
 			return nil
@@ -753,6 +758,7 @@ func TestSeeder_Seed_DeferredStateSinkIncludesEnrollment(t *testing.T) {
 	require.Len(t, saved, 1)
 	profile, err := saved[0].SelectProfile(DefaultProfileKey)
 	require.NoError(t, err)
+	assert.Equal(t, profile.School.ID, bootstrappedSchoolID)
 	assert.True(t, saved[0].DeferredSeedPending)
 	assert.Empty(t, profile.Entities.Enrollment.Requests, "core state opens the school before requests exist")
 

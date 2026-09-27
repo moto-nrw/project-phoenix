@@ -232,6 +232,61 @@ func TestDemoSchoolQueueRetiresTheFinalDeferredSeedFailure(t *testing.T) {
 	assert.True(t, schoolHidden(t, db, secondSchoolID))
 }
 
+func TestDemoSchoolQueueRetiresReplacementReservedBeforeStateWrite(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	firstSchoolID, _ := testpkg.CreateTestTenant(t, db)
+	replacementSchoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	ctx := t.Context()
+
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{
+		SchoolID: firstSchoolID, SeedJSON: []byte(`{"deferred_seed_pending":true}`),
+	}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
+	require.NoError(t, queue.RequeueDeferredDemoSchoolOrder(ctx, slug))
+
+	second, err := queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 2, second.Attempts)
+	// Bootstrap created the replacement, but a later core step failed before
+	// the complete seed state could be written.
+	require.NoError(t, schools.ReserveDemoSchool(ctx, slug, replacementSchoolID))
+	failed, err := queue.FailDemoSchoolOrder(ctx, slug, 2)
+	require.NoError(t, err)
+	assert.True(t, failed)
+	assert.True(t, schoolHidden(t, db, replacementSchoolID))
+}
+
+func TestDemoSchoolQueueCompletesReservedState(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	ctx := t.Context()
+
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NoError(t, schools.ReserveDemoSchool(ctx, slug, schoolID))
+	want := organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{"profile":"vollbetrieb"}`)}
+	require.NoError(t, schools.UpdateDemoSchool(ctx, slug, want))
+	got, err := schools.LoadDemoSchool(ctx, slug)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, want.SchoolID, got.SchoolID)
+	assert.JSONEq(t, string(want.SeedJSON), string(got.SeedJSON))
+}
+
 func TestDemoSchoolQueueRequeuesDeferredSeedBeforeItOpened(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)

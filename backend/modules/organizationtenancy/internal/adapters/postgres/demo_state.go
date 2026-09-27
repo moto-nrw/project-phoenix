@@ -33,6 +33,22 @@ func (s *DemoStateStore) Load(ctx context.Context, name string) (*DemoState, err
 	return &state, nil
 }
 
+// Reserve records the school as soon as bootstrap created it. The full seed
+// state follows later; retaining this identity lets a final failed seed hide
+// a replacement that did not reach its state write.
+func (s *DemoStateStore) Reserve(ctx context.Context, name string, schoolID int64) error {
+	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states
+		SET tenant_id = ?
+		WHERE name = ? AND status = 'preparing' AND seed_state IS NULL`, schoolID, name).Exec(ctx)
+	if err != nil {
+		return errors.New("could not reserve demo school state")
+	}
+	if rows, err := result.RowsAffected(); err != nil || rows != 1 {
+		return errors.New("demo school state already exists")
+	}
+	return nil
+}
+
 func (s *DemoStateStore) Remember(ctx context.Context, name string, state DemoState) error {
 	// A queued order has its row already and stays preparing until its first
 	// tick; the standing school has no order and is ready with its seed.
@@ -51,12 +67,12 @@ func (s *DemoStateStore) Remember(ctx context.Context, name string, state DemoSt
 	return nil
 }
 
-// Update persists a completed deferred seed without allowing a caller to
-// replace another school's state or create a state outside the initial write.
+// Update persists the complete state for a reserved or completed school
+// without allowing a caller to replace another school's state.
 func (s *DemoStateStore) Update(ctx context.Context, name string, state DemoState) error {
 	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states
 		SET seed_state = ?::jsonb
-		WHERE name = ? AND tenant_id = ? AND seed_state IS NOT NULL`, state.SeedJSON, name, state.TenantID).Exec(ctx)
+		WHERE name = ? AND tenant_id = ?`, state.SeedJSON, name, state.TenantID).Exec(ctx)
 	if err != nil {
 		return errors.New("could not update demo school state")
 	}

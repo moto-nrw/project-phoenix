@@ -262,6 +262,15 @@ func provisionDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, a
 	slug := options.TenantSlug
 	options.OnlyProfile, options.StaffPassword, options.StandingDemo = seedapi.DefaultProfileKey, staffPassword, true
 	stateSaved := false
+	if options.DeferHistory {
+		options.SaveBootstrap = func(ctx context.Context, schoolID int64) error {
+			if err := schools.ReserveDemoSchool(ctx, slug, schoolID); err != nil {
+				return err
+			}
+			stateSaved = true
+			return nil
+		}
+	}
 	options.SaveState = func(ctx context.Context, state *seedapi.SeedState) error {
 		profile, err := state.SelectProfile(seedapi.DefaultProfileKey)
 		if err != nil {

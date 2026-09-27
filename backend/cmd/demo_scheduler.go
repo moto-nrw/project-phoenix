@@ -413,6 +413,9 @@ func (s *demoScheduler) drain(ctx context.Context) error {
 		return err
 	}
 	for {
+		if err := s.retryFailedDeferredRequeues(ctx); err != nil {
+			return err
+		}
 		// A worker that was busy before the poll may still queue its order again.
 		idle := len(s.seeds) == 0
 		if err := s.startOrders(ctx); err != nil {

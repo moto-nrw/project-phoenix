@@ -49,6 +49,9 @@ type SeedOptions struct {
 	// SaveState replaces file output, allowing the demo process to persist
 	// credentials in the database. A failure fails the seed workflow.
 	SaveState func(context.Context, *SeedState) error
+	// SaveBootstrap persists the created school before later seed steps can
+	// fail. It is only used by the queued public-demo provisioner.
+	SaveBootstrap func(context.Context, int64) error
 	// DeferHistory leaves the deferred steps out of Seed: the school is usable
 	// without them, and SeedResult.Deferred runs them afterwards.
 	DeferHistory bool
