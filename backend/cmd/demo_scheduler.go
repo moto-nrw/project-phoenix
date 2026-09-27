@@ -33,10 +33,11 @@ type demoScheduler struct {
 	heartbeat string
 	adapter   *sharedOperatorSession
 
-	tickers *demoTickers
-	expiry  *demoExpiry
-	work    sync.WaitGroup
-	seeds   chan struct{}
+	tickers         *demoTickers
+	tickerLifecycle sync.Mutex
+	expiry          *demoExpiry
+	work            sync.WaitGroup
+	seeds           chan struct{}
 
 	failedRequeues *demoDeferredRequeues
 }
@@ -132,7 +133,7 @@ func (s *demoScheduler) prepare(ctx context.Context, order backendapi.DemoSchool
 			"seconds", time.Since(started).Seconds(),
 		)
 		if err := s.seedDeferred(ctx, order.Slug, deferred); err != nil && ctx.Err() == nil {
-			requeueErr := s.schools.RequeueDeferredDemoSchoolOrder(context.WithoutCancel(ctx), order.Slug)
+			requeueErr := s.requeueDeferredDemoSchoolOrder(context.WithoutCancel(ctx), order.Slug)
 			if requeueErr != nil {
 				s.rememberFailedDeferredRequeue(order.Slug)
 			}
@@ -166,7 +167,22 @@ func (s *demoScheduler) prepare(ctx context.Context, order backendapi.DemoSchool
 func (s *demoScheduler) rememberFailedDeferredRequeue(slug string) { s.failedRequeues.add(slug) }
 
 func (s *demoScheduler) retryFailedDeferredRequeues(ctx context.Context) error {
-	return s.failedRequeues.retry(ctx, s.schools.RequeueDeferredDemoSchoolOrder)
+	return s.failedRequeues.retry(ctx, s.requeueDeferredDemoSchoolOrder)
+}
+
+// requeueDeferredDemoSchoolOrder serializes stopping a ticker and rebuilding
+// its school with active-school reads, so a stale poll cannot start a ticker
+// after this school becomes preparing again.
+func (s *demoScheduler) requeueDeferredDemoSchoolOrder(ctx context.Context, slug string) error {
+	s.tickerLifecycle.Lock()
+	defer s.tickerLifecycle.Unlock()
+
+	s.tickers.block(slug)
+	if err := s.schools.RequeueDeferredDemoSchoolOrder(ctx, slug); err != nil {
+		return err
+	}
+	s.tickers.unblock(slug)
+	return nil
 }
 
 // demoDeferredRequeues retains only runtime failures of named requeue writes.
@@ -275,6 +291,9 @@ func demoAccountScope(slug string, attempt int) string {
 // startTickers keeps one ticker per school in use and stops the others. A
 // new ticker ticks at once, so an entered school moves within the next poll.
 func (s *demoScheduler) startTickers(ctx context.Context) error {
+	s.tickerLifecycle.Lock()
+	defer s.tickerLifecycle.Unlock()
+
 	slugs, err := s.schools.ActiveDemoSchools(ctx, time.Now().Add(-demoInUseWindow))
 	if err != nil {
 		return err
@@ -282,6 +301,10 @@ func (s *demoScheduler) startTickers(ctx context.Context) error {
 	for _, slug := range s.tickers.keepOnly(slugs) {
 		tickCtx, stop := context.WithCancel(ctx)
 		ticker := s.tickers.add(slug, stop)
+		if ticker == nil {
+			stop()
+			continue
+		}
 		s.work.Go(func() {
 			defer s.tickers.remove(slug, ticker)
 			school, err := loadDemoSchool(tickCtx, s.schools, slug, s.baseURL)
@@ -303,6 +326,7 @@ func (s *demoScheduler) startTickers(ctx context.Context) error {
 type demoTickers struct {
 	mu      sync.Mutex
 	running demoTickerSet
+	blocked map[string]bool
 }
 
 type demoTicker struct{ stop context.CancelFunc }
@@ -314,7 +338,7 @@ type demoTickerSet map[string]*demoTicker
 func (set demoTickerSet) put(slug string, ticker *demoTicker) { set[slug] = ticker }
 
 func newDemoTickers() *demoTickers {
-	return &demoTickers{running: demoTickerSet{}}
+	return &demoTickers{running: demoTickerSet{}, blocked: map[string]bool{}}
 }
 
 // keepOnly stops the tickers of schools that are no longer in use and returns
@@ -325,6 +349,9 @@ func (t *demoTickers) keepOnly(inUse []string) []string {
 	wanted := make(map[string]bool, len(inUse))
 	var missing []string
 	for _, slug := range inUse {
+		if t.blocked[slug] {
+			continue
+		}
 		wanted[slug] = true
 		if t.running[slug] == nil {
 			missing = append(missing, slug)
@@ -339,9 +366,30 @@ func (t *demoTickers) keepOnly(inUse []string) []string {
 	return missing
 }
 
+// block stops a ticker before its school is rebuilt and prevents a poll from
+// starting a replacement ticker until the requeue transaction succeeds.
+func (t *demoTickers) block(slug string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.blocked[slug] = true
+	if ticker := t.running[slug]; ticker != nil {
+		ticker.stop()
+		delete(t.running, slug)
+	}
+}
+
+func (t *demoTickers) unblock(slug string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	delete(t.blocked, slug)
+}
+
 func (t *demoTickers) add(slug string, stop context.CancelFunc) *demoTicker {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if t.blocked[slug] {
+		return nil
+	}
 	ticker := &demoTicker{stop: stop}
 	t.running.put(slug, ticker)
 	return ticker

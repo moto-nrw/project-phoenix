@@ -40,6 +40,21 @@ func TestDemoDeferredRequeuesRetryOnlyFailedOrders(t *testing.T) {
 	assert.Empty(t, requeues.slugs)
 }
 
+func TestDemoTickersBlockTickerUntilRequeueCompletes(t *testing.T) {
+	t.Parallel()
+
+	tickers := newDemoTickers()
+	stopped := false
+	tickers.add("ogs-nord-abc123", func() { stopped = true })
+	tickers.block("ogs-nord-abc123")
+	assert.True(t, stopped)
+	assert.Empty(t, tickers.keepOnly([]string{"ogs-nord-abc123"}), "a blocked school must not receive a replacement ticker")
+	assert.Nil(t, tickers.add("ogs-nord-abc123", func() {}), "a stale active-school snapshot must not start a blocked ticker")
+
+	tickers.unblock("ogs-nord-abc123")
+	assert.Equal(t, []string{"ogs-nord-abc123"}, tickers.keepOnly([]string{"ogs-nord-abc123"}))
+}
+
 // The simulation serves only demo schools in use (#3464): a school that falls
 // out of use loses its ticker, and a returning visitor gets a new one.
 func TestDemoTickersFollowTheSchoolsInUse(t *testing.T) {
