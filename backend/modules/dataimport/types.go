@@ -63,6 +63,10 @@ type ImportResult[T any] struct {
 	Errors       []ImportError[T]
 	BulkActions  []BulkAction // Suggested bulk corrections
 	DryRun       bool
+	// ChildQuotaRequested is the number of previewed rows that would raise
+	// the Kontingentzahl (#3571). Only a dry run of an import that counts
+	// children sets it; it is not part of the wire result.
+	ChildQuotaRequested int `json:"-"`
 }
 
 // ImportError captures per-row failures

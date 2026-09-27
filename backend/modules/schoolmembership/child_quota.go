@@ -76,7 +76,7 @@ type ChildQuotaUsage struct {
 func (u ChildQuotaUsage) Free() int { return max(u.Booked-u.Occupied, 0) }
 
 // Admit judges requested new children against this usage by the rule every
-// counting write follows: adding nobody always passes. It takes no lock, so it
+// counting write follows (domain.CheckChildQuota): adding nobody always passes. It takes no lock, so it
 // is a preflight only (#3571); the write itself stays checked under the quota
 // lock. It returns the refusal the write would raise, or nil.
 func (u ChildQuotaUsage) Admit(requested int) error {
@@ -84,6 +84,24 @@ func (u ChildQuotaUsage) Admit(requested int) error {
 		return nil
 	}
 	return &ChildQuotaReachedError{Booked: u.Booked, Occupied: u.Occupied, Requested: requested}
+}
+
+// CountsTowardChildQuota says whether one membership belongs to the
+// Kontingentzahl on day (#3571): an active child whose care has not ended, or
+// a pending one whose care starts after day and has not ended. It is the Go
+// twin of childQuotaPredicate (internal/adapters/postgres/student_counts.go)
+// for a membership that is not written yet, such as an import preview row.
+// Dates are YYYY-MM-DD; an empty date is none.
+func CountsTowardChildQuota(status, enrolledFrom, enrolledUntil, day string) bool {
+	notEnded := enrolledUntil == "" || enrolledUntil >= day
+	switch status {
+	case "active":
+		return notEnded
+	case "pending":
+		return notEnded && enrolledFrom > day
+	default:
+		return false
+	}
 }
 
 // ChildQuotaUsages reads the Kinderkontingent of the tenant in context.

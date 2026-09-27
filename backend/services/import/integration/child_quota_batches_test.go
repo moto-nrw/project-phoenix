@@ -23,10 +23,7 @@ func TestImportBatches_EachBatchChecksTheChildQuota(t *testing.T) {
 	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	actor := newImporter(t, db)
-	_, err = db.NewUpdate().TableExpr("platform.schools").
-		Set("child_quota_bundles = 1").Set("child_quota_bundle_size = 150").
-		Where("id = ?", testpkg.Tenant(t)).Exec(testpkg.Ctx(t))
-	require.NoError(t, err)
+	testpkg.SetTestChildQuota(t, db, 1, 150)
 	rows := make([]importModels.StudentImportRow, 160)
 	for i := range rows {
 		rows[i] = importModels.StudentImportRow{FirstName: fmt.Sprintf("Kind%d", i), LastName: "Kontingent", SchoolClass: "1A", DataRetentionDays: 30}

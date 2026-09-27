@@ -141,8 +141,7 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 	// returns, when a commit failure can no longer be reported. Staff ID
 	// resolution happens inside the TX because the lookup is RLS-scoped.
 	tenantID := rs.runtime.TenantID(r.Context())
-	var result *importModels.ImportResult[importModels.StudentImportRow]
-	var quota *childQuotaPreview
+	var preview studentPreviewResponse
 	var staffResolutionErr error
 	if err := rs.runtime.WithinTenant(r.Context(), func(ctx context.Context) error {
 		staffID, staffErr := rs.runtime.StaffID(ctx)
@@ -150,7 +149,6 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 			staffResolutionErr = staffErr
 			return staffErr
 		}
-
 		request := importModels.ImportRequest[importModels.StudentImportRow]{
 			Rows:            uploadResult.Rows,
 			Mode:            mode,
@@ -159,17 +157,13 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 			UserID:          staffID,
 			SkipInvalidRows: false,
 		}
-
 		var txErr error
-		result, txErr = rs.studentImportService.Import(ctx, request)
+		preview, txErr = rs.previewStudents(ctx, request)
 		if txErr != nil {
 			return txErr
 		}
-		if quota, txErr = rs.previewChildQuota(ctx, result.CreatedCount); txErr != nil {
-			return txErr
-		}
 		// GDPR Compliance: Audit log for preview (Article 30).
-		return rs.studentImportService.RecordAuditInTransaction(ctx, "student", uploadResult.Filename, result, accountID, true, tenantID)
+		return rs.studentImportService.RecordAuditInTransaction(ctx, "student", uploadResult.Filename, preview.ImportResult, accountID, true, tenantID)
 	}); err != nil {
 		if staffResolutionErr != nil {
 			rs.runtime.Failure(w, r, Failure{Status: http.StatusUnauthorized, Cause: staffResolutionErr})
@@ -179,7 +173,7 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	rs.runtime.Success(w, r, http.StatusOK, studentPreviewResponse{ImportResult: result, ChildQuota: quota}, "Import-Vorschau erfolgreich")
+	rs.runtime.Success(w, r, http.StatusOK, preview, "Import-Vorschau erfolgreich")
 }
 
 // importStudents handles actual student import

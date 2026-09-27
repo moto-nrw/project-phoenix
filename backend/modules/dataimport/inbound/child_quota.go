@@ -25,8 +25,23 @@ type studentPreviewResponse struct {
 	ChildQuota *childQuotaPreview `json:"child_quota,omitempty"`
 }
 
-// previewChildQuota judges the children a preview would create. Rows the
-// preview updates add nobody and never count.
+// previewStudents runs the preview's dry run and judges its new children
+// against the Kinderkontingent.
+func (rs *Resource) previewStudents(ctx context.Context, request importModels.ImportRequest[importModels.StudentImportRow]) (studentPreviewResponse, error) {
+	result, err := rs.studentImportService.Import(ctx, request)
+	if err != nil {
+		return studentPreviewResponse{}, err
+	}
+	quota, err := rs.previewChildQuota(ctx, result.ChildQuotaRequested)
+	if err != nil {
+		return studentPreviewResponse{}, err
+	}
+	return studentPreviewResponse{ImportResult: result, ChildQuota: quota}, nil
+}
+
+// previewChildQuota judges the children a preview adds to the
+// Kontingentzahl: new children that count and updates that bring a child
+// back into the count, never a plain update.
 func (rs *Resource) previewChildQuota(ctx context.Context, requested int) (*childQuotaPreview, error) {
 	quota, limited, err := rs.runtime.ChildQuota(ctx)
 	if err != nil || !limited {
@@ -34,21 +49,18 @@ func (rs *Resource) previewChildQuota(ctx context.Context, requested int) (*chil
 	}
 	return &childQuotaPreview{
 		BookedPlaces: quota.Booked, OccupiedPlaces: quota.Occupied, RequestedPlaces: requested,
-		FreePlaces: max(quota.Booked-quota.Occupied, 0),
-		Fits:       rs.runtime.AdmitChildren(quota, requested) == nil,
+		FreePlaces: quota.Free, Fits: quota.Admit(requested) == nil,
 	}, nil
 }
 
 // admitStudentImport refuses an import whose new children do not all fit
 // into the Kinderkontingent before its first batch runs, so an import is
-// applied whole or not at all (#3571). It counts the new children with the
-// preview's dry run. Every batch still checks under the quota lock, which
-// catches children created by others between this check and the batch.
+// applied whole or not at all (#3571). It counts them with the preview's dry
+// run, in every mode: an update can resume a child's care. Every batch still
+// checks under the quota lock, which catches children created by others
+// between this check and the batch.
 // It returns the owner's refusal, or nil when the import may start.
 func (rs *Resource) admitStudentImport(ctx context.Context, request importModels.ImportRequest[importModels.StudentImportRow]) error {
-	if request.Mode == importModels.ImportModeUpdate {
-		return nil
-	}
 	quota, limited, err := rs.runtime.ChildQuota(ctx)
 	if err != nil || !limited {
 		return err
@@ -59,5 +71,5 @@ func (rs *Resource) admitStudentImport(ctx context.Context, request importModels
 	if err != nil {
 		return err
 	}
-	return rs.runtime.AdmitChildren(quota, dryRun.CreatedCount)
+	return quota.Admit(dryRun.ChildQuotaRequested)
 }

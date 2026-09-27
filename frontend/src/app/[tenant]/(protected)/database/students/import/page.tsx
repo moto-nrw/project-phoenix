@@ -25,6 +25,7 @@ import {
   importBatchFailureMessage,
   importBatchSavedCount,
   readImportBatchFailure,
+  readImportBatchRejection,
 } from "~/lib/import-batch-result";
 import {
   importChildQuotaNotice,
@@ -386,23 +387,30 @@ export default function StudentImportPage() {
       const result = (await response.json()) as Record<string, unknown>;
 
       if (!response.ok) {
-        // Das Kinderkontingent lehnt den ganzen Import ab, bevor er startet.
-        const quotaRefusal = childQuotaMessage(result);
-        if (quotaRefusal) {
-          setError(quotaRefusal);
-          return;
-        }
         const interrupted = readImportBatchFailure<ImportRowResult>(result);
         if (interrupted) {
           setImportResult(interrupted as ImportResult);
           setImportInterrupted(true);
           setPreviewData((interrupted.Errors ?? []).map(toDisplayStudent));
-          setError(importBatchFailureMessage(interrupted));
+          // Ein Stapel kann am Kinderkontingent scheitern, wenn zwischen
+          // Vorschau und Start andere Kinder dazukamen.
+          setError(
+            importBatchFailureMessage(
+              interrupted,
+              childQuotaMessage(readImportBatchRejection(result)),
+            ),
+          );
           logger.error("student_import_batch_failed", {
             created: interrupted.CreatedCount,
             updated: interrupted.UpdatedCount,
             errors: interrupted.ErrorCount,
           });
+          return;
+        }
+        // Das Kinderkontingent lehnt den ganzen Import ab, bevor er startet.
+        const quotaRefusal = childQuotaMessage(result);
+        if (quotaRefusal) {
+          setError(quotaRefusal);
           return;
         }
         throw new Error(

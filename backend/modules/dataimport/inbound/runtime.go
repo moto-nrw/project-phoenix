@@ -20,10 +20,14 @@ type Failure struct {
 }
 
 // ChildQuota is the school's Kinderkontingent (Booked) next to its
-// Kontingentzahl (Occupied) of today (#3571).
+// Kontingentzahl (Occupied) of today (#3571). Free is what it still takes;
+// Admit returns the owner's refusal when requested new children do not fit,
+// nil otherwise.
 type ChildQuota struct {
 	Booked   int
 	Occupied int
+	Free     int
+	Admit    func(requested int) error
 }
 
 // Runtime binds transport authentication, actor lookup, transaction ownership,
@@ -42,12 +46,10 @@ type Runtime struct {
 	ValidateOpeningDate  func(string) (string, error)
 	OpeningImport        func(string, string, int64) (dataimport.RowImporter[dataimport.OpeningBalanceImportRow], error)
 	// ChildQuota reads the Kinderkontingent of the tenant in context; limited
-	// is false for a school without one. AdmitChildren returns the owner's
-	// refusal when requested new children do not fit, nil otherwise.
-	ChildQuota    func(context.Context) (quota ChildQuota, limited bool, err error)
-	AdmitChildren func(quota ChildQuota, requested int) error
-	Success       func(http.ResponseWriter, *http.Request, int, any, string)
-	Failure       func(http.ResponseWriter, *http.Request, Failure)
+	// is false for a school without one.
+	ChildQuota func(context.Context) (quota ChildQuota, limited bool, err error)
+	Success    func(http.ResponseWriter, *http.Request, int, any, string)
+	Failure    func(http.ResponseWriter, *http.Request, Failure)
 }
 
 type Dependencies struct {
