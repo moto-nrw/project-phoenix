@@ -109,7 +109,7 @@ func TestSupervisionEndWritesPreserveFieldsAndRollback(t *testing.T) {
 		return rows[0]
 	}
 	abort := errors.New("rollback end-date write")
-	at := time.Now().UTC().Truncate(time.Second)
+	at := time.Date(2000, time.January, 2, 3, 4, 5, 0, time.UTC)
 	require.ErrorIs(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		count, err := module.SetSupervisionEnd(txCtx, row.ID, row.StartDate, at)
 		require.NoError(t, err)
@@ -148,8 +148,9 @@ func TestSupervisionEndWritesPreserveFieldsAndRollback(t *testing.T) {
 	expected := row
 	expected.EndDate = &row.StartDate
 	// The table trigger owns updated_at and replaces the supplied timestamp.
-	require.True(t, read().UpdatedAt.After(row.UpdatedAt))
-	expected.UpdatedAt = read().UpdatedAt
+	updated := read().UpdatedAt
+	require.NotEqual(t, at, updated)
+	expected.UpdatedAt = updated
 	require.Equal(t, expected, read())
 	ended, err := module.EndOpenGroupSupervisions(ctx, group.ID, staff.ID, row.StartDate)
 	require.NoError(t, err)
