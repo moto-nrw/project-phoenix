@@ -71,3 +71,24 @@ func TestGuardianProfileRepositoryListWithOptionsPreservesDefaultOrderAndEmptySl
 	assert.Nil(t, empty)
 	assert.Empty(t, empty)
 }
+
+func TestGuardianProfileRepositoryListWithOptionsStaysWithinTenant(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	ctx := testpkg.Ctx(t)
+	own := testpkg.CreateTestGuardianProfile(t, db, "guardian-list-own")
+	otherTenant, _ := testpkg.CreateTestTenant(t, db)
+	foreign := testpkg.CreateTestGuardianProfileForTenant(t, db, otherTenant, "Foreign", "Guardian", "guardian-list-foreign")
+
+	rows, err := repo.ListWithOptions(ctx, nil)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, own.ID, rows[0].ID)
+
+	byEmail, err := repo.FindByEmails(ctx, []string{*own.Email, *foreign.Email})
+	require.NoError(t, err)
+	require.Len(t, byEmail, 1)
+	assert.Equal(t, own.ID, byEmail[0].ID)
+}

@@ -316,9 +316,11 @@ func (r *GuardianProfileRepository) ListWithOptions(ctx context.Context, options
 	if listOptions.Filter != nil {
 		listOptions.Filter.WithTableAlias("guardian_profile")
 	}
-	query := applyQueryOptions(r.runtime.DB(ctx).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(&profiles).
-		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`), listOptions)
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`)
+	query = withTenantFilter(ctx, r.runtime, query, "guardian_profile")
+	query = applyQueryOptions(query, listOptions)
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("failed to list guardian profiles: %w", err)
 	}
