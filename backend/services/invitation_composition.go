@@ -2,12 +2,14 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/email"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -27,6 +29,10 @@ var invitationEmailBackoff = []time.Duration{
 	5 * time.Second,
 	15 * time.Second,
 }
+
+// staffWelcomeDelay keeps the welcome behind the invitation while preserving
+// that delay in the durable outbox.
+const staffWelcomeDelay = 30 * time.Second
 
 // systemRoleTranslations maps English system role names to the German
 // display names the invitation mail shows.
@@ -59,6 +65,13 @@ type invitationWiring struct {
 	expiry       time.Duration
 	// backoff spaces the send retries; nil uses the production spacing.
 	backoff []time.Duration
+	// settings resolve the tenant settings the welcome mail's help link
+	// carries; nil leaves them out and /help asks.
+	settings tenantSettingsResolver
+	// outbox persists the staff welcome in the invitation transaction.
+	outbox func() platformModels.OutboxEnqueuer
+	// welcomeDelay holds the welcome behind the invitation; zero is immediate.
+	welcomeDelay time.Duration
 }
 
 func invitationDependencies(wiring *invitationWiring, owners identityaccessCompose.InvitationOwnerTokens, invitations func() identityaccess.SchoolInvitations, logger *slog.Logger) *identityaccessCompose.SchoolInvitationDependencies {
@@ -78,6 +91,7 @@ func invitationDependencies(wiring *invitationWiring, owners identityaccessCompo
 		Delivery: invitationDelivery{
 			dispatcher: wiring.dispatcher, from: wiring.defaultFrom, staffURL: wiring.staffURL, schoolURL: wiring.schoolURL,
 			identity: wiring.mailIdentity, backoff: backoff, invitations: invitations, logger: logger,
+			settings: wiring.settings, outbox: wiring.outbox, welcomeDelay: wiring.welcomeDelay,
 		},
 		Passwords: passwordPolicy{},
 		Expiry:    wiring.expiry,
@@ -101,22 +115,20 @@ func (RoleGrantPolicy) CanGrantRole(role identityaccess.RoleFacts, actorPermissi
 // invitationDelivery mails an invitation and records the outcome through the
 // module once the send settles.
 type invitationDelivery struct {
-	dispatcher  *email.Dispatcher
-	from        email.Email
-	staffURL    string
-	schoolURL   string
-	identity    email.ReplyToResolver
-	backoff     []time.Duration
-	invitations func() identityaccess.SchoolInvitations
-	logger      *slog.Logger
+	dispatcher   *email.Dispatcher
+	from         email.Email
+	staffURL     string
+	schoolURL    string
+	identity     email.ReplyToResolver
+	backoff      []time.Duration
+	invitations  func() identityaccess.SchoolInvitations
+	logger       *slog.Logger
+	settings     tenantSettingsResolver
+	outbox       func() platformModels.OutboxEnqueuer
+	welcomeDelay time.Duration
 }
 
-func (d invitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration) {
-	if d.dispatcher == nil {
-		d.logger.Warn("email dispatcher unavailable, skipping invitation email",
-			slog.Int64("invitation_id", invitation.ID))
-		return
-	}
+func (d invitationDelivery) portalURL(portal identityaccess.InvitationPortal) string {
 	frontend := d.staffURL
 	if frontend == "" {
 		frontend = "http://localhost:3000"
@@ -127,6 +139,20 @@ func (d invitationDelivery) DispatchSchoolInvitation(ctx context.Context, invita
 	if portal == identityaccess.InvitationPortalSchool && d.schoolURL != "" {
 		frontend = d.schoolURL
 	}
+	return frontend
+}
+
+func (d invitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration) {
+	d.dispatchSchoolInvitation(ctx, invitation, schoolName, portal, expiry)
+}
+
+func (d invitationDelivery) dispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration) {
+	if d.dispatcher == nil {
+		d.logger.Warn("email dispatcher unavailable, skipping invitation email",
+			slog.Int64("invitation_id", invitation.ID))
+		return
+	}
+	frontend := d.portalURL(portal)
 	subject := "Einladung zu moto"
 	if schoolName != "" {
 		subject = fmt.Sprintf("Einladung zu moto – %s", schoolName)
@@ -170,12 +196,69 @@ func (d invitationDelivery) DispatchSchoolInvitation(ctx context.Context, invita
 	})
 }
 
+// QueueSchoolWelcome persists the welcome with the invitation. Its renderer
+// waits for the invitation delivery record, so a crash after SMTP accepts the
+// invitation cannot lose the follow-up or send it first.
+func (d invitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, rolePermissions []string) error {
+	if d.dispatcher == nil {
+		d.logger.Warn("email dispatcher unavailable, skipping staff welcome email",
+			slog.Int64("invitation_id", invitation.ID))
+		return nil
+	}
+	if d.outbox == nil || d.outbox() == nil {
+		return fmt.Errorf("staff welcome outbox is not configured")
+	}
+	frontend := d.portalURL(portal)
+	// A failed read is logged and left out of the link. Run it in a savepoint:
+	// PostgreSQL marks the invitation transaction aborted after a failed query,
+	// even though the welcome can still be useful without that parameter.
+	var helpURL string
+	resolveHelpURL := func(savepointCtx context.Context) error {
+		var err error
+		helpURL, err = welcomeHelpURL(savepointCtx, frontend, staffHelpRole(portal == identityaccess.InvitationPortalSchool, invitation.RoleName, rolePermissions),
+			invitation.TenantID, d.welcomeSettings(invitation.TenantID), d.logger)
+		return err
+	}
+	if err := tenant.WithSavepoint(ctx, resolveHelpURL); errors.Is(err, tenant.ErrSavepointControl) {
+		return fmt.Errorf("resolve staff welcome help URL: %w", err)
+	}
+	payload := map[string]any{
+		staffWelcomePayloadRecipientEmail: invitation.Email,
+		staffWelcomePayloadHelpURL:        helpURL,
+		staffWelcomePayloadFirstName:      trimmedValue(invitation.FirstName),
+		staffWelcomePayloadLogoURL:        fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontend),
+		staffWelcomePayloadSchoolName:     schoolName,
+	}
+	deliverAfter := time.Time{}
+	if d.welcomeDelay > 0 {
+		deliverAfter = time.Now().Add(d.welcomeDelay)
+	}
+	if err := d.outbox().EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
+		Kind:              platformModels.EmailKindStaffWelcome,
+		Payload:           payload,
+		RelatedEntityType: platformModels.EmailRelatedTypeSchoolInvitation,
+		RelatedEntityID:   invitation.ID,
+		DeliverAfter:      deliverAfter,
+	}); err != nil {
+		return fmt.Errorf("enqueue staff welcome: %w", err)
+	}
+	return nil
+}
+
+// welcomeSettings binds the help URL to the invitation's school.
+func (d invitationDelivery) welcomeSettings(tenantID int64) welcomeHelpSettings {
+	if d.settings == nil || tenantID <= 0 {
+		return nil
+	}
+	return schoolSettings{resolver: d.settings, tenantID: tenantID}
+}
+
 func (d invitationDelivery) recordDelivery(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {
 	delivery := identityaccess.TokenDelivery{RetryCount: baseRetry + result.Attempt}
 	if result.Status == email.DeliveryStatusSent {
 		sentAt := result.SentAt
 		delivery.SentAt = &sentAt
-	} else if result.Err != nil {
+	} else if result.Final && result.Err != nil {
 		message := strings.TrimSpace(result.Err.Error())
 		delivery.Error = &message
 	}
@@ -193,6 +276,14 @@ func (d invitationDelivery) recordDelivery(ctx context.Context, meta email.Deliv
 			slog.Any("error", result.Err),
 		)
 	}
+}
+
+// trimmedValue reads an optional name for a mail greeting.
+func trimmedValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
 }
 
 // detachedContext isolates asynchronous work from the request transaction

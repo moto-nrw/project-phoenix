@@ -35,6 +35,10 @@ type InvitationOwnerTokens interface {
 // the outcome back through the module.
 type SchoolInvitationDelivery interface {
 	DispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration)
+	// QueueSchoolWelcome persists the welcome before the invitation commits.
+	// A resend calls DispatchSchoolInvitation only, so it never repeats the
+	// welcome.
+	QueueSchoolWelcome(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, rolePermissions []string) error
 }
 
 // SchoolInvitationDependencies compose the invitation flows. They require
@@ -95,6 +99,10 @@ type schoolInvitationDelivery struct{ source SchoolInvitationDelivery }
 
 func (d schoolInvitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, expiry time.Duration) {
 	d.source.DispatchSchoolInvitation(ctx, publicSchoolInvitation(invitation), schoolName, identityaccess.InvitationPortal(portal), expiry)
+}
+
+func (d schoolInvitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, rolePermissions []string) error {
+	return d.source.QueueSchoolWelcome(ctx, publicSchoolInvitation(invitation), schoolName, identityaccess.InvitationPortal(portal), rolePermissions)
 }
 
 func publicSchoolInvitation(invitation domain.SchoolInvitation) identityaccess.SchoolInvitation {
@@ -193,6 +201,14 @@ func (e engine) RecordSchoolInvitationDelivery(ctx context.Context, id int64, de
 	return invitationError(e.invitations.RecordInvitationDelivery(e.attach(ctx), id, domain.TokenDelivery(delivery)))
 }
 
+func (e engine) SchoolInvitationDeliverySent(ctx context.Context, id int64) (bool, error) {
+	if e.invitations == nil {
+		return false, errSchoolInvitationUnavailable
+	}
+	sent, err := e.invitations.InvitationDeliverySent(e.attach(ctx), id)
+	return sent, invitationError(err)
+}
+
 func (e engine) SchoolInvitationSubdomain(ctx context.Context, token string) string {
 	if e.invitations == nil {
 		return ""
@@ -207,6 +223,7 @@ var invitationSentinels = []struct {
 	{domain.ErrInvitationNotFound, identityaccess.ErrInvitationNotFound},
 	{domain.ErrInvitationExpired, identityaccess.ErrInvitationExpired},
 	{domain.ErrInvitationUsed, identityaccess.ErrInvitationUsed},
+	{domain.ErrInvitationDeliveryFailed, identityaccess.ErrInvitationDeliveryFailed},
 	{domain.ErrInvitationTenantDeleted, identityaccess.ErrInvitationTenantDeleted},
 	{domain.ErrInvitationNameRequired, identityaccess.ErrInvitationNameRequired},
 	{domain.ErrInvitationOwnerRequired, identityaccess.ErrInvitationOwnerRequired},

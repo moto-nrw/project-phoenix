@@ -14,7 +14,7 @@ vi.stubEnv("TENANT_DOMAIN", "localhost");
 vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", POSTHOG_KEY);
 
 // Import after env is stubbed , proxy reads the env var at module load
-const { proxy } = await import("./proxy");
+const { proxy, config } = await import("./proxy");
 
 function makeRequest(url: string, host?: string): NextRequest {
   const req = new NextRequest(url);
@@ -1123,5 +1123,24 @@ describe("proxy", () => {
         "/school-a/helpdesk",
       );
     });
+  });
+});
+
+// The welcome mail links the Elterninfo on the parents host (#3534). The
+// parents host redirects every path it does not know to its start page, so
+// the file must bypass the proxy the way images and icons do.
+describe("proxy matcher", () => {
+  const [pattern] = config.matcher;
+  const matches = (path: string) => new RegExp(`^${pattern}$`).test(path);
+
+  it("leaves public downloads to the static file server", () => {
+    expect(matches("/downloads/moto-elterninfo.pdf")).toBe(false);
+    expect(matches("/images/moto-logo-mit-schriftzug.png")).toBe(false);
+  });
+
+  it("still runs the proxy for pages and help", () => {
+    expect(matches("/help/eltern-konto-einrichten")).toBe(true);
+    expect(matches("/login")).toBe(true);
+    expect(matches("/download")).toBe(true);
   });
 });

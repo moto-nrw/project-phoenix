@@ -223,7 +223,7 @@ func (l *AccountLifecycle) resolveInviteNow(ctx context.Context, req domain.Invi
 		if err := l.closeSupersededApprovalRequests(ctx, profile.ID, req.StudentID); err != nil {
 			return nil, err
 		}
-		l.delivery.EnqueueExistingAccountEmail(ctx, profile, l.delivery.SchoolName(ctx, tenantID))
+		l.mailExistingAccountAccess(ctx, profile, tenantID)
 		outcome := domain.InviteOutcomeLinkedExistingAccount
 		if !linkCreated {
 			outcome = domain.InviteOutcomeAlreadyLinked
@@ -243,7 +243,7 @@ func (l *AccountLifecycle) resolveInviteNow(ctx context.Context, req domain.Invi
 	if err != nil {
 		return nil, err
 	}
-	l.delivery.EnqueueInvitationEmail(ctx, invitation, profile, l.delivery.SchoolName(ctx, tenantID))
+	l.mailNewInvitation(ctx, invitation, profile)
 	return &domain.InviteToStudentResult{
 		Outcome:           domain.InviteOutcomeInvited,
 		GuardianProfileID: profile.ID,
@@ -425,7 +425,7 @@ func (l *AccountLifecycle) ApproveInvitation(ctx context.Context, invitationID, 
 			slog.Int64("invitation_id", invitation.ID),
 			slog.Int64("approver_account_id", approverAccountID),
 		)
-		l.delivery.EnqueueExistingAccountEmail(ctx, profile, l.delivery.SchoolName(ctx, invitation.TenantID))
+		l.mailExistingAccountAccess(ctx, profile, invitation.TenantID)
 		return nil
 	}
 
@@ -440,7 +440,7 @@ func (l *AccountLifecycle) ApproveInvitation(ctx context.Context, invitationID, 
 		slog.Int64("invitation_id", invitation.ID),
 		slog.Int64("approver_account_id", approverAccountID),
 	)
-	l.delivery.EnqueueInvitationEmail(ctx, invitation, profile, l.delivery.SchoolName(ctx, invitation.TenantID))
+	l.mailNewInvitation(ctx, invitation, profile)
 	return nil
 }
 

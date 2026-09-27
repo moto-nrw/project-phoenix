@@ -33,6 +33,7 @@ type Dependencies struct {
 type Runtime struct {
 	Module *delivery.Module
 	Worker *delivery.Worker
+	store  *postgres.Store
 }
 
 func New(dependencies Dependencies) (*Runtime, error) {
@@ -75,7 +76,24 @@ func New(dependencies Dependencies) (*Runtime, error) {
 	return &Runtime{
 		Module: delivery.NewModule(moduleEngine{service: service}),
 		Worker: delivery.NewWorker(workerEngine{worker: worker}),
+		store:  store,
 	}, nil
+}
+
+// EmailStatus reports the durable state of an e-mail intent while the root
+// binds a renderer that depends on an earlier delivery.
+func (r *Runtime) EmailStatus(ctx context.Context, tenantID, id int64) (delivery.State, bool, error) {
+	if r == nil || r.store == nil {
+		return "", false, errors.New("delivery compose: service is not initialized")
+	}
+	if tenantID <= 0 || id <= 0 {
+		return "", false, errors.New("delivery compose: tenant and e-mail intent are required")
+	}
+	intent, found, err := r.store.EmailStatus(ctx, tenantID, id)
+	if err != nil || !found {
+		return "", found, err
+	}
+	return delivery.State(intent.Status), true, nil
 }
 
 type guardianDirectoryAdapter struct{ resolver GuardianDisplayResolver }
@@ -104,7 +122,7 @@ func (e moduleEngine) EnqueueEmail(ctx context.Context, input delivery.EmailInte
 	return e.enqueue(ctx, domain.EnqueueInput{
 		TenantID: input.TenantID, Transport: domain.TransportEmail, Template: input.Template,
 		IdempotencyKey: input.IdempotencyKey, Related: toDomainRelated(input.Related),
-		Recipient: recipient, Payload: input.Payload,
+		Recipient: recipient, Payload: input.Payload, DeliverAfter: input.DeliverAfter,
 	}, delivery.TransportEmail)
 }
 
@@ -223,7 +241,8 @@ type providerAdapter struct{ provider Provider }
 func (p providerAdapter) Send(ctx context.Context, intent domain.Intent) (domain.ProviderResult, error) {
 	claimed := delivery.ClaimedIntent{
 		ID: intent.ID, TenantID: intent.TenantID, Transport: delivery.Transport(intent.Transport),
-		Template: intent.Template, Attempts: intent.Attempts,
+		Template: intent.Template, RelatedEntityType: intent.RelatedEntityType,
+		RelatedEntityID: intent.RelatedEntityID, Attempts: intent.Attempts,
 	}
 	if intent.LeaseToken != nil {
 		claimed.LeaseToken = *intent.LeaseToken
@@ -256,6 +275,9 @@ func (p providerAdapter) Send(ctx context.Context, intent domain.Intent) (domain
 func providerResult(value delivery.ProviderResult, err error) (domain.ProviderResult, error) {
 	if errors.Is(err, delivery.ErrCancelled) {
 		err = fmt.Errorf("%w: %v", domain.ErrCancelled, err)
+	}
+	if errors.Is(err, delivery.ErrDeferred) {
+		err = fmt.Errorf("%w: %v", domain.ErrDeferred, err)
 	}
 	return toDomainProviderResult(value), err
 }

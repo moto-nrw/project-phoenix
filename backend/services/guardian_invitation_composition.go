@@ -41,7 +41,7 @@ type GuardianInvitationCapability interface {
 type guardianInvitationWiring struct {
 	settings    config.SettingsService
 	schools     organizationtenancy.Query
-	outbox      func() platformModels.OutboxEnqueuer
+	outbox      func() platformModels.OutboxResultEnqueuer
 	enrollments guardianEnrollmentClaims
 	// parentsURL is the origin of the accept and login links; a guardian
 	// signs in on the parents portal, never on the staff frontend.
@@ -81,9 +81,13 @@ func (unsentGuardianMail) InvitationExpiry(context.Context) time.Duration {
 	return GuardianTokenExpiryFallback
 }
 func (unsentGuardianMail) SchoolName(context.Context, int64) string { return "" }
-func (unsentGuardianMail) EnqueueInvitationEmail(context.Context, identityaccess.GuardianInvitation, identityaccessCompose.GuardianProfile, string) {
+func (unsentGuardianMail) EnqueueInvitationEmail(context.Context, identityaccess.GuardianInvitation, identityaccessCompose.GuardianProfile, string) (int64, bool) {
+	return 0, false
 }
-func (unsentGuardianMail) EnqueueExistingAccountEmail(context.Context, identityaccessCompose.GuardianProfile, string) {
+func (unsentGuardianMail) EnqueueExistingAccountEmail(context.Context, identityaccessCompose.GuardianProfile, string) (int64, bool) {
+	return 0, false
+}
+func (unsentGuardianMail) EnqueueWelcomeEmail(context.Context, identityaccessCompose.GuardianProfile, int64, string, int64) {
 }
 
 // --- delivery ---------------------------------------------------------------
@@ -129,12 +133,43 @@ func (d guardianInvitationDelivery) mailer() GuardianInvitationMailer {
 	})
 }
 
-func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation identityaccess.GuardianInvitation, profile identityaccessCompose.GuardianProfile, schoolName string) {
-	d.mailer().EnqueueInvitation(ctx, invitation.ID, invitation.Token, invitation.ExpiresAt, guardianMailRecipient(profile), schoolName)
+func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation identityaccess.GuardianInvitation, profile identityaccessCompose.GuardianProfile, schoolName string) (int64, bool) {
+	return d.mailer().EnqueueInvitation(ctx, invitation.ID, invitation.Token, invitation.ExpiresAt, guardianMailRecipient(profile), schoolName)
 }
 
-func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile identityaccessCompose.GuardianProfile, schoolName string) {
-	d.mailer().EnqueueExistingAccount(ctx, guardianMailRecipient(profile), schoolName)
+func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile identityaccessCompose.GuardianProfile, schoolName string) (int64, bool) {
+	return d.mailer().EnqueueExistingAccount(ctx, guardianMailRecipient(profile), schoolName)
+}
+
+// EnqueueWelcomeEmail queues the welcome that follows a new access (#3534).
+// Settings failures return a complete help URL without the unresolved
+// parameters, but their transaction must be rolled back before enqueueing.
+// Each operation therefore has its own savepoint; neither may abort the
+// invitation transaction.
+func (d guardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, profile identityaccessCompose.GuardianProfile, tenantID int64, schoolName string, precedingOutboxID int64) {
+	var helpURL string
+	d.inSavepoint(ctx, func(savepointCtx context.Context) error {
+		var err error
+		helpURL, err = welcomeHelpURL(savepointCtx, d.wiring.parentsURL, welcomeHelpRoleParent, tenantID, d.wiring.settings, d.logger())
+		return err
+	})
+	d.inSavepoint(ctx, func(savepointCtx context.Context) error {
+		return d.mailer().EnqueueWelcome(savepointCtx, profile.ID, guardianMailRecipient(profile), schoolName, helpURL, precedingOutboxID)
+	})
+}
+
+// inSavepoint runs a best-effort step of the welcome. The step logs its own
+// failure; only a savepoint that could not be controlled is reported here.
+// Without a transaction there is nothing to protect.
+func (d guardianInvitationDelivery) inSavepoint(ctx context.Context, step func(context.Context) error) {
+	if _, inTransaction := tenant.TransactionFromContext(ctx); !inTransaction {
+		_ = step(ctx)
+		return
+	}
+	if err := tenant.WithSavepoint(ctx, step); errors.Is(err, tenant.ErrSavepointControl) {
+		d.logger().Error("guardian welcome email: savepoint failed",
+			slog.String("error", err.Error()))
+	}
 }
 
 func guardianMailRecipient(profile identityaccessCompose.GuardianProfile) GuardianMailRecipient {
