@@ -1634,7 +1634,7 @@ func newFactory(
 		invitations: &invitationWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom, staffURL: frontendURL, schoolURL: schoolURL,
 			mailIdentity: tenantMailIdentity, expiry: invitationTokenExpiry,
-			settings: settingsService, welcomeDelay: staffWelcomeDelay,
+			settings: settingsService,
 		},
 		// The lifecycle flows (#3225) read the retained role management back
 		// at call time; it is composed below.

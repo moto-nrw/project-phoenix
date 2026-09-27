@@ -28,10 +28,6 @@ var invitationEmailBackoff = []time.Duration{
 	15 * time.Second,
 }
 
-// staffWelcomeDelay holds the welcome mail (#3534) behind the invitation
-// mail both leave with, so the inbox shows the invitation first.
-const staffWelcomeDelay = 30 * time.Second
-
 // systemRoleTranslations maps English system role names to the German
 // display names the invitation mail shows.
 var systemRoleTranslations = map[string]string{
@@ -66,9 +62,6 @@ type invitationWiring struct {
 	// settings resolve the tenant settings the welcome mail's help link
 	// carries; nil leaves them out and /help asks.
 	settings tenantSettingsResolver
-	// welcomeDelay holds the welcome mail back so it lands after the
-	// invitation mail; zero sends at once.
-	welcomeDelay time.Duration
 }
 
 func invitationDependencies(wiring *invitationWiring, owners identityaccessCompose.InvitationOwnerTokens, invitations func() identityaccess.SchoolInvitations, logger *slog.Logger) *identityaccessCompose.SchoolInvitationDependencies {
@@ -88,7 +81,7 @@ func invitationDependencies(wiring *invitationWiring, owners identityaccessCompo
 		Delivery: invitationDelivery{
 			dispatcher: wiring.dispatcher, from: wiring.defaultFrom, staffURL: wiring.staffURL, schoolURL: wiring.schoolURL,
 			identity: wiring.mailIdentity, backoff: backoff, invitations: invitations, logger: logger,
-			settings: wiring.settings, welcomeDelay: wiring.welcomeDelay,
+			settings: wiring.settings,
 		},
 		Passwords: passwordPolicy{},
 		Expiry:    wiring.expiry,
@@ -121,8 +114,6 @@ type invitationDelivery struct {
 	invitations func() identityaccess.SchoolInvitations
 	logger      *slog.Logger
 	settings    tenantSettingsResolver
-	// welcomeDelay holds the welcome back behind the invitation mail.
-	welcomeDelay time.Duration
 }
 
 func (d invitationDelivery) portalURL(portal identityaccess.InvitationPortal) string {
@@ -242,12 +233,7 @@ func (d invitationDelivery) DispatchSchoolWelcome(ctx context.Context, invitatio
 			}
 		},
 	}
-	dispatchCtx := detachedContext(ctx)
-	if d.welcomeDelay <= 0 {
-		d.dispatcher.Dispatch(dispatchCtx, request)
-		return
-	}
-	time.AfterFunc(d.welcomeDelay, func() { d.dispatcher.Dispatch(dispatchCtx, request) })
+	d.dispatcher.Dispatch(detachedContext(ctx), request)
 }
 
 // welcomeSettings binds the settings to the invitation's school; the

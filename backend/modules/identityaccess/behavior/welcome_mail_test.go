@@ -81,8 +81,6 @@ func TestCreateSchoolInvitationSendsOneWelcomeAndResendDoesNot(t *testing.T) {
 
 	require.NoError(t, module.Invitation.ResendSchoolInvitation(ctx, invitation.ID, creator.ID))
 	require.True(t, mailer.WaitForMessages(3, 5*time.Second), "the resend mails the link again")
-	// Give a stray welcome time to arrive before counting.
-	time.Sleep(300 * time.Millisecond)
 	assert.Equal(t, 2, countTemplate(mailer.Messages(), "invitation.html"))
 	assert.Equal(t, 1, countTemplate(mailer.Messages(), "staff-welcome.html"), "a resend never welcomes again")
 }
