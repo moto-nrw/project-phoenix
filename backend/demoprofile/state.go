@@ -28,13 +28,16 @@ const (
 // are projected into Profiles by Normalize and never recreate the old flat
 // wire format.
 type SeedState struct {
-	Version        string                      `json:"version"`
-	CreatedAt      time.Time                   `json:"created_at"`
-	BaseURL        string                      `json:"base_url"`
-	DefaultProfile string                      `json:"default_profile"`
-	Organizations  map[string]SeedOrganization `json:"organizations"`
-	Profiles       map[string]*SeedProfile     `json:"profiles"`
-	Topology       SeedStateTopology           `json:"topology"`
+	Version        string    `json:"version"`
+	CreatedAt      time.Time `json:"created_at"`
+	BaseURL        string    `json:"base_url"`
+	DefaultProfile string    `json:"default_profile"`
+	// DeferredSeedPending lets the demo scheduler safely replace a school
+	// whose optional history was interrupted after the core seed opened it.
+	DeferredSeedPending bool                        `json:"deferred_seed_pending,omitempty"`
+	Organizations       map[string]SeedOrganization `json:"organizations"`
+	Profiles            map[string]*SeedProfile     `json:"profiles"`
+	Topology            SeedStateTopology           `json:"topology"`
 
 	DevicePIN   string                 `json:"-"`
 	Bootstrap   SeedStateBootstrap     `json:"-"`

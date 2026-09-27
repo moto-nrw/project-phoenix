@@ -735,6 +735,44 @@ func TestSeeder_Seed_UsesStateSink(t *testing.T) {
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
+func TestSeeder_Seed_DeferredStateSinkIncludesEnrollment(t *testing.T) {
+	t.Parallel()
+	srv := fullSeedAPIMock(t)
+	defer srv.Close()
+	var saved []*SeedState
+	var bootstrappedSchoolID int64
+	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{
+		OnlyProfile:  DefaultProfileKey,
+		DeferHistory: true,
+		SaveBootstrap: func(_ context.Context, schoolID int64) error {
+			bootstrappedSchoolID = schoolID
+			return nil
+		},
+		SaveState: func(_ context.Context, state *SeedState) error {
+			saved = append(saved, state)
+			return nil
+		},
+	})
+	result, err := s.Seed(context.Background(), "operator@example.test", "test-password", "1234")
+	require.NoError(t, err)
+	require.Len(t, saved, 1)
+	profile, err := saved[0].SelectProfile(DefaultProfileKey)
+	require.NoError(t, err)
+	assert.Equal(t, profile.School.ID, bootstrappedSchoolID)
+	assert.True(t, saved[0].DeferredSeedPending)
+	assert.Empty(t, profile.Entities.Enrollment.Requests, "core state opens the school before requests exist")
+
+	require.NotNil(t, result.Deferred)
+	require.NoError(t, result.Deferred(context.Background()))
+	require.Len(t, saved, 2)
+	profile, err = saved[1].SelectProfile(DefaultProfileKey)
+	require.NoError(t, err)
+	assert.False(t, saved[1].DeferredSeedPending)
+	assert.NotEmpty(t, profile.Entities.Enrollment.Requests)
+	assert.NotEmpty(t, profile.Entities.Enrollment.Offerings)
+	assert.NotEmpty(t, profile.Entities.Enrollment.ParentActions)
+}
+
 // The public demo seeds with a PIN other than the registry default 1234.
 // Device auth checks the school's security.ogs_device_pin setting, so the
 // seeder must write that setting before its first device request. That the
