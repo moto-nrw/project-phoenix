@@ -666,6 +666,10 @@ func (s *SchoolInvitation) RecordInvitationDelivery(ctx context.Context, id int6
 // invitation mail. The durable welcome renderer uses this to preserve the
 // invitation-before-welcome order across process restarts.
 func (s *SchoolInvitation) InvitationDeliverySent(ctx context.Context, id int64) (bool, error) {
+	if id <= 0 {
+		return false, failed("find invitation delivery", domain.ErrInvitationNotFound)
+	}
+
 	invitation, found, _, err := s.store.FindSchoolInvitation(ctx, id)
 	if err != nil {
 		return false, failed("find invitation delivery", err)
@@ -673,7 +677,10 @@ func (s *SchoolInvitation) InvitationDeliverySent(ctx context.Context, id int64)
 	if !found {
 		return false, failed("find invitation delivery", domain.ErrInvitationNotFound)
 	}
-	return invitation.Delivery.SentAt != nil, nil
+	if invitation.Delivery.SentAt == nil {
+		return false, nil
+	}
+	return true, nil
 }
 
 // InvitationSubdomain resolves the school subdomain an accepted invitation
