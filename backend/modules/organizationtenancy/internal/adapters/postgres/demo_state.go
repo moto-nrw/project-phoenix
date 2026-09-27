@@ -141,10 +141,11 @@ func (s *DemoStateStore) ReleaseClaims(ctx context.Context) error {
 
 // RequeueDeferred returns a school whose optional seed stopped after its core
 // seed to the normal provisioning queue. Its partial API writes are never
-// retried in place: the next attempt retires that school and starts clean.
+// retried in place: the next attempt retires that school and starts clean. It
+// retains the tenant identity until a final failed attempt can retire it too.
 func (s *DemoStateStore) RequeueDeferred(ctx context.Context, name string) error {
 	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states
-		SET status = 'preparing', claimed_at = NULL, tenant_id = NULL, seed_state = NULL,
+		SET status = 'preparing', claimed_at = NULL, seed_state = NULL,
 			visitor_account_id = NULL, visitor_parent_account_id = NULL
 		WHERE status IN ('preparing', 'ready') AND seed_state->>'deferred_seed_pending' = 'true'
 			AND (? = '' OR name = ?)`, name, name).Exec(ctx)
@@ -193,12 +194,23 @@ func (s *DemoStateStore) Finish(ctx context.Context, name string, visitorAccount
 
 // Fail returns the order to the queue, or closes it as failed once it used
 // its attempts. A seed that stopped halfway cannot be resumed, so its state
-// is dropped and the next attempt starts over.
+// is dropped and the next attempt starts over. The final failed attempt also
+// retires the school whose identity RequeueDeferred retained for this cleanup.
 func (s *DemoStateStore) Fail(ctx context.Context, name string, maxAttempts int) (bool, error) {
 	var failed bool
-	err := s.db.NewRaw(`UPDATE platform.demo_school_states
-		SET status = CASE WHEN attempts >= ? THEN 'failed' ELSE 'preparing' END, claimed_at = NULL, tenant_id = NULL, seed_state = NULL
-		WHERE name = ? AND status = 'preparing' RETURNING status = 'failed'`, maxAttempts, name).Scan(ctx, &failed)
+	err := s.db.NewRaw(`WITH target AS (
+			SELECT name, tenant_id FROM platform.demo_school_states
+			WHERE name = ? AND status = 'preparing' FOR UPDATE
+		), changed AS (
+			UPDATE platform.demo_school_states
+			SET status = CASE WHEN attempts >= ? THEN 'failed' ELSE 'preparing' END, claimed_at = NULL, tenant_id = NULL, seed_state = NULL
+			FROM target WHERE platform.demo_school_states.name = target.name
+			RETURNING target.tenant_id, platform.demo_school_states.status
+		), retired AS (
+			UPDATE platform.schools SET deleted_at = NOW()
+			WHERE deleted_at IS NULL AND id IN (SELECT tenant_id FROM changed WHERE status = 'failed')
+		)
+		SELECT status = 'failed' FROM changed`, name, maxAttempts).Scan(ctx, &failed)
 	if err != nil {
 		return false, fmt.Errorf("fail demo school order: %w", err)
 	}
@@ -244,7 +256,7 @@ func (s *DemoStateStore) RetireMany(ctx context.Context, names []string) (int, e
 		return 0, nil
 	}
 	result, err := s.db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW()
-		WHERE deleted_at IS NULL AND id IN (SELECT tenant_id FROM platform.demo_school_states WHERE name IN (?) AND tenant_id IS NOT NULL)`,
+		WHERE deleted_at IS NULL AND id IN (SELECT tenant_id FROM platform.demo_school_states WHERE name IN (?) AND status = 'ready')`,
 		bun.List(names)).Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("retire demo schools: %w", err)

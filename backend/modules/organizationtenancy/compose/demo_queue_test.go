@@ -184,6 +184,54 @@ func TestDemoSchoolQueueRequeuesInterruptedDeferredSeed(t *testing.T) {
 	assert.False(t, claimed.Seeded, "a partial seed must be rebuilt, not replayed")
 }
 
+func TestDemoSchoolQueueRetiresTheFinalDeferredSeedFailure(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	firstSchoolID, _ := testpkg.CreateTestTenant(t, db)
+	secondSchoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	ctx := t.Context()
+
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{
+		SchoolID: firstSchoolID, SeedJSON: []byte(`{"deferred_seed_pending":true}`),
+	}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
+	require.NoError(t, queue.RequeueDeferredDemoSchoolOrder(ctx, slug))
+	assert.Equal(t, firstSchoolID, demoSchoolProgress(t, db, slug).SchoolID, "the failed school stays available for final cleanup")
+
+	// An expired access cannot retire the school that the next attempt still
+	// needs to rename before it can rebuild the same slug.
+	hidden, err := queue.RetireDemoSchools(ctx, []string{slug})
+	require.NoError(t, err)
+	assert.Zero(t, hidden)
+	assert.False(t, schoolHidden(t, db, firstSchoolID))
+
+	second, err := queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 2, second.Attempts)
+	require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{
+		SchoolID: secondSchoolID, SeedJSON: []byte(`{"deferred_seed_pending":true}`),
+	}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
+	require.NoError(t, queue.RequeueDeferredDemoSchoolOrder(ctx, slug))
+
+	// The scheduler rejects a third seed before provisioning it and closes the
+	// order. That final cleanup must retire the second school's tenant too.
+	third, err := queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 3, third.Attempts)
+	failed, err := queue.FailDemoSchoolOrder(ctx, slug, 2)
+	require.NoError(t, err)
+	assert.True(t, failed)
+	assert.True(t, schoolHidden(t, db, secondSchoolID))
+}
+
 func TestDemoSchoolQueueRequeuesDeferredSeedBeforeItOpened(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
