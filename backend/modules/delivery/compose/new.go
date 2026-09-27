@@ -33,6 +33,7 @@ type Dependencies struct {
 type Runtime struct {
 	Module *delivery.Module
 	Worker *delivery.Worker
+	store  *postgres.Store
 }
 
 func New(dependencies Dependencies) (*Runtime, error) {
@@ -75,7 +76,24 @@ func New(dependencies Dependencies) (*Runtime, error) {
 	return &Runtime{
 		Module: delivery.NewModule(moduleEngine{service: service}),
 		Worker: delivery.NewWorker(workerEngine{worker: worker}),
+		store:  store,
 	}, nil
+}
+
+// EmailStatus reports the durable state of an e-mail intent while the root
+// binds a renderer that depends on an earlier delivery.
+func (r *Runtime) EmailStatus(ctx context.Context, tenantID, id int64) (delivery.State, bool, error) {
+	if r == nil || r.store == nil {
+		return "", false, errors.New("delivery compose: service is not initialized")
+	}
+	if tenantID <= 0 || id <= 0 {
+		return "", false, errors.New("delivery compose: tenant and e-mail intent are required")
+	}
+	intent, found, err := r.store.EmailStatus(ctx, tenantID, id)
+	if err != nil || !found {
+		return "", found, err
+	}
+	return delivery.State(intent.Status), true, nil
 }
 
 type guardianDirectoryAdapter struct{ resolver GuardianDisplayResolver }
@@ -160,14 +178,6 @@ func (e moduleEngine) Statuses(ctx context.Context, tenantID int64, transport de
 		})
 	}
 	return statuses, nil
-}
-
-func (e moduleEngine) EmailStatus(ctx context.Context, tenantID, id int64) (delivery.EmailStatus, bool, error) {
-	intent, found, err := e.service.EmailStatus(ctx, tenantID, id)
-	if err != nil || !found {
-		return delivery.EmailStatus{}, found, err
-	}
-	return delivery.EmailStatus{State: delivery.State(intent.Status)}, true, nil
 }
 
 func (e moduleEngine) ReplaceEmailDeliveries(ctx context.Context, tenantID int64, related delivery.RelatedEntity, rows []delivery.EmailDelivery) error {

@@ -169,11 +169,6 @@ type Status struct {
 	CancelledAt    *time.Time
 }
 
-// EmailStatus is the durable state of one e-mail intent.
-type EmailStatus struct {
-	State State
-}
-
 type Observation struct {
 	Operation string
 	Transport Transport
@@ -188,7 +183,6 @@ type engine interface {
 	EnqueuePush(context.Context, PushIntent) (Enqueued, error)
 	Cancel(context.Context, int64, Transport, RelatedEntity, string) (int64, error)
 	Statuses(context.Context, int64, Transport, RelatedEntity) ([]Status, error)
-	EmailStatus(context.Context, int64, int64) (EmailStatus, bool, error)
 	ReplaceEmailDeliveries(context.Context, int64, RelatedEntity, []EmailDelivery) error
 	DeleteEmailDeliveries(context.Context, int64, RelatedEntity) (int64, error)
 	EmailDeliveryStatuses(context.Context, int64, RelatedEntity) ([]EmailDeliveryStatus, error)
@@ -232,15 +226,6 @@ func (m *Module) EmailDeliveryStatuses(ctx context.Context, tenantID int64, rela
 		return nil, err
 	}
 	return m.engine.EmailDeliveryStatuses(ctx, tenantID, related)
-}
-
-// EmailStatus reports the durable state of one e-mail intent in its tenant.
-// found is false when retention has already removed the row.
-func (m *Module) EmailStatus(ctx context.Context, tenantID, id int64) (EmailStatus, bool, error) {
-	if tenantID <= 0 || id <= 0 {
-		return EmailStatus{}, false, errors.New("delivery: tenant and e-mail intent are required")
-	}
-	return m.engine.EmailStatus(ctx, tenantID, id)
 }
 
 func (m *Module) AttachEmailOutbox(ctx context.Context, tenantID, deliveryID, outboxID int64) error {

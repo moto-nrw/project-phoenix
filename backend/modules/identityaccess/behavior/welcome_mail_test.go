@@ -373,19 +373,23 @@ func TestGuardianWelcomeRendersHelpAndParentInfo(t *testing.T) {
 	mailer := services.NewGuardianInvitationMailer(services.GuardianInvitationMailerConfig{
 		Outbox: outbox, FrontendURL: "https://eltern.example.test/",
 	})
+	precedingOutboxID, queued := mailer.EnqueueExistingAccount(context.Background(), services.GuardianMailRecipient{
+		FirstName: " Olga ", LastName: "Muster", Email: " olga@example.test ",
+	}, "OGS Musterschule")
+	require.True(t, queued)
 	require.NoError(t, mailer.EnqueueWelcome(context.Background(), 42, services.GuardianMailRecipient{
 		FirstName: " Olga ", LastName: "Muster", Email: " olga@example.test ",
-	}, "OGS Musterschule", "https://eltern.example.test/help/eltern-konto-einrichten?role=parent", 7))
+	}, "OGS Musterschule", "https://eltern.example.test/help/eltern-konto-einrichten?role=parent", precedingOutboxID))
 
-	require.Len(t, outbox.Requests(), 1)
-	req := outbox.Requests()[0]
+	require.Len(t, outbox.Requests(), 2)
+	req := outbox.Requests()[1]
 	assert.Equal(t, "guardian_welcome", req.Kind)
 	assert.Equal(t, "guardian_profile", req.RelatedEntityType)
 	assert.Equal(t, int64(42), req.RelatedEntityID)
 	assert.Equal(t, "guardian_welcome:42", req.IdempotencyKey)
 	assert.NotContains(t, req.Payload, "invitation_url")
 	assert.Equal(t, "https://eltern.example.test/downloads/moto-elterninfo.pdf", req.Payload["parent_info_url"])
-	assert.Equal(t, int64(7), req.Payload["preceding_outbox_id"])
+	assert.Equal(t, precedingOutboxID, req.Payload["preceding_outbox_id"])
 
 	render := services.NewGuardianWelcomeRenderer(services.GuardianInvitationRendererConfig{
 		PrecedingEmailStatus: func(context.Context, int64) (bool, bool, error) { return true, false, nil },

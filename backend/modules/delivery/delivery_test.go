@@ -10,10 +10,7 @@ import (
 )
 
 type recordingEngine struct {
-	pushCalled     bool
-	emailStatus    EmailStatus
-	emailFound     bool
-	emailStatusErr error
+	pushCalled bool
 }
 
 func (*recordingEngine) EnqueueEmail(context.Context, EmailIntent) (Enqueued, error) {
@@ -85,9 +82,6 @@ func (*recordingEngine) Cancel(context.Context, int64, Transport, RelatedEntity,
 func (*recordingEngine) Statuses(context.Context, int64, Transport, RelatedEntity) ([]Status, error) {
 	return nil, nil
 }
-func (e *recordingEngine) EmailStatus(context.Context, int64, int64) (EmailStatus, bool, error) {
-	return e.emailStatus, e.emailFound, e.emailStatusErr
-}
 func (*recordingEngine) ReplaceEmailDeliveries(context.Context, int64, RelatedEntity, []EmailDelivery) error {
 	return nil
 }
@@ -117,14 +111,4 @@ func TestEnqueuePushRejectsUntrustedEndpoint(t *testing.T) {
 
 	require.Error(t, err)
 	assert.False(t, engine.pushCalled)
-}
-
-func TestEmailStatusReportsTheStoredIntentState(t *testing.T) {
-	t.Parallel()
-	engine := &recordingEngine{emailStatus: EmailStatus{State: StateSent}, emailFound: true}
-	status, found, err := NewModule(engine).EmailStatus(context.Background(), 42, 7)
-
-	require.NoError(t, err)
-	assert.True(t, found)
-	assert.Equal(t, StateSent, status.State)
 }

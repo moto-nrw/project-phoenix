@@ -1672,7 +1672,7 @@ func newFactory(
 		DB:          db,
 		Guardians:   repos.StudentGuardian,
 	}))
-	var deliveryForGuardianWelcome *deliveryModule.Module
+	var deliveryForGuardianWelcome *deliveryCompose.Runtime
 	guardianPredecessorStatus := func(ctx context.Context, outboxID int64) (sent bool, terminal bool, err error) {
 		if deliveryForGuardianWelcome == nil {
 			return false, false, errors.New("delivery module is not initialized")
@@ -1681,14 +1681,14 @@ func newFactory(
 		if err != nil {
 			return false, false, fmt.Errorf("guardian welcome predecessor: tenant is required: %w", err)
 		}
-		status, found, err := deliveryForGuardianWelcome.EmailStatus(ctx, tenantID.Int64(), outboxID)
+		state, found, err := deliveryForGuardianWelcome.EmailStatus(ctx, tenantID.Int64(), outboxID)
 		if err != nil {
 			return false, false, err
 		}
 		if !found {
 			return false, true, nil
 		}
-		switch status.State {
+		switch state {
 		case deliveryModule.StateSent:
 			return true, false, nil
 		case deliveryModule.StateCancelled, deliveryModule.StateDeadLetter:
@@ -1746,7 +1746,7 @@ func newFactory(
 	if err != nil {
 		return nil, fmt.Errorf("initialize delivery module: %w", err)
 	}
-	deliveryForGuardianWelcome = deliveryRuntime.Module
+	deliveryForGuardianWelcome = deliveryRuntime
 	emailOutboxWorker := deliveryRuntime.Worker
 	emailOutboxService = emailoutbox.NewService(durableEmailAdapter{module: deliveryRuntime.Module})
 
