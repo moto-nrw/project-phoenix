@@ -77,7 +77,7 @@ func (s parentRequestsSeedStep) Run(ctx context.Context, rt *Runtime) error {
 		return fmt.Errorf("login seed school admin: %w", err)
 	}
 	rt.SetTenantAuth(adminAuth)
-	step := parentEnrollmentSeedStep{seeder: s.seeder}
+	step := parentEnrollmentSeedStep(s)
 	parents, parentAuths := rt.Parents, handoff.parentAuths
 
 	enrollmentState, err := step.seedEnrollment(rt, adminAuth, parents, parentAuths)
