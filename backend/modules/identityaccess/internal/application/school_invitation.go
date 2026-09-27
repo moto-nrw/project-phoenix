@@ -157,8 +157,7 @@ func (s *SchoolInvitation) mailAfterCommit(ctx context.Context, invitation domai
 		if invitation.TenantID > 0 {
 			dispatchCtx = s.runtime.WithTenantID(dispatchCtx, invitation.TenantID)
 		}
-		s.delivery.DispatchSchoolInvitation(dispatchCtx, invitation, schoolName, portal, s.expiry)
-		s.delivery.DispatchSchoolWelcome(dispatchCtx, invitation, schoolName, portal, rolePermissions)
+		s.delivery.DispatchSchoolInvitationWithWelcome(dispatchCtx, invitation, schoolName, portal, s.expiry, rolePermissions)
 	})
 }
 

@@ -131,6 +131,22 @@ func (d invitationDelivery) portalURL(portal identityaccess.InvitationPortal) st
 }
 
 func (d invitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration) {
+	d.dispatchSchoolInvitation(ctx, invitation, schoolName, portal, expiry, nil)
+}
+
+// DispatchSchoolInvitationWithWelcome sends the welcome only once the SMTP
+// transport accepted the invitation. A welcome before a delayed or retried
+// invitation would tell the recipient to look for an e-mail they do not yet
+// have.
+func (d invitationDelivery) DispatchSchoolInvitationWithWelcome(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration, rolePermissions []string) {
+	d.dispatchSchoolInvitation(ctx, invitation, schoolName, portal, expiry, func(cbCtx context.Context, result email.DeliveryResult) {
+		if result.Status == email.DeliveryStatusSent {
+			d.dispatchSchoolWelcome(cbCtx, invitation, schoolName, portal, rolePermissions)
+		}
+	})
+}
+
+func (d invitationDelivery) dispatchSchoolInvitation(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, expiry time.Duration, afterDelivery email.DeliveryCallback) {
 	if d.dispatcher == nil {
 		d.logger.Warn("email dispatcher unavailable, skipping invitation email",
 			slog.Int64("invitation_id", invitation.ID))
@@ -176,16 +192,19 @@ func (d invitationDelivery) DispatchSchoolInvitation(ctx context.Context, invita
 		MaxAttempts:   3,
 		Callback: func(cbCtx context.Context, result email.DeliveryResult) {
 			d.recordDelivery(cbCtx, meta, baseRetry, result)
+			if afterDelivery != nil {
+				afterDelivery(cbCtx, result)
+			}
 		},
 	})
 }
 
-// DispatchSchoolWelcome mails the welcome that follows a new invitation
+// dispatchSchoolWelcome mails the welcome that follows a new invitation
 // (#3534): a greeting and the help article of the invited role, on the
 // portal the invitee signs in to. It runs on its own delivery type, so its
 // outcome never touches the invitation's delivery record: a failed welcome
 // leaves the invitation and its mail as they are.
-func (d invitationDelivery) DispatchSchoolWelcome(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, rolePermissions []string) {
+func (d invitationDelivery) dispatchSchoolWelcome(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, rolePermissions []string) {
 	if d.dispatcher == nil {
 		d.logger.Warn("email dispatcher unavailable, skipping welcome email",
 			slog.Int64("invitation_id", invitation.ID))

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"html/template"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -42,6 +43,39 @@ func countTemplate(messages []testpkg.EmailMessage, name string) int {
 		}
 	}
 	return count
+}
+
+// retryingInvitationMailer fails the first invitation attempt. It verifies
+// that a welcome does not overtake an invitation waiting for its retry.
+type retryingInvitationMailer struct {
+	mu                 sync.Mutex
+	invitationAttempts int
+	templates          []string
+}
+
+func (m *retryingInvitationMailer) Send(message testpkg.EmailMessage) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if message.Template == "invitation.html" {
+		m.invitationAttempts++
+		if m.invitationAttempts == 1 {
+			return errors.New("temporary invitation delivery failure")
+		}
+	}
+	m.templates = append(m.templates, message.Template)
+	return nil
+}
+
+func (m *retryingInvitationMailer) sentTemplates() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string(nil), m.templates...)
+}
+
+func (m *retryingInvitationMailer) attempts() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.invitationAttempts
 }
 
 func TestCreateSchoolInvitationSendsOneWelcomeAndResendDoesNot(t *testing.T) {
@@ -83,6 +117,29 @@ func TestCreateSchoolInvitationSendsOneWelcomeAndResendDoesNot(t *testing.T) {
 	require.True(t, mailer.WaitForMessages(3, 5*time.Second), "the resend mails the link again")
 	assert.Equal(t, 2, countTemplate(mailer.Messages(), "invitation.html"))
 	assert.Equal(t, 1, countTemplate(mailer.Messages(), "staff-welcome.html"), "a resend never welcomes again")
+}
+
+func TestSchoolWelcomeWaitsForAcceptedInvitation(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	mailer := &retryingInvitationMailer{}
+	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db),
+		services.WithAuthTestMailer(mailer),
+		services.WithAuthTestPasswordResetBackoff(time.Millisecond),
+	)
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	creator := testpkg.CreateTestAccount(t, db, "welcome-order-creator")
+	role := testpkg.CreateTestRole(t, db, "welcome-order-caregiver")
+
+	_, err = module.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
+		Email: inviteeAddress("welcome-order"), RoleID: role.ID, CreatedBy: creator.ID,
+		ActorPermissions: []string{usersManagePermission},
+	})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool { return len(mailer.sentTemplates()) == 2 }, 5*time.Second, 10*time.Millisecond)
+	assert.Equal(t, 2, mailer.attempts())
+	assert.Equal(t, []string{"invitation.html", "staff-welcome.html"}, mailer.sentTemplates())
 }
 
 // A role that carries config:manage is a lead, whatever the school calls it.
