@@ -1,0 +1,35 @@
+{{define "guardian-welcome.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "moto-brand" .}}
+    <h1>Willkommen bei moto</h1>
+    {{if .FirstName}}
+    <p>Guten Tag {{.FirstName}} {{.LastName}},</p>
+    {{else}}
+    <p>Guten Tag,</p>
+    {{end}}
+    {{if .SchoolName}}
+    <p>schön, dass Sie dabei sind. <strong>{{.SchoolName}}</strong> nutzt moto für die Betreuung Ihres Kindes.</p>
+    {{else}}
+    <p>schön, dass Sie dabei sind. Ihre OGS nutzt moto für die Betreuung Ihres Kindes.</p>
+    {{end}}
+    <p>Ihren Zugang zum Eltern-Portal bekommen Sie in einer eigenen E-Mail. In der Hilfe steht Schritt für Schritt, wie es weitergeht.</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.HelpURL}}">Zur Hilfe</a>
+    </div>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Falls der Button nicht funktioniert, kopieren Sie bitte diesen Link:</p>
+    <div class="link-box">
+        <a href="{{.HelpURL}}">{{.HelpURL}}</a>
+    </div>
+
+    {{if .ParentInfoURL}}
+    <p style="margin-top: 24px;">Die Elterninfo erklärt kurz, was Sie mit moto machen können.</p>
+    <p><a href="{{.ParentInfoURL}}">Elterninfo öffnen (PDF)</a></p>
+    {{end}}
+</div>
+
+{{template "footer" .}}
+{{end}}

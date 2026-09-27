@@ -20,9 +20,11 @@ type Store interface {
 	DeadLetterExpiredDispatches(context.Context, domain.Transport, time.Time) (int64, error)
 	FinalizeSent(context.Context, domain.Transport, int64, string, json.RawMessage, time.Time) (bool, error)
 	FinalizeCancelled(context.Context, domain.Transport, int64, string, string, time.Time) (bool, error)
+	FinalizeDeferred(context.Context, domain.Transport, int64, string, string, time.Time) (bool, error)
 	FinalizeFailure(context.Context, domain.Transport, int64, string, int, string, time.Time, int) (domain.FinalizeResult, error)
 	Cancel(context.Context, int64, domain.Transport, string, int64, string, time.Time) (int64, error)
 	Statuses(context.Context, int64, domain.Transport, string, int64) ([]domain.Intent, error)
+	EmailStatus(context.Context, int64, int64) (domain.Intent, bool, error)
 	Backlog(context.Context) (int, error)
 	OldestPendingAge(context.Context, time.Time) (time.Duration, error)
 	ReplaceEmailDeliveries(context.Context, int64, string, int64, []domain.EmailDelivery) error

@@ -5,7 +5,13 @@ package platform
 // without a schema change. These constants exist so the in-tree call sites
 // stay typo-safe.
 const (
-	EmailKindGuardianInvitation                 = "guardian_invitation"
+	EmailKindGuardianInvitation = "guardian_invitation"
+	// EmailKindGuardianWelcome follows the invitation mail (#3534): a
+	// greeting, the help article and the Elterninfo.
+	EmailKindGuardianWelcome = "guardian_welcome"
+	// EmailKindStaffWelcome follows a staff invitation after its delivery
+	// was accepted by the mail transport (#3534).
+	EmailKindStaffWelcome                       = "staff_welcome"
 	EmailKindParentAnnouncement                 = "parent_announcement"
 	EmailKindEnrollmentSubmitted                = "enrollment_submitted"
 	EmailKindEnrollmentAdminNotify              = "enrollment_admin_notification"
@@ -37,6 +43,8 @@ const (
 // Pre-defined related_entity_type values.
 const (
 	EmailRelatedTypeGuardianInvitation = "guardian_invitation"
+	EmailRelatedTypeGuardianProfile    = "guardian_profile"
+	EmailRelatedTypeSchoolInvitation   = "school_invitation"
 	EmailRelatedTypeEnrollmentRequest  = "enrollment_request"
 	EmailRelatedTypeAppointment        = "calendar_appointment"
 	EmailRelatedTypeParentMessage      = "parent_message"

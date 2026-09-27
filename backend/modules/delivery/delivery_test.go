@@ -9,7 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type recordingEngine struct{ pushCalled bool }
+type recordingEngine struct {
+	pushCalled bool
+}
 
 func (*recordingEngine) EnqueueEmail(context.Context, EmailIntent) (Enqueued, error) {
 	return Enqueued{}, nil

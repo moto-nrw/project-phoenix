@@ -104,6 +104,10 @@ func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts 
 		w.finalizeCancelled(ctx, intent, dispatchToken, sendErr, stats)
 		return
 	}
+	if errors.Is(sendErr, domain.ErrDeferred) {
+		w.finalizeDeferred(ctx, intent, dispatchToken, sendErr, stats)
+		return
+	}
 	if sendErr != nil {
 		w.finalizeFailure(ctx, intent, dispatchToken, sendErr, maxAttempts, stats)
 		return
@@ -140,6 +144,21 @@ func (w *Worker) finalizeCancelled(ctx context.Context, intent domain.Intent, to
 	}
 	stats.Cancelled++
 	w.observe(domain.Observation{Operation: "cancelled", Transport: string(intent.Transport), Template: intent.Template, Count: 1})
+}
+
+func (w *Worker) finalizeDeferred(ctx context.Context, intent domain.Intent, token string, reason error, stats *domain.WorkerStats) {
+	finalized, err := w.store.FinalizeDeferred(ctx, intent.Transport, intent.ID, token, reason.Error(), time.Now().Add(retryBackoff[0]))
+	if err != nil {
+		w.observe(domain.Observation{Operation: "finalize_error", Transport: string(intent.Transport), Template: intent.Template, Count: 1, Err: err})
+		return
+	}
+	if !finalized {
+		stats.LeaseLost++
+		w.observe(domain.Observation{Operation: "stale_finalize", Transport: string(intent.Transport), Template: intent.Template, Count: 1})
+		return
+	}
+	stats.Retried++
+	w.observe(domain.Observation{Operation: "deferred", Transport: string(intent.Transport), Template: intent.Template, Count: 1, Err: reason})
 }
 
 func (w *Worker) finalizeFailure(ctx context.Context, intent domain.Intent, token string, sendErr error, maxAttempts int, stats *domain.WorkerStats) {
