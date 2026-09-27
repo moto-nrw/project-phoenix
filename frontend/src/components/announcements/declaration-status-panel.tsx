@@ -43,17 +43,17 @@ const DECLARATION_STATE_META: Record<
 > = {
   open: { label: "Offen", tone: "orange" },
   partial: {
-    label: "Teilweise abgegeben",
+    label: "Teilweise beantwortet",
     tone: "blue",
     title:
-      "Einige, aber noch nicht alle sorgeberechtigten Personen haben abgegeben.",
+      "Einige, aber noch nicht alle sorgeberechtigten Personen haben geantwortet.",
   },
   agreed: { label: "Zugestimmt", tone: "green" },
   declined: { label: "Abgelehnt", tone: "red" },
   acknowledged: { label: "Zur Kenntnis genommen", tone: "green" },
   revoked: { label: "Widerrufen", tone: "red" },
   no_signer: {
-    label: "Niemand kann abgeben",
+    label: "Niemand kann antworten",
     tone: "gray",
     title:
       "Keine sorgeberechtigte Person dieses Kindes hat ein Eltern-Konto. Eine Erinnerung ändert daran nichts.",
@@ -181,7 +181,7 @@ export function DeclarationStatusPanel({
       const count = await remindUnanswered(announcementId);
       setNotice(
         count === 0
-          ? "Für alle Kinder liegt eine Abgabe vor. Es wurde niemand erinnert."
+          ? "Für alle Kinder liegt eine Antwort vor. Es wurde niemand erinnert."
           : `${count} ${count === 1 ? "Person wurde" : "Personen wurden"} erinnert.`,
       );
       await load();
@@ -235,7 +235,7 @@ export function DeclarationStatusPanel({
   return (
     <div className="space-y-4">
       <InfoCard
-        title="Abgaben"
+        title="Antworten"
         icon={<CheckCircle2 className="h-5 w-5" aria-hidden />}
       >
         <div className="flex flex-wrap items-baseline gap-x-2">
@@ -245,17 +245,18 @@ export function DeclarationStatusPanel({
           <span className="text-lg text-gray-500 tabular-nums">
             / {reachable}
           </span>
-          <span className="text-sm text-gray-600">Kindern abgegeben</span>
+          <span className="text-sm text-gray-600">Kinder mit Antwort</span>
         </div>
         <p className="mt-1 text-sm text-gray-600">
           {waiting === 0
-            ? "Für alle Kinder liegt eine Abgabe vor, bei denen das möglich ist."
-            : `${waiting} ${waiting === 1 ? "Kind wartet" : "Kinder warten"} noch auf eine Abgabe.`}
+            ? "Für alle Kinder, bei denen das möglich ist, liegt eine Antwort vor."
+            : `Für ${waiting} ${waiting === 1 ? "Kind" : "Kinder"} fehlt noch eine Antwort.`}
         </p>
         {s.no_signer > 0 && (
           <p className="mt-1 text-sm text-gray-600">
             Für {s.no_signer} {s.no_signer === 1 ? "Kind" : "Kinder"} kann
-            niemand abgeben. Keine sorgeberechtigte Person hat ein Eltern-Konto.
+            niemand antworten. Keine sorgeberechtigte Person hat ein
+            Eltern-Konto.
           </p>
         )}
 
@@ -284,7 +285,7 @@ export function DeclarationStatusPanel({
               <span className="tabular-nums">{s.open}</span>
             </DataField>
             {status.signers === "all" && (
-              <DataField label="Teilweise abgegeben">
+              <DataField label="Teilweise beantwortet">
                 <span className="tabular-nums">{s.partial}</span>
               </DataField>
             )}
@@ -366,7 +367,7 @@ export function DeclarationStatusPanel({
         {children.length === 0 ? (
           <p className="text-sm text-gray-500">
             {childFilter === "open"
-              ? "Für alle Kinder liegt eine Abgabe vor, bei denen das möglich ist."
+              ? "Für alle Kinder, bei denen das möglich ist, liegt eine Antwort vor."
               : "Diese Erklärung erreicht derzeit kein Kind."}
           </p>
         ) : (
@@ -415,7 +416,7 @@ function ChildRow({ child }: { readonly child: DeclarationChild }) {
                         ? ` am ${formatDateTime(signer.submitted_at)}`
                         : ""
                     }`
-                  : "noch nichts abgegeben"}
+                  : "noch keine Antwort"}
               </li>
             ))}
           </ul>
@@ -528,7 +529,7 @@ function VersionSection({
           {older.length === 1
             ? `Fassung: ${older[0]!.version_no}`
             : `Fassungen: ${older.map((v) => v.version_no).join(", ")}`}
-          . Abgaben dazu stehen weiter im Verlauf, zählen aber nicht mehr für
+          . Antworten dazu stehen weiter im Verlauf, zählen aber nicht mehr für
           den aktuellen Stand.
         </p>
       )}
@@ -545,11 +546,11 @@ function HistorySection({
     <section>
       <h3 className="mb-1 text-sm font-semibold text-gray-900">Verlauf</h3>
       <p className="mb-2 text-xs text-gray-500">
-        Jede Abgabe, auch zu früheren Fassungen. Einträge lassen sich nicht
+        Jede Antwort, auch zu früheren Fassungen. Einträge lassen sich nicht
         ändern oder löschen.
       </p>
       {submissions.length === 0 ? (
-        <p className="text-sm text-gray-500">Noch keine Abgaben.</p>
+        <p className="text-sm text-gray-500">Noch keine Antworten.</p>
       ) : (
         <ul className="max-h-96 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200 bg-white">
           {submissions.map((entry) => (

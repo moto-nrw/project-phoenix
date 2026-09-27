@@ -15,12 +15,12 @@ Eltern-Portal pro Kind.
 |---|---|
 | Verfahren | Einfache elektronische Erklärung im angemeldeten Eltern-Konto (`simple_electronic`). Keine gezeichnete Unterschrift, keine fortgeschrittene oder qualifizierte elektronische Signatur. |
 | Arten | Zustimmung oder Ablehnung (`consent`), reine Kenntnisnahme (`acknowledgement`). Kein vorausgewähltes Einverständnis. |
-| Wer antworten darf | Nur Personen mit `parent_portal.declarations.submit` für genau dieses Kind. Voreinstellung: Haupt-, Mit- und weitere Sorgeberechtigte. Abholberechtigte, Notfallkontakte und Sozialarbeit nie. Die Berechtigung wird bei jeder Abgabe serverseitig erneut geprüft und für die Dauer der Abgabe gesperrt. |
+| Wer antworten darf | Nur Personen mit `parent_portal.declarations.submit` für genau dieses Kind. Voreinstellung: Haupt-, Mit- und weitere Sorgeberechtigte. Abholberechtigte, Notfallkontakte und Sozialarbeit nie. Die Berechtigung wird bei jeder Antwort serverseitig erneut geprüft und für die Dauer der Antwort gesperrt. |
 | Mehrere Sorgeberechtigte | Pro Erklärung wählbar: eine berechtigte Person genügt, oder alle berechtigten Personen mit Eltern-Konto müssen antworten. Eine Ablehnung oder ein Widerruf einer berechtigten Person geht einer Zustimmung vor. |
-| Erneute Anmeldung | Pro Erklärung wählbar: Passwort des Eltern-Kontos vor jeder Abgabe. Der Nachweis hält fest, ob das Passwort bestätigt wurde. Versuche laufen über die Anmelde-Drosselung. |
-| Fassung | Beim Veröffentlichen wird die Fassung eingefroren: Titel, Text, Art und SHA-256 jeder Anlage. Die Prüfsumme der Fassung ist SHA-256 über diese Angaben. Eine Korrektur (zurückziehen, ändern, erneut veröffentlichen) erzeugt eine neue Fassung; frühere Abgaben bleiben unverändert gespeichert, zählen aber nicht mehr für den aktuellen Stand. Anlagen sind nach der ersten Veröffentlichung fest. |
-| Nachweis je Abgabe | Kind, Einrichtung, Konto, Name der erklärenden Person (zum Zeitpunkt der Abgabe), Berechtigungsrolle, Aktion, Verfahren, Passwortbestätigung, Zeitpunkt, Fassung, Prüfsumme der Fassung und eine Prüfsumme über den gesamten Eintrag. |
-| Unveränderlichkeit | Die Tabellen für Fassungen und Abgaben erlauben den Anwendungsrollen nur Lesen und Einfügen. Eine Erklärung mit Abgaben kann nicht gelöscht werden. Die Statusansicht prüft jede gespeicherte Prüfsumme erneut und meldet Abweichungen. |
+| Erneute Anmeldung | Pro Erklärung wählbar: Passwort des Eltern-Kontos vor jeder Antwort. Der Nachweis hält fest, ob das Passwort bestätigt wurde. Versuche laufen über die Anmelde-Drosselung. |
+| Fassung | Beim Veröffentlichen wird die Fassung eingefroren: Titel, Text, Art und SHA-256 jeder Anlage. Die Prüfsumme der Fassung ist SHA-256 über diese Angaben. Eine Korrektur (zurückziehen, ändern, erneut veröffentlichen) erzeugt eine neue Fassung; frühere Antworten bleiben unverändert gespeichert, zählen aber nicht mehr für den aktuellen Stand. Anlagen sind nach der ersten Veröffentlichung fest. |
+| Nachweis je Antwort | Kind, Einrichtung, Konto, Name der erklärenden Person (zum Zeitpunkt der Antwort), Berechtigungsrolle, Aktion, Verfahren, Passwortbestätigung, Zeitpunkt, Fassung, Prüfsumme der Fassung und eine Prüfsumme über den gesamten Eintrag. |
+| Unveränderlichkeit | Die Tabellen für Fassungen und Antworten erlauben den Anwendungsrollen nur Lesen und Einfügen. Eine Erklärung mit Antworten kann nicht gelöscht werden. Die Statusansicht prüft jede gespeicherte Prüfsumme erneut und meldet Abweichungen. |
 | Widerruf | Bei widerruflichen Einwilligungen jederzeit, auch nach Ablauf der Frist. Vor der Frist kann eine Antwort korrigiert werden; jede Änderung ist ein neuer Eintrag. |
 | Nachweis für Eltern | Druckansicht im Eltern-Portal mit vollständigem Text, Anlagen-Prüfsummen und eigenem Verlauf, zum Drucken oder Speichern als PDF. |
 | Nachweis für die Einrichtung | Statusansicht je Kind, vollständiger Verlauf, Druckansicht, CSV-Export. |
@@ -93,7 +93,7 @@ Zulässig:
   Eltern-Portal, ohne Papier.“
 - „Jede Antwort wird mit Fassung, Zeitpunkt und Person nachvollziehbar
   gespeichert und kann exportiert werden.“
-- „Spätere Änderungen verändern bereits abgegebene Erklärungen nicht.“
+- „Spätere Änderungen verändern bereits gegebene Antworten nicht.“
 - „Einwilligungen können Eltern jederzeit widerrufen.“
 - „Einfache elektronische Erklärung im angemeldeten Eltern-Konto, auf Wunsch
   mit erneuter Passworteingabe.“

@@ -311,7 +311,7 @@ describe("deleting an Erklärung with submissions (#3430)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Zu dieser Erklärung haben Eltern schon etwas abgegeben. Deshalb lässt sie sich nicht löschen. Sie können sie zurückziehen, dann sehen Eltern sie nicht mehr.",
+      "Auf diese Erklärung haben Eltern schon geantwortet. Deshalb lässt sie sich nicht löschen. Sie können sie zurückziehen, dann sehen Eltern sie nicht mehr.",
     );
     expect(onClose).not.toHaveBeenCalled();
   });

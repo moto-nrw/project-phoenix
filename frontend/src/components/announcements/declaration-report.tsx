@@ -24,12 +24,12 @@ import type {
 
 const STATE_LABEL: Record<DeclarationChildState, string> = {
   open: "Offen",
-  partial: "Teilweise abgegeben",
+  partial: "Teilweise beantwortet",
   agreed: "Zugestimmt",
   declined: "Abgelehnt",
   acknowledged: "Zur Kenntnis genommen",
   revoked: "Widerrufen",
-  no_signer: "Niemand kann abgeben",
+  no_signer: "Niemand kann antworten",
   expired: "Frist abgelaufen",
 };
 
@@ -100,7 +100,7 @@ export function DeclarationReport({
           <DataField label="Art">
             {consent ? "Zustimmen oder ablehnen" : "Nur zur Kenntnis nehmen"}
           </DataField>
-          <DataField label="Wer muss abgeben?">
+          <DataField label="Wer muss antworten?">
             {status.signers === "all"
               ? "Alle sorgeberechtigten Personen"
               : "Eine sorgeberechtigte Person genügt"}
@@ -112,7 +112,7 @@ export function DeclarationReport({
                 : "Nicht erlaubt"}
             </DataField>
           )}
-          <DataField label="Passwort vor der Abgabe">
+          <DataField label="Passwort vor dem Antworten">
             {status.requires_password ? "Wird abgefragt" : "Nein"}
           </DataField>
           <DataField label="Frist">
@@ -135,7 +135,7 @@ export function DeclarationReport({
             ? `${s.agreed} zugestimmt, ${s.declined} abgelehnt, ${s.revoked} widerrufen`
             : `${s.acknowledged} zur Kenntnis genommen`}
           , {s.partial} teilweise, {s.open} offen, {s.expired} mit abgelaufener
-          Frist, {s.no_signer} ohne Person, die abgeben kann.
+          Frist, {s.no_signer} ohne Person, die antworten kann.
         </p>
       </section>
 
@@ -225,7 +225,7 @@ export function DeclarationReport({
                                       ? ` am ${dateTime(signer.submitted_at)}`
                                       : ""
                                   }`
-                                : "noch nichts abgegeben"}
+                                : "noch keine Antwort"}
                             </span>
                           ))}
                     </td>
@@ -240,10 +240,10 @@ export function DeclarationReport({
       <section className="space-y-2">
         <h3 className="text-base font-semibold">Verlauf</h3>
         <p className="text-gray-600">
-          Jede Abgabe, auch zu früheren Fassungen, neueste zuerst.
+          Jede Antwort, auch zu früheren Fassungen, neueste zuerst.
         </p>
         {status.submissions.length === 0 ? (
-          <p className="text-gray-600">Noch keine Abgaben.</p>
+          <p className="text-gray-600">Noch keine Antworten.</p>
         ) : (
           <div className="overflow-x-auto print:overflow-visible">
             <table className="w-full border-collapse text-left">

@@ -308,16 +308,14 @@ describe("Erklärung in the detail view", () => {
     expect(submit).not.toHaveBeenCalled();
 
     const dialog = await screen.findByRole("dialog", {
-      name: "Erklärung abgeben",
+      name: "Ihre Antwort prüfen",
     });
     expect(within(dialog).getByText("Mia Muster")).toBeInTheDocument();
     expect(within(dialog).getAllByText("Zugestimmt").length).toBeGreaterThan(0);
     expect(within(dialog).getByText("Fassung 2")).toBeInTheDocument();
     expect(within(dialog).queryByLabelText(/Passwort/)).not.toBeInTheDocument();
 
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Jetzt abgeben" }),
-    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Zustimmen" }));
 
     await waitFor(() =>
       expect(submit).toHaveBeenCalledWith("42", {
@@ -370,13 +368,11 @@ describe("Erklärung in the detail view", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Ablehnen" }));
     const dialog = await screen.findByRole("dialog", {
-      name: "Erklärung abgeben",
+      name: "Ihre Antwort prüfen",
     });
 
     // Without a password nothing is sent.
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Jetzt abgeben" }),
-    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Ablehnen" }));
     expect(
       await within(dialog).findByText("Bitte geben Sie Ihr Passwort ein."),
     ).toBeInTheDocument();
@@ -385,9 +381,7 @@ describe("Erklärung in the detail view", () => {
     const field = within(dialog).getByLabelText("Passwort Ihres Eltern-Kontos");
     expect(field).toHaveAttribute("type", "password");
     fireEvent.change(field, { target: { value: "falsch" } });
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Jetzt abgeben" }),
-    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Ablehnen" }));
 
     expect(
       await within(dialog).findByText(
@@ -407,13 +401,11 @@ describe("Erklärung in the detail view", () => {
       within(dialog).getByLabelText("Passwort Ihres Eltern-Kontos"),
       { target: { value: "richtig" } },
     );
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Jetzt abgeben" }),
-    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Ablehnen" }));
     await waitFor(() => expect(submit).toHaveBeenCalledTimes(2));
     await waitFor(() =>
       expect(
-        screen.queryByRole("dialog", { name: "Erklärung abgeben" }),
+        screen.queryByRole("dialog", { name: "Ihre Antwort prüfen" }),
       ).not.toBeInTheDocument(),
     );
   });
@@ -435,21 +427,19 @@ describe("Erklärung in the detail view", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Zustimmen" }));
     const dialog = await screen.findByRole("dialog", {
-      name: "Erklärung abgeben",
+      name: "Ihre Antwort prüfen",
     });
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Jetzt abgeben" }),
-    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Zustimmen" }));
 
     expect(
       await screen.findByText(
-        "Die Schule hat den Text geändert. Bitte lesen Sie ihn noch einmal und geben Sie dann neu ab.",
+        "Die Schule hat den Text geändert. Bitte lesen Sie ihn noch einmal und antworten Sie dann neu.",
       ),
     ).toBeInTheDocument();
     expect(onStale).toHaveBeenCalledWith("42");
     await waitFor(() =>
       expect(
-        screen.queryByRole("dialog", { name: "Erklärung abgeben" }),
+        screen.queryByRole("dialog", { name: "Ihre Antwort prüfen" }),
       ).not.toBeInTheDocument(),
     );
   });
@@ -480,7 +470,7 @@ describe("Erklärung in the detail view", () => {
     );
 
     expect(
-      screen.getByText("Ihre Abgabe: Zugestimmt am 09.09.2026, 10:30 Uhr"),
+      screen.getByText("Ihre Antwort: Zugestimmt am 09.09.2026, 10:30 Uhr"),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Nachweis ansehen" }),
@@ -543,14 +533,14 @@ describe("Erklärung in the detail view", () => {
     );
 
     expect(
-      screen.getByText("Jede sorgeberechtigte Person gibt selbst ab.", {
+      screen.getByText("Jede sorgeberechtigte Person antwortet selbst.", {
         exact: false,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Teilweise abgegeben")).toBeInTheDocument();
+    expect(screen.getByText("Teilweise beantwortet")).toBeInTheDocument();
     expect(screen.getByText(/Anna Muster:\s*Zugestimmt/)).toBeInTheDocument();
     expect(
-      screen.getByText(/Tom Muster:\s*noch nichts abgegeben/),
+      screen.getByText(/Tom Muster:\s*noch keine Antwort/),
     ).toBeInTheDocument();
   });
 
@@ -568,7 +558,7 @@ describe("Erklärung in the detail view", () => {
 
     expect(
       screen.getByText(
-        "Für Mia können Sie hier nichts abgeben. Das machen die sorgeberechtigten Personen.",
+        "Für Mia können Sie hier nicht antworten. Das machen die sorgeberechtigten Personen.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -595,7 +585,7 @@ describe("Erklärung in the detail view", () => {
     expect(screen.getAllByText("Frist abgelaufen").length).toBeGreaterThan(0);
     expect(
       screen.getByText(
-        "Die Frist ist abgelaufen. Sie können nichts mehr abgeben.",
+        "Die Frist ist abgelaufen. Sie können nicht mehr antworten.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -661,10 +651,10 @@ describe("Erklärung already settled by another guardian (#3430)", () => {
     );
 
     expect(
-      screen.getByText("Sabine Muster hat zugestimmt. Eine Abgabe genügt."),
+      screen.getByText("Sabine Muster hat zugestimmt. Eine Antwort genügt."),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Sie können trotzdem selbst abgeben."),
+      screen.getByText("Sie können trotzdem selbst antworten."),
     ).toBeInTheDocument();
     for (const name of ["Zustimmen", "Ablehnen"]) {
       const button = screen.getByRole("button", { name });
@@ -685,7 +675,7 @@ describe("Erklärung already settled by another guardian (#3430)", () => {
 
     expect(
       screen.getByText(
-        "Sabine Muster hat am 02.09.2026, 08:15 Uhr zugestimmt. Eine Abgabe genügt.",
+        "Sabine Muster hat am 02.09.2026, 08:15 Uhr zugestimmt. Eine Antwort genügt.",
       ),
     ).toBeInTheDocument();
   });
@@ -695,7 +685,7 @@ describe("Erklärung already settled by another guardian (#3430)", () => {
       <NewsDetailModal item={item()} onClose={vi.fn()} onUpdated={vi.fn()} />,
     );
 
-    expect(screen.queryByText(/Eine Abgabe genügt/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Eine Antwort genügt/)).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Zustimmen" }).className,
     ).toContain("bg-gray-900");
@@ -731,11 +721,9 @@ describe("unclear submit result (#3430)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Zustimmen" }));
     const dialog = await screen.findByRole("dialog", {
-      name: "Erklärung abgeben",
+      name: "Ihre Antwort prüfen",
     });
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Jetzt abgeben" }),
-    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Zustimmen" }));
 
     expect(
       await screen.findByText(/Der Stand wird neu geladen/),
@@ -743,7 +731,7 @@ describe("unclear submit result (#3430)", () => {
     expect(onStale).toHaveBeenCalledWith("42");
     await waitFor(() =>
       expect(
-        screen.queryByRole("dialog", { name: "Erklärung abgeben" }),
+        screen.queryByRole("dialog", { name: "Ihre Antwort prüfen" }),
       ).not.toBeInTheDocument(),
     );
   });
@@ -765,11 +753,9 @@ describe("unclear submit result (#3430)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Zustimmen" }));
     const dialog = await screen.findByRole("dialog", {
-      name: "Erklärung abgeben",
+      name: "Ihre Antwort prüfen",
     });
-    fireEvent.click(
-      within(dialog).getByRole("button", { name: "Jetzt abgeben" }),
-    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Zustimmen" }));
 
     expect(
       await within(dialog).findByText(

@@ -3628,7 +3628,7 @@ function parentDeclarationTopic(): HelpTopic {
     steps: [
       ...parentAnnouncementSteps("Erklärungen", "Erklärung", "Titel"),
       "Wählen Sie unter `Was sollen die Eltern tun?` entweder `Zustimmen oder ablehnen` oder `Nur zur Kenntnis nehmen`.",
-      "Wählen Sie unter `Wer muss abgeben?`, ob eine sorgeberechtigte Person genügt oder alle abgeben.",
+      "Wählen Sie unter `Wer muss antworten?`, ob eine sorgeberechtigte Person genügt oder alle antworten müssen.",
       "Tragen Sie bei Bedarf ein Datum bei `Frist (optional)` ein.",
       "Wählen Sie `Veröffentlichen`.",
     ],
@@ -3636,18 +3636,18 @@ function parentDeclarationTopic(): HelpTopic {
       "Die Eltern sehen die Erklärung im Eltern-Portal. Den Stand je Kind sehen Sie beim Öffnen der Erklärung unter `Stand der Erklärung`.",
     notes: [
       "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen, auch nach der Frist.",
-      "Mit `Passwort vor der Abgabe abfragen` geben Eltern vor jeder Abgabe ihr Passwort ein.",
-      "`Offene erinnern` schickt eine Erinnerung an alle, die noch nicht abgegeben haben.",
-      "`Bericht als PDF` und `Verlauf als CSV` laden den Stand und alle Abgaben herunter.",
+      "Mit `Passwort vor dem Antworten abfragen` geben Eltern vor jeder Antwort ihr Passwort ein.",
+      "`Offene erinnern` schickt eine Erinnerung an alle, die noch nicht geantwortet haben.",
+      "`Bericht drucken` zeigt den Stand zum Drucken oder Speichern als PDF. `Verlauf als CSV` lädt alle Antworten herunter.",
       "Das ist eine einfache Erklärung per Knopfdruck. Verlangt ein Gesetz eine Erklärung auf Papier, reicht sie nicht aus.",
     ],
     differences: [
       "Nach dem Veröffentlichen stehen Text und Dateien fest.",
-      "Ziehen Sie eine Erklärung zurück und ändern den Text, müssen die Eltern neu abgeben. Die alten Abgaben bleiben im Verlauf.",
+      "Ziehen Sie eine Erklärung zurück und ändern den Text, müssen die Eltern neu antworten. Die alten Antworten bleiben im Verlauf.",
     ],
     troubleshootingDetails: [
-      "Ein Kind steht auf `Niemand kann abgeben`? Dann hat keine sorgeberechtigte Person ein Eltern-Konto. Laden Sie die Eltern ein.",
-      "`Löschen` klappt nicht? Zu der Erklärung gibt es schon Abgaben. Ziehen Sie sie stattdessen zurück.",
+      "Ein Kind steht auf `Niemand kann antworten`? Dann hat keine sorgeberechtigte Person ein Eltern-Konto. Laden Sie die Eltern ein.",
+      "`Löschen` klappt nicht? Auf die Erklärung gibt es schon Antworten. Ziehen Sie sie stattdessen zurück.",
     ],
     related: [
       HELP_TOPICS.leadParentLetter,
@@ -5947,13 +5947,13 @@ function parentNewsTopic(): HelpTopic {
         ],
       },
       {
-        title: "Eine Erklärung abgeben",
+        title: "Auf eine Erklärung antworten",
         steps: [
           "Öffnen Sie die Erklärung unter `Offen`.",
           "Lesen Sie den Text und die Dateien.",
           "Tippen Sie beim Kind auf `Zustimmen`, `Ablehnen` oder `Zur Kenntnis genommen`.",
-          "Prüfen Sie im Fenster das Kind und Ihre Erklärung.",
-          "Tippen Sie auf `Jetzt abgeben`.",
+          "Prüfen Sie im Fenster das Kind und Ihre Antwort.",
+          "Bestätigen Sie im Fenster mit demselben Knopf.",
         ],
       },
     ],
@@ -5962,7 +5962,7 @@ function parentNewsTopic(): HelpTopic {
       "Die Bestätigung heißt `Lesebestätigung`. Damit bestätigen Sie nur, dass Sie den Brief gelesen haben.",
       "Bei mehreren Kindern zeigt moto, wie viele Antworten noch fehlen.",
       "Angehängte Dateien öffnen Sie, indem Sie auf den Namen tippen.",
-      "Nach einer Erklärung laden Sie mit `Nachweis herunterladen` einen Nachweis als PDF.",
+      "Nach Ihrer Antwort öffnen Sie mit `Nachweis ansehen` Ihren Nachweis. Sie können ihn drucken oder als PDF speichern.",
     ],
     differences: [
       "Ein Eintrag trägt `Elternbrief`, `Umfrage`, `Erklärung`, `Wichtig` oder `Betreuung fällt aus`.",
@@ -5972,7 +5972,7 @@ function parentNewsTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "moto sagt, der Elternbrief sei nicht mehr aktuell? Laden Sie die Seite neu.",
-      "moto sagt, die Schule habe den Text geändert? Lesen Sie ihn noch einmal und geben Sie neu ab.",
+      "moto sagt, die Schule habe den Text geändert? Lesen Sie ihn noch einmal und antworten Sie neu.",
       "Fehlt `Elternbriefe` ganz? Dann nutzt Ihre OGS diese Funktion nicht.",
     ],
     related: [

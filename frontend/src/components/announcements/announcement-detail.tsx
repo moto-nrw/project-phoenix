@@ -531,7 +531,7 @@ export function AnnouncementDetail({
           )}
           {declaration && (
             <>
-              <DataField label="Wer muss abgeben?">
+              <DataField label="Wer muss antworten?">
                 {announcement.declaration_signers === "all"
                   ? "Alle sorgeberechtigten Personen"
                   : "Eine sorgeberechtigte Person genügt"}
@@ -548,7 +548,7 @@ export function AnnouncementDetail({
                     : "Nicht erlaubt"}
                 </DataField>
               )}
-              <DataField label="Passwort vor der Abgabe">
+              <DataField label="Passwort vor dem Antworten">
                 {announcement.declaration_requires_password
                   ? "Wird abgefragt"
                   : "Wird nicht abgefragt"}

@@ -426,7 +426,7 @@ describe("ParentAnnouncementsPage: Erklärungen (#3430)", () => {
     );
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: /Passwort vor der Abgabe abfragen/,
+        name: /Passwort vor dem Antworten abfragen/,
       }),
     );
     expect(screen.getByText("Frist (optional)")).toBeInTheDocument();

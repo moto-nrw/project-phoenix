@@ -758,7 +758,7 @@ const ACCEPTED_ATTACHMENT_TYPES = ".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg";
 const ATTACHMENTS_LOCKED_HINT =
   "Die Mitteilung ist veröffentlicht. Die Dateien stehen jetzt fest. Ziehen Sie die Mitteilung zurück, wenn Sie etwas ändern möchten.";
 // Eine Erklärung (#3430) friert ihre Dateien beim ersten Veröffentlichen ein.
-// Auch nach dem Zurückziehen bleiben sie gleich, damit jede Abgabe auf genau
+// Auch nach dem Zurückziehen bleiben sie gleich, damit jede Antwort auf genau
 // diese Dateien verweist.
 const DECLARATION_ATTACHMENTS_LOCKED_HINT =
   "Diese Erklärung war schon veröffentlicht. Die Dateien bleiben deshalb gleich. Für andere Dateien legen Sie eine neue Erklärung an.";
@@ -788,12 +788,12 @@ const DECLARATION_SIGNER_OPTIONS: ReadonlyArray<{
   {
     value: "any",
     label: "Eine sorgeberechtigte Person genügt",
-    hint: "Eine Abgabe pro Kind reicht.",
+    hint: "Eine Antwort pro Kind reicht.",
   },
   {
     value: "all",
     label: "Alle sorgeberechtigten Personen",
-    hint: "Jede sorgeberechtigte Person mit Eltern-Konto gibt selbst ab.",
+    hint: "Jede sorgeberechtigte Person mit Eltern-Konto antwortet selbst.",
   },
 ];
 
@@ -1508,7 +1508,7 @@ function AnnouncementFormModal({
 
                   <fieldset className="space-y-2">
                     <legend className="mb-2 text-sm font-medium text-gray-700">
-                      Wer muss abgeben?
+                      Wer muss antworten?
                     </legend>
                     {DECLARATION_SIGNER_OPTIONS.map((option) => (
                       <ChoiceTile
@@ -1567,10 +1567,10 @@ function AnnouncementFormModal({
                     />
                     <span className="text-sm text-gray-800">
                       <span className="block">
-                        Passwort vor der Abgabe abfragen
+                        Passwort vor dem Antworten abfragen
                       </span>
                       <span className="block text-xs text-gray-500">
-                        Eltern geben vor jeder Abgabe das Passwort ihres
+                        Eltern geben vor jeder Antwort das Passwort ihres
                         Eltern-Kontos ein.
                       </span>
                     </span>
@@ -1600,8 +1600,8 @@ function AnnouncementFormModal({
                         {isDeclarationForm
                           ? declarationKind === "consent" &&
                             declarationRevocable
-                            ? "Danach können Eltern nichts mehr abgeben. Eine Zustimmung widerrufen geht weiter."
-                            : "Danach können Eltern nichts mehr abgeben."
+                            ? "Danach können Eltern nicht mehr antworten. Eine Zustimmung widerrufen geht weiter."
+                            : "Danach können Eltern nicht mehr antworten."
                           : "Danach ist die Umfrage geschlossen, bleibt aber lesbar."}
                       </p>
                     </div>

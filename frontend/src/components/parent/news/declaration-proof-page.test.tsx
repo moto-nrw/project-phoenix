@@ -106,7 +106,7 @@ describe("Nachweis einer Erklärung im Eltern-Portal (#3430)", () => {
       doc.getByText("Zugestimmt am 02.09.2026, 08:15 Uhr"),
     ).toBeInTheDocument();
     expect(
-      doc.getByText("Abgegeben von Klaus Schneider (Hauptberechtigt)"),
+      doc.getByText("Antwort von Klaus Schneider (Hauptberechtigt)"),
     ).toBeInTheDocument();
     expect(doc.getByText(/Mit Passwort bestätigt/)).toBeInTheDocument();
     expect(doc.getByText("c".repeat(64))).toBeInTheDocument();
@@ -127,7 +127,7 @@ describe("Nachweis einer Erklärung im Eltern-Portal (#3430)", () => {
 
     expect(
       await screen.findByText(
-        "Für dieses Kind gibt es noch keinen Nachweis. Er entsteht, sobald Sie eine Erklärung abgegeben haben.",
+        "Für dieses Kind gibt es noch keinen Nachweis. Er entsteht, sobald Sie auf eine Erklärung geantwortet haben.",
       ),
     ).toBeInTheDocument();
     expect(

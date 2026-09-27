@@ -2,9 +2,9 @@
 
 /**
  * Erklärungen im Eltern-Portal (#3430): für jedes eigene Kind der Stand, die
- * Knöpfe, die der Server erlaubt, und der Nachweis nach der Abgabe.
+ * Knöpfe, die der Server erlaubt, und der Nachweis nach der Antwort.
  *
- * Nichts ist vorausgewählt. Jede Abgabe läuft über eine Rückfrage, die Kind,
+ * Nichts ist vorausgewählt. Jede Antwort läuft über eine Rückfrage, die Kind,
  * Aktion und Fassung wiederholt. Verlangt die Schule das Passwort, steht das
  * Feld in dieser Rückfrage. Ein falsches Passwort kommt als 403 zurück und
  * meldet deshalb niemanden ab.
@@ -350,7 +350,7 @@ export function DeclarationSection({
           confirmText={
             pending.action === "revoked"
               ? t("revokeConfirm")
-              : t("confirmButton")
+              : t(`action.${pending.action}`)
           }
           cancelText={t("cancel")}
           closeLabel={t("cancel")}

@@ -139,28 +139,28 @@ describe("DeclarationStatusPanel (#3430)", () => {
   it("counts per child and names who acted", async () => {
     render(<DeclarationStatusPanel announcementId="42" canAct />);
 
-    expect(await screen.findByText("Kindern abgegeben")).toBeInTheDocument();
+    expect(await screen.findByText("Kinder mit Antwort")).toBeInTheDocument();
     // 1 of 3 children with somebody who can act; Tim has nobody.
     expect(screen.getByText("/ 3")).toBeInTheDocument();
     expect(
-      screen.getByText("2 Kinder warten noch auf eine Abgabe."),
+      screen.getByText("Für 2 Kinder fehlt noch eine Antwort."),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Für 1 Kind kann niemand abgeben/),
+      screen.getByText(/Für 1 Kind kann niemand antworten/),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Klaus Schneider: Zugestimmt am 02.09.2026, 08:15 Uhr"),
     ).toBeInTheDocument();
-    expect(screen.getAllByText("Teilweise abgegeben").length).toBeGreaterThan(
+    expect(screen.getAllByText("Teilweise beantwortet").length).toBeGreaterThan(
       0,
     );
-    expect(screen.getByText("Niemand kann abgeben")).toBeInTheDocument();
+    expect(screen.getByText("Niemand kann antworten")).toBeInTheDocument();
     expect(screen.getAllByText("Offen").length).toBeGreaterThan(0);
   });
 
   it("filters to the children a reminder reaches", async () => {
     render(<DeclarationStatusPanel announcementId="42" canAct />);
-    await screen.findByText("Kindern abgegeben");
+    await screen.findByText("Kinder mit Antwort");
 
     fireEvent.click(screen.getByRole("button", { name: "Nur offene" }));
     expect(screen.queryByText("Mia Muster")).not.toBeInTheDocument();
@@ -171,7 +171,7 @@ describe("DeclarationStatusPanel (#3430)", () => {
 
   it("shows the version with a short, expandable checksum and older versions", async () => {
     render(<DeclarationStatusPanel announcementId="42" canAct />);
-    await screen.findByText("Kindern abgegeben");
+    await screen.findByText("Kinder mit Antwort");
 
     expect(
       screen.getByText(/Fassung 2, veröffentlicht am/),
@@ -189,7 +189,7 @@ describe("DeclarationStatusPanel (#3430)", () => {
 
   it("lists the history and flags an entry whose checksum no longer fits", async () => {
     render(<DeclarationStatusPanel announcementId="42" canAct />);
-    await screen.findByText("Kindern abgegeben");
+    await screen.findByText("Kinder mit Antwort");
 
     expect(screen.getByText("Klaus Schneider")).toBeInTheDocument();
     expect(
@@ -200,7 +200,7 @@ describe("DeclarationStatusPanel (#3430)", () => {
 
   it("reminds the open ones, links the report and downloads the history", async () => {
     render(<DeclarationStatusPanel announcementId="42" canAct />);
-    await screen.findByText("Kindern abgegeben");
+    await screen.findByText("Kinder mit Antwort");
 
     fireEvent.click(screen.getByRole("button", { name: /Offene erinnern/ }));
     expect(
@@ -221,7 +221,7 @@ describe("DeclarationStatusPanel (#3430)", () => {
   it("offers no reminder for a withdrawn Erklärung and says when an export fails", async () => {
     downloadMock.mockRejectedValue(new Error("boom"));
     render(<DeclarationStatusPanel announcementId="42" canAct={false} />);
-    await screen.findByText("Kindern abgegeben");
+    await screen.findByText("Kinder mit Antwort");
 
     expect(
       screen.queryByRole("button", { name: /Offene erinnern/ }),
@@ -281,7 +281,7 @@ describe("child order (#3430)", () => {
     const { container } = render(
       <DeclarationStatusPanel announcementId="42" canAct />,
     );
-    await screen.findByText("Kindern abgegeben");
+    await screen.findByText("Kinder mit Antwort");
 
     const names = Array.from(
       container.querySelectorAll("section ul > li > div > p:first-child"),

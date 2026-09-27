@@ -42,7 +42,7 @@ function errorMessage(err: unknown, fallback: string): string {
  */
 const LIFECYCLE_CODE_MESSAGES: Record<string, string> = {
   declaration_has_submissions:
-    "Zu dieser Erklärung haben Eltern schon etwas abgegeben. Deshalb lässt sie sich nicht löschen. Sie können sie zurückziehen, dann sehen Eltern sie nicht mehr.",
+    "Auf diese Erklärung haben Eltern schon geantwortet. Deshalb lässt sie sich nicht löschen. Sie können sie zurückziehen, dann sehen Eltern sie nicht mehr.",
 };
 
 function lifecycleErrorMessage(err: unknown, fallback: string): string {
@@ -160,8 +160,8 @@ export function UnpublishAnnouncementDialog({
         </p>
         {announcement.delivery_mode === "declaration" && (
           <p className="text-xs text-gray-500">
-            Bisherige Abgaben bleiben gespeichert. Ändern Sie danach den Text,
-            müssen die Eltern noch einmal abgeben.
+            Bisherige Antworten bleiben gespeichert. Ändern Sie danach den Text,
+            müssen die Eltern noch einmal antworten.
           </p>
         )}
         {error && <Alert type="error" message={error} />}
