@@ -80,7 +80,9 @@ func TestWelcomeHelpURLCarriesRoleArticleAndSchoolSettings(t *testing.T) {
 	} {
 		t.Run(tc.role, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, welcomeHelpURL(context.Background(), "https://moto.test/", tc.role, 7, settings, nil))
+			got, err := welcomeHelpURL(context.Background(), "https://moto.test/", tc.role, 7, settings, nil)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
@@ -92,9 +94,10 @@ func TestWelcomeHelpURLNormalizesUnknownModes(t *testing.T) {
 		"operations.presence_mode": "",
 		"operations.group_mode":    "something-else",
 	}}
+	got, err := welcomeHelpURL(context.Background(), "https://moto.test", welcomeHelpRoleParent, 7, settings, nil)
+	assert.NoError(t, err)
 	assert.Equal(t,
-		"https://moto.test/help/eltern-konto-einrichten?role=parent&nfc_enabled=false&presence_mode=detailed&group_mode=fixed_groups",
-		welcomeHelpURL(context.Background(), "https://moto.test", welcomeHelpRoleParent, 7, settings, nil))
+		"https://moto.test/help/eltern-konto-einrichten?role=parent&nfc_enabled=false&presence_mode=detailed&group_mode=fixed_groups", got)
 }
 
 // A setting that cannot be resolved stays out of the link, so /help asks
@@ -102,9 +105,12 @@ func TestWelcomeHelpURLNormalizesUnknownModes(t *testing.T) {
 func TestWelcomeHelpURLLeavesUnresolvedSettingsOut(t *testing.T) {
 	t.Parallel()
 	failing := fakeWelcomeSettings{err: errors.New("database unavailable")}
-	assert.Equal(t, "https://moto.test/help/einladung-annehmen-und-konto-einrichten?role=lead",
-		welcomeHelpURL(context.Background(), "https://moto.test", welcomeHelpRoleLead, 7, failing, nil))
-	assert.Equal(t, "http://localhost:3000/help/einladung-annehmen-und-konto-einrichten?role=caregiver",
-		welcomeHelpURL(context.Background(), "", welcomeHelpRoleCaregiver, 7, nil, nil),
+	got, err := welcomeHelpURL(context.Background(), "https://moto.test", welcomeHelpRoleLead, 7, failing, nil)
+	assert.Equal(t, "https://moto.test/help/einladung-annehmen-und-konto-einrichten?role=lead", got)
+	assert.ErrorIs(t, err, failing.err, "the caller learns about the failed reads to roll back their savepoint")
+
+	got, err = welcomeHelpURL(context.Background(), "", welcomeHelpRoleCaregiver, 7, nil, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, "http://localhost:3000/help/einladung-annehmen-und-konto-einrichten?role=caregiver", got,
 		"without settings and without a configured portal the link still opens the article locally")
 }

@@ -201,7 +201,9 @@ func (d invitationDelivery) DispatchSchoolWelcome(ctx context.Context, invitatio
 		return
 	}
 	frontend := d.portalURL(portal)
-	role := staffHelpRole(portal == identityaccess.InvitationPortalSchool, invitation.RoleName, rolePermissions)
+	// A setting that failed is logged and left out of the link.
+	helpURL, _ := welcomeHelpURL(ctx, frontend, staffHelpRole(portal == identityaccess.InvitationPortalSchool, invitation.RoleName, rolePermissions),
+		invitation.TenantID, d.welcomeSettings(invitation.TenantID), d.logger)
 	subject := "Willkommen bei moto"
 	if schoolName != "" {
 		subject = fmt.Sprintf("Willkommen bei moto – %s", schoolName)
@@ -214,7 +216,7 @@ func (d invitationDelivery) DispatchSchoolWelcome(ctx context.Context, invitatio
 		Subject:  subject,
 		Template: "staff-welcome.html",
 		Content: map[string]any{
-			"HelpURL":           welcomeHelpURL(ctx, frontend, role, invitation.TenantID, d.welcomeSettings(invitation.TenantID), d.logger),
+			"HelpURL":           helpURL,
 			"FirstName":         trimmedValue(invitation.FirstName),
 			"LogoURL":           fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontend),
 			"SchoolName":        schoolName,

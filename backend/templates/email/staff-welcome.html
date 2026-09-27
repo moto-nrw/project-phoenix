@@ -26,7 +26,7 @@
     </div>
 
     {{if .ReplyGoesToSchool}}
-    <p class="security-note">Du hast eine Frage? Antworte einfach auf diese E-Mail. Die Antwort geht an deine OGS.</p>
+    <p class="security-note">Du hast eine Frage? Antworte einfach auf diese E-Mail.{{if .SchoolName}} Die Antwort geht an {{.SchoolName}}.{{end}}</p>
     {{end}}
 </div>
 

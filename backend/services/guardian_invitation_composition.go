@@ -140,10 +140,33 @@ func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Cont
 }
 
 // EnqueueWelcomeEmail queues the welcome that follows a new access (#3534).
-// The help link carries the school's settings as they stand now.
+// The help link carries the school's settings as they stand now. Both steps
+// run on the invitation's transaction, each in its own savepoint: a failed
+// statement loses the welcome or a link parameter, never the invitation.
 func (d guardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, profile identityaccessCompose.GuardianProfile, tenantID int64, schoolName string) {
-	helpURL := welcomeHelpURL(ctx, d.wiring.parentsURL, welcomeHelpRoleParent, tenantID, d.wiring.settings, d.logger())
-	d.mailer().EnqueueWelcome(ctx, profile.ID, guardianMailRecipient(profile), schoolName, helpURL)
+	var helpURL string
+	d.inSavepoint(ctx, func(savepointCtx context.Context) error {
+		var err error
+		helpURL, err = welcomeHelpURL(savepointCtx, d.wiring.parentsURL, welcomeHelpRoleParent, tenantID, d.wiring.settings, d.logger())
+		return err
+	})
+	d.inSavepoint(ctx, func(savepointCtx context.Context) error {
+		return d.mailer().EnqueueWelcome(savepointCtx, profile.ID, guardianMailRecipient(profile), schoolName, helpURL)
+	})
+}
+
+// inSavepoint runs a best-effort step of the welcome. The step logs its own
+// failure; only a savepoint that could not be controlled is reported here.
+// Without a transaction there is nothing to protect.
+func (d guardianInvitationDelivery) inSavepoint(ctx context.Context, step func(context.Context) error) {
+	if _, inTransaction := tenant.TransactionFromContext(ctx); !inTransaction {
+		_ = step(ctx)
+		return
+	}
+	if err := tenant.WithSavepoint(ctx, step); errors.Is(err, tenant.ErrSavepointControl) {
+		d.logger().Error("guardian welcome email: savepoint failed",
+			slog.String("error", err.Error()))
+	}
 }
 
 func guardianMailRecipient(profile identityaccessCompose.GuardianProfile) GuardianMailRecipient {

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/url"
 	"strconv"
@@ -92,14 +93,17 @@ func (s schoolSettings) ResolveString(ctx context.Context, key string) (string, 
 // welcomeHelpURL builds the help link for role at origin. A setting that
 // cannot be resolved stays out of the link, and /help then asks for it
 // instead of guessing. return_to is left out: the reader comes from a mail,
-// not from the app.
-func welcomeHelpURL(ctx context.Context, origin, role string, tenantID int64, settings welcomeHelpSettings, logger *slog.Logger) string {
+// not from the app. The error joins the settings that failed to resolve; the
+// link is complete without them.
+func welcomeHelpURL(ctx context.Context, origin, role string, tenantID int64, settings welcomeHelpSettings, logger *slog.Logger) (string, error) {
 	query := []string{"role=" + url.QueryEscape(role)}
+	var failures []error
 	if settings != nil {
 		if nfc, err := settings.ResolveBool(ctx, configModels.KeyAttendanceNFCEnabled); err == nil {
 			query = append(query, "nfc_enabled="+strconv.FormatBool(nfc))
 		} else {
 			logWelcomeSettingFailure(logger, tenantID, configModels.KeyAttendanceNFCEnabled, err)
+			failures = append(failures, err)
 		}
 		if mode, err := settings.ResolveString(ctx, configModels.KeyPresenceMode); err == nil {
 			presence := configModels.PresenceModeDetailed
@@ -109,6 +113,7 @@ func welcomeHelpURL(ctx context.Context, origin, role string, tenantID int64, se
 			query = append(query, "presence_mode="+presence)
 		} else {
 			logWelcomeSettingFailure(logger, tenantID, configModels.KeyPresenceMode, err)
+			failures = append(failures, err)
 		}
 		if mode, err := settings.ResolveString(ctx, configModels.KeyGroupMode); err == nil {
 			group := configModels.GroupModeFixedGroups
@@ -118,9 +123,10 @@ func welcomeHelpURL(ctx context.Context, origin, role string, tenantID int64, se
 			query = append(query, "group_mode="+group)
 		} else {
 			logWelcomeSettingFailure(logger, tenantID, configModels.KeyGroupMode, err)
+			failures = append(failures, err)
 		}
 	}
-	return portalOrigin(origin) + "/help/" + welcomeHelpTopics[role] + "?" + strings.Join(query, "&")
+	return portalOrigin(origin) + "/help/" + welcomeHelpTopics[role] + "?" + strings.Join(query, "&"), errors.Join(failures...)
 }
 
 // portalOrigin trims the configured portal URL; an unset one points at the

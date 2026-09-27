@@ -104,14 +104,17 @@ func (m GuardianInvitationMailer) EnqueueExistingAccount(ctx context.Context, re
 // help article for parents and the Elterninfo. The idempotency key names the
 // guardian contact, which belongs to one school, so a guardian is welcomed
 // once per school however often they are invited or linked to a child.
-func (m GuardianInvitationMailer) EnqueueWelcome(ctx context.Context, guardianProfileID int64, recipient GuardianMailRecipient, schoolName, helpURL string) {
+//
+// It returns the enqueue failure so the caller can roll back its savepoint;
+// a guardian who was already welcomed is not a failure.
+func (m GuardianInvitationMailer) EnqueueWelcome(ctx context.Context, guardianProfileID int64, recipient GuardianMailRecipient, schoolName, helpURL string) error {
 	if strings.TrimSpace(recipient.Email) == "" {
-		return
+		return nil
 	}
 	if m.outbox == nil {
 		m.logger.Warn("guardian welcome email: outbox enqueuer not configured, email skipped",
 			slog.Int64("guardian_profile_id", guardianProfileID))
-		return
+		return nil
 	}
 	payload := m.payload(recipient, "/login", schoolName)
 	delete(payload, guardianPayloadInvitationURL)
@@ -126,15 +129,18 @@ func (m GuardianInvitationMailer) EnqueueWelcome(ctx context.Context, guardianPr
 	})
 	switch {
 	case err == nil:
+		return nil
 	case errors.Is(err, delivery.ErrIdempotencyConflict):
 		// Welcomed before, with other details (a new name or new settings):
 		// the guardian already has the mail.
 		m.logger.Debug("guardian welcome email already queued",
 			slog.Int64("guardian_profile_id", guardianProfileID))
+		return nil
 	default:
 		m.logger.Error("guardian welcome email: outbox enqueue failed",
 			slog.Int64("guardian_profile_id", guardianProfileID),
 			slog.String("error", err.Error()))
+		return err
 	}
 }
 

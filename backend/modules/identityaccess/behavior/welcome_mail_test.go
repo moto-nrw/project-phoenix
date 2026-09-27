@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"html/template"
 	"path/filepath"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -205,6 +207,45 @@ func TestGuardianInvitationQueuesOneWelcomePerGuardianAndSchool(t *testing.T) {
 	assert.Equal(t, 1, countKind(rows, "guardian_welcome"), "one welcome per guardian and school")
 }
 
+// A welcome that fails to queue leaves the invitation and its mail intact
+// (#3534): the failed statement is rolled back to a savepoint instead of
+// aborting the invitation's transaction.
+func TestGuardianWelcomeFailureKeepsTheInvitation(t *testing.T) {
+	t.Parallel()
+	// The welcome breaks with a failing statement on the invitation's
+	// transaction, the way a database error inside the enqueue would.
+	outbox := testpkg.NewCapturingOutbox()
+	outbox.FailKind("guardian_welcome", func(ctx context.Context) error {
+		raw, ok := tenant.TransactionFromContext(ctx)
+		if !ok {
+			return errors.New("welcome enqueue ran outside the invitation transaction")
+		}
+		_, err := raw.(bun.IDB).ExecContext(ctx, "SELECT 1/0")
+		return err
+	})
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+		cfg.Outbox = outbox
+	})
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "welcome-failure")
+	creatorID := env.inviterAccountID(t)
+	ctx := testpkg.Ctx(t)
+
+	var invitation identityaccess.GuardianInvitation
+	require.NoError(t, testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		var err error
+		invitation, err = env.service.CreateGuardianInvitation(txCtx, identityaccess.GuardianInvitationRequest{
+			GuardianProfileID: profile.ID, CreatedBy: creatorID,
+		})
+		return err
+	}), "the invitation commits although its welcome failed")
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	stored := testpkg.GuardianInvitationByID(t, env.db, invitation.ID)
+	assert.Equal(t, invitation.Token, stored.Token, "the invitation is stored")
+	require.Len(t, outbox.Requests(), 1, "the invitation mail is still queued")
+	assert.Equal(t, "guardian_invitation", outbox.Requests()[0].Kind)
+}
+
 // The queued welcome renders the greeting, the help article and the
 // Elterninfo; it carries no accept link.
 func TestGuardianWelcomeRendersHelpAndParentInfo(t *testing.T) {
@@ -213,9 +254,9 @@ func TestGuardianWelcomeRendersHelpAndParentInfo(t *testing.T) {
 	mailer := services.NewGuardianInvitationMailer(services.GuardianInvitationMailerConfig{
 		Outbox: outbox, FrontendURL: "https://eltern.example.test/",
 	})
-	mailer.EnqueueWelcome(context.Background(), 42, services.GuardianMailRecipient{
+	require.NoError(t, mailer.EnqueueWelcome(context.Background(), 42, services.GuardianMailRecipient{
 		FirstName: " Olga ", LastName: "Muster", Email: " olga@example.test ",
-	}, "OGS Musterschule", "https://eltern.example.test/help/eltern-konto-einrichten?role=parent")
+	}, "OGS Musterschule", "https://eltern.example.test/help/eltern-konto-einrichten?role=parent"))
 
 	require.Len(t, outbox.Requests(), 1)
 	req := outbox.Requests()[0]
@@ -258,7 +299,15 @@ func TestStaffWelcomeTemplateRendersHelpLink(t *testing.T) {
 	assert.Contains(t, body, "Hallo Ada,")
 	assert.Contains(t, body, "OGS Am Berg")
 	assert.Contains(t, body, `href="https://moto.test/help/einladung-annehmen-und-konto-einrichten?role=caregiver"`)
-	assert.Contains(t, body, "Die Antwort geht an deine OGS.")
+	assert.Contains(t, body, "Die Antwort geht an OGS Am Berg.", "the reply goes to the school the Reply-To names")
+
+	withoutReplyTo := renderWelcomeTemplate(t, &testpkg.EmailMessage{
+		Template: "staff-welcome.html",
+		Content: map[string]any{
+			"HelpURL": "https://moto.test/help/einladung-annehmen-und-konto-einrichten?role=caregiver", "SchoolName": "OGS Am Berg",
+		},
+	})
+	assert.NotContains(t, withoutReplyTo, "Antworte einfach", "without a school reply address a reply would reach no one at the school")
 }
 
 func renderWelcomeTemplate(t *testing.T, msg *testpkg.EmailMessage) string {
