@@ -989,7 +989,7 @@ export interface ParentAnnouncement {
    * "letter" is a binding Elternbrief (#2384): the full text also went out by
    * e-mail, and the confirmation here in the portal is the one that counts.
    */
-  readonly delivery_mode?: "standard" | "letter";
+  readonly delivery_mode?: "standard" | "letter" | "declaration";
   readonly school_name: string;
   readonly published_at?: string; // ISO timestamp
   readonly expires_at?: string; // ISO timestamp
@@ -1012,6 +1012,68 @@ export interface ParentAnnouncement {
   // feed sorts the item back to the top; read/acknowledged stay as they were.
   readonly reminder_sent_at?: string; // ISO timestamp
   readonly reminder_text?: string;
+
+  // Erklärung (#3430): present when delivery_mode is "declaration".
+  readonly declaration?: ParentDeclaration;
+}
+
+/** What a guardian can do or did for one child in an Erklärung. */
+export type ParentDeclarationAction =
+  "agreed" | "declined" | "acknowledged" | "revoked";
+
+/** Per-child state of an Erklärung for its current version. */
+export type ParentDeclarationState =
+  | "open"
+  | "partial"
+  | "agreed"
+  | "declined"
+  | "acknowledged"
+  | "revoked"
+  | "no_signer"
+  | "expired";
+
+export interface ParentDeclarationChild {
+  readonly student_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+  /** False: this account sees the Erklärung but may not act for the child. */
+  readonly can_submit: boolean;
+  readonly state: ParentDeclarationState;
+  readonly my_action: ParentDeclarationAction | null;
+  readonly my_submitted_at: string | null;
+  /** Computed by the server; the portal shows exactly these buttons. */
+  readonly allowed_actions: readonly ParentDeclarationAction[];
+  readonly other_signers: readonly {
+    readonly first_name: string;
+    readonly last_name: string;
+    readonly action: ParentDeclarationAction | null;
+    readonly submitted_at: string | null;
+  }[];
+}
+
+export interface ParentDeclaration {
+  readonly kind: "consent" | "acknowledgement";
+  readonly signers: "any" | "all";
+  readonly revocable: boolean;
+  readonly requires_password: boolean;
+  readonly deadline: string | null;
+  readonly closed: boolean;
+  readonly version: {
+    readonly id: string;
+    readonly version_no: number;
+    readonly content_hash: string;
+  };
+  readonly children: readonly ParentDeclarationChild[];
+}
+
+export interface ParentDeclarationSubmission {
+  readonly id: string;
+  readonly action: ParentDeclarationAction;
+  readonly submitted_at: string;
+  readonly version_no: number;
+  readonly content_hash: string;
+  readonly record_hash: string;
+  readonly password_confirmed: boolean;
 }
 
 interface ParentAnnouncementOption {
@@ -1175,6 +1237,97 @@ export async function respondToAnnouncement(
       published_at: publishedAt,
     },
   );
+}
+
+/**
+ * Submits one action of an Erklärung for ONE child (#3430). `versionId` is
+ * the version the guardian read; the backend answers 409
+ * `declaration_version_changed` when the school has published a new one.
+ * `password` is sent only when the Erklärung asks for it. Password errors
+ * are 403 on purpose, so they never trigger the 401 logout.
+ */
+export async function submitDeclaration(
+  announcementId: string,
+  input: {
+    readonly studentId: string;
+    readonly action: ParentDeclarationAction;
+    readonly versionId: string;
+    readonly password?: string;
+  },
+): Promise<{ submission: ParentDeclarationSubmission; created: boolean }> {
+  return postJson<{
+    submission: ParentDeclarationSubmission;
+    created: boolean;
+  }>(`/api/parent/me/news/${encodeURIComponent(announcementId)}/declaration`, {
+    student_id: input.studentId,
+    action: input.action,
+    version_id: input.versionId,
+    ...(input.password === undefined ? {} : { password: input.password }),
+  });
+}
+
+/** One version of an Erklärung as frozen on publishing (#3430). */
+interface ParentDeclarationProofVersion {
+  readonly id: string;
+  readonly version_no: number;
+  readonly title: string;
+  readonly body: string;
+  readonly content_hash: string;
+  readonly published_at: string;
+  readonly attachments: readonly {
+    readonly filename: string;
+    readonly content_type: string;
+    readonly size_bytes: number;
+    readonly sha256: string;
+  }[];
+}
+
+/** One own submission for the child, newest first. */
+interface ParentDeclarationProofEntry {
+  readonly id: string;
+  readonly action: ParentDeclarationAction;
+  readonly submitted_at: string;
+  readonly signer_name: string;
+  readonly guardian_role: string;
+  readonly version_no: number;
+  readonly password_confirmed: boolean;
+  readonly method: string;
+  readonly content_hash: string;
+  readonly record_hash: string;
+}
+
+/** The proof (Nachweis) of this account's Erklärung for one child. */
+export interface ParentDeclarationProof {
+  readonly title: string;
+  readonly school_name: string;
+  readonly child_name: string;
+  readonly kind: "consent" | "acknowledgement";
+  readonly method_label: string;
+  readonly generated_at: string;
+  /** Only the versions this account declared on, newest first. */
+  readonly versions: readonly ParentDeclarationProofVersion[];
+  readonly submissions: readonly ParentDeclarationProofEntry[];
+}
+
+/**
+ * Proof data of this account's Erklärung for one child. 404 when the account
+ * has no access or has not submitted anything for the child yet.
+ */
+export async function fetchDeclarationProof(
+  announcementId: string,
+  studentId: string,
+): Promise<ParentDeclarationProof> {
+  return getJson<ParentDeclarationProof>(
+    `/api/parent/me/news/${encodeURIComponent(announcementId)}/declaration/proof?student_id=${encodeURIComponent(studentId)}`,
+  );
+}
+
+/** Portal page that shows and prints the proof for one child. */
+export function declarationProofPath(
+  announcementId: string,
+  studentId: string,
+): string {
+  return `/parents/news/${encodeURIComponent(announcementId)}/nachweis?student=${encodeURIComponent(studentId)}`;
 }
 
 /**

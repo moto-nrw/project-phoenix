@@ -995,3 +995,33 @@ body {
     animation: moto-nav-progress-static 0s linear 150ms forwards;
   }
 }
+
+/*
+ * Print-only copy of a document (ui/print-document.tsx, #3430). Never shown on
+ * screen. While printing, it is the only child of <body> that is shown: the
+ * portal shell with its fixed heights and scroll containers would otherwise
+ * cut the printout after the first page.
+ */
+.moto-print-document {
+  display: none;
+}
+
+@media print {
+  html:has(body > .moto-print-document),
+  body:has(> .moto-print-document) {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  body:has(> .moto-print-document) > :not(.moto-print-document) {
+    display: none !important;
+  }
+
+  .moto-print-document {
+    display: block;
+    color: #111827;
+    background: #ffffff;
+  }
+}

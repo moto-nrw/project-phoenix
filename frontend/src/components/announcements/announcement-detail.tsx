@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   BellRing,
   ExternalLink,
+  FileCheck,
   ListChecks,
   Megaphone,
   Send,
@@ -24,6 +25,7 @@ import {
   type SegmentedControlItem,
 } from "~/components/ui/segmented-control";
 import { LetterStatusPanel } from "~/components/announcements/letter-status-panel";
+import { DeclarationStatusPanel } from "~/components/announcements/declaration-status-panel";
 import type { Group } from "~/lib/api";
 import type { Activity } from "~/lib/activity-helpers";
 import { formatBerlinDate } from "~/lib/date-helpers";
@@ -34,6 +36,7 @@ import {
   fetchAnnouncementStats,
   fetchPollChildren,
   fetchPollResults,
+  isDeclaration,
   isLetter,
   isPoll,
   remindUnanswered,
@@ -409,7 +412,9 @@ export function AnnouncementDetail({
   // A published poll renders its Auswertung instead of the read/ack statistics
   // (see below), so it must not pay for the two requests behind them either.
   const showReadStats = !(
-    (isPoll(announcement) || isLetter(announcement)) &&
+    (isPoll(announcement) ||
+      isLetter(announcement) ||
+      isDeclaration(announcement)) &&
     announcement.status !== "draft"
   );
 
@@ -450,13 +455,22 @@ export function AnnouncementDetail({
   const isPublished = announcement.status !== "draft";
   const poll = isPoll(announcement);
   const letter = isLetter(announcement);
+  const declaration = isDeclaration(announcement);
   const chips = targetChips(announcement.targets, groups, activities);
 
   return (
     <div className="space-y-4 sm:space-y-6">
       <SectionCard
-        title={poll ? "Umfrage" : letter ? "Elternbrief" : "Mitteilung"}
-        icon={poll ? ListChecks : Megaphone}
+        title={
+          poll
+            ? "Umfrage"
+            : letter
+              ? "Elternbrief"
+              : declaration
+                ? "Erklärung"
+                : "Mitteilung"
+        }
+        icon={poll ? ListChecks : declaration ? FileCheck : Megaphone}
       >
         <p className="text-sm leading-6 whitespace-pre-line text-gray-800">
           <LinkifiedText text={announcement.body} />
@@ -484,14 +498,22 @@ export function AnnouncementDetail({
               ))}
             </span>
           </DataField>
-          <DataField label={poll ? "Antwortart" : "Lesebestätigung"}>
+          <DataField
+            label={
+              poll ? "Antwortart" : declaration ? "Art" : "Lesebestätigung"
+            }
+          >
             {poll
               ? RESPONSE_TYPE_LABEL[announcement.response_type]
-              : letter
-                ? "Erforderlich (Elternbrief)"
-                : announcement.requires_acknowledgement
-                  ? "Erforderlich"
-                  : "Nicht erforderlich"}
+              : declaration
+                ? announcement.declaration_kind === "acknowledgement"
+                  ? "Nur zur Kenntnis nehmen"
+                  : "Zustimmen oder ablehnen"
+                : letter
+                  ? "Erforderlich (Elternbrief)"
+                  : announcement.requires_acknowledgement
+                    ? "Erforderlich"
+                    : "Nicht erforderlich"}
           </DataField>
           <DataField label="E-Mail an die Eltern">
             {letter
@@ -506,6 +528,32 @@ export function AnnouncementDetail({
             <DataField label="Antwort bis">
               {formatBerlinDate(announcement.response_deadline)}
             </DataField>
+          )}
+          {declaration && (
+            <>
+              <DataField label="Wer muss abgeben?">
+                {announcement.declaration_signers === "all"
+                  ? "Alle sorgeberechtigten Personen"
+                  : "Eine sorgeberechtigte Person genügt"}
+              </DataField>
+              <DataField label="Frist">
+                {announcement.response_deadline
+                  ? `Bis ${formatBerlinDate(announcement.response_deadline)}`
+                  : "Keine Frist"}
+              </DataField>
+              {announcement.declaration_kind !== "acknowledgement" && (
+                <DataField label="Widerruf">
+                  {announcement.declaration_revocable
+                    ? "Erlaubt, auch nach der Frist"
+                    : "Nicht erlaubt"}
+                </DataField>
+              )}
+              <DataField label="Passwort vor der Abgabe">
+                {announcement.declaration_requires_password
+                  ? "Wird abgefragt"
+                  : "Wird nicht abgefragt"}
+              </DataField>
+            </>
           )}
           {!poll && (
             <DataField label="Erinnerung" fullWidth>
@@ -533,6 +581,18 @@ export function AnnouncementDetail({
           />
         </SectionCard>
       )}
+
+      {/* A withdrawn Erklärung is a draft again, but its history stays: a
+        school must still see who acted on the earlier version. */}
+      {declaration &&
+        (isPublished || announcement.declaration_locked_attachments) && (
+          <SectionCard title="Stand der Erklärung">
+            <DeclarationStatusPanel
+              announcementId={announcement.id}
+              canAct={announcement.status === "published"}
+            />
+          </SectionCard>
+        )}
 
       {/* A published poll shows its Auswertung instead of the read/ack
         statistics: the two count different things (children vs guardian

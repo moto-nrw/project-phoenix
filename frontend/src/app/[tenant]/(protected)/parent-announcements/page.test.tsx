@@ -363,3 +363,144 @@ describe("ParentAnnouncementsPage: children handed over by another page (#3379)"
     expect(screen.queryByText("Neue Elternmitteilung")).not.toBeInTheDocument();
   });
 });
+
+describe("ParentAnnouncementsPage: Erklärungen (#3430)", () => {
+  const declarationDraft: Announcement = {
+    ...base,
+    id: "9",
+    title: "Ausflug in den Zoo",
+    delivery_mode: "declaration",
+    declaration_kind: "consent",
+    declaration_signers: "any",
+    declaration_revocable: true,
+    declaration_requires_password: false,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    searchParams.delete("art");
+    searchParams.delete("bearbeiten");
+    searchParams.delete("search");
+    searchParams.delete("status");
+    listState.isLoading = false;
+    listState.error = null;
+  });
+
+  it("lists Erklärungen on their own tab", async () => {
+    searchParams.set("art", "erklaerungen");
+    listState.data = [base, declarationDraft];
+    render(<ParentAnnouncementsPage />);
+
+    expect(
+      (await screen.findAllByText("Ausflug in den Zoo")).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText("Sommerfest")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("1 Erklärung · 0 veröffentlicht"),
+    ).toBeInTheDocument();
+  });
+
+  it("sends the Erklärung settings and no poll or read confirmation", async () => {
+    searchParams.set("art", "erklaerungen");
+    searchParams.set("bearbeiten", "9");
+    listState.data = [declarationDraft];
+    render(<ParentAnnouncementsPage />);
+
+    expect(await screen.findByText("Erklärung bearbeiten")).toBeInTheDocument();
+    // Neither a poll nor a read confirmation belongs to an Erklärung.
+    expect(
+      screen.queryByText("Lesebestätigung erforderlich"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Antwortmöglichkeiten")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Verlangt ein Gesetz eine Erklärung auf Papier/),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Nur zur Kenntnis nehmen/ }),
+    );
+    // A withdrawal only exists for a consent.
+    expect(screen.queryByText("Widerruf erlauben")).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Alle sorgeberechtigten Personen/ }),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Passwort vor der Abgabe abfragen/,
+      }),
+    );
+    expect(screen.getByText("Frist (optional)")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    // Pending enrollments are no audience for an Erklärung.
+    expect((await screen.findAllByText("Ganze Schule")).length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.queryByText("Offene Anmeldungen")).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als Entwurf speichern" }),
+    );
+
+    await waitFor(() => expect(updateAnnouncement).toHaveBeenCalledTimes(1));
+    expect(updateAnnouncement).toHaveBeenCalledWith(
+      "9",
+      expect.objectContaining({
+        delivery_mode: "declaration",
+        response_type: "none",
+        requires_acknowledgement: false,
+        email_audience: "portal_only",
+        response_deadline: null,
+        declaration_kind: "acknowledgement",
+        declaration_signers: "all",
+        declaration_revocable: false,
+        declaration_requires_password: true,
+      }),
+    );
+  });
+
+  it("keeps a consent revocable by default", async () => {
+    searchParams.set("art", "erklaerungen");
+    searchParams.set("bearbeiten", "9");
+    listState.data = [declarationDraft];
+    render(<ParentAnnouncementsPage />);
+
+    expect(
+      await screen.findByRole("checkbox", { name: /Widerruf erlauben/ }),
+    ).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Als Entwurf speichern" }),
+    );
+
+    await waitFor(() =>
+      expect(updateAnnouncement).toHaveBeenCalledWith(
+        "9",
+        expect.objectContaining({
+          declaration_kind: "consent",
+          declaration_signers: "any",
+          declaration_revocable: true,
+          declaration_requires_password: false,
+        }),
+      ),
+    );
+  });
+
+  it("shows the files read-only once a version exists", async () => {
+    searchParams.set("art", "erklaerungen");
+    searchParams.set("bearbeiten", "9");
+    listState.data = [
+      { ...declarationDraft, declaration_locked_attachments: true },
+    ];
+    render(<ParentAnnouncementsPage />);
+
+    expect(
+      await screen.findByText(
+        "Diese Erklärung war schon veröffentlicht. Die Dateien bleiben deshalb gleich. Für andere Dateien legen Sie eine neue Erklärung an.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Datei auswählen" }),
+    ).not.toBeInTheDocument();
+  });
+});

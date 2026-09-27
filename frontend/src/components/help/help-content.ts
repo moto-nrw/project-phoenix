@@ -3612,6 +3612,52 @@ function parentSurveyTopic(): HelpTopic {
 }
 
 /**
+ * Erklärung (#3430): Eltern stimmen je Kind zu, lehnen ab oder nehmen zur
+ * Kenntnis. Einfache Erklärung per Knopfdruck, mit Fassung und Nachweis.
+ */
+function parentDeclarationTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadParentDeclaration,
+    title: "Eine Erklärung einholen",
+    question: "Wie hole ich die Zustimmung der Eltern ein?",
+    summary:
+      "Mit einer Erklärung stimmen Eltern für jedes Kind zu, lehnen ab oder nehmen etwas zur Kenntnis.",
+    group: "elternarbeit",
+    audience: "lead",
+    icon: "ShieldCheck",
+    steps: [
+      ...parentAnnouncementSteps("Erklärungen", "Erklärung", "Titel"),
+      "Wählen Sie unter `Was sollen die Eltern tun?` entweder `Zustimmen oder ablehnen` oder `Nur zur Kenntnis nehmen`.",
+      "Wählen Sie unter `Wer muss abgeben?`, ob eine sorgeberechtigte Person genügt oder alle abgeben.",
+      "Tragen Sie bei Bedarf ein Datum bei `Frist (optional)` ein.",
+      "Wählen Sie `Veröffentlichen`.",
+    ],
+    result:
+      "Die Eltern sehen die Erklärung im Eltern-Portal. Den Stand je Kind sehen Sie beim Öffnen der Erklärung unter `Stand der Erklärung`.",
+    notes: [
+      "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen, auch nach der Frist.",
+      "Mit `Passwort vor der Abgabe abfragen` geben Eltern vor jeder Abgabe ihr Passwort ein.",
+      "`Offene erinnern` schickt eine Erinnerung an alle, die noch nicht abgegeben haben.",
+      "`Bericht als PDF` und `Verlauf als CSV` laden den Stand und alle Abgaben herunter.",
+      "Das ist eine einfache Erklärung per Knopfdruck. Verlangt ein Gesetz eine Erklärung auf Papier, reicht sie nicht aus.",
+    ],
+    differences: [
+      "Nach dem Veröffentlichen stehen Text und Dateien fest.",
+      "Ziehen Sie eine Erklärung zurück und ändern den Text, müssen die Eltern neu abgeben. Die alten Abgaben bleiben im Verlauf.",
+    ],
+    troubleshootingDetails: [
+      "Ein Kind steht auf `Niemand kann abgeben`? Dann hat keine sorgeberechtigte Person ein Eltern-Konto. Laden Sie die Eltern ein.",
+      "`Löschen` klappt nicht? Zu der Erklärung gibt es schon Abgaben. Ziehen Sie sie stattdessen zurück.",
+    ],
+    related: [
+      HELP_TOPICS.leadParentLetter,
+      HELP_TOPICS.leadParentSurvey,
+      HELP_TOPICS.leadInviteGuardians,
+    ],
+  };
+}
+
+/**
  * Essensplan unter `/meal-plan`. Wochenweise, mit ausdruecklichem Speichern:
  * Aenderungen sind bis dahin nur Entwurf (page.tsx:799).
  */
@@ -5281,6 +5327,7 @@ function leadTopics(
     parentAnnouncementTopic(),
     parentLetterTopic(),
     parentSurveyTopic(),
+    parentDeclarationTopic(),
     mealPlanTopic(),
     bankDetailsTopic(),
 
@@ -5874,7 +5921,8 @@ function parentNewsTopic(): HelpTopic {
     id: HELP_TOPICS.parentNews,
     title: "Elternbriefe lesen und beantworten",
     question: "Wo finde ich Post von der OGS?",
-    summary: "Unter `Elternbriefe` stehen Mitteilungen und Umfragen.",
+    summary:
+      "Unter `Elternbriefe` stehen Mitteilungen, Umfragen und Erklärungen.",
     group: "nachrichten",
     audience: "parent",
     icon: "Megaphone",
@@ -5898,20 +5946,33 @@ function parentNewsTopic(): HelpTopic {
           "Tippen Sie auf `Antwort speichern`.",
         ],
       },
+      {
+        title: "Eine Erklärung abgeben",
+        steps: [
+          "Öffnen Sie die Erklärung unter `Offen`.",
+          "Lesen Sie den Text und die Dateien.",
+          "Tippen Sie beim Kind auf `Zustimmen`, `Ablehnen` oder `Zur Kenntnis genommen`.",
+          "Prüfen Sie im Fenster das Kind und Ihre Erklärung.",
+          "Tippen Sie auf `Jetzt abgeben`.",
+        ],
+      },
     ],
     result: "Erledigte Einträge wandern von `Offen` zu `Erledigt`.",
     notes: [
       "Die Bestätigung heißt `Lesebestätigung`. Damit bestätigen Sie nur, dass Sie den Brief gelesen haben.",
       "Bei mehreren Kindern zeigt moto, wie viele Antworten noch fehlen.",
       "Angehängte Dateien öffnen Sie, indem Sie auf den Namen tippen.",
+      "Nach einer Erklärung laden Sie mit `Nachweis herunterladen` einen Nachweis als PDF.",
     ],
     differences: [
-      "Ein Eintrag trägt `Elternbrief`, `Umfrage`, `Wichtig` oder `Betreuung fällt aus`.",
+      "Ein Eintrag trägt `Elternbrief`, `Umfrage`, `Erklärung`, `Wichtig` oder `Betreuung fällt aus`.",
+      "Fragt moto nach Ihrem Passwort? Dann möchte die Schule das vor jeder Erklärung.",
       "Bei einer Umfrage steht `Antwort bis` mit dem letzten Tag.",
       "Ist die Frist vorbei, steht dort `Umfrage geschlossen`.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Elternbrief sei nicht mehr aktuell? Laden Sie die Seite neu.",
+      "moto sagt, die Schule habe den Text geändert? Lesen Sie ihn noch einmal und geben Sie neu ab.",
       "Fehlt `Elternbriefe` ganz? Dann nutzt Ihre OGS diese Funktion nicht.",
     ],
     related: [

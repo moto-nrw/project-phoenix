@@ -5,6 +5,9 @@
  * the staff JWT. Backend int64 ids arrive already stringified.
  */
 
+import { ApiError } from "~/lib/api-error";
+import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
+
 export type AnnouncementPriority = "info" | "important";
 export type AnnouncementStatus = "draft" | "published" | "expired";
 
@@ -37,8 +40,19 @@ interface AnnouncementOption {
 /**
  * How the announcement is delivered. "letter" is the Elternbrief (#2384):
  * e-mail and confirmation are mandatory and the mail carries the full text.
+ * "declaration" is the Erklärung (#3430): parents agree, decline or
+ * acknowledge per child, with a frozen version and a proof.
  */
-type AnnouncementDeliveryMode = "standard" | "letter";
+type AnnouncementDeliveryMode = "standard" | "letter" | "declaration";
+
+/**
+ * What an Erklärung asks for (#3430): "consent" is Zustimmen/Ablehnen,
+ * "acknowledgement" only Zur Kenntnis genommen.
+ */
+export type DeclarationKind = "consent" | "acknowledgement";
+
+/** Whether one entitled guardian per child is enough, or all of them. */
+export type DeclarationSigners = "any" | "all";
 
 /**
  * Who receives the e-mail — a separate axis from who sees the announcement in
@@ -77,6 +91,21 @@ export interface Announcement {
   reminder_at?: string;
   reminder_text?: string;
   reminder_sent_at?: string;
+  /**
+   * Erklärung settings (#3430). Present only when delivery_mode is
+   * "declaration"; the deadline is the shared response_deadline.
+   */
+  declaration_kind?: DeclarationKind;
+  declaration_signers?: DeclarationSigners;
+  declaration_revocable?: boolean;
+  declaration_requires_password?: boolean;
+  /** True once a version exists: the attachments are fixed from then on. */
+  declaration_locked_attachments?: boolean;
+}
+
+/** True when the announcement is an Erklärung (#3430). */
+export function isDeclaration(announcement: Announcement): boolean {
+  return announcement.delivery_mode === "declaration";
 }
 
 /** True when the announcement is a binding Elternbrief. */
@@ -155,6 +184,11 @@ export interface AnnouncementInput {
   /** Scheduled reminder (#3162): an instant (ISO) or null for none. */
   reminder_at?: string | null;
   reminder_text?: string | null;
+  /** Erklärung settings (#3430), only with delivery_mode "declaration". */
+  declaration_kind?: DeclarationKind;
+  declaration_signers?: DeclarationSigners;
+  declaration_revocable?: boolean;
+  declaration_requires_password?: boolean;
 }
 
 /**
@@ -226,24 +260,131 @@ export interface LetterStatus {
   summary: LetterSummary;
 }
 
+/* --- Erklärungen (#3430) ------------------------------------------------- */
+
+/** Per-child state of an Erklärung for its current version. */
+export type DeclarationChildState =
+  | "open"
+  | "partial"
+  | "agreed"
+  | "declined"
+  | "acknowledged"
+  | "revoked"
+  | "no_signer"
+  | "expired";
+
+/** What one guardian did. */
+export type DeclarationAction =
+  "agreed" | "declined" | "acknowledged" | "revoked";
+
+interface DeclarationVersionAttachment {
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  sha256: string;
+}
+
+/** A frozen version (Fassung) of the Erklärung, created on publish. */
+export interface DeclarationVersion {
+  id: string;
+  version_no: number;
+  /** Title and full text as frozen with this version. */
+  title: string;
+  body: string;
+  content_hash: string;
+  published_at: string;
+  attachments: DeclarationVersionAttachment[];
+  /** False when the stored text no longer matches its checksum. */
+  integrity_ok: boolean;
+}
+
+interface DeclarationSigner {
+  account_id: string;
+  first_name: string;
+  last_name: string;
+  action: DeclarationAction | null;
+  submitted_at: string | null;
+}
+
+export interface DeclarationChild {
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+  state: DeclarationChildState;
+  signers: DeclarationSigner[];
+}
+
+/** One entry of the full history, across all versions, newest first. */
+export interface DeclarationSubmission {
+  id: string;
+  student_id: string;
+  student_first_name: string;
+  student_last_name: string;
+  signer_name: string;
+  guardian_role: string;
+  action: DeclarationAction;
+  method: string;
+  password_confirmed: boolean;
+  version_no: number;
+  content_hash: string;
+  record_hash: string;
+  submitted_at: string;
+  integrity_ok: boolean;
+}
+
+interface DeclarationSummary {
+  children_total: number;
+  agreed: number;
+  declined: number;
+  acknowledged: number;
+  revoked: number;
+  partial: number;
+  open: number;
+  no_signer: number;
+  expired: number;
+}
+
+export interface DeclarationStatus {
+  kind: DeclarationKind;
+  signers: DeclarationSigners;
+  revocable: boolean;
+  requires_password: boolean;
+  deadline: string | null;
+  current_version: DeclarationVersion | null;
+  versions: DeclarationVersion[];
+  summary: DeclarationSummary;
+  children: DeclarationChild[];
+  submissions: DeclarationSubmission[];
+  /** False when any version or history entry fails its checksum. */
+  integrity_ok: boolean;
+}
+
 interface ApiResponse<T> {
   status?: string;
   data?: T;
   error?: string;
 }
 
+/**
+ * Throws an ApiError carrying the backend's stable `code` (for example
+ * "declaration_has_submissions"), so a dialog can map it to a German sentence
+ * instead of showing the raw backend text.
+ */
 async function throwApiError(
   response: Response,
   fallback: string,
 ): Promise<never> {
   let message = fallback;
+  let code: string | undefined;
   try {
-    const body = (await response.json()) as { error?: string };
+    const body = (await response.json()) as { error?: string; code?: string };
     if (body.error) message = body.error;
+    if (body.code) code = body.code;
   } catch {
     // Body was not JSON — keep the German fallback.
   }
-  throw new Error(message);
+  throw new ApiError(message, response.status, code ? { code } : undefined);
 }
 
 async function request<T>(
@@ -453,6 +594,47 @@ export async function fetchLetterStatus(id: string): Promise<LetterStatus> {
         without_portal: 0,
       },
     }
+  );
+}
+
+/**
+ * The Erklärung status (#3430): per child the state and who acted, the
+ * frozen versions with their checksums, and the full history.
+ */
+export async function fetchDeclarationStatus(
+  id: string,
+): Promise<DeclarationStatus> {
+  const data = await request<DeclarationStatus>(
+    `${BASE}/${encodeURIComponent(id)}/declaration-status`,
+    undefined,
+    "Status konnte nicht geladen werden",
+  );
+  if (!data) throw new Error("Status konnte nicht geladen werden");
+  return data;
+}
+
+/** Download address of the Erklärung history (CSV). */
+function declarationExportUrl(id: string, format: "csv"): string {
+  return `${BASE}/${encodeURIComponent(id)}/declaration-export?format=${format}`;
+}
+
+/**
+ * Downloads the Erklärung history (CSV) under the file name
+ * the backend chose. Fetched first rather than opened as a link, so a failure
+ * stays on the page as a message instead of replacing it with an error body.
+ */
+export async function downloadDeclarationExport(
+  id: string,
+  format: "csv",
+): Promise<void> {
+  const response = await fetch(declarationExportUrl(id, format));
+  if (!response.ok) {
+    await throwApiError(response, "Die Datei konnte nicht erstellt werden");
+  }
+  const blob = await response.blob();
+  downloadBlob(
+    blob,
+    filenameFromDisposition(response) ?? `erklaerung-${id}.${format}`,
   );
 }
 

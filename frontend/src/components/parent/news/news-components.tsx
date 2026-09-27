@@ -37,6 +37,12 @@ import {
   respondToAnnouncement,
 } from "~/lib/parent-api";
 
+import {
+  DeclarationSection,
+  isDeclarationItem,
+  isOpenDeclaration,
+} from "~/components/parent/news/declaration-section";
+
 const logger = createLogger({ component: "ParentNews" });
 
 /** Tell the sidebar badge to refetch after a read/ack. */
@@ -85,7 +91,8 @@ export function isOutstandingAnnouncement(item: ParentAnnouncement): boolean {
   return (
     !item.read ||
     (item.requires_acknowledgement && !item.acknowledged) ||
-    isOpenPoll(item)
+    isOpenPoll(item) ||
+    isOpenDeclaration(item)
   );
 }
 
@@ -114,7 +121,9 @@ function NewsCardMeta({
     ? t("newsCareCancellation")
     : isPoll(item)
       ? t("newsPoll")
-      : t("newsLetter");
+      : isDeclarationItem(item)
+        ? t("newsDeclaration")
+        : t("newsLetter");
   const typeClass = cancellation ? "text-moto-red-strong" : "text-gray-500";
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold tracking-wide uppercase">
@@ -161,6 +170,10 @@ function NewsCardState({
 }: Readonly<{ item: ParentAnnouncement }>): React.ReactNode {
   const t = useTranslations("parentDashboard");
   const locale = useLocale();
+
+  if (isDeclarationItem(item)) {
+    return <DeclarationCardState item={item} />;
+  }
 
   if (!isPoll(item)) {
     if (item.requires_acknowledgement && !item.acknowledged) {
@@ -243,6 +256,76 @@ function NewsCardState({
             date: formatBerlinDate(item.response_deadline, locale),
           })}
         </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * The card line of an Erklärung (#3430): "Antwort nötig" while this guardian
+ * still owes an action for a child, otherwise where each child stands.
+ */
+function DeclarationCardState({
+  item,
+}: Readonly<{
+  item: ParentAnnouncement & {
+    declaration: NonNullable<ParentAnnouncement["declaration"]>;
+  };
+}>): React.ReactNode {
+  const t = useTranslations("parentDashboard");
+  const td = useTranslations("parentDeclaration");
+  const locale = useLocale();
+  const declaration = item.declaration;
+  const children = declaration.children;
+  if (children.length === 0) return null;
+
+  const deadline =
+    declaration.deadline && !declaration.closed ? (
+      <span className="text-gray-500">
+        {td("deadline", {
+          date: formatBerlinDate(declaration.deadline, locale),
+        })}
+      </span>
+    ) : null;
+
+  if (isOpenDeclaration(item)) {
+    return (
+      <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        <StatusBadge label={t("newsPollNeedsAnswer")} tone="orange" />
+        {deadline}
+      </span>
+    );
+  }
+
+  const summary = children
+    .map((child) =>
+      children.length === 1
+        ? td(`state.${child.state}`)
+        : `${child.first_name}: ${td(`state.${child.state}`)}`,
+    )
+    .join(" · ");
+  const settled = children.every(
+    (child) =>
+      child.my_action !== null ||
+      child.state === "agreed" ||
+      child.state === "acknowledged",
+  );
+
+  return (
+    <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+      <span
+        className={`flex items-center gap-1.5 font-semibold ${settled ? "text-moto-green-strong" : "text-gray-600"}`}
+      >
+        {settled && (
+          <Check
+            className="text-moto-green-strong h-4 w-4 shrink-0"
+            aria-hidden="true"
+          />
+        )}
+        {summary}
+      </span>
+      {declaration.closed && !settled && (
+        <span className="text-gray-500">{td("closed")}</span>
       )}
     </span>
   );
@@ -480,7 +563,7 @@ export function NewsCard({
   const outstanding = isOutstandingAnnouncement(item);
   const concept = isPoll(item)
     ? "polls"
-    : item.requires_acknowledgement
+    : item.requires_acknowledgement || isDeclarationItem(item)
       ? "confirmations"
       : "news";
 
@@ -662,7 +745,9 @@ function NewsMessageSection({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h4 id={headingId} className="text-base font-semibold text-gray-950">
-          {t("newsMessageFrom", { school: item.school_name })}
+          {isDeclarationItem(item)
+            ? t("newsDeclarationFrom", { school: item.school_name })
+            : t("newsMessageFrom", { school: item.school_name })}
         </h4>
         {item.published_at && (
           <time className="text-sm text-gray-500">
@@ -786,6 +871,9 @@ export function NewsDetailModal({
   const [stale, setStale] = useState(false);
   const markedRef = useRef(false);
   const poll = usePollAnswers(item, onUpdated, onStale);
+  // An open Erklärung confirmation sits on top of this dialog; Escape and the
+  // backdrop must close only that one, never both.
+  const [declarationBusy, setDeclarationBusy] = useState(false);
 
   // Reset the per-version local flags when the id or published_at (the version
   // token) changes. On the stale-correction path the parent refetches the feed
@@ -858,7 +946,7 @@ export function NewsDetailModal({
   // so hide the button and surface the stale banner instead.
   const needsAck =
     item.requires_acknowledgement && !item.acknowledged && !stale;
-  const actionInProgress = busy || poll.saving;
+  const actionInProgress = busy || poll.saving || declarationBusy;
 
   return (
     <Modal
@@ -924,6 +1012,15 @@ export function NewsDetailModal({
         {poll.error && <Alert type="error" message={poll.error} />}
 
         {isPoll(item) && <PollAnswerRows poll={poll} />}
+
+        {isDeclarationItem(item) && (
+          <DeclarationSection
+            item={item}
+            onUpdated={onUpdated}
+            onReload={onStale}
+            onBusyChange={setDeclarationBusy}
+          />
+        )}
       </div>
     </Modal>
   );

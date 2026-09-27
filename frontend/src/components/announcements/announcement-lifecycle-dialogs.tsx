@@ -7,6 +7,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import {
   deleteAnnouncement,
@@ -32,6 +33,24 @@ interface LifecycleDialogProps {
 
 function errorMessage(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
+}
+
+/**
+ * Backend codes with their own German sentence. An Erklärung with submissions
+ * (#3430) must stay as evidence, so deleting it is refused; the sentence says
+ * what still works.
+ */
+const LIFECYCLE_CODE_MESSAGES: Record<string, string> = {
+  declaration_has_submissions:
+    "Zu dieser Erklärung haben Eltern schon etwas abgegeben. Deshalb lässt sie sich nicht löschen. Sie können sie zurückziehen, dann sehen Eltern sie nicht mehr.",
+};
+
+function lifecycleErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError && err.code) {
+    const mapped = LIFECYCLE_CODE_MESSAGES[err.code];
+    if (mapped) return mapped;
+  }
+  return errorMessage(err, fallback);
 }
 
 export function PublishAnnouncementDialog({
@@ -139,6 +158,12 @@ export function UnpublishAnnouncementDialog({
         <p className="text-xs text-gray-500">
           Noch nicht versendete E-Mail-Benachrichtigungen werden abgebrochen.
         </p>
+        {announcement.delivery_mode === "declaration" && (
+          <p className="text-xs text-gray-500">
+            Bisherige Abgaben bleiben gespeichert. Ändern Sie danach den Text,
+            müssen die Eltern noch einmal abgeben.
+          </p>
+        )}
         {error && <Alert type="error" message={error} />}
       </div>
     </ConfirmationModal>
@@ -161,7 +186,7 @@ export function DeleteAnnouncementDialog({
       await onDone();
       onClose();
     } catch (err) {
-      const message = errorMessage(
+      const message = lifecycleErrorMessage(
         err,
         "Elternmitteilung konnte nicht gelöscht werden",
       );

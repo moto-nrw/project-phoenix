@@ -2,7 +2,11 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import type { Group } from "~/lib/api";
 import type { Activity } from "~/lib/activity-helpers";
-import { isLetter, isPoll } from "~/lib/parent-announcements-api";
+import {
+  isDeclaration,
+  isLetter,
+  isPoll,
+} from "~/lib/parent-announcements-api";
 import type {
   Announcement,
   AnnouncementResponseType,
@@ -12,13 +16,16 @@ import type {
 } from "~/lib/parent-announcements-api";
 
 /**
- * Was die Seite „Mitteilungen" verwaltet. Alle drei sind im Backend dieselbe
+ * Was die Seite „Mitteilungen" verwaltet. Alle vier sind im Backend dieselbe
  * Entität (eine Umfrage ist eine Mitteilung mit Antwortmöglichkeiten, #1371;
- * ein Elternbrief eine mit Pflichtkanälen, #2384). Die Trennung ist eine der
- * Oberfläche, weil Informieren, Bestätigen lassen und Fragen verschiedene
- * Arbeiten mit verschiedener Nacharbeit sind.
+ * ein Elternbrief eine mit Pflichtkanälen, #2384; eine Erklärung eine, zu der
+ * Eltern je Kind zustimmen, ablehnen oder die sie zur Kenntnis nehmen, #3430).
+ * Die Trennung ist eine der Oberfläche, weil Informieren, Bestätigen lassen,
+ * Fragen und Erklären lassen verschiedene Arbeiten mit verschiedener
+ * Nacharbeit sind.
  */
-export type AnnouncementKind = "announcement" | "letter" | "poll";
+export type AnnouncementKind =
+  "announcement" | "letter" | "poll" | "declaration";
 
 /**
  * Welchem Reiter eine Mitteilung gehört. Die drei Arten schließen sich auch
@@ -26,6 +33,7 @@ export type AnnouncementKind = "announcement" | "letter" | "poll";
  * DB-Bedingung), diese Reihenfolge kann also keine Zeile verstecken.
  */
 export function kindOf(announcement: Announcement): AnnouncementKind {
+  if (isDeclaration(announcement)) return "declaration";
   if (isPoll(announcement)) return "poll";
   if (isLetter(announcement)) return "letter";
   return "announcement";
@@ -39,6 +47,7 @@ export const KIND_PARAM: Record<AnnouncementKind, string> = {
   announcement: "mitteilungen",
   letter: "elternbriefe",
   poll: "umfragen",
+  declaration: "erklaerungen",
 };
 
 export function kindFromParam(value: string | null): AnnouncementKind {
@@ -47,6 +56,8 @@ export function kindFromParam(value: string | null): AnnouncementKind {
       return "letter";
     case "umfragen":
       return "poll";
+    case "erklaerungen":
+      return "declaration";
     default:
       return "announcement";
   }

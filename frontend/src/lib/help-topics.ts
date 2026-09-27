@@ -107,6 +107,7 @@ export const HELP_TOPICS = {
   leadParentAnnouncement: "elternmitteilung-veroeffentlichen",
   leadParentLetter: "elternbrief-versenden",
   leadParentSurvey: "elternumfrage-erstellen",
+  leadParentDeclaration: "elternerklaerung-einholen",
   leadMealPlan: "essensplan-veroeffentlichen",
   leadBankDetails: "bankverbindungen-einsehen",
   leadEnrollmentSetup: "anmeldung-vorbereiten",
@@ -295,6 +296,9 @@ const PARENT_PREFIX_HELP_TOPICS: ReadonlyArray<
   ["/children", HELP_TOPICS.parentChildOverview],
   // Die Anmeldung laeuft ueber `/anmeldung/<schule>/<phase>`.
   ["/anmeldung", HELP_TOPICS.parentEnroll],
+  // Der Nachweis einer Erklärung `/news/<id>/nachweis` gehört zu den
+  // Elternbriefen.
+  ["/news/", HELP_TOPICS.parentNews],
 ];
 
 /**

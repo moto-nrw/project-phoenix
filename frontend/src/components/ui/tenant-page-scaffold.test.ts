@@ -104,6 +104,9 @@ const BAUART: Readonly<Record<string, Bauart>> = {
   "enrollment-phases/[id]/rollover/page.tsx": "objekt",
   "messages/[threadId]/page.tsx": "objekt",
   "parent-announcements/[id]/page.tsx": "objekt",
+  // Druckansicht des Nachweisberichts einer Erklärung (#3430): liest nur das
+  // Objekt der Seite darüber.
+  "parent-announcements/[id]/nachweis/page.tsx": "objekt",
   "profile/page.tsx": "objekt",
   "rooms/[id]/page.tsx": "objekt",
   "staff/[id]/page.tsx": "objekt",
