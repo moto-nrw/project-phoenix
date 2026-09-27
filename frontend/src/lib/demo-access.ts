@@ -32,8 +32,12 @@ export function isDemoBuild(): boolean {
  * What the visitor sees the demo school as (#3467). The visitor has one
  * account; a switch changes its role and issues a new session. The role
  * parent (#3468) opens the parents app on its own host with the same link.
+ * "all" is the administrator and no longer a choice: the standing demo
+ * school's shared account has it, and older links may still carry it.
  */
 export type DemoRole = "caregiver" | "lead" | "parent" | "all";
+
+const DEMO_ROLE_ALL_LABEL = "Alle Funktionen";
 
 export const DEMO_ROLES: readonly {
   role: DemoRole;
@@ -55,15 +59,10 @@ export const DEMO_ROLES: readonly {
     label: "Elternteil",
     description: "Die Eltern-App: Kind, Abholung, Krankmeldung, Nachrichten.",
   },
-  {
-    role: "all",
-    label: "Alle Funktionen",
-    description: "Alles, was moto kann.",
-  },
 ];
 
 function isDemoRole(value: unknown): value is DemoRole {
-  return DEMO_ROLES.some((entry) => entry.role === value);
+  return value === "all" || DEMO_ROLES.some((entry) => entry.role === value);
 }
 
 /** The role parent lives in the parents app, every other role in the OGS app. */
@@ -72,6 +71,7 @@ export function isParentDemoRole(role: DemoRole): boolean {
 }
 
 export function demoRoleLabel(role: DemoRole): string {
+  if (role === "all") return DEMO_ROLE_ALL_LABEL;
   return DEMO_ROLES.find((entry) => entry.role === role)?.label ?? role;
 }
 

@@ -166,7 +166,6 @@ describe("DemoBanner", () => {
       "Betreuungskraft",
       "OGS-Leitung",
       "Elternteil",
-      "Alle Funktionen",
     ]);
     expect(items[0]).toHaveAttribute("aria-checked", "true");
     expect(items[0]).toHaveFocus();
@@ -227,7 +226,7 @@ describe("DemoBanner", () => {
       expect(item).toHaveAttribute("aria-checked", "false");
     }
     await user.click(
-      screen.getByRole("menuitemradio", { name: "Alle Funktionen" }),
+      screen.getByRole("menuitemradio", { name: "OGS-Leitung" }),
     );
 
     await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
@@ -272,7 +271,7 @@ describe("DemoBanner", () => {
 
     await user.click(screen.getByRole("button", { name: /Rolle wechseln/ }));
     await user.click(
-      screen.getByRole("menuitemradio", { name: "Alle Funktionen" }),
+      screen.getByRole("menuitemradio", { name: "OGS-Leitung" }),
     );
 
     expect(
