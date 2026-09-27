@@ -5,9 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	userRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +15,7 @@ func TestGuardianAccountLink_PreservesExistingChildren(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := userRepo.NewGuardianProfileRepository(db)
+	repo := testutil.NewPeopleRepositorySuiteRetainedGuardianProfiles(db)
 	account := testpkg.CreateTestAccount(t, db, "linked-parent")
 	old := testpkg.CreateTestGuardianProfile(t, db, "old-contact")
 	next := testpkg.CreateTestGuardianProfile(t, db, "new-contact")
@@ -25,7 +23,7 @@ func TestGuardianAccountLink_PreservesExistingChildren(t *testing.T) {
 	// Even a pickup-only relationship prevents implicit account reassignment.
 	testpkg.CreateTestStudentGuardianLink(t, db, child.ID, old.ID, "pickup_only")
 	require.NoError(t, repo.LinkAccount(ctx, old.ID, account.ID))
-	require.ErrorIs(t, repo.LinkAccount(ctx, next.ID, account.ID), users.ErrGuardianAccountConflict)
+	require.ErrorIs(t, repo.LinkAccount(ctx, next.ID, account.ID), testpkg.ErrGuardianAccountConflict)
 	old, err := repo.FindByID(ctx, old.ID)
 	require.NoError(t, err)
 	require.NotNil(t, old.AccountID)
@@ -39,12 +37,12 @@ func TestGuardianAccountLink_RejectsTakingOverAnotherAccount(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := userRepo.NewGuardianProfileRepository(db)
+	repo := testutil.NewPeopleRepositorySuiteRetainedGuardianProfiles(db)
 	first := testpkg.CreateTestAccount(t, db, "first-parent")
 	second := testpkg.CreateTestAccount(t, db, "second-parent")
 	profile := testpkg.CreateTestGuardianProfile(t, db, "owned-contact")
 	require.NoError(t, repo.LinkAccount(ctx, profile.ID, first.ID))
-	require.ErrorIs(t, repo.LinkAccount(ctx, profile.ID, second.ID), users.ErrGuardianAccountConflict)
+	require.ErrorIs(t, repo.LinkAccount(ctx, profile.ID, second.ID), testpkg.ErrGuardianAccountConflict)
 	profile, err := repo.FindByID(ctx, profile.ID)
 	require.NoError(t, err)
 	require.NotNil(t, profile.AccountID)
@@ -55,15 +53,15 @@ func TestGuardianAccountLink_DoesNotDetachAnotherSchool(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := userRepo.NewGuardianProfileRepository(db)
+	repo := testutil.NewPeopleRepositorySuiteRetainedGuardianProfiles(db)
 	account := testpkg.CreateTestAccount(t, db, "multischool-parent")
 	otherTenant, _ := testpkg.CreateTestTenant(t, db)
-	otherCtx := tenant.WithTenantID(ctx, otherTenant)
+	otherCtx := testpkg.ContextForTenant(ctx, otherTenant)
 	other := testpkg.CreateTestGuardianProfileForTenant(t, db, otherTenant, "Other", "School", "other-school")
 	require.NoError(t, repo.LinkAccount(otherCtx, other.ID, account.ID))
 	next := testpkg.CreateTestGuardianProfile(t, db, "local-contact")
 	require.NoError(t, repo.LinkAccount(ctx, next.ID, account.ID))
-	require.ErrorIs(t, repo.LinkAccount(ctx, other.ID, account.ID), users.ErrGuardianProfileNotFound)
+	require.ErrorIs(t, repo.LinkAccount(ctx, other.ID, account.ID), testpkg.ErrGuardianProfileNotFound)
 	for _, id := range []int64{other.ID, next.ID} {
 		profile, err := repo.FindByID(ctx, id)
 		require.NoError(t, err)
@@ -76,13 +74,13 @@ func TestGuardianAccountLink_RollsBackWithInvitation(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := userRepo.NewGuardianProfileRepository(db)
+	repo := testutil.NewPeopleRepositorySuiteRetainedGuardianProfiles(db)
 	account := testpkg.CreateTestAccount(t, db, "rollback-parent")
 	old := testpkg.CreateTestGuardianProfile(t, db, "rollback-old")
 	next := testpkg.CreateTestGuardianProfile(t, db, "rollback-new")
 	require.NoError(t, repo.LinkAccount(ctx, old.ID, account.ID))
 	rejected := errors.New("later invitation step failed")
-	err := tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+	err := testpkg.RunInTenantTransaction(ctx, func(txCtx context.Context) error {
 		if err := repo.LinkAccount(txCtx, next.ID, account.ID); err != nil {
 			return err
 		}
@@ -102,7 +100,7 @@ func TestGuardianAccountLink_ConcurrentReplacementsDoNotStealChildren(t *testing
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := userRepo.NewGuardianProfileRepository(db)
+	repo := testutil.NewPeopleRepositorySuiteRetainedGuardianProfiles(db)
 	account := testpkg.CreateTestAccount(t, db, "concurrent-parent")
 	old := testpkg.CreateTestGuardianProfile(t, db, "concurrent-old")
 	require.NoError(t, repo.LinkAccount(ctx, old.ID, account.ID))
@@ -126,7 +124,7 @@ func TestGuardianAccountLink_ConcurrentReplacementsDoNotStealChildren(t *testing
 		if err == nil {
 			succeeded++
 		} else {
-			require.ErrorIs(t, err, users.ErrGuardianAccountConflict)
+			require.ErrorIs(t, err, testpkg.ErrGuardianAccountConflict)
 		}
 	}
 	assert.Equal(t, 1, succeeded)

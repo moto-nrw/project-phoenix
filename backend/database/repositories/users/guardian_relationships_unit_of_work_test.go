@@ -6,9 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -33,7 +31,7 @@ type sqlGuardianOwners struct {
 }
 
 func (o *sqlGuardianOwners) conn(ctx context.Context) bun.IDB {
-	if transaction, ok := tenant.TransactionFromContext(ctx); ok {
+	if transaction, ok := testpkg.TransactionFromContext(ctx); ok {
 		return transaction.(bun.Tx)
 	}
 	return o.db
@@ -84,8 +82,8 @@ func (o *sqlGuardianOwners) SetGuardianStudentPermissions(ctx context.Context, t
 	return affected > 0, err
 }
 
-func newRelationshipStore(db *bun.DB, owners *sqlGuardianOwners) users.StudentGuardianRepository {
-	return usersRepo.NewGuardianRelationshipRepository(db, usersRepo.WithGuardianRelationshipOwners(owners, owners))
+func newRelationshipStore(db *bun.DB, owners *sqlGuardianOwners) testpkg.StudentGuardianRepository {
+	return testutil.NewPeopleRepositorySuiteRetainedRelationships(db, testutil.PeopleRepositorySuiteWithOwners(owners, owners))
 }
 
 // linkHalves counts the rows of each owner for one pair.
@@ -101,8 +99,8 @@ func linkHalves(t *testing.T, db *bun.DB, studentID, guardianID int64) (relation
 	return relationships, pickups, accesses
 }
 
-func newLink(studentID, guardianID int64) *users.StudentGuardian {
-	return &users.StudentGuardian{
+func newLink(studentID, guardianID int64) *testpkg.StudentGuardian {
+	return &testpkg.StudentGuardian{
 		StudentID: studentID, GuardianProfileID: guardianID, RelationshipType: "parent",
 		GuardianRole: "legal_guardian", IsPrimary: true, CanPickup: true, PickupNotes: textPointer("Mama"),
 		Permissions: map[string]interface{}{"parent_portal.access": true},
@@ -298,7 +296,7 @@ func TestGuardianRelationshipStoreStaysInsideTheTenant(t *testing.T) {
 
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	otherCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), otherTenantID)
+	otherCtx := testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), otherTenantID)
 	require.NoError(t, testpkg.WithTenantTx(t, otherCtx, db, otherTenantID, func(ctx context.Context, _ testpkg.Tx) error {
 		links, err := store.FindByStudentID(ctx, student.ID)
 		require.NoError(t, err)
@@ -316,4 +314,38 @@ func TestGuardianRelationshipStoreStaysInsideTheTenant(t *testing.T) {
 	require.Len(t, links, 1, "the other school's delete matched nothing")
 	require.Equal(t, "parent", links[0].RelationshipType)
 	require.True(t, links[0].CanPickup)
+}
+
+// TestGuardianRelationshipLinkWithoutRoleNeedsTheDefaultRolePolicy pins that a
+// link naming neither a role nor permissions takes the authorization policy's
+// default preset, which the composition binds (#2727): without the binding the
+// store refuses the link instead of writing a relationship with no role.
+func TestGuardianRelationshipLinkWithoutRoleNeedsTheDefaultRolePolicy(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Default", "Role", "2a")
+	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Default", "Guardian", "default-role-link")
+	owners := &sqlGuardianOwners{db: db}
+	link := func() *testpkg.StudentGuardian {
+		return &testpkg.StudentGuardian{StudentID: student.ID, GuardianProfileID: guardian.ID, RelationshipType: "parent"}
+	}
+
+	_, err := newRelationshipStore(db, owners).LinkIfNotExists(ctx, link())
+	require.Error(t, err)
+	relationships, _, _ := linkHalves(t, db, student.ID, guardian.ID)
+	require.Zero(t, relationships)
+
+	bound := testutil.NewPeopleRepositorySuiteRetainedRelationships(db,
+		testutil.PeopleRepositorySuiteWithOwners(owners, owners), testutil.PeopleRepositorySuiteWithDefaultRole())
+	created, err := bound.LinkIfNotExists(ctx, link())
+	require.NoError(t, err)
+	require.True(t, created)
+	links, err := bound.FindByStudentID(ctx, student.ID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	stored := links[0]
+	require.Equal(t, testpkg.GuardianRoleLegalGuardian, stored.GuardianRole)
+	require.True(t, testpkg.StudentGuardianHasPermission(stored, testpkg.GuardianPermissionPortalAccess))
 }

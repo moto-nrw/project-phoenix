@@ -90,6 +90,16 @@ func (d *DemoRuntime) ReleaseDemoSchoolOrders(ctx context.Context) error {
 	return d.queue.ReleaseDemoSchoolOrders(ctx)
 }
 
+// RequeueDeferredDemoSchoolOrders retries interrupted optional demo work as
+// a clean seed, rather than replaying partial API writes in the open school.
+func (d *DemoRuntime) RequeueDeferredDemoSchoolOrders(ctx context.Context) error {
+	return d.queue.RequeueDeferredDemoSchoolOrders(ctx)
+}
+
+func (d *DemoRuntime) RequeueDeferredDemoSchoolOrder(ctx context.Context, slug string) error {
+	return d.queue.RequeueDeferredDemoSchoolOrder(ctx, slug)
+}
+
 // ClaimDemoSchoolOrder takes the oldest waiting order, or nil.
 func (d *DemoRuntime) ClaimDemoSchoolOrder(ctx context.Context) (*DemoSchoolOrder, error) {
 	order, err := d.queue.ClaimDemoSchoolOrder(ctx)
@@ -131,8 +141,18 @@ func (d *DemoRuntime) LoadDemoSchool(ctx context.Context, name string) (*DemoSch
 	return &DemoSchoolRecord{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON}, nil
 }
 
+// ReserveDemoSchool remembers a newly bootstrapped school before its full
+// seed contract is available for persistence.
+func (d *DemoRuntime) ReserveDemoSchool(ctx context.Context, name string, schoolID int64) error {
+	return d.schools.ReserveDemoSchool(ctx, name, schoolID)
+}
+
 func (d *DemoRuntime) RememberDemoSchool(ctx context.Context, name string, state DemoSchoolRecord) error {
 	return d.schools.RememberDemoSchool(ctx, name, organizationtenancy.DemoSchoolState{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON})
+}
+
+func (d *DemoRuntime) UpdateDemoSchool(ctx context.Context, name string, state DemoSchoolRecord) error {
+	return d.schools.UpdateDemoSchool(ctx, name, organizationtenancy.DemoSchoolState{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON})
 }
 
 func (d *DemoRuntime) WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error {

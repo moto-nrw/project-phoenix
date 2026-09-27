@@ -43,6 +43,11 @@ func TestDemoSchoolStateSurvivesNewProcessAndExcludesConcurrentRunner(t *testing
 		require.Error(t, second.RememberDemoSchool(ctx, name, *state), "must not overwrite existing credentials")
 		return nil
 	}))
+	updated := organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{"profile":"vollbetrieb","enrollment":{"requests":[1]}}`)}
+	require.NoError(t, second.UpdateDemoSchool(ctx, name, updated))
+	state, err := second.LoadDemoSchool(ctx, name)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(updated.SeedJSON), string(state.SeedJSON))
 }
 
 func TestDemoSchoolCredentialsAreNotReadableByHTTPRoles(t *testing.T) {

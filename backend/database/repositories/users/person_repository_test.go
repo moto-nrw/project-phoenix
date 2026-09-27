@@ -6,10 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +19,7 @@ func cleanupPersonRecords(t *testing.T, db *bun.DB, ids ...int64) {
 	ctx := testpkg.Ctx(t)
 	for _, id := range ids {
 		_, err := db.NewDelete().
-			Model((*users.Person)(nil)).
+			Model((*testpkg.Person)(nil)).
 			ModelTableExpr(`users.persons AS "person"`).
 			Where(`"person".id = ?`, id).
 			Exec(ctx)
@@ -40,14 +38,14 @@ func TestPersonRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Person
 	ctx := testpkg.Ctx(t)
 
 	var createdIDs []int64
 	defer func() { cleanupPersonRecords(t, db, createdIDs...) }()
 
 	t.Run("create valid person", func(t *testing.T) {
-		person := &users.Person{
+		person := &testpkg.Person{
 			FirstName: "Test",
 			LastName:  "Person",
 		}
@@ -62,8 +60,8 @@ func TestPersonRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create person with birthday", func(t *testing.T) {
-		birthday := timezone.NewDate(2010, 5, 15)
-		person := &users.Person{
+		birthday := calendar.NewDate(2010, 5, 15)
+		person := &testpkg.Person{
 			FirstName: "Birthday",
 			LastName:  "Test",
 			Birthday:  &birthday,
@@ -85,7 +83,7 @@ func TestPersonRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with empty first name should fail validation", func(t *testing.T) {
-		person := &users.Person{
+		person := &testpkg.Person{
 			FirstName: "",
 			LastName:  "Test",
 		}
@@ -95,7 +93,7 @@ func TestPersonRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with empty last name should fail validation", func(t *testing.T) {
-		person := &users.Person{
+		person := &testpkg.Person{
 			FirstName: "Test",
 			LastName:  "",
 		}
@@ -110,7 +108,7 @@ func TestPersonRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test person
@@ -142,7 +140,7 @@ func TestPersonRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test person
@@ -174,7 +172,7 @@ func TestPersonRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test person
@@ -202,7 +200,7 @@ func TestPersonRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test persons with unique names for filtering
@@ -243,7 +241,7 @@ func TestPersonRepository_FindByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test persons
@@ -287,7 +285,7 @@ func TestPersonRepository_LinkToAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test person and account
@@ -316,7 +314,7 @@ func TestPersonRepository_UnlinkFromAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create person with account
@@ -343,7 +341,7 @@ func TestPersonRepository_FindByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create person with account
@@ -372,7 +370,7 @@ func TestPersonRepository_LinkToRFIDCard(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test person and RFID card
@@ -401,7 +399,7 @@ func TestPersonRepository_UnlinkFromRFIDCard(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test person with RFID card linked
@@ -433,7 +431,7 @@ func TestPersonRepository_FindByTagID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test person with RFID card linked
@@ -475,7 +473,7 @@ func TestPersonRepository_FindWithAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Person
 	ctx := testpkg.Ctx(t)
 
 	t.Run("find person with account", func(t *testing.T) {
@@ -546,7 +544,7 @@ func TestPersonRepository_ListWithNullableFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Person
 	ctx := testpkg.Ctx(t)
 
 	// Create test persons - one with account, one without
@@ -624,11 +622,11 @@ func TestPersonRepository_EdgeCases(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Person
 	ctx := testpkg.Ctx(t)
 
 	t.Run("create person with unicode names", func(t *testing.T) {
-		person := &users.Person{
+		person := &testpkg.Person{
 			FirstName: "Müller",
 			LastName:  "Über",
 		}
@@ -644,7 +642,7 @@ func TestPersonRepository_EdgeCases(t *testing.T) {
 
 	t.Run("create person with long names", func(t *testing.T) {
 		longName := "VeryLongFirstNameThatExceedsNormalLengthButShouldStillWork"
-		person := &users.Person{
+		person := &testpkg.Person{
 			FirstName: longName,
 			LastName:  "Test",
 		}
@@ -666,7 +664,7 @@ func TestPersonRepository_FindWithAccountRequiresAccountLookup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	person, _ := testpkg.CreateTestPersonWithAccount(t, db, "NoLookup", "Test")
 
-	_, err := usersRepo.NewPersonRepository(db).FindWithAccount(testpkg.Ctx(t), person.ID)
+	_, err := testutil.NewPeopleRepositorySuiteRetainedPersons(db).FindWithAccount(testpkg.Ctx(t), person.ID)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account lookup is required")
 }

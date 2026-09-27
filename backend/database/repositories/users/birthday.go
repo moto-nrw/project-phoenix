@@ -6,17 +6,14 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
-	"github.com/moto-nrw/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
 // birthdayRow is the ad-hoc scan target for both birthday queries. Its Birthday
-// column is a timezone.Date (a DATE column, never time.Time — see
+// column is a calendar.Date (a DATE column, never time.Time — see
 // .claude/rules/calendar-dates.md); the registry test does not see ad-hoc
 // structs, so this is the reviewer's checkpoint, not the compiler's.
 type birthdayRow struct {
@@ -24,7 +21,7 @@ type birthdayRow struct {
 	GroupID     *int64        `bun:"group_id"`
 	FirstName   string        `bun:"first_name"`
 	LastName    string        `bun:"last_name"`
-	Birthday    timezone.Date `bun:"birthday"`
+	Birthday    calendar.Date `bun:"birthday"`
 	GroupName   string        `bun:"group_name"`
 	SchoolClass string        `bun:"school_class"`
 }
@@ -69,7 +66,7 @@ func (r *StudentRepository) FindBirthdaysOn(ctx context.Context, days []users.Mo
 	}
 
 	var rows []birthdayRow
-	query := studentdirectoryview.ModelQuery(base.GetDB(ctx, r.db), tenant.FromContext(ctx), &rows).
+	query := studentdirectoryview.ModelQuery(r.runtime.DB(ctx), r.runtime.TenantID(ctx), &rows).
 		ColumnExpr(`"student".id AS id`).
 		ColumnExpr(`"person".first_name AS first_name, "person".last_name AS last_name`).
 		ColumnExpr(`"person".birthday AS birthday`).
@@ -87,14 +84,14 @@ func (r *StudentRepository) FindBirthdaysOn(ctx context.Context, days []users.Mo
 		// a staff-facing list of the children the school currently cares for.
 		Where(
 			`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`,
-			timezone.TodayDate(),
+			calendar.TodayDate(),
 		)
 
 	query = query.Where(birthdayDayCondition, bun.List(birthdayDayValues(days)))
-	query = base.WithTenantFilter(ctx, query, "student")
+	query = withTenantFilter(ctx, r.runtime, query, "student")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find student birthdays", Err: base.TranslateNotFound(err)}
+		return nil, &users.DatabaseError{Op: "find student birthdays", Err: translateNotFound(err)}
 	}
 
 	return mapBirthdayRows(rows, users.BirthdayKindStudent), nil

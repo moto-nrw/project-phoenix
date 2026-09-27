@@ -9243,17 +9243,6 @@
       "target_role": "application"
     },
     {
-      "id": "communication.messages.workflow-people-postgres",
-      "description": "Staff-message compatibility tests compose the retained repository pending #2727.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
-      "target_owner": "people-directory",
-      "target_role": "postgres"
-    },
-    {
       "id": "inbound-operator.to.organization-tenancy",
       "description": "inbound-operator calls exactly one public capability.",
       "scopes": [

@@ -9,9 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -19,13 +17,13 @@ func TestPrivacyEventsTimestampAfterTheSerializedWriteStarts(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := testutil.NewPeopleRepositorySuiteFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	protection := familyProtectionEvent(chain.StudentID, chain.AccountID, chain.TenantID, true)
 	share := requestShareEvent(chain.StudentID, chain.AccountID, chain.TenantID, nil)
 	var transactionStarted time.Time
-	err := tenant.WithTenantTx(ctx, db, chain.TenantID, func(txCtx context.Context, tx bun.Tx) error {
+	err := testpkg.WithinTenantTransaction(ctx, db, chain.TenantID, func(txCtx context.Context, tx bun.Tx) error {
 		if err := tx.NewSelect().ColumnExpr("CURRENT_TIMESTAMP").Scan(txCtx, &transactionStarted); err != nil {
 			return err
 		}
@@ -44,7 +42,7 @@ func TestFamilyProtectionCurrentUsesAppendOrderNotTransactionTimestamp(t *testin
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := testutil.NewPeopleRepositorySuiteFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	older := familyProtectionEvent(chain.StudentID, chain.AccountID, chain.TenantID, false)
@@ -63,7 +61,7 @@ func TestRequestSharingCurrentUsesAppendOrderNotTransactionTimestamp(t *testing.
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := testutil.NewPeopleRepositorySuiteFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	olderRecipient := testpkg.CreateTestAccount(t, db, "older-share-recipient")
@@ -80,14 +78,14 @@ func TestRequestSharingCurrentUsesAppendOrderNotTransactionTimestamp(t *testing.
 	assert.Equal(t, []int64{newerRecipient.ID}, current[0].RecipientAccountIDs)
 }
 
-func familyProtectionEvent(studentID, actorID, tenantID int64, enabled bool) *userModels.FamilyProtectionEvent {
-	event := &userModels.FamilyProtectionEvent{StudentID: studentID, ActorAccountID: actorID, Enabled: enabled, Reason: "Test"}
+func familyProtectionEvent(studentID, actorID, tenantID int64, enabled bool) *testpkg.FamilyProtectionEvent {
+	event := &testpkg.FamilyProtectionEvent{StudentID: studentID, ActorAccountID: actorID, Enabled: enabled, Reason: "Test"}
 	event.SetTenantID(tenantID)
 	return event
 }
 
-func requestShareEvent(studentID, authorID, tenantID int64, recipients []int64) *userModels.ParentRequestShareEvent {
-	event := &userModels.ParentRequestShareEvent{
+func requestShareEvent(studentID, authorID, tenantID int64, recipients []int64) *testpkg.ParentRequestShareEvent {
+	event := &testpkg.ParentRequestShareEvent{
 		StudentID: studentID, AuthorAccountID: authorID, RequestType: "master_data", RequestID: 77,
 		RecipientAccountIDs: recipients,
 	}

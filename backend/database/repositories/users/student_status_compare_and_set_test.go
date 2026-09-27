@@ -12,8 +12,7 @@ package users_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +24,7 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
 
 	readStatus := func(t *testing.T, db *bun.DB, studentID int64) string {
@@ -41,52 +40,52 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 
 	t.Run("updates while the row still holds the expected status", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasPending", "Lifecycle", "1a")
-		testpkg.SetStudentLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
+		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)
 
 		updated, err := repo.TransitionStatus(ctx, student.ID,
-			users.StudentStatusPending, users.StudentStatusActive)
+			testpkg.StudentStatusPending, testpkg.StudentStatusActive)
 		require.NoError(t, err)
 		assert.True(t, updated)
-		assert.Equal(t, string(users.StudentStatusActive), readStatus(t, db, student.ID))
+		assert.Equal(t, string(testpkg.StudentStatusActive), readStatus(t, db, student.ID))
 	})
 
 	t.Run("skips a graduated row instead of resurrecting it", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasAlumnus", "Lifecycle", "4a")
 		// The tick selected this row as active; a grade transition graduated it
 		// before the update landed.
-		testpkg.SetStudentLifecycle(t, db, student.ID, users.StudentStatusAlumnus, nil, nil)
+		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusAlumnus, nil, nil)
 
 		updated, err := repo.TransitionStatus(ctx, student.ID,
-			users.StudentStatusActive, users.StudentStatusInactive)
+			testpkg.StudentStatusActive, testpkg.StudentStatusInactive)
 		require.NoError(t, err)
 		assert.False(t, updated, "a status that moved on must not be overwritten")
-		assert.Equal(t, string(users.StudentStatusAlumnus), readStatus(t, db, student.ID),
+		assert.Equal(t, string(testpkg.StudentStatusAlumnus), readStatus(t, db, student.ID),
 			"the graduation must survive the concurrent lifecycle write")
 	})
 
 	t.Run("second run is a no-op, not an error", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasIdempotent", "Lifecycle", "1a")
-		testpkg.SetStudentLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
+		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)
 
 		first, err := repo.TransitionStatus(ctx, student.ID,
-			users.StudentStatusPending, users.StudentStatusActive)
+			testpkg.StudentStatusPending, testpkg.StudentStatusActive)
 		require.NoError(t, err)
 		require.True(t, first)
 
 		second, err := repo.TransitionStatus(ctx, student.ID,
-			users.StudentStatusPending, users.StudentStatusActive)
+			testpkg.StudentStatusPending, testpkg.StudentStatusActive)
 		require.NoError(t, err)
 		assert.False(t, second)
 	})
 
 	t.Run("does not write across tenants", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasTenant", "Lifecycle", "1a")
-		testpkg.SetStudentLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
+		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)
 
 		updated, err := repo.TransitionStatus(testpkg.TenantContext(2), student.ID,
-			users.StudentStatusPending, users.StudentStatusActive)
+			testpkg.StudentStatusPending, testpkg.StudentStatusActive)
 		require.NoError(t, err)
 		assert.False(t, updated)
-		assert.Equal(t, string(users.StudentStatusPending), readStatus(t, db, student.ID))
+		assert.Equal(t, string(testpkg.StudentStatusPending), readStatus(t, db, student.ID))
 	})
 }

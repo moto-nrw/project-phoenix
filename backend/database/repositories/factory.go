@@ -496,10 +496,10 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		Profile:             identity,
 		StudentGuardian:     newGuardianRelationships(db, identity.FindActiveSchoolMemberships, timetableDependencies.ObserveIdentityAccess),
 		GuardianProfile:     NewGuardianProfileRepository(db),
-		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
-		FamilyProtection:    users.NewFamilyProtectionEventRepository(db),
-		ParentRequestShare:  users.NewParentRequestShareEventRepository(db),
-		ParentRequestEvent:  users.NewParentRequestEventRepository(db),
+		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(peopleRuntime(db)),
+		FamilyProtection:    users.NewFamilyProtectionEventRepository(peopleRuntime(db)),
+		ParentRequestShare:  users.NewParentRequestShareEventRepository(peopleRuntime(db)),
+		ParentRequestEvent:  users.NewParentRequestEventRepository(peopleRuntime(db)),
 
 		// The caregiver blocker re-check locks four owners' binding tables;
 		// each owner takes its own table lock through its public capability.
@@ -512,7 +512,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StaffFinancialData: workforceLegacy.NewStaffFinancialDataRepository(timetableDependencies.Workforce),
 
 		// Guardian payment data (#2608)
-		GuardianFinancialData: users.NewGuardianFinancialDataRepository(db),
+		GuardianFinancialData: users.NewGuardianFinancialDataRepository(peopleRuntime(db)),
 
 		// Staff documents (#1424) — StaffDocument is bound by
 		// bindStaffMembershipDecorators, it needs the membership owner.
@@ -627,7 +627,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StudentDataChangeRequest: nil, // bound to Care Plan below
 
 		// Parent-OGS messaging (tenant-scoped two-way conversation per child)
-		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, users.NewMessageableGuardianRepository(db, identity.FindActiveSchoolMemberships)),
+		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, users.NewMessageableGuardianRepository(peopleRuntime(db), identity.FindActiveSchoolMemberships)),
 		ParentMessage:       parentStore.NewParentMessageRepository(db),
 		// ParentMessageRead and StaffMessageRead are bound by
 		// bindStaffMembershipDecorators, they need the membership owner.

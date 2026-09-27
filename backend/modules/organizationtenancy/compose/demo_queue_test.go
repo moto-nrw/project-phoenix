@@ -146,6 +146,175 @@ func TestDemoSchoolQueueReleasesTheClaimsOfAStoppedProcess(t *testing.T) {
 	assert.True(t, order.Seeded)
 }
 
+func TestDemoSchoolQueueRequeuesInterruptedDeferredSeed(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	otherSchoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	ctx := t.Context()
+
+	interrupted := orderDemoSchool(t, db, "OGS Nord")
+	other := orderDemoSchool(t, db, "OGS Süd")
+	for _, order := range []struct {
+		slug     string
+		tenantID int64
+	}{
+		{slug: interrupted, tenantID: schoolID},
+		{slug: other, tenantID: otherSchoolID},
+	} {
+		_, err := queue.ClaimDemoSchoolOrder(ctx)
+		require.NoError(t, err)
+		require.NoError(t, schools.RememberDemoSchool(ctx, order.slug, organizationtenancy.DemoSchoolState{
+			SchoolID: order.tenantID, SeedJSON: []byte(`{"deferred_seed_pending":true}`),
+		}))
+		require.NoError(t, queue.FinishDemoSchoolOrder(ctx, order.slug, 0, 0))
+	}
+
+	require.NoError(t, queue.RequeueDeferredDemoSchoolOrder(ctx, interrupted))
+	assert.Equal(t, organizationtenancy.DemoSchoolPreparing, demoSchoolProgress(t, db, interrupted).Status)
+	assert.Equal(t, organizationtenancy.DemoSchoolReady, demoSchoolProgress(t, db, other).Status)
+	claimed, err := queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, claimed)
+	assert.Equal(t, interrupted, claimed.Slug)
+	assert.False(t, claimed.Seeded, "a partial seed must be rebuilt, not replayed")
+}
+
+func TestDemoSchoolQueueRetiresTheFinalDeferredSeedFailure(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	firstSchoolID, _ := testpkg.CreateTestTenant(t, db)
+	secondSchoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	ctx := t.Context()
+
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{
+		SchoolID: firstSchoolID, SeedJSON: []byte(`{"deferred_seed_pending":true}`),
+	}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
+	require.NoError(t, queue.RequeueDeferredDemoSchoolOrder(ctx, slug))
+	assert.Equal(t, firstSchoolID, demoSchoolProgress(t, db, slug).SchoolID, "the failed school stays available for final cleanup")
+
+	// An expired access cannot retire the school that the next attempt still
+	// needs to rename before it can rebuild the same slug.
+	hidden, err := queue.RetireDemoSchools(ctx, []string{slug})
+	require.NoError(t, err)
+	assert.Zero(t, hidden)
+	assert.False(t, schoolHidden(t, db, firstSchoolID))
+
+	second, err := queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 2, second.Attempts)
+	require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{
+		SchoolID: secondSchoolID, SeedJSON: []byte(`{"deferred_seed_pending":true}`),
+	}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
+	require.NoError(t, queue.RequeueDeferredDemoSchoolOrder(ctx, slug))
+
+	// The scheduler rejects a third seed before provisioning it and closes the
+	// order. That final cleanup must retire the second school's tenant too.
+	third, err := queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 3, third.Attempts)
+	failed, err := queue.FailDemoSchoolOrder(ctx, slug, 2)
+	require.NoError(t, err)
+	assert.True(t, failed)
+	assert.True(t, schoolHidden(t, db, secondSchoolID))
+}
+
+func TestDemoSchoolQueueRetiresReplacementReservedBeforeStateWrite(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	firstSchoolID, _ := testpkg.CreateTestTenant(t, db)
+	replacementSchoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	ctx := t.Context()
+
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{
+		SchoolID: firstSchoolID, SeedJSON: []byte(`{"deferred_seed_pending":true}`),
+	}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
+	require.NoError(t, queue.RequeueDeferredDemoSchoolOrder(ctx, slug))
+
+	second, err := queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 2, second.Attempts)
+	// Bootstrap created the replacement, but a later core step failed before
+	// the complete seed state could be written.
+	require.NoError(t, schools.ReserveDemoSchool(ctx, slug, replacementSchoolID))
+	failed, err := queue.FailDemoSchoolOrder(ctx, slug, 2)
+	require.NoError(t, err)
+	assert.True(t, failed)
+	assert.True(t, schoolHidden(t, db, replacementSchoolID))
+}
+
+func TestDemoSchoolQueueCompletesReservedState(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	ctx := t.Context()
+
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NoError(t, schools.ReserveDemoSchool(ctx, slug, schoolID))
+	want := organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{"profile":"vollbetrieb"}`)}
+	require.NoError(t, schools.UpdateDemoSchool(ctx, slug, want))
+	got, err := schools.LoadDemoSchool(ctx, slug)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, want.SchoolID, got.SchoolID)
+	assert.JSONEq(t, string(want.SeedJSON), string(got.SeedJSON))
+}
+
+func TestDemoSchoolQueueRequeuesDeferredSeedBeforeItOpened(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	ctx := t.Context()
+
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{
+		SchoolID: schoolID, SeedJSON: []byte(`{"deferred_seed_pending":true}`),
+	}))
+
+	// Startup first releases the stale claim, then must discard the state that
+	// has not reached FinishDemoSchoolOrder yet.
+	require.NoError(t, queue.ReleaseDemoSchoolOrders(ctx))
+	require.NoError(t, queue.RequeueDeferredDemoSchoolOrders(ctx))
+	claimed, err := queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, claimed)
+	assert.Equal(t, slug, claimed.Slug)
+	assert.False(t, claimed.Seeded, "an interrupted core seed must be rebuilt before it opens")
+}
+
 // The serving backend queues and reads progress; the seed state with its
 // credentials stays out of its reach, and it cannot open a school itself.
 func TestDemoSchoolOrdersCannotReadOrForgeSeedState(t *testing.T) {

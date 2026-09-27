@@ -3,7 +3,6 @@ package base
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -637,15 +636,4 @@ func TestRepository_UpdateColumnsIfNull(t *testing.T) {
 	require.NotNil(t, found.UpdatedBy)
 	assert.Equal(t, account.ID, *found.UpdatedBy)
 	assert.Contains(t, []string{`"first"`, `"second"`}, string(found.Value))
-}
-
-func TestDatabaseErrorCause(t *testing.T) {
-	t.Parallel()
-
-	cause := errors.New("driver failure")
-	databaseErr := &modelBase.DatabaseError{Op: "update columns", Err: cause}
-	assert.Same(t, cause, DatabaseErrorCause(databaseErr))
-
-	plainErr := errors.New("plain failure")
-	assert.Same(t, plainErr, DatabaseErrorCause(plainErr))
 }

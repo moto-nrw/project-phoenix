@@ -22,7 +22,9 @@ type DemoSchoolState struct {
 
 type DemoStateEngine interface {
 	LoadDemoSchool(context.Context, string) (*DemoSchoolState, error)
+	ReserveDemoSchool(context.Context, string, int64) error
 	RememberDemoSchool(context.Context, string, DemoSchoolState) error
+	UpdateDemoSchool(context.Context, string, DemoSchoolState) error
 	WithDemoLease(context.Context, string, func(context.Context) error) error
 }
 
@@ -44,11 +46,29 @@ func (d *DemoSchools) LoadDemoSchool(ctx context.Context, name string) (*DemoSch
 	return d.engine.LoadDemoSchool(ctx, name)
 }
 
+// ReserveDemoSchool retains a newly bootstrapped school before its complete
+// seed state exists, so a later failed attempt can retire that school.
+func (d *DemoSchools) ReserveDemoSchool(ctx context.Context, name string, schoolID int64) error {
+	if name == "" || schoolID <= 0 {
+		return fmt.Errorf("demo school name and school ID are required")
+	}
+	return d.engine.ReserveDemoSchool(ctx, name, schoolID)
+}
+
 func (d *DemoSchools) RememberDemoSchool(ctx context.Context, name string, state DemoSchoolState) error {
 	if name == "" || state.SchoolID <= 0 || len(state.SeedJSON) == 0 {
 		return fmt.Errorf("demo school name, school ID and seed state are required")
 	}
 	return d.engine.RememberDemoSchool(ctx, name, state)
+}
+
+// UpdateDemoSchool persists a complete state for a reserved or previously
+// stored school without allowing a caller to replace another school's state.
+func (d *DemoSchools) UpdateDemoSchool(ctx context.Context, name string, state DemoSchoolState) error {
+	if name == "" || state.SchoolID <= 0 || len(state.SeedJSON) == 0 {
+		return fmt.Errorf("demo school name, school ID and seed state are required")
+	}
+	return d.engine.UpdateDemoSchool(ctx, name, state)
 }
 
 func (d *DemoSchools) WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error {
@@ -74,6 +94,10 @@ type DemoSchoolOrder struct {
 // DemoQueueEngine is the demo process's side of the queue.
 type DemoQueueEngine interface {
 	ReleaseDemoSchoolOrders(context.Context) error
+	// RequeueDeferredDemoSchoolOrders discards interrupted optional seed work
+	// before it can be mistaken for a complete ready school.
+	RequeueDeferredDemoSchoolOrders(context.Context) error
+	RequeueDeferredDemoSchoolOrder(context.Context, string) error
 	ClaimDemoSchoolOrder(context.Context) (*DemoSchoolOrder, error)
 	// FinishDemoSchoolOrder opens the school and names the visitor's
 	// caregiver and parent account; zero names none.

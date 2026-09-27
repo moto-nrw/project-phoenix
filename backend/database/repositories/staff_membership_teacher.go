@@ -8,6 +8,7 @@ import (
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"golang.org/x/text/collate"
 	"golang.org/x/text/language"
@@ -361,7 +362,7 @@ func (r teacherMembershipRepository) activeCaregivers(ctx context.Context, accou
 		return nil, err
 	}
 
-	tenantID := usersRepo.TenantIDFromContext(ctx)
+	tenantID := peopleCompose.CallerTenantID(ctx)
 	candidates := make([]activeCaregiverCandidate, 0, len(teachers))
 	accountIDsByTenant := make(map[int64][]int64)
 	for _, teacher := range teachers {
