@@ -1645,7 +1645,7 @@ func newFactory(
 			caregivers: caregiverProfiles{persons: persons, membership: membership},
 			guardianMail: &guardianInvitationWiring{
 				settings: settingsService, schools: organizations,
-				outbox:      func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: emailOutboxService} },
+				outbox:      func() platformModels.OutboxResultEnqueuer { return outboxEnqueuer{outbox: emailOutboxService} },
 				enrollments: repos.ParentEnrollmentRequest,
 				// The accept and login links go to the parents portal, never
 				// to the staff frontend.
@@ -1672,12 +1672,37 @@ func newFactory(
 		DB:          db,
 		Guardians:   repos.StudentGuardian,
 	}))
+	var deliveryForGuardianWelcome *deliveryModule.Module
+	guardianPredecessorStatus := func(ctx context.Context, outboxID int64) (sent bool, terminal bool, err error) {
+		if deliveryForGuardianWelcome == nil {
+			return false, false, errors.New("delivery module is not initialized")
+		}
+		tenantID, err := tenant.TenantFromContext(ctx)
+		if err != nil {
+			return false, false, fmt.Errorf("guardian welcome predecessor: tenant is required: %w", err)
+		}
+		status, found, err := deliveryForGuardianWelcome.EmailStatus(ctx, tenantID.Int64(), outboxID)
+		if err != nil {
+			return false, false, err
+		}
+		if !found {
+			return false, true, nil
+		}
+		switch status.State {
+		case deliveryModule.StateSent:
+			return true, false, nil
+		case deliveryModule.StateCancelled, deliveryModule.StateDeadLetter:
+			return false, true, nil
+		default:
+			return false, false, nil
+		}
+	}
 	renderers := map[string]emailoutbox.Renderer{
 		platformModels.EmailKindGuardianInvitation: guardianInvitationRenderer(NewGuardianInvitationRenderer(GuardianInvitationRendererConfig{
 			DefaultFrom: defaultFrom,
 		})),
 		platformModels.EmailKindGuardianWelcome: guardianInvitationRenderer(NewGuardianWelcomeRenderer(GuardianInvitationRendererConfig{
-			DefaultFrom: defaultFrom,
+			DefaultFrom: defaultFrom, PrecedingEmailStatus: guardianPredecessorStatus,
 		})),
 		platformModels.EmailKindStaffWelcome: NewStaffWelcomeRenderer(StaffWelcomeRendererConfig{
 			DefaultFrom: defaultFrom, MailIdentity: tenantMailIdentity, Logger: authLogger,
@@ -1721,6 +1746,7 @@ func newFactory(
 	if err != nil {
 		return nil, fmt.Errorf("initialize delivery module: %w", err)
 	}
+	deliveryForGuardianWelcome = deliveryRuntime.Module
 	emailOutboxWorker := deliveryRuntime.Worker
 	emailOutboxService = emailoutbox.NewService(durableEmailAdapter{module: deliveryRuntime.Module})
 

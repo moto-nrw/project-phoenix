@@ -8,6 +8,7 @@ import (
 
 var (
 	ErrCancelled           = errors.New("delivery provider cancelled the intent")
+	ErrDeferred            = errors.New("delivery provider deferred the intent")
 	ErrIdempotencyConflict = errors.New("delivery idempotency key reused with different intent")
 )
 

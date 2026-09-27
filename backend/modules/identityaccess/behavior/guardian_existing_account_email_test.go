@@ -25,7 +25,7 @@ func TestEnqueueExistingAccountEmail_RendersPortalLoginHint(t *testing.T) {
 		FrontendURL: "https://eltern.example.test/",
 	})
 
-	queued := mailer.EnqueueExistingAccount(context.Background(), services.GuardianMailRecipient{
+	_, queued := mailer.EnqueueExistingAccount(context.Background(), services.GuardianMailRecipient{
 		FirstName: " Olga ", LastName: "Muster", Email: " admin@example.test ",
 	}, "OGS Musterschule")
 
@@ -57,7 +57,8 @@ func TestEnqueueExistingAccountEmail_SkipsWithoutAddress(t *testing.T) {
 	outbox := testpkg.NewCapturingOutbox()
 	mailer := services.NewGuardianInvitationMailer(services.GuardianInvitationMailerConfig{Outbox: outbox})
 
-	assert.False(t, mailer.EnqueueExistingAccount(context.Background(), services.GuardianMailRecipient{Email: "  "}, ""))
+	_, queued := mailer.EnqueueExistingAccount(context.Background(), services.GuardianMailRecipient{Email: "  "}, "")
+	assert.False(t, queued)
 	assert.Empty(t, outbox.Requests())
 }
 
@@ -69,7 +70,8 @@ func TestEnqueueExistingAccountEmail_ReportsEnqueueFailure(t *testing.T) {
 	})
 	mailer := services.NewGuardianInvitationMailer(services.GuardianInvitationMailerConfig{Outbox: outbox})
 
-	assert.False(t, mailer.EnqueueExistingAccount(context.Background(), services.GuardianMailRecipient{Email: "parent@example.test"}, ""))
+	_, queued := mailer.EnqueueExistingAccount(context.Background(), services.GuardianMailRecipient{Email: "parent@example.test"}, "")
+	assert.False(t, queued)
 	assert.Empty(t, outbox.Requests())
 }
 

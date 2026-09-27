@@ -490,11 +490,11 @@ func (d guardianInvitationDelivery) SchoolName(ctx context.Context, tenantID int
 	return d.source.SchoolName(ctx, tenantID)
 }
 
-func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) bool {
+func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) (int64, bool) {
 	return d.source.EnqueueInvitationEmail(ctx, identityaccess.GuardianInvitation(invitation), GuardianProfile(profile), schoolName)
 }
 
-func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string) bool {
+func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string) (int64, bool) {
 	return d.source.EnqueueExistingAccountEmail(ctx, GuardianProfile(profile), schoolName)
 }
 

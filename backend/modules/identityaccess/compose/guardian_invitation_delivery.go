@@ -14,13 +14,13 @@ import (
 type GuardianInvitationDelivery interface {
 	InvitationExpiry(ctx context.Context) time.Duration
 	SchoolName(ctx context.Context, tenantID int64) string
-	EnqueueInvitationEmail(ctx context.Context, invitation identityaccess.GuardianInvitation, profile GuardianProfile, schoolName string) bool
-	EnqueueExistingAccountEmail(ctx context.Context, profile GuardianProfile, schoolName string) bool
+	EnqueueInvitationEmail(ctx context.Context, invitation identityaccess.GuardianInvitation, profile GuardianProfile, schoolName string) (outboxID int64, queued bool)
+	EnqueueExistingAccountEmail(ctx context.Context, profile GuardianProfile, schoolName string) (outboxID int64, queued bool)
 	// EnqueueWelcomeEmail queues the welcome that follows the first mail of
 	// a new access (#3534), at most once per guardian and school.
-	EnqueueWelcomeEmail(ctx context.Context, profile GuardianProfile, tenantID int64, schoolName string)
+	EnqueueWelcomeEmail(ctx context.Context, profile GuardianProfile, tenantID int64, schoolName string, precedingOutboxID int64)
 }
 
-func (d guardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, profile domain.GuardianProfile, tenantID int64, schoolName string) {
-	d.source.EnqueueWelcomeEmail(ctx, GuardianProfile(profile), tenantID, schoolName)
+func (d guardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, profile domain.GuardianProfile, tenantID int64, schoolName string, precedingOutboxID int64) {
+	d.source.EnqueueWelcomeEmail(ctx, GuardianProfile(profile), tenantID, schoolName, precedingOutboxID)
 }

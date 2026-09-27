@@ -375,7 +375,7 @@ func TestGuardianWelcomeRendersHelpAndParentInfo(t *testing.T) {
 	})
 	require.NoError(t, mailer.EnqueueWelcome(context.Background(), 42, services.GuardianMailRecipient{
 		FirstName: " Olga ", LastName: "Muster", Email: " olga@example.test ",
-	}, "OGS Musterschule", "https://eltern.example.test/help/eltern-konto-einrichten?role=parent"))
+	}, "OGS Musterschule", "https://eltern.example.test/help/eltern-konto-einrichten?role=parent", 7))
 
 	require.Len(t, outbox.Requests(), 1)
 	req := outbox.Requests()[0]
@@ -385,8 +385,11 @@ func TestGuardianWelcomeRendersHelpAndParentInfo(t *testing.T) {
 	assert.Equal(t, "guardian_welcome:42", req.IdempotencyKey)
 	assert.NotContains(t, req.Payload, "invitation_url")
 	assert.Equal(t, "https://eltern.example.test/downloads/moto-elterninfo.pdf", req.Payload["parent_info_url"])
+	assert.Equal(t, int64(7), req.Payload["preceding_outbox_id"])
 
-	render := services.NewGuardianWelcomeRenderer(services.GuardianInvitationRendererConfig{})
+	render := services.NewGuardianWelcomeRenderer(services.GuardianInvitationRendererConfig{
+		PrecedingEmailStatus: func(context.Context, int64) (bool, bool, error) { return true, false, nil },
+	})
 	msg, err := render(context.Background(), req.Payload)
 	require.NoError(t, err)
 	assert.Equal(t, "Willkommen bei moto – OGS Musterschule", msg.Subject)
@@ -399,6 +402,18 @@ func TestGuardianWelcomeRendersHelpAndParentInfo(t *testing.T) {
 	assert.Contains(t, body, `href="https://eltern.example.test/downloads/moto-elterninfo.pdf"`)
 	assert.Contains(t, body, "Zur Hilfe")
 	assert.NotContains(t, body, "Einladung annehmen")
+
+	waiting := services.NewGuardianWelcomeRenderer(services.GuardianInvitationRendererConfig{
+		PrecedingEmailStatus: func(context.Context, int64) (bool, bool, error) { return false, false, nil },
+	})
+	_, err = waiting(context.Background(), req.Payload)
+	require.Error(t, err, "the welcome waits for its access email")
+
+	cancelled := services.NewGuardianWelcomeRenderer(services.GuardianInvitationRendererConfig{
+		PrecedingEmailStatus: func(context.Context, int64) (bool, bool, error) { return false, true, nil },
+	})
+	_, err = cancelled(context.Background(), req.Payload)
+	require.ErrorContains(t, err, "render cancelled", "a permanently failed access email cancels its welcome")
 
 	_, err = render(context.Background(), map[string]any{"recipient_email": "olga@example.test"})
 	require.Error(t, err, "a welcome without help link is not sent")

@@ -205,11 +205,19 @@ func guardianInvitationRenderer(render func(context.Context, map[string]any) (*e
 type outboxEnqueuer struct{ outbox *emailoutbox.Service }
 
 func (o outboxEnqueuer) EnqueueOutbox(ctx context.Context, req platformModels.OutboxEnqueueRequest) error {
-	_, err := o.outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
+	_, err := o.EnqueueOutboxWithResult(ctx, req)
+	return err
+}
+
+func (o outboxEnqueuer) EnqueueOutboxWithResult(ctx context.Context, req platformModels.OutboxEnqueueRequest) (platformModels.OutboxEnqueued, error) {
+	stored, err := o.outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
 		Kind: req.Kind, Payload: req.Payload, RelatedEntityType: req.RelatedEntityType,
 		RelatedEntityID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey, DeliverAfter: req.DeliverAfter,
 	})
-	return err
+	if err != nil {
+		return platformModels.OutboxEnqueued{}, err
+	}
+	return platformModels.OutboxEnqueued{ID: stored.ID}, nil
 }
 
 func (a durableEmailAdapter) CancelEmail(ctx context.Context, tenantID int64, relatedType string, relatedID int64, reason string) (int64, error) {
@@ -290,6 +298,9 @@ func (p *deliveryProvider) SendEmail(ctx context.Context, intent delivery.Claime
 	if err != nil {
 		if errors.Is(err, emailoutbox.ErrRenderCancelled) {
 			return delivery.ProviderResult{}, fmt.Errorf("%w: %v", delivery.ErrCancelled, err)
+		}
+		if errors.Is(err, emailoutbox.ErrRenderDeferred) {
+			return delivery.ProviderResult{}, fmt.Errorf("%w: %v", delivery.ErrDeferred, err)
 		}
 		return delivery.ProviderResult{}, err
 	}

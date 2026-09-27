@@ -147,6 +147,16 @@ const pushFinalizeCancelledSQL = `UPDATE platform.push_outbox
 		lease_token = NULL, lease_expires_at = NULL, updated_at = ?
 	WHERE id = ? AND status = 'claimed' AND lease_token = ?`
 
+const emailFinalizeDeferredSQL = `UPDATE platform.email_outbox
+	SET status = 'pending', last_error = ?, next_retry_at = ?, lease_token = NULL,
+		lease_expires_at = NULL, updated_at = ?
+	WHERE id = ? AND status = 'claimed' AND lease_token = ?`
+
+const pushFinalizeDeferredSQL = `UPDATE platform.push_outbox
+	SET status = 'pending', last_error = ?, next_retry_at = ?, lease_token = NULL,
+		lease_expires_at = NULL, updated_at = ?
+	WHERE id = ? AND status = 'claimed' AND lease_token = ?`
+
 const emailFinalizeFailureSQL = `UPDATE platform.email_outbox
 	SET status = ?, attempts = ?, last_error = ?, next_retry_at = ?,
 		dead_letter_at = CASE WHEN ? = 'dead_letter' THEN ?::timestamptz ELSE NULL END,
@@ -176,6 +186,8 @@ const pushCancelSQL = `UPDATE platform.push_outbox
 const emailStatusesSQL = `SELECT * FROM platform.email_outbox
 	WHERE tenant_id = ? AND related_entity_type = ? AND related_entity_id = ?
 	ORDER BY created_at, id`
+
+const emailStatusSQL = `SELECT * FROM platform.email_outbox WHERE tenant_id = ? AND id = ?`
 
 const pushStatusesSQL = `SELECT * FROM platform.push_outbox
 	WHERE tenant_id = ? AND related_entity_type = ? AND related_entity_id = ?
@@ -420,6 +432,33 @@ func (s *Store) FinalizeCancelled(ctx context.Context, transport domain.Transpor
 	return finalized, nil
 }
 
+func (s *Store) FinalizeDeferred(ctx context.Context, transport domain.Transport, id int64, token, reason string, nextRetryAt time.Time) (bool, error) {
+	var finalized bool
+	err := s.adminTx(ctx, func(txCtx context.Context, db bun.IDB) error {
+		args := []any{reason, nextRetryAt, nextRetryAt, id, token}
+		var result interface{ RowsAffected() (int64, error) }
+		var execErr error
+		switch transport {
+		case domain.TransportEmail:
+			result, execErr = db.NewRaw(emailFinalizeDeferredSQL, args...).Exec(txCtx)
+		case domain.TransportPush:
+			result, execErr = db.NewRaw(pushFinalizeDeferredSQL, args...).Exec(txCtx)
+		default:
+			return unknownTransport(transport)
+		}
+		if execErr != nil {
+			return execErr
+		}
+		rows, rowsErr := result.RowsAffected()
+		finalized = rows == 1
+		return rowsErr
+	})
+	if err != nil {
+		return false, fmt.Errorf("delivery postgres: finalize deferred %s intent %d: %w", transport, id, err)
+	}
+	return finalized, nil
+}
+
 func (s *Store) FinalizeFailure(ctx context.Context, transport domain.Transport, id int64, token string, attempts int, lastError string, nextRetryAt time.Time, maxAttempts int) (domain.FinalizeResult, error) {
 	state := "pending"
 	if attempts >= maxAttempts {
@@ -495,6 +534,21 @@ func (s *Store) Statuses(ctx context.Context, tenantID int64, transport domain.T
 		return nil, fmt.Errorf("delivery postgres: list %s statuses: %w", transport, err)
 	}
 	return toDomainRows(transport, rows), nil
+}
+
+func (s *Store) EmailStatus(ctx context.Context, tenantID, id int64) (domain.Intent, bool, error) {
+	db, err := s.tenantDB(ctx, tenantID)
+	if err != nil {
+		return domain.Intent{}, false, err
+	}
+	var row intentRow
+	if err := db.NewRaw(emailStatusSQL, tenantID, id).Scan(ctx, &row); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Intent{}, false, nil
+		}
+		return domain.Intent{}, false, fmt.Errorf("delivery postgres: get email status: %w", err)
+	}
+	return toDomainRows(domain.TransportEmail, []intentRow{row})[0], true, nil
 }
 
 func (s *Store) Backlog(ctx context.Context) (int, error) {

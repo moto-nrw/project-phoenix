@@ -36,16 +36,24 @@ func (o *CapturingOutbox) FailKind(kind string, fail func(ctx context.Context) e
 // EnqueueOutbox records the request and accepts it, unless FailKind named
 // its kind.
 func (o *CapturingOutbox) EnqueueOutbox(ctx context.Context, req platform.OutboxEnqueueRequest) error {
+	_, err := o.EnqueueOutboxWithResult(ctx, req)
+	return err
+}
+
+// EnqueueOutboxWithResult records the request and exposes its stable capture
+// ID to flows that need to order a follow-up delivery behind it.
+func (o *CapturingOutbox) EnqueueOutboxWithResult(ctx context.Context, req platform.OutboxEnqueueRequest) (platform.OutboxEnqueued, error) {
 	o.mu.Lock()
 	fail := o.failures[req.Kind]
 	if fail == nil {
 		o.requests = append(o.requests, req)
 	}
+	id := int64(len(o.requests))
 	o.mu.Unlock()
 	if fail != nil {
-		return fail(ctx)
+		return platform.OutboxEnqueued{}, fail(ctx)
 	}
-	return nil
+	return platform.OutboxEnqueued{ID: id}, nil
 }
 
 // Requests returns a copy of every request enqueued so far, in order.

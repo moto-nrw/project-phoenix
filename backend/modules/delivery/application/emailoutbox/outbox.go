@@ -51,6 +51,11 @@ type Renderer interface {
 // instead of retrying something it must never send.
 var ErrRenderCancelled = errors.New("render cancelled")
 
+// ErrRenderDeferred tells Delivery that the intent remains valid but depends
+// on a preceding intent that has not reached a final state yet. Delivery
+// reschedules it without consuming a send attempt.
+var ErrRenderDeferred = errors.New("render deferred")
+
 // RendererFunc adapts a plain function to the Renderer interface for
 // brevity at registration sites.
 type RendererFunc func(ctx context.Context, intent *Intent) (*email.Message, error)

@@ -51,13 +51,13 @@ func renderStaffWelcome(ctx context.Context, tenantID, invitationID int64, paylo
 	}
 	sent, err := cfg.InvitationDeliverySent(ctx, invitationID)
 	if err != nil {
-		if errors.Is(err, identityaccess.ErrInvitationUsed) || errors.Is(err, identityaccess.ErrInvitationExpired) {
+		if errors.Is(err, identityaccess.ErrInvitationUsed) || errors.Is(err, identityaccess.ErrInvitationExpired) || errors.Is(err, identityaccess.ErrInvitationNotFound) {
 			return nil, fmt.Errorf("%w: staff invitation is no longer redeemable", emailoutbox.ErrRenderCancelled)
 		}
 		return nil, fmt.Errorf("look up staff invitation delivery: %w", err)
 	}
 	if !sent {
-		return nil, errors.New("staff invitation email has not been accepted")
+		return nil, fmt.Errorf("%w: staff invitation email has not been accepted", emailoutbox.ErrRenderDeferred)
 	}
 
 	recipient, _ := payload[staffWelcomePayloadRecipientEmail].(string)

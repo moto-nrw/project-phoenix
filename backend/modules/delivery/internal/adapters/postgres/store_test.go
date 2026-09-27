@@ -381,6 +381,30 @@ func TestStoreProviderCancellationFinalizesUnderLeaseToken(t *testing.T) {
 	assert.False(t, stale)
 }
 
+func TestStoreDeferredDeliveryKeepsItsAttemptBudget(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	enqueued := enqueueEmail(t, db, store, ctx, "provider-deferred")
+	claimed, err := store.Claim(ctx, domain.TransportEmail, 1, time.Now(), time.Now().Add(time.Minute))
+	require.NoError(t, err)
+	require.Len(t, claimed, 1)
+
+	finalized, err := store.FinalizeDeferred(ctx, domain.TransportEmail, enqueued.ID, *claimed[0].LeaseToken, "access email pending", time.Now().Add(time.Minute))
+	require.NoError(t, err)
+	require.True(t, finalized)
+
+	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		status, found, statusErr := store.EmailStatus(txCtx, testpkg.Tenant(t), enqueued.ID)
+		require.NoError(t, statusErr)
+		require.True(t, found)
+		assert.Equal(t, string(domain.StatePending), status.Status)
+		assert.Zero(t, status.Attempts)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestStoreStatusReadTracksDeliveryState(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)

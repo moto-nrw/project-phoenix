@@ -24,3 +24,15 @@ type OutboxEnqueueRequest struct {
 type OutboxEnqueuer interface {
 	EnqueueOutbox(ctx context.Context, req OutboxEnqueueRequest) error
 }
+
+// OutboxEnqueued identifies one persisted e-mail intent.
+type OutboxEnqueued struct {
+	ID int64
+}
+
+// OutboxResultEnqueuer is the variant producers use when a later intent must
+// depend on the e-mail row this call creates.
+type OutboxResultEnqueuer interface {
+	OutboxEnqueuer
+	EnqueueOutboxWithResult(ctx context.Context, req OutboxEnqueueRequest) (OutboxEnqueued, error)
+}

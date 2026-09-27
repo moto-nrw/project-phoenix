@@ -75,10 +75,11 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 // welcome that follows it (#3534). A resend mails the link alone.
 func (l *AccountLifecycle) mailNewInvitation(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile) {
 	schoolName := l.delivery.SchoolName(ctx, invitation.TenantID)
-	if !l.delivery.EnqueueInvitationEmail(ctx, invitation, profile, schoolName) {
+	precedingOutboxID, queued := l.delivery.EnqueueInvitationEmail(ctx, invitation, profile, schoolName)
+	if !queued {
 		return
 	}
-	l.delivery.EnqueueWelcomeEmail(ctx, profile, invitation.TenantID, schoolName)
+	l.delivery.EnqueueWelcomeEmail(ctx, profile, invitation.TenantID, schoolName, precedingOutboxID)
 }
 
 // mailExistingAccountAccess tells an account holder about access granted
@@ -86,10 +87,11 @@ func (l *AccountLifecycle) mailNewInvitation(ctx context.Context, invitation dom
 // sends the welcome once per guardian and school.
 func (l *AccountLifecycle) mailExistingAccountAccess(ctx context.Context, profile domain.GuardianProfile, tenantID int64) {
 	schoolName := l.delivery.SchoolName(ctx, tenantID)
-	if !l.delivery.EnqueueExistingAccountEmail(ctx, profile, schoolName) {
+	precedingOutboxID, queued := l.delivery.EnqueueExistingAccountEmail(ctx, profile, schoolName)
+	if !queued {
 		return
 	}
-	l.delivery.EnqueueWelcomeEmail(ctx, profile, tenantID, schoolName)
+	l.delivery.EnqueueWelcomeEmail(ctx, profile, tenantID, schoolName, precedingOutboxID)
 }
 
 // ValidateGuardianInvitation returns the public details of a redeemable

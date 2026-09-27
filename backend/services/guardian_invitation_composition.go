@@ -41,7 +41,7 @@ type GuardianInvitationCapability interface {
 type guardianInvitationWiring struct {
 	settings    config.SettingsService
 	schools     organizationtenancy.Query
-	outbox      func() platformModels.OutboxEnqueuer
+	outbox      func() platformModels.OutboxResultEnqueuer
 	enrollments guardianEnrollmentClaims
 	// parentsURL is the origin of the accept and login links; a guardian
 	// signs in on the parents portal, never on the staff frontend.
@@ -81,13 +81,13 @@ func (unsentGuardianMail) InvitationExpiry(context.Context) time.Duration {
 	return GuardianTokenExpiryFallback
 }
 func (unsentGuardianMail) SchoolName(context.Context, int64) string { return "" }
-func (unsentGuardianMail) EnqueueInvitationEmail(context.Context, identityaccess.GuardianInvitation, identityaccessCompose.GuardianProfile, string) bool {
-	return false
+func (unsentGuardianMail) EnqueueInvitationEmail(context.Context, identityaccess.GuardianInvitation, identityaccessCompose.GuardianProfile, string) (int64, bool) {
+	return 0, false
 }
-func (unsentGuardianMail) EnqueueExistingAccountEmail(context.Context, identityaccessCompose.GuardianProfile, string) bool {
-	return false
+func (unsentGuardianMail) EnqueueExistingAccountEmail(context.Context, identityaccessCompose.GuardianProfile, string) (int64, bool) {
+	return 0, false
 }
-func (unsentGuardianMail) EnqueueWelcomeEmail(context.Context, identityaccessCompose.GuardianProfile, int64, string) {
+func (unsentGuardianMail) EnqueueWelcomeEmail(context.Context, identityaccessCompose.GuardianProfile, int64, string, int64) {
 }
 
 // --- delivery ---------------------------------------------------------------
@@ -133,19 +133,20 @@ func (d guardianInvitationDelivery) mailer() GuardianInvitationMailer {
 	})
 }
 
-func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation identityaccess.GuardianInvitation, profile identityaccessCompose.GuardianProfile, schoolName string) bool {
+func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation identityaccess.GuardianInvitation, profile identityaccessCompose.GuardianProfile, schoolName string) (int64, bool) {
 	return d.mailer().EnqueueInvitation(ctx, invitation.ID, invitation.Token, invitation.ExpiresAt, guardianMailRecipient(profile), schoolName)
 }
 
-func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile identityaccessCompose.GuardianProfile, schoolName string) bool {
+func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile identityaccessCompose.GuardianProfile, schoolName string) (int64, bool) {
 	return d.mailer().EnqueueExistingAccount(ctx, guardianMailRecipient(profile), schoolName)
 }
 
 // EnqueueWelcomeEmail queues the welcome that follows a new access (#3534).
-// The help link carries the school's settings as they stand now. Both steps
-// run on the invitation's transaction, each in its own savepoint: a failed
-// statement loses the welcome or a link parameter, never the invitation.
-func (d guardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, profile identityaccessCompose.GuardianProfile, tenantID int64, schoolName string) {
+// Settings failures return a complete help URL without the unresolved
+// parameters, but their transaction must be rolled back before enqueueing.
+// Each operation therefore has its own savepoint; neither may abort the
+// invitation transaction.
+func (d guardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, profile identityaccessCompose.GuardianProfile, tenantID int64, schoolName string, precedingOutboxID int64) {
 	var helpURL string
 	d.inSavepoint(ctx, func(savepointCtx context.Context) error {
 		var err error
@@ -153,7 +154,7 @@ func (d guardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, pro
 		return err
 	})
 	d.inSavepoint(ctx, func(savepointCtx context.Context) error {
-		return d.mailer().EnqueueWelcome(savepointCtx, profile.ID, guardianMailRecipient(profile), schoolName, helpURL)
+		return d.mailer().EnqueueWelcome(savepointCtx, profile.ID, guardianMailRecipient(profile), schoolName, helpURL, precedingOutboxID)
 	})
 }
 

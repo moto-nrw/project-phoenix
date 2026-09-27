@@ -883,15 +883,15 @@ type lifecycleDelivery struct {
 
 func (lifecycleDelivery) InvitationExpiry(context.Context) time.Duration { return 48 * time.Hour }
 func (lifecycleDelivery) SchoolName(context.Context, int64) string       { return "OGS Musterschule" }
-func (d *lifecycleDelivery) EnqueueInvitationEmail(_ context.Context, invitation domain.GuardianInvitation, _ domain.GuardianProfile, _ string) bool {
+func (d *lifecycleDelivery) EnqueueInvitationEmail(_ context.Context, invitation domain.GuardianInvitation, _ domain.GuardianProfile, _ string) (int64, bool) {
 	d.emails = append(d.emails, invitation)
-	return d.invitationMailQueued
+	return int64(len(d.emails)), d.invitationMailQueued
 }
-func (d *lifecycleDelivery) EnqueueExistingAccountEmail(_ context.Context, profile domain.GuardianProfile, _ string) bool {
+func (d *lifecycleDelivery) EnqueueExistingAccountEmail(_ context.Context, profile domain.GuardianProfile, _ string) (int64, bool) {
 	d.accessEmails = append(d.accessEmails, profile)
-	return d.existingAccountQueued
+	return int64(len(d.accessEmails)), d.existingAccountQueued
 }
-func (d *lifecycleDelivery) EnqueueWelcomeEmail(_ context.Context, profile domain.GuardianProfile, _ int64, _ string) {
+func (d *lifecycleDelivery) EnqueueWelcomeEmail(_ context.Context, profile domain.GuardianProfile, _ int64, _ string, _ int64) {
 	d.welcomeEmails = append(d.welcomeEmails, profile)
 }
 

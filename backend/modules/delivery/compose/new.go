@@ -162,6 +162,14 @@ func (e moduleEngine) Statuses(ctx context.Context, tenantID int64, transport de
 	return statuses, nil
 }
 
+func (e moduleEngine) EmailStatus(ctx context.Context, tenantID, id int64) (delivery.EmailStatus, bool, error) {
+	intent, found, err := e.service.EmailStatus(ctx, tenantID, id)
+	if err != nil || !found {
+		return delivery.EmailStatus{}, found, err
+	}
+	return delivery.EmailStatus{State: delivery.State(intent.Status)}, true, nil
+}
+
 func (e moduleEngine) ReplaceEmailDeliveries(ctx context.Context, tenantID int64, related delivery.RelatedEntity, rows []delivery.EmailDelivery) error {
 	values := make([]domain.EmailDelivery, 0, len(rows))
 	for _, row := range rows {
@@ -257,6 +265,9 @@ func (p providerAdapter) Send(ctx context.Context, intent domain.Intent) (domain
 func providerResult(value delivery.ProviderResult, err error) (domain.ProviderResult, error) {
 	if errors.Is(err, delivery.ErrCancelled) {
 		err = fmt.Errorf("%w: %v", domain.ErrCancelled, err)
+	}
+	if errors.Is(err, delivery.ErrDeferred) {
+		err = fmt.Errorf("%w: %v", domain.ErrDeferred, err)
 	}
 	return toDomainProviderResult(value), err
 }

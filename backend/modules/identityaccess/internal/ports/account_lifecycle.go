@@ -179,14 +179,14 @@ type GuardianInvitationDelivery interface {
 	SchoolName(ctx context.Context, tenantID int64) string
 	// EnqueueInvitationEmail reports whether the primary access mail was
 	// queued. A welcome must not follow a failed primary mail.
-	EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) bool
+	EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) (outboxID int64, queued bool)
 	// EnqueueExistingAccountEmail reports whether the primary access mail was
 	// queued. A welcome must not follow a failed primary mail.
-	EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string) bool
+	EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string) (outboxID int64, queued bool)
 	// EnqueueWelcomeEmail queues the welcome that follows the first mail of
 	// a new access (#3534). A guardian gets it at most once per school; a
 	// resend never asks for it.
-	EnqueueWelcomeEmail(ctx context.Context, profile domain.GuardianProfile, tenantID int64, schoolName string)
+	EnqueueWelcomeEmail(ctx context.Context, profile domain.GuardianProfile, tenantID int64, schoolName string, precedingOutboxID int64)
 }
 
 // FinancialAudit is the consumer-owned port over the Audit platform's

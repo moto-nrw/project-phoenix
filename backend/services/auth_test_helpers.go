@@ -261,7 +261,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 			caregivers: caregiverProfiles{persons: owners.persons, membership: owners.membership},
 			guardianMail: &guardianInvitationWiring{
 				settings: settings.Settings, schools: r.School,
-				outbox:      func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: deliveryModule.EmailOutbox} },
+				outbox:      func() platformModels.OutboxResultEnqueuer { return outboxEnqueuer{outbox: deliveryModule.EmailOutbox} },
 				enrollments: r.ParentEnrollmentRequest, parentsURL: parentsURL,
 				fallbackExpiry: time.Duration(inviteHours) * time.Hour, logger: logger,
 			},

@@ -69,6 +69,10 @@ func (s *Service) Statuses(ctx context.Context, tenantID int64, transport domain
 	return s.store.Statuses(ctx, tenantID, transport, related.Type, related.ID)
 }
 
+func (s *Service) EmailStatus(ctx context.Context, tenantID, id int64) (domain.Intent, bool, error) {
+	return s.store.EmailStatus(ctx, tenantID, id)
+}
+
 func (s *Service) ReplaceEmailDeliveries(ctx context.Context, tenantID int64, related domain.RelatedEntity, rows []domain.EmailDelivery) error {
 	return s.store.ReplaceEmailDeliveries(ctx, tenantID, related.Type, related.ID, rows)
 }
