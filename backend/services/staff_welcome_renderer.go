@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 const (
@@ -50,6 +51,9 @@ func renderStaffWelcome(ctx context.Context, tenantID, invitationID int64, paylo
 	}
 	sent, err := cfg.InvitationDeliverySent(ctx, invitationID)
 	if err != nil {
+		if errors.Is(err, identityaccess.ErrInvitationUsed) || errors.Is(err, identityaccess.ErrInvitationExpired) {
+			return nil, fmt.Errorf("%w: staff invitation is no longer redeemable", emailoutbox.ErrRenderCancelled)
+		}
 		return nil, fmt.Errorf("look up staff invitation delivery: %w", err)
 	}
 	if !sent {

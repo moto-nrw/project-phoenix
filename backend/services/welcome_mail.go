@@ -61,33 +61,33 @@ func staffHelpRole(schoolPortal bool, roleName string, rolePermissions []string)
 // welcomeHelpSettings resolves the three tenant settings that change the
 // help instructions for the school in context: tenant override, then
 // registry default. The guardian flows resolve inside their request
-// transaction; the staff welcome, sent after commit, binds its school with
-// schoolSettings.
+// transaction; the staff welcome is queued in the invitation transaction
+// through schoolSettings.
 type welcomeHelpSettings interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
-// tenantSettingsResolver resolves a setting for an explicit school in its
-// own transaction.
+// tenantSettingsResolver resolves a setting for an explicit school on the
+// caller's already-open transaction.
 type tenantSettingsResolver interface {
-	ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error)
-	ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error)
+	ResolveBoolForTenantInTx(ctx context.Context, tenantID int64, key string) (bool, error)
+	ResolveStringForTenantInTx(ctx context.Context, tenantID int64, key string) (string, error)
 }
 
-// schoolSettings binds a tenant settings resolver to one school, for work
-// that runs outside the request transaction.
+// schoolSettings binds a tenant settings resolver to one school while the
+// invitation transaction is open.
 type schoolSettings struct {
 	resolver tenantSettingsResolver
 	tenantID int64
 }
 
 func (s schoolSettings) ResolveBool(ctx context.Context, key string) (bool, error) {
-	return s.resolver.ResolveBoolForTenant(ctx, s.tenantID, key)
+	return s.resolver.ResolveBoolForTenantInTx(ctx, s.tenantID, key)
 }
 
 func (s schoolSettings) ResolveString(ctx context.Context, key string) (string, error) {
-	return s.resolver.ResolveStringForTenant(ctx, s.tenantID, key)
+	return s.resolver.ResolveStringForTenantInTx(ctx, s.tenantID, key)
 }
 
 // welcomeHelpURL builds the help link for role at origin. A setting that

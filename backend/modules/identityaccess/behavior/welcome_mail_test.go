@@ -152,6 +152,38 @@ func TestSchoolWelcomeWaitsForAcceptedInvitation(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond)
 }
 
+func TestSchoolWelcomeRejectsRevokedAndReplacedInvitations(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	creator := testpkg.CreateTestAccount(t, db, "welcome-revoke-creator")
+	role := testpkg.CreateTestRole(t, db, "welcome-revoke-caregiver")
+
+	revoked, err := module.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
+		Email: inviteeAddress("welcome-revoked"), RoleID: role.ID, CreatedBy: creator.ID,
+		ActorPermissions: []string{usersManagePermission},
+	})
+	require.NoError(t, err)
+	require.NoError(t, module.Invitation.RevokeSchoolInvitation(ctx, revoked.ID, creator.ID))
+	_, err = module.Invitation.SchoolInvitationDeliverySent(ctx, revoked.ID)
+	require.ErrorIs(t, err, identityaccess.ErrInvitationUsed)
+
+	replaced, err := module.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
+		Email: inviteeAddress("welcome-replaced"), RoleID: role.ID, CreatedBy: creator.ID,
+		ActorPermissions: []string{usersManagePermission},
+	})
+	require.NoError(t, err)
+	_, err = module.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
+		Email: replaced.Email, RoleID: role.ID, CreatedBy: creator.ID,
+		ActorPermissions: []string{usersManagePermission},
+	})
+	require.NoError(t, err)
+	_, err = module.Invitation.SchoolInvitationDeliverySent(ctx, replaced.ID)
+	require.ErrorIs(t, err, identityaccess.ErrInvitationUsed)
+}
+
 // A role that carries config:manage is a lead, whatever the school calls it.
 func TestSchoolWelcomeOpensTheLeadArticleForALeadRole(t *testing.T) {
 	t.Parallel()

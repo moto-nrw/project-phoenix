@@ -662,9 +662,10 @@ func (s *SchoolInvitation) RecordInvitationDelivery(ctx context.Context, id int6
 	return err
 }
 
-// InvitationDeliverySent reports whether the transport accepted the
-// invitation mail. The durable welcome renderer uses this to preserve the
-// invitation-before-welcome order across process restarts.
+// InvitationDeliverySent reports whether the transport accepted a still
+// redeemable invitation mail. The durable welcome renderer uses this to
+// preserve the invitation-before-welcome order and to cancel a welcome whose
+// invitation was spent or expired while it waited in the outbox.
 func (s *SchoolInvitation) InvitationDeliverySent(ctx context.Context, id int64) (bool, error) {
 	if id <= 0 {
 		return false, failed("find invitation delivery", domain.ErrInvitationNotFound)
@@ -676,6 +677,12 @@ func (s *SchoolInvitation) InvitationDeliverySent(ctx context.Context, id int64)
 	}
 	if !found {
 		return false, failed("find invitation delivery", domain.ErrInvitationNotFound)
+	}
+	if invitation.UsedAt != nil {
+		return false, failed("find invitation delivery", domain.ErrInvitationUsed)
+	}
+	if !invitation.ExpiresAt.After(s.now()) {
+		return false, failed("find invitation delivery", domain.ErrInvitationExpired)
 	}
 	if invitation.Delivery.SentAt == nil {
 		return false, nil
