@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -199,13 +200,28 @@ func (d invitationDelivery) dispatchSchoolInvitation(ctx context.Context, invita
 // waits for the invitation delivery record, so a crash after SMTP accepts the
 // invitation cannot lose the follow-up or send it first.
 func (d invitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation identityaccess.SchoolInvitation, schoolName string, portal identityaccess.InvitationPortal, rolePermissions []string) error {
+	if d.dispatcher == nil {
+		d.logger.Warn("email dispatcher unavailable, skipping staff welcome email",
+			slog.Int64("invitation_id", invitation.ID))
+		return nil
+	}
 	if d.outbox == nil || d.outbox() == nil {
 		return fmt.Errorf("staff welcome outbox is not configured")
 	}
 	frontend := d.portalURL(portal)
-	// A setting that failed is logged and left out of the link.
-	helpURL, _ := welcomeHelpURL(ctx, frontend, staffHelpRole(portal == identityaccess.InvitationPortalSchool, invitation.RoleName, rolePermissions),
-		invitation.TenantID, d.welcomeSettings(invitation.TenantID), d.logger)
+	// A failed read is logged and left out of the link. Run it in a savepoint:
+	// PostgreSQL marks the invitation transaction aborted after a failed query,
+	// even though the welcome can still be useful without that parameter.
+	var helpURL string
+	resolveHelpURL := func(savepointCtx context.Context) error {
+		var err error
+		helpURL, err = welcomeHelpURL(savepointCtx, frontend, staffHelpRole(portal == identityaccess.InvitationPortalSchool, invitation.RoleName, rolePermissions),
+			invitation.TenantID, d.welcomeSettings(invitation.TenantID), d.logger)
+		return err
+	}
+	if err := tenant.WithSavepoint(ctx, resolveHelpURL); errors.Is(err, tenant.ErrSavepointControl) {
+		return fmt.Errorf("resolve staff welcome help URL: %w", err)
+	}
 	payload := map[string]any{
 		staffWelcomePayloadRecipientEmail: invitation.Email,
 		staffWelcomePayloadHelpURL:        helpURL,
