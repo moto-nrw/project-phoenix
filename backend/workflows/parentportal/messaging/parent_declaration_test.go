@@ -8,6 +8,7 @@ package messaging_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
@@ -377,4 +378,47 @@ func TestDeclaration_ProofContainsOnlyTheOwnDeclarations(t *testing.T) {
 	stranger := testpkg.CreateTestParentGuardianChain(t, s.db)
 	_, err = s.svc.DeclarationProof(s.ctx, stranger.AccountID, s.announcement.ID, s.chain.StudentID)
 	require.True(t, errors.Is(err, messaging.ErrAnnouncementNotFound))
+}
+
+func TestDeclarationProofAttachmentAccessRequiresTheOwnFrozenVersion(t *testing.T) {
+	t.Parallel()
+	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAny, false, false), nil)
+	s.version.Attachments = []usersModels.DeclarationAttachmentDigest{{
+		AttachmentID: 91, Filename: "Ausflug.pdf", ContentType: "application/pdf", SizeBytes: 2048,
+	}}
+	s.version.ContentHash = messaging.DeclarationContentHash(s.version)
+	attachments, err := json.Marshal(s.version.Attachments)
+	require.NoError(t, err)
+	_, err = s.db.ExecContext(s.seedCtx,
+		`UPDATE users.parent_announcement_declaration_versions SET attachments = ?, content_hash = ? WHERE id = ?`,
+		string(attachments), s.version.ContentHash, s.version.ID)
+	require.NoError(t, err)
+
+	_, _, err = s.submit(s.chain.AccountID, usersModels.DeclarationActionAgreed)
+	require.NoError(t, err)
+
+	tenantID, err := s.svc.GuardianDeclarationProofAttachmentTenant(s.ctx, s.chain.AccountID, s.announcement.ID, s.chain.StudentID, 91)
+	require.NoError(t, err)
+	assert.Equal(t, s.chain.TenantID, tenantID)
+
+	newer := freezeTestVersion(t, s.seedCtx, s.repo, s.announcement, 2)
+	newer.Attachments = []usersModels.DeclarationAttachmentDigest{{
+		AttachmentID: 92, Filename: "Spätere Fassung.pdf", ContentType: "application/pdf", SizeBytes: 1024,
+	}}
+	newer.ContentHash = messaging.DeclarationContentHash(newer)
+	attachments, err = json.Marshal(newer.Attachments)
+	require.NoError(t, err)
+	_, err = s.db.ExecContext(s.seedCtx,
+		`UPDATE users.parent_announcement_declaration_versions SET attachments = ?, content_hash = ? WHERE id = ?`,
+		string(attachments), newer.ContentHash, newer.ID)
+	require.NoError(t, err)
+
+	tenantID, err = s.svc.GuardianDeclarationProofAttachmentTenant(s.ctx, s.chain.AccountID, s.announcement.ID, s.chain.StudentID, 92)
+	require.NoError(t, err)
+	assert.Zero(t, tenantID, "an attachment from an undeclared version must not be exposed")
+
+	co := testpkg.CreateTestCoGuardianForStudent(t, s.db, s.chain.StudentID, "Anna", "Schneider")
+	tenantID, err = s.svc.GuardianDeclarationProofAttachmentTenant(s.ctx, co.AccountID, s.announcement.ID, s.chain.StudentID, 91)
+	require.NoError(t, err)
+	assert.Zero(t, tenantID, "another guardian needs their own declaration proof")
 }

@@ -3,6 +3,7 @@ package files
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -244,7 +245,23 @@ func (rs *Resource) downloadParentAnnouncementAttachment(w http.ResponseWriter, 
 	if !ok {
 		return
 	}
-	content, err := rs.files.OpenGuardianAttachment(r.Context(), accountID, announcementID, attachmentID)
+	studentID, hasProofStudentID := r.URL.Query()["student_id"]
+	var content filestorage.Content
+	var err error
+	if hasProofStudentID {
+		if len(studentID) != 1 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_id must be provided once")))
+			return
+		}
+		parsedStudentID, parseErr := strconv.ParseInt(studentID[0], 10, 64)
+		if parseErr != nil || parsedStudentID <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_id must be a positive integer")))
+			return
+		}
+		content, err = rs.files.OpenGuardianDeclarationProofAttachment(r.Context(), accountID, announcementID, parsedStudentID, attachmentID)
+	} else {
+		content, err = rs.files.OpenGuardianAttachment(r.Context(), accountID, announcementID, attachmentID)
+	}
 	if err != nil {
 		renderAttachmentError(w, r, err)
 		return

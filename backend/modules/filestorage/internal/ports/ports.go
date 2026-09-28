@@ -173,6 +173,10 @@ type Announcements interface {
 // announcement belong to. Tenant id 0 with no error means "not for you".
 type GuardianAudience interface {
 	GuardianAnnouncementTenant(ctx context.Context, accountID, announcementID int64) (int64, error)
+	// GuardianDeclarationProofAttachmentTenant returns the school that owns an
+	// attachment frozen in this account's declaration proof, or 0 when it may
+	// not download that historical proof attachment.
+	GuardianDeclarationProofAttachmentTenant(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (int64, error)
 }
 
 // Transaction is the tenant-runtime seam.

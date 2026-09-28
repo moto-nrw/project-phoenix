@@ -159,7 +159,7 @@ func proofVersionCards(proof *parentService.DeclarationProof) []ReportCard {
 	for _, v := range versions {
 		files := make([]string, 0, len(v.Attachments))
 		for _, a := range v.Attachments {
-			files = append(files, a.Filename)
+			files = append(files, a.Filename+" ("+strconv.FormatInt(a.SizeBytes, 10)+" Bytes)")
 		}
 		attachments := "Keine"
 		if len(files) > 0 {

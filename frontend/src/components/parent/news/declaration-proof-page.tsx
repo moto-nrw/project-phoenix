@@ -15,16 +15,17 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { AttachmentList } from "~/components/ui/attachment-list";
 import {
   ParentPage,
   ParentPageHeader,
   ParentPageSkeleton,
 } from "~/components/parent/parent-page";
 import { formatChatDateTime } from "~/lib/date-helpers";
-import { formatBytes } from "~/lib/files-api";
 import { createLogger } from "~/lib/logger";
 import {
   ParentApiError,
+  declarationProofAttachmentDownloadUrl,
   downloadDeclarationProofPdf,
   fetchDeclarationProof,
   type ParentDeclarationProof,
@@ -141,14 +142,26 @@ export function DeclarationProofPage({
 
       {proof && (
         <div className="moto-content-surface rounded-2xl border p-5 shadow-sm">
-          <ProofDocument proof={proof} />
+          <ProofDocument
+            announcementId={announcementId}
+            proof={proof}
+            studentId={studentId}
+          />
         </div>
       )}
     </ParentPage>
   );
 }
 
-function ProofDocument({ proof }: Readonly<{ proof: ParentDeclarationProof }>) {
+function ProofDocument({
+  announcementId,
+  proof,
+  studentId,
+}: Readonly<{
+  announcementId: string;
+  proof: ParentDeclarationProof;
+  studentId: string;
+}>) {
   const t = useTranslations("parentDeclarationProof");
   const td = useTranslations("parentDeclaration");
   const tRoles = useTranslations("parentChildDetail.guardians.roles");
@@ -229,13 +242,16 @@ function ProofDocument({ proof }: Readonly<{ proof: ParentDeclarationProof }>) {
             {version.attachments.length > 0 && (
               <div className="text-sm">
                 <p className="text-gray-600">{t("attachments")}</p>
-                <ul className="mt-1 space-y-1">
-                  {version.attachments.map((file) => (
-                    <li key={`${file.filename}-${file.sha256}`}>
-                      {file.filename} ({formatBytes(file.size_bytes)})
-                    </li>
-                  ))}
-                </ul>
+                <AttachmentList
+                  attachments={version.attachments}
+                  downloadUrl={(attachmentId) =>
+                    declarationProofAttachmentDownloadUrl(
+                      announcementId,
+                      studentId,
+                      attachmentId,
+                    )
+                  }
+                />
               </div>
             )}
           </div>

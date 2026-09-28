@@ -229,9 +229,12 @@ type DeclarationSignerState struct {
 	SubmittedAt *time.Time
 }
 
-// declarationHashFormat versions the canonical encodings below. A change to
-// the encoding must bump it, never reinterpret stored hashes.
-const declarationHashFormat = 1
+// The format values version the canonical encodings below. A change to one
+// encoding must bump only its format, never reinterpret stored hashes.
+const (
+	declarationContentHashFormat = 1
+	declarationRecordHashFormat  = 2
+)
 
 type canonicalDeclarationVersion struct {
 	Format      int                           `json:"format"`
@@ -252,7 +255,7 @@ func (v *DeclarationVersion) CanonicalContent() []byte {
 		attachments = []DeclarationAttachmentDigest{}
 	}
 	return canonicalJSON(canonicalDeclarationVersion{
-		Format: declarationHashFormat, Title: v.Title, Body: v.Body, Kind: v.Kind, Attachments: attachments,
+		Format: declarationContentHashFormat, Title: v.Title, Body: v.Body, Kind: v.Kind, Attachments: attachments,
 	})
 }
 
@@ -263,7 +266,6 @@ type canonicalDeclarationSubmission struct {
 	VersionID         int64  `json:"version_id"`
 	ContentHash       string `json:"content_hash"`
 	StudentID         int64  `json:"student_id"`
-	AccountID         *int64 `json:"account_id"`
 	GuardianProfileID *int64 `json:"guardian_profile_id"`
 	SignerName        string `json:"signer_name"`
 	GuardianRole      string `json:"guardian_role"`
@@ -276,11 +278,13 @@ type canonicalDeclarationSubmission struct {
 // CanonicalRecord is the canonical JSON of the submission, including the
 // content hash of the version it refers to. Its SHA-256 is the record hash,
 // which makes a later change to a stored row detectable; it proves neither
-// the signer's identity nor a trusted time on its own.
+// the signer's identity nor a trusted time on its own. AccountID is excluded:
+// account deletion clears that nullable foreign key, while the frozen signer
+// identity remains in this record.
 func (s *DeclarationSubmission) CanonicalRecord() []byte {
 	return canonicalJSON(canonicalDeclarationSubmission{
-		Format: declarationHashFormat, TenantID: s.TenantID, AnnouncementID: s.AnnouncementID,
-		VersionID: s.VersionID, ContentHash: s.ContentHash, StudentID: s.StudentID, AccountID: s.AccountID,
+		Format: declarationRecordHashFormat, TenantID: s.TenantID, AnnouncementID: s.AnnouncementID,
+		VersionID: s.VersionID, ContentHash: s.ContentHash, StudentID: s.StudentID,
 		GuardianProfileID: s.GuardianProfileID, SignerName: s.SignerName, GuardianRole: s.GuardianRole,
 		Action: s.Action, Method: s.Method, PasswordConfirmed: s.PasswordConfirmed,
 		SubmittedAt: s.SubmittedAt.UTC().Format(time.RFC3339Nano),

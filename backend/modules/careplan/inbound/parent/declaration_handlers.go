@@ -187,6 +187,7 @@ func renderDeclarationError(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 type proofAttachmentResponse struct {
+	ID          string `json:"id"`
 	Filename    string `json:"filename"`
 	ContentType string `json:"content_type"`
 	SizeBytes   int64  `json:"size_bytes"`
@@ -308,7 +309,7 @@ func toDeclarationProofResponse(proof *parentService.DeclarationProof, now time.
 		}
 		for _, a := range v.Attachments {
 			version.Attachments = append(version.Attachments, proofAttachmentResponse{
-				Filename: a.Filename, ContentType: a.ContentType, SizeBytes: a.SizeBytes, SHA256: a.SHA256,
+				ID: strconv.FormatInt(a.AttachmentID, 10), Filename: a.Filename, ContentType: a.ContentType, SizeBytes: a.SizeBytes, SHA256: a.SHA256,
 			})
 		}
 		out.Versions = append(out.Versions, version)

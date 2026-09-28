@@ -19,7 +19,7 @@ func TestDeclarationCanonicalContentIgnoresAttachmentOrder(t *testing.T) {
 	assert.NotEqual(t, string(first.CanonicalContent()), string(changed.CanonicalContent()))
 }
 
-func TestDeclarationCanonicalRecordCoversEveryField(t *testing.T) {
+func TestDeclarationCanonicalRecordCoversEveryImmutableField(t *testing.T) {
 	t.Parallel()
 	account, profile := int64(24), int64(9)
 	base := DeclarationSubmission{
@@ -43,6 +43,11 @@ func TestDeclarationCanonicalRecordCoversEveryField(t *testing.T) {
 		mutate(&changed)
 		assert.NotEqual(t, reference, string(changed.CanonicalRecord()), name)
 	}
+	// account_id is a nullable foreign key. PostgreSQL clears it when an
+	// account is deleted, while the frozen signer data remains as the proof.
+	deletedAccount := base
+	deletedAccount.AccountID = nil
+	assert.Equal(t, reference, string(deletedAccount.CanonicalRecord()))
 	// The instant is encoded in UTC, so the zone the row is read back in
 	// cannot change the record.
 	berlin := base

@@ -433,6 +433,14 @@ func (e engine) OpenGuardianAttachment(ctx context.Context, accountID, announcem
 	return toContent(attachment, object), nil
 }
 
+func (e engine) OpenGuardianDeclarationProofAttachment(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (filestorage.Content, error) {
+	attachment, object, err := e.service.OpenGuardianDeclarationProofAttachment(ctx, accountID, announcementID, studentID, attachmentID)
+	if err != nil {
+		return filestorage.Content{}, mapError(err)
+	}
+	return toContent(attachment, object), nil
+}
+
 func (e engine) UploadAttachment(ctx context.Context, announcementID int64, value filestorage.Upload, who filestorage.Actor) (filestorage.Attachment, error) {
 	attachment, err := e.service.UploadAttachment(ctx, announcementID, upload(value), e.actor(who))
 	if err != nil {

@@ -119,7 +119,8 @@ func parentDeclarationsUp(ctx context.Context, db *bun.DB) error {
 		-- carries declarations cannot be deleted, so the proof cannot vanish
 		-- by deleting its context. The child and the school still cascade
 		-- (retention and school deletion), and a deleted account keeps the
-		-- row with the signer's name frozen in signer_name.
+		-- row with the signer's name frozen in signer_name. account_id is not
+		-- part of record_hash because this foreign key is set to NULL on deletion.
 		CREATE TABLE users.parent_announcement_declaration_submissions (
 			id                 BIGSERIAL PRIMARY KEY,
 			tenant_id          BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,

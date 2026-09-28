@@ -1274,6 +1274,7 @@ interface ParentDeclarationProofVersion {
   readonly content_hash: string;
   readonly published_at: string;
   readonly attachments: readonly {
+    readonly id: string;
     readonly filename: string;
     readonly content_type: string;
     readonly size_bytes: number;
@@ -1340,6 +1341,15 @@ export async function fetchDeclarationProof(
   return getJson<ParentDeclarationProof>(
     `/api/parent/me/news/${encodeURIComponent(announcementId)}/declaration/proof?student_id=${encodeURIComponent(studentId)}`,
   );
+}
+
+/** Address for an attachment frozen in this child's own declaration proof. */
+export function declarationProofAttachmentDownloadUrl(
+  announcementId: string,
+  studentId: string,
+  attachmentId: string,
+): string {
+  return `/api/parent/me/news/${encodeURIComponent(announcementId)}/attachments/${encodeURIComponent(attachmentId)}/download?student_id=${encodeURIComponent(studentId)}`;
 }
 
 /** Portal page that shows the proof for one child. */

@@ -31,6 +31,7 @@ const proof: ParentDeclarationProof = {
       published_at: "2026-09-01T08:00:00Z",
       attachments: [
         {
+          id: "19",
           filename: "Ausflug.pdf",
           content_type: "application/pdf",
           size_bytes: 2048,
@@ -93,6 +94,10 @@ describe("Nachweis eines Einverständnisses im Eltern-Portal (#3430)", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/Mit Passwort bestätigt/)).toBeInTheDocument();
     expect(screen.getByText(/Ausflug\.pdf/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ausflug.pdf" })).toHaveAttribute(
+      "href",
+      "/api/parent/me/news/42/attachments/19/download?student_id=5",
+    );
     expect(
       screen.getByText(
         "Text und Antworten sind seit der Veröffentlichung unverändert.",

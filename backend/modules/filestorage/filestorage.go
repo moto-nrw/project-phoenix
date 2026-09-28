@@ -238,6 +238,10 @@ type AttachmentQuery interface {
 	// see, or ErrAttachmentNotFound when it is outside the audience.
 	ListGuardianAttachments(ctx context.Context, accountID, announcementID int64) ([]Attachment, error)
 	OpenGuardianAttachment(ctx context.Context, accountID, announcementID, attachmentID int64) (Content, error)
+	// OpenGuardianDeclarationProofAttachment opens an attachment frozen in the
+	// caller's own declaration proof, including after the announcement expired
+	// or was withdrawn.
+	OpenGuardianDeclarationProofAttachment(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (Content, error)
 }
 
 // AttachmentCommand changes the attachments of a draft announcement.
@@ -367,6 +371,10 @@ func (m *Module) ListGuardianAttachments(ctx context.Context, accountID, announc
 
 func (m *Module) OpenGuardianAttachment(ctx context.Context, accountID, announcementID, attachmentID int64) (Content, error) {
 	return m.engine.OpenGuardianAttachment(ctx, accountID, announcementID, attachmentID)
+}
+
+func (m *Module) OpenGuardianDeclarationProofAttachment(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (Content, error) {
+	return m.engine.OpenGuardianDeclarationProofAttachment(ctx, accountID, announcementID, studentID, attachmentID)
 }
 
 func (m *Module) UploadAttachment(ctx context.Context, announcementID int64, upload Upload, actor Actor) (Attachment, error) {

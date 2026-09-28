@@ -58,7 +58,9 @@ func proofTexts(doc ReportDocument) string {
 func declarationProofFixture(intact bool) *parentService.DeclarationProof {
 	at := time.Date(2026, 9, 27, 19, 57, 0, 0, time.UTC)
 	older := &usersModels.DeclarationVersion{ID: 1, VersionNo: 1, Title: "Zoo", Body: "Alter Text", ContentHash: strings.Repeat("a", 64), PublishedAt: at}
-	newer := &usersModels.DeclarationVersion{ID: 2, VersionNo: 2, Title: "Zoo", Body: "Neuer Text", ContentHash: strings.Repeat("b", 64), PublishedAt: at}
+	newer := &usersModels.DeclarationVersion{ID: 2, VersionNo: 2, Title: "Zoo", Body: "Neuer Text", ContentHash: strings.Repeat("b", 64), PublishedAt: at,
+		Attachments: []usersModels.DeclarationAttachmentDigest{{AttachmentID: 19, Filename: "Ausflug.pdf", SizeBytes: 2048}},
+	}
 	unrelated := &usersModels.DeclarationVersion{ID: 3, VersionNo: 3, Title: "Zoo", Body: "Nie beantwortet", PublishedAt: at}
 	return &parentService.DeclarationProof{
 		Title: "Einverständnis Zoo", SchoolName: "OGS Musterstadt", ChildName: "Lina Richter",
@@ -83,6 +85,7 @@ func TestDeclarationProofReportShowsOwnAnswersAndTextsWithoutChecksums(t *testin
 	assert.Contains(t, text, "Passwort bestätigt=Ja")
 	assert.Less(t, strings.Index(text, "[Fassung 2]"), strings.Index(text, "[Fassung 1]"), "newest version first")
 	assert.NotContains(t, text, "Nie beantwortet", "only versions the guardian answered on")
+	assert.Contains(t, text, "Dateien=Ausflug.pdf (2048 Bytes)")
 	assert.NotContains(t, text, strings.Repeat("a", 64))
 	assert.NotContains(t, text, strings.Repeat("c", 64))
 }
@@ -134,4 +137,5 @@ func TestDeclarationProofWithoutFormatStaysJSON(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"child_name":"Lina Richter"`)
 	assert.Contains(t, w.Body.String(), `"integrity_ok":true`)
+	assert.Contains(t, w.Body.String(), `"attachments":[{"id":"19","filename":"Ausflug.pdf"`)
 }
