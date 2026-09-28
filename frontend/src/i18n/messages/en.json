@@ -1049,7 +1049,7 @@
       "care": "Booked offerings",
       "noCare": "No offerings booked.",
       "hint": "Changes for {name} now go through the parents app.",
-      "noAccess": "No access yet? Open the email “Einladung zum Eltern-Portal”. No email? Please contact the OGS."
+      "noAccess": "Cannot access the parents app? Please contact the OGS."
     }
   },
   "enrollmentStatus": {

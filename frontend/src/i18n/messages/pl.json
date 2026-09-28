@@ -1049,7 +1049,7 @@
       "care": "Zarezerwowane oferty",
       "noCare": "Nie zarezerwowano żadnych ofert.",
       "hint": "Zmiany dla dziecka {name} wprowadzają Państwo teraz w aplikacji dla rodziców.",
-      "noAccess": "Nie mają Państwo jeszcze dostępu? Proszę otworzyć e-mail „Einladung zum Eltern-Portal”. Nie dostali Państwo e-maila? Proszę skontaktować się z OGS."
+      "noAccess": "Nie mogą Państwo korzystać z aplikacji dla rodziców? Proszę skontaktować się z OGS."
     }
   },
   "enrollmentStatus": {

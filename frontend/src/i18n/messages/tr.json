@@ -1049,7 +1049,7 @@
       "care": "Seçilen teklifler",
       "noCare": "Seçilen teklif yok.",
       "hint": "{name} için değişiklikler artık veli uygulaması üzerinden yapılır.",
-      "noAccess": "Henüz erişiminiz yok mu? “Einladung zum Eltern-Portal” başlıklı e-postayı açın. E-posta gelmedi mi? Lütfen OGS ile iletişime geçin."
+      "noAccess": "Veli uygulamasına giremiyor musunuz? Lütfen OGS ile iletişime geçin."
     }
   },
   "enrollmentStatus": {

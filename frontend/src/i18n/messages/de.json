@@ -1049,7 +1049,7 @@
       "care": "Gebuchte Angebote",
       "noCare": "Keine Angebote gebucht.",
       "hint": "Änderungen für {name} laufen jetzt über die Eltern-App.",
-      "noAccess": "Noch kein Zugang? Öffnen Sie die E-Mail „Einladung zum Eltern-Portal“. Keine E-Mail bekommen? Bitte melden Sie sich bei der OGS."
+      "noAccess": "Sie kommen nicht in die Eltern-App? Bitte melden Sie sich bei der OGS."
     }
   },
   "enrollmentStatus": {

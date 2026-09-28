@@ -1049,7 +1049,7 @@
       "care": "Ofertat e rezervuara",
       "noCare": "Asnjë ofertë e rezervuar.",
       "hint": "Ndryshimet për {name} tani bëhen përmes aplikacionit për prindër.",
-      "noAccess": "Nuk keni ende akses? Hapni emailin “Einladung zum Eltern-Portal”. Nuk ju erdhi emaili? Ju lutemi kontaktoni OGS-në."
+      "noAccess": "Nuk mund të hyni në aplikacionin për prindër? Ju lutemi kontaktoni OGS-në."
     }
   },
   "enrollmentStatus": {
