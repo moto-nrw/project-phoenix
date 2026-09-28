@@ -16,7 +16,7 @@ export interface SchoolSetupStep {
 }
 
 /** Die Einstellungen der Schule, von denen abhängt, welche Schritte gelten. */
-export interface SchoolSetupBasics {
+interface SchoolSetupBasics {
   presenceMode: "detailed" | "binary";
   groupMode: "fixed_groups" | "open_care";
 }
