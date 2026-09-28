@@ -1664,6 +1664,11 @@ function LimitedAccessView({
   useEffect(() => {
     if (activeTab === "aenderungsprotokoll") setProtocolTabSeen(true);
   }, [activeTab]);
+  // Siehe FullAccessView: die Kartei lädt erst beim ersten Öffnen.
+  const [notesTabSeen, setNotesTabSeen] = useState(activeTab === "notizen");
+  useEffect(() => {
+    if (activeTab === "notizen") setNotesTabSeen(true);
+  }, [activeTab]);
   return (
     <>
       <StudentTabPanel
@@ -1681,7 +1686,12 @@ function LimitedAccessView({
         activeTab={activeTab}
         className={TAB_CONTENT_CLASS}
       >
-        <StudentNotizenTab studentId={student.id} />
+        {notesTabSeen ? (
+          <StudentNotizenTab
+            studentId={student.id}
+            educationGroupId={student.group_id ?? ""}
+          />
+        ) : null}
       </StudentTabPanel>
 
       <StudentTabPanel
@@ -1835,6 +1845,12 @@ function FullAccessView({
   useEffect(() => {
     if (activeTab === "aenderungsprotokoll") setProtocolTabSeen(true);
   }, [activeTab]);
+  // Ebenso die Kartei (#3632): die Stammdaten zeigen die dauerhaften Hinweise
+  // ohnehin: die volle Chronik lädt erst, wenn jemand den Reiter öffnet.
+  const [notesTabSeen, setNotesTabSeen] = useState(activeTab === "notizen");
+  useEffect(() => {
+    if (activeTab === "notizen") setNotesTabSeen(true);
+  }, [activeTab]);
   return (
     <>
       <StudentTabPanel
@@ -1860,6 +1876,7 @@ function FullAccessView({
             onEditClick={hasWriteAccess ? onOpenPersonalInfoEdit : undefined}
           />
         )}
+        <StudentPermanentNotesCard studentId={studentId} />
         <StudentConsentsReadOnly consents={student.consents} />
         {canManageFamilyProtection ? (
           <SectionCard
@@ -1868,6 +1885,19 @@ function FullAccessView({
           >
             <FamilyProtectionControl studentId={studentId} canManage />
           </SectionCard>
+        ) : null}
+      </StudentTabPanel>
+
+      <StudentTabPanel
+        value="notizen"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        {notesTabSeen ? (
+          <StudentNotizenTab
+            studentId={studentId}
+            educationGroupId={student.group_id ?? ""}
+          />
         ) : null}
       </StudentTabPanel>
 

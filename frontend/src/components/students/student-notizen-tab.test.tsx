@@ -6,7 +6,7 @@ import type { StudentNote } from "~/lib/student-notes-api";
 
 // The tab renders the authority the backend sent and nothing else: an entry
 // the reader may not correct carries no Bearbeiten, one they may not remove
-// carries no Entfernen, and a carried-over hint carries neither.
+// carries no Löschen, and a carried-over hint carries neither.
 
 const listMock = vi.fn();
 const createMock = vi.fn();
@@ -131,13 +131,13 @@ describe("StudentNotizenTab", () => {
     renderTab([note({ canEdit: true })]);
     fireEvent.click(screen.getByRole("button", { name: "Aktionen zur Notiz" }));
     expect(screen.getByText("Bearbeiten")).toBeInTheDocument();
-    expect(screen.queryByText("Entfernen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Löschen")).not.toBeInTheDocument();
   });
 
-  it("offers only Entfernen to the group lead", () => {
+  it("offers only Löschen to the group lead", () => {
     renderTab([note({ canDelete: true })]);
     fireEvent.click(screen.getByRole("button", { name: "Aktionen zur Notiz" }));
-    expect(screen.getByText("Entfernen")).toBeInTheDocument();
+    expect(screen.getByText("Löschen")).toBeInTheDocument();
     expect(screen.queryByText("Bearbeiten")).not.toBeInTheDocument();
   });
 
@@ -153,7 +153,37 @@ describe("StudentNotizenTab", () => {
     expect(
       screen.getByText(/Übernommen aus den Betreuernotizen/),
     ).toBeInTheDocument();
-    expect(screen.getByText("Dauerhafter Hinweis")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Dauerhafte Hinweise" }),
+    ).toBeInTheDocument();
+  });
+
+  it("orders a month by the day an entry describes, not by the write order", () => {
+    renderTab([
+      note({ id: "1", body: "Am Siebten", subjectDate: "2026-09-07" }),
+      note({ id: "2", body: "Am Neunten", subjectDate: "2026-09-09" }),
+      note({ id: "3", body: "Am Achten", subjectDate: "2026-09-08" }),
+    ]);
+    const bodies = screen
+      .getAllByText(/^Am /)
+      .map((element) => element.textContent);
+    expect(bodies).toEqual(["Am Neunten", "Am Achten", "Am Siebten"]);
+  });
+
+  it("keeps a durable hint out of the month it happens to be written in", () => {
+    renderTab([
+      note({ id: "1", body: "Chronik-Eintrag", subjectDate: "2026-09-09" }),
+      note({
+        id: "2",
+        kind: "permanent",
+        body: "Gilt immer",
+        subjectDate: "",
+      }),
+    ]);
+    const headings = screen
+      .getAllByRole("heading", { level: 3 })
+      .map((element) => element.textContent);
+    expect(headings).toEqual(["Dauerhafte Hinweise", "September 2026"]);
   });
 
   it("writes a new entry with the values from the form", async () => {

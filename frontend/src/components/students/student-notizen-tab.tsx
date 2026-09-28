@@ -7,6 +7,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Loading } from "~/components/ui/loading";
@@ -78,10 +79,17 @@ const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
  * one. A note written here therefore reaches the team or the care team; the
  * narrow audience exists on notes written from a group or an activity.
  */
-function visibilityOptionsFor(note: StudentNote | null) {
+// "Gruppenleitung" only means something when the note points at a group. An
+// existing note carries its own reference; a new one borrows the child's OGS
+// group, which the tab receives from the child's file.
+function visibilityOptionsFor(
+  note: StudentNote | null,
+  childGroupId: string,
+): readonly { value: string; label: string }[] {
   const hasGroupReference =
-    note != null &&
-    (note.activityGroupId !== "" || note.educationGroupId !== "");
+    note != null
+      ? note.activityGroupId !== "" || note.educationGroupId !== ""
+      : childGroupId !== "";
   return hasGroupReference
     ? VISIBILITY_OPTIONS
     : VISIBILITY_OPTIONS.filter(
@@ -194,6 +202,16 @@ function NoteForm({
         error={tooLong ? "Die Notiz ist zu lang. Bitte kürzen." : undefined}
       />
       <div className="grid gap-4 sm:grid-cols-2">
+        {draft.kind === NOTE_KIND_PERMANENT ? null : (
+          <div>
+            <ISODatePicker
+              label="Tag"
+              value={draft.subjectDate ?? ""}
+              max={todayISO()}
+              onChange={(subjectDate) => onChange({ ...draft, subjectDate })}
+            />
+          </div>
+        )}
         <div>
           <span className="mb-2 block text-sm font-medium text-gray-700">
             Art
@@ -254,8 +272,11 @@ function NoteForm({
 
 export function StudentNotizenTab({
   studentId,
+  educationGroupId = "",
 }: {
   readonly studentId: string;
+  /** The child's OGS group, so a note can address its group leads. */
+  readonly educationGroupId?: string;
 }) {
   const { data, isLoading, error, mutate } = useSWRAuth<StudentNote[]>(
     `student-notes-${studentId}`,
@@ -273,9 +294,16 @@ export function StudentNotizenTab({
   const [deleteError, setDeleteError] = useState("");
 
   const notes = useMemo(() => data ?? [], [data]);
+  // Dauerhafte Hinweise stehen außerhalb der Chronik: sie beschreiben keinen
+  // Tag, also gehören sie unter keine Monatsüberschrift.
+  const permanentNotes = useMemo(
+    () => notes.filter((note) => note.kind === NOTE_KIND_PERMANENT),
+    [notes],
+  );
   const months = useMemo(() => {
     const grouped = new Map<string, StudentNote[]>();
     for (const note of notes) {
+      if (note.kind === NOTE_KIND_PERMANENT) continue;
       const key = noteDay(note).slice(0, 7);
       const bucket = grouped.get(key);
       if (bucket) {
@@ -283,6 +311,14 @@ export function StudentNotizenTab({
       } else {
         grouped.set(key, [note]);
       }
+    }
+    // Gelesen wird nach dem Tag, den ein Eintrag beschreibt; zwei Einträge zum
+    // selben Tag ordnet die Schreibzeit.
+    for (const bucket of grouped.values()) {
+      bucket.sort((a, b) => {
+        const byDay = noteDay(b).localeCompare(noteDay(a));
+        return byDay !== 0 ? byDay : b.createdAt.localeCompare(a.createdAt);
+      });
     }
     return [...grouped.entries()].sort((a, b) => b[0].localeCompare(a[0]));
   }, [notes]);
@@ -314,6 +350,12 @@ export function StudentNotizenTab({
       await studentNotesService.create(studentId, {
         ...draft,
         body: draft.body.trim(),
+        // "Gruppenleitung" needs the group it means; a new note takes the
+        // child's own group, the only one the writer chose the child for.
+        educationGroupId:
+          draft.visibility === NOTE_VISIBILITY_GROUP_LEADS
+            ? educationGroupId
+            : draft.educationGroupId,
       });
       setComposing(false);
       setDraft(emptyDraft());
@@ -377,6 +419,61 @@ export function StudentNotizenTab({
     }
   };
 
+  const renderNote = (note: StudentNote) => (
+    <li
+      key={note.id}
+      className="moto-content-surface rounded-2xl border p-4 shadow-sm"
+    >
+      {editing?.id === note.id ? (
+        <NoteForm
+          idPrefix={`note-${note.id}`}
+          draft={editDraft}
+          onChange={setEditDraft}
+          onCancel={() => setEditing(null)}
+          onSave={() => void saveEdit()}
+          saving={saving}
+          visibilityOptions={visibilityOptionsFor(note, educationGroupId)}
+        />
+      ) : (
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1 space-y-2">
+            <p className="text-sm whitespace-pre-line text-gray-900">
+              {note.body}
+            </p>
+            <NoteMeta note={note} />
+          </div>
+          {note.canEdit || note.canDelete ? (
+            <OverflowMenu
+              ariaLabel="Aktionen zur Notiz"
+              items={[
+                ...(note.canEdit
+                  ? [
+                      {
+                        label: "Bearbeiten",
+                        onClick: () => startEdit(note),
+                      },
+                    ]
+                  : []),
+                ...(note.canDelete
+                  ? [
+                      {
+                        label: "Löschen",
+                        destructive: true,
+                        onClick: () => {
+                          setDeleteError("");
+                          setDeleteTarget(note);
+                        },
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+          ) : null}
+        </div>
+      )}
+    </li>
+  );
+
   if (isLoading) {
     return <Loading />;
   }
@@ -417,7 +514,7 @@ export function StudentNotizenTab({
               onCancel={() => setComposing(false)}
               onSave={() => void saveNew()}
               saving={saving}
-              visibilityOptions={visibilityOptionsFor(null)}
+              visibilityOptions={visibilityOptionsFor(null, educationGroupId)}
             />
           </div>
         ) : null}
@@ -434,89 +531,34 @@ export function StudentNotizenTab({
           />
         ) : null}
 
+        {permanentNotes.length > 0 ? (
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold text-gray-900">
+              Dauerhafte Hinweise
+            </h3>
+            <ul className="space-y-3">{permanentNotes.map(renderNote)}</ul>
+          </section>
+        ) : null}
+
         {months.map(([month, entries]) => (
           <section key={month} className="space-y-3">
             <h3 className="text-sm font-semibold text-gray-900">
               {monthLabel(`${month}-01`)}
             </h3>
-            <ul className="space-y-3">
-              {entries.map((note) => (
-                <li
-                  key={note.id}
-                  className="moto-content-surface rounded-2xl border p-4 shadow-sm"
-                >
-                  {editing?.id === note.id ? (
-                    <NoteForm
-                      idPrefix={`note-${note.id}`}
-                      draft={editDraft}
-                      onChange={setEditDraft}
-                      onCancel={() => setEditing(null)}
-                      onSave={() => void saveEdit()}
-                      saving={saving}
-                      visibilityOptions={visibilityOptionsFor(note)}
-                    />
-                  ) : (
-                    <div className="flex items-start gap-3">
-                      <div className="min-w-0 flex-1 space-y-2">
-                        {note.kind === NOTE_KIND_PERMANENT ? (
-                          <StatusBadge
-                            compact
-                            tone="green"
-                            label="Dauerhafter Hinweis"
-                          />
-                        ) : null}
-                        <p className="text-sm whitespace-pre-line text-gray-900">
-                          {note.body}
-                        </p>
-                        <NoteMeta note={note} />
-                      </div>
-                      {note.canEdit || note.canDelete ? (
-                        <OverflowMenu
-                          ariaLabel="Aktionen zur Notiz"
-                          items={[
-                            ...(note.canEdit
-                              ? [
-                                  {
-                                    label: "Bearbeiten",
-                                    onClick: () => startEdit(note),
-                                  },
-                                ]
-                              : []),
-                            ...(note.canDelete
-                              ? [
-                                  {
-                                    label: "Entfernen",
-                                    destructive: true,
-                                    onClick: () => {
-                                      setDeleteError("");
-                                      setDeleteTarget(note);
-                                    },
-                                  },
-                                ]
-                              : []),
-                          ]}
-                        />
-                      ) : null}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <ul className="space-y-3">{entries.map(renderNote)}</ul>
           </section>
         ))}
       </div>
 
       <ConfirmDeleteModal
         isOpen={deleteTarget !== null}
-        title="Notiz entfernen"
+        title="Notiz löschen"
         description="Die Notiz verschwindet aus allen Ansichten."
         gate={{ mode: "twoStep" }}
         onConfirm={confirmDelete}
         onClose={() => setDeleteTarget(null)}
         loading={deleting}
         error={deleteError}
-        confirmLabel="Entfernen"
-        loadingLabel="Wird entfernt…"
       />
     </SectionCard>
   );
