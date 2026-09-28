@@ -47,6 +47,12 @@ type takeoverLockEnv struct {
 // with enrollment switched on and offerings switched off would resolve.
 type stubTakeoverSettings struct{}
 
+type staticGuardianInvitationAvailability struct{ redeemable bool }
+
+func (a staticGuardianInvitationAvailability) HasRedeemableGuardianInvitation(context.Context, int64) (bool, error) {
+	return a.redeemable, nil
+}
+
 // HasTenantOverride claims every key this stub answers: the Resolve*OrDefault
 // helpers fall back to their registry default unless an override exists.
 func (stubTakeoverSettings) HasTenantOverride(_ context.Context, key string) (bool, error) {
@@ -101,8 +107,12 @@ func (s notifyModeSettings) NotifyPerDecision(ctx context.Context) (string, erro
 	return s.settings.ResolveString(ctx, configModel.KeyEnrollmentNotifyPerDecision)
 }
 
-func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
+func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeoverLockEnv, func()) {
 	t.Helper()
+	invitationAvailable := true
+	if len(redeemableInvitation) > 0 {
+		invitationAvailable = redeemableInvitation[0]
+	}
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -164,6 +174,7 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 		Notifications:       enrollmentAPI.NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
 		GuardianProfileRepo: repos.GuardianProfile,
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
+		GuardianInvitations: staticGuardianInvitationAvailability{redeemable: invitationAvailable},
 		StudentRepo:         repos.Student,
 		GuardianAuthorizer:  repos.StudentGuardian,
 		Settings:            settings,
@@ -456,6 +467,16 @@ func TestPublicStatus_ParentAccountFlagFalseWithoutAccount(t *testing.T) {
 	env.takeOver(t, env.request.Children[0].ID, "Lina")
 
 	assertParentPortalAccess(t, env.statusParentAccount(t), false, "invitation")
+}
+
+func TestPublicStatus_ParentAccountFlagContactsOGSWithoutRedeemableInvitation(t *testing.T) {
+	t.Parallel()
+	env, cleanup := setupTakeoverLockTest(t, false)
+	defer cleanup()
+	insertGuardianProfile(t, env.db, env.tenantID, takeoverLockGuardianEmail, nil)
+	env.takeOver(t, env.request.Children[0].ID, "Lina")
+
+	assertParentPortalAccess(t, env.statusParentAccount(t), false, "contact_ogs")
 }
 
 func TestPublicStatus_ParentAccountFlagTrueWithLinkedAccount(t *testing.T) {

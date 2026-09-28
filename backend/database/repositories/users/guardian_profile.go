@@ -141,6 +141,9 @@ func (r *GuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) 
 // include several schools for one account, so each profile is matched against
 // its own school, never against membership in any school.
 func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*users.GuardianProfile), nil
+	}
 	if r.portalMemberships == nil {
 		return nil, errors.New("find active portal guardian profiles: portal membership query is required")
 	}
@@ -150,6 +153,9 @@ func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Co
 // FindLoginReadyPortalProfilesByIDs returns guardian profiles whose linked
 // account can authenticate with a password at the current tenant.
 func (r *GuardianProfileRepository) FindLoginReadyPortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*users.GuardianProfile), nil
+	}
 	if r.portalLoginMemberships == nil {
 		return nil, errors.New("find login-ready portal guardian profiles: portal login membership query is required")
 	}

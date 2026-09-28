@@ -262,6 +262,12 @@ type GuardianProfiles interface {
 	LinkGuardianAccount(ctx context.Context, profileID, accountID int64) error
 }
 
+// GuardianInvitationAvailability reports whether an account-less guardian
+// profile has a currently redeemable invitation to the parent portal.
+type GuardianInvitationAvailability interface {
+	HasRedeemableGuardianInvitation(context.Context, int64) (bool, error)
+}
+
 // StudentGuardians reads and writes the student-guardian relationships.
 // GuardianLinkForUpdate answers ErrGuardianLinkNotFound for a missing link.
 type StudentGuardians interface {

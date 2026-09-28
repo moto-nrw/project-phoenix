@@ -33,7 +33,21 @@ func (s *ChangeRequests) PrimaryGuardianPortalAccess(ctx context.Context, token 
 		if err != nil {
 			return err
 		}
-		if profile == nil || profile.AccountID == nil {
+		if profile == nil {
+			return nil
+		}
+		if profile.AccountID == nil {
+			access = parentPortalAccessContactOGS
+			if s.deps.GuardianInvitations == nil {
+				return errors.New("status: guardian invitations not configured")
+			}
+			redeemable, invitationErr := s.deps.GuardianInvitations.HasRedeemableGuardianInvitation(txCtx, profile.ID)
+			if invitationErr != nil {
+				return invitationErr
+			}
+			if redeemable {
+				access = parentPortalAccessInvitation
+			}
 			return nil
 		}
 		reachable, lookupErr := s.deps.People.GuardianProfiles.GuardianProfileHasActivePortalAccount(txCtx, profile.ID)
