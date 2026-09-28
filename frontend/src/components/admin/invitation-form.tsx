@@ -15,7 +15,6 @@ import type {
 } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
 import { createLogger } from "~/lib/logger";
-import { trackEvent } from "~/lib/analytics";
 
 const logger = createLogger({ component: "InvitationForm" });
 
@@ -126,8 +125,6 @@ export function InvitationForm({
         lastName: toOptional(form.lastName),
         position: toOptional(form.position),
       });
-
-      trackEvent("user_invited");
 
       const link = inviteBaseUrl
         ? `${inviteBaseUrl}/invite?token=${encodeURIComponent(invitation.token ?? "")}`

@@ -136,11 +136,12 @@ describe("GET /api/sse/events", () => {
   });
 
   it("returns backend error status", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 403,
-      text: async () => "Forbidden",
-    });
+    mockFetch.mockResolvedValueOnce(
+      new Response("Forbidden", {
+        status: 403,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
 
     const request = createMockRequest("/api/sse/events");
     const response = await GET(request);
@@ -151,20 +152,14 @@ describe("GET /api/sse/events", () => {
   });
 
   it("handles backend error without body", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      text: async () => {
-        throw new Error("Cannot read body");
-      },
-    });
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
 
     const request = createMockRequest("/api/sse/events");
     const response = await GET(request);
 
     expect(response.status).toBe(500);
     const text = await response.text();
-    expect(text).toBe("SSE connection failed");
+    expect(text).toBe("");
   });
 
   it("returns 502 when backend has no body", async () => {

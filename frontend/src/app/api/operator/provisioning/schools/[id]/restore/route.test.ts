@@ -79,11 +79,12 @@ describe("POST /api/operator/provisioning/schools/[id]/restore", () => {
 
   it("forwards 409 not deleted from backend", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 409,
-      text: async () => JSON.stringify({ error: "School is not deleted" }),
-    });
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "School is not deleted" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/provisioning/schools/55/restore",

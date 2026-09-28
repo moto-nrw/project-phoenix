@@ -21,10 +21,20 @@ type OperatorErrResponse struct {
 	HTTPStatusCode int    `json:"-"`
 	StatusText     string `json:"status"`
 	ErrorText      string `json:"message,omitempty"`
+	Type           string `json:"type"`
+	Title          string `json:"title"`
+	Detail         string `json:"detail"`
+	Instance       string `json:"instance"`
+	Code           string `json:"code"`
 }
 
 // Render implements render.Renderer.
 func (e *OperatorErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
+	e.Code = ErrorClassCode(e.HTTPStatusCode)
+	e.Type = problemType(e.Code, e.HTTPStatusCode)
+	e.Title = problemTitle(e.HTTPStatusCode)
+	e.Detail = e.ErrorText
+	e.Instance = requestID(r)
 	render.Status(r, e.HTTPStatusCode)
 	return nil
 }

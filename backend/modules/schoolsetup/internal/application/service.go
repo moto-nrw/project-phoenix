@@ -1,5 +1,5 @@
 // Package application drives the onboarding wizard for new schools (#2832,
-// ADR 0040).
+// ADR 0042).
 //
 // The state (skipped steps, completion, who hid the wizard) lives in the
 // wizard's own tables. Progress is not stored: the school-setup-view

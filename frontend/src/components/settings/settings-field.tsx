@@ -153,54 +153,97 @@ const HIGHLIGHT_FLASH_MS = 2200;
 const EMPTY_CATEGORY_ITEMS: ResolvedSetting[] = [];
 
 interface AttendanceScopeChange {
-  readonly key: string;
-  readonly value: string;
+  /** Written in this order before the chosen value. */
+  readonly changes: readonly { key: string; value: string }[];
   readonly writable: boolean;
   readonly title: string;
   readonly body: string;
   readonly confirmText: string;
 }
 
+const VISIBILITY_SCOPE_KEY = "operations.operational_overview_scope";
+
+// Settings whose "all_staff" needs the school-wide view; the backend rejects
+// any other order (#3180, #3622). `expand` answers widening one of them while
+// the view is personal, `restrict` narrowing the view while only it is wide.
+const DEPENDENT_SCOPES: Record<
+  string,
+  {
+    readonly name: string;
+    readonly expand: string;
+    readonly restrict: { readonly title: string; readonly body: string };
+  }
+> = {
+  "operations.attendance_edit_scope": {
+    name: "An- und Abmelden",
+    expand:
+      "Überall an- und abmelden geht nur mit schulweitem Überblick. Das Team sieht danach alle Gruppen und Blöcke.",
+    restrict: {
+      title: "Auch die Bearbeitung begrenzen?",
+      body: "Eigene Zuständigkeiten als Sichtbereich erfordern denselben Bereich für An- und Abmelden. Vorhandene Sonderzugänge bleiben erhalten.",
+    },
+  },
+  "operations.block_start_scope": {
+    name: "Blöcke starten",
+    expand:
+      "Das ganze Team darf nur starten, wenn es alle Blöcke sieht. Das Team sieht danach alle Gruppen und Blöcke.",
+    restrict: {
+      title: "Auch das Starten begrenzen?",
+      body: "Dann dürfen nur eingeplante Kräfte Blöcke starten.",
+    },
+  },
+  "operations.block_complete_scope": {
+    name: "Blöcke beenden",
+    expand:
+      "Das ganze Team darf nur beenden, wenn es alle Blöcke sieht. Das Team sieht danach alle Gruppen und Blöcke.",
+    restrict: {
+      title: "Auch das Beenden begrenzen?",
+      body: "Dann dürfen nur eingeplante Kräfte Blöcke beenden.",
+    },
+  },
+};
+
 function attendanceScopePrerequisite(
   key: string,
   value: unknown,
   items: ResolvedSetting[],
 ): AttendanceScopeChange | null {
-  const visibility = items.find(
-    (item) => item.key === "operations.operational_overview_scope",
-  );
-  const attendance = items.find(
-    (item) => item.key === "operations.attendance_edit_scope",
-  );
-  if (
-    key === attendance?.key &&
-    value === "all_staff" &&
-    visibility?.value === "own"
-  ) {
+  const visibility = items.find((item) => item.key === VISIBILITY_SCOPE_KEY);
+  const dependent = DEPENDENT_SCOPES[key];
+  if (dependent && value === "all_staff" && visibility?.value === "own") {
     return {
-      key: visibility.key,
-      value: "all_staff",
+      changes: [{ key: visibility.key, value: "all_staff" }],
       writable: visibility.writable,
       title: "Auch den Sichtbereich erweitern?",
-      body: "Überall an- und abmelden geht nur mit schulweitem Überblick. Das Team sieht danach alle Gruppen und Blöcke.",
+      body: dependent.expand,
       confirmText: "Beides erweitern",
     };
   }
-  if (
-    key === visibility?.key &&
-    value === "own" &&
-    attendance?.value === "all_staff"
-  ) {
+  if (key !== visibility?.key || value !== "own") return null;
+  const widened = items.flatMap((item) => {
+    const scope = DEPENDENT_SCOPES[item.key];
+    return scope && item.value === "all_staff" ? [{ item, scope }] : [];
+  });
+  const [first] = widened;
+  if (!first) return null;
+  const restriction = {
+    changes: widened.map(({ item }) => ({ key: item.key, value: "own" })),
+    writable: widened.every(({ item }) => item.writable),
+  };
+  if (widened.length > 1) {
+    const names = widened.map(({ scope }) => scope.name).join(", ");
     return {
-      key: attendance.key,
-      value: "own",
-      writable: attendance.writable,
-      title: "Auch die Bearbeitung begrenzen?",
-      body: "Eigene Zuständigkeiten als Sichtbereich erfordern denselben Bereich für An- und Abmelden. Vorhandene Sonderzugänge bleiben erhalten.",
-      confirmText: "Beides begrenzen",
+      ...restriction,
+      title: "Auch diese Rechte begrenzen?",
+      body: `Dann gelten nur noch eigene Zuständigkeiten für: ${names}. Vorhandene Sonderzugänge bleiben erhalten.`,
+      confirmText: "Alles begrenzen",
     };
   }
-  return null;
+  return {
+    ...restriction,
+    ...first.scope.restrict,
+    confirmText: "Beides begrenzen",
+  };
 }
 
 interface SettingsFieldProps {
@@ -663,8 +706,8 @@ export function SettingsField({
     pendingValueRef.current = null;
     pendingScopeChangeRef.current = null;
     if (value != null) {
-      if (prerequisite) {
-        const failure = await onSave(prerequisite.key, prerequisite.value);
+      for (const change of prerequisite?.changes ?? []) {
+        const failure = await onSave(change.key, change.value);
         if (failure) {
           setError(failure);
           toastError(failure);

@@ -10,8 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -21,19 +20,19 @@ func reminderAnnouncement(
 	t *testing.T,
 	ctx context.Context,
 	db *bun.DB,
-	repo usersModels.ParentAnnouncementRepository,
+	repo testpkg.ParentAnnouncementRepository,
 	createdBy, tenantID int64,
 	title string,
 	reminderAt time.Time,
 	published bool,
 	expiresAt *time.Time,
-) *usersModels.ParentAnnouncement {
+) *testpkg.ParentAnnouncement {
 	t.Helper()
 	text := "Kurz: " + title
-	a := &usersModels.ParentAnnouncement{
+	a := &testpkg.ParentAnnouncement{
 		Title:        title,
 		Body:         "Testtext",
-		Priority:     usersModels.ParentAnnouncementPriorityInfo,
+		Priority:     testpkg.ParentAnnouncementPriorityInfo,
 		Active:       true,
 		CreatedBy:    createdBy,
 		ExpiresAt:    expiresAt,
@@ -42,8 +41,8 @@ func reminderAnnouncement(
 	}
 	a.SetTenantID(tenantID)
 	require.NoError(t, repo.Create(ctx, a))
-	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, []*usersModels.ParentAnnouncementTarget{
-		{TargetType: usersModels.AnnouncementTargetSchoolAll},
+	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, []*testpkg.ParentAnnouncementTarget{
+		{TargetType: testpkg.AnnouncementTargetSchoolAll},
 	}))
 	if published {
 		publishedAt := databaseTimestamp(t, db).Add(-7 * 24 * time.Hour)
@@ -53,7 +52,7 @@ func reminderAnnouncement(
 	return a
 }
 
-func idsOf(rows []*usersModels.ParentAnnouncement) []int64 {
+func idsOf(rows []*testpkg.ParentAnnouncement) []int64 {
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		ids = append(ids, row.ID)
@@ -70,7 +69,7 @@ func TestParentAnnouncementReminderDueScanAndClaim(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	now := databaseTimestamp(t, db)
@@ -198,7 +197,7 @@ func TestParentAnnouncementReminderDueScanBatchLoadsTargets(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 	now := databaseTimestamp(t, db)
 	window := now.Add(-time.Hour)
@@ -234,14 +233,14 @@ func TestParentAnnouncementReminderFeedOrderAndTenantIsolation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 	now := databaseTimestamp(t, db)
 
 	older := reminderAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Älter", now.Add(-10*time.Minute), true, nil)
 	newer := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
-		"Neuer", []*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetSchoolAll}})
+		"Neuer", []*testpkg.ParentAnnouncementTarget{{TargetType: testpkg.AnnouncementTargetSchoolAll}})
 
 	// The guardian read the older one weeks ago.
 	olderRow, err := repo.FindByID(ctx, older.ID)
@@ -250,7 +249,7 @@ func TestParentAnnouncementReminderFeedOrderAndTenantIsolation(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, live)
 
-	scope := usersModels.AnnouncementFeedScope{TenantIDs: []int64{chain.TenantID}}
+	scope := testpkg.AnnouncementFeedScope{TenantIDs: []int64{chain.TenantID}}
 	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, scope)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(feed), 2)

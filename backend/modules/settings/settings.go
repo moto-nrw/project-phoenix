@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -17,32 +18,58 @@ import (
 
 // Keys of the tenant settings other owners read.
 const (
-	KeyAttendanceEditScope                = configModel.KeyAttendanceEditScope
-	KeyAttendanceLogEnabled               = configModel.KeyAttendanceLogEnabled
-	KeyAttendanceNFCEnabled               = configModel.KeyAttendanceNFCEnabled
-	KeyAttendanceWebEnabled               = configModel.KeyAttendanceWebEnabled
-	KeyCalendarCalDAVEnabled              = configModel.KeyCalendarCalDAVEnabled
-	KeyDisplayEnabled                     = configModel.KeyDisplayEnabled
-	KeyEmergencyListHealthInfo            = configModel.KeyEmergencyListHealthInfo
-	KeyEnrollmentCareOfferingsEnabled     = configModel.KeyEnrollmentCareOfferingsEnabled
-	KeyEnrollmentGradeLevelMax            = configModel.KeyEnrollmentGradeLevelMax
-	KeyEnrollmentLegalAGBDocumentURL      = configModel.KeyEnrollmentLegalAGBDocumentURL
-	KeyEnrollmentWaitlistEnabled          = configModel.KeyEnrollmentWaitlistEnabled
-	KeyGroupMode                          = configModel.KeyGroupMode
-	KeyOperationalOverviewScope           = configModel.KeyOperationalOverviewScope
-	KeyParentNotesEnabled                 = configModel.KeyParentNotesEnabled
-	KeyParentRequestReasonPolicy          = configModel.KeyParentRequestReasonPolicy
-	KeyPresenceMode                       = configModel.KeyPresenceMode
-	KeyStaffMessagingEnabled              = configModel.KeyStaffMessagingEnabled
-	KeyStudentPhotosEnabled               = configModel.KeyStudentPhotosEnabled
-	KeyTimetableEnabled                   = configModel.KeyTimetableEnabled
-	KeyTimetableShowExpectedChildrenCount = configModel.KeyTimetableShowExpectedChildrenCount
+	KeyAnalyticsFreigabe                     = configModel.KeyAnalyticsFreigabe
+	KeyAnalyticsRecordingSamplePercent       = configModel.KeyAnalyticsRecordingSamplePercent
+	KeyAttendanceEditScope                   = configModel.KeyAttendanceEditScope
+	KeyAttendanceLogEnabled                  = configModel.KeyAttendanceLogEnabled
+	KeyAttendanceNFCEnabled                  = configModel.KeyAttendanceNFCEnabled
+	KeyAttendanceVisibleDays                 = configModel.KeyAttendanceVisibleDays
+	KeyAttendanceWebEnabled                  = configModel.KeyAttendanceWebEnabled
+	KeyCalendarCalDAVEnabled                 = configModel.KeyCalendarCalDAVEnabled
+	KeyCareConcept                           = configModel.KeyCareConcept
+	KeyCareDefaultArrivalTime                = configModel.KeyCareDefaultArrivalTime
+	KeyCareDefaultPickupTime                 = configModel.KeyCareDefaultPickupTime
+	KeyClassArrivalExceptionEditors          = configModel.KeyClassArrivalExceptionEditors
+	KeyDisplayEnabled                        = configModel.KeyDisplayEnabled
+	KeyEmergencyListHealthInfo               = configModel.KeyEmergencyListHealthInfo
+	KeyEnrollmentBookingsAuthoritative       = configModel.KeyEnrollmentBookingsAuthoritative
+	KeyEnrollmentCareOfferingsEnabled        = configModel.KeyEnrollmentCareOfferingsEnabled
+	KeyEnrollmentGradeLevelMax               = configModel.KeyEnrollmentGradeLevelMax
+	KeyEnrollmentLegalAGBDocumentURL         = configModel.KeyEnrollmentLegalAGBDocumentURL
+	KeyEnrollmentWaitlistEnabled             = configModel.KeyEnrollmentWaitlistEnabled
+	KeyFeedbackEnabled                       = configModel.KeyFeedbackEnabled
+	KeyGroupMode                             = configModel.KeyGroupMode
+	KeyOperationalOverviewScope              = configModel.KeyOperationalOverviewScope
+	KeyParentAbsenceReviewScope              = configModel.KeyParentAbsenceReviewScope
+	KeyParentNotesEnabled                    = configModel.KeyParentNotesEnabled
+	KeyParentRequestGroupLeaderReviewEnabled = configModel.KeyParentRequestGroupLeaderReviewEnabled
+	KeyParentRequestReasonPolicy             = configModel.KeyParentRequestReasonPolicy
+	KeyPresenceMode                          = configModel.KeyPresenceMode
+	KeyPrivacyConsentRetentionDays           = configModel.KeyPrivacyConsentRetentionDays
+	KeyRequirePickupOfferingReview           = configModel.KeyRequirePickupOfferingReview
+	KeyRoomDetailVisibleDays                 = configModel.KeyRoomDetailVisibleDays
+	KeySessionEndTime                        = configModel.KeySessionEndTime
+	KeyStaffMessagingEnabled                 = configModel.KeyStaffMessagingEnabled
+	KeyStudentAbsenceEditScope               = configModel.KeyStudentAbsenceEditScope
+	KeyStudentPhotosEnabled                  = configModel.KeyStudentPhotosEnabled
+	KeyTimetableChildrenPerStaffRatio        = configModel.KeyTimetableChildrenPerStaffRatio
+	KeyTimetableEnabled                      = configModel.KeyTimetableEnabled
+	KeyTimetableEnforcePlannedEnd            = configModel.KeyTimetableEnforcePlannedEnd
+	KeyTimetableShowExpectedChildrenCount    = configModel.KeyTimetableShowExpectedChildrenCount
+	KeyTrackingIndicator1                    = configModel.KeyTrackingIndicator1
+	KeyTrackingIndicator2                    = configModel.KeyTrackingIndicator2
+	KeyTrackingIndicator3                    = configModel.KeyTrackingIndicator3
+	KeyTrackingIndicatorsEnabled             = configModel.KeyTrackingIndicatorsEnabled
+	KeyWebSpontaneousActivities              = configModel.KeyWebSpontaneousActivities
 )
 
 // Values of the enumerated settings above.
 const (
 	AttendanceEditScopeOwn      = configModel.AttendanceEditScopeOwn
 	AttendanceEditScopeAllStaff = configModel.AttendanceEditScopeAllStaff
+
+	CareConceptFixedSchedule = configModel.CareConceptFixedSchedule
+	CareConceptOpenRooms     = configModel.CareConceptOpenRooms
 
 	GroupModeFixedGroups = configModel.GroupModeFixedGroups
 	GroupModeOpenCare    = configModel.GroupModeOpenCare
@@ -51,13 +78,30 @@ const (
 	OverviewScopeAllStaff = configModel.OverviewScopeAllStaff
 	OverviewScopeOwn      = configModel.OverviewScopeOwn
 
+	PresenceModeBinary   = configModel.PresenceModeBinary
 	PresenceModeDetailed = configModel.PresenceModeDetailed
 
 	ReasonPolicyBoth      = configModel.ReasonPolicyBoth
 	ReasonPolicyGuardians = configModel.ReasonPolicyGuardians
 	ReasonPolicyNobody    = configModel.ReasonPolicyNobody
 	ReasonPolicyStaff     = configModel.ReasonPolicyStaff
+
+	StudentAbsenceEditScopeAdmins   = configModel.StudentAbsenceEditScopeAdmins
+	StudentAbsenceEditScopeAllStaff = configModel.StudentAbsenceEditScopeAllStaff
+
+	ClassArrivalExceptionEditorsAllStaff = configModel.ClassArrivalExceptionEditorsAllStaff
+
+	ParentAbsenceReviewScopeAdmins       = configModel.ParentAbsenceReviewScopeAdmins
+	ParentAbsenceReviewScopeAllStaff     = configModel.ParentAbsenceReviewScopeAllStaff
+	ParentAbsenceReviewScopeGroupLeaders = configModel.ParentAbsenceReviewScopeGroupLeaders
 )
+
+// SchoolPeriodCount is the number of lessons a school day may name.
+const SchoolPeriodCount = configModel.SchoolPeriodCount
+
+// SchoolPeriodEndKey returns the key of one lesson's end time; period is
+// 1-based up to SchoolPeriodCount.
+var SchoolPeriodEndKey = configModel.SchoolPeriodEndKey
 
 // TenantReader resolves one tenant's settings outside its tenant middleware:
 // the tenant override, else the registry default.
@@ -65,6 +109,34 @@ type TenantReader interface {
 	ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error)
 	ResolveIntForTenant(ctx context.Context, tenantID int64, key string) (int, error)
 	ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error)
+}
+
+// Resolver resolves the request tenant's settings inside its tenant
+// middleware: the tenant override, else the registry default.
+// HasTenantOverride tells the two apart for the Resolve*OrDefault helpers.
+type Resolver interface {
+	HasTenantOverride(ctx context.Context, key string) (bool, error)
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
+// ResolveBoolOrDefault returns the tenant override of a boolean setting, or
+// fallback when the tenant has none, the resolver is missing or the read
+// fails. Failures are logged, never returned.
+func ResolveBoolOrDefault(ctx context.Context, resolver Resolver, key string, fallback bool, logger *slog.Logger) bool {
+	return configSvc.ResolveBoolOrDefault(ctx, resolver, key, fallback, logger)
+}
+
+// ResolveIntOrDefault is ResolveBoolOrDefault for an integer setting.
+func ResolveIntOrDefault(ctx context.Context, resolver Resolver, key string, fallback int, logger *slog.Logger) int {
+	return configSvc.ResolveIntOrDefault(ctx, resolver, key, fallback, logger)
+}
+
+// ResolveStringOrDefault is ResolveBoolOrDefault for a string setting; an
+// empty override also yields fallback.
+func ResolveStringOrDefault(ctx context.Context, resolver Resolver, key, fallback string, logger *slog.Logger) string {
+	return configSvc.ResolveStringOrDefault(ctx, resolver, key, fallback, logger)
 }
 
 // Snapshot is a batch of one tenant's resolved settings. A reader that

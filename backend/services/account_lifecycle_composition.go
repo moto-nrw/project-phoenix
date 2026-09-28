@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
@@ -16,14 +14,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
-// Identity & Access owns staff PIN verification and lockout, the admin
-// staff-view preview, staff offboarding access, the school identity chain,
-// parent accounts and guardian relative access (#3225). This file binds the
-// seams those flows need to the retained owners the root still composes
-// (persons, staff, teachers, students, guardian profiles and relationships,
-// the audit ledger, the
-// guardian invitation storage and delivery) and serves the retained auth
-// service's consumer-owned port over the public module.
+// Identity & Access owns the admin staff-view preview, staff offboarding
+// access, the school identity chain, parent accounts and guardian relative
+// access (#3225). This file binds the seams those flows need to the retained
+// owners the root still composes (persons, staff, teachers, students,
+// guardian profiles and relationships, the audit ledger, the guardian
+// invitation storage and delivery) and serves the retained auth service's
+// consumer-owned port over the public module.
 
 // lifecycleWiring is the retained material the lifecycle seams are bound to.
 // The module composition fills repos from the session repositories.
@@ -70,8 +67,6 @@ func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*ident
 	}
 	return &identityaccessCompose.LifecycleDependencies{
 		Staff:       staffDirectory{repos: wiring.repos, caregivers: wiring.caregivers},
-		PINs:        pinHasher{},
-		Lockout:     lockoutPolicy{settings: wiring.settings, logger: logger},
 		Audit:       previewAudit{events: wiring.repos.authEvents},
 		Passwords:   passwordPolicy{},
 		Guardians:   guardianDirectory{repos: wiring.repos},
@@ -238,32 +233,6 @@ func (d staffDirectory) CreateCaregiverProfile(ctx context.Context, tenantID, st
 }
 
 // --- credential seams ------------------------------------------------------
-
-// pinHasher reuses the Argon2id helpers accounts store their credentials with.
-type pinHasher struct{}
-
-func (pinHasher) HashPIN(pin string) (string, error) { return securityruntime.HashPassword(pin) }
-
-func (pinHasher) VerifyPIN(pin, hash string) bool {
-	valid, err := securityruntime.VerifyPassword(pin, hash)
-	return err == nil && valid
-}
-
-// lockoutPolicy resolves the security.account_lockout_* settings for the
-// tenant in context. The PIN lockout and the MFA lockout share one
-// threshold and one window, so the identity module's constants are the
-// fallback here too (#586: one source of truth for the 5-attempt /
-// 15-minute policy).
-type lockoutPolicy struct {
-	settings config.SettingsService
-	logger   *slog.Logger
-}
-
-func (p lockoutPolicy) PINLockout(ctx context.Context) (int, time.Duration) {
-	threshold := config.ResolveIntOrDefault(ctx, p.settings, configModels.KeyAccountLockoutThreshold, identityaccess.MFALockoutThreshold, p.logger)
-	minutes := config.ResolveIntOrDefault(ctx, p.settings, configModels.KeyAccountLockoutDurationMinutes, int(identityaccess.MFALockoutDuration/time.Minute), p.logger)
-	return threshold, time.Duration(minutes) * time.Minute
-}
 
 // passwordPolicy binds the credential policy Security Runtime owns to the
 // module's password seam and reports the module's public sentinel, so every
@@ -516,43 +485,4 @@ func (a financialAudit) RecordPayerRemoved(ctx context.Context, guardianProfileI
 		NewValue:          "false",
 		Note:              "Erziehungsberechtigte Person vom Kind entfernt",
 	})
-}
-
-// --- device staff PIN -------------------------------------------------------
-
-// StaffPINPrincipal is the verified staff member the device middleware binds
-// a kiosk action to. Its accessors satisfy the device authentication adapter
-// without a people-directory row leaving this root.
-type StaffPINPrincipal struct {
-	ID       int64
-	PersonID int64
-	TenantID int64
-}
-
-func (p *StaffPINPrincipal) GetID() any         { return p.ID }
-func (p *StaffPINPrincipal) GetTenantID() int64 { return p.TenantID }
-
-// StaffPINAuthenticator verifies a staff-specific PIN inside the staff
-// member's tenant boundary. Device middleware uses this narrow contract to
-// bind kiosk attribution to a person.
-type StaffPINAuthenticator interface {
-	AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (*StaffPINPrincipal, error)
-}
-
-type staffPINAuthenticator struct{ module *identityaccess.Module }
-
-// NewStaffPINAuthenticator serves the device port from the public module.
-func NewStaffPINAuthenticator(module *identityaccess.Module) StaffPINAuthenticator {
-	return staffPINAuthenticator{module: module}
-}
-
-func (a staffPINAuthenticator) AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (*StaffPINPrincipal, error) {
-	if a.module == nil {
-		return nil, errors.New("staff PIN authentication is not composed")
-	}
-	staff, err := a.module.AuthenticateStaffPIN(ctx, tenantID, staffID, pin)
-	if err != nil {
-		return nil, err
-	}
-	return &StaffPINPrincipal{ID: staff.ID, PersonID: staff.PersonID, TenantID: staff.TenantID}, nil
 }

@@ -8,6 +8,13 @@ recall sent emails, push messages, or other external effects.
 
 ## Deployment
 
+Before pulling, the deployment tags every running image locally as
+`<repository>:moto-release-<service>`. A rebuild of the same revision (every
+demo dispatch rebuilds `demo-<sha>`) or an upstream `postgres` update moves the
+tag the container was created from. On Docker's containerd image store the
+running image would then lose its name and registry digest, and the snapshot
+below would fail. The local tag keeps the digest resolvable.
+
 The deployment pulls candidate images, stops the server and frontend (in the
 demo stack also its `demo-runtime` sidecar, which writes to the database), then
 captures the previous state under `~/backups/<environment>/release-<timestamp>-<sha>/`:

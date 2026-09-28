@@ -1,5 +1,7 @@
 import { isIP } from "node:net";
 import type { NextRequest } from "next/server";
+import { analyticsSessionHeaders } from "~/lib/analytics-session-header.server";
+import { REQUEST_ID_HEADER } from "~/lib/request-id";
 
 type HeaderReader = Pick<Headers, "get">;
 
@@ -116,7 +118,8 @@ function frontendOrigin(request: NextRequest): string {
  * When Next.js proxies requests to the Go backend over the Docker network,
  * the backend only sees the Docker-internal IP (e.g. 172.20.0.4) and
  * Node.js as the User-Agent. This helper preserves the original values
- * so the backend can log them for security auditing.
+ * so the backend can log them for security auditing, and passes on the
+ * browser's analytics session (#3602).
  */
 export function getClientForwardHeaders(
   request: NextRequest,
@@ -128,7 +131,20 @@ export function getClientForwardHeaders(
     ...(forwardedFor && { "X-Forwarded-For": forwardedFor }),
     "X-Moto-Frontend-Origin": frontendOrigin(request),
     "User-Agent": userAgent,
+    ...analyticsSessionHeaders(request.headers),
+    ...requestIdHeaders(request.headers),
   };
+}
+
+/**
+ * Passes the proxy's Vorgangskennung on to the backend, which keeps it, so
+ * backend and BFF events of one request share the same `request_id`.
+ */
+export function requestIdHeaders(
+  headers: HeaderReader,
+): Record<string, string> {
+  const requestId = headers.get(REQUEST_ID_HEADER);
+  return requestId ? { [REQUEST_ID_HEADER]: requestId } : {};
 }
 
 export function canonicalForwardedFor(headers: HeaderReader | null): string {

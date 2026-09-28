@@ -298,7 +298,7 @@ func (p *OperatorProvisioning) InitiateOperatorEmailChange(ctx context.Context, 
 	if newEmail == operator.Email {
 		return domain.ErrOperatorEmailChangeSameEmail
 	}
-	maskedNewEmail := domain.MaskOperatorEmail(newEmail)
+	maskedNewEmail := domain.MaskEmail(newEmail)
 
 	var change domain.OperatorEmailChange
 	var addressTaken bool
@@ -407,8 +407,8 @@ func (p *OperatorProvisioning) ConfirmOperatorEmailChange(ctx context.Context, t
 		OperatorID: result.OperatorID, Action: domain.OperatorAuditActionEmailChangeDone,
 		ResourceType: domain.OperatorAuditResourceOperator, ResourceID: &result.OperatorID, IPAddress: ipAddress,
 		EmailChange: &domain.OperatorEmailChangeEvidence{
-			MaskedOldEmail: domain.MaskOperatorEmail(result.OldEmail),
-			MaskedNewEmail: domain.MaskOperatorEmail(result.NewEmail),
+			MaskedOldEmail: domain.MaskEmail(result.OldEmail),
+			MaskedNewEmail: domain.MaskEmail(result.NewEmail),
 		},
 	}, "email change confirmation")
 

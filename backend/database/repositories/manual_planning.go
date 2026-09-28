@@ -1,10 +1,10 @@
 package repositories
 
 import (
-	"github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/uptrace/bun"
 )
 
-func NewManualPlanningQuery(db *bun.DB) *enrollment.OfferingChangeImpactRepository {
-	return enrollment.NewOfferingChangeImpactRepository(db)
+func NewManualPlanningQuery(db *bun.DB) *enrollmentCompose.ManualPlanningQuery {
+	return enrollmentCompose.NewManualPlanningQuery(db)
 }

@@ -79,14 +79,25 @@ func (d *DemoRuntime) RetireDemoSchools(ctx context.Context, slugs []string) (in
 // DemoSchoolOrder is a demo school of the public demo waiting for its seed
 // (#3463). Seeded orders only miss their first tick.
 type DemoSchoolOrder struct {
-	Slug, SchoolName, PersonName string
-	Attempts                     int
-	Seeded                       bool
+	Slug, SchoolName    string
+	FirstName, LastName string
+	Attempts            int
+	Seeded              bool
 }
 
 // ReleaseDemoSchoolOrders returns the orders of a stopped process to the queue.
 func (d *DemoRuntime) ReleaseDemoSchoolOrders(ctx context.Context) error {
 	return d.queue.ReleaseDemoSchoolOrders(ctx)
+}
+
+// RequeueDeferredDemoSchoolOrders retries interrupted optional demo work as
+// a clean seed, rather than replaying partial API writes in the open school.
+func (d *DemoRuntime) RequeueDeferredDemoSchoolOrders(ctx context.Context) error {
+	return d.queue.RequeueDeferredDemoSchoolOrders(ctx)
+}
+
+func (d *DemoRuntime) RequeueDeferredDemoSchoolOrder(ctx context.Context, slug string) error {
+	return d.queue.RequeueDeferredDemoSchoolOrder(ctx, slug)
 }
 
 // ClaimDemoSchoolOrder takes the oldest waiting order, or nil.
@@ -96,7 +107,8 @@ func (d *DemoRuntime) ClaimDemoSchoolOrder(ctx context.Context) (*DemoSchoolOrde
 		return nil, err
 	}
 	return &DemoSchoolOrder{
-		Slug: order.Slug, SchoolName: order.SchoolName, PersonName: order.PersonName, Attempts: order.Attempts, Seeded: order.Seeded,
+		Slug: order.Slug, SchoolName: order.SchoolName, FirstName: order.FirstName, LastName: order.LastName,
+		Attempts: order.Attempts, Seeded: order.Seeded,
 	}, nil
 }
 
@@ -129,8 +141,18 @@ func (d *DemoRuntime) LoadDemoSchool(ctx context.Context, name string) (*DemoSch
 	return &DemoSchoolRecord{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON}, nil
 }
 
+// ReserveDemoSchool remembers a newly bootstrapped school before its full
+// seed contract is available for persistence.
+func (d *DemoRuntime) ReserveDemoSchool(ctx context.Context, name string, schoolID int64) error {
+	return d.schools.ReserveDemoSchool(ctx, name, schoolID)
+}
+
 func (d *DemoRuntime) RememberDemoSchool(ctx context.Context, name string, state DemoSchoolRecord) error {
 	return d.schools.RememberDemoSchool(ctx, name, organizationtenancy.DemoSchoolState{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON})
+}
+
+func (d *DemoRuntime) UpdateDemoSchool(ctx context.Context, name string, state DemoSchoolRecord) error {
+	return d.schools.UpdateDemoSchool(ctx, name, organizationtenancy.DemoSchoolState{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON})
 }
 
 func (d *DemoRuntime) WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error {

@@ -9,15 +9,15 @@ import (
 
 func (s *Service) EnrollStudent(ctx context.Context, input domain.StudentEnrollment) (result int64, err error) {
 	err = s.runWrite(ctx, "enroll_student", func(txCtx context.Context, stats *domain.OperationStats) error {
-		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.EnrollStudent(txCtx, input)
-		stats.Add(queryStats)
-
-		if err == nil && result <= 0 {
-			return fmt.Errorf("school membership: enrollment returned no membership identity")
-		}
-
-		return err
+		return s.countingWrite(txCtx, stats, func(writeCtx context.Context) error {
+			id, queryStats, writeErr := s.store.EnrollStudent(writeCtx, input)
+			stats.Add(queryStats)
+			if writeErr == nil && id <= 0 {
+				return fmt.Errorf("school membership: enrollment returned no membership identity")
+			}
+			result = id
+			return writeErr
+		})
 	})
 	if err != nil {
 		return 0, err
@@ -25,6 +25,8 @@ func (s *Service) EnrollStudent(ctx context.Context, input domain.StudentEnrollm
 	return result, nil
 }
 
+// RenewStudentEnrollment counts only when the renewal brings back a child
+// that did not count before; renewing a counted child always passes.
 func (s *Service) RenewStudentEnrollment(ctx context.Context, input domain.StudentEnrollment) (result int64, err error) {
 	err = s.runWrite(ctx, "renewenrollment_student", func(txCtx context.Context, stats *domain.OperationStats) error {
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
@@ -32,12 +34,17 @@ func (s *Service) RenewStudentEnrollment(ctx context.Context, input domain.Stude
 		if gateErr != nil {
 			return gateErr
 		}
-		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.RenewStudentEnrollment(txCtx, input)
-		stats.Add(queryStats)
-		return err
+		return s.countingWrite(txCtx, stats, func(writeCtx context.Context) error {
+			id, queryStats, writeErr := s.store.RenewStudentEnrollment(writeCtx, input)
+			stats.Add(queryStats)
+			result = id
+			return writeErr
+		})
 	})
-	return result, err
+	if err != nil {
+		return 0, err
+	}
+	return result, nil
 }
 
 func (s *Service) AssignStudentGroup(ctx context.Context, studentID int64, groupID *int64) (result bool, err error) {

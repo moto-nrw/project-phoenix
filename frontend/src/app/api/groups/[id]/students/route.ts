@@ -1,47 +1,19 @@
-import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { auth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
-import { apiGet, handleApiError } from "~/lib/api-helpers.server";
+import { apiGet } from "~/lib/api-helpers.server";
+import { createTenantApiAdapter } from "~/lib/backend-proxy-route.server";
 
-async function GETHandler(
-  request: NextRequest,
-  context: { params: Promise<Record<string, string | string[] | undefined>> },
-): Promise<NextResponse> {
-  try {
-    const session = await auth();
-
-    if (!session?.user?.token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const params = await context.params;
-    const groupId = params?.id;
-
-    if (!groupId || typeof groupId !== "string") {
-      return NextResponse.json(
-        { error: "Group ID is required" },
-        { status: 400 },
-      );
-    }
-
-    // Call backend endpoint to get students in the group
-    const response = await apiGet(
-      `/api/groups/${groupId}/students`,
-      session.user.token,
+export const GET = createTenantApiAdapter(async (_request, token, context) => {
+  const groupId = (await context?.params)?.id;
+  if (typeof groupId !== "string" || !groupId) {
+    return NextResponse.json(
+      { error: "Group ID is required" },
+      { status: 400 },
     );
-
-    // The backend returns a wrapped response with status, data, and message
-    // Extract the data array and return it directly
-    if (response && typeof response === "object" && "data" in response) {
-      return NextResponse.json(response.data);
-    }
-
-    // If response is already an array, return it directly
-    return NextResponse.json(response);
-  } catch (error) {
-    return handleApiError(error);
   }
-}
-
-export const GET = withTenantAuth(GETHandler);
+  const response = await apiGet(`/api/groups/${groupId}/students`, token);
+  // Keep this endpoint's established bare-array success shape.
+  if (response && typeof response === "object" && "data" in response) {
+    return NextResponse.json(response.data);
+  }
+  return NextResponse.json(response);
+});

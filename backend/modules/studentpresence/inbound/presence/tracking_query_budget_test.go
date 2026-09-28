@@ -13,7 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	tenantsettings "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -40,8 +40,8 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 	settings := testutil.SetupSettingsModuleWithDB(t, db).Settings
 
 	seedCtx := tenant.WithTenantID(context.Background(), tenantID)
-	require.NoError(t, settings.SetValue(seedCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
-	require.NoError(t, settings.SetValue(seedCtx, configModel.KeyTrackingIndicator1, "Bibliothek", nil, nil))
+	require.NoError(t, settings.SetValue(seedCtx, tenantsettings.KeyTrackingIndicatorsEnabled, true, nil, nil))
+	require.NoError(t, settings.SetValue(seedCtx, tenantsettings.KeyTrackingIndicator1, "Bibliothek", nil, nil))
 
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Budget", "Test", "1a")
 

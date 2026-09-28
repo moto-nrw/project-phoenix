@@ -1,0 +1,176 @@
+package timetablehttp
+
+import (
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// SlotResponse describes an arrival or pickup slot for a single day.
+//
+// Source is always one of SlotSource* below. ExpectedTime is nil when
+// source=none, or when source=exception and the exception expresses absence
+// (no time). Reason is populated only for exceptions that carry one.
+type SlotResponse struct {
+	ExpectedTime *string `json:"expected_time"`
+	Source       string  `json:"source"`
+	Reason       *string `json:"reason,omitempty"`
+}
+
+// SlotSource constants for SlotResponse.Source. Aliased to the schedule
+// service so the wire strings and the shared ResolveSlotSource precedence rule
+// stay in lockstep — one source of truth.
+const (
+	SlotSourceSchedule  = timetable.SlotSourceSchedule
+	SlotSourceException = timetable.SlotSourceException
+	SlotSourceNone      = timetable.SlotSourceNone
+)
+
+// AttendanceDayResponse is the per-student attendance payload on a day
+// instance. Status / substatus / note / checked_in_at come from
+// schedule.instance_students; is_unplanned marks a persisted visit without a
+// booking. Legacy retained visits can still be synthesized during migration.
+type AttendanceDayResponse struct {
+	Status       string  `json:"status"`
+	Substatus    *string `json:"substatus"`
+	Note         *string `json:"note"`
+	CheckedInAt  *string `json:"checked_in_at"`
+	CheckedOutAt *string `json:"checked_out_at"`
+	IsUnplanned  bool    `json:"is_unplanned"`
+}
+
+// InstanceDayResponse is one scheduled instance as it appears in a student's
+// day view. active_group_id is nil for planned/cancelled instances.
+type InstanceDayResponse struct {
+	ID            int64                 `json:"id"`
+	Title         string                `json:"title"`
+	StartTime     string                `json:"start_time"`
+	EndTime       string                `json:"end_time"`
+	RoomID        int64                 `json:"room_id"`
+	Status        string                `json:"status"`
+	ActiveGroupID *int64                `json:"active_group_id"`
+	Attendance    AttendanceDayResponse `json:"attendance"`
+}
+
+// StudentDayResponse is the body returned by GET /student/{id}/day.
+type StudentDayResponse struct {
+	StudentID int64                 `json:"student_id"`
+	Date      string                `json:"date"`
+	Weekday   int                   `json:"weekday"`
+	Arrival   SlotResponse          `json:"arrival"`
+	Instances []InstanceDayResponse `json:"instances"`
+	Pickup    SlotResponse          `json:"pickup"`
+}
+
+// StudentWeekResponse is the body returned by GET /student/{id}/week. Days
+// is always inclusive-inclusive across the requested range, one entry per
+// date (including dates with no instances).
+type StudentWeekResponse struct {
+	StudentID int64                `json:"student_id"`
+	From      string               `json:"from"`
+	To        string               `json:"to"`
+	Days      []StudentDayResponse `json:"days"`
+}
+
+// --- Mappers ---------------------------------------------------------------
+
+// mapEnrolledInstance lifts a repo-side (instance, attendance) pair into the
+// wire shape. The attendance row is authoritative — status/substatus/note/
+// checked_in_at come from it directly. A persisted unplanned visit also has an
+// instance_students row, so the row's is_unplanned flag stays authoritative.
+func mapEnrolledInstance(row timetable.StudentWeekEntry) InstanceDayResponse {
+	att := row.Attendance
+	resp := InstanceDayResponse{
+		ID:            row.Instance.ID,
+		Title:         row.Instance.Title,
+		StartTime:     row.Instance.StartTime.Format("15:04"),
+		EndTime:       row.Instance.EndTime.Format("15:04"),
+		RoomID:        row.Instance.RoomID,
+		Status:        row.Instance.Status,
+		ActiveGroupID: row.Instance.ActiveGroupID,
+		Attendance: AttendanceDayResponse{
+			Status:       att.Status,
+			Substatus:    att.Substatus,
+			Note:         att.Note,
+			CheckedInAt:  formatOptionalRFC3339(att.CheckedInAt),
+			CheckedOutAt: formatOptionalRFC3339(att.CheckedOutAt),
+			IsUnplanned:  att.IsUnplanned,
+		},
+	}
+	return resp
+}
+
+// mapUnplannedInstance builds a response entry for a visit without an
+// instance_students row. Status is synthesized as "present" (the visit
+// proves they were there), substatus/note stay nil, checked_in_at comes
+// from the visit's entry_time.
+func mapUnplannedInstance(inst timetable.ScheduledInstance, visit timetable.StudentWeekVisit) InstanceDayResponse {
+	checkedIn := formatOptionalRFC3339(&visit.EntryTime)
+	return InstanceDayResponse{
+		ID:            inst.ID,
+		Title:         inst.Title,
+		StartTime:     inst.StartTime.Format("15:04"),
+		EndTime:       inst.EndTime.Format("15:04"),
+		RoomID:        inst.RoomID,
+		Status:        inst.Status,
+		ActiveGroupID: inst.ActiveGroupID,
+		Attendance: AttendanceDayResponse{
+			Status:       timetable.SlotAttendancePresent,
+			Substatus:    nil,
+			Note:         nil,
+			CheckedInAt:  checkedIn,
+			CheckedOutAt: formatOptionalRFC3339(visit.ExitTime),
+			IsUnplanned:  true,
+		},
+	}
+}
+
+// mapArrivalScheduleSlot maps a recurring weekly schedule to the slot shape.
+func mapArrivalScheduleSlot(expectedArrival time.Time) SlotResponse {
+	resp := SlotResponse{Source: SlotSourceSchedule}
+	// A care day whose class carries no time has no arrival time. Formatting
+	// the zero value would report 00:00 (#2414).
+	if !expectedArrival.IsZero() {
+		t := expectedArrival.Format("15:04")
+		resp.ExpectedTime = &t
+	}
+	return resp
+}
+
+// mapPickupScheduleSlot mirrors mapArrivalScheduleSlot for pickup.
+func mapPickupScheduleSlot(pickupTime time.Time) SlotResponse {
+	t := pickupTime.Format("15:04")
+	return SlotResponse{
+		ExpectedTime: &t,
+		Source:       SlotSourceSchedule,
+	}
+}
+
+// formatOptionalRFC3339 renders an optional timestamp in Berlin-local time
+// using RFC3339. Returns nil when the input is nil — the JSON field stays
+// null in that case. Berlin-local so the frontend does not need to round-
+// trip an offset conversion for display.
+func formatOptionalRFC3339(t *time.Time) *string {
+	if t == nil {
+		return nil
+	}
+	s := t.In(calendar.Berlin).Format(time.RFC3339)
+	return &s
+}
+
+// mapExceptionSlot maps a date-specific arrival or pickup exception. A nil
+// time means absence on this date; we surface source=exception with
+// ExpectedTime=nil.
+func mapExceptionSlot(e *timetable.StudentDayException) SlotResponse {
+	resp := SlotResponse{Source: SlotSourceException}
+	if e.Time != nil {
+		t := e.Time.Format("15:04")
+		resp.ExpectedTime = &t
+	}
+	if e.Reason != nil && *e.Reason != "" {
+		r := *e.Reason
+		resp.Reason = &r
+	}
+	return resp
+}

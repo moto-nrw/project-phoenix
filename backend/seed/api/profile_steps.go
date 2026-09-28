@@ -41,6 +41,25 @@ func (s configureProfileStep) Run(_ context.Context, rt *Runtime) error {
 	return nil
 }
 
+// configureDevicePINStep makes the seed's staff PIN the school's device PIN.
+// Device auth resolves security.ogs_device_pin, whose registry default is
+// 1234, and uses OGS_DEVICE_PIN only when the setting resolves empty. Without
+// this write every device call of a school seeded with another PIN fails with
+// 401. The setting is admin-only, so the school admin writes it. Its
+// dependency on attendance.nfc_enabled only hides it in the settings screen;
+// the write also succeeds while NFC is off, as on the public demo.
+type configureDevicePINStep struct{}
+
+func (configureDevicePINStep) Name() string { return "Configuring device PIN" }
+
+func (configureDevicePINStep) Run(_ context.Context, rt *Runtime) error {
+	path := "/api/settings/values/" + profileSettingDevicePIN
+	if _, err := rt.Client.PutWithAuth(rt.TenantAuth, path, map[string]any{"value": rt.StaffPIN}); err != nil {
+		return fmt.Errorf("set device PIN: %w", err)
+	}
+	return nil
+}
+
 type verifyProfileStep struct {
 	definition demoProfileDefinition
 }
@@ -231,14 +250,14 @@ func sortedProfileSettingKeys(settings map[string]SeedSetting) []string {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-	// A rerun may start from either valid scope pair. Expanding visibility
-	// first and restricting attendance first keeps every intermediate pair valid.
-	first := profileSettingAttendanceScope
-	if setting, ok := settings[profileSettingAttendanceScope]; ok && bytes.Equal(setting.Value, []byte(`"all_staff"`)) {
-		first = profileSettingOverviewScope
+	// A rerun may start from any valid scope set. Expanding visibility first
+	// and restricting it last keeps every intermediate set valid; the sorted
+	// order already puts the overview scope after every action scope.
+	if setting, ok := settings[profileSettingOverviewScope]; !ok || !bytes.Equal(setting.Value, []byte(`"all_staff"`)) {
+		return keys
 	}
 	for index, key := range keys {
-		if key == first {
+		if key == profileSettingOverviewScope {
 			copy(keys[1:index+1], keys[:index])
 			keys[0] = key
 			break

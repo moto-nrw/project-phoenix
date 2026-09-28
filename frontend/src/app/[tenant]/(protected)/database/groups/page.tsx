@@ -24,7 +24,6 @@ import { useToast } from "~/contexts/ToastContext";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
-import { trackEvent } from "~/lib/analytics";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 const logger = createLogger({ component: "DatabaseGroupsPage" });
@@ -170,7 +169,6 @@ function GroupsPageContent() {
           ? groupsConfig.form.transformBeforeSubmit(data)
           : data;
         const created = await service.create(payload);
-        trackEvent("group_created");
         toastSuccess(
           getDbOperationMessage(
             "create",
@@ -201,7 +199,6 @@ function GroupsPageContent() {
           ? groupsConfig.form.transformBeforeSubmit(data)
           : data;
         await service.update(selectedGroup.id, payload);
-        trackEvent("group_updated");
         toastSuccess(
           getDbOperationMessage(
             "update",

@@ -20,6 +20,7 @@ export const RESERVED_SLUGS = new Set([
   "grafana", // grafana.moto-app.de monitoring
   "pyreportal", // pyreportal.moto-app.de kiosk SPA
   "help", // public /help docs — top-level app route shadows [tenant]
+  "ingest", // /ingest PostHog reverse proxy (next.config.js rewrites)
   // Defensive reservations (common infrastructure subdomains)
   "admin",
   "app",

@@ -8,7 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	"github.com/uptrace/bun"
 )
 
@@ -71,7 +71,7 @@ func newSettingsResource(operations configAPI.Operations, homeLayouts configAPI.
 		FileRemove: apiCommon.RemoveImage,
 		StoredPath: apiCommon.ResolveStoredPath,
 		LegalDocumentReference: func(ctx context.Context, storedURL string) (bool, error) {
-			publicURL := enrollmentSvc.PublicEnrollmentLegalDocumentURL(storedURL)
+			publicURL := enrollmentAPI.PublicLegalDocumentURL(storedURL)
 			referenced, err := references(ctx, storedURL, publicURL)
 			if err != nil {
 				return false, fmt.Errorf("check AGB document references: %w", err)

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
@@ -57,7 +56,7 @@ func (p staffShiftPlanning) ListShifts(ctx context.Context, query workforce.Shif
 	if err != nil {
 		return nil, err
 	}
-	var shifts []*scheduleModels.StaffShift
+	var shifts []*StaffShift
 	if query.StaffID > 0 {
 		shifts, err = p.deps.Shifts.ListShiftsForStaff(ctx, query.StaffID, from, to)
 	} else {
@@ -277,7 +276,7 @@ func (p staffShiftPlanning) ExportPlan(ctx context.Context, request workforce.Pl
 
 // --- mapping ---
 
-func shiftInputToModel(input workforce.StaffShiftInput) (*scheduleModels.StaffShift, error) {
+func shiftInputToModel(input workforce.StaffShiftInput) (*StaffShift, error) {
 	date, err := planningDate(input.Date, "date")
 	if err != nil {
 		return nil, err
@@ -286,25 +285,25 @@ func shiftInputToModel(input workforce.StaffShiftInput) (*scheduleModels.StaffSh
 	if err != nil {
 		return nil, err
 	}
-	return &scheduleModels.StaffShift{
-		StaffID: input.StaffID, Date: scheduleModels.Date(date), StartTime: start, EndTime: end,
+	return &StaffShift{
+		StaffID: input.StaffID, Date: date, StartTime: start, EndTime: end,
 		BreakMinutes: input.BreakMinutes, ShiftTypeID: input.ShiftTypeID, Notes: input.Notes,
 		Cancelled: input.Cancelled, ChangeReason: input.ChangeReason, OriginShiftID: input.OriginShiftID,
 	}, nil
 }
 
-func seriesInputToModel(input workforce.StaffShiftSeriesInput) (*scheduleModels.StaffShiftSeries, error) {
+func seriesInputToModel(input workforce.StaffShiftSeriesInput) (*StaffShiftSeries, error) {
 	validFrom, err := planningDate(input.ValidFrom, "valid_from")
 	if err != nil {
 		return nil, err
 	}
-	var validUntil *scheduleModels.Date
+	var validUntil *timezone.Date
 	if input.ValidUntil != "" {
 		until, err := planningDate(input.ValidUntil, "valid_until")
 		if err != nil {
 			return nil, err
 		}
-		value := scheduleModels.Date(until)
+		value := until
 		validUntil = &value
 	}
 	start, end, err := planningWindow(input.StartTime, input.EndTime)
@@ -318,14 +317,14 @@ func seriesInputToModel(input workforce.StaffShiftSeriesInput) (*scheduleModels.
 		}
 		weekdays = append(weekdays, int16(weekday)) // #nosec G115 -- range checked above
 	}
-	return &scheduleModels.StaffShiftSeries{
+	return &StaffShiftSeries{
 		StaffID: input.StaffID, Weekdays: weekdays, StartTime: start, EndTime: end, BreakMinutes: input.BreakMinutes,
 		ShiftTypeID: input.ShiftTypeID, Notes: input.Notes, CalendarPeriodID: input.CalendarPeriodID,
-		WeekPattern: input.WeekPattern, ValidFrom: scheduleModels.Date(validFrom), ValidUntil: validUntil,
+		WeekPattern: input.WeekPattern, ValidFrom: validFrom, ValidUntil: validUntil,
 	}, nil
 }
 
-func plannedShiftToCapability(shift *scheduleModels.StaffShift) workforce.PlannedShift {
+func plannedShiftToCapability(shift *StaffShift) workforce.PlannedShift {
 	if shift == nil {
 		return workforce.PlannedShift{}
 	}
@@ -346,7 +345,7 @@ func plannedShiftToCapability(shift *scheduleModels.StaffShift) workforce.Planne
 	return value
 }
 
-func plannedShiftsToCapability(shifts []*scheduleModels.StaffShift) []workforce.PlannedShift {
+func plannedShiftsToCapability(shifts []*StaffShift) []workforce.PlannedShift {
 	result := make([]workforce.PlannedShift, 0, len(shifts))
 	for _, shift := range shifts {
 		if shift == nil {
@@ -357,7 +356,7 @@ func plannedShiftsToCapability(shifts []*scheduleModels.StaffShift) []workforce.
 	return result
 }
 
-func seriesToCapability(series *scheduleModels.StaffShiftSeries) workforce.StaffShiftSeries {
+func seriesToCapability(series *StaffShiftSeries) workforce.StaffShiftSeries {
 	if series == nil {
 		return workforce.StaffShiftSeries{}
 	}

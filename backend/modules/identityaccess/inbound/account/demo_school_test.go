@@ -73,6 +73,32 @@ func sessionClaims(t *testing.T, e demoEnv, token string) testutil.Claims {
 	return claims
 }
 
+// The visitor's first and last name reach the order as given: a first name
+// of two words and a family name with a particle are not split again.
+func TestDemoAccessRequestQueuesTheVisitorsNamesUnchanged(t *testing.T) {
+	t.Parallel()
+	env := newOwnSchoolDemoEnv(t)
+	body := env.requestBodyFor(t, demoAddress(t))
+	body["first_name"], body["last_name"] = "  Anna   Lena ", "von Berg"
+	token := env.requestTokenWith(t, body)
+
+	var access struct {
+		FirstName  string `bun:"first_name"`
+		LastName   string `bun:"last_name"`
+		SchoolSlug string `bun:"school_slug"`
+	}
+	require.NoError(t, env.db.NewRaw(`SELECT first_name, last_name, school_slug FROM auth.demo_accesses WHERE token_hash = ?`,
+		fingerprint(token)).Scan(context.Background(), &access))
+	assert.Equal(t, []string{"Anna Lena", "von Berg"}, []string{access.FirstName, access.LastName}, "whitespace is collapsed, nothing else")
+	var order struct {
+		FirstName string `bun:"first_name"`
+		LastName  string `bun:"last_name"`
+	}
+	require.NoError(t, env.db.NewRaw(`SELECT first_name, last_name FROM platform.demo_school_states WHERE name = ?`,
+		access.SchoolSlug).Scan(context.Background(), &order))
+	assert.Equal(t, []string{"Anna Lena", "von Berg"}, []string{order.FirstName, order.LastName})
+}
+
 func TestDemoAccessRequestQueuesASchoolOfItsOwn(t *testing.T) {
 	t.Parallel()
 	env := newOwnSchoolDemoEnv(t)
@@ -82,14 +108,16 @@ func TestDemoAccessRequestQueuesASchoolOfItsOwn(t *testing.T) {
 	var order struct {
 		Status     string `bun:"status"`
 		SchoolName string `bun:"school_name"`
-		PersonName string `bun:"person_name"`
+		FirstName  string `bun:"first_name"`
+		LastName   string `bun:"last_name"`
 		Seeded     bool   `bun:"seeded"`
 	}
-	require.NoError(t, env.db.NewRaw(`SELECT status, school_name, person_name, seed_state IS NOT NULL AS seeded
+	require.NoError(t, env.db.NewRaw(`SELECT status, school_name, first_name, last_name, seed_state IS NOT NULL AS seeded
 		FROM platform.demo_school_states WHERE name = ?`, slug).Scan(context.Background(), &order))
 	assert.Equal(t, "preparing", order.Status)
 	assert.Equal(t, "OGS Beispiel", order.SchoolName)
-	assert.Equal(t, "Kim Beispiel", order.PersonName)
+	assert.Equal(t, "Kim", order.FirstName)
+	assert.Equal(t, "Beispiel", order.LastName)
 	assert.False(t, order.Seeded)
 
 	assert.JSONEq(t, `{"status":"preparing","school_name":"OGS Beispiel"}`, env.status(token).Body.String())

@@ -93,7 +93,8 @@ export function ProfileProvider({
         };
       });
     } catch (error) {
-      logger.error("failed to load profile", { error: String(error) });
+      // fetchProfile already reports the cause; a missing token is expected.
+      logger.warn("failed to load profile", { error: String(error) });
       setState((prev) => ({
         ...prev,
         profile: null,

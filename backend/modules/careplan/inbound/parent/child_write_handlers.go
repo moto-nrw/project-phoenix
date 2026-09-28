@@ -10,11 +10,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -683,29 +681,29 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_contact_invalid"))
 	case errors.Is(err, parentService.ErrGuardianRelationshipInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_relationship_invalid"))
-	case errors.Is(err, enrollmentService.ErrOfferingChangeDisabled):
+	case errors.Is(err, careplan.ErrOfferingChangeDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "offering_changes_disabled"))
-	case errors.Is(err, enrollmentService.ErrCareOfferingsDisabled):
+	case errors.Is(err, careplan.ErrCareOfferingsDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "care_offerings_disabled"))
-	case errors.Is(err, enrollmentService.ErrOfferingChangeNoEnrollment):
+	case errors.Is(err, careplan.ErrOfferingChangeNoEnrollment):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "offering_changes_no_enrollment"))
-	case errors.Is(err, enrollmentService.ErrOfferingChangeForbidden):
+	case errors.Is(err, careplan.ErrOfferingChangeForbidden):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "offering_change_forbidden"))
-	case errors.Is(err, enrollmentService.ErrOfferingChangeCapacityFull):
+	case errors.Is(err, careplan.ErrOfferingChangeCapacityFull):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "offering_change_capacity_full"))
-	case errors.Is(err, enrollmentService.ErrOfferingChangeInvalid):
+	case errors.Is(err, careplan.ErrOfferingChangeInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "offering_change_invalid"))
-	case errors.Is(err, enrollmentService.ErrCompleteWithdrawalConfirmationRequired):
+	case errors.Is(err, careplan.ErrCompleteWithdrawalConfirmationRequired):
 		common.RenderError(w, r, common.ErrorConflictWithDetails(
 			err,
 			"enrollment.complete_withdrawal_confirmation_required",
 			map[string]any{"confirmation": "complete_withdrawal"},
 		))
-	case errors.Is(err, enrollmentModels.ErrOfferingChangeAlreadyPending):
+	case errors.Is(err, careplan.ErrOfferingChangeAlreadyPending):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "offering_change_already_pending"))
-	case errors.Is(err, enrollmentModels.ErrOfferingChangeNotPending):
+	case errors.Is(err, careplan.ErrOfferingChangeNotPending):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "request_not_open"))
-	case errors.Is(err, enrollmentModels.ErrOfferingChangeNotFound):
+	case errors.Is(err, careplan.ErrOfferingChangeNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, parentService.ErrAnnouncementNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))

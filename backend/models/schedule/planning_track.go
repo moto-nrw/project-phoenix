@@ -48,7 +48,6 @@ type PlanningTrackRepository interface {
 	// rows are included so colours for historical references still resolve.
 	FindByIDs(ctx context.Context, ids []int64) ([]*PlanningTrack, error)
 	FindByIDForShare(ctx context.Context, id int64) (*PlanningTrack, error)
-	UpdateIfActive(ctx context.Context, track *PlanningTrack) (bool, error)
 	UpdateSortOrders(ctx context.Context, ids []int64) error
 	RestoreAtEnd(ctx context.Context, track *PlanningTrack) (bool, error)
 	UpdateColumns(ctx context.Context, track *PlanningTrack, columns ...string) (int64, error)

@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 // lib/student-api.ts
 import { getCachedSession, sessionFetch } from "./session-cache";
 import { createLogger } from "~/lib/logger";
@@ -602,15 +603,13 @@ export interface DeleteStudentWithDataInput {
   acknowledged: true;
 }
 
-export class StudentDeletionApiError extends Error {
+export class StudentDeletionApiError extends ApiError {
   readonly status: number;
-  readonly code?: string;
 
   constructor(status: number, message: string, code?: string) {
-    super(message);
+    super(message, status, { code });
     this.name = "StudentDeletionApiError";
     this.status = status;
-    this.code = code;
   }
 }
 
@@ -659,10 +658,9 @@ async function studentDeletionResponse<T>(
   const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
     const error = studentDeletionErrorDetails(payload, fallbackError);
-    throw new StudentDeletionApiError(
-      response.status,
-      error.message,
-      error.code,
+    throw enrichApiError(
+      new StudentDeletionApiError(response.status, error.message, error.code),
+      payload,
     );
   }
   if (payload && typeof payload === "object" && "data" in payload) {

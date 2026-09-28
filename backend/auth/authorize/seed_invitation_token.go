@@ -12,3 +12,9 @@ const SeedInvitationTokenHeader = seedtoken.Header
 func ShouldExposeSeedInvitationToken(headerValue, requestHost, appEnv string) bool {
 	return seedtoken.ShouldExposeInvitationToken(headerValue, requestHost, appEnv)
 }
+
+// IsLocalSeedRequest gates seed-only capabilities to requests sent by the
+// local seeder in a local environment.
+func IsLocalSeedRequest(headerValue, requestHost, appEnv string) bool {
+	return seedtoken.IsLocalSeedRequest(headerValue, requestHost, appEnv)
+}

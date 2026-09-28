@@ -25,38 +25,26 @@ export const GET = createGetHandler(
   ) => {
     const id = params.id as string;
 
-    try {
-      const response = await apiGet<
-        BackendActivity | { status: string; data: BackendActivity }
-      >(`/api/activities/${id}`, token);
+    const response = await apiGet<
+      BackendActivity | { status: string; data: BackendActivity }
+    >(`/api/activities/${id}`, token);
 
-      // Handle both response formats (raw object or wrapped in status/data)
-      if (response) {
-        if (
-          "status" in response &&
-          response.status === "success" &&
-          "data" in response
-        ) {
-          // Handle wrapped response { status: "success", data: BackendActivity }
-          return mapActivityResponse(response.data);
-        } else if ("id" in response) {
-          // Handle direct response (BackendActivity)
-          return mapActivityResponse(response);
-        }
+    // Handle both response formats (raw object or wrapped in status/data)
+    if (response) {
+      if (
+        "status" in response &&
+        response.status === "success" &&
+        "data" in response
+      ) {
+        // Handle wrapped response { status: "success", data: BackendActivity }
+        return mapActivityResponse(response.data);
+      } else if ("id" in response) {
+        // Handle direct response (BackendActivity)
+        return mapActivityResponse(response);
       }
-
-      throw new Error("Unexpected response structure");
-    } catch (error) {
-      // If the error contains a 404 status, return the appropriate error
-      if (error instanceof Error && error.message.includes("API error (404)")) {
-        throw new Error(`API error (404): Activity with ID ${id} not found`, {
-          cause: error,
-        });
-      }
-
-      // No more mock data fallback - throw the error to show proper errors
-      throw error;
     }
+
+    throw new Error("Unexpected response structure");
   },
 );
 

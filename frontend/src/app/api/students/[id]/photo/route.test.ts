@@ -1,11 +1,5 @@
-// Coverage for the DELETE handler's 401 retry. The POST handler already
-// owns this pattern via createFileUploadHandler — DELETE used to throw a
-// generic German error message, which doesn't match the literal "API error
-// (401)" string the shared retry wrapper looks for, so an expired-token
-// delete fell straight through to a hard failure for idle users. This test
-// pins the inline retry: when the first call returns 401, refresh the
-// session and retry once with the new token; only fail if the retry also
-// 401s (or returns another non-OK status).
+// DELETE keeps the same inline 401 refresh path as POST. The first backend
+// 401 refreshes the session and retries once with the new token.
 
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import type { Session } from "next-auth";
@@ -133,14 +127,8 @@ describe("DELETE /api/students/[id]/photo — 401 retry", () => {
   });
 });
 
-// Regression for the "4xx-collapsed-to-500" bug. createDeleteHandler/
-// handleApiError only extract the upstream status when the thrown
-// Error's message is shaped like "API error (XXX): <body>" — a plain
-// Error rendered every backend 4xx as a 500, hiding feature-disabled
-// (403), missing-photo (404), and similar caller-shaped errors from the
-// frontend. The handler now formats the error envelope correctly; these
-// tests pin that contract for both the DELETE branch and (cross-checked
-// by inspection) the POST branch which uses the identical pattern.
+// Backend failures retain their status and body through backendResponseError
+// and createDeleteHandler, including caller-shaped 4xx failures.
 describe("DELETE /api/students/[id]/photo — backend status preservation", () => {
   it.each([
     [403, "feature disabled"],
@@ -158,13 +146,11 @@ describe("DELETE /api/students/[id]/photo — backend status preservation", () =
       });
 
       expect(response.status).toBe(status);
+      expect(await response.text()).toBe(JSON.stringify({ error: body }));
     },
   );
 
-  it("uses the German fallback when the backend body is empty", async () => {
-    // Empty body branch: handler must still format "API error (XXX): <fallback>"
-    // so handleApiError preserves the upstream status. Without the fallback
-    // the user would see "API error (500): " with a trailing colon.
+  it("forwards an empty backend body without inventing a message", async () => {
     mockAuth.mockResolvedValue(defaultSession);
     mockFetch.mockResolvedValueOnce(new Response("", { status: 502 }));
 
@@ -174,6 +160,34 @@ describe("DELETE /api/students/[id]/photo — backend status preservation", () =
     });
 
     expect(response.status).toBe(502);
+    expect(await response.text()).toBe("");
+  });
+
+  it("forwards a 409 problem body with all structured fields", async () => {
+    const body = JSON.stringify({
+      code: "PHOTO_CONFLICT",
+      details: { student_id: "42" },
+      errors: [{ field: "photo", reason: "locked" }],
+      instance: "/students/42/photo",
+    });
+    mockAuth.mockResolvedValue(defaultSession);
+    mockFetch.mockResolvedValueOnce(
+      new Response(body, {
+        status: 409,
+        headers: { "Content-Type": "application/problem+json" },
+      }),
+    );
+
+    const { DELETE } = await import("./route");
+    const response = await DELETE(createDeleteRequest("42"), {
+      params: Promise.resolve({ id: "42" }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(response.headers.get("content-type")).toBe(
+      "application/problem+json",
+    );
+    expect(await response.text()).toBe(body);
   });
 });
 

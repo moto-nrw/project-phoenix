@@ -80,11 +80,13 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	timeTrackingEvents := TimeTrackingEvents(realtimeHub)
 	today := timezone.CalendarDateClock(optionalClock(clocks))
 	var shiftPlanSyncer shiftplansync.SickCascade
+	var overrideMonths timetracking.WorkTimeMonthService
 	workSessionService := timetracking.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff, repositories.MustNewStaffEmployment(db)), NewWorkSessionSchedules(repos.StaffWorkSchedule), NewWorkSessionTimeModels(repos.WorkTimeModel), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
 		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(repos.StaffAbsenceType)),
 		timetracking.WithWorkSessionEvents(timeTrackingEvents),
 		timetracking.WithWorkSessionHolidays(nonWorkingDayService),
 		timetracking.WithWorkSessionAbsenceTypes(staffAbsenceTypeService),
+		timetracking.WithWorkSessionTargetOverrides(staffTargetOverrideWeeks{overrides: repos.StaffAbsenceType, months: func() timetracking.WorkTimeMonthService { return overrideMonths }}),
 	)
 	workTimeMonthService := timetracking.NewWorkTimeMonthService(
 		repos.WorkSession,
@@ -97,9 +99,12 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		PresenceSettings(settingsService),
 		activeLogger,
 		timetracking.WithMonthHolidays(nonWorkingDayService),
+		timetracking.WithMonthTargetOverrides(repos.StaffAbsenceType),
 		timetracking.WithMonthAdjustments(repos.StaffBalanceAdjust),
 		timetracking.WithMonthSnapshots(MonthSnapshotCapability(repos.StaffMonthSnapshot)),
 	)
+
+	overrideMonths = workTimeMonthService
 
 	staffAbsenceService := timetracking.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, PresenceSettings(settingsService), workTimeMonthService,
 		timetracking.WithAbsenceToday(today),
@@ -142,6 +147,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		PresenceSettings(settingsService),
 		activeLogger,
 		timetracking.WithOverviewHolidays(nonWorkingDayService),
+		timetracking.WithOverviewTargetOverrides(repos.StaffAbsenceType),
 		timetracking.WithOverviewVacationOpenings(repos.StaffVacationOpening),
 	)
 
@@ -183,8 +189,9 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	// Workforce planning composition and the timetable test module, bound
 	// the way the factory binds it (#3418).
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
-		Workforce: repos.StaffAbsenceType, Staff: repos.Staff, CalendarPeriods: repos.CalendarPeriod, DeviationEvents: repos.DeviationEvent,
-		Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff, Rooms: repos.Room, ActivityGroups: repos.ActivityGroup,
+		Workforce: repos.StaffAbsenceType, Staff: repos.Staff, CalendarPeriods: repos.SchoolCalendar(), DeviationEvents: repos.DeviationEvent,
+		Instances: repositories.NewTimetableInstanceReads(repos.ActivityInstance), InstanceStaff: repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
+		Rooms: repos.Room, ActivityGroups: repositories.NewTimetableGroupReads(repos.ActivityGroup),
 		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel, Holidays: nonWorkingDayService,
 		DB: db, Broadcaster: realtimeHub, Logger: logger, Today: today,
 	})
@@ -193,8 +200,8 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	}
 	shiftPlanSyncer, err = shiftplansyncCompose.NewSickCascade(shiftplansyncCompose.SickCascadeDependencies{
 		Planning: planning.Planning(nil), Workforce: repos.StaffAbsenceType, LockStaffShifts: workforceCompose.NewStaffShiftLock(db),
-		Instances: timetable.Instance, TimetableData: timetable.TimetableData, InstanceStaff: repos.InstanceStaff,
-		Broadcaster: realtimeHub, Logger: logger, Today: today,
+		Deviations: timetable.TimetableData.Deviations, TimetableData: NewSickCascadeTimetableRows(repos.OwnerRows(), db),
+		InstanceStaff: repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff), Broadcaster: realtimeHub, Logger: logger, Today: today,
 	})
 	if err != nil {
 		return WorkforceTestModule{}, err

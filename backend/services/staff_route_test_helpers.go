@@ -85,9 +85,10 @@ func NewShiftTypeTestModule(db *bun.DB) (ShiftTypeTestModule, error) {
 		return ShiftTypeTestModule{}, err
 	}
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
-		Workforce: repositories.NewAbsenceTypeTestCapability(db), Staff: timetable.Staff, CalendarPeriods: timetable.CalendarPeriod,
-		Instances: timetable.ActivityInstance, InstanceStaff: timetable.InstanceStaff, Rooms: timetable.Room, ActivityGroups: timetable.ActivityGroup,
-		CategoryLinker: linker.SetCategoryShiftTypeLinks, DB: db, Logger: slog.Default(),
+		Workforce: repositories.NewAbsenceTypeTestCapability(db), Staff: timetable.Staff, CalendarPeriods: timetable.SchoolCalendar(),
+		Instances: repositories.NewTimetableInstanceReads(timetable.ActivityInstance), InstanceStaff: repositories.NewTimetableInstanceStaffReads(timetable.InstanceStaff),
+		Rooms: timetable.Room, ActivityGroups: repositories.NewTimetableGroupReads(timetable.ActivityGroup),
+		CategoryLinker: repositories.ShiftTypeCategoryLinker(linker.SetCategoryShiftTypeLinks), DB: db, Logger: slog.Default(),
 	})
 	if err != nil {
 		return ShiftTypeTestModule{}, err

@@ -29,7 +29,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -54,7 +53,7 @@ type Sources struct {
 	Settings          configService.SettingsService
 	Pickups           careplan.BulkPickupTimes
 	Arrivals          careplan.BulkArrivalTimes
-	Instances         timetableplanning.InstanceService
+	PlannedStudentIDs func(context.Context, []int64, timezone.Date) ([]int64, error)
 	CareDays          careplan.CareDayQuery
 	CareParticipation careplan.CareParticipation
 	ExcusedRequests   grouplive.PendingExcusedReader
@@ -73,7 +72,7 @@ func New(sources Sources) (grouplive.Query, error) {
 	if sources.Presence == nil || sources.People == nil || sources.Education == nil ||
 		sources.Substitutions == nil || sources.UserContext == nil || sources.Active == nil ||
 		sources.Settings == nil || sources.Pickups == nil || sources.Arrivals == nil ||
-		sources.Instances == nil || sources.CareDays == nil || sources.CareParticipation == nil ||
+		sources.PlannedStudentIDs == nil || sources.CareDays == nil || sources.CareParticipation == nil ||
 		sources.StatusDays == nil {
 		return nil, ErrIncompleteSources
 	}
@@ -85,7 +84,7 @@ func New(sources Sources) (grouplive.Query, error) {
 		Groups:          directory{education: sources.Education, userContext: sources.UserContext},
 		Roster:          roster{people: sources.People, careParticipation: sources.CareParticipation},
 		Presence:        presence{presence: sources.Presence, active: sources.Active, statusDays: sources.StatusDays},
-		Planning:        planning{arrivals: sources.Arrivals, pickups: sources.Pickups, instances: sources.Instances, careDays: sources.CareDays},
+		Planning:        planning{arrivals: sources.Arrivals, pickups: sources.Pickups, planned: sources.PlannedStudentIDs, careDays: sources.CareDays},
 		Transfers:       transfers{substitutions: sources.Substitutions},
 		Settings:        settings{settings: sources.Settings},
 		Calendar:        calendar{now: sources.Now},
@@ -362,10 +361,10 @@ func (p presence) TrackingIndicators(ctx context.Context, studentIDs []int64, la
 }
 
 type planning struct {
-	arrivals  careplan.BulkArrivalTimes
-	pickups   careplan.BulkPickupTimes
-	instances timetableplanning.InstanceService
-	careDays  careplan.CareDayQuery
+	arrivals careplan.BulkArrivalTimes
+	pickups  careplan.BulkPickupTimes
+	planned  func(context.Context, []int64, timezone.Date) ([]int64, error)
+	careDays careplan.CareDayQuery
 }
 
 func (p planning) Arrivals(ctx context.Context, studentIDs []int64, date grouplive.Date) (map[int64]grouplive.Arrival, error) {
@@ -428,7 +427,7 @@ func (p planning) TimetablePlannedStudentIDs(ctx context.Context, studentIDs []i
 	if err != nil {
 		return nil, err
 	}
-	planned, err := p.instances.GetPlannedStudentIDsByDate(ctx, studentIDs, day)
+	planned, err := p.planned(ctx, studentIDs, day)
 	if err != nil {
 		return nil, err
 	}

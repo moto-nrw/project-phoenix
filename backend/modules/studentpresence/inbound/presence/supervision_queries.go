@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func (rs *Resource) presenceSupervisionResponses(ctx context.Context, filter studentpresence.GroupSupervisionFilter, operation string) ([]SupervisorResponse, error) {
@@ -15,7 +15,7 @@ func (rs *Resource) presenceSupervisionResponses(ctx context.Context, filter stu
 	}
 	responses := make([]SupervisorResponse, 0, len(rows))
 	for _, row := range rows {
-		response, err := presenceSupervisionResponse(row, timezone.TodayDate())
+		response, err := presenceSupervisionResponse(row, calendar.TodayDate())
 		if err != nil {
 			return nil, &presenceError{Op: operation, Err: studentpresence.ErrDatabaseOperation}
 		}
@@ -24,7 +24,7 @@ func (rs *Resource) presenceSupervisionResponses(ctx context.Context, filter stu
 	return responses, nil
 }
 
-func (rs *Resource) presenceSessionSupervisors(ctx context.Context, groupID int64, today timezone.Date) ([]SupervisorResponse, error) {
+func (rs *Resource) presenceSessionSupervisors(ctx context.Context, groupID int64, today calendar.Date) ([]SupervisorResponse, error) {
 	const operation = "GetActiveGroupWithSupervisors"
 	groups, err := rs.Presence.ListLiveGroups(ctx, []int64{groupID})
 	if err != nil || len(groups) == 0 {
@@ -34,15 +34,15 @@ func (rs *Resource) presenceSessionSupervisors(ctx context.Context, groupID int6
 	return rs.presenceSupervisionResponses(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{groupID}, ActiveOn: &day}, operation)
 }
 
-func presenceSupervisionResponse(row studentpresence.GroupSupervision, today timezone.Date) (SupervisorResponse, error) {
-	start, err := timezone.ParseDate(row.StartDate)
+func presenceSupervisionResponse(row studentpresence.GroupSupervision, today calendar.Date) (SupervisorResponse, error) {
+	start, err := calendar.ParseDate(row.StartDate)
 	if err != nil {
 		return SupervisorResponse{}, err
 	}
 	isActive := !start.After(today)
 	var endTime *time.Time
 	if row.EndDate != nil {
-		end, err := timezone.ParseDate(*row.EndDate)
+		end, err := calendar.ParseDate(*row.EndDate)
 		if err != nil {
 			return SupervisorResponse{}, err
 		}
@@ -80,7 +80,7 @@ func (rs *Resource) presenceSupervisionRow(ctx context.Context, id int64) (stude
 // supervisionRowResponse renders a persisted supervision row when the
 // trailing re-read after a write fails.
 func supervisionRowResponse(row studentpresence.GroupSupervision) SupervisorResponse {
-	response, err := presenceSupervisionResponse(row, timezone.TodayDate())
+	response, err := presenceSupervisionResponse(row, calendar.TodayDate())
 	if err != nil {
 		return SupervisorResponse{ID: row.ID, StaffID: row.StaffID, ActiveGroupID: row.GroupID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 	}

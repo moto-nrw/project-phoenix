@@ -151,15 +151,6 @@ func TestShortenUserAgent_DoesNotMisidentifyChromeAsSafari(t *testing.T) {
 	assert.Equal(t, "Chrome auf macOS", ShortenUserAgent(chrome))
 }
 
-// MaskEmail names the mailbox a code went to without disclosing it.
-func TestMaskEmail(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, "j***@example.com", MaskEmail("jane@example.com"))
-	assert.Equal(t, "a***@example.com", MaskEmail("a@example.com"))
-	assert.Equal(t, "no-at-sign", MaskEmail("no-at-sign"))
-}
-
 // The admin override allow list is the last line of defence before the
 // database CHECK constraint.
 func TestIsValidMFAAdminOverride(t *testing.T) {

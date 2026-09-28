@@ -96,6 +96,6 @@ keiner davon ein Anwendungsfehler, und keiner der vier großen Anbieter liefert
   absichtlich geänderten Geschäftsregel und wurde ausdrücklich freigegeben.
 - Das einmalige Umbenennen ist ein Fenster, das sich nicht wiederholt. Wird es
   nicht genutzt, bleiben drei Namensschemata dauerhaft bestehen.
-- Auswertbarkeit folgt daraus als Nebenwirkung: Sentry gruppiert über den Code
-  statt über den Stacktrace, und die Frage „welcher Fehler wie oft an welcher
-  Schule" wird überhaupt erst stellbar.
+- Auswertbarkeit folgt daraus als Nebenwirkung: Sentry gruppiert über den
+  Stacktrace. Der Code hängt als Tag `error_code` am Event. Damit wird die Frage
+  „welcher Fehler wie oft an welcher Schule" überhaupt erst stellbar.

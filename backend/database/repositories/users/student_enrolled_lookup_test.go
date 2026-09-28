@@ -8,16 +8,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // setPersonBirthday stamps a birthday onto the fixture person — the
 // student fixture creates persons without one, and the enrolled-child
 // lookup (#1663) matches on it.
-func setPersonBirthday(t *testing.T, db *bun.DB, personID int64, birthday timezone.Date) {
+func setPersonBirthday(t *testing.T, db *bun.DB, personID int64, birthday calendar.Date) {
 	t.Helper()
 	_, err := db.NewRaw(`UPDATE users.persons SET birthday = ? WHERE id = ?`, birthday, personID).
 		Exec(context.Background())
@@ -32,10 +31,10 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	student := testpkg.CreateTestStudent(t, db, "Milan", "Eligibilitytest", "2a")
-	birthday := timezone.NewDate(2018, 5, 20)
+	birthday := calendar.NewDate(2018, 5, 20)
 	setPersonBirthday(t, db, student.PersonID, birthday)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	// The lookup names its tenant explicitly and runs outside tenant scope, but
 	// it still opens a transaction — as it does under the runtime middleware
 	// the parent submit path runs in.
@@ -53,7 +52,7 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday(t *testing.T) {
 	assert.True(t, exists)
 
 	// Different birthday → false.
-	exists, err = repo.ExistsEnrolledByNameAndBirthday(ctx, tenantID, "Milan", "Eligibilitytest", timezone.NewDate(2018, 5, 21))
+	exists, err = repo.ExistsEnrolledByNameAndBirthday(ctx, tenantID, "Milan", "Eligibilitytest", calendar.NewDate(2018, 5, 21))
 	require.NoError(t, err)
 	assert.False(t, exists)
 
@@ -64,7 +63,7 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday(t *testing.T) {
 
 	// Inactive student → false: the check targets currently enrolled
 	// children only.
-	_, err = db.NewRaw(`UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, users.StudentStatusInactive, student.ID).
+	_, err = db.NewRaw(`UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, testpkg.StudentStatusInactive, student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 	exists, err = repo.ExistsEnrolledByNameAndBirthday(ctx, tenantID, "Milan", "Eligibilitytest", birthday)
@@ -85,17 +84,17 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday_Pending(t *testing.T)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	student := testpkg.CreateTestStudent(t, db, "Pending", "Enrolltest", "1a")
-	birthday := timezone.NewDate(2019, 3, 10)
+	birthday := calendar.NewDate(2019, 3, 10)
 	setPersonBirthday(t, db, student.PersonID, birthday)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	// The lookup names its tenant explicitly and runs outside tenant scope, but
 	// it still opens a transaction — as it does under the runtime middleware
 	// the parent submit path runs in.
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	// Flip the student to pending (approved-but-not-yet-activated).
-	_, err := db.NewRaw(`UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, users.StudentStatusPending, student.ID).
+	_, err := db.NewRaw(`UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, testpkg.StudentStatusPending, student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 

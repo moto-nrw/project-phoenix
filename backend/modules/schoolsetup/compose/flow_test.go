@@ -14,7 +14,7 @@ import (
 // TestWizardRunsFromFirstStepToCompletion walks one new school through the
 // wizard against Postgres: the steps follow the registry defaults and the
 // school's data, and a completed school refuses further wizard writes
-// (ADR 0040).
+// (ADR 0042).
 func TestWizardRunsFromFirstStepToCompletion(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)

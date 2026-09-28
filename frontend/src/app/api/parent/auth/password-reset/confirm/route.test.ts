@@ -133,8 +133,9 @@ describe("POST /api/parent/auth/password-reset/confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Password too weak");
+    await expect(response.json()).resolves.toEqual({
+      message: "Password too weak",
+    });
   });
 
   it("returns non-JSON error bodies verbatim", async () => {
@@ -152,8 +153,8 @@ describe("POST /api/parent/auth/password-reset/confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Server Error");
+    expect(response.headers.get("Content-Type")).toContain("text/plain");
+    expect(await response.text()).toBe("Server Error");
   });
 
   it("uses the German fallback message for an empty error body", async () => {
@@ -171,8 +172,7 @@ describe("POST /api/parent/auth/password-reset/confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Fehler beim Zurücksetzen des Passworts");
+    expect(await response.text()).toBe("");
   });
 
   it("uses the German fallback when the JSON error body is unparseable", async () => {
@@ -192,8 +192,8 @@ describe("POST /api/parent/auth/password-reset/confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Fehler beim Zurücksetzen des Passworts");
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    expect(await response.text()).toBe("invalid json");
   });
 
   it("returns 500 when the upstream fetch throws", async () => {

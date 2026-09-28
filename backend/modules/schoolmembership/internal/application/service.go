@@ -18,6 +18,12 @@ type Service struct {
 	tx         ports.Transaction
 	observe    ports.Observer
 
+	// quota and today back the Kinderkontingent check (#3567). A graph that
+	// never binds quota still serves every other operation; its counting
+	// writes fail closed instead of skipping the check.
+	quota ports.ChildQuota
+	today ports.Clock
+
 	// The audited class-list administration (#2382) reaches two owners the
 	// composition root only builds after this service exists, so they are
 	// bound late through BindClassListEntryAdministration. Every other
@@ -25,11 +31,11 @@ type Service struct {
 	classListAdmin classListAdministration
 }
 
-func New(store ports.Store, employment ports.StaffEmployment, tx ports.Transaction, observe ports.Observer) *Service {
-	if store == nil || employment == nil || tx == nil || observe == nil {
+func New(store ports.Store, employment ports.StaffEmployment, quota ports.ChildQuota, today ports.Clock, tx ports.Transaction, observe ports.Observer) *Service {
+	if store == nil || employment == nil || today == nil || tx == nil || observe == nil {
 		panic("school membership application: all dependencies are required")
 	}
-	return &Service{store: store, employment: employment, tx: tx, observe: observe}
+	return &Service{store: store, employment: employment, quota: quota, today: today, tx: tx, observe: observe}
 }
 
 // --- staff ---

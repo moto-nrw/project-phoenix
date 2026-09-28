@@ -341,7 +341,7 @@ func (p *Policy) matchesSource(rule Rule, source Package) bool {
 }
 
 func (p *Policy) matchesTarget(rule Rule, source, target Package) bool {
-	if rule.SameOwner && source.Owner != target.Owner {
+	if rule.SameOwner && (source.Owner != target.Owner || !p.sameOwnerSelectsID(target.Owner)) {
 		return false
 	}
 	return p.matchesOwner(rule.TargetOwner, rule.TargetOwnerKind, target.Owner) && rule.TargetRole == target.Role

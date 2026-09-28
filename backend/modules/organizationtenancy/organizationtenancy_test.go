@@ -60,6 +60,9 @@ func (e *recordingEngine) CreateSchool(context.Context, organizationtenancy.Crea
 func (e *recordingEngine) UpdateSchool(context.Context, organizationtenancy.UpdateSchool) (organizationtenancy.School, error) {
 	return organizationtenancy.School{}, nil
 }
+func (e *recordingEngine) SetSchoolChildQuota(context.Context, int64, *organizationtenancy.ChildQuota) (organizationtenancy.School, error) {
+	return organizationtenancy.School{}, nil
+}
 func (e *recordingEngine) SoftDeleteSchool(context.Context, int64) (organizationtenancy.School, error) {
 	return organizationtenancy.School{}, nil
 }

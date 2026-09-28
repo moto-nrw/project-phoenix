@@ -174,3 +174,34 @@ func TestOpenRoomSessionsFailTheWholeProjection(t *testing.T) {
 
 	require.ErrorContains(t, err, "load open-room blocks")
 }
+
+// A session section carries its activity's participant limit so the page can
+// show "Anzahl / Grenze" and flag an overbooked session (#3634); a session
+// without a limit carries none.
+func TestOpenRoomSessionsCarryTheParticipantLimit(t *testing.T) {
+	t.Parallel()
+
+	f, _ := openRoomFakes()
+	inRooms := f.inRooms
+	f.inRooms = func(ctx context.Context, roomIDs []int64) ([]RunningSession, error) {
+		sessions, err := inRooms(ctx, roomIDs)
+		for i := range sessions {
+			if sessions[i].ActiveGroupID == 11 {
+				sessions[i].ParticipantLimit = intPtr(1)
+			}
+		}
+		return sessions, err
+	}
+
+	projection, err := newService(f).Dashboard(context.Background(), 0)
+
+	require.NoError(t, err)
+	yard := openRoomByName(t, projection, "Schulhof")
+	require.Equal(t, int64(11), yard.Sessions[0].ActiveGroupID)
+	require.NotNil(t, yard.Sessions[0].ParticipantLimit)
+	assert.Equal(t, 1, *yard.Sessions[0].ParticipantLimit)
+	assert.Equal(t, 2, yard.Sessions[0].StudentCount, "two children against a limit of one")
+	assert.Nil(t, yard.Sessions[1].ParticipantLimit)
+}
+
+func intPtr(v int) *int { return &v }

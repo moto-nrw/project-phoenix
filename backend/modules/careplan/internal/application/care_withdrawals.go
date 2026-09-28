@@ -26,25 +26,13 @@ func (s *CareLifecycle) ListResolvedWithdrawals(ctx context.Context, filter care
 	return s.listWithdrawals(ctx, careplan.WithdrawalStateResolved, filter.Normalized())
 }
 
-// listWithdrawals takes the children's names and classes from the People
-// Directory: the tasks page and search over the directory rows of every
-// child they name.
+// listWithdrawals pages the tasks in one owner query; the children's names
+// and classes come from the named student directory projection it joins.
 func (s *CareLifecycle) listWithdrawals(ctx context.Context, state string, filter careplan.CareWithdrawalFilter) ([]careplan.WithdrawalCompletion, int, error) {
-	studentIDs, err := s.records.ListWithdrawalStudentIDs(ctx, state, filter.StudentID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("care lifecycle: list %s withdrawal children: %w", state, err)
-	}
-	students := []careplan.WithdrawalStudent{}
-	if len(studentIDs) > 0 {
-		if students, err = s.owners.Students.ListWithdrawalStudents(ctx, studentIDs); err != nil {
-			return nil, 0, fmt.Errorf("care lifecycle: list %s withdrawal children: %w", state, err)
-		}
-	}
-	ownerFilter := careplan.WithdrawalListFilter{
-		Search: filter.Search, StudentID: filter.StudentID, Page: filter.Page, PageSize: filter.PageSize, Students: students,
-	}
+	ownerFilter := careplan.WithdrawalListFilter(filter)
 	var values []careplan.WithdrawalCompletion
 	var total int
+	var err error
 	if state == careplan.WithdrawalStatePending {
 		values, total, err = s.records.ListPendingWithdrawals(ctx, ownerFilter)
 	} else {

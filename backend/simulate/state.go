@@ -51,7 +51,6 @@ type SeedStateAccounts struct {
 type AccountCredentials struct {
 	Email     string `json:"email"`
 	Password  string `json:"password"`
-	PIN       string `json:"pin"`
 	Name      string `json:"name"`
 	StaffID   int64  `json:"staff_id"`
 	TeacherID int64  `json:"teacher_id,omitempty"`
@@ -131,7 +130,7 @@ func simulationAccounts(accounts []demoprofile.AccountCredentials) []AccountCred
 	result := make([]AccountCredentials, 0, len(accounts))
 	for _, account := range accounts {
 		result = append(result, AccountCredentials{
-			Email: account.Email, Password: account.Password, PIN: account.PIN, Name: account.Name,
+			Email: account.Email, Password: account.Password, Name: account.Name,
 			StaffID: account.StaffID, TeacherID: account.TeacherID, Group: account.Group,
 		})
 	}

@@ -24,6 +24,14 @@ func NewDemoSchoolQueue(db *bun.DB) (*organizationtenancy.DemoSchoolQueue, error
 
 type demoQueueEngine struct{ store *postgres.DemoStateStore }
 
+func (e demoQueueEngine) RequeueDeferredDemoSchoolOrders(ctx context.Context) error {
+	return e.store.RequeueDeferred(ctx, "")
+}
+
+func (e demoQueueEngine) RequeueDeferredDemoSchoolOrder(ctx context.Context, slug string) error {
+	return e.store.RequeueDeferred(ctx, slug)
+}
+
 func (e demoQueueEngine) ReleaseDemoSchoolOrders(ctx context.Context) error {
 	return e.store.ReleaseClaims(ctx)
 }
@@ -34,7 +42,8 @@ func (e demoQueueEngine) ClaimDemoSchoolOrder(ctx context.Context) (*organizatio
 		return nil, err
 	}
 	return &organizationtenancy.DemoSchoolOrder{
-		Slug: order.Name, SchoolName: order.SchoolName, PersonName: order.PersonName, Attempts: order.Attempts, Seeded: order.Seeded,
+		Slug: order.Name, SchoolName: order.SchoolName, FirstName: order.FirstName, LastName: order.LastName,
+		Attempts: order.Attempts, Seeded: order.Seeded,
 	}, nil
 }
 
@@ -84,7 +93,7 @@ type demoOrderEngine struct {
 
 const demoSlugAlphabet = "abcdefghijkmnpqrstuvwxyz23456789"
 
-func (e demoOrderEngine) OrderDemoSchool(ctx context.Context, schoolName, personName string) (string, error) {
+func (e demoOrderEngine) OrderDemoSchool(ctx context.Context, schoolName, firstName, lastName string) (string, error) {
 	suffix := make([]byte, 6)
 	if _, err := io.ReadFull(e.random, suffix); err != nil {
 		return "", fmt.Errorf("demo school slug: %w", err)
@@ -93,7 +102,7 @@ func (e demoOrderEngine) OrderDemoSchool(ctx context.Context, schoolName, person
 		suffix[i] = demoSlugAlphabet[int(b)%len(demoSlugAlphabet)]
 	}
 	slug := organizationtenancy.DemoSchoolSlug(schoolName, string(suffix))
-	err := e.store.Enqueue(ctx, slug, schoolName, personName, e.maxActive)
+	err := e.store.Enqueue(ctx, slug, schoolName, firstName, lastName, e.maxActive)
 	if errors.Is(err, postgres.ErrDemoCapacityReached) {
 		return "", organizationtenancy.ErrDemoCapacityReached
 	}

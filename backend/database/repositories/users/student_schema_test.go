@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	repousers "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -19,5 +19,5 @@ func TestVerifyStudentSchema_FullyMigrated(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	require.NoError(t, repousers.VerifyStudentSchema(context.Background(), db))
+	require.NoError(t, testutil.VerifyPeopleRepositorySuiteStudentSchema(context.Background(), db))
 }

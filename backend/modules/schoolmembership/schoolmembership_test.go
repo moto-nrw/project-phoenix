@@ -65,10 +65,15 @@ func (e *recordingEngine) GraduateStudents(_ context.Context, ids []int64) (int6
 	return 0, nil
 }
 
-func (e *recordingEngine) ReactivateStudents(_ context.Context, ids []int64, status string) ([]int64, error) {
+func (e *recordingEngine) ReactivateStudents(_ context.Context, ids []int64, status string, _ bool) ([]int64, error) {
 	e.calls++
 	e.studentIDs, e.studentStatus = ids, status
 	return nil, nil
+}
+
+func (e *recordingEngine) ChildQuotaUsage(context.Context) (schoolmembership.ChildQuotaUsage, bool, error) {
+	e.calls++
+	return schoolmembership.ChildQuotaUsage{}, false, nil
 }
 
 func (e *recordingEngine) FindStaff(_ context.Context, _ int64, lock string) (schoolmembership.Staff, error) {

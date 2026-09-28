@@ -123,7 +123,7 @@ func (r *EnrollablePhaseRepository) guardianGuards(ctx context.Context, accountI
 // unlinked parent must not learn a hidden school's name or phase details
 // through this picker. A hidden school stays visible only to an account that
 // holds an actual FAMILY link there — a guardian_profile with at least one
-// students_guardians row, backed by an ACTIVE auth.account_tenants mapping
+// student-guardian relationship, backed by an ACTIVE auth.account_tenants mapping
 // (HasFamilyLink) — so existing families keep seeing their own school's
 // re-enrollment phases.
 //

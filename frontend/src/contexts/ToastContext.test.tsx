@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
+  act,
   fireEvent,
   renderHook,
   render,
@@ -68,6 +69,59 @@ describe("ToastContext", () => {
   });
 
   describe("Toast functionality", () => {
+    it("keeps error toasts until dismissed even if a caller requests a duration", () => {
+      vi.useFakeTimers();
+      function TestComponent() {
+        const toast = useToast();
+        return (
+          <button onClick={() => toast.error("Fehler", { duration: 1 })}>
+            Auslösen
+          </button>
+        );
+      }
+      render(
+        <ToastProvider>
+          <TestComponent />
+        </ToastProvider>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Auslösen" }));
+      expect(
+        screen.getByRole("alert", { name: "Fehler: Fehler" }),
+      ).toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(10_000));
+      expect(
+        screen.getByRole("alert", { name: "Fehler: Fehler" }),
+      ).toBeInTheDocument();
+    });
+
+    it("dismisses success feedback after four seconds", () => {
+      vi.useFakeTimers();
+      function TestComponent() {
+        const toast = useToast();
+        return (
+          <button onClick={() => toast.success("Gespeichert", { duration: 0 })}>
+            Auslösen
+          </button>
+        );
+      }
+      render(
+        <ToastProvider>
+          <TestComponent />
+        </ToastProvider>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Auslösen" }));
+      expect(
+        screen.getByRole("status", { name: "Erfolgreich!: Gespeichert" }),
+      ).toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(3999));
+      expect(
+        screen.getByRole("status", { name: "Erfolgreich!: Gespeichert" }),
+      ).toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(301));
+      expect(
+        screen.queryByRole("status", { name: "Erfolgreich!: Gespeichert" }),
+      ).not.toBeInTheDocument();
+    });
     it("ignores empty messages", async () => {
       function TestComponent() {
         const toast = useToast();
@@ -191,6 +245,51 @@ describe("ToastContext", () => {
         await screen.findByRole("status", { name: "Success!: Saved" }),
       ).toBeInTheDocument();
       expect(screen.getByLabelText("Close")).toBeInTheDocument();
+    });
+
+    it("uses the document language for copy feedback", async () => {
+      const originalClipboard = Object.getOwnPropertyDescriptor(
+        navigator,
+        "clipboard",
+      );
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      });
+      document.documentElement.lang = "en";
+      function TestComponent() {
+        const toast = useToast();
+        return (
+          <button
+            onClick={() =>
+              toast.error("Not available", {
+                requestId: "req-20",
+                requestIdLabel: "Request ID: {requestId}",
+              })
+            }
+          >
+            Show
+          </button>
+        );
+      }
+      try {
+        render(
+          <ToastProvider>
+            <TestComponent />
+          </ToastProvider>,
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Show" }));
+        fireEvent.click(
+          screen.getByRole("button", { name: "Copy request ID" }),
+        );
+        expect(await screen.findByRole("status")).toHaveTextContent("Copied.");
+      } finally {
+        if (originalClipboard) {
+          Object.defineProperty(navigator, "clipboard", originalClipboard);
+        } else {
+          Reflect.deleteProperty(navigator, "clipboard");
+        }
+      }
     });
 
     it.each([

@@ -19,6 +19,8 @@ package parent
 import (
 	"net/http"
 
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
@@ -28,7 +30,6 @@ import (
 	pwaService "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -44,7 +45,7 @@ type Resource struct {
 	ParentService         PortalService
 	RequestSharing        parentService.RequestSharingService
 	CalendarService       calendarService.Service
-	RequestService        enrollmentService.RequestService
+	RequestService        enrollmentAPI.RequestService
 	GuardianProfileLoader *usersService.GuardianProfileLoader
 	SchoolService         SchoolDirectory
 	PushService           notificationsService.PushSubscriptionService
@@ -63,7 +64,7 @@ type ResourceConfig struct {
 	Resets                PasswordResetRuntime
 	Parent                PortalService
 	Calendar              calendarService.Service
-	Requests              enrollmentService.RequestService
+	Requests              enrollmentAPI.RequestService
 	GuardianProfileLoader *usersService.GuardianProfileLoader
 	Schools               SchoolDirectory
 	// Push is the Web Push subscription service (#2003).

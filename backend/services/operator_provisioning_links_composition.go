@@ -240,7 +240,7 @@ func (d operatorLinkDelivery) logPermanentFailure(meta email.DeliveryMetadata, r
 	}
 	d.logger.Error(message,
 		slog.Int64("token_id", meta.ReferenceID),
-		slog.String("recipient", identityaccess.MaskOperatorEmail(meta.Recipient)),
+		slog.String("recipient", identityaccessCompose.MaskEmail(meta.Recipient)),
 		slog.Any("error", result.Err),
 	)
 }

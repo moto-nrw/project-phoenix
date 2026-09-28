@@ -4,28 +4,28 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 type courseWriteChangesStub struct {
-	enrollmentSvc.OfferingChangeRequestService
+	OfferingChangeRequests
 	createCalls   int
 	withdrawCalls int
 }
 
 func (s *courseWriteChangesStub) CreateCourseRequest(
 	context.Context,
-	enrollmentSvc.CreateCourseRequestInput,
-) (*enrollmentModels.OfferingChangeRequest, error) {
+	careplan.CreateCourseRequestInput,
+) (*careplan.OfferingChangeRequest, error) {
 	s.createCalls++
-	return &enrollmentModels.OfferingChangeRequest{}, nil
+	return &careplan.OfferingChangeRequest{}, nil
 }
 
 func (s *courseWriteChangesStub) WithdrawCourseRequest(

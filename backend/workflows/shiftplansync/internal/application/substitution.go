@@ -7,9 +7,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -23,11 +22,32 @@ var (
 	errSubstitutionNotRunning    = errors.New("schedule substitution is not running")
 )
 
+// ScheduleDeviations is the Timetable owner's deviation command surface a
+// Terminvertretung writes through (timetable.StaffDeviations).
+type ScheduleDeviations interface {
+	ApplyDeviations(ctx context.Context, instanceID int64, in timetable.ApplyDeviationsInput) (*timetable.ApplyDeviationsResult, error)
+	ApplyBulkSubstitution(ctx context.Context, in timetable.BulkSubstitutionInput) (*timetable.BulkSubstitutionResult, error)
+	QueueActivityUpdates(ctx context.Context, touched timetable.TouchedActivities)
+}
+
+// ScheduleInstances reads the appointments of a period with the execution
+// state of their sessions, which decides whether one is still changeable.
+type ScheduleInstances interface {
+	FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*timetable.ScheduledInstance, error)
+}
+
+// ScheduleInstanceStaff reads the staff assignments of appointments. A
+// missing assignment is reported as the repository no-rows error.
+type ScheduleInstanceStaff interface {
+	FindByID(ctx context.Context, id int64) (*timetable.InstanceStaff, error)
+	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*timetable.InstanceStaff, error)
+}
+
 type SubstitutionAdapterDependencies struct {
-	Instances     scheduleModel.ActivityInstanceRepository
-	InstanceStaff scheduleModel.InstanceStaffRepository
+	Instances     ScheduleInstances
+	InstanceStaff ScheduleInstanceStaff
 	Staff         userModels.StaffRepository
-	Engine        timetableplanning.InstanceService
+	Engine        ScheduleDeviations
 	Broadcaster   realtime.Broadcaster
 	Logger        *slog.Logger
 }
@@ -47,8 +67,8 @@ func NewSubstitutionAdapter(deps SubstitutionAdapterDependencies) *SubstitutionA
 // substitutionMutation is what one deviation write changed: either one
 // appointment or a set of whole days, plus the after-commit notification.
 type substitutionMutation struct {
-	Appointment *timetableplanning.ApplyDeviationsResult
-	WholeDays   *timetableplanning.BulkSubstitutionResult
+	Appointment *timetable.ApplyDeviationsResult
+	WholeDays   *timetable.BulkSubstitutionResult
 	AfterCommit func(context.Context)
 }
 
@@ -72,7 +92,7 @@ func (a *SubstitutionAdapter) overview(
 	if from.IsZero() || to.IsZero() || to.Before(from) || from.DaysUntil(to) >= 56 {
 		return nil, errSubstitutionInvalidPeriod
 	}
-	instances, err := a.deps.Instances.FindByTenantAndDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
+	instances, err := a.deps.Instances.FindByTenantAndDateRange(ctx, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +110,7 @@ func (a *SubstitutionAdapter) overview(
 	}, nil
 }
 
-func (a *SubstitutionAdapter) loadOverviewStaff(ctx context.Context, instances []*scheduleModel.ActivityInstance) (map[int64][]*scheduleModel.InstanceStaff, map[int64]*userModels.Staff, error) {
+func (a *SubstitutionAdapter) loadOverviewStaff(ctx context.Context, instances []*timetable.ScheduledInstance) (map[int64][]*timetable.InstanceStaff, map[int64]*userModels.Staff, error) {
 	instanceIDs := make([]int64, 0, len(instances))
 	for _, instance := range instances {
 		if instance != nil {
@@ -103,7 +123,7 @@ func (a *SubstitutionAdapter) loadOverviewStaff(ctx context.Context, instances [
 	}
 	staffIDs := make([]int64, 0, len(rows))
 	seenStaff := make(map[int64]bool, len(rows))
-	deviationsByInstance := make(map[int64][]*scheduleModel.InstanceStaff)
+	deviationsByInstance := make(map[int64][]*timetable.InstanceStaff)
 	for _, row := range rows {
 		if row == nil || (!row.IsAbsent && !row.IsSubstitute) {
 			continue
@@ -121,7 +141,7 @@ func (a *SubstitutionAdapter) loadOverviewStaff(ctx context.Context, instances [
 	return deviationsByInstance, staffByID, nil
 }
 
-func projectSubstitutionAppointments(instances []*scheduleModel.ActivityInstance, deviations map[int64][]*scheduleModel.InstanceStaff, staffByID map[int64]*userModels.Staff, canManage bool) []education.ScheduleAppointmentOverview {
+func projectSubstitutionAppointments(instances []*timetable.ScheduledInstance, deviations map[int64][]*timetable.InstanceStaff, staffByID map[int64]*userModels.Staff, canManage bool) []education.ScheduleAppointmentOverview {
 	appointments := make([]education.ScheduleAppointmentOverview, 0, len(deviations))
 	for _, instance := range instances {
 		rows := deviations[instance.ID]
@@ -146,7 +166,7 @@ func projectSubstitutionAppointments(instances []*scheduleModel.ActivityInstance
 		}
 		appointments = append(appointments, education.ScheduleAppointmentOverview{
 			ID: instance.ID, Type: education.TargetScheduleSubstitution,
-			Date:      timezone.Date(instance.Date),
+			Date:      instance.Date,
 			StartTime: instance.StartTime.Format("15:04"), EndTime: instance.EndTime.Format("15:04"),
 			Title: instance.Title, Status: instance.Status, Staff: staff,
 		})
@@ -203,13 +223,13 @@ func (a *SubstitutionAdapter) apply(
 		}
 	}
 	wholeDays := assignment.WholeDays
-	return a.applyWholeDays(ctx, timetableplanning.BulkSubstitutionInput{
+	return a.applyWholeDays(ctx, timetable.BulkSubstitutionInput{
 		AbsentStaffID: wholeDays.AbsentStaffID, SubstituteStaffID: wholeDays.SubstituteStaffID,
 		Dates: wholeDays.Dates, Reason: wholeDays.Reason, ActorAccountID: &actorAccountID,
 	})
 }
 
-func (a *SubstitutionAdapter) applyAppointment(ctx context.Context, instanceID int64, input timetableplanning.ApplyDeviationsInput) (*substitutionMutation, error) {
+func (a *SubstitutionAdapter) applyAppointment(ctx context.Context, instanceID int64, input timetable.ApplyDeviationsInput) (*substitutionMutation, error) {
 	result, err := a.deps.Engine.ApplyDeviations(ctx, instanceID, input)
 	if err != nil {
 		return nil, err
@@ -220,7 +240,7 @@ func (a *SubstitutionAdapter) applyAppointment(ctx context.Context, instanceID i
 	}, nil
 }
 
-func (a *SubstitutionAdapter) applyWholeDays(ctx context.Context, input timetableplanning.BulkSubstitutionInput) (*substitutionMutation, error) {
+func (a *SubstitutionAdapter) applyWholeDays(ctx context.Context, input timetable.BulkSubstitutionInput) (*substitutionMutation, error) {
 	result, err := a.deps.Engine.ApplyBulkSubstitution(ctx, input)
 	if err != nil {
 		return nil, err
@@ -257,15 +277,15 @@ func (a *SubstitutionAdapter) end(ctx context.Context, substitutionID, actorAcco
 		return nil, errSubstitutionNotRunning
 	}
 	selected := []int64{row.InstanceID}
-	return a.applyAppointment(ctx, row.InstanceID, timetableplanning.ApplyDeviationsInput{
+	return a.applyAppointment(ctx, row.InstanceID, timetable.ApplyDeviationsInput{
 		ActorAccountID: &actorAccountID,
-		SubstitutionRemovals: []timetableplanning.DeviationSubstitutionRemovalInput{{
+		SubstitutionRemovals: []timetable.DeviationSubstitutionRemovalInput{{
 			StaffID: row.StaffID, InstanceIDs: &selected,
 		}},
 	})
 }
 
-func (a *SubstitutionAdapter) afterCommit(activeTouched map[int64]*scheduleModel.ActivityInstance, notifyStaffing bool) func(context.Context) {
+func (a *SubstitutionAdapter) afterCommit(activeTouched timetable.TouchedActivities, notifyStaffing bool) func(context.Context) {
 	return func(ctx context.Context) {
 		a.deps.Engine.QueueActivityUpdates(ctx, activeTouched)
 		if notifyStaffing {

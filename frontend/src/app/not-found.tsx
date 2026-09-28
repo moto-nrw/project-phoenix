@@ -1,4 +1,4 @@
-import { MotoBrand } from "~/components/auth/auth-shell";
+import { MotoBrand } from "~/components/auth/moto-brand";
 import { ButtonLink } from "~/components/ui/button";
 
 export default function NotFound() {

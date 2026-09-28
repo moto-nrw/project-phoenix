@@ -119,9 +119,18 @@ export function DateRangePicker({
   );
 }
 
+function isSameCalendarDay(left: Date, right: Date): boolean {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  );
+}
+
 function formatRangeLabel(range: DateRange | undefined): string {
   if (!range?.from) return "Zeitraum wählen";
-  if (!range.to) {
+  // Ein einzelner Tag zeigt nur ein Datum, nicht „6.–6. Okt. 2026".
+  if (!range.to || isSameCalendarDay(range.from, range.to)) {
     return format(range.from, "d. MMM yyyy", { locale: de });
   }
   const sameYear = range.from.getFullYear() === range.to.getFullYear();
@@ -247,6 +256,9 @@ function formatDraftRangeLabel(
 ): string {
   if (!draftFrom) return "Klicke ein Startdatum";
   if (!draftTo) return "Klicke ein Enddatum";
+  if (isSameCalendarDay(draftFrom, draftTo)) {
+    return format(draftFrom, "d. MMM yyyy", { locale: de });
+  }
   return `${format(draftFrom, "d. MMM yyyy", { locale: de })} - ${format(
     draftTo,
     "d. MMM yyyy",

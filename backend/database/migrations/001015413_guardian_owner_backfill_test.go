@@ -119,7 +119,7 @@ func guardianTargetRows(t *testing.T, db *testpkg.DB, tenantID int64) string {
 
 func TestGuardianOwnerBackfillCopiesAndVerifiesPerTenant(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantA := testpkg.Tenant(t)
 	tenantB := guardianOwnerSecondTenant(t, db)
@@ -184,7 +184,7 @@ func TestGuardianOwnerBackfillCopiesAndVerifiesPerTenant(t *testing.T) {
 
 func TestGuardianOwnerBackfillInterruptsAndResumesAtEveryBatchBoundary(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	guardianOwnerFixture(t, db, tenantID, 5)
@@ -235,7 +235,7 @@ func TestGuardianOwnerBackfillInterruptsAndResumesAtEveryBatchBoundary(t *testin
 
 func TestGuardianOwnerBackfillRerunsCompletedBatchesIdempotently(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	guardianOwnerFixture(t, db, tenantID, 4)
@@ -260,7 +260,7 @@ func TestGuardianOwnerBackfillRerunsCompletedBatchesIdempotently(t *testing.T) {
 
 func TestGuardianOwnerBackfillRetriesInjectedFailures(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	otherTenant := guardianOwnerSecondTenant(t, db)
@@ -323,7 +323,7 @@ func TestGuardianOwnerTerminalFailuresPersistTelemetry(t *testing.T) {
 	for _, code := range []string{"40P01", "40001", "55P03"} {
 		t.Run(code, func(t *testing.T) {
 			ctx := testpkg.OwnCtx(t)
-			db := testpkg.SetupTestDB(t)
+			db := setupGuardianStorageBeforeCutover(t)
 			tenantID := testpkg.Tenant(t)
 			guardianOwnerFixture(t, db, tenantID, 1)
 			report, err := RunGuardianOwnerBackfill(ctx, db, GuardianOwnerBackfillOptions{MaxAttempts: 2,
@@ -354,7 +354,7 @@ func TestGuardianOwnerTerminalFailuresPersistTelemetry(t *testing.T) {
 
 func TestGuardianOwnerBackfillRereadsChangedRowsAndRemovesOrphans(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := guardianOwnerFixture(t, db, tenantID, 5)
@@ -403,7 +403,7 @@ func TestGuardianOwnerBackfillRereadsChangedRowsAndRemovesOrphans(t *testing.T) 
 // rebinds it, and an account unlinked later is dropped the same way.
 func TestGuardianOwnerBackfillFollowsAccountBinding(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := guardianOwnerFixture(t, db, tenantID, 2)
@@ -445,7 +445,7 @@ func TestGuardianOwnerBackfillFollowsAccountBinding(t *testing.T) {
 // binding; it is rejected and keeps the school unverified until corrected.
 func TestGuardianOwnerBackfillRejectsCrossTenantGuardian(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantA := testpkg.Tenant(t)
 	tenantB := guardianOwnerSecondTenant(t, db)
@@ -491,7 +491,7 @@ func TestGuardianOwnerBackfillRejectsCrossTenantGuardian(t *testing.T) {
 // pass rewinds, removes the orphan and converges.
 func TestGuardianOwnerBackfillRestartsPassWhenLinkIsRecreatedMidPass(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	otherTenant := guardianOwnerSecondTenant(t, db)
@@ -532,7 +532,7 @@ func TestGuardianOwnerBackfillRestartsPassWhenLinkIsRecreatedMidPass(t *testing.
 // gives up.
 func TestGuardianOwnerBackfillRecoversFromPrimaryAndPayerReassignment(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Shared", "Child", "2b")
@@ -574,7 +574,7 @@ func TestGuardianOwnerBackfillRecoversFromPrimaryAndPayerReassignment(t *testing
 
 func TestGuardianOwnerVerificationUsesOneUTCSnapshot(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := guardianOwnerFixture(t, db, tenantID, 1)
@@ -608,7 +608,7 @@ func TestGuardianOwnerVerificationUsesOneUTCSnapshot(t *testing.T) {
 
 func TestGuardianOwnerRunExcludesOtherWriters(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	guardianOwnerFixture(t, db, tenantID, 1)
@@ -632,7 +632,7 @@ func TestGuardianOwnerRunExcludesOtherWriters(t *testing.T) {
 
 func TestGuardianOwnerCancellationFlushesFailedAttempt(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	tenantID := testpkg.Tenant(t)
 	guardianOwnerFixture(t, db, tenantID, 1)
 	ctx, cancel := context.WithCancel(testpkg.Ctx(t))
@@ -658,7 +658,7 @@ func TestGuardianOwnerCancellationFlushesFailedAttempt(t *testing.T) {
 
 func TestGuardianOwnerMeasuresSuccessfulLockWait(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := guardianOwnerFixture(t, db, tenantID, 1)
@@ -696,7 +696,7 @@ func TestGuardianOwnerMeasuresSuccessfulLockWait(t *testing.T) {
 
 func TestGuardianOwnerBackfillTenantIsolation(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantA := testpkg.Tenant(t)
 	tenantB := guardianOwnerSecondTenant(t, db)
@@ -732,7 +732,7 @@ func TestGuardianOwnerBackfillTenantIsolation(t *testing.T) {
 
 func TestGuardianOwnerBackfillVerifiesTenantPolicies(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantA := testpkg.Tenant(t)
 	tenantB := guardianOwnerSecondTenant(t, db)
@@ -767,7 +767,7 @@ func TestGuardianOwnerBackfillVerifiesTenantPolicies(t *testing.T) {
 
 func TestGuardianOwnerBackfillIndexesAndQueryPlans(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	guardianOwnerFixture(t, db, tenantID, 3)
@@ -824,7 +824,7 @@ func TestGuardianOwnerBackfillIndexesAndQueryPlans(t *testing.T) {
 
 func TestGuardianOwnerBackfillResetAndRollback(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	guardianOwnerFixture(t, db, tenantID, 3)
@@ -918,7 +918,7 @@ func TestGuardianOwnerBackfillRollbackPermitsExpandRollback(t *testing.T) {
 // the copy must leave them out and report them instead of restarting forever.
 func TestGuardianOwnerBackfillRejectsDuplicatePrimaries(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := guardianOwnerFixture(t, db, tenantID, 3)
@@ -954,7 +954,7 @@ func TestGuardianOwnerBackfillRejectsDuplicatePrimaries(t *testing.T) {
 // restores the RESTRICT action the authoritative target will need.
 func TestGuardianOwnerBackfillDoesNotBlockGuardianDeletion(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := guardianOwnerFixture(t, db, tenantID, 2)

@@ -1,8 +1,11 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
+import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 
 const logger = createLogger({ component: "EnrollmentPhaseExportRoute" });
 
@@ -19,6 +22,7 @@ async function proxyExport(phaseId: string, body: string, token: string) {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        ...(await incomingAnalyticsSessionHeaders()),
       },
       body,
       cache: "no-store",
@@ -26,10 +30,7 @@ async function proxyExport(phaseId: string, body: string, token: string) {
   );
 
   if (!response.ok) {
-    return NextResponse.json(
-      { error: await response.text() },
-      { status: response.status },
-    );
+    return forwardBackendResponse(response);
   }
 
   const contentType =
@@ -65,6 +66,7 @@ async function POSTHandler(request: NextRequest, context: RouteContext) {
     }
     return proxyExport(id, body, refreshed.user.token);
   } catch (error) {
+    captureBffException(error, request);
     const message = error instanceof Error ? error.message : "Export failed";
     logger.error("enrollment_phase_export_route_failed", { error: message });
     return NextResponse.json({ error: message }, { status: 500 });

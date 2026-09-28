@@ -32,7 +32,7 @@ func (f *Factory) bindStaffMembershipDecorators(workTime workforce.Capability, i
 	f.ParentMessageRead = parentMessageStaffRepository{
 		ParentMessageReads: parentStore.NewParentMessageReadRepository(f.db), membership: capability, persons: persons,
 	}
-	f.StaffMessageRead = staffStore.NewStaffMessageReadRepository(f.db, usersRepo.NewMessageableStaffRepository(f.db, func(ctx context.Context) ([]int64, error) {
+	f.StaffMessageRead = staffStore.NewStaffMessageReadRepository(f.db, usersRepo.NewMessageableStaffRepository(peopleRuntime(f.db), func(ctx context.Context) ([]int64, error) {
 		return currentTenantStaffAccounts(ctx, capability(), persons())
 	}, staffMessageIdentity(identity)))
 }

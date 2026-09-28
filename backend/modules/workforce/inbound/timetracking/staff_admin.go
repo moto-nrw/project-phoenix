@@ -7,6 +7,7 @@
 package timetracking
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -35,9 +36,13 @@ type StaffAdminResource struct {
 	// the SFTP routes then answer "not configured".
 	ExportTransfer ExportTransfer
 	schedules      scheduleReader
-	identity       IdentityFunc
-	db             *bun.DB
-	logger         *slog.Logger
+	// targetOverrides serves the Sonderarbeitszeiten (#3259); nil answers
+	// their routes with "not wired".
+	targetOverrides    workforce.StaffTargetOverrides
+	notifyTimeTracking func(context.Context)
+	identity           IdentityFunc
+	db                 *bun.DB
+	logger             *slog.Logger
 }
 
 // StaffAdminDependencies are the collaborators of the workforce admin
@@ -56,10 +61,14 @@ type StaffAdminDependencies struct {
 	AuditLog           workforce.TimeTrackingAuditLog
 	TimeExport         workforce.StaffTimeExport
 	Schedules          workforce.Query
-	ExportTransfer     ExportTransfer
-	Identity           IdentityFunc
-	DB                 *bun.DB
-	Logger             *slog.Logger
+	// TargetOverrides and NotifyChanged serve the Sonderarbeitszeiten; the
+	// notification invalidates the time-account views after a write.
+	TargetOverrides workforce.StaffTargetOverrides
+	NotifyChanged   func(context.Context)
+	ExportTransfer  ExportTransfer
+	Identity        IdentityFunc
+	DB              *bun.DB
+	Logger          *slog.Logger
 }
 
 // NewStaffAdminResource wires the workforce resource.
@@ -91,6 +100,8 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 		TimeExportService:    deps.TimeExport,
 		ExportTransfer:       deps.ExportTransfer,
 		schedules:            schedules,
+		targetOverrides:      deps.TargetOverrides,
+		notifyTimeTracking:   deps.NotifyChanged,
 		identity:             deps.Identity,
 		db:                   deps.DB,
 		logger:               logger,
@@ -115,6 +126,7 @@ func (rs *StaffAdminResource) RegisterStaffRoutes(r chi.Router, withTx common.Mi
 	rs.registerPersonnelRoutes(r, withTx)
 	rs.registerDocumentRoutes(r, withTx)
 	rs.registerTimeTrackingRoutes(r, withTx)
+	rs.registerTargetOverrideRoutes(r, withTx)
 	rs.registerBalanceRoutes(r, withTx)
 	rs.registerCrossStaffRoutes(r, withTx)
 	rs.registerAbsenceRoutes(r, withTx)

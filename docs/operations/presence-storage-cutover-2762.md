@@ -27,7 +27,9 @@ tenant-safe presence projection (`modules/presenceprojection`) that joins
 the plan with the owner tables for the retained list endpoints.
 `TestPresenceStorageCallerInventory` fails the build when a provider names a
 mirrored column or the counter again. Keep the triggers, the counter and the
-columns for the rollback window; #2763 removes them.
+columns for the
+[rollback window](../agents/operations.md#rollback-window-of-a-storage-cutover);
+#2763 removes them once its three conditions hold. There is no waiting period.
 
 ## Release and rollback
 
@@ -64,8 +66,8 @@ triggers.
 
 Run [the observation SQL](presence-storage-cutover-2762.sql) through the
 guarded maintenance connection with psql, `ON_ERROR_STOP=1`, and its file
-flag. Save the output before rollout, after the smoke tests, and at the end
-of the rollback window. The script uses one repeatable-read, read-only
+flag. Save the output before rollout, after the smoke tests, and once more
+before #2763 runs. The script uses one repeatable-read, read-only
 snapshot with bounded timeouts and changes no rows.
 
 | Evidence | Required result |
@@ -88,7 +90,7 @@ endpoint under `phoenix_timetable_activities_*` (operations, duration,
 queries, rows, statement duration). Student Presence operations are logged
 at debug level (`student presence operation` with `operation`, `duration`,
 `queries`, `rows`, `error`) by the serving root; they carry no school IDs and
-no child data. Record for the rollback window:
+no child data. Record before #2763 runs:
 
 - p95 of `start_activity_session`, `complete_activity_session`,
   `check_in_participants`, `check_out_participants`,
@@ -107,13 +109,13 @@ Disposable PostgreSQL clones, 2026-09-22, PR branch:
 | --- | --- |
 | Migration tests | `TestPresenceCutover*` and `TestPresenceCompatibility*` in `backend/database/migrations`: final delta, rollback with a failing switch, unequal targets refused, mirror and routing in both directions, tenant isolation of the routing. |
 | Owner tests | `TestActivitySessionStartsOncePerBlock`, `TestSessionStorageIsTenantIsolated`, `TestSessionStorageWritesRollBackWithTheCallerTransaction` in `backend/modules/studentpresence/compose`. |
-| Composition tests | `TestActivityInstanceCreateInExecutionStateJoinsTheCallerTransaction`, `TestActivityInstanceCreateRollsBackThePlanWhenTheSessionCannotStart` in `backend/modules/timetable/legacy/timetablesqltest`. |
+| Composition tests | `TestActivityInstanceCreateInExecutionStateJoinsTheCallerTransaction`, `TestActivityInstanceCreateRollsBackThePlanWhenTheSessionCannotStart` in `backend/modules/timetable/compose/httpintegration/legacy_presence_cutover_composition_test.go`. |
 | Caller inventory | `TestPresenceStorageCallerInventory`: zero application literals name a mirrored column or the counter. |
 | Query budgets | Unchanged register; the retained lists read the plan and the owner rows in one joined statement each. |
 | Architecture ratchet | `scripts/backend-architecture.sh check` passes with the 568 baseline violations unchanged (no key removed or added) and no policy loosening. |
 
 Staging acceptance (switch wall time on real data, previous image against the
-switched schema, counter trend over the rollback window) is still to be
+switched schema, counter trend under load) is still to be
 recorded:
 
 | Staging | Result |

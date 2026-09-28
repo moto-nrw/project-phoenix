@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -108,9 +107,9 @@ func (req *SubmitEnrollmentRequest) Bind(_ *http.Request) error {
 // email; we return it inline too so the confirmation page can show it
 // without waiting for the email.
 type SubmitEnrollmentResponse struct {
-	RequestID string                                `json:"request_id"`
-	StatusURL string                                `json:"status_url"`
-	Warnings  []enrollmentService.SubmissionWarning `json:"warnings,omitempty"`
+	RequestID string              `json:"request_id"`
+	StatusURL string              `json:"status_url"`
+	Warnings  []SubmissionWarning `json:"warnings,omitempty"`
 }
 
 // submitEnrollment is the public submission handler. Verifies the
@@ -140,7 +139,7 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 	// submitErr remembers which failures belong to the submit flow so the
 	// post-tx mapping can distinguish them from tenant-resolve failures.
 	var (
-		result    *enrollmentService.SubmitResult
+		result    *SubmitResult
 		submitErr error
 	)
 	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
@@ -205,8 +204,8 @@ func bindSubmitEnrollmentRequest(r *http.Request) (string, *SubmitEnrollmentRequ
 
 // BuildServiceRequest converts the wire request into the service-layer
 // shape. Parses date strings; surfaces a typed error on bad input.
-func BuildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remoteIP string) (enrollmentService.SubmitRequest, error) {
-	out := enrollmentService.SubmitRequest{
+func BuildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remoteIP string) (SubmitRequest, error) {
+	out := SubmitRequest{
 		TenantID:          tenantID,
 		PhaseID:           wireReq.PhaseID,
 		RemoteIP:          remoteIP,
@@ -219,7 +218,7 @@ func BuildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 		LateInviteToken:   wireReq.LateInviteToken,
 	}
 	for _, g := range wireReq.AdditionalGuardians {
-		out.AdditionalGuardians = append(out.AdditionalGuardians, enrollmentService.SubmitGuardian{
+		out.AdditionalGuardians = append(out.AdditionalGuardians, SubmitGuardian{
 			FirstName: g.FirstName,
 			LastName:  g.LastName,
 			Email:     g.Email,
@@ -231,14 +230,14 @@ func BuildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 		if err != nil {
 			return out, fmt.Errorf("child %d: invalid date_of_birth (expected YYYY-MM-DD)", i)
 		}
-		offeringDays := make([]enrollmentService.SubmitOfferingDays, 0, len(c.OfferingDays))
+		offeringDays := make([]SubmitOfferingDays, 0, len(c.OfferingDays))
 		for _, row := range c.OfferingDays {
-			offeringDays = append(offeringDays, enrollmentService.SubmitOfferingDays{
+			offeringDays = append(offeringDays, SubmitOfferingDays{
 				OfferingID:   row.OfferingID,
 				SelectedDays: row.SelectedDays,
 			})
 		}
-		out.Children = append(out.Children, enrollmentService.SubmitChild{
+		out.Children = append(out.Children, SubmitChild{
 			ID:                int64PtrValue(c.ID),
 			FirstName:         c.FirstName,
 			LastName:          c.LastName,
@@ -293,65 +292,65 @@ const (
 // status codes. Unknown errors fall through to 500.
 func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, enrollmentService.ErrEnrollmentDisabled),
-		errors.Is(err, enrollmentService.ErrEnrollmentWindowClosed):
+	case errors.Is(err, capability.ErrEnrollmentDisabled),
+		errors.Is(err, capability.ErrEnrollmentWindowClosed):
 		common.RenderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, enrollmentService.ErrLateInviteInvalid):
+	case errors.Is(err, capability.ErrLateInviteInvalid):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, ErrCodeEnrollmentLateInviteInvalid))
-	case errors.Is(err, enrollmentService.ErrPhaseNotEligible):
+	case errors.Is(err, capability.ErrPhaseNotEligible):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, ErrCodeEnrollmentPhaseNotEligible))
 	// The two child-level eligibility errors wrap ErrInvalidSubmission,
 	// so their specific matches must precede the generic case below.
-	case errors.Is(err, enrollmentService.ErrChildClassNotEligible):
+	case errors.Is(err, capability.ErrChildClassNotEligible):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentClassNotEligible))
-	case errors.Is(err, enrollmentService.ErrChildGradeNotEligible):
+	case errors.Is(err, capability.ErrChildGradeNotEligible):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentGradeNotEligible))
-	case errors.Is(err, enrollmentService.ErrChildAlreadyEnrolled):
+	case errors.Is(err, capability.ErrChildAlreadyEnrolled):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentChildAlreadyEnrolled))
-	case errors.Is(err, enrollmentService.ErrChildNotEnrolled):
+	case errors.Is(err, capability.ErrChildNotEnrolled):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentChildNotEnrolled))
-	case errors.Is(err, enrollmentService.ErrChildEnrollmentAmbiguous):
+	case errors.Is(err, capability.ErrChildEnrollmentAmbiguous):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentChildAmbiguous))
 	// Per-child re-enrollment authorization failure (#1663): a guardian account
 	// lacking parent_portal.enrollment.submit on the matched student. It does NOT
 	// wrap ErrInvalidSubmission — it is a 403, not a 400.
-	case errors.Is(err, enrollmentService.ErrChildEnrollmentNotPermitted):
+	case errors.Is(err, capability.ErrChildEnrollmentNotPermitted):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, ErrCodeEnrollmentChildNotPermitted))
-	case errors.Is(err, enrollmentService.ErrCareOfferingUnavailable):
+	case errors.Is(err, capability.ErrCareOfferingUnavailable):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingUnavailable))
-	case errors.Is(err, enrollmentService.ErrCareOfferingMissing):
+	case errors.Is(err, capability.ErrCareOfferingMissing):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingMissing))
-	case errors.Is(err, enrollmentService.ErrCareOfferingExactlyOneRequired):
+	case errors.Is(err, capability.ErrCareOfferingExactlyOneRequired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingExactlyOne))
-	case errors.Is(err, enrollmentService.ErrRequiredCareOfferingMissing):
+	case errors.Is(err, capability.ErrRequiredCareOfferingMissing):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentRequiredCareOfferingMissing))
-	case errors.Is(err, enrollmentService.ErrCareOfferingsDisabled):
+	case errors.Is(err, capability.ErrCareOfferingsDisabled):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingsDisabled))
-	case errors.Is(err, enrollmentService.ErrInvalidGuardianPhone):
+	case errors.Is(err, capability.ErrInvalidGuardianPhone):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentInvalidPhone))
 	// Must precede the generic ErrInvalidSubmission case below: the email
 	// error wraps ErrInvalidSubmission, so the specific match has to win.
-	case errors.Is(err, enrollmentService.ErrInvalidGuardianEmail):
+	case errors.Is(err, capability.ErrInvalidGuardianEmail):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentInvalidEmail))
 	// Must precede the generic ErrInvalidSubmission case below: the pickup
 	// error wraps ErrInvalidSubmission, so the specific match has to win.
-	case errors.Is(err, enrollmentService.ErrPickupTimeNotAllowed):
+	case errors.Is(err, capability.ErrPickupTimeNotAllowed):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentPickupTimeNotAllowed))
 	// Heimweg-Beschränkung (#2381) also wraps ErrInvalidSubmission.
-	case errors.Is(err, enrollmentService.ErrDepartureModeLimitExceeded):
+	case errors.Is(err, capability.ErrDepartureModeLimitExceeded):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentDepartureModeLimit))
 	// The three offering-day errors (#1885) also wrap ErrInvalidSubmission,
 	// so their specific matches must precede the generic case below.
-	case errors.Is(err, enrollmentService.ErrSelectedDayNotAvailable):
+	case errors.Is(err, capability.ErrSelectedDayNotAvailable):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentSelectedDayNotAvailable))
-	case errors.Is(err, enrollmentService.ErrDaySelectionRequired):
+	case errors.Is(err, capability.ErrDaySelectionRequired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentDaySelectionRequired))
-	case errors.Is(err, enrollmentService.ErrDaySelectionNotAllowed):
+	case errors.Is(err, capability.ErrDaySelectionNotAllowed):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentDaySelectionNotAllowed))
-	case errors.Is(err, enrollmentService.ErrCareOfferingClosed),
-		errors.Is(err, enrollmentService.ErrInvalidSubmission):
+	case errors.Is(err, capability.ErrCareOfferingClosed),
+		errors.Is(err, capability.ErrInvalidSubmission):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, enrollmentService.ErrCareOfferingFull):
+	case errors.Is(err, capability.ErrCareOfferingFull):
 		// 409 Conflict: the request is well-formed but a selected
 		// offering is at capacity and the tenant's overflow mode is
 		// 'reject'. Return a JSON envelope with a stable code so the
@@ -359,20 +358,20 @@ func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		// http.Error() emitted plain text and the form fell back to
 		// "(HTTP 409)".
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeEnrollmentCareOfferingFull))
-	case errors.Is(err, enrollmentService.ErrDuplicateEnrollment):
+	case errors.Is(err, capability.ErrDuplicateEnrollment):
 		// 409 Conflict: the same guardian email already has an active
 		// (non-rejected, non-withdrawn) enrollment for one of these
 		// children in this phase. JSON envelope so the frontend's
 		// readError helper surfaces the German message instead of
 		// falling back to "(HTTP 409)".
 		common.RenderError(w, r, common.ErrorConflictMessage("Für dieses Kind liegt in dieser Phase bereits eine Anmeldung vor."))
-	case errors.Is(err, enrollmentService.ErrExistingStudentAlreadyRequested):
+	case errors.Is(err, capability.ErrExistingStudentAlreadyRequested):
 		// 409 Conflict: another active request in this phase already targets the
 		// same already-enrolled student this child matched (a different guardian
 		// email, so the email-scoped duplicate check missed it). Distinct German
 		// message so parents understand the child is already being re-enrolled.
 		common.RenderError(w, r, common.ErrorConflictMessage("Für dieses Kind liegt in dieser Phase bereits eine Anmeldung von einer anderen Person vor."))
-	case errors.Is(err, enrollmentService.ErrRateLimited):
+	case errors.Is(err, capability.ErrRateLimited):
 		// 429 Too Many Requests. Hard-coded retry hint avoids leaking
 		// the exact remaining seconds.
 		w.Header().Set("Retry-After", "3600")
@@ -513,7 +512,7 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 
 	var (
 		req       *enrollmentModels.Request
-		children  []*enrollmentService.RequestChild
+		children  []*RequestChild
 		guardians []*capability.RequestGuardian
 		editMode  string
 		statusErr error
@@ -568,7 +567,7 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 			LastName:     c.LastName,
 			Status:       c.Status,
 			StatusReason: c.StatusReason,
-			Locked:       enrollmentService.ChildTakenOver(c),
+			Locked:       ChildTakenOver(c),
 		})
 	}
 	for _, g := range guardians {
@@ -629,7 +628,7 @@ func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {
 	}, "Enrollment edit bootstrap retrieved")
 }
 
-func toEditDraftResponse(draft *enrollmentService.EditDraft) EditDraftResponse {
+func toEditDraftResponse(draft *EditDraft) EditDraftResponse {
 	resp := EditDraftResponse{
 		RequestID:           strconv.FormatInt(draft.Request.ID, 10),
 		StatusToken:         draft.Request.StatusToken,
@@ -665,11 +664,11 @@ func toEditDraftGuardianResponses(guardians []*capability.RequestGuardian) []Edi
 	return responses
 }
 
-func toEditDraftChildResponses(draft *enrollmentService.EditDraft) []EditDraftChildResponse {
+func toEditDraftChildResponses(draft *EditDraft) []EditDraftChildResponse {
 	responses := make([]EditDraftChildResponse, 0, len(draft.Children))
 	for _, child := range draft.Children {
 		offeringLinks := draft.OfferingsByChild[child.ID]
-		if !draft.CareOfferingsEnabled && !enrollmentService.ChildTakenOver(child) {
+		if !draft.CareOfferingsEnabled && !ChildTakenOver(child) {
 			offeringLinks = nil
 		}
 		responses = append(responses, toEditDraftChildResponse(child, offeringLinks))
@@ -677,7 +676,7 @@ func toEditDraftChildResponses(draft *enrollmentService.EditDraft) []EditDraftCh
 	return responses
 }
 
-func toEditDraftChildResponse(child *enrollmentService.RequestChild, offeringLinks []*enrollmentService.RequestChildOffering) EditDraftChildResponse {
+func toEditDraftChildResponse(child *RequestChild, offeringLinks []*RequestChildOffering) EditDraftChildResponse {
 	response := EditDraftChildResponse{
 		ID:                strconv.FormatInt(child.ID, 10),
 		FirstName:         child.FirstName,
@@ -687,7 +686,7 @@ func toEditDraftChildResponse(child *enrollmentService.RequestChild, offeringLin
 		TargetSchoolClass: child.TargetSchoolClass,
 		CustomData:        child.CustomData,
 		OfferingIDs:       []string{},
-		Locked:            enrollmentService.ChildTakenOver(child),
+		Locked:            ChildTakenOver(child),
 	}
 	for _, link := range offeringLinks {
 		response.OfferingIDs = append(response.OfferingIDs, strconv.FormatInt(link.CareOfferingID, 10))
@@ -698,7 +697,7 @@ func toEditDraftChildResponse(child *enrollmentService.RequestChild, offeringLin
 	return response
 }
 
-func toEditDraftOfferingDayResponse(link *enrollmentService.RequestChildOffering) *EditDraftOfferingDayResponse {
+func toEditDraftOfferingDayResponse(link *RequestChildOffering) *EditDraftOfferingDayResponse {
 	if len(link.SelectedDays) == 0 {
 		return nil
 	}
@@ -743,7 +742,7 @@ func (rs *Resource) patchStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	patch := enrollmentService.EditPatch{
+	patch := EditPatch{
 		GuardianFirstName: patchReq.GuardianFirstName,
 		GuardianLastName:  patchReq.GuardianLastName,
 		GuardianPhone:     patchReq.GuardianPhone,
@@ -755,11 +754,11 @@ func (rs *Resource) patchStatus(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		switch {
-		case errors.Is(err, enrollmentService.ErrRequestNotFound):
+		case errors.Is(err, capability.ErrRequestNotFound):
 			common.RenderError(w, r, common.ErrorNotFound(err))
-		case errors.Is(err, enrollmentService.ErrEditNotAllowed):
+		case errors.Is(err, capability.ErrEditNotAllowed):
 			common.RenderError(w, r, common.ErrorForbidden(err))
-		case errors.Is(err, enrollmentService.ErrInvalidGuardianPhone):
+		case errors.Is(err, capability.ErrInvalidGuardianPhone):
 			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentInvalidPhone))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -803,9 +802,9 @@ func (rs *Resource) replaceStatus(w http.ResponseWriter, r *http.Request) {
 
 func mapEditError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, enrollmentService.ErrRequestNotFound):
+	case errors.Is(err, capability.ErrRequestNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, enrollmentService.ErrEditNotAllowed):
+	case errors.Is(err, capability.ErrEditNotAllowed):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	default:
 		MapSubmitError(w, r, err)
@@ -853,9 +852,9 @@ func (rs *Resource) withdrawStatus(w http.ResponseWriter, r *http.Request) {
 	err := rs.RequestService.Withdraw(r.Context(), token, childID)
 	if err != nil {
 		switch {
-		case errors.Is(err, enrollmentService.ErrRequestNotFound):
+		case errors.Is(err, capability.ErrRequestNotFound):
 			common.RenderError(w, r, common.ErrorNotFound(err))
-		case errors.Is(err, enrollmentService.ErrWithdrawNotAllowed):
+		case errors.Is(err, capability.ErrWithdrawNotAllowed):
 			common.RenderError(w, r, common.ErrorForbidden(err))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -893,7 +892,7 @@ func (rs *Resource) confirmRenewal(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		switch {
-		case errors.Is(err, enrollmentService.ErrRequestNotFound):
+		case errors.Is(err, capability.ErrRequestNotFound):
 			common.RenderError(w, r, common.ErrorNotFound(err))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))

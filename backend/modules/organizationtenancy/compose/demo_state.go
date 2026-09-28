@@ -26,8 +26,16 @@ func (e demoStateEngine) LoadDemoSchool(ctx context.Context, name string) (*orga
 	return &organizationtenancy.DemoSchoolState{SchoolID: state.TenantID, SeedJSON: []byte(state.SeedJSON)}, nil
 }
 
+func (e demoStateEngine) ReserveDemoSchool(ctx context.Context, name string, schoolID int64) error {
+	return e.store.Reserve(ctx, name, schoolID)
+}
+
 func (e demoStateEngine) RememberDemoSchool(ctx context.Context, name string, state organizationtenancy.DemoSchoolState) error {
 	return e.store.Remember(ctx, name, postgres.DemoState{TenantID: state.SchoolID, SeedJSON: string(state.SeedJSON)})
+}
+
+func (e demoStateEngine) UpdateDemoSchool(ctx context.Context, name string, state organizationtenancy.DemoSchoolState) error {
+	return e.store.Update(ctx, name, postgres.DemoState{TenantID: state.SchoolID, SeedJSON: string(state.SeedJSON)})
 }
 
 func (e demoStateEngine) WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error {

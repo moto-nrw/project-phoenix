@@ -171,34 +171,6 @@ func (req *SchoolClassesRequest) Bind(*http.Request) error {
 	return nil
 }
 
-// PINStatusResponse represents the PIN status response.
-type PINStatusResponse struct {
-	HasPIN      bool       `json:"has_pin"`
-	LastChanged *time.Time `json:"last_changed,omitempty"`
-}
-
-// PINUpdateRequest represents a PIN update request.
-type PINUpdateRequest struct {
-	CurrentPIN *string `json:"current_pin,omitempty"` // null for first-time setup
-	NewPIN     string  `json:"new_pin"`
-}
-
-// Bind validates the PIN update request.
-func (req *PINUpdateRequest) Bind(*http.Request) error {
-	if req.NewPIN == "" {
-		return errors.New("new PIN is required")
-	}
-	if len(req.NewPIN) != 4 {
-		return errors.New("PIN must be exactly 4 digits")
-	}
-	for _, char := range req.NewPIN {
-		if char < '0' || char > '9' {
-			return errors.New("PIN must contain only digits")
-		}
-	}
-	return nil
-}
-
 // staffFieldAccess splits the staff directory into the tiers a caller can be
 // entitled to beyond the minimal colleague view (#2906).
 type staffFieldAccess struct {

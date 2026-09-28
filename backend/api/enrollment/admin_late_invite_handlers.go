@@ -8,12 +8,13 @@ import (
 	"strings"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -60,9 +61,9 @@ func (rs *Resource) createLateInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var result *enrollmentService.CreateLateInviteResult
+	var result *CreateLateInviteResult
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		out, createErr := rs.RequestService.CreateLateInvite(ctx, enrollmentService.CreateLateInviteInput{
+		out, createErr := rs.RequestService.CreateLateInvite(ctx, CreateLateInviteInput{
 			PhaseID:           phaseID,
 			GuardianEmail:     body.GuardianEmail,
 			GuardianFirstName: body.GuardianFirstName,
@@ -162,9 +163,9 @@ func (rs *Resource) createManualApprovedEnrollment(w http.ResponseWriter, r *htt
 		return
 	}
 
-	var result *enrollmentService.ManualApprovedEnrollmentResult
+	var result *ManualApprovedEnrollmentResult
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		out, createErr := rs.RequestService.CreateManualApprovedEnrollment(ctx, enrollmentService.ManualApprovedEnrollmentInput{
+		out, createErr := rs.RequestService.CreateManualApprovedEnrollment(ctx, ManualApprovedEnrollmentInput{
 			Request:          serviceReq,
 			Reason:           reason,
 			SendNotification: body.SendNotification,
@@ -205,7 +206,7 @@ func (rs *Resource) getManualEnrollmentBootstrap(w http.ResponseWriter, r *http.
 		return
 	}
 
-	var data *enrollmentService.PublicFormBootstrapData
+	var data *PublicFormBootstrapData
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		loaded, loadErr := rs.RequestService.LoadManualEnrollmentBootstrap(ctx, phaseID)
 		data = loaded
@@ -213,8 +214,8 @@ func (rs *Resource) getManualEnrollmentBootstrap(w http.ResponseWriter, r *http.
 	})
 	if err != nil {
 		switch {
-		case errors.Is(err, enrollmentService.ErrEnrollmentDisabled),
-			errors.Is(err, enrollmentService.ErrInvalidSubmission):
+		case errors.Is(err, capability.ErrEnrollmentDisabled),
+			errors.Is(err, capability.ErrInvalidSubmission):
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -228,7 +229,7 @@ func (rs *Resource) getManualEnrollmentBootstrap(w http.ResponseWriter, r *http.
 	for _, o := range data.Offerings {
 		items = append(items, toPublicCareOfferingResponse(o))
 	}
-	capabilities := enrollmentService.EffectiveFormCapabilities(data.Capabilities, data.Offerings)
+	capabilities := data.EffectiveCapabilities
 	common.Respond(w, r, http.StatusOK, PublicEnrollmentFormBootstrapResponse{
 		Phase:                     toPublicPhase(phase),
 		Schema:                    toPublicFormSchemaResponse(data.Schema),
@@ -257,9 +258,9 @@ func (rs *Resource) getManualEnrollmentBootstrap(w http.ResponseWriter, r *http.
 
 func mapLateInviteAdminError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, enrollmentService.ErrEnrollmentDisabled),
-		errors.Is(err, enrollmentService.ErrInvalidSubmission),
-		errors.Is(err, enrollmentService.ErrInvalidGuardianEmail):
+	case errors.Is(err, capability.ErrEnrollmentDisabled),
+		errors.Is(err, capability.ErrInvalidSubmission),
+		errors.Is(err, capability.ErrInvalidGuardianEmail):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -268,14 +269,14 @@ func mapLateInviteAdminError(w http.ResponseWriter, r *http.Request, err error) 
 
 func mapManualEnrollmentError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, enrollmentService.ErrDecisionChildNotFound),
-		errors.Is(err, enrollmentService.ErrDecisionRequestNotFound):
+	case errors.Is(err, capability.ErrDecisionChildNotFound),
+		errors.Is(err, capability.ErrDecisionRequestNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, enrollmentService.ErrDecisionInvalidStatus),
-		errors.Is(err, enrollmentService.ErrDecisionAlreadyTerminal),
-		errors.Is(err, enrollmentService.ErrDecisionInvalidData):
+	case errors.Is(err, capability.ErrDecisionInvalidStatus),
+		errors.Is(err, capability.ErrDecisionAlreadyTerminal),
+		errors.Is(err, capability.ErrDecisionInvalidData):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, enrollmentService.ErrGuardianAccountMismatch):
+	case errors.Is(err, capability.ErrGuardianAccountMismatch):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.guardian_account_mismatch"))
 	case common.IsTransientDatabaseError(err):
 		common.RenderError(w, r, common.ErrorServiceUnavailable(err))

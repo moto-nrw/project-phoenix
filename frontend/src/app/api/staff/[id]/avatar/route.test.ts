@@ -116,10 +116,7 @@ describe("GET /api/staff/[id]/avatar", () => {
   });
 
   it("passes backend error statuses through unchanged", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 404,
-    });
+    mockFetch.mockResolvedValue(new Response("Not found", { status: 404 }));
 
     const response = await GET(
       new NextRequest("http://localhost:3000/api/staff/42/avatar"),
@@ -179,12 +176,14 @@ describe("GET /api/staff/[id]/avatar", () => {
     const thrown = new Error("network exploded");
     mockFetch.mockRejectedValue(thrown);
 
-    const response = await GET(
-      new NextRequest("http://localhost:3000/api/staff/42/avatar"),
-      { params: Promise.resolve({ id: "42" }) },
+    const request = new NextRequest(
+      "http://localhost:3000/api/staff/42/avatar",
     );
+    const response = await GET(request, {
+      params: Promise.resolve({ id: "42" }),
+    });
 
-    expect(mockHandleApiError).toHaveBeenCalledWith(thrown);
+    expect(mockHandleApiError).toHaveBeenCalledWith(thrown, request);
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({
       error: "network exploded",

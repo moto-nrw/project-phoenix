@@ -48,7 +48,30 @@ func migratePreflightTo(ctx context.Context, db *bun.DB, output io.Writer) error
 	if err != nil {
 		return err
 	}
-	return reportPreflightChecks(ctx, output, pendingPreconditions(status.Unapplied()), db)
+	pending := status.Unapplied()
+	return reportPreflightChecks(withPendingMigrations(ctx, pending), output, pendingPreconditions(pending), db)
+}
+
+type pendingMigrationsKey struct{}
+
+// withPendingMigrations tells every precondition which migrations run before it
+// in the same release. A precondition asks the database as it is now, so a state
+// an earlier pending migration's Up creates is not there yet; the precondition
+// has to know that Up is still coming rather than report its absence.
+func withPendingMigrations(ctx context.Context, pending migrate.MigrationSlice) context.Context {
+	versions := make(map[string]bool, len(pending))
+	for index := range pending {
+		version, _ := migrationIdentity(&pending[index])
+		versions[version] = true
+	}
+	return context.WithValue(ctx, pendingMigrationsKey{}, versions)
+}
+
+// migrationPending reports whether version is pending in the preflight that
+// called the precondition. Outside a preflight nothing is known to be pending.
+func migrationPending(ctx context.Context, version string) bool {
+	versions, _ := ctx.Value(pendingMigrationsKey{}).(map[string]bool)
+	return versions[version]
 }
 
 // reportPreflightChecks runs every selected precondition, prints one line per

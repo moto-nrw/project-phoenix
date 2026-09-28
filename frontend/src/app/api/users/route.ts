@@ -1,6 +1,7 @@
 // app/api/users/route.ts
 import type { NextRequest } from "next/server";
 import { apiGet, apiPost } from "~/lib/api-helpers.server";
+import { ApiResponseError } from "~/lib/api-helpers.server";
 import {
   createGetHandler,
   createPostHandler,
@@ -83,8 +84,7 @@ export const GET = createGetHandler(
       logger.error("persons fetch failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-      // Return empty array instead of throwing error
-      return [];
+      throw error;
     }
   },
 );
@@ -115,6 +115,7 @@ export const POST = createPostHandler<
 
     return response;
   } catch (error) {
+    if (error instanceof ApiResponseError) throw error;
     // Check for permission errors (403 Forbidden)
     if (error instanceof Error && error.message.includes("403")) {
       logger.error("permission denied when creating person", {

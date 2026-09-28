@@ -18,21 +18,12 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiGet: mockApiGet,
   apiPost: mockApiPost,
   apiPut: mockApiPut,
   apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
 }));
 
 function createMockRequest(
@@ -172,17 +163,15 @@ describe("GET /api/activities/[id]/students", () => {
     );
   });
 
-  it("returns empty array on error", async () => {
+  it("does not turn a failed backend request into an empty enrollment list", async () => {
     mockApiGet.mockRejectedValueOnce(new Error("Backend error"));
 
     const request = createMockRequest("/api/activities/5/students");
     const response = await GET(request, createMockContext({ id: "5" }));
 
-    const json = await parseJsonResponse<{
-      success: boolean;
-      data: Array<unknown>;
-    }>(response);
-    expect(json.data).toEqual([]);
+    expect(response.status).toBe(500);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).toBe("Backend error");
   });
 });
 

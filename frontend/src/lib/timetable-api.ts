@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 /**
  * API client for the timetable feature.
  *
@@ -24,6 +25,7 @@ import type {
   BackendGuardianNoticeReach,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
+  BackendBulkCancelResult,
   BackendReplanWeekResult,
   BackendEditedInWindowResult,
   BackendSplitTemplateResult,
@@ -59,6 +61,7 @@ import type {
   GuardianNoticeReach,
   InstanceStatusResult,
   MaterializeResult,
+  BulkCancelResult,
   ReplanWeekResult,
   EditedInWindowResult,
   ShiftCoverageCheckParams,
@@ -94,6 +97,7 @@ import {
   mapGuardianNoticeReach,
   mapInstanceStatusResult,
   mapMaterializeResult,
+  mapBulkCancelResult,
   mapReplanWeekResult,
   mapEditedInWindowResult,
   mapSplitTemplateResult,
@@ -112,15 +116,13 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
-class TimetableApiError extends Error {
+class TimetableApiError extends ApiError {
   readonly httpStatus: number;
-  readonly code?: string;
 
   constructor(message: string, httpStatus: number, code?: string) {
-    super(message);
+    super(message, httpStatus, { code });
     this.name = "TimetableApiError";
     this.httpStatus = httpStatus;
-    this.code = code;
   }
 }
 
@@ -128,14 +130,20 @@ async function unwrap<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;
     let code: string | undefined;
+    let payload: unknown;
     try {
       const body = (await response.json()) as { error?: string; code?: string };
+      payload = body;
       if (body.error) message = body.error;
       code = body.code;
     } catch {
       // Body wasn't JSON; keep the generic message.
     }
-    throw new TimetableApiError(message, response.status, code);
+    throw enrichApiError(
+      new TimetableApiError(message, response.status, code),
+      payload,
+      response.status,
+    );
   }
 
   if (response.status === 204) {
@@ -765,6 +773,45 @@ class TimetableService {
       created: raw.instances_created,
     });
     return mapReplanWeekResult(raw);
+  }
+
+  /**
+   * POST /api/timetable/instances/bulk-cancel (#3594).
+   * Cancels and removes the planned appointments in [from, to] from today
+   * on, except series planned on closing days on purpose unless
+   * `includeClosingDaySeries` is set. Parents are not notified. `dryRun`
+   * only counts them for the confirmation dialog.
+   */
+  async bulkCancel(
+    from: string,
+    to: string,
+    dryRun: boolean,
+    includeClosingDaySeries = false,
+  ): Promise<BulkCancelResult> {
+    const response = await fetch("/api/timetable/instances/bulk-cancel", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        from,
+        to,
+        dry_run: dryRun,
+        include_closing_day_series: includeClosingDaySeries,
+      }),
+    });
+
+    const raw = await unwrap<BackendBulkCancelResult>(response);
+    if (!dryRun) {
+      logger.info("instances_bulk_cancelled", {
+        from: raw.from,
+        to: raw.to,
+        count: raw.count,
+      });
+    }
+    return mapBulkCancelResult(raw);
   }
 
   /**

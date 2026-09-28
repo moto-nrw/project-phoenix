@@ -1,42 +1,27 @@
-import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { auth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
-import { apiDelete, handleApiError } from "~/lib/api-helpers.server";
+import { apiDelete } from "~/lib/api-helpers.server";
+import { createTenantApiAdapter } from "~/lib/backend-proxy-route.server";
 
-async function DELETEHandler(
-  request: NextRequest,
-  context: { params: Promise<Record<string, string | string[] | undefined>> },
-) {
-  try {
-    const session = await auth();
-
-    if (!session?.user?.token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Extract parameters from context
-    const params = await context.params;
-    const accountId = params.accountId as string;
-    const permissionId = params.permissionId as string;
-
-    if (!accountId || !permissionId) {
+export const DELETE = createTenantApiAdapter(
+  async (_request, token, context) => {
+    const params = await context?.params;
+    const accountId = params?.accountId;
+    const permissionId = params?.permissionId;
+    if (
+      typeof accountId !== "string" ||
+      !accountId ||
+      typeof permissionId !== "string" ||
+      !permissionId
+    ) {
       return NextResponse.json(
         { error: "Account ID and Permission ID are required" },
         { status: 400 },
       );
     }
-
-    // Make the API call to remove permission from account
     await apiDelete(
       `/auth/accounts/${accountId}/permissions/${permissionId}`,
-      session.user.token,
+      token,
     );
-
     return NextResponse.json({ success: true });
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
-
-export const DELETE = withTenantAuth(DELETEHandler);
+  },
+);

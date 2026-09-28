@@ -174,8 +174,8 @@ docker compose run server go run . migrate reset
 
 To add one more demo school to a database that is already seeded, give the run
 its own slug and restrict it to one profile. Every account of that school then
-carries the slug (`demo1.ogs-nord@mail.de`), and the school joins the existing
-Demo-Träger:
+carries the slug in its domain (`anna.mueller@demo-ogs-nord.moto-ogs.de`), and
+the school joins the existing Demo-Träger:
 
 ```bash
 docker compose run server go run . seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080 \

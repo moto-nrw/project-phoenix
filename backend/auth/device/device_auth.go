@@ -1,9 +1,9 @@
-// Package device authenticates kiosk requests by device API key and staff
-// PIN. It is the Device Fleet adapter for the IoT routes: it owns the wire
-// contract (headers, status codes, error strings) and the principal it hands
-// to handlers, while every fact it needs arrives through the ports below. The
-// composition root binds those ports to the Device Fleet capability, the
-// school directory, the staff PIN verification, and the tenant runtime.
+// Package device authenticates kiosk requests by device API key and the
+// shared device PIN. It is the Device Fleet adapter for the IoT routes: it
+// owns the wire contract (headers, status codes, error strings) and the
+// principal it hands to handlers, while every fact it needs arrives through
+// the ports below. The composition root binds those ports to the Device Fleet
+// capability, the school directory, and the tenant runtime.
 package device
 
 import (
@@ -12,7 +12,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -48,9 +47,9 @@ type AuthenticatedDevice struct {
 // IsActive reports whether the device may serve requests.
 func (d *AuthenticatedDevice) IsActive() bool { return d != nil && d.Status == activeStatus }
 
-// AuthenticatedStaff is the staff principal bound to a request after the
-// account PIN verified the caller. Only the identity is exposed; device
-// credentials stay separate from the human record behind them.
+// AuthenticatedStaff is the staff principal a verified web boundary binds to
+// a request. Device authentication never sets it: kiosks share one device
+// PIN, so their actions stay attributed to the device.
 type AuthenticatedStaff struct {
 	ID       int64
 	TenantID int64
@@ -85,12 +84,6 @@ type SchoolLookup interface {
 	IsSchoolDeleted(ctx context.Context, schoolID int64) (bool, error)
 }
 
-// StaffPINAuthenticator verifies that a staff ID and account PIN belong to
-// the device tenant before the middleware exposes staff identity to handlers.
-type StaffPINAuthenticator interface {
-	AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (*AuthenticatedStaff, error)
-}
-
 // PINResolver resolves the device PIN for a given tenant.
 // Returns the PIN string, or empty if not configured.
 type PINResolver func(ctx context.Context, tenantID int64) string
@@ -110,9 +103,6 @@ type Dependencies struct {
 	// Schools rejects devices of deleted schools. A nil lookup skips the
 	// check.
 	Schools SchoolLookup
-	// StaffPIN verifies personal staff credentials. A nil authenticator
-	// rejects requests that present them.
-	StaffPIN StaffPINAuthenticator
 	// PIN resolves the tenant device PIN; FallbackPIN is used when it is nil
 	// or returns an empty PIN.
 	PIN         PINResolver
@@ -137,8 +127,8 @@ func NewAuthenticator(deps Dependencies) *Authenticator {
 	return &Authenticator{deps: deps}
 }
 
-// Device authenticates API key plus device PIN and, when a personal
-// credential is supplied, binds the verified staff identity.
+// Device authenticates API key plus device PIN. The X-Staff-ID header that
+// PyrePortal sends is caller-controlled; it is neither trusted nor exposed.
 func (a *Authenticator) Device() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -199,16 +189,12 @@ func Required(name string, middleware func(http.Handler) http.Handler) func(http
 type credentials struct {
 	authorization string
 	devicePIN     string
-	staffID       string
-	staffPIN      string
 }
 
 func credentialsFromRequest(r *http.Request) credentials {
 	return credentials{
 		authorization: r.Header.Get("Authorization"),
 		devicePIN:     r.Header.Get("X-Staff-PIN"),
-		staffID:       r.Header.Get("X-Staff-ID"),
-		staffPIN:      r.Header.Get("X-Staff-Auth-PIN"),
 	}
 }
 
@@ -242,16 +228,9 @@ func (a *Authenticator) authenticateDevice(ctx context.Context, c credentials) (
 	if errResp := a.validateDevicePIN(ctx, device, c.devicePIN); errResp != nil {
 		return nil, errResp
 	}
-	staff, errResp := a.authenticateStaff(ctx, device, c.staffID, c.staffPIN)
-	if errResp != nil {
-		return nil, errResp
-	}
 
 	tenantCtx = context.WithValue(tenantCtx, CtxDevice, device)
 	tenantCtx = context.WithValue(tenantCtx, CtxIsIoTDevice, true)
-	if staff != nil {
-		tenantCtx = context.WithValue(tenantCtx, CtxStaff, staff)
-	}
 	slog.Debug("device authentication successful",
 		slog.String("device_id", device.DeviceID),
 	)
@@ -382,41 +361,6 @@ func (a *Authenticator) validateDevicePIN(ctx context.Context, device *Authentic
 		return ErrDeviceUnauthorized(ErrInvalidPIN)
 	}
 	return nil
-}
-
-func (a *Authenticator) authenticateStaff(ctx context.Context, device *AuthenticatedDevice, staffIDHeader, staffPIN string) (*AuthenticatedStaff, *ErrResponse) {
-	if staffIDHeader == "" && staffPIN == "" {
-		return nil, nil
-	}
-	// Deployed PyrePortal versions send X-Staff-ID without a personal PIN.
-	// Keep those requests working, but do not trust or expose the ID.
-	if staffPIN == "" {
-		return nil, nil
-	}
-	if staffIDHeader == "" || a.deps.StaffPIN == nil {
-		slog.Warn("device staff authentication failed: incomplete credentials",
-			slog.String("device_id", device.DeviceID),
-		)
-		return nil, ErrDeviceUnauthorized(ErrInvalidPIN)
-	}
-
-	staffID, err := strconv.ParseInt(staffIDHeader, 10, 64)
-	if err != nil || staffID <= 0 {
-		slog.Warn("device staff authentication failed: invalid staff ID",
-			slog.String("device_id", device.DeviceID),
-		)
-		return nil, ErrDeviceUnauthorized(ErrInvalidPIN)
-	}
-
-	staff, err := a.deps.StaffPIN.AuthenticateStaffPIN(ctx, device.TenantID, staffID, staffPIN)
-	if err != nil || staff == nil || staff.TenantID != device.TenantID {
-		slog.Warn("device staff authentication failed",
-			slog.String("device_id", device.DeviceID),
-			slog.Int64("staff_id", staffID),
-		)
-		return nil, ErrDeviceUnauthorized(ErrInvalidPIN)
-	}
-	return staff, nil
 }
 
 func renderDeviceAuthError(w http.ResponseWriter, r *http.Request, errResp *ErrResponse) {

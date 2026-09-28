@@ -1784,7 +1784,7 @@ func TestClassifyAbsenceError(t *testing.T) {
 		err := render.Render(w, r, renderer)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusForbidden, w.Code)
-		assert.JSONEq(t, `{"status":"error","error":"absence type is manager-controlled","code":"manager_controlled_absence"}`, w.Body.String())
+		assert.JSONEq(t, `{"status":"error","error":"absence type is manager-controlled","code":"manager_controlled_absence","type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Forbidden","detail":"absence type is manager-controlled","instance":""}`, w.Body.String())
 	})
 
 	t.Run("allowance booking overlap returns conflict", func(t *testing.T) {
@@ -1798,7 +1798,7 @@ func TestClassifyAbsenceError(t *testing.T) {
 		renderErr := render.Render(w, r, renderer)
 		require.NoError(t, renderErr)
 		require.Equal(t, http.StatusConflict, w.Code)
-		assert.JSONEq(t, `{"status":"error","error":"Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein."}`, w.Body.String())
+		assert.JSONEq(t, `{"status":"error","error":"Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein.","code":"general.business_rejection","type":"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich","title":"Conflict","detail":"Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein.","instance":""}`, w.Body.String())
 	})
 
 }

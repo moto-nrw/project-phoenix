@@ -9,9 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	enrollmentAudience "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -34,15 +32,15 @@ func pollAnnouncement(
 	t *testing.T,
 	ctx context.Context,
 	db *bun.DB,
-	repo usersModels.ParentAnnouncementRepository,
+	repo testpkg.ParentAnnouncementRepository,
 	createdBy, tenantID int64,
 	responseType string,
-) (*usersModels.ParentAnnouncement, []int64) {
+) (*testpkg.ParentAnnouncement, []int64) {
 	t.Helper()
-	a := &usersModels.ParentAnnouncement{
+	a := &testpkg.ParentAnnouncement{
 		Title:        "Umfrage",
 		Body:         "Bitte antworten",
-		Priority:     usersModels.ParentAnnouncementPriorityInfo,
+		Priority:     testpkg.ParentAnnouncementPriorityInfo,
 		Active:       true,
 		CreatedBy:    createdBy,
 		ResponseType: responseType,
@@ -50,8 +48,8 @@ func pollAnnouncement(
 	a.SetTenantID(tenantID)
 	require.NoError(t, repo.Create(ctx, a))
 	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID,
-		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetSchoolAll}}))
-	require.NoError(t, repo.ReplaceOptions(ctx, tenantID, a.ID, []*usersModels.ParentAnnouncementOption{
+		[]*testpkg.ParentAnnouncementTarget{{TargetType: testpkg.AnnouncementTargetSchoolAll}}))
+	require.NoError(t, repo.ReplaceOptions(ctx, tenantID, a.ID, []*testpkg.ParentAnnouncementOption{
 		{Label: "Ja"}, {Label: "Nein"},
 	}))
 	options, err := repo.ListOptions(ctx, a.ID)
@@ -83,11 +81,11 @@ func TestParentAnnouncementSetResponse_StoresReplacesAndWithdraws(t *testing.T) 
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	poll, options := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
-		usersModels.ParentAnnouncementResponseMultiChoice)
+		testpkg.ParentAnnouncementResponseMultiChoice)
 
 	applied, err := repo.SetResponse(ctx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID,
 		[]int64{options[0]}, *poll.PublishedAt)
@@ -115,11 +113,11 @@ func TestParentAnnouncementSetResponse_RejectsWithoutPollPermission(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	poll, options := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
-		usersModels.ParentAnnouncementResponseSingleChoice)
+		testpkg.ParentAnnouncementResponseSingleChoice)
 
 	// Sanity: the seeded primary guardian may answer.
 	applied, err := repo.SetResponse(ctx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID,
@@ -160,13 +158,13 @@ func TestParentAnnouncementSetResponse_RejectsStaleVersionAndForeignOptions(t *t
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	poll, options := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
-		usersModels.ParentAnnouncementResponseMultiChoice)
+		testpkg.ParentAnnouncementResponseMultiChoice)
 	other, otherOptions := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
-		usersModels.ParentAnnouncementResponseMultiChoice)
+		testpkg.ParentAnnouncementResponseMultiChoice)
 	require.NotEqual(t, poll.ID, other.ID)
 
 	// A version the announcement never had: the client loaded a wording that has
@@ -192,11 +190,11 @@ func TestParentAnnouncementSetResponse_SingleChoiceRejectsMultipleOptions(t *tes
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	poll, options := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
-		usersModels.ParentAnnouncementResponseSingleChoice)
+		testpkg.ParentAnnouncementResponseSingleChoice)
 
 	applied, err := repo.SetResponse(ctx, chain.TenantID, poll.ID, chain.StudentID, chain.AccountID,
 		options, *poll.PublishedAt)
@@ -211,7 +209,7 @@ func revokePollResponse(t *testing.T, db *bun.DB, chain testpkg.ParentChain) {
 	t.Helper()
 	_, err := db.NewUpdate().
 		TableExpr("users.students_guardians").
-		Set("permissions = permissions - ?", authorize.GuardianPermissionPollResponse).
+		Set("permissions = permissions - ?", testpkg.GuardianPermissionPollResponse).
 		Where("student_id = ? AND tenant_id = ?", chain.StudentID, chain.TenantID).
 		Exec(context.Background())
 	require.NoError(t, err)

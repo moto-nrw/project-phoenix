@@ -20,6 +20,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     controlSize = "default",
     maxLength,
     type,
+    "aria-describedby": describedBy,
+    "aria-invalid": ariaInvalid,
     ...props
   },
   ref,
@@ -28,6 +30,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   // both. Deriving the association from `name` alone left `htmlFor` undefined
   // whenever only `id` was passed.
   const inputId = id ?? name;
+  const errorId = error && inputId ? `${inputId}-error` : undefined;
 
   const controlClassName =
     controlSize === "compact"
@@ -50,12 +53,19 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         name={name}
         type={type}
         maxLength={maxLength ?? getDefaultMaxLength(type ?? "text")}
-        aria-invalid={error ? true : undefined}
-        className={`${controlClassName} ${className}`}
         {...props}
+        aria-invalid={error ? true : ariaInvalid}
+        aria-describedby={
+          [describedBy, errorId].filter(Boolean).join(" ") || undefined
+        }
+        className={`${controlClassName} ${className}`}
       />
       {error && (
-        <p role="alert" className="text-moto-red-strong mt-1 text-xs">
+        <p
+          id={errorId}
+          role="alert"
+          className="text-moto-red-strong mt-1 text-xs"
+        >
           {error}
         </p>
       )}

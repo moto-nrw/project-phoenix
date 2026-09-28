@@ -1,134 +1,33 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { createLogger } from "~/lib/logger";
+import { NextResponse } from "next/server";
+import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
 
-const logger = createLogger({ component: "RolePermissionRoute" });
-
-// Error response interface
-interface ErrorResponse {
-  error: string;
-}
-
-// POST: Assign a permission to a role
-async function POSTHandler(
-  request: NextRequest,
-  { params }: { params: Promise<{ roleId: string; permissionId: string }> },
+function rolePermissionPath(
+  _request: Request,
+  params: Record<string, string | string[] | undefined>,
 ) {
-  try {
-    const resolvedParams = await params;
-    const { roleId, permissionId } = resolvedParams;
-
-    if (!roleId || !permissionId) {
-      return NextResponse.json(
-        { error: "Role ID and Permission ID are required" } as ErrorResponse,
-        { status: 400 },
-      );
-    }
-
-    const session = await auth();
-    if (!session?.user?.token) {
-      return NextResponse.json({ error: "Unauthorized" } as ErrorResponse, {
-        status: 401,
-      });
-    }
-
-    const url = `${getServerApiUrl()}/auth/roles/${roleId}/permissions/${permissionId}`;
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${session.user.token}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error("assign permission to role failed", {
-        status: response.status,
-        error: errorText,
-      });
-      return NextResponse.json(
-        {
-          error: errorText || `Failed to assign permission: ${response.status}`,
-        } as ErrorResponse,
-        { status: response.status },
-      );
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    logger.error("assign permission to role error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
+  const { roleId, permissionId } = params;
+  if (
+    typeof roleId !== "string" ||
+    !roleId ||
+    typeof permissionId !== "string" ||
+    !permissionId
+  ) {
     return NextResponse.json(
-      { error: "Internal Server Error" } as ErrorResponse,
-      { status: 500 },
+      { error: "Role ID and Permission ID are required" },
+      { status: 400 },
     );
   }
+  return `/auth/roles/${encodeURIComponent(roleId)}/permissions/${encodeURIComponent(permissionId)}`;
 }
 
-export const POST = withTenantAuth(POSTHandler);
-
-// DELETE: Remove a permission from a role
-async function DELETEHandler(
-  request: NextRequest,
-  { params }: { params: Promise<{ roleId: string; permissionId: string }> },
-) {
-  try {
-    const resolvedParams = await params;
-    const { roleId, permissionId } = resolvedParams;
-
-    if (!roleId || !permissionId) {
-      return NextResponse.json(
-        { error: "Role ID and Permission ID are required" } as ErrorResponse,
-        { status: 400 },
-      );
-    }
-
-    const session = await auth();
-    if (!session?.user?.token) {
-      return NextResponse.json({ error: "Unauthorized" } as ErrorResponse, {
-        status: 401,
-      });
-    }
-
-    const url = `${getServerApiUrl()}/auth/roles/${roleId}/permissions/${permissionId}`;
-
-    const response = await fetch(url, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${session.user.token}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error("remove permission from role failed", {
-        status: response.status,
-        error: errorText,
-      });
-      return NextResponse.json(
-        {
-          error: errorText || `Failed to remove permission: ${response.status}`,
-        } as ErrorResponse,
-        { status: response.status },
-      );
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    logger.error("remove permission from role error", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return NextResponse.json(
-      { error: "Internal Server Error" } as ErrorResponse,
-      { status: 500 },
-    );
-  }
-}
-
-export const DELETE = withTenantAuth(DELETEHandler);
+export const POST = createTenantJsonProxy({
+  method: "POST",
+  path: rolePermissionPath,
+  body: "none",
+  onSuccess: () => NextResponse.json({ success: true }),
+});
+export const DELETE = createTenantJsonProxy({
+  method: "DELETE",
+  path: rolePermissionPath,
+  onSuccess: () => NextResponse.json({ success: true }),
+});

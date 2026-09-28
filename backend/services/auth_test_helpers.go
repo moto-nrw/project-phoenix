@@ -30,7 +30,6 @@ type AuthTestModule struct {
 	Auth                  *identityaccess.Module
 	AccountAuthentication *identityaccess.Module
 	DemoAccess            *identityaccess.DemoAccess
-	StaffPINAuth          StaffPINAuthenticator
 	Invitation            InvitationCapability
 	GuardianInvitation    GuardianInvitationCapability
 	Schools               organizationtenancy.Capability
@@ -89,6 +88,15 @@ type authTestSettings struct {
 	// demoMaxActiveSchools is the demo capacity; the default leaves room
 	// for every demo school the tests of a package queue.
 	demoMaxActiveSchools int
+	// demoOperatorWithoutSecondFactor composes the operator login the way
+	// APP_ENV=demo does (#3460).
+	demoOperatorWithoutSecondFactor bool
+}
+
+// WithDemoOperatorWithoutSecondFactor composes the operator login of the
+// demo environment, which asks for no second factor (#3460).
+func WithDemoOperatorWithoutSecondFactor() AuthTestOption {
+	return func(settings *authTestSettings) { settings.demoOperatorWithoutSecondFactor = true }
 }
 
 // WithDemoMaxActiveSchools composes the demo access with this capacity.
@@ -238,6 +246,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		demoAccess: &demoAccessWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
 			logger: logger, backoff: settingsOverrides.resetBackoff, maxActiveSchools: settingsOverrides.demoMaxActiveSchools,
+			operatorWithoutSecondFactor: settingsOverrides.demoOperatorWithoutSecondFactor,
 		},
 		demoStandingSchool: settingsOverrides.standingDemo,
 		mfa: &mfaWiring{
@@ -252,7 +261,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 			caregivers: caregiverProfiles{persons: owners.persons, membership: owners.membership},
 			guardianMail: &guardianInvitationWiring{
 				settings: settings.Settings, schools: r.School,
-				outbox:      func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: deliveryModule.EmailOutbox} },
+				outbox:      func() platformModels.OutboxResultEnqueuer { return outboxEnqueuer{outbox: deliveryModule.EmailOutbox} },
 				enrollments: r.ParentEnrollmentRequest, parentsURL: parentsURL,
 				fallbackExpiry: time.Duration(inviteHours) * time.Hour, logger: logger,
 			},
@@ -266,7 +275,9 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		invitations: &invitationWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom, staffURL: frontendURL, schoolURL: schoolURL,
 			mailIdentity: identity, expiry: time.Duration(inviteHours) * time.Hour,
-			backoff: settingsOverrides.resetBackoff,
+			backoff: settingsOverrides.resetBackoff, settings: settings.Settings,
+			outbox:       func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: deliveryModule.EmailOutbox} },
+			welcomeDelay: staffWelcomeDelay,
 		},
 	})
 	if err != nil {
@@ -283,9 +294,8 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	guardian := GuardianInvitationCapability(identityAccess)
 	return AuthTestModule{
 		Auth: identityAccess, AccountAuthentication: identityAccess,
-		DemoAccess:   identityAccess.DemoAccess(),
-		StaffPINAuth: NewStaffPINAuthenticator(identityAccess),
-		MFA:          identityAccess, Passkeys: identityAccess,
+		DemoAccess: identityAccess.DemoAccess(),
+		MFA:        identityAccess, Passkeys: identityAccess,
 		OperatorMFA: identityAccess, OperatorPasskeys: identityAccess,
 		Repos: r, TokenAuth: tokenAuth,
 		Invitation: invitation, GuardianInvitation: guardian,

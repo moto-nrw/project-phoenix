@@ -13,7 +13,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/uptrace/bun"
 )
@@ -70,8 +72,9 @@ func NewOperatorProvisioningAdapters(deps OperatorProvisioningDependencies) (Ope
 	return OperatorProvisioningAdapters{
 		Devices: provisioningDevices{devices: deps.Devices},
 		People: provisioningPeople{
-			persons: deps.Persons, membership: deps.Membership, personRepo: deps.PersonRepo,
-			staffRepo: deps.StaffRepo, accounts: deps.Accounts, db: deps.DB,
+			persons: deps.Persons, membership: deps.Membership, childQuota: schoolMembershipCompose.NewChildQuotaCounts(),
+			personRepo: deps.PersonRepo,
+			staffRepo:  deps.StaffRepo, accounts: deps.Accounts, db: deps.DB,
 		},
 		Presence:            provisioningPresence{groups: deps.ActiveGroups, supervisors: deps.Supervisors},
 		Categories:          provisioningCategories{categories: deps.Categories},
@@ -112,7 +115,7 @@ func (d provisioningDevices) FindDeviceForUpdate(ctx context.Context, id int64) 
 }
 
 func (d provisioningDevices) CreateDevice(ctx context.Context, device organizationCompose.NewProvisioningDevice) (organizationCompose.ProvisioningDevice, error) {
-	created, err := d.devices.CreateDevice(usersRepo.WithTenantID(ctx, device.TenantID), devicefleet.CreateDevice{
+	created, err := d.devices.CreateDevice(peopleCompose.WithCallerTenant(ctx, device.TenantID), devicefleet.CreateDevice{
 		DeviceID: device.DeviceID, DeviceType: device.DeviceType, Name: device.Name,
 		Status: devicefleet.DeviceStatus(device.Status), APIKey: device.APIKey,
 	})
@@ -180,6 +183,7 @@ func isForeignKeyViolation(err error) bool {
 type provisioningPeople struct {
 	persons    peopledirectory.Query
 	membership schoolmembership.Query
+	childQuota schoolmembership.ChildQuotaCounts
 	personRepo userModels.PersonRepository
 	staffRepo  userModels.StaffRepository
 	accounts   accountEmailQuery
@@ -188,6 +192,12 @@ type provisioningPeople struct {
 
 func (p provisioningPeople) CountPersonsByTenant(ctx context.Context) (map[int64]int, error) {
 	return p.persons.CountPersonsByTenant(ctx)
+}
+
+// CountChildQuotaByTenant asks School Membership, which owns the
+// Kontingentzahl rule (#3568).
+func (p provisioningPeople) CountChildQuotaByTenant(ctx context.Context) (map[int64]int, error) {
+	return p.childQuota.CountChildQuotaByTenant(ctx)
 }
 
 // ListPersons lists the persons of the schools with their staff, student and
@@ -199,7 +209,7 @@ func (p provisioningPeople) ListPersons(ctx context.Context, tenantIDs []int64) 
 		return []organizationCompose.PersonListing{}, err
 	}
 	personIDs, accountIDs := operatorPersonIDs(persons)
-	students, err := usersRepo.FindOperatorPersonStudentMembership(ctx, p.db, personIDs)
+	students, err := usersRepo.FindOperatorPersonStudentMembership(ctx, peopleRuntime(p.db), personIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +303,7 @@ type provisioningPresence struct {
 // ActiveDeviceSession reads the device's open kiosk session under the
 // device's school, which the presence owner requires for the read.
 func (p provisioningPresence) ActiveDeviceSession(ctx context.Context, tenantID, deviceID int64) (*organizationCompose.DeviceSession, error) {
-	group, err := p.groups.FindActiveByDeviceIDWithNames(usersRepo.WithTenantID(ctx, tenantID), deviceID)
+	group, err := p.groups.FindActiveByDeviceIDWithNames(peopleCompose.WithCallerTenant(ctx, tenantID), deviceID)
 	if err != nil || group == nil {
 		return nil, err
 	}
@@ -310,7 +320,7 @@ func (p provisioningPresence) ActiveDeviceSession(ctx context.Context, tenantID,
 // CountActiveSupervisions reads under the staff member's school: the
 // operator transaction is cross-tenant, but the presence owner requires it.
 func (p provisioningPresence) CountActiveSupervisions(ctx context.Context, tenantID, staffID int64) (int, error) {
-	supervisors, err := p.supervisors.FindActiveByStaffID(usersRepo.WithTenantID(ctx, tenantID), staffID)
+	supervisors, err := p.supervisors.FindActiveByStaffID(peopleCompose.WithCallerTenant(ctx, tenantID), staffID)
 	return len(supervisors), err
 }
 
@@ -326,7 +336,7 @@ func (c provisioningCategories) SeedCategories(ctx context.Context, tenantID int
 	if tenantID <= 0 {
 		return nil
 	}
-	schoolCtx := usersRepo.WithTenantID(ctx, tenantID)
+	schoolCtx := peopleCompose.WithCallerTenant(ctx, tenantID)
 	for _, value := range categories {
 		category := &activitiesModels.Category{Name: value.Name, Description: value.Description, Color: value.Color}
 		if err := c.categories.Create(schoolCtx, category); err != nil {

@@ -8,6 +8,14 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import DemoWaitingRoomPage from "./page";
 
+// next/image resolves its src against the stubbed location, which has no href.
+vi.mock("next/image", () => ({
+  default: (props: Record<string, unknown>) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img {...props} alt={props.alt as string} />
+  ),
+}));
+
 const fetchMock = vi.fn();
 const assign = vi.fn();
 
@@ -26,6 +34,7 @@ function open(hash: string) {
 }
 
 beforeEach(() => {
+  sessionStorage.clear();
   fetchMock.mockReset();
   assign.mockReset();
   vi.stubGlobal("fetch", fetchMock);
@@ -104,6 +113,51 @@ describe("DemoWaitingRoomPage", () => {
     view.unmount();
   });
 
+  // The fragment leaves the address bar; a reload during the setup must not
+  // turn a valid link into „Dieser Link funktioniert nicht mehr".
+  it("keeps waiting for the school after a reload", async () => {
+    fetchMock.mockReturnValue(
+      json(200, { status: "preparing", school_name: "OGS Nord" }),
+    );
+    const first = open("#token=secret-token&role=lead");
+    expect(
+      await screen.findByRole("heading", {
+        name: "Wir richten OGS Nord für Sie ein",
+      }),
+    ).toBeInTheDocument();
+    expect(document.URL).not.toContain("secret-token");
+    first.unmount();
+
+    fetchMock.mockReset();
+    fetchMock.mockReturnValueOnce(
+      json(200, {
+        status: "ready",
+        school_url: "https://ogs-nord-k3m9xp.demo.example",
+      }),
+    );
+    open("");
+
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith(
+        "https://ogs-nord-k3m9xp.demo.example/demo#token=secret-token&role=lead",
+      ),
+    );
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.body).toBe(JSON.stringify({ token: "secret-token" }));
+    expect(
+      screen.queryByText("Dieser Link funktioniert nicht mehr"),
+    ).toBeNull();
+  });
+
+  it("explains a missing link when the tab has none kept", async () => {
+    open("");
+
+    expect(
+      await screen.findByText("Dieser Link funktioniert nicht mehr"),
+    ).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("offers another try when waiting went wrong and enters the school on it", async () => {
     fetchMock.mockRejectedValueOnce(new Error("network down"));
 
@@ -137,7 +191,7 @@ describe("DemoWaitingRoomPage", () => {
 
     expect(
       await screen.findByText(
-        "Es liegt nicht an Ihnen. Bitte fordern Sie auf unserer Website einen neuen Link an.",
+        "Die Demo konnte nicht vorbereitet werden. Auf unserer Website bekommen Sie sofort einen neuen Link.",
       ),
     ).toBeInTheDocument();
     expect(

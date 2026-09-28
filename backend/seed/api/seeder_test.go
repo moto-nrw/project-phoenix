@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,6 +22,18 @@ func TestSeederFailsFastWithoutAdapter(t *testing.T) {
 
 	_, err := NewSeeder(nil, newSeedTestRandom(), false, SeedOptions{}).Seed(t.Context(), "operator@example.com", "secret", "1234")
 	require.EqualError(t, err, "seed API adapter is required")
+}
+
+// The seed takes the visitor's name as given and makes none up, so a visitor
+// needs both names.
+func TestSeederRefusesAVisitorWithOneName(t *testing.T) {
+	t.Parallel()
+
+	for _, options := range []SeedOptions{{VisitorFirstName: "Kim"}, {VisitorLastName: "Beispiel"}} {
+		_, err := NewSeeder(newSeedTestAdapter("http://localhost:8080"), newSeedTestRandom(), false, options).
+			Seed(t.Context(), "operator@example.com", "secret", "1234")
+		require.EqualError(t, err, "a demo visitor needs a first and a last name")
+	}
 }
 
 func TestGenerateSeedPassword(t *testing.T) {
@@ -345,9 +358,9 @@ func TestCollectSeedState_BasicFields(t *testing.T) {
 
 	// Populate FixedSeeder internal maps
 	fs.staffCredentials = []StaffCredentials{
-		{Email: "demo1@mail.de", Password: "pass1", PIN: "1000", Name: "Anna Müller", Position: "OGS-Büro"},
-		{Email: "demo11@mail.de", Password: "pass11", PIN: "1010", Name: "Julia Klein", Position: "Pädagogische Fachkraft"},
-		{Email: "demo12@mail.de", Password: "pass12", PIN: "1011", Name: "Markus Wolf", Position: "Pädagogische Fachkraft"},
+		{Email: "demo1@mail.de", Password: "pass1", Name: "Anna Müller", Position: "OGS-Büro"},
+		{Email: "demo11@mail.de", Password: "pass11", Name: "Julia Klein", Position: "Pädagogische Fachkraft"},
+		{Email: "demo12@mail.de", Password: "pass12", Name: "Markus Wolf", Position: "Pädagogische Fachkraft"},
 	}
 	fs.staffIDs = map[string]int64{
 		"Anna Müller": 11,
@@ -671,6 +684,26 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	assertWithdrawalSeedTrace(t, trace)
 }
 
+func TestSeeder_Seed_RecoversFromStudentRateLimit(t *testing.T) {
+	t.Parallel()
+	trace := &fullSeedAPITrace{rateLimitStudentOnce: true}
+	srv := fullSeedAPIMock(t, trace)
+	defer srv.Close()
+
+	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{StatePath: filepath.Join(t.TempDir(), DefaultSeedStatePath)})
+	var delays []time.Duration
+	s.client.adapter.(*retryingAdapter).sleep = func(_ context.Context, delay time.Duration) error {
+		delays = append(delays, delay)
+		return nil
+	}
+	result, err := s.Seed(context.Background(), "admin@test.de", "pass", "1234")
+	require.NoError(t, err)
+	require.NotNil(t, result.Fixed)
+	require.Greater(t, result.Fixed.StudentCount, 0)
+	require.Equal(t, 1, trace.rateLimitStudentRejections)
+	require.Equal(t, []time.Duration{2 * time.Second}, delays)
+}
+
 // A long-running demo stores the same complete seed contract in its database,
 // without producing a credentials file on the sidecar filesystem.
 func TestSeeder_Seed_UsesStateSink(t *testing.T) {
@@ -700,6 +733,73 @@ func TestSeeder_Seed_UsesStateSink(t *testing.T) {
 	assert.NotEmpty(t, profile.Devices)
 	_, err = os.Stat(statePath)
 	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestSeeder_Seed_DeferredStateSinkIncludesEnrollment(t *testing.T) {
+	t.Parallel()
+	srv := fullSeedAPIMock(t)
+	defer srv.Close()
+	var saved []*SeedState
+	var bootstrappedSchoolID int64
+	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{
+		OnlyProfile:  DefaultProfileKey,
+		DeferHistory: true,
+		SaveBootstrap: func(_ context.Context, schoolID int64) error {
+			bootstrappedSchoolID = schoolID
+			return nil
+		},
+		SaveState: func(_ context.Context, state *SeedState) error {
+			saved = append(saved, state)
+			return nil
+		},
+	})
+	result, err := s.Seed(context.Background(), "operator@example.test", "test-password", "1234")
+	require.NoError(t, err)
+	require.Len(t, saved, 1)
+	profile, err := saved[0].SelectProfile(DefaultProfileKey)
+	require.NoError(t, err)
+	assert.Equal(t, profile.School.ID, bootstrappedSchoolID)
+	assert.True(t, saved[0].DeferredSeedPending)
+	assert.Empty(t, profile.Entities.Enrollment.Requests, "core state opens the school before requests exist")
+
+	require.NotNil(t, result.Deferred)
+	require.NoError(t, result.Deferred(context.Background()))
+	require.Len(t, saved, 2)
+	profile, err = saved[1].SelectProfile(DefaultProfileKey)
+	require.NoError(t, err)
+	assert.False(t, saved[1].DeferredSeedPending)
+	assert.NotEmpty(t, profile.Entities.Enrollment.Requests)
+	assert.NotEmpty(t, profile.Entities.Enrollment.Offerings)
+	assert.NotEmpty(t, profile.Entities.Enrollment.ParentActions)
+}
+
+// The public demo seeds with a PIN other than the registry default 1234.
+// Device auth checks the school's security.ogs_device_pin setting, so the
+// seeder must write that setting before its first device request. That the
+// write succeeds with NFC off, as on the demo, is the settings service's
+// contract (TestSetValue_DevicePINWritableWhileNFCDisabled).
+func TestSeeder_Seed_DemoSchoolUsesItsOwnDevicePIN(t *testing.T) {
+	t.Parallel()
+	trace := &fullSeedAPITrace{enforceDevicePIN: true}
+	srv := fullSeedAPIMock(t, trace)
+	defer srv.Close()
+	var saved *SeedState
+	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{
+		OnlyProfile: DefaultProfileKey,
+		SaveState: func(_ context.Context, state *SeedState) error {
+			saved = state
+			return nil
+		},
+	})
+	_, err := s.Seed(context.Background(), "operator@example.test", "test-password", "4711")
+	require.NoError(t, err)
+	assert.Equal(t, "4711", trace.devicePIN)
+	assert.Positive(t, trace.deviceRequests, "the seed must exercise device auth")
+	assert.Zero(t, trace.rejectedDevicePINs)
+	require.NotNil(t, saved)
+	profile, err := saved.SelectProfile(DefaultProfileKey)
+	require.NoError(t, err)
+	assert.Equal(t, "4711", profile.Credentials.DevicePIN, "the demo ticks authenticate with the stored PIN")
 }
 
 func TestSeeder_Seed_StateSinkFailureFailsRun(t *testing.T) {
@@ -841,7 +941,7 @@ func TestPrintSuccessSummary_DoesNotPanic(t *testing.T) {
 			ActivityCount: 10,
 			DeviceCount:   10,
 			StaffCredentials: []StaffCredentials{
-				{Name: "Anna Müller", Position: "OGS-Büro", Email: "demo1@mail.de", Password: "pass1", PIN: "1000"},
+				{Name: "Anna Müller", Position: "OGS-Büro", Email: "demo1@mail.de", Password: "pass1"},
 			},
 		},
 	}
@@ -867,10 +967,18 @@ func TestPrintSuccessSummary_DoesNotPanic(t *testing.T) {
 
 // fullSeedAPIMock creates a comprehensive mock server for the full seed workflow.
 type fullSeedAPITrace struct {
-	withdrawalRemovals []map[string]any
-	withdrawalPreviews int
-	withdrawalEnds     int
-	withdrawalToday    seedDate
+	withdrawalRemovals         []map[string]any
+	withdrawalPreviews         int
+	withdrawalEnds             int
+	withdrawalToday            seedDate
+	rateLimitStudentOnce       bool
+	rateLimitStudentRejections int
+	// enforceDevicePIN makes the mock check X-Staff-PIN like device auth:
+	// against the written security.ogs_device_pin, else its default 1234.
+	enforceDevicePIN   bool
+	devicePIN          string
+	deviceRequests     int
+	rejectedDevicePINs int
 }
 
 func assertWithdrawalSeedTrace(t *testing.T, trace *fullSeedAPITrace) {
@@ -890,6 +998,40 @@ func assertWithdrawalSeedTrace(t *testing.T, trace *fullSeedAPITrace) {
 	assert.Equal(t, dates[0].AddDays(7), dates[2])
 	assert.Equal(t, 1, trace.withdrawalPreviews)
 	assert.Equal(t, 1, trace.withdrawalEnds)
+}
+
+// serveDevicePIN stores a written device PIN and rejects device requests whose
+// PIN differs from the school's, as device auth does. It reports whether it
+// answered the request.
+func serveDevicePIN(t *testing.T, trace *fullSeedAPITrace, w seedHTTPResponseWriter, r *seedHTTPRequest) bool {
+	t.Helper()
+	if r.Method == seedHTTPMethodPut && r.URL.Path == "/api/settings/values/"+profileSettingDevicePIN {
+		var body struct {
+			Value string `json:"value"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		trace.devicePIN = body.Value
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": nil})
+		return true
+	}
+	pin := r.Header.Get("X-Staff-PIN")
+	if pin == "" {
+		return false
+	}
+	trace.deviceRequests++
+	expected := trace.devicePIN
+	if expected == "" {
+		expected = "1234" // registry default of security.ogs_device_pin
+	}
+	if pin == expected {
+		return false
+	}
+	trace.rejectedDevicePINs++
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(seedHTTPStatusUnauthorized)
+	_, _ = fmt.Fprint(w, `{"status":"error","error":"invalid staff PIN"}`)
+	return true
 }
 
 // fullSeedAPIMock creates a comprehensive mock server for the full seed workflow.
@@ -916,6 +1058,16 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 	return newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		mu.Lock()
 		defer mu.Unlock()
+		if trace != nil && trace.rateLimitStudentOnce && r.Method == seedHTTPMethodPost && r.URL.Path == "/api/students" {
+			trace.rateLimitStudentOnce = false
+			trace.rateLimitStudentRejections++
+			w.Header().Set("Retry-After", "2")
+			w.WriteHeader(429)
+			return
+		}
+		if trace != nil && trace.enforceDevicePIN && serveDevicePIN(t, trace, w, r) {
+			return
+		}
 		if weeklyMock.serve(t, w, r) {
 			return
 		}
@@ -1341,6 +1493,14 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 
 		case "/operator/schools":
+			// The Kinderkontingent step (#3567) reads the school back.
+			if r.Method == seedHTTPMethodGet {
+				_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []map[string]any{{
+					"id": 1, "organization_id": 1, "name": "Demo-Schule Vollbetrieb",
+					"slug": "vollbetrieb", "subdomain": "vollbetrieb", "active": true,
+				}}})
+				return
+			}
 			var body struct {
 				Slug string `json:"slug"`
 			}

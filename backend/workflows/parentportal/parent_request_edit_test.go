@@ -16,7 +16,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -24,11 +23,11 @@ import (
 
 // buildEditableMasterDataService is buildRequestService plus the event
 // recorder, so the guardian_edited entry the edit writes is observable.
-func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, usersSvc.ParentRequestEventRecorder, *bun.DB) {
+func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, usersModels.ParentRequestEventRepository, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	events := usersSvc.NewParentRequestEventRecorder(repos.ParentRequestEvent)
+	events := repos.ParentRequestEvent
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:            repos.CarePlan(),
 		People:              repositories.MustNewPeopleDirectory(db),
@@ -62,7 +61,7 @@ func TestEditExcusedRequestReplacesWithdrawal(t *testing.T) {
 		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	original := res.PendingRequest
-	version := usersSvc.ParentRequestVersion(original.UpdatedAt)
+	version := careplan.ParentRequestVersion(original.UpdatedAt)
 
 	corrected := day.AddDays(1)
 	edited, err := svc.EditExcusedRequest(ctx, chain.AccountID, chain.StudentID, original.ID,
@@ -73,7 +72,7 @@ func TestEditExcusedRequestReplacesWithdrawal(t *testing.T) {
 	assert.Equal(t, careplan.Date(corrected), edited.Dates[0])
 	assert.Equal(t, "Doch einen Tag später", edited.Note)
 	assert.Equal(t, absencerecords.ExcusedRequestStatusPending, edited.Status)
-	assert.NotEqual(t, version, usersSvc.ParentRequestVersion(edited.UpdatedAt), "an edit bumps the version")
+	assert.NotEqual(t, version, careplan.ParentRequestVersion(edited.UpdatedAt), "an edit bumps the version")
 
 	rows := listLedger(t, db, events, chain.TenantID, original.ID)
 	require.Len(t, rows, 2)
@@ -96,7 +95,7 @@ func TestEditExcusedRequestRefusesStaleVersion(t *testing.T) {
 	res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
 		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
-	stale := usersSvc.ParentRequestVersion(res.PendingRequest.UpdatedAt)
+	stale := careplan.ParentRequestVersion(res.PendingRequest.UpdatedAt)
 
 	_, err = svc.EditExcusedRequest(ctx, chain.AccountID, chain.StudentID, res.PendingRequest.ID,
 		[]timezone.Date{day.AddDays(1)}, "Erste Korrektur", stale)
@@ -189,7 +188,7 @@ func TestEditMasterDataRequestRewritesProposedValue(t *testing.T) {
 		}, nil)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
-	version := usersSvc.ParentRequestVersion(rows[0].UpdatedAt)
+	version := careplan.ParentRequestVersion(rows[0].UpdatedAt)
 
 	edited, err := svc.EditMasterDataRequest(ctx, chain.AccountID, chain.StudentID, rows[0].ID,
 		json.RawMessage(`"Maxi"`), version)

@@ -13,7 +13,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -62,7 +61,7 @@ func TestCheckoutRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 				} else {
 					settingsErr = injected
 				}
-				syncer := timetableplanning.NewAttendanceSyncService(instances, rows, slog.Default())
+				syncer := newAttendanceMirror(t, instances, rows, slog.Default())
 				svc, broadcaster := newServiceWithPresenceSync(t, db, module, syncer)
 				activeService.ConfigureForTest(svc, activeService.WithTenantRuntime(testpkg.TenantRuntime(t, db)))
 				presenceMode := "binary"

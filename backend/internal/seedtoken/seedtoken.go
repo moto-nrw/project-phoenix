@@ -14,11 +14,9 @@ var allowedLocalHostnames = map[string]bool{
 	"gateway.docker.internal": true,
 }
 
-// ShouldExposeInvitationToken gates seed-only raw invitation token exposure.
-// API handlers call this only to support demo seeding: locally, and in the
-// public demo environment (ADR 0027), which holds synthetic data only. Staging
-// and production must never receive tokens in normal invitation responses.
-func ShouldExposeInvitationToken(headerValue, requestHost, appEnv string) bool {
+// IsLocalSeedRequest reports whether an authenticated request came from the
+// local demo seeder. Production and staging never accept this escape hatch.
+func IsLocalSeedRequest(headerValue, requestHost, appEnv string) bool {
 	if !strings.EqualFold(strings.TrimSpace(headerValue), "true") {
 		return false
 	}
@@ -26,6 +24,14 @@ func ShouldExposeInvitationToken(headerValue, requestHost, appEnv string) bool {
 		return false
 	}
 	return isLocalHost(requestHostname(requestHost))
+}
+
+// ShouldExposeInvitationToken gates seed-only raw invitation token exposure.
+// API handlers call this only to support demo seeding: locally, and in the
+// public demo environment (ADR 0027), which holds synthetic data only. Staging
+// and production must never receive tokens in normal invitation responses.
+func ShouldExposeInvitationToken(headerValue, requestHost, appEnv string) bool {
+	return IsLocalSeedRequest(headerValue, requestHost, appEnv)
 }
 
 func isAllowedEnvironment(appEnv string) bool {

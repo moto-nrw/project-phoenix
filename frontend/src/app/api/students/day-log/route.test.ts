@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
+import { ApiResponseError } from "~/lib/api-helpers.server";
 import { GET } from "./route";
 
 interface ExtendedSession extends Session {
@@ -22,7 +23,8 @@ vi.mock("~/server/auth/tenant-route", () => ({
   withTenantAuth: <T>(handler: T) => handler,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiGet: mockApiGet,
 }));
 
@@ -43,7 +45,7 @@ describe("GET /api/students/day-log", () => {
 
   it("refreshes an expired backend token and retries once", async () => {
     mockApiGet
-      .mockRejectedValueOnce(new Error("API error (401): expired"))
+      .mockRejectedValueOnce(new ApiResponseError(401, "expired"))
       .mockResolvedValueOnce({ data: { groups: [] } });
     mockUncachedAuth.mockResolvedValue({
       ...session,

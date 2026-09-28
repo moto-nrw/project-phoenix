@@ -3,8 +3,8 @@ package users_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +36,7 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("persists and hydrates an explicit weekday map", func(t *testing.T) {
@@ -44,12 +44,12 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 
 		person := testpkg.CreateTestPerson(t, db, "Pickup", "Map")
 
-		student := &users.Student{
+		student := &testpkg.Student{
 			PersonID:    person.ID,
 			SchoolClass: "1a",
-			PickupDays: users.PickupDays{
-				users.PickupDayMonday:    true,
-				users.PickupDayWednesday: true,
+			PickupDays: departure.PickupDays{
+				departure.PickupDayMonday:    true,
+				departure.PickupDayWednesday: true,
 			},
 		}
 
@@ -57,9 +57,9 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 
 		found, err := repo.FindByID(ctx, student.ID)
 		require.NoError(t, err)
-		assert.True(t, found.PickupDays[users.PickupDayMonday])
-		assert.True(t, found.PickupDays[users.PickupDayWednesday])
-		assert.False(t, found.PickupDays[users.PickupDayTuesday])
+		assert.True(t, found.PickupDays[departure.PickupDayMonday])
+		assert.True(t, found.PickupDays[departure.PickupDayWednesday])
+		assert.False(t, found.PickupDays[departure.PickupDayTuesday])
 		assert.True(t, found.PickupDays.HasAny())
 
 	})
@@ -69,8 +69,8 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 
 		person := testpkg.CreateTestPerson(t, db, "Pickup", "LegacyPickedUp")
 
-		status := users.PickupStatusPickedUp
-		student := &users.Student{
+		status := departure.PickupStatusPickedUp
+		student := &testpkg.Student{
 			PersonID:     person.ID,
 			SchoolClass:  "2a",
 			PickupStatus: &status,
@@ -80,7 +80,7 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 
 		found, err := repo.FindByID(ctx, student.ID)
 		require.NoError(t, err)
-		for _, day := range users.PickupDayOrder {
+		for _, day := range departure.PickupDayOrder {
 			assert.True(t, found.PickupDays[day], "legacy picked-up should enable %s", day)
 		}
 
@@ -91,8 +91,8 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 
 		person := testpkg.CreateTestPerson(t, db, "Pickup", "LegacyAlone")
 
-		status := users.PickupStatusGoesAlone
-		student := &users.Student{
+		status := departure.PickupStatusGoesAlone
+		student := &testpkg.Student{
 			PersonID:     person.ID,
 			SchoolClass:  "2b",
 			PickupStatus: &status,
@@ -112,13 +112,13 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 
 		student := testpkg.CreateTestStudent(t, db, "Pickup", "Update", "3a")
 
-		student.PickupDays = users.PickupDays{users.PickupDayFriday: true}
+		student.PickupDays = departure.PickupDays{departure.PickupDayFriday: true}
 		require.NoError(t, repo.Update(ctx, student))
 
 		found, err := repo.FindByID(ctx, student.ID)
 		require.NoError(t, err)
-		assert.True(t, found.PickupDays[users.PickupDayFriday])
-		assert.False(t, found.PickupDays[users.PickupDayMonday])
+		assert.True(t, found.PickupDays[departure.PickupDayFriday])
+		assert.False(t, found.PickupDays[departure.PickupDayMonday])
 		assert.Equal(t, 1, len(found.PickupDays.Normalize()))
 
 	})
@@ -135,32 +135,32 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 
 			// Set only the map, leave PickupStatus nil (the stale-write case).
 			student.PickupStatus = nil
-			student.PickupDays = users.PickupDays{users.PickupDayFriday: true}
+			student.PickupDays = departure.PickupDays{departure.PickupDayFriday: true}
 			require.NoError(t, repo.Update(ctx, student))
 
 			found, err := repo.FindByID(ctx, student.ID)
 			require.NoError(t, err)
 			require.NotNil(t, found.PickupStatus)
-			assert.Equal(t, users.PickupStatusPickedUp, *found.PickupStatus)
+			assert.Equal(t, departure.PickupStatusPickedUp, *found.PickupStatus)
 		})
 
 		t.Run("explicit empty map derives goes-alone", func(t *testing.T) {
 			student := testpkg.CreateTestStudent(t, db, "Pickup", "SyncAlone", "4b")
 
 			// Seed a picked-up student, then clear the map to the empty answer.
-			picked := users.PickupStatusPickedUp
+			picked := departure.PickupStatusPickedUp
 			student.PickupStatus = &picked
-			student.PickupDays = users.PickupDays{users.PickupDayMonday: true}
+			student.PickupDays = departure.PickupDays{departure.PickupDayMonday: true}
 			require.NoError(t, repo.Update(ctx, student))
 
 			student.PickupStatus = nil
-			student.PickupDays = users.PickupDays{}
+			student.PickupDays = departure.PickupDays{}
 			require.NoError(t, repo.Update(ctx, student))
 
 			found, err := repo.FindByID(ctx, student.ID)
 			require.NoError(t, err)
 			require.NotNil(t, found.PickupStatus)
-			assert.Equal(t, users.PickupStatusGoesAlone, *found.PickupStatus)
+			assert.Equal(t, departure.PickupStatusGoesAlone, *found.PickupStatus)
 			assert.False(t, found.PickupDays.HasAny())
 		})
 	})
@@ -168,10 +168,10 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 	t.Run("rejects an invalid weekday before persistence", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Pickup", "Invalid")
 
-		student := &users.Student{
+		student := &testpkg.Student{
 			PersonID:    person.ID,
 			SchoolClass: "1a",
-			PickupDays:  users.PickupDays{"sat": true},
+			PickupDays:  departure.PickupDays{"sat": true},
 		}
 
 		err := repo.Create(ctx, student)

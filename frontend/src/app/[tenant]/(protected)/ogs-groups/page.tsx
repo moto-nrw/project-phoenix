@@ -74,6 +74,7 @@ import {
   getStudentAbsence,
   getStudentTimeStatus,
   getTimeStatusSortRank,
+  type StudentDayTimes,
 } from "~/lib/student-time-status";
 import {
   getDayPlanningNotComingLabel,
@@ -212,6 +213,20 @@ function mapStudentForOgsPage(student: OgsLiveWireStudent): Student {
     // Photo URL is forwarded as-is. Backend has already rewritten it
     // to the authenticated /api/students/{id}/photo/{filename} proxy.
     photo_url: student.photo_url,
+  };
+}
+
+// Both ends of the child's day for the whole-day time rules (#3373).
+function getOgsStudentDay(
+  student: Student,
+  pickupTimes: ReadonlyMap<string, OgsPickupInfo>,
+): StudentDayTimes {
+  return {
+    plannedArrival: student.arrival_time,
+    actualArrival: student.actual_arrival_time,
+    plannedPickup: pickupTimes.get(student.id.toString())?.pickupTime,
+    actualPickup: student.actual_pickup_time,
+    checkedIn: !isNotCheckedInLocation(student.current_location),
   };
 }
 
@@ -700,6 +715,8 @@ function OGSGroupPageContent() {
           plannedTime: timeA,
           actualTime: a.actual_arrival_time,
           now,
+          kind: "arrival",
+          day: getOgsStudentDay(a, pickupTimes),
           sick: a.sick,
           classTrip: a.class_trip,
           excused: a.excused,
@@ -708,6 +725,8 @@ function OGSGroupPageContent() {
           plannedTime: timeB,
           actualTime: b.actual_arrival_time,
           now,
+          kind: "arrival",
+          day: getOgsStudentDay(b, pickupTimes),
           sick: b.sick,
           classTrip: b.class_trip,
           excused: b.excused,
@@ -964,6 +983,7 @@ function OGSGroupPageContent() {
                               />
                             );
                           }
+                          const day = getOgsStudentDay(student, pickupTimes);
                           return (
                             <>
                               <ArrivalTimeRow
@@ -978,6 +998,7 @@ function OGSGroupPageContent() {
                                 }
                                 notes={student.arrival_notes}
                                 now={now}
+                                day={day}
                               />
                               <PickupTimeRow
                                 pickupTime={studentPickup?.pickupTime}
@@ -994,6 +1015,7 @@ function OGSGroupPageContent() {
                                     : undefined
                                 }
                                 now={now}
+                                day={day}
                               />
                             </>
                           );

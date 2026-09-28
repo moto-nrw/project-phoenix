@@ -23,52 +23,8 @@ func TrimPtrToNil(p *string) *string {
 	return TrimToNil(*p)
 }
 
-// TruncateRunes caps s to at most n runes (multibyte-safe) and appends suffix
-// when it cut. Pass "" for a plain cut.
-func TruncateRunes(s string, n int, suffix string) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n]) + suffix
-}
-
 // ContainsFold reports whether s contains substr, ignoring case (ToLower on
 // both sides — the search/filter semantics of the staff and student lists).
 func ContainsFold(s, substr string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
-}
-
-// SplitUnique splits every value on ";", trims the parts, and returns the
-// non-empty ones with case-insensitive duplicates removed (first occurrence
-// wins, original casing kept). Returns an empty, non-nil slice for no parts.
-//
-// Prefer this over JoinUnique wherever the parts stay individually usable —
-// a phone number a UI turns into a tel: link, a value that gets rendered one
-// per row. Joining them first only forces the consumer to split again, and
-// splitting on the far side of a JSON payload is where it goes wrong.
-func SplitUnique(values ...string) []string {
-	seen := make(map[string]struct{}, len(values))
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		for _, part := range strings.Split(value, ";") {
-			trimmed := strings.TrimSpace(part)
-			if trimmed == "" {
-				continue
-			}
-			key := strings.ToLower(trimmed)
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			result = append(result, trimmed)
-		}
-	}
-	return result
-}
-
-// JoinUnique is SplitUnique joined back on "; " — the display form for the
-// places that render one line of text.
-func JoinUnique(values ...string) string {
-	return strings.Join(SplitUnique(values...), "; ")
 }

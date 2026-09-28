@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
@@ -48,7 +49,11 @@ func TestNativeCorrectionReauthorizesAndRollsBackExactExceptionDeletion(t *testi
 	student := testpkg.CreateTestStudent(t, db, "Correction", "Transaction", "1a")
 	parent := testpkg.CreateTestAccount(t, db, "parent")
 	staff, reviewer := testpkg.CreateTestStaffWithAccount(t, db, "Correction", "Reviewer")
-	exception, err := owner.CreatePickupException(ctx, careplan.PickupException{StudentID: student.ID, ExceptionDate: "2031-02-03", CreatedBy: staff.ID})
+	createdAt := time.Now().Add(-time.Second)
+	exception, err := owner.CreatePickupException(ctx, careplan.PickupException{
+		StudentID: student.ID, ExceptionDate: "2031-02-03", CreatedBy: staff.ID,
+		CreatedAt: createdAt, UpdatedAt: createdAt,
+	})
 	require.NoError(t, err)
 	request, err := owner.CreateCareScheduleRequest(ctx, carerequests.Request{StudentID: student.ID, SubmittedBy: parent.ID,
 		RequestKind: "pickup_change", Status: "pending", Payload: json.RawMessage(`{"date":"2031-02-03","pickup_time":"14:00"}`)})

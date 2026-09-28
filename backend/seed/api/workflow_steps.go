@@ -44,6 +44,11 @@ func (s bootstrapTenantStep) Run(ctx context.Context, rt *Runtime) error {
 		return err
 	}
 	rt.Bootstrap = bootstrapState
+	if s.seeder.options.SaveBootstrap != nil {
+		if err := s.seeder.options.SaveBootstrap(ctx, bootstrapState.SchoolID); err != nil {
+			return err
+		}
+	}
 
 	fmt.Printf("Logging in as invited school admin %s...\n", bootstrapState.AdminEmail)
 	tenantAuth, err := rt.Adapter.LoginTenant(ctx, bootstrapState.AdminEmail, bootstrapState.AdminPassword, bootstrapState.TenantSlug)
@@ -65,7 +70,7 @@ func (seedMasterDataStep) Name() string { return "Stammdaten seeding" }
 func (s seedMasterDataStep) Run(ctx context.Context, rt *Runtime) error {
 	fixedSeeder := NewFixedSeeder(rt.Client, rt.Verbose, s.seeder.options.StaffPassword)
 	fixedSeeder.accountScope = s.seeder.accountScope()
-	fixedSeeder.visitorName = s.seeder.options.VisitorName
+	fixedSeeder.visitor = visitorName{first: s.seeder.options.VisitorFirstName, last: s.seeder.options.VisitorLastName}
 	fixedResult, err := fixedSeeder.Seed(ctx)
 	if err != nil {
 		return err
@@ -123,6 +128,7 @@ func (s buildStateStep) Run(ctx context.Context, rt *Runtime) error {
 	}
 
 	state := s.seeder.collectSeedState(rt.FixedSeeder, rt.StaffPIN, rt.Bootstrap)
+	state.DeferredSeedPending = rt.DeferredSeedPending
 	if virtual, ok := rt.Values["profile.virtual_device"].(SeedDevice); ok {
 		state.Devices[virtual.DeviceID] = virtual
 	}
@@ -205,6 +211,8 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		operatorLoginStep{},
 		bootstrapTenantStep{seeder: seeder},
 		configureProfileStep{definition: seeder.definition},
+		// Before the first step that authenticates as a device.
+		configureDevicePINStep{},
 		seedMasterDataStep{seeder: seeder},
 		seedPlanningDemoStep{},
 		seedStudentStatusVariantsStep{},
@@ -221,16 +229,22 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedStaffMessagingStep{},
 		seedStaffNoticesStep{},
 		seedFileStorageStep{},
+		// Der einzige Block, der über die Stempeluhr läuft: nach ihm stempelt
+		// niemand mehr live, und die Historie kann neben der Simulation laufen.
+		seedWorkSessionBreakStep{},
 		// Vor der App-Historie: der IoT-Sitzungsstart erzeugt den echten
 		// NFC-Arbeitsblock. Nach einem App-Checkout am selben Tag verhindert
 		// die Zeiterfassung bewusst einen erneuten Auto-Check-in.
 		seedStatisticsDemoStep{},
-		seedTimeTrackingHistoryStep{},
-		seedDataAccessAuditStep{},
-		// Rührt weder an der Zeiterfassung noch am NFC-Block: legt nur
-		// vergangene Kurstermine samt Anwesenheit an (#2891).
-		seedCourseParticipationStep{},
-		parentEnrollmentSeedStep{seeder: seeder},
+	}
+	if !seeder.options.DeferHistory {
+		steps = append(steps, deferredPastSteps()...)
+	}
+	steps = append(steps, parentEnrollmentSeedStep{seeder: seeder})
+	if !seeder.options.DeferHistory {
+		steps = append(steps, parentRequestsSeedStep{seeder: seeder})
+	}
+	steps = append(steps,
 		seedParentEngagementStep{},
 		seedGradeTransitionStep{},
 		seedParentLetterStep{},
@@ -239,7 +253,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		// Einrichtungs-Assistent als erledigt erkennt (#2832).
 		seedSchoolSetupStep{},
 		verifyProfileStep{definition: seeder.definition},
-	}
+	)
 	if seeder.options.OnlyProfile == "" {
 		steps = append(steps,
 			manualProfileStep{seeder: seeder},
@@ -247,6 +261,34 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedEnrollmentBookingsProfileStep{seeder: seeder},
 		)
 	}
-	steps = append(steps, buildStateStep{seeder: seeder}, printSummaryStep{seeder: seeder})
+	if !seeder.options.DeferHistory {
+		steps = append(steps, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
+	}
+	steps = append(steps,
+		buildStateStep{seeder: seeder},
+		printSummaryStep{seeder: seeder},
+	)
 	return Workflow{Name: "full-demo", Steps: steps}
+}
+
+// deferredPastSteps fill the past only: the time-tracking history, the export
+// that audits it, and past course dates. No later step reads them.
+func deferredPastSteps() []Step {
+	return []Step{
+		seedTimeTrackingHistoryStep{},
+		seedDataAccessAuditStep{},
+		// Rührt weder an der Zeiterfassung noch am NFC-Block: legt nur
+		// vergangene Kurstermine samt Anwesenheit an (#2891).
+		seedCourseParticipationStep{},
+	}
+}
+
+// deferredDemoSteps are what a demo school opens without (DeferHistory): the
+// past, then the parents' requests. The requests go after the history, since
+// the running simulation's parents may collide with them. The child quota is
+// sized to the children in care once the requests are decided, and the
+// billing snapshot counts them, so both follow.
+func deferredDemoSteps(seeder *Seeder) []Step {
+	return append(deferredPastSteps(),
+		parentRequestsSeedStep{seeder: seeder}, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
 }

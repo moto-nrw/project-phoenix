@@ -35,6 +35,8 @@ type Group struct {
 	SourceGradeLevels     []int
 	SourceSchoolClasses   []string
 	Notes                 *string
+	IncludeClosingDays    bool
+	SeriesLastDay         *string
 	Category              *Category
 }
 
@@ -93,6 +95,8 @@ type GroupFields struct {
 	SourceGradeLevels     []int
 	SourceSchoolClasses   []string
 	Notes                 *string
+	IncludeClosingDays    bool
+	SeriesLastDay         *string
 }
 
 type TemplateFields struct {
@@ -115,6 +119,9 @@ type TemplateFields struct {
 	SourceCareOfferingIDs   []int64
 	SourceGradeLevels       []int
 	SourceSchoolClasses     []string
+	IncludeClosingDays      *bool
+	SeriesLastDay           *string
+	SeriesLastDayProvided   bool
 }
 
 type OfferingSourceFields struct {

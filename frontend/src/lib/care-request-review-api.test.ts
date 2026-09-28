@@ -139,6 +139,9 @@ describe("decideCareScheduleChangeRequest", () => {
         {
           error: "Die Anfrage ist nicht mehr offen",
           code: "change_request_not_pending",
+          details: { request_id: "r1" },
+          errors: [{ field: "impact_token", reason: "stale" }],
+          instance: "request-care-409",
         },
         409,
       ),
@@ -154,6 +157,12 @@ describe("decideCareScheduleChangeRequest", () => {
     expect((err as CareRequestApiError).code).toBe(
       "change_request_not_pending",
     );
+    expect(err).toMatchObject({
+      status: 409,
+      details: { request_id: "r1" },
+      errors: [{ field: "impact_token", reason: "stale" }],
+      requestId: "request-care-409",
+    });
   });
 
   it("falls back to the German decision message on a non-JSON error", async () => {

@@ -17,12 +17,6 @@ func (s *Service) FindWithdrawalCompletion(ctx context.Context, id int64, lock b
 	})
 }
 
-func (s *Service) ListWithdrawalStudentIDs(ctx context.Context, state string, studentID int64) ([]int64, error) {
-	return runValue(s, "list_withdrawal_student_ids", func() ([]int64, domain.OperationStats, error) {
-		return s.store.ListWithdrawalStudentIDs(ctx, state, studentID)
-	})
-}
-
 // ListWithdrawals pages the tasks in state together with their total count.
 func (s *Service) ListWithdrawals(ctx context.Context, state string, filter domain.WithdrawalListFilter) ([]domain.WithdrawalCompletion, int, error) {
 	var total int

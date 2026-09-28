@@ -99,6 +99,11 @@ func seedParentConversation(rt *Runtime, auth AuthRef, studentID int64) error {
 	}); err != nil {
 		return fmt.Errorf("seed staff reply: %w", err)
 	}
+	// The team keeps the answered conversation open for a colleague (#3654),
+	// so the inbox shows a thread marked unread for everyone.
+	if _, err := rt.Client.PostWithAuth(rt.TenantAuth, fmt.Sprintf("/api/messages/threads/%d/unread", threadID), map[string]any{}); err != nil {
+		return fmt.Errorf("seed conversation marked unread: %w", err)
+	}
 	if _, err := rt.Client.GetWithAuth(auth, path); err != nil {
 		return fmt.Errorf("read seeded parent conversation: %w", err)
 	}

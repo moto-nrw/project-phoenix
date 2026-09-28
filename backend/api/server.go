@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 )
@@ -28,6 +29,10 @@ type ServeConfig struct {
 	PublicAPIURL string
 	EnableCORS   bool
 	Logger       *slog.Logger
+	// SentryPyrePortalDSN is the DSN of the pyreportal project the kiosks'
+	// error reports go to (#3645); empty when the backend runs without
+	// Sentry.
+	SentryPyrePortalDSN string
 }
 
 // Runtime owns the assembled HTTP graph and its process-scoped resources.
@@ -102,7 +107,7 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 
 	config.Logger.Info("initializing API server")
 
-	api, err := New(config.EnableCORS, config.PublicAPIURL, config.Logger, config.FrontendURL)
+	api, err := New(config.EnableCORS, config.PublicAPIURL, config.Logger, config.FrontendURL, config.SentryPyrePortalDSN)
 	if err != nil {
 		return nil, err
 	}
@@ -166,18 +171,22 @@ func newWorker(api *API, logger *slog.Logger) (*scheduler.Scheduler, error) {
 	if api == nil || api.Services == nil || api.repos == nil {
 		return nil, fmt.Errorf("worker API graph is required")
 	}
-	deps := workerRuntimeDependencies(api, logger)
+	billing, err := newOperatorBilling(logger)
+	if err != nil {
+		return nil, fmt.Errorf("compose worker billing: %w", err)
+	}
+	deps := workerRuntimeDependencies(api, logger, billing)
 	addWorkerServiceDependencies(&deps, api)
 	addWorkerRepositoryDependencies(&deps, api)
 	return scheduler.NewWorker(deps)
 }
 
-func workerRuntimeDependencies(api *API, logger *slog.Logger) scheduler.WorkerDependencies {
+func workerRuntimeDependencies(api *API, logger *slog.Logger, billing organizationModule.BillingReport) scheduler.WorkerDependencies {
 	return scheduler.WorkerDependencies{
 		Logger:                 logger.With("service", "scheduler"),
 		Getenv:                 os.Getenv,
 		DB:                     api.db,
-		SchoolRepo:             schedulerTenantDirectory{schools: api.Services.Schools},
+		SchoolRepo:             schedulerTenantDirectory{schools: api.Services.Schools, billing: billing},
 		TenantRuntime:          &api.tenantRuntime,
 		TenantRuntimeObserver:  observability.RecordTenantRuntimeEvent,
 		UnitOfWorkObserver:     observability.RecordUnitOfWorkEvent,

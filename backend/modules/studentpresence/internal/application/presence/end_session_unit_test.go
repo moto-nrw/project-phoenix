@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -417,7 +417,7 @@ type mockGroupSupervisorRepository struct {
 	createBulkFunc          func(ctx context.Context, supervisors []*ports.GroupSupervisor) error
 	findAllActiveFunc       func(ctx context.Context) ([]*ports.GroupSupervisor, error)
 	updateFunc              func(ctx context.Context, entity *ports.GroupSupervisor) error
-	findStaleOpenFunc       func(ctx context.Context, before timezone.Date) ([]*ports.GroupSupervisor, error)
+	findStaleOpenFunc       func(ctx context.Context, before calendar.Date) ([]*ports.GroupSupervisor, error)
 	updateColumnsFunc       func(ctx context.Context, supervisor *ports.GroupSupervisor, columns ...string) (int64, error)
 }
 
@@ -815,7 +815,7 @@ func (m *mockVisitRepository) ExpiredVisitMonthlyCounts(context.Context) (map[st
 	return nil, nil
 }
 
-func (m *mockGroupSupervisorRepository) FindStaleOpen(ctx context.Context, before timezone.Date) ([]*ports.GroupSupervisor, error) {
+func (m *mockGroupSupervisorRepository) FindStaleOpen(ctx context.Context, before calendar.Date) ([]*ports.GroupSupervisor, error) {
 	if m.findStaleOpenFunc != nil {
 		return m.findStaleOpenFunc(ctx, before)
 	}

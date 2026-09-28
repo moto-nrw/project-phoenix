@@ -33,13 +33,21 @@ type demoScheduler struct {
 	heartbeat string
 	adapter   *sharedOperatorSession
 
-	tickers *demoTickers
-	expiry  *demoExpiry
-	work    sync.WaitGroup
-	seeds   chan struct{}
+	tickers         *demoTickers
+	tickerLifecycle sync.Mutex
+	expiry          *demoExpiry
+	work            sync.WaitGroup
+	seeds           chan struct{}
+
+	failedRequeues *demoDeferredRequeues
 }
 
 func runDemoSchools(ctx context.Context, schools *backendapi.DemoRuntime, baseURL, heartbeat string, once bool) error {
+	// Every order is seeded with this configuration. A broken one stops the
+	// process here instead of failing each visitor's order in turn.
+	if err := checkDemoProvisioning(demoProvisioningCredentials()); err != nil {
+		return err
+	}
 	adapter := newSeedCommandAdapter(baseURL, false)
 	if err := waitDemoServer(ctx, adapter); err != nil {
 		return err
@@ -47,9 +55,13 @@ func runDemoSchools(ctx context.Context, schools *backendapi.DemoRuntime, baseUR
 	if err := schools.ReleaseDemoSchoolOrders(ctx); err != nil {
 		return err
 	}
+	if err := schools.RequeueDeferredDemoSchoolOrders(ctx); err != nil {
+		return err
+	}
 	scheduler := &demoScheduler{
 		schools: schools, baseURL: baseURL, heartbeat: heartbeat, adapter: newSharedOperatorSession(adapter),
 		tickers: newDemoTickers(), expiry: newDemoExpiry(schools, time.Now), seeds: make(chan struct{}, demoSeedWorkers),
+		failedRequeues: newDemoDeferredRequeues(),
 	}
 	defer scheduler.work.Wait()
 	if once {
@@ -58,7 +70,12 @@ func runDemoSchools(ctx context.Context, schools *backendapi.DemoRuntime, baseUR
 	for {
 		// Expired accesses leave first (#3470), so a school hidden this poll
 		// gets no ticker and holds no place.
-		err := errors.Join(scheduler.expiry.run(ctx), scheduler.startOrders(ctx), scheduler.startTickers(ctx))
+		err := errors.Join(
+			scheduler.expiry.run(ctx),
+			scheduler.retryFailedDeferredRequeues(ctx),
+			scheduler.startOrders(ctx),
+			scheduler.startTickers(ctx),
+		)
 		if err != nil && ctx.Err() == nil {
 			slog.Warn("demo scheduler poll failed; retrying", "error", err)
 		}
@@ -100,9 +117,12 @@ func (s *demoScheduler) startOrders(ctx context.Context) error {
 // prepare seeds the ordered school, runs its first tick and opens it. The
 // school is ready only once it is in its running state, whatever the hour
 // and weekday. A failed order is queued once more, then closed as failed.
+// The past (time-tracking history, course dates) follows once it is open,
+// on the same worker. A failed deferred seed is rebuilt cleanly instead of
+// replaying partial API writes in the open school.
 func (s *demoScheduler) prepare(ctx context.Context, order backendapi.DemoSchoolOrder) {
 	started := time.Now()
-	err := s.seedAndTick(ctx, order)
+	deferred, err := s.seedAndTick(ctx, order)
 	if ctx.Err() != nil {
 		return // The next process releases the claim and tries again.
 	}
@@ -112,6 +132,16 @@ func (s *demoScheduler) prepare(ctx context.Context, order backendapi.DemoSchool
 			"attempt", order.Attempts,
 			"seconds", time.Since(started).Seconds(),
 		)
+		if err := s.seedDeferred(ctx, order.Slug, deferred); err != nil && ctx.Err() == nil {
+			requeueErr := s.requeueDeferredDemoSchoolOrder(context.WithoutCancel(ctx), order.Slug)
+			if requeueErr != nil {
+				s.rememberFailedDeferredRequeue(order.Slug)
+			}
+			slog.Warn("demo school deferred seed failed; school will be rebuilt",
+				"school", order.Slug,
+				"error", errors.Join(err, requeueErr),
+			)
+		}
 		return
 	}
 	if s.adapter.paused() {
@@ -134,29 +164,116 @@ func (s *demoScheduler) prepare(ctx context.Context, order backendapi.DemoSchool
 	)
 }
 
-func (s *demoScheduler) seedAndTick(ctx context.Context, order backendapi.DemoSchoolOrder) error {
-	if order.Attempts > demoSeedAttempts {
-		return fmt.Errorf("demo school order used its attempts")
+func (s *demoScheduler) rememberFailedDeferredRequeue(slug string) { s.failedRequeues.add(slug) }
+
+func (s *demoScheduler) retryFailedDeferredRequeues(ctx context.Context) error {
+	return s.failedRequeues.retry(ctx, s.requeueDeferredDemoSchoolOrder)
+}
+
+// requeueDeferredDemoSchoolOrder serializes stopping a ticker and rebuilding
+// its school with active-school reads, so a stale poll cannot start a ticker
+// after this school becomes preparing again.
+func (s *demoScheduler) requeueDeferredDemoSchoolOrder(ctx context.Context, slug string) error {
+	s.tickerLifecycle.Lock()
+	defer s.tickerLifecycle.Unlock()
+
+	s.tickers.block(slug)
+	if err := s.schools.RequeueDeferredDemoSchoolOrder(ctx, slug); err != nil {
+		return err
 	}
+	s.tickers.unblock(slug)
+	return nil
+}
+
+// demoDeferredRequeues retains only runtime failures of named requeue writes.
+// Startup uses the database-wide recovery before workers can begin; polling
+// retries only these names so it cannot race an active deferred seed.
+type demoDeferredRequeues struct {
+	mu    sync.Mutex
+	slugs map[string]struct{}
+}
+
+func newDemoDeferredRequeues() *demoDeferredRequeues {
+	return &demoDeferredRequeues{slugs: make(map[string]struct{})}
+}
+
+func (r *demoDeferredRequeues) add(slug string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.slugs[slug] = struct{}{}
+}
+
+func (r *demoDeferredRequeues) retry(ctx context.Context, requeue func(context.Context, string) error) error {
+	r.mu.Lock()
+	slugs := make([]string, 0, len(r.slugs))
+	for slug := range r.slugs {
+		slugs = append(slugs, slug)
+	}
+	r.mu.Unlock()
+
+	var errs []error
+	for _, slug := range slugs {
+		if err := requeue(ctx, slug); err != nil {
+			errs = append(errs, fmt.Errorf("requeue deferred demo school %s: %w", slug, err))
+			continue
+		}
+		r.mu.Lock()
+		delete(r.slugs, slug)
+		r.mu.Unlock()
+	}
+	return errors.Join(errs...)
+}
+
+// seedDeferred completes an open school. The caller requeues a failure for a
+// clean rebuild, so it never replays a partial history in place.
+func (s *demoScheduler) seedDeferred(ctx context.Context, slug string, deferred func(context.Context) error) error {
+	if deferred == nil {
+		return nil // A repetition of a seeded order has nothing left to seed.
+	}
+	started := time.Now()
+	if err := deferred(ctx); err != nil {
+		if ctx.Err() == nil {
+			slog.Warn("demo school history not seeded",
+				"school", slug,
+				"error", err,
+			)
+		}
+		return err
+	}
+	slog.Info("demo school history seeded",
+		"school", slug,
+		"seconds", time.Since(started).Seconds(),
+	)
+	return nil
+}
+
+func (s *demoScheduler) seedAndTick(ctx context.Context, order backendapi.DemoSchoolOrder) (func(context.Context) error, error) {
+	if order.Attempts > demoSeedAttempts {
+		return nil, fmt.Errorf("demo school order used its attempts")
+	}
+	var deferred func(context.Context) error
 	if !order.Seeded {
 		options := seedapi.SeedOptions{
-			TenantSlug: order.Slug, SchoolName: order.SchoolName, VisitorName: order.PersonName,
+			TenantSlug: order.Slug, SchoolName: order.SchoolName,
+			VisitorFirstName: order.FirstName, VisitorLastName: order.LastName,
 			AccountScope: demoAccountScope(order.Slug, order.Attempts),
 			// The broken attempt keeps its school and accounts; move both aside.
 			ReplaceAbandoned: order.Attempts > 1,
+			DeferHistory:     true,
 		}
-		if err := provisionDemoSchool(ctx, s.schools, s.adapter, options); err != nil {
-			return err
+		var err error
+		if deferred, err = provisionDemoSchool(ctx, s.schools, s.adapter, options); err != nil {
+			return nil, err
 		}
 	}
 	school, err := loadDemoSchool(ctx, s.schools, order.Slug, s.baseURL)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := school.run(ctx, true, true, func() {}); err != nil {
-		return err
+		return nil, err
 	}
-	return s.schools.FinishDemoSchoolOrder(ctx, order.Slug, school.visitorID, school.visitorParentID)
+	return deferred, s.schools.FinishDemoSchoolOrder(ctx, order.Slug, school.visitorID, school.visitorParentID)
 }
 
 // demoAccountScope is what the school's account emails and usernames carry.
@@ -174,6 +291,9 @@ func demoAccountScope(slug string, attempt int) string {
 // startTickers keeps one ticker per school in use and stops the others. A
 // new ticker ticks at once, so an entered school moves within the next poll.
 func (s *demoScheduler) startTickers(ctx context.Context) error {
+	s.tickerLifecycle.Lock()
+	defer s.tickerLifecycle.Unlock()
+
 	slugs, err := s.schools.ActiveDemoSchools(ctx, time.Now().Add(-demoInUseWindow))
 	if err != nil {
 		return err
@@ -181,6 +301,10 @@ func (s *demoScheduler) startTickers(ctx context.Context) error {
 	for _, slug := range s.tickers.keepOnly(slugs) {
 		tickCtx, stop := context.WithCancel(ctx)
 		ticker := s.tickers.add(slug, stop)
+		if ticker == nil {
+			stop()
+			continue
+		}
 		s.work.Go(func() {
 			defer s.tickers.remove(slug, ticker)
 			school, err := loadDemoSchool(tickCtx, s.schools, slug, s.baseURL)
@@ -202,6 +326,7 @@ func (s *demoScheduler) startTickers(ctx context.Context) error {
 type demoTickers struct {
 	mu      sync.Mutex
 	running demoTickerSet
+	blocked map[string]bool
 }
 
 type demoTicker struct{ stop context.CancelFunc }
@@ -213,7 +338,7 @@ type demoTickerSet map[string]*demoTicker
 func (set demoTickerSet) put(slug string, ticker *demoTicker) { set[slug] = ticker }
 
 func newDemoTickers() *demoTickers {
-	return &demoTickers{running: demoTickerSet{}}
+	return &demoTickers{running: demoTickerSet{}, blocked: map[string]bool{}}
 }
 
 // keepOnly stops the tickers of schools that are no longer in use and returns
@@ -224,6 +349,9 @@ func (t *demoTickers) keepOnly(inUse []string) []string {
 	wanted := make(map[string]bool, len(inUse))
 	var missing []string
 	for _, slug := range inUse {
+		if t.blocked[slug] {
+			continue
+		}
 		wanted[slug] = true
 		if t.running[slug] == nil {
 			missing = append(missing, slug)
@@ -238,9 +366,30 @@ func (t *demoTickers) keepOnly(inUse []string) []string {
 	return missing
 }
 
+// block stops a ticker before its school is rebuilt and prevents a poll from
+// starting a replacement ticker until the requeue transaction succeeds.
+func (t *demoTickers) block(slug string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.blocked[slug] = true
+	if ticker := t.running[slug]; ticker != nil {
+		ticker.stop()
+		delete(t.running, slug)
+	}
+}
+
+func (t *demoTickers) unblock(slug string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	delete(t.blocked, slug)
+}
+
 func (t *demoTickers) add(slug string, stop context.CancelFunc) *demoTicker {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if t.blocked[slug] {
+		return nil
+	}
 	ticker := &demoTicker{stop: stop}
 	t.running.put(slug, ticker)
 	return ticker
@@ -264,6 +413,9 @@ func (s *demoScheduler) drain(ctx context.Context) error {
 		return err
 	}
 	for {
+		if err := s.retryFailedDeferredRequeues(ctx); err != nil {
+			return err
+		}
 		// A worker that was busy before the poll may still queue its order again.
 		idle := len(s.seeds) == 0
 		if err := s.startOrders(ctx); err != nil {

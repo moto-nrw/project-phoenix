@@ -31,7 +31,32 @@ vi.mock("~/lib/client-headers.server", () => ({
   getClientForwardHeaders: mockGetClientForwardHeaders,
 }));
 
-global.fetch = mockFetch as unknown as typeof fetch;
+// Test fixtures below describe backend payloads; materialize actual Fetch
+// Responses so the proxy's streaming body path is exercised as in production.
+global.fetch = (async (...args: Parameters<typeof fetch>) => {
+  const result: unknown = await mockFetch(...args);
+  if (result instanceof Response) return result;
+  const fixture = result as {
+    status: number;
+    statusText?: string;
+    headers?: Headers;
+    json?: () => Promise<unknown>;
+    text?: () => Promise<string>;
+  };
+  const body =
+    fixture.status === 204
+      ? null
+      : fixture.json
+        ? JSON.stringify(await fixture.json())
+        : fixture.text
+          ? await fixture.text()
+          : null;
+  return new Response(body, {
+    status: fixture.status,
+    statusText: fixture.statusText,
+    headers: fixture.headers,
+  });
+}) as typeof fetch;
 
 import {
   operatorApiGet,
@@ -96,11 +121,7 @@ describe("operatorServerFetch", () => {
   });
 
   it("throws on 401 error", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 401,
-      text: async () => "Unauthorized",
-    });
+    mockFetch.mockResolvedValue(new Response("Unauthorized", { status: 401 }));
 
     await expect(operatorApiGet("/api/test", "old-token")).rejects.toThrow(
       "API error (401)",
@@ -108,11 +129,9 @@ describe("operatorServerFetch", () => {
   });
 
   it("throws on non-401 error", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 500,
-      text: async () => "Internal Server Error",
-    });
+    mockFetch.mockResolvedValue(
+      new Response("Internal Server Error", { status: 500 }),
+    );
 
     await expect(operatorApiGet("/api/test", "my-token")).rejects.toThrow(
       "API error (500)",
@@ -309,11 +328,7 @@ describe("operator proxy factories", () => {
       .mockResolvedValueOnce({ user: { token: "old-token" } })
       .mockResolvedValueOnce({ user: { token: "new-token" } });
     mockFetch
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () => "Unauthorized",
-      })
+      .mockResolvedValueOnce(new Response("Unauthorized", { status: 401 }))
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -420,7 +435,7 @@ describe("createOperatorProxyPostHandler", () => {
     );
   });
 
-  it("returns German message for 429 non-JSON response", async () => {
+  it("forwards backend body for 429 non-JSON response", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: false,
@@ -436,10 +451,7 @@ describe("createOperatorProxyPostHandler", () => {
     const response = await handler(request, mockContext);
 
     expect(response.status).toBe(429);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe(
-      "Zu viele Anfragen. Bitte versuchen Sie es später erneut.",
-    );
+    expect(await response.text()).toBe("Too Many Requests");
   });
 
   it("returns text body for non-JSON, non-429 response", async () => {
@@ -458,8 +470,7 @@ describe("createOperatorProxyPostHandler", () => {
     const response = await handler(request, mockContext);
 
     expect(response.status).toBe(502);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Bad Gateway");
+    expect(await response.text()).toBe("Bad Gateway");
   });
 
   it("retries on 401 with refreshed token", async () => {
@@ -531,7 +542,7 @@ describe("createOperatorProxyPostHandler", () => {
     expect(json.message).toBe("Ungültige E-Mail-Adresse");
   });
 
-  it("returns statusText when text body is empty for non-JSON response", async () => {
+  it("preserves an empty backend body for non-JSON response", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({
       ok: false,
@@ -548,8 +559,7 @@ describe("createOperatorProxyPostHandler", () => {
     const response = await handler(request, mockContext);
 
     expect(response.status).toBe(503);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Service Unavailable");
+    expect(await response.text()).toBe("");
   });
 
   it("handles fetch error gracefully", async () => {
@@ -704,7 +714,7 @@ describe("createOperatorPublicProxyPostHandler", () => {
     expect(json.message).toBe("Passwort zu schwach");
   });
 
-  it("returns German rate-limit message for 429 non-JSON response", async () => {
+  it("forwards backend rate-limit body for 429 non-JSON response", async () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 429,
@@ -715,10 +725,7 @@ describe("createOperatorPublicProxyPostHandler", () => {
     const response = await handler(makePublicRequest({ token: "abc" }));
 
     expect(response.status).toBe(429);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe(
-      "Zu viele Anfragen. Bitte versuchen Sie es später erneut.",
-    );
+    expect(await response.text()).toBe("Too Many Requests");
   });
 
   it("forwards backend 429 JSON body verbatim (preserves backend-specific messaging)", async () => {
@@ -739,7 +746,7 @@ describe("createOperatorPublicProxyPostHandler", () => {
     expect(json.message).toBe("Zu viele Einladungen. Bitte warte eine Stunde.");
   });
 
-  it("wraps non-JSON text body in { message } envelope", async () => {
+  it("forwards non-JSON text body unchanged", async () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 502,
@@ -750,11 +757,10 @@ describe("createOperatorPublicProxyPostHandler", () => {
     const response = await handler(makePublicRequest({ token: "abc" }));
 
     expect(response.status).toBe(502);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Bad Gateway");
+    expect(await response.text()).toBe("Bad Gateway");
   });
 
-  it("falls back to statusText when non-JSON body is empty", async () => {
+  it("preserves an empty non-JSON backend body", async () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 503,
@@ -766,8 +772,7 @@ describe("createOperatorPublicProxyPostHandler", () => {
     const response = await handler(makePublicRequest({ token: "abc" }));
 
     expect(response.status).toBe(503);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Service Unavailable");
+    expect(await response.text()).toBe("");
   });
 
   it("returns 500 with generic German message on fetch error", async () => {
@@ -971,7 +976,7 @@ describe("createOperatorProxyMethodHandler", () => {
     expect(response.body).toBeNull();
   });
 
-  it("wraps non-JSON response in { message } envelope", async () => {
+  it("forwards non-JSON response unchanged", async () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 502,
@@ -982,8 +987,7 @@ describe("createOperatorProxyMethodHandler", () => {
     const response = await deleteHandler(makeAuthRequest(), makeContext());
 
     expect(response.status).toBe(502);
-    const json = (await response.json()) as { message?: string };
-    expect(json.message).toBe("Bad Gateway");
+    expect(await response.text()).toBe("Bad Gateway");
   });
 
   it("returns 500 on fetch error via handleApiError", async () => {

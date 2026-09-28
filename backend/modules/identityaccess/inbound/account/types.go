@@ -123,6 +123,16 @@ type TenantResolveResponse struct {
 	// missing or unresolvable, matching the export's fail-closed behavior so
 	// the page never promises health data that its PDF omits.
 	EmergencyHealthInfoEnabled bool `json:"emergency_list_health_info_enabled"`
+	// AnalyticsFreigabe is the school's resolved analytics.freigabe setting
+	// (#3603): the OGS portal records masked sessions and sends pseudonymous
+	// user IDs only while it is true, and shows staff a notice. Shell metadata
+	// because every page load reads it, so switching it off takes effect at
+	// the next load. Fails closed to false on any resolution error.
+	AnalyticsFreigabe bool `json:"analytics_freigabe"`
+	// AnalyticsRecordingSamplePercent is the share of OGS sessions recorded
+	// with the Freigabe (analytics.recording_sample_percent). 0 when it cannot
+	// be resolved, which records nothing.
+	AnalyticsRecordingSamplePercent int `json:"analytics_recording_sample_percent"`
 }
 
 type tenantShellSettings struct {
@@ -144,6 +154,8 @@ type tenantShellSettings struct {
 	showTimetableCounts    bool
 	waitlistEnabled        bool
 	emergencyHealthInfo    bool
+	analyticsFreigabe      bool
+	analyticsSamplePercent int
 }
 
 // SwitchTenantRequest represents the switch-tenant request payload

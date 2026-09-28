@@ -171,7 +171,9 @@ func (w *Workflow) revertGraduatedStudents(ctx context.Context, graduated []scho
 	restored := make([]int64, 0, len(graduated))
 	restoredActive := make([]int64, 0, len(graduated))
 	for _, status := range statuses {
-		reactivated, err := w.deps.Membership.Reactivate(ctx, byStatus[status], status)
+		// A revert undoes a wrong grade transition; a full Kinderkontingent
+		// must not trap the school in that state (#3567).
+		reactivated, err := w.deps.Membership.Reactivate(ctx, byStatus[status], status, RevertChildQuotaCheck)
 		if err != nil {
 			return nil, fmt.Errorf("failed to reactivate graduated students: %w", err)
 		}

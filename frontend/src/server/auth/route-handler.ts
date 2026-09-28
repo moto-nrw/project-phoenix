@@ -1,8 +1,15 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { cache } from "react";
+import * as Sentry from "@sentry/nextjs";
 import type { NextAuthRequest, NextAuthResult, Session } from "next-auth";
 import type { NextRequest } from "next/server";
+import { REQUEST_ID_HEADER } from "~/lib/request-id";
 import type { RouteContext } from "~/lib/route-wrapper-utils.server";
+import {
+  applySentrySessionContext,
+  sentrySessionContext,
+  type SentryPortal,
+} from "~/lib/sentry-context";
 
 export type ResponseRouteHandler<Context = RouteContext> = (
   request: NextRequest,
@@ -22,11 +29,29 @@ type SessionContext = {
 };
 
 /**
+ * Puts the request's context on its Sentry isolation scope, so every event
+ * the route raises carries portal, account, role, school and Vorgangskennung.
+ * Every field is written, so nothing of another request can remain.
+ */
+function tagSentryRequest(portal: SentryPortal, request: NextAuthRequest) {
+  applySentrySessionContext(
+    sentrySessionContext(portal, request.auth?.user ?? null),
+  );
+  Sentry.setTags({
+    portal,
+    request_id: request.headers.get(REQUEST_ID_HEADER) ?? undefined,
+  });
+}
+
+/**
  * Build one portal's response-aware auth helpers around its raw Auth.js
  * instance. Each portal owns a separate AsyncLocalStorage so a tenant route
  * can never observe an operator or parent session through request context.
  */
-export function createResponseAwareAuth(rawAuth: NextAuthResult["auth"]) {
+export function createResponseAwareAuth(
+  rawAuth: NextAuthResult["auth"],
+  portal: SentryPortal,
+) {
   const requestSession = new AsyncLocalStorage<SessionContext>();
   const cachedRawAuth = cache(() => rawAuth());
 
@@ -73,6 +98,7 @@ export function createResponseAwareAuth(rawAuth: NextAuthResult["auth"]) {
       const wrapped = rawAuth(async (authRequest, authContext) => {
         current.session = authRequest.auth;
         current.request = authRequest;
+        tagSentryRequest(portal, authRequest);
         return requestSession.run(current, () =>
           handler(authRequest, authContext as Context),
         );

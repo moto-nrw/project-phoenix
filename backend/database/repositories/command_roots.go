@@ -104,24 +104,18 @@ func NewRetentionCleanupRepositories(db *bun.DB, command auditModels.Command) Re
 	}
 }
 
+// TimetableCleanupRepositories are the Audit Platform stores the Timetable
+// retention writes through: the per-child deletion records and the
+// Änderungsprotokoll it deletes in lockstep (#3551).
 type TimetableCleanupRepositories struct {
-	Instance  scheduleModels.ActivityInstanceRepository
-	Exception scheduleModels.ActivityExceptionRepository
-	Student   scheduleModels.InstanceStudentRepository
 	Deletion  auditModels.DataDeletionRepository
 	Deviation auditModels.DeviationEventRepository
 }
 
-func NewTimetableCleanupRepositories(db *bun.DB, command auditModels.Command, timetableCapability timetable.Capability) TimetableCleanupRepositories {
-	if timetableCapability == nil {
-		panic("timetable cleanup repositories: timetable capability is required")
-	}
+func NewTimetableCleanupRepositories(db *bun.DB, command auditModels.Command) TimetableCleanupRepositories {
 	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
-	presence := newStudentPresence(db)
 	return TimetableCleanupRepositories{
-		Instance:  newTimetableActivityInstanceRepository(db, timetableCapability, presence),
-		Exception: timetableActivityExceptionRepository{timetable: timetableCapability},
-		Student:   newTimetableInstanceStudentRepository(db, timetableCapability, presence), Deletion: RouteDataDeletionWrites(deletions, command),
+		Deletion:  RouteDataDeletionWrites(deletions, command),
 		Deviation: auditRepo.NewDeviationEventRepository(auditRootRuntime(db)),
 	}
 }

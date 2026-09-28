@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 import { sessionFetch } from "./session-cache";
 
 interface BackendPlanningTrack {
@@ -22,11 +23,11 @@ interface PlanningTrackPayload {
   sort_order: number;
 }
 
-class PlanningTrackApiError extends Error {
+class PlanningTrackApiError extends ApiError {
   readonly status: number;
 
   constructor(status: number, message: string) {
-    super(message);
+    super(message, status);
     this.name = "PlanningTrackApiError";
     this.status = status;
   }
@@ -45,7 +46,10 @@ function mapTrack(track: BackendPlanningTrack): PlanningTrack {
 async function readError(response: Response, fallback: string): Promise<Error> {
   try {
     const body = (await response.json()) as { error?: string };
-    return new PlanningTrackApiError(response.status, body.error || fallback);
+    return enrichApiError(
+      new PlanningTrackApiError(response.status, body.error || fallback),
+      body,
+    );
   } catch {
     return new PlanningTrackApiError(response.status, fallback);
   }

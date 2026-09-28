@@ -17,6 +17,9 @@ var (
 	ErrGuardianEmailTaken = errors.New("guardian e-mail is already used in this school")
 	// ErrTenantRequired refuses a row write outside a tenant transaction.
 	ErrTenantRequired = errors.New("people directory: tenant is required to write guardian rows")
+	// ErrGuardianLinkOwnersUnbound refuses a link write in a graph that did
+	// not bind the Care Plan and Identity & Access halves.
+	ErrGuardianLinkOwnersUnbound = errors.New("people directory: the guardian link owners are not bound")
 )
 
 // GuardianInvalidError carries the reason a guardian row was refused.
@@ -28,7 +31,7 @@ func (e *GuardianInvalidError) Unwrap() error { return ErrGuardianInvalid }
 func guardianInvalid(reason string) error { return &GuardianInvalidError{Reason: reason} }
 
 // Column defaults of users.guardian_profiles an empty value falls back to on a
-// create, and the default role of users.students_guardians.
+// create, and the default role of a student-guardian relationship.
 const (
 	DefaultGuardianContactMethod = "phone"
 	DefaultGuardianLanguage      = "de"
@@ -51,7 +54,8 @@ type GuardianPhoneRecord struct {
 	Priority    int
 }
 
-// GuardianLinkRecord is one users.students_guardians row to insert.
+// GuardianLinkRecord is one link to insert: the relationship with its pickup
+// permission and its portal permissions.
 type GuardianLinkRecord struct {
 	StudentID, GuardianProfileID             int64
 	RelationshipType, GuardianRole           string

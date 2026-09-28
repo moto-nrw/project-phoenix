@@ -29,13 +29,9 @@ type Device struct {
 	Active     bool
 }
 
-// Staff is the staff member a verified account PIN bound to the request.
-type Staff struct{ ID int64 }
-
-// Principals reads the identities the device authentication bound.
+// Principals reads the identity the device authentication bound.
 type Principals interface {
 	Device(ctx context.Context) (*Device, bool)
-	Staff(ctx context.Context) (*Staff, bool)
 }
 
 // Person is the directory identity behind a card.

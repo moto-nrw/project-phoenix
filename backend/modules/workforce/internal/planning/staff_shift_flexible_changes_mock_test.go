@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,8 +26,8 @@ func TestShiftService_CreateCancelledSkipsOverlap(t *testing.T) {
 
 	existing := validShift(7) // 08:00–16:00
 	existing.ID = 1
-	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
-		return []*scheduleModels.StaffShift{existing}, nil
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*StaffShift, error) {
+		return []*StaffShift{existing}, nil
 	}
 
 	gap := validShift(7) // same window as existing
@@ -47,8 +46,8 @@ func TestShiftService_OverlapIgnoresCancelledExisting(t *testing.T) {
 	cancelled := validShift(7) // 08:00–16:00, absent
 	cancelled.ID = 1
 	cancelled.Cancelled = true
-	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
-		return []*scheduleModels.StaffShift{cancelled}, nil
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*StaffShift, error) {
+		return []*StaffShift{cancelled}, nil
 	}
 
 	reused := validShift(7) // overlaps the cancelled window exactly
@@ -61,7 +60,7 @@ func TestShiftService_CreateReplacementRejectsMissingOrigin(t *testing.T) {
 	t.Parallel()
 
 	svc, repo, _ := shiftServiceFixture()
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return nil, modelBase.ErrNotFound
 	}
 
@@ -78,10 +77,10 @@ func TestShiftService_CreateReplacementRejectsCrossDateOrigin(t *testing.T) {
 	t.Parallel()
 
 	svc, repo, _ := shiftServiceFixture()
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		origin := validShift(7)
 		origin.ID = 5
-		origin.Date = scheduleModels.NewDate(2026, 7, 7) // one day off the replacement
+		origin.Date = timezone.NewDate(2026, 7, 7) // one day off the replacement
 		return origin, nil
 	}
 
@@ -99,13 +98,13 @@ func TestShiftService_CreateReplacementAcceptsSameDayCancelledOrigin(t *testing.
 
 	svc, repo, _ := shiftServiceFixture()
 	created := false
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		origin := validShift(7) // same date as the replacement
 		origin.ID = 5
 		origin.Cancelled = true // a replacement only covers a gap the cancellation opened
 		return origin, nil
 	}
-	repo.createFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	repo.createFunc = func(_ context.Context, s *StaffShift) error {
 		created = true
 		require.NotNil(t, s.OriginShiftID)
 		assert.Equal(t, int64(5), *s.OriginShiftID)
@@ -126,7 +125,7 @@ func TestShiftService_CreateReplacementRejectsActiveOrigin(t *testing.T) {
 	t.Parallel()
 
 	svc, repo, _ := shiftServiceFixture()
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		origin := validShift(7) // same date, but NOT cancelled
 		origin.ID = 5
 		return origin, nil
@@ -149,7 +148,7 @@ func TestShiftService_CreateReplacementRejectsWindowOutsideOrigin(t *testing.T) 
 	t.Parallel()
 
 	svc, repo, _ := shiftServiceFixture()
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		origin := validShift(7) // same date, cancelled, 08:00–16:00
 		origin.ID = 5
 		origin.Cancelled = true
@@ -174,13 +173,13 @@ func TestShiftService_CreateReplacementAcceptsWindowInsideOrigin(t *testing.T) {
 
 	svc, repo, _ := shiftServiceFixture()
 	created := false
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		origin := validShift(7) // 08:00–16:00, cancelled
 		origin.ID = 5
 		origin.Cancelled = true
 		return origin, nil
 	}
-	repo.createFunc = func(_ context.Context, _ *scheduleModels.StaffShift) error {
+	repo.createFunc = func(_ context.Context, _ *StaffShift) error {
 		created = true
 		return nil
 	}
@@ -209,7 +208,7 @@ func TestShiftService_UpdateReplacementRejectsCrossDateMove(t *testing.T) {
 	origin := validShift(7) // origin on 2026-07-06, cancelled
 	origin.ID = 5
 	origin.Cancelled = true
-	repo.findByIDFunc = func(_ context.Context, id any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, id any) (*StaffShift, error) {
 		if id == int64(5) {
 			return origin, nil
 		}
@@ -218,7 +217,7 @@ func TestShiftService_UpdateReplacementRejectsCrossDateMove(t *testing.T) {
 
 	edit := validShift(8)
 	edit.ID = 3
-	edit.Date = scheduleModels.NewDate(2026, 7, 7) // moved a day off its origin
+	edit.Date = timezone.NewDate(2026, 7, 7) // moved a day off its origin
 
 	_, err := svc.UpdateShift(context.Background(), edit)
 	require.Error(t, err)
@@ -243,7 +242,7 @@ func TestShiftService_UpdateReplacementRejectsWindowOutsideOrigin(t *testing.T) 
 	origin := validShift(7) // origin on 2026-07-06, cancelled, 08:00–16:00
 	origin.ID = 5
 	origin.Cancelled = true
-	repo.findByIDFunc = func(_ context.Context, id any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, id any) (*StaffShift, error) {
 		if id == int64(5) {
 			return origin, nil
 		}
@@ -277,11 +276,11 @@ func TestShiftService_UpdateOriginRejectsResizeStrandingCover(t *testing.T) {
 	cover.ID = 3
 	cover.StartTime = wall(10, 0)
 	cover.OriginShiftID = testpkg.Int64Ptr(5)
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return origin, nil
 	}
-	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
-		return []*scheduleModels.StaffShift{cover}, nil
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*StaffShift, error) {
+		return []*StaffShift{cover}, nil
 	}
 
 	edit := validShift(7)
@@ -309,17 +308,17 @@ func TestShiftService_UpdateOriginResizeKeepingCoversSucceeds(t *testing.T) {
 	cover.ID = 3
 	cover.StartTime = wall(10, 0)
 	cover.OriginShiftID = testpkg.Int64Ptr(5)
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return origin, nil
 	}
-	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
-		return []*scheduleModels.StaffShift{cover}, nil
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*StaffShift, error) {
+		return []*StaffShift{cover}, nil
 	}
-	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*StaffShift, error) {
 		return nil, nil
 	}
-	var saved *scheduleModels.StaffShift
-	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	var saved *StaffShift
+	repo.updateFunc = func(_ context.Context, s *StaffShift) error {
 		saved = s
 		return nil
 	}
@@ -345,11 +344,11 @@ func TestShiftService_UpdateKeepsOriginShiftID(t *testing.T) {
 	existing := validShift(8)
 	existing.ID = 3
 	existing.OriginShiftID = testpkg.Int64Ptr(5)
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return existing, nil
 	}
-	var saved *scheduleModels.StaffShift
-	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	var saved *StaffShift
+	repo.updateFunc = func(_ context.Context, s *StaffShift) error {
 		saved = s
 		return nil
 	}
@@ -371,7 +370,7 @@ func TestShiftService_CreateReplacementRejectsSelfReplacement(t *testing.T) {
 	t.Parallel()
 
 	svc, repo, _ := shiftServiceFixture()
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		origin := validShift(7) // same staff member as the replacement below
 		origin.ID = 5
 		origin.Cancelled = true
@@ -397,21 +396,21 @@ func TestShiftService_UpdateOriginRejectsDateMoveWithCovers(t *testing.T) {
 	existing := validShift(7) // origin on 2026-07-06, cancelled, not a replacement
 	existing.ID = 5
 	existing.Cancelled = true
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return existing, nil
 	}
 	cover := validShift(8)
 	cover.ID = 11
 	cover.OriginShiftID = testpkg.Int64Ptr(5)
-	repo.findByOriginShiftIDFunc = func(_ context.Context, originID int64) ([]*scheduleModels.StaffShift, error) {
+	repo.findByOriginShiftIDFunc = func(_ context.Context, originID int64) ([]*StaffShift, error) {
 		assert.Equal(t, int64(5), originID)
-		return []*scheduleModels.StaffShift{cover}, nil
+		return []*StaffShift{cover}, nil
 	}
 
 	edit := validShift(7)
 	edit.ID = 5
 	edit.Cancelled = true
-	edit.Date = scheduleModels.NewDate(2026, 7, 7) // moved a day off its covers
+	edit.Date = timezone.NewDate(2026, 7, 7) // moved a day off its covers
 
 	_, err := svc.UpdateShift(context.Background(), edit)
 	require.Error(t, err)
@@ -428,23 +427,23 @@ func TestShiftService_UpdateOriginAllowsDateMoveWithoutCovers(t *testing.T) {
 
 	existing := validShift(7)
 	existing.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return existing, nil
 	}
-	var saved *scheduleModels.StaffShift
-	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	var saved *StaffShift
+	repo.updateFunc = func(_ context.Context, s *StaffShift) error {
 		saved = s
 		return nil
 	}
 
 	edit := validShift(7)
 	edit.ID = 5
-	edit.Date = scheduleModels.NewDate(2026, 7, 8)
+	edit.Date = timezone.NewDate(2026, 7, 8)
 
 	_, err := svc.UpdateShift(context.Background(), edit)
 	require.NoError(t, err)
 	require.NotNil(t, saved)
-	assert.Equal(t, scheduleModels.Date(timezone.NewDate(2026, 7, 8)), saved.Date)
+	assert.Equal(t, timezone.Date(timezone.NewDate(2026, 7, 8)), saved.Date)
 }
 
 // Marking an existing shift cancelled records the absence and skips overlap.
@@ -455,16 +454,16 @@ func TestShiftService_UpdateCanCancelShift(t *testing.T) {
 
 	existing := validShift(8)
 	existing.ID = 3
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return existing, nil
 	}
 	overlapChecked := false
-	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*StaffShift, error) {
 		overlapChecked = true
 		return nil, nil
 	}
-	var saved *scheduleModels.StaffShift
-	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	var saved *StaffShift
+	repo.updateFunc = func(_ context.Context, s *StaffShift) error {
 		saved = s
 		return nil
 	}
@@ -489,11 +488,11 @@ func TestShiftService_UpdatePreservesChangeReasonWhenOmitted(t *testing.T) {
 	existing := validShift(8)
 	existing.ID = 3
 	existing.ChangeReason = &existingReason
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return existing, nil
 	}
-	var saved *scheduleModels.StaffShift
-	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	var saved *StaffShift
+	repo.updateFunc = func(_ context.Context, s *StaffShift) error {
 		saved = s
 		return nil
 	}
@@ -519,15 +518,15 @@ func TestShiftService_ApplyCancellation_CancelsAndCreatesReplacements(t *testing
 
 	origin := validShift(7)
 	origin.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return origin, nil
 	}
-	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	repo.updateFunc = func(_ context.Context, s *StaffShift) error {
 		origin.Cancelled = s.Cancelled // the same-tx flip is visible to the cover creates
 		return nil
 	}
-	var created []*scheduleModels.StaffShift
-	repo.createFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	var created []*StaffShift
+	repo.createFunc = func(_ context.Context, s *StaffShift) error {
 		created = append(created, s)
 		return nil
 	}
@@ -565,11 +564,11 @@ func TestShiftService_ApplyCancellation_AppliesOriginEdits(t *testing.T) {
 
 	origin := validShift(7) // stored 08:00–16:00
 	origin.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return origin, nil
 	}
-	var saved *scheduleModels.StaffShift
-	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	var saved *StaffShift
+	repo.updateFunc = func(_ context.Context, s *StaffShift) error {
 		saved = s
 		origin.Cancelled = s.Cancelled
 		return nil
@@ -604,11 +603,11 @@ func TestShiftService_ApplyCancellation_PreservesWindowWhenNotEditing(t *testing
 
 	origin := validShift(7) // stored 08:00–16:00
 	origin.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return origin, nil
 	}
-	var saved *scheduleModels.StaffShift
-	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	var saved *StaffShift
+	repo.updateFunc = func(_ context.Context, s *StaffShift) error {
 		saved = s
 		origin.Cancelled = s.Cancelled
 		return nil
@@ -632,17 +631,17 @@ func TestShiftService_ApplyCancellation_PreservesWindowWhenNotEditing(t *testing
 func TestShiftService_ApplyCancellation_PreservesInactiveCoverType(t *testing.T) {
 	t.Parallel()
 
-	svc, repo, _ := shiftServiceWithTypes(map[int64]*scheduleModels.ShiftType{
+	svc, repo, _ := shiftServiceWithTypes(map[int64]*ShiftType{
 		4: {IsActive: false}, // deactivated after the cover was first created
 	})
 
 	origin := validShift(7)
 	origin.ID = 5
 	origin.Cancelled = true
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return origin, nil
 	}
-	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	repo.updateFunc = func(_ context.Context, s *StaffShift) error {
 		origin.Cancelled = s.Cancelled
 		return nil
 	}
@@ -650,11 +649,11 @@ func TestShiftService_ApplyCancellation_PreservesInactiveCoverType(t *testing.T)
 	existingCover.ID = 11
 	existingCover.OriginShiftID = testpkg.Int64Ptr(5)
 	existingCover.ShiftTypeID = testpkg.Int64Ptr(4) // the now-inactive type
-	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
-		return []*scheduleModels.StaffShift{existingCover}, nil
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*StaffShift, error) {
+		return []*StaffShift{existingCover}, nil
 	}
-	var created []*scheduleModels.StaffShift
-	repo.createFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	var created []*StaffShift
+	repo.createFunc = func(_ context.Context, s *StaffShift) error {
 		created = append(created, s)
 		return nil
 	}
@@ -678,22 +677,22 @@ func TestShiftService_ApplyCancellation_PreservesInactiveCoverType(t *testing.T)
 func TestShiftService_ApplyCancellation_RejectsNewInactiveCoverType(t *testing.T) {
 	t.Parallel()
 
-	svc, repo, _ := shiftServiceWithTypes(map[int64]*scheduleModels.ShiftType{
+	svc, repo, _ := shiftServiceWithTypes(map[int64]*ShiftType{
 		4: {IsActive: false},
 	})
 
 	origin := validShift(7)
 	origin.ID = 5
 	origin.Cancelled = true
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return origin, nil
 	}
-	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	repo.updateFunc = func(_ context.Context, s *StaffShift) error {
 		origin.Cancelled = s.Cancelled
 		return nil
 	}
 	// No existing covers -> nothing grandfathered.
-	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*StaffShift, error) {
 		return nil, nil
 	}
 
@@ -719,10 +718,10 @@ func TestShiftService_ApplyCancellation_ReactivationRemovesReplacements(t *testi
 	origin := validShift(7)
 	origin.ID = 5
 	origin.Cancelled = true
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return origin, nil
 	}
-	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	repo.updateFunc = func(_ context.Context, s *StaffShift) error {
 		origin.Cancelled = s.Cancelled
 		return nil
 	}
@@ -732,8 +731,8 @@ func TestShiftService_ApplyCancellation_ReactivationRemovesReplacements(t *testi
 	cover2 := validShift(9)
 	cover2.ID = 12
 	cover2.OriginShiftID = testpkg.Int64Ptr(5)
-	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
-		return []*scheduleModels.StaffShift{cover1, cover2}, nil
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*StaffShift, error) {
+		return []*StaffShift{cover1, cover2}, nil
 	}
 	var deleted []any
 	repo.deleteFunc = func(_ context.Context, id any) error {
@@ -741,7 +740,7 @@ func TestShiftService_ApplyCancellation_ReactivationRemovesReplacements(t *testi
 		return nil
 	}
 	createCalled := false
-	repo.createFunc = func(_ context.Context, _ *scheduleModels.StaffShift) error {
+	repo.createFunc = func(_ context.Context, _ *StaffShift) error {
 		createCalled = true
 		return nil
 	}
@@ -781,7 +780,7 @@ func TestShiftService_ApplyCancellation_RejectsCancellingAReplacement(t *testing
 	existing := validShift(8)
 	existing.ID = 11
 	existing.OriginShiftID = testpkg.Int64Ptr(5)
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return existing, nil
 	}
 
@@ -804,7 +803,7 @@ func TestPlannedShiftMinutes_ExcludesCancelled(t *testing.T) {
 	absent := testShift(t, 7, date, "08:00", "16:00")
 	absent.Cancelled = true
 
-	planned := plannedShiftMinutes([]*scheduleModels.StaffShift{worked, absent})
+	planned := plannedShiftMinutes([]*StaffShift{worked, absent})
 
 	total := 0
 	for _, minutes := range planned {
@@ -824,13 +823,13 @@ func TestUncoveredShiftIntervals_CancelledShiftCoversNothing(t *testing.T) {
 
 	start := testClock(t, "09:00")
 	end := testClock(t, "12:00")
-	gaps := uncoveredShiftIntervals(start, end, []*scheduleModels.StaffShift{shift})
+	gaps := uncoveredShiftIntervals(start, end, []*StaffShift{shift})
 
 	assert.Equal(t, [][2]string{{"09:00", "12:00"}}, formattedGaps(gaps))
 
 	// Sanity: the same shift uncancelled fully covers the window.
 	shift.Cancelled = false
-	assert.Empty(t, formattedGaps(uncoveredShiftIntervals(start, end, []*scheduleModels.StaffShift{shift})))
+	assert.Empty(t, formattedGaps(uncoveredShiftIntervals(start, end, []*StaffShift{shift})))
 }
 
 // Re-saving a cancelled origin rebuilds its cover set. An unchanged cover (same
@@ -845,10 +844,10 @@ func TestShiftService_ApplyCancellation_PreservesPerCoverChangeReason(t *testing
 	origin := validShift(7)
 	origin.ID = 5
 	origin.Cancelled = true
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return origin, nil
 	}
-	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	repo.updateFunc = func(_ context.Context, s *StaffShift) error {
 		origin.Cancelled = s.Cancelled
 		return nil
 	}
@@ -859,11 +858,11 @@ func TestShiftService_ApplyCancellation_PreservesPerCoverChangeReason(t *testing
 	existingCover.EndTime = wall(12, 0)
 	existingCover.OriginShiftID = testpkg.Int64Ptr(5)
 	existingCover.ChangeReason = &coverReason
-	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
-		return []*scheduleModels.StaffShift{existingCover}, nil
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*StaffShift, error) {
+		return []*StaffShift{existingCover}, nil
 	}
-	var created []*scheduleModels.StaffShift
-	repo.createFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	var created []*StaffShift
+	repo.createFunc = func(_ context.Context, s *StaffShift) error {
 		created = append(created, s)
 		return nil
 	}
@@ -898,17 +897,17 @@ func TestShiftService_ApplyCancellation_PreservesPerCoverChangeReason(t *testing
 func TestShiftService_ApplyCancellation_RejectsInactiveTypeTransfer(t *testing.T) {
 	t.Parallel()
 
-	svc, repo, _ := shiftServiceWithTypes(map[int64]*scheduleModels.ShiftType{
+	svc, repo, _ := shiftServiceWithTypes(map[int64]*ShiftType{
 		4: {IsActive: false},
 	})
 
 	origin := validShift(7)
 	origin.ID = 5
 	origin.Cancelled = true
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return origin, nil
 	}
-	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	repo.updateFunc = func(_ context.Context, s *StaffShift) error {
 		origin.Cancelled = s.Cancelled
 		return nil
 	}
@@ -917,8 +916,8 @@ func TestShiftService_ApplyCancellation_RejectsInactiveTypeTransfer(t *testing.T
 	existingCover.ID = 11
 	existingCover.OriginShiftID = testpkg.Int64Ptr(5)
 	existingCover.ShiftTypeID = testpkg.Int64Ptr(4)
-	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
-		return []*scheduleModels.StaffShift{existingCover}, nil
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*StaffShift, error) {
+		return []*StaffShift{existingCover}, nil
 	}
 
 	_, err := svc.ApplyCancellation(context.Background(), CancelShiftInput{
@@ -951,15 +950,15 @@ func TestShiftService_ApplyCancellation_ReloadsOriginAfterLock(t *testing.T) {
 	fresh.EndTime = wall(15, 0)
 
 	calls := 0
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		calls++
 		if calls == 1 {
 			return stale, nil // the read used only to compute the lock set
 		}
 		return fresh, nil // re-read under the lock sees the committed edit
 	}
-	var saved *scheduleModels.StaffShift
-	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	var saved *StaffShift
+	repo.updateFunc = func(_ context.Context, s *StaffShift) error {
 		saved = s
 		return nil
 	}
@@ -987,10 +986,10 @@ func TestShiftService_ApplyCancellation_LocksDroppedCoverStaff(t *testing.T) {
 
 	origin := validShift(7) // origin owned by staff 7
 	origin.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return origin, nil
 	}
-	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+	repo.updateFunc = func(_ context.Context, s *StaffShift) error {
 		origin.Cancelled = s.Cancelled // the flip is visible to the cover creates
 		return nil
 	}
@@ -999,10 +998,10 @@ func TestShiftService_ApplyCancellation_LocksDroppedCoverStaff(t *testing.T) {
 	droppedCover := validShift(3)
 	droppedCover.ID = 11
 	droppedCover.OriginShiftID = testpkg.Int64Ptr(5)
-	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
-		return []*scheduleModels.StaffShift{droppedCover}, nil
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*StaffShift, error) {
+		return []*StaffShift{droppedCover}, nil
 	}
-	repo.createFunc = func(_ context.Context, _ *scheduleModels.StaffShift) error { return nil }
+	repo.createFunc = func(_ context.Context, _ *StaffShift) error { return nil }
 
 	var lockSets [][]int64
 	svc.(*staffShiftService).lockObserver = func(ids []int64) {
@@ -1033,7 +1032,7 @@ func TestShiftService_ApplyCancellation_RejectsCoverMovedAfterDiscovery(t *testi
 
 	origin := validShift(7)
 	origin.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return origin, nil
 	}
 	staleCover := validShift(3)
@@ -1042,12 +1041,12 @@ func TestShiftService_ApplyCancellation_RejectsCoverMovedAfterDiscovery(t *testi
 	movedCover := *staleCover
 	movedCover.StaffID = 4
 	coverReads := 0
-	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*StaffShift, error) {
 		coverReads++
 		if coverReads == 1 {
-			return []*scheduleModels.StaffShift{staleCover}, nil
+			return []*StaffShift{staleCover}, nil
 		}
-		return []*scheduleModels.StaffShift{&movedCover}, nil
+		return []*StaffShift{&movedCover}, nil
 	}
 	deletes := 0
 	repo.deleteFunc = func(_ context.Context, _ any) error {

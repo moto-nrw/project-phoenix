@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -46,7 +45,7 @@ func TestStaffShiftCreateDoesNotBroadcastAfterFailure(t *testing.T) {
 	t.Parallel()
 
 	service := NewStaffShiftService(
-		&shiftMockRepo{createFunc: func(context.Context, *scheduleModels.StaffShift) error {
+		&shiftMockRepo{createFunc: func(context.Context, *StaffShift) error {
 			return errors.New("insert failed")
 		}},
 		&shiftMockStaffRepo{},
@@ -73,7 +72,7 @@ func TestStaffShiftUpdateCanDeferTimeTrackingBroadcast(t *testing.T) {
 	existing := validShift(7)
 	existing.ID = 1
 	service := NewStaffShiftService(
-		&shiftMockRepo{findByIDFunc: func(context.Context, any) (*scheduleModels.StaffShift, error) {
+		&shiftMockRepo{findByIDFunc: func(context.Context, any) (*StaffShift, error) {
 			return existing, nil
 		}},
 		&shiftMockStaffRepo{},

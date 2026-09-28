@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 /**
  * Staff client for the post-enrollment offering change-request review queue
  * (#1665). Calls the Next.js proxy routes under
@@ -113,12 +114,10 @@ function unwrap<T>(json: Envelope<T>): T {
  * "change_request_not_pending") so the review UI can name the concrete recovery
  * action instead of collapsing every failure into one message.
  */
-export class OfferingRequestApiError extends Error {
-  readonly code?: string;
+export class OfferingRequestApiError extends ApiError {
   constructor(message: string, code?: string) {
-    super(message);
+    super(message, undefined, { code });
     this.name = "OfferingRequestApiError";
-    this.code = code;
   }
 }
 
@@ -128,8 +127,10 @@ async function readError(
 ): Promise<OfferingRequestApiError> {
   let message = fallback;
   let code: string | undefined;
+  let payload: unknown;
   try {
     const body = (await response.json()) as { error?: string; code?: string };
+    payload = body;
     if (body.error) message = body.error;
     if (body.code) code = body.code;
   } catch {
@@ -140,7 +141,11 @@ async function readError(
     message,
     ...(code ? { code } : {}),
   });
-  return new OfferingRequestApiError(message, code);
+  return enrichApiError(
+    new OfferingRequestApiError(message, code),
+    payload,
+    response.status,
+  );
 }
 
 /**

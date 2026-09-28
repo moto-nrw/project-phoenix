@@ -18,6 +18,6 @@ const {
   auth: schoolAuth,
   uncachedAuth: uncachedSchoolAuth,
   withAuthResponse: withSchoolAuth,
-} = createResponseAwareAuth(rawSchoolAuth);
+} = createResponseAwareAuth(rawSchoolAuth, "school");
 
 export { schoolAuth, uncachedSchoolAuth, schoolHandlers, withSchoolAuth };

@@ -72,6 +72,12 @@ var unmappedDateColumns = map[string]string{
 	// target architecture forbids a dependency on internal/timezone.
 	"schedule.pickup_extension_tasks.task_date":      "timetable adapter-local row uses the typed domain.Date — no models/ struct",
 	"schedule.pickup_extension_tasks.effective_from": "timetable adapter-local row uses the typed domain.Date — no models/ struct",
+	// The billing key-date counts (#2791) are owned by Organisation & Tenancy,
+	// which may not depend on internal/timezone or the shared calendar. Its
+	// raw SQL binds the YYYY-MM-DD strings with an explicit ::date cast and
+	// reads them back as ::text, so no time.Time ever meets these columns.
+	"platform.billing_key_date_counts.period":   "organization-tenancy raw SQL binds and reads YYYY-MM-DD through ::date / ::text casts — no models/ struct",
+	"platform.billing_key_date_counts.key_date": "organization-tenancy raw SQL binds and reads YYYY-MM-DD through ::date / ::text casts — no models/ struct",
 }
 
 // renamedDateColumns maps a DATE column declared under an old name in a

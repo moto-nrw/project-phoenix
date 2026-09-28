@@ -37,17 +37,3 @@ const (
 
 var BusDayOrder = departure.BusDayOrder
 var PickupDayOrder = departure.PickupDayOrder
-
-func BusDaysFromLegacyFlag(enabled bool) BusDays { return departure.BusDaysFromLegacyFlag(enabled) }
-func PickupDaysFromLegacyStatus(status string) PickupDays {
-	return departure.PickupDaysFromLegacyStatus(status)
-}
-func DepartureDaysFromLegacy(bus BusDays, pickup PickupDays) DepartureDays {
-	return departure.DepartureDaysFromLegacy(bus, pickup)
-}
-func AllowedDepartureModesFromDeparture(days DepartureDays) AllowedDepartureModes {
-	return departure.AllowedDepartureModesFromDeparture(days)
-}
-func AllowedDepartureModesFromLegacy(bus BusDays, pickup PickupDays) AllowedDepartureModes {
-	return departure.AllowedDepartureModesFromLegacy(bus, pickup)
-}

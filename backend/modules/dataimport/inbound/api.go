@@ -141,7 +141,7 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 	// returns, when a commit failure can no longer be reported. Staff ID
 	// resolution happens inside the TX because the lookup is RLS-scoped.
 	tenantID := rs.runtime.TenantID(r.Context())
-	var result *importModels.ImportResult[importModels.StudentImportRow]
+	var preview studentPreviewResponse
 	var staffResolutionErr error
 	if err := rs.runtime.WithinTenant(r.Context(), func(ctx context.Context) error {
 		staffID, staffErr := rs.runtime.StaffID(ctx)
@@ -149,7 +149,6 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 			staffResolutionErr = staffErr
 			return staffErr
 		}
-
 		request := importModels.ImportRequest[importModels.StudentImportRow]{
 			Rows:            uploadResult.Rows,
 			Mode:            mode,
@@ -158,14 +157,13 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 			UserID:          staffID,
 			SkipInvalidRows: false,
 		}
-
 		var txErr error
-		result, txErr = rs.studentImportService.Import(ctx, request)
+		preview, txErr = rs.previewStudents(ctx, request)
 		if txErr != nil {
 			return txErr
 		}
 		// GDPR Compliance: Audit log for preview (Article 30).
-		return rs.studentImportService.RecordAuditInTransaction(ctx, "student", uploadResult.Filename, result, accountID, true, tenantID)
+		return rs.studentImportService.RecordAuditInTransaction(ctx, "student", uploadResult.Filename, preview.ImportResult, accountID, true, tenantID)
 	}); err != nil {
 		if staffResolutionErr != nil {
 			rs.runtime.Failure(w, r, Failure{Status: http.StatusUnauthorized, Cause: staffResolutionErr})
@@ -175,7 +173,7 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	rs.runtime.Success(w, r, http.StatusOK, result, "Import-Vorschau erfolgreich")
+	rs.runtime.Success(w, r, http.StatusOK, preview, "Import-Vorschau erfolgreich")
 }
 
 // importStudents handles actual student import
@@ -197,20 +195,24 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve the actor in a short tenant transaction. The workflow owns the
-	// subsequent bounded write transactions and their audit checkpoints.
-	var staffID int64
+	// Resolve the actor and admit the import against the Kinderkontingent in
+	// a short tenant transaction. The workflow owns the subsequent bounded
+	// write transactions and their audit checkpoints.
+	request := importModels.ImportRequest[importModels.StudentImportRow]{
+		Rows: uploadResult.Rows, Mode: mode, SkipInvalidRows: true,
+	}
 	if err := rs.runtime.WithinTenant(r.Context(), func(ctx context.Context) error {
 		var err error
-		staffID, err = rs.runtime.StaffID(ctx)
-		return err
+		if request.UserID, err = rs.runtime.StaffID(ctx); err != nil {
+			return err
+		}
+		return rs.admitStudentImport(ctx, request)
 	}); err != nil {
 		rs.runtime.Failure(w, r, Failure{Status: http.StatusInternalServerError, Cause: err, Message: "Import fehlgeschlagen"})
 		return
 	}
-	result, err := rs.studentImportService.ImportBatches(r.Context(), importModels.ImportRequest[importModels.StudentImportRow]{
-		Rows: uploadResult.Rows, Mode: mode, UserID: staffID, SkipInvalidRows: true,
-	}, importModels.BatchAudit{EntityType: "student", Filename: uploadResult.Filename, AccountID: accountID})
+	result, err := rs.studentImportService.ImportBatches(r.Context(), request,
+		importModels.BatchAudit{EntityType: "student", Filename: uploadResult.Filename, AccountID: accountID})
 	if err != nil {
 		renderBatchImportError(rs.runtime, w, r, result, err)
 		return

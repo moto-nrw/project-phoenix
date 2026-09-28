@@ -167,7 +167,7 @@ func verifyBookingWithdrawals(rt *Runtime, state *SeedState) error {
 }
 
 func seedBookingProfileAttendance(rt *Runtime, state *SeedState) error {
-	if _, err := rt.Client.Put("/api/settings/values/security.ogs_device_pin", map[string]any{"value": rt.StaffPIN}); err != nil {
+	if _, err := rt.Client.Put("/api/settings/values/"+profileSettingDevicePIN, map[string]any{"value": rt.StaffPIN}); err != nil {
 		return err
 	}
 	raw, err := rt.Client.Post("/api/iot/", map[string]any{"device_id": "BUCHUNGEN-NFC-001", "name": "Eingang", "device_type": "terminal", "status": "active"})

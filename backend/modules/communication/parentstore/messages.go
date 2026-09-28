@@ -183,6 +183,8 @@ func threadValue(thread *usersModels.ParentMessageThread) *domain.ParentMessageT
 		LastMessageID: thread.LastMessageID, LastSenderKind: thread.LastSenderKind,
 		LastMessageBody: thread.LastMessageBody, StaffHandledUpToAt: thread.StaffHandledUpToAt,
 		StaffHandledUpToMessageID:      thread.StaffHandledUpToMessageID,
+		StaffMarkedUnreadAt:            thread.StaffMarkedUnreadAt,
+		StaffMarkedUnreadByAccountID:   thread.StaffMarkedUnreadByAccountID,
 		LastStaffMessageNotificationAt: thread.LastStaffMessageNotificationAt,
 		CreatedAt:                      thread.CreatedAt, UpdatedAt: thread.UpdatedAt,
 	}
@@ -198,6 +200,8 @@ func threadModel(value *domain.ParentMessageThread) *usersModels.ParentMessageTh
 		LastSenderKind: value.LastSenderKind, LastMessageBody: value.LastMessageBody,
 		StaffHandledUpToAt:             value.StaffHandledUpToAt,
 		StaffHandledUpToMessageID:      value.StaffHandledUpToMessageID,
+		StaffMarkedUnreadAt:            value.StaffMarkedUnreadAt,
+		StaffMarkedUnreadByAccountID:   value.StaffMarkedUnreadByAccountID,
 		LastStaffMessageNotificationAt: value.LastStaffMessageNotificationAt,
 	}
 	thread.ID = value.ID

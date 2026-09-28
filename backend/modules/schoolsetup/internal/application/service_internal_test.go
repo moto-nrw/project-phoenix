@@ -206,7 +206,7 @@ func TestSchoolSetupCompletesOnlyWithoutOpenSteps(t *testing.T) {
 	assert.Equal(t, f.now, *f.store.setup.CompletedAt)
 }
 
-// TestSchoolSetupIsClosedAfterCompletion pins ADR 0040: once completed, no
+// TestSchoolSetupIsClosedAfterCompletion pins ADR 0042: once completed, no
 // wizard write goes through.
 func TestSchoolSetupIsClosedAfterCompletion(t *testing.T) {
 	t.Parallel()

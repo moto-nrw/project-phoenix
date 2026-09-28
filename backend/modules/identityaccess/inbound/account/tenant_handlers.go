@@ -127,7 +127,18 @@ func newTenantResolveResponse(school *TenantSchool, resolved tenantShellSettings
 		TimetableEnabled:           resolved.timetableEnabled,
 		WaitlistEnabled:            resolved.waitlistEnabled,
 		EmergencyHealthInfoEnabled: resolved.emergencyHealthInfo,
+		AnalyticsFreigabe:          resolved.analyticsFreigabe,
+		// Without the Freigabe the sample has no effect; the client never sees
+		// a recording share for a school that did not agree.
+		AnalyticsRecordingSamplePercent: analyticsSamplePercent(resolved),
 	}
+}
+
+func analyticsSamplePercent(resolved tenantShellSettings) int {
+	if !resolved.analyticsFreigabe {
+		return 0
+	}
+	return resolved.analyticsSamplePercent
 }
 
 func defaultTenantShellSettings() tenantShellSettings {
@@ -168,6 +179,8 @@ func tenantShellSettingKeys() []string {
 		settings.KeyParentNotesEnabled,
 		settings.KeyEmergencyListHealthInfo,
 		settings.KeyStaffMessagingEnabled,
+		settings.KeyAnalyticsFreigabe,
+		settings.KeyAnalyticsRecordingSamplePercent,
 		// Not read from this snapshot — prefetched so the hard-fail
 		// resolveTenantGradeLevelMax call hits the request cache instead of
 		// opening a second tenant transaction (issue #2065).
@@ -221,6 +234,15 @@ func (rs *Resource) resolveTenantShellSettingsOneByOne(ctx context.Context, tena
 	resolved.overviewScope = rs.resolveTenantOverviewScope(ctx, tenantID)
 	resolved.attendanceEditScope = rs.resolveTenantAttendanceEditScope(ctx, tenantID)
 	resolved.reasonPolicy = rs.resolveTenantReasonPolicy(ctx, tenantID)
+	resolved.analyticsFreigabe = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyAnalyticsFreigabe, false, slog.LevelError)
+	// The sample has no effect without the Freigabe; it is read only with it.
+	if resolved.analyticsFreigabe {
+		if value, err := rs.SettingsService.ResolveIntForTenant(ctx, tenantID, settings.KeyAnalyticsRecordingSamplePercent); err == nil {
+			resolved.analyticsSamplePercent = value
+		} else {
+			logTenantResolveSettingFailure(ctx, tenantID, settings.KeyAnalyticsRecordingSamplePercent, err, slog.LevelError)
+		}
+	}
 
 	// Messaging compose visibility intentionally fails open so it stays in
 	// lockstep with the unread badge, inbox row pills, and reply path.
@@ -270,6 +292,7 @@ func resolveTenantShellSnapshot(
 	resolved.waitlistEnabled = resolveBool(settings.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
 	resolved.parentMessagingEnabled = resolveBool(settings.KeyParentNotesEnabled, true, slog.LevelWarn)
 	resolved.emergencyHealthInfo = resolveBool(settings.KeyEmergencyListHealthInfo, false, slog.LevelWarn)
+	resolved.analyticsFreigabe, resolved.analyticsSamplePercent = resolveTenantAnalyticsSnapshot(ctx, tenantID, snapshot)
 	staffMessagingEnabled, err := snapshot.Bool(settings.KeyStaffMessagingEnabled)
 	if err != nil {
 		logTenantResolveSettingFailure(ctx, tenantID, settings.KeyStaffMessagingEnabled, err, slog.LevelError)
@@ -295,6 +318,23 @@ func resolveTenantShellSnapshot(
 		resolveString(settings.KeyParentRequestReasonPolicy, settings.ReasonPolicyBoth, slog.LevelError),
 	)
 	return resolved, nil
+}
+
+// resolveTenantAnalyticsSnapshot reads the Analyse-Freigabe and its recording
+// share (#3603). Both fail closed: a value nobody can read never turns
+// recording or pseudonymous IDs on, and an unreadable share records nothing.
+func resolveTenantAnalyticsSnapshot(ctx context.Context, tenantID int64, snapshot *settings.Snapshot) (bool, int) {
+	freigabe, err := snapshot.Bool(settings.KeyAnalyticsFreigabe)
+	if err != nil {
+		logTenantResolveSettingFailure(ctx, tenantID, settings.KeyAnalyticsFreigabe, err, slog.LevelError)
+		return false, 0
+	}
+	percent, err := snapshot.Int(settings.KeyAnalyticsRecordingSamplePercent)
+	if err != nil {
+		logTenantResolveSettingFailure(ctx, tenantID, settings.KeyAnalyticsRecordingSamplePercent, err, slog.LevelError)
+		return freigabe, 0
+	}
+	return freigabe, percent
 }
 
 // normalizeOverviewScope keeps an unknown wire value from reaching the client

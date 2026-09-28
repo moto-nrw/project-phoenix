@@ -26,6 +26,8 @@ type demoAccessWiring struct {
 	backoff []time.Duration
 	// maxActiveSchools caps the demo schools that may exist at once (#3466).
 	maxActiveSchools int
+	// operatorWithoutSecondFactor is set for APP_ENV=demo only (#3460).
+	operatorWithoutSecondFactor bool
 }
 
 // IsDemoEnvironment reports whether appEnv names the public demo, the only
@@ -39,7 +41,10 @@ func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFro
 	if !email.IsDemoEnvironment(appEnv) {
 		return nil
 	}
-	return &demoAccessWiring{dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL, maxActiveSchools: maxActiveSchools, logger: logger}
+	return &demoAccessWiring{
+		dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL, maxActiveSchools: maxActiveSchools, logger: logger,
+		operatorWithoutSecondFactor: true,
+	}
 }
 
 type demoAccessMail struct {
@@ -82,14 +87,15 @@ func (m demoAccessMail) SendDemoAccessLink(ctx context.Context, access identitya
 }
 
 func (m demoAccessMail) SendDemoLead(ctx context.Context, access identityaccess.DemoAccessMessage) {
+	personName := access.FirstName + " " + access.LastName
 	m.dispatch(ctx, "demo_lead", access.AccessID, email.Message{
 		From:     m.from,
 		To:       demoContact,
-		ReplyTo:  email.NewEmail(access.PersonName, access.Email),
+		ReplyTo:  email.NewEmail(personName, access.Email),
 		Subject:  "Neuer Demo-Zugang: " + access.SchoolName,
 		Template: email.TemplateDemoLead,
 		Content: map[string]any{
-			"PersonName":   access.PersonName,
+			"PersonName":   personName,
 			"OGSName":      access.SchoolName,
 			"Email":        access.Email,
 			"Source":       access.Source,

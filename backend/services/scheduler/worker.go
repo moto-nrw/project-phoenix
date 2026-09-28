@@ -10,9 +10,8 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
@@ -45,17 +44,17 @@ type WorkerDependencies struct {
 	StaffDocumentCleaner      StaffDocumentFileCleaner
 	StudentDocumentCleaner    StudentDocumentFileCleaner
 	FileStoreCleaner          FileStoreCleaner
-	Materializer              timetableplanning.MaterializationService
-	TimetableCleanup          timetableplanning.TimetableCleanupService
+	Materializer              timetable.MaterializationCapability
+	TimetableCleanup          timetable.TimetableCleanup
 	CalendarFeedCleanup       CalendarFeedCleaner
 	TimeTrackingCleanup       TimeTrackingCleanupService
 	StudentChangeLogCleanup   usersSvc.StudentChangeLogCleanupService
 	PWAUsageCleanup           pwaSvc.UsageService
 	StaffMessageCleanup       StaffMessageCleanup
 	BookingConsistency        auditModel.BookingConsistencyRepository
-	EnrollmentRejectedCleanup enrollmentSvc.RejectedEnrollmentCleaner
-	AutoStart                 timetableplanning.AutoStartService
-	AutoEnd                   timetableplanning.AutoEndService
+	EnrollmentRejectedCleanup RejectedEnrollmentCleaner
+	AutoStart                 timetable.InstanceAutoStart
+	AutoEnd                   timetable.InstanceAutoEnd
 	InstanceRepo              scheduleModel.ActivityInstanceRepository
 	InstanceRoomRepo          facilitiesModel.RoomRepository
 	InstanceStudentRepo       scheduleModel.InstanceStudentRepository
@@ -142,6 +141,7 @@ func requiredWorkerJobIDs() []JobID {
 		"rollover-deadline",
 		"appointment-reminders",
 		"announcement-reminders",
+		"billing-key-dates",
 	}
 }
 
@@ -178,6 +178,7 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.rolloverDeadlineRunner), "rollover-deadline", s.scheduleRolloverDeadlineTask)
 	add(!isNilDependency(s.appointmentReminders), "appointment-reminders", s.scheduleAppointmentReminderTask)
 	add(!isNilDependency(s.announcementReminders), "announcement-reminders", s.scheduleAnnouncementReminderTask)
+	add(!isNilDependency(s.schoolRepo), "billing-key-dates", s.scheduleBillingKeyDatesTask)
 	return jobs
 }
 

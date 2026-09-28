@@ -11,9 +11,14 @@ vi.mock("~/components/ui/date-picker", async (importOriginal) => {
   return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
 });
 
-const { mockCreate, mockUpdate } = vi.hoisted(() => ({
+const { mockCreate, mockUpdate, mockBulkCancel } = vi.hoisted(() => ({
   mockCreate: vi.fn(),
   mockUpdate: vi.fn(),
+  mockBulkCancel: vi.fn(),
+}));
+
+vi.mock("~/lib/timetable-api", () => ({
+  timetableService: { bulkCancel: mockBulkCancel },
 }));
 
 vi.mock("~/lib/closing-day-api", () => ({
@@ -98,6 +103,90 @@ describe("ClosingDayModal", () => {
     );
     expect(onSaved).toHaveBeenCalledOnce();
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  // #3594: appointments planned before the closure was entered stay in the
+  // plan, so saving offers to cancel them, and only when there are some.
+  it("offers to cancel the appointments still planned in the saved range", async () => {
+    mockBulkCancel.mockResolvedValue({
+      from: "2026-10-12",
+      to: "2026-10-25",
+      dryRun: true,
+      count: 83,
+      days: [],
+    });
+    const onOfferCancel = vi.fn();
+    render(
+      <ClosingDayModal
+        isOpen
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        initial={null}
+        onOfferCancel={onOfferCancel}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Grund"), {
+      target: { value: "Herbstferien" },
+    });
+    fireEvent.change(screen.getByLabelText("Von"), {
+      target: { value: "2026-10-12" },
+    });
+    fireEvent.change(screen.getByLabelText("Bis"), {
+      target: { value: "2026-10-25" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(onOfferCancel).toHaveBeenCalledWith({
+        startDate: "2026-10-12",
+        endDate: "2026-10-25",
+      }),
+    );
+    expect(mockBulkCancel).toHaveBeenCalledWith(
+      "2026-10-12",
+      "2026-10-25",
+      true,
+    );
+  });
+
+  it("offers nothing when no appointment is left or counting fails", async () => {
+    const onOfferCancel = vi.fn();
+    const { rerender } = render(
+      <ClosingDayModal
+        isOpen
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        initial={existingClosingDay}
+        onOfferCancel={onOfferCancel}
+      />,
+    );
+
+    mockBulkCancel.mockResolvedValueOnce({
+      from: "2026-12-24",
+      to: "2026-12-31",
+      dryRun: true,
+      count: 0,
+      days: [],
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(mockBulkCancel).toHaveBeenCalledOnce());
+
+    mockBulkCancel.mockRejectedValueOnce(new Error("Forbidden"));
+    rerender(
+      <ClosingDayModal
+        isOpen
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        initial={existingClosingDay}
+        onOfferCancel={onOfferCancel}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(mockBulkCancel).toHaveBeenCalledTimes(2));
+
+    expect(onOfferCancel).not.toHaveBeenCalled();
+    expect(mockUpdate).toHaveBeenCalledTimes(2);
   });
 
   it("updates the selected closing day", async () => {

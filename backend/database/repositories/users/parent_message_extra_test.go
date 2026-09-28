@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -35,7 +34,7 @@ func TestParentMessage_FindByIDAndTail(t *testing.T) {
 	bodies := []string{"eins", "zwei", "drei"}
 	var lastID int64
 	for _, b := range bodies {
-		m := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, b)
+		m := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, testpkg.ParentMessageSenderGuardian, b)
 		require.NoError(t, msgRepo.Create(ctx, m))
 		lastID = m.ID
 	}
@@ -79,22 +78,22 @@ func TestParentMessage_FindEventByRef(t *testing.T) {
 	const refTable = "schedule.care_schedule_change_requests"
 	refID := int64(4242)
 
-	pill := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderSystem, "Anfrage gestellt")
-	pill.Kind = usersModels.ParentMessageKindEvent
+	pill := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, testpkg.ParentMessageSenderSystem, "Anfrage gestellt")
+	pill.Kind = testpkg.ParentMessageKindEvent
 	pill.EventType = "request_created"
-	pill.EventActorKind = usersModels.ParentMessageSenderGuardian
+	pill.EventActorKind = testpkg.ParentMessageSenderGuardian
 	pill.RefTable = refTable
 	pill.RefID = &refID
 	require.NoError(t, msgRepo.Create(ctx, pill))
 
 	// Same ref, but a decision pill (different event_type) — must NOT match.
-	decision := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderSystem, "Anfrage bestätigt")
-	decision.Kind = usersModels.ParentMessageKindEvent
+	decision := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, testpkg.ParentMessageSenderSystem, "Anfrage bestätigt")
+	decision.Kind = testpkg.ParentMessageKindEvent
 	decision.EventType = "request_status"
 	decision.RefTable = refTable
 	decision.RefID = &refID
 	require.NoError(t, msgRepo.Create(ctx, decision))
-	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "Frage")))
+	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, chain.AccountID, testpkg.ParentMessageSenderGuardian, "Frage")))
 
 	found, err := msgRepo.FindEventByRef(ctx, thread.ID, "request_created", refTable, refID)
 	require.NoError(t, err)
@@ -135,7 +134,7 @@ func TestListInboxForStaff_ScopeFlag(t *testing.T) {
 
 	thread := newThread(t, chain.StudentID, chain.AccountID)
 	require.NoError(t, threadRepo.Create(ctx, thread))
-	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "Frage")))
+	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, chain.AccountID, testpkg.ParentMessageSenderGuardian, "Frage")))
 
 	// Verified staff → sees the conversation regardless of the child's group.
 	inbox, err := readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, false)

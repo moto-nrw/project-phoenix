@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/services"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -25,11 +24,11 @@ import (
 // absence-approval fixtures, but with the parent-request event recorder
 // attached on both sides, so the ledger written inside the domain
 // transactions is observable.
-func buildLedgerServices(t *testing.T) (*parentService.Portal, careplan.ExcusedAbsenceRequests, usersSvc.ParentRequestEventRecorder, *bun.DB) {
+func buildLedgerServices(t *testing.T) (*parentService.Portal, careplan.ExcusedAbsenceRequests, usersModels.ParentRequestEventRepository, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	events := usersSvc.NewParentRequestEventRecorder(repos.ParentRequestEvent)
+	events := repos.ParentRequestEvent
 	excused, err := services.NewTestExcusedAbsenceRequests(services.ExcusedRequestTestOptions{
 		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: events, Logger: slog.Default(),
 	})
@@ -134,7 +133,7 @@ func TestParentRequestLedgerRollsBackWithItsWrite(t *testing.T) {
 func listLedger(
 	t *testing.T,
 	db *bun.DB,
-	events usersSvc.ParentRequestEventRecorder,
+	events usersModels.ParentRequestEventRepository,
 	tenantID, requestID int64,
 ) []*usersModels.ParentRequestEvent {
 	t.Helper()

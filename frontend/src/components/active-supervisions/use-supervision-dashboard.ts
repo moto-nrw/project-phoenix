@@ -38,6 +38,7 @@ interface BFFDashboardResponse {
     name: string;
     canAssign: boolean;
     isCurrentUserSupervising?: boolean;
+    participantLimit?: number | null;
     room_id?: string;
     room?: { id: string; name: string; color?: string | null };
   }>;

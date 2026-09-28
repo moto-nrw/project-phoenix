@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 // Tagesauswertung (#1456): client for GET /api/students/day-log.
 // The proxy route forwards to the Go backend, which enforces the
 // gdpr.attendance_log_enabled gate and group scope.
@@ -51,13 +52,13 @@ export type DayLogErrorCode =
   | "invalid_request"
   | "unknown";
 
-export class DayLogError extends Error {
-  readonly code: DayLogErrorCode;
+export class DayLogError extends ApiError {
+  readonly legacyCode: DayLogErrorCode;
 
-  constructor(code: DayLogErrorCode, message?: string) {
-    super(message ?? code);
+  constructor(legacyCode: DayLogErrorCode, message?: string) {
+    super(message ?? legacyCode);
     this.name = "DayLogError";
-    this.code = code;
+    this.legacyCode = legacyCode;
   }
 }
 
@@ -80,14 +81,20 @@ export async function fetchDayLog(
   });
   if (!response.ok) {
     let code: DayLogErrorCode = "unknown";
+    let payload: unknown;
     try {
       const body = (await response.json()) as { error?: string };
+      payload = body;
       const match = KNOWN_CODES.find((known) => body.error === known);
       if (match) code = match;
     } catch {
       // non-JSON error body — keep "unknown"
     }
-    throw new DayLogError(code, `day log request failed (${response.status})`);
+    throw enrichApiError(
+      new DayLogError(code, `day log request failed (${response.status})`),
+      payload,
+      response.status,
+    );
   }
 
   const body = (await response.json()) as { data: DayLogResponse };

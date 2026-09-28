@@ -294,6 +294,29 @@ describe("useGlobalSSE — parent_message dispatch", () => {
     expect(listener).toHaveBeenCalledTimes(1);
     window.removeEventListener("messages-activity", listener);
   });
+
+  it("refreshes the badge and flags unread-only activity on parent_message_unread_changed", () => {
+    renderHook(() => useGlobalSSE());
+
+    const badge = vi.fn();
+    let detail: { unreadOnly?: boolean } | null = null;
+    const activity = (e: Event) => {
+      detail = (e as CustomEvent).detail as typeof detail;
+    };
+    window.addEventListener("messages-unread-refresh", badge);
+    window.addEventListener("messages-activity", activity);
+
+    fireSSE(makeEvent("parent_message_unread_changed", {}));
+
+    expect(badge).toHaveBeenCalledTimes(1);
+    expect(detail).toEqual({
+      threadId: null,
+      studentId: null,
+      unreadOnly: true,
+    });
+    window.removeEventListener("messages-unread-refresh", badge);
+    window.removeEventListener("messages-activity", activity);
+  });
 });
 
 // ---------------------------------------------------------------------------

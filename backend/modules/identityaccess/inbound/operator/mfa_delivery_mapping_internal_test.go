@@ -18,7 +18,7 @@ func TestMapOperatorMFAErrorDeliveryUnavailableWireContract(t *testing.T) {
 
 	assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
 	assert.Equal(t,
-		"{\"status\":\"Service Unavailable\",\"message\":\"MFA ist gerade nicht verfügbar. Bitte versuchen Sie es erneut.\"}\n",
+		"{\"status\":\"Service Unavailable\",\"message\":\"MFA ist gerade nicht verfügbar. Bitte versuchen Sie es erneut.\",\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-gerade-nicht-erreichbar\",\"title\":\"Service Unavailable\",\"detail\":\"MFA ist gerade nicht verfügbar. Bitte versuchen Sie es erneut.\",\"instance\":\"\",\"code\":\"general.unavailable\"}\n",
 		recorder.Body.String(),
 	)
 }

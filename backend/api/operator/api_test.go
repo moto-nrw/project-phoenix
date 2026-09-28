@@ -37,6 +37,10 @@ type stubSchoolSettings struct {
 	settings.OperatorSchoolSettings
 }
 
+type stubBillingReport struct {
+	organizationtenancy.BillingReport
+}
+
 type protectedRouteProvisioningService struct {
 	organizationtenancy.Provisioning
 	createSchoolFn func(context.Context, *organizationtenancy.CreateSchool, int64, net.IP) (*organizationtenancy.School, error)
@@ -152,6 +156,23 @@ func TestRouter(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.False(t, found, "expected settings routes NOT to be mounted when SchoolSettings is nil")
+	})
+
+	t.Run("billing seed route is mounted with the billing report", func(t *testing.T) {
+		cfg := operator.ResourceConfig{
+			Billing:  stubBillingReport{},
+			Sessions: operatorTestSessions(t, nil),
+		}
+		router := operator.NewResource(cfg).Router()
+
+		found := false
+		err := chiWalk(router, func(pattern string) {
+			if pattern == "/billing/key-date-counts/seed" {
+				found = true
+			}
+		})
+		require.NoError(t, err)
+		assert.True(t, found, "expected local billing seed route when billing is configured")
 	})
 }
 

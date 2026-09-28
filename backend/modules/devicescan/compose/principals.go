@@ -7,9 +7,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 )
 
-// principals reads the identities the device authentication bound to the
-// request: the kiosk itself and, after a verified account PIN, the staff
-// member operating it.
+// principals reads the identity the device authentication bound to the
+// request: the kiosk itself.
 type principals struct{}
 
 func (principals) Device(ctx context.Context) (*ports.Device, bool) {
@@ -21,12 +20,4 @@ func (principals) Device(ctx context.Context) (*ports.Device, bool) {
 		ID: principal.ID, TenantID: principal.TenantID, DeviceID: principal.DeviceID, DeviceType: principal.DeviceType, Name: principal.Name,
 		Status: principal.Status, LastSeen: principal.LastSeen, Active: principal.IsActive(),
 	}, true
-}
-
-func (principals) Staff(ctx context.Context) (*ports.Staff, bool) {
-	principal := device.StaffFromCtx(ctx)
-	if principal == nil {
-		return nil, false
-	}
-	return &ports.Staff{ID: principal.ID}, true
 }

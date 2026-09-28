@@ -89,8 +89,12 @@ export default function StartPage() {
             </div>
           </div>
 
+          {/* The demo records its sessions (#3603); this form with the
+              prospect's name, contact, and organisation is replaced by an
+              empty box in every recording (analytics-policy.ts). */}
           <form
             onSubmit={handleSubmit}
+            data-analytics-block=""
             className="moto-content-surface relative z-10 rounded-2xl border p-6 shadow-sm sm:p-8"
           >
             <div>

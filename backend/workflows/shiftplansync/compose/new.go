@@ -1,5 +1,5 @@
 // Package compose binds the shift-plan-sync workflow to the owner
-// capabilities and the retained timetable planning services.
+// capabilities.
 package compose
 
 import (
@@ -11,9 +11,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
@@ -22,8 +20,24 @@ import (
 )
 
 // SickCascadeDependencies are the surfaces the #1843 cascade writes across:
-// Workforce's Dienstplan on one side, the retained Betreuungsplan planning
-// services on the other.
+// Workforce's Dienstplan on one side, the Timetable owner's deviation writes
+// on the other.
+// TimetableRows are the Betreuungsplan rows and the day lock the sick
+// cascade reads through; the composition root binds them.
+type TimetableRows = application.TimetableRows
+
+// SickStamps are the sick-report provenance stamps on block assignments the
+// cascade lists and releases; the composition root binds them.
+type SickStamps = application.SickStamps
+
+// ScheduleInstances and ScheduleInstanceStaff are the appointment and
+// assignment reads of a Terminvertretung, in the Timetable owner's public
+// vocabulary; the composition root binds them.
+type (
+	ScheduleInstances     = application.ScheduleInstances
+	ScheduleInstanceStaff = application.ScheduleInstanceStaff
+)
+
 type SickCascadeDependencies struct {
 	// Planning is the shift write that rebuilds a cancelled shift's cover set
 	// atomically; Workforce serves the rows and the provenance stamp.
@@ -31,9 +45,11 @@ type SickCascadeDependencies struct {
 	Workforce       workforce.Capability
 	LockStaffShifts func(ctx context.Context, staffID int64) error
 
-	Instances     timetableplanning.InstanceService
-	TimetableData *timetableplanning.TimetableDataService
-	InstanceStaff scheduleModels.InstanceStaffRepository
+	// Deviations are the Timetable owner's sick-report writes
+	// (timetable.StaffDeviations satisfies them).
+	Deviations    application.SickDeviations
+	TimetableData TimetableRows
+	InstanceStaff SickStamps
 
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger
@@ -51,7 +67,7 @@ func NewSickCascade(deps SickCascadeDependencies) (shiftplansync.SickCascade, er
 		"Planning":        deps.Planning != nil,
 		"Workforce":       deps.Workforce != nil,
 		"LockStaffShifts": deps.LockStaffShifts != nil,
-		"Instances":       deps.Instances != nil,
+		"Deviations":      deps.Deviations != nil,
 		"TimetableData":   deps.TimetableData != nil,
 		"InstanceStaff":   deps.InstanceStaff != nil,
 	}); len(missing) > 0 {
@@ -63,7 +79,7 @@ func NewSickCascade(deps SickCascadeDependencies) (shiftplansync.SickCascade, er
 			rows:     deps.Workforce,
 			lock:     deps.LockStaffShifts,
 		},
-		Instances:     deps.Instances,
+		Deviations:    deps.Deviations,
 		TimetableData: deps.TimetableData,
 		InstanceStaff: deps.InstanceStaff,
 		Broadcaster:   deps.Broadcaster,
@@ -75,11 +91,12 @@ func NewSickCascade(deps SickCascadeDependencies) (shiftplansync.SickCascade, er
 // SubstitutionDependencies are the Betreuungsplan surfaces a Terminvertretung
 // reads and writes.
 type SubstitutionDependencies struct {
-	// Instances applies the deviations; ActivityInstances, InstanceStaff and
-	// Staff serve the overview the planner reads.
-	Instances         timetableplanning.InstanceService
-	ActivityInstances scheduleModels.ActivityInstanceRepository
-	InstanceStaff     scheduleModels.InstanceStaffRepository
+	// Deviations applies the Timetable owner's deviation writes
+	// (timetable.StaffDeviations); ActivityInstances, InstanceStaff and Staff
+	// serve the overview the planner reads.
+	Deviations        application.ScheduleDeviations
+	ActivityInstances ScheduleInstances
+	InstanceStaff     ScheduleInstanceStaff
 	Staff             usersModels.StaffRepository
 
 	Broadcaster realtime.Broadcaster
@@ -90,7 +107,7 @@ type SubstitutionDependencies struct {
 // (services/education stays the port owner until #2742).
 func NewSubstitution(deps SubstitutionDependencies) (shiftplansync.ScheduleSubstitution, error) {
 	if missing := missingNames(map[string]bool{
-		"Instances":         deps.Instances != nil,
+		"Deviations":        deps.Deviations != nil,
 		"ActivityInstances": deps.ActivityInstances != nil,
 		"InstanceStaff":     deps.InstanceStaff != nil,
 		"Staff":             deps.Staff != nil,
@@ -101,7 +118,7 @@ func NewSubstitution(deps SubstitutionDependencies) (shiftplansync.ScheduleSubst
 		Instances:     deps.ActivityInstances,
 		InstanceStaff: deps.InstanceStaff,
 		Staff:         deps.Staff,
-		Engine:        deps.Instances,
+		Engine:        deps.Deviations,
 		Broadcaster:   deps.Broadcaster,
 		Logger:        deps.Logger,
 	}), nil

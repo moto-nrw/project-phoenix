@@ -7,7 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
-// ErrStudentGuardianNotFound is returned when no students_guardians row joins a
+// ErrStudentGuardianNotFound is returned when no student-guardian relationship joins a
 // given student and guardian profile. Mirrors ErrGuardianProfileNotFound so
 // callers can map a missing relationship to a stable sentinel instead of
 // matching sql.ErrNoRows.
@@ -16,7 +16,7 @@ var ErrStudentGuardianNotFound = errors.New("student guardian relationship not f
 // GuardianLinkedChild is a minimal projection of a child currently linked to a
 // guardian, used by the guardian picker search to show which children a guardian
 // belongs to (sibling case, #1513). It is NOT a persisted entity — it is scanned
-// from a join across students_guardians → students → persons.
+// from a join across guardian relationships → students → persons.
 type GuardianLinkedChild struct {
 	GuardianProfileID int64  `bun:"guardian_profile_id"`
 	StudentID         int64  `bun:"student_id"`
@@ -24,9 +24,13 @@ type GuardianLinkedChild struct {
 	LastName          string `bun:"last_name"`
 }
 
-// StudentGuardian represents the relationship between a student and their guardian
+// StudentGuardian represents the relationship between a student and their
+// guardian as one row: People Directory's relationship with Care Plan's
+// pickup permission and Identity & Access's parents-portal permissions
+// (#2756). It is read through the guardian-link projection and written to the
+// owner of each column; it names no table of its own.
 type StudentGuardian struct {
-	base.Model `bun:"schema:users,table:students_guardians"`
+	base.Model `bun:"alias:student_guardian"`
 	base.TenantModel
 	StudentID          int64   `bun:"student_id,notnull" json:"student_id"`
 	GuardianProfileID  int64   `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`

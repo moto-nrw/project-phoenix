@@ -17,7 +17,6 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
@@ -155,12 +154,15 @@ func NewRetentionCleanupService(db *bun.DB, logger *slog.Logger, command AuditCo
 	)
 }
 
-func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger, command AuditCommand) timetableplanning.TimetableCleanupService {
-	repos := repositories.NewTimetableCleanupRepositories(db, command, timetableCapability)
-	return timetableplanning.NewTimetableCleanupService(
-		repos.Instance, repos.Exception, repos.Student, repos.Deletion, repos.Deviation,
-		NewCleanupSettingsService(db, runtime, schools, logger), logger,
-	)
+func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger, command AuditCommand) (TimetableCleanup, error) {
+	repos := repositories.NewTimetableCleanupRepositories(db, command)
+	return newTimetableCleanup(timetableRetentionInputs{
+		Owner:      timetableCapability,
+		Deletions:  repos.Deletion,
+		Deviations: repos.Deviation,
+		Settings:   NewCleanupSettingsService(db, runtime, schools, logger),
+		Logger:     logger,
+	})
 }
 
 func NewTimeTrackingCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger, command AuditCommand) timetracking.TimeTrackingCleanupService {

@@ -343,9 +343,12 @@ const mockStudents = [
   },
 ];
 
+let childQuota: { booked: number; occupied: number } | null = null;
+
 describe("StudentsPage", () => {
   beforeEach(() => {
     suspendSearchParams = false;
+    childQuota = null;
     vi.clearAllMocks();
     currentSearch = new URLSearchParams();
     mockSessionWithPermissions(["config:manage", "users:delete"]);
@@ -355,6 +358,15 @@ describe("StudentsPage", () => {
       if (key === "database-students-list") {
         return {
           data: mockStudents,
+          isLoading: false,
+          error: null,
+          isValidating: false,
+          mutate: vi.fn(),
+        } as ReturnType<typeof useSWRAuth>;
+      }
+      if (key === "database-students-child-quota") {
+        return {
+          data: childQuota,
           isLoading: false,
           error: null,
           isValidating: false,
@@ -395,6 +407,24 @@ describe("StudentsPage", () => {
       expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
       expect(screen.getByText("Anna Schmidt")).toBeInTheDocument();
     });
+  });
+
+  it("shows the Kinderkontingent in the page head, apart from the child count", () => {
+    childQuota = { booked: 50, occupied: 48 };
+
+    render(<StudentsPage />);
+
+    const intro = screen.getByTestId("page-intro");
+    expect(intro).toHaveTextContent("Kinderkontingent: 48 von 50 belegt");
+    expect(intro).toHaveTextContent("Ihr Vertrag erlaubt bis zu 50 Kinder.");
+  });
+
+  it("shows no Kinderkontingent when the school has none", () => {
+    render(<StudentsPage />);
+
+    expect(screen.getByTestId("page-intro")).not.toHaveTextContent(
+      "Kinderkontingent",
+    );
   });
 
   it("links every row to the child's record with the register as referrer", async () => {

@@ -158,6 +158,30 @@ func TestProvisioningListSchoolSummaries(t *testing.T) {
 		assert.Nil(t, h.dashboard.schoolFilter[0])
 	})
 
+	t.Run("carries the Kinderkontingent next to the Kontingentzahl", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		seedDashboard(h)
+		bundles := 2
+		h.engine.schools[10].ChildQuotaBundles, h.engine.schools[10].ChildQuotaBundleSize = &bundles, 50
+		h.engine.schools[20].ChildQuotaBundleSize = 50
+		h.people.childQuotaCounts = map[int64]int{10: 120, 20: 8}
+
+		summaries, err := h.svc.ListSchoolSummaries(context.Background())
+
+		require.NoError(t, err)
+		require.Len(t, summaries, 4)
+		limited, unlimited, empty := summaries[0], summaries[1], summaries[2]
+		require.Equal(t, int64(10), limited.ID)
+		assert.Equal(t, &bundles, limited.ChildQuotaBundles)
+		assert.Equal(t, 50, limited.ChildQuotaBundleSize)
+		assert.Equal(t, 120, limited.ChildQuotaCount, "a count above the Kinderkontingent is shown as it is")
+		require.Equal(t, int64(20), unlimited.ID)
+		assert.Nil(t, unlimited.ChildQuotaBundles, "a school without Kinderkontingent has no bundles")
+		assert.Equal(t, 8, unlimited.ChildQuotaCount, "the Kontingentzahl is counted without a Kinderkontingent too")
+		assert.Zero(t, empty.ChildQuotaCount, "a school without a counted child counts zero")
+	})
+
 	t.Run("no schools reads no counts", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -177,6 +201,10 @@ func TestProvisioningListSchoolSummaries(t *testing.T) {
 		"school rows":   {func(h *provisioningHarness) { h.dashboard.fail["SchoolSummaries"] = errBoom }, ""},
 		"device counts": {func(h *provisioningHarness) { h.devices.fail["CountDevicesByTenant"] = errBoom }, "count devices for school summaries"},
 		"person counts": {func(h *provisioningHarness) { h.people.fail["CountPersonsByTenant"] = errBoom }, "count persons for school summaries"},
+		"child quota counts": {
+			func(h *provisioningHarness) { h.people.fail["CountChildQuotaByTenant"] = errBoom },
+			"count child quota for school summaries",
+		},
 	} {
 		t.Run(name+" failure", func(t *testing.T) {
 			t.Parallel()

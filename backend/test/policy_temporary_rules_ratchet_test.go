@@ -70,7 +70,29 @@ import (
 // became exact `legacy.jsonl` debt under the same issue, lowering them to 177
 // and 236. Slice S6 of #3424 (ADR 0038) retired the three grants the School
 // Calendar handover emptied; this prose counter remains as an independent
-// guard.
+// guard. #3421 converted the 27 `inbound-parent.*` permissions of the
+// guardian portal HTTP adapter into 29 exact `legacy.jsonl` entries under the
+// same issue, removing the family and lowering the totals by 27 each. Slice
+// S4 of #3424 (#3550) moved conflict detection and staffing to the Timetable
+// owner and retired the four grants it emptied, one of them a conversion
+// promise (document-rendering), lowering the totals to 95 and 153. Slice S5
+// (#3551) moved the timetable reads, the operational day and the cleanup and
+// retired the seventeen grants it emptied, sixteen of them conversion promises,
+// lowering the totals to 79 and 137. Slice S2 (#3552) moved the template
+// writes, the materialization and the roster maintenance and retired the
+// thirteen grants it emptied, twelve of them conversion promises, lowering
+// the totals to 67 and 125. Slice S3 (#3553) moved the deviation writes, the
+// attendance correction and the attendance mirror and retired the two
+// compatibility grants their suites emptied, both conversion promises,
+// lowering the totals to 65 and 123. #3554 deleted the legacy SQL test
+// providers (modules/timetable/legacy/timetablesqltest) and retired the
+// fifteen grants only they used, all conversion promises, lowering the totals
+// to 50 and 108. Its lifecycle move then deleted the nest itself with every
+// grant that still named #3424 and the four stale grants that reached only
+// the nest, lowering the totals to 4 and 62. #3562 moved the parent
+// portal's care-period and offering-history reads behind its own ports and
+// retired the two parent-portal grants to the retained Enrollment
+// application, lowering the wider total to 60.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -120,12 +142,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 129
+	policyTempRulesTotal = 4
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 188
+	policyTempRulesCompatTotal = 57
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -151,31 +173,29 @@ var policyTempRulesCompatMarkers = []string{
 var policyTempRulesFamilies = map[string]int{
 	// #3214, #3218, #3220, #3224 — all closed.
 	// #3422 removed 2 that went stale with legacy/services/active.
-	"calendar-view": 2,
 
 	// #3218, #3219, #3220 — closed.
-	"document-rendering": 2,
+	// #3554 removed the last one with the legacy SQL test providers.
 
 	// #3214, #3218, #3220 — closed; #3427 removed the three #3350 (PR #3408)
 	// had added.
-	"enrollment": 3,
+	// #3552 removed 2 that the template-roster move emptied.
+	// #3554 removed the last one with the legacy SQL test providers.
 
 	// #3214, #3218, #3220, #3224 — closed; #3427 removed the one #3350 added.
 	// #3422 removed 1 that went stale with legacy/services/active.
-	"group-live-view": 1,
-
-	// #3229, #3214, #3220 — closed; #2725 (OPEN) for one rule.
-	"inbound-parent": 27,
 
 	// #3214, #3218, #3220, #3224 — closed. #3427 removed the 36 that #3350
 	// (PR #3408) had added with the care-lifecycle adapter.
 	// #3422 removed 4 that went stale with legacy/services/active.
-	"inbound-students": 2,
+	// #3552 removed 1 that the template-roster move emptied.
 
 	// #3218, #3220, #3214, #3224 — closed. The largest family: 90 rules, every
 	// one of them permitted by an issue that is done.
 	// #3422 removed 5 that went stale with legacy/services/active.
-	"inbound-timetable": 72,
+	// #3552 removed 6 that the template and materialization move emptied.
+	// #3553 removed 2 that the attendance mirror and deviation move emptied.
+	// #3554 removed 12 with the legacy SQL test providers.
 
 	// #2725 (OPEN) and #3224 (closed) name most rules jointly; #3214 the rest.
 	// The only large family with a live issue behind it.
@@ -183,39 +203,28 @@ var policyTempRulesFamilies = map[string]int{
 	// #3214, #3218, #3219, #3220, #3224 — closed; #3427 removed the one #3350
 	// (PR #3408) added.
 	// #3422 removed 1 that went stale with legacy/services/active.
-	"legacy-composition": 1,
 
 	// #3214, #3218 — closed; #3427 removed the one #3350 (PR #3408) added.
 	// #3422 removed 1 that went stale with legacy/services/active.
-	"people-directory": 1,
+	// #3552 removed the last one with the template-roster move.
 
 	// #3214, #3218, #3220 — closed.
 	// #3422 removed 1 that went stale with legacy/services/active.
-	"process-device-scan": 1,
 
 	// #3207, #3214, #3217, #3218, #3219, #3220, #3224, #3229 — all closed.
 	// #3422 removed 2 that went stale with legacy/services/active.
-	"root-composition": 5,
+	// #3552 removed 1 that the template composition move emptied.
+	"root-composition": 3,
 
 	// #3214, #3218, #3220 — closed.
 	// #3422 removed 3 that went stale with legacy/services/active.
-	"scheduler-runtime": 3,
+	// #3554 removed 1 with the legacy SQL test providers.
 
-	// #3214, #3218 — closed.
-	"school-structure": 1,
-
-	// #3448 for the one test-support rule; #2736 removed the #3232 rules and
-	// #3427 the one #3350 (PR #3408) added.
-	"settings-platform": 1,
-
-	// #3214, #3207, #3218, #3224 — closed.
-	// #3422 removed 7 that went stale with legacy/services/active and rewrote
-	// the 9 of the dissolved nest's behaviour suites, which now describe the
-	// module's own suites and promise no conversion.
-	"student-presence": 5,
+	// #3214, #3218 — closed. #3552 removed the last one with the
+	// template-roster move.
 
 	// #3214, #3218, #3229 — closed.
-	"test-support": 2,
+	"test-support": 1,
 
 	// #3214, #3218, #3220, #3224 — closed.
 }

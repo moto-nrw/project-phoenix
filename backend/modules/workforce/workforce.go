@@ -66,19 +66,19 @@ func ErrorCode(err error) string {
 	case errors.Is(err, ErrInvalidWorkTime), errors.Is(err, ErrInvalidStaffAbsence), errors.Is(err, ErrInvalidGroupSubstitution),
 		errors.Is(err, ErrAbsenceTypeInvalid), errors.Is(err, ErrAbsenceTypeAllowanceInvalid),
 		errors.Is(err, ErrInvalidStaffShift), errors.Is(err, ErrInvalidShiftSeries), errors.Is(err, ErrInvalidShiftType),
-		errors.Is(err, ErrInvalidWorkSession), errors.Is(err, ErrInvalidStaffRecord):
+		errors.Is(err, ErrInvalidWorkSession), errors.Is(err, ErrInvalidStaffRecord), errors.Is(err, ErrInvalidStaffTargetOverride):
 		return "invalid"
 	case errors.Is(err, ErrStaffAbsenceNotFound), errors.Is(err, ErrAbsenceTypeNotFound), errors.Is(err, ErrGroupSubstitutionNotFound),
 		errors.Is(err, ErrStaffShiftNotFound), errors.Is(err, ErrShiftSeriesNotFound), errors.Is(err, ErrShiftTypeNotFound),
 		errors.Is(err, ErrWorkSessionNotFound), errors.Is(err, ErrWorkSessionBreakNotFound), errors.Is(err, ErrStaffBalanceAdjustmentNotFound),
 		errors.Is(err, ErrStaffVacationOpeningNotFound), errors.Is(err, ErrStaffVacationQuotaNotFound),
 		errors.Is(err, ErrStaffMasterDataNotFound), errors.Is(err, ErrStaffFinancialDataNotFound), errors.Is(err, ErrStaffDocumentNotFound),
-		errors.Is(err, ErrStaffEmploymentNotFound):
+		errors.Is(err, ErrStaffEmploymentNotFound), errors.Is(err, ErrStaffTargetOverrideNotFound):
 		return "not_found"
 	case errors.Is(err, ErrAbsenceTypeNameTaken), errors.Is(err, ErrAbsenceTypeNameReserved), errors.Is(err, ErrAbsenceTypeInUse),
 		errors.Is(err, ErrAbsenceTypeInactive), errors.Is(err, ErrAbsenceTypeAllowanceExceeded), errors.Is(err, ErrAllowanceBookingOverlap), errors.Is(err, ErrGroupSubstitutionExists),
 		errors.Is(err, ErrStaffShiftDuplicate), errors.Is(err, ErrShiftTypeNameTaken), errors.Is(err, ErrWorkSessionAlreadyOpen),
-		errors.Is(err, ErrPersonnelNumberTaken):
+		errors.Is(err, ErrPersonnelNumberTaken), errors.Is(err, ErrStaffTargetOverrideRejected):
 		return "conflict"
 	default:
 		return "internal_error"
@@ -167,6 +167,7 @@ type Query interface {
 	ShiftQuery
 	WorkSessionQuery
 	StaffRecordQuery
+	StaffTargetOverrideQuery
 
 	// ListWorkTimeModels returns every template of the caller's tenant with
 	// its entries, ordered by name.
@@ -202,6 +203,7 @@ type Command interface {
 	ShiftCommand
 	WorkSessionCommand
 	StaffRecordCommand
+	StaffTargetOverrideCommand
 
 	CreateWorkTimeModel(context.Context, CreateWorkTimeModel) (WorkTimeModel, error)
 	// UpdateWorkTimeModel replaces the template metadata and every entry, and
@@ -228,6 +230,7 @@ type engine interface {
 	shiftEngine
 	workSessionEngine
 	staffRecordEngine
+	targetOverrideEngine
 
 	ListWorkTimeModels(context.Context) ([]WorkTimeModel, error)
 	FindWorkTimeModel(context.Context, int64) (WorkTimeModel, error)

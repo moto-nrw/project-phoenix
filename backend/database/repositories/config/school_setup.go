@@ -18,7 +18,7 @@ const (
 	tableSchoolSetupDismissals = "config.school_setup_dismissals"
 )
 
-// schoolSetupRow is one config.school_setups row (#2832, ADR 0040).
+// schoolSetupRow is one config.school_setups row (#2832, ADR 0042).
 type schoolSetupRow struct {
 	ID           int64      `bun:"id,pk,autoincrement"`
 	TenantID     int64      `bun:"tenant_id,notnull"`

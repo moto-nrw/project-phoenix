@@ -1,3 +1,4 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
 import { type NextRequest, NextResponse } from "next/server";
 import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
@@ -6,6 +7,7 @@ import {
   DEMO_TOKEN_COOKIE_OPTIONS,
   demoBackendUrl,
 } from "../forward";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 
 const logger = createLogger({ component: "DemoSessionRoute" });
 
@@ -38,6 +40,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({ token, role }),
     });
+    if (!backend.ok) return forwardBackendResponse(backend);
     const payload: unknown = await backend.json().catch(() => ({}));
     const response = NextResponse.json(payload, { status: backend.status });
     if (backend.ok && linkToken) {
@@ -49,6 +52,7 @@ export async function POST(request: NextRequest) {
     }
     return response;
   } catch (error) {
+    captureBffException(error, request);
     logger.error("demo_session_forward_failed", {
       error: error instanceof Error ? error.message : String(error),
     });

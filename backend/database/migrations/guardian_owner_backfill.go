@@ -303,6 +303,16 @@ const guardianOwnerCopyBatch = `
 	       (SELECT count(*) FROM (SELECT id FROM relationships UNION SELECT id FROM pickup
 	                              UNION SELECT id FROM access) AS written) AS copied`
 
+// copyGuardianOwnerRows runs one copy step of the backfill statement inside
+// the caller's transaction: the rows after highWater, at most limit of them.
+// The cutover's final delta (#2756) loops it under its write lock.
+func copyGuardianOwnerRows(ctx context.Context, tx bun.Tx, tenantID, highWater int64, limit int) (guardianOwnerBatch, error) {
+	var batch guardianOwnerBatch
+	err := tx.NewRaw(guardianOwnerCopyBatch, tenantID, highWater, limit, highWater).
+		Scan(ctx, &batch.Scanned, &batch.LastID, &batch.Rejected, &batch.Copied)
+	return batch, err
+}
+
 // RunGuardianOwnerBackfill copies users.students_guardians into
 // users.student_guardian_relationships, users.student_guardian_pickup_permissions
 // and auth.guardian_student_access for every school, in deterministic tenant/id
@@ -772,9 +782,11 @@ func ResetGuardianOwnerBackfill(ctx context.Context, db *bun.DB) error {
 	})
 }
 
-// assertGuardianSourceIsBaseTable guards every target-only write: Cutover
-// replaces users.students_guardians with a compatibility view, after which the
-// targets are authoritative and must not be overwritten from the old shape.
+// assertGuardianSourceIsBaseTable guards every target-only write: after
+// Cutover (#2756) users.students_guardians is only a rollback mirror of the
+// targets, which are authoritative and must not be overwritten from the old
+// shape. The mirror stays a base table, so the installed compatibility
+// triggers are what mark the switch.
 func assertGuardianSourceIsBaseTable(ctx context.Context, db bun.IDB) error {
 	var kind string
 	if err := db.NewRaw(`SELECT relkind::text FROM pg_class WHERE oid = 'users.students_guardians'::regclass`).Scan(ctx, &kind); err != nil {
@@ -783,5 +795,5 @@ func assertGuardianSourceIsBaseTable(ctx context.Context, db bun.IDB) error {
 	if kind != "r" {
 		return fmt.Errorf("guardian owner backfill: users.students_guardians is not a base table (relkind %q); the targets are authoritative after Cutover", kind)
 	}
-	return nil
+	return requireGuardianStorageBeforeCutover(ctx, db)
 }

@@ -269,6 +269,7 @@ func TestBackfillStudentOwnerCommands(t *testing.T) {
 func TestBackfillGuardianOwnerCommands(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	testpkg.RestoreGuardianStorageBeforeCutover(t, db)
 	ctx := context.Background()
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)

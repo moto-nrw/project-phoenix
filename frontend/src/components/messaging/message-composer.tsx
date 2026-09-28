@@ -56,15 +56,26 @@ export function MessageComposer({
 }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
 
-  // Grow with the content up to a max, then scroll inside the field.
+  // Grow with the content up to a max, then scroll inside the field. The max
+  // is 160px, but at most a third of the visible viewport: with a phone's
+  // soft keyboard open the chat is only a few hundred pixels tall, and a
+  // 160px field would push the line being typed out of the chat (#3664).
   const autoSize = useCallback(() => {
     const el = ref.current;
     if (!el) return;
+    const visibleHeight = window.visualViewport?.height ?? window.innerHeight;
+    const maxHeight = Math.min(160, Math.round(visibleHeight / 3));
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-    el.style.overflowY = el.scrollHeight > 160 ? "auto" : "hidden";
+    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+    el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
   }, []);
   useEffect(autoSize, [value, autoSize]);
+  // The keyboard opens after the field gains focus, without a value change.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", autoSize);
+    return () => vv?.removeEventListener("resize", autoSize);
+  }, [autoSize]);
 
   const disabled = externallyDisabled || sending || value.trim().length === 0;
 

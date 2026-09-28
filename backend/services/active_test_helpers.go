@@ -7,6 +7,7 @@ import (
 	"time"
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -19,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -40,13 +40,16 @@ type activeTestYard struct {
 type ActiveTestModule struct {
 	GroupsTestModule
 	IoTDataTestModule
-	Settings             config.SettingsService
-	Schulhof             activeTestYard
-	PickupSchedule       careplan.PickupScheduleService
-	ArrivalSchedule      careplan.ArrivalScheduleService
-	TimetableOperations  timetableplanning.TimetableOperationsService
-	CareDay              careplan.CareDayQuery
-	Instance             timetableplanning.InstanceService
+	Settings            config.SettingsService
+	Schulhof            activeTestYard
+	PickupSchedule      careplan.PickupScheduleService
+	ArrivalSchedule     careplan.ArrivalScheduleService
+	TimetableOperations timetable.OperationCapability
+	CareDay             careplan.CareDayQuery
+	Instance            *arrivalTimetable.InstanceLifecycleService
+	// Deviations are the Timetable owner's deviation writes over the same
+	// repositories (#3424 slice S3).
+	Deviations           timetable.StaffDeviations
 	SupervisionDashboard supervisiondashboard.Query
 	// SessionEnd is the kiosk session end workflow over the real owners.
 	SessionEnd       sessionend.Command
@@ -137,7 +140,14 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		return ActiveTestModule{}, err
 	}
 	careplanCompose.WireCareParticipation(careDay, care.CareLifecycle)
-	bridge := timetableplanning.NewTimetableBridgeService(timetableplanning.TimetableBridgeDependencies{Instances: r.ActivityInstance, InstanceStudents: r.InstanceStudent, CareDays: careDay})
+	bridge, err := NewTimetableEndedSessionCompletion(r.OwnerRows(), careDay)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
+	attendanceMirror, err := NewTimetableAttendanceMirror(r.OwnerRows(), logger)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
 	displayGroups, err := repositories.NewSchoolStructure(db)
 	if err != nil {
 		return ActiveTestModule{}, err
@@ -157,7 +167,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		StudentRepo: PresenceStudents(db, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff), RoomRepo: NewAttendanceRooms(r.Room),
 		ActivityGroupRepo: repositories.NewSessionActivities(r.ActivityGroup), ActivityCatRepo: NewAttendanceActivityCategories(r.ActivityCategory), EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), DeviceRepo: NewSessionDeviceDirectory(devices, settings.Settings, logger),
 		StaffNames: NewAttendanceStaffNames(r.Staff, data.Users), DB: db, Broadcaster: hub, WorkSessionService: work.WorkSession,
-		AttendanceSyncer:         timetableplanning.NewAttendanceSyncService(r.ActivityInstance, r.InstanceStudent, logger),
+		AttendanceSyncer:         attendanceMirror,
 		TimetableBridgeCompleter: bridge, Logger: logger, Now: optionalClock(clocks),
 	}
 	presence := presenceservice.NewPresence(presenceDeps, presenceservice.WithPresenceSettings(PresenceSettings(settings.Settings)))
@@ -186,13 +196,18 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	operations := timetableplanning.NewTimetableOperationsService(timetableplanning.TimetableOperationsDependencies{
-		InstanceRepo: r.ActivityInstance, InstanceStaffRepo: r.InstanceStaff, InstanceStudents: r.InstanceStudent, InstanceService: tt.Instance,
-		ActiveGroupRepo: r.ActiveGroup, ActivityGroupRepo: r.ActivityGroup, ActiveService: presence,
-		ArrivalService: arrivals, PickupService: pickups, CareDayService: careDay, SupervisorRepo: r.GroupSupervisor, Presence: newStudentPresence(db, logger),
-		StudentRepo: r.Student, EducationGroupRepo: r.Group, RoomRepo: r.Room, PersonService: timetableOperationPeople{OperationPersonService: data.Users, membership: membership}, PlanningTrackRepo: r.PlanningTrack,
-		Settings: settings.Settings, Broadcaster: hub, DB: db, Logger: logger, Now: optionalClock(clocks), RecoveryRepo: repositories.NewActivityRecoveryRepository(db, r.InstanceStudent),
+	operationRows := r.OwnerRows()
+	operationRows.Locks = repositories.NewActivityRecoveryRepository(db, r.InstanceStudent)
+	operations, err := newTimetableOperations(timetableOperationInputs{
+		Rows: operationRows, Lifecycle: tt.Instance.OperationLifecycle(),
+		Sessions: r.ActiveGroup, Presence: presence,
+		Arrivals: arrivals, Pickups: pickups, CareDays: careDay, Supervisions: r.GroupSupervisor, Visits: newStudentPresence(db, logger),
+		People: timetableOperationPeople{OperationPeople: data.Users, membership: membership}, PlanningTracks: r.Timetable,
+		Settings: settings.Settings, Broadcaster: hub, Logger: logger, Now: optionalClock(clocks),
 	})
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
 	timetableOwner, err := repositories.NewTimetable(db, students, rooms)
 	if err != nil {
 		return ActiveTestModule{}, err
@@ -211,6 +226,6 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		return ActiveTestModule{}, err
 	}
 	return ActiveTestModule{GroupsTestModule: groups, IoTDataTestModule: data, Settings: settings.Settings, Schulhof: activeTestYard{SchulhofService: yard, Yard: supervisiondashboardlegacy.NewYard(yard)},
-		PickupSchedule: pickups, ArrivalSchedule: arrivals, TimetableOperations: operations, SupervisionDashboard: dashboard, CareDay: careDay, Instance: tt.Instance,
+		PickupSchedule: pickups, ArrivalSchedule: arrivals, TimetableOperations: operations, SupervisionDashboard: dashboard, CareDay: careDay, Instance: tt.Instance, Deviations: tt.TimetableData.Deviations,
 		SessionEnd: sessionEnd, SessionLifecycle: devicescanCompose.NewSessionLifecycle(presence, devicescanCompose.NewSupervisionQuery(newStudentPresence(db, logger)), data.Users, data.IoT, nil, logger)}, nil
 }

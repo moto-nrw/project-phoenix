@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
+vi.mock("@sentry/nextjs", () => ({ captureException }));
+
 import { createFileExportRoute } from "./export-proxy.server";
 
 // The shared body of the export routes that answer with a file. It bypasses
@@ -121,7 +124,22 @@ describe("createFileExportRoute", () => {
     const response = await route(exportRequest());
 
     expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: "range exceeds 8 weeks" });
+    expect(await response.text()).toBe("range exceeds 8 weeks");
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("forwards a backend 5xx without a BFF event", async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("backend down", { status: 503 }),
+      ) as unknown as typeof fetch;
+
+    const response = await route(exportRequest());
+
+    expect(response.status).toBe(503);
+    expect(await response.text()).toBe("backend down");
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   // A 15-minute access token expires under a planning tab left open all
@@ -210,15 +228,19 @@ describe("createFileExportRoute", () => {
   });
 
   it("reports an unreachable backend as a server error", async () => {
+    const failure = new Error("connect ECONNREFUSED");
     globalThis.fetch = vi
       .fn()
-      .mockRejectedValue(
-        new Error("connect ECONNREFUSED"),
-      ) as unknown as typeof fetch;
+      .mockRejectedValue(failure) as unknown as typeof fetch;
 
-    const response = await route(exportRequest());
+    const request = exportRequest();
+    request.headers.set("X-Request-ID", "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10");
+    const response = await route(request);
 
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: "connect ECONNREFUSED" });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {
+      tags: { request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10" },
+    });
   });
 });

@@ -19,8 +19,13 @@ import { CircleCheck, TriangleAlert } from "lucide-react";
 import { CoverageIndicator } from "~/components/ui/coverage-indicator";
 import { PlanBlock } from "~/components/ui/plan-block";
 import { TIMETABLE_NEUTRAL_COLOR } from "~/components/timetable/timetable-style";
+import { OverbookedBadge } from "~/components/ui/occupancy-badges";
+import {
+  formatPresentAgainstLimit,
+  type Occupancy,
+} from "~/lib/activity-occupancy";
 import type { EnrichedInstance } from "~/lib/timetable-types";
-import { useShowTimetableCounts } from "~/lib/tenant-context";
+import { useNFCEnabled, useShowTimetableCounts } from "~/lib/tenant-context";
 
 interface InstanceBlockProps {
   instance: EnrichedInstance;
@@ -71,6 +76,16 @@ export function InstanceBlock({
   const showTimetableCounts = useShowTimetableCounts();
   const isCancelled = instance.status === "cancelled";
   const isActive = instance.status === "active";
+  const nfcEnabled = useNFCEnabled();
+  // #3634: ein laufender Block vergleicht die Kinder, die gerade da sind, mit
+  // der Grenze seiner Aktivität.
+  const occupancy: Occupancy | null =
+    isActive && instance.occupancy
+      ? {
+          count: instance.occupancy.currentStudentsCount,
+          limit: instance.occupancy.participantLimit,
+        }
+      : null;
   const hasConflict = instance.conflictWarnings.length > 0;
   const isCompact = height <= COMPACT_HEIGHT_PX;
   const isTiny = height <= TINY_HEIGHT_PX;
@@ -223,11 +238,26 @@ export function InstanceBlock({
             />
           )}
           {coverage}
+          {/* Vor den Zahlen, damit das Abschneiden schmaler Blöcke es nicht
+              frisst; als Kit-Abzeichen in lesbarer Größe. */}
+          {!isCompact && occupancy ? (
+            <OverbookedBadge
+              occupancy={occupancy}
+              nfcEnabled={nfcEnabled}
+              compact
+            />
+          ) : null}
           {!isCompact && (
             <span className="truncate">
               {instance.staffCount} P
               {showTimetableCounts && ` · ${totalStudents} K`}
-              {showTimetableCounts && isActive && totalStudents > 0
+              {showTimetableCounts && occupancy
+                ? ` · ${formatPresentAgainstLimit(occupancy.count, occupancy.limit)}`
+                : ""}
+              {showTimetableCounts &&
+              !occupancy &&
+              isActive &&
+              totalStudents > 0
                 ? ` · ${instance.presentStudentsCount} anwesend`
                 : ""}
             </span>

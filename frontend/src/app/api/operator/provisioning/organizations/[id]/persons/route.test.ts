@@ -98,11 +98,12 @@ describe("GET /api/operator/provisioning/organizations/[id]/persons", () => {
 
   it("propagates a backend 500 as an error response", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 500,
-      text: async () => "internal error",
-    });
+    mockFetch.mockResolvedValue(
+      new Response("internal error", {
+        status: 500,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/provisioning/organizations/42/persons",

@@ -5,10 +5,8 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/modules/guardianlinkview"
 )
 
 // MessageableGuardianRepository answers which guardians of a child may receive
@@ -17,7 +15,7 @@ import (
 // membership is a bounded Identity & Access fact it filters through.
 // Communication receives the answer, not the join.
 type MessageableGuardianRepository struct {
-	db                *bun.DB
+	runtime           Runtime
 	activeMemberships SchoolMembershipLookup
 }
 
@@ -27,8 +25,8 @@ type SchoolMembershipLookup func(context.Context, []int64, []int64) (map[int64][
 
 // NewMessageableGuardianRepository wires the recipient lookup with the
 // owner's bounded membership lookup.
-func NewMessageableGuardianRepository(db *bun.DB, activeMemberships SchoolMembershipLookup) *MessageableGuardianRepository {
-	return &MessageableGuardianRepository{db: db, activeMemberships: activeMemberships}
+func NewMessageableGuardianRepository(runtime Runtime, activeMemberships SchoolMembershipLookup) *MessageableGuardianRepository {
+	return &MessageableGuardianRepository{runtime: requireRuntime(runtime), activeMemberships: activeMemberships}
 }
 
 // ListGuardiansForStudent returns the child's account-holding guardians who may
@@ -52,31 +50,30 @@ func NewMessageableGuardianRepository(db *bun.DB, activeMemberships SchoolMember
 // owner's facts keeps this check scoped to the relationship's school.
 func (r *MessageableGuardianRepository) ListGuardiansForStudent(ctx context.Context, studentID int64) ([]*users.MessageableGuardian, error) {
 	if r.activeMemberships == nil {
-		return nil, &modelBase.DatabaseError{Op: "list guardians for student", Err: errors.New("active membership query is required")}
+		return nil, &users.DatabaseError{Op: "list guardians for student", Err: errors.New("active membership query is required")}
 	}
 	var rows []struct {
 		users.MessageableGuardian
 		SchoolID int64 `bun:"school_id"`
 	}
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr("users.students_guardians AS sg").
-		ColumnExpr("sg.tenant_id AS school_id").
+	query := guardianlinkview.Query(r.runtime.DB(ctx), 0).
+		ColumnExpr("student_guardian.tenant_id AS school_id").
 		ColumnExpr("gp.account_id AS account_id").
 		ColumnExpr("btrim(COALESCE(gp.first_name,'') || ' ' || COALESCE(gp.last_name,'')) AS name").
-		ColumnExpr("sg.relationship_type AS relationship_type").
-		ColumnExpr("sg.is_primary AS is_primary").
+		ColumnExpr("student_guardian.relationship_type AS relationship_type").
+		ColumnExpr("student_guardian.is_primary AS is_primary").
 		ColumnExpr("COALESCE(gp.portal_locale, 'de') AS portal_locale").
-		Join("JOIN users.guardian_profiles AS gp ON gp.id = sg.guardian_profile_id").
-		Where("sg.student_id = ?", studentID).
+		Join("JOIN users.guardian_profiles AS gp ON gp.id = student_guardian.guardian_profile_id").
+		Where("student_guardian.student_id = ?", studentID).
 		Where("gp.account_id IS NOT NULL").
 		Where("gp.has_account = true").
-		Where(`sg.permissions @> ?::jsonb`, `{"parent_portal.access": true}`).
-		OrderExpr("sg.is_primary DESC, name ASC")
+		Where(`"student_guardian".permissions @> ?::jsonb`, `{"parent_portal.access": true}`).
+		OrderExpr("student_guardian.is_primary DESC, name ASC")
 
-	query = base.WithTenantFilter(ctx, query, "sg")
+	query = withTenantFilter(ctx, r.runtime, query, "student_guardian")
 
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list guardians for student", Err: base.TranslateNotFound(err)}
+		return nil, &users.DatabaseError{Op: "list guardians for student", Err: translateNotFound(err)}
 	}
 	if len(rows) == 0 {
 		return []*users.MessageableGuardian{}, nil
@@ -89,7 +86,7 @@ func (r *MessageableGuardianRepository) ListGuardiansForStudent(ctx context.Cont
 	}
 	memberships, err := r.activeMemberships(ctx, accountIDs, schoolIDs)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list guardians for student", Err: err}
+		return nil, &users.DatabaseError{Op: "list guardians for student", Err: err}
 	}
 	result := make([]*users.MessageableGuardian, 0, len(rows))
 	for _, row := range rows {

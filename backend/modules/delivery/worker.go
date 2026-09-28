@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -30,17 +31,19 @@ type ProviderResult struct {
 const ProviderAcceptedStatusCode = 202
 
 type ClaimedIntent struct {
-	ID             int64
-	TenantID       int64
-	Transport      Transport
-	Template       string
-	EmailRecipient EmailRecipient
-	PushRecipient  PushRecipient
-	EmailPayload   json.RawMessage
-	PushPayload    PushPayload
-	Attempts       int
-	LeaseToken     string
-	LeaseExpiresAt time.Time
+	ID                int64
+	TenantID          int64
+	Transport         Transport
+	Template          string
+	RelatedEntityType *string
+	RelatedEntityID   *int64
+	EmailRecipient    EmailRecipient
+	PushRecipient     PushRecipient
+	EmailPayload      json.RawMessage
+	PushPayload       PushPayload
+	Attempts          int
+	LeaseToken        string
+	LeaseExpiresAt    time.Time
 }
 
 type WorkerStats struct {
@@ -56,6 +59,11 @@ type workerEngine interface {
 	RunOnce(context.Context, int, int) (WorkerStats, error)
 	Backlog(context.Context) (int, error)
 }
+
+// ErrDeadLettered fails a run in which deliveries failed for good after all
+// their attempts. That is the end of a delivery's retries, so the worker's
+// caller reports it like any failed run (#3640).
+var ErrDeadLettered = errors.New("delivery worker: deliveries failed for good after all attempts")
 
 type Worker struct{ engine workerEngine }
 
@@ -74,6 +82,9 @@ func (w *Worker) RunOnce(ctx context.Context, batchSize, maxAttempts int) (int, 
 		return 0, errors.New("delivery worker: max attempts must be positive")
 	}
 	stats, err := w.engine.RunOnce(ctx, batchSize, maxAttempts)
+	if err == nil && stats.DeadLettered > 0 {
+		err = fmt.Errorf("%w: %d", ErrDeadLettered, stats.DeadLettered)
+	}
 	return stats.Claimed, err
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { SessionProvider } from "next-auth/react";
+import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 
 /**
  * Operator-scoped providers.
@@ -20,6 +21,7 @@ export function OperatorProviders({
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >
+      <SentrySessionContext portal="operator" />
       {children}
     </SessionProvider>
   );

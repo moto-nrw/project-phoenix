@@ -800,10 +800,17 @@ export function StaffSessionTable({
                           >
                             {dailyProjectionError === true ? "?" : "…"}
                           </span>
-                        ) : target > 0 ? (
+                        ) : target > 0 || projected?.isOverride ? (
                           formatDuration(target)
                         ) : (
                           "–"
+                        )}
+                        {!targetUnresolved && projected?.isOverride && (
+                          <div className="text-xs whitespace-nowrap text-gray-400">
+                            {closingReason
+                              ? "Sonderarbeitszeit · Schließtag"
+                              : "Sonderarbeitszeit"}
+                          </div>
                         )}
                       </td>
                       <td className="px-3 py-3 text-right font-medium whitespace-nowrap text-gray-700 tabular-nums">
@@ -1271,8 +1278,10 @@ function computeRowStatus(
     return { kind: "holiday", name: holidayName };
   }
   // Schließtag behaves like a holiday (Soll 0 for everyone, #1418 3b) but
-  // ranks below it: on overlap the gesetzliche Feiertag names the day.
-  if (closingReason) {
+  // ranks below it: on overlap the gesetzliche Feiertag names the day. A
+  // Sonderarbeitszeit (#3259) can give the day a Soll again; then absence and
+  // „Nicht erfasst" must show, not the closure.
+  if (closingReason && target === 0) {
     return { kind: "closing", reason: closingReason };
   }
   // Absence wins over "missing" so an admin sees Krank/Urlaub instead of a

@@ -15,6 +15,7 @@ import { Input } from "~/components/ui/input";
 import { closingDayService } from "~/lib/closing-day-api";
 import { type ClosingDay } from "~/lib/closing-day-helpers";
 import { createLogger } from "~/lib/logger";
+import { timetableService } from "~/lib/timetable-api";
 
 const logger = createLogger({ component: "ClosingDayModal" });
 
@@ -23,12 +24,8 @@ export function ClosingDayModal({
   onClose,
   onSaved,
   initial,
-}: {
-  readonly isOpen: boolean;
-  readonly onClose: () => void;
-  readonly onSaved: () => void;
-  readonly initial: ClosingDay | null;
-}) {
+  onOfferCancel,
+}: ClosingDayModalProps) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
@@ -73,6 +70,9 @@ export function ClosingDayModal({
       }
       onSaved();
       onClose();
+      // #3594: Termine, die vor dem Schließtag geplant waren, bleiben im Plan.
+      // Stehen noch welche im Zeitraum, bietet der Editor das Absagen an.
+      await offerCancel(onOfferCancel, startDate, endDate);
     } catch (err) {
       const message =
         err instanceof Error
@@ -163,6 +163,7 @@ export function ClosingDayModal({
               controlSize="lg"
               value={endDate}
               min={startDate || undefined}
+              defaultMonth={startDate}
               onChange={setEndDate}
               calendarLayout="popover"
             />
@@ -170,11 +171,40 @@ export function ClosingDayModal({
         </div>
 
         <p className="text-xs text-gray-500">
-          Für einen einzelnen Schließtag dasselbe Datum in beide Felder
-          eintragen. An Schließtagen gilt für alle Mitarbeitenden Soll = 0,
-          genau wie an gesetzlichen Feiertagen.
+          Für einen einzelnen Tag dasselbe Datum in beide Felder eintragen. An
+          Schließtagen fallen Termine aus und Mitarbeitende haben kein Soll.
         </p>
       </div>
     </FormModal>
   );
+}
+
+interface ClosingDayModalProps {
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onSaved: () => void;
+  readonly initial: ClosingDay | null;
+  /** Opens „Termine absagen“ for the saved range when appointments remain. */
+  readonly onOfferCancel?: (range: {
+    startDate: string;
+    endDate: string;
+  }) => void;
+}
+
+// #3594: Stehen im gespeicherten Zeitraum noch geplante Termine, bietet moto
+// das Absagen an. Ein Fehler beim Zählen blockiert das Speichern nicht.
+async function offerCancel(
+  onOfferCancel: ClosingDayModalProps["onOfferCancel"],
+  from: string,
+  to: string,
+) {
+  if (!onOfferCancel) return;
+  try {
+    const preview = await timetableService.bulkCancel(from, to, true);
+    if (preview.count > 0) onOfferCancel({ startDate: from, endDate: to });
+  } catch (err) {
+    logger.warn("closing_day_cancel_preview_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }

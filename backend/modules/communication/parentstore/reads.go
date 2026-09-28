@@ -36,8 +36,26 @@ func (r *ParentMessageReads) MarkReadUpTo(ctx context.Context, tenantID, threadI
 	return r.cursors.MarkReadUpTo(ctx, tenantID, threadID, accountID, readAt, readMessageID)
 }
 
+func (r *ParentMessageReads) MarkThreadsReadForStaff(ctx context.Context, tenantID, accountID int64, bounds []usersModels.ReadCursorBound) ([]int64, error) {
+	selected := make([]domain.ReadCursorBound, 0, len(bounds))
+	for _, bound := range bounds {
+		selected = append(selected, domain.ReadCursorBound{
+			ThreadID: bound.ThreadID, ReadAt: bound.ReadAt, MessageID: bound.MessageID,
+		})
+	}
+	return r.cursors.MarkThreadsReadForStaff(ctx, tenantID, accountID, selected)
+}
+
 func (r *ParentMessageReads) MarkStaffHandledUpTo(ctx context.Context, tenantID, threadID int64, handledAt time.Time, handledMessageID int64) error {
 	return r.threads.MarkStaffHandledUpTo(ctx, tenantID, threadID, handledAt, handledMessageID)
+}
+
+func (r *ParentMessageReads) MarkStaffUnread(ctx context.Context, tenantID, threadID, accountID int64) error {
+	return r.threads.MarkStaffUnread(ctx, tenantID, threadID, accountID)
+}
+
+func (r *ParentMessageReads) ClearStaffUnreadMark(ctx context.Context, tenantID, threadID int64, observedAt time.Time) (bool, error) {
+	return r.threads.ClearStaffUnreadMark(ctx, tenantID, threadID, observedAt)
 }
 
 func (r *ParentMessageReads) UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error) {
@@ -102,7 +120,7 @@ func inboxModels(rows []*domain.ParentInboxThread) []*usersModels.InboxThread {
 	}
 	threads := make([]*usersModels.InboxThread, 0, len(rows))
 	for _, row := range rows {
-		threads = append(threads, &usersModels.InboxThread{
+		thread := &usersModels.InboxThread{
 			ThreadID: row.ThreadID, TenantID: row.TenantID, StudentID: row.StudentID,
 			StudentName: row.StudentName, SchoolClass: row.SchoolClass, GroupID: row.GroupID,
 			GuardianAccountID: row.GuardianAccountID, GuardianName: row.GuardianName,
@@ -113,7 +131,11 @@ func inboxModels(rows []*domain.ParentInboxThread) []*usersModels.InboxThread {
 			LastMessagePayload:     row.LastMessagePayload,
 			LastMessageReadByStaff: row.LastMessageReadByStaff,
 			UnreadCount:            row.UnreadCount,
-		})
+		}
+		if row.ReadBoundAt != nil && row.ReadBoundMessageID != nil {
+			thread.ReadBound = &usersModels.ReadCursorBound{ThreadID: row.ThreadID, ReadAt: *row.ReadBoundAt, MessageID: *row.ReadBoundMessageID}
+		}
+		threads = append(threads, thread)
 	}
 	return threads
 }

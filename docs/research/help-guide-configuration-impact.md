@@ -229,7 +229,7 @@ solange das Schema lädt) — `frontend/src/components/dashboard/sidebar.tsx:477
 | `operations.per_student_checkout_enabled` | `false` | Zeitschranke je Kind statt global | `iot/checkin/checkout_gate.go:106-137` |
 | `operations.per_student_checkout_delta_minutes` | `15` | Vorlauf vor der Abholzeit | `iot/checkin/checkout_gate.go:140-148` |
 | `checkin.room_capacity_details_enabled` | `true` | „Turnhalle ist voll (30/30 …)" statt allgemeinem Text | `api/iot/checkin/workflow.go:61-66`; `PyrePortal/src/services/apiErrors.ts:269-282` |
-| `checkin.activity_capacity_details_enabled` | `false` | dito für Aktivitäten | `api/iot/checkin/workflow.go:70-75` |
+| `checkin.activity_capacity_details_enabled` | `true` (seit #3633) | dito für Aktivitäten | `api/iot/checkin/workflow.go:70-75` |
 | `security.ogs_device_pin` | `"1234"` | PIN-Bildschirm am Tablet | `api/iot/api.go:79-94`; `PyrePortal/src/pages/PinPage.tsx:21-27,207` |
 | `feedback.enabled` | `false` | Tages-Feedback nach dem Auschecken | `api/iot/checkin/attendance_handlers.go:215`; `PyrePortal/src/hooks/pages/useActivityScanningPage.ts:536-546` |
 | `gdpr.attendance_log_enabled` | `false` | Navigationseintrag `Tagesauswertung`; im Kind-Detail wird der Button `Anwesenheitsprotokoll` mit „Für Ihre Schule deaktiviert" abgeschaltet; die Raum-Historie zeigt eine eigene Meldung | `sidebar.tsx:576`; `components/students/student-detail-components.tsx:1056,1075-1088`; `components/rooms/room-detail-content.tsx:167,241,328`; `app/[tenant]/(protected)/day-log/page.tsx:497-498`; `api/rooms/api.go:473` |
@@ -285,7 +285,7 @@ Untersucht und bewusst ausgeschlossen:
 | Fehlerfall des Abrufs | Alle drei Ziel-Buttons erscheinen (Muster `!== false`), ohne Hinweis auf dem Tablet | `PyrePortal/src/hooks/pages/useActivityScanningPage.ts:332-335` |
 | Geräte-API-Schlüssel | Bestimmt Mandant und Schule des Tablets; fehlt er, erscheint „API-Schlüssel ungültig …" | `PyrePortal/src/platform/webAdapterBase.ts:108-117`; `PyrePortal/src/services/apiErrors.ts:96-97`; `backend/api/iot/config.go:44-54` |
 | `iot.devices.room_id` | **Ohne sichtbare Wirkung auf dem Tablet**: die Raumliste ist ungefiltert | `backend/models/iot/device.go:38`; `backend/api/iot/data/handlers.go:145-181` |
-| Zwei PIN-Wege | Entweder die gemeinsame OGS-Geräte-PIN oder eine persönliche Konto-PIN mit `X-Staff-ID`; heute meldet PyrePortal sich mit der gemeinsamen PIN an (`staffName: 'OGS Device'`) | `backend/auth/device/device_auth.go:248-265` (gemeinsame PIN) und `:268-306` (persönliche PIN); `PyrePortal/src/pages/PinPage.tsx:207-216` |
+| Ein PIN-Weg | Nur die gemeinsame OGS-Geräte-PIN; die persönliche Konto-PIN wurde mit #3310 entfernt. PyrePortal meldet sich mit der gemeinsamen PIN an (`staffName: 'OGS Device'`) | `backend/auth/device/device_auth.go` (`validateDevicePIN`); `PyrePortal/src/pages/PinPage.tsx:207-216` |
 | Kiosk-Ziel (GKT / Wedge / Browser) | Unterschiedliche NFC-Hardware und Fehlertexte; **Raspberry Pi/Balena und Tauri sind stillgelegt** | `PyrePortal/CLAUDE.md:33-41` |
 
 ### 4.4 Rollen und Berechtigungen (nicht Teil der Top 3)

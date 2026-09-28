@@ -69,6 +69,9 @@ type ProvisioningDevices interface {
 // provisioning. A missing person is found=false.
 type ProvisioningPeople interface {
 	CountPersonsByTenant(ctx context.Context) (map[int64]int, error)
+	// CountChildQuotaByTenant is the Kontingentzahl of every school (#3568),
+	// counted by School Membership's rule on today's Berlin calendar day.
+	CountChildQuotaByTenant(ctx context.Context) (map[int64]int, error)
 	ListPersons(ctx context.Context, tenantIDs []int64) ([]domain.PersonListing, error)
 	// FindPerson reads one non-deleted person of any school.
 	FindPerson(ctx context.Context, id int64) (domain.Person, bool, error)

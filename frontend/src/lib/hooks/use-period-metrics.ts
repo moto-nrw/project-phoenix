@@ -42,6 +42,8 @@ export interface PeriodMetrics {
   readonly accountStart: Date;
   /** Cumulative Saldo; null while loading or when it cannot be attributed. */
   readonly accountBalanceMinutes: number | null;
+  /** A Sonderarbeitszeit sets the Soll of a day in the current week. */
+  readonly hasTargetOverride?: boolean;
 }
 
 /**
@@ -239,5 +241,21 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     [today, config?.accountStartDate],
   );
 
-  return { week, month, accountStart, accountBalanceMinutes };
+  // A Sonderarbeitszeit (#3259) in the current week changes where its Soll
+  // comes from; the origin chip names it.
+  const hasTargetOverride = useMemo(
+    () =>
+      weekProjection
+        ? [...weekProjection.values()].some((day) => day.isOverride === true)
+        : false,
+    [weekProjection],
+  );
+
+  return {
+    week,
+    month,
+    accountStart,
+    accountBalanceMinutes,
+    hasTargetOverride,
+  };
 }

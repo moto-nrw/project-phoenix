@@ -5,10 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -21,7 +18,7 @@ import (
 // through. Communication owns the conversations, cursors and the inbox
 // projection (#3221) and receives this lookup as a colleague directory.
 type MessageableStaffRepository struct {
-	db *bun.DB
+	runtime Runtime
 	// staffAccounts resolves the login accounts of the school's live staff.
 	// School Membership owns those rows, so the relation that used to be a
 	// join is injected as a lookup; without one the repository fails closed.
@@ -51,15 +48,15 @@ type StaffMessageIdentity struct {
 // The "is a colleague at this school" relation needs the staff rows School
 // Membership owns and the account facts Identity & Access owns, so the
 // caller injects both.
-func NewMessageableStaffRepository(db *bun.DB, staffAccounts StaffAccountsFunc, identity StaffMessageIdentity) *MessageableStaffRepository {
-	return &MessageableStaffRepository{db: db, staffAccounts: staffAccounts, identity: identity}
+func NewMessageableStaffRepository(runtime Runtime, staffAccounts StaffAccountsFunc, identity StaffMessageIdentity) *MessageableStaffRepository {
+	return &MessageableStaffRepository{runtime: requireRuntime(runtime), staffAccounts: staffAccounts, identity: identity}
 }
 
 // resolveStaffAccounts fails closed: without a resolver nobody is a colleague,
 // so a misconfigured graph cannot widen who may be written to.
 func (r *MessageableStaffRepository) resolveStaffAccounts(ctx context.Context) ([]int64, error) {
 	if r.staffAccounts == nil {
-		return nil, &modelBase.DatabaseError{Op: "resolve staff accounts", Err: errors.New("staff account resolver is required")}
+		return nil, &users.DatabaseError{Op: "resolve staff accounts", Err: errors.New("staff account resolver is required")}
 	}
 	return r.staffAccounts(ctx)
 }
@@ -91,18 +88,18 @@ func (r *MessageableStaffRepository) resolveStaffAccounts(ctx context.Context) (
 // queries addresses nobody.
 func (r *MessageableStaffRepository) colleagueQuery(ctx context.Context, query *bun.SelectQuery) (*bun.SelectQuery, error) {
 	if r.identity.ActiveSchoolAccounts == nil {
-		return nil, &modelBase.DatabaseError{Op: "resolve colleague relation", Err: errors.New("active school account lookup is required")}
+		return nil, &users.DatabaseError{Op: "resolve colleague relation", Err: errors.New("active school account lookup is required")}
 	}
 	staffAccountIDs, err := r.resolveStaffAccounts(ctx)
 	if err != nil {
 		return nil, err
 	}
-	activeAccountIDs, err := r.identity.ActiveSchoolAccounts(ctx, tenant.FromContext(ctx), staffAccountIDs)
+	activeAccountIDs, err := r.identity.ActiveSchoolAccounts(ctx, r.runtime.TenantID(ctx), staffAccountIDs)
 	if err != nil {
 		return nil, fmt.Errorf("resolve active staff accounts: %w", err)
 	}
 	query = query.Where(`person.deleted_at IS NULL`).
-		Where(`person.tenant_id = ?`, tenant.FromContext(ctx))
+		Where(`person.tenant_id = ?`, r.runtime.TenantID(ctx))
 	return staffAccountFilter(query, activeAccountIDs), nil
 }
 
@@ -124,7 +121,7 @@ func staffAccountFilter(query *bun.SelectQuery, staffAccountIDs []int64) *bun.Se
 // addressed, while the existing conversation history stays readable.
 func (r *MessageableStaffRepository) ListMessageableStaff(ctx context.Context, viewerAccountID int64) ([]*users.MessageableStaff, error) {
 	var rows []*users.MessageableStaff
-	query, err := r.colleagueQuery(ctx, base.GetDB(ctx, r.db).NewSelect().
+	query, err := r.colleagueQuery(ctx, r.runtime.DB(ctx).NewSelect().
 		Model(&rows).
 		ModelTableExpr(`users.persons AS "person"`).
 		ColumnExpr(`person.account_id AS account_id`).
@@ -136,7 +133,7 @@ func (r *MessageableStaffRepository) ListMessageableStaff(ctx context.Context, v
 	}
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list messageable staff", Err: base.TranslateNotFound(err)}
+		return nil, &users.DatabaseError{Op: "list messageable staff", Err: translateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -157,7 +154,7 @@ func (r *MessageableStaffRepository) ListMessageableStaff(ctx context.Context, v
 // The method is deliberately not called IsActiveTenantMember any more: that name
 // described the query, not the question, and invited exactly this gap.
 func (r *MessageableStaffRepository) IsMessageableStaff(ctx context.Context, accountID int64) (bool, error) {
-	query, err := r.colleagueQuery(ctx, base.GetDB(ctx, r.db).NewSelect().
+	query, err := r.colleagueQuery(ctx, r.runtime.DB(ctx).NewSelect().
 		TableExpr(`users.persons AS "person"`).
 		ColumnExpr(`1`).
 		Where(`person.account_id = ?`, accountID).
@@ -168,7 +165,7 @@ func (r *MessageableStaffRepository) IsMessageableStaff(ctx context.Context, acc
 	exists, existsErr := query.Exists(ctx)
 	err = existsErr
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "check messageable staff", Err: base.TranslateNotFound(err)}
+		return false, &users.DatabaseError{Op: "check messageable staff", Err: translateNotFound(err)}
 	}
 	return exists, nil
 }
@@ -189,10 +186,10 @@ func (r *MessageableStaffRepository) StaffRoleKinds(ctx context.Context, account
 		return out, nil
 	}
 	if r.identity.RoleClasses == nil {
-		return nil, &modelBase.DatabaseError{Op: "resolve staff role kinds", Err: errors.New("role class query is required")}
+		return nil, &users.DatabaseError{Op: "resolve staff role kinds", Err: errors.New("role class query is required")}
 	}
 
-	rows, err := r.identity.RoleClasses(ctx, tenant.FromContext(ctx), accountIDs)
+	rows, err := r.identity.RoleClasses(ctx, r.runtime.TenantID(ctx), accountIDs)
 	if err != nil {
 		return nil, fmt.Errorf("resolve staff role kinds: %w", err)
 	}

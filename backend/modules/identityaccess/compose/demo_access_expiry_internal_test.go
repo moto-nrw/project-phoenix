@@ -19,8 +19,8 @@ import (
 func insertDemoAccess(t *testing.T, db *bun.DB, slug string, expiresAt time.Time) {
 	t.Helper()
 	tokenHash := fmt.Sprintf("%s-%d", slug, expiresAt.UnixNano())
-	_, err := db.NewRaw(`INSERT INTO auth.demo_accesses (email, person_name, school_name, token_hash, expires_at, school_slug)
-		VALUES (?, 'Kim Beispiel', 'OGS Beispiel', ?, ?, ?)`, "kim-"+slug+"@ogs-beispiel.de", tokenHash, expiresAt, slug).Exec(context.Background())
+	_, err := db.NewRaw(`INSERT INTO auth.demo_accesses (email, first_name, last_name, school_name, token_hash, expires_at, school_slug)
+		VALUES (?, 'Kim', 'Beispiel', 'OGS Beispiel', ?, ?, ?)`, "kim-"+slug+"@ogs-beispiel.de", tokenHash, expiresAt, slug).Exec(context.Background())
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_, err := db.NewRaw(`DELETE FROM auth.demo_accesses WHERE token_hash = ?`, tokenHash).Exec(context.Background())

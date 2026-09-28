@@ -2,11 +2,9 @@ package application
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -15,18 +13,6 @@ import (
 // services. modules/timetable/legacy/timetableplanning (#3218) keeps its own
 // copies for the instance, deviation and materialization paths; these came
 // along with the two writes that use them (#3418).
-
-type legacyListRepository[T any] interface {
-	List(context.Context, *modelBase.QueryOptions) ([]T, error)
-}
-
-func legacyList[T any](ctx context.Context, repository any, options *modelBase.QueryOptions) ([]T, error) {
-	lister, ok := repository.(legacyListRepository[T])
-	if !ok {
-		return nil, fmt.Errorf("legacy list capability is not configured for %T", repository)
-	}
-	return lister.List(ctx, options)
-}
 
 // broadcastStaffingChanged queues one tenant-wide staffing_deviation_changed
 // event after the surrounding tenant transaction commits (outside a tx it
@@ -53,7 +39,7 @@ func broadcastStaffingChanged(ctx context.Context, broadcaster realtime.Broadcas
 // isPlannableInstance reports whether a substitute/absence write may touch this
 // instance. Only planned and active blocks are editable; completed and cancelled
 // ones are historical record.
-func isPlannableInstance(instance *scheduleModel.ActivityInstance) bool {
-	return instance.Status == scheduleModel.InstanceStatusPlanned ||
-		instance.Status == scheduleModel.InstanceStatusActive
+func isPlannableInstance(instance *timetable.ScheduledInstance) bool {
+	return instance.Status == timetable.InstanceStatusPlanned ||
+		instance.Status == timetable.InstanceStatusActive
 }

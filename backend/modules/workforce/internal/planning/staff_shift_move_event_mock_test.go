@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,10 +45,10 @@ func TestMoveShift_LogsShiftMovedEvent(t *testing.T) {
 
 	existing := validShift(7)
 	existing.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return existing, nil
 	}
-	repo.updateFunc = func(_ context.Context, _ *scheduleModels.StaffShift) error { return nil }
+	repo.updateFunc = func(_ context.Context, _ *StaffShift) error { return nil }
 
 	actor := int64(99)
 	moved, err := svc.MoveShift(context.Background(), MoveShiftInput{
@@ -92,7 +91,7 @@ func TestMoveShift_NoOpMoveLogsNothing(t *testing.T) {
 
 	existing := validShift(7)
 	existing.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return existing, nil
 	}
 
@@ -119,10 +118,10 @@ func TestMoveShift_EventWriteFailureAbortsMove(t *testing.T) {
 
 	existing := validShift(7)
 	existing.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		return existing, nil
 	}
-	repo.updateFunc = func(_ context.Context, _ *scheduleModels.StaffShift) error { return nil }
+	repo.updateFunc = func(_ context.Context, _ *StaffShift) error { return nil }
 
 	_, err := svc.MoveShift(context.Background(), MoveShiftInput{
 		ShiftID:       existing.ID,

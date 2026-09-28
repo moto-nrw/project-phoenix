@@ -1359,4 +1359,193 @@ describe("StudentImportPage", () => {
     const previewInit = previewCalls[1]![1] as { body: FormData };
     expect(previewInit.body.get("mode")).toBe("update");
   });
+
+  describe("Kinderkontingent (#3571)", () => {
+    const previewWithQuota = (quota: Record<string, unknown>) => ({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          data: {
+            TotalRows: 80,
+            CreatedCount: 80,
+            UpdatedCount: 0,
+            ErrorCount: 0,
+            Errors: [],
+            child_quota: quota,
+          },
+        }),
+    });
+
+    it("blocks the import when the new children do not fit", async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        previewWithQuota({
+          booked_places: 100,
+          occupied_places: 88,
+          requested_places: 80,
+          free_places: 12,
+          fits: false,
+        }),
+      );
+
+      render(<StudentImportPage />);
+      fireEvent.click(screen.getByTestId("file-select-trigger"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("alert-error")).toHaveTextContent(
+          "Der Import würde 80 Kinder hinzufügen. Im Kinderkontingent sind nur noch 12 frei.",
+        );
+      });
+      expect(
+        screen.getByRole("button", { name: "80 Kinder importieren" }),
+      ).toBeDisabled();
+      expect(
+        screen.getByText("80 Kinder neu in der Datei"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/bereit zum Import/)).not.toBeInTheDocument();
+    });
+
+    it("names the free Kinderkontingent and keeps the import open when it fits", async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        previewWithQuota({
+          booked_places: 200,
+          occupied_places: 100,
+          requested_places: 80,
+          free_places: 100,
+          fits: true,
+        }),
+      );
+
+      render(<StudentImportPage />);
+      fireEvent.click(screen.getByTestId("file-select-trigger"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("alert-info")).toHaveTextContent(
+          "Der Import würde 80 Kinder hinzufügen. Im Kinderkontingent sind noch 100 frei.",
+        );
+      });
+      expect(
+        screen.getByRole("button", { name: "80 Kinder importieren" }),
+      ).toBeEnabled();
+    });
+
+    it("explains a start the Kinderkontingent refused", async () => {
+      (global.fetch as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(
+          previewWithQuota({
+            booked_places: 200,
+            occupied_places: 100,
+            requested_places: 80,
+            free_places: 100,
+            fits: true,
+          }),
+        )
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 409,
+          json: () =>
+            Promise.resolve({
+              status: "error",
+              error:
+                "child quota reached: 150 of 200 places occupied, 80 requested",
+              code: "students.child_quota_reached",
+              details: {
+                booked_places: 200,
+                occupied_places: 150,
+                requested_places: 80,
+              },
+            }),
+        })
+        .mockResolvedValueOnce(
+          previewWithQuota({
+            booked_places: 200,
+            occupied_places: 150,
+            requested_places: 80,
+            free_places: 50,
+            fits: false,
+          }),
+        );
+
+      render(<StudentImportPage />);
+      fireEvent.click(screen.getByTestId("file-select-trigger"));
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: "80 Kinder importieren" }),
+        ).toBeEnabled();
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "80 Kinder importieren" }),
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("alert-error")).toHaveTextContent(
+          "Der Import würde 80 Kinder hinzufügen. Im Kinderkontingent sind nur noch 50 frei. Der Import startet darum nicht.",
+        );
+      });
+      expect(screen.queryByText(/child quota reached/)).not.toBeInTheDocument();
+      // Die neu geprüfte Vorschau sperrt den Knopf.
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: "80 Kinder importieren" }),
+        ).toBeDisabled();
+      });
+    });
+
+    it("keeps the saved rows when a later batch hits the Kinderkontingent", async () => {
+      (global.fetch as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(
+          previewWithQuota({
+            booked_places: 200,
+            occupied_places: 100,
+            requested_places: 80,
+            free_places: 100,
+            fits: true,
+          }),
+        )
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 409,
+          json: () =>
+            Promise.resolve({
+              status: "error",
+              error: "Import fehlgeschlagen",
+              code: "import_batch_failed",
+              details: {
+                result: {
+                  TotalRows: 80,
+                  CreatedCount: 50,
+                  UpdatedCount: 0,
+                  ErrorCount: 0,
+                  Errors: null,
+                },
+                rejection: {
+                  code: "students.child_quota_reached",
+                  details: {
+                    booked_places: 200,
+                    occupied_places: 200,
+                    requested_places: 1,
+                  },
+                },
+              },
+            }),
+        });
+
+      render(<StudentImportPage />);
+      fireEvent.click(screen.getByTestId("file-select-trigger"));
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: "80 Kinder importieren" }),
+        ).toBeEnabled();
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "80 Kinder importieren" }),
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("alert-warning")).toHaveTextContent(
+          "50 Zeilen sind gespeichert. Das Kinderkontingent Ihrer Schule ist voll. Die Kontingentzahl beträgt 200 von 200 Kindern. Für weitere Kinder melden Sie sich bitte beim moto-Team. Die gespeicherten Zeilen bleiben.",
+        );
+      });
+      expect(screen.getByTestId("stat-new")).toHaveTextContent("50");
+    });
+  });
 });

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
@@ -54,16 +54,16 @@ func TestParseClassRosterExportRequestAllClasses(t *testing.T) {
 	})
 }
 
-func allClassesTestReport() *enrollmentService.ClassRosterReport {
-	return &enrollmentService.ClassRosterReport{
-		Phase: enrollmentService.CareUsagePhase{ID: 42, Name: "Schuljahr 2026/27"},
-		Filters: enrollmentService.ClassRosterAppliedFilters{
+func allClassesTestReport() *capability.ClassRosterReport {
+	return &capability.ClassRosterReport{
+		Phase: capability.CareUsagePhase{ID: 42, Name: "Schuljahr 2026/27"},
+		Filters: capability.ClassRosterAppliedFilters{
 			PhaseID:    42,
 			AllClasses: true,
 			Status:     "approved",
 		},
-		Totals: enrollmentService.ClassRosterTotals{Students: 3},
-		Rows: []enrollmentService.ClassRosterRow{
+		Totals: capability.ClassRosterTotals{Students: 3},
+		Rows: []capability.ClassRosterRow{
 			{StudentID: 1, FirstName: "Mila", LastName: "Anders", SchoolClass: "1a"},
 			{StudentID: 2, FirstName: "Finn", LastName: "Becker", SchoolClass: "1a"},
 			{StudentID: 3, FirstName: "Ida", LastName: "Conrad", SchoolClass: "2b"},
@@ -92,7 +92,7 @@ func TestBuildClassRosterTableDocumentMergesClassLabelVariants(t *testing.T) {
 	t.Parallel()
 
 	report := allClassesTestReport()
-	report.Rows = []enrollmentService.ClassRosterRow{
+	report.Rows = []capability.ClassRosterRow{
 		{StudentID: 1, FirstName: "Mila", LastName: "Anders", SchoolClass: "1a"},
 		{StudentID: 2, FirstName: "Finn", LastName: "Becker", SchoolClass: "1A"},
 		{StudentID: 3, FirstName: "Ida", LastName: "Conrad", SchoolClass: "2b"},

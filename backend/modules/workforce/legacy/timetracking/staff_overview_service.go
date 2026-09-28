@@ -158,6 +158,7 @@ type staffOverviewService struct {
 	shiftRepo      StaffOverviewShifts
 	settings       monthSettingsResolver
 	holidayReader  HolidayDatesReader
+	overrideReader TargetOverrideReader
 	// openingRepo carries the vacation takeover rows (#2132); supplied by
 	// WithOverviewVacationOpenings, nil in bare unit fixtures.
 	openingRepo timerecords.StaffVacationOpeningRepository
@@ -310,15 +311,29 @@ func (s *staffOverviewService) buildPrefetch(
 			prefetch.workTimeModels[model.ID] = model
 		}
 	}
-	if s.holidayReader != nil {
-		if prefetch.holidays, err = s.holidayReader.HolidayDates(ctx, from, to); err != nil {
-			return nil, fmt.Errorf("failed to prefetch non-working days: %w", err)
-		}
+	if err := s.prefetchDayTargets(ctx, prefetch, staffIDs); err != nil {
+		return nil, err
 	}
 	if prefetch.snapshots, err = s.prefetchSnapshots(ctx, staffIDs); err != nil {
 		return nil, err
 	}
 	return prefetch, nil
+}
+
+// prefetchDayTargets loads the day-level Soll inputs over the prefetch window:
+// the non-working days and the Sonderarbeitszeiten (#3259).
+func (s *staffOverviewService) prefetchDayTargets(ctx context.Context, prefetch *monthPrefetch, staffIDs []int64) (err error) {
+	if s.holidayReader != nil {
+		if prefetch.holidays, err = s.holidayReader.HolidayDates(ctx, prefetch.from, prefetch.to); err != nil {
+			return fmt.Errorf("failed to prefetch non-working days: %w", err)
+		}
+	}
+	if s.overrideReader != nil {
+		if prefetch.overrides, err = s.overrideReader.StaffTargetOverrideDays(ctx, staffIDs, prefetch.from.String(), prefetch.to.String()); err != nil {
+			return fmt.Errorf("failed to prefetch target overrides: %w", err)
+		}
+	}
+	return nil
 }
 
 // prefetchSnapshots loads the frozen months of the given staff members.

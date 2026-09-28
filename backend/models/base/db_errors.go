@@ -101,16 +101,6 @@ func lastDoubleQuotedIdentifier(message string) (string, bool) {
 	return last, found
 }
 
-// IsLockNotAvailable reports whether err carries PostgreSQL error code 55P03
-// (lock_not_available) — what `SELECT … FOR UPDATE NOWAIT` raises when the row
-// is already locked by another transaction. Callers use it to turn a refused
-// out-of-order lock into a retriable conflict instead of blocking (which would
-// risk a deadlock) or failing as a 500.
-func IsLockNotAvailable(err error) bool {
-	var pgErr postgresError
-	return errors.As(err, &pgErr) && pgErr.Field('C') == "55P03"
-}
-
 // IsConstraintViolation reports whether err carries PostgreSQL error code
 // 23503 (foreign_key_violation) or 23502 (not_null_violation): a delete or
 // write refused because another row still references it or a required

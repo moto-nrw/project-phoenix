@@ -1,3 +1,4 @@
+import { ApiError } from "./api-error";
 /**
  * Parent-portal client API. Symmetric to the operator-api / tenant
  * api-helpers split. Every call goes through a Next.js proxy route
@@ -445,14 +446,21 @@ function unwrapEnvelope<T>(json: ApiEnvelope<T>): T {
  * localized message instead of showing the raw English error string. Extends
  * `Error`, so existing `err instanceof Error ? err.message` handling still works.
  */
-export class ParentApiError extends Error {
+export class ParentApiError extends ApiError {
   readonly status: number;
-  readonly code?: string;
-  constructor(message: string, status: number, code?: string) {
-    super(message);
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    payload?: {
+      details?: Record<string, unknown>;
+      errors?: { field: string; reason: string }[];
+      instance?: string;
+    },
+  ) {
+    super(message, status, { code, ...payload });
     this.name = "ParentApiError";
     this.status = status;
-    this.code = code;
   }
 }
 
@@ -468,10 +476,24 @@ async function throwResponseError(
 ): Promise<never> {
   let message = `Request failed (${response.status})`;
   let code: string | undefined;
+  let payload:
+    | {
+        details?: Record<string, unknown>;
+        errors?: { field: string; reason: string }[];
+        instance?: string;
+      }
+    | undefined;
   try {
-    const body = (await response.json()) as { error?: string; code?: string };
+    const body = (await response.json()) as {
+      error?: string;
+      code?: string;
+      details?: Record<string, unknown>;
+      errors?: { field: string; reason: string }[];
+      instance?: string;
+    };
     if (body.error) message = body.error;
     if (body.code) code = body.code;
+    payload = body;
   } catch {
     // Body was not JSON, keep the generic message.
   }
@@ -484,7 +506,7 @@ async function throwResponseError(
   } else {
     logger.error("parent_api_request_failed", context);
   }
-  throw new ParentApiError(message, response.status, code);
+  throw new ParentApiError(message, response.status, code, payload);
 }
 
 async function getJson<T>(url: string): Promise<T> {

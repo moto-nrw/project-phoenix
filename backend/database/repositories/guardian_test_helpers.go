@@ -16,7 +16,7 @@ type GuardianTestRepositories struct {
 }
 
 func NewGuardianTestRepositories(db *bun.DB, command auditModels.Command) GuardianTestRepositories {
-	return GuardianTestRepositories{Phone: usersRepo.NewGuardianPhoneNumberRepository(db), Financial: usersRepo.NewGuardianFinancialDataRepository(db),
+	return GuardianTestRepositories{Phone: usersRepo.NewGuardianPhoneNumberRepository(peopleRuntime(db)), Financial: usersRepo.NewGuardianFinancialDataRepository(peopleRuntime(db)),
 		FinancialAudit: guardianFinancialChangeCommand{command}, AccessLog: dataAccessLogCommand{auditRepo.NewDataAccessLogRepository(newTestAuditRuntime(db)), command}}
 }
 

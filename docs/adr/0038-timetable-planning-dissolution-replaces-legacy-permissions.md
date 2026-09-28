@@ -88,13 +88,192 @@ The same epoch deletes the three rules slice S6 emptied:
 `timetable-activities.workflow-integration-test.inbound-timetable-adapter`
 and `care-schedule-cutover.inbound-timetable.module-behavior-test.timetable-activities.public`.
 
+### Slice S4: conflict detection and staffing (#3550)
+
+Slice S4 moves the start and planning conflict checks, the exception
+conflicts, the staff availability pool, the shift-coverage probe and the
+staffing rules (capacity, understaffing, slot precedence) to the Timetable &
+Activities owner. The public contract is `timetable.ConflictDetectionCapability`
+(`StartConflictQuery`, `PlanningConflictQuery`, `StaffingQuery`) plus the
+pure staffing and interval functions in `modules/timetable`; the
+implementation sits in `modules/timetable/compose`. The replacement point of
+condition 3 and 4 therefore extends to the Timetable owner's `public` role,
+and only to it: its composition, application, port, Postgres and domain
+roles stay closed to former consumers of the nest.
+
+Epoch 26 uses the extended exception for exactly these rules:
+
+| Scope | Source owner/role | Target owner/role |
+|---|---|---|
+| production | workforce/application | timetable-activities/public |
+| production | calendar-view/adapter | timetable-activities/public |
+| internal_test | workforce/module-internal-test | timetable-activities/public |
+| external_test | workforce/module-behavior-test | timetable-activities/public |
+| external_test | inbound-timetable/module-behavior-test | timetable-activities/public |
+
+`api/timetable` and the nest itself already held a permission to the
+Timetable contract. The same epoch deletes the four rules slice S4 emptied:
+`document-rendering.adapter.inbound-timetable-adapter`,
+`workforce.application.inbound-timetable-adapter`,
+`workforce.internal-test.inbound-timetable-adapter` and
+`workforce.behaviour-test.inbound-timetable-adapter`.
+
+### Slice S5: timetable reads, operations and cleanup (#3551)
+
+Slice S5 moves the planner's reads, the operational day, the retention
+cleanup, the ended-session completion and the planning-track
+administration to the Timetable & Activities owner. The public contracts
+are `timetable.TimetableDataCapability`, `timetable.OperationCapability`,
+`timetable.TimetableCleanup`, `timetable.EndedSessionCompletion` and
+`timetable.PlanningTrackAdministration`, with the lifecycle clock policy,
+the attendance-patch rules and the reopen gate as pure functions beside
+them; the implementation sits in `modules/timetable/compose`. The
+replacement point stays the Timetable owner's `public` role.
+
+Epoch 27 uses the exception for exactly these rules:
+
+| Scope | Source owner/role | Target owner/role |
+|---|---|---|
+| production | scheduler-runtime/application | timetable-activities/public |
+| internal_test | scheduler-runtime/module-internal-test | timetable-activities/public |
+| internal_test | test-support/e2e-test | timetable-activities/public |
+
+`api/timetable`, the supervision dashboard and the nest already held a
+permission to the Timetable contract; the command line reaches the cleanup
+through the legacy composition and the kiosk session mirror through
+consumer-owned ports. The same epoch deletes the seventeen rules slice S5
+emptied: `calendar-view.adapter.inbound-timetable-adapter`,
+`calendar-view.adapter-test.inbound-timetable-adapter`,
+`process-device-scan.compose.inbound-timetable-adapter`,
+`root-composition.cli.inbound-timetable-adapter`,
+`test-support.e2e-test.inbound-timetable-adapter`,
+`inbound-timetable.e2e-test.inbound-timetable-adapter`,
+`care-schedule-cutover.inbound-timetable.module-internal-test.care-plan.public`
+and the ten reach rules of the nest itself the moved files needed
+(`inbound-timetable.adapter.{device-fleet-adapter,identity-access-adapter,people-directory-application,security-runtime-application,settings-platform-application}`,
+`inbound-timetable.module-behavior-test.{audit-platform-postgres,settings-platform-application,settings-platform-domain}`,
+`inbound-timetable.module-internal-test.{people-directory-application,settings-platform-domain}`).
+
+### Slice S2: templates, materialization and roster maintenance (#3552)
+
+Slice S2 moves the template writes (create, update, split, end, the
+weekday rosters, the offering source and the grade-limit checks), the
+materialization with its edited-occurrence detection, the roster
+maintenance and the tenant recurrence gate to the Timetable & Activities
+owner. The public contracts are `timetable.TemplateAdministration`,
+`timetable.MaterializationCapability`, `timetable.RosterMaintenance` and
+`timetable.RecurrenceWriteLock`, with `timetable.OfferingRosterResyncInput`,
+`timetable.ErrOfferingSourceInvalid` and the template errors beside them;
+the implementation sits in `modules/timetable/compose`. The recurrence gate
+keeps its lock order: the recurrence key first, the grade-transition key
+second. The replacement point stays the Timetable owner's `public` role.
+
+Epoch 28 uses the exception for exactly this rule:
+
+| Scope | Source owner/role | Target owner/role |
+|---|---|---|
+| production | enrollment/application | timetable-activities/public |
+
+`api/timetable`, the scheduler, the nest and the timetable end-to-end flows
+already held a permission to the Timetable contract; the root binds School
+Structure's class rules, Enrollment's care-offering checks and the realtime
+announcement through consumer-owned ports. The same epoch deletes the
+thirteen rules slice S2 emptied:
+`enrollment.application.inbound-timetable-adapter`,
+`enrollment.module-behavior-test.inbound-timetable-adapter`,
+`inbound-students.adapter-test.inbound-timetable-adapter`,
+`people-directory.module-behavior-test.inbound-timetable-adapter`,
+`root-composition.compose.inbound-timetable-adapter`,
+`school-structure.module-behavior-test.inbound-timetable-adapter`,
+`timetable-planning-cutover.inbound-timetable.adapter.school-calendar.public`
+(the week-pattern decision left the nest with the materialization) and the
+six reach rules of the nest itself the moved files needed
+(`inbound-timetable.adapter.enrollment-domain`,
+`inbound-timetable.module-behavior-test.{enrollment-application,enrollment-domain,enrollment-public,school-structure-application}`,
+`inbound-timetable.module-internal-test.school-structure-domain`).
+
+### Slice S3: deviations, substitutions and the attendance mirror (#3553)
+
+Slice S3 moves the deviation, substitution and sick-report writes, the
+substitute time-overlap advisory, the attendance correction of completed
+blocks and the Student Presence attendance mirror to the Timetable &
+Activities owner. The public contracts are `timetable.StaffDeviations`,
+`timetable.SubstituteConflictQuery`, `timetable.AttendanceCorrections` and
+`timetable.AttendanceMirror`; the implementation sits in
+`modules/timetable/compose`. The mirror keeps one runtime write owner for
+`schedule.instance_students`: Student Presence triggers the Timetable command
+through its own attendance syncer port, bound at the composition root, in
+its tenant transaction. The replacement point stays the Timetable owner's
+`public` role.
+
+Epoch 29 uses the exception for exactly this rule:
+
+| Scope | Source owner/role | Target owner/role |
+|---|---|---|
+| production | shift-plan-sync/application | timetable-activities/public |
+
+`api/timetable`, the composition root and the nest already held a
+permission to the Timetable contract; the root binds the Audit Platform's
+trails, the retained lifecycle and the realtime activity update through
+consumer-owned ports. The same epoch deletes the five rules slice S3
+emptied: `shift-plan-sync.application.inbound-timetable-adapter`,
+`shift-plan-sync.compose.inbound-timetable-adapter`,
+`student-presence.e2e-test.inbound-timetable-adapter` (the Presence suites
+bind the mirror through the root) and the two reach rules of the nest's
+behaviour suites the moved attendance tests needed
+(`inbound-timetable.module-behavior-test.{inbound-timetable-test-support,transaction-runtime-domain}`).
+
+### Slice S1: instance lifecycle, series conversion and package removal (#3554)
+
+Slice S1 moves the instance lifecycle (start, completion, reopen,
+cancellation with its guardian notice, delete, create, planned edit and
+re-plan), the staff move, the standalone understaffed acknowledgement, the
+series conversion and the scheduler's automatic start and end to the
+Timetable & Activities owner. The public contracts are
+`timetable.InstanceLifecycle`, `timetable.InstancePlanning`,
+`timetable.InstanceStaffing` (together `timetable.InstanceLifecycleCapability`),
+`timetable.InstanceSeriesConversion`, `timetable.InstanceAutoStart` and
+`timetable.InstanceAutoEnd`; the implementation sits in
+`modules/timetable/compose`. The slice then deletes the nest and the SQL test
+providers of `modules/timetable/legacy/timetablesqltest`.
+
+Epoch 30 uses the exception for no rule. `api/timetable`, the scheduler and
+the composition root already held a permission to the Timetable contract; the
+group live view and the students inbound read the one lifecycle answer they
+need (which children have a planned block) through consumer-owned ports bound
+at the root. The same epoch deletes the package entries of both packages,
+every rule that still named #3424 (the nest's own reach and suites, the
+consumers' `<consumer>.<role>.inbound-timetable-adapter` rules, and the seven
+Workforce and shift-plan-sync rules to the retained `models/schedule` rows,
+whose imports left with the slice), the sixteen `inbound-timetable`
+`test-support` and `e2e-test` rules of the SQL providers and the four
+`care-schedule-cutover` and `care-plan.contracttest` rules that only reached
+the nest, and the two Workforce integration-test rules
+(`workforce.integration-test.{facilities,people}-domain`) its composition
+suite no longer uses after moving to the external test package.
+
+With the nest gone from the base, the anchor of this exception no longer
+holds and it grants nothing from the next epoch on. Fifteen of its sixteen
+replacement rules stand on their own: each lets a consumer name the public
+contract of the owner that holds the moved behaviour, which is the target
+dependency shape. The rule for the nest's own behaviour suites
+(`timetable-planning-cutover.inbound-timetable.module-behavior-test.timetable-activities.public`)
+is deleted with the suites.
+
 ## Verification
 
 `internal/architecture/timetableplanning_cutover_test.go` covers the
 consumer replacement (public granted; the composition and implementation
 roles refused; no lending between scopes; unrelated owners and sources
-without the historical permission refused; the Timetable owner deliberately
-not granted by this slice), the nest's own reach (granted in all three
-scopes, refused for the composition and for unrelated owners, not extended
-to other roles of the same owner) and the anchor (same or lower epoch, a
-reclassified or missing nest and a foreign module all refuse).
+without the historical permission refused), the nest's own reach (granted in
+all three scopes, refused for the composition and for unrelated owners, not
+extended to other roles of the same owner), the slice S4 replacement by the
+Timetable contract for the Workforce, supervision dashboard and nest points
+(public only; the other Timetable roles refused), the slice S5 replacement
+for the scheduler and the timetable end-to-end flows (public only, each in
+its own scope), the slice S2 replacement for Enrollment (public only, in
+production only), the slice S3 replacement for the shift-plan-sync workflow
+(public only, in production only, no other role of the workflow) and the
+anchor (same or
+lower epoch, a reclassified or missing nest and a foreign module all
+refuse).

@@ -27,6 +27,27 @@ describe("getClientForwardHeaders", () => {
     expect(getClientForwardHeaders(request)).not.toHaveProperty("X-Real-IP");
   });
 
+  it("forwards the browser's analytics session, and only a session UUID", () => {
+    const withSession = new NextRequest(
+      "http://localhost:3000/api/auth/login",
+      {
+        headers: {
+          "x-posthog-session-id": "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
+        },
+      },
+    );
+    const withText = new NextRequest("http://localhost:3000/api/auth/login", {
+      headers: { "x-posthog-session-id": "Mia Müller" },
+    });
+
+    expect(getClientForwardHeaders(withSession)).toMatchObject({
+      "X-POSTHOG-SESSION-ID": "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
+    });
+    expect(getClientForwardHeaders(withText)).not.toHaveProperty(
+      "X-POSTHOG-SESSION-ID",
+    );
+  });
+
   it("forwards the rightmost client IP from a forwarded-for chain", () => {
     const request = new NextRequest(
       "http://localhost:3000/api/auth/passkeys/login/options",

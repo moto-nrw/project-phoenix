@@ -209,6 +209,144 @@ two consumers that could only reach the adapter and the moved behavior suites
 use the one-time replacement path of
 [ADR 0035](../../docs/adr/0035-care-lifecycle-cutover-replaces-legacy-permissions.md).
 
+#3354 moves the staff side of the parent requests out of `services/users`.
+`users.student_data_change_requests` was always Care Plan's; the decision on a
+Stammdaten request now is too. `internal/application` decides, corrects and
+notifies (the stale-value and invalid-target checks, the correction that
+restores the old value only while the approval's value is still live, the
+co-guardian notice, the ledger entry), `internal/domain` holds the value rules
+(departure plans, JSON baselines), and the contract is
+`masterdatarequests.Decisions` with the sentinels the students routes render.
+The child's record itself stays People Directory's: the decision reaches the
+person and student rows, the "läuft mit" reconciliation and the change
+history through the consumer-owned `MasterDataRecords` port, and the bulk
+facts through People Directory's field review, the same facts the open queue
+shows. The cross-queue commands, bulk approval and conflict resolution, are a
+Care Plan coordinator over the four queues it owns (the contract
+`modules/careplan/parentrequests`, a package the candidate creates, with the
+`parent requests: …` sentinels byte for byte); the care-schedule and offering
+queues contribute through their root adapters, the excused queue through
+Care Plan's own composition. The permission model stays with its owner: the
+root hands the coordinator the caller's rights, evaluated by
+`securityruntime.ParentRequestReviewRights`. The shared ledger
+`users.parent_request_events` stays People Directory's; every queue records
+through its ledger port, the root binds it to the retained repository, and
+the parents portal reads and appends through that repository directly. The
+reads were already native (#3182) and still go through `modules/requestreview`.
+No rule was added: five resolved `services/users` keys and the two rules only
+the deleted coordinator and its tests used are gone.
+
+#3356 cuts the six owner edges `api/students` held besides its carrier's
+shared plumbing. The HTTP role may not import these owners' public packages,
+and PR mode refuses a new rule between points that already exist, so five of
+them became consumer-owned ports of the students inbound, bound by the root:
+`TenantSettings` (the Settings Platform service as is: override, else
+registry default, with the keys pinned to `modules/settings` by a test),
+`GuardianWake` (the Communication parent event emitter; the
+`parent_child_updated` fan-out is unchanged), `SchoolGroups` (the School
+Structure group service, reduced to id, name and room), `ActiveEnrollments`
+(the Timetable enrollment read behind the "angemeldet" column) and
+`OfferingSourceResyncer` (Care Plan's booking materialization; the recurrence
+gate is still taken before the student row locks). The unused
+`services/iot` field is gone; the device authenticator already came from the
+Device Fleet composition. The audit rows keep going through Student
+Presence's `RecordDataAccess` and the consent and change-history ports; the
+stored resource types, consent source and document field names they carry
+are spelled out in the inbound, and the sweep's batch size is Care Plan's
+`StudentDocumentSweepBatchSize`. The list export is the one edge that needed
+the owner itself: `modules/documentrendering/lists` is a new Document
+Rendering contract that names the list renderer's document types, so the
+four export paths render byte for byte what they did; the root binds its
+`NewRenderer`. Its three rules (`inbound-students.http.document-rendering-lists`,
+`root-composition.compose.document-rendering-lists` and
+`document-rendering.contract.list-renderer`) are anchored to that new
+contract point. 19 `api/students` keys are gone (463 → 444).
+
+#2731 closed the carrier of `api/students`: its 37 remaining keys, the
+root's `api -> api/students` key (#2750) and `api/enrollment -> api/students`
+(#2734) are gone, and with the list snapshot that moved from `api/common`
+into the routes three #2738 model keys of `api/common` fell too
+(444 -> 402). No route path, status code, error body,
+middleware chain or authorization check changed; the route and middleware
+goldens are byte-identical.
+
+- The routes moved file for file to `modules/peopledirectory/inbound/students`
+  (package `students`), classified `people-directory`/`http` with
+  `adapter-test` for both test roles. PR mode rejects an owner change of an
+  existing path and a new permission on the existing `inbound-students`/`http`
+  point, so the `inbound-students` owner is deleted with its package entry and
+  its rules moved to the new point, like #2732's timetable routes. The new
+  point's other target dependencies are the ones the other owners' HTTP
+  adapters hold: `api/common`, the session token adapter (ADR 0031, also for
+  the adapter tests), the permission registry, the public contracts of
+  Security Runtime and Settings Platform, the tenant runtime, the shared value
+  helpers of `legacy-shared`, the Delivery Platform broadcaster and People
+  Directory's own `departure` contract.
+- A child is read and written through People Directory's public capability.
+  The routes carry it as their own `Student` view over
+  `peopledirectory.StudentRecord` (`student_record.go`), with the same
+  translation the retained `database/repositories` seams applied, so the
+  departure-plan baseline, the companion refusals and the not-found shapes the
+  handlers branch on are unchanged. The change history, the photo lifecycle
+  and the consent projection are consumer-owned ports in the owner's types,
+  bound to the People Directory capability; the Audit Platform consent trail
+  takes snapshots (`repositories.StudentConsents.RecordStudentConsentTransitions`).
+- The person half the retained person service still decides (person writes
+  with their account and RFID-card checks, the student-aware bracelet
+  assignment, the dated day-log roster, the staff member behind a person) is
+  the `PersonRecords` port, bound over that service by
+  `services.NewStudentRoutePersons`. The group teachers the detail lists are
+  plain `GroupTeacher` values. The companion sentinels and the companion link
+  helpers moved to the `departure` contract; `models/users` aliases them, so
+  every `errors.Is` keeps matching.
+- `bun`, `*bun.DB` and `database/sql` left the package: the handler
+  transactions join the request's through `tenant.WithinTenant`, and the device
+  routes read the kiosk through the Device Fleet authenticator's `DeviceID`.
+  The school-class grammar and the weekday names are local copies, the RFID
+  request type is declared next to its route, and `auth/authorize` became the
+  Security Runtime capability. `api/enrollment` renders the two shared
+  companion codes from `api/common`.
+- The route suites compose the owner through
+  `services/student_http_test_helpers.go` behind `api/testutil` and import
+  neither repositories nor retained models or services.
+- The move put the handlers under the module ratchets (Rule 16): `Router` and
+  eleven handlers were split into named steps and five files fell below 800
+  lines. No allowlist entry was added.
+- The named File Storage adapter exception stays (see below), re-anchored and
+  now tracked by #2706.
+
+#2727 closed the carrier of `database/repositories/users`: its 14 remaining
+keys are gone (402 -> 388), the package keeps its owner, role and tables, and
+no rule was added. The one rule that allowed the Communication suites to
+construct the retained person repository went stale with its last import and
+is deleted.
+
+- The retained repositories read the tenant and the ambient transaction
+  through the consumer-owned `Runtime` port. People Directory's composition
+  binds it over the tenant runtime (`compose.LegacyRepositoryRuntime`), and
+  `database/repositories` passes it to every constructor. The generic
+  repository of `database/repositories/base` is replaced by explicit CRUD
+  methods with literal table expressions and a local copy of the query-option
+  applicator; the error and query shapes the retained contracts name
+  (`DatabaseError`, the not-found sentinel, `QueryOptions`, the
+  unique-violation checks) come through the `models/users` vocabulary, so
+  callers that classify with `errors.As` keep matching. Calendar dates use
+  `sharedkernel/calendar`.
+- The authorization policy stays out of the package: the two stored
+  parent-portal permission keys the guardian reads filter on are local copies,
+  and a link without a role takes the default preset through the
+  `WithGuardianDefaultRole` option, which the composition binds over
+  `securityruntime.DefaultStudentGuardianRole` and `StudentGuardianRolePreset`;
+  without it the store refuses such a link. The legacy composition reads the
+  caller's school through `peopledirectory/compose` and the permission
+  matcher through `modules/securityruntime` instead of helpers of this package.
+- The 39 suites stay external tests of the package. They compose the retained
+  repositories and the legacy factory through `services/people_repository_test_helpers.go`
+  behind `api/testutil`, and name rows, values and errors through
+  `test/people_repository_vocabulary.go` and the tenant helpers of
+  `test/tenant_runtime.go`. The 208 tests and their subtests are unchanged in
+  number and assertion.
+
 #2762 cut the execution and the attendance of a block over to Student
 Presence (migration 1.15.415, one release with the caller switch). Timetable
 & Activities keeps the plan in `schedule.activity_instances` and
@@ -236,6 +374,35 @@ new workflow owner. `database/repositories/student_presence.go`, the old
 provider, is gone. The evidence lives in
 [presence-cutover-2762.json](presence-cutover-2762.json) and the runbook in
 [docs/operations/presence-storage-cutover-2762.md](../../docs/operations/presence-storage-cutover-2762.md).
+
+#2756 cut the student-guardian relationship over to its three owners
+(migration 1.15.417, one release with the caller switch). People Directory
+owns `users.student_guardian_relationships` (type, role, primary, emergency
+contact and priority, payer), Care Plan `users.student_guardian_pickup_permissions`
+(`careplan.GuardianPickupPermissions`) and Identity & Access
+`auth.guardian_student_access` (account binding and parents-portal
+permissions, `identityaccess.GuardianStudentAccess`). The retained
+`StudentGuardianRepository` seam is People Directory's relationship store in
+`database/repositories/users/guardian_relationships.go`: it writes the
+relationship and then the other two halves through consumer-owned ports,
+inside one savepoint that holds the relationship row lock, and the legacy
+composition binds the ports in `database/repositories/guardian_relationship_owners.go`.
+The People Directory parents-portal link writes take the same ports through
+`compose.Dependencies.GuardianLinkOwners`. Reads that need the whole row join
+the three owners through the tenant-safe projection `modules/guardianlinkview`
+(owner `guardian-link-view`), embedded as a subquery so every retained read,
+including the Communication audience and inbox projections, keeps its one
+statement; those two projections gave up their `users.students_guardians`
+grant instead of gaining the three owner tables. The account binding follows
+the guardian profile through a migration trigger. The old table stays a
+trigger-kept rollback mirror with the `users.students_guardians_compatibility_writes`
+counter until #2757, because the previous image links guardians with
+`INSERT ... ON CONFLICT`; `TestGuardianStorageCallerInventory` keeps every
+provider off it. `database/repositories/users/student_guardian.go`, the old
+provider, is gone. The evidence lives in
+[guardian-owner-cutover-2756.json](guardian-owner-cutover-2756.json) and the
+runbook in
+[docs/operations/guardian-owner-storage-cutover.md](../../docs/operations/guardian-owner-storage-cutover.md).
 
 The staff messaging writes live in the Communication Postgres adapter
 `modules/communication/internal/adapters/staffpostgres`. The inbox and unread
@@ -587,10 +754,12 @@ converted; `inbound-staff-shifts.to.workforce` is the owner's only rule and
 `api/staff-shifts` its only package. `legacy.jsonl` is unchanged: the
 package never had a key, which is what the ticket set out to repair. The
 Dienstplan rows still speak the retained `models/schedule` structs inside
-the planning package, because the Timetable coverage probe and staff pool in
-`modules/timetable/legacy/timetableplanning` share that vocabulary; they go
-with #3424, together with the shift-coverage interval vocabulary
-(`shift_coverage_intervals.go`) the overview binds through its own aliases.
+the planning package, because the Timetable coverage probe and staff pool
+share that vocabulary; they go with #3424. Since slice S4 (#3550) the
+overview takes the shift-coverage interval math and the calendar-week
+helpers from the public Timetable contract (`timetable.UncoveredShiftIntervals`,
+`timetable.ContainingCalendarWeek`) and keeps its own indexing and ordering
+helpers.
 
 The retained timetable and instance services that `services/schedule` used to
 hold (templates, splits and updates, materialization, the instance lifecycle
@@ -598,7 +767,8 @@ and deviation pipeline, conflict detection, the timetable data and operations
 reads, calendar periods, holidays and closing days, planning tracks, the
 roster reconciler, cleanup and the attendance mirror) are retained as the
 `inbound-timetable`/`adapter` compatibility package
-`modules/timetable/legacy/timetableplanning` (#3218), moved file for file with
+`modules/timetable/legacy/timetableplanning` (#3218; dissolved slice by slice
+under #3424 and deleted by slice S1, #3554), moved file for file with
 their behaviour tests. No HTTP path, status code, error string, authorization
 check, tenant scoping, recurrence, exception or materialization semantics
 changed. The care, arrival and pickup services stayed behind for #3220 (below),
@@ -689,12 +859,16 @@ unused generic CRUD methods. The pure query-option translations and listing
 adapters the legacy composition uses moved to `modules/timetable/compose`
 (`legacy_repository_options.go`, `legacy_composition_support.go`,
 `calendar_period_usage.go`), which may already import their models. The SQL
-test providers the cross-package tests build and the repository behaviour
-tests are the test-only root `modules/timetable/legacy/timetablesqltest`
-(`inbound-timetable`/`test-support`, `e2e-test` in both test scopes, as
-`modules/workforce/contracttest`); its `inbound-timetable.test-support.*`,
+test providers the cross-package tests built went to the test-only root
+`modules/timetable/legacy/timetablesqltest`, which #3554 deleted with its
+package entry and its `inbound-timetable.test-support.*`,
 `inbound-timetable.e2e-test.*` and `<consumer>.<role>.inbound-timetable-test-support`
-rules are compatibility permissions of the same kind. With both packages gone,
+compatibility rules: the consumer suites read through the repositories the
+composition root binds to the Timetable owner, the repository behaviour tests
+of those bound repositories moved to `modules/timetable/compose/httpintegration`
+(`legacy_*_test.go`) and the staff-notice and listing-adapter tests to
+`modules/timetable/compose`, and the tests of the providers themselves were
+dropped. With both packages gone,
 all #2730 entries left `legacy.jsonl`, together with the other resolved
 imports of the two packages, and the 25 rules that only those imports used
 (for example `parent-portal.adapter.timetable-application` and
@@ -827,10 +1001,13 @@ the consumer-owned read seams, and `compose` binds them. The projection reads
 `schedule.activity_instances`, `schedule.instance_students`, `active.visits`,
 `active.attendance`, `users.students`, `users.persons`, `education.groups`, the
 rooms and the Care Plan status days and pickup exceptions only through the public
-owner facades (`class-day-view.from.*`). Its `class-day-view.compose.*`
+owner facades (`class-day-view.from.*`). Since #3563 the application also
+builds the school portal's day report, the supervision sheet and the class-wide
+arrival exceptions itself; Enrollment's class roster of a day reaches it
+through the `DayRosters` port the root binds. Its `class-day-view.compose.*`
 permissions for the retained schedule services (care-day derivation, effective
-times, pickup baselines), the enrollment report and class-day write seam, the
-settings service, the user context and the JWT permission check exist only
+times, pickup baselines), the settings service, the user context and the JWT
+permission check exist only
 because PR mode cannot record debt for a package the candidate creates. They are
 compatibility bindings, not target dependencies: convert them to exact debt with
 the rule above once the packages exist at a base SHA, and remove each binding
@@ -901,14 +1078,17 @@ classified `student-presence`/`http` for the same reason (#3207). It replaced
 Schulhof routes from the public Student Presence contract and the public
 supervision projection, with unchanged paths, status codes and error strings.
 Its `student-presence.http.inbound-common` and
-`student-presence.http.legacy-shared-domain` rules, the
-`root-composition.to.student-presence-http` mount and every
-`student-presence.adapter-test.*` rule are compatibility permissions, not
-target dependencies: the shared HTTP rendering edge goes when the inbound
-common package moves, the calendar-date edge with the retained
-`internal/timezone` type, and the settings and user-context test edges with the
-fixtures that still name them. Convert them to exact debt with the rule above
-once the package exists at a base SHA.
+`student-presence.adapter-test.inbound-common` rules are standing target
+rules (#3447): `api/common` is the shared HTTP runtime the other owners' HTTP
+adapters and adapter tests bind as well, and it has no replacement. The
+`root-composition.to.student-presence-http` mount stays a compatibility
+permission; convert it to exact debt with the rule above once the package
+exists at a base SHA. The calendar-date edges are gone: the adapter and its
+tests name `sharedkernel/calendar` directly under the shared-kernel rule
+([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md)).
+The settings test edge is gone too: the tests name the setting keys through
+the public `modules/settings` contract, which now also exports the four
+tracking-indicator keys.
 
 The retained Presence services, rows and repositories (#3214) moved file for
 file, with their tests, out of the legacy packages the HTTP composition left
@@ -1024,6 +1204,529 @@ epoch-gated exception in
 (policy epoch 22 to 23), which every later slice of #3424 reuses and which
 ends when the last slice removes the package from the base.
 
+Slice S4 (#3550, policy epoch 25 to 26) moved conflict detection and
+staffing to the Timetable owner: the start and planning conflict checks,
+the window conflicts with their persisted acknowledgement fingerprints, the
+exception conflicts, the staff pool, the shift-coverage probe and the
+staffing rules. The public contract is `timetable.ConflictDetectionCapability`
+with the pure capacity, understaffing, slot-precedence and interval
+functions beside it; the implementation lives in `modules/timetable/compose`
+and still reads the retained repository rows, whose status carries the
+Student Presence session state the owner's own rows do not. Two collaborators
+the owner may not name are bound by the legacy composition
+(`services.NewTimetableConflictDetection`): Security Runtime's content
+fingerprint, of which the persisted fingerprint keeps the first 32 hex
+characters, and Care Plan's arrival baseline behind a consumer-owned port.
+`api/timetable` holds the capability directly; the retained
+`TimetableDataService` only carries it to the root (`ConflictDetection()`),
+because `services.Factory` may not grow a field. The instance lifecycle and
+the auto-start tick call the owner's start check, the Dienstplan overview
+and the supervision dashboard its public types, and the plan export reads
+staff names through a root-bound port instead of the nest's staff reader.
+Four emptied compatibility rules are deleted, five replacement permissions
+use the extended exception of ADR 0038, and `legacy.jsonl` is unchanged.
+
+Slice S5 (#3551, policy epoch 26 to 27) moved the planner's reads, the
+operational day, the retention cleanup, the ended-session completion and the
+planning-track administration to the Timetable owner. The public contracts
+are `timetable.TimetableDataCapability` (blocks with their rows, staffing
+gaps, a child's week, the Vorlagen list, the Änderungsprotokoll, the
+spontaneous-start preparation and the conflict acknowledgements),
+`timetable.OperationCapability`, `timetable.TimetableCleanup`,
+`timetable.EndedSessionCompletion` and `timetable.PlanningTrackAdministration`,
+with the lifecycle clock policy, the attendance-patch rules and the reopen
+gate as pure functions beside them; the retained lifecycle and template
+services delegate to those functions. The implementation lives in
+`modules/timetable/compose` and still reads the retained repository rows.
+The collaborators the owner may not name are consumer-owned ports bound at
+the root: `repositories.TimetableOwnerRows` hands over the retained rows,
+the Facilities room names, the School Structure group names and the Audit
+Platform's Änderungsprotokoll; `services` binds Care Plan's care days,
+baselines and effective times, Student Presence's attendance writes, the
+settings, the retained instance lifecycle (until slice S1) and the tenant
+runtime's advisory locks. The retained `TemplateService` (template writes
+and the attendance correction, slices S2 and S3) carries the planner reads
+to the root beside the conflict detection (`TimetableData()`), because
+`services.Factory` may not grow a field. The scheduler, the command line,
+the supervision dashboard, the kiosk session mirror, the sick cascade and
+the timetable end-to-end flows no longer name the nest. `careplan.ScheduleError`
+stays the one operation-wrapping error type (decision on #3551). Seventeen
+emptied compatibility rules are deleted, three replacement permissions use
+the exception of ADR 0038, and three resolved `legacy.jsonl` entries are
+removed; no key is added.
+
+Slice S2 (#3552, policy epoch 27 to 28) moved the template writes (create,
+update, split, end, the weekday rosters, the offering source and the
+grade-limit checks), the materialization with its edited-occurrence
+detection, the roster maintenance and the tenant recurrence gate to the
+Timetable owner. The public contracts are `timetable.TemplateAdministration`,
+`timetable.MaterializationCapability`, `timetable.RosterMaintenance` and
+`timetable.RecurrenceWriteLock` (one capability for both gates, recurrence
+first and grade transitions second), with `timetable.OfferingRosterResyncInput`,
+`timetable.ErrOfferingSourceInvalid` and the template errors beside them. The
+implementation lives in `modules/timetable/compose`, takes the advisory
+locks through the owner's Postgres adapter and asks the School Calendar for
+the A/B-week decision directly. The collaborators the owner may not name are
+consumer-owned ports bound at the root: `repositories.TimetableTemplateRows`
+hands over the retained rows, `services` binds School Structure's grade
+range and class-name identity, Enrollment's care-offering checks and roster
+resync, the instance lifecycle's deviation snapshot for the split and the
+realtime staffing announcement. `services.Factory.TimetableData` carries the
+template administration, the recurrence gate, the planner reads, the
+conflict detection and the retained attendance correction (slice S3) to the
+root, and `TemplateSplit` is gone, because the factory may not grow a field.
+Enrollment, the scheduler, `api/timetable` and the composition root no
+longer name the nest for these paths; the retained instance lifecycle and
+the conversion of one occurrence into a series (slice S1) consume the public
+contract. The moved code wraps its steps in a compose-local `ScheduleError`
+with the unchanged message format, because the owner may not name Care Plan.
+Thirteen emptied compatibility rules are deleted, one replacement permission
+uses the exception of ADR 0038, and `legacy.jsonl` is unchanged.
+
+Slice S3 (#3553, policy epoch 28 to 29) moved the deviation, substitution and
+sick-report writes (the single-day Vertretungsplan save, the
+Sammel-Vertretung and the #1843 sick stamps), the substitute time-overlap
+advisory, the attendance correction of completed blocks and the Student
+Presence attendance mirror to the Timetable owner. The public contracts are
+`timetable.StaffDeviations` (with `timetable.SubstituteConflictQuery`),
+`timetable.AttendanceCorrections` and `timetable.AttendanceMirror`, over the
+owner's own types (`timetable.DeviationError`, `timetable.TouchedActivities`,
+`timetable.AttendanceVisit`, the correction sentinels); the implementation
+sits in `modules/timetable/compose` and takes the day-wide staffing lock
+through the owner's Postgres adapter. The attendance mirror has exactly one
+runtime write owner: Student Presence's `studentpresence.AttendanceSyncer`
+port is bound at the root (`services.NewTimetableAttendanceMirror`) to the
+Timetable command, which runs inside Presence's tenant transaction with the
+lock order unchanged, so a failing mirror still rolls the visit write back.
+Collaborators the owner may not name are consumer-owned ports bound at the
+root: the Audit Platform's Änderungsprotokoll and correction trail
+(`repositories.TimetableDeviationProtocol`,
+`repositories.TimetableAttendanceCorrectionTrail`), the retained instance
+lifecycle for the cancel branch and the understaffed acknowledgement, and the
+realtime activity update. `services.Factory.TimetableData` carries the
+deviation writes and the correction to `api/timetable`; the shift-plan-sync
+workflow's sick cascade and Terminvertretung write through its own ports onto
+`timetable.StaffDeviations`. The standalone understaffed acknowledgement, the
+staff move and the Änderungsprotokoll entries of lifecycle writes stay with
+the retained lifecycle (slice S1), which asks the owner for the substitute
+advisory. Five emptied compatibility rules are deleted, one replacement
+permission uses the exception of ADR 0038, and `legacy.jsonl` is unchanged.
+
+Slice S1 (#3554, policy epoch 29 to 30) moved the instance lifecycle and
+deleted the nest. The transitions (start with the absorption of
+unsupervised sessions, completion with its snapshot, reopen, cancellation
+with the guardian notice, delete), the planning writes (create with its
+idempotency key, planned edit, re-plan with the deviation snapshot and
+reapply), the staff move, the standalone understaffed acknowledgement, the
+series conversion and the scheduler's automatic start and end are the
+public contracts `timetable.InstanceLifecycle`, `timetable.InstancePlanning`,
+`timetable.InstanceStaffing` (together `timetable.InstanceLifecycleCapability`),
+`timetable.InstanceSeriesConversion`, `timetable.InstanceAutoStart` and
+`timetable.InstanceAutoEnd`, over the owner's own types
+(`timetable.LifecycleInstance` and the lifecycle inputs, results and
+sentinels). The implementation lives in `modules/timetable/compose`
+(`instance_*.go`) and still writes the retained repository rows; it serves
+the lifecycle ports of the operational day and the deviation writes and the
+template split's deviation machinery itself, so those bindings left
+`services`. The collaborators the owner may not name are consumer-owned
+ports bound at the root (`services/timetable_lifecycle_composition.go`): the
+Facilities rooms through `repositories.TimetableOwnerRows.LifecycleRooms`,
+Care Plan's care days and day locks, Communication's cancellation notice
+(`compose.GuardianNotices`, whose refusals arrive wrapped in the owner's
+notice sentinels), the Settings Platform's clock policy, the Audit
+Platform's Änderungsprotokoll, Security Runtime's content fingerprint for the
+idempotency key and the realtime hub (`compose.LifecycleBroadcaster`, whose
+event types mirror the Delivery Platform's vocabulary). School Structure's
+class rules reach the root through `modules/schoolstructure/compose`
+instead of the nest. The group live view and the students inbound read the
+planned-student lookup through consumer-owned ports. `services.Factory`
+keeps its four lifecycle fields with owner types. The nest's behaviour tests
+moved to `modules/timetable/compose` and `compose/httpintegration`; the SQL
+test providers of `modules/timetable/legacy/timetablesqltest` were deleted
+with their tests, and the tests of the bound repositories moved beside
+them. The Dienstplan services and the shift-plan-sync workflow no longer
+speak the retained `models/schedule` rows, so the seven Workforce and
+shift-plan-sync rules to them fell too. `api/timetable` no longer imports
+`models/schedule`, `models/activities`, `models/base`, `internal/timezone`,
+`internal/schoolclass` or `realtime`: the thirteen #2732 keys left
+`legacy.jsonl` (the fourteenth, the internal-test `models/education` import,
+had gone with slice S5), and the vocabulary the handlers borrow is mirrored
+in the public contract and pinned against the models. Every rule that named
+#3424 is deleted, the package entries of both packages are gone, and ADR
+0038's exception ends with them; fifteen of its replacement rules remain as
+ordinary permissions to the owners' public contracts.
+
+#2732 closed the carrier of `api/timetable`: its 27 remaining keys, the
+root's `api -> api/timetable` key (#2750) and the end-to-end fixture's
+`test/e2e/timetable -> api/timetable` key (#2748) are gone (571 -> 542). No
+route path, status code, error body, middleware chain or authorization check
+changed; the middleware golden only renames the package and the spelling of
+two inlined closures.
+
+- The routes moved file for file to `modules/timetable/http` (package
+  `timetablehttp`), classified `timetable-activities`/`http` with
+  `adapter-test` for both test roles. PR mode rejects an owner change of an
+  existing path and a new permission on the existing `inbound-timetable`/`http`
+  point, so the `inbound-timetable` owner is deleted with its package entry.
+  Its six production rules and the adapter tests' compose rule moved to the
+  new point, the school portal's two rules now target it, and the two
+  test-construction rules to Student Presence and Care Plan compose had no
+  import left and are deleted. The new point's other target
+  dependencies are the ones the other owners' HTTP adapters hold: `api/common`,
+  the session token adapter (ADR 0031, also for the internal tests), the
+  permission registry, the public contracts of Security Runtime and Settings
+  Platform, and the tenant runtime. The root, the school portal and its tests,
+  and the timetable end-to-end fixture mount the new point.
+- The legacy imports became public contracts or consumer-owned ports.
+  `modules/settings` gains the timetable setting keys, the request-scoped
+  `Resolver` and the `Resolve*OrDefault` helpers; `modules/securityruntime`
+  gains `CanReadStudent`; the class-day projection and the plan export name
+  their file formats; `common.ProtectedTenantRoutes` and the new
+  `common.ProtectedSchoolRoutes` replace the route groups that took a
+  `*bun.DB` they never used. The People Directory reads are the routes' own
+  `People` port in builtin types, the Enrollment support of the Regeltermin
+  editor is `timetable.OfferingSourceSupport` in the owner's public contract,
+  and the school portal's supervision sheet is the `SupervisionSheets` port,
+  whose refusal the route recognises by a marker method.
+  `services/timetable_http_ports.go` binds the three over the retained
+  services at the root.
+- The route suites import neither repositories nor retained models. Their
+  composition of the owner moved to `services/timetable_http_test_helpers.go`
+  behind `api/testutil`, rollback probes use `test.TransactionProbe`,
+  correction trails are read through the owner's `GetAttendanceCorrections`,
+  deviation events through a row type of the suite, and the database-free
+  suites fake the ports. The pin of the Audit Platform vocabulary the owner
+  mirrors became a compile-time guard in
+  `database/repositories/timetable_audit_ports.go`, the one package that
+  binds both vocabularies.
+- The move put the handlers under the module ratchets (Rule 16): `Router`
+  and fourteen handlers were split into named steps, and `api.go` and
+  `instances_list.go` fell below 800 lines. No allowlist entry was added.
+
+#3559 (G1 of the `services/enrollment` dissolution under #2733) moved the
+care-offering catalog to its owner. The admin catalog, the timetable-link
+validation, the materializability, calendar-period, room, timeframe and phase
+guards, the offering-source guard and the rollover clone now live in
+`modules/careplan/internal/application/care_offering_*.go` behind the ports in
+`internal/ports/care_offering_catalog.go`, composed by
+`compose.NewCareOfferingCatalog`. The public contract is
+`careplan.CareOfferingCatalog`, `CareOfferingGuards`, `CareOfferingRollover`
+and `CareOfferingLinks` (`care_offering_catalog.go`, `care_offering_links.go`),
+with capability-specific method names because `contracts.generic-crud` refuses
+`List`/`Create`/`Update`/`Delete`/`GetByID` on a public contract. Error texts,
+statements and transaction boundaries are unchanged; the key count stays at
+542 and no rule was added.
+
+- The catalog reads the Timetable, the School Calendar and Enrollment only
+  through its own ports; `services/care_offering_catalog_composition.go` binds
+  them over the owners' public contracts, the settings service, Enrollment's
+  translation rules and the Timetable owner's offering-source refusal
+  (`timetable.ErrOfferingSourceInvalid`), which the catalog therefore never
+  imports. The ports call the same owner queries the retained activity,
+  schedule, calendar-period, timeframe and exception repositories delegated
+  to, with the same filters. Tenant rollback on a rejected update comes from the tenant runtime
+  in Care Plan's compose.
+- The decision service that resyncs sourced rosters and the pickup projection
+  is still composed after the catalog. Instead of the two setters the catalog
+  had, it resolves the service through a factory-local variable at call time,
+  so the composition surface fell from 620 to 618.
+- The enrollment routes and the retained enrollment services still speak
+  enrollment rows. Only Enrollment's own packages may name `models/enrollment`,
+  and `inbound-enrollment`/`http` has no permission to `care-plan`/`public`
+  (PR mode rejects adding one on an existing point), so `api/enrollment`
+  declares its own `CareOfferingCatalog` port in rows, bound at the root to
+  `services/enrollment.CareOfferingRows` over the owner. For the same reason
+  the row translation of care offerings and offering-change requests
+  (`services/enrollment/care_plan_offering_records.go`) stays with its
+  consumers until G2 to E4 move them. `services/enrollment` keeps its error
+  names pointed at the owner values, as #3558 did.
+- Booking materialization in `services/enrollment` calls the moved link rules
+  through `careplan.CareOfferingLinks` and the pure
+  `careplan.SchedulesOverlapPhase` / `ValidatePhaseWithinPeriod`, instead of
+  a second copy. The unused legacy sentinels
+  `models/enrollment.ErrCareOfferingInvalid`,
+  `ErrCareOfferingPickupTimesRequired` and
+  `models/schedule.ErrCalendarPeriodCareOfferingConflict` are gone.
+- The catalog's behaviour suites stay in the `services/enrollment` test
+  package, which already reaches the retained fixtures, and compose the owner
+  through `api/testutil.NewCareOfferingCatalog`; the pure booking-stats and
+  availability tests run against fakes in the application package.
+
+#3560 (G2 of the `services/enrollment` dissolution under #2733) moved the
+booking materialization to Care Plan. The roster rows an approval derives
+from a child's bookings, the offering-sourced Regeltermin resync, detach and
+editor support, the Regeltermin roster indicator, the dated offering
+adjustments and the offering pickup times now live in
+`modules/careplan/internal/application` (`booking_*.go`, `sourced_*.go`,
+`offering_adjustment*.go`, `offering_pickup_times.go`,
+`offering_source_editor.go`, `template_roster_feeds.go`) behind the ports in
+`internal/ports/booking_materialization.go`, composed by
+`compose.NewBookingMaterialization` over the catalog of #3559. The public
+contract is `careplan.SourcedRosters`, `OfferingSourceEditor`,
+`BookingMaterializer`, `OfferingAdjustments` and `OfferingPickupTimes`
+(`booking_materialization.go`), plus the pure rules
+`DeriveTemplateRosterMaintenance`, `ExplainEmptyOfferingRoster` and
+`ExcludedAutoTargetOverrides`. `careplan.CareOfferingLinks`, which only
+served the materialization while it lived in `services/enrollment`, is gone.
+Error texts, statements and transaction boundaries are unchanged; the key
+count falls from 542 to 540 and no rule was added.
+
+- The materialization writes `activities.student_enrollments` and reconciles
+  `schedule.instance_students` through ports that
+  `services/booking_materialization_composition.go` binds to the Timetable
+  owner's `StudentEnrollmentCommand` and roster maintenance, the way
+  `NewCareLifecycle` already works. It reads Enrollment's requests, children,
+  phases, booked selections and the approved-booking projection, People
+  Directory students and locks, the School Calendar periods, the settings and
+  Audit Platform's adjustment trail through the same binding; Care Plan's own
+  bookings, pickup rows and withdrawal follow-up are passed in directly.
+  Every write joins the ambient tenant transaction. The recurrence gate is
+  the Timetable owner's; the class-writes gate and the student lock are People
+  Directory's, in the order every care writer takes them. The pickup
+  announcement is deferred to commit in Care Plan's compose; the services
+  binding only broadcasts.
+- The Jahrgang of a child comes from Enrollment's rule
+  (`enrollment.SchoolClassGradeLevel`) through the ports, because Care Plan's
+  application may not import School Structure's class grammar.
+- The decision, change-request and offering-change services still speak
+  enrollment rows. They drive the owner through
+  `services/enrollment.DecisionBookings` and translate its results in
+  `care_plan_bookings.go`; `services.Factory.EnrollmentCareOffering` now
+  carries the catalog together with the materialization
+  (`careplan.CareOfferingCapability`), so the Timetable hook, the grade
+  transition, the phase service, the Regeltermin editor, the student class
+  resync and the pickup reset route reach it without a new field. The
+  intake-side selection helpers the retained request, change-request and
+  offering-change services share with enrollment rows
+  (`intake_offering_rules.go`, `changeCareBookings`) and the decision's own
+  targeted-field pickup hooks stay with those services until E3, E4 and G3
+  move them. The offering-change decision validates excluded co-booking
+  targets through `careplan.ExcludedAutoTargetOverrides` instead of its own
+  copy.
+- The legacy repository methods only the materialization called
+  (`FindTemplatesBySourceOffering(s)`, `FindTemplatesWithOfferingSource`,
+  `BackfillEnrollmentRequestChildSource`, `DeleteByEnrollmentRequestChild`)
+  are deleted. The behaviour suites stay in the `services/enrollment` test
+  package and compose the owner through `api/testutil.NewBookingMaterialization`.
+
+#3561 (G3 of the `services/enrollment` dissolution under #2733) moved the
+offering-change, course-request and pickup-adjustment reviews to Care Plan.
+The parent's switch request, its staff decision and preview, the edit and
+withdrawal, the conflict resolver side, the course request with its
+waitlist, the staff-side direct offering correction and the permanent
+pickup-time adjustment now live in `modules/careplan/internal/application`
+(`offering_change*.go`, `course_request*.go`,
+`direct_offering_adjustments.go`, `pickup_adjustment*.go`) behind the ports in
+`internal/ports/offering_changes.go` and `internal/ports/pickup_adjustments.go`,
+composed by `compose.NewOfferingChanges` and `compose.NewPickupAdjustments`.
+The public contract is `careplan.OfferingChangeRequests`, `CourseRequests`,
+`OfferingChangeConflicts`, `DirectOfferingAdjustments` (together
+`OfferingChangeCapability`) and `PickupAdjustments`. Routes, status codes,
+error texts, authorization and tenant scoping are unchanged; the key count
+falls from 540 to 535 and no rule was added (one stale test rule is gone).
+
+- `services/offering_change_composition.go` and
+  `services/pickup_adjustment_composition.go` bind the ports over Care Plan's
+  own request rows, Enrollment's care periods, children, phases, selections,
+  catalog state and capacity peak, People Directory students and locks, the
+  withdrawal follow-up, the settings, the review scope of the caller's JWT
+  permissions, the parent-messaging ledger and the co-guardian notices. The
+  course groups of the manual planning come from the Timetable owner
+  (`services/offering_change_planning.go`). Every write joins the ambient
+  tenant transaction; the pickup adjustment joins it through Care Plan's
+  compose (`tenant.WithTenantTx`) and marks it for rollback the way the
+  retained service did.
+- Approvals and direct corrections reach the booking materialization of #3560
+  through `careplan.OfferingAdjustments` with the request or direct source;
+  `services/enrollment` keeps no offering-change, course-request, pickup or
+  direct-correction rule. The pickup adjustment token is the Security Runtime
+  fingerprint; it is a content fingerprint, not a secret, so the comparison no
+  longer needs `crypto/subtle`.
+- `services.Factory` loses the `OfferingChanges` and `PickupAdjustments`
+  fields: `EnrollmentCareOffering` (`careplan.CareOfferingCapability`) now
+  carries both reviews, so `api/students`, the parent portal and the conflict
+  coordinator reach them without a new field (composition surface
+  618 -> 615). The lifecycle sentinels are translated to the
+  `services/users` ones in a services decorator so rendered texts stay
+  byte-identical; the conflict coordinator's staff value is parsed there too,
+  so the public contract stays typed.
+- The legacy queue methods (`ListPending`, `ListHistory`, `PendingCount`,
+  `ListDirectCorrections`) had no production caller since the native request
+  review (#3179) and are deleted. The behaviour suites stay in the
+  `services/enrollment` test package, compose the owner through
+  `api/testutil.NewOfferingChanges` and assert the staff queue through
+  `api/testutil.NewOfferingReviewQuery`.
+
+#3562 (E1 of the `services/enrollment` dissolution under #2733) moved
+Enrollment's phases, form schemas, the phase-response overview, the
+phase-expiry warnings, the approved-offering projection, captcha
+verification and the parent mail renderers and decision notifications into
+`modules/enrollment/internal/application` (`enrollment`/`application`, the
+same point as the retained package), composed by `modules/enrollment/compose`
+and published through `modules/enrollment` (`PhaseAdministration`,
+`FormSchemaAdministration`, `PhaseExpiryWarnings`, `CaptchaVerifier`,
+`Notifications`, `MailRenderers`). The Turnstile call is the adapter
+`modules/enrollment/internal/adapters/turnstile` (`enrollment`/`adapter`).
+Routes, status codes, error texts, authorization and tenant scoping are
+unchanged; 21 files are deleted and the key count falls from 535 to 529
+(`email`, `pgdriver` and `net/http` in production, three test keys).
+
+- The composition could not construct its application under an ordinary
+  `enrollment.compose.application` rule, because `services/enrollment`
+  already holds that point at the base. ADR 0041 grants exactly that
+  production permission in epoch 31 while the retained package exists.
+- Settings reach the application through typed ports (`CollectionSettings`,
+  `CaptchaSettings`, `NotificationSettings`) that `services` binds over the
+  settings resolver; the captcha keeps its deployment fallbacks there. Mails
+  leave as `application.Mail` intents that `services` puts on the platform
+  outbox; the renderers take the stored JSON payload.
+- The Postgres adapter marks a duplicate phase name and a missing form schema
+  or calendar period with `ErrPhaseNameTaken` and `ErrPhaseReferenceMissing`,
+  so neither the phase administration nor the rollover reads driver errors.
+- The decoded request and child glue (`services/enrollment/owner_records.go`)
+  stays with the retained decision, rollover and intake flows until #3564 and
+  #3565 move them: the public contract may not carry the decoded answer maps.
+- The guardian portal reads care periods and offering history through its own
+  ports (`care.CarePeriodReads`, `care.OfferingHistoryReads`), which removes
+  the two parent-portal rules to the retained Enrollment application.
+- The behaviour suites stay in the `services/enrollment` test package and
+  compose the owner through `modules/enrollment/enrollmenttest`; the external
+  `api/enrollment` router suites reach it through exported helpers of the
+  package's internal tests.
+
+#3563 (E2 under #2733) moved the school portal's class day report, the
+supervision sheet and the class-wide arrival exceptions into the Class Day View
+application (`modules/classday/internal/application`, behind the one
+`classday.ClassDay` capability, which gained `SupervisionStudentSheet`), and
+the care usage and class roster reports with their export audit into
+Enrollment (`modules/enrollment/internal/application`, published as
+`enrollment.Reports`, composed by `modules/enrollment/compose.NewReports`).
+The five retained files are deleted; routes, status codes, error texts, the
+report and export output, the GDPR access-log rows, authorization and tenant
+scoping are unchanged. The key count falls from 529 to 523
+(`internal/collation`, `internal/sliceutil` and `models/education` in
+production, three test keys), and eight rules that no import used any more are
+deleted, among them `class-day-view.compose.enrollment-application` and
+`parent-portal.application.enrollment-application`. No rule is added.
+
+- Enrollment publishes the class roster of a day
+  (`Reports.ClassRosterDay`: covering phases, merged roster rows and each
+  student's departure modes for the weekday). Class Day View reads it through
+  its own `DayRosters` port, which `services` binds; a direct
+  `class-day-view.compose → enrollment/public` import would have been a new
+  permission.
+- Neither application may import People Directory's domain, the audit or
+  settings models, the realtime hub or the tenant runtime. Students, persons,
+  guardian contacts, status days, the care-offering setting, the GDPR access
+  log and the after-commit arrival announcement reach them through ports
+  `services` binds; Care Plan's effective times, care days and class arrival
+  exceptions reach Class Day View through its compose bindings, which also
+  keep Care Plan's refusal texts on the wire. Group names come from the
+  retained group repository through `repositories.NewGroupNames`.
+- The companion link helpers (`FilterCompanionLinksToDays`,
+  `CompanionDisplayName`, `FormatCompanionLinks`) moved from `models/users` to
+  People Directory's departure contract (`modules/peopledirectory/departure`),
+  aliased from `models/users` and the People Directory facade.
+- The reports sort with the settings of `internal/collation` through
+  `golang.org/x/text/collate`, which the policy keeps out of an owner's
+  application; a table test pins the order against the shared cases.
+- `BookingViewDate` moved to Care Plan (`careplan.BookingViewDate`), so the
+  guardian portal no longer imports the retained Enrollment application;
+  `ReportOfferingDate` is public in `modules/enrollment` for the retained
+  decision flow, which keeps its own export audit writer until #3564.
+- `services.Factory` keeps its field names: `EnrollmentReport` now holds
+  `enrollment.Reports` and `ClassDayArrivalExceptions` the whole
+  `classday.ClassDay` capability, so the composition surface does not grow
+  (615 → 610 targets).
+
+#3564 (E3 under #2733) moved the decision flow, the restore of a withdrawn
+request, the rollover with its review queue and deadline worker, the admin
+deletion with its impact preview and the retention cleanup of rejected
+requests into Enrollment (`modules/enrollment/internal/application`). The
+public package publishes them as `enrollment.Decisions`,
+`ApprovedChildChanges`, `Rollovers`, `EnrollmentDeletions` and
+`RejectedEnrollmentCleaner`; `modules/enrollment/compose` composes them
+(`NewDecisions`, `NewRollovers`, `NewDeletionPreview`, `NewDeletions`,
+`NewRejectedCleanup`) in the ambient tenant transaction. The thirteen retained
+files and three helper files are deleted; routes, status codes, error texts,
+authorization and tenant scoping are unchanged. The key count falls from 523 to
+513 (`models/audit`, `models/base`, `models/schedule`, `realtime`,
+`services/import` and `bun.DB.RunInTx` of `services/enrollment` in production,
+`models/audit` of `api/enrollment` in both scopes, two test keys). No rule is
+added.
+
+- The capacity gate the submissions share with the restore is the public
+  `enrollment.OfferingCapacity`, composed by `compose.NewOfferingCapacity`
+  and bound into the retained intake by `services`. The request sentinels,
+  the status token (`NewStatusToken`), the submission lock key
+  (`SubmissionDedupLockKey`) and `NormalizedSubmissionSource` moved to the
+  public package with it.
+- The public contract carries the owner's raw request and child values; until
+  #3565, `services/enrollment` keeps a decoding facade (`NewDecisionService`,
+  `NewRolloverService`, `NewChangeRequestDecisionApplier`) for the retained
+  intake, change-request and scheduler consumers, and a copy of the answer
+  decoders its visibility checks read.
+- People Directory rows, the audit trails, the settings, the realtime hub and
+  the outbox reach the application through ports `services` binds
+  (`NewEnrollmentDecisions`, `NewEnrollmentRollovers`,
+  `NewEnrollmentDeletionModule`); the weekly pickup and arrival schedules come
+  from `repositories.NewEnrollmentPickupSchedules` /
+  `NewEnrollmentArrivalSchedules`. Role presets reach the binding as a typed
+  permission list through `securityruntime.StudentGuardianRolePreset`.
+- The rollover opens its transaction through the tenant runtime instead of
+  `bun.DB.RunInTx`; the postgres adapter marks a child insert refused by the
+  rollover source index with `ErrRolloverSourceChildTaken`.
+- The care offering record adapter left in `services/enrollment` keeps the
+  retained error shape and not-found marker without `models/base`.
+- Suites compose the flow through `api/testutil` aliases of the root
+  bindings; the savepoint suite of the retention cleanup runs in
+  `modules/enrollment/integration`.
+
+#3565 (E4 under #2733) moved the parent intake (submission, edit, withdrawal,
+renewal confirmation, status link, public form loads, late invites and the
+manual approved enrollment) and the change requests with their review list
+into Enrollment (`modules/enrollment/internal/application`). The public
+package publishes them as `enrollment.IntakeSubmissions`, `IntakeStatus`,
+`IntakeForms` and `ChangeRequests`; `modules/enrollment/compose` composes
+them (`NewIntake`, `NewChangeRequests`) in the ambient tenant transaction.
+`backend/services/enrollment` is deleted with its `enrollmenttest` helper and
+its goldens; routes, status codes, error texts, authorization and tenant
+scoping are unchanged. The key count falls from 513 to 468 (every remaining
+`services/enrollment` key, among them `crypto/rand`, `crypto/sha256`,
+`database/sql`, `internal/schoolclass`, `internal/strutil`, `services/config`,
+`services/users` and `bun`, and the consumer keys of `api`, `api/enrollment`,
+`api/students`, `modules/careplan/inbound/parent`, `services` and
+`services/scheduler`); #2733 holds no key any more. Fourteen rules no import
+used are deleted, among them `parent-portal.compose.enrollment.domain`, the
+`enrollment.behavior-test.*` rules of the retained test package and
+`people-directory.test-support.compose`, whose `peopletest` package lost its
+last caller and is deleted. No rule is added.
+
+- The public contract carries answers, consent flags and source metadata as
+  raw JSON. `api/enrollment` decodes them for its handlers and the parents
+  portal (`owner_intake.go`, `owner_change_requests.go`, `owner_decisions.go`,
+  `owner_rollovers.go`) under the type names the retained package exported.
+- Refusals that originate in the selection contract or in Care Plan come back
+  marked with Enrollment's public mirrors (`intake_errors.go`), so the
+  handlers classify them with `errors.Is` while the text stays the
+  originating one; the decision flow reaches the routes through
+  `compose.PublicDecisions`.
+- Settings reach the intake as the typed `IntakeSettings` port; random bytes
+  and fingerprints as functions `services` binds from `securityruntime`;
+  guardian profiles, phones and reviewer names through ports; Care Plan's
+  offerings through `compose.NewCareOfferingRecords` and its bookings through
+  `enrollment.CareBookingCommands`.
+- The capacity seam of #3564 is a direct call; the scheduler reads the
+  retention cleanup through its own port.
+- The public change-request operation is `Propose`, not `Create`: public
+  contracts use capability-specific operations.
+- Suites: the unit suites run in `modules/enrollment/internal/application`
+  and `modules/enrollment/selection`, the intake, change-request, decision,
+  rollover and deletion suites in `api/enrollment`, the care-offering and
+  offering-change suites in `modules/careplan/contracttest`. ADR 0041's
+  exception grants nothing once this merges, because its anchor package is
+  gone from the base.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).
@@ -1095,9 +1798,10 @@ The settings test support (`services/config/settingstest`, `settings-platform`/
 `test-support`) scripts the payroll and work-schedule settings that presence
 behaviour tests drive through their real services, so those tests name a school's
 configuration instead of registry keys and ORM rows. Its `models/config` import is
-a target dependency of the settings owner; its calendar-date import exists only
-because the settings package still carries the contractual work-schedule rows
-(#3207) and converts to exact debt with them.
+a target dependency of the settings owner. Its calendar dates are the
+shared-kernel `sharedkernel/calendar` type under the shared-kernel rule
+([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),
+#3448), so it no longer reaches the retained `internal/timezone` wrapper.
 
 The Identity & Access guardian-access capability (`modules/identityaccess`,
 `identity-access`/`public`) is the first just-in-time slice of the late
@@ -1428,12 +2132,10 @@ announcement data while the tenant role is still set, and queues every SSE
 event and guardian wake for after the commit. Its `ports` name the four owner
 capabilities it consumes (`session-end.port.*`, `session-end.application.*`);
 `compose` binds the tenant runtime and the realtime broadcaster. The root
-still satisfies `InstanceCompletion` with the retained
-`TimetableBridgeService` in `modules/timetable/legacy/timetableplanning`
-(#3218; the attendance finalization that #1747 requires before an instance
-may close); that binding is a legacy edge
-of the root composition tracked by #2762, and the port is rebound to the
-Timetable owner's public capability when that cutover lands. The kiosk
+satisfies `InstanceCompletion` with the Timetable owner's
+`timetable.EndedSessionCompletion` since slice S5 of #3424 (#3551; the
+attendance finalization that #1747 requires before an instance may close),
+which replaced the retained `TimetableBridgeService`. The kiosk
 endpoint (`api/iot/sessions`, `inbound-iot-sessions.to.session-end`) calls
 exactly this facade and no longer orchestrates the Timetable bridge and the
 active service itself. The other session-ending paths of the retained active
@@ -1660,13 +2362,14 @@ care-schedule diff row is named through the parent-portal workflow port
 (`CareRequestDiffEntry`), so the production `services/schedule` import fell
 with the move; the adapter tests still build that vocabulary. After the move the package
 is the only `inbound-parent` package, so the point exists only in the
-candidate. Every `inbound-parent.http.*` and `inbound-parent.adapter-test.*`
-rule this move added, `root-composition.to.inbound-parent-http` and
-`test-support.e2e-test.inbound-parent-http` are compatibility permissions, not
-target dependencies. They cover every future `inbound-parent` package, so no
-other package may join that point before the conversion. Convert them to exact
-debt with the rule above under #2580 once the package exists at a base SHA;
-the `modules/identityaccess/legacy/jwt` and `services/auth` edges then wait for #2725. The move replaced
+candidate. The `inbound-parent.http.*` and `inbound-parent.adapter-test.*`
+compatibility rules this move added are converted (#3421): the 27 rules are
+gone from `policy.json`, and the 29 imports they allowed (12 production,
+11 internal-test, 6 external-test) are exact `legacy.jsonl` entries under
+#3421, which closes when the last of them falls. `root-composition.to.inbound-parent-http` (#2750) and
+`test-support.e2e-test.inbound-parent-http` (#2748) are still compatibility
+permissions; convert them to exact debt with the rule above under their
+issues. The `modules/identityaccess/legacy/jwt` and `services/auth` edges wait for #2725. The move replaced
 the calendar, push, notification-preference and PWA-usage setters with a
 construction-time `ResourceConfig`, and the auth rate-limiter setter with
 `RouterWithAuthRateLimiter` (the school portal shape), because the
@@ -1732,9 +2435,13 @@ permissions are the inbound target shape. The
 package existed before the move and imported the old path as debt under
 #2731, which PR mode cannot carry over to the new target. It is a
 [named exception](https://github.com/moto-nrw/project-phoenix/issues/2580#issuecomment-5638973300)
-to rule 5 of `backend/CLAUDE.md`, still tracked by #2731; it goes when the
-student document handlers move to the public File Storage capability, and no
-new caller may rely on it. The file store handlers' equivalent exception went
+to rule 5 of `backend/CLAUDE.md`. #2731 re-anchored it on the People
+Directory student routes as `people-directory.http.file-storage-adapter`
+without widening it: the public File Storage capability offers no child
+document storage, and adding it is capability work a Contract step may not
+do. It is tracked by #2706 with the rest of the document coordinator's debt;
+it goes when the student document handlers move to the public File Storage
+capability, and no new caller may rely on it. The file store handlers' equivalent exception went
 with #2707. The generic file-metadata repository
 (`database/repositories/documents`) and model (`models/documents`) keep their
 five `document-rendering` debt entries under #2706: their tables belong to
@@ -2282,6 +2989,18 @@ Epoch 24 registers the six `shared-fixtures.*` rules under it. Everything else
 the fixtures still import — the models, services and repositories other
 carriers are dissolving, the device authenticator, the legacy composition —
 stays exact debt on #2748 and falls with those carriers; a rule would hide it.
+
+A reviewed epoch may also add the one owner-agnostic shared-kernel rule
+([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),
+[#3447](https://github.com/moto-nrw/project-phoenix/issues/3447),
+[#3448](https://github.com/moto-nrw/project-phoenix/issues/3448)): no
+`source_owner`, no `source_owner_kind`, no `source_role`, all three scopes, and
+the target `shared-kernel`/`contract`. Epoch 25 registers it as
+`shared-kernel.contract` and removes the 15 owner-specific rules it subsumes, so
+a per-owner rule to the kernel would now overlap and fail to load. A
+`same_owner` rule never selects a kernel owner: the kernel's own tests reach
+its contract through this rule alone. A narrower source, another target, an
+owner-kind target and an external class are still loosenings.
 
 A reviewed epoch may also let a target owner adopt an existing table
 ([ADR 0015](../../docs/adr/0015-owners-adopt-existing-unowned-tables.md),

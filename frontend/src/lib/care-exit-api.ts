@@ -147,8 +147,15 @@ async function request<T>(
       (typeof payload?.error === "string" && payload.error) ||
       (typeof payload?.message === "string" && payload.message) ||
       `API error (${response.status})`;
-    const error = new Error(message) as Error & { status?: number };
+    const error = new Error(message) as Error & {
+      status?: number;
+      code?: string;
+      details?: unknown;
+    };
     error.status = response.status;
+    // Der Code ist die Identität des Fehlers (z. B. Kinderkontingent, #3567).
+    if (typeof payload?.code === "string") error.code = payload.code;
+    if (payload?.details !== undefined) error.details = payload.details;
     throw error;
   }
   return payload as T;

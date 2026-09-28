@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -62,9 +63,16 @@ func (rs *Resource) checkinStudent(w http.ResponseWriter, r *http.Request) {
 type checkinError struct {
 	statusCode int
 	message    string
+	// rejection, when set, is a coded 409 (room or activity full) rendered
+	// with its code and details instead of the plain message.
+	rejection render.Renderer
 }
 
 func (e *checkinError) respond(w http.ResponseWriter, r *http.Request) {
+	if e.rejection != nil {
+		common.RenderError(w, r, e.rejection)
+		return
+	}
 	common.RespondWithError(w, r, e.statusCode, e.message)
 }
 
@@ -73,32 +81,32 @@ func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.
 	// Read the principal validated by the route's authentication middleware.
 	principal, principalErr := common.CurrentPrincipal(ctx)
 	if principalErr != nil {
-		return nil, &checkinError{http.StatusUnauthorized, "Invalid token"}
+		return nil, &checkinError{statusCode: http.StatusUnauthorized, message: "Invalid token"}
 	}
 
 	// Get student ID from URL
 	studentIDStr := chi.URLParam(r, "studentId")
 	studentID, err := strconv.ParseInt(studentIDStr, 10, 64)
 	if err != nil {
-		return nil, &checkinError{http.StatusBadRequest, "Invalid student ID"}
+		return nil, &checkinError{statusCode: http.StatusBadRequest, message: "Invalid student ID"}
 	}
 
 	// Verify the student exists before any further processing
 	student, studentErr := rs.PersonService.GetStudentByID(ctx, studentID)
 	if studentErr != nil || student == nil {
-		return nil, &checkinError{http.StatusNotFound, "Student not found"}
+		return nil, &checkinError{statusCode: http.StatusNotFound, message: "Student not found"}
 	}
 
 	// Parse request body
 	var req CheckinRequest
 	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		return nil, &checkinError{http.StatusBadRequest, "Invalid request body"}
+		return nil, &checkinError{statusCode: http.StatusBadRequest, message: "Invalid request body"}
 	}
 
 	// Validate active_group_id is provided
 	if req.ActiveGroupID <= 0 {
-		return nil, &checkinError{http.StatusBadRequest, "active_group_id is required"}
+		return nil, &checkinError{statusCode: http.StatusBadRequest, message: "active_group_id is required"}
 	}
 
 	// Get and validate the active group
@@ -106,16 +114,16 @@ func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.
 	if groupErr != nil {
 		// Distinguish "not found" from other errors (DB failures, timeouts)
 		if errors.Is(groupErr, studentpresence.ErrGroupNotFound) {
-			return nil, &checkinError{http.StatusNotFound, "Active group not found"}
+			return nil, &checkinError{statusCode: http.StatusNotFound, message: "Active group not found"}
 		}
-		return nil, &checkinError{http.StatusInternalServerError, "Failed to retrieve active group"}
+		return nil, &checkinError{statusCode: http.StatusInternalServerError, message: "Failed to retrieve active group"}
 	}
 	if activeGroup == nil {
-		return nil, &checkinError{http.StatusNotFound, "Active group not found"}
+		return nil, &checkinError{statusCode: http.StatusNotFound, message: "Active group not found"}
 	}
 
 	if !activeGroup.IsOpen() {
-		return nil, &checkinError{http.StatusConflict, "The selected room session is no longer active"}
+		return nil, &checkinError{statusCode: http.StatusConflict, message: "The selected room session is no longer active"}
 	}
 
 	// Get staff authorization
@@ -136,12 +144,12 @@ func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.
 func (rs *Resource) getAuthorizedStaff(ctx context.Context, accountID int64) (*StaffIdentity, *checkinError) {
 	person, personErr := rs.PersonService.FindByAccountID(ctx, accountID)
 	if personErr != nil || person == nil {
-		return nil, &checkinError{http.StatusInternalServerError, "Failed to get user information"}
+		return nil, &checkinError{statusCode: http.StatusInternalServerError, message: "Failed to get user information"}
 	}
 
 	staff, staffErr := rs.PersonService.GetStaffByPersonID(ctx, person.ID)
 	if staffErr != nil || staff == nil {
-		return nil, &checkinError{http.StatusForbidden, "Only staff members can check in students"}
+		return nil, &checkinError{statusCode: http.StatusForbidden, message: "Only staff members can check in students"}
 	}
 
 	// Any verified staff member may check in any student (#2329) — the
@@ -157,21 +165,21 @@ func (rs *Resource) validateStudentForCheckin(ctx context.Context, studentID int
 		// ErrVisitNotFound is expected when student has no active visit - proceed with check-in
 		if !errors.Is(visitErr, studentpresence.ErrVisitNotFound) {
 			// Any other error (DB failure, etc.) should return 500
-			return &checkinError{http.StatusInternalServerError, "Failed to check current visit status"}
+			return &checkinError{statusCode: http.StatusInternalServerError, message: "Failed to check current visit status"}
 		}
 	}
 
 	// Check attendance status
 	attendanceStatus, statusErr := rs.Operations.StudentAttendanceStatus(ctx, studentID)
 	if statusErr != nil {
-		return &checkinError{http.StatusInternalServerError, "Failed to get attendance status"}
+		return &checkinError{statusCode: http.StatusInternalServerError, message: "Failed to get attendance status"}
 	}
 
 	if currentVisit != nil {
 		// Present states ("checked_in" and its yard sub-state) keep the
 		// genuine conflict: the student really is in another room.
 		if attendanceStatus.Status == "checked_in" || attendanceStatus.Status == "on_yard" {
-			return &checkinError{http.StatusConflict, "Student already has an active visit in another room"}
+			return &checkinError{statusCode: http.StatusConflict, message: "Student already has an active visit in another room"}
 		}
 
 		// Orphaned visit (issue #895): attendance says the student left, but
@@ -179,13 +187,13 @@ func (rs *Resource) validateStudentForCheckin(ctx context.Context, studentID int
 		// partial checkout. Heal it and proceed with the check-in; a failure
 		// returns 500 so TenantTxMiddleware rolls the request back.
 		if endErr := rs.Operations.EndVisit(ctx, currentVisit.ID); endErr != nil && !errors.Is(endErr, studentpresence.ErrVisitAlreadyEnded) {
-			return &checkinError{http.StatusInternalServerError, "Failed to check current visit status"}
+			return &checkinError{statusCode: http.StatusInternalServerError, message: "Failed to check current visit status"}
 		}
 		return nil
 	}
 
 	if attendanceStatus.Status == "checked_in" {
-		return &checkinError{http.StatusConflict, "Student is already checked in"}
+		return &checkinError{statusCode: http.StatusConflict, message: "Student is already checked in"}
 	}
 
 	return nil
@@ -201,14 +209,15 @@ func (rs *Resource) createCheckinVisit(ctx context.Context, checkinCtx *checkinC
 
 	admitted, createErr := rs.Operations.AdmitVisit(ctx, visit)
 	if createErr != nil {
-		var capacityErr *studentpresence.RoomCapacityError
-		if errors.As(createErr, &capacityErr) {
+		// A full room or a full activity (#3633) answers 409 with its code and
+		// numbers, like every other web path, so the message can say which.
+		if errors.Is(createErr, studentpresence.ErrRoomCapacityExceeded) || errors.Is(createErr, studentpresence.ErrActivityParticipantLimitExceeded) {
 			rs.runtime.MarkRollback(ctx)
-			return nil, &checkinError{http.StatusConflict, capacityErr.Error()}
+			return nil, &checkinError{statusCode: http.StatusConflict, rejection: ErrorRenderer(createErr)}
 		}
 		// Handle race condition: another request already created a visit for this student
 		if errors.Is(createErr, studentpresence.ErrStudentAlreadyActive) {
-			return nil, &checkinError{http.StatusConflict, "Student already has an active visit"}
+			return nil, &checkinError{statusCode: http.StatusConflict, message: "Student already has an active visit"}
 		}
 		// A graduated (alumnus) student — the admission's ensureStudentCheckinAllowed
 		// guard, reached from a stale page or when a graduation commits between
@@ -217,14 +226,14 @@ func (rs *Resource) createCheckinVisit(ctx context.Context, checkinCtx *checkinC
 		// mapper and the school-checkin handler use. Without it the row-lock race
 		// this guard exists to win surfaces as a 500 (#405).
 		if errors.Is(createErr, studentpresence.ErrStudentGraduated) || errors.Is(createErr, studentpresence.ErrStudentCareEnded) {
-			return nil, &checkinError{http.StatusNotFound, "Student not found"}
+			return nil, &checkinError{statusCode: http.StatusNotFound, message: "Student not found"}
 		}
 		rs.getLogger().ErrorContext(ctx, "failed to create visit during check-in",
 			slog.Int64("student_id", checkinCtx.studentID),
 			slog.Int64("active_group_id", checkinCtx.request.ActiveGroupID),
 			slog.String("error", createErr.Error()),
 		)
-		return nil, &checkinError{http.StatusInternalServerError, "Failed to check in student to room"}
+		return nil, &checkinError{statusCode: http.StatusInternalServerError, message: "Failed to check in student to room"}
 	}
 
 	// Update last_activity on the active group to prevent session timeout

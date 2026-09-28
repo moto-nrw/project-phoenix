@@ -21,6 +21,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -30,13 +31,18 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // Each scenario owns two tenants (#2419): the primary one every fixture lands
 // in, and a neighbour used to prove cross-tenant isolation. Both are created
 // per test, so no flow depends on the fixed bootstrap tenant.
+
+// settingsWriter is the write side of the settings service the scenario
+// binds; the timetable routes only read through it.
+type settingsWriter interface {
+	SetValue(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
+}
 
 // scenario bundles the common infrastructure a single flow needs.
 type scenario struct {
@@ -45,8 +51,8 @@ type scenario struct {
 	resource       *timetableTestResource
 	createVisit    func(context.Context, *studentpresence.Visit) error
 	endVisit       func(context.Context, int64) error
-	previewCleanup func(context.Context) (*timetableplanning.TimetableCleanupPreview, error)
-	cleanup        func(context.Context) (*timetableplanning.TimetableCleanupResult, error)
+	previewCleanup func(context.Context) (*timetable.TimetableCleanupPreview, error)
+	cleanup        func(context.Context) (*timetable.TimetableCleanupResult, error)
 	router         timetableTestRouter
 	tokenAuth      *timetableTestTokenAuth
 	today          func() timezone.Date
@@ -73,12 +79,17 @@ func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *sce
 		ClosingDays:            factory.SchoolCalendar,
 		MaterializationService: factory.Materialization,
 		InstanceService:        factory.Instance,
-		PersonService:          factory.Users,
-		TimetableData:          factory.TimetableData,
+		People:                 factory.People,
+		Templates:              factory.TimetableData.Templates,
+		RecurrenceLock:         factory.TimetableData.RecurrenceLock,
+		AttendanceCorrections:  factory.TimetableData.AttendanceCorrections,
+		Deviations:             factory.TimetableData.Deviations,
+		TimetableData:          factory.TimetableData.Data,
+		ConflictDetection:      factory.TimetableData.ConflictDetection,
 		UserContextService:     factory.UserContext,
 		SettingsService:        factory.Settings,
-		Broadcaster:            factory.RealtimeHub,
-		Logger:                 slog.Default(), DB: db,
+		Staffing:               factory.Instance,
+		Logger:                 slog.Default(),
 	})
 	s := &scenario{
 		t:               t,
@@ -105,11 +116,11 @@ func (s *scenario) endActiveVisit(ctx context.Context, visitID int64) error {
 	return s.endVisit(ctx, visitID)
 }
 
-func (s *scenario) previewTimetableCleanup(ctx context.Context) (*timetableplanning.TimetableCleanupPreview, error) {
+func (s *scenario) previewTimetableCleanup(ctx context.Context) (*timetable.TimetableCleanupPreview, error) {
 	return s.previewCleanup(ctx)
 }
 
-func (s *scenario) cleanupTimetable(ctx context.Context) (*timetableplanning.TimetableCleanupResult, error) {
+func (s *scenario) cleanupTimetable(ctx context.Context) (*timetable.TimetableCleanupResult, error) {
 	return s.cleanup(ctx)
 }
 

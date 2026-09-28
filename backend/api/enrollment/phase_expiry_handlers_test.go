@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
@@ -14,17 +16,16 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 type phaseExpiryServiceStub struct {
-	warnings []*enrollmentService.PhaseExpiryWarning
+	warnings []*enrollmentOwner.PhaseExpiryWarning
 }
 
 func (s *phaseExpiryServiceStub) ListWarnings(
 	_ context.Context,
 	_ timezone.Date,
-) ([]*enrollmentService.PhaseExpiryWarning, error) {
+) ([]*enrollmentOwner.PhaseExpiryWarning, error) {
 	return s.warnings, nil
 }
 
@@ -32,7 +33,7 @@ func TestListPhaseExpiryWarnings_StringifiesIDsAndDates(t *testing.T) {
 	t.Parallel()
 
 	successorID := int64(22)
-	resource := &Resource{PhaseExpiryService: &phaseExpiryServiceStub{warnings: []*enrollmentService.PhaseExpiryWarning{
+	resource := &Resource{PhaseExpiryService: &phaseExpiryServiceStub{warnings: []*enrollmentOwner.PhaseExpiryWarning{
 		{
 			SourcePhaseID:      3,
 			SourcePhaseName:    "1. Halbjahr",
@@ -40,7 +41,7 @@ func TestListPhaseExpiryWarnings_StringifiesIDsAndDates(t *testing.T) {
 			FirstAffectedDate:  timezone.NewDate(2027, 2, 1),
 			AffectedChildren:   204,
 			UnresolvedChildren: 17,
-			State:              enrollmentService.PhaseExpiryStateIncomplete,
+			State:              enrollmentOwner.PhaseExpiryStateIncomplete,
 			Overdue:            false,
 		},
 	}}}

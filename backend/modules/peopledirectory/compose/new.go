@@ -19,6 +19,11 @@ import (
 
 type Observation = ports.Observation
 
+// GuardianLinkOwners are Care Plan's pickup permission and Identity &
+// Access's portal access: the two halves a guardian link writes besides its
+// relationship (#2756).
+type GuardianLinkOwners = ports.GuardianLinkOwners
+
 // GuardianMembershipQuery maps requested accounts to portal-capable schools.
 // The result is reachability evidence, not child-level authorization.
 type GuardianMembershipQuery func(context.Context, []int64) (map[int64][]int64, error)
@@ -51,6 +56,10 @@ type Dependencies struct {
 	// allows. Optional, on the same terms as the others — a graph that never
 	// binds it refuses only the writes that would touch a link.
 	StudentCompanions StudentCompanions
+	// GuardianLinkOwners writes the pickup permission and the portal access
+	// of a link the parents portal creates or patches. Optional on the same
+	// terms: a graph without it refuses only those link writes.
+	GuardianLinkOwners GuardianLinkOwners
 	// Now is the clock a granted photo consent is stamped with. Optional;
 	// time.Now by default.
 	Now func() time.Time
@@ -94,7 +103,7 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 	}
 	owners := studentOwners{owners: dependencies.StudentOwners}
 	students := application.NewStudents(postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), companions, owners, transaction{}, observe)
-	guardians := application.NewGuardians(postgres.NewGuardianStore(database, postgres.PortalMembershipQuery(memberships)), transaction{}, observe)
+	guardians := application.NewGuardians(postgres.NewGuardianStore(database, postgres.PortalMembershipQuery(memberships)), dependencies.GuardianLinkOwners, transaction{}, observe)
 	var auditLog ports.StudentFieldAuditLog
 	if dependencies.StudentFieldAudit != nil {
 		auditLog = studentFieldAuditLog{log: dependencies.StudentFieldAudit}

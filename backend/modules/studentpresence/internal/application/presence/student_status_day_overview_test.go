@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,7 +13,7 @@ import (
 func TestStudentEnrolledOn(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 8, 20)
+	date := calendar.NewDate(2026, 8, 20)
 	before := date.AddDays(-1)
 	after := date.AddDays(1)
 
@@ -83,7 +83,7 @@ func (s overviewPeopleStub) GetByIDs(context.Context, []int64) (map[int64]*Perso
 func TestGetOverviewPaginatesLargeResultSets(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 8, 20)
+	date := calendar.NewDate(2026, 8, 20)
 	repo := &cappedOverviewRepository{total: 10_001}
 	people := overviewPeopleStub{
 		students: []*StudentRecord{{ID: 1, PersonID: 11, Lifecycle: StudentLifecycleActive}},

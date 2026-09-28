@@ -19,6 +19,8 @@ import {
   fetchUnreadCount,
   fetchThread,
   postMessage,
+  markThreadUnread,
+  markAllMessagesRead,
   openThread,
   fetchGuardians,
   type InboxThread,
@@ -363,6 +365,48 @@ describe("postMessage", () => {
 // ---------------------------------------------------------------------------
 // openThread
 // ---------------------------------------------------------------------------
+
+describe("markThreadUnread", () => {
+  it("POSTs to the thread's unread route", async () => {
+    let seenURL = "";
+    let seenMethod = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method ?? "";
+      return jsonOk({ data: null });
+    });
+    await markThreadUnread("t42");
+    expect(seenURL).toBe("/api/messages/threads/t42/unread");
+    expect(seenMethod).toBe("POST");
+  });
+
+  it("throws the backend error on failure", async () => {
+    mockFetch(async () => jsonOk({ error: "messaging: forbidden" }, 403));
+    await expect(markThreadUnread("t42")).rejects.toThrow(
+      "messaging: forbidden",
+    );
+  });
+});
+
+describe("markAllMessagesRead", () => {
+  it("POSTs to the mark-all-read route", async () => {
+    let seenURL = "";
+    let seenMethod = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method ?? "";
+      return jsonOk({ data: { unread_count: 2 } });
+    });
+    await expect(markAllMessagesRead()).resolves.toBe(2);
+    expect(seenURL).toBe("/api/messages/mark-all-read");
+    expect(seenMethod).toBe("POST");
+  });
+
+  it("throws the backend error on failure", async () => {
+    mockFetch(async () => jsonOk({ error: "messaging: forbidden" }, 403));
+    await expect(markAllMessagesRead()).rejects.toThrow("messaging: forbidden");
+  });
+});
 
 describe("openThread", () => {
   it("POSTs to /api/messages/threads/open and returns the ThreadDetail", async () => {

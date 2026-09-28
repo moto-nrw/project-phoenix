@@ -211,7 +211,11 @@ function RenderedTab({ tabId }: { readonly tabId: string }) {
   useSettingsCacheBridge();
   const result = useSettingsTabs();
   if (!result) return <div data-testid="no-tabs">No tabs</div>;
-  return <div>{result.renderTab(tabId)}</div>;
+  return <div data-testid="settings-tab">{result.renderTab(tabId)}</div>;
+}
+
+function settingsErrorBanner(): Element | null {
+  return screen.getByTestId("settings-tab").querySelector('[role="alert"]');
 }
 
 describe("useSettingsTabs", () => {
@@ -398,16 +402,14 @@ describe("SettingsContent (via renderTab)", () => {
       "Netzwerkfehler beim Speichern der Einstellung.",
     );
 
-    const { container } = renderWithProviders(
-      <RenderedTab tabId="settings-operations" />,
-    );
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
     await openCategory();
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
     await waitFor(() => {
       // Error banner has specific styling — look for it in the banner container
-      const banner = container.querySelector('[role="alert"]');
+      const banner = settingsErrorBanner();
       expect(banner).not.toBeNull();
       expect(banner!.textContent).toContain("Netzwerkfehler");
     });
@@ -419,15 +421,13 @@ describe("SettingsContent (via renderTab)", () => {
       "Einstellung konnte nicht gespeichert werden.",
     );
 
-    const { container } = renderWithProviders(
-      <RenderedTab tabId="settings-operations" />,
-    );
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
     await openCategory();
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
     await waitFor(() => {
-      const banner = container.querySelector('[role="alert"]');
+      const banner = settingsErrorBanner();
       expect(banner).not.toBeNull();
       expect(banner!.textContent).toContain("Einstellung konnte nicht");
     });
@@ -439,15 +439,13 @@ describe("SettingsContent (via renderTab)", () => {
       "Netzwerkfehler beim Speichern der Einstellung.",
     );
 
-    const { container } = renderWithProviders(
-      <RenderedTab tabId="settings-operations" />,
-    );
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
     await openCategory();
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
     await waitFor(() => {
-      expect(container.querySelector('[role="alert"]')).not.toBeNull();
+      expect(settingsErrorBanner()).not.toBeNull();
     });
 
     // Click the dismiss button
@@ -455,7 +453,12 @@ describe("SettingsContent (via renderTab)", () => {
     fireEvent.click(closeButton);
 
     await waitFor(() => {
-      expect(container.querySelector('[role="alert"]')).toBeNull();
+      expect(settingsErrorBanner()).toBeNull();
+      expect(
+        screen.getByRole("alert", {
+          name: "Fehler: Netzwerkfehler beim Speichern der Einstellung.",
+        }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -560,15 +563,13 @@ describe("SettingsContent (via renderTab)", () => {
       "Netzwerkfehler beim Speichern der Einstellung.",
     );
 
-    const { container } = renderWithProviders(
-      <RenderedTab tabId="settings-operations" />,
-    );
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
     await openCategory();
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
     await waitFor(() => {
-      expect(container.querySelector('[role="alert"]')).not.toBeNull();
+      expect(settingsErrorBanner()).not.toBeNull();
     });
 
     // Second save succeeds
@@ -576,7 +577,12 @@ describe("SettingsContent (via renderTab)", () => {
     fireEvent.click(toggle);
 
     await waitFor(() => {
-      expect(container.querySelector('[role="alert"]')).toBeNull();
+      expect(settingsErrorBanner()).toBeNull();
+      expect(
+        screen.getByRole("alert", {
+          name: "Fehler: Netzwerkfehler beim Speichern der Einstellung.",
+        }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -585,9 +591,7 @@ describe("SettingsContent (via renderTab)", () => {
     // A validation error like "Minimum: 5" should NOT be shown as a banner
     mockSetSettingValue.mockResolvedValue("Minimum: 5");
 
-    const { container } = renderWithProviders(
-      <RenderedTab tabId="settings-operations" />,
-    );
+    renderWithProviders(<RenderedTab tabId="settings-operations" />);
     await openCategory();
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
@@ -598,7 +602,10 @@ describe("SettingsContent (via renderTab)", () => {
     });
 
     // Validation errors don't match the banner condition — no banner should appear
-    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(settingsErrorBanner()).toBeNull();
+    expect(
+      screen.getByRole("alert", { name: "Fehler: Minimum: 5" }),
+    ).toBeInTheDocument();
   });
 
   it("refreshes supervision context after changing the operational overview scope", async () => {

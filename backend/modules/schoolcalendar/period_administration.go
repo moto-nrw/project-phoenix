@@ -16,6 +16,10 @@ var (
 	// series. The period stays unchanged until the offering is relinked or
 	// removed.
 	ErrCalendarPeriodRequiredByCareOffering = errors.New("calendar period is required by a linked care offering")
+	// ErrCalendarPeriodRosterConflict is returned when removing a period
+	// would leave a child or a supervisor with two active assignments to
+	// the same group. The storage error stays in the chain.
+	ErrCalendarPeriodRosterConflict = errors.New("calendar period removal conflicts with active roster assignments")
 )
 
 // CalendarPeriodOverlapError wraps ErrCalendarPeriodOverlapConflict and

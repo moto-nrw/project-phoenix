@@ -8,7 +8,6 @@ import (
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,7 +26,7 @@ func TestStaffShiftSeries_SplitAppliesNewWeekdaysFromEffectiveDate(t *testing.T)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
 	// A Tuesday-only series.
-	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, planning.WeekPatternEvery)
 	series.Weekdays = []int16{2}
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
@@ -71,7 +70,7 @@ func TestStaffShiftSeries_SplitShortensValidityAndDropsLaterShifts(t *testing.T)
 	periodEnd := today.AddDays(28)
 	periodID := env.createPeriod(t, today.AddDays(-1), periodEnd, 1, nil)
 
-	series := env.buildSeries(t, periodID, today.AddDays(-1), nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today.AddDays(-1), nil, planning.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
 		return err
@@ -106,7 +105,7 @@ func TestStaffShiftSeries_SplitKeepsStoredValidityWhenUnset(t *testing.T) {
 	periodID := env.createPeriod(t, today.AddDays(-1), today.AddDays(28), 1, nil)
 
 	storedEnd := today.AddDays(10)
-	series := env.buildSeries(t, periodID, today.AddDays(-1), &storedEnd, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today.AddDays(-1), &storedEnd, planning.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
 		return err
@@ -128,7 +127,7 @@ func TestStaffShiftSeries_SplitKeepsStoredValidityWhenUnset(t *testing.T) {
 	})
 	require.NotNil(t, result.Series)
 	require.NotNil(t, result.Series.ValidUntil)
-	assert.Equal(t, scheduleModels.Date(storedEnd), *result.Series.ValidUntil)
+	assert.Equal(t, timezone.Date(storedEnd), *result.Series.ValidUntil)
 	assert.Empty(t, env.shiftsInRange(t, storedEnd, today.AddDays(28)))
 }
 
@@ -139,7 +138,7 @@ func TestStaffShiftSeries_SplitRejectsValidityBeyondCalendarPeriod(t *testing.T)
 	today := timezone.NewDate(2026, 8, 24)
 	periodEnd := today.AddDays(14)
 	periodID := env.createPeriod(t, today.AddDays(-1), periodEnd, 1, nil)
-	series := env.buildSeries(t, periodID, today.AddDays(-1), nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today.AddDays(-1), nil, planning.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
 		return err
@@ -169,7 +168,7 @@ func TestStaffShiftSeries_SplitBoundsEarlierSegmentAtNextSuccessor(t *testing.T)
 	today := timezone.NewDate(2026, 8, 24)
 	periodEnd := today.AddDays(28)
 	periodID := env.createPeriod(t, today.AddDays(-1), periodEnd, 1, nil)
-	series := env.buildSeries(t, periodID, today.AddDays(-1), nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today.AddDays(-1), nil, planning.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
 		return err
@@ -206,7 +205,7 @@ func TestStaffShiftSeries_SplitBoundsEarlierSegmentAtNextSuccessor(t *testing.T)
 	})
 
 	require.NotNil(t, result.Series.ValidUntil)
-	assert.Equal(t, scheduleModels.Date(downstreamFrom), *result.Series.ValidUntil)
+	assert.Equal(t, timezone.Date(downstreamFrom), *result.Series.ValidUntil)
 }
 
 func TestStaffShiftSeries_SplitRejectsWhenNextSegmentLeavesNoOccurrence(t *testing.T) {
@@ -219,7 +218,7 @@ func TestStaffShiftSeries_SplitRejectsWhenNextSegmentLeavesNoOccurrence(t *testi
 	effective := today.AddDays(1)
 	nextFrom := effective.AddDays(1)
 	weekday := int16((int(nextFrom.Weekday())+6)%7 + 1)
-	series := env.buildSeries(t, periodID, today.AddDays(-1), nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today.AddDays(-1), nil, planning.WeekPatternEvery)
 	series.Weekdays = []int16{weekday}
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
@@ -266,13 +265,13 @@ func TestStaffShiftSeries_SplitRejectsSupersededSegment(t *testing.T) {
 	effective := today.AddDays(1)
 
 	oldEnd := effective
-	series := env.buildSeries(t, periodID, today.AddDays(-7), &oldEnd, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today.AddDays(-7), &oldEnd, planning.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
 		return env.seriesRows.Create(ctx, series)
 	})
 
 	rootID := series.ID
-	successor := env.buildSeries(t, periodID, effective, nil, scheduleModels.WeekPatternEvery)
+	successor := env.buildSeries(t, periodID, effective, nil, planning.WeekPatternEvery)
 	successor.SeriesRootID = &rootID
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, successor)
@@ -311,7 +310,7 @@ func TestStaffShiftSeries_SplitExtendsSeriesEndingToday(t *testing.T) {
 
 	// valid_until is exclusive: the last day carrying a shift is today.
 	storedEnd := today.AddDays(1)
-	series := env.buildSeries(t, periodID, today.AddDays(-7), &storedEnd, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today.AddDays(-7), &storedEnd, planning.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
 		return env.seriesRows.Create(ctx, series)
 	})
@@ -336,9 +335,9 @@ func TestStaffShiftSeries_SplitExtendsSeriesEndingToday(t *testing.T) {
 	})
 
 	require.NotNil(t, result.Series)
-	assert.Equal(t, scheduleModels.Date(today.AddDays(1)), result.Series.ValidFrom)
+	assert.Equal(t, timezone.Date(today.AddDays(1)), result.Series.ValidFrom)
 	require.NotNil(t, result.Series.ValidUntil)
-	assert.Equal(t, scheduleModels.Date(newEnd), *result.Series.ValidUntil)
+	assert.Equal(t, timezone.Date(newEnd), *result.Series.ValidUntil)
 	assert.NotEmpty(t, env.shiftsInRange(t, today.AddDays(1), today.AddDays(14)),
 		"the extended segment must materialize shifts")
 	assert.Empty(t, env.shiftsInRange(t, newEnd, periodEnd),
@@ -355,7 +354,7 @@ func TestStaffShiftSeries_SplitRejectsWhenNoOccurrenceRemains(t *testing.T) {
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(28), 1, nil)
 
 	storedEnd := today.AddDays(1)
-	series := env.buildSeries(t, periodID, today.AddDays(-7), &storedEnd, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today.AddDays(-7), &storedEnd, planning.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
 		return env.seriesRows.Create(ctx, series)
 	})
@@ -388,7 +387,7 @@ func TestStaffShiftSeries_SplitRejectsExtensionWithoutRecurrenceOccurrence(t *te
 	// weekday so an extension exists by date but cannot produce a shift.
 	weekday := int16((int(newEnd.Weekday())+6)%7 + 1)
 	storedEnd := effective
-	series := env.buildSeries(t, periodID, today.AddDays(-7), &storedEnd, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today.AddDays(-7), &storedEnd, planning.WeekPatternEvery)
 	series.Weekdays = []int16{weekday}
 	env.inTx(t, func(ctx context.Context) error {
 		return env.seriesRows.Create(ctx, series)

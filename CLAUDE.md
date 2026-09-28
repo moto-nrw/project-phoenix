@@ -28,7 +28,7 @@ All paths below are relative to the repository root.
   Parent-child access requires relationship-level permissions, not membership alone.
 - **Production data:** use localhost for moto API calls. Read
   [.claude/rules/no-production-requests.md](.claude/rules/no-production-requests.md)
-  before constructing requests; the staging/production domain guard stays active.
+  before constructing requests; never target staging or production domains.
   The seeder is dev-only; production infrastructure uses migrations or admin UI.
 - **Secrets:** keep credentials out of source and output. Edit deployed envs
   only through SOPS, not ciphertext or SSH `.env` edits. Read
@@ -62,6 +62,7 @@ path-scoped rules automatically.
 | Env vars, Docker, SOPS, deployment | [.claude/rules/env-docker-sync.md](.claude/rules/env-docker-sync.md) and [docs/agents/operations.md](docs/agents/operations.md) |
 | User-visible UI, emails, kiosk, help | [.claude/rules/verstaendlichkeit.md](.claude/rules/verstaendlichkeit.md); load `moto-einfache-sprache` before German copy, [.claude/rules/frontend-ui-kit.md](.claude/rules/frontend-ui-kit.md) before frontend UI |
 | New/changed tenant feature flow or help content | [.claude/rules/help-guide-sync.md](.claude/rules/help-guide-sync.md); update guide and affected screenshots in the same PR (exemptions in the rule) |
+| New page, new writing route, new portal surface, analytics events, or PostHog dashboards | [.claude/rules/usage-analytics.md](.claude/rules/usage-analytics.md); the page guard in `analytics-routes.test.ts` and the route guard in `TestFullProductionRouterGolden` enforce it |
 | Failing or changing tests | [.claude/rules/no-test-modifications.md](.claude/rules/no-test-modifications.md); [backend fixture rules](docs/agents/backend-testing.md); [frontend test clock](docs/agents/frontend-testing.md) for date- or timer-sensitive Vitest tests |
 | Domain terminology or architecture decisions | [CONTEXT.md](CONTEXT.md), relevant `docs/adr/`, [docs/agents/domain.md](docs/agents/domain.md) |
 | Issues or labels | [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md), [docs/agents/triage-labels.md](docs/agents/triage-labels.md) |

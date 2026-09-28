@@ -20,6 +20,12 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { StatusBadge } from "~/components/ui/status-badge";
+import {
+  formatChildCount,
+  OVERBOOKED_LABEL,
+  overbookedHintFor,
+  type Occupancy,
+} from "~/lib/activity-occupancy";
 import { CompleteInstanceModal } from "~/components/active-supervisions/complete-instance-modal";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { hasPermission, isCaregiver } from "~/lib/auth-utils";
@@ -275,9 +281,20 @@ function MeinRaumPageContent() {
     isSchulhofOpenRoom && !currentOpenRoom?.isUserSupervising
       ? (schulhofStatus?.supervisors.map((s) => s.name) ?? [])
       : [];
+  // Die Teilnehmergrenze gehört zur Sitzung, nicht zum offenen Raum: dort
+  // zeigt jeder Abschnitt seine eigene (#3634).
+  const supervisionOccupancy: Occupancy = {
+    count: supervisionCount,
+    limit: currentOpenRoom ? null : (currentRoom?.participant_limit ?? null),
+  };
+  const supervisionOverbookedHint = overbookedHintFor(
+    supervisionOccupancy,
+    nfcEnabled,
+  );
   const supervisionSummary = supervisionName
     ? [
-        `${supervisionCount} ${supervisionCount === 1 ? "Kind" : "Kinder"}`,
+        formatChildCount(supervisionCount, supervisionOccupancy.limit),
+        ...(supervisionOverbookedHint ? [OVERBOOKED_LABEL] : []),
         ...(openRoomSupervisorNames.length > 0
           ? [`Aktuelle Aufsicht: ${openRoomSupervisorNames.join(", ")}`]
           : []),
@@ -505,6 +522,7 @@ function MeinRaumPageContent() {
             isConfirmingExpected={actions.isConfirmingExpected}
             roster={currentTimetableRoster}
             showTimetableCounts={showTimetableCounts}
+            occupancy={supervisionOccupancy}
             onAddStudent={actions.handleAddUnplannedStudent}
             onComplete={actions.handleCompleteTimetableInstance}
             onConfirmExpected={actions.handleConfirmExpectedStudents}
@@ -521,11 +539,16 @@ function MeinRaumPageContent() {
     }
 
     return (
-      <SupervisionStudentGrid
-        students={students}
-        filteredStudents={filters.filteredStudents}
-        {...studentGridProps}
-      />
+      <>
+        {supervisionOverbookedHint ? (
+          <Alert type="warning" message={supervisionOverbookedHint} />
+        ) : null}
+        <SupervisionStudentGrid
+          students={students}
+          filteredStudents={filters.filteredStudents}
+          {...studentGridProps}
+        />
+      </>
     );
   };
 

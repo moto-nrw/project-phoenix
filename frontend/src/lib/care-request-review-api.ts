@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 /**
  * Staff client for the parent care-schedule change-request review queue
  * (#1803). Calls the Next.js proxy routes under
@@ -57,14 +58,12 @@ function unwrap<T>(json: Envelope<T>): T {
  * action instead of collapsing every failure into one generic message. The raw
  * `error` string stays the Error message for logging.
  */
-export class CareRequestApiError extends Error {
-  readonly code?: string;
+export class CareRequestApiError extends ApiError {
   /** HTTP status of the failed response, so a reader can tell "weg" from "kein Zugriff". */
   readonly status?: number;
   constructor(message: string, code?: string, status?: number) {
-    super(message);
+    super(message, status, { code });
     this.name = "CareRequestApiError";
-    this.code = code;
     this.status = status;
   }
 }
@@ -75,8 +74,10 @@ async function readError(
 ): Promise<CareRequestApiError> {
   let message = fallback;
   let code: string | undefined;
+  let payload: unknown;
   try {
     const body = (await response.json()) as { error?: string; code?: string };
+    payload = body;
     if (body.error) message = body.error;
     if (body.code) code = body.code;
   } catch {
@@ -87,7 +88,11 @@ async function readError(
     message,
     ...(code ? { code } : {}),
   });
-  return new CareRequestApiError(message, code, response.status);
+  return enrichApiError(
+    new CareRequestApiError(message, code, response.status),
+    payload,
+    response.status,
+  );
 }
 
 /** Approves (applies the weekly plan) or rejects one care-schedule request. */

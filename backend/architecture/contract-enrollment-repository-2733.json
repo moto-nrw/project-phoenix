@@ -1,0 +1,105 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2719",
+    "#3447"
+  ],
+  "owner_and_capability": "Enrollment (postgres adapter and compose) — bounded Contract step for #2733: delete database/repositories/enrollment and serve the offering-change impact query from the Enrollment module",
+  "affected_packages": [
+    "database/repositories",
+    "database/repositories/enrollment",
+    "modules/enrollment/compose",
+    "modules/enrollment/internal/adapters/postgres"
+  ],
+  "affected_tables": [
+    "enrollment.phases",
+    "enrollment.form_schemas",
+    "enrollment.requests",
+    "enrollment.request_children",
+    "enrollment.late_invites"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/enrollment|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/enrollment|github.com/moto-nrw/project-phoenix/models/config",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/enrollment|github.com/moto-nrw/project-phoenix/models/enrollment",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/enrollment|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/enrollment|github.com/moto-nrw/project-phoenix/database/repositories/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/enrollment|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories/enrollment|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories|github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
+  ],
+  "atomic_cutover": "One code-only commit: the offering-change impact query moves from database/repositories/enrollment into modules/enrollment/internal/adapters/postgres behind compose.NewManualPlanningQuery, database/repositories/manual_planning.go binds that constructor, the pass-through package and its policy classification are deleted, and the phase, form-schema, request, request-child and late-invite repository tests move into the adapter's behaviour tests. No second provider, no fallback, no policy rule added.",
+  "tests": [
+    "modules/enrollment/internal/adapters/postgres behaviour tests, including the five moved repository suites, against the isolated PostgreSQL test database.",
+    "services/enrollment offering-change and direct-adjustment tests, which drive the manual-planning conflict path through the new query.",
+    "scripts/test-changed.sh origin/development without --fast, and the source-level ratchet tests in backend/test."
+  ],
+  "runtime_evidence": {
+    "source": "Local test runs on the PR branch for #2733 after merging development 03f94b49dd, 2026-09-23; PR https://github.com/moto-nrw/project-phoenix/pull/3576.",
+    "sources": [
+      "https://github.com/moto-nrw/project-phoenix/pull/3576"
+    ],
+    "workload": "No load run. Go test suites against the local isolated PostgreSQL test database through scripts/test-changed.sh origin/development (145 affected packages).",
+    "thresholds": "Code-only Contract: per #2733 the primary gate is zero old callers and zero listed keys rather than database metrics. scripts/backend-architecture.sh check must pass with exactly these keys removed and none added.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "Code-only Contract: the query functions in presenceprojection and timetableprojection are called with the same arguments; no SQL statement, table mapping or write path changed."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "Each method still makes exactly one projection call per invocation; no query was added, moved or removed."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency run was made. The change replaces base.GetDB with an equivalent resolver over the same transaction; #2733 names zero callers and zero keys as the gate for a code-only Contract."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency run was made. The change replaces base.GetDB with an equivalent resolver over the same transaction; #2733 names zero callers and zero keys as the gate for a code-only Contract."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development reported 145 packages ok and no failure; golangci-lint on the touched packages reported 0 issues; scripts/backend-architecture.sh check passed with 589 remaining keys and an unchanged composition surface of 623."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "Outside an ambient transaction the query still runs on the pool, as base.GetDB did; no connection acquisition or pool setting changed."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "LockCourseGroups issues the same statement inside the same ambient transaction, so no lock behaviour can differ."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No statement or transaction boundary changed, so no lock ordering can differ."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The affected packages have no worker or scheduler path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The affected packages have no worker or scheduler path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The affected packages have no worker or scheduler path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The query keeps its validation: a non-positive student ID and an invalid or inverted date range return the same errors as before, and an unknown transaction type still panics, as base.GetDB did."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data write or schema change. Reverting the commit restores the deleted package and its binding."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "go build ./... passed and the moved repository suites passed against the isolated test database. No manual application start or HTTP smoke run was made."
+    }
+  },
+  "rollback_and_cleanup": "Revert the code-only commit if a hidden caller appears. No table, migration or configuration is touched, and nothing remains to clean up.",
+  "exit_criterion": "database/repositories/enrollment no longer exists; the eight listed keys are absent from legacy.jsonl; scripts/backend-architecture.sh check passes with no new key and no added policy rule. #2733 stays open for the services/enrollment keys, which fall through #3558 to #3565."
+}

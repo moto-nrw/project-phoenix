@@ -46,7 +46,7 @@ func (c *sseChannel) withTenantRuntime(ctx context.Context) context.Context {
 // SSEChannelOption configures optional dependencies of the SSE channel.
 type SSEChannelOption func(*sseChannel)
 
-// WithGuardianChildAccess makes the channel re-read users.students_guardians
+// WithGuardianChildAccess makes the channel re-read the guardian relationships
 // before a guardian fan-out, keeping only the recipients who still hold
 // parent_portal.access for at least one of Audience.StudentIDs.
 //

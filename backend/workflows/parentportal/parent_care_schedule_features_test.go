@@ -161,7 +161,7 @@ func TestChildFeatures_HidesAnotherGuardiansRequestUntilNamedShare(t *testing.T)
 	recipient := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	_, err := db.ExecContext(ctx, `
-		UPDATE users.students_guardians SET student_id = ?
+		UPDATE users.students_guardians SET student_id = ?, is_primary = false
 		WHERE guardian_profile_id = ?
 	`, author.StudentID, recipient.GuardianProfileID)
 	require.NoError(t, err)

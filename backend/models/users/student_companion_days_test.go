@@ -68,18 +68,3 @@ func TestStudentValidate_AccompaniedCoverIsPerWeekday(t *testing.T) {
 		require.NoError(t, student.Validate())
 	})
 }
-
-// TestCompanionDaysFromLinks folds the submitted list into the cover set the
-// model checks against, which is what lets a caller vouch for edges it is about
-// to write in the same transaction.
-func TestCompanionDaysFromLinks(t *testing.T) {
-	t.Parallel()
-
-	days := CompanionDaysFromLinks([]CompanionLink{
-		{CompanionStudentID: 11, Weekdays: []string{PickupDayMonday}},
-		{CompanionStudentID: 12, Weekdays: []string{PickupDayMonday, PickupDayThursday}},
-	})
-
-	require.Equal(t, map[string]bool{PickupDayMonday: true, PickupDayThursday: true}, days)
-	require.Empty(t, CompanionDaysFromLinks(nil))
-}

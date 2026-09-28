@@ -22,3 +22,8 @@ func DatabaseStatsCapabilities(permissions []string) authorize.DatabaseStatsCapa
 func DatabaseStatsPermissions() []string {
 	return authorize.DatabaseStatsPermissions()
 }
+
+// PermissionCalendarOwn is the permission a staff member needs to use the
+// calendar for themselves. It restates the permission registry's name, which
+// this public package may not import; a test pins it to it.
+const PermissionCalendarOwn = "calendar:own"

@@ -111,6 +111,10 @@ func (p *Provisioning) schoolSummaries(ctx context.Context, organizationID *int6
 	if err != nil {
 		return nil, err
 	}
+	childQuota, err := p.people.CountChildQuotaByTenant(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("count child quota for school summaries: %w", err)
+	}
 	for _, row := range rows {
 		result = append(result, &organizationtenancy.SchoolSummary{
 			ID: row.ID, OrganizationID: row.OrganizationID, OrganizationName: row.OrganizationName,
@@ -119,6 +123,8 @@ func (p *Provisioning) schoolSummaries(ctx context.Context, organizationID *int6
 			Address: row.Address, City: row.City, Zip: row.Zip, Phone: row.Phone, Email: row.Email,
 			Settings: row.Settings, KontenCount: row.AccountCount,
 			GeraeteCount: devices[row.ID], PersonenCount: persons[row.ID],
+			ChildQuotaBundles: row.ChildQuotaBundles, ChildQuotaBundleSize: row.ChildQuotaBundleSize,
+			ChildQuotaCount: childQuota[row.ID],
 		})
 	}
 	return result, nil

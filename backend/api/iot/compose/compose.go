@@ -35,6 +35,9 @@ type ServiceDependencies struct {
 	// DeviceScan is the public device-scan workflow the kiosk scans, pickup
 	// queries, heartbeats and attendance toggles go through (#2698).
 	DeviceScan devicescan.DeviceScan
+	// OpenRooms is the destination booking into released rooms behind
+	// POST /move-to-room (#3067). Nil leaves the route unmounted.
+	OpenRooms devicescan.OpenRoomBooking
 	// StaffClock is the public device-scan staff clock the kiosk stamps
 	// through (#2690).
 	StaffClock               devicescan.StaffClock
@@ -46,6 +49,9 @@ type ServiceDependencies struct {
 	FeedbackService          dataAPI.Feedback
 	FeedbackResponseObserver func(int, string)
 	SchoolName               devicescan.SchoolNameQuery
+	// ErrorReports forwards kiosk Sentry envelopes (#3645); nil when the
+	// backend runs without Sentry.
+	ErrorReports iotAPI.ErrorReportRelay
 	// SessionEnd is the application workflow behind POST /session/end
 	// (#2697): one UnitOfWork over the Presence and Timetable commands.
 	SessionEnd       sessionend.Command
@@ -109,6 +115,17 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/config", info.Router().ServeHTTP)
 	})
 
+	// Sentry tunnel of the kiosks: API key only, like the group above, but
+	// without a tenant transaction. The relay reads no table and must not
+	// hold a database connection while it waits for Sentry.
+	r.Group(func(r chi.Router) {
+		r.Use(device.Required("DeviceOnlyAuthenticator", rs.DeviceOnlyAuthenticator))
+		r.Use(iotMetricsMiddleware)
+
+		errorReports := iotAPI.NewErrorReports(rs.ErrorReports, errorReportsRuntime(), rs.getLogger().With(slog.String("sub", "error-reports")))
+		r.Post("/error-reports", errorReports.Post)
+	})
+
 	// Device-authenticated routes for RFID devices.
 	// DeviceAuthenticator validates the device credentials and, when supplied,
 	// binds staff identity to a verified account PIN. TenantTxMiddleware then
@@ -130,6 +147,13 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/pickup-query", checkinHandler)
 		r.Post("/ping", checkinHandler)
 		r.Get("/status", checkinHandler)
+
+		// Destination booking into a released room, chosen at the device
+		// the child leaves (#3067).
+		if rs.OpenRooms != nil {
+			openRoomResource := checkinAPI.NewOpenRoomResource(rs.OpenRooms, checkinRuntime(), rs.getLogger().With(slog.String("sub", "open-room")))
+			r.Post("/move-to-room", delegateHandler(openRoomResource.Router()))
+		}
 
 		// Pure staff time tracking, independent of activities or groups.
 		staffClockResource := staffclockAPI.NewResource(rs.StaffClock, staffClockRuntime())

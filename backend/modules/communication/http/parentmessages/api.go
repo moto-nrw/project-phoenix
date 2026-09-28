@@ -46,10 +46,12 @@ func (rs *Resource) Router() chi.Router {
 		read := common.RequiresPermission(permissions.UsersRead)
 		r.With(read, withTx).Get("/", rs.listInbox)
 		r.With(read, withTx).Get("/unread-count", rs.unreadCount)
+		r.With(read, withTx).Post("/mark-all-read", rs.markAllRead)
 		r.With(read, withTx).Post("/threads", rs.startThread)
 		r.With(read, withTx).Post("/threads/open", rs.openThread)
 		r.With(read, withTx).Get("/threads/{threadId}", rs.getThread)
 		r.With(read, withTx).Post("/threads/{threadId}", rs.postMessage)
+		r.With(read, withTx).Post("/threads/{threadId}/unread", rs.markThreadUnread)
 		r.With(read, withTx).Get("/students/{studentId}/guardians", rs.listGuardians)
 		r.With(read, withTx).Get("/students/{studentId}/threads", rs.listStudentThreads)
 	})
@@ -238,6 +240,31 @@ func (rs *Resource) getThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, toThreadDetail(detail), "Thread retrieved")
+}
+
+// markAllRead marks every conversation the caller sees as unread as read for
+// the caller's own account (#3663). It answers with the caller's new unread
+// count, which stays above zero while team-marked conversations remain.
+func (rs *Resource) markAllRead(w http.ResponseWriter, r *http.Request) {
+	count, err := rs.Service.MarkAllParentMessagesRead(r.Context())
+	if err != nil {
+		renderMessagingError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]int{"unread_count": count}, "Messages marked read")
+}
+
+// markThreadUnread marks the conversation unread for the whole team (#3654).
+func (rs *Resource) markThreadUnread(w http.ResponseWriter, r *http.Request) {
+	threadID, ok := parseInt64Param(w, r, "threadId", "thread")
+	if !ok {
+		return
+	}
+	if err := rs.Service.MarkParentMessageThreadUnread(r.Context(), threadID); err != nil {
+		renderMessagingError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "Thread marked unread")
 }
 
 func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {

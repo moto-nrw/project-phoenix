@@ -54,7 +54,7 @@ func TestPresenceStorageCallerInventory(t *testing.T) {
 				return walkErr
 			}
 			if entry.IsDir() {
-				// Test-support packages (timetabletest, timetablesqltest, ...)
+				// Test-support packages (timetabletest, ...)
 				// build fixtures for the retained tests and are not providers.
 				if strings.HasSuffix(entry.Name(), "test") && path != filepath.Join("..", root) {
 					return filepath.SkipDir

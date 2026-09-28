@@ -2,7 +2,10 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { auth, uncachedAuth } from "~/server/auth";
+import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { captureBffException } from "~/lib/sentry-bff.server";
 
 /**
  * Route handler for the export endpoints that answer with a file.
@@ -36,16 +39,14 @@ export function createFileExportRoute(options: {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        ...(await incomingAnalyticsSessionHeaders()),
       },
       body,
       cache: "no-store",
     });
 
     if (!response.ok) {
-      return NextResponse.json(
-        { error: await response.text() },
-        { status: response.status },
-      );
+      return forwardBackendResponse(response);
     }
 
     const contentType =
@@ -95,6 +96,7 @@ export function createFileExportRoute(options: {
       }
       return proxy(refreshed.user.token, body);
     } catch (error) {
+      captureBffException(error, request);
       const message = error instanceof Error ? error.message : "Export failed";
       logger.error("file_export_route_failed", { error: message });
       return NextResponse.json({ error: message }, { status: 500 });

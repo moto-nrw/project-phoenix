@@ -73,6 +73,27 @@ echten Schulen vorkommenden Konfigurationen und fachlichen Zustände
 repräsentieren. Sie bedeutet weder eine Kopie von Produktionsdaten noch deren
 Zeilenzahlen oder Verteilungen.
 
+## Nutzungsanalyse
+
+Die **Nutzungsanalyse** zeigt dem moto-Team, wie moto benutzt wird: welche
+Seiten und Funktionen, wo Nutzer hängen bleiben, wie Interessenten durch die
+öffentliche Demo gehen. Sie dient nur der Produktverbesserung; Schulen und
+Träger sehen sie nicht, und sie bewertet keine einzelnen Mitarbeitenden.
+
+Eine **Sitzungsaufzeichnung** gibt eine Browsersitzung als Film wieder, mit
+ausgeblendeten Inhalten. In der öffentlichen Demo läuft sie immer. In einer
+echten Schule laufen sie und die Wiedererkennung einzelner Nutzer nur im
+OGS-Portal und nur mit **Analyse-Freigabe**: der schriftlichen Zustimmung der
+Schule bzw. ihres Trägers, die das moto-Team daraufhin für genau diese Schule
+erteilt. Ohne Analyse-Freigabe, im Eltern-Portal, im Schul-Portal der
+Lehrkräfte und im Träger-Büro bleibt die Nutzungsanalyse ohne Personenbezug.
+Jede neue Oberfläche und jede neue Seite gehört von Anfang an zur
+Nutzungsanalyse.
+
+_Vermeiden_: Tracking (klingt nach Überwachung von Personen), Telemetrie,
+Monitoring (gehört zum Betrieb, nicht zur Nutzung), Replay-Freigabe (deckt nur
+die Hälfte der Analyse-Freigabe ab).
+
 ## Auswahl
 
 Eine **Auswahl** ist eine vorübergehende, manuell zusammengestellte Menge von
@@ -478,6 +499,17 @@ Ablehnung (der Vorgang ist gerade nicht möglich), Nicht erreichbar (später
 erneut versuchen) und Serverfehler (bei uns ist etwas kaputt). Jeder Fehlercode
 gehört zu genau einer Klasse. Kennt der Fehlerkatalog einen Code nicht, wird der
 Text seiner Klasse angezeigt.
+_Vermeiden_: Netzabbruch (heißt Nicht erreichbar).
+
+## Absturz
+
+Ein **Absturz** ist ein Fehler, den kein Programmteil abgefangen hat. Er hat
+keinen Fehlercode und gehört deshalb zu keiner Fehlerklasse. Zusammen mit
+Serverfehlern und endgültig gescheiterter Hintergrundarbeit ist er ein
+**Defekt**: etwas, das bei uns kaputt ist und behoben werden muss. Nur Defekte
+werden in der Fehlerbeobachtung einzeln gemeldet; Erwartbares wird nur
+protokolliert.
+_Vermeiden_: Crash.
 
 ## Fehlerkatalog
 
@@ -487,9 +519,9 @@ Er ist die einzige Stelle, an der Fehlertexte für Nutzerinnen entstehen.
 ## Vorgangskennung
 
 Die **Vorgangskennung** benennt einen einzelnen fehlgeschlagenen Aufruf. Sie
-wird nur bei Serverfehlern und Netzabbrüchen angezeigt, damit eine Schule am
-Telefon auf denselben Vorgang zeigen kann, den der Support in der Auswertung
-sieht. Sie ist keine Fehleridentität: derselbe Fehlercode hat bei jedem
+wird nur bei Serverfehlern und der Fehlerklasse „Nicht erreichbar“ angezeigt,
+damit eine Schule am Telefon auf denselben Vorgang zeigen kann, den der
+Support in der Auswertung sieht. Sie ist keine Fehleridentität: derselbe Fehlercode hat bei jedem
 Auftreten eine andere Vorgangskennung.
 
 ## Träger
@@ -552,6 +584,16 @@ Beschäftigung bleibt als solche bestehen und wird nicht fortgeführt. Eine
 Person hat danach mehrere Beschäftigungen an derselben Schule, aber weiterhin
 nur einen Personensatz.
 
+## Sonderarbeitszeit
+
+Eine **Sonderarbeitszeit** legt für eine Person und einen Zeitraum ein
+eigenes Tagessoll fest, typisch für die Ferienbetreuung an Schließtagen.
+Sie gilt Montag bis Freitag und geht Schließtag und Arbeitszeitmodell vor;
+gesetzliche Feiertage bleiben Soll 0. Danach gilt wieder das
+Arbeitszeitmodell. Zeiträume einer Person überschneiden sich nicht; in einem
+abgeschlossenen Monat lässt sie sich nicht ändern.
+_Vermeiden_: Override (nur im Code), Ferienmodell, Ausnahme-Soll.
+
 ## Schulzugehörigkeit
 
 Die **Schulzugehörigkeit** ist die Zugehörigkeit eines Kindes zu einer Schule
@@ -564,3 +606,44 @@ Austritt die OGS-Betreuung.
 nicht, dass der Betreuungszeitraum gerade läuft; ein inaktives Kind bleibt
 angemeldet.
 _Vermeiden_: „angemeldet" für „im Betreuungszeitraum".
+
+## Stichtagszahl
+
+Die **Stichtagszahl** ist die Zahl, nach der moto einer Schule im Monat
+berechnet wird: die **aktiv verwalteten Kinder** und die **aktiven Terminals**
+am **Stichtag**. Der Stichtag ist ein Tag im Monat (1. bis 28.), einer für alle
+Schulen; der Betreiber legt ihn fest. Die Zahl wird am Stichtag ab 6 Uhr
+einmal festgehalten und danach nie geändert, auch wenn sich Kinder oder Geräte
+später ändern. Lief die Erfassung am Stichtag nicht, holt sie sie im selben
+Monat nach und nennt den tatsächlichen Zeitpunkt.
+
+**Aktiv verwaltet** ist ein Kind mit dem Status „aktiv“ und einer nicht
+gelöschten Schulzugehörigkeit, deren Betreuungsende nicht vor dem Tag der
+Erfassung liegt. Ein sofort aktiviertes Kind zählt auch vor seinem regulären
+Betreuungsbeginn. Nicht gezählt werden Kinder, deren Betreuung
+erst später beginnt, deren Betreuung beendet ist (inaktiv), Abgänger und
+gelöschte Kinder.
+
+Ein **aktives Terminal** ist ein Gerät mit dem Status „aktiv“, das nicht
+archiviert ist und nicht die Erfassung im Browser (virtuelles Gerät) ist. Ob es
+zuletzt online war, zählt nicht. Ein umgezogenes Gerät zählt nur bei der neuen
+Schule.
+_Vermeiden_: „Abrechnung“ für die Stichtagszahl (im OGS-Portal meint
+Abrechnung die Lohnabrechnung), Förderstichtag (15.10., eine andere Frage).
+
+## Kinderkontingent
+
+Das **Kinderkontingent** ist die vertraglich gebuchte Höchstzahl an Kindern
+einer OGS: die Zahl der gebuchten **Bundles** mal der Bundle-Größe des
+Vertrags (üblich 50). Nur der Betreiber legt es fest; eine OGS ohne
+Kinderkontingent hat keine Grenze. Ist es erreicht, lässt moto kein weiteres
+Kind hinzukommen, deaktiviert aber nie ein vorhandenes.
+_Vermeiden_: Lizenz, Plätze, Kapazität (das ist die Teilnehmergrenze eines
+Angebots), Limit (nur im Code).
+
+Die **Kontingentzahl** ist die Zahl der Kinder, die gegen das
+Kinderkontingent zählen: die aktiv verwalteten Kinder und zusätzlich die
+vorgemerkten, deren Betreuung erst später beginnt. Sie ist bewusst größer als
+die Stichtagszahl, damit ein späteres Startdatum das Kinderkontingent nicht
+umgeht.
+_Vermeiden_: Stichtagszahl für diese Zahl.

@@ -100,14 +100,6 @@ func (r timetableActivityCategoryRepository) Update(ctx context.Context, value *
 	return nil
 }
 
-func (r timetableActivityCategoryRepository) UpdateIfActive(ctx context.Context, value *activitiesModels.Category) (bool, error) {
-	err := r.Update(ctx, value)
-	if errors.Is(err, timetable.ErrCategoryArchived) {
-		return false, nil
-	}
-	return err == nil, err
-}
-
 func (r timetableActivityCategoryRepository) UpdateColumns(ctx context.Context, value *activitiesModels.Category, columns ...string) (int64, error) {
 	if value == nil {
 		return 0, errors.New("category cannot be nil or zero value")

@@ -135,15 +135,19 @@ func NewLegacyRows(tb TB, db *bun.DB) LegacyRows {
 // LegacyInstance is one block of a day with its execution, as the retained
 // legacy rows show it.
 type LegacyInstance struct {
-	ID            int64
-	Title         string
-	Date          string
-	StartTime     time.Time
-	EndTime       time.Time
-	RoomID        int64
-	Status        string
-	ActiveGroupID *int64
-	ListKind      *string
+	ID               int64
+	Title            string
+	Date             string
+	StartTime        time.Time
+	EndTime          time.Time
+	RoomID           int64
+	Status           string
+	ActiveGroupID    *int64
+	ListKind         *string
+	ActivityGroupID  *int64
+	CancelReason     *string
+	Notes            *string
+	UnderstaffedNote *string
 }
 
 // LegacyParticipant is one roster row with its attendance, as the retained
@@ -168,7 +172,27 @@ type LegacyParticipant struct {
 // InstancesOn lists the blocks of the ISO day with their execution, ordered
 // by start time.
 func (r LegacyRows) InstancesOn(ctx context.Context, date string) ([]LegacyInstance, error) {
-	rows, err := r.reads.ListLegacyInstances(ctx, timetableCompose.LegacyInstanceFilter{Date: &date, OrderByDateAndTime: true})
+	return r.instances(ctx, timetableCompose.LegacyInstanceFilter{Date: &date, OrderByDateAndTime: true})
+}
+
+// InstancesBetween lists the blocks of the ISO days from through to with
+// their execution, ordered by date and start time: the tenant's date-range
+// read the composition root binds for the plan exports.
+func (r LegacyRows) InstancesBetween(ctx context.Context, from, to string) ([]LegacyInstance, error) {
+	return r.instances(ctx, timetableCompose.LegacyInstanceFilter{FromDate: &from, ToDate: &to, OrderByDateAndTime: true})
+}
+
+// InstancesByID lists the given blocks with their execution, ordered by date
+// and start time.
+func (r LegacyRows) InstancesByID(ctx context.Context, ids []int64) ([]LegacyInstance, error) {
+	if len(ids) == 0 {
+		return []LegacyInstance{}, nil
+	}
+	return r.instances(ctx, timetableCompose.LegacyInstanceFilter{IDs: ids, OrderByDateAndTime: true})
+}
+
+func (r LegacyRows) instances(ctx context.Context, filter timetableCompose.LegacyInstanceFilter) ([]LegacyInstance, error) {
+	rows, err := r.reads.ListLegacyInstances(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -177,6 +201,8 @@ func (r LegacyRows) InstancesOn(ctx context.Context, date string) ([]LegacyInsta
 		result = append(result, LegacyInstance{
 			ID: row.ID, Title: row.Title, Date: row.Date.String(), StartTime: row.StartTime, EndTime: row.EndTime,
 			RoomID: row.RoomID, Status: row.Status, ActiveGroupID: row.ActiveGroupID, ListKind: row.ListKind,
+			ActivityGroupID: row.ActivityGroupID, CancelReason: row.CancelReason, Notes: row.Notes,
+			UnderstaffedNote: row.UnderstaffedNote,
 		})
 	}
 	return result, nil

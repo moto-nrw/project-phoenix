@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,14 +23,14 @@ import (
 // would have stored.
 func giveAccompaniedPlan(t *testing.T, db *bun.DB, ctx context.Context, studentID int64, days ...string) {
 	t.Helper()
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 
 	student, err := repo.FindByID(ctx, studentID)
 	require.NoError(t, err)
 	require.NotNil(t, student)
 
 	note := "Nachbarskind"
-	student.AllowedDepartureModes = users.WithAccompaniedDays(student.AllowedDepartureModes, days)
+	student.AllowedDepartureModes = testpkg.WithAccompaniedDays(student.AllowedDepartureModes, days)
 	student.DepartureCompanionNote = &note
 	require.NoError(t, repo.Update(ctx, student))
 }
@@ -58,14 +58,14 @@ func TestStudentRepository_Update_TrimsCompanionEdgesToPlan(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := testutil.NewPeopleRepositorySuiteFactory(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Trim", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Trim", "1a")
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
-	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(factory.CarePlan()), subject.ID, []*users.StudentCompanion{
+	require.NoError(t, testutil.ReplacePeopleRepositorySuiteCompanions(ctx, testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), subject.ID, []*testpkg.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 		newCompanionEdge(t, subject.ID, companion.ID, 2),
 	}))
@@ -74,19 +74,19 @@ func TestStudentRepository_Update_TrimsCompanionEdgesToPlan(t *testing.T) {
 	// with one that only allows "Anderes Kind" on Monday.
 	loaded, err := factory.Student.FindByID(ctx, subject.ID)
 	require.NoError(t, err)
-	loaded.AllowedDepartureModes = users.AllowedDepartureModes{
-		"mon": {users.DepartureAccompanied},
-		"tue": {users.DepartureBus},
+	loaded.AllowedDepartureModes = departure.AllowedDepartureModes{
+		"mon": {departure.DepartureAccompanied},
+		"tue": {departure.DepartureBus},
 	}
 	require.NoError(t, factory.Student.Update(ctx, loaded))
 
 	// ASSERT — only the Monday edge remains, from both children's view.
-	edges, err := repositories.NewStudentCompanionRepository(factory.CarePlan()).ListForStudent(ctx, subject.ID)
+	edges, err := testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, subject.ID)
 	require.NoError(t, err)
 	require.Len(t, edges, 1)
 	assert.Equal(t, 1, edges[0].Weekday)
 
-	fromCompanion, err := repositories.NewStudentCompanionRepository(factory.CarePlan()).ListForStudent(ctx, companion.ID)
+	fromCompanion, err := testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, companion.ID)
 	require.NoError(t, err)
 	require.Len(t, fromCompanion, 1)
 	assert.Equal(t, 1, fromCompanion[0].Weekday)
@@ -102,26 +102,26 @@ func TestStudentRepository_Update_DropsAllEdgesWhenPlanLosesAccompanied(t *testi
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := testutil.NewPeopleRepositorySuiteFactory(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Clear", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Clear", "1a")
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
-	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(factory.CarePlan()), subject.ID, []*users.StudentCompanion{
+	require.NoError(t, testutil.ReplacePeopleRepositorySuiteCompanions(ctx, testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), subject.ID, []*testpkg.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 	}))
 
 	// ACT — the new plan has no accompanied day at all.
 	loaded, err := factory.Student.FindByID(ctx, subject.ID)
 	require.NoError(t, err)
-	loaded.AllowedDepartureModes = users.AllowedDepartureModes{
-		"mon": {users.DepartureBus},
+	loaded.AllowedDepartureModes = departure.AllowedDepartureModes{
+		"mon": {departure.DepartureBus},
 	}
 	require.NoError(t, factory.Student.Update(ctx, loaded))
 
-	edges, err := repositories.NewStudentCompanionRepository(factory.CarePlan()).ListForStudent(ctx, subject.ID)
+	edges, err := testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, subject.ID)
 	require.NoError(t, err)
 	assert.Empty(t, edges, "a plan without an accompanied day must not keep any edge")
 }
@@ -137,14 +137,14 @@ func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := testutil.NewPeopleRepositorySuiteFactory(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "StrandDay", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "StrandDay", "1a")
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
-	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(factory.CarePlan()), subject.ID, []*users.StudentCompanion{
+	require.NoError(t, testutil.ReplacePeopleRepositorySuiteCompanions(ctx, testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), subject.ID, []*testpkg.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 		newCompanionEdge(t, subject.ID, companion.ID, 2),
 	}))
@@ -153,16 +153,16 @@ func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T)
 
 	loaded, err := factory.Student.FindByID(ctx, subject.ID)
 	require.NoError(t, err)
-	loaded.AllowedDepartureModes = users.AllowedDepartureModes{
-		"mon": {users.DepartureAccompanied},
-		"tue": {users.DepartureBus},
+	loaded.AllowedDepartureModes = departure.AllowedDepartureModes{
+		"mon": {departure.DepartureAccompanied},
+		"tue": {departure.DepartureBus},
 	}
 
 	// ACT + ASSERT — refused; both edges survive.
 	err = factory.Student.Update(ctx, loaded)
-	require.ErrorIs(t, err, users.ErrCompanionWouldLoseDeparture)
+	require.ErrorIs(t, err, departure.ErrCompanionWouldLoseDeparture)
 
-	edges, listErr := repositories.NewStudentCompanionRepository(factory.CarePlan()).ListForStudent(ctx, subject.ID)
+	edges, listErr := testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, subject.ID)
 	require.NoError(t, listErr)
 	assert.Len(t, edges, 2, "a refused update must not have dropped the Tuesday edge")
 }
@@ -180,14 +180,14 @@ func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *test
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := testutil.NewPeopleRepositorySuiteFactory(db)
 
 	first := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "BatchOK", "1a")
 	second := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "BatchOK", "1a")
 
 	giveAccompaniedPlan(t, db, ctx, first.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, second.ID, "mon")
-	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(factory.CarePlan()), first.ID, []*users.StudentCompanion{
+	require.NoError(t, testutil.ReplacePeopleRepositorySuiteCompanions(ctx, testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), first.ID, []*testpkg.StudentCompanion{
 		newCompanionEdge(t, first.ID, second.ID, 1),
 	}))
 	// Neither child has any other "mit wem" detail than the shared edge.
@@ -195,12 +195,12 @@ func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *test
 	clearStoredCompanionNote(t, db, second.ID)
 
 	// ACT — one approval, applied child after the other.
-	batchCtx, _ := users.ContextWithCompanionStrandingBatch(ctx)
+	batchCtx, _ := departure.ContextWithStrandingBatch(ctx)
 	for _, id := range []int64{first.ID, second.ID} {
 		loaded, err := factory.Student.FindByID(batchCtx, id)
 		require.NoError(t, err)
-		loaded.AllowedDepartureModes = users.AllowedDepartureModes{
-			"mon": {users.DepartureBus},
+		loaded.AllowedDepartureModes = departure.AllowedDepartureModes{
+			"mon": {departure.DepartureBus},
 		}
 		require.NoError(t, factory.Student.Update(batchCtx, loaded),
 			"a coordinated removal must not be refused against a half-applied batch")
@@ -209,7 +209,7 @@ func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *test
 	// ASSERT — the batch verdict passes and the shared edge is gone.
 	require.NoError(t, factory.Student.VerifyCompanionStrandingBatch(batchCtx))
 
-	edges, err := repositories.NewStudentCompanionRepository(factory.CarePlan()).ListForStudent(ctx, first.ID)
+	edges, err := testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, first.ID)
 	require.NoError(t, err)
 	assert.Empty(t, edges, "the edge lost its basis on both sides and must be gone")
 }
@@ -224,30 +224,30 @@ func TestStudentRepository_Update_BatchStillRefusesStrandingCompanion(t *testing
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := testutil.NewPeopleRepositorySuiteFactory(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "BatchStrand", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "BatchStrand", "1a")
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
-	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(factory.CarePlan()), subject.ID, []*users.StudentCompanion{
+	require.NoError(t, testutil.ReplacePeopleRepositorySuiteCompanions(ctx, testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), subject.ID, []*testpkg.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 	}))
 	// The companion keeps its accompanied Monday, answered ONLY by the link.
 	clearStoredCompanionNote(t, db, companion.ID)
 
-	batchCtx, _ := users.ContextWithCompanionStrandingBatch(ctx)
+	batchCtx, _ := departure.ContextWithStrandingBatch(ctx)
 	loaded, err := factory.Student.FindByID(batchCtx, subject.ID)
 	require.NoError(t, err)
-	loaded.AllowedDepartureModes = users.AllowedDepartureModes{
-		"mon": {users.DepartureBus},
+	loaded.AllowedDepartureModes = departure.AllowedDepartureModes{
+		"mon": {departure.DepartureBus},
 	}
 
 	// ACT — the individual write no longer decides; the batch verdict does.
 	require.NoError(t, factory.Student.Update(batchCtx, loaded))
 	assert.ErrorIs(t, factory.Student.VerifyCompanionStrandingBatch(batchCtx),
-		users.ErrCompanionWouldLoseDeparture)
+		departure.ErrCompanionWouldLoseDeparture)
 }
 
 // TestStudentRepository_Update_RefusesStrandingCompanion pins the guard rail:
@@ -261,14 +261,14 @@ func TestStudentRepository_Update_RefusesStrandingCompanion(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := testutil.NewPeopleRepositorySuiteFactory(db)
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Strand", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Strand", "1a")
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
-	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(factory.CarePlan()), subject.ID, []*users.StudentCompanion{
+	require.NoError(t, testutil.ReplacePeopleRepositorySuiteCompanions(ctx, testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), subject.ID, []*testpkg.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 	}))
 	// The companion's "mit wem" is now answered ONLY by the link.
@@ -276,15 +276,15 @@ func TestStudentRepository_Update_RefusesStrandingCompanion(t *testing.T) {
 
 	loaded, err := factory.Student.FindByID(ctx, subject.ID)
 	require.NoError(t, err)
-	loaded.AllowedDepartureModes = users.AllowedDepartureModes{
-		"mon": {users.DepartureBus},
+	loaded.AllowedDepartureModes = departure.AllowedDepartureModes{
+		"mon": {departure.DepartureBus},
 	}
 
 	// ACT + ASSERT — refused with the shared sentinel; the edge survives.
 	err = factory.Student.Update(ctx, loaded)
-	require.ErrorIs(t, err, users.ErrCompanionWouldLoseDeparture)
+	require.ErrorIs(t, err, departure.ErrCompanionWouldLoseDeparture)
 
-	edges, listErr := repositories.NewStudentCompanionRepository(factory.CarePlan()).ListForStudent(ctx, subject.ID)
+	edges, listErr := testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, subject.ID)
 	require.NoError(t, listErr)
 	assert.Len(t, edges, 1, "a refused update must not have dropped the edge")
 }

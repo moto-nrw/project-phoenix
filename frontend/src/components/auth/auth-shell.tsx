@@ -142,23 +142,7 @@ interface AuthShellProps {
   readonly showMotoAttribution?: boolean;
 }
 
-export function MotoBrand() {
-  return (
-    <div className="flex items-center justify-center gap-3">
-      <Image
-        src="/images/moto_transparent.webp"
-        alt=""
-        width={44}
-        height={32}
-        className="h-8 w-11 object-contain"
-        priority
-      />
-      <span className="[font-family:var(--font-moto)] text-[2rem] leading-none font-bold text-gray-950">
-        moto
-      </span>
-    </div>
-  );
-}
+export { MotoBrand } from "~/components/auth/moto-brand";
 
 export function MotoIconBrand() {
   return (

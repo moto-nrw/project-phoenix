@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 // CoursesResponse is the parents-portal Kurse section (#3075). It is empty and
@@ -56,7 +56,7 @@ type CourseRequestBody struct {
 	Note     string `json:"note"`
 }
 
-func toCoursesResponse(catalog *enrollmentService.CourseCatalog) CoursesResponse {
+func toCoursesResponse(catalog *careplan.CourseCatalog) CoursesResponse {
 	resp := CoursesResponse{
 		Enabled:                catalog.Enabled,
 		CanRequest:             catalog.CanRequest,
@@ -164,13 +164,13 @@ func (rs *Resource) withdrawCourseRequest(w http.ResponseWriter, r *http.Request
 // else to the shared parent write renderer.
 func renderCourseError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, enrollmentService.ErrCourseRequestsDisabled):
+	case errors.Is(err, careplan.ErrCourseRequestsDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "course_requests_disabled"))
-	case errors.Is(err, enrollmentService.ErrCourseNotFound):
+	case errors.Is(err, careplan.ErrCourseNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, enrollmentService.ErrCourseAlreadyBooked):
+	case errors.Is(err, careplan.ErrCourseAlreadyBooked):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "course_already_booked"))
-	case errors.Is(err, enrollmentService.ErrCourseRequestNotOwn):
+	case errors.Is(err, careplan.ErrCourseRequestNotOwn):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "course_request_not_own"))
 	default:
 		renderParentWriteError(w, r, err)

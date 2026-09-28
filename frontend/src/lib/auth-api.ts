@@ -1,5 +1,5 @@
 // lib/auth-api.ts
-import type { ApiError } from "./api-error";
+import { ApiError, apiErrorFromBody } from "./api-error";
 export { handleAuthFailure, refreshToken } from "./auth-failure";
 import { createLogger } from "~/lib/logger";
 
@@ -31,12 +31,14 @@ export async function buildApiError(
   fallbackMessage: string,
 ): Promise<ApiError> {
   let message = fallbackMessage;
-  let code: string | undefined;
-  let details: Record<string, unknown> | undefined;
+  let payload: unknown;
 
   try {
     const contentType = response.headers.get("Content-Type") ?? "";
-    if (contentType.includes("application/json")) {
+    if (
+      contentType.includes("application/json") ||
+      contentType.includes("+json")
+    ) {
       const body = (await response.json()) as {
         error?: string;
         message?: string;
@@ -44,8 +46,7 @@ export async function buildApiError(
         details?: Record<string, unknown>;
       };
       message = body?.error ?? body?.message ?? fallbackMessage;
-      code = body?.code;
-      details = body?.details;
+      payload = body;
     } else {
       const text = (await response.text()).trim();
       if (text) {
@@ -58,14 +59,7 @@ export async function buildApiError(
     });
   }
 
-  const apiError = new Error(message) as ApiError;
-  apiError.status = response.status;
-  if (code) {
-    apiError.code = code;
-  }
-  if (details) {
-    apiError.details = details;
-  }
+  const apiError = apiErrorFromBody(message, response.status, payload);
 
   const retryAfter = parseRetryAfter(response.headers.get("Retry-After"));
   if (retryAfter !== null) {

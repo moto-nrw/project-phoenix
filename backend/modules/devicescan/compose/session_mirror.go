@@ -8,29 +8,46 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type MirroredSession = application.MirroredSession
 
-// NewSessionMirror binds the optional mirror to the retained timetable data
-// service. The root supplies the post-commit event publisher.
-func NewSessionMirror(data *timetableplanning.TimetableDataService, activities activitiesSvc.ActivityService, publish application.MirrorPublisher, logger *slog.Logger) application.SessionMirror {
-	if data == nil {
+// SessionMirror records a kiosk session start as a spontaneous timetable
+// block.
+type SessionMirror = application.SessionMirror
+
+// MirrorInstances is the retained instance storage the kiosk mirror writes a
+// spontaneous block into; the retained rows route its session state to
+// Student Presence.
+type MirrorInstances interface {
+	FindByActiveGroupID(ctx context.Context, activeGroupID int64) (*scheduleModel.ActivityInstance, error)
+	Create(ctx context.Context, instance *scheduleModel.ActivityInstance) error
+}
+
+// MirrorInstanceStaff stores the staff row of a mirrored block.
+type MirrorInstanceStaff interface {
+	Create(ctx context.Context, staff *scheduleModel.InstanceStaff) error
+}
+
+// NewSessionMirror binds the optional mirror to the retained timetable
+// rows. The root supplies the post-commit event publisher.
+func NewSessionMirror(instances MirrorInstances, staff MirrorInstanceStaff, activities activitiesSvc.ActivityService, publish application.MirrorPublisher, logger *slog.Logger) application.SessionMirror {
+	if instances == nil || staff == nil {
 		return nil
 	}
-	return application.NewSessionMirror(mirrorTimetable{data: data, activities: activities}, publish, logger)
+	return application.NewSessionMirror(mirrorTimetable{instances: instances, staff: staff, activities: activities}, publish, logger)
 }
 
 type mirrorTimetable struct {
-	data       *timetableplanning.TimetableDataService
+	instances  MirrorInstances
+	staff      MirrorInstanceStaff
 	activities activitiesSvc.ActivityService
 }
 
 func (m mirrorTimetable) HasInstance(ctx context.Context, sessionID int64) (bool, error) {
-	instance, err := m.data.GetInstanceByActiveGroupID(ctx, sessionID)
+	instance, err := m.instances.FindByActiveGroupID(ctx, sessionID)
 	return instance != nil, err
 }
 
@@ -70,7 +87,7 @@ func (m mirrorTimetable) CreateInstance(ctx context.Context, input MirroredSessi
 		CreatedBy: input.CreatedBy, StartedBy: input.StartedBy, StartedAt: input.StartedAt,
 	}
 	instance.SetTenantID(tenant.FromContext(ctx))
-	if err := m.data.CreateActivityInstance(ctx, instance); err != nil {
+	if err := m.instances.Create(ctx, instance); err != nil {
 		return MirroredSession{}, err
 	}
 	input.ID = instance.ID
@@ -80,5 +97,5 @@ func (m mirrorTimetable) CreateInstance(ctx context.Context, input MirroredSessi
 func (m mirrorTimetable) AddStaff(ctx context.Context, instanceID, staffID int64) error {
 	row := &scheduleModel.InstanceStaff{InstanceID: instanceID, StaffID: staffID}
 	row.SetTenantID(tenant.FromContext(ctx))
-	return m.data.CreateInstanceStaff(ctx, row)
+	return m.staff.Create(ctx, row)
 }

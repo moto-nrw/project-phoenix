@@ -2,9 +2,14 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { recordBackendProxyMetric } from "./backend-proxy-metrics";
-import { canonicalForwardedFor } from "./client-headers.server";
+import { analyticsSessionHeaders } from "./analytics-session-header.server";
+import {
+  canonicalForwardedFor,
+  requestIdHeaders,
+} from "./client-headers.server";
 import { sanitizeEndpoint } from "./log-sanitize";
 import { createLogger } from "~/lib/logger";
+import { captureBffException } from "~/lib/sentry-bff.server";
 
 // Logger instance for API helpers
 const logger = createLogger({ component: "ApiHelpers" });
@@ -63,6 +68,7 @@ export class ApiResponseError extends Error {
   readonly status: number;
   readonly bodyText: string;
   readonly retryAfter: string | null;
+  readonly contentType: string | null;
   // Memoized parse result — `null` means "not JSON". Lazy so callers that
   // only check status never pay the JSON.parse cost.
   private parsedBody: JsonBody | null = null;
@@ -71,13 +77,17 @@ export class ApiResponseError extends Error {
   constructor(
     status: number,
     bodyText: string,
-    options?: ErrorOptions & { retryAfter?: string | null },
+    options?: ErrorOptions & {
+      retryAfter?: string | null;
+      contentType?: string | null;
+    },
   ) {
     super(`API error (${status}): ${bodyText}`, options);
     this.name = "ApiResponseError";
     this.status = status;
     this.bodyText = bodyText;
     this.retryAfter = options?.retryAfter ?? null;
+    this.contentType = options?.contentType ?? null;
   }
 
   /**
@@ -95,6 +105,16 @@ export class ApiResponseError extends Error {
     }
     return (this.parsedBody ?? null) as T | null;
   }
+}
+
+/** Preserve a direct fetch's error body for the shared route wrappers. */
+export async function backendResponseError(
+  response: Response,
+): Promise<ApiResponseError> {
+  return new ApiResponseError(response.status, await response.text(), {
+    contentType: response.headers.get("Content-Type"),
+    retryAfter: response.headers.get("Retry-After"),
+  });
 }
 
 /**
@@ -120,6 +140,8 @@ async function getIncomingForwardHeaders(): Promise<Record<string, string>> {
         "X-Forwarded-For": forwardedFor,
       }),
       ...(userAgent && { "User-Agent": userAgent }),
+      ...analyticsSessionHeaders(incomingHeaders),
+      ...requestIdHeaders(incomingHeaders),
     };
   } catch {
     return {};
@@ -190,6 +212,7 @@ async function serverFetchWithRetry<T>(
       const errorText = await response.text();
       throw new ApiResponseError(response.status, errorText, {
         retryAfter: response.headers.get("Retry-After"),
+        contentType: response.headers.get("Content-Type"),
       });
     }
 
@@ -379,21 +402,38 @@ export async function apiDelete<T, B = unknown>(
  * @param error Error object
  * @returns Response with error message and status
  */
-export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
+export function handleApiError(
+  error: unknown,
+  request?: Request,
+): NextResponse<ApiErrorResponse> {
+  if (error instanceof ApiResponseError) {
+    const code = error.body<BackendErrorPayload>()?.code;
+    logApiRouteError(error.status, error.message, code);
+    const headers = new Headers();
+    if (error.contentType) headers.set("Content-Type", error.contentType);
+    if (error.retryAfter) headers.set("Retry-After", error.retryAfter);
+    return new NextResponse<ApiErrorResponse>(error.bodyText, {
+      status: error.status,
+      headers,
+    });
+  }
+
   const status = getApiErrorStatus(error);
   if (error instanceof Error && status !== null) {
-    logApiRouteError(status, error.message);
+    const response = buildApiErrorResponse(error.message);
+    logApiRouteError(status, error.message, response.code);
     const headers =
       error instanceof ApiResponseError && error.retryAfter
         ? { "Retry-After": error.retryAfter }
         : undefined;
-    return NextResponse.json(buildApiErrorResponse(error.message), {
+    return NextResponse.json(response, {
       status,
       headers,
     });
   }
 
   // Unknown errors are logged as errors and return 500
+  captureBffException(error, request);
   logger.error("api route error without status", {
     error: error instanceof Error ? error.message : String(error),
   });
@@ -413,16 +453,22 @@ function getApiErrorStatus(error: unknown): number | null {
   return match?.[1] ? Number.parseInt(match[1], 10) : null;
 }
 
-function logApiRouteError(status: number, errorMessage: string): void {
+function logApiRouteError(
+  status: number,
+  errorMessage: string,
+  errorCode: string | undefined,
+): void {
   // Free-text fields like sick-note content must not land in server logs even
   // when a 4xx body still carries them. Redact before any level logs the body.
   const safeErrorMessage = redactSensitiveApiErrorFields(errorMessage);
 
-  // Only log server errors (5xx) to avoid Next.js error overlay for expected 4xx
+  // Only log server errors (5xx) to avoid Next.js error overlay for expected 4xx.
+  // Backend 5xx responses stay in logs; the backend owns their Sentry event.
   if (status >= 500) {
     logger.error("api route error", {
       status,
       error: safeErrorMessage,
+      ...(errorCode && { error_code: errorCode }),
     });
     return;
   }

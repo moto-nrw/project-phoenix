@@ -8,7 +8,7 @@ services:
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
-    # Loopback only: read-only developer access via SSH tunnel (see /root/README.md on the server).
+    # Loopback only: read-only developer access via SSH tunnel (see docs/operations/demo-environment.md).
     ports:
       - "127.0.0.1:5434:5432"
     volumes:
@@ -93,7 +93,7 @@ services:
       SECURITY_LOGGING_ENABLED: ${SECURITY_LOGGING_ENABLED:?SECURITY_LOGGING_ENABLED is required}
       METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:?METRICS_BEARER_TOKEN is required}
       SENTRY_DSN: ${SENTRY_DSN?SENTRY_DSN is required}
-      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT?SENTRY_ENVIRONMENT is required}
+      SENTRY_PYREPORTAL_DSN: ${SENTRY_PYREPORTAL_DSN?SENTRY_PYREPORTAL_DSN is required}
       POSTHOG_API_KEY: ${POSTHOG_API_KEY?POSTHOG_API_KEY is required}
       POSTHOG_HOST: ${POSTHOG_HOST?POSTHOG_HOST is required}
       CLEANUP_SCHEDULER_ENABLED: ${CLEANUP_SCHEDULER_ENABLED:?CLEANUP_SCHEDULER_ENABLED is required}
@@ -142,7 +142,6 @@ services:
       NEXT_PUBLIC_LOG_LEVEL: ${NEXT_PUBLIC_LOG_LEVEL:?NEXT_PUBLIC_LOG_LEVEL is required}
       NEXT_PUBLIC_TENANT_DOMAIN: ${NEXT_PUBLIC_TENANT_DOMAIN:?NEXT_PUBLIC_TENANT_DOMAIN is required}
       NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY?NEXT_PUBLIC_POSTHOG_KEY is required}
-      NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST?NEXT_PUBLIC_POSTHOG_HOST is required}
       NEXT_PUBLIC_OPERATOR_HOSTNAME: ${NEXT_PUBLIC_OPERATOR_HOSTNAME:?NEXT_PUBLIC_OPERATOR_HOSTNAME is required}
       NEXT_PUBLIC_PARENTS_HOSTNAME: ${NEXT_PUBLIC_PARENTS_HOSTNAME:?NEXT_PUBLIC_PARENTS_HOSTNAME is required}
       NEXT_PUBLIC_SCHOOL_HOSTNAME: ${NEXT_PUBLIC_SCHOOL_HOSTNAME:?NEXT_PUBLIC_SCHOOL_HOSTNAME is required}
@@ -173,9 +172,12 @@ services:
   # Fallback to the one standing demo school: append "--demo-standing-school"
   # to this command AND to the server's command; check-runtime-env.py rejects
   # a stack where only one of them carries it.
+  # It calls the server on 127.0.0.1 in the shared network namespace. Under
+  # APP_ENV=demo the server's rate limiters exempt loopback peers, and public
+  # traffic arrives from the Docker gateway, never from loopback.
   demo-runtime:
     image: ghcr.io/moto-nrw/phoenix-server:demo
-    command: ["./main", "demo", "--url", "http://server:8080", "--heartbeat", "/tmp/demo-heartbeat"]
+    command: ["./main", "demo", "--url", "http://127.0.0.1:8080", "--heartbeat", "/tmp/demo-heartbeat"]
     restart: unless-stopped
     depends_on:
       server:

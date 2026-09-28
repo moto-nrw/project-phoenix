@@ -79,11 +79,12 @@ describe("GET /api/operator/provisioning/stats", () => {
 
   it("propagates a backend 500 as an error response", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 500,
-      text: async () => "internal error",
-    });
+    mockFetch.mockResolvedValue(
+      new Response("internal error", {
+        status: 500,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/provisioning/stats",
@@ -95,11 +96,12 @@ describe("GET /api/operator/provisioning/stats", () => {
 
   it("returns 401 with TOKEN_EXPIRED when the backend returns 401 and refresh fails", async () => {
     mockAuth.mockResolvedValue({ user: { token: "stale-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 401,
-      text: async () => "expired",
-    });
+    mockFetch.mockResolvedValue(
+      new Response("expired", {
+        status: 401,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/provisioning/stats",

@@ -11,7 +11,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -173,15 +172,7 @@ type harness struct {
 	retryCalls   []string
 	servedAvatar string
 
-	pinHasPIN      bool
-	pinLastChanged *time.Time
-	pinStatusErr   error
-	pinPreflight   error
-	personsErr     error
-	pinCurrent     *string
-	pinNew         string
-	pinUpdateErr   error
-	personByAcct   map[int64]int64
+	personsErr error
 }
 
 func newHarness(t *testing.T, membership *fakeMembership) *harness {
@@ -191,7 +182,7 @@ func newHarness(t *testing.T, membership *fakeMembership) *harness {
 		persons: map[int64]staffHTTP.Person{}, accountRole: map[int64]string{},
 		emails: map[int64]string{}, avatars: map[int64]string{}, roles: map[int64]string{},
 		workStatus: map[int64]string{}, absence: map[int64]string{}, absenceLbl: map[int64]string{},
-		personByAcct: map[int64]int64{}, accountID: 7, username: "tester",
+		accountID: 7, username: "tester",
 	}
 	resource := staffHTTP.NewResource(membership, staffHTTP.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, staffHTTP.Middleware)) {
@@ -236,9 +227,6 @@ func newHarness(t *testing.T, membership *fakeMembership) *harness {
 		SchoolClassFailure: func(w http.ResponseWriter, r *http.Request, err error) {
 			_ = render.Render(w, r, errorResponse{StatusCode: http.StatusNotFound, Status: "error", Kind: "school_class", Error: err.Error()})
 		},
-		PINFailure: func(w http.ResponseWriter, r *http.Request, err error) {
-			_ = render.Render(w, r, errorResponse{StatusCode: http.StatusUnauthorized, Status: "error", Kind: "pin", Error: err.Error()})
-		},
 		Permissions:      func(context.Context) []string { return h.permissions },
 		HasPermission:    matchPermission,
 		CurrentAccountID: func(context.Context) int64 { return h.accountID },
@@ -265,10 +253,6 @@ func newHarness(t *testing.T, membership *fakeMembership) *harness {
 				}
 			}
 			return result, nil
-		},
-		PersonIDByAccount: func(_ context.Context, accountID int64) (int64, bool, error) {
-			personID, ok := h.personByAcct[accountID]
-			return personID, ok, nil
 		},
 		PresentStaffIDs: func(context.Context) ([]int64, error) { return h.present, nil },
 		WorkStatusMap:   func(context.Context) (map[int64]string, error) { return h.workStatus, nil },
@@ -319,14 +303,6 @@ func newHarness(t *testing.T, membership *fakeMembership) *harness {
 		Offboard: func(_ context.Context, staffID int64, username string) error {
 			h.offboarded, h.offboardedBy = staffID, username
 			return h.offboardErr
-		},
-		PINStatus: func(context.Context, int64) (bool, *time.Time, error) {
-			return h.pinHasPIN, h.pinLastChanged, h.pinStatusErr
-		},
-		PINPreflight: func(context.Context, int64) error { return h.pinPreflight },
-		UpdatePIN: func(_ context.Context, _ int64, current *string, newPIN string) error {
-			h.pinCurrent, h.pinNew = current, newPIN
-			return h.pinUpdateErr
 		},
 		Log: slog.New(slog.DiscardHandler),
 	})
@@ -863,103 +839,25 @@ func TestDeleteStaffOffboardsIdempotently(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, conflict.Code)
 }
 
-func TestPINStatusRequiresAStaffAccount(t *testing.T) {
+// The personal staff PIN self-service is gone (#3310). Its old path now falls
+// through to the staff-by-id routes, where "pin" is just an invalid staff ID.
+func TestPersonalPINSelfServiceIsGone(t *testing.T) {
 	t.Parallel()
 	h := withPersons(newHarness(t, directoryFixture()))
-	changed := time.Date(2026, 3, 1, 8, 0, 0, 0, time.UTC)
-	h.pinHasPIN, h.pinLastChanged = true, &changed
-	h.personByAcct[7] = 11 // person 11 is staff 1
 
-	recorder := h.do(t, http.MethodGet, "/staff/pin", nil)
-	require.Equal(t, http.StatusOK, recorder.Code)
-	body := decode(t, recorder)
-	assert.Equal(t, "PIN status retrieved successfully", body.Message)
-	assert.Contains(t, string(body.Data), `"has_pin":true`)
-	assert.Contains(t, string(body.Data), `"last_changed"`)
+	// Every staff member could reach the old endpoint; now the staff-by-id
+	// permission gates answer first.
+	assert.Equal(t, http.StatusForbidden, h.do(t, http.MethodGet, "/staff/pin", nil).Code)
+	assert.Equal(t, http.StatusForbidden, h.do(t, http.MethodPut, "/staff/pin", map[string]any{"new_pin": "1234"}).Code)
 
-	// An account whose person carries no staff record is refused.
-	h.personByAcct[7] = 99
-	refused := h.do(t, http.MethodGet, "/staff/pin", nil)
-	assert.Equal(t, http.StatusForbidden, refused.Code)
-	assert.Equal(t, "only staff members can access PIN settings", decodeError(t, refused).Error)
+	h.allow("users:read", "staff:manage")
+	status := h.do(t, http.MethodGet, "/staff/pin", nil)
+	assert.Equal(t, http.StatusBadRequest, status.Code)
+	assert.Equal(t, "invalid staff ID", decodeError(t, status).Error)
 
-	// An account without a person at all is an administrator and passes.
-	delete(h.personByAcct, 7)
-	admin := h.do(t, http.MethodGet, "/staff/pin", nil)
-	assert.Equal(t, http.StatusOK, admin.Code)
-
-	h.accountID = 0
-	unauthenticated := h.do(t, http.MethodGet, "/staff/pin", nil)
-	assert.Equal(t, http.StatusUnauthorized, unauthenticated.Code)
-	assert.Equal(t, "invalid token", decodeError(t, unauthenticated).Error)
-}
-
-func TestPINStatusReportsAnUnknownAccount(t *testing.T) {
-	t.Parallel()
-	h := withPersons(newHarness(t, directoryFixture()))
-	h.pinStatusErr = errors.New("no such account")
-
-	recorder := h.do(t, http.MethodGet, "/staff/pin", nil)
-	assert.Equal(t, http.StatusNotFound, recorder.Code)
-	assert.Equal(t, "account not found", decodeError(t, recorder).Error)
-}
-
-func TestUpdatePINValidatesTheFourDigitFormat(t *testing.T) {
-	t.Parallel()
-	h := withPersons(newHarness(t, directoryFixture()))
-	h.personByAcct[7] = 11
-
-	for _, testCase := range []struct{ body, message string }{
-		{`{}`, "new PIN is required"},
-		{`{"new_pin":"123"}`, "PIN must be exactly 4 digits"},
-		{`{"new_pin":"12ab"}`, "PIN must contain only digits"},
-	} {
-		recorder := h.do(t, http.MethodPut, "/staff/pin", json.RawMessage(testCase.body))
-		assert.Equal(t, http.StatusBadRequest, recorder.Code, testCase.body)
-		assert.Equal(t, testCase.message, decodeError(t, recorder).Error)
-	}
-
-	current := "0000"
-	accepted := h.do(t, http.MethodPut, "/staff/pin", map[string]any{"new_pin": "1234", "current_pin": current})
-	require.Equal(t, http.StatusOK, accepted.Code)
-	assert.Equal(t, "PIN updated successfully", decode(t, accepted).Message)
-	assert.Contains(t, string(decode(t, accepted).Data), `"success":true`)
-	assert.Equal(t, "1234", h.pinNew)
-	require.NotNil(t, h.pinCurrent)
-	assert.Equal(t, current, *h.pinCurrent)
-
-	h.personByAcct[7] = 99
-	refused := h.do(t, http.MethodPut, "/staff/pin", map[string]any{"new_pin": "1234"})
-	assert.Equal(t, http.StatusForbidden, refused.Code)
-	assert.Equal(t, "only staff members can manage PIN settings", decodeError(t, refused).Error)
-}
-
-func TestUpdatePINRunsThePreflightBeforeTheStaffCheck(t *testing.T) {
-	t.Parallel()
-	h := withPersons(newHarness(t, directoryFixture()))
-	// Account 7 points at a person with no staff record, so the staff-only
-	// check would refuse it on its own.
-	h.personByAcct[7] = 99
-	h.pinPreflight = errors.New("account is temporarily locked due to failed PIN attempts")
-
-	recorder := h.do(t, http.MethodPut, "/staff/pin", map[string]any{"new_pin": "1234"})
-
-	// The lockout message wins over "only staff members can manage PIN
-	// settings" — the order the pre-refactor handler had.
-	assert.Equal(t, http.StatusUnauthorized, recorder.Code, "the root's PIN renderer decides the status")
-	assert.Equal(t, "account is temporarily locked due to failed PIN attempts", decodeError(t, recorder).Error)
-	assert.Empty(t, h.pinNew, "a failed preflight never reaches the update")
-}
-
-func TestUpdatePINDelegatesVerificationFailures(t *testing.T) {
-	t.Parallel()
-	h := withPersons(newHarness(t, directoryFixture()))
-	h.personByAcct[7] = 11
-	h.pinUpdateErr = errors.New("current PIN is incorrect")
-
-	recorder := h.do(t, http.MethodPut, "/staff/pin", map[string]any{"new_pin": "1234"})
-	assert.Equal(t, http.StatusUnauthorized, recorder.Code)
-	assert.Equal(t, "current PIN is incorrect", decodeError(t, recorder).Error)
+	update := h.do(t, http.MethodPut, "/staff/pin", map[string]any{"new_pin": "1234"})
+	assert.Equal(t, http.StatusBadRequest, update.Code)
+	assert.NotContains(t, update.Body.String(), "PIN updated successfully")
 }
 
 func TestNewResourceRequiresEveryDependency(t *testing.T) {

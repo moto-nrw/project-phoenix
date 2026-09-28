@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "MFAApi" });
@@ -133,7 +134,7 @@ async function postJson<T>(
       extractErrorMessage(data) ?? `Request failed (${response.status})`,
       extractErrorCode(data) ?? undefined,
     );
-    throw err;
+    throw enrichApiError(err, data);
   }
 
   if (data === null) {
@@ -167,17 +168,17 @@ function extractErrorCode(data: unknown): string | null {
   return typeof rec.code === "string" ? rec.code : null;
 }
 
-export class MFAApiError extends Error {
+export class MFAApiError extends ApiError {
   constructor(
     public status: number,
     message: string,
     /**
      * Stable backend error code (`api/common.ErrResponse.Code`), when the
-     * endpoint sets one. Optional because most endpoints don't.
+     * endpoint sets one. Otherwise ApiError supplies the status class code.
      */
-    public code?: string,
+    code?: string,
   ) {
-    super(message);
+    super(message, status, { code });
     this.name = "MFAApiError";
   }
 }

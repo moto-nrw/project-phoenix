@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 // The adapters in this file let the Monatskarte math run over data loaded once
@@ -39,6 +40,7 @@ type monthPrefetch struct {
 	scheduleHist   map[int64]bool
 	workTimeModels map[int64]*WorkTimeTargetModel
 	holidays       map[timezone.Date]bool
+	overrides      workforce.TargetOverrideDays
 	snapshots      map[int64][]*MonthSnapshot
 	settings       *memoSettingsResolver
 }
@@ -181,6 +183,18 @@ func (r prefetchedHolidayReader) HolidayDates(_ context.Context, _, _ timezone.D
 	return r.p.holidays, nil
 }
 
+// prefetchedOverrideReader serves the Sonderarbeitszeit days loaded for every
+// staff member at once; the resolver only looks up days of its own range.
+type prefetchedOverrideReader struct{ p *monthPrefetch }
+
+func (r prefetchedOverrideReader) StaffTargetOverrideDays(_ context.Context, staffIDs []int64, _, _ string) (workforce.TargetOverrideDays, error) {
+	result := make(workforce.TargetOverrideDays, len(staffIDs))
+	for _, staffID := range staffIDs {
+		result[staffID] = r.p.overrides[staffID]
+	}
+	return result, nil
+}
+
 // prefetchedSnapshotReader answers "newest active snapshot at or before this
 // month" from memory. It must be prefetched like everything else: the splice
 // asks per staff member AND per month, so a repository-backed reader here would
@@ -218,6 +232,7 @@ func newPrefetchedMonthService(p *monthPrefetch, logger *slog.Logger) WorkTimeMo
 		p.settings,
 		logger,
 		WithMonthHolidays(prefetchedHolidayReader{p}),
+		WithMonthTargetOverrides(prefetchedOverrideReader{p}),
 		WithMonthAdjustments(prefetchedAdjustmentReader{p}),
 		WithMonthSnapshots(prefetchedSnapshotReader{p}),
 	)

@@ -12,7 +12,7 @@ paths:
 
 # Guardian Parent Portal Permissions
 
-Parent portal authorization is relationship-scoped. A parent account can have different authority for different students, so parent portal checks must use the matching `users.students_guardians` row and its guardian role / permissions.
+Parent portal authorization is relationship-scoped. A parent account can have different authority for different students, so parent portal checks must use the matching student-guardian relationship and its guardian role / permissions. Since #2756 the relationship (`users.student_guardian_relationships`, People Directory) carries the role, and `auth.guardian_student_access` (Identity & Access) carries the permissions; retained code reads both as one `users.StudentGuardian` row through the guardian-link projection.
 
 ## Core Rule
 
@@ -20,18 +20,18 @@ Do not authorize parent portal access or writes only from:
 
 - active `auth.account_tenants`
 - linked `users.guardian_profiles.account_id`
-- existence of a `users.students_guardians` row
+- existence of a student-guardian relationship
 
 Those facts prove school membership and a guardian relationship. They do not prove parent portal authority.
 
-Parent portal code must check explicit `parent_portal.*` permissions stored on `users.students_guardians.permissions` through shared helpers in `backend/auth/authorize`.
+Parent portal code must check explicit `parent_portal.*` permissions stored on `auth.guardian_student_access.permissions` through shared helpers in `backend/auth/authorize`.
 
 ## Separate Permission Systems
 
 Staff/admin permissions and parent guardian permissions are different systems:
 
 - Staff/admin permissions are account and tenant scoped. They use `auth.roles`, `auth.permissions`, JWT permissions, and `authorize.RequiresPermission`.
-- Parent portal guardian permissions are student relationship scoped. They use `users.students_guardians.guardian_role` and `users.students_guardians.permissions`.
+- Parent portal guardian permissions are student relationship scoped. They use `users.student_guardian_relationships.guardian_role` and `auth.guardian_student_access.permissions`.
 
 Do not model per-child parent portal authority only with `auth.roles` or account-level permissions. One person may be a primary guardian for one student and pickup-only for another.
 

@@ -5,8 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,13 +24,13 @@ func TestTeacherRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Teacher
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Teacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates teacher with valid data", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Teacher", "Create")
 
-		teacher := &users.Teacher{
+		teacher := &testpkg.Teacher{
 			StaffID: staff.ID,
 		}
 
@@ -54,7 +53,7 @@ func TestTeacherRepository_Create(t *testing.T) {
 	t.Run("creates teacher with specialization", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Math", "Teacher")
 
-		teacher := &users.Teacher{
+		teacher := &testpkg.Teacher{
 			StaffID:        staff.ID,
 			Specialization: "Mathematics",
 		}
@@ -79,7 +78,7 @@ func TestTeacherRepository_Create(t *testing.T) {
 	})
 
 	t.Run("fails with missing staff ID", func(t *testing.T) {
-		teacher := &users.Teacher{
+		teacher := &testpkg.Teacher{
 			StaffID: 0, // Invalid
 		}
 
@@ -94,7 +93,7 @@ func TestTeacherRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Teacher
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Teacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing teacher", func(t *testing.T) {
@@ -117,7 +116,7 @@ func TestTeacherRepository_FindByStaffID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Teacher
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Teacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds teacher by staff ID", func(t *testing.T) {
@@ -141,7 +140,7 @@ func TestTeacherRepository_FindByStaffIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Teacher
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Teacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds multiple teachers by staff IDs", func(t *testing.T) {
@@ -183,7 +182,7 @@ func TestTeacherRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Teacher
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Teacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates teacher specialization", func(t *testing.T) {
@@ -211,7 +210,7 @@ func TestTeacherRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Teacher
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Teacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing teacher", func(t *testing.T) {
@@ -237,7 +236,7 @@ func TestTeacherRepository_FindBySpecialization(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Teacher
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Teacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds teachers by specialization (case-insensitive)", func(t *testing.T) {
@@ -267,7 +266,7 @@ func TestTeacherRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Teacher
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Teacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all teachers with no filters", func(t *testing.T) {
@@ -295,7 +294,7 @@ func TestTeacherRepository_FindByGroupID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Teacher
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Teacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds teachers assigned to education group", func(t *testing.T) {
@@ -341,7 +340,7 @@ func TestTeacherRepository_FindWithStaffAndPerson(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Teacher
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Teacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds teacher with staff and person loaded", func(t *testing.T) {
@@ -366,7 +365,7 @@ func TestTeacherRepository_ListAllWithStaffAndPerson(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Teacher
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Teacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all teachers with staff and person data", func(t *testing.T) {
@@ -408,7 +407,7 @@ func TestTeacherRepository_ListAllWithStaffAndPerson(t *testing.T) {
 		require.NoError(t, err)
 
 		// Find our teacher
-		var found *users.Teacher
+		var found *testpkg.Teacher
 		for _, tr := range results {
 			if tr.ID == teacher.ID {
 				found = tr
@@ -439,7 +438,7 @@ func TestTeacherRepository_ListWithStringFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Teacher
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Teacher
 	ctx := testpkg.Ctx(t)
 
 	t.Run("filters teachers by specialization_like", func(t *testing.T) {

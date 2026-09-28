@@ -16,6 +16,8 @@ import {
   redactSensitiveLogData,
   redactSensitiveLogString,
 } from "~/lib/log-redaction";
+import { expectedFailure } from "~/lib/expected-failure";
+import { reportLogToSentry } from "~/lib/logger-sentry";
 
 /**
  * Log severity levels (matches backend slog)
@@ -144,6 +146,21 @@ function getLogLevelFromEnv(): LogLevel {
 }
 
 /**
+ * An error the app expects and handles (client dropped connection, 401, 409) becomes
+ * a warning that names the reason, so it stays in logs and breadcrumbs (#3694).
+ */
+function settleLevel(
+  level: LogLevel,
+  context: Record<string, unknown> | undefined,
+  source: "server" | "client",
+): [LogLevel, Record<string, unknown> | undefined] {
+  const expected = level === "error" ? expectedFailure(context, source) : null;
+  return expected
+    ? ["warn", { ...context, expected_failure: expected }]
+    : [level, context];
+}
+
+/**
  * Base logger configuration (can be overridden)
  */
 const DEFAULT_CONFIG: Required<LoggerConfig> = {
@@ -200,6 +217,7 @@ class ServerLogger implements Logger {
     context?: Record<string, unknown>,
   ): void {
     if (!this.config.enabled) return;
+    [level, context] = settleLevel(level, context, "server");
     if (LogLevelValue[level] < LogLevelValue[this.config.level]) return;
 
     const entry = redactSensitiveLogData({
@@ -215,7 +233,21 @@ class ServerLogger implements Logger {
 
     // Write JSON to stdout (Promtail captures this)
     console.log(JSON.stringify(entry));
+    reportLogToSentry(entry);
   }
+}
+
+/**
+ * The current portal's log route. The parents portal has its own host-only
+ * session cookie, which the tenant route /api/logs cannot verify. The host is
+ * compared without throwing: a logger that throws on configuration would drop
+ * exactly the logs that explain the misconfiguration.
+ */
+function clientLogEndpoint(): string {
+  const parentsHost = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
+  return parentsHost && window.location.host === parentsHost
+    ? "/api/parent/logs"
+    : "/api/logs";
 }
 
 /**
@@ -267,6 +299,7 @@ class ClientLogger implements Logger {
     context?: Record<string, unknown>,
   ): void {
     if (!this.config.enabled) return;
+    [level, context] = settleLevel(level, context, "client");
     if (LogLevelValue[level] < LogLevelValue[this.config.level]) return;
 
     const entry = redactSensitiveLogData({
@@ -282,6 +315,7 @@ class ClientLogger implements Logger {
 
     // Enrich with client-side context
     this.enrichClientContext(entry);
+    reportLogToSentry(entry);
 
     // Add to batch
     this.batch.push(entry);
@@ -336,8 +370,7 @@ class ClientLogger implements Logger {
     this.batch = [];
 
     try {
-      // POST to Next.js API route (proxies to logging pipeline)
-      const response = await fetch("/api/logs", {
+      const response = await fetch(clientLogEndpoint(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body,

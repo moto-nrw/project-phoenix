@@ -46,7 +46,7 @@ type ActivityInstance struct {
 	// Materialization deliberately leaves this NULL; a set value (>= 0) is
 	// always a single-occurrence pin, which is what lets ReplanWeek preserve
 	// it while template edits still propagate. See
-	// modules/timetable/legacy/timetableplanning/capacity_service.go EffectiveRequiredStaff.
+	// modules/timetable/staffing.go EffectiveRequiredStaff.
 	RequiredStaff *int   `bun:"required_staff" json:"required_staff,omitempty"`
 	Status        string `bun:"status,notnull,default:'planned'" json:"status"`
 	ActiveGroupID *int64 `bun:"active_group_id" json:"active_group_id,omitempty"`

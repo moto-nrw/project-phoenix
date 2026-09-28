@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
 // MoveShiftInput is the complete desired slot for one concrete shift. The
@@ -34,7 +33,7 @@ type MoveShiftInput struct {
 // MoveShift applies a move as one row update inside the caller's tenant
 // transaction. Keeping the row ID makes PUT retries naturally idempotent and
 // avoids the duplicate/lost-shift states of client-side create/delete.
-func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput) (*scheduleModels.StaffShift, error) {
+func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput) (*StaffShift, error) {
 	if input.ShiftID <= 0 {
 		return nil, ErrShiftNotFound
 	}
@@ -88,7 +87,7 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 
 	moved := *existing
 	moved.StaffID = input.TargetStaffID
-	moved.Date = scheduleModels.Date(input.Date)
+	moved.Date = input.Date
 	moved.StartTime = input.StartTime
 	moved.EndTime = input.EndTime
 	moved.BreakMinutes = input.BreakMinutes
@@ -120,7 +119,7 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 	}
 
 	vacatesSeriesOccurrence := existing.SeriesID != nil &&
-		(existing.StaffID != moved.StaffID || seriesOccurrenceDate(existing) != timezone.Date(moved.Date))
+		(existing.StaffID != moved.StaffID || seriesOccurrenceDate(existing) != moved.Date)
 	if vacatesSeriesOccurrence {
 		if s.exceptionRepo == nil {
 			return nil, errors.New("series exception repository is required for shift move")
@@ -165,7 +164,7 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 // Fail closed when the repo is wired: an audit failure aborts the move. The
 // repo is optional only for unit tests constructed without audit wiring —
 // production (services/factory.go) always sets it.
-func (s *staffShiftService) logShiftMovedEvent(ctx context.Context, existing, moved *scheduleModels.StaffShift, actorAccountID *int64) error {
+func (s *staffShiftService) logShiftMovedEvent(ctx context.Context, existing, moved *StaffShift, actorAccountID *int64) error {
 	if s.deviationEventRepo == nil {
 		return nil
 	}
@@ -194,7 +193,7 @@ func (s *staffShiftService) logShiftMovedEvent(ctx context.Context, existing, mo
 }
 
 // shiftMoveSlot snapshots the audit-relevant slot of one shift state.
-func shiftMoveSlot(shift *scheduleModels.StaffShift) map[string]any {
+func shiftMoveSlot(shift *StaffShift) map[string]any {
 	return map[string]any{
 		"staff_id":   shift.StaffID,
 		"date":       shift.Date.String(),
@@ -203,7 +202,7 @@ func shiftMoveSlot(shift *scheduleModels.StaffShift) map[string]any {
 	}
 }
 
-func staffShiftMoveChanged(existing, moved *scheduleModels.StaffShift) bool {
+func staffShiftMoveChanged(existing, moved *StaffShift) bool {
 	return existing.StaffID != moved.StaffID ||
 		existing.Date != moved.Date ||
 		!timezone.SameClockTime(existing.StartTime, moved.StartTime) ||
@@ -215,14 +214,14 @@ func staffShiftMoveChanged(existing, moved *scheduleModels.StaffShift) bool {
 // seriesOccurrenceDate returns the immutable recurrence slot for a materialized
 // row. The Date fallback keeps mock-built and pre-migration in-memory rows safe;
 // migration 1.15.202 backfills every persisted series row.
-func seriesOccurrenceDate(shift *scheduleModels.StaffShift) timezone.Date {
+func seriesOccurrenceDate(shift *StaffShift) timezone.Date {
 	if shift.SeriesOccurrenceDate != nil {
-		return timezone.Date(*shift.SeriesOccurrenceDate)
+		return *shift.SeriesOccurrenceDate
 	}
-	return timezone.Date(shift.Date)
+	return shift.Date
 }
 
-func (s *staffShiftService) findShiftForMove(ctx context.Context, id int64) (*scheduleModels.StaffShift, error) {
+func (s *staffShiftService) findShiftForMove(ctx context.Context, id int64) (*StaffShift, error) {
 	shift, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
@@ -236,9 +235,9 @@ func (s *staffShiftService) findShiftForMove(ctx context.Context, id int64) (*sc
 	return shift, nil
 }
 
-func moveAlreadyApplied(shift *scheduleModels.StaffShift, input MoveShiftInput) bool {
+func moveAlreadyApplied(shift *StaffShift, input MoveShiftInput) bool {
 	return shift.StaffID == input.TargetStaffID &&
-		timezone.Date(shift.Date) == input.Date &&
+		shift.Date == input.Date &&
 		timezone.SameClockTime(shift.StartTime, input.StartTime) &&
 		timezone.SameClockTime(shift.EndTime, input.EndTime) &&
 		shift.BreakMinutes == input.BreakMinutes &&
@@ -246,7 +245,7 @@ func moveAlreadyApplied(shift *scheduleModels.StaffShift, input MoveShiftInput) 
 		shift.SeriesID == nil
 }
 
-func (s *staffShiftService) validateMovedOrigin(ctx context.Context, existing, moved *scheduleModels.StaffShift) error {
+func (s *staffShiftService) validateMovedOrigin(ctx context.Context, existing, moved *StaffShift) error {
 	if moved.OriginShiftID != nil {
 		return s.validateOriginLink(ctx, moved)
 	}
@@ -265,10 +264,10 @@ func (s *staffShiftService) validateMovedOrigin(ctx context.Context, existing, m
 	return nil
 }
 
-func (s *staffShiftService) recordSeriesException(ctx context.Context, shift *scheduleModels.StaffShift, date timezone.Date) error {
-	exception := &scheduleModels.StaffShiftSeriesException{
+func (s *staffShiftService) recordSeriesException(ctx context.Context, shift *StaffShift, date timezone.Date) error {
+	exception := &StaffShiftSeriesException{
 		SeriesID:  *shift.SeriesID,
-		Date:      scheduleModels.Date(date),
+		Date:      date,
 		CreatedBy: shift.CreatedBy,
 	}
 	exception.TenantID = shift.TenantID

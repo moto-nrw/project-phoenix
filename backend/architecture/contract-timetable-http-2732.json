@@ -1,0 +1,152 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2666",
+    "#2683",
+    "#2684",
+    "#2685",
+    "#2686",
+    "#2688",
+    "#2689",
+    "#2697",
+    "#2703",
+    "#2711",
+    "#3554"
+  ],
+  "owner_and_capability": "Timetable & Activities — the timetable routes as the owner's HTTP adapter (modules/timetable/http), contract step for #2732: api/timetable moves file for file to a new timetable-activities/http point and reaches other owners only through public contracts and consumer-owned ports",
+  "affected_packages": [
+    "api/timetable",
+    "modules/timetable/http",
+    "modules/timetable",
+    "modules/settings",
+    "modules/securityruntime",
+    "modules/classday",
+    "modules/planexport",
+    "api/common",
+    "api",
+    "services",
+    "api/testutil",
+    "modules/schoolportal",
+    "test/e2e/timetable"
+  ],
+  "affected_tables": [
+    "activities.groups",
+    "schedule.activity_instances",
+    "schedule.instance_staff",
+    "schedule.instance_students",
+    "audit.deviation_events",
+    "audit.attendance_corrections"
+  ],
+  "exact_ratchet_keys": [
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/database/repositories",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/database/repositories/audit",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/database/repositories/education",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/database/repositories/users",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/models/audit",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/models/config",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/models/enrollment",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/models/facilities",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/models/users",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/services/config",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/services/enrollment",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/services/listexport",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/services/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|cmp",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/api/common",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/auth/authorize",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/auth/authorize/permissions",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/models/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/services/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/services/enrollment",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/services/listexport",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/services/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/timetable|github.com/uptrace/bun",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/api/timetable",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/test/e2e/timetable|github.com/moto-nrw/project-phoenix/api/timetable"
+  ],
+  "atomic_cutover": "One code-only change: the files of api/timetable move file for file to modules/timetable/http (package timetablehttp), classified timetable-activities/http, and the inbound-timetable owner is deleted with its package entry. The routes reach other owners through public contracts (Settings Platform keys and Resolver, Security Runtime CanReadStudent and HasPermission, the class-day and plan-export file formats, timetable.OfferingSourceSupport) and through the consumer-owned People and SupervisionSheets ports, which services/timetable_http_ports.go binds over the retained services at the root. common.ProtectedTenantRoutes and ProtectedSchoolRoutes replace the route groups that took an unused *bun.DB. The root, the school portal and the timetable end-to-end fixture mount the new package; the root's api -> api/timetable (#2750) and the fixture's test/e2e/timetable -> api/timetable (#2748) entries fall with the old path. No fallback provider, no second route surface, no temporary policy rule.",
+  "tests": [
+    "modules/timetable/http: every route suite of the former api/timetable package, now composed through services/timetable_http_test_helpers.go behind api/testutil, against the isolated PostgreSQL test database, including the query-budget tests of the instance, template and period lists.",
+    "modules/schoolportal and test/e2e/timetable: the supervision surface and the timetable end-to-end flows over the new package.",
+    "api TestFullProductionRouterGolden: route table unchanged; the middleware table renames the package and the spelling of two inlined closures only.",
+    "database/repositories/timetable_audit_ports.go: compile-time guard that the Audit Platform vocabulary the owner mirrors stays identical (replaces the former api/timetable pin test).",
+    "go test ./test -run 'Ratchet|Hermetic|Verification|Module|Policy' and go test ./internal/architecture/..., scripts/test-changed.sh origin/development without --fast, golangci-lint on the affected packages.",
+    "scripts/backend-architecture.sh check with exactly the listed keys absent from legacy.jsonl and none added."
+  ],
+  "runtime_evidence": {
+    "source": "Local runs on the #2732 branch (work/2732-contract-legacy-architecture-edges-from-api-time) on 2026-09-24 against the local postgres-test server.",
+    "sources": [
+      "backend/modules/timetable/http/router.go",
+      "backend/services/timetable_http_ports.go",
+      "backend/services/timetable_http_test_helpers.go",
+      "backend/api/testdata/route_table.golden",
+      "backend/test/query_budgets.go"
+    ],
+    "workload": "No load run. Go suites through scripts/run-go-toolchain.sh and scripts/test-changed.sh origin/development against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "Code-only contract: every affected suite passes, the route table golden and the query-budget register stay unchanged, and scripts/backend-architecture.sh check passes with exactly the listed keys removed, no key added and a composition surface that does not grow.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "The move relocates the HTTP adapter and replaces imports by public contracts and ports; the routes issue the same writes through the same owner capabilities."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The query-budget tests of GET /instances, GET /templates and GET /periods passed against test/query_budgets.go, whose register this change leaves untouched."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #2732 names zero old callers and zero listed keys as the gate for a code-only contract, and the routes call the same owner capabilities."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #2732 names zero old callers and zero listed keys as the gate for a code-only contract, and the routes call the same owner capabilities."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed with 542 remaining keys and a composition surface of 621 -> 620; golangci-lint on the affected packages reported 0 issues; scripts/test-changed.sh origin/development reported all 152 affected packages ok."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection acquisition, transaction boundary or pool setting changed; the tenant transaction middleware of the route groups is the same."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "The advisory locks, row locks and recurrence gate of the routes are unchanged, so no lock behaviour can differ."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No statement or transaction boundary changed, so no lock ordering can differ."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The timetable routes have no worker or scheduler path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The timetable routes have no worker or scheduler path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The timetable routes have no worker or scheduler path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The rollback probes of the period delete conflicts and of the spontaneous start still observe rolled-back writes after non-5xx failures, and the supervision sheet still answers 404 for a request the enrollment report refuses."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data write path or schema change. Reverting the change restores api/timetable, its owner entry, rules and baseline entries."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "go build ./... passed and TestFullProductionRouterGolden mounted the production router with an unchanged route table. No manual application start or HTTP smoke run was made."
+    }
+  },
+  "rollback_and_cleanup": "Revert the code-only change if a hidden caller appears. No table, migration or configuration is touched, and nothing remains to clean up.",
+  "exit_criterion": "api/timetable no longer exists; modules/timetable/http compiles through public contracts and consumer-owned ports only; every listed key is absent from legacy.jsonl; scripts/backend-architecture.sh check passes with no key added, no temporary policy rule added and no ownership of a data object changed."
+}

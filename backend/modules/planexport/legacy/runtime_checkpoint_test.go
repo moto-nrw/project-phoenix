@@ -12,7 +12,6 @@ import (
 
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -40,8 +39,8 @@ func TestPlanExportRuntimeEvidence(t *testing.T) {
 	rooms := facadeRooms{facade: newFacilities(t, db)}
 	sources := func(renderer planexport.Renderer) Sources {
 		return Sources{
-			Instances:     timetablesqltest.NewActivityInstanceRepository(db),
-			InstanceStaff: timetablesqltest.NewInstanceStaffRepository(db),
+			Instances:     newOwnerInstances(t, db),
+			InstanceStaff: newOwnerInstanceStaff(t, db),
 			Rooms:         rooms,
 			Staff:         fakeStaff{members: members},
 			Renderer:      renderer,

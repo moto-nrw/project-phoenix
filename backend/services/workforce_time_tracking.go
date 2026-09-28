@@ -730,7 +730,7 @@ func (c workTimeMonthCapability) DailyProjection(ctx context.Context, staffID in
 	result := make([]workforce.DailyProjection, 0, len(days))
 	for _, day := range days {
 		result = append(result, workforce.DailyProjection{
-			Date: day.Date.String(), TargetMinutes: day.TargetMinutes, CreditMinutes: day.CreditMinutes,
+			Date: day.Date.String(), TargetMinutes: day.TargetMinutes, TargetSource: day.TargetSource, CreditMinutes: day.CreditMinutes,
 			ActualMinutes: day.ActualMinutes, BalanceMinutes: day.BalanceMinutes,
 		})
 	}

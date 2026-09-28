@@ -156,4 +156,50 @@ describe("InstanceBlock -> PlanBlock mapping", () => {
     expect(screen.queryByLabelText("Offene Lücke")).not.toBeInTheDocument();
     expect(screen.getByText("Mensa")).toHaveClass("line-through");
   });
+
+  // #3634: a running block compares the children still there with the
+  // activity's limit, and names an overbooked block in text.
+  describe("Teilnehmergrenze eines laufenden Blocks", () => {
+    const live = (current: number, limit: number | null, present = current) =>
+      makeInstance({
+        status: "active",
+        isLive: true,
+        presentStudentsCount: present,
+        occupancy:
+          limit === null
+            ? null
+            : { participantLimit: limit, currentStudentsCount: current },
+      });
+
+    it("zeigt Anwesende gegen die Grenze unter der Grenze", () => {
+      renderBlock(live(40, 45));
+      expect(screen.getByText(/40 \/ 45 anwesend/)).toBeInTheDocument();
+      expect(screen.queryByText("Überbucht")).not.toBeInTheDocument();
+    });
+
+    it("markiert einen vollen Block nicht als überbucht", () => {
+      renderBlock(live(45, 45));
+      expect(screen.getByText(/45 \/ 45 anwesend/)).toBeInTheDocument();
+      expect(screen.queryByText("Überbucht")).not.toBeInTheDocument();
+    });
+
+    it("nennt einen überbuchten Block mit Text", () => {
+      renderBlock(live(66, 45));
+      expect(screen.getByText("Überbucht")).toBeInTheDocument();
+      expect(screen.getByText(/66 \/ 45 anwesend/)).toBeInTheDocument();
+    });
+
+    it("zählt Kinder, die schon gegangen sind, nicht gegen die Grenze", () => {
+      renderBlock(live(43, 45, 47));
+      expect(screen.getByText(/43 \/ 45 anwesend/)).toBeInTheDocument();
+      expect(screen.queryByText("Überbucht")).not.toBeInTheDocument();
+    });
+
+    it("zeigt ohne Grenze nur die Anwesenden", () => {
+      renderBlock(live(66, null));
+      expect(screen.getByText(/66 anwesend/)).toBeInTheDocument();
+      expect(screen.queryByText(/\/ 45/)).not.toBeInTheDocument();
+      expect(screen.queryByText("Überbucht")).not.toBeInTheDocument();
+    });
+  });
 });

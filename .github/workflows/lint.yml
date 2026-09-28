@@ -21,6 +21,22 @@ env:
   GOTOOLCHAIN: local
 
 jobs:
+  error-code-registry:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: "24"
+      - name: Check error code registry and generated files
+        run: |
+          node --test scripts/generate-error-codes.test.mjs
+          node scripts/generate-error-codes.mjs
+          git diff --exit-code -- backend/api/common/error_codes.generated.go frontend/src/lib/error-codes.generated.ts
+
   backend-quality:
     if: ${{ inputs.run-backend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404

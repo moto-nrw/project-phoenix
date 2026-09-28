@@ -1,5 +1,5 @@
 // Package compose builds the onboarding wizard for new schools (#2832, ADR
-// 0040): the wizard's own store, the school-setup progress projection behind the
+// 0042): the wizard's own store, the school-setup progress projection behind the
 // progress port, and the settings the steps depend on.
 package compose
 
@@ -38,7 +38,7 @@ func New(deps Dependencies) (schoolsetup.Service, error) {
 
 // ambientTx resolves the request's tenant transaction. The wizard never runs
 // outside one: the store relies on RLS and the projection's tenant_safe
-// invariant requires it (ADR 0040).
+// invariant requires it (ADR 0042).
 func ambientTx(ctx context.Context) (bun.IDB, error) {
 	transaction, ok := tenant.TransactionFromContext(ctx)
 	if !ok {

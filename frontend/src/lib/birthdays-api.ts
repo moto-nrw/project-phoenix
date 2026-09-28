@@ -1,5 +1,4 @@
 import { fetchWithAuth } from "./fetch-with-auth";
-import { trackEvent } from "./analytics";
 
 /**
  * Birthday display + staff birthday list (#1542).
@@ -128,11 +127,6 @@ export async function exportStaffBirthdays(
   if (!response.ok) {
     throw new Error(await readExportError(response));
   }
-
-  trackEvent("data_exported", {
-    export_type: "staff_birthdays",
-    format: request.format,
-  });
 
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);

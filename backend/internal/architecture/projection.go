@@ -188,7 +188,7 @@ func targetOwners(policy *Policy, rule Rule, source string) []string {
 		return matchingOwners(policy, rule.TargetOwner, rule.TargetOwnerKind)
 	}
 	for _, owner := range policy.Owners {
-		if owner.ID == source && ownerMatches(rule.TargetOwner, rule.TargetOwnerKind, owner) {
+		if owner.ID == source && sameOwnerSelects(owner) && ownerMatches(rule.TargetOwner, rule.TargetOwnerKind, owner) {
 			return []string{source}
 		}
 	}

@@ -1,3 +1,4 @@
+import { backendResponseError } from "~/lib/api-helpers.server";
 // Dateiablage (#2596): file list + multipart upload proxy. The backend owns
 // the authoritative magic-number validation and the visibility / upload
 // permission checks; this route mirrors the size and type gate so oversized
@@ -14,9 +15,6 @@ import { proxyGet } from "~/lib/route-proxy.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 import { uncachedAuth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
-import { createLogger } from "~/lib/logger";
-
-const logger = createLogger({ component: "FilesUploadRoute" });
 
 export const GET = proxyGet(
   (p) => `/api/files/folders/${requirePathSegmentParam(p, "folderId")}/files`,
@@ -62,19 +60,7 @@ export const POST = createFileUploadHandler<unknown>(
       }
     }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error("file_upload_proxy_failed", {
-        folder_id: folderId,
-        status: response.status,
-        error: errorText,
-      });
-      // The "API error (XXX)" prefix keeps the backend's status code intact
-      // through handleApiError instead of collapsing everything into a 500.
-      throw new Error(
-        `API error (${response.status}): ${errorText || "Upload fehlgeschlagen"}`,
-      );
-    }
+    if (!response.ok) throw await backendResponseError(response);
 
     const body = (await response.json()) as BackendFileResponse;
     return body.data ?? {};

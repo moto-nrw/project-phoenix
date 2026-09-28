@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"time"
 )
 
 type seedPlanningDemoStep struct{}
@@ -328,6 +329,14 @@ func createSeedTargetVariants(rt *Runtime, roomID, categoryID, trackID int64, st
 			"targets":  []map[string]any{{"type": "klasse", "school_class": "Klasse 1a"}},
 			"weekdays": []int{2, 4}, "start_time": "14:00", "end_time": "15:00",
 		},
+		{
+			// Holiday care keeps running on the seeded closing day and ends
+			// a few days later (#3594).
+			"name": "Ferienbetreuung", "type": "care",
+			"target_group_type": "none", "include_closing_days": true,
+			"end_date": holidayCareLastDay(today).String(),
+			"weekdays": []int{1, 2, 3, 4, 5}, "start_time": "08:00", "end_time": "12:00",
+		},
 	}
 	for _, body := range variants {
 		body["room_id"], body["category_id"], body["planning_track_id"] = roomID, categoryID, trackID
@@ -339,6 +348,20 @@ func createSeedTargetVariants(rt *Runtime, roomID, categoryID, trackID int64, st
 		}
 	}
 	return nil
+}
+
+// holidayCareLastDay ends the seeded holiday care four days after the seeded
+// closing day (today+40, seed_operations.go), but never after the default
+// school year (1 Aug to 31 Jul) that bootstraps the planning period.
+func holidayCareLastDay(today seedDate) seedDate {
+	yearEnd := time.Date(today.Year(), time.July, 31, 0, 0, 0, 0, time.UTC)
+	if today.Month() >= time.August {
+		yearEnd = yearEnd.AddDate(1, 0, 0)
+	}
+	if last := today.AddDays(44); !last.After(yearEnd) {
+		return last
+	}
+	return seedDate{Time: yearEnd}
 }
 
 func orderedSeedStudentIDs(fs *FixedSeeder) []int64 {

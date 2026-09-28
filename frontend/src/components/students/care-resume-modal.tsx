@@ -11,6 +11,7 @@ import { Modal } from "~/components/ui/modal";
 import { todayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { resumeCare } from "~/lib/care-exit-api";
+import { childQuotaMessage } from "~/lib/child-quota-error";
 
 const logger = createLogger({ component: "CareResumeModal" });
 
@@ -74,9 +75,10 @@ export function CareResumeModal({
       }
     } catch (resumeError) {
       const message =
-        resumeError instanceof Error
+        childQuotaMessage(resumeError) ??
+        (resumeError instanceof Error
           ? resumeError.message
-          : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
+          : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.");
       logger.error("care_resume_failed", {
         student_id: studentId,
         error: message,

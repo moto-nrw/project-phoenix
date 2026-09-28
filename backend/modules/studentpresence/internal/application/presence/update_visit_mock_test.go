@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -415,7 +415,7 @@ func TestUpdateVisitLocksAttendanceBeforeClosingIt(t *testing.T) {
 	updated := *existing
 	updated.ExitTime = &exitTime
 	attendance := &lockingAttendanceRepository{row: studentpresence.Attendance{
-		StudentID: existing.StudentID, Date: timezone.DateFromTime(entryTime).String(), CheckInTime: entryTime,
+		StudentID: existing.StudentID, Date: calendar.DateFromTime(entryTime).String(), CheckInTime: entryTime,
 	}}
 	attendance.StudentPresence = &mockVisitRepository{
 		findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {

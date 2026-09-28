@@ -22,7 +22,7 @@ const (
 //   - The School Structure transition gate (modules/schoolstructure), taken
 //     by the grade transition workflow's apply and revert before reading any
 //     class or lifecycle state, and by draft edits.
-//   - The timetable materializer (modules/timetable/legacy/timetableplanning) — taken for the whole
+//   - The timetable materializer (modules/timetable/compose) — taken for the whole
 //     materialization pass.
 //
 // The second holder is what closes the graduation race: the materializer copies

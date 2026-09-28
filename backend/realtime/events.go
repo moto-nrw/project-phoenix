@@ -197,6 +197,13 @@ const (
 	// so it cannot ping-pong with the receipt refetch it triggers on the far side.
 	EventParentMessageRead EventType = "parent_message_read"
 
+	// EventParentMessageUnreadChanged signals that a staff member marked a
+	// parent conversation unread for the team, or that the mark ended (#3654).
+	// Staff clients refresh their unread badge, inbox and child cards. It must
+	// NOT reload an open conversation: loading it would end the mark right away.
+	// It is sent to staff only; parents see no change.
+	EventParentMessageUnreadChanged EventType = "parent_message_unread_changed"
+
 	// EventStaffMessage signals a new message in an OGS-INTERNAL colleague
 	// conversation (#2598), so the participants' inbox, open chat and unread
 	// badge refetch. Trigger only — clients refetch via the API.
@@ -384,6 +391,13 @@ func NewParentMessageReadEvent(guardianAccountID, threadID, studentID int64) Eve
 // accompanies no message. The caller fans it out once per guardian of the child.
 func NewParentChildUpdatedEvent(guardianAccountID, studentID int64) Event {
 	return NewEvent(EventParentChildUpdated, "", parentMessageData(guardianAccountID, 0, studentID))
+}
+
+// NewParentMessageUnreadChangedEvent builds the EventParentMessageUnreadChanged
+// SSE event. It carries no conversation identity: it only wakes the staff
+// unread views, which refetch their own access-filtered state.
+func NewParentMessageUnreadChangedEvent() Event {
+	return NewEvent(EventParentMessageUnreadChanged, "", EventData{})
 }
 
 // NewStaffMessageEvent builds the EventStaffMessage SSE event for the

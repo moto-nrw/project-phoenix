@@ -1,6 +1,6 @@
 // app/api/activities/[id]/schedules/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers.server";
+import { apiGet, apiPost, ApiResponseError } from "~/lib/api-helpers.server";
 import {
   createGetHandler,
   createPostHandler,
@@ -47,6 +47,7 @@ export const GET = createGetHandler(
         `Unexpected response structure from schedules API for activity ${id}`,
       );
     } catch (error) {
+      if (error instanceof ApiResponseError) throw error;
       // Properly propagate the error for handling in the service layer
       throw new Error(
         `Failed to fetch schedules for activity ${id}: ${error instanceof Error ? error.message : "Unknown error"}`,

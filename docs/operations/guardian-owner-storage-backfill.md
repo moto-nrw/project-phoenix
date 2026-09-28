@@ -1,5 +1,11 @@
 # Guardian owner storage Backfill (#2755)
 
+> Cutover #2756 (migration 1.15.417) has made the three targets
+> authoritative and turned `users.students_guardians` into a rollback-only
+> mirror. The backfill, its reset and its rollback now refuse to run; see the
+> [cutover runbook](guardian-owner-storage-cutover.md). The text below
+> describes the pre-cutover copy.
+
 Migration `1.15.413` widens `platform.storage_backfill_checkpoints` with the
 guardian-access verdict and runs the first copy of `users.students_guardians`
 into `users.student_guardian_relationships` (People Directory),

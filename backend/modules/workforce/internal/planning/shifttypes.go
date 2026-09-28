@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
@@ -94,7 +93,7 @@ func (a shiftTypeAdministration) syncCategoryLinks(ctx context.Context, shiftTyp
 		return nil
 	}
 	if err := a.linker(ctx, shiftTypeID, categoryIDs); err != nil {
-		if errors.Is(err, activitiesModels.ErrUnknownCategoryIDs) {
+		if errors.Is(err, timetable.ErrUnknownCategoryIDs) {
 			return &capabilityError{kind: workforce.ErrShiftTypeCategoryUnknown, cause: err}
 		}
 		return err
@@ -102,8 +101,8 @@ func (a shiftTypeAdministration) syncCategoryLinks(ctx context.Context, shiftTyp
 	return nil
 }
 
-func shiftTypeInputToModel(input workforce.ShiftTypeInput) *scheduleModels.ShiftType {
-	shiftType := &scheduleModels.ShiftType{Name: input.Name, Color: input.Color, Description: input.Description}
+func shiftTypeInputToModel(input workforce.ShiftTypeInput) *ShiftType {
+	shiftType := &ShiftType{Name: input.Name, Color: input.Color, Description: input.Description}
 	shiftType.ID = input.ID
 	if input.IsActive != nil {
 		shiftType.IsActive = *input.IsActive
@@ -111,7 +110,7 @@ func shiftTypeInputToModel(input workforce.ShiftTypeInput) *scheduleModels.Shift
 	return shiftType
 }
 
-func shiftTypeToCapability(shiftType *scheduleModels.ShiftType) workforce.ShiftType {
+func shiftTypeToCapability(shiftType *ShiftType) workforce.ShiftType {
 	if shiftType == nil {
 		return workforce.ShiftType{}
 	}
@@ -121,7 +120,7 @@ func shiftTypeToCapability(shiftType *scheduleModels.ShiftType) workforce.ShiftT
 	}
 }
 
-func shiftTypesToCapability(types []*scheduleModels.ShiftType) []workforce.ShiftType {
+func shiftTypesToCapability(types []*ShiftType) []workforce.ShiftType {
 	result := make([]workforce.ShiftType, 0, len(types))
 	for _, shiftType := range types {
 		if shiftType == nil {

@@ -160,11 +160,7 @@ export function Header() {
   useEffect(() => {
     if (!hasCollapsibleSidebar) return;
     const handleKeyDown = (event: KeyboardEvent) => {
-      // `key` fehlt, wenn das Ereignis nicht von der Tastatur kommt: ein
-      // programmatisch ausgelöstes `keydown` (Passwortmanager, Autofill,
-      // Browser-Erweiterung) trägt nur die Felder, die der Auslöser setzt.
-      if (typeof event.key !== "string") return;
-      if (event.key.toLowerCase() !== "b") return;
+      if (event.key?.toLowerCase() !== "b") return;
       if (!(event.metaKey || event.ctrlKey)) return;
       if (event.altKey || event.shiftKey) return;
       if (isEditableTarget(event.target)) return;

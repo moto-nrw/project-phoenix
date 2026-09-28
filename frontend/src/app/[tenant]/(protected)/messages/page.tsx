@@ -13,14 +13,27 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import {
   type InboxThread,
   fetchInboxWithFilters,
+  markAllMessagesRead,
   relationshipLabel,
 } from "~/lib/parent-messages-api";
 import { NewMessageModal } from "~/components/messaging/new-message-modal";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
+import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
+import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
 
 const logger = createLogger({ component: "MessagesInboxPage" });
+
+const MARK_ALL_READ_LABEL = "Alle als gelesen markieren";
+const MARK_ALL_READ_SUCCESS =
+  "Alle Nachrichten sind für Sie als gelesen markiert.";
+// Shown when team-marked conversations (#3654) keep the badge above zero, so
+// the remaining number does not read as a failed click.
+const MARK_ALL_READ_TEAM_MARKED =
+  "Gelesen. Vom Team als ungelesen markierte Unterhaltungen bleiben ungelesen.";
+const MARK_ALL_READ_ERROR =
+  "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
 
 function MessagesInboxContent() {
   const router = useTenantRouter();
@@ -71,6 +84,34 @@ function MessagesInboxContent() {
     debounceMs: 500,
     marksRead: false,
   });
+
+  // "Alle als gelesen markieren" only moves this account's read cursors;
+  // colleagues keep their numbers. It is offered while the sidebar badge (the
+  // account's own unread count) shows something.
+  const toast = useToast();
+  const { unreadCount } = useMessagesUnread();
+  const [markingAllRead, setMarkingAllRead] = useState(false);
+  const [markAllReadError, setMarkAllReadError] = useState<string | null>(null);
+  const handleMarkAllRead = async () => {
+    if (markingAllRead) return;
+    setMarkingAllRead(true);
+    setMarkAllReadError(null);
+    try {
+      const remaining = await markAllMessagesRead();
+      window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
+      void mutate();
+      toast.success(
+        remaining > 0 ? MARK_ALL_READ_TEAM_MARKED : MARK_ALL_READ_SUCCESS,
+      );
+    } catch (err) {
+      logger.error("inbox_mark_all_read_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setMarkAllReadError(MARK_ALL_READ_ERROR);
+    } finally {
+      setMarkingAllRead(false);
+    }
+  };
 
   const filteredThreads = useMemo(() => {
     const list: InboxThread[] = threads ?? [];
@@ -123,6 +164,13 @@ function MessagesInboxContent() {
       stats={inboxSummary}
       statsLoading={showSkeleton}
       actions={composeButton}
+      overflowMenu={[
+        {
+          label: MARK_ALL_READ_LABEL,
+          onClick: () => void handleMarkAllRead(),
+          disabled: markingAllRead || unreadCount === 0,
+        },
+      ]}
       search={{
         value: searchTerm,
         onChange: setSearchTerm,
@@ -175,6 +223,7 @@ function MessagesInboxContent() {
       }
     >
       <>
+        {markAllReadError && <Alert type="error" message={markAllReadError} />}
         {loadFailed && (
           <Alert
             type="error"

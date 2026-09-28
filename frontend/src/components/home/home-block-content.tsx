@@ -23,6 +23,8 @@ import {
   useHomeCardRows,
 } from "~/components/home/home-card-rows";
 import { StatCard } from "~/components/ui/stat-card";
+import { OverbookedBadge } from "~/components/ui/occupancy-badges";
+import { formatChildCount } from "~/lib/activity-occupancy";
 import type { BirthdayOverview } from "~/lib/birthdays-api";
 import {
   formatRecentActivityTime,
@@ -32,6 +34,7 @@ import {
 } from "~/lib/dashboard-helpers";
 import type { HomeBlockKey } from "~/lib/home-blocks";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import { useNFCEnabled } from "~/lib/tenant-context";
 
 /**
  * Der Inhalt eines Bausteins der Startseite (#2180).
@@ -165,6 +168,7 @@ function RecentActivityCard({ data }: { readonly data: HomeBlockData }) {
 function CurrentActivitiesCard({ data }: { readonly data: HomeBlockData }) {
   const activities = data.analytics?.currentActivities;
   const { shown, hidden } = useHomeCardRows(activities ?? [], MAX_LIST_ROWS);
+  const nfcEnabled = useNFCEnabled();
   return (
     <ListCard
       title="Laufende Aktivitäten"
@@ -193,9 +197,17 @@ function CurrentActivitiesCard({ data }: { readonly data: HomeBlockData }) {
                   {activity.category} · {activity.participants}
                   {activity.maxCapacity == null
                     ? " Teilnehmer"
-                    : `/${activity.maxCapacity} Teilnehmer`}
+                    : ` / ${activity.maxCapacity} Teilnehmer`}
                 </span>
               </p>
+              <OverbookedBadge
+                occupancy={{
+                  count: activity.participants,
+                  limit: activity.maxCapacity,
+                }}
+                nfcEnabled={nfcEnabled}
+                compact
+              />
               <div
                 className={`h-2.5 w-2.5 rounded-full ${getActivityStatusColor(activity.status)} ml-2 flex-shrink-0`}
               ></div>
@@ -228,6 +240,7 @@ const ACTIVE_GROUP_KIND: Record<string, string> = {
 function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
   const groups = data.analytics?.activeGroupsSummary;
   const { shown, hidden } = useHomeCardRows(groups ?? [], MAX_LIST_ROWS);
+  const nfcEnabled = useNFCEnabled();
   return (
     <ListCard
       title="Laufende Betreuung"
@@ -254,12 +267,20 @@ function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
                   {[
                     ACTIVE_GROUP_KIND[group.type],
                     group.location,
-                    `${group.studentCount} Kinder`,
+                    formatChildCount(group.studentCount, group.maxCapacity),
                   ]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
               </p>
+              <OverbookedBadge
+                occupancy={{
+                  count: group.studentCount,
+                  limit: group.maxCapacity,
+                }}
+                nfcEnabled={nfcEnabled}
+                compact
+              />
               <div
                 className={`h-2.5 w-2.5 rounded-full ${getGroupStatusColor(group.status)} ml-2 flex-shrink-0`}
               ></div>

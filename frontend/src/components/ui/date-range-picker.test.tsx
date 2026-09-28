@@ -32,6 +32,18 @@ describe("DateRangePicker", () => {
     );
   });
 
+  it("shows a single day as one date", () => {
+    render(
+      <DateRangePicker
+        value={{ from: new Date(2026, 9, 6), to: new Date(2026, 9, 6) }}
+        onChange={() => undefined}
+      />,
+    );
+    const trigger = screen.getByRole("button", { name: /Okt/ });
+    expect(trigger).toHaveTextContent("6. Okt. 2026");
+    expect(trigger).not.toHaveTextContent("6.–6.");
+  });
+
   it("keeps its own panel open when another range picker is also open", async () => {
     render(
       <>

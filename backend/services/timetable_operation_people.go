@@ -5,7 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
 // timetableOperationPeople binds the timetable operations' person port. Its
@@ -13,7 +13,7 @@ import (
 // Membership for the membership row alone and skips the Workforce employment
 // half (#2753). Every other person read goes to the users service unchanged.
 type timetableOperationPeople struct {
-	timetableplanning.OperationPersonService
+	timetableCompose.OperationPeople
 	membership schoolmembership.Capability
 }
 

@@ -95,23 +95,6 @@ func (r timetablePlanningTrackRepository) FindByIDForShare(ctx context.Context, 
 	return legacyPlanningTrack(value), nil
 }
 
-func (r timetablePlanningTrackRepository) UpdateIfActive(ctx context.Context, value *scheduleModels.PlanningTrack) (bool, error) {
-	if value == nil {
-		return false, errors.New("planning track cannot be nil")
-	}
-	if err := value.Validate(); err != nil {
-		return false, err
-	}
-	updated, ok, err := r.timetable.UpdateActivePlanningTrack(ctx, value.ID, publicPlanningTrackInput(value))
-	if err != nil {
-		return false, timetableCompose.WrapDatabaseError("update active planning track", err)
-	}
-	if ok {
-		replaceLegacyPlanningTrack(value, updated)
-	}
-	return ok, nil
-}
-
 func (r timetablePlanningTrackRepository) UpdateSortOrders(ctx context.Context, ids []int64) error {
 	return legacyPlanningTrackError("reorder planning tracks", r.timetable.ReorderPlanningTracks(ctx, ids))
 }

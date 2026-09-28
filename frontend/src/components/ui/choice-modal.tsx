@@ -22,6 +22,9 @@ interface ChoiceModalOption {
    *  load. Keeping the option visible explains what exists; hiding it would
    *  make the dialog silently different from one attempt to the next. */
   disabled?: boolean;
+  /** Highlights the option the user most likely wants, e.g. the choice a
+   *  series already has, so an edit does not flip it by accident. */
+  primary?: boolean;
 }
 
 interface ChoiceModalProps {
@@ -74,18 +77,22 @@ export function ChoiceModal({
           <Button
             key={option.value}
             type="button"
-            variant="outline"
+            variant={option.primary ? "primary" : "outline"}
             size="md"
             disabled={isBusy || option.disabled}
             onClick={() => onSelect(option.value)}
             className="w-full"
           >
             <span className="flex w-full flex-col items-start text-left">
-              <span className="text-sm font-semibold text-gray-900">
+              <span
+                className={`text-sm font-semibold ${option.primary ? "text-white" : "text-gray-900"}`}
+              >
                 {option.label}
               </span>
               {option.description && (
-                <span className="text-xs font-normal text-gray-500">
+                <span
+                  className={`text-xs font-normal ${option.primary ? "text-white/80" : "text-gray-500"}`}
+                >
                   {option.description}
                 </span>
               )}

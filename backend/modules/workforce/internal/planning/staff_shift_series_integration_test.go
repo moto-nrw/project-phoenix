@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -56,7 +55,7 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 		planning.WithStaffShiftDeviationEvents(repoFactory.DeviationEvent),
 	)
 	series := planning.NewStaffShiftSeriesService(
-		seriesRows, exceptionRows, shiftRows, repoFactory.Staff, repoFactory.CalendarPeriod,
+		seriesRows, exceptionRows, shiftRows, repoFactory.Staff, planning.SchoolCalendarPeriods(dependencies.Calendar),
 		shiftTypes, lockStaffShifts, slog.Default(), shifts,
 		planning.WithStaffShiftSeriesToday(today),
 	)
@@ -80,23 +79,12 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 // tenant. cycleLength > 1 sets a week A/B cycle anchored at anchor.
 func (e *seriesTestEnv) createPeriod(t *testing.T, start, end timezone.Date, cycleLength int, anchor *timezone.Date) int64 {
 	t.Helper()
-	var scheduleAnchor *scheduleModels.Date
+	var cycleAnchor testpkg.CalendarDate
 	if anchor != nil {
-		value := scheduleModels.Date(*anchor)
-		scheduleAnchor = &value
+		cycleAnchor = *anchor
 	}
-	period := &scheduleModels.CalendarPeriod{
-		Name:            fmt.Sprintf("Serie-Periode-%d-%d", e.scope.TenantID, time.Now().UnixNano()),
-		PeriodType:      scheduleModels.PeriodTypeCustom,
-		StartDate:       scheduleModels.Date(start),
-		EndDate:         scheduleModels.Date(end),
-		WeekCycleLength: cycleLength,
-		WeekCycleAnchor: scheduleAnchor,
-		IsActive:        true,
-	}
-	period.SetTenantID(e.scope.TenantID)
-	require.NoError(t, e.repos.CalendarPeriod.Create(e.scope.Context(), period))
-	return period.ID
+	name := fmt.Sprintf("Serie-Periode-%d-%d", e.scope.TenantID, time.Now().UnixNano())
+	return testpkg.CreateTestWeekCyclePeriodForTenant(t, e.db, e.scope.TenantID, name, start, end, cycleLength, cycleAnchor).ID
 }
 
 // inTx runs fn inside a tenant transaction, the same execution context the
@@ -124,14 +112,14 @@ func seriesClock(t *testing.T, value string) time.Time {
 
 func allWeekdays() []int16 { return []int16{1, 2, 3, 4, 5, 6, 7} }
 
-func (e *seriesTestEnv) buildSeries(t *testing.T, periodID int64, validFrom timezone.Date, validUntil *timezone.Date, weekPattern int) *scheduleModels.StaffShiftSeries {
+func (e *seriesTestEnv) buildSeries(t *testing.T, periodID int64, validFrom timezone.Date, validUntil *timezone.Date, weekPattern int) *planning.StaffShiftSeries {
 	t.Helper()
-	var scheduleValidUntil *scheduleModels.Date
+	var scheduleValidUntil *timezone.Date
 	if validUntil != nil {
-		value := scheduleModels.Date(*validUntil)
+		value := timezone.Date(*validUntil)
 		scheduleValidUntil = &value
 	}
-	series := &scheduleModels.StaffShiftSeries{
+	series := &planning.StaffShiftSeries{
 		StaffID:          e.staff.ID,
 		Weekdays:         allWeekdays(),
 		StartTime:        seriesClock(t, "09:00"),
@@ -139,17 +127,17 @@ func (e *seriesTestEnv) buildSeries(t *testing.T, periodID int64, validFrom time
 		BreakMinutes:     0,
 		CalendarPeriodID: periodID,
 		WeekPattern:      weekPattern,
-		ValidFrom:        scheduleModels.Date(validFrom),
+		ValidFrom:        timezone.Date(validFrom),
 		CreatedBy:        e.staff.ID,
 		ValidUntil:       scheduleValidUntil,
 	}
-	series.SetTenantID(e.scope.TenantID)
+	series.TenantID = e.scope.TenantID
 	return series
 }
 
-func (e *seriesTestEnv) shiftsInRange(t *testing.T, from, to timezone.Date) []*scheduleModels.StaffShift {
+func (e *seriesTestEnv) shiftsInRange(t *testing.T, from, to timezone.Date) []*planning.StaffShift {
 	t.Helper()
-	rows, err := e.shiftRows.FindByStaffAndDateRange(e.scope.Context(), e.staff.ID, scheduleModels.Date(from), scheduleModels.Date(to))
+	rows, err := e.shiftRows.FindByStaffAndDateRange(e.scope.Context(), e.staff.ID, timezone.Date(from), timezone.Date(to))
 	require.NoError(t, err)
 	return rows
 }
@@ -163,7 +151,7 @@ func TestStaffShiftSeries_CreateMaterializesFromTomorrow(t *testing.T) {
 	periodEnd := today.AddDays(20)
 	periodID := env.createPeriod(t, periodStart, periodEnd, 1, nil)
 
-	series := env.buildSeries(t, periodID, periodStart, nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, periodStart, nil, planning.WeekPatternEvery)
 	var result *planning.SeriesResult
 	env.inTx(t, func(ctx context.Context) error {
 		var err error
@@ -201,7 +189,7 @@ func TestStaffShiftSeries_WeekPatternARespectsCycle(t *testing.T) {
 	periodEnd := today.AddDays(28)
 	periodID := env.createPeriod(t, periodStart, periodEnd, 2, &anchor)
 
-	series := env.buildSeries(t, periodID, periodStart, nil, scheduleModels.WeekPatternA)
+	series := env.buildSeries(t, periodID, periodStart, nil, planning.WeekPatternA)
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
 		return err
@@ -222,7 +210,7 @@ func TestStaffShiftSeries_WeekPatternRequiresCycle(t *testing.T) {
 	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
 
-	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternA)
+	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, planning.WeekPatternA)
 	err := env.inTxExpectErr(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
 		return err
@@ -238,7 +226,7 @@ func TestStaffShiftSeries_CreateRejectsBadReferences(t *testing.T) {
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
 
 	t.Run("unknown calendar period", func(t *testing.T) {
-		series := env.buildSeries(t, periodID+999999, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
+		series := env.buildSeries(t, periodID+999999, today.AddDays(-7), nil, planning.WeekPatternEvery)
 		err := env.inTxExpectErr(t, func(ctx context.Context) error {
 			_, err := env.series.CreateSeries(ctx, series)
 			return err
@@ -247,7 +235,7 @@ func TestStaffShiftSeries_CreateRejectsBadReferences(t *testing.T) {
 	})
 
 	t.Run("valid_from outside period", func(t *testing.T) {
-		series := env.buildSeries(t, periodID, today.AddDays(40), nil, scheduleModels.WeekPatternEvery)
+		series := env.buildSeries(t, periodID, today.AddDays(40), nil, planning.WeekPatternEvery)
 		err := env.inTxExpectErr(t, func(ctx context.Context) error {
 			_, err := env.series.CreateSeries(ctx, series)
 			return err
@@ -256,7 +244,7 @@ func TestStaffShiftSeries_CreateRejectsBadReferences(t *testing.T) {
 	})
 
 	t.Run("unknown staff", func(t *testing.T) {
-		series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
+		series := env.buildSeries(t, periodID, today.AddDays(-7), nil, planning.WeekPatternEvery)
 		series.StaffID = series.StaffID + 999999
 		err := env.inTxExpectErr(t, func(ctx context.Context) error {
 			_, err := env.series.CreateSeries(ctx, series)
@@ -273,7 +261,7 @@ func TestStaffShiftSeries_SplitOutsideSegmentRejected(t *testing.T) {
 	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
 
-	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, planning.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
 		return err
@@ -313,17 +301,17 @@ func TestStaffShiftSeries_CollisionSkipsAndReports(t *testing.T) {
 	periodEnd := today.AddDays(10)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
-	standalone := &scheduleModels.StaffShift{
+	standalone := &planning.StaffShift{
 		StaffID:   env.staff.ID,
-		Date:      scheduleModels.Date(tomorrow),
+		Date:      timezone.Date(tomorrow),
 		StartTime: seriesClock(t, "08:00"),
 		EndTime:   seriesClock(t, "16:00"),
 		CreatedBy: env.staff.ID,
 	}
-	standalone.SetTenantID(env.scope.TenantID)
+	standalone.TenantID = env.scope.TenantID
 	require.NoError(t, env.shiftRows.Create(env.scope.Context(), standalone))
 
-	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, planning.WeekPatternEvery)
 	var result *planning.SeriesResult
 	env.inTx(t, func(ctx context.Context) error {
 		var err error
@@ -350,7 +338,7 @@ func TestStaffShiftSeries_EditDetachesAndDeleteRecordsException(t *testing.T) {
 	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(14), 1, nil)
 
-	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, planning.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
 		return err
@@ -364,7 +352,7 @@ func TestStaffShiftSeries_EditDetachesAndDeleteRecordsException(t *testing.T) {
 	// "Nur diese Woche" edit through the EXISTING single-shift path detaches
 	// the row automatically.
 	env.inTx(t, func(ctx context.Context) error {
-		updated := &scheduleModels.StaffShift{
+		updated := &planning.StaffShift{
 			StaffID:   editRow.StaffID,
 			Date:      editRow.Date,
 			StartTime: seriesClock(t, "11:00"),
@@ -380,7 +368,7 @@ func TestStaffShiftSeries_EditDetachesAndDeleteRecordsException(t *testing.T) {
 	require.NotNil(t, detached.SeriesID)
 	assert.Equal(t, series.ID, *detached.SeriesID)
 	require.NotNil(t, detached.SeriesOccurrenceDate)
-	assert.Equal(t, scheduleModels.Date(editDate), *detached.SeriesOccurrenceDate)
+	assert.Equal(t, timezone.Date(editDate), *detached.SeriesOccurrenceDate)
 
 	// Deleting a series row through the EXISTING delete path records a series
 	// exception so re-plans never regenerate the occurrence.
@@ -391,7 +379,7 @@ func TestStaffShiftSeries_EditDetachesAndDeleteRecordsException(t *testing.T) {
 	exceptionDates, err := env.exceptionRows.FindDatesBySeriesID(env.scope.Context(), series.ID)
 	require.NoError(t, err)
 	require.Len(t, exceptionDates, 1)
-	assert.Equal(t, scheduleModels.Date(deleteDate), exceptionDates[0])
+	assert.Equal(t, timezone.Date(deleteDate), exceptionDates[0])
 }
 
 func TestStaffShiftSeries_SplitTodayUpdatesOccurrenceAndReplansTomorrow(t *testing.T) {
@@ -400,15 +388,15 @@ func TestStaffShiftSeries_SplitTodayUpdatesOccurrenceAndReplansTomorrow(t *testi
 	env := setupSeriesTest(t)
 	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(14), 1, nil)
-	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, planning.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
 		return err
 	})
 
 	seriesID := series.ID
-	occurrenceDate := scheduleModels.Date(today)
-	todayShift := &scheduleModels.StaffShift{
+	occurrenceDate := timezone.Date(today)
+	todayShift := &planning.StaffShift{
 		StaffID:              env.staff.ID,
 		Date:                 occurrenceDate,
 		StartTime:            series.StartTime,
@@ -418,7 +406,7 @@ func TestStaffShiftSeries_SplitTodayUpdatesOccurrenceAndReplansTomorrow(t *testi
 		SeriesOccurrenceDate: &occurrenceDate,
 		CreatedBy:            env.staff.ID,
 	}
-	todayShift.SetTenantID(env.scope.TenantID)
+	todayShift.TenantID = env.scope.TenantID
 	env.inTx(t, func(ctx context.Context) error {
 		return env.shiftRows.Create(ctx, todayShift)
 	})
@@ -489,7 +477,7 @@ func TestStaffShiftSeries_MoveConsumesOriginalDateBeforeRematerialization(t *tes
 		originalDate = originalDate.AddDays(1)
 	}
 	periodID := env.createPeriod(t, today, originalDate.AddDays(21), 1, nil)
-	series := env.buildSeries(t, periodID, today, nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today, nil, planning.WeekPatternEvery)
 	series.Weekdays = []int16{1}
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
@@ -553,7 +541,7 @@ func TestStaffShiftSeries_RepeatedMoveKeepsOriginalOccurrenceIdentity(t *testing
 		originalMonday = originalMonday.AddDays(1)
 	}
 	periodID := env.createPeriod(t, today, originalMonday.AddDays(21), 1, nil)
-	series := env.buildSeries(t, periodID, today, nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today, nil, planning.WeekPatternEvery)
 	series.Weekdays = []int16{1, 2}
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
@@ -585,7 +573,7 @@ func TestStaffShiftSeries_RepeatedMoveKeepsOriginalOccurrenceIdentity(t *testing
 	tuesdayRows := env.shiftsInRange(t, tuesday, tuesday)
 	require.Len(t, tuesdayRows, 2)
 
-	var movedOnTuesday *scheduleModels.StaffShift
+	var movedOnTuesday *planning.StaffShift
 	for _, row := range tuesdayRows {
 		if row.ID == moved.ID {
 			movedOnTuesday = row
@@ -594,7 +582,7 @@ func TestStaffShiftSeries_RepeatedMoveKeepsOriginalOccurrenceIdentity(t *testing
 	}
 	require.NotNil(t, movedOnTuesday)
 	require.NotNil(t, movedOnTuesday.SeriesOccurrenceDate)
-	assert.Equal(t, scheduleModels.Date(originalMonday), *movedOnTuesday.SeriesOccurrenceDate)
+	assert.Equal(t, timezone.Date(originalMonday), *movedOnTuesday.SeriesOccurrenceDate)
 
 	// Moving the same detached row again must record the same Monday exception
 	// idempotently, never an exception for the genuine Tuesday occurrence.
@@ -614,7 +602,7 @@ func TestStaffShiftSeries_RepeatedMoveKeepsOriginalOccurrenceIdentity(t *testing
 	})
 	exceptionDates, err := env.exceptionRows.FindDatesBySeriesID(env.scope.Context(), series.ID)
 	require.NoError(t, err)
-	require.Equal(t, []scheduleModels.Date{scheduleModels.Date(originalMonday)}, exceptionDates)
+	require.Equal(t, []timezone.Date{timezone.Date(originalMonday)}, exceptionDates)
 
 	// A split forces re-materialization. Monday stays consumed, Tuesday is
 	// regenerated, and the moved row survives on Wednesday as Monday's deviation.
@@ -640,7 +628,7 @@ func TestStaffShiftSeries_RepeatedMoveKeepsOriginalOccurrenceIdentity(t *testing
 	require.Len(t, wednesdayRows, 1)
 	assert.Equal(t, moved.ID, wednesdayRows[0].ID)
 	require.NotNil(t, wednesdayRows[0].SeriesOccurrenceDate)
-	assert.Equal(t, scheduleModels.Date(originalMonday), *wednesdayRows[0].SeriesOccurrenceDate)
+	assert.Equal(t, timezone.Date(originalMonday), *wednesdayRows[0].SeriesOccurrenceDate)
 }
 
 func TestStaffShiftSeries_SplitPreservesDeviationsOnSuccessor(t *testing.T) {
@@ -651,7 +639,7 @@ func TestStaffShiftSeries_SplitPreservesDeviationsOnSuccessor(t *testing.T) {
 	periodEnd := today.AddDays(14)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
-	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, planning.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
 		return err
@@ -664,7 +652,7 @@ func TestStaffShiftSeries_SplitPreservesDeviationsOnSuccessor(t *testing.T) {
 	editRow := env.shiftsInRange(t, editDate, editDate)[0]
 	deleteRow := env.shiftsInRange(t, deleteDate, deleteDate)[0]
 	env.inTx(t, func(ctx context.Context) error {
-		updated := &scheduleModels.StaffShift{
+		updated := &planning.StaffShift{
 			StaffID:   editRow.StaffID,
 			Date:      editRow.Date,
 			StartTime: seriesClock(t, "14:00"),
@@ -701,7 +689,7 @@ func TestStaffShiftSeries_SplitPreservesDeviationsOnSuccessor(t *testing.T) {
 	oldSeries, err := env.seriesRows.FindByID(env.scope.Context(), series.ID)
 	require.NoError(t, err)
 	require.NotNil(t, oldSeries.ValidUntil)
-	assert.Equal(t, scheduleModels.Date(effective), *oldSeries.ValidUntil)
+	assert.Equal(t, timezone.Date(effective), *oldSeries.ValidUntil)
 	// Successor carries the lineage root.
 	successor, err := env.seriesRows.FindByID(env.scope.Context(), successorID)
 	require.NoError(t, err)
@@ -731,13 +719,13 @@ func TestStaffShiftSeries_SplitPreservesDeviationsOnSuccessor(t *testing.T) {
 	successorExceptions, err := env.exceptionRows.FindDatesBySeriesID(env.scope.Context(), successorID)
 	require.NoError(t, err)
 	require.Len(t, successorExceptions, 1)
-	assert.Equal(t, scheduleModels.Date(deleteDate), successorExceptions[0])
+	assert.Equal(t, timezone.Date(deleteDate), successorExceptions[0])
 
 	// Regenerated rows from the effective date carry the successor's time.
 	after := env.shiftsInRange(t, effective, periodEnd)
 	require.NotEmpty(t, after)
 	for _, row := range after {
-		if row.Date == scheduleModels.Date(editDate) {
+		if row.Date == timezone.Date(editDate) {
 			continue
 		}
 		require.NotNil(t, row.SeriesID)
@@ -754,7 +742,7 @@ func TestStaffShiftSeries_EndSeriesKeepsDetachedAndPast(t *testing.T) {
 	periodEnd := today.AddDays(14)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
-	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, planning.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
 		return err
@@ -763,7 +751,7 @@ func TestStaffShiftSeries_EndSeriesKeepsDetachedAndPast(t *testing.T) {
 	detachDate := today.AddDays(8)
 	detachRow := env.shiftsInRange(t, detachDate, detachDate)[0]
 	env.inTx(t, func(ctx context.Context) error {
-		updated := &scheduleModels.StaffShift{
+		updated := &planning.StaffShift{
 			StaffID:   detachRow.StaffID,
 			Date:      detachRow.Date,
 			StartTime: seriesClock(t, "13:00"),
@@ -793,7 +781,7 @@ func TestStaffShiftSeries_EndSeriesKeepsDetachedAndPast(t *testing.T) {
 	ended, err := env.seriesRows.FindByID(env.scope.Context(), series.ID)
 	require.NoError(t, err)
 	require.NotNil(t, ended.ValidUntil)
-	assert.Equal(t, scheduleModels.Date(endFrom), *ended.ValidUntil)
+	assert.Equal(t, timezone.Date(endFrom), *ended.ValidUntil)
 }
 
 // The weekly overview endpoint feeds the Dienstplan grid. Series-backed
@@ -807,7 +795,7 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(14), 1, nil)
 
-	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, planning.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
 		return err
@@ -820,7 +808,7 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 	countedShifts := workforceCompose.NewShiftRows(countedDependencies.Workforce)
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: countedShifts, ShiftWeeks: countedShifts,
-		Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
+		Instances: repositories.NewTimetableInstanceReads(repos.ActivityInstance), InstanceStaff: repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 		Rooms: repos.Room, Staff: repos.Staff,
 		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel,
 	})
@@ -855,7 +843,7 @@ func TestStaffShiftSeries_SplitAtFirstOccurrence(t *testing.T) {
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
 	validFrom := today.AddDays(7)
-	series := env.buildSeries(t, periodID, validFrom, nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, validFrom, nil, planning.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
 		return err
@@ -882,7 +870,7 @@ func TestStaffShiftSeries_SplitAtFirstOccurrence(t *testing.T) {
 	oldSeries, err := env.seriesRows.FindByID(env.scope.Context(), series.ID)
 	require.NoError(t, err)
 	require.NotNil(t, oldSeries.ValidUntil)
-	assert.Equal(t, scheduleModels.Date(validFrom), *oldSeries.ValidUntil)
+	assert.Equal(t, timezone.Date(validFrom), *oldSeries.ValidUntil)
 
 	// Every occurrence belongs to the successor with the new time.
 	rows := env.shiftsInRange(t, validFrom, periodEnd)
@@ -905,7 +893,7 @@ func TestStaffShiftSeries_EndAtFirstOccurrence(t *testing.T) {
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
 	validFrom := today.AddDays(7)
-	series := env.buildSeries(t, periodID, validFrom, nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, validFrom, nil, planning.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
 		return err
@@ -919,7 +907,7 @@ func TestStaffShiftSeries_EndAtFirstOccurrence(t *testing.T) {
 	ended, err := env.seriesRows.FindByID(env.scope.Context(), series.ID)
 	require.NoError(t, err)
 	require.NotNil(t, ended.ValidUntil)
-	assert.Equal(t, scheduleModels.Date(validFrom), *ended.ValidUntil)
+	assert.Equal(t, timezone.Date(validFrom), *ended.ValidUntil)
 	assert.Empty(t, env.shiftsInRange(t, validFrom, periodEnd))
 }
 
@@ -935,7 +923,7 @@ func TestStaffShiftSeries_CapAllByStaffIDClampsFutureSeries(t *testing.T) {
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
 
 	validFrom := today.AddDays(7)
-	series := env.buildSeries(t, periodID, validFrom, nil, scheduleModels.WeekPatternEvery)
+	series := env.buildSeries(t, periodID, validFrom, nil, planning.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
 		_, err := env.series.CreateSeries(ctx, series)
 		return err
@@ -948,6 +936,6 @@ func TestStaffShiftSeries_CapAllByStaffIDClampsFutureSeries(t *testing.T) {
 	reloaded, err := env.seriesRows.FindByID(env.scope.Context(), series.ID)
 	require.NoError(t, err)
 	require.NotNil(t, reloaded.ValidUntil)
-	assert.Equal(t, scheduleModels.Date(validFrom), *reloaded.ValidUntil,
+	assert.Equal(t, timezone.Date(validFrom), *reloaded.ValidUntil,
 		"a future-dated series must clamp to its valid_from, not to today")
 }

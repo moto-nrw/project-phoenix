@@ -36,6 +36,11 @@ type Dependencies struct {
 	// Now is the clock the live work-session window and the calendar day
 	// are measured against; nil means the wall clock. Tests pin it.
 	Now func() time.Time
+	// StatutoryHolidays answers the tenant's statutory holidays from the
+	// School Calendar; a Sonderarbeitszeit sets no target on them. Optional
+	// for compositions that never resolve a Soll: nil treats no day as a
+	// statutory holiday.
+	StatutoryHolidays func(ctx context.Context, from, to string) (map[string]bool, error)
 }
 
 // New composes the Workforce work-time module. Every operation runs on the
@@ -72,6 +77,7 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 		clock{now: now},
 		allowanceUses,
 		observe,
+		dependencies.StatutoryHolidays,
 	)
 	return service, nil
 }
@@ -108,6 +114,20 @@ func (transaction) RunWrite(ctx context.Context, callback func(context.Context) 
 		return callback(ctx)
 	}
 	return tenant.WithinCurrentTenant(ctx, callback)
+}
+
+func (t transaction) LockStaffQualifications(ctx context.Context, staffID int64) error {
+	if staffID <= 0 {
+		return errors.New("workforce compose: staff id is required")
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return errors.New("workforce compose: tenant id is required")
+	}
+	if err := t.acquireXactLock(ctx, fmt.Sprintf("staff-qualifications:%d:%d", tenantID, staffID)); err != nil {
+		return fmt.Errorf("lock staff qualification writes: %w", err)
+	}
+	return nil
 }
 
 // LockStaffBalance serializes every writer that changes one staff member's
@@ -346,6 +366,9 @@ func mapError(err error) error {
 		return &workforce.ConflictError{Kind: workforce.ErrAbsenceTypeNameTaken, Cause: conflictCause(err)}
 	case errors.Is(err, domain.ErrGroupSubstitutionExists):
 		return &workforce.ConflictError{Kind: workforce.ErrGroupSubstitutionExists, Cause: conflictCause(err)}
+	case errors.Is(err, domain.ErrStaffTargetOverrideNotFound), errors.Is(err, domain.ErrInvalidStaffTargetOverride),
+		errors.Is(err, domain.ErrStaffTargetOverrideRejected):
+		return targetOverrideError(err)
 	default:
 		return err
 	}

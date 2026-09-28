@@ -5,8 +5,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // phaseResponseRoster feeds the response overview (#3379) with the children
@@ -16,17 +16,17 @@ type phaseResponseRoster struct {
 	query peopledirectory.StudentDirectoryQuery
 }
 
-func (d phaseResponseRoster) ListRunningStudents(ctx context.Context, today timezone.Date) ([]enrollment.PhaseResponseStudent, error) {
+func (d phaseResponseRoster) ListRunningStudents(ctx context.Context, today timezone.Date) ([]enrollmentOwner.PhaseResponseStudent, error) {
 	entries, err := d.query.ListStudentRoster(ctx, today.String())
 	if err != nil {
 		return nil, err
 	}
-	result := make([]enrollment.PhaseResponseStudent, 0, len(entries))
+	result := make([]enrollmentOwner.PhaseResponseStudent, 0, len(entries))
 	for _, entry := range entries {
 		if entry.Record.Status != peopledirectory.StudentStatusActive {
 			continue
 		}
-		result = append(result, enrollment.PhaseResponseStudent{
+		result = append(result, enrollmentOwner.PhaseResponseStudent{
 			ID: entry.Record.ID, FirstName: entry.FirstName, LastName: entry.LastName,
 			SchoolClass: entry.Record.SchoolClass,
 		})
@@ -46,17 +46,4 @@ func (d phaseResponseCareExits) StudentsWithCareExit(ctx context.Context, studen
 		result[studentID] = true
 	}
 	return result, nil
-}
-
-func newPhaseResponseSources(
-	children enrollment.PhaseResponseChildren,
-	persons peopledirectory.Capability,
-	carePlan careplan.CareRecordsQuery,
-) *enrollment.PhaseResponseSources {
-	return &enrollment.PhaseResponseSources{
-		Children:       children,
-		Roster:         phaseResponseRoster{query: persons},
-		CareExits:      phaseResponseCareExits{query: carePlan},
-		PortalAccounts: persons,
-	}
 }

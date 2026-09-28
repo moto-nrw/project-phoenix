@@ -1,3 +1,4 @@
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Authenticated proxy streaming staff document bytes (#1424). Mirrors the
 // student-photo serve proxy: inject the JWT server-side, refresh once on
 // 401, stream the body through with Content-Type and Content-Disposition
@@ -47,7 +48,7 @@ async function GETHandler(
       document_id: documentId,
       status: upstream.status,
     });
-    return new NextResponse(null, { status: upstream.status });
+    return forwardBackendResponse(upstream);
   }
 
   const headers = new Headers();

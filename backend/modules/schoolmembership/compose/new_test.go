@@ -30,7 +30,7 @@ func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) *s
 	if len(observations) > 0 {
 		observe = observations[0]
 	}
-	module, err := New(Dependencies{DB: db, Observe: observe, Employment: testEmployment})
+	module, err := New(Dependencies{DB: db, Observe: observe, Employment: testEmployment, ChildQuota: newChildQuotas()})
 	require.NoError(t, err)
 	return module
 }

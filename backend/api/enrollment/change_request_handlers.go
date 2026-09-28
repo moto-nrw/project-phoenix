@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -87,7 +87,7 @@ func (rs *Resource) createChangeRequest(w http.ResponseWriter, r *http.Request) 
 		MapSubmitError(w, r, err)
 		return
 	}
-	agg, err := rs.ChangeRequestService.Create(r.Context(), token, enrollmentService.CreateChangeRequestInput{
+	agg, err := rs.ChangeRequestService.Create(r.Context(), token, CreateChangeRequestInput{
 		Submission: serviceReq,
 		ParentNote: body.ParentNote,
 	})
@@ -139,7 +139,7 @@ func (rs *Resource) replyToChangeRequest(w http.ResponseWriter, r *http.Request)
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	agg, err := rs.ChangeRequestService.ParentReply(r.Context(), token, id, enrollmentService.ChangeRequestMessageInput{
+	agg, err := rs.ChangeRequestService.ParentReply(r.Context(), token, id, ChangeRequestMessageInput{
 		Body: body.Body,
 	})
 	if err != nil {
@@ -154,7 +154,7 @@ func (rs *Resource) listAdminChangeRequests(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("change request service not configured")))
 		return
 	}
-	filters := enrollmentService.ChangeRequestFilters{}
+	filters := ChangeRequestFilters{}
 	if v := r.URL.Query().Get("request_id"); v != "" {
 		id, err := strconv.ParseInt(v, 10, 64)
 		if err != nil || id <= 0 {
@@ -165,7 +165,7 @@ func (rs *Resource) listAdminChangeRequests(w http.ResponseWriter, r *http.Reque
 	}
 	filters.Status = strings.TrimSpace(r.URL.Query().Get("status"))
 
-	var rows []*enrollmentService.ChangeRequestAggregate
+	var rows []*ChangeRequestAggregate
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		list, listErr := rs.ChangeRequestService.ListAdmin(ctx, filters)
 		rows = list
@@ -187,7 +187,7 @@ func (rs *Resource) getAdminChangeRequest(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	var agg *enrollmentService.ChangeRequestAggregate
+	var agg *ChangeRequestAggregate
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		row, getErr := rs.ChangeRequestService.GetAdmin(ctx, id)
 		agg = row
@@ -211,9 +211,9 @@ func (rs *Resource) askChangeRequestQuestion(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	var agg *enrollmentService.ChangeRequestAggregate
+	var agg *ChangeRequestAggregate
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		row, askErr := rs.ChangeRequestService.AskQuestion(ctx, id, enrollmentService.ChangeRequestMessageInput{
+		row, askErr := rs.ChangeRequestService.AskQuestion(ctx, id, ChangeRequestMessageInput{
 			Body:           body.Body,
 			ActorAccountID: int64(claims.ID),
 		})
@@ -246,12 +246,12 @@ func (rs *Resource) reviewChangeRequest(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	input := enrollmentService.ReviewChangeRequestInput{
+	input := ReviewChangeRequestInput{
 		Note:           body.Note,
 		ActorAccountID: int64(claims.ID),
 		ActorRole:      actorRoleFromClaims(claims.Roles),
 	}
-	var agg *enrollmentService.ChangeRequestAggregate
+	var agg *ChangeRequestAggregate
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		var reviewErr error
 		if approve {
@@ -272,7 +272,7 @@ func changeRequestIDParam(w http.ResponseWriter, r *http.Request) (int64, bool) 
 	return common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
 }
 
-func toChangeRequestResponse(agg *enrollmentService.ChangeRequestAggregate, includeRequest bool, includeInternal bool) ChangeRequestResponse {
+func toChangeRequestResponse(agg *ChangeRequestAggregate, includeRequest bool, includeInternal bool) ChangeRequestResponse {
 	if agg == nil || agg.ChangeRequest == nil {
 		return ChangeRequestResponse{}
 	}
@@ -308,7 +308,7 @@ func toChangeRequestResponse(agg *enrollmentService.ChangeRequestAggregate, incl
 		resp.Messages = append(resp.Messages, out)
 	}
 	if includeRequest && agg.Request != nil {
-		summary := &enrollmentService.RequestSummary{
+		summary := &RequestSummary{
 			Request:  agg.Request,
 			Phase:    agg.Phase,
 			Children: agg.Children,
@@ -339,18 +339,18 @@ func mapChangeRequestWriteError(w http.ResponseWriter, r *http.Request, err erro
 
 func mapChangeRequestError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, enrollmentService.ErrRequestNotFound),
-		errors.Is(err, enrollmentService.ErrChangeRequestNotFound):
+	case errors.Is(err, capability.ErrRequestNotFound),
+		errors.Is(err, capability.ErrChangeRequestNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, enrollmentService.ErrChangeRequestChildLocked):
+	case errors.Is(err, capability.ErrChangeRequestChildLocked):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "enrollment.change_request_child_locked"))
-	case errors.Is(err, enrollmentService.ErrChangeRequestNotAllowed),
-		errors.Is(err, enrollmentService.ErrEditNotAllowed):
+	case errors.Is(err, capability.ErrChangeRequestNotAllowed),
+		errors.Is(err, capability.ErrEditNotAllowed):
 		common.RenderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, enrollmentService.ErrChangeRequestConflict):
+	case errors.Is(err, capability.ErrChangeRequestConflict):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.change_request_conflict"))
-	case errors.Is(err, enrollmentService.ErrChangeRequestInvalidStatus),
-		errors.Is(err, enrollmentService.ErrChangeRequestInvalidData):
+	case errors.Is(err, capability.ErrChangeRequestInvalidStatus),
+		errors.Is(err, capability.ErrChangeRequestInvalidData):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	// Approving a change (or correcting child data) replaces the student's
 	// departure plan through StudentRepository.Update, which reconciles the
@@ -360,9 +360,9 @@ func mapChangeRequestError(w http.ResponseWriter, r *http.Request, err error) {
 	// the client shows its clean German instruction instead of the wrapped
 	// sync context (#1694).
 	case errors.Is(err, userModels.ErrCompanionWouldLoseDeparture):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(userModels.ErrCompanionWouldLoseDeparture, studentsAPI.CodeCompanionWouldLoseDeparture))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(userModels.ErrCompanionWouldLoseDeparture, common.CodeCompanionWouldLoseDeparture))
 	case errors.Is(err, userModels.ErrCompanionLockBusy):
-		common.RenderError(w, r, common.ErrorConflictWithCode(userModels.ErrCompanionLockBusy, studentsAPI.CodeCompanionLockBusy))
+		common.RenderError(w, r, common.ErrorConflictWithCode(userModels.ErrCompanionLockBusy, common.CodeCompanionLockBusy))
 	default:
 		mapEditError(w, r, err)
 	}

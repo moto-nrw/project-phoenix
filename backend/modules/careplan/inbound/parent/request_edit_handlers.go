@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -86,7 +86,7 @@ func renderParentRequestError(w http.ResponseWriter, r *http.Request, err error)
 	switch {
 	// The Care Plan excused-absence workflow (#3093) raises its own lifecycle
 	// sentinels; they render the same wire codes as the shared ones.
-	case errors.Is(err, usersService.ErrParentRequestStale), errors.Is(err, careplan.ErrParentRequestStale):
+	case errors.Is(err, parentrequests.ErrStale), errors.Is(err, careplan.ErrParentRequestStale):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "change_request_stale"))
 	case errors.Is(err, usersService.ErrParentRequestReasonRequired), errors.Is(err, careplan.ErrParentRequestReasonRequired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "reason_required"))
@@ -262,7 +262,7 @@ func (rs *Resource) editOfferingChangeRequest(w http.ResponseWriter, r *http.Req
 			errors.New("effective_from must be a date in YYYY-MM-DD form"), "offering_change_invalid"))
 		return
 	}
-	selections := make([]enrollmentService.OfferingChangeSelection, 0, len(body.Offerings))
+	selections := make([]careplan.OfferingChangeSelection, 0, len(body.Offerings))
 	for _, entry := range body.Offerings {
 		offeringID, convErr := strconv.ParseInt(strings.TrimSpace(entry.OfferingID), 10, 64)
 		if convErr != nil || offeringID <= 0 {
@@ -270,7 +270,7 @@ func (rs *Resource) editOfferingChangeRequest(w http.ResponseWriter, r *http.Req
 				errors.New("offering_id must be a numeric id"), "offering_change_invalid"))
 			return
 		}
-		selections = append(selections, enrollmentService.OfferingChangeSelection{
+		selections = append(selections, careplan.OfferingChangeSelection{
 			OfferingID:   offeringID,
 			SelectedDays: entry.SelectedDays,
 		})

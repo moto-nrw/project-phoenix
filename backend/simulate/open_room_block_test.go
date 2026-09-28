@@ -116,3 +116,34 @@ func TestOpenRoomBlockAction_SkipsProfilesWithoutSporthalle(t *testing.T) {
 
 	assert.Empty(t, calls())
 }
+
+// A child leaving its room chooses the released Sporthalle at the kiosk; the
+// kiosk books the stay without a device in the Sporthalle (#3067).
+func TestKioskOpenRoomStayAction_BooksTheNextChildAtTheKiosk(t *testing.T) {
+	t.Parallel()
+
+	rt, calls := openRoomBlockRuntime(t, time.Date(2026, time.September, 16, 9, 0, 0, 0, time.UTC))
+	rt.State.Students = append(rt.State.Students, SeedStudent{ID: 11}, SeedStudent{ID: 12})
+	rt.State.Devices = map[string]SeedDevice{"kiosk": {APIKey: "key", Name: "Scanner"}}
+	rt.DeviceKeys = []string{"kiosk"}
+	rt.RFIDTags[11] = "TAG-11"
+
+	require.NoError(t, kioskOpenRoomStayAction{}.Run(context.Background(), rt))
+
+	got := calls()
+	require.Len(t, got, 1)
+	assert.Equal(t, "/api/iot/move-to-room", got[0].Path)
+	assert.Equal(t, map[string]any{"student_rfid": "TAG-11", "room_id": 2.0}, got[0].Body,
+		"the child after the independent stays and the block children")
+	assert.Equal(t, 1, rt.Counts.IndependentStays)
+}
+
+func TestKioskOpenRoomStayAction_SkipsProfilesWithoutKiosk(t *testing.T) {
+	t.Parallel()
+
+	rt, calls := openRoomBlockRuntime(t, time.Date(2026, time.September, 16, 9, 0, 0, 0, time.UTC))
+
+	require.NoError(t, kioskOpenRoomStayAction{}.Run(context.Background(), rt))
+
+	assert.Empty(t, calls())
+}

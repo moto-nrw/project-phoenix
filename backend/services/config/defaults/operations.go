@@ -500,6 +500,22 @@ func init() {
 		DependsOn:       config.DependsOnEq(config.KeyCareConcept, config.CareConceptOpenRooms),
 	})
 
+	// Web assignments beyond an activity's participant limit (#3632). The
+	// terminal always enforces the limit; this setting only decides whether
+	// the web and app paths do too. Default on keeps every school's behavior.
+	config.Register(config.Definition{
+		Key:             config.KeyWebExceedParticipantLimit,
+		Label:           "Mehr Kinder als die Teilnehmergrenze erlauben",
+		Description:     "Gilt, wenn Mitarbeitende am Computer oder Handy Kinder einer Aktivität zuordnen. Eingeschaltet: Die Teilnehmergrenze darf dort überschritten werden. Ausgeschaltet: Ist die Aktivität voll, wird kein Kind zugeordnet. Am Tablet gilt die Grenze immer.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "anwesenheit",
+		SortOrder:       43,
+	})
+
 	// --- Kinderfotos (Datenverwaltung-Erweiterung) ---
 
 	config.Register(config.Definition{

@@ -16,7 +16,6 @@ type MockMailer struct {
 
 func logMessage(m Message) {
 	slog.Default().Info("mock email queued",
-		slog.String("to", m.To.Address),
 		slog.String("subject", m.Subject),
 		slog.String("template", m.Template))
 }

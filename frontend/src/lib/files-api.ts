@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 // Dateiablage (#2596): API client + type mapping for the school file
 // storage. The backend decides everything about authority (folder
 // visibility, files:manage, files.staff_upload_enabled) and tells the UI what
@@ -140,13 +141,13 @@ function mapFile(data: BackendFile): StoredFile {
   };
 }
 
-class FilesApiError extends Error {
+class FilesApiError extends ApiError {
   constructor(
     message: string,
     readonly status: number,
-    readonly code?: string,
+    code?: string,
   ) {
-    super(message);
+    super(message, status, { code });
     this.name = "FilesApiError";
   }
 }
@@ -186,14 +187,20 @@ async function throwFilesError(
   fallback: string,
 ): Promise<never> {
   let code: string | undefined;
+  let payload: unknown;
   try {
     const body = (await response.json()) as { code?: string };
+    payload = body;
     code = body.code;
   } catch {
     // Non-JSON body — the fallback carries the wording.
   }
   const message = filesErrorMessage(code, response.status) ?? fallback;
-  throw new FilesApiError(message, response.status, code);
+  throw enrichApiError(
+    new FilesApiError(message, response.status, code),
+    payload,
+    response.status,
+  );
 }
 
 function toBackendFolderInput(input: FolderInput) {

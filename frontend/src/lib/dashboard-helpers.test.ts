@@ -123,6 +123,7 @@ describe("dashboard-helpers", () => {
         name: "Group A",
         type: "ogs_group",
         studentCount: 25,
+        maxCapacity: null,
         location: "Room 101",
         status: "active",
       });
@@ -279,6 +280,10 @@ describe("dashboard-helpers", () => {
 
     it("should return orange for ending_soon status", () => {
       expect(getActivityStatusColor("ending_soon")).toBe("bg-moto-orange");
+    });
+
+    it("should return red for overbooked status (#3634)", () => {
+      expect(getActivityStatusColor("overbooked")).toBe("bg-moto-red");
     });
 
     it("should return gray for unknown status", () => {

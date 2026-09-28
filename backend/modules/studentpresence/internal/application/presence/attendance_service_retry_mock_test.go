@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,7 +53,7 @@ func TestPerformCheckIn_BinaryRetryMirrorsExistingCheckInTime(t *testing.T) {
 		703,
 		704,
 		retryTime,
-		timezone.DateFromTime(existingCheckIn),
+		calendar.DateFromTime(existingCheckIn),
 		checkinTypeToggle,
 	)
 
@@ -65,7 +65,7 @@ func TestPerformCheckIn_BinaryRetryMirrorsExistingCheckInTime(t *testing.T) {
 	assert.Equal(t, existingCheckIn, result.Timestamp)
 	// The absorbed-conflict re-fetch must use the caller-supplied snapshot
 	// date, not a re-derived "today" (review #2372).
-	assert.Equal(t, studentpresence.AttendanceFilter{StudentIDs: []int64{existing.StudentID}, FromDate: timezone.DateFromTime(existingCheckIn).String(), UntilDate: timezone.DateFromTime(existingCheckIn).String()}, repo.fetchedDate)
+	assert.Equal(t, studentpresence.AttendanceFilter{StudentIDs: []int64{existing.StudentID}, FromDate: calendar.DateFromTime(existingCheckIn).String(), UntilDate: calendar.DateFromTime(existingCheckIn).String()}, repo.fetchedDate)
 }
 
 func TestPerformCheckIn_BinaryRetryReturnsSyncFailure(t *testing.T) {
@@ -79,7 +79,7 @@ func TestPerformCheckIn_BinaryRetryReturnsSyncFailure(t *testing.T) {
 		settings:            &fakeSettingsResolver{hasOverride: true, resolved: "binary"},
 	}
 
-	result, err := svc.performCheckIn(context.Background(), 702, 703, 704, existingTime.Add(time.Minute), timezone.DateFromTime(existingTime), checkinTypeToggle)
+	result, err := svc.performCheckIn(context.Background(), 702, 703, 704, existingTime.Add(time.Minute), calendar.DateFromTime(existingTime), checkinTypeToggle)
 
 	require.ErrorIs(t, err, injected)
 	assert.Nil(t, result)

@@ -387,6 +387,39 @@ describe("handleStudentFormSubmit", () => {
     });
   });
 
+  it("explains a full Kinderkontingent instead of the backend text", async () => {
+    // #3567: the create call comes back 409 with a stable code; the modal
+    // stays open with the entered data and shows this message.
+    mockValidateForm.mockReturnValue(true);
+    const error = Object.assign(new Error("child quota reached"), {
+      status: 409,
+      body: JSON.stringify({
+        error: "child quota reached: 50 of 50 children occupied, 1 requested",
+        code: "students.child_quota_reached",
+        details: {
+          booked_places: 50,
+          occupied_places: 50,
+          requested_places: 1,
+        },
+      }),
+    });
+    mockOnSubmit.mockRejectedValue(error);
+
+    await handleStudentFormSubmit(
+      mockEvent as unknown as React.FormEvent,
+      {},
+      mockValidateForm,
+      mockOnSubmit,
+      mockSetLoading,
+      mockSetErrors,
+    );
+
+    expect(mockSetErrors).toHaveBeenCalledWith({
+      submit:
+        "Das Kinderkontingent Ihrer Schule ist voll. Die Kontingentzahl beträgt 50 von 50 Kindern. Für weitere Kinder melden Sie sich bitte beim moto-Team.",
+    });
+  });
+
   it("keeps a 5xx server error generic (no technical leak)", async () => {
     mockValidateForm.mockReturnValue(true);
     const error = new Error("API error: 500 - boom") as Error & {

@@ -317,7 +317,17 @@ func checkEnrollmentChangeRequestDialogueGolden(t *testing.T, api *API, db *test
 	// the family from answering a question nobody asked.
 	early := checkpointRequest(api, checkpointScenario{Method: http.MethodPost, Path: publicBase + "/" + createdEnvelope.Data.ID + "/messages", Body: `{"body":"Zu früh."}`}, "")
 	require.Equal(t, http.StatusBadRequest, early.Code, early.Body.String())
-	require.JSONEq(t, `{"status":"error","error":"enrollment change request has invalid status"}`, early.Body.String())
+	var earlyProblem map[string]any
+	require.NoError(t, json.Unmarshal(early.Body.Bytes(), &earlyProblem))
+	require.Equal(t, "error", earlyProblem["status"])
+	require.Equal(t, "enrollment change request has invalid status", earlyProblem["error"])
+	require.Equal(t, "general.input", earlyProblem["code"])
+	require.Equal(t, earlyProblem["error"], earlyProblem["detail"])
+	require.Equal(t, "Bad Request", earlyProblem["title"])
+	require.Equal(t, "https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen", earlyProblem["type"])
+	require.NotEmpty(t, earlyProblem["instance"])
+	require.Equal(t, early.Header().Get("X-Request-Id"), earlyProblem["instance"])
+	require.Equal(t, "application/problem+json", early.Header().Get("Content-Type"))
 
 	for _, step := range []struct {
 		name, method, path, body, token string

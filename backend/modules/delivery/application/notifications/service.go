@@ -81,7 +81,7 @@ type Audience struct {
 
 	// StudentIDs marks a guardian-scoped event as being ABOUT these children, and
 	// is an authorization instruction rather than payload: the delivery
-	// transaction re-reads users.students_guardians and keeps only recipients who
+	// transaction re-reads the guardian relationships and keeps only recipients who
 	// still hold parent_portal.access for at least one of them.
 	//
 	// Producers decide their audience in the transaction that produced the event;

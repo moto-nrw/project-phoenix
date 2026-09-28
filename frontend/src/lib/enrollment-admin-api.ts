@@ -156,6 +156,12 @@ export interface AdminRequestChild {
   reviewed_by?: number | null;
   activation_mode: string;
   created_student_id?: string;
+  /**
+   * Why an open enrollment was left to the school, e.g.
+   * "child_quota_reached" for a renewal the automatic approval skipped
+   * because the Kinderkontingent was full (#3570).
+   */
+  review_reason?: string | null;
   custom_data?: Record<string, unknown>;
   /**
    * The Betreuungsangebote selection on file RIGHT NOW — exactly what a

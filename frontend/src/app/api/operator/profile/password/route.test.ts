@@ -136,12 +136,12 @@ describe("POST /api/operator/profile/password", () => {
 
   it("handles incorrect current password", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 401,
-      text: async () =>
-        JSON.stringify({ error: "Current password is incorrect" }),
-    });
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "Current password is incorrect" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     const request = createMockRequest({
       current_password: "wrongpass",
@@ -154,11 +154,12 @@ describe("POST /api/operator/profile/password", () => {
 
   it("handles weak new password error", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 400,
-      text: async () => JSON.stringify({ error: "Password too weak" }),
-    });
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "Password too weak" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     const request = createMockRequest({
       current_password: "oldpass123",

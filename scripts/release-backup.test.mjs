@@ -97,6 +97,41 @@ test('repeated demo deploy stops the sidecar before the snapshot and restarts it
   assert.match(f.calls(), /^compose stop server frontend demo-runtime$/m);
   assert.match(f.calls(), sidecarStart);
 });
+// Redeploying the same revision rebuilds the demo frontend under the same tag.
+// The pull must not leave the running images nameless, or the snapshot cannot
+// resolve their registry digests on Docker's containerd image store.
+test('deploy keeps the running images under a local tag before pulling', t => {
+  const f = fixture(t, 'demo');
+  writeFileSync(join(f.cwd, 'docker-compose.yml'), demoStack);
+  writeFileSync(join(f.cwd, 'docker-compose.yml.new'), demoStack);
+  const result = f.run('deploy-remote.sh');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const calls = f.calls().trim().split('\n');
+  const pull = calls.findIndex(line => line.endsWith(' pull'));
+  const image = `sha256:${'1'.repeat(64)}`;
+  for (const tag of ['postgres:moto-release-postgres', 'ghcr.io/moto-nrw/phoenix-server:moto-release-server',
+    'ghcr.io/moto-nrw/phoenix-frontend:moto-release-frontend', 'ghcr.io/moto-nrw/phoenix-server:moto-release-demo-runtime']) {
+    const index = calls.indexOf(`tag ${image} ${tag}`);
+    assert.ok(index >= 0 && index < pull, f.calls());
+  }
+});
+test('failing to keep the running images aborts before the pull', t => {
+  const f = fixture(t, 'demo');
+  writeFileSync(join(f.cwd, 'docker-compose.yml'), demoStack);
+  writeFileSync(join(f.cwd, 'docker-compose.yml.new'), demoStack);
+  const result = f.run('deploy-remote.sh', [], { RELEASE_TEST_FAIL: 'tag' });
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stderr, /running release was not touched/);
+  assert.doesNotMatch(f.calls(), / pull$|stop|pg_dump/m);
+  assert.equal(readFileSync(join(f.cwd, '.env'), 'utf8'), 'MODE=old\n');
+});
+test('first deploy without a running stack keeps no images', t => {
+  const f = fixture(t, 'demo');
+  rmSync(join(f.cwd, 'docker-compose.yml'));
+  const result = f.run('release-backup.sh', ['keep-images']);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(existsSync(f.log) ? f.calls() : '', '');
+});
 // The sidecar seeds for minutes and may fail on its own. Gating the release on
 // it would hold the deploy and then restore the database of a healthy application.
 test('a sidecar that cannot start neither fails nor rolls back the demo release', t => {

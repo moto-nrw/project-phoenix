@@ -133,6 +133,11 @@ type DatePickerProps =
       // Latest selectable day (inclusive). Days after it are disabled — used to
       // cap selection at a planning horizon while keeping that day choosable.
       readonly maxDate?: Date;
+      /**
+       * Month the calendar opens on while no value is set, e.g. the start
+       * date for an end-date field. Without it the calendar opens on today.
+       */
+      readonly defaultMonth?: Date;
       /** Additional days that cannot be selected. */
       readonly disabledDay?: Matcher;
       /** Hide the inline clear ("X") control. Use when the value is required. */
@@ -369,6 +374,7 @@ export function DatePicker({
   ) : (
     <DatePickerCalendar
       value={props.value}
+      defaultMonth={props.defaultMonth}
       minDate={props.minDate}
       maxDate={props.maxDate}
       disabledDay={props.disabledDay}
@@ -555,6 +561,7 @@ function formatMultipleDateLabel(
 
 function DatePickerCalendar({
   value,
+  defaultMonth,
   minDate,
   maxDate,
   disabledDay,
@@ -567,6 +574,7 @@ function DatePickerCalendar({
   onChange,
 }: {
   readonly value?: Date | null;
+  readonly defaultMonth?: Date;
   readonly minDate?: Date;
   readonly maxDate?: Date;
   readonly disabledDay?: Matcher;
@@ -578,7 +586,7 @@ function DatePickerCalendar({
   readonly required?: boolean;
   readonly onChange: (date: Date | null) => void;
 }) {
-  const [month, setMonth] = useState(value ?? new Date());
+  const [month, setMonth] = useState(value ?? defaultMonth ?? new Date());
   const controlledMonthTime = value?.getTime();
 
   useEffect(() => {
@@ -715,6 +723,7 @@ export function ISODatePicker({
   onChange,
   min,
   max,
+  defaultMonth,
   disabledDay,
   label,
   error,
@@ -732,6 +741,11 @@ export function ISODatePicker({
   readonly min?: string;
   /** Latest selectable day as "YYYY-MM-DD". */
   readonly max?: string;
+  /**
+   * "YYYY-MM-DD" whose month the calendar opens on while `value` is empty,
+   * e.g. the start date for an end-date field. "" or unset opens on today.
+   */
+  readonly defaultMonth?: string;
   /** Additional days that cannot be selected. */
   readonly disabledDay?: Matcher;
   readonly placeholder?: string;
@@ -759,6 +773,7 @@ export function ISODatePicker({
       invalid={rest.invalid ?? Boolean(error)}
       ariaDescribedBy={rest.ariaDescribedBy ?? errorId}
       value={toDateOrNull(value)}
+      defaultMonth={toDateOrNull(defaultMonth) ?? undefined}
       minDate={toDateOrNull(min) ?? undefined}
       maxDate={toDateOrNull(max) ?? undefined}
       disabledDay={disabledDay}

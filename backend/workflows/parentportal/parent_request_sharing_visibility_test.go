@@ -31,6 +31,8 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 	_, err := db.NewUpdate().
 		TableExpr(`users.students_guardians`).
 		Set("student_id = ?", author.StudentID).
+		// The author stays the child's one primary guardian (#2756).
+		Set("is_primary = false").
 		Where("guardian_profile_id = ?", recipient.GuardianProfileID).
 		Exec(ctx)
 	require.NoError(t, err)

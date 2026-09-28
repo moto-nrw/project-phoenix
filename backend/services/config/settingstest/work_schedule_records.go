@@ -3,8 +3,8 @@ package settingstest
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	config "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The settings package still carries the contractual work-schedule rows and
@@ -16,8 +16,8 @@ import (
 // schedule version. A zero ValidUntil means the version is still open.
 type ScheduleRow struct {
 	StaffID        int64
-	ValidFrom      timezone.Date
-	ValidUntil     timezone.Date
+	ValidFrom      calendar.Date
+	ValidUntil     calendar.Date
 	RotationLength int
 	WeekIndex      int
 	DayOfWeek      int
@@ -78,7 +78,7 @@ type TemplateEntry struct {
 type Template struct {
 	ID             int64
 	RotationLength int
-	Anchor         timezone.Date
+	Anchor         calendar.Date
 	Entries        []TemplateEntry
 }
 

@@ -160,28 +160,6 @@ func (r timetableStudentEnrollmentRepository) list(ctx context.Context, filter t
 	return legacyStudentEnrollments(values), nil
 }
 
-func (r timetableStudentEnrollmentRepository) BackfillEnrollmentRequestChildSource(ctx context.Context, studentID, requestChildID int64, groupIDs []int64) (int64, error) {
-	if studentID <= 0 {
-		return 0, errors.New("student_id is required")
-	}
-	if requestChildID <= 0 {
-		return 0, errors.New("enrollment_request_child_id is required")
-	}
-	rows, err := r.timetable.BackfillStudentEnrollmentSource(ctx, studentID, requestChildID, groupIDs)
-	return rows, legacyStudentEnrollmentError("backfill enrollment request child source", err)
-}
-
-func (r timetableStudentEnrollmentRepository) DeleteByEnrollmentRequestChild(ctx context.Context, studentID, requestChildID int64) (int64, error) {
-	if studentID <= 0 {
-		return 0, errors.New("student_id is required")
-	}
-	if requestChildID <= 0 {
-		return 0, errors.New("enrollment_request_child_id is required")
-	}
-	rows, err := r.timetable.DeleteStudentEnrollmentsBySource(ctx, studentID, requestChildID)
-	return rows, legacyStudentEnrollmentError("delete by enrollment request child", err)
-}
-
 func (r timetableStudentEnrollmentRepository) CapActiveByGroup(ctx context.Context, groupID int64, validUntil activitiesModels.StudentEnrollmentDate) (int64, error) {
 	rows, err := r.timetable.CapActiveStudentEnrollments(ctx, groupID, validUntil.String())
 	return rows, legacyStudentEnrollmentError("cap active enrollments by group", err)

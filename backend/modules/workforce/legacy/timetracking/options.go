@@ -26,6 +26,12 @@ func WithWorkSessionHolidays(reader HolidayDatesReader) WorkSessionOption {
 	return func(s *workSessionService) { s.holidayReader = reader }
 }
 
+// WithWorkSessionTargetOverrides re-prices the weekly Soll of Sonderarbeitszeit
+// weeks (#3259) in the history summaries.
+func WithWorkSessionTargetOverrides(overrides WeeklyTargetOverrides) WorkSessionOption {
+	return func(s *workSessionService) { s.weeklyOverrides = overrides }
+}
+
 // WithWorkSessionEvents binds the time-account change notification.
 func WithWorkSessionEvents(publisher EventPublisher) WorkSessionOption {
 	return func(s *workSessionService) { s.broadcaster = publisher }
@@ -44,6 +50,12 @@ type WorkTimeMonthOption func(*workTimeMonthService)
 // it no day loses its Soll.
 func WithMonthHolidays(reader HolidayDatesReader) WorkTimeMonthOption {
 	return func(s *workTimeMonthService) { s.holidayReader = reader }
+}
+
+// WithMonthTargetOverrides supplies the Sonderarbeitszeiten (#3259). Without
+// it no day's Soll is overridden.
+func WithMonthTargetOverrides(reader TargetOverrideReader) WorkTimeMonthOption {
+	return func(s *workTimeMonthService) { s.overrideReader = reader }
 }
 
 // WithMonthAdjustments supplies the Stundenkonto transaction reader (#1420).
@@ -142,6 +154,12 @@ type StaffOverviewOption func(*staffOverviewService)
 // WithOverviewHolidays supplies the non-working-day resolver.
 func WithOverviewHolidays(reader HolidayDatesReader) StaffOverviewOption {
 	return func(s *staffOverviewService) { s.holidayReader = reader }
+}
+
+// WithOverviewTargetOverrides supplies the Sonderarbeitszeiten (#3259), loaded
+// once for every staff member like the other prefetched inputs.
+func WithOverviewTargetOverrides(reader TargetOverrideReader) StaffOverviewOption {
+	return func(s *staffOverviewService) { s.overrideReader = reader }
 }
 
 // WithOverviewVacationOpenings supplies the vacation takeover reader (#2132).

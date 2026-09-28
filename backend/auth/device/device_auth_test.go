@@ -114,23 +114,6 @@ func (s *stubSchoolLookup) IsSchoolDeleted(_ context.Context, _ int64) (bool, er
 	return s.deleted, s.err
 }
 
-type stubStaffPINAuthenticator struct {
-	staff    *AuthenticatedStaff
-	err      error
-	tenantID int64
-	staffID  int64
-	pin      string
-	calls    int
-}
-
-func (s *stubStaffPINAuthenticator) AuthenticateStaffPIN(_ context.Context, tenantID, staffID int64, pin string) (*AuthenticatedStaff, error) {
-	s.calls++
-	s.tenantID = tenantID
-	s.staffID = staffID
-	s.pin = pin
-	return s.staff, s.err
-}
-
 type tenantKey struct{}
 
 // bindTenant is the test tenant binder: it records the tenant on the context
@@ -161,10 +144,6 @@ func newTestAuthenticator(directory DeviceDirectory, options ...func(*Dependenci
 
 func withSchools(schools SchoolLookup) func(*Dependencies) {
 	return func(deps *Dependencies) { deps.Schools = schools }
-}
-
-func withStaffPIN(authenticator StaffPINAuthenticator) func(*Dependencies) {
-	return func(deps *Dependencies) { deps.StaffPIN = authenticator }
 }
 
 func withPIN(resolver PINResolver, fallback string) func(*Dependencies) {
@@ -577,100 +556,6 @@ func TestDevice_PINResolverWrongPIN(t *testing.T) {
 	_, errResp = authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-wrong", "0000"))
 	require.NotNil(t, errResp, "wrong PIN should be rejected")
 	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
-}
-
-// =============================================================================
-// Staff PIN binding
-// =============================================================================
-
-func staffCredentials(apiKey, staffID, staffPIN string) credentials {
-	c := pinCredentials(apiKey, "device-pin")
-	c.staffID = staffID
-	c.staffPIN = staffPIN
-	return c
-}
-
-func newStaffPINAuthenticator(authenticator StaffPINAuthenticator) (*Authenticator, string) {
-	directory := newMockDeviceDirectory()
-	const apiKey = "staff-pin-auth-api-key"
-	directory.addDevice(apiKey, activeDevice("test-device"))
-	return newTestAuthenticator(directory, withPIN(nil, "device-pin"), withStaffPIN(authenticator)), apiKey
-}
-
-func TestDevice_SetsCredentialBoundStaffContext(t *testing.T) {
-	t.Parallel()
-
-	staff := &AuthenticatedStaff{ID: 42, TenantID: testTenantID}
-	stub := &stubStaffPINAuthenticator{staff: staff}
-	authenticator, apiKey := newStaffPINAuthenticator(stub)
-
-	ctx, errResp := authenticator.authenticateDevice(context.Background(), staffCredentials(apiKey, "42", "personal-pin"))
-	require.Nil(t, errResp)
-	assert.Same(t, staff, StaffFromCtx(ctx))
-	assert.Equal(t, 1, stub.calls)
-	assert.Equal(t, testTenantID, stub.tenantID)
-	assert.Equal(t, int64(42), stub.staffID)
-	assert.Equal(t, "personal-pin", stub.pin)
-}
-
-func TestDevice_IgnoresLegacyStaffIDWithoutCredential(t *testing.T) {
-	t.Parallel()
-
-	stub := &stubStaffPINAuthenticator{}
-	authenticator, apiKey := newStaffPINAuthenticator(stub)
-
-	ctx, errResp := authenticator.authenticateDevice(context.Background(), staffCredentials(apiKey, "42", ""))
-	require.Nil(t, errResp)
-	assert.Nil(t, StaffFromCtx(ctx))
-	assert.Zero(t, stub.calls)
-}
-
-func TestDevice_RejectsInvalidStaffCredential(t *testing.T) {
-	t.Parallel()
-
-	stub := &stubStaffPINAuthenticator{err: errors.New("invalid credential")}
-	authenticator, apiKey := newStaffPINAuthenticator(stub)
-
-	_, errResp := authenticator.authenticateDevice(context.Background(), staffCredentials(apiKey, "42", "wrong-pin"))
-	require.NotNil(t, errResp)
-	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
-	assert.Equal(t, ErrInvalidPIN.Error(), errResp.ErrorText)
-	assert.Equal(t, 1, stub.calls)
-}
-
-func TestDevice_RejectsCrossTenantStaff(t *testing.T) {
-	t.Parallel()
-
-	stub := &stubStaffPINAuthenticator{staff: &AuthenticatedStaff{ID: 42, TenantID: 8}}
-	authenticator, apiKey := newStaffPINAuthenticator(stub)
-
-	_, errResp := authenticator.authenticateDevice(context.Background(), staffCredentials(apiKey, "42", "personal-pin"))
-	require.NotNil(t, errResp)
-	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
-}
-
-func TestDevice_RejectsStaffCredentialWithoutAuthenticator(t *testing.T) {
-	t.Parallel()
-
-	authenticator, apiKey := newStaffPINAuthenticator(nil)
-
-	_, errResp := authenticator.authenticateDevice(context.Background(), staffCredentials(apiKey, "42", "personal-pin"))
-	require.NotNil(t, errResp, "a personal credential cannot be verified without an authenticator")
-	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
-}
-
-func TestDevice_RejectsMalformedStaffID(t *testing.T) {
-	t.Parallel()
-
-	stub := &stubStaffPINAuthenticator{staff: &AuthenticatedStaff{ID: 42, TenantID: 7}}
-	authenticator, apiKey := newStaffPINAuthenticator(stub)
-
-	for _, staffID := range []string{"", "abc", "0", "-1"} {
-		_, errResp := authenticator.authenticateDevice(context.Background(), staffCredentials(apiKey, staffID, "personal-pin"))
-		require.NotNil(t, errResp, "staff id %q", staffID)
-		assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
-	}
-	assert.Zero(t, stub.calls, "malformed ids never reach the verifier")
 }
 
 // =============================================================================

@@ -556,13 +556,19 @@ describe("Header", () => {
       expect(localStorage.getItem("sidebar-collapsed")).toBeNull();
     });
 
-    it("survives a keydown without a key", () => {
-      render(<Header />);
+    it("ignores autofill keydowns without a key", () => {
+      render(
+        <div>
+          <Header />
+          <input aria-label="Testfeld" />
+        </div>,
+      );
 
-      // Passwortmanager, Autofill und Erweiterungen lösen `keydown`
-      // programmatisch aus; ein solches Ereignis trägt kein `key`.
+      const event = new KeyboardEvent("keydown", { bubbles: true });
+      Object.defineProperty(event, "key", { value: undefined });
+
       expect(() =>
-        globalThis.window.dispatchEvent(new Event("keydown")),
+        screen.getByLabelText("Testfeld").dispatchEvent(event),
       ).not.toThrow();
       expect(localStorage.getItem("sidebar-collapsed")).toBeNull();
     });

@@ -27,6 +27,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -42,12 +43,13 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/stretchr/testify/require"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-var updateGoldens = flag.Bool("update-goldens", false, "rewrite the route-table and IoT auth-matrix golden files")
+var updateGoldens = flag.Bool("update-goldens", false, "rewrite the route-table, IoT auth-matrix and IoT error-string golden files")
 
 func checkRouteTableGolden(t *testing.T, apiInstance *API) {
 	t.Parallel()
@@ -204,6 +206,7 @@ var chiParamPattern = regexp.MustCompile(`\{[^}]+\}`)
 
 func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *API) {
 	t.Parallel()
+	const requestID = "8dc3a9ca-8ac7-4b8e-9bfa-3c17760d92c0"
 
 	var iotRoutes []string
 	walkErr := chi.Walk(apiInstance.Router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
@@ -226,10 +229,16 @@ func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *API) {
 		probePath = strings.ReplaceAll(probePath, "*", "x")
 
 		req := httptest.NewRequest(method, probePath, nil)
+		req.Header.Set(middleware.RequestIDHeader, requestID)
 		rec := httptest.NewRecorder()
 		apiInstance.Router.ServeHTTP(rec, req)
 
 		body := strings.TrimSpace(rec.Body.String())
+		var problem map[string]any
+		require.NoError(t, json.Unmarshal([]byte(body), &problem), "%s %s", method, pattern)
+		require.Equal(t, requestID, problem["instance"], "%s %s", method, pattern)
+		require.NotEmpty(t, problem["code"], "%s %s", method, pattern)
+		require.Equal(t, "application/problem+json", rec.Header().Get("Content-Type"), "%s %s", method, pattern)
 		lines = append(lines, fmt.Sprintf("%s %s -> %d %s", method, pattern, rec.Code, body))
 	}
 	got := strings.Join(lines, "\n") + "\n"
@@ -292,13 +301,19 @@ func unifiedDiff(want, got string) string {
 // production graph. Its subtests cover contracts of the assembled router.
 func TestFullProductionRouterGolden(t *testing.T) {
 	t.Parallel()
-	testpkg.SetupTestDB(t)
+	db := testpkg.SetupTestDB(t)
+	sentryFake := newFakeSentry(t)
+	newKiosk := func(t *testing.T, name string) (string, string, int64) {
+		kiosk := testpkg.CreateTestDevice(t, db, name)
+		return *kiosk.APIKey, kiosk.DeviceID, kiosk.TenantID
+	}
 	called := false
 	err := WithRuntime(context.Background(), ServeConfig{
-		Port:         "127.0.0.1:0",
-		FrontendURL:  "http://localhost:3000",
-		PublicAPIURL: "http://api.invalid",
-		Logger:       slog.Default(),
+		Port:                "127.0.0.1:0",
+		FrontendURL:         "http://localhost:3000",
+		PublicAPIURL:        "http://api.invalid",
+		Logger:              slog.Default(),
+		SentryPyrePortalDSN: sentryFake.dsn(relayTestProjectID),
 	}, func(runtime *Runtime) error {
 		called = true
 		require.NotNil(t, runtime.worker)
@@ -310,10 +325,15 @@ func TestFullProductionRouterGolden(t *testing.T) {
 		// Wait for parallel contract subtests before WithRuntime closes its resources.
 		t.Run("contracts", func(t *testing.T) {
 			t.Run("route table", func(t *testing.T) { checkRouteTableGolden(t, api) })
+			t.Run("core action classification", func(t *testing.T) { checkCoreActionClassification(t, api) })
 			t.Run("IoT auth matrix", func(t *testing.T) { checkIoTAuthMatrixGolden(t, api) })
+			t.Run("IoT error strings", checkIoTErrorStringsGolden)
+			t.Run("IoT error reports relay", func(t *testing.T) { checkIoTErrorReportsRelay(t, api, sentryFake, newKiosk) })
 			t.Run("school scope matrix", func(t *testing.T) { checkSchoolScopeMatrix(t, api) })
 			t.Run("caregiver wiring", func(t *testing.T) { checkCaregiverWiring(t, api) })
+			t.Run("timetable conflict wiring", func(t *testing.T) { checkTimetableConflictWiring(t, api) })
 			t.Run("enrollment submission", func(t *testing.T) { checkEnrollmentSubmissionGolden(t, api) })
+			t.Run("open room kiosk booking", func(t *testing.T) { checkOpenRoomKioskBooking(t, api) })
 			t.Run("phase response query budget", func(t *testing.T) { checkPhaseResponseQueryBudget(t, api) })
 			t.Run("rate limited operator invitations", func(t *testing.T) { checkOperatorInvitationMount(t, api) })
 		})

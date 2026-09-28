@@ -5,16 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/uptrace/bun"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -23,9 +19,9 @@ import (
 // It deliberately avoids repositories.NewFactory: the factory is shrink-only
 // under #2580, so a test that needs three repositories must not add another
 // caller that builds the whole legacy graph.
-func parentRepos(tb testing.TB, db *bun.DB) repositories.ParentMessagingTestRepositories {
+func parentRepos(tb testing.TB, db *bun.DB) testutil.PeopleRepositorySuiteParentMessaging {
 	tb.Helper()
-	repos, err := repositories.NewParentMessagingTestRepositories(db)
+	repos, err := testutil.NewPeopleRepositorySuiteParentMessaging(db)
 	require.NoError(tb, err)
 	return repos
 }
@@ -35,8 +31,8 @@ func tenantCtx(tb testing.TB) context.Context {
 	return testpkg.Ctx(tb)
 }
 
-func newThread(tb testing.TB, studentID, guardianAccountID int64) *usersModels.ParentMessageThread {
-	t := &usersModels.ParentMessageThread{
+func newThread(tb testing.TB, studentID, guardianAccountID int64) *testpkg.ParentMessageThread {
+	t := &testpkg.ParentMessageThread{
 		StudentID:         studentID,
 		GuardianAccountID: guardianAccountID,
 	}
@@ -44,8 +40,8 @@ func newThread(tb testing.TB, studentID, guardianAccountID int64) *usersModels.P
 	return t
 }
 
-func newMessage(tb testing.TB, threadID, studentID, accountID int64, kind, body string) *usersModels.ParentMessage {
-	m := &usersModels.ParentMessage{
+func newMessage(tb testing.TB, threadID, studentID, accountID int64, kind, body string) *testpkg.ParentMessage {
+	m := &testpkg.ParentMessage{
 		ThreadID:        threadID,
 		StudentID:       studentID,
 		SenderAccountID: accountID,
@@ -93,15 +89,15 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 
 	// Two guardian messages (from the guardian) and one staff reply (from the
 	// staff reader's own account).
-	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, guardian, usersModels.ParentMessageSenderGuardian, "hallo")))
-	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, guardian, usersModels.ParentMessageSenderGuardian, "noch was")))
-	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, staffAccount.ID, usersModels.ParentMessageSenderStaff, "antwort")))
+	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, guardian, testpkg.ParentMessageSenderGuardian, "hallo")))
+	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, guardian, testpkg.ParentMessageSenderGuardian, "noch was")))
+	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, staffAccount.ID, testpkg.ParentMessageSenderStaff, "antwort")))
 
 	messages, err := msgRepo.ListByThread(ctx, thread.ID, 0)
 	require.NoError(t, err)
 	require.Len(t, messages, 3)
 	assert.Equal(t, "hallo", messages[0].Body)
-	assert.Equal(t, usersModels.ParentMessageSenderStaff, messages[2].SenderKind)
+	assert.Equal(t, testpkg.ParentMessageSenderStaff, messages[2].SenderKind)
 
 	// Staff inbox: one row, guardian + child names, unread = 2 guardian msgs.
 	inbox, err := readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, false)
@@ -151,7 +147,7 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	assert.Equal(t, 0, guardianThreads[0].UnreadCount)
 
 	// A new staff message makes the guardian list show 1 unread.
-	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, staffAccount.ID, usersModels.ParentMessageSenderStaff, "noch eine antwort")))
+	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, staffAccount.ID, testpkg.ParentMessageSenderStaff, "noch eine antwort")))
 	guardianThreads, err = readRepo.ListThreadsForGuardianStudent(ctx, guardian, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, guardianThreads, 1)
@@ -190,10 +186,10 @@ func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
 	// Two guardian messages forced to the SAME created_at instant; the second
 	// gets the higher id (the tie-break the thread list orders by).
 	tie := time.Now().Truncate(time.Microsecond)
-	m1 := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "erste")
+	m1 := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, testpkg.ParentMessageSenderGuardian, "erste")
 	m1.CreatedAt, m1.UpdatedAt = tie, tie
 	require.NoError(t, msgRepo.Create(ctx, m1))
-	m2 := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "zweite")
+	m2 := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, testpkg.ParentMessageSenderGuardian, "zweite")
 	m2.CreatedAt, m2.UpdatedAt = tie, tie
 	require.NoError(t, msgRepo.Create(ctx, m2))
 	require.Greater(t, m2.ID, m1.ID, "second insert must get the higher id")
@@ -235,12 +231,12 @@ func TestParentMessaging_TeamHandledCursorDoesNotSkipTiedNewMessage(t *testing.T
 	require.NoError(t, threadRepo.Create(ctx, thread))
 
 	tie := time.Now().Truncate(time.Microsecond)
-	first := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "erste")
+	first := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, testpkg.ParentMessageSenderGuardian, "erste")
 	first.CreatedAt, first.UpdatedAt = tie, tie
 	require.NoError(t, msgRepo.Create(ctx, first))
 	require.NoError(t, readRepo.MarkStaffHandledUpTo(ctx, testpkg.Tenant(t), thread.ID, first.CreatedAt, first.ID))
 
-	concurrent := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "gleichzeitig")
+	concurrent := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, testpkg.ParentMessageSenderGuardian, "gleichzeitig")
 	concurrent.CreatedAt, concurrent.UpdatedAt = tie, tie
 	require.NoError(t, msgRepo.Create(ctx, concurrent))
 	require.Greater(t, concurrent.ID, first.ID)
@@ -269,7 +265,7 @@ func TestParentMessaging_MessageAppendLockSerializesThreadWrites(t *testing.T) {
 	holder, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	defer func() { _ = holder.Rollback() }()
-	holderCtx := tenant.WithTransactionForTest(ctx, &holder)
+	holderCtx := testpkg.ContextWithTransaction(ctx, &holder)
 	require.NoError(t, repo.LockForMessageAppend(holderCtx, thread.ID))
 
 	contender, err := db.BeginTx(ctx, nil)
@@ -277,7 +273,7 @@ func TestParentMessaging_MessageAppendLockSerializesThreadWrites(t *testing.T) {
 	defer func() { _ = contender.Rollback() }()
 	_, err = contender.ExecContext(ctx, "SET LOCAL lock_timeout = ?", "200ms")
 	require.NoError(t, err)
-	contenderCtx := tenant.WithTransactionForTest(ctx, &contender)
+	contenderCtx := testpkg.ContextWithTransaction(ctx, &contender)
 	err = repo.LockForMessageAppend(contenderCtx, thread.ID)
 	require.Error(t, err, "a second append must wait for the first transaction")
 	assert.True(t, isLockTimeoutError(err), "expected lock_timeout, got: %v", err)
@@ -287,7 +283,7 @@ func TestParentMessaging_MessageAppendLockSerializesThreadWrites(t *testing.T) {
 	followUp, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	defer func() { _ = followUp.Rollback() }()
-	followUpCtx := tenant.WithTransactionForTest(ctx, &followUp)
+	followUpCtx := testpkg.ContextWithTransaction(ctx, &followUp)
 	require.NoError(t, repo.LockForMessageAppend(followUpCtx, thread.ID))
 }
 
@@ -326,17 +322,17 @@ func TestParentMessaging_StaffNotificationClaimDebouncesOneThread(t *testing.T) 
 // stores it: a system event attributed to the GUARDIAN side (event_actor_kind),
 // so it counts as unread to a staff reader. actorAccountID is the submitting
 // guardian's account (the emitter stamps the actor in sender_account_id).
-func newRequestCreatedPill(tb testing.TB, threadID, studentID, actorAccountID int64, at time.Time) *usersModels.ParentMessage {
-	m := &usersModels.ParentMessage{
+func newRequestCreatedPill(tb testing.TB, threadID, studentID, actorAccountID int64, at time.Time) *testpkg.ParentMessage {
+	m := &testpkg.ParentMessage{
 		ThreadID:        threadID,
 		StudentID:       studentID,
 		SenderAccountID: actorAccountID,
-		SenderKind:      usersModels.ParentMessageSenderSystem,
+		SenderKind:      testpkg.ParentMessageSenderSystem,
 		SenderName:      "System",
 		Body:            "Anfrage gestellt",
-		Kind:            usersModels.ParentMessageKindEvent,
+		Kind:            testpkg.ParentMessageKindEvent,
 		EventType:       "request_created",
-		EventActorKind:  usersModels.ParentMessageSenderGuardian,
+		EventActorKind:  testpkg.ParentMessageSenderGuardian,
 	}
 	m.CreatedAt, m.UpdatedAt = at, at
 	m.SetTenantID(testpkg.Tenant(tb))
@@ -382,7 +378,7 @@ func TestParentMessaging_RequestCreatedPillNotCounted(t *testing.T) {
 
 	// A plain guardian chat message in the same thread DOES count — the exclusion
 	// is specific to request_created, not a blanket mute of the thread.
-	chat := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "Frage")
+	chat := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, testpkg.ParentMessageSenderGuardian, "Frage")
 	chat.CreatedAt, chat.UpdatedAt = base.Add(time.Second), base.Add(time.Second)
 	require.NoError(t, msgRepo.Create(ctx, chat))
 
@@ -432,7 +428,7 @@ func TestParentMessaging_OneThreadPerGuardian(t *testing.T) {
 
 	// After the first message it appears — still exactly one conversation.
 	msgRepo := parentRepos(t, db).Message
-	require.NoError(t, msgRepo.Create(ctx, newMessage(t, first.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderStaff, "hallo")))
+	require.NoError(t, msgRepo.Create(ctx, newMessage(t, first.ID, chain.StudentID, chain.AccountID, testpkg.ParentMessageSenderStaff, "hallo")))
 	threads, err = readRepo.ListThreadsForGuardianStudent(ctx, chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.Len(t, threads, 1, "guardian should have exactly one conversation about the child")
@@ -470,7 +466,7 @@ func TestParentMessaging_ListGuardiansForStudent_ExcludesNoPortalAccess(t *testi
 	// Second guardian: account-holding, linked to the SAME child, but pickup_only
 	// (no parent_portal.access in the relationship's permissions).
 	pickupAccount := testpkg.CreateTestAccount(t, db, "pickup-only")
-	pickupProfile := &usersModels.GuardianProfile{
+	pickupProfile := &testpkg.GuardianProfile{
 		FirstName:  "Olaf",
 		LastName:   "Helfer",
 		Email:      &pickupAccount.Email,
@@ -485,13 +481,13 @@ func TestParentMessaging_ListGuardiansForStudent_ExcludesNoPortalAccess(t *testi
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, pickupAccount.ID)
 	}()
 
-	pickupLink := &usersModels.StudentGuardian{
+	pickupLink := &testpkg.StudentGuardian{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: pickupProfile.ID,
 		RelationshipType:  "other",
 		CanPickup:         true,
 	}
-	authorize.ApplyStudentGuardianRole(pickupLink, authorize.GuardianRolePickupOnly)
+	testpkg.ApplyStudentGuardianRole(pickupLink, testpkg.GuardianRolePickupOnly)
 	pickupLink.SetTenantID(chain.TenantID)
 	_, err = db.NewInsert().Model(pickupLink).ModelTableExpr(`users.students_guardians`).Exec(context.Background())
 	require.NoError(t, err)
@@ -558,30 +554,30 @@ func TestParentMessaging_TouchLastMessage_Monotonic(t *testing.T) {
 	t2 := t1.Add(2 * time.Second)
 
 	// First real activity: a guardian message at t2 wins the empty (NULL) thread.
-	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, t2, 1, usersModels.ParentMessageSenderGuardian, "neuere Nachricht"))
+	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, t2, 1, testpkg.ParentMessageSenderGuardian, "neuere Nachricht"))
 	got, err := threadRepo.FindByID(ctx, thread.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got.LastMessageAt)
 	assert.WithinDuration(t, t2, *got.LastMessageAt, time.Second)
-	assert.Equal(t, usersModels.ParentMessageSenderGuardian, derefStr(got.LastSenderKind))
+	assert.Equal(t, testpkg.ParentMessageSenderGuardian, derefStr(got.LastSenderKind))
 	assert.Equal(t, "neuere Nachricht", got.LastMessageBody)
 
 	// A staff send that committed afterwards but captured an OLDER instant (t1)
 	// must be a no-op: preview/order/last-sender stay on the t2 message.
-	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, t1, 2, usersModels.ParentMessageSenderStaff, "ältere Antwort"))
+	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, t1, 2, testpkg.ParentMessageSenderStaff, "ältere Antwort"))
 	got, err = threadRepo.FindByID(ctx, thread.ID)
 	require.NoError(t, err)
 	assert.WithinDuration(t, t2, *got.LastMessageAt, time.Second, "stale older send must not move last_message_at back")
-	assert.Equal(t, usersModels.ParentMessageSenderGuardian, derefStr(got.LastSenderKind), "stale older send must not steal last sender")
+	assert.Equal(t, testpkg.ParentMessageSenderGuardian, derefStr(got.LastSenderKind), "stale older send must not steal last sender")
 	assert.Equal(t, "neuere Nachricht", got.LastMessageBody, "stale older send must not overwrite the preview")
 
 	// A genuinely newer send (t3 > t2) does advance the thread.
 	t3 := t2.Add(2 * time.Second)
-	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, t3, 3, usersModels.ParentMessageSenderStaff, "neueste Antwort"))
+	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, t3, 3, testpkg.ParentMessageSenderStaff, "neueste Antwort"))
 	got, err = threadRepo.FindByID(ctx, thread.ID)
 	require.NoError(t, err)
 	assert.WithinDuration(t, t3, *got.LastMessageAt, time.Second)
-	assert.Equal(t, usersModels.ParentMessageSenderStaff, derefStr(got.LastSenderKind))
+	assert.Equal(t, testpkg.ParentMessageSenderStaff, derefStr(got.LastSenderKind))
 	assert.Equal(t, "neueste Antwort", got.LastMessageBody)
 }
 
@@ -607,20 +603,20 @@ func TestParentMessaging_TouchLastMessage_TiedTimestamp(t *testing.T) {
 	at := time.Now().Truncate(time.Second)
 
 	// Lower-id message lands first and wins the empty thread.
-	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, at, 10, usersModels.ParentMessageSenderGuardian, "erste gleiche Zeit"))
+	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, at, 10, testpkg.ParentMessageSenderGuardian, "erste gleiche Zeit"))
 
 	// Same instant, HIGHER id: the genuinely newer message must take over.
-	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, at, 20, usersModels.ParentMessageSenderStaff, "neuere gleiche Zeit"))
+	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, at, 20, testpkg.ParentMessageSenderStaff, "neuere gleiche Zeit"))
 	got, err := threadRepo.FindByID(ctx, thread.ID)
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.ParentMessageSenderStaff, derefStr(got.LastSenderKind), "higher id at equal instant must win")
+	assert.Equal(t, testpkg.ParentMessageSenderStaff, derefStr(got.LastSenderKind), "higher id at equal instant must win")
 	assert.Equal(t, "neuere gleiche Zeit", got.LastMessageBody)
 
 	// Same instant, LOWER id committing afterwards: must be a no-op.
-	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, at, 15, usersModels.ParentMessageSenderGuardian, "ältere gleiche Zeit"))
+	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, at, 15, testpkg.ParentMessageSenderGuardian, "ältere gleiche Zeit"))
 	got, err = threadRepo.FindByID(ctx, thread.ID)
 	require.NoError(t, err)
-	assert.Equal(t, usersModels.ParentMessageSenderStaff, derefStr(got.LastSenderKind), "lower id at equal instant must not steal the preview")
+	assert.Equal(t, testpkg.ParentMessageSenderStaff, derefStr(got.LastSenderKind), "lower id at equal instant must not steal the preview")
 	assert.Equal(t, "neuere gleiche Zeit", got.LastMessageBody, "lower id at equal instant must not overwrite the preview")
 }
 
@@ -653,8 +649,8 @@ func TestParentMessaging_UnreadCountExcludesAlumni(t *testing.T) {
 
 	// One unread message per reader side: the guardian message badges the staff
 	// sidebar, the staff message badges the parent portal.
-	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "hallo")))
-	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, staffAccount.ID, usersModels.ParentMessageSenderStaff, "antwort")))
+	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, chain.AccountID, testpkg.ParentMessageSenderGuardian, "hallo")))
+	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, staffAccount.ID, testpkg.ParentMessageSenderStaff, "antwort")))
 
 	staffUnread, err := readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true)
 	require.NoError(t, err)

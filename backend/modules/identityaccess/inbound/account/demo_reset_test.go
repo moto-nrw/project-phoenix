@@ -66,12 +66,13 @@ func TestDemoResetOrdersANewSchoolForTheSameLink(t *testing.T) {
 	var order struct {
 		Status     string `bun:"status"`
 		SchoolName string `bun:"school_name"`
-		PersonName string `bun:"person_name"`
+		FirstName  string `bun:"first_name"`
+		LastName   string `bun:"last_name"`
 	}
-	require.NoError(t, env.db.NewRaw(`SELECT status, school_name, person_name FROM platform.demo_school_states WHERE name = ?`, access.SchoolSlug).Scan(context.Background(), &order))
+	require.NoError(t, env.db.NewRaw(`SELECT status, school_name, first_name, last_name FROM platform.demo_school_states WHERE name = ?`, access.SchoolSlug).Scan(context.Background(), &order))
 	assert.Equal(t, "preparing", order.Status)
 	assert.Equal(t, "OGS Beispiel", order.SchoolName)
-	assert.Equal(t, "Kim Beispiel", order.PersonName)
+	assert.Equal(t, []string{"Kim", "Beispiel"}, []string{order.FirstName, order.LastName}, "the restart reuses the stored names")
 	assert.JSONEq(t, `{"status":"preparing","school_name":"OGS Beispiel"}`, env.status(token).Body.String(), "the entry shows the setup screen again")
 	assert.Equal(t, http.StatusConflict, env.post(t, "/demo/access/sessions", map[string]string{"token": token}).Code)
 

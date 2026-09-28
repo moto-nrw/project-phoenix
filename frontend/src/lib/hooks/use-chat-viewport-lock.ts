@@ -2,6 +2,9 @@
 
 import { useEffect, useRef } from "react";
 
+/** Set on <html> while a mounted chat sees the soft keyboard open. */
+const CHAT_KEYBOARD_ATTRIBUTE = "data-chat-keyboard";
+
 /**
  * Pins a chat view to the real available viewport height and locks page
  * scrolling for as long as the chat is mounted — so the Nachrichten chat never
@@ -48,7 +51,6 @@ export function useChatViewportLock<T extends HTMLElement>(ready: boolean) {
       // offset back whenever the viewport changes (fires on keyboard open/close
       // via visualViewport). A no-op on platforms that honour overflow:hidden.
       if (window.scrollY !== 0) window.scrollTo(0, 0);
-      const top = el.getBoundingClientRect().top;
       // Measure against the VISUAL viewport, not window.innerHeight: when the
       // iOS soft keyboard opens it shrinks visualViewport.height (and fires only
       // visualViewport's own resize/scroll, never window's resize) while leaving
@@ -68,7 +70,33 @@ export function useChatViewportLock<T extends HTMLElement>(ready: boolean) {
       const bottomReserve = main
         ? parseFloat(getComputedStyle(main).paddingBottom) || 0
         : 8;
-      el.style.height = `${Math.max(viewportHeight - top - bottomReserve, 240)}px`;
+      // The fixed nav sits at the bottom of the LAYOUT viewport. With the soft
+      // keyboard open only the visual viewport shrinks and the nav is behind
+      // the keyboard, so end at whichever edge comes first instead of
+      // subtracting the nav from the keyboard edge again (#3664).
+      const navTop = window.innerHeight - bottomReserve;
+      // The keyboard covers the nav when the visible area ends above it.
+      // Scaling by vv.scale keeps a pinch zoom (which shrinks vv.height too)
+      // from counting as an open keyboard.
+      const keyboardOpen = vv ? vv.height * vv.scale < navTop : false;
+      // Pages hide their intro above the chat while the keyboard is open
+      // (`in-data-chat-keyboard:hidden`), otherwise a small phone has barely
+      // any room left for the composer. Toggle before measuring `top`.
+      document.documentElement.toggleAttribute(
+        CHAT_KEYBOARD_ATTRIBUTE,
+        keyboardOpen,
+      );
+      const top = el.getBoundingClientRect().top;
+      const visible = viewportHeight - top;
+      const available = Math.min(viewportHeight, navTop) - top;
+      // Keep a usable minimum, but never past the visible area: page scroll is
+      // locked, so anything below it — the composer, the line being typed —
+      // is out of reach on a small phone with the keyboard open.
+      const height = Math.max(available, Math.min(240, visible), 0);
+      el.style.height = `${height}px`;
+      // The hook owns the size: a consumer's CSS min-height (min-h-[20rem])
+      // would otherwise push the composer back under the keyboard.
+      el.style.minHeight = "0px";
     };
     fit();
     window.addEventListener("resize", fit);
@@ -79,6 +107,7 @@ export function useChatViewportLock<T extends HTMLElement>(ready: boolean) {
       window.removeEventListener("resize", fit);
       vv?.removeEventListener("resize", fit);
       vv?.removeEventListener("scroll", fit);
+      document.documentElement.removeAttribute(CHAT_KEYBOARD_ATTRIBUTE);
     };
   }, [ready]);
 

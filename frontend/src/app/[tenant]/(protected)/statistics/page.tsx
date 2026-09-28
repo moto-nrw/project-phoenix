@@ -143,7 +143,9 @@ export default function StatisticsPage() {
       .catch((error: unknown) => {
         if (cancelled) return;
         setData(null);
-        setErrorCode(error instanceof StatisticsError ? error.code : "unknown");
+        setErrorCode(
+          error instanceof StatisticsError ? error.legacyCode : "unknown",
+        );
         logger.error("statistics_fetch_failed", {
           from: fromISO,
           to: toISO,

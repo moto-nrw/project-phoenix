@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 // Guardian API Client
 // Calls Next.js API routes which proxy to the Go backend
 
@@ -70,11 +71,11 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
 // delete flow needs to tell a 409 (still linked — show the affected children
 // and offer a full delete) apart from a 403 (not allowed to fully delete) and
 // a generic failure.
-export class GuardianApiError extends Error {
+export class GuardianApiError extends ApiError {
   status: number;
 
   constructor(message: string, status: number) {
-    super(message);
+    super(message, status);
     this.name = "GuardianApiError";
     this.status = status;
   }
@@ -100,6 +101,15 @@ export const errorTranslations: Record<string, string> = {
   "phone number must contain at least 3 digits":
     "Telefonnummer muss mindestens 3 Ziffern enthalten",
   "phone number is required": "Telefonnummer ist erforderlich",
+  // Invalid contact input comes back as a 400 with a German reason (#3549);
+  // without these patterns it would fall through to the generic catch-all.
+  "ungültiges e-mail-format": "Ungültiges E-Mail-Format",
+  "ungültiges telefonnummer-format":
+    "Ungültiges Telefonnummernformat (nur Ziffern, Leerzeichen, +, -, Klammern)",
+  "telefonnummer muss mindestens 3 ziffern enthalten":
+    "Telefonnummer muss mindestens 3 Ziffern enthalten",
+  "telefonnummer ist erforderlich": "Telefonnummer ist erforderlich",
+  "ungültige bevorzugte kontaktmethode": "Ungültige bevorzugte Kontaktmethode",
   unauthorized: "Keine Berechtigung",
   forbidden: "Zugriff verweigert",
 };
@@ -403,7 +413,10 @@ export async function deleteGuardian(
     const errorMessage = isErrorResponse(error)
       ? error.error
       : `Failed to delete guardian: ${response.statusText}`;
-    throw new GuardianApiError(errorMessage, response.status);
+    throw enrichApiError(
+      new GuardianApiError(errorMessage, response.status),
+      error,
+    );
   }
 
   // 204 No Content means successful deletion with no response body
@@ -456,7 +469,10 @@ export async function fetchGuardianDeletePreview(
     const errorMessage = isErrorResponse(error)
       ? error.error
       : `Failed to load delete preview: ${response.statusText}`;
-    throw new GuardianApiError(errorMessage, response.status);
+    throw enrichApiError(
+      new GuardianApiError(errorMessage, response.status),
+      error,
+    );
   }
 
   const result = (await response.json()) as ApiResponse<{

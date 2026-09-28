@@ -23,27 +23,39 @@ var (
 )
 
 type School struct {
-	ID             int64         `json:"id"`
-	CreatedAt      time.Time     `json:"created_at"`
-	UpdatedAt      time.Time     `json:"updated_at"`
-	OrganizationID int64         `json:"organization_id"`
-	Name           string        `json:"name"`
-	Slug           string        `json:"slug"`
-	Subdomain      string        `json:"subdomain"`
-	Active         bool          `json:"active"`
-	Hidden         bool          `json:"hidden"`
-	DeletedAt      *time.Time    `json:"deleted_at,omitempty"`
-	Settings       string        `json:"settings,omitempty"`
-	Address        string        `json:"address,omitempty"`
-	City           string        `json:"city,omitempty"`
-	Zip            string        `json:"zip,omitempty"`
-	Phone          string        `json:"phone,omitempty"`
-	Email          string        `json:"email,omitempty"`
-	DevicePinHash  string        `json:"-"`
-	Organization   *Organization `json:"organization,omitempty"`
+	ID             int64      `json:"id"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+	OrganizationID int64      `json:"organization_id"`
+	Name           string     `json:"name"`
+	Slug           string     `json:"slug"`
+	Subdomain      string     `json:"subdomain"`
+	Active         bool       `json:"active"`
+	Hidden         bool       `json:"hidden"`
+	DeletedAt      *time.Time `json:"deleted_at,omitempty"`
+	Settings       string     `json:"settings,omitempty"`
+	Address        string     `json:"address,omitempty"`
+	City           string     `json:"city,omitempty"`
+	Zip            string     `json:"zip,omitempty"`
+	Phone          string     `json:"phone,omitempty"`
+	Email          string     `json:"email,omitempty"`
+	DevicePinHash  string     `json:"-"`
+	// ChildQuotaBundles and ChildQuotaBundleSize are the contracted
+	// Kinderkontingent (#3567); no bundles means no limit.
+	ChildQuotaBundles    *int          `json:"child_quota_bundles"`
+	ChildQuotaBundleSize int           `json:"child_quota_bundle_size"`
+	Organization         *Organization `json:"organization,omitempty"`
 }
 
 func (s School) IsDeleted() bool { return s.DeletedAt != nil }
+
+// ChildQuota returns the school's Kinderkontingent, nil when it has none.
+func (s School) ChildQuota() *ChildQuota {
+	if s.ChildQuotaBundles == nil {
+		return nil
+	}
+	return &ChildQuota{Bundles: *s.ChildQuotaBundles, BundleSize: s.ChildQuotaBundleSize}
+}
 
 type CreateSchool struct {
 	OrganizationID int64
@@ -95,6 +107,20 @@ func (m *Module) UpdateSchool(ctx context.Context, input UpdateSchool) (School, 
 		return School{}, err
 	}
 	return m.engine.UpdateSchool(ctx, input)
+}
+
+// SetSchoolChildQuota replaces the school's Kinderkontingent; nil removes it,
+// so the school has no limit again. Only the operator calls it.
+func (m *Module) SetSchoolChildQuota(ctx context.Context, id int64, quota *ChildQuota) (School, error) {
+	if id <= 0 {
+		return School{}, invalidSchool("school ID is required")
+	}
+	if quota != nil {
+		if err := quota.Validate(); err != nil {
+			return School{}, err
+		}
+	}
+	return m.engine.SetSchoolChildQuota(ctx, id, quota)
 }
 
 func (m *Module) SoftDeleteSchool(ctx context.Context, id int64) (School, error) {

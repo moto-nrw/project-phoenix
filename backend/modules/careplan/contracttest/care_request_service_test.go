@@ -30,7 +30,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -83,10 +82,7 @@ func (f *careFixture) emitter(
 	return emitter
 }
 
-func newPickupChangePresence(t *testing.T, db *bun.DB) interface {
-	services.PickupChangePresence
-	timetableplanning.InstancePresence
-} {
+func newPickupChangePresence(t *testing.T, db *bun.DB) services.PickupChangePresence {
 	t.Helper()
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)

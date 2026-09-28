@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 /**
  * Client for the per-account notification consent API.
  *
@@ -43,12 +44,12 @@ const notificationPreferencesEnvelopeSchema = z.object({
   data: notificationPreferencesSchema,
 });
 
-class PreferencesApiError extends Error {
+class PreferencesApiError extends ApiError {
   constructor(
     public status: number,
     message: string,
   ) {
-    super(message);
+    super(message, status);
     this.name = "PreferencesApiError";
   }
 }
@@ -88,7 +89,10 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
       data && typeof data === "object" && "error" in data
         ? String((data as { error: unknown }).error)
         : `Einstellung konnte nicht geladen werden (${response.status}).`;
-    throw new PreferencesApiError(response.status, message);
+    throw enrichApiError(
+      new PreferencesApiError(response.status, message),
+      data,
+    );
   }
   return data as T;
 }

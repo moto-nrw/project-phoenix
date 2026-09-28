@@ -96,12 +96,25 @@ type fakeStaff struct {
 	err     error
 }
 
-func (f fakeStaff) ListAllWithPerson(context.Context) ([]*usersModel.Staff, error) {
-	return nil, errors.New("not used by the plan export")
-}
-
-func (f fakeStaff) FindWithPersonByIDs(context.Context, []int64) (map[int64]*usersModel.Staff, error) {
-	return f.members, f.err
+// StaffByIDs serves the capability's staff-name port from retained staff
+// rows, translating them the way the composition root does.
+func (f fakeStaff) StaffByIDs(context.Context, []int64) (map[int64]*planexport.StaffMember, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := make(map[int64]*planexport.StaffMember, len(f.members))
+	for id, member := range f.members {
+		if member == nil {
+			out[id] = nil
+			continue
+		}
+		record := &planexport.StaffMember{ID: member.ID}
+		if member.Person != nil {
+			record.FirstName, record.LastName = member.Person.FirstName, member.Person.LastName
+		}
+		out[id] = record
+	}
+	return out, nil
 }
 
 type fakeActivityGroups struct {
@@ -283,19 +296,6 @@ func TestRowAdaptersMapPlainRecordsAndSkipNilRows(t *testing.T) {
 	tracks, err := (planningTrackAdapter{source: fakePlanningTracks{tracks: []*scheduleModel.PlanningTrack{track, nil}}}).ListPlanningTracks(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, []*planexport.PlanningTrack{{ID: 9, Color: "#5080D8"}}, tracks)
-
-	headless := &usersModel.Staff{}
-	headless.ID = 9
-	members, err := (staffAdapter{source: fakeStaff{members: map[int64]*usersModel.Staff{
-		7: staffRow(7, "Franziska", "Kessener"), 8: nil, 9: headless,
-	}}}).StaffByIDs(ctx, []int64{7, 8, 9})
-	require.NoError(t, err)
-	assert.Equal(t, map[int64]*planexport.StaffMember{
-		7: {ID: 7, FirstName: "Franziska", LastName: "Kessener"},
-		8: nil,
-		9: {ID: 9},
-	}, members, "a missing staff row keeps its slot so the sheet still prints Unbekannt for it")
-
 }
 
 // Source failures surface unchanged, so the capability keeps deciding which
@@ -311,8 +311,6 @@ func TestAdaptersSurfaceSourceErrors(t *testing.T) {
 	_, err = (instanceStaffAdapter{source: fakeInstanceStaff{err: errBoom}}).InstanceStaffByInstanceIDs(ctx, nil)
 	require.ErrorIs(t, err, errBoom)
 	_, err = (roomAdapter{source: fakeRooms{err: errBoom}}).RoomsByIDs(ctx, nil)
-	require.ErrorIs(t, err, errBoom)
-	_, err = (staffAdapter{source: fakeStaff{err: errBoom}}).StaffByIDs(ctx, nil)
 	require.ErrorIs(t, err, errBoom)
 	_, err = (shiftTypeAdapter{source: fakeShiftTypes{err: errBoom}}).ListShiftTypes(ctx)
 	require.ErrorIs(t, err, errBoom)

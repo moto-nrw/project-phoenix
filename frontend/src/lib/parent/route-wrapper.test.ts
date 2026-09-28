@@ -197,11 +197,7 @@ describe("parent proxy factories", () => {
       .mockResolvedValueOnce({ user: { token: "old-token" } })
       .mockResolvedValueOnce({ user: { token: "new-token" } });
     mockFetch
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () => "Unauthorized",
-      })
+      .mockResolvedValueOnce(new Response("Unauthorized", { status: 401 }))
       .mockResolvedValueOnce({
         ok: true,
         status: 200,

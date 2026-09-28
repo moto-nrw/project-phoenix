@@ -103,41 +103,6 @@ func (req *updateOrganizationRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
-type updateSchoolRequest struct {
-	OrganizationID int64  `json:"organization_id"`
-	Name           string `json:"name"`
-	Slug           string `json:"slug"`
-	Subdomain      string `json:"subdomain"`
-	Address        string `json:"address"`
-	City           string `json:"city"`
-	Zip            string `json:"zip"`
-	Phone          string `json:"phone"`
-	Email          string `json:"email"`
-	Active         bool   `json:"active"`
-	Hidden         bool   `json:"hidden"`
-}
-
-func (req *updateSchoolRequest) Bind(_ *http.Request) error {
-	req.Name = strings.TrimSpace(req.Name)
-	req.Slug = strings.TrimSpace(req.Slug)
-	req.Subdomain = strings.TrimSpace(req.Subdomain)
-	req.Address = strings.TrimSpace(req.Address)
-	req.City = strings.TrimSpace(req.City)
-	req.Zip = strings.TrimSpace(req.Zip)
-	req.Phone = strings.TrimSpace(req.Phone)
-	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
-	if req.Name == "" {
-		return errors.New("name is required")
-	}
-	if req.Slug == "" {
-		return errors.New("slug is required")
-	}
-	if req.Subdomain == "" {
-		return errors.New("subdomain is required")
-	}
-	return nil
-}
-
 type inviteSchoolAdminRequest struct {
 	Email            string `json:"email"`
 	FirstName        string `json:"first_name,omitempty"`
@@ -329,6 +294,7 @@ func (rs *ProvisioningResource) UpdateSchool(w http.ResponseWriter, r *http.Requ
 		Email:          req.Email,
 		Active:         req.Active,
 		Hidden:         req.Hidden,
+		ChildQuota:     req.ChildQuota.change(),
 	}
 	updated, err := rs.service.UpdateSchool(r.Context(), schoolID, svcReq, operatorID, common.ParseClientIP(r))
 	if err != nil {

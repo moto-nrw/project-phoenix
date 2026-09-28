@@ -27,7 +27,7 @@ func NewStaffMessagingTestRepositories(db *bun.DB) (StaffMessagingTestRepositori
 	return StaffMessagingTestRepositories{
 		Thread:  staffStore.NewStaffMessageThreadRepository(db),
 		Message: staffStore.NewStaffMessageRepository(db),
-		Read: staffStore.NewStaffMessageReadRepository(db, usersRepo.NewMessageableStaffRepository(db, func(ctx context.Context) ([]int64, error) {
+		Read: staffStore.NewStaffMessageReadRepository(db, usersRepo.NewMessageableStaffRepository(peopleRuntime(db), func(ctx context.Context) ([]int64, error) {
 			return currentTenantStaffAccounts(ctx, membership, members.Person)
 		}, staffMessageIdentity(newIdentityAccess(db, nil)))),
 	}, nil

@@ -53,6 +53,8 @@ type Session struct {
 	RoomID    *int64
 	RoomName  string
 	RoomColor *string
+	// ParticipantLimit is the started activity's limit; nil without one.
+	ParticipantLimit *int
 }
 
 // SessionDirectory lists live sessions. Running and Supervised deliver their
@@ -188,6 +190,8 @@ type RunningSession struct {
 	IndependentStays   bool
 	StartTime          time.Time
 	SupervisorStaffIDs []int64
+	// ParticipantLimit is the activity's limit; nil without one.
+	ParticipantLimit *int
 }
 
 // Pickup is the effective pickup plan of one student for the day.

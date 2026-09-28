@@ -20,6 +20,10 @@ type Store interface {
 	Restore(context.Context, int64) (domain.OperationStats, error)
 	CreateSchool(context.Context, domain.CreateSchool) (domain.School, domain.OperationStats, error)
 	UpdateSchool(context.Context, domain.UpdateSchool) (domain.School, domain.OperationStats, error)
+	// LockSchoolChildQuota serializes a quota change with its membership checks.
+	LockSchoolChildQuota(context.Context, int64) (domain.OperationStats, error)
+	// SetSchoolChildQuota writes the Kinderkontingent; nil bundles remove it.
+	SetSchoolChildQuota(ctx context.Context, id int64, bundles *int, bundleSize int) (domain.School, domain.OperationStats, error)
 	FindSchoolByID(context.Context, int64, string) (domain.School, bool, domain.OperationStats, error)
 	FindSchoolBySlug(context.Context, string) (domain.School, bool, domain.OperationStats, error)
 	FindSchoolByOrganizationAndSlug(context.Context, int64, string) (domain.School, bool, domain.OperationStats, error)

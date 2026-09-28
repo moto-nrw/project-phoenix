@@ -16,7 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	tenantsettings "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -29,7 +29,7 @@ func setOverviewScopeForTest(t *testing.T, tc *testContext, scope string) {
 
 	ctx := tenant.WithTenantID(context.Background(), testpkg.Tenant(t))
 	require.NoError(t, tc.settings.SetString(
-		ctx, configModel.KeyOperationalOverviewScope, scope, nil, nil,
+		ctx, tenantsettings.KeyOperationalOverviewScope, scope, nil, nil,
 	))
 }
 
@@ -72,7 +72,7 @@ func TestOperationalOverviewScope_OwnKeepsCaregiverOnOwnSupervisions(t *testing.
 	t.Parallel()
 
 	tc, router := setupProtectedRouter(t)
-	setOverviewScopeForTest(t, tc, configModel.OverviewScopeOwn)
+	setOverviewScopeForTest(t, tc, tenantsettings.OverviewScopeOwn)
 
 	claims := caregiverClaims(t, tc, "Own")
 	groupID := foreignActiveGroup(t, tc, "own")
@@ -92,7 +92,7 @@ func TestOperationalOverviewScope_AllStaffOpensListAndDetail(t *testing.T) {
 	t.Parallel()
 
 	tc, router := setupProtectedRouter(t)
-	setOverviewScopeForTest(t, tc, configModel.OverviewScopeAllStaff)
+	setOverviewScopeForTest(t, tc, tenantsettings.OverviewScopeAllStaff)
 
 	claims := caregiverClaims(t, tc, "AllStaff")
 	groupID := foreignActiveGroup(t, tc, "allstaff")
@@ -112,7 +112,7 @@ func TestOperationalOverviewScope_SchoolPortalCannotReachTenantRoutes(t *testing
 	t.Parallel()
 
 	tc, router := setupProtectedRouter(t)
-	setOverviewScopeForTest(t, tc, configModel.OverviewScopeAllStaff)
+	setOverviewScopeForTest(t, tc, tenantsettings.OverviewScopeAllStaff)
 
 	claims := caregiverClaims(t, tc, "SchoolPortal")
 	claims.Scope = tenant.ScopeSchool
@@ -137,9 +137,9 @@ func TestOperationalOverviewScope_GroupModeIsNotAnAccessRule(t *testing.T) {
 
 	ctx := tenant.WithTenantID(context.Background(), testpkg.Tenant(t))
 	require.NoError(t, tc.settings.SetString(
-		ctx, configModel.KeyGroupMode, configModel.GroupModeOpenCare, nil, nil,
+		ctx, tenantsettings.KeyGroupMode, tenantsettings.GroupModeOpenCare, nil, nil,
 	))
-	setOverviewScopeForTest(t, tc, configModel.OverviewScopeOwn)
+	setOverviewScopeForTest(t, tc, tenantsettings.OverviewScopeOwn)
 
 	claims := caregiverClaims(t, tc, "GroupMode")
 	groupID := foreignActiveGroup(t, tc, "groupmode")

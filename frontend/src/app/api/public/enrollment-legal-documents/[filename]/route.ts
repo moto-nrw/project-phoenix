@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 
 export async function GET(
   _request: NextRequest,
@@ -24,9 +25,7 @@ export async function GET(
   }
 
   if (!response.ok) {
-    return new NextResponse(null, {
-      status: response.status === 404 ? 404 : 502,
-    });
+    return forwardBackendResponse(response);
   }
 
   const contentType = response.headers.get("Content-Type") ?? "";

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -87,7 +87,7 @@ func TestVisitAccessSupervisionsDiscardPartialFailures(t *testing.T) {
 			require.NotNil(t, filter.StaffID)
 			assert.Equal(t, input[0].StaffID, *filter.StaffID)
 			require.NotNil(t, filter.ActiveOn)
-			_, err := timezone.ParseDate(*filter.ActiveOn)
+			_, err := calendar.ParseDate(*filter.ActiveOn)
 			require.NoError(t, err)
 			if fail {
 				return input, errors.New("storage unavailable")
@@ -108,7 +108,7 @@ func TestVisitAccessSupervisionsDiscardPartialFailures(t *testing.T) {
 func TestSessionSupervisorsPreserveExistenceGate(t *testing.T) {
 	t.Parallel()
 	storageErr := errors.New("storage unavailable")
-	today := timezone.NewDate(2026, time.January, 15)
+	today := calendar.NewDate(2026, time.January, 15)
 	supervision := studentpresence.GroupSupervision{ID: 8, GroupID: 7, StaffID: 9, StartDate: today.String()}
 	for _, tc := range []struct {
 		name                              string
@@ -159,7 +159,7 @@ func TestSessionSupervisorsPreserveExistenceGate(t *testing.T) {
 func TestPresenceSupervisionResponseDateContract(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.January, 15, 12, 0, 0, 0, time.UTC)
-	day := timezone.NewDate(2026, time.January, 15)
+	day := calendar.NewDate(2026, time.January, 15)
 	today := day.String()
 	yesterday := "2026-01-14"
 	tomorrow := "2026-01-16"

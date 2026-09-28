@@ -5,16 +5,16 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestStatusDayLocksKeepOrderAndStopOnFailure(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	first := timezone.NewDate(2026, 3, 28)
-	dates := []timezone.Date{first.AddDays(2), first, first.AddDays(1)}
+	first := calendar.NewDate(2026, 3, 28)
+	dates := []calendar.Date{first.AddDays(2), first, first.AddDays(1)}
 	wantErr := errors.New("day lock failed")
 	var locked []string
 	service := NewStudentStatusDayServiceWithPartialAbsences(nil, nil, nil, func(received context.Context, studentID int64, date string) error {
@@ -28,7 +28,7 @@ func TestStatusDayLocksKeepOrderAndStopOnFailure(t *testing.T) {
 	})
 	assert.ErrorIs(t, service.lockStudentStatusDates(ctx, 7, dates), wantErr)
 	assert.Equal(t, []string{first.String(), first.AddDays(1).String()}, locked)
-	assert.Equal(t, []timezone.Date{first.AddDays(2), first, first.AddDays(1)}, dates)
+	assert.Equal(t, []calendar.Date{first.AddDays(2), first, first.AddDays(1)}, dates)
 }
 
 func TestDedupeStudentIDsPreservesFirstOccurrenceOrder(t *testing.T) {
@@ -41,39 +41,39 @@ func TestDedupeStudentIDsPreservesFirstOccurrenceOrder(t *testing.T) {
 func TestIsNewReportableAbsence(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2026, 7, 29)
-	yesterday := timezone.NewDate(2026, 7, 28)
+	today := calendar.NewDate(2026, 7, 29)
+	yesterday := calendar.NewDate(2026, 7, 28)
 	trueValue := true
 	falseValue := false
 
 	assert.True(t, isNewReportableAbsence(
 		&StudentRecord{Sick: &falseValue},
 		absencerecords.StudentStatusDaySick,
-		[]timezone.Date{today},
+		[]calendar.Date{today},
 		today,
 	))
 	assert.False(t, isNewReportableAbsence(
 		&StudentRecord{Sick: &trueValue},
 		absencerecords.StudentStatusDaySick,
-		[]timezone.Date{today},
+		[]calendar.Date{today},
 		today,
 	), "re-saving the current status must not notify again")
 	assert.True(t, isNewReportableAbsence(
 		&StudentRecord{Sick: &trueValue, Excused: &falseValue},
 		absencerecords.StudentStatusDayExcused,
-		[]timezone.Date{today},
+		[]calendar.Date{today},
 		today,
 	), "changing the reportable absence type must notify")
 	assert.False(t, isNewReportableAbsence(
 		&StudentRecord{},
 		absencerecords.StudentStatusDayClassTrip,
-		[]timezone.Date{today},
+		[]calendar.Date{today},
 		today,
 	))
 	assert.False(t, isNewReportableAbsence(
 		&StudentRecord{},
 		absencerecords.StudentStatusDaySick,
-		[]timezone.Date{yesterday},
+		[]calendar.Date{yesterday},
 		today,
 	))
 }

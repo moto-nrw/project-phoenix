@@ -36,7 +36,7 @@
   "tests": [
     "backend/database/migrations: TestPresenceCutover* (final delta, rollback with a failing switch, unequal targets refused, contract golden) and TestPresenceCompatibility* (mirror, routing of previous-image writes, tenant isolation).",
     "backend/modules/studentpresence/compose/session_storage_test.go: one session per block, two-tenant isolation of both targets, writes rolling back with the caller's transaction.",
-    "backend/modules/timetable/legacy/timetablesqltest/presence_cutover_composition_test.go: a DTO created in an execution state joins the caller's transaction; a Presence command failing after the Timetable command leaves no plan row.",
+    "backend/modules/timetable/compose/httpintegration/legacy_presence_cutover_composition_test.go: a DTO created in an execution state joins the caller's transaction; a Presence command failing after the Timetable command leaves no plan row.",
     "backend/test/presence_storage_caller_inventory_test.go: zero application literals name a mirrored column or the routing counter.",
     "scripts/test-changed.sh origin/development without --fast, including the retained timetablesqltest, classday, careplan, parentportal, enrollment and query-budget suites.",
     "scripts/backend-architecture.sh check with no new violation and no policy loosening."
@@ -48,7 +48,7 @@
       "docs/operations/presence-storage-cutover-2762.sql",
       "backend/database/migrations/presence_cutover_test.go",
       "backend/modules/studentpresence/compose/session_storage_test.go",
-      "backend/modules/timetable/legacy/timetablesqltest/presence_cutover_composition_test.go",
+      "backend/modules/timetable/compose/httpintegration/legacy_presence_cutover_composition_test.go",
       "backend/test/presence_storage_caller_inventory_test.go",
       "backend/test/query_budgets.go"
     ],

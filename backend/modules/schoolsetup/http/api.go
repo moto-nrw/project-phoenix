@@ -1,5 +1,5 @@
 // Package schoolsetuphttp serves the onboarding wizard for new schools (#2832, ADR
-// 0035) under /api/school-setup. Every route needs config:update: the wizard
+// 0042) under /api/school-setup. Every route needs config:update: the wizard
 // is for school admins, and it is the permission the steps' own pages ask for.
 package schoolsetuphttp
 

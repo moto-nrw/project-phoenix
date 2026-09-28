@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -48,20 +47,20 @@ var defaultShiftTypes = []defaultShiftType{
 type ShiftTypeService interface {
 	// ListShiftTypes returns all shift types for the current tenant (active and
 	// inactive), ordered by name.
-	ListShiftTypes(ctx context.Context) ([]*scheduleModels.ShiftType, error)
+	ListShiftTypes(ctx context.Context) ([]*ShiftType, error)
 	// GetShiftType returns a single shift type by ID.
-	GetShiftType(ctx context.Context, id int64) (*scheduleModels.ShiftType, error)
+	GetShiftType(ctx context.Context, id int64) (*ShiftType, error)
 	// CreateShiftType validates and persists a new shift type.
-	CreateShiftType(ctx context.Context, shiftType *scheduleModels.ShiftType) (*scheduleModels.ShiftType, error)
+	CreateShiftType(ctx context.Context, shiftType *ShiftType) (*ShiftType, error)
 	// UpdateShiftType validates and persists changes to an existing shift type.
-	UpdateShiftType(ctx context.Context, shiftType *scheduleModels.ShiftType) (*scheduleModels.ShiftType, error)
+	UpdateShiftType(ctx context.Context, shiftType *ShiftType) (*ShiftType, error)
 	// DeleteShiftType removes a shift type. Shifts referencing it keep the shift
 	// but lose the type (ON DELETE SET NULL).
 	DeleteShiftType(ctx context.Context, id int64) error
 	// CreateDefaultShiftTypes seeds example shift types for the current tenant,
 	// skipping any whose name already exists (idempotent). Returns the full
 	// list afterwards.
-	CreateDefaultShiftTypes(ctx context.Context) ([]*scheduleModels.ShiftType, error)
+	CreateDefaultShiftTypes(ctx context.Context) ([]*ShiftType, error)
 }
 
 type shiftTypeService struct {
@@ -78,11 +77,11 @@ func (s *shiftTypeService) getLogger() *slog.Logger {
 	return loggerOrDefault(s.logger)
 }
 
-func (s *shiftTypeService) ListShiftTypes(ctx context.Context) ([]*scheduleModels.ShiftType, error) {
+func (s *shiftTypeService) ListShiftTypes(ctx context.Context) ([]*ShiftType, error) {
 	return s.repo.ListAll(ctx)
 }
 
-func (s *shiftTypeService) GetShiftType(ctx context.Context, id int64) (*scheduleModels.ShiftType, error) {
+func (s *shiftTypeService) GetShiftType(ctx context.Context, id int64) (*ShiftType, error) {
 	if id <= 0 {
 		return nil, ErrShiftTypeNotFound
 	}
@@ -125,7 +124,7 @@ func isShiftTypeNameConflict(err error) bool {
 	return base.IsUniqueViolationOn(err, shiftTypeNameUniqueIndex)
 }
 
-func (s *shiftTypeService) CreateShiftType(ctx context.Context, shiftType *scheduleModels.ShiftType) (*scheduleModels.ShiftType, error) {
+func (s *shiftTypeService) CreateShiftType(ctx context.Context, shiftType *ShiftType) (*ShiftType, error) {
 	if err := shiftType.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrShiftTypeInvalid, err.Error())
 	}
@@ -136,7 +135,7 @@ func (s *shiftTypeService) CreateShiftType(ctx context.Context, shiftType *sched
 	if taken {
 		return nil, ErrShiftTypeNameTaken
 	}
-	shiftType.SetTenantID(tenant.FromContext(ctx))
+	shiftType.TenantID = tenant.FromContext(ctx)
 	if err := s.repo.Create(ctx, shiftType); err != nil {
 		if isShiftTypeNameConflict(err) {
 			return nil, ErrShiftTypeNameTaken
@@ -147,7 +146,7 @@ func (s *shiftTypeService) CreateShiftType(ctx context.Context, shiftType *sched
 	return shiftType, nil
 }
 
-func (s *shiftTypeService) UpdateShiftType(ctx context.Context, shiftType *scheduleModels.ShiftType) (*scheduleModels.ShiftType, error) {
+func (s *shiftTypeService) UpdateShiftType(ctx context.Context, shiftType *ShiftType) (*ShiftType, error) {
 	if shiftType.ID <= 0 {
 		return nil, ErrShiftTypeNotFound
 	}
@@ -203,7 +202,7 @@ func (s *shiftTypeService) DeleteShiftType(ctx context.Context, id int64) error 
 	return nil
 }
 
-func (s *shiftTypeService) CreateDefaultShiftTypes(ctx context.Context) ([]*scheduleModels.ShiftType, error) {
+func (s *shiftTypeService) CreateDefaultShiftTypes(ctx context.Context) ([]*ShiftType, error) {
 	existing, err := s.repo.ListAll(ctx)
 	if err != nil {
 		return nil, err
@@ -218,7 +217,7 @@ func (s *shiftTypeService) CreateDefaultShiftTypes(ctx context.Context) ([]*sche
 		if _, ok := present[strings.ToLower(def.name)]; ok {
 			continue
 		}
-		shiftType := &scheduleModels.ShiftType{
+		shiftType := &ShiftType{
 			Name:     def.name,
 			Color:    def.color,
 			IsActive: true,
@@ -226,7 +225,7 @@ func (s *shiftTypeService) CreateDefaultShiftTypes(ctx context.Context) ([]*sche
 		if err := shiftType.Validate(); err != nil {
 			return nil, fmt.Errorf("%w: %s", ErrShiftTypeInvalid, err.Error())
 		}
-		shiftType.SetTenantID(tenantID)
+		shiftType.TenantID = tenantID
 		// CreateIfAbsent (ON CONFLICT DO NOTHING) makes the seed race-safe: a
 		// concurrent seed for the same tenant that inserted this default between
 		// our ListAll snapshot and here is a clean no-op, not a unique violation.

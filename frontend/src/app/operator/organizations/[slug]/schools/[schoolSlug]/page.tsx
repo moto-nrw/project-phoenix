@@ -30,6 +30,7 @@ import { TransferDeviceModal } from "~/components/operator/transfer-device-modal
 import { DeletePersonModal } from "~/components/operator/delete-person-modal";
 import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
+import { Button } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
@@ -39,6 +40,8 @@ import { formatCount } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
 import { PlusIcon } from "~/app/operator/provisioning/provisioning-shared";
 import { EditSchoolModal } from "~/app/operator/provisioning/edit-school-modal";
+import { ChildQuotaModal } from "~/app/operator/provisioning/child-quota-modal";
+import { childQuotaLimit } from "~/lib/operator/child-quota";
 import { InviteAdminModal } from "~/app/operator/provisioning/invite-admin-modal";
 import { CreateAccountModal } from "~/app/operator/provisioning/create-account-modal";
 import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-modal";
@@ -98,6 +101,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     name: string;
   } | null>(null);
   const [editSchoolOpen, setEditSchoolOpen] = useState(false);
+  const [childQuotaOpen, setChildQuotaOpen] = useState(false);
   const [schoolToggleError, setSchoolToggleError] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [createAccountOpen, setCreateAccountOpen] = useState(false);
@@ -339,10 +343,32 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       ) : (
         <span title={pwaTooltip}>–</span>
       );
+    // Kinderkontingent next to the Kontingentzahl (#3568), so the moto team
+    // sees at a glance when a school needs another bundle.
+    const quotaLimit = childQuotaLimit({
+      bundles: school.childQuotaBundles,
+      bundleSize: school.childQuotaBundleSize,
+    });
+    const overQuota =
+      quotaLimit !== null && school.childQuotaCount > quotaLimit;
     return [
       { label: "Konten", value: formatCount(school.kontenCount) },
       { label: "Geräte", value: formatCount(school.geraeteCount) },
       { label: "Personen", value: formatCount(school.personenCount) },
+      {
+        label: "Kinderkontingent",
+        value: quotaLimit === null ? "Keine Grenze" : formatCount(quotaLimit),
+      },
+      {
+        label: "Kontingentzahl",
+        value: overQuota ? (
+          <span className="text-moto-amber-strong">
+            {formatCount(school.childQuotaCount)}
+          </span>
+        ) : (
+          formatCount(school.childQuotaCount)
+        ),
+      },
       { label: "App-Nutzung Mitarbeitende", value: pwaValue(pwaUsage?.staff) },
       { label: "App-Nutzung Eltern", value: pwaValue(pwaUsage?.parent) },
     ];
@@ -367,6 +393,14 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
         >
           Bearbeiten
         </button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="compact"
+          onClick={() => setChildQuotaOpen(true)}
+        >
+          Kinderkontingent
+        </Button>
         <Link
           href={
             school
@@ -625,6 +659,21 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
           onConfirm={() => void schoolDelete.handleSoftDelete()}
         />
       )}
+
+      <ChildQuotaModal
+        isOpen={childQuotaOpen}
+        onClose={() => setChildQuotaOpen(false)}
+        school={school}
+        loadCurrentSchool={async () => {
+          const fresh = await mutateSchools(undefined, { throwOnError: true });
+          const current = fresh?.find((item) => item.id === school.id);
+          if (!current) {
+            throw new Error("school not found after refresh");
+          }
+          return current;
+        }}
+        onUpdated={refreshSchoolDetail}
+      />
 
       <EditSchoolModal
         isOpen={editSchoolOpen}

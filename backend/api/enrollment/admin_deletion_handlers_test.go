@@ -8,26 +8,26 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/stretchr/testify/assert"
 )
 
 type deletionServiceStub struct{}
 
-func (deletionServiceStub) PreviewRequest(context.Context, int64) (*enrollmentModels.DeletionImpact, error) {
-	return &enrollmentModels.DeletionImpact{}, nil
+func (deletionServiceStub) PreviewRequest(context.Context, int64) (*capability.DeletionImpact, error) {
+	return &capability.DeletionImpact{}, nil
 }
 
-func (deletionServiceStub) PreviewChild(context.Context, int64, int64) (*enrollmentModels.DeletionImpact, error) {
-	return &enrollmentModels.DeletionImpact{}, nil
+func (deletionServiceStub) PreviewChild(context.Context, int64, int64) (*capability.DeletionImpact, error) {
+	return &capability.DeletionImpact{}, nil
 }
 
-func (deletionServiceStub) DeleteRequest(context.Context, int64, int64, string) (*enrollmentModels.DeletionImpact, error) {
-	return &enrollmentModels.DeletionImpact{}, nil
+func (deletionServiceStub) DeleteRequest(context.Context, int64, int64, string) (*capability.DeletionImpact, error) {
+	return &capability.DeletionImpact{}, nil
 }
 
-func (deletionServiceStub) DeleteChild(context.Context, int64, int64, int64, string) (*enrollmentModels.DeletionImpact, error) {
-	return &enrollmentModels.DeletionImpact{}, nil
+func (deletionServiceStub) DeleteChild(context.Context, int64, int64, int64, string) (*capability.DeletionImpact, error) {
+	return &capability.DeletionImpact{}, nil
 }
 
 func TestAdminEnrollmentDeletionRoutesRequireConfigManage(t *testing.T) {

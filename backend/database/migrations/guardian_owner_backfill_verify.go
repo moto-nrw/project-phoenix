@@ -82,6 +82,34 @@ const guardianOwnerAccessMismatch = `
 	       OR a.account_id IS DISTINCT FROM g.account_id
 	       OR a.permissions IS DISTINCT FROM sg.permissions)`
 
+// guardianOwnerShapes is the verdict of one school's old and owner shapes.
+type guardianOwnerShapes struct {
+	SourceCount, TargetCount       int64
+	SourceChecksum, TargetChecksum string
+	Mismatches, AccessMismatches   int64
+}
+
+// compareGuardianOwnerShapes holds the old table against the joined owners
+// with the backfill's own projections, inside the caller's transaction. The
+// cutover (#2756) proves exactly what the backfill promised with it.
+func compareGuardianOwnerShapes(ctx context.Context, tx bun.Tx, tenantID int64) (guardianOwnerShapes, error) {
+	var shapes guardianOwnerShapes
+	if err := tx.NewRaw(guardianOwnerSourceChecksum, tenantID).Scan(ctx, &shapes.SourceCount, &shapes.SourceChecksum); err != nil {
+		return shapes, fmt.Errorf("source checksum: %w", err)
+	}
+	if err := tx.NewRaw(guardianOwnerTargetChecksum, tenantID).Scan(ctx, &shapes.TargetCount, &shapes.TargetChecksum); err != nil {
+		return shapes, fmt.Errorf("target checksum: %w", err)
+	}
+	var oldest, accessOldest *time.Time
+	if err := tx.NewRaw(guardianOwnerMismatch, tenantID, tenantID).Scan(ctx, &shapes.Mismatches, &oldest); err != nil {
+		return shapes, fmt.Errorf("mismatches: %w", err)
+	}
+	if err := tx.NewRaw(guardianOwnerAccessMismatch, tenantID).Scan(ctx, &shapes.AccessMismatches, &accessOldest); err != nil {
+		return shapes, fmt.Errorf("guardian access: %w", err)
+	}
+	return shapes, nil
+}
+
 // verify compares per-tenant counts, canonical checksums and row-wise
 // mismatches between the old table and the joined targets, checks the guardian
 // access binding, proves the row-level security of the three targets against

@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 func TestCountAssignedPreviewPhases(t *testing.T) {
@@ -79,10 +78,10 @@ type mockFormSchemaService struct {
 	renameResult    *capability.FormSchema
 	renameErr       error
 
-	publishInput         enrollmentService.PublishFormInput
+	publishInput         capability.PublishFormInput
 	publishResult        *capability.FormSchema
 	publishErr           error
-	publishVersionInput  enrollmentService.PublishFormVersionInput
+	publishVersionInput  capability.PublishFormVersionInput
 	publishVersionResult *capability.FormSchema
 	publishVersionErr    error
 }
@@ -90,7 +89,7 @@ type mockFormSchemaService struct {
 func (m *mockFormSchemaService) GetActive(_ context.Context) (*capability.FormSchema, error) {
 	return m.getActiveResult, m.getActiveErr
 }
-func (m *mockFormSchemaService) GetByID(_ context.Context, id int64) (*capability.FormSchema, error) {
+func (m *mockFormSchemaService) SchemaVersion(_ context.Context, id int64) (*capability.FormSchema, error) {
 	m.getByIDID = id
 	return m.getByIDResult, m.getByIDErr
 }
@@ -150,18 +149,18 @@ func (m *mockFormSchemaService) RenameSchema(_ context.Context, id int64, newNam
 	m.renameName = newName
 	return m.renameResult, m.renameErr
 }
-func (m *mockFormSchemaService) PublishForm(_ context.Context, in enrollmentService.PublishFormInput) (*capability.FormSchema, error) {
+func (m *mockFormSchemaService) PublishForm(_ context.Context, in capability.PublishFormInput) (*capability.FormSchema, error) {
 	m.publishInput = in
 	return m.publishResult, m.publishErr
 }
-func (m *mockFormSchemaService) PublishFormVersion(_ context.Context, in enrollmentService.PublishFormVersionInput) (*capability.FormSchema, error) {
+func (m *mockFormSchemaService) PublishFormVersion(_ context.Context, in capability.PublishFormVersionInput) (*capability.FormSchema, error) {
 	m.publishVersionInput = in
 	return m.publishVersionResult, m.publishVersionErr
 }
 
 // buildSchemaRouter wires the schema endpoints with a mock service.
 // db is nil so runInTenantTx short-circuits to the closure body.
-func buildSchemaRouter(svc enrollmentService.FormSchemaService) chi.Router {
+func buildSchemaRouter(svc capability.FormSchemaAdministration) chi.Router {
 	rs := &Resource{FormSchemaService: svc}
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -233,7 +232,7 @@ func TestGetActiveSchemaHandler_HappyPath(t *testing.T) {
 func TestGetActiveSchemaHandler_NoActiveSchemaReturns404(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockFormSchemaService{getActiveErr: enrollmentService.ErrNoActiveSchema}
+	mock := &mockFormSchemaService{getActiveErr: capability.ErrNoActiveSchema}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodGet, "/enrollment/schema", nil)
 	assert.Equal(t, http.StatusNotFound, w.Code,
@@ -325,7 +324,7 @@ func TestGetSchemaByIDHandler_HappyPath(t *testing.T) {
 func TestGetSchemaByIDHandler_MissingSchemaMappedAs404(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockFormSchemaService{getByIDErr: enrollmentService.ErrFormSchemaNotFound}
+	mock := &mockFormSchemaService{getByIDErr: capability.ErrFormSchemaNotFound}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodGet, "/enrollment/schema/1234", nil)
 	assert.Equal(t, http.StatusNotFound, w.Code)
@@ -581,7 +580,7 @@ func TestUpdateSchemaHandler_RenameNameCollisionReturns409WithCode(t *testing.T)
 
 	// A name already used by another lineage surfaces the same 409 + stable
 	// code the PATCH route returns, so the frontend shows "name already taken".
-	mock := &mockFormSchemaService{publishVersionErr: enrollmentService.ErrFormSchemaNameExists}
+	mock := &mockFormSchemaService{publishVersionErr: capability.ErrFormSchemaNameExists}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
 		map[string]any{
@@ -595,7 +594,7 @@ func TestUpdateSchemaHandler_RenameNameCollisionReturns409WithCode(t *testing.T)
 func TestUpdateSchemaHandler_RenameNotFoundReturns404(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockFormSchemaService{publishVersionErr: enrollmentService.ErrFormSchemaNotFound}
+	mock := &mockFormSchemaService{publishVersionErr: capability.ErrFormSchemaNotFound}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
 		map[string]any{
@@ -636,7 +635,7 @@ func TestDeleteSchemaHandler_HappyPathReturns204(t *testing.T) {
 func TestDeleteSchemaHandler_HasPhases409WithCode(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockFormSchemaService{deleteErr: enrollmentService.ErrFormSchemaHasPhases}
+	mock := &mockFormSchemaService{deleteErr: capability.ErrFormSchemaHasPhases}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodDelete, "/enrollment/schema/1234", nil)
 	assert.Equal(t, http.StatusConflict, w.Code)
@@ -647,7 +646,7 @@ func TestDeleteSchemaHandler_HasPhases409WithCode(t *testing.T) {
 func TestDeleteSchemaHandler_HasRequests409WithCode(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockFormSchemaService{deleteErr: enrollmentService.ErrFormSchemaHasRequests}
+	mock := &mockFormSchemaService{deleteErr: capability.ErrFormSchemaHasRequests}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodDelete, "/enrollment/schema/1234", nil)
 	assert.Equal(t, http.StatusConflict, w.Code)
@@ -657,7 +656,7 @@ func TestDeleteSchemaHandler_HasRequests409WithCode(t *testing.T) {
 func TestDeleteSchemaHandler_NotFoundReturns404(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockFormSchemaService{deleteErr: enrollmentService.ErrFormSchemaNotFound}
+	mock := &mockFormSchemaService{deleteErr: capability.ErrFormSchemaNotFound}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodDelete, "/enrollment/schema/1234", nil)
 	assert.Equal(t, http.StatusNotFound, w.Code)
@@ -710,7 +709,7 @@ func TestRenameSchemaHandler_HappyPath(t *testing.T) {
 func TestRenameSchemaHandler_NameExistsReturns409WithCode(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockFormSchemaService{renameErr: enrollmentService.ErrFormSchemaNameExists}
+	mock := &mockFormSchemaService{renameErr: capability.ErrFormSchemaNameExists}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPatch, "/enrollment/schema/1234",
 		map[string]any{"name": "Schon vergeben"})
@@ -722,7 +721,7 @@ func TestRenameSchemaHandler_NameExistsReturns409WithCode(t *testing.T) {
 func TestRenameSchemaHandler_NotFoundReturns404(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockFormSchemaService{renameErr: enrollmentService.ErrFormSchemaNotFound}
+	mock := &mockFormSchemaService{renameErr: capability.ErrFormSchemaNotFound}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPatch, "/enrollment/schema/1234",
 		map[string]any{"name": "Neuer Name"})

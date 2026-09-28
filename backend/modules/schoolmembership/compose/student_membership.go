@@ -8,11 +8,13 @@ import (
 )
 
 func (e engine) EnrollStudent(ctx context.Context, input schoolmembership.StudentEnrollment) (int64, error) {
-	return e.service.EnrollStudent(ctx, domain.StudentEnrollment(input))
+	id, err := e.service.EnrollStudent(ctx, domain.StudentEnrollment(input))
+	return id, mapError(err)
 }
 
 func (e engine) RenewStudentEnrollment(ctx context.Context, input schoolmembership.StudentEnrollment) (int64, error) {
-	return e.service.RenewStudentEnrollment(ctx, domain.StudentEnrollment(input))
+	id, err := e.service.RenewStudentEnrollment(ctx, domain.StudentEnrollment(input))
+	return id, mapError(err)
 }
 
 func (e engine) AssignStudentGroup(ctx context.Context, studentID int64, groupID *int64) (bool, error) {

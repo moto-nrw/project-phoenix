@@ -25,7 +25,7 @@ type Client struct {
 
 // NewClientWithAdapter creates a client that reuses a shared adapter.
 func NewClientWithAdapter(adapter Adapter, verbose bool) *Client {
-	client := &Client{adapter: adapter, verbose: verbose}
+	client := &Client{adapter: newRetryingAdapter(adapter), verbose: verbose}
 	if adapter != nil {
 		client.baseURL = adapter.BaseURL()
 	}

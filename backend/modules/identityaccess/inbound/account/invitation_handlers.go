@@ -107,10 +107,6 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Default().Info("invitation created",
-		slog.Int64("account_id", int64(claims.ID)),
-		slog.String("email", invitation.Email))
-
 	common.Respond(w, r, http.StatusCreated, toInvitationResponse(invitation), "Invitation created successfully")
 }
 

@@ -34,8 +34,6 @@ type CareStudentDirectory interface {
 	// on the given day. It fails with careplan.ErrCareResumeNotEnded when the
 	// care did not end.
 	ResumeCare(ctx context.Context, studentID int64, start calendar.Date, status string, on calendar.Date) error
-	// ListWithdrawalStudents reads the display rows a withdrawal list joins.
-	ListWithdrawalStudents(ctx context.Context, studentIDs []int64) ([]careplan.WithdrawalStudent, error)
 }
 
 // CareExitRoster is the Timetable half of the roster: the planned rows a care

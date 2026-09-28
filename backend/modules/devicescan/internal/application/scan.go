@@ -218,20 +218,18 @@ func (s *Service) addSupervisor(ctx context.Context, device *ports.Device, staff
 	return session, nil
 }
 
-// scanBinary toggles today's attendance row for a binary-mode tenant.
-// Legacy clients only authenticate the device and shared OGS PIN; those
-// scans stay device-attributed instead of trusting a caller-controlled staff
-// id, so the staff comes from the verified account PIN alone.
-func (s *Service) scanBinary(ctx context.Context, device *ports.Device, student *ports.Student, person *ports.Person) (*devicescan.ScanResult, error) {
-	var staffID int64
-	if staff, ok := s.principals.Staff(ctx); ok && staff != nil {
-		staffID = staff.ID
-	}
+// deviceAttributed is the staff id of every kiosk write. Kiosks authenticate
+// the device and the shared OGS PIN only, so no staff identity is verified
+// and the caller-controlled X-Staff-ID is never trusted.
+const deviceAttributed int64 = 0
 
-	// skipAuthCheck: the device and staff-PIN layer already authorized this
+// scanBinary toggles today's attendance row for a binary-mode tenant. The
+// scan stays device-attributed.
+func (s *Service) scanBinary(ctx context.Context, device *ports.Device, student *ports.Student, person *ports.Person) (*devicescan.ScanResult, error) {
+	// skipAuthCheck: the device and device-PIN layer already authorized this
 	// scan; the default path would also require a session supervisor, which
 	// binary mode never has.
-	action, err := s.attendance.Toggle(ctx, student.ID, staffID, device.ID, true)
+	action, err := s.attendance.Toggle(ctx, student.ID, deviceAttributed, device.ID, true)
 	if err != nil {
 		// A graduation or care exit that committed between the lookup and
 		// the write is the same 404 every attendance path returns (#405,
@@ -239,13 +237,13 @@ func (s *Service) scanBinary(ctx context.Context, device *ports.Device, student 
 		if errors.Is(err, ports.ErrStudentNotInCare) {
 			s.logger.InfoContext(ctx, "binary mode checkin rejected: student not in care",
 				slog.Int64("student_id", student.ID),
-				slog.Int64("staff_id", staffID),
+				slog.Int64("device_id", device.ID),
 			)
 			return nil, devicescan.NotFound(devicescan.MessagePersonNotStudent)
 		}
 		s.logger.ErrorContext(ctx, "binary mode attendance toggle failed",
 			slog.Int64("student_id", student.ID),
-			slog.Int64("staff_id", staffID),
+			slog.Int64("device_id", device.ID),
 			slog.String("error", err.Error()),
 		)
 		return nil, devicescan.Internal(err.Error(), err)
@@ -254,7 +252,7 @@ func (s *Service) scanBinary(ctx context.Context, device *ports.Device, student 
 	s.logger.InfoContext(ctx, "binary mode checkin complete",
 		slog.String("action", action),
 		slog.Int64("student_id", student.ID),
-		slog.Int64("staff_id", staffID),
+		slog.Int64("device_id", device.ID),
 	)
 	return &devicescan.ScanResult{
 		Outcome:     devicescan.ScanOutcomeAttendance,

@@ -131,6 +131,14 @@ export interface TenantInfo {
   emergencyHealthInfoEnabled?: boolean;
   /** Highest grade offered by this tenant (enrollment.grade_level_max). */
   gradeLevelMax: number;
+  /**
+   * Analyse-Freigabe of the school (analytics.freigabe, #3603). Only while it
+   * is true does the OGS portal record masked sessions, send a pseudonymous
+   * user ID, and show staff the notice. Missing metadata is off.
+   */
+  analyticsFreigabe?: boolean;
+  /** Share of OGS sessions recorded with the Freigabe, 0 to 100. */
+  analyticsRecordingSamplePercent?: number;
 }
 
 /** Identity-only tenant row returned by list/switch endpoints. Feature and
@@ -174,6 +182,22 @@ interface TenantResolveResponse {
   waitlist_enabled?: boolean;
   emergency_list_health_info_enabled?: boolean;
   grade_level_max: number;
+  analytics_freigabe?: boolean;
+  analytics_recording_sample_percent?: number;
+}
+
+/**
+ * Normalize analytics_recording_sample_percent. Anything that is not a whole
+ * percentage records nothing: an unreadable value must never widen the
+ * recording.
+ */
+export function normalizeRecordingSamplePercent(raw: unknown): number {
+  return typeof raw === "number" &&
+    Number.isInteger(raw) &&
+    raw >= 0 &&
+    raw <= 100
+    ? raw
+    : 0;
 }
 
 /** Scope values of operations.operational_overview_scope (#2380). */
@@ -289,6 +313,10 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       emergencyHealthInfoEnabled:
         data.emergency_list_health_info_enabled === true,
       gradeLevelMax: data.grade_level_max,
+      analyticsFreigabe: data.analytics_freigabe === true,
+      analyticsRecordingSamplePercent: normalizeRecordingSamplePercent(
+        data.analytics_recording_sample_percent,
+      ),
     };
   } catch {
     return null;

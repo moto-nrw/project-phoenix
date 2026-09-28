@@ -24,6 +24,24 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
+// StaffAccount returns a mock whose every account resolves to the person
+// personID and every person to the staff member staffID, for callers that
+// only need the acting account's staff identity.
+func StaffAccount(personID, staffID int64) *PersonServiceMock {
+	return &PersonServiceMock{
+		FindByAccountIDFn: func(context.Context, int64) (*userModels.Person, error) {
+			person := &userModels.Person{}
+			person.ID = personID
+			return person, nil
+		},
+		GetStaffByPersonIDFn: func(context.Context, int64) (*userModels.Staff, error) {
+			staff := &userModels.Staff{}
+			staff.ID = staffID
+			return staff, nil
+		},
+	}
+}
+
 // PersonServiceMock is a func-field test double for users.PersonService.
 type PersonServiceMock struct {
 	GetFn                                    func(ctx context.Context, id interface{}) (*userModels.Person, error)

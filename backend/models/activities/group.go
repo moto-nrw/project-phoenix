@@ -152,6 +152,17 @@ type Group struct {
 	// schedule.activity_instances.notes.
 	Notes *string `bun:"notes" json:"notes,omitempty"`
 
+	// IncludeClosingDays opts a recurring series into the school's closing
+	// days (#3594): materialization skips closing days unless this is set,
+	// e.g. for holiday care. Statutory holidays are skipped regardless.
+	IncludeClosingDays bool `bun:"include_closing_days,notnull,default:false" json:"-"`
+
+	// SeriesLastDay is the inclusive last day of a recurring series (#3594),
+	// e.g. a holiday-care week; materialization plans nothing after it. NULL
+	// = the series runs until its planning period ends. Unlike a schedule's
+	// valid_until it does not mark a capped split segment.
+	SeriesLastDay *Date `bun:"series_last_day" json:"-"`
+
 	// Relations - populated when using the ORM's relations
 	Category    *Category            `bun:"rel:belongs-to,join:category_id=id" json:"category,omitempty"`
 	Supervisors []*SupervisorPlanned `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
@@ -322,32 +333,6 @@ func NormalizeSourceSchoolClasses(classes []string) ([]string, error) {
 		normalized = append(normalized, trimmed)
 	}
 	return normalized, nil
-}
-
-// SourceClassFilterMatches reports whether a child in the given school class
-// passes a template's Klassenfilter. An empty filter admits every child; a set
-// filter matches case- and whitespace-insensitively and never admits a child
-// without a class — silently planning a child with no class data into a
-// Klassen-Termin would hide data problems, the same rule the Jahrgang filter
-// applies to a missing grade.
-//
-// A package function rather than a method on Group: the roster resync holds
-// the filter as a plain slice on its resync input, never a Group, and one
-// implementation for both callers is the point (#2482).
-func SourceClassFilterMatches(classes []string, schoolClass string) bool {
-	if len(classes) == 0 {
-		return true
-	}
-	wanted := normalizeSchoolClass(schoolClass)
-	if wanted == "" {
-		return false
-	}
-	for _, class := range classes {
-		if normalizeSchoolClass(class) == wanted {
-			return true
-		}
-	}
-	return false
 }
 
 // MatchesSourceGradeFilter reports whether a child with the given grade level

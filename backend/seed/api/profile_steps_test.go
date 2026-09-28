@@ -42,6 +42,44 @@ func TestConfigureProfileStep_UsesDeclaredSettingManager(t *testing.T) {
 	assert.Equal(t, "Bearer tenant-token", requests["/api/settings/values/tenant.key"])
 }
 
+func TestConfigureDevicePINStep_WritesStaffPINAsSchoolAdmin(t *testing.T) {
+	t.Parallel()
+
+	var method, path, authorization string
+	var body map[string]any
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		method, path, authorization = r.Method, r.URL.Path, r.Header.Get("Authorization")
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"status":"success"}`)
+	})
+	defer srv.Close()
+
+	rt := &Runtime{
+		Client: newTestClient(srv.URL, false), StaffPIN: "4711",
+		OperatorAuth: AuthRef{Kind: AuthBearer, Token: "operator-token"},
+		TenantAuth:   AuthRef{Kind: AuthBearer, Token: "tenant-token"},
+	}
+	require.NoError(t, (configureDevicePINStep{}).Run(context.Background(), rt))
+	assert.Equal(t, seedHTTPMethodPut, method)
+	// security.ogs_device_pin is admin-only: the operator path answers 403.
+	assert.Equal(t, "/api/settings/values/security.ogs_device_pin", path)
+	assert.Equal(t, "Bearer tenant-token", authorization)
+	assert.Equal(t, map[string]any{"value": "4711"}, body)
+}
+
+func TestFullDemoWorkflowSetsDevicePINBeforeDeviceAuth(t *testing.T) {
+	t.Parallel()
+
+	steps := fullDemoWorkflow(&Seeder{options: SeedOptions{OnlyProfile: DefaultProfileKey}}).Steps
+	pin := slices.IndexFunc(steps, func(step Step) bool { _, ok := step.(configureDevicePINStep); return ok })
+	bootstrap := slices.IndexFunc(steps, func(step Step) bool { _, ok := step.(bootstrapTenantStep); return ok })
+	firstDeviceStep := slices.IndexFunc(steps, func(step Step) bool { _, ok := step.(seedStatisticsDemoStep); return ok })
+	require.NotEqual(t, -1, pin, "the workflow must write the device PIN")
+	assert.Greater(t, pin, bootstrap, "the school admin writes the PIN")
+	assert.Less(t, pin, firstDeviceStep, "the PIN must be set before the first device request")
+}
+
 func TestVerifyProfileSettings_RejectsReadBackMismatch(t *testing.T) {
 	t.Parallel()
 
@@ -80,16 +118,24 @@ func TestConfigureDemoProfilesOrdersAttendanceScopeChanges(t *testing.T) {
 			require.NoError(t, (configureProfileStep{definition: definition}).Run(context.Background(), rt))
 			visibility := slices.Index(keys, profileSettingOverviewScope)
 			attendance := slices.Index(keys, profileSettingAttendanceScope)
+			starting := slices.Index(keys, profileSettingBlockStartScope)
+			ending := slices.Index(keys, profileSettingBlockCompleteScope)
 			require.NotEqual(t, -1, visibility)
 			require.NotEqual(t, -1, attendance)
+			require.NotEqual(t, -1, starting)
+			require.NotEqual(t, -1, ending)
 			if definition.Key == DefaultProfileKey {
 				assert.Less(t, visibility, attendance)
+				assert.Less(t, visibility, starting)
+				assert.Less(t, visibility, ending)
 				atSchool, ok := definition.Settings[profileSettingSessionEndTime]
 				require.True(t, ok)
 				assert.Equal(t, json.RawMessage(`"23:59"`), atSchool.Value)
 				assert.Equal(t, SettingManagedByOperator, atSchool.ManagedBy)
 			} else {
 				assert.Less(t, attendance, visibility)
+				assert.Less(t, starting, visibility)
+				assert.Less(t, ending, visibility)
 			}
 			require.Contains(t, keys, profileSettingParentSickMode)
 			require.Contains(t, keys, profileSettingParentExcusedMode)

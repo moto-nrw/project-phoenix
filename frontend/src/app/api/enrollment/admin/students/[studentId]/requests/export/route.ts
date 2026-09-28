@@ -1,8 +1,11 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({
@@ -23,6 +26,7 @@ async function proxyExport(studentId: string, body: string, token: string) {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        ...(await incomingAnalyticsSessionHeaders()),
       },
       body,
       cache: "no-store",
@@ -30,10 +34,7 @@ async function proxyExport(studentId: string, body: string, token: string) {
   );
 
   if (!response.ok) {
-    return NextResponse.json(
-      { error: await response.text() },
-      { status: response.status },
-    );
+    return forwardBackendResponse(response);
   }
 
   const contentType =
@@ -69,6 +70,7 @@ async function POSTHandler(request: NextRequest, context: RouteContext) {
     }
     return proxyExport(studentId, body, refreshed.user.token);
   } catch (error) {
+    captureBffException(error, request);
     const message = error instanceof Error ? error.message : "Export failed";
     logger.error("student_enrollment_requests_export_failed", {
       error: message,

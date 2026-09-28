@@ -55,6 +55,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// Capacity-detail disclosure toggles (issue #1879, devices tab).
 		"checkin.activity_capacity_details_enabled",
 		"checkin.room_capacity_details_enabled",
+		// Web assignments may exceed an activity's participant limit (#3632).
+		"attendance.web_exceed_participant_limit_enabled",
 		// Device online/offline window for health monitoring (issue #586, Rule 12).
 		"iot.device_online_window_minutes",
 		"tracking.indicators_enabled",
@@ -486,6 +488,24 @@ func TestWebSpontaneousActivitiesSetting(t *testing.T) {
 	assert.Equal(t, config.CareConceptOpenRooms, def.DependsOn.Value)
 }
 
+// TestWebParticipantLimitSetting pins the #3632 switch: web assignments may
+// exceed an activity's participant limit unless the school turns it off, so
+// deploying it changes nothing for any school.
+func TestWebParticipantLimitSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyWebExceedParticipantLimit)
+	require.NotNil(t, def, "attendance.web_exceed_participant_limit_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, true, def.Default, "exceeding the limit on the web stays allowed until a school opts out")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "anwesenheit", def.Category)
+	assert.Equal(t, "config:read", def.ReadPermission)
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Nil(t, def.DependsOn, "the limit applies to every care concept")
+}
+
 func TestAttendanceSetupSettings(t *testing.T) {
 	t.Parallel()
 
@@ -532,6 +552,40 @@ func TestOperationalOverviewScopeSetting(t *testing.T) {
 	// The retired flag must not come back: two settings answering the same
 	// question is exactly what #2380 removed.
 	assert.Nil(t, config.GetDefinition("operations.admin_supervision_overview"))
+}
+
+// TestBlockStartScopeSetting pins who may start a planned block (#3622):
+// existing schools keep the assignment-bound default.
+func TestBlockStartScopeSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyBlockStartScope)
+	require.NotNil(t, def, "operations.block_start_scope should be registered")
+	assert.Equal(t, config.FieldSelect, def.Type)
+	assert.Equal(t, config.BlockStartScopeOwn, def.Default)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "sehen-und-bearbeiten", def.Category)
+	assert.Equal(t, "config:read", def.ReadPermission)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Options)
+	require.Equal(t, []config.SelectOption{
+		{Label: "Nur eingeplante Kräfte", Value: config.BlockStartScopeOwn},
+		{Label: "Das ganze Team", Value: config.BlockStartScopeAllStaff},
+	}, def.Options.Static)
+
+	end := config.GetDefinition(config.KeyBlockCompleteScope)
+	require.NotNil(t, end, "operations.block_complete_scope should be registered")
+	assert.Equal(t, "Wer darf Blöcke beenden?", end.Label)
+	assert.Equal(t, config.BlockCompleteScopeOwn, end.Default)
+	assert.Equal(t, def.Category, end.Category)
+	assert.Equal(t, def.WritePermission, end.WritePermission)
+	assert.Greater(t, end.SortOrder, def.SortOrder, "ending follows starting")
+	require.NotNil(t, end.Options)
+	require.Equal(t, []config.SelectOption{
+		{Label: "Nur eingeplante Kräfte", Value: config.BlockCompleteScopeOwn},
+		{Label: "Das ganze Team", Value: config.BlockCompleteScopeAllStaff},
+	}, end.Options.Static)
 }
 
 // TestClassArrivalExceptionEditorsSetting pins who may set a class-wide
@@ -1651,10 +1705,10 @@ func TestCheckinCapacityDetailSettings(t *testing.T) {
 		assert.Equal(t, true, def.DependsOn.Value)
 	}
 
-	// Activity defaults to false: the rich kiosk message was never visible
-	// before issue #1879, so it stays opt-in.
+	// Activity defaults to true since #3633, like the room: the generic hint
+	// without the activity's name was read as "room full" in production.
 	activity := config.GetDefinition(config.KeyCheckinActivityCapacityDetailsEnabled)
-	assert.Equal(t, false, activity.Default, "activity capacity details should default to false (opt-in)")
+	assert.Equal(t, true, activity.Default, "activity capacity details should default to true (names the full activity)")
 
 	// Room defaults to true: schools already see the rich room message today.
 	room := config.GetDefinition(config.KeyCheckinRoomCapacityDetailsEnabled)
@@ -1735,7 +1789,7 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"checkout.raumwechsel_enabled", true},
 		{"checkout.schulhof_enabled", false},
 		{"checkout.wc_enabled", false},
-		{"checkin.activity_capacity_details_enabled", false},
+		{"checkin.activity_capacity_details_enabled", true},
 		{"checkin.room_capacity_details_enabled", true},
 		{"tracking.indicators_enabled", false},
 		{"tracking.indicator_1", ""},
@@ -2047,4 +2101,34 @@ func TestParentCourseRequestsSetting(t *testing.T) {
 	parent := config.GetDefinition(config.KeyEnrollmentOfferingChangesEnabled)
 	require.NotNil(t, parent)
 	assert.Greater(t, def.SortOrder, parent.SortOrder, "sits below the setting it depends on")
+}
+
+// TestAnalyticsFreigabeSettings guards the Analyse-Freigabe (#3603): off by
+// default and operator-only, because the moto team switches it after the
+// school or its Träger agreed in writing. A school admin can neither grant
+// it nor widen the recording share.
+func TestAnalyticsFreigabeSettings(t *testing.T) {
+	t.Parallel()
+
+	freigabe := config.GetDefinition(config.KeyAnalyticsFreigabe)
+	require.NotNil(t, freigabe)
+	assert.Equal(t, config.FieldBoolean, freigabe.Type)
+	assert.Equal(t, false, freigabe.Default, "no school records without written consent")
+	assert.Equal(t, config.AccessOperatorOnly, freigabe.AccessPolicy)
+	assert.Equal(t, "config:manage", freigabe.WritePermission)
+	assert.Equal(t, "system", freigabe.Tab)
+
+	sample := config.GetDefinition(config.KeyAnalyticsRecordingSamplePercent)
+	require.NotNil(t, sample)
+	assert.Equal(t, config.FieldNumber, sample.Type)
+	assert.Equal(t, 100, sample.Default)
+	assert.Equal(t, config.AccessOperatorOnly, sample.AccessPolicy)
+	assert.Equal(t, "config:manage", sample.WritePermission)
+	require.NotNil(t, sample.Validation)
+	require.NotNil(t, sample.Validation.Min)
+	require.NotNil(t, sample.Validation.Max)
+	assert.Equal(t, float64(1), *sample.Validation.Min)
+	assert.Equal(t, float64(100), *sample.Validation.Max)
+	require.NotNil(t, sample.DependsOn)
+	assert.Equal(t, config.KeyAnalyticsFreigabe, sample.DependsOn.Key)
 }

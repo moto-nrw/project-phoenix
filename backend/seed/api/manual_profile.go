@@ -161,7 +161,7 @@ func sharedDeveloperAdmin(fs *FixedSeeder) (AccountCredentials, DemoStaffMember,
 	created := fs.staffCredentials[0]
 	return AccountCredentials{
 		Key: sharedDeveloperAdminKey, AccountID: accountID, Email: created.Email,
-		Password: created.Password, PIN: created.PIN, Name: name, StaffID: fs.staffIDs[name],
+		Password: created.Password, Name: name, StaffID: fs.staffIDs[name],
 		TeacherID: fs.teacherIDs[name],
 	}, member, nil
 }

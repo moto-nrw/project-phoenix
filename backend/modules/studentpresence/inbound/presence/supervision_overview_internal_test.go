@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	tenantsettings "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +25,7 @@ import (
 func scopeSettings(scope string) *configtest.Mock {
 	return &configtest.Mock{
 		ResolveStringFn: func(_ context.Context, key string) (string, error) {
-			if key != configModel.KeyOperationalOverviewScope {
+			if key != tenantsettings.KeyOperationalOverviewScope {
 				return "", fmt.Errorf("unexpected settings key: %s", key)
 			}
 			return scope, nil
@@ -112,7 +112,7 @@ func TestOperationalOverview_ScopeOwnKeepsStaffPersonalButAllowsAdmins(t *testin
 	t.Parallel()
 
 	rs := resourceForTest(Resource{Presence: sessionQueryStub{},
-		SettingsService:    scopeSettings(configModel.OverviewScopeOwn),
+		SettingsService:    scopeSettings(tenantsettings.OverviewScopeOwn),
 		UserContextService: verifiedStaffContext(),
 	})
 
@@ -124,7 +124,7 @@ func TestOperationalOverview_ScopeAdmins(t *testing.T) {
 	t.Parallel()
 
 	rs := resourceForTest(Resource{Presence: sessionQueryStub{},
-		SettingsService:    scopeSettings(configModel.OverviewScopeAdmins),
+		SettingsService:    scopeSettings(tenantsettings.OverviewScopeAdmins),
 		UserContextService: verifiedStaffContext(),
 	})
 
@@ -136,7 +136,7 @@ func TestOperationalOverview_ScopeAllStaff(t *testing.T) {
 	t.Parallel()
 
 	rs := resourceForTest(Resource{Presence: sessionQueryStub{},
-		SettingsService:    scopeSettings(configModel.OverviewScopeAllStaff),
+		SettingsService:    scopeSettings(tenantsettings.OverviewScopeAllStaff),
 		UserContextService: verifiedStaffContext(),
 	})
 
@@ -150,7 +150,7 @@ func TestOperationalOverview_ScopeAllStaffDeniesNonStaffAccounts(t *testing.T) {
 	// A guardian or guest account authenticates against the same portal but
 	// has no staff record — the broadest scope must not reach them.
 	rs := resourceForTest(Resource{Presence: sessionQueryStub{},
-		SettingsService:    scopeSettings(configModel.OverviewScopeAllStaff),
+		SettingsService:    scopeSettings(tenantsettings.OverviewScopeAllStaff),
 		UserContextService: &stubUserContext{},
 	})
 
@@ -196,7 +196,7 @@ func TestGetAllActiveSupervisions_ForbiddenForNonAdmin(t *testing.T) {
 	t.Parallel()
 
 	rs := resourceForTest(Resource{Presence: sessionQueryStub{},
-		SettingsService:    scopeSettings(configModel.OverviewScopeAdmins),
+		SettingsService:    scopeSettings(tenantsettings.OverviewScopeAdmins),
 		UserContextService: verifiedStaffContext(),
 	})
 	r := newRequestWithClaims("GET", "/active/supervisors/all", staffClaims())
@@ -211,7 +211,7 @@ func TestGetAllActiveSupervisions_AllStaffScopeAllowsPermissionBearingStaff(t *t
 	t.Parallel()
 
 	rs := resourceForTest(Resource{Presence: sessionQueryStub{},
-		SettingsService:    scopeSettings(configModel.OverviewScopeAllStaff),
+		SettingsService:    scopeSettings(tenantsettings.OverviewScopeAllStaff),
 		UserContextService: verifiedStaffContext(),
 		Operations:         &stubPresenceOperations{},
 	})
@@ -231,10 +231,10 @@ func TestGetAllActiveSupervisions_GroupModeAloneGrantsNothing(t *testing.T) {
 	settings := &configtest.Mock{
 		ResolveStringFn: func(_ context.Context, key string) (string, error) {
 			switch key {
-			case configModel.KeyGroupMode:
-				return configModel.GroupModeOpenCare, nil
-			case configModel.KeyOperationalOverviewScope:
-				return configModel.OverviewScopeOwn, nil
+			case tenantsettings.KeyGroupMode:
+				return tenantsettings.GroupModeOpenCare, nil
+			case tenantsettings.KeyOperationalOverviewScope:
+				return tenantsettings.OverviewScopeOwn, nil
 			default:
 				return "", fmt.Errorf("unexpected settings key: %s", key)
 			}
@@ -269,7 +269,7 @@ func TestGetAllActiveSupervisions_OwnScopeStillAllowsAdmin(t *testing.T) {
 	t.Parallel()
 
 	rs := resourceForTest(Resource{Presence: sessionQueryStub{},
-		SettingsService:    scopeSettings(configModel.OverviewScopeOwn),
+		SettingsService:    scopeSettings(tenantsettings.OverviewScopeOwn),
 		UserContextService: verifiedStaffContext(),
 		Operations:         &stubPresenceOperations{},
 	})
@@ -300,7 +300,7 @@ func TestGetAllActiveSupervisions_SuccessEmptyGroups(t *testing.T) {
 	t.Parallel()
 
 	rs := resourceForTest(Resource{Presence: sessionQueryStub{},
-		SettingsService:    scopeSettings(configModel.OverviewScopeAdmins),
+		SettingsService:    scopeSettings(tenantsettings.OverviewScopeAdmins),
 		UserContextService: verifiedStaffContext(),
 		Operations:         &stubPresenceOperations{},
 	})
@@ -325,7 +325,7 @@ func TestGetAllActiveSupervisions_SuccessWithActiveGroups(t *testing.T) {
 	endedTime := now.Add(-1 * time.Hour)
 
 	rs := resourceForTest(Resource{
-		SettingsService:    scopeSettings(configModel.OverviewScopeAdmins),
+		SettingsService:    scopeSettings(tenantsettings.OverviewScopeAdmins),
 		UserContextService: verifiedStaffContext(),
 		Operations:         &stubPresenceOperations{},
 		Presence: sessionQueryStub{
@@ -368,7 +368,7 @@ func TestGetAllActiveSupervisions_ServiceError(t *testing.T) {
 	t.Parallel()
 
 	rs := resourceForTest(Resource{
-		SettingsService:    scopeSettings(configModel.OverviewScopeAdmins),
+		SettingsService:    scopeSettings(tenantsettings.OverviewScopeAdmins),
 		UserContextService: verifiedStaffContext(),
 		Operations:         &stubPresenceOperations{},
 		Presence: sessionQueryStub{

@@ -16,11 +16,6 @@ func (e engine) FindWithdrawalCompletion(ctx context.Context, id int64, lock boo
 	return value, mapError(err)
 }
 
-func (e engine) ListWithdrawalStudentIDs(ctx context.Context, state string, studentID int64) ([]int64, error) {
-	values, err := e.service.ListWithdrawalStudentIDs(ctx, state, studentID)
-	return values, mapError(err)
-}
-
 func (e engine) ListPendingWithdrawals(ctx context.Context, filter careplan.WithdrawalListFilter) ([]careplan.WithdrawalCompletion, int, error) {
 	values, total, err := e.service.ListWithdrawals(ctx, careplan.WithdrawalStatePending, filter)
 	return values, total, mapError(err)

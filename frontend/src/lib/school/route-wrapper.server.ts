@@ -2,7 +2,8 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { schoolAuth } from "~/server/auth/school";
 import { withSchoolAuth } from "~/server/auth/school-route";
-import { handleApiError } from "../api-helpers.server";
+import { incomingAnalyticsSessionHeaders } from "../analytics-session-header.server";
+import { backendResponseError, handleApiError } from "../api-helpers.server";
 import { makeProxyFactories } from "../route-proxy-factory.server";
 import {
   extractParams,
@@ -54,13 +55,13 @@ async function schoolServerFetch<T>(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      ...(await incomingAnalyticsSessionHeaders()),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`API error (${response.status}): ${errorText}`);
+    throw await backendResponseError(response);
   }
 
   return parseResponse<T>(response);
@@ -179,7 +180,7 @@ function createSchoolNoBodyHandler<T>(
         formatResponse,
       );
     } catch (error) {
-      return handleApiError(error);
+      return handleApiError(error, request);
     }
   });
 }
@@ -198,7 +199,7 @@ function createSchoolWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
         (data) => NextResponse.json(wrapInApiResponse(data)),
       );
     } catch (error) {
-      return handleApiError(error);
+      return handleApiError(error, request);
     }
   });
 }

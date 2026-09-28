@@ -1,6 +1,7 @@
 // app/api/staff/route.ts
 import type { NextRequest } from "next/server";
 import { apiGet, apiPost } from "~/lib/api-helpers.server";
+import { ApiResponseError } from "~/lib/api-helpers.server";
 import {
   createGetHandler,
   createPostHandler,
@@ -163,11 +164,8 @@ function mapBackendStaff(staff: BackendStaffResponse) {
  */
 export const GET = createGetHandler(
   async (request: NextRequest, token: string) => {
-    // `strict=1` is an internal opt-out of the graceful empty-list fallback
-    // below: with it a backend failure propagates as a real error response so
-    // callers can distinguish a failed fetch from a genuinely empty staff list
-    // (#1840). It is NOT a backend filter, so it is stripped before forwarding.
-    const strict = request.nextUrl.searchParams.get("strict") === "1";
+    // `strict=1` was a client opt-out of an empty-list-on-error fallback.
+    // All backend errors now propagate; keep stripping this legacy query key.
 
     // Build URL with any query parameters
     const queryParams = new URLSearchParams();
@@ -212,11 +210,7 @@ export const GET = createGetHandler(
       logger.error("staff fetch failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-      // In strict mode surface the failure to the caller (createGetHandler maps
-      // it to a non-2xx response); the lenient default returns [] so existing
-      // consumers keep degrading gracefully.
-      if (strict) throw error;
-      return [];
+      throw error;
     }
   },
 );
@@ -282,6 +276,7 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
 
       return mapBackendStaff(response);
     } catch (error) {
+      if (error instanceof ApiResponseError) throw error;
       // Check for permission errors (403 Forbidden)
       if (error instanceof Error && error.message.includes("403")) {
         logger.error("permission denied when creating staff", {

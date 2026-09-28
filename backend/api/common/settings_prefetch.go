@@ -29,3 +29,21 @@ func PrefetchSettings(ctx context.Context, settings any, keys ...string) context
 	}
 	return configSvc.WithSettingsSnapshot(ctx, snapshot)
 }
+
+// PrefetchSettingsOrError is PrefetchSettings for a read path that must not
+// continue on a failed batch read: the error is returned instead of the
+// original context. A service that is not batch-capable still yields the
+// original context and no error.
+func PrefetchSettingsOrError(ctx context.Context, settings any, keys ...string) (context.Context, error) {
+	batch, ok := settings.(interface {
+		ResolveMany(context.Context, []string) (*configSvc.SettingsSnapshot, error)
+	})
+	if !ok {
+		return ctx, nil
+	}
+	snapshot, err := batch.ResolveMany(ctx, keys)
+	if err != nil {
+		return nil, err
+	}
+	return configSvc.WithSettingsSnapshot(ctx, snapshot), nil
+}

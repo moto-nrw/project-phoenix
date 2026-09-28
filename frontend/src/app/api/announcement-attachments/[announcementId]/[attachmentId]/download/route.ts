@@ -1,3 +1,4 @@
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Anhänge an Elternmitteilungen (#2890): Personal-Vorschau der angehängten
 // Datei. Spiegelt den Download-Proxy der Dateiablage: JWT serverseitig
 // setzen, bei 401 einmal erneuern, den Body mit Content-Type und
@@ -51,7 +52,7 @@ async function GETHandler(
       attachment_id: attachmentId,
       status: upstream.status,
     });
-    return new NextResponse(null, { status: upstream.status });
+    return forwardBackendResponse(upstream);
   }
 
   const headers = new Headers();

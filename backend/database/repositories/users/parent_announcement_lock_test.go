@@ -9,9 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -27,32 +25,32 @@ func TestParentAnnouncementFindByIDForUpdateBlocksSecondWriter(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
-	draft := &usersModels.ParentAnnouncement{
+	draft := &testpkg.ParentAnnouncement{
 		Title: "Entwurf mit Anhang", Body: "Testtext",
-		Priority: usersModels.ParentAnnouncementPriorityInfo,
+		Priority: testpkg.ParentAnnouncementPriorityInfo,
 		Active:   true, CreatedBy: chain.AccountID,
 	}
 	draft.SetTenantID(chain.TenantID)
 	require.NoError(t, repo.Create(ctx, draft))
 
-	runtimeCtx := tenant.WithTenantID(
-		tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, db)),
+	runtimeCtx := testpkg.ContextForTenant(
+		testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db)),
 		chain.TenantID,
 	)
 
 	holder, err := db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)
-	holderCtx := tenant.WithTransactionForTest(runtimeCtx, &holder)
+	holderCtx := testpkg.ContextWithTransaction(runtimeCtx, &holder)
 	locked, err := repo.FindByIDForUpdate(holderCtx, draft.ID)
 	require.NoError(t, err)
 	require.NotNil(t, locked)
 
 	waiter, err := db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)
-	waiterCtx, cancel := context.WithTimeout(tenant.WithTransactionForTest(runtimeCtx, &waiter), 5*time.Second)
+	waiterCtx, cancel := context.WithTimeout(testpkg.ContextWithTransaction(runtimeCtx, &waiter), 5*time.Second)
 	defer cancel()
 	result := make(chan error, 1)
 	go func() {
@@ -83,12 +81,12 @@ func TestParentAnnouncementFindByIDForUpdateIsTenantScoped(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
-	draft := &usersModels.ParentAnnouncement{
+	draft := &testpkg.ParentAnnouncement{
 		Title: "Fremder Entwurf", Body: "Testtext",
-		Priority: usersModels.ParentAnnouncementPriorityInfo,
+		Priority: testpkg.ParentAnnouncementPriorityInfo,
 		Active:   true, CreatedBy: chain.AccountID,
 	}
 	draft.SetTenantID(chain.TenantID)
@@ -99,7 +97,7 @@ func TestParentAnnouncementFindByIDForUpdateIsTenantScoped(t *testing.T) {
 	require.NotNil(t, found)
 
 	foreign, err := repo.FindByIDForUpdate(
-		tenant.WithTenantID(ctx, chain.TenantID+1_000_000), draft.ID)
+		testpkg.ContextForTenant(ctx, chain.TenantID+1_000_000), draft.ID)
 	require.NoError(t, err)
 	require.Nil(t, foreign)
 }

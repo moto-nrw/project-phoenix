@@ -1,49 +1,8 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { auth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { createLogger } from "~/lib/logger";
+import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
 
-const logger = createLogger({ component: "StudentPreviewRoute" });
-
-async function POSTHandler(request: NextRequest) {
-  try {
-    const session = await auth();
-    if (!session?.user?.token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Get the form data from the request
-    const formData = await request.formData();
-
-    // Forward to backend
-    const response = await fetch(
-      `${getServerApiUrl()}/api/import/students/preview`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.user.token}`,
-        },
-        body: formData,
-      },
-    );
-
-    const data = (await response.json()) as Record<string, unknown>;
-
-    if (!response.ok) {
-      return NextResponse.json(data, { status: response.status });
-    }
-
-    return NextResponse.json(data);
-  } catch (error) {
-    logger.error("student preview failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
-  }
-}
-
-export const POST = withTenantAuth(POSTHandler);
+export const POST = createTenantJsonProxy({
+  method: "POST",
+  path: "/api/import/students/preview",
+  body: "form",
+  networkErrorMessage: "Internal server error",
+});

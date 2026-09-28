@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { fetchStudents } from "~/lib/student-api";
 import {
@@ -28,6 +29,7 @@ import {
 } from "~/components/active-supervisions/timetable-roster";
 import type { SpontaneousActivityStartPayload } from "~/components/active-supervisions/spontaneous-activity-start";
 import type { ActiveSupervisionRoom } from "~/components/active-supervisions/view-model";
+import { capacityErrorMessage } from "~/lib/capacity-error";
 
 const logger = createLogger({ component: "ActiveSupervisionsPage" });
 
@@ -220,6 +222,7 @@ export function useTimetableActions(
         logger.error("failed to start planned timetable instance", {
           instance_id: instance.id,
           error: err instanceof Error ? err.message : String(err),
+          status: errorStatus(err),
         });
         setError("Geplante Aktivität konnte nicht gestartet werden.");
       } finally {
@@ -309,7 +312,8 @@ export function useTimetableActions(
   const reportOperationFailure = useCallback(
     (err: unknown, fallback: string, show: (message: string) => void) => {
       if (!isTimetableOperationForbidden(err)) {
-        show(fallback);
+        // A full room or activity says which one is full (#3633).
+        show(capacityErrorMessage(err) ?? fallback);
         return;
       }
       show(TIMETABLE_OPERATION_FORBIDDEN_MESSAGE);
@@ -336,6 +340,7 @@ export function useTimetableActions(
           action,
           student_id: row.studentId,
           error: err instanceof Error ? err.message : String(err),
+          status: errorStatus(err),
         });
         reportOperationFailure(
           err,
@@ -443,6 +448,7 @@ export function useTimetableActions(
       logger.error("failed to complete timetable instance", {
         instance_id: activeTimetableInstanceId,
         error: err instanceof Error ? err.message : String(err),
+        status: errorStatus(err),
       });
       reportOperationFailure(
         err,
@@ -479,10 +485,12 @@ export function useTimetableActions(
       if (isReopenUnavailableError(err)) {
         clearReopenable();
       }
+      // A full room says which one and where to change it (#3633).
       setError(
-        err instanceof Error
-          ? err.message
-          : "Aktivität konnte nicht wieder geöffnet werden.",
+        capacityErrorMessage(err) ??
+          (err instanceof Error
+            ? err.message
+            : "Aktivität konnte nicht wieder geöffnet werden."),
       );
     }
   }, [

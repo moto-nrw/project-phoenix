@@ -1,9 +1,14 @@
 import type { AxiosError } from "axios";
+import { ApiError, apiErrorFromBody, enrichApiError } from "./api-error";
 import { clearSessionCache, getCachedSession } from "./session-cache";
 import { createLogger } from "~/lib/logger";
 import api from "./api-transport";
 import { resolveApiUrl } from "./api-url";
-import { convertToBackendRoom, fetchWithRetry } from "./api-helpers";
+import {
+  convertToBackendRoom,
+  fetchWithRetry,
+  type ApiErrorResponse,
+} from "./api-helpers";
 import {
   mapSingleStudentResponse,
   mapStudentsResponse,
@@ -109,7 +114,14 @@ function handleApiError(error: unknown, context: string): Error {
   // Extract error details
   const errorMessage = error instanceof Error ? error.message : String(error);
   const statusMatch = /API error[:\s(]+(\d{3})/.exec(errorMessage);
-  const status =
+  const directStatus =
+    error &&
+    typeof error === "object" &&
+    "status" in error &&
+    typeof error.status === "number"
+      ? error.status
+      : undefined;
+  const responseStatus =
     error &&
     typeof error === "object" &&
     "response" in error &&
@@ -117,9 +129,11 @@ function handleApiError(error: unknown, context: string): Error {
     typeof error.response === "object" &&
     "status" in error.response
       ? (error.response.status as number)
-      : statusMatch?.[1]
-        ? Number.parseInt(statusMatch[1], 10)
-        : undefined;
+      : undefined;
+  const status =
+    directStatus ??
+    responseStatus ??
+    (statusMatch?.[1] ? Number.parseInt(statusMatch[1], 10) : undefined);
 
   const logContext = {
     context,
@@ -133,7 +147,46 @@ function handleApiError(error: unknown, context: string): Error {
     logger.error("api operation failed", logContext);
   }
 
-  return new Error(`${context}: ${errorMessage}`);
+  const handled = new ApiError(`${context}: ${errorMessage}`, status);
+  if (error && typeof error === "object") {
+    const structured = error as {
+      code?: unknown;
+      details?: unknown;
+      errors?: unknown;
+      instance?: unknown;
+      isAxiosError?: boolean;
+      body?: unknown;
+      response?: { data?: unknown };
+    };
+    if (status !== undefined) {
+      enrichApiError(handled, structured.response?.data, status);
+      if (typeof structured.body === "string") {
+        try {
+          enrichApiError(
+            handled,
+            JSON.parse(structured.body) as unknown,
+            status,
+          );
+        } catch {
+          // Keep non-JSON legacy body below.
+        }
+      }
+      // Axios `code` is its transport label (e.g. ERR_BAD_REQUEST), not the
+      // backend's stable error code carried in response.data.
+      const directFields = structured.isAxiosError
+        ? {
+            details: structured.details,
+            errors: structured.errors,
+            instance: structured.instance,
+          }
+        : structured;
+      enrichApiError(handled, directFields, status);
+    }
+    if (typeof structured.body === "string") {
+      Object.assign(handled, { body: structured.body });
+    }
+  }
+  return handled;
 }
 
 // Paginated response interface for API responses with pagination metadata
@@ -404,6 +457,23 @@ function parseApiErrorMessage(errorText: string): string | null {
   } catch {
     return null;
   }
+}
+
+function browserApiError(status: number, body: string): Error {
+  const message = parseApiErrorMessage(body);
+  let payload: unknown;
+  try {
+    payload = JSON.parse(body) as ApiErrorResponse;
+  } catch {
+    // Non-JSON legacy responses still retain their raw body.
+  }
+  const error = apiErrorFromBody(
+    message ? `API error: ${message}` : `API error: ${status}`,
+    status,
+    payload,
+  );
+  Object.assign(error, { body });
+  return error;
 }
 
 /**
@@ -1164,12 +1234,7 @@ export const studentService = {
             status: response.status,
             error_text: errorText.substring(0, 200), // Truncate long errors
           });
-          const detailedError = parseApiErrorMessage(errorText);
-          throw new Error(
-            detailedError
-              ? `API error: ${detailedError}`
-              : `API error: ${response.status}`,
-          );
+          throw browserApiError(response.status, errorText);
         }
 
         const data: unknown = await response.json();

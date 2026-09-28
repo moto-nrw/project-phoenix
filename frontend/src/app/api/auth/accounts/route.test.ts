@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET, POST } from "./route";
+import { ApiResponseError } from "~/lib/api-helpers.server";
+
+const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
+vi.mock("@sentry/nextjs", () => ({ captureException }));
 
 // ============================================================================
 // Types
@@ -219,7 +223,8 @@ describe("POST /api/auth/accounts", () => {
   });
 
   it("handles errors during update", async () => {
-    mockApiPut.mockRejectedValueOnce(new Error("Update failed"));
+    const failure = new Error("Update failed");
+    mockApiPut.mockRejectedValueOnce(failure);
 
     const request = createMockRequest("/api/auth/accounts", {
       method: "POST",
@@ -230,5 +235,48 @@ describe("POST /api/auth/accounts", () => {
     expect(response.status).toBe(500);
     const json = (await response.json()) as { error: string };
     expect(json.error).toBe("Failed to update account");
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {});
+  });
+
+  it("forwards a backend conflict body and status unchanged", async () => {
+    const body = JSON.stringify({
+      code: "ACCOUNT_CONFLICT",
+      details: { account_id: "1" },
+      errors: [{ field: "email", reason: "already_used" }],
+      instance: "/auth/accounts/1",
+    });
+    mockApiPut.mockRejectedValueOnce(
+      new ApiResponseError(409, body, {
+        contentType: "application/problem+json",
+      }),
+    );
+
+    const response = await POST(
+      createMockRequest("/api/auth/accounts", {
+        method: "POST",
+        body: { id: "1", email: "taken@example.com" },
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    expect(response.headers.get("content-type")).toBe(
+      "application/problem+json",
+    );
+    expect(await response.text()).toBe(body);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed account JSON without an event", async () => {
+    const response = await POST(
+      new NextRequest("http://localhost:3000/api/auth/accounts", {
+        method: "POST",
+        body: '{"password":"cleartext-secret"',
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Invalid JSON" });
+    expect(mockApiPut).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
   });
 });

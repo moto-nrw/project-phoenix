@@ -452,6 +452,66 @@ describe("InstanceDetailModal", () => {
     expect(screen.getAllByText("Abgemeldet").length).toBeGreaterThan(0);
   });
 
+  // #3634: a running block shows the children still there against the limit
+  // (not the ones who already left) and names an overbooked block with a hint.
+  it("shows the limit of a running block and flags an overbooked one", () => {
+    const { rerender } = render(
+      <InstanceDetailModal
+        instance={instance({
+          status: "active",
+          isLive: true,
+          expectedStudentsCount: 0,
+          presentStudentsCount: 66,
+          occupancy: { participantLimit: 45, currentStudentsCount: 66 },
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Grenze").parentElement).toHaveTextContent(
+      "Grenze66 / 45",
+    );
+    expect(
+      screen.getByText(
+        /^Überbucht\. Mehr Kinder als erlaubt \(höchstens 45\)\./,
+      ),
+    ).toBeInTheDocument();
+
+    rerender(
+      <InstanceDetailModal
+        instance={instance({
+          status: "active",
+          isLive: true,
+          expectedStudentsCount: 0,
+          presentStudentsCount: 47,
+          occupancy: { participantLimit: 45, currentStudentsCount: 45 },
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Grenze").parentElement).toHaveTextContent(
+      "Grenze45 / 45",
+    );
+    expect(screen.queryByText(/Überbucht/)).not.toBeInTheDocument();
+
+    rerender(
+      <InstanceDetailModal
+        instance={instance({
+          status: "active",
+          isLive: true,
+          presentStudentsCount: 66,
+          occupancy: null,
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("Grenze")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Überbucht/)).not.toBeInTheDocument();
+  });
+
   it("marks spontaneous instances in the detail header", () => {
     render(
       <InstanceDetailModal

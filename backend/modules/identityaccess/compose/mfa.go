@@ -273,6 +273,15 @@ func mfaRuntime(sessions *SessionDependencies) tenantRuntime {
 // gate issues the token pair directly, as the early phases did.
 type operatorMFAGate struct{ flows *application.OperatorMFAFlows }
 
+// operatorLoginGate is the gate the operator login consults; the demo
+// environment may leave it unconfigured (DemoDependencies.OperatorWithoutSecondFactor).
+func operatorLoginGate(flows mfaFlows, demo *DemoDependencies) operatorMFAGate {
+	if demo != nil && demo.OperatorWithoutSecondFactor {
+		return operatorMFAGate{}
+	}
+	return operatorMFAGate{flows.operator}
+}
+
 func (g operatorMFAGate) Configured() bool { return g.flows != nil }
 
 func (g operatorMFAGate) HasEnrollment(ctx context.Context, operatorID int64) (bool, error) {

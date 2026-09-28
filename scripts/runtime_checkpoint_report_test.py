@@ -26,6 +26,21 @@ def http_result(status):
     }
 
 
+def contention_run(pool_waits):
+    samples = [dict(duration_ms=float(i), queries=60, status=200 if i < 20 else 409) for i in range(30)]
+    return {
+        "name": "contention.student-graph", "concurrency": 16, "pool_max_open_connections": 12,
+        "warmup_rounds": 5, "measured_rounds": 30, "round_wall_ms": [30.0] * 30,
+        "pool_wait_count": pool_waits, "pool_wait_ms": 10.0 * pool_waits, "rounds_with_pool_wait": pool_waits,
+        "lock_samples": dict(samples=100, waiting_backend_samples=40, max_waiting_backends=5, max_sample_gap_ms=3),
+        "deadlocks": 0,
+        "metrics_before": 'phoenix_unit_of_work_rollbacks_total{entry_point="http"} 10',
+        "metrics_after": 'phoenix_unit_of_work_rollbacks_total{entry_point="http"} 12',
+        "operations": [{"name": "delete", "allowed_statuses": [200, 409], "samples": samples,
+                        "status_counts": {"200": 20, "409": 10}, "unexpected_statuses": 0}],
+    }
+
+
 class HTTPOutcomeTests(unittest.TestCase):
     def test_write_rows_remain_separate_from_returned_rows(self):
         result = http_result(201)
@@ -103,6 +118,51 @@ class HTTPOutcomeTests(unittest.TestCase):
         result["samples"][0]["status"] = 500
         with self.assertRaisesRegex(ValueError, "disagrees with samples"):
             report.measured_result(result, False)
+
+    def test_v2_summarizes_contention_and_recordset_sizes(self):
+        result = http_result(200)
+        result["scenario"]["name"] = "care-plan.care-end"
+        result["jsonb_recordsets"] = [{"site": "jsonb_to_recordset(<set>) AS removal(", "calls": 30,
+                                       "min_rows": 3, "max_rows": 3, "total_rows": 90}]
+        raw = {"workload_version": "checkpoint-1-v2", "concurrency": 1,
+               "runs": [[copy.deepcopy(result)] for _ in range(3)],
+               "worker_runs": [[] for _ in range(3)],
+               "concurrent_runs": [contention_run(waits) for waits in (4, 8, 6)]}
+        summary = report.summarize(raw)
+        self.assertEqual(summary["serial_concurrency"], 1)
+        self.assertEqual(summary["jsonb_recordsets"]["care-plan.care-end"]["jsonb_to_recordset(<set>) AS removal("],
+                         {"calls": [30, 30, 30], "min_rows": [3, 3, 3], "max_rows": [3, 3, 3], "unparsed": 0})
+        concurrent = summary["concurrent"]
+        self.assertEqual(concurrent["concurrency"], 16)
+        self.assertEqual(concurrent["median"]["pool_wait_count"], 6)
+        self.assertEqual(concurrent["worst"]["pool_wait_count"], 8)
+        self.assertEqual(concurrent["median"]["transaction_rollbacks"], 2)
+        text = report.markdown(summary)
+        self.assertIn("16 requests in flight per round against a pool of 12 connections", text)
+        self.assertIn("| delete | 30 |", text)
+        self.assertIn("200: 20, 409: 10", text)
+
+    def test_contention_status_outside_the_allowed_set_is_rejected(self):
+        run = contention_run(4)
+        run["operations"][0]["samples"][0]["status"] = 500
+        run["operations"][0]["unexpected_statuses"] = 1
+        with self.assertRaisesRegex(ValueError, "unexpected HTTP status in contention operation delete"):
+            report.summarize_concurrent([run])
+
+    def test_contention_counters_exclude_work_between_rounds(self):
+        run = contention_run(4)
+        run.pop("metrics_before")
+        run.pop("metrics_after")
+        run["measured_rounds"] = 2
+        run["round_wall_ms"] = [30.0, 30.0]
+        run["metric_rounds"] = [
+            {"before": 'phoenix_unit_of_work_rollbacks_total{entry_point="http"} 10',
+             "after": 'phoenix_unit_of_work_rollbacks_total{entry_point="http"} 11'},
+            {"before": 'phoenix_unit_of_work_rollbacks_total{entry_point="http"} 20',
+             "after": 'phoenix_unit_of_work_rollbacks_total{entry_point="http"} 22'},
+        ]
+        summary = report.summarize_concurrent([run])
+        self.assertEqual(summary["median"]["transaction_rollbacks"], 3)
 
     def test_consistently_reported_unexpected_status_is_rejected(self):
         result = http_result(201)

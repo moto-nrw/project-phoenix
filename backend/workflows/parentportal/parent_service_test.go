@@ -265,6 +265,9 @@ func (s *stubGuardianProfileRepo) LockByIDForUpdate(context.Context, int64) erro
 func (s *stubGuardianProfileRepo) FindByEmail(context.Context, string) (*userModels.GuardianProfile, error) {
 	return nil, nil
 }
+func (s *stubGuardianProfileRepo) FindByEmails(context.Context, []string) ([]*userModels.GuardianProfile, error) {
+	return nil, nil
+}
 func (s *stubGuardianProfileRepo) FindWithoutAccount(context.Context) ([]*userModels.GuardianProfile, error) {
 	return nil, nil
 }

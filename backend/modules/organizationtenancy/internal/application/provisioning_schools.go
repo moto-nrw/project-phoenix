@@ -149,8 +149,15 @@ func (p *Provisioning) organizationsByID(ctx context.Context, schools []organiza
 	return result, nil
 }
 
-// UpdateSchool changes a school and records the changed fields.
+// UpdateSchool changes a school and records the changed fields. A changed
+// Kinderkontingent (#3567) is a contract value: its audit entry is written in
+// the same transaction, and when that fails the whole update rolls back.
 func (p *Provisioning) UpdateSchool(ctx context.Context, id int64, changes organizationtenancy.SchoolChanges, operatorID int64, clientIP net.IP) (*organizationtenancy.School, error) {
+	if changes.ChildQuota != nil && changes.ChildQuota.Quota != nil {
+		if err := changes.ChildQuota.Quota.Validate(); err != nil {
+			return nil, &organizationtenancy.InvalidProvisioningDataError{Err: err}
+		}
+	}
 	return adminValue(ctx, p, func(adminCtx context.Context) (*organizationtenancy.School, error) {
 		existing, err := p.findSchool(adminCtx, id)
 		if err != nil {
@@ -175,9 +182,44 @@ func (p *Provisioning) UpdateSchool(ctx context.Context, id int64, changes organ
 			}
 			return nil, &organizationtenancy.InvalidProvisioningDataError{Err: err}
 		}
-		p.logAction(adminCtx, operatorID, domain.AuditActionUpdate, domain.AuditResourceSchool, &id, clientIP, diff)
-		return &updated, nil
+		return p.finishSchoolUpdate(adminCtx, existing, updated, changes, diff, operatorID, clientIP)
 	})
+}
+
+// finishSchoolUpdate applies a changed Kinderkontingent and audits the
+// update. A quota change must be audited, so its audit failure fails the
+// update; every other change keeps the best-effort audit.
+func (p *Provisioning) finishSchoolUpdate(ctx context.Context, existing, updated organizationtenancy.School, changes organizationtenancy.SchoolChanges, diff map[string]any, operatorID int64, clientIP net.IP) (*organizationtenancy.School, error) {
+	id := existing.ID
+	change := changes.ChildQuota
+	if change == nil || sameChildQuota(existing.ChildQuota(), change.Quota) {
+		p.logAction(ctx, operatorID, domain.AuditActionUpdate, domain.AuditResourceSchool, &id, clientIP, diff)
+		return &updated, nil
+	}
+	updated, err := p.organizations.SetSchoolChildQuota(ctx, id, change.Quota)
+	if err != nil {
+		return nil, mapSchoolError(err, id, changes.OrganizationID)
+	}
+	diff["child_quota"] = map[string]any{"old": childQuotaAudit(existing.ChildQuota()), "new": childQuotaAudit(change.Quota)}
+	if err := p.recordAction(ctx, operatorID, domain.AuditActionUpdate, domain.AuditResourceSchool, &id, clientIP, diff); err != nil {
+		return nil, err
+	}
+	return &updated, nil
+}
+
+func sameChildQuota(current, next *organizationtenancy.ChildQuota) bool {
+	if current == nil || next == nil {
+		return current == nil && next == nil
+	}
+	return *current == *next
+}
+
+// childQuotaAudit is the audited form of a Kinderkontingent; nil means none.
+func childQuotaAudit(quota *organizationtenancy.ChildQuota) map[string]int {
+	if quota == nil {
+		return nil
+	}
+	return map[string]int{"bundles": quota.Bundles, "bundle_size": quota.BundleSize, "limit": quota.Limit()}
 }
 
 // schoolChangeSet checks the new organisation, slug and subdomain and

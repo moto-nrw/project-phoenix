@@ -156,6 +156,10 @@ func (s *GuardianService) CreateGuardian(ctx context.Context, req GuardianCreate
 
 	profile.SetTenantID(tenant.FromContext(ctx))
 
+	if err := profile.Validate(); err != nil {
+		return nil, newGuardianValidationError(err)
+	}
+
 	// Reject a duplicate email up front. The tenant-scoped UNIQUE(tenant_id,
 	// email) index forbids two guardians sharing an email, so without this
 	// pre-check the INSERT fails with a raw 23505 that surfaces to the user as a
@@ -266,6 +270,10 @@ func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 		profile.LanguagePreference = req.LanguagePreference
 	}
 
+	if err := profile.Validate(); err != nil {
+		return newGuardianValidationError(err)
+	}
+
 	if err := s.GuardianProfileRepo.Update(ctx, profile); err != nil {
 		// TOCTOU guard mirroring CreateGuardian: a concurrent writer can claim
 		// the email between the check above and this Update.
@@ -279,7 +287,7 @@ func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 
 // DeleteGuardian removes a guardian profile WITHOUT touching its student links.
 //
-// Since migration 1.15.127 the students_guardians → guardian_profiles FK is
+// Since migration 1.15.127 the relationship → guardian_profiles FK is
 // ON DELETE RESTRICT, so this fails with a foreign-key violation when the
 // guardian is still linked to any student — the handler turns that into a 409.
 // Use this only for guardians with no remaining links; for the deliberate
@@ -696,6 +704,14 @@ func germanGuardianValidationMessage(err error) string {
 	default:
 		return err.Error()
 	}
+}
+
+// newGuardianValidationError classifies a model Validate() failure as bad
+// input (HTTP 400) with the German reason. The repositories run the same
+// Validate() but wrap it as a plain error, which renders as a 500 (#3549), so
+// write paths call this before the first repository write.
+func newGuardianValidationError(err error) *ValidationError {
+	return &ValidationError{Err: errors.New(germanGuardianValidationMessage(err))}
 }
 
 // ValidateNewGuardians checks guardian input (profile, relationship type,
@@ -1116,6 +1132,10 @@ func (s *GuardianService) AddPhoneNumber(ctx context.Context, guardianID int64, 
 	}
 	phone.SetTenantID(tenant.FromContext(ctx))
 
+	if err := phone.Validate(); err != nil {
+		return nil, newGuardianValidationError(err)
+	}
+
 	// If setting as primary, unset existing primaries first
 	if isPrimary && count > 0 {
 		if err := s.GuardianPhoneNumberRepo.UnsetAllPrimary(ctx, guardianID); err != nil {
@@ -1163,6 +1183,10 @@ func (s *GuardianService) UpdatePhoneNumber(ctx context.Context, phoneID int64, 
 	}
 	if req.Priority != nil {
 		phone.Priority = *req.Priority
+	}
+
+	if err := phone.Validate(); err != nil {
+		return newGuardianValidationError(err)
 	}
 
 	// Handle primary flag change

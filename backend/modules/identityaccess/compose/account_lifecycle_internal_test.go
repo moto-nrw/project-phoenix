@@ -11,7 +11,7 @@ import (
 )
 
 // Every lifecycle sentinel reaches consumers as its public twin with the same
-// text: the kiosk maps the staff PIN texts, the HTTP layers the rest.
+// text, which the HTTP layers map.
 func TestLifecycleErrorTranslatesEverySentinel(t *testing.T) {
 	t.Parallel()
 
@@ -42,7 +42,7 @@ func TestModuleWithoutLifecycleReportsUnavailable(t *testing.T) {
 	t.Parallel()
 
 	module := identityaccess.NewModule(engine{}, nil)
-	_, err := module.AuthenticateStaffPIN(t.Context(), 7, 8, "1234")
+	_, err := module.StartStaffPreview(t.Context(), 7, 8, 9, "", "", "")
 	require.ErrorIs(t, err, identityaccess.ErrAccountLifecycleUnavailable)
 	require.ErrorIs(t, module.RevokeAccess(t.Context(), identityaccess.RevokeAccessRequest{}), identityaccess.ErrAccountLifecycleUnavailable)
 }

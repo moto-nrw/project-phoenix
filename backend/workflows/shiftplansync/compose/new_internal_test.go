@@ -20,7 +20,7 @@ func TestNewSickCascadeRejectsAnIncompleteComposition(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, cascade)
 	assert.EqualError(t, err, "shift plan sync compose: sick cascade needs "+
-		"InstanceStaff, Instances, LockStaffShifts, Planning, TimetableData, Workforce")
+		"Deviations, InstanceStaff, LockStaffShifts, Planning, TimetableData, Workforce")
 }
 
 func TestNewSubstitutionRejectsAnIncompleteComposition(t *testing.T) {
@@ -30,7 +30,7 @@ func TestNewSubstitutionRejectsAnIncompleteComposition(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, substitution)
 	assert.EqualError(t, err, "shift plan sync compose: schedule substitution needs "+
-		"ActivityInstances, InstanceStaff, Instances, Staff")
+		"ActivityInstances, Deviations, InstanceStaff, Staff")
 }
 
 // An unresolved deferred binding is an error on every method, never a silent

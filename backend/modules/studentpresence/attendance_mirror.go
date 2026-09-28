@@ -9,8 +9,8 @@ import (
 // that the presence application needs to enrich SSE events. The pointer shape
 // matches realtime.EventData so broadcast helpers can copy fields directly.
 //
-// Declared on the Student Presence contract (and not, say, in
-// timetableplanning) so there is no cyclic-import risk — the timetable side
+// Declared on the Student Presence contract (and not, say, by the Timetable
+// owner) so there is no cyclic-import risk — the timetable side
 // already depends on presence for its bridge semantics, but presence must not
 // import it.
 type AttendanceSnapshot struct {
@@ -29,7 +29,9 @@ type AttendanceSnapshot struct {
 // Missing timetable assignments are valid no-ops. Read and write failures
 // return errors so the caller rolls back all presence and timetable writes.
 //
-// Implementations live in timetableplanning. A nil AttendanceSyncer is
+// The composition root binds it to the Timetable owner's attendance mirror
+// (timetable.AttendanceMirror), which runs in the caller's tenant
+// transaction (#3424 slice S3). A nil AttendanceSyncer is
 // valid at construction time (tests, early-boot servers without the full
 // factory wire-up) — callers must handle nil.
 type AttendanceSyncer interface {

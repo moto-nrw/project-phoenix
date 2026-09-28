@@ -629,3 +629,17 @@ func dedupe(ids []int64) []int64 {
 	}
 	return result
 }
+
+// AcquireTransactionLock takes an EXCLUSIVE transaction-scoped advisory lock
+// on the hashed key. It hashes the key the way the Transaction Runtime's
+// AcquireXactLock does, so every holder of a shared key — the tenant
+// recurrence gate and School Structure's grade-transition gate — serializes
+// on the same lock. It releases at COMMIT or ROLLBACK.
+func (s *Store) AcquireTransactionLock(ctx context.Context, key string) error {
+	db, _, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = db.NewRaw("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key).Exec(ctx)
+	return err
+}

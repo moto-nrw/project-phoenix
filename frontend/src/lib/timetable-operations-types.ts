@@ -144,6 +144,9 @@ export interface TimetableRoster {
    * only see it through the all_staff overview. Older backends omit it.
    */
   canOperate?: boolean;
+  /** Whether the caller may start or end this block (#3622). */
+  canStart?: boolean;
+  canEnd?: boolean;
   /** Attendance writes do not grant lifecycle or planning authority. */
   canEditAttendance?: boolean;
   /** Sick/excused markers, separate from other block statuses. */
@@ -258,6 +261,8 @@ export interface BackendTimetableRoster {
   pickup_times_redacted?: boolean;
   moved_from?: string | null;
   can_operate?: boolean;
+  can_start?: boolean;
+  can_end?: boolean;
   can_edit_attendance?: boolean;
   can_report_absence?: boolean;
 }
@@ -379,6 +384,8 @@ export function mapRoster(raw: BackendTimetableRoster): TimetableRoster {
       : { pickupTimesRedacted: raw.pickup_times_redacted }),
     movedFrom: raw.moved_from ?? null,
     ...(raw.can_operate === undefined ? {} : { canOperate: raw.can_operate }),
+    ...(raw.can_start === undefined ? {} : { canStart: raw.can_start }),
+    ...(raw.can_end === undefined ? {} : { canEnd: raw.can_end }),
     ...(raw.can_edit_attendance === undefined
       ? {}
       : { canEditAttendance: raw.can_edit_attendance }),

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { DatePicker, ISODateInput } from "./date-picker";
+import { DatePicker, ISODateInput, ISODatePicker } from "./date-picker";
 
 // Mock react-day-picker
 vi.mock("react-day-picker", () => ({
@@ -455,6 +455,57 @@ describe("DatePicker", () => {
     expect(screen.getByTestId("day-picker")).toHaveAttribute(
       "data-month",
       "1982-04-17T00:00:00.000Z",
+    );
+  });
+
+  it("opens on defaultMonth while no value is set", () => {
+    render(
+      <DatePicker
+        value={null}
+        defaultMonth={new Date("2026-10-12T00:00:00Z")}
+        onChange={mockOnChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Datum auswählen/i }));
+    expect(screen.getByTestId("day-picker")).toHaveAttribute(
+      "data-month",
+      "2026-10-12T00:00:00.000Z",
+    );
+  });
+
+  it("prefers the value over defaultMonth", () => {
+    render(
+      <DatePicker
+        value={new Date("2024-01-15T00:00:00Z")}
+        defaultMonth={new Date("2026-10-12T00:00:00Z")}
+        onChange={mockOnChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+    expect(screen.getByTestId("day-picker")).toHaveAttribute(
+      "data-month",
+      "2024-01-15T00:00:00.000Z",
+    );
+  });
+
+  it("passes an ISO defaultMonth through ISODatePicker", () => {
+    render(
+      <ISODatePicker
+        id="end"
+        value=""
+        defaultMonth="2026-10-12"
+        onChange={mockOnChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Datum auswählen/i }));
+    const month = screen.getByTestId("day-picker").getAttribute("data-month");
+    expect(month).not.toBeNull();
+    const opened = new Date(month!);
+    expect([opened.getFullYear(), opened.getMonth(), opened.getDate()]).toEqual(
+      [2026, 9, 12],
     );
   });
 

@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 /**
  * Staff client for the parent absence-request review queue. Calls the Next.js proxy routes under
  * /api/students/excused-absence-requests which forward (with the tenant session
@@ -49,12 +50,10 @@ function unwrap<T>(json: Envelope<T>): T {
  * concrete recovery action instead of collapsing every failure into one generic
  * message. The raw `error` string stays the Error message for logging.
  */
-export class ExcusedRequestApiError extends Error {
-  readonly code?: string;
+export class ExcusedRequestApiError extends ApiError {
   constructor(message: string, code?: string) {
-    super(message);
+    super(message, undefined, { code });
     this.name = "ExcusedRequestApiError";
-    this.code = code;
   }
 }
 
@@ -64,8 +63,10 @@ async function readError(
 ): Promise<ExcusedRequestApiError> {
   let message = fallback;
   let code: string | undefined;
+  let payload: unknown;
   try {
     const body = (await response.json()) as { error?: string; code?: string };
+    payload = body;
     if (body.error) message = body.error;
     if (body.code) code = body.code;
   } catch {
@@ -76,7 +77,11 @@ async function readError(
     message,
     ...(code ? { code } : {}),
   });
-  return new ExcusedRequestApiError(message, code);
+  return enrichApiError(
+    new ExcusedRequestApiError(message, code),
+    payload,
+    response.status,
+  );
 }
 
 /** Approves (marks the child absent) or rejects one absence request. */

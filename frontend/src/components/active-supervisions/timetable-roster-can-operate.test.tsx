@@ -157,6 +157,32 @@ describe("TimetableRosterContent action rights (#3167)", () => {
     ).toBeInTheDocument();
   });
 
+  // „Wer darf Blöcke beenden?“ (#3622) decides Beenden on its own.
+  it("offers Beenden to the whole team without other block actions", () => {
+    renderRoster({ ...roster(false), canEnd: true });
+
+    expect(
+      screen.getByRole("button", { name: /^Beenden/ }),
+    ).toBeInTheDocument();
+    for (const name of ["Einchecken", "Abwesend", "Entschuldigt"]) {
+      expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+    }
+    expect(
+      screen.queryByText(new RegExp(VIEW_ONLY_HINT)),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides Beenden when the caller may not end the block", () => {
+    renderRoster({ ...roster(true), canEnd: false });
+
+    expect(
+      screen.queryByRole("button", { name: /^Beenden/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Einchecken" }),
+    ).toBeInTheDocument();
+  });
+
   it("does not expose web attendance actions through a school-wide grant when web is off", () => {
     renderRoster({ ...roster(false), canEditAttendance: true }, false);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();

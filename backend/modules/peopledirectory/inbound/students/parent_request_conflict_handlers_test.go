@@ -1,0 +1,160 @@
+package students
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+type conflictServiceStub struct {
+	input  parentrequests.ResolveConflictInput
+	called bool
+	err    error
+}
+
+func (s *conflictServiceStub) ResolveConflict(_ context.Context, input parentrequests.ResolveConflictInput) error {
+	s.called = true
+	s.input = input
+	return s.err
+}
+
+func resolveConflictRequest(t *testing.T, body string) (*httptest.ResponseRecorder, *http.Request) {
+	t.Helper()
+	ctx := tenant.WithRollbackMarker(context.WithValue(t.Context(), jwt.CtxClaims, jwt.AppClaims{
+		ID: 55, Roles: []string{"ogs_admin"},
+	}))
+	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"users:update"})
+	req := httptest.NewRequest(
+		http.MethodPost, "/students/change-requests/conflicts/resolve", strings.NewReader(body),
+	).WithContext(ctx)
+	return httptest.NewRecorder(), req
+}
+
+// responseCode reads the wire error code the client branches on.
+func responseCode(t *testing.T, w *httptest.ResponseRecorder) string {
+	t.Helper()
+	var body struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	return body.Code
+}
+
+func TestResolveRequestConflictForwardsTheWholeGroup(t *testing.T) {
+	t.Parallel()
+	svc := &conflictServiceStub{}
+	rs := &Resource{ResourceConfig: ResourceConfig{ParentRequestConflictService: svc}}
+	w, req := resolveConflictRequest(t, `{"kind":"excused","request_ids":["12","13"],`+
+		`"expected_versions":["v1","v2"],"chosen_request_id":"13",`+
+		`"conflict_key":"absence:2026-09-01","reason":"Mit den Eltern geklärt"}`)
+
+	rs.resolveRequestConflict(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Equal(t, parentrequests.KindExcused, svc.input.Kind)
+	assert.Equal(t, []int64{12, 13}, svc.input.RequestIDs)
+	assert.Equal(t, []string{"v1", "v2"}, svc.input.ExpectedVersions)
+	assert.Equal(t, int64(13), svc.input.ChosenRequestID)
+	assert.Equal(t, "absence:2026-09-01", svc.input.ConflictKey)
+	assert.Equal(t, "Mit den Eltern geklärt", svc.input.Reason)
+	assert.Equal(t, int64(55), svc.input.ReviewerID)
+	assert.Equal(t, "ogs_admin", svc.input.ActorRole)
+}
+
+func TestResolveRequestConflictForwardsAStaffValueUnread(t *testing.T) {
+	t.Parallel()
+	svc := &conflictServiceStub{}
+	rs := &Resource{ResourceConfig: ResourceConfig{ParentRequestConflictService: svc}}
+	w, req := resolveConflictRequest(t, `{"kind":"pickup_change","request_ids":["12","13"],`+
+		`"expected_versions":["v1","v2"],"staff_value":{"value":"15:30"},"reason":"Kompromiss"}`)
+
+	rs.resolveRequestConflict(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.JSONEq(t, `{"value":"15:30"}`, string(svc.input.StaffValue),
+		"the handler must not interpret a domain payload")
+	assert.Zero(t, svc.input.ChosenRequestID)
+}
+
+func TestResolveRequestConflictRejectsMalformedIDs(t *testing.T) {
+	t.Parallel()
+	svc := &conflictServiceStub{err: errors.New("must not be called")}
+	rs := &Resource{ResourceConfig: ResourceConfig{ParentRequestConflictService: svc}}
+	w, req := resolveConflictRequest(t, `{"kind":"excused","request_ids":["12","no"],`+
+		`"expected_versions":["v1","v2"],"none":true,"reason":"Geklärt"}`)
+
+	rs.resolveRequestConflict(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.False(t, svc.called)
+}
+
+func TestResolveRequestConflictAnswersWithoutAWiredService(t *testing.T) {
+	t.Parallel()
+	rs := &Resource{}
+	w, req := resolveConflictRequest(t, `{"kind":"excused","request_ids":["12","13"],`+
+		`"expected_versions":["v1","v2"],"none":true,"reason":"Geklärt"}`)
+
+	rs.resolveRequestConflict(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code,
+		"deciding the group one by one is the bug this route exists to prevent")
+}
+
+// The wire contract: the client branches on the code, never on the message.
+func TestResolveRequestConflictErrorCodes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want int
+		code string
+	}{
+		{name: "stale group", err: parentrequests.ErrStale, want: http.StatusConflict, code: codeChangeRequestStale},
+		{name: "missing reason (Care Plan coordinator)", err: parentrequests.ErrReasonRequired, want: http.StatusBadRequest, code: codeReasonRequired},
+		{name: "malformed command", err: parentrequests.ErrInvalidConflictResolution, want: http.StatusBadRequest},
+		{name: "kind without a domain", err: parentrequests.ErrConflictKindUnsupported, want: http.StatusBadRequest, code: codeConflictKindUnsupported},
+		{name: "domain takes no typed value", err: parentrequests.ErrStaffValueUnsupported, want: http.StatusBadRequest, code: codeStaffValueUnsupported},
+		{name: "absence value invalid", err: excusedrequests.ErrAbsenceRequestInvalidStatus, want: http.StatusBadRequest, code: codeStaffValueInvalid},
+		{name: "care value invalid", err: carerequests.ErrInvalidPayload, want: http.StatusBadRequest, code: codeStaffValueInvalid},
+		{name: "offering value invalid", err: careplan.ErrOfferingChangeInvalid, want: http.StatusBadRequest, code: codeStaffValueInvalid},
+		{name: "Stammdaten value invalid", err: masterdatarequests.ErrReviewInvalidValue, want: http.StatusBadRequest, code: codeStaffValueInvalid},
+		{name: "request gone", err: parentrequests.ErrNotFound, want: http.StatusNotFound},
+		{name: "kind not permitted", err: parentrequests.ErrForbidden, want: http.StatusForbidden},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			rs := &Resource{ResourceConfig: ResourceConfig{
+				ParentRequestConflictService: &conflictServiceStub{err: tt.err},
+			}}
+			w, req := resolveConflictRequest(t, `{"kind":"excused","request_ids":["12","13"],`+
+				`"expected_versions":["v1","v2"],"none":true,"reason":"Geklärt"}`)
+
+			rs.resolveRequestConflict(w, req)
+
+			require.Equal(t, tt.want, w.Code, w.Body.String())
+			if tt.code != "" {
+				assert.Equal(t, tt.code, responseCode(t, w))
+			}
+			assert.True(t, tenant.RollbackRequested(req.Context()),
+				"a failed resolve must never leave a half-decided group behind")
+		})
+	}
+}

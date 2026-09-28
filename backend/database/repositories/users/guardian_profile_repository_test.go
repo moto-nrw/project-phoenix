@@ -6,11 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,12 +26,12 @@ func TestGuardianProfileRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates guardian profile with valid data", func(t *testing.T) {
 		uniqueEmail := fmt.Sprintf("guardian-%d@test.local", time.Now().UnixNano())
-		profile := &users.GuardianProfile{
+		profile := &testpkg.GuardianProfile{
 			FirstName:              "Test",
 			LastName:               "Guardian",
 			Email:                  &uniqueEmail,
@@ -52,7 +48,7 @@ func TestGuardianProfileRepository_Create(t *testing.T) {
 
 	t.Run("creates guardian profile without email", func(t *testing.T) {
 		// Note: Phone numbers are now stored in separate table (guardian_phone_numbers)
-		profile := &users.GuardianProfile{
+		profile := &testpkg.GuardianProfile{
 			FirstName:          "Minimal",
 			LastName:           "Guardian",
 			LanguagePreference: "de",
@@ -70,7 +66,7 @@ func TestGuardianProfileRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing guardian profile", func(t *testing.T) {
@@ -94,7 +90,7 @@ func TestGuardianProfileRepository_FindByEmail(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds guardian profile by email", func(t *testing.T) {
@@ -126,7 +122,7 @@ func TestGuardianProfileRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates guardian profile", func(t *testing.T) {
@@ -146,7 +142,7 @@ func TestGuardianProfileRepository_Update(t *testing.T) {
 
 	t.Run("returns error for non-existent profile", func(t *testing.T) {
 		fakeEmail := "fake@test.local"
-		profile := &users.GuardianProfile{
+		profile := &testpkg.GuardianProfile{
 			FirstName:          "Fake",
 			LastName:           "Profile",
 			Email:              &fakeEmail,
@@ -165,7 +161,7 @@ func TestGuardianProfileRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing guardian profile", func(t *testing.T) {
@@ -196,13 +192,13 @@ func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists guardian profiles with pagination", func(t *testing.T) {
 		testpkg.CreateTestGuardianProfile(t, db, "listopt")
 
-		options := base.NewQueryOptions()
+		options := testpkg.NewQueryOptions()
 		options.WithPagination(1, 10)
 
 		profiles, err := repo.ListWithOptions(ctx, options)
@@ -224,7 +220,7 @@ func TestGuardianProfileRepository_FindWithoutAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds guardians without accounts", func(t *testing.T) {
@@ -250,7 +246,7 @@ func TestGuardianProfileRepository_FindInvitable(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds invitable guardians", func(t *testing.T) {
@@ -300,7 +296,7 @@ func TestGuardianProfileRepository_LinkAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for non-existent profile", func(t *testing.T) {
@@ -340,7 +336,7 @@ func TestGuardianProfileRepository_FindByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for non-existent account ID", func(t *testing.T) {
@@ -359,7 +355,7 @@ func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	profile := testpkg.CreateTestGuardianProfile(t, db, "profilechildren")
@@ -368,26 +364,26 @@ func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t
 	hidden := testpkg.CreateTestStudent(t, db, "Hidden", "Child", "1b")
 	require.NoError(t, repo.LinkAccount(ctx, profile.ID, account.ID))
 
-	visibleRel := &users.StudentGuardian{
+	visibleRel := &testpkg.StudentGuardian{
 		StudentID:         visible.ID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "parent",
-		GuardianRole:      authorize.GuardianRoleLegalGuardian,
+		GuardianRole:      testpkg.GuardianRoleLegalGuardian,
 		Permissions: map[string]interface{}{
-			authorize.GuardianPermissionPortalAccess: true,
+			testpkg.GuardianPermissionPortalAccess: true,
 		},
 	}
 	visibleRel.SetTenantID(testpkg.Tenant(t))
-	hiddenRel := &users.StudentGuardian{
+	hiddenRel := &testpkg.StudentGuardian{
 		StudentID:         hidden.ID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "other",
-		GuardianRole:      authorize.GuardianRolePickupOnly,
+		GuardianRole:      testpkg.GuardianRolePickupOnly,
 		Permissions:       map[string]interface{}{},
 	}
 	hiddenRel.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian.Create(ctx, visibleRel))
-	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian.Create(ctx, hiddenRel))
+	require.NoError(t, testutil.NewPeopleRepositorySuiteFactory(db).StudentGuardian.Create(ctx, visibleRel))
+	require.NoError(t, testutil.NewPeopleRepositorySuiteFactory(db).StudentGuardian.Create(ctx, hiddenRel))
 
 	loaded, err := repo.LoadProfileWithChildren(ctx, account.ID)
 	require.NoError(t, err)
@@ -399,10 +395,10 @@ func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t
 
 // seedNamedGuardian inserts a guardian with a caller-controlled first name (so
 // search assertions can key off a unique token) and registers cleanup.
-func seedNamedGuardian(t *testing.T, db *bun.DB, ctx context.Context, repo users.GuardianProfileRepository, firstName, lastName string) *users.GuardianProfile {
+func seedNamedGuardian(t *testing.T, db *bun.DB, ctx context.Context, repo testpkg.GuardianProfileRepository, firstName, lastName string) *testpkg.GuardianProfile {
 	t.Helper()
 	email := fmt.Sprintf("%s-%d@search.local", firstName, time.Now().UnixNano())
-	profile := &users.GuardianProfile{
+	profile := &testpkg.GuardianProfile{
 		FirstName:              firstName,
 		LastName:               lastName,
 		Email:                  &email,
@@ -422,7 +418,7 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("matches a first-name substring case-insensitively and excludes non-matches", func(t *testing.T) {
@@ -508,7 +504,7 @@ func TestGuardianProfileRepository_FindByAccountID_ReturnsLinkedProfile(t *testi
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	profile := testpkg.CreateTestGuardianProfile(t, db, "findbyaccount")
@@ -539,7 +535,7 @@ func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "localeordering")
@@ -555,7 +551,7 @@ func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t
 
 	newerEmail := fmt.Sprintf("localeordering-b-%d@example.test", time.Now().UnixNano())
 	enLocale := "en"
-	newer := &users.GuardianProfile{
+	newer := &testpkg.GuardianProfile{
 		FirstName:              "Guardian",
 		LastName:               "Test",
 		Email:                  &newerEmail,
@@ -569,7 +565,7 @@ func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t
 		ModelTableExpr(`users.guardian_profiles`).
 		Scan(context.Background())
 	require.NoError(t, err, "failed to insert second-tenant guardian profile")
-	require.NoError(t, repo.LinkAccount(tenant.WithTenantID(ctx, tenantB), newer.ID, account.ID))
+	require.NoError(t, repo.LinkAccount(testpkg.ContextForTenant(ctx, tenantB), newer.ID, account.ID))
 	require.Greater(t, newer.ID, older.ID, "explicit row must have the higher id for the test to be meaningful")
 
 	found, err := repo.FindByAccountID(ctx, account.ID)
@@ -588,7 +584,7 @@ func TestGuardianProfileRepository_LockByIDForUpdate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
 
 	t.Run("locks an existing guardian within a tenant transaction", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "lock-existing")
@@ -607,6 +603,6 @@ func TestGuardianProfileRepository_LockByIDForUpdate(t *testing.T) {
 		err := testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 			return repo.LockByIDForUpdate(txCtx, 999999999)
 		})
-		assert.ErrorIs(t, err, users.ErrGuardianProfileNotFound)
+		assert.ErrorIs(t, err, testpkg.ErrGuardianProfileNotFound)
 	})
 }

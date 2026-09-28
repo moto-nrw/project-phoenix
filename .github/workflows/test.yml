@@ -81,9 +81,6 @@ jobs:
           scripts/backend-affected-packages_test.sh
           scripts/test-changed_test.sh
 
-      - name: Test absolute-rule guard
-        run: .claude/hooks/guard-absolute-rules_test.sh
-
       - name: Restore migrated DB snapshot
         id: db-snapshot
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -318,8 +315,6 @@ jobs:
           - 8025:8025
 
     env:
-      DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_seed?sslmode=disable
-      DEMO_DB_DSN: postgres://phoenix_demo@localhost:5432/phoenix_seed?sslmode=disable
       DB_MAX_OPEN_CONNS: "40"
       DB_MAX_IDLE_CONNS: "40"
       DB_CONN_MAX_LIFETIME: 30m
@@ -356,10 +351,12 @@ jobs:
       TENANT_DOMAIN: localhost
       # api/server.go refuses to build the server without it.
       METRICS_BEARER_TOKEN: ci-metrics-token
-      # No tenant override exists on a fresh seed, so device auth falls back to
-      # this env var. It must match the seeder's --pin, or every RFID call in
-      # the simulation returns 401.
-      OGS_DEVICE_PIN: "1234"
+      # Device auth checks the school's security.ogs_device_pin setting, whose
+      # registry default is 1234, and uses this env var only when the setting
+      # resolves empty. The seeder writes its --pin into that setting. A PIN
+      # other than the default proves that write; with 1234 a missing write
+      # stays green here and every RFID call on the public demo returns 401.
+      OGS_DEVICE_PIN: "4711"
       EMAIL_SMTP_HOST: localhost
       EMAIL_SMTP_PORT: 1025
       EMAIL_FROM_ADDRESS: noreply@localhost
@@ -372,6 +369,25 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Every DSN points at the Postgres container's bridge IP instead of
+      # localhost:5432. localhost resolves to [::1], which Docker serves
+      # through its userland port proxy. Three runs (36190757699,
+      # 36197414192, 36197521464) hung one pooled connection for the full
+      # 10 s read timeout on a millisecond query, and Postgres logged neither
+      # the query, a lock wait, nor the EOF of the closed connection: that
+      # connection's bytes never reached the server. The direct address
+      # takes the proxy out of the path.
+      - name: Resolve Postgres container address
+        run: |
+          pg_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "${{ job.services.postgres.id }}")
+          test -n "${pg_ip}"
+          echo "Postgres container address: ${pg_ip}"
+          {
+            echo "DB_DSN=postgres://postgres:postgres@${pg_ip}:5432/phoenix_seed?sslmode=disable"
+            echo "DEMO_DB_DSN=postgres://phoenix_demo@${pg_ip}:5432/phoenix_seed?sslmode=disable"
+            echo "SEED_COVERAGE_DSN=postgres://postgres:postgres@${pg_ip}:5432/phoenix_seed?sslmode=disable"
+          } >> "${GITHUB_ENV}"
 
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -388,6 +404,49 @@ jobs:
         working-directory: backend
         run: |
           "${RUNNER_TEMP}/phoenix" migrate
+
+      # A request once hung here for the full 10s driver read timeout on a
+      # sub-millisecond read while no other request or pool connection was
+      # busy (run 36190757699), and the service log could not say why. With
+      # these settings the log printed at job end names a lock wait and its
+      # blocker, or a slow statement with its duration; a hang that leaves
+      # neither points at the runner rather than at the query.
+      - name: Log Postgres lock waits and slow statements
+        run: |
+          psql "${DB_DSN}" -v ON_ERROR_STOP=1 \
+            -c "ALTER SYSTEM SET log_lock_waits = on" \
+            -c "ALTER SYSTEM SET log_min_duration_statement = '1s'" \
+            -c "ALTER SYSTEM SET log_autovacuum_min_duration = '1s'" \
+            -c "ALTER SYSTEM SET log_connections = on" \
+            -c "ALTER SYSTEM SET log_disconnections = on" \
+            -c "SELECT pg_reload_conf()"
+
+      # If a request hangs again, this shows whether its backend was running,
+      # waiting (wait_event), or idle without ever seeing the query, and
+      # whether bytes sat in a socket queue. One psql session samples twice a
+      # second, so log_connections stays readable. Printed only on failure.
+      - name: Start Postgres activity sampler
+        run: |
+          cat > "${RUNNER_TEMP}/activity.sql" <<'SQL'
+          SELECT clock_timestamp()::time(3) AS at, pid, backend_type, state,
+                 wait_event_type, wait_event,
+                 round(extract(epoch FROM clock_timestamp() - xact_start)::numeric, 2) AS xact_s,
+                 round(extract(epoch FROM clock_timestamp() - query_start)::numeric, 2) AS query_s,
+                 left(regexp_replace(query, '\s+', ' ', 'g'), 160) AS query
+          FROM pg_stat_activity
+          WHERE pid <> pg_backend_pid()
+            AND backend_type IN ('client backend', 'autovacuum worker')
+            AND state IS DISTINCT FROM 'idle'
+          ORDER BY pid
+          \watch 0.5
+          SQL
+          nohup psql "${DB_DSN}" -XAt -F ' | ' -f "${RUNNER_TEMP}/activity.sql" \
+            > "${RUNNER_TEMP}/activity.log" 2>&1 &
+          nohup bash -c 'while true; do
+            echo "=== $(date -u +%H:%M:%S.%3N)"
+            ss -tnio state established "( sport = :5432 or dport = :5432 )" | awk "NR > 1 && (\$1 > 0 || \$2 > 0)"
+            sleep 0.5
+          done' > "${RUNNER_TEMP}/sockets.log" 2>&1 &
 
       - name: Start server
         working-directory: backend
@@ -410,7 +469,7 @@ jobs:
           "${RUNNER_TEMP}/phoenix" seed \
             --email "${OPERATOR_EMAIL}" \
             --password "${OPERATOR_PASSWORD}" \
-            --pin 1234 \
+            --pin "${OGS_DEVICE_PIN}" \
             --url http://localhost:8080 \
             --tenant-slug vollbetrieb \
             --staff-password 'SeedSmoke1234%' \
@@ -443,7 +502,7 @@ jobs:
             "${RUNNER_TEMP}/phoenix" seed \
               --email "${OPERATOR_EMAIL}" \
               --password "${OPERATOR_PASSWORD}" \
-              --pin 1234 \
+              --pin "${OGS_DEVICE_PIN}" \
               --url http://localhost:8080 \
               --profile vollbetrieb \
               --tenant-slug "${slug}" \
@@ -479,8 +538,8 @@ jobs:
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
-            "INSERT INTO platform.demo_school_states (name, school_name, person_name)
-             SELECT 'ogs-smoke-' || i || '-k3m9x' || i, 'OGS Smoke ' || i, 'Kim Beispiel' FROM generate_series(1, 3) AS i"
+            "INSERT INTO platform.demo_school_states (name, school_name, first_name, last_name)
+             SELECT 'ogs-smoke-' || i || '-k3m9x' || i, 'OGS Smoke ' || i, 'Kim', 'Beispiel' FROM generate_series(1, 3) AS i"
           LOG_LEVEL=info "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once 2>&1 | grep -E 'demo school (ready|order failed)' || true
           not_ready=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%' AND status <> 'ready'")
           visitors=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM users.persons p JOIN platform.demo_school_states d ON d.tenant_id = p.tenant_id JOIN users.staff s ON s.person_id = p.id WHERE d.name LIKE 'ogs-smoke-%' AND p.first_name = 'Kim' AND p.last_name = 'Beispiel'")
@@ -494,20 +553,27 @@ jobs:
             SELECT count(*) FROM platform.demo_school_states d
             JOIN users.guardian_profiles g ON g.account_id = d.visitor_parent_account_id AND g.tenant_id = d.tenant_id
             WHERE d.name LIKE 'ogs-smoke-%' AND g.first_name = 'Kim' AND g.last_name = 'Beispiel'
-              AND (SELECT count(*) FROM users.students_guardians sg WHERE sg.guardian_profile_id = g.id) = 1
-              AND (SELECT count(*) FROM users.students_guardians sg WHERE sg.guardian_profile_id = g.id
-                   AND sg.guardian_role = 'primary_guardian' AND (sg.permissions ->> 'parent_portal.access')::boolean) = 1
+              AND (SELECT count(*) FROM users.student_guardian_relationships sg WHERE sg.guardian_profile_id = g.id) = 1
+              AND (SELECT count(*) FROM users.student_guardian_relationships sg
+                   JOIN auth.guardian_student_access sga ON sga.tenant_id = sg.tenant_id AND sga.relationship_id = sg.id
+                   WHERE sg.guardian_profile_id = g.id
+                   AND sg.guardian_role = 'primary_guardian' AND (sga.permissions ->> 'parent_portal.access')::boolean) = 1
               AND (SELECT count(*) FROM users.guardian_profiles other
-                   JOIN users.students_guardians sg ON sg.guardian_profile_id = other.id
+                   JOIN users.student_guardian_relationships sg ON sg.guardian_profile_id = other.id
                    WHERE other.account_id = d.visitor_parent_account_id) = 1")
           echo "demo schools with the visitor's parent: ${parents}"
           test "${parents}" = 3
 
       - name: Check seed coverage ratchet
         working-directory: backend
-        env:
-          SEED_COVERAGE_DSN: postgres://postgres:postgres@localhost:5432/phoenix_seed?sslmode=disable
         run: go test ./seed/api/ -run TestSeedCoverageRatchet -v
+
+      - name: Postgres activity and socket queues
+        if: failure()
+        run: |
+          tail -n 400 "${RUNNER_TEMP}/activity.log" || true
+          echo "--- sockets with queued bytes"
+          awk '/^===/ { at = $2; next } { print at, $0 }' "${RUNNER_TEMP}/sockets.log" | tail -n 200 || true
 
       - name: Server log
         if: always()

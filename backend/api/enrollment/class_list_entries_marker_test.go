@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // The class-roster table has no status column, so a class-list-only entry
@@ -17,17 +17,17 @@ import (
 func TestClassRosterTableDocumentMarksListEntries(t *testing.T) {
 	t.Parallel()
 
-	report := &enrollmentService.ClassRosterReport{
-		Filters: enrollmentService.ClassRosterAppliedFilters{SchoolClass: "1a"},
-		Totals:  enrollmentService.ClassRosterTotals{Students: 2, Registered: 1, ListEntries: 1},
-		Rows: []enrollmentService.ClassRosterRow{
+	report := &capability.ClassRosterReport{
+		Filters: capability.ClassRosterAppliedFilters{SchoolClass: "1a"},
+		Totals:  capability.ClassRosterTotals{Students: 2, Registered: 1, ListEntries: 1},
+		Rows: []capability.ClassRosterRow{
 			{
 				ListEntry:         true,
 				ListEntryID:       101,
 				FirstName:         "Zoe",
 				LastName:          "Aalders",
 				SchoolClass:       "1a",
-				EnrollmentSummary: enrollmentService.ClassListEntryNoCareLabel,
+				EnrollmentSummary: capability.ClassListEntryNoCareLabel,
 			},
 			{
 				StudentID:   21,

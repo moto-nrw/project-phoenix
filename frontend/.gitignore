@@ -18,6 +18,9 @@ db.sqlite
 
 # next.js
 /.next/
+# Build cache parked by scripts/perf/bundle-ratchet.mjs; ignored so Tailwind's
+# source scan does not read cache blobs as class candidates.
+/.next-cache-parked/
 /out/
 next-env.d.ts
 
