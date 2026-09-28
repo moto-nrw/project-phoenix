@@ -105,36 +105,28 @@ function pollAnswerSummary(
   return format(child.first_name, answer);
 }
 
-function NewsCardMeta({
+/**
+ * The type line above the title, only where the type is news: an Umfrage or a
+ * cancelled care day. The page is called "Elternbriefe", so "Elternbrief" on
+ * every card only repeated it. "Wichtig" and "Erinnerung" describe the message
+ * and sit with its other states in the last line; up here they stacked into
+ * two or three mini-headings above the title on a phone (#3719).
+ */
+function NewsCardType({
   item,
 }: Readonly<{ item: ParentAnnouncement }>): React.ReactNode {
   const t = useTranslations("parentDashboard");
-  const cancellation = item.system_kind === "care_cancellation";
-  const type = cancellation
-    ? t("newsCareCancellation")
-    : isPoll(item)
-      ? t("newsPoll")
-      : t("newsLetter");
-  const typeClass = cancellation ? "text-moto-red-strong" : "text-gray-500";
+  if (item.system_kind === "care_cancellation") {
+    return (
+      <span className="text-moto-red-strong mb-1 block text-xs font-semibold tracking-wide uppercase">
+        {t("newsCareCancellation")}
+      </span>
+    );
+  }
+  if (!isPoll(item)) return null;
   return (
-    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold tracking-wide uppercase">
-      <span className={typeClass}>{type}</span>
-      {item.reminder_sent_at && (
-        <>
-          <span className="text-gray-300" aria-hidden="true">
-            ·
-          </span>
-          <span className="text-moto-blue-strong">{t("newsReminder")}</span>
-        </>
-      )}
-      {item.priority === "important" && (
-        <>
-          <span className="text-gray-300" aria-hidden="true">
-            ·
-          </span>
-          <span className="text-moto-amber-strong">{t("newsImportant")}</span>
-        </>
-      )}
+    <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+      {t("newsPoll")}
     </span>
   );
 }
@@ -164,18 +156,14 @@ function NewsCardState({
 
   if (!isPoll(item)) {
     if (item.requires_acknowledgement && !item.acknowledged) {
-      return (
-        <span className="mt-2 flex">
-          <StatusBadge label={t("newsLetterBadge")} tone="orange" />
-        </span>
-      );
+      return <StatusBadge label={t("newsLetterBadge")} tone="orange" />;
     }
     const complete = item.requires_acknowledgement
       ? item.acknowledged
       : item.read;
     if (!complete) return null;
     return (
-      <span className="text-moto-green-strong mt-2 flex items-center gap-1.5 text-sm font-semibold">
+      <span className="text-moto-green-strong flex items-center gap-1.5 font-semibold">
         <Check
           className="text-moto-green-strong h-4 w-4 shrink-0"
           aria-hidden="true"
@@ -210,7 +198,7 @@ function NewsCardState({
     : t("newsPollDone");
 
   return (
-    <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+    <>
       {!closed && !complete ? (
         <StatusBadge label={t("newsPollNeedsAnswer")} tone="orange" />
       ) : (
@@ -244,7 +232,7 @@ function NewsCardState({
           })}
         </span>
       )}
-    </span>
+    </>
   );
 }
 
@@ -503,9 +491,9 @@ export function NewsCard({
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <NewsCardMeta item={item} />
+        <NewsCardType item={item} />
         <span
-          className={`mt-1 block truncate text-sm text-gray-900 ${outstanding ? "font-semibold" : "font-medium"}`}
+          className={`block truncate text-sm text-gray-900 ${outstanding ? "font-semibold" : "font-medium"}`}
         >
           {item.title}
         </span>
@@ -520,7 +508,17 @@ export function NewsCard({
             ? item.reminder_text
             : item.body}
         </span>
-        <NewsCardState item={item} />
+        {/* empty:hidden drops the line's margin when nothing is owed, done
+            or flagged: an unread message that asks for nothing. */}
+        <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm empty:hidden">
+          <NewsCardState item={item} />
+          {item.priority === "important" && (
+            <StatusBadge label={t("newsImportant")} tone="orange" />
+          )}
+          {item.reminder_sent_at && (
+            <StatusBadge label={t("newsReminder")} tone="gray" />
+          )}
+        </span>
       </span>
       <ChevronRight
         className="h-5 w-5 shrink-0 text-gray-400"
