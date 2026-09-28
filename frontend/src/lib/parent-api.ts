@@ -11,6 +11,7 @@ import { ApiError } from "./api-error";
 
 import type { AppLocale } from "~/i18n/locales";
 import type { ConsentRecord, ConsentState } from "~/lib/consent-types";
+import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
 import { readEnrollmentError } from "~/lib/enrollment-error-messages";
@@ -1304,9 +1305,30 @@ export interface ParentDeclarationProof {
   readonly kind: "consent" | "acknowledgement";
   readonly method_label: string;
   readonly generated_at: string;
+  /** False when a stored text or answer was changed after the fact. */
+  readonly integrity_ok: boolean;
   /** Only the versions this account declared on, newest first. */
   readonly versions: readonly ParentDeclarationProofVersion[];
   readonly submissions: readonly ParentDeclarationProofEntry[];
+}
+
+/**
+ * Downloads the proof as the school's PDF (#3430), under the file name the
+ * backend chose. Fetched first rather than opened as a link, so a failure
+ * stays on the page as a message; a 401 still leads to the login.
+ */
+export async function downloadDeclarationProofPdf(
+  announcementId: string,
+  studentId: string,
+): Promise<void> {
+  const url = `/api/parent/me/news/${encodeURIComponent(announcementId)}/declaration/proof/pdf?student_id=${encodeURIComponent(studentId)}`;
+  const response = await fetch(url, { method: "GET" });
+  if (!response.ok) await throwResponseError(url, response);
+  const blob = await response.blob();
+  downloadBlob(
+    blob,
+    filenameFromDisposition(response) ?? "nachweis-erklaerung.pdf",
+  );
 }
 
 /**
@@ -1322,7 +1344,7 @@ export async function fetchDeclarationProof(
   );
 }
 
-/** Portal page that shows and prints the proof for one child. */
+/** Portal page that shows the proof for one child. */
 export function declarationProofPath(
   announcementId: string,
   studentId: string,

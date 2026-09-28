@@ -98,6 +98,29 @@ describe("Erklärungen in the staff client (#3430)", () => {
     );
   });
 
+  it("downloads the report as the backend's PDF", async () => {
+    const fetchMock = mockFetch(
+      new Response("%PDF-1.7", {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition":
+            'attachment; filename="nachweis-erklaerung.pdf"',
+        },
+      }),
+    );
+
+    await downloadDeclarationExport("42", "pdf");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/parent-announcements/42/declaration-export?format=pdf",
+    );
+    expect(downloadBlobMock).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "nachweis-erklaerung.pdf",
+    );
+  });
+
   it("throws instead of saving an error body as a file", async () => {
     mockFetch(
       new Response(JSON.stringify({ error: "not found" }), {

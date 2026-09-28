@@ -24,12 +24,14 @@ import (
 // Resource is the staff parent-announcement HTTP resource.
 type Resource struct {
 	Service announcementService.ParentAnnouncementCapability
+	// Reports renders the Erklärung proof report (#3430).
+	Reports ReportRenderer
 	db      *bun.DB
 }
 
 // NewResource wires the staff announcement resource.
-func NewResource(service announcementService.ParentAnnouncementCapability, db *bun.DB) *Resource {
-	return &Resource{Service: service, db: db}
+func NewResource(service announcementService.ParentAnnouncementCapability, reports ReportRenderer, db *bun.DB) *Resource {
+	return &Resource{Service: service, Reports: reports, db: db}
 }
 
 // Router returns the chi router scoped to /parent-announcements.

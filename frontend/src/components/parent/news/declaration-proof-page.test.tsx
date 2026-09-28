@@ -1,10 +1,4 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DeclarationProofPage } from "./declaration-proof-page";
@@ -26,6 +20,7 @@ const proof: ParentDeclarationProof = {
   kind: "consent",
   method_label: "Einfache elektronische Erklärung im angemeldeten Eltern-Konto",
   generated_at: "2026-09-09T10:00:00Z",
+  integrity_ok: true,
   versions: [
     {
       id: "12",
@@ -69,7 +64,7 @@ afterEach(() => {
 });
 
 describe("Nachweis einer Erklärung im Eltern-Portal (#3430)", () => {
-  it("shows the full text, checksums, own history and the legal note, ready to print", async () => {
+  it("shows the full text, own history, the integrity sentence and no checksums", async () => {
     const load = vi
       .spyOn(parentApi, "fetchDeclarationProof")
       .mockResolvedValue(proof);
@@ -77,9 +72,7 @@ describe("Nachweis einer Erklärung im Eltern-Portal (#3430)", () => {
     render(<DeclarationProofPage announcementId="42" />);
 
     expect(
-      await screen.findByRole("button", {
-        name: "Drucken / als PDF speichern",
-      }),
+      await screen.findByRole("button", { name: "Als PDF herunterladen" }),
     ).toBeInTheDocument();
     expect(load).toHaveBeenCalledWith("42", "5");
     expect(
@@ -88,34 +81,89 @@ describe("Nachweis einer Erklärung im Eltern-Portal (#3430)", () => {
         name: "Nachweis Ihrer Erklärung",
       }),
     ).toBeInTheDocument();
-
-    const copy = await waitFor(() => {
-      const found = document.querySelector<HTMLElement>(
-        "body > .moto-print-document",
-      );
-      expect(found).not.toBeNull();
-      return found;
-    });
-    const doc = within(copy!);
-    expect(doc.getByText("Nachweis Ihrer Erklärung")).toBeInTheDocument();
-    expect(doc.getByText("Mia Muster")).toBeInTheDocument();
+    expect(screen.getByText("Mia Muster")).toBeInTheDocument();
     expect(
-      doc.getByText("Wir fahren am Freitag in den Zoo."),
+      screen.getByText("Wir fahren am Freitag in den Zoo."),
     ).toBeInTheDocument();
     expect(
-      doc.getByText("Zugestimmt am 02.09.2026, 08:15 Uhr"),
+      screen.getByText("Zugestimmt am 02.09.2026, 08:15 Uhr"),
     ).toBeInTheDocument();
     expect(
-      doc.getByText("Antwort von Klaus Schneider (Hauptberechtigt)"),
+      screen.getByText("Antwort von Klaus Schneider (Hauptberechtigt)"),
     ).toBeInTheDocument();
-    expect(doc.getByText(/Mit Passwort bestätigt/)).toBeInTheDocument();
-    expect(doc.getByText("c".repeat(64))).toBeInTheDocument();
-    expect(doc.getByText(`SHA-256: ${"b".repeat(64)}`)).toBeInTheDocument();
+    expect(screen.getByText(/Mit Passwort bestätigt/)).toBeInTheDocument();
+    expect(screen.getByText(/Ausflug\.pdf/)).toBeInTheDocument();
     expect(
-      doc.getByText(
+      screen.getByText(
+        "Text und Antworten sind seit der Veröffentlichung unverändert.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
         "Dieser Nachweis belegt eine einfache elektronische Erklärung. Er ersetzt keine gesetzlich vorgeschriebene Unterschrift auf Papier.",
       ),
     ).toBeInTheDocument();
+
+    // No checksum and no print view anywhere.
+    const text = document.body.textContent ?? "";
+    for (const hash of ["a", "b", "c"].map((c) => c.repeat(64))) {
+      expect(text).not.toContain(hash);
+    }
+    expect(text).not.toMatch(/SHA-256|Prüfsumme/);
+    expect(document.querySelector(".moto-print-document")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /Drucken/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("warns when a stored entry was changed afterwards", async () => {
+    vi.spyOn(parentApi, "fetchDeclarationProof").mockResolvedValue({
+      ...proof,
+      integrity_ok: false,
+    });
+
+    render(<DeclarationProofPage announcementId="42" />);
+
+    expect(
+      await screen.findByText(
+        "Achtung: Ein gespeicherter Eintrag wurde nachträglich verändert. Bitte wenden Sie sich an die OGS.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Text und Antworten sind seit der Veröffentlichung unverändert.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("downloads the PDF through the portal and says so when it fails", async () => {
+    vi.spyOn(parentApi, "fetchDeclarationProof").mockResolvedValue(proof);
+    const download = vi
+      .spyOn(parentApi, "downloadDeclarationProofPdf")
+      .mockRejectedValueOnce(new ParentApiError("boom", 500))
+      .mockResolvedValueOnce(undefined);
+
+    render(<DeclarationProofPage announcementId="42" />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Als PDF herunterladen" }),
+    );
+    await waitFor(() => expect(download).toHaveBeenCalledWith("42", "5"));
+    expect(
+      await screen.findByText(
+        "Das PDF konnte nicht erstellt werden. Bitte versuchen Sie es noch einmal.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als PDF herunterladen" }),
+    );
+    await waitFor(() => expect(download).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(
+        screen.queryByText(/Das PDF konnte nicht erstellt werden/),
+      ).not.toBeInTheDocument(),
+    );
   });
 
   it("explains a missing proof instead of an error", async () => {
@@ -131,7 +179,7 @@ describe("Nachweis einer Erklärung im Eltern-Portal (#3430)", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Drucken / als PDF speichern" }),
+      screen.queryByRole("button", { name: "Als PDF herunterladen" }),
     ).not.toBeInTheDocument();
   });
 
@@ -148,9 +196,7 @@ describe("Nachweis einer Erklärung im Eltern-Portal (#3430)", () => {
     );
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
     expect(
-      await screen.findByRole("button", {
-        name: "Drucken / als PDF speichern",
-      }),
+      await screen.findByRole("button", { name: "Als PDF herunterladen" }),
     ).toBeInTheDocument();
   });
 

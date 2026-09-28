@@ -9,7 +9,6 @@ package messaging_test
 import (
 	"context"
 	"errors"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -83,8 +82,7 @@ func freezeTestVersion(t *testing.T, ctx context.Context, repo usersModels.Paren
 		TenantID: a.GetTenantID(), AnnouncementID: a.ID, VersionNo: number, Title: a.Title,
 		Body: a.Body + " " + string(rune('A'+number)), Kind: a.Declaration.Kind, PublishedAt: time.Now(),
 	}
-	// The parent flow compares versions by id; any well-formed digest will do.
-	version.ContentHash = strings.Repeat(string(rune('a'+number)), 64)
+	version.ContentHash = messaging.DeclarationContentHash(version)
 	require.NoError(t, repo.InsertDeclarationVersion(ctx, version))
 	return version
 }
@@ -363,6 +361,17 @@ func TestDeclaration_ProofContainsOnlyTheOwnDeclarations(t *testing.T) {
 	assert.Equal(t, s.chain.AccountID, *proof.Submissions[0].AccountID)
 	require.Contains(t, proof.Versions, s.version.ID)
 	assert.Equal(t, s.version.Body, proof.Versions[s.version.ID].Body)
+	assert.True(t, proof.IntegrityOK)
+
+	// A row changed behind the application's back no longer matches its
+	// checksum; the proof says so instead of hiding it.
+	_, err = s.db.ExecContext(s.ctx,
+		`UPDATE users.parent_announcement_declaration_submissions SET signer_name = 'Jemand' WHERE id = ?`,
+		proof.Submissions[0].ID)
+	require.NoError(t, err)
+	proof, err = s.svc.DeclarationProof(s.ctx, s.chain.AccountID, s.announcement.ID, s.chain.StudentID)
+	require.NoError(t, err)
+	assert.False(t, proof.IntegrityOK)
 
 	stranger := testpkg.CreateTestParentGuardianChain(t, s.db)
 	_, err = s.svc.DeclarationProof(s.ctx, stranger.AccountID, s.announcement.ID, s.chain.StudentID)

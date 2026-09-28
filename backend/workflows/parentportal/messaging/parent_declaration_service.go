@@ -306,6 +306,12 @@ func DeclarationRecordHash(submission *usersModels.DeclarationSubmission) string
 	return authorize.ContentFingerprint(submission.CanonicalRecord())
 }
 
+// DeclarationContentHash is the SHA-256 over a version's canonical content,
+// the same digest the staff side stores when it freezes the version.
+func DeclarationContentHash(version *usersModels.DeclarationVersion) string {
+	return authorize.ContentFingerprint(version.CanonicalContent())
+}
+
 func knownDeclarationAction(action string) bool {
 	switch action {
 	case declarations.DeclarationActionAgreed, declarations.DeclarationActionDeclined,

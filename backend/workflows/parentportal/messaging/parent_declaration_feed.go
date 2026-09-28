@@ -158,6 +158,9 @@ type DeclarationProof struct {
 	Kind        string
 	Versions    map[int64]*usersModels.DeclarationVersion
 	Submissions []*usersModels.DeclarationSubmission
+	// IntegrityOK is false when a shown version or answer no longer matches
+	// its stored checksum.
+	IntegrityOK bool
 }
 
 // DeclarationProof returns the account's own proof for one child. It needs a
@@ -210,7 +213,22 @@ func (s *Service) loadDeclarationProof(ctx context.Context, proof *DeclarationPr
 	for _, v := range versions {
 		proof.Versions[v.ID] = v
 	}
+	proof.IntegrityOK = declarationProofIntact(proof)
 	return nil
+}
+
+// declarationProofIntact recomputes the checksums of the guardian's answers
+// and of the versions they answered on.
+func declarationProofIntact(proof *DeclarationProof) bool {
+	for _, sub := range proof.Submissions {
+		if DeclarationRecordHash(sub) != sub.RecordHash {
+			return false
+		}
+		if v, ok := proof.Versions[sub.VersionID]; ok && DeclarationContentHash(v) != v.ContentHash {
+			return false
+		}
+	}
+	return true
 }
 
 // countOwedReadDeclarations counts the Erklärungen the account has opened but

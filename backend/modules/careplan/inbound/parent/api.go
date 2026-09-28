@@ -51,7 +51,9 @@ type Resource struct {
 	PushService           notificationsService.PushSubscriptionService
 	PreferenceService     notificationsService.PreferenceService
 	PWAUsageService       pwaService.UsageService
-	db                    *bun.DB
+	// Reports renders the Erklärung proof PDF (#3430).
+	Reports ReportRenderer
+	db      *bun.DB
 }
 
 // ResourceConfig lists the parent-portal collaborators. The composition root
@@ -73,7 +75,9 @@ type ResourceConfig struct {
 	Preferences notificationsService.PreferenceService
 	// PWAUsage is the PWA standalone-usage service (#2189).
 	PWAUsage pwaService.UsageService
-	DB       *bun.DB
+	// Reports renders the Erklärung proof PDF (#3430).
+	Reports ReportRenderer
+	DB      *bun.DB
 }
 
 // NewResource builds the parent-portal resource.
@@ -98,6 +102,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		PushService:           cfg.Push,
 		PreferenceService:     cfg.Preferences,
 		PWAUsageService:       cfg.PWAUsage,
+		Reports:               cfg.Reports,
 		db:                    cfg.DB,
 	}
 }

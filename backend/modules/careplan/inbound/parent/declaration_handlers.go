@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -224,13 +225,14 @@ type declarationProofResponse struct {
 	GeneratedAt time.Time                 `json:"generated_at"`
 	Versions    []proofVersionResponse    `json:"versions"`
 	Submissions []proofSubmissionResponse `json:"submissions"`
+	IntegrityOK bool                      `json:"integrity_ok"`
 }
 
 // methodLabel names the only procedure moto offers, and says what it is.
 const methodLabel = "Einfache elektronische Erklärung im angemeldeten Eltern-Konto"
 
-// declarationProof returns the guardian's own proof for one child. The portal
-// renders it as a printable page the guardian can keep as a PDF.
+// declarationProof returns the guardian's own proof for one child: JSON for
+// the portal page, or with format=pdf the proof in the moto PDF design.
 func (rs *Resource) declarationProof(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := rs.parentAccountID(w, r)
 	if !ok {
@@ -251,13 +253,30 @@ func (rs *Resource) declarationProof(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
+	if r.URL.Query().Get("format") == "pdf" {
+		rs.writeDeclarationProofPDF(w, r, proof)
+		return
+	}
 	common.Respond(w, r, http.StatusOK, toDeclarationProofResponse(proof, time.Now()), "Declaration proof retrieved")
+}
+
+func (rs *Resource) writeDeclarationProofPDF(w http.ResponseWriter, r *http.Request, proof *parentService.DeclarationProof) {
+	file, err := rs.renderDeclarationProof(proof, time.Now())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("render declaration proof", err))
+		return
+	}
+	w.Header().Set("Content-Type", file.ContentType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(file.Data)
 }
 
 func toDeclarationProofResponse(proof *parentService.DeclarationProof, now time.Time) declarationProofResponse {
 	out := declarationProofResponse{
 		Title: proof.Title, SchoolName: proof.SchoolName, ChildName: proof.ChildName, Kind: proof.Kind,
-		MethodLabel: methodLabel, GeneratedAt: now,
+		MethodLabel: methodLabel, GeneratedAt: now, IntegrityOK: proof.IntegrityOK,
 		Versions: []proofVersionResponse{}, Submissions: []proofSubmissionResponse{},
 	}
 	declared := map[int64]bool{}

@@ -1449,7 +1449,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Messaging = messagingAPI.NewResource(api.Services.Messaging, db)
 	api.StaffMessaging = staffMessagingAPI.NewResource(api.Services.StaffMessaging, db)
 	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, logger.With("handler", "calendar"))
-	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, db)
+	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, newDeclarationReports(), db)
 	// Tagesinformationen (#2180) are Timetable's: the owner composes the
 	// service over its own repository, the calendar periods for the week
 	// pattern and the People Directory names of the acknowledgement list
@@ -1691,6 +1691,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Push:                  api.Services.PushSubscriptions,
 		Preferences:           api.Services.NotificationPreferences,
 		PWAUsage:              api.Services.PWAUsage,
+		Reports:               newDeclarationReports(),
 		DB:                    db,
 	})
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{

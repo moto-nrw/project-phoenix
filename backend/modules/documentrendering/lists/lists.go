@@ -40,6 +40,35 @@ func NewRenderer() Renderer {
 	return listexport.NewService()
 }
 
+// Record documents are the block layout of the same design: groups of cards,
+// each with label/value fields and indented sub-blocks. Proofs and reports
+// that are not a table use them (#3430).
+type (
+	// RecordDocument is one block-layout document.
+	RecordDocument = listexport.RecordDocument
+	// RecordGroup is a titled section of records.
+	RecordGroup = listexport.RecordGroup
+	// Record is one card.
+	Record = listexport.Record
+	// SubRecord is an indented block inside a card.
+	SubRecord = listexport.SubRecord
+	// Field is one label/value line.
+	Field = listexport.Field
+)
+
+// RecordRenderer renders a record document as a PDF. Like Renderer it
+// neither stores the file nor decides who may read it.
+type RecordRenderer interface {
+	RenderRecords(doc RecordDocument, filenameBase string) (File, error)
+}
+
+var _ RecordRenderer = (*listexport.RendererService)(nil)
+
+// NewRecordRenderer returns the Document Rendering record renderer.
+func NewRecordRenderer() RecordRenderer {
+	return listexport.NewService()
+}
+
 const (
 	FormatPDF  = listexport.FormatPDF
 	FormatDOCX = listexport.FormatDOCX

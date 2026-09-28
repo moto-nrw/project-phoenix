@@ -75,8 +75,6 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   // Objektansicht einer Elternmitteilung (#3115): nur die Route, nie der
   // Titel — die Kennung bleibt als :id stehen.
   "/parent-announcements/:id",
-  // Nachweisbericht einer Erklärung (#3430), druckbar.
-  "/parent-announcements/:id/nachweis",
   "/payroll",
   "/planung",
   "/profile",

@@ -169,36 +169,72 @@ describe("DeclarationStatusPanel (#3430)", () => {
     expect(screen.getByText("Lea Kaya")).toBeInTheDocument();
   });
 
-  it("shows the version with a short, expandable checksum and older versions", async () => {
+  it("shows the version, older versions and no checksum at all", async () => {
     render(<DeclarationStatusPanel announcementId="42" canAct />);
     await screen.findByText("Kinder mit Antwort");
 
     expect(
       screen.getByText(/Fassung 2, veröffentlicht am/),
     ).toBeInTheDocument();
-    expect(screen.getByText("a1b2c3d4e5f6…")).toBeInTheDocument();
-    fireEvent.click(
-      screen.getAllByRole("button", { name: "Ganz anzeigen" })[0]!,
-    );
-    expect(screen.getByText(HASH)).toBeInTheDocument();
     expect(
       screen.getByText("Ausflug.pdf", { exact: false }),
     ).toBeInTheDocument();
     expect(screen.getByText(/Frühere Fassung: 1/)).toBeInTheDocument();
+
+    const text = document.body.textContent ?? "";
+    for (const hash of [HASH, "f".repeat(64), "b".repeat(64)]) {
+      expect(text).not.toContain(hash);
+    }
+    expect(text).not.toContain("a1b2c3d4e5f6");
+    expect(text).not.toMatch(/SHA-256|Prüfsumme/);
   });
 
-  it("lists the history and flags an entry whose checksum no longer fits", async () => {
+  it("says in one sentence that everything is unchanged", async () => {
+    statusMock.mockResolvedValue(
+      status({
+        integrity_ok: true,
+        submissions: status().submissions.map((entry) => ({
+          ...entry,
+          integrity_ok: true,
+        })),
+      }),
+    );
     render(<DeclarationStatusPanel announcementId="42" canAct />);
     await screen.findByText("Kinder mit Antwort");
 
+    expect(
+      screen.getByText(
+        "Text und Antworten sind seit der Veröffentlichung unverändert.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Nachträglich verändert"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Achtung/)).not.toBeInTheDocument();
+  });
+
+  it("warns and marks the changed entry when the check fails", async () => {
+    render(<DeclarationStatusPanel announcementId="42" canAct />);
+    await screen.findByText("Kinder mit Antwort");
+
+    expect(
+      screen.getByText(
+        "Achtung: Mindestens ein gespeicherter Eintrag wurde nachträglich verändert. Bitte wenden Sie sich an den moto-Support.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Text und Antworten sind seit der Veröffentlichung unverändert.",
+      ),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Klaus Schneider")).toBeInTheDocument();
     expect(
       screen.getByText(/Fassung 2 · Hauptberechtigt · mit Passwort/),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Prüfung fehlgeschlagen/)).toBeInTheDocument();
+    expect(screen.getByText("Nachträglich verändert")).toBeInTheDocument();
   });
 
-  it("reminds the open ones, links the report and downloads the history", async () => {
+  it("reminds the open ones and downloads the report and the history", async () => {
     render(<DeclarationStatusPanel announcementId="42" canAct />);
     await screen.findByText("Kinder mit Antwort");
 
@@ -209,11 +245,10 @@ describe("DeclarationStatusPanel (#3430)", () => {
     expect(remindMock).toHaveBeenCalledWith("42");
 
     expect(
-      screen.getByRole("link", { name: /Bericht drucken/ }),
-    ).toHaveAttribute(
-      "href",
-      expect.stringContaining("/parent-announcements/42/nachweis"),
-    );
+      screen.queryByRole("link", { name: /Bericht drucken/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Bericht als PDF/ }));
+    await waitFor(() => expect(downloadMock).toHaveBeenCalledWith("42", "pdf"));
     fireEvent.click(screen.getByRole("button", { name: /Verlauf als CSV/ }));
     await waitFor(() => expect(downloadMock).toHaveBeenCalledWith("42", "csv"));
   });

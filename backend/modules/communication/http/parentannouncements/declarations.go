@@ -192,10 +192,11 @@ func (rs *Resource) declarationExport(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// The printable proof is rendered by the portal from the status; the
-	// export is the machine-readable history.
-	if format := r.URL.Query().Get("format"); format != "" && format != "csv" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("format must be csv")))
+	// pdf is the report in the moto design; csv is the machine-readable
+	// history, the one place the checksums are printed.
+	format := r.URL.Query().Get("format")
+	if format != "" && format != "csv" && format != "pdf" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("format must be csv or pdf")))
 		return
 	}
 	status, err := rs.Service.ParentDeclarationStatus(r.Context(), id)
@@ -203,17 +204,29 @@ func (rs *Resource) declarationExport(w http.ResponseWriter, r *http.Request) {
 		renderAnnouncementError(w, r, err)
 		return
 	}
-	file, err := declarationCSV(status)
+	var file ReportFile
+	if format == "pdf" {
+		file, err = rs.renderDeclarationReport(status)
+	} else {
+		file, err = declarationCSV(status)
+	}
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("render declaration export", err))
 		return
 	}
-	w.Header().Set("Content-Type", file.contentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.filename))
-	w.Header().Set("Content-Length", strconv.Itoa(len(file.data)))
+	w.Header().Set("Content-Type", file.ContentType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(file.data)
+	_, _ = w.Write(file.Data)
+}
+
+func (rs *Resource) renderDeclarationReport(s *announcementService.ParentDeclarationStatus) (ReportFile, error) {
+	if rs.Reports == nil {
+		return ReportFile{}, errors.New("declaration report renderer is not bound")
+	}
+	return rs.Reports.RenderReport(declarationReport(s), "nachweis-erklaerung")
 }
 
 // berlin is the school time zone the export states times in.
@@ -238,13 +251,7 @@ func yesNo(v bool) string {
 
 // declarationCSV is the full history as a spreadsheet: semicolon separated,
 // UTF-8 with BOM so German spreadsheet programs open it correctly.
-type csvFile struct {
-	data        []byte
-	contentType string
-	filename    string
-}
-
-func declarationCSV(s *announcementService.ParentDeclarationStatus) (csvFile, error) {
+func declarationCSV(s *announcementService.ParentDeclarationStatus) (ReportFile, error) {
 	var buf bytes.Buffer
 	buf.WriteString("\xEF\xBB\xBF")
 	w := csv.NewWriter(&buf)
@@ -260,9 +267,9 @@ func declarationCSV(s *announcementService.ParentDeclarationStatus) (csvFile, er
 		})
 	}
 	if err := w.WriteAll(rows); err != nil {
-		return csvFile{}, err
+		return ReportFile{}, err
 	}
-	return csvFile{data: buf.Bytes(), contentType: "text/csv; charset=utf-8", filename: "nachweis-erklaerung.csv"}, nil
+	return ReportFile{Data: buf.Bytes(), ContentType: "text/csv; charset=utf-8", Filename: "nachweis-erklaerung.csv"}, nil
 }
 
 // csvSafe neutralises spreadsheet formula injection in user-entered names.

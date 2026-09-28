@@ -29,6 +29,8 @@ import (
 // fakeParentService implements PortalService. Only the profile methods
 // carry behaviour; the rest satisfy the interface for the handler tests.
 type fakeParentService struct {
+	declarationProof *parentService.DeclarationProof
+
 	getProfile    *parentService.Profile
 	getProfileErr error
 
@@ -367,6 +369,9 @@ func (f *fakeParentService) SubmitDeclaration(context.Context, int64, int64, par
 }
 
 func (f *fakeParentService) DeclarationProof(context.Context, int64, int64, int64) (*parentService.DeclarationProof, error) {
+	if f.declarationProof != nil {
+		return f.declarationProof, nil
+	}
 	return nil, parentService.ErrAnnouncementNotFound
 }
 

@@ -2,18 +2,19 @@
 
 /**
  * Nachweis einer Erklärung (#3430): was dieses Konto für ein Kind erklärt hat,
- * mit dem vollständigen Text der Fassung, den Prüfsummen und dem eigenen
- * Verlauf. Zum Lesen auf dem Handy und zum Drucken; „als PDF speichern“ ist
- * der Druckdialog des Browsers.
+ * mit dem vollständigen Text der Fassung und dem eigenen Verlauf. Zum Lesen
+ * auf dem Handy; „Als PDF herunterladen“ holt das PDF, das moto erzeugt.
+ * Prüfsummen stehen nicht auf dem Schirm, nur ein Satz, ob alles unverändert
+ * ist.
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { Download } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { PrintButton, PrintDocument } from "~/components/ui/print-document";
 import {
   ParentPage,
   ParentPageHeader,
@@ -24,6 +25,7 @@ import { formatBytes } from "~/lib/files-api";
 import { createLogger } from "~/lib/logger";
 import {
   ParentApiError,
+  downloadDeclarationProofPdf,
   fetchDeclarationProof,
   type ParentDeclarationProof,
 } from "~/lib/parent-api";
@@ -37,8 +39,6 @@ const SIGNER_ROLES = new Set([
   "co_guardian",
 ]);
 
-const HASH = "font-mono text-xs break-all text-gray-800";
-
 export function DeclarationProofPage({
   announcementId,
 }: Readonly<{ announcementId: string }>) {
@@ -47,6 +47,8 @@ export function DeclarationProofPage({
   const [proof, setProof] = useState<ParentDeclarationProof | null>(null);
   const [failure, setFailure] = useState<"notFound" | "error" | null>(null);
   const [reload, setReload] = useState(0);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadFailed, setDownloadFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -78,6 +80,21 @@ export function DeclarationProofPage({
 
   const retry = useCallback(() => setReload((n) => n + 1), []);
 
+  const download = async () => {
+    setDownloading(true);
+    setDownloadFailed(false);
+    try {
+      await downloadDeclarationProofPdf(announcementId, studentId);
+    } catch (err: unknown) {
+      logger.warn("parent_declaration_proof_pdf_failed", {
+        status: err instanceof ParentApiError ? err.status : undefined,
+      });
+      setDownloadFailed(true);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <ParentPage>
       <ParentPageHeader
@@ -88,9 +105,25 @@ export function DeclarationProofPage({
         )}
         backLabel={t("back")}
         actions={
-          proof ? <PrintButton label={t("print")} size="touch" /> : undefined
+          proof ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="touch"
+              className="gap-1.5"
+              onClick={() => void download()}
+              isLoading={downloading}
+              loadingText={t("downloading")}
+              disabled={downloading}
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              {t("download")}
+            </Button>
+          ) : undefined
         }
       />
+
+      {downloadFailed && <Alert type="error" message={t("downloadError")} />}
 
       {failure === "notFound" && <Alert type="info" message={t("notFound")} />}
       {failure === "error" && (
@@ -108,9 +141,7 @@ export function DeclarationProofPage({
 
       {proof && (
         <div className="moto-content-surface rounded-2xl border p-5 shadow-sm">
-          <PrintDocument>
-            <ProofDocument proof={proof} />
-          </PrintDocument>
+          <ProofDocument proof={proof} />
         </div>
       )}
     </ParentPage>
@@ -128,14 +159,16 @@ function ProofDocument({ proof }: Readonly<{ proof: ParentDeclarationProof }>) {
     SIGNER_ROLES.has(value) ? tRoles(value) : null;
 
   return (
-    <article className="space-y-6 text-base leading-7 text-gray-900 print:text-[11pt] print:leading-6">
-      <header className="space-y-1">
-        <h2 className="hidden text-xl font-semibold print:block">
-          {t("title")}
-        </h2>
+    <article className="space-y-6 text-base leading-7 text-gray-900">
+      <header className="space-y-2">
         <p className="text-sm text-gray-600">
           {t("generated", { date: at(proof.generated_at) })}
         </p>
+        {proof.integrity_ok === false ? (
+          <Alert type="warning" message={t("integrityBroken")} />
+        ) : proof.integrity_ok === true ? (
+          <p className="text-sm text-gray-700">{t("integrityOk")}</p>
+        ) : null}
       </header>
 
       <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">
@@ -159,7 +192,7 @@ function ProofDocument({ proof }: Readonly<{ proof: ParentDeclarationProof }>) {
           {proof.submissions.map((entry) => (
             <li
               key={entry.id}
-              className="break-inside-avoid rounded-xl bg-gray-50 px-4 py-3 text-sm print:border print:border-gray-300 print:bg-white"
+              className="rounded-xl bg-gray-50 px-4 py-3 text-sm"
             >
               <p className="text-base font-semibold">
                 {t("entry", {
@@ -177,10 +210,6 @@ function ProofDocument({ proof }: Readonly<{ proof: ParentDeclarationProof }>) {
                 {t("entryVersion", { version: entry.version_no })} ·{" "}
                 {entry.password_confirmed ? t("passwordYes") : t("passwordNo")}
               </p>
-              <p className="mt-1 text-gray-600">{t("versionChecksum")}</p>
-              <p className={HASH}>{entry.content_hash}</p>
-              <p className="mt-1 text-gray-600">{t("recordChecksum")}</p>
-              <p className={HASH}>{entry.record_hash}</p>
             </li>
           ))}
         </ol>
@@ -201,20 +230,13 @@ function ProofDocument({ proof }: Readonly<{ proof: ParentDeclarationProof }>) {
             </p>
             <p className="font-semibold">{version.title}</p>
             <p className="whitespace-pre-line">{version.body}</p>
-            <p className="text-sm text-gray-600">{t("checksum")}</p>
-            <p className={HASH}>{version.content_hash}</p>
             {version.attachments.length > 0 && (
               <div className="text-sm">
                 <p className="text-gray-600">{t("attachments")}</p>
-                <ul className="mt-1 space-y-2">
+                <ul className="mt-1 space-y-1">
                   {version.attachments.map((file) => (
                     <li key={`${file.filename}-${file.sha256}`}>
-                      <span className="block">
-                        {file.filename} ({formatBytes(file.size_bytes)})
-                      </span>
-                      <span className={`block ${HASH}`}>
-                        SHA-256: {file.sha256}
-                      </span>
+                      {file.filename} ({formatBytes(file.size_bytes)})
                     </li>
                   ))}
                 </ul>

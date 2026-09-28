@@ -3638,7 +3638,7 @@ function parentDeclarationTopic(): HelpTopic {
       "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen, auch nach der Frist.",
       "Mit `Passwort vor dem Antworten abfragen` geben Eltern vor jeder Antwort ihr Passwort ein.",
       "`Offene erinnern` schickt eine Erinnerung an alle, die noch nicht geantwortet haben.",
-      "`Bericht drucken` zeigt den Stand zum Drucken oder Speichern als PDF. `Verlauf als CSV` lädt alle Antworten herunter.",
+      "`Bericht als PDF` lädt den Stand und alle Antworten als PDF herunter. `Verlauf als CSV` enthält dieselben Antworten als Tabelle.",
       "Das ist eine einfache Erklärung per Knopfdruck. Verlangt ein Gesetz eine Erklärung auf Papier, reicht sie nicht aus.",
     ],
     differences: [
@@ -5962,7 +5962,7 @@ function parentNewsTopic(): HelpTopic {
       "Die Bestätigung heißt `Lesebestätigung`. Damit bestätigen Sie nur, dass Sie den Brief gelesen haben.",
       "Bei mehreren Kindern zeigt moto, wie viele Antworten noch fehlen.",
       "Angehängte Dateien öffnen Sie, indem Sie auf den Namen tippen.",
-      "Nach Ihrer Antwort öffnen Sie mit `Nachweis ansehen` Ihren Nachweis. Sie können ihn drucken oder als PDF speichern.",
+      "Nach Ihrer Antwort öffnen Sie mit `Nachweis ansehen` Ihren Nachweis. Mit `Als PDF herunterladen` speichern Sie ihn.",
     ],
     differences: [
       "Ein Eintrag trägt `Elternbrief`, `Umfrage`, `Erklärung`, `Wichtig` oder `Betreuung fällt aus`.",

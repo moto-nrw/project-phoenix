@@ -613,19 +613,19 @@ export async function fetchDeclarationStatus(
   return data;
 }
 
-/** Download address of the Erklärung history (CSV). */
-function declarationExportUrl(id: string, format: "csv"): string {
+/** Download address of the Erklärung report (PDF) or history (CSV). */
+function declarationExportUrl(id: string, format: "csv" | "pdf"): string {
   return `${BASE}/${encodeURIComponent(id)}/declaration-export?format=${format}`;
 }
 
 /**
- * Downloads the Erklärung history (CSV) under the file name
+ * Downloads the Erklärung report (PDF) or history (CSV) under the file name
  * the backend chose. Fetched first rather than opened as a link, so a failure
  * stays on the page as a message instead of replacing it with an error body.
  */
 export async function downloadDeclarationExport(
   id: string,
-  format: "csv",
+  format: "csv" | "pdf",
 ): Promise<void> {
   const response = await fetch(declarationExportUrl(id, format));
   if (!response.ok) {

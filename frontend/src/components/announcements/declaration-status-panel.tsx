@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BellRing, CheckCircle2, Copy, Download, Printer } from "lucide-react";
+import { BellRing, CheckCircle2, Download } from "lucide-react";
 
-import { Button, ButtonLink } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { InfoCard } from "~/components/ui/info-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -14,7 +15,6 @@ import { getApiErrorMessage } from "~/lib/api-error-message";
 import { formatChatDateTime } from "~/lib/date-helpers";
 import { formatBytes } from "~/lib/files-api";
 import { createLogger } from "~/lib/logger";
-import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   downloadDeclarationExport,
   fetchDeclarationStatus,
@@ -118,14 +118,11 @@ function fullName(first: string, last: string): string {
   return `${first} ${last}`.trim() || "Unbekannt";
 }
 
-/** The first twelve characters of a SHA-256 value, enough to compare by eye. */
-function shortHash(hash: string): string {
-  return hash.length > 12 ? `${hash.slice(0, 12)}…` : hash;
-}
-
 /**
  * Status of an Erklärung (#3430), counted per child: who agreed, declined or
- * took note, who is still open, and the frozen versions with their checksums.
+ * took note, who is still open, and the frozen versions. Checksums stay out
+ * of the screen (they are in the CSV); one sentence says whether everything
+ * stored is unchanged.
  * The history lists every action, also those for older versions, because
  * a school may have to show later what was agreed to and when.
  */
@@ -141,9 +138,8 @@ export function DeclarationStatusPanel({
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
   const [notice, setNotice] = useState("");
-  const [busy, setBusy] = useState<"remind" | "csv" | null>(null);
+  const [busy, setBusy] = useState<"remind" | "pdf" | "csv" | null>(null);
   const [childFilter, setChildFilter] = useState<ChildFilter>("all");
-  const tenantPath = useTenantAwarePath();
 
   const load = useCallback(async () => {
     try {
@@ -199,7 +195,7 @@ export function DeclarationStatusPanel({
     }
   };
 
-  const download = async (format: "csv") => {
+  const download = async (format: "pdf" | "csv") => {
     setBusy(format);
     setActionError("");
     try {
@@ -314,17 +310,19 @@ export function DeclarationStatusPanel({
             Offene erinnern
           </Button>
         )}
-        <ButtonLink
-          href={tenantPath(
-            `/parent-announcements/${encodeURIComponent(announcementId)}/nachweis`,
-          )}
+        <Button
+          type="button"
           variant="outline"
           size="md"
+          onClick={() => void download("pdf")}
+          disabled={busy !== null}
+          isLoading={busy === "pdf"}
+          loadingText="Wird erstellt …"
           className="gap-1.5"
         >
-          <Printer className="h-4 w-4" aria-hidden />
-          Bericht drucken
-        </ButtonLink>
+          <Download className="h-4 w-4" aria-hidden />
+          Bericht als PDF
+        </Button>
         <Button
           type="button"
           variant="outline"
@@ -382,6 +380,7 @@ export function DeclarationStatusPanel({
       <VersionSection
         current={status.current_version}
         versions={status.versions}
+        integrityOk={status.integrity_ok}
       />
 
       <HistorySection submissions={status.submissions} />
@@ -427,67 +426,34 @@ function ChildRow({ child }: { readonly child: DeclarationChild }) {
   );
 }
 
-/**
- * A checksum shown short, with a button to see it in full and one to copy
- * it. Read-only text otherwise: nothing here looks like a link.
- */
-function HashValue({ hash }: { readonly hash: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(hash);
-      setCopied(true);
-    } catch {
-      // Clipboard blocked: the full value is still visible after "Anzeigen".
-      setExpanded(true);
-    }
-  };
-
-  return (
-    <span className="flex flex-wrap items-center gap-1.5">
-      <code className="font-mono text-xs break-all text-gray-800">
-        {expanded ? hash : shortHash(hash)}
-      </code>
-      <Button
-        type="button"
-        variant="ghost"
-        size="compact"
-        onClick={() => setExpanded((prev) => !prev)}
-        aria-expanded={expanded}
-      >
-        {expanded ? "Kürzen" : "Ganz anzeigen"}
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="compact"
-        onClick={() => void copy()}
-        aria-label="Prüfsumme kopieren"
-      >
-        <Copy className="h-3.5 w-3.5" aria-hidden />
-        {copied ? "Kopiert" : "Kopieren"}
-      </Button>
-    </span>
-  );
-}
-
 function VersionSection({
   current,
   versions,
+  integrityOk,
 }: {
   readonly current: DeclarationVersion | null;
   readonly versions: DeclarationVersion[];
+  readonly integrityOk: boolean;
 }) {
   const older = versions.filter((v) => v.id !== current?.id);
   return (
     <section>
       <h3 className="mb-1 text-sm font-semibold text-gray-900">Fassung</h3>
       <p className="mb-2 text-xs text-gray-500">
-        Beim Veröffentlichen hält moto Text und Dateien fest. Mit der Prüfsumme
-        lässt sich später zeigen, dass sich nichts geändert hat.
+        Beim Veröffentlichen hält moto Text und Dateien fest.
       </p>
+      <div className="mb-2">
+        {integrityOk ? (
+          <p className="text-sm text-gray-700">
+            Text und Antworten sind seit der Veröffentlichung unverändert.
+          </p>
+        ) : (
+          <Alert
+            type="warning"
+            message="Achtung: Mindestens ein gespeicherter Eintrag wurde nachträglich verändert. Bitte wenden Sie sich an den moto-Support."
+          />
+        )}
+      </div>
       {current ? (
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <DataGrid>
@@ -496,21 +462,18 @@ function VersionSection({
               {current.published_at &&
                 `, veröffentlicht am ${formatDateTime(current.published_at)}`}
             </DataField>
-            <DataField label="Prüfsumme (SHA-256)" fullWidth>
-              <HashValue hash={current.content_hash} />
-            </DataField>
             {current.attachments.length > 0 && (
               <DataField label="Dateien" fullWidth>
-                <ul className="space-y-2">
+                <ul className="space-y-1">
                   {current.attachments.map((file) => (
-                    <li key={`${file.filename}-${file.sha256}`}>
-                      <span className="block text-sm text-gray-900">
-                        {file.filename}{" "}
-                        <span className="text-xs text-gray-500">
-                          ({formatBytes(file.size_bytes)})
-                        </span>
+                    <li
+                      key={`${file.filename}-${file.sha256}`}
+                      className="text-sm text-gray-900"
+                    >
+                      {file.filename}{" "}
+                      <span className="text-xs text-gray-500">
+                        ({formatBytes(file.size_bytes)})
                       </span>
-                      <HashValue hash={file.sha256} />
                     </li>
                   ))}
                 </ul>
@@ -575,9 +538,8 @@ function HistorySection({
                 {entry.password_confirmed ? " · mit Passwort" : ""}
               </p>
               {!entry.integrity_ok && (
-                <p className="text-moto-red-strong mt-1 text-xs font-medium">
-                  Prüfung fehlgeschlagen: Dieser Eintrag passt nicht mehr zu
-                  seiner Prüfsumme. Bitte melden Sie das dem moto-Team.
+                <p className="text-moto-red-strong mt-1 text-xs font-semibold">
+                  Nachträglich verändert
                 </p>
               )}
             </li>
