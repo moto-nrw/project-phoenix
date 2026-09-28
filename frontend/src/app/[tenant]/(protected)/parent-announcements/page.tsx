@@ -1598,7 +1598,11 @@ function AnnouncementFormModal({
                         ? "das Einverständnis"
                         : "die Mitteilung"}{" "}
                     zu diesem Zeitpunkt noch einmal an alle Empfänger, auch wenn
-                    sie schon gelesen oder bestätigt haben.
+                    sie schon{" "}
+                    {isDeclarationForm
+                      ? "geantwortet"
+                      : "gelesen oder bestätigt"}{" "}
+                    haben.
                   </p>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>

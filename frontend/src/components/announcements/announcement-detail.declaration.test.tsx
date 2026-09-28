@@ -60,4 +60,24 @@ describe("AnnouncementDetail for an Einverständnis (#3430)", () => {
     expect(screen.queryByText("Lesebestätigung")).not.toBeInTheDocument();
     expect(screen.queryByText(/Erklärung|Kenntnis/)).not.toBeInTheDocument();
   });
+
+  it("says a scheduled reminder also reaches guardians who already answered", () => {
+    render(
+      <AnnouncementDetail
+        announcement={{ ...consent, reminder_at: "2099-10-01T06:00:00Z" }}
+        groups={[]}
+        activities={[]}
+        onReminded={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Geht an alle Empfänger der Mitteilung, auch wenn sie schon geantwortet haben.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/gelesen oder bestätigt/),
+    ).not.toBeInTheDocument();
+  });
 });

@@ -637,6 +637,13 @@ export function AnnouncementDetail({
  * sie schon raus ist. Ohne Erinnerung sagt die Zeile das ausdrücklich, damit
  * niemand eine zweite Zustellung erwartet, die nie kommt.
  */
+/** Was Empfänger schon getan haben können: beim Einverständnis antworten. */
+function reminderDoneVerb(announcement: Announcement): string {
+  return announcement.delivery_mode === "declaration"
+    ? "geantwortet"
+    : "gelesen oder bestätigt";
+}
+
 function reminderLine(announcement: Announcement) {
   const description = describeReminder(announcement);
   if (!description) {
@@ -652,8 +659,8 @@ function reminderLine(announcement: Announcement) {
         {description}
         <span className="block text-xs text-gray-500">
           {reminderStateOf(announcement) === "sent"
-            ? "Ging an alle Empfänger der Mitteilung, auch an die, die schon gelesen oder bestätigt hatten."
-            : "Geht an alle Empfänger der Mitteilung, auch wenn sie schon gelesen oder bestätigt haben."}
+            ? `Ging an alle Empfänger der Mitteilung, auch an die, die schon ${reminderDoneVerb(announcement)} hatten.`
+            : `Geht an alle Empfänger der Mitteilung, auch wenn sie schon ${reminderDoneVerb(announcement)} haben.`}
         </span>
       </span>
       {announcement.reminder_text ? (
