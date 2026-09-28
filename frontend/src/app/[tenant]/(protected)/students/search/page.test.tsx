@@ -1,3 +1,4 @@
+import { renderToString } from "react-dom/server";
 import {
   render,
   screen,
@@ -953,6 +954,19 @@ describe("StudentSearchPage", () => {
       expect(url.searchParams.get("photo_consent")).toBe("yes");
       expect(url.searchParams.get("pickup_status")).toBe("none");
       expect(url.searchParams.get("status")).toBe("schulhof");
+    });
+
+    it("renders the same initial HTML with and without stored filters (hydration)", () => {
+      // The server cannot read localStorage, so the first client render must
+      // not either; otherwise hydration fails (Sentry FRONTEND-17).
+      const withoutStorage = renderToString(<StudentSearchPage />);
+      localStorage.setItem(
+        STUDENT_SEARCH_FILTER_STORAGE_KEY,
+        JSON.stringify({ year: "2", status: "schulhof", sort: "arrival" }),
+      );
+      const withStorage = renderToString(<StudentSearchPage />);
+
+      expect(withStorage).toBe(withoutStorage);
     });
 
     it("uses URL params instead of localStorage when both are present", async () => {
