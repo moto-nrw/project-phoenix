@@ -1,17 +1,8 @@
-package users
+package config
 
 import (
-	"errors"
-
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 )
-
-// ErrParentRequestReasonRequired says the school configured
-// operations.parent_request_reason_policy so that this side of a parent request
-// must state a reason, and none was given. It is shared by every request domain
-// (Abwesenheit, Betreuungszeiten, Stammdaten, Angebote) so the handlers can map
-// one sentinel to the wire code "reason_required".
-var ErrParentRequestReasonRequired = errors.New("parent requests: a reason is required")
 
 // ReasonRequiredFor reports whether the given side of a parent request must
 // state a reason under the school's policy. staff=true asks for the deciding

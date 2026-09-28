@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // ChildFeatures resolves the parent-portal feature toggles for the child's
@@ -70,7 +70,7 @@ func (f childFeatureSettings) activeChildFlags(child *Child, hasOpenChangeReques
 		MealPlanEnabled:              f.mealPlan,
 		MealRegistrationEnabled:      f.mealRegistration && child.HasPermission(authorize.GuardianPermissionMealParticipationManage),
 		NewsEnabled:                  f.news,
-		ReasonRequired:               usersSvc.ReasonRequiredFor(f.reasonPolicy, false),
+		ReasonRequired:               configService.ReasonRequiredFor(f.reasonPolicy, false),
 	}
 }
 

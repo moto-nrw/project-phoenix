@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // CareOfferingSelection is one booked care offering of the current care period.
@@ -273,7 +272,7 @@ func (s *Service) CreateOfferingChangeRequest(
 	// The note is mandatory only while the school asks the family for a
 	// reason (#2267, story 28).
 	if strings.TrimSpace(note) == "" && s.GuardianReasonRequired(ctx, child.TenantID) {
-		return nil, usersSvc.ErrParentRequestReasonRequired
+		return nil, careplan.ErrParentRequestReasonRequired
 	}
 	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
@@ -336,7 +335,7 @@ func (s *Service) EditOfferingChangeRequest(
 	// The note is mandatory only while the school asks the family for a
 	// reason (#2267, story 28).
 	if strings.TrimSpace(note) == "" && s.GuardianReasonRequired(ctx, child.TenantID) {
-		return nil, usersSvc.ErrParentRequestReasonRequired
+		return nil, careplan.ErrParentRequestReasonRequired
 	}
 	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
