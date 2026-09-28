@@ -482,6 +482,57 @@ describe("Umfrage answering in the detail view", () => {
   });
 });
 
+// Up to three mini-headings ("Elternbrief · Erinnerung · Wichtig") stacked
+// above the title on a phone. Only a type that differs from the page's
+// "Elternbriefe" stays up there; the flags join the state line below.
+describe("card head without stacked mini-headings (#3719)", () => {
+  it("puts nothing above a letter's title and lists its flags below it", () => {
+    render(
+      <NewsCard
+        item={announcement({
+          requires_acknowledgement: true,
+          acknowledged: false,
+          delivery_mode: "letter",
+          priority: "important",
+          reminder_sent_at: "2026-09-08T06:00:00Z",
+        })}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    const title = screen.getByText("Infos zum Sommerfest");
+    expect(title.previousElementSibling).toBeNull();
+    expect(screen.queryByText("Elternbrief")).not.toBeInTheDocument();
+    for (const label of ["Bestätigung erforderlich", "Wichtig", "Erinnerung"]) {
+      expect(
+        title.compareDocumentPosition(screen.getByText(label)) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+  });
+
+  it("names a poll or a cancelled care day above the title", () => {
+    const { unmount } = render(
+      <NewsCard item={poll({ priority: "important" })} onOpen={vi.fn()} />,
+    );
+    expect(
+      screen.getByText("Kommt Ihr Kind zur Murmelparty?")
+        .previousElementSibling,
+    ).toHaveTextContent(/^Umfrage$/);
+    unmount();
+
+    render(
+      <NewsCard
+        item={announcement({ system_kind: "care_cancellation" })}
+        onOpen={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText("Infos zum Sommerfest").previousElementSibling,
+    ).toHaveTextContent(/^Betreuung fällt aus$/);
+  });
+});
+
 describe("announcement detail presentation", () => {
   it("leads with the message from the school and presents it as a mobile sheet", () => {
     render(
