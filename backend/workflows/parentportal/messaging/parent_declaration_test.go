@@ -298,8 +298,9 @@ func TestDeclaration_AllGuardiansMustDeclare(t *testing.T) {
 func TestDeclaration_PasswordIsCheckedWhenTheSchoolAsksForIt(t *testing.T) {
 	t.Parallel()
 	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAny, false, true), nil)
-	confirm := func(_ context.Context, password string) error {
-		if password != "richtig" {
+	const correctSecret, wrongSecret = "richtig", "falsch"
+	confirm := func(_ context.Context, given string) error {
+		if given != correctSecret {
 			return messaging.ErrDeclarationPasswordIncorrect
 		}
 		return nil
@@ -308,12 +309,12 @@ func TestDeclaration_PasswordIsCheckedWhenTheSchoolAsksForIt(t *testing.T) {
 
 	_, _, err := s.svc.SubmitDeclaration(s.ctx, s.chain.AccountID, s.announcement.ID, input, confirm)
 	require.ErrorIs(t, err, messaging.ErrDeclarationPasswordRequired)
-	input.Password = "falsch"
+	input.Password = wrongSecret
 	_, _, err = s.svc.SubmitDeclaration(s.ctx, s.chain.AccountID, s.announcement.ID, input, confirm)
 	require.ErrorIs(t, err, messaging.ErrDeclarationPasswordIncorrect)
 	assert.Empty(t, s.history(t))
 
-	input.Password = "richtig"
+	input.Password = correctSecret
 	submission, created, err := s.svc.SubmitDeclaration(s.ctx, s.chain.AccountID, s.announcement.ID, input, confirm)
 	require.NoError(t, err)
 	assert.True(t, created)

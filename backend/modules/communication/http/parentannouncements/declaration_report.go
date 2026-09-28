@@ -120,17 +120,17 @@ func declarationReport(s *announcementService.ParentDeclarationStatus) ReportDoc
 }
 
 func declarationSettingsCard(s *announcementService.ParentDeclarationStatus) ReportCard {
-	revocable, password := "Nicht erlaubt", "Nein"
+	revocable, askPassword := "Nicht erlaubt", "Nein"
 	if s.Settings.Revocable {
 		revocable = "Erlaubt, auch nach der Frist"
 	}
 	if s.Settings.RequiresPassword {
-		password = "Ja"
+		askPassword = "Ja"
 	}
 	return ReportCard{Title: "Einstellungen", Fields: []ReportField{
 		{Label: "Wer muss antworten", Value: declarationSignersLabel(s.Settings.Signers)},
 		{Label: "Widerruf", Value: revocable},
-		{Label: "Passwort vor dem Antworten", Value: password},
+		{Label: "Passwort vor dem Antworten", Value: askPassword},
 		{Label: "Frist", Value: reportDeadline(s.Deadline)},
 		{Label: "Verfahren", Value: announcementService.DeclarationMethodLabel("simple_electronic")},
 	}}
@@ -250,15 +250,15 @@ func declarationHistoryCards(submissions []announcementService.DeclarationSubmis
 	}
 	cards := make([]ReportCard, 0, len(submissions))
 	for _, sub := range submissions {
-		password := "Nein"
+		confirmed := "Nein"
 		if sub.PasswordConfirmed {
-			password = "Ja"
+			confirmed = "Ja"
 		}
 		fields := []ReportField{
 			{Label: "Kind", Value: strings.TrimSpace(sub.StudentFirstName + " " + sub.StudentLastName)},
 			{Label: "Von", Value: sub.SignerName + " (" + announcementService.GuardianRoleLabel(sub.GuardianRole) + ")"},
 			{Label: "Fassung", Value: strconv.Itoa(sub.VersionNo)},
-			{Label: "Passwort bestätigt", Value: password},
+			{Label: "Passwort bestätigt", Value: confirmed},
 		}
 		if !sub.IntegrityOK {
 			fields = append(fields, ReportField{Label: "Prüfung", Value: "Dieser Eintrag wurde nachträglich verändert."})

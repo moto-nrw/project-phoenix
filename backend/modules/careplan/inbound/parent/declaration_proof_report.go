@@ -125,16 +125,16 @@ func proofHistoryCards(proof *parentService.DeclarationProof) []ReportCard {
 		if v, ok := proof.Versions[sub.VersionID]; ok {
 			version = strconv.Itoa(v.VersionNo)
 		}
-		password := "Nein"
+		confirmed := "Nein"
 		if sub.PasswordConfirmed {
-			password = "Ja"
+			confirmed = "Ja"
 		}
 		cards = append(cards, ReportCard{
 			Title: labelOr(proofActionLabels, sub.Action) + " am " + proofStamp(sub.SubmittedAt),
 			Fields: []ReportField{
 				{Label: "Von", Value: sub.SignerName + " (" + labelOr(proofRoleLabels, sub.GuardianRole) + ")"},
 				{Label: "Fassung", Value: version},
-				{Label: "Passwort bestätigt", Value: password},
+				{Label: "Passwort bestätigt", Value: confirmed},
 			},
 		})
 	}
