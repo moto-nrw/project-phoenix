@@ -283,6 +283,33 @@ func TestDeclarationWithSubmissionsKeepsItsDeliveryMode(t *testing.T) {
 	assert.Equal(t, usersModels.ParentAnnouncementDeliveryDeclaration, repo.announcement.DeliveryMode)
 }
 
+func TestDeclarationWithSubmissionsKeepsItsRules(t *testing.T) {
+	t.Parallel()
+	deadline := time.Now().Add(72 * time.Hour)
+	announcement := &usersModels.ParentAnnouncement{
+		Title: "Ausflug", Body: "Freitag", Priority: usersModels.ParentAnnouncementPriorityInfo, Active: true,
+		DeliveryMode:     usersModels.ParentAnnouncementDeliveryDeclaration,
+		ResponseDeadline: &deadline,
+		Declaration: usersModels.AnnouncementDeclarationSettings{
+			Kind: usersModels.DeclarationKindConsent, Signers: usersModels.DeclarationSignersAny,
+		},
+	}
+	announcement.ID = 9
+	announcement.SetTenantID(3)
+	repo := &declarationRepo{announcement: announcement, submissions: []*usersModels.DeclarationSubmission{{ID: 1}}}
+	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}}).(*service)
+
+	in := declarationTestInput()
+	in.Declaration.Signers = usersModels.DeclarationSignersAll
+	nextDeadline := deadline.Add(time.Hour)
+	in.ResponseDeadline = &nextDeadline
+	_, err := svc.Update(context.Background(), announcement.ID, in)
+
+	require.ErrorIs(t, err, ErrDeclarationHasSubmissions)
+	assert.Equal(t, usersModels.DeclarationSignersAny, repo.announcement.Declaration.Signers)
+	assert.Equal(t, deadline, *repo.announcement.ResponseDeadline)
+}
+
 type newsOn struct{ configService.SettingsService }
 
 func (newsOn) ResolveBool(context.Context, string) (bool, error) { return true, nil }

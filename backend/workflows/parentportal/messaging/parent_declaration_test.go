@@ -373,6 +373,15 @@ func TestDeclaration_EndedActivityEnrollmentKeepsHistoryAndRevocation(t *testing
 	}, nil)
 	require.NoError(t, err)
 	assert.True(t, created, "a recorded agreement remains revocable after enrollment ends")
+
+	_, err = db.NewUpdate().TableExpr("users.persons").
+		Set("deleted_at = NOW()").
+		Where("id = ?", chain.PersonID).
+		Exec(context.Background())
+	require.NoError(t, err)
+	children, err = repos.ParentAnnouncement.DeclarationChildren(seedCtx, chain.TenantID, announcement.ID)
+	require.NoError(t, err)
+	assert.Empty(t, children, "a deleted person must not reappear through declaration history")
 }
 
 func TestDeclaration_AllGuardiansMustDeclare(t *testing.T) {

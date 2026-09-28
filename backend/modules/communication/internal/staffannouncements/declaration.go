@@ -253,6 +253,29 @@ func (s *service) guardDeclarationModeChange(ctx context.Context, a *usersModels
 	return s.guardDeclarationRetention(ctx, a, deliveryMode == usersModels.ParentAnnouncementDeliveryDeclaration)
 }
 
+// guardDeclarationSettingsChange keeps the rules a parent acted under stable
+// once a declaration has a submission. Wording changes still create a new
+// version after retracting, but changing the signer rule, revocability,
+// password confirmation or deadline would otherwise reinterpret stored proof.
+func (s *service) guardDeclarationSettingsChange(ctx context.Context, a *usersModels.ParentAnnouncement, in *Input) error {
+	if !a.IsDeclaration() || in.DeliveryMode != usersModels.ParentAnnouncementDeliveryDeclaration ||
+		(a.Declaration == in.Declaration && sameDeclarationDeadline(a.ResponseDeadline, in.ResponseDeadline)) {
+		return nil
+	}
+	count, err := s.repo.CountDeclarationSubmissions(ctx, a.GetTenantID(), a.ID)
+	if err != nil {
+		return fmt.Errorf("announcement: count declaration submissions: %w", err)
+	}
+	if count > 0 {
+		return ErrDeclarationHasSubmissions
+	}
+	return nil
+}
+
+func sameDeclarationDeadline(left, right *time.Time) bool {
+	return left == nil && right == nil || left != nil && right != nil && left.Equal(*right)
+}
+
 // DeclarationFrozen reports whether a declaration has been published before,
 // which fixes its attachments.
 func (s *service) DeclarationFrozen(ctx context.Context, a *usersModels.ParentAnnouncement) (bool, error) {

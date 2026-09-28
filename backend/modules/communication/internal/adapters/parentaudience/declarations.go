@@ -37,7 +37,7 @@ const declarationChildrenSQL = `WITH reached AS (
 				COALESCE(sm.school_class, '') AS school_class
 			FROM reached
 			JOIN users.student_profiles s ON s.id = reached.student_id` + studentMembershipJoins + `
-			JOIN users.persons p ON p.id = s.person_id
+			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 			ORDER BY last_name ASC, first_name ASC, student_id ASC`
 
 type declarationChildRow struct {

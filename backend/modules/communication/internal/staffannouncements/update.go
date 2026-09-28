@@ -17,6 +17,9 @@ func (s *service) prepareUpdate(ctx context.Context, a *usersModels.ParentAnnoun
 	if err := s.guardDeclarationModeChange(ctx, a, in.DeliveryMode); err != nil {
 		return nil, nil, err
 	}
+	if err := s.guardDeclarationSettingsChange(ctx, a, in); err != nil {
+		return nil, nil, err
+	}
 	options, err := normalizePollOptions(in)
 	if err != nil {
 		return nil, nil, err
