@@ -195,9 +195,10 @@ func TestSchoolWelcomeRejectsPermanentlyFailedInvitation(t *testing.T) {
 	require.NoError(t, err)
 	require.Eventually(t, func() bool { return mailer.attempts() == 3 }, 5*time.Second, 10*time.Millisecond)
 
-	sent, err := module.Invitation.SchoolInvitationDeliverySent(ctx, invitation.ID)
-	assert.False(t, sent)
-	require.ErrorIs(t, err, identityaccess.ErrInvitationDeliveryFailed)
+	require.Eventually(t, func() bool {
+		sent, statusErr := module.Invitation.SchoolInvitationDeliverySent(ctx, invitation.ID)
+		return !sent && errors.Is(statusErr, identityaccess.ErrInvitationDeliveryFailed)
+	}, 5*time.Second, 10*time.Millisecond)
 }
 
 func TestSchoolWelcomeRejectsRevokedAndReplacedInvitations(t *testing.T) {
