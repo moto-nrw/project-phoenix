@@ -221,6 +221,39 @@ day, a minimum duration or a separate evidence file is not required
 (decided 2026-09-23, same reasoning as the deployment gates removed in #3453
 and #3455).
 
+## Product screenshots (marketing images)
+
+Product screenshots are not PR evidence. They are the images for website, sales
+material and social media: every **Shot** of `frontend/scripts/product-screenshots/shots.yaml`
+photographed from the tenant and parents portal, plus **Geräte-Mockups** in the
+official Apple bezels (see `CONTEXT.md`, "Produkt-Screenshots"; #3759).
+
+```bash
+scripts/product-screenshots.sh                  # all shots into tmp/product-screenshots/
+scripts/product-screenshots.sh <shot-id> ...    # only these shots
+scripts/product-screenshots.sh --out DIR --version NAME
+cd frontend && pnpm run test:screenshots        # pipeline test against the running stack
+```
+
+- Needs the native stack (`scripts/dev-native.sh up`) seeded with the school
+  profile `marketing`; the tenant and parents logins come from
+  `backend/.seed-state.json`. Only `*.localhost` hosts are photographed.
+- Output per shot: `roh-<device>.png`, `<device>.png` (mockup, transparent
+  background) and both as WebP in 640/960/1280/1600/2400/3200 px, plus
+  `manifest.json` (version, time, shots, files, sizes). The output directory is
+  replaced on every run and nothing is uploaded.
+- The browser clock stands at 10:15 Berlin of today's weekday
+  (`reference-time.ts`); the seed derives its schedules from the same time. The
+  server renders with its real clock, so the reference day must be the server's
+  day; on a weekend the run aborts on the resulting hydration error instead of
+  printing an inconsistent image. Live presence follows the server clock too, so
+  a shot must not depend on day-scoped data of another day.
+- A broken shot (HTTP error, error page, silent redirect away from its `pfad`,
+  login redirect, unexpected dialog, loading state after the timeout, console
+  error) aborts the whole run before anything is written.
+- Bezels live unchanged in `frontend/scripts/product-screenshots/bezels/`; the
+  README there explains how to add one.
+
 ## PR screenshots and QA evidence
 
 Upload images and videos with `gh --attach` (gh >= 2.99, pinned in
