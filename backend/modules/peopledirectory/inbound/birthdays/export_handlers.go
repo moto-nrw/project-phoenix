@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -32,7 +33,7 @@ const staffBirthdayExportTitle = "Geburtstagsliste Personal"
 // nobody's business, and the birth date itself is already visible only to the
 // roles that can open the Stammdaten it comes from.
 func (rs *Resource) exportStaffBirthdays(w http.ResponseWriter, r *http.Request) {
-	if rs.ListExportService == nil {
+	if !rs.exportConfigured() {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("list export service is not configured")))
 		return
 	}
@@ -144,4 +145,15 @@ func monthFilterLabels(values []string) []string {
 		return []string{"Geburtsmonat: " + names[0]}
 	}
 	return []string{"Geburtsmonate: " + strings.Join(names, ", ")}
+}
+
+// exportConfigured reports whether a renderer is bound. The composition root
+// passes a concrete pointer, so a missing one arrives as a typed nil that an
+// interface comparison alone would not see.
+func (rs *Resource) exportConfigured() bool {
+	if rs.ListExportService == nil {
+		return false
+	}
+	value := reflect.ValueOf(rs.ListExportService)
+	return value.Kind() != reflect.Pointer || !value.IsNil()
 }

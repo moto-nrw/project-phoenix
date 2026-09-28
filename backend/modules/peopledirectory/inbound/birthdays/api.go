@@ -1,4 +1,4 @@
-// Package http is the HTTP adapter of the birthday display (#1542, migrated
+// Package birthdays is the HTTP adapter of the birthday display (#1542, migrated
 // under #2706): it serves the dashboard birthday list, the personal opt-out
 // behind it and the staff Geburtstagsliste export.
 //
@@ -6,7 +6,7 @@
 // staff because it deliberately spans both populations and is governed by the
 // school's birthday settings — mounting it under either domain would have made
 // one of the two look like the owner of a rule that belongs to neither. The
-// birthday facts come from the retained People Directory birthday service;
+// birthday facts come from the People Directory birthday capability;
 // the printed list renders through the Document Rendering renderer.
 package birthdays
 

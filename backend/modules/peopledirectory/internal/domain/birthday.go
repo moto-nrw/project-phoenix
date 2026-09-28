@@ -11,6 +11,7 @@ import (
 // ErrBirthdayStaffNotFound reports an account without a staff record.
 var ErrBirthdayStaffNotFound = errors.New("staff not found")
 
+// BirthdayKind separates the two populations a birthday display mixes.
 type BirthdayKind string
 
 const (
@@ -55,6 +56,10 @@ type BirthdayStaff struct {
 	OptOut bool
 }
 
+// BirthdayCelebration is one person celebrating on one concrete calendar day.
+// Date is the day the celebration is SHOWN on, which is not always the stored
+// birth date: a Monday carries the weekend's birthdays, and 29 February falls
+// on 1 March in a common year.
 type BirthdayCelebration struct {
 	Kind        BirthdayKind
 	ID          int64
@@ -62,8 +67,13 @@ type BirthdayCelebration struct {
 	GroupName   string
 	SchoolClass string
 	Date        calendar.Date
-	Age         int
-	IsToday     bool
+	// Age is the age reached, in completed years. Only children carry it: a
+	// colleague's age is not published to the team, which is what the opt-out
+	// exists to prevent. Zero means "not disclosed".
+	Age int
+	// IsToday separates today's birthdays from the weekend ones the Monday view
+	// carries along, so the UI can label them without re-deriving it.
+	IsToday bool
 }
 
 // BirthdayVisibility decides whether the caller may see children at all.

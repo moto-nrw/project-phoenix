@@ -2430,7 +2430,10 @@ The same change moves the birthday routes to `modules/birthdays/http`
 compatibility bindings, the birthday handlers' retained user-context, birthday
 service and birthday row imports and the coordinator's retained storage
 backend, are exact debt under #2706 as well; the remaining `inbound-birthdays.*`
-permissions are the inbound target shape. The
+permissions are the inbound target shape. #3751 later moved the birthday
+service into People Directory and the routes to
+`modules/peopledirectory/inbound/birthdays`; the `inbound-birthdays` owner and its
+rules are retired. The
 `inbound-students.to.file-storage-adapter` binding is different: its source
 package existed before the move and imported the old path as debt under
 #2731, which PR mode cannot carry over to the new target. It is a

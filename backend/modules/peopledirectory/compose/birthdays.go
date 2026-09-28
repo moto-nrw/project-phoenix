@@ -47,11 +47,8 @@ func NewBirthdays(deps BirthdayDependencies) peopledirectory.Birthdays {
 type birthdays struct{ service *application.BirthdayService }
 
 func (b birthdays) Overview(ctx context.Context, visibility peopledirectory.BirthdayVisibility) (peopledirectory.BirthdayOverview, error) {
-	var decision domain.BirthdayVisibility
-	if visibility != nil {
-		decision = visibility
-	}
-	value, err := b.service.Overview(ctx, decision)
+	// A nil visibility stays nil through the conversion: no child is visible.
+	value, err := b.service.Overview(ctx, visibility)
 	if err != nil {
 		return peopledirectory.BirthdayOverview{}, mapBirthdayError(err)
 	}

@@ -120,7 +120,8 @@ func (s birthdaySettings) BirthdayDisplayIncludesStaff(ctx context.Context) (boo
 }
 
 // isRepositoryNotFound recognises the repositories' not-found sentinel by its
-// marker method, like api/common.IsNotFound: the retained lookups report a
+// marker method, like api/common.IsNotFound (models/base is not an import the
+// root composition may add): the retained lookups report a
 // missing row either as this error or as a nil result.
 func isRepositoryNotFound(err error) bool {
 	var notFound interface{ RepositoryNotFound() }
