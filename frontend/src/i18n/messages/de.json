@@ -1245,6 +1245,8 @@
     "noAccountStepAccept": "Tippen Sie auf „Einladung annehmen“.",
     "noAccountStepPassword": "Legen Sie ein Passwort fest. Danach können Sie sich in der Eltern-App anmelden.",
     "noAccountHelp": "Keine E-Mail gefunden? Schauen Sie auch im Spam-Ordner nach. Die E-Mail fehlt oder der Link geht nicht mehr? Bitte melden Sie sich bei der OGS.",
+    "unavailableAccountTitle": "Zugang zur Eltern-App nicht möglich",
+    "unavailableAccountHelp": "Bitte melden Sie sich bei der OGS. Die OGS hilft Ihnen weiter.",
     "noAccessFallback": "Noch kein Zugang? Öffnen Sie die E-Mail „Einladung zum Eltern-Portal“. Keine E-Mail bekommen? Bitte melden Sie sich bei der OGS."
   },
   "parentRequestEdit": {

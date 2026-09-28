@@ -479,7 +479,10 @@ function EnrollmentStatusContent({
   const parentsHref = onParentsHost ? "/" : "/parents";
   // The status page stays public on both hosts. Its status token, rather than
   // the host path, determines whether this family can use the parent app.
-  const parentAccess = parentAppAccess(status.has_parent_account);
+  const parentAccess = parentAppAccess(
+    status.parent_portal_access,
+    status.has_parent_account,
+  );
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
@@ -518,8 +521,10 @@ function EnrollmentStatusContent({
               ? t("lockedAllBodyMany")
               : t("lockedAllBodyOne")}
           </p>
-          {parentAccess === "none" ? (
+          {parentAccess === "invitation" ? (
             <NoParentAccountSteps withTitle />
+          ) : parentAccess === "contact_ogs" ? (
+            <ParentAppUnavailableHelp withTitle />
           ) : (
             <>
               {parentAccess === "unknown" ? (
@@ -534,9 +539,22 @@ function EnrollmentStatusContent({
           )}
         </section>
       ) : null}
-      {!allLocked && anyLocked && parentAccess === "none" ? (
-        <SectionCard title={t("noAccountTitle")} bodyClassName="space-y-2">
-          <NoParentAccountSteps />
+      {!allLocked &&
+      anyLocked &&
+      (parentAccess === "invitation" || parentAccess === "contact_ogs") ? (
+        <SectionCard
+          title={
+            parentAccess === "invitation"
+              ? t("noAccountTitle")
+              : t("unavailableAccountTitle")
+          }
+          bodyClassName="space-y-2"
+        >
+          {parentAccess === "invitation" ? (
+            <NoParentAccountSteps />
+          ) : (
+            <ParentAppUnavailableHelp />
+          )}
         </SectionCard>
       ) : null}
 
@@ -567,7 +585,11 @@ function EnrollmentStatusContent({
         enrollments={status.children}
         hasMultipleChildren={hasMultipleChildren}
         justSubmitted={justSubmitted}
-        parentsHref={parentAccess === "none" ? null : parentsHref}
+        parentsHref={
+          parentAccess === "invitation" || parentAccess === "contact_ogs"
+            ? null
+            : parentsHref
+        }
         withdrawingChild={withdrawingChild}
         onWithdraw={onWithdraw}
       />
@@ -803,13 +825,20 @@ function RenewalBanners({
  * Whether the family can log in to the parents app: "unknown" when the
  * backend could not check it, so the page keeps its link to the login.
  */
-type ParentAppAccess = "account" | "none" | "unknown";
+type ParentAppAccess = "account" | "invitation" | "contact_ogs" | "unknown";
 
 function parentAppAccess(
+  parentPortalAccess: StatusResponse["parent_portal_access"],
   hasParentAccount: boolean | undefined,
 ): ParentAppAccess {
+  if (parentPortalAccess !== undefined) {
+    if (parentPortalAccess === "account") return "account";
+    if (parentPortalAccess === "invitation") return "invitation";
+    if (parentPortalAccess === "contact_ogs") return "contact_ogs";
+    return "unknown";
+  }
   if (hasParentAccount === undefined) return "unknown";
-  return hasParentAccount ? "account" : "none";
+  return hasParentAccount ? "account" : "invitation";
 }
 
 /**
@@ -837,6 +866,24 @@ function NoParentAccountSteps({ withTitle = false }: { withTitle?: boolean }) {
   );
 }
 
+function ParentAppUnavailableHelp({
+  withTitle = false,
+}: {
+  withTitle?: boolean;
+}) {
+  const t = useTranslations("enrollmentStatus");
+  return (
+    <div className="space-y-2 text-sm leading-6 text-gray-600">
+      {withTitle ? (
+        <h3 className="pt-2 font-semibold text-gray-900">
+          {t("unavailableAccountTitle")}
+        </h3>
+      ) : null}
+      <p>{t("unavailableAccountHelp")}</p>
+    </div>
+  );
+}
+
 function childStatusTextKey(
   child: StatusChild,
   canWithdraw: boolean,
@@ -851,7 +898,7 @@ interface EnrollmentChildRowProps {
   readonly child: StatusChild;
   readonly isWithdrawing: boolean;
   readonly onWithdraw: (childId?: string) => void;
-  /** Null when the family has no account to log in with yet. */
+  /** Null when the status page cannot safely direct the family to login. */
   readonly parentsHref: string | null;
 }
 

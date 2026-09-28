@@ -387,6 +387,40 @@ describe("EnrollmentStatusView", () => {
     expect(screen.queryByText(/^Noch kein Zugang\?/)).not.toBeInTheDocument();
   });
 
+  it("directs an existing but unavailable account to the OGS", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        edit_mode: "none",
+        has_parent_account: false,
+        parent_portal_access: "contact_ogs",
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "approved",
+            locked: true,
+          },
+        ],
+      }),
+    );
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByText("Zugang zur Eltern-App nicht möglich"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte melden Sie sich bei der OGS. Die OGS hilft Ihnen weiter."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Öffnen Sie die E-Mail „Einladung zum Eltern-Portal“."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Zur Eltern-App" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("names the invitation next to the login when the account is unknown", async () => {
     mockFetchStatus.mockResolvedValueOnce(
       status({
@@ -444,6 +478,40 @@ describe("EnrollmentStatusView", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText("Noch kein Zugang zur Eltern-App"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Zur Eltern-App" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the login link of a single taken-over child with unavailable access", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        edit_mode: "change_request",
+        has_parent_account: false,
+        parent_portal_access: "contact_ogs",
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "approved",
+            locked: true,
+          },
+          {
+            id: "8",
+            first_name: "Timo",
+            last_name: "Muster",
+            status: "waitlisted",
+          },
+        ],
+      }),
+    );
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByText("Zugang zur Eltern-App nicht möglich"),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Zur Eltern-App" }),

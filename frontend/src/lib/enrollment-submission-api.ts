@@ -635,6 +635,11 @@ export interface StatusResponse {
    * could not check it.
    */
   has_parent_account?: boolean;
+  /**
+   * The useful next step for the primary guardian. The backend leaves this
+   * out when it could not determine the account state.
+   */
+  parent_portal_access?: "account" | "invitation" | "contact_ogs";
 }
 
 /**

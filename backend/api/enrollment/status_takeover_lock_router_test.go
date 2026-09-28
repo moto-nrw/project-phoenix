@@ -382,17 +382,26 @@ const takeoverLockGuardianEmail = "takeover-lock@example.com"
 
 type parentAccountEnvelope struct {
 	Data struct {
-		HasParentAccount *bool `json:"has_parent_account"`
+		HasParentAccount   *bool   `json:"has_parent_account"`
+		ParentPortalAccess *string `json:"parent_portal_access"`
 	} `json:"data"`
 }
 
-func (env *takeoverLockEnv) statusParentAccount(t *testing.T) *bool {
+func (env *takeoverLockEnv) statusParentAccount(t *testing.T) parentAccountEnvelope {
 	t.Helper()
 	rec := env.get(t, "/requests/"+env.token)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	var out parentAccountEnvelope
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &out), rec.Body.String())
-	return out.Data.HasParentAccount
+	return out
+}
+
+func assertParentPortalAccess(t *testing.T, status parentAccountEnvelope, hasAccount bool, access string) {
+	t.Helper()
+	require.NotNil(t, status.Data.HasParentAccount)
+	require.NotNil(t, status.Data.ParentPortalAccess)
+	assert.Equal(t, hasAccount, *status.Data.HasParentAccount)
+	assert.Equal(t, access, *status.Data.ParentPortalAccess)
 }
 
 // insertGuardianProfile stores a guardian profile at a school, linked to an
@@ -417,8 +426,10 @@ func insertGuardianProfile(t *testing.T, db *bun.DB, tenantID int64, email strin
 
 func makeParentAccountReachable(t *testing.T, db *bun.DB, accountID, tenantID int64) {
 	t.Helper()
+	_, err := db.NewRaw("UPDATE auth.accounts SET password_hash = 'test-password-hash' WHERE id = ?", accountID).Exec(context.Background())
+	require.NoError(t, err)
 	testpkg.EnsureAccountTenant(t, db, accountID, tenantID)
-	_, err := db.NewRaw(`
+	_, err = db.NewRaw(`
 		INSERT INTO auth.account_roles (account_id, role_id, tenant_id)
 		SELECT ?, id, ? FROM auth.roles WHERE name = 'guardian' AND tenant_id IS NULL`,
 		accountID, tenantID,
@@ -431,8 +442,10 @@ func TestPublicStatus_ParentAccountFlagOnlyWhileAChildIsTakenOver(t *testing.T) 
 	env, cleanup := setupTakeoverLockTest(t)
 	defer cleanup()
 
-	assert.Nil(t, env.statusParentAccount(t),
+	status := env.statusParentAccount(t)
+	assert.Nil(t, status.Data.HasParentAccount,
 		"without a taken-over child the page needs no parent-app link")
+	assert.Nil(t, status.Data.ParentPortalAccess)
 }
 
 func TestPublicStatus_ParentAccountFlagFalseWithoutAccount(t *testing.T) {
@@ -442,9 +455,7 @@ func TestPublicStatus_ParentAccountFlagFalseWithoutAccount(t *testing.T) {
 	insertGuardianProfile(t, env.db, env.tenantID, takeoverLockGuardianEmail, nil)
 	env.takeOver(t, env.request.Children[0].ID, "Lina")
 
-	hasAccount := env.statusParentAccount(t)
-	require.NotNil(t, hasAccount)
-	assert.False(t, *hasAccount, "the invitation was never accepted")
+	assertParentPortalAccess(t, env.statusParentAccount(t), false, "invitation")
 }
 
 func TestPublicStatus_ParentAccountFlagTrueWithLinkedAccount(t *testing.T) {
@@ -456,9 +467,7 @@ func TestPublicStatus_ParentAccountFlagTrueWithLinkedAccount(t *testing.T) {
 	insertGuardianProfile(t, env.db, env.tenantID, takeoverLockGuardianEmail, &account.ID)
 	env.takeOver(t, env.request.Children[0].ID, "Lina")
 
-	hasAccount := env.statusParentAccount(t)
-	require.NotNil(t, hasAccount)
-	assert.True(t, *hasAccount)
+	assertParentPortalAccess(t, env.statusParentAccount(t), true, "account")
 }
 
 func TestPublicStatus_ParentAccountFlagFalseWithInactiveAccount(t *testing.T) {
@@ -472,9 +481,7 @@ func TestPublicStatus_ParentAccountFlagFalseWithInactiveAccount(t *testing.T) {
 	insertGuardianProfile(t, env.db, env.tenantID, takeoverLockGuardianEmail, &account.ID)
 	env.takeOver(t, env.request.Children[0].ID, "Lina")
 
-	hasAccount := env.statusParentAccount(t)
-	require.NotNil(t, hasAccount)
-	assert.False(t, *hasAccount, "a deactivated account cannot log in to the parent portal")
+	assertParentPortalAccess(t, env.statusParentAccount(t), false, "contact_ogs")
 }
 
 func TestPublicStatus_ParentAccountFlagFalseWithInactiveTenantMapping(t *testing.T) {
@@ -492,9 +499,7 @@ func TestPublicStatus_ParentAccountFlagFalseWithInactiveTenantMapping(t *testing
 	insertGuardianProfile(t, env.db, env.tenantID, takeoverLockGuardianEmail, &account.ID)
 	env.takeOver(t, env.request.Children[0].ID, "Lina")
 
-	hasAccount := env.statusParentAccount(t)
-	require.NotNil(t, hasAccount)
-	assert.False(t, *hasAccount, "an inactive tenant mapping cannot log in to the parent portal")
+	assertParentPortalAccess(t, env.statusParentAccount(t), false, "contact_ogs")
 }
 
 func TestPublicStatus_ParentAccountFlagFalseWithoutGuardianRole(t *testing.T) {
@@ -506,9 +511,21 @@ func TestPublicStatus_ParentAccountFlagFalseWithoutGuardianRole(t *testing.T) {
 	insertGuardianProfile(t, env.db, env.tenantID, takeoverLockGuardianEmail, &account.ID)
 	env.takeOver(t, env.request.Children[0].ID, "Lina")
 
-	hasAccount := env.statusParentAccount(t)
-	require.NotNil(t, hasAccount)
-	assert.False(t, *hasAccount, "an account without the guardian role cannot log in to the parent portal")
+	assertParentPortalAccess(t, env.statusParentAccount(t), false, "contact_ogs")
+}
+
+func TestPublicStatus_ParentAccountWithoutPasswordContactsOGS(t *testing.T) {
+	t.Parallel()
+	env, cleanup := setupTakeoverLockTest(t)
+	defer cleanup()
+	account := testpkg.CreateTestAccount(t, env.db, "status-parent-account-no-password")
+	makeParentAccountReachable(t, env.db, account.ID, env.tenantID)
+	_, err := env.db.NewRaw("UPDATE auth.accounts SET password_hash = NULL WHERE id = ?", account.ID).Exec(context.Background())
+	require.NoError(t, err)
+	insertGuardianProfile(t, env.db, env.tenantID, takeoverLockGuardianEmail, &account.ID)
+	env.takeOver(t, env.request.Children[0].ID, "Lina")
+
+	assertParentPortalAccess(t, env.statusParentAccount(t), false, "contact_ogs")
 }
 
 // The token lookup runs cross-tenant; the profile lookup must not. An account
@@ -524,7 +541,5 @@ func TestPublicStatus_ParentAccountFlagIgnoresOtherSchools(t *testing.T) {
 	insertGuardianProfile(t, env.db, otherTenant, takeoverLockGuardianEmail, &account.ID)
 	env.takeOver(t, env.request.Children[0].ID, "Lina")
 
-	hasAccount := env.statusParentAccount(t)
-	require.NotNil(t, hasAccount)
-	assert.False(t, *hasAccount)
+	assertParentPortalAccess(t, env.statusParentAccount(t), false, "invitation")
 }

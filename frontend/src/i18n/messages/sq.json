@@ -1245,6 +1245,8 @@
     "noAccountStepAccept": "Prekni “Einladung annehmen”.",
     "noAccountStepPassword": "Vendosni një fjalëkalim. Pastaj mund të hyni në aplikacionin për prindër.",
     "noAccountHelp": "Nuk e gjeni emailin? Shikoni edhe te dosja e spamit. Emaili mungon ose lidhja nuk funksionon më? Ju lutemi kontaktoni OGS-në.",
+    "unavailableAccountTitle": "Nuk mund të hyni në aplikacionin për prindër",
+    "unavailableAccountHelp": "Ju lutemi kontaktoni OGS-në. OGS-ja do t'ju ndihmojë.",
     "noAccessFallback": "Nuk keni ende akses? Hapni emailin “Einladung zum Eltern-Portal”. Nuk ju erdhi emaili? Ju lutemi kontaktoni OGS-në."
   },
   "parentRequestEdit": {

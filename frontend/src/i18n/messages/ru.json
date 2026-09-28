@@ -1245,6 +1245,8 @@
     "noAccountStepAccept": "Нажмите «Einladung annehmen».",
     "noAccountStepPassword": "Задайте пароль. После этого вы сможете войти в приложение для родителей.",
     "noAccountHelp": "Не нашли письмо? Проверьте также папку «Спам». Письма нет или ссылка больше не работает? Пожалуйста, обратитесь в продлёнку.",
+    "unavailableAccountTitle": "Нет доступа к приложению для родителей",
+    "unavailableAccountHelp": "Пожалуйста, обратитесь в продлёнку. Там вам помогут.",
     "noAccessFallback": "Ещё нет доступа? Откройте письмо «Einladung zum Eltern-Portal». Письма нет? Пожалуйста, обратитесь в продлёнку."
   },
   "parentRequestEdit": {

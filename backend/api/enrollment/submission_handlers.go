@@ -418,6 +418,10 @@ type StatusResponse struct {
 	// and left out when the lookup failed, so the page never claims a
 	// missing account it could not check (#3742).
 	HasParentAccount *bool `json:"has_parent_account,omitempty"`
+	// ParentPortalAccess is the next step for the primary guardian: account,
+	// invitation, or contact_ogs. It is sent with HasParentAccount only while
+	// a child is taken over into care.
+	ParentPortalAccess *string `json:"parent_portal_access,omitempty"`
 }
 
 // StatusGuardianResponse is one additional guardian on the public status
@@ -557,7 +561,7 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 
 	resp, anyLocked := newStatusResponse(req, editMode, children, guardians)
 	if anyLocked {
-		resp.HasParentAccount = rs.statusParentAccount(r.Context(), token, req.ID)
+		resp.HasParentAccount, resp.ParentPortalAccess = rs.statusParentAccount(r.Context(), token, req.ID)
 	}
 	common.Respond(w, r, http.StatusOK, resp, "Status retrieved")
 }
@@ -599,21 +603,33 @@ func newStatusResponse(req *enrollmentModels.Request, editMode string, children 
 	return resp, anyLocked
 }
 
-// statusParentAccount answers whether the family behind a status token can
-// log in to the parent app. Best-effort: a failure must not hide the status,
-// so it answers nil and the page keeps its link to the parent app.
-func (rs *Resource) statusParentAccount(ctx context.Context, token string, requestID int64) *bool {
+// statusParentAccount answers the useful route into the parent app for the
+// family behind a status token. Best-effort: a failure must not hide the
+// status, so it answers nil values and the page keeps its existing login link.
+func (rs *Resource) statusParentAccount(ctx context.Context, token string, requestID int64) (*bool, *string) {
 	if rs.ChangeRequestService == nil {
-		return nil
+		return nil, nil
 	}
-	hasAccount, err := rs.ChangeRequestService.PrimaryGuardianHasPortalAccount(ctx, token)
+	access, err := rs.ChangeRequestService.PrimaryGuardianPortalAccess(ctx, token)
 	if err != nil {
 		rs.logger().Warn("enrollment status: parent account lookup failed",
 			slog.Int64("request_id", requestID),
 			slog.String("error", err.Error()))
-		return nil
+		return nil, nil
 	}
-	return &hasAccount
+	switch access {
+	case "account":
+		hasAccount := true
+		return &hasAccount, &access
+	case "invitation", "contact_ogs":
+		hasAccount := false
+		return &hasAccount, &access
+	default:
+		rs.logger().Warn("enrollment status: unknown parent portal access",
+			slog.Int64("request_id", requestID),
+			slog.String("parent_portal_access", access))
+		return nil, nil
+	}
 }
 
 func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {

@@ -1245,6 +1245,8 @@
     "noAccountStepAccept": "Tap “Einladung annehmen”.",
     "noAccountStepPassword": "Set a password. Then you can log in to the parents app.",
     "noAccountHelp": "Can’t find the email? Please check your spam folder too. Email missing or the link no longer works? Please contact the OGS.",
+    "unavailableAccountTitle": "Cannot access the parents app",
+    "unavailableAccountHelp": "Please contact the OGS. The OGS can help you.",
     "noAccessFallback": "No access yet? Open the email “Einladung zum Eltern-Portal”. No email? Please contact the OGS."
   },
   "parentRequestEdit": {

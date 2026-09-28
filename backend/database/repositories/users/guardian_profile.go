@@ -127,11 +127,11 @@ func (r *GuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) 
 // to an account that can actually sign in to the parent portal for the current
 // tenant. Reachability mirrors the parent login flow (services/auth): the
 // tenant mapping (account_tenants.status) and the account itself
-// (accounts.active) must be active, AND the account must hold the guardian role
-// on that tenant. Parent login rejects accounts without the guardian role
-// (ErrAccountNoGuardianRole), so a profile whose account lacks it must not be
-// treated as reachable — otherwise staff could target a parent who can never
-// see or answer the invitation.
+// (accounts.active) and credential must be present, AND the account must hold
+// the guardian role on that tenant. Parent login rejects accounts without the
+// guardian role or password, so a profile whose account lacks either must not
+// be treated as reachable — otherwise staff could target a parent who can
+// never see or answer the invitation.
 //
 // The owner projection opens no transaction of its own: its store resolves the
 // caller's ambient transaction from the context and runs on the root connection

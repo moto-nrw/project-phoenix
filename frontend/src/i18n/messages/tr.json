@@ -1245,6 +1245,8 @@
     "noAccountStepAccept": "“Einladung annehmen” düğmesine dokunun.",
     "noAccountStepPassword": "Bir şifre belirleyin. Ardından veli uygulamasına giriş yapabilirsiniz.",
     "noAccountHelp": "E-postayı bulamıyor musunuz? Spam klasörüne de bakın. E-posta yok veya bağlantı artık çalışmıyor mu? Lütfen OGS ile iletişime geçin.",
+    "unavailableAccountTitle": "Veli uygulamasına erişemiyorsunuz",
+    "unavailableAccountHelp": "Lütfen OGS ile iletişime geçin. OGS size yardımcı olacaktır.",
     "noAccessFallback": "Henüz erişiminiz yok mu? “Einladung zum Eltern-Portal” başlıklı e-postayı açın. E-posta gelmedi mi? Lütfen OGS ile iletişime geçin."
   },
   "parentRequestEdit": {

@@ -1245,6 +1245,8 @@
     "noAccountStepAccept": "Натисніть «Einladung annehmen».",
     "noAccountStepPassword": "Встановіть пароль. Після цього ви зможете увійти в застосунок для батьків.",
     "noAccountHelp": "Не знайшли лист? Перевірте також папку «Спам». Листа немає або посилання більше не працює? Будь ласка, зверніться до OGS.",
+    "unavailableAccountTitle": "Немає доступу до застосунку для батьків",
+    "unavailableAccountHelp": "Будь ласка, зверніться до OGS. Там вам допоможуть.",
     "noAccessFallback": "Ще немає доступу? Відкрийте лист «Einladung zum Eltern-Portal». Листа немає? Будь ласка, зверніться до OGS."
   },
   "parentRequestEdit": {
