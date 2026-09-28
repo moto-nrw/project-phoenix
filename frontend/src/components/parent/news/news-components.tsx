@@ -295,9 +295,7 @@ function DeclarationCardState({
         : `${child.first_name}: ${td(`state.${child.state}`)}`,
     )
     .join(" · ");
-  const settled = children.every(
-    (child) => child.my_action !== null || child.state === "agreed",
-  );
+  const settled = children.every((child) => child.state === "agreed");
 
   return (
     <>
