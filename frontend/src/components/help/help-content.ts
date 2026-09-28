@@ -5977,7 +5977,8 @@ function parentNewsTopic(): HelpTopic {
       "Nach Ihrer Antwort öffnen Sie mit `Nachweis ansehen` Ihren Nachweis. Mit `Als PDF herunterladen` speichern Sie ihn.",
     ],
     differences: [
-      "Ein Eintrag trägt `Elternbrief`, `Umfrage`, `Einverständnis`, `Wichtig` oder `Betreuung fällt aus`.",
+      "Umfragen tragen über dem Titel `Umfrage`, Einverständnisse `Einverständnis`, abgesagte Betreuung trägt `Betreuung fällt aus`.",
+      "Unten am Eintrag steht, ob er `Wichtig` ist, ob Sie eine `Erinnerung` bekommen haben und ob eine `Bestätigung erforderlich` ist.",
       "Fragt moto nach Ihrem Passwort? Dann möchte die Schule das vor jeder Antwort.",
       "Bei einer Umfrage steht `Antwort bis` mit dem letzten Tag.",
       "Ist die Frist vorbei, steht dort `Umfrage geschlossen`.",
