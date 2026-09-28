@@ -223,11 +223,11 @@ func (s *service) freezeDeclaration(ctx context.Context, a *usersModels.ParentAn
 	return nil
 }
 
-// guardDeclarationDelete refuses to delete a declaration with submissions.
-// The foreign keys would refuse it too; this turns the refusal into a clear
-// conflict instead of a server error.
-func (s *service) guardDeclarationDelete(ctx context.Context, a *usersModels.ParentAnnouncement) error {
-	if !a.IsDeclaration() {
+// guardDeclarationRetention keeps evidence reachable. A declaration with
+// submissions cannot be deleted or changed into another delivery mode, because
+// the status and proof routes deliberately address it as a declaration.
+func (s *service) guardDeclarationRetention(ctx context.Context, a *usersModels.ParentAnnouncement, remainsDeclaration bool) error {
+	if !a.IsDeclaration() || remainsDeclaration {
 		return nil
 	}
 	count, err := s.repo.CountDeclarationSubmissions(ctx, a.GetTenantID(), a.ID)
@@ -238,6 +238,19 @@ func (s *service) guardDeclarationDelete(ctx context.Context, a *usersModels.Par
 		return ErrDeclarationHasSubmissions
 	}
 	return nil
+}
+
+// guardDeclarationDelete refuses to delete a declaration with submissions.
+// The foreign keys would refuse it too; this turns the refusal into a clear
+// conflict instead of a server error.
+func (s *service) guardDeclarationDelete(ctx context.Context, a *usersModels.ParentAnnouncement) error {
+	return s.guardDeclarationRetention(ctx, a, false)
+}
+
+// guardDeclarationModeChange keeps a withdrawn declaration as a declaration
+// after somebody has answered it, so its status and proof remain reachable.
+func (s *service) guardDeclarationModeChange(ctx context.Context, a *usersModels.ParentAnnouncement, deliveryMode string) error {
+	return s.guardDeclarationRetention(ctx, a, deliveryMode == usersModels.ParentAnnouncementDeliveryDeclaration)
 }
 
 // DeclarationFrozen reports whether a declaration has been published before,

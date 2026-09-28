@@ -224,7 +224,8 @@ func declarationProofIntact(proof *DeclarationProof) bool {
 		if DeclarationRecordHash(sub) != sub.RecordHash {
 			return false
 		}
-		if v, ok := proof.Versions[sub.VersionID]; ok && DeclarationContentHash(v) != v.ContentHash {
+		v, ok := proof.Versions[sub.VersionID]
+		if !ok || DeclarationContentHash(v) != v.ContentHash || sub.ContentHash != v.ContentHash {
 			return false
 		}
 	}

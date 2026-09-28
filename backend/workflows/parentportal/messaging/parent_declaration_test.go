@@ -274,6 +274,27 @@ func TestDeclaration_DeadlineAllowsOnlyRevocation(t *testing.T) {
 	assert.Len(t, s.history(t), 2, "the consent and its revocation both stay on record")
 }
 
+func TestDeclaration_ExpiredAllowsOnlyRevocation(t *testing.T) {
+	t.Parallel()
+	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAny, true, false), nil)
+	_, _, err := s.submit(s.chain.AccountID, usersModels.DeclarationActionAgreed)
+	require.NoError(t, err)
+
+	_, err = s.db.NewUpdate().TableExpr("users.parent_announcements").
+		Set("created_at = created_at - interval '2 hours', expires_at = created_at - interval '1 hour'").
+		Where("id = ?", s.announcement.ID).
+		Exec(testpkg.WithPackageTenantRuntime(context.Background()))
+	require.NoError(t, err)
+
+	_, _, err = s.submit(s.chain.AccountID, usersModels.DeclarationActionDeclined)
+	require.ErrorIs(t, err, messaging.ErrAnnouncementNotFound)
+	revoked, created, err := s.submit(s.chain.AccountID, usersModels.DeclarationActionRevoked)
+	require.NoError(t, err, "a consent can be withdrawn after the declaration expires")
+	assert.True(t, created)
+	assert.Equal(t, usersModels.DeclarationActionRevoked, revoked.Action)
+	assert.Len(t, s.history(t), 2)
+}
+
 func TestDeclaration_AllGuardiansMustDeclare(t *testing.T) {
 	t.Parallel()
 	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAll, false, false), nil)
@@ -365,11 +386,15 @@ func TestDeclaration_ProofContainsOnlyTheOwnDeclarations(t *testing.T) {
 	assert.Equal(t, s.version.Body, proof.Versions[s.version.ID].Body)
 	assert.True(t, proof.IntegrityOK)
 
-	// A row changed behind the application's back no longer matches its
-	// checksum; the proof says so instead of hiding it.
+	// A valid answer record must still point to the frozen content it declares
+	// on. Recompute its own checksum to isolate that linkage from record-hash
+	// validation.
+	tampered := *proof.Submissions[0]
+	tampered.ContentHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	tampered.RecordHash = messaging.DeclarationRecordHash(&tampered)
 	_, err = s.db.ExecContext(s.ctx,
-		`UPDATE users.parent_announcement_declaration_submissions SET signer_name = 'Jemand' WHERE id = ?`,
-		proof.Submissions[0].ID)
+		`UPDATE users.parent_announcement_declaration_submissions SET content_hash = ?, record_hash = ? WHERE id = ?`,
+		tampered.ContentHash, tampered.RecordHash, tampered.ID)
 	require.NoError(t, err)
 	proof, err = s.svc.DeclarationProof(s.ctx, s.chain.AccountID, s.announcement.ID, s.chain.StudentID)
 	require.NoError(t, err)

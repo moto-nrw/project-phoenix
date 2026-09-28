@@ -65,7 +65,7 @@ func (s *Service) SubmitDeclaration(ctx context.Context, accountID, announcement
 	if accountID <= 0 || announcementID <= 0 || in.StudentID <= 0 || in.VersionID <= 0 {
 		return nil, false, fmt.Errorf("parent: account_id, announcement_id, student_id and version_id must be positive")
 	}
-	target, err := s.resolveDeclarationTarget(ctx, accountID, announcementID, in.StudentID)
+	target, err := s.resolveDeclarationTarget(ctx, accountID, announcementID, in.StudentID, in.Action)
 	if err != nil {
 		return nil, false, err
 	}
@@ -104,14 +104,14 @@ func (s *Service) SubmitDeclaration(ctx context.Context, accountID, announcement
 // any other answer, so a parent token cannot probe announcement or student
 // ids. A guardian in the audience whose child is not reached gets the more
 // useful child error.
-func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, announcementID, studentID int64) (*declarationTarget, error) {
+func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, announcementID, studentID int64, action string) (*declarationTarget, error) {
 	var target *declarationTarget
 	if err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		a, err := s.AnnouncementRepo.FindByID(adminCtx, announcementID)
 		if err != nil {
 			return fmt.Errorf("parent: load declaration: %w", err)
 		}
-		if a == nil || !announcementIsLive(a) || !a.IsDeclaration() {
+		if !declarationActionAnnouncementIsLive(a, action) {
 			return ErrAnnouncementNotFound
 		}
 		children, err := s.AnnouncementRepo.DeclarationChildrenForAccount(adminCtx, accountID, []int64{announcementID})
@@ -136,6 +136,20 @@ func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, annou
 		return nil, ErrAnnouncementNotFound
 	}
 	return target, nil
+}
+
+// declarationActionAnnouncementIsLive permits withdrawing an existing consent
+// after expiry, but never revives a withdrawn, inactive or not-yet-published
+// announcement. New agreements and refusals still require the normal live
+// announcement window.
+func declarationActionAnnouncementIsLive(a *usersModels.ParentAnnouncement, action string) bool {
+	if action != declarations.DeclarationActionRevoked {
+		return a != nil && a.IsDeclaration() && announcementIsLive(a)
+	}
+	if a == nil || !a.IsDeclaration() || !a.Active || a.PublishedAt == nil {
+		return false
+	}
+	return !a.PublishedAt.After(time.Now())
 }
 
 // authorizeDeclarationChild applies the project's guardian gate with the
@@ -223,7 +237,7 @@ func (s *Service) lockedDeclarationVersion(ctx context.Context, tenantID, announ
 	if err != nil {
 		return declarations.DeclarationRules{}, nil, fmt.Errorf("parent: reload declaration: %w", err)
 	}
-	if a == nil || !announcementIsLive(a) || !a.IsDeclaration() {
+	if !declarationActionAnnouncementIsLive(a, in.Action) {
 		return declarations.DeclarationRules{}, nil, ErrAnnouncementNotFound
 	}
 	version, err := s.AnnouncementRepo.LatestDeclarationVersion(ctx, tenantID, announcementID)

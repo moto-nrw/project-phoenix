@@ -390,6 +390,9 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 	if err != nil {
 		return nil, err
 	}
+	if err := s.guardDeclarationModeChange(ctx, a, in.DeliveryMode); err != nil {
+		return nil, err
+	}
 	options, err := normalizePollOptions(&in)
 	if err != nil {
 		return nil, err

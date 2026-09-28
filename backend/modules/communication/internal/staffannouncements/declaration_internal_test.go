@@ -264,6 +264,25 @@ func TestDeclarationLifecycleVersionsProofAndDeleteGuard(t *testing.T) {
 	assert.False(t, repo.deleted)
 }
 
+func TestDeclarationWithSubmissionsKeepsItsDeliveryMode(t *testing.T) {
+	t.Parallel()
+	announcement := &usersModels.ParentAnnouncement{
+		Title: "Ausflug", Body: "Freitag", Priority: usersModels.ParentAnnouncementPriorityInfo, Active: true,
+		DeliveryMode: usersModels.ParentAnnouncementDeliveryDeclaration,
+		Declaration:  usersModels.AnnouncementDeclarationSettings{Kind: usersModels.DeclarationKindConsent, Signers: usersModels.DeclarationSignersAny},
+	}
+	announcement.ID = 9
+	announcement.SetTenantID(3)
+	repo := &declarationRepo{announcement: announcement, submissions: []*usersModels.DeclarationSubmission{{ID: 1}}}
+	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}}).(*service)
+
+	in := declarationTestInput()
+	in.DeliveryMode = usersModels.ParentAnnouncementDeliveryStandard
+	_, err := svc.Update(context.Background(), announcement.ID, in)
+	require.ErrorIs(t, err, ErrDeclarationHasSubmissions)
+	assert.Equal(t, usersModels.ParentAnnouncementDeliveryDeclaration, repo.announcement.DeliveryMode)
+}
+
 type newsOn struct{ configService.SettingsService }
 
 func (newsOn) ResolveBool(context.Context, string) (bool, error) { return true, nil }
