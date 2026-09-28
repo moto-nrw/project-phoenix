@@ -974,17 +974,11 @@ function SearchPageContent() {
     [session?.user],
   );
   const hasUrlFilterParams = searchParamsHavePersistedFilters(searchParams);
-  const storedInitialFilters = useMemo(
-    () => (hasUrlFilterParams ? null : readStoredFilters(storageKey)),
-    [hasUrlFilterParams, storageKey],
-  );
-  const initialFilterParams = useMemo(
-    () =>
-      storedInitialFilters
-        ? persistedFiltersToSearchParams(storedInitialFilters)
-        : searchParams,
-    [searchParams, storedInitialFilters],
-  );
+  // Initial state comes from the URL only. localStorage is unavailable on the
+  // server, so reading it during render made the first client render differ
+  // from the server HTML (hydration mismatch, Sentry FRONTEND-17). The mount
+  // effect below restores stored filters when the URL carries none.
+  const initialFilterParams = searchParams;
 
   // Read initial filters from URL params so refreshes, revisits via browser
   // history, and copied links restore the same operational view. When no URL
