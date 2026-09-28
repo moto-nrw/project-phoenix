@@ -96,7 +96,7 @@ describe("Nachweis eines Einverständnisses im Eltern-Portal (#3430)", () => {
     expect(screen.getByText(/Ausflug\.pdf/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ausflug.pdf" })).toHaveAttribute(
       "href",
-      "/api/parent/me/news/42/attachments/19/download?student_id=5",
+      "/api/parent/me/news/42/attachments/19/download?student_id=5&inline=1",
     );
     expect(
       screen.getByText(
