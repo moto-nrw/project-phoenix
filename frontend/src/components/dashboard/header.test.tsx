@@ -556,6 +556,17 @@ describe("Header", () => {
       expect(localStorage.getItem("sidebar-collapsed")).toBeNull();
     });
 
+    it("survives a keydown without a key", () => {
+      render(<Header />);
+
+      // Passwortmanager, Autofill und Erweiterungen lösen `keydown`
+      // programmatisch aus; ein solches Ereignis trägt kein `key`.
+      expect(() =>
+        globalThis.window.dispatchEvent(new Event("keydown")),
+      ).not.toThrow();
+      expect(localStorage.getItem("sidebar-collapsed")).toBeNull();
+    });
+
     it("ignores Ctrl+B with additional modifiers", () => {
       render(<Header />);
 
