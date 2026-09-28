@@ -227,8 +227,9 @@ func seedMarketingProfile(ctx context.Context, primary, rt *Runtime, child *Seed
 	}
 	profile := buildManualSeedProfile(rt, child.definition, rt.Bootstrap, AccountCredentials{}, virtual, data)
 	profile.Devices = map[string]SeedDevice{virtual.DeviceID: virtual}
-	// The screenshot pipeline signs in with accounts.admin[0]: the school's own
-	// admin comes first, the shared developer admin after it.
+	// The school's own admin comes first, the shared developer admin after it:
+	// frontend/scripts/seed-state.ts signs in with accounts.admin[0]. The
+	// screenshot pipeline reads credentials.school_admin, the same person.
 	profile.Credentials.Accounts = SeedStateAccounts{Admin: append([]AccountCredentials{schoolAdmin}, developer.Accounts.Admin...), Betreuer: staff}
 	profile.Credentials.Parents = parents
 	return profile, nil
