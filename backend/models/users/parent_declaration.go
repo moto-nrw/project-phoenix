@@ -10,8 +10,8 @@ import (
 )
 
 // Erklärungen (#3430). An Erklärung is the third delivery mode of a parent
-// announcement: guardians declare something about a child (consent or
-// acknowledgement) and every declaration is kept as proof. The announcement
+// announcement: guardians give or refuse their consent for a child (the
+// Einverständnis) and every answer is kept as proof. The announcement
 // columns carry the settings; the versions freeze what was declared; the
 // submissions record who declared what, when.
 
@@ -19,13 +19,11 @@ import (
 // (mirrors chk_parent_announcements_delivery_mode).
 const ParentAnnouncementDeliveryDeclaration = "declaration"
 
-// Declaration kinds (mirrors chk_parent_announcements_declaration_shape).
-// consent asks for Zustimmung or Ablehnung; acknowledgement only for a
-// confirmation that the guardian took note.
-const (
-	DeclarationKindConsent         = "consent"
-	DeclarationKindAcknowledgement = "acknowledgement"
-)
+// DeclarationKindConsent is the only declaration kind (mirrors
+// chk_parent_announcements_declaration_shape): Zustimmung or Ablehnung. A
+// plain read confirmation is the Elternbrief's Lesebestätigung. The kind is
+// still stored so every proof names what was asked.
+const DeclarationKindConsent = "consent"
 
 // Declaration signer rules: one guardian with the permission per child is
 // enough, or every such guardian of the child must declare.
@@ -36,10 +34,9 @@ const (
 
 // Declaration actions (mirrors the submissions' action CHECK).
 const (
-	DeclarationActionAgreed       = "agreed"
-	DeclarationActionDeclined     = "declined"
-	DeclarationActionAcknowledged = "acknowledged"
-	DeclarationActionRevoked      = "revoked"
+	DeclarationActionAgreed   = "agreed"
+	DeclarationActionDeclined = "declined"
+	DeclarationActionRevoked  = "revoked"
 )
 
 // DeclarationMethodSimpleElectronic is the only procedure moto offers: a
@@ -49,14 +46,13 @@ const DeclarationMethodSimpleElectronic = "simple_electronic"
 
 // Per-child states of a declaration for its current version.
 const (
-	DeclarationStateOpen         = "open"
-	DeclarationStatePartial      = "partial"
-	DeclarationStateAgreed       = "agreed"
-	DeclarationStateDeclined     = "declined"
-	DeclarationStateAcknowledged = "acknowledged"
-	DeclarationStateRevoked      = "revoked"
-	DeclarationStateNoSigner     = "no_signer"
-	DeclarationStateExpired      = "expired"
+	DeclarationStateOpen     = "open"
+	DeclarationStatePartial  = "partial"
+	DeclarationStateAgreed   = "agreed"
+	DeclarationStateDeclined = "declined"
+	DeclarationStateRevoked  = "revoked"
+	DeclarationStateNoSigner = "no_signer"
+	DeclarationStateExpired  = "expired"
 )
 
 // ErrDeclarationVersionConflict is returned by the store when a version with

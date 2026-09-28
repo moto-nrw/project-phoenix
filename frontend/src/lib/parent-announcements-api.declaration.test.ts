@@ -28,8 +28,8 @@ function mockFetch(response: Response) {
   return fn;
 }
 
-describe("Erklärungen in the staff client (#3430)", () => {
-  it("recognizes an Erklärung by its delivery mode", () => {
+describe("Einverständnisse in the staff client (#3430)", () => {
+  it("recognizes an Einverständnis by its delivery mode", () => {
     expect(
       isDeclaration({ delivery_mode: "declaration" } as Announcement),
     ).toBe(true);

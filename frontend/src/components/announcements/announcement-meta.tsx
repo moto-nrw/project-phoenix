@@ -18,8 +18,8 @@ import type {
 /**
  * Was die Seite „Mitteilungen" verwaltet. Alle vier sind im Backend dieselbe
  * Entität (eine Umfrage ist eine Mitteilung mit Antwortmöglichkeiten, #1371;
- * ein Elternbrief eine mit Pflichtkanälen, #2384; eine Erklärung eine, zu der
- * Eltern je Kind zustimmen, ablehnen oder die sie zur Kenntnis nehmen, #3430).
+ * ein Elternbrief eine mit Pflichtkanälen, #2384; ein Einverständnis eine, zu
+ * der Eltern je Kind zustimmen oder ablehnen, #3430).
  * Die Trennung ist eine der Oberfläche, weil Informieren, Bestätigen lassen,
  * Fragen und Erklären lassen verschiedene Arbeiten mit verschiedener
  * Nacharbeit sind.

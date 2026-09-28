@@ -18,7 +18,6 @@ func consentRules(signers string, revocable bool, deadline *time.Time) Declarati
 func TestDeclarationChildState(t *testing.T) {
 	t.Parallel()
 	past := declarationNow.Add(-time.Hour)
-	ack := DeclarationRules{Kind: DeclarationKindAcknowledgement, Signers: DeclarationSignersAny}
 	cases := []struct {
 		name     string
 		rules    DeclarationRules
@@ -36,7 +35,6 @@ func TestDeclarationChildState(t *testing.T) {
 		{"lost permission no longer counts", consentRules("any", false, nil), []int64{2}, map[int64]string{1: "agreed"}, DeclarationStateOpen},
 		{"deadline passed unanswered", consentRules("any", false, &past), []int64{1}, nil, DeclarationStateExpired},
 		{"deadline passed after consent", consentRules("any", false, &past), []int64{1}, map[int64]string{1: "agreed"}, DeclarationStateAgreed},
-		{"acknowledged", ack, []int64{1}, map[int64]string{1: "acknowledged"}, DeclarationStateAcknowledged},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -49,7 +47,6 @@ func TestDeclarationChildState(t *testing.T) {
 func TestDeclarationAllowedActions(t *testing.T) {
 	t.Parallel()
 	past := declarationNow.Add(-time.Hour)
-	ack := DeclarationRules{Kind: DeclarationKindAcknowledgement, Signers: DeclarationSignersAny}
 	cases := []struct {
 		name      string
 		rules     DeclarationRules
@@ -65,8 +62,6 @@ func TestDeclarationAllowedActions(t *testing.T) {
 		{"consent again after revoking", consentRules("any", true, nil), true, "revoked", []string{"agreed", "declined"}},
 		{"after the deadline only revocation", consentRules("any", true, &past), true, "agreed", []string{"revoked"}},
 		{"after the deadline nothing new", consentRules("any", true, &past), true, "", []string{}},
-		{"acknowledgement", ack, true, "", []string{"acknowledged"}},
-		{"acknowledged once", ack, true, "acknowledged", []string{}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -91,9 +86,10 @@ func TestDeclarationOwesAction(t *testing.T) {
 
 func TestValidateDeclarationSettings(t *testing.T) {
 	t.Parallel()
-	assert.NoError(t, ValidateDeclarationSettings("consent", "all", true))
-	assert.NoError(t, ValidateDeclarationSettings("acknowledgement", "any", false))
-	assert.ErrorIs(t, ValidateDeclarationSettings("acknowledgement", "any", true), ErrDeclarationInvalid)
-	assert.ErrorIs(t, ValidateDeclarationSettings("signature", "any", false), ErrDeclarationInvalid)
-	assert.ErrorIs(t, ValidateDeclarationSettings("consent", "two", false), ErrDeclarationInvalid)
+	assert.NoError(t, ValidateDeclarationSettings("consent", "all"))
+	assert.NoError(t, ValidateDeclarationSettings("consent", "any"))
+	// A read confirmation is the Elternbrief's Lesebestätigung, not a kind.
+	assert.ErrorIs(t, ValidateDeclarationSettings("acknowledgement", "any"), ErrDeclarationInvalid)
+	assert.ErrorIs(t, ValidateDeclarationSettings("signature", "any"), ErrDeclarationInvalid)
+	assert.ErrorIs(t, ValidateDeclarationSettings("consent", "two"), ErrDeclarationInvalid)
 }

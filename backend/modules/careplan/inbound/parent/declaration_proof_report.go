@@ -61,10 +61,9 @@ type ReportRenderer interface {
 var errProofRendererUnbound = errors.New("declaration proof renderer is not bound")
 
 var proofActionLabels = map[string]string{
-	usersModels.DeclarationActionAgreed:       "Zugestimmt",
-	usersModels.DeclarationActionDeclined:     "Abgelehnt",
-	usersModels.DeclarationActionAcknowledged: "Zur Kenntnis genommen",
-	usersModels.DeclarationActionRevoked:      "Zustimmung widerrufen",
+	usersModels.DeclarationActionAgreed:   "Zugestimmt",
+	usersModels.DeclarationActionDeclined: "Abgelehnt",
+	usersModels.DeclarationActionRevoked:  "Zustimmung widerrufen",
 }
 
 var proofRoleLabels = map[string]string{
@@ -96,24 +95,19 @@ func berlinLocation() *time.Location {
 // declarationProofReport describes the guardian's proof: what they answered
 // on, their own answers, and the full text of every version they answered.
 func declarationProofReport(proof *parentService.DeclarationProof, now time.Time) ReportDocument {
-	kind := "Zustimmen oder ablehnen"
-	if proof.Kind == usersModels.DeclarationKindAcknowledgement {
-		kind = "Nur zur Kenntnis nehmen"
-	}
 	integrity := "Text und Antworten sind seit der Veröffentlichung unverändert."
 	if !proof.IntegrityOK {
 		integrity = "Achtung: Ein gespeicherter Eintrag wurde nachträglich verändert. Bitte wenden Sie sich an die OGS."
 	}
-	overview := ReportCard{Title: "Erklärung", Fields: []ReportField{
+	overview := ReportCard{Title: "Einverständnis", Fields: []ReportField{
 		{Label: "Kind", Value: proof.ChildName},
 		{Label: "Schule", Value: proof.SchoolName},
-		{Label: "Erklärung", Value: proof.Title},
-		{Label: "Art", Value: kind},
+		{Label: "Titel", Value: proof.Title},
 		{Label: "Verfahren", Value: methodLabel},
 		{Label: "Prüfung", Value: integrity},
 	}}
 	return ReportDocument{
-		Title: "Nachweis Ihrer Erklärung", Subtitle: proof.Title, GeneratedAt: now,
+		Title: "Nachweis Ihrer Antwort", Subtitle: proof.Title, GeneratedAt: now,
 		Filters: []string{proof.ChildName, proof.SchoolName},
 		Footer:  "Vertraulich: enthält personenbezogene Daten",
 		Sections: []ReportSection{

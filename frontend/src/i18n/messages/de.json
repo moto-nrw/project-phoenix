@@ -193,12 +193,12 @@
     "newsAcknowledgement": "Lesebestätigung",
     "newsAcknowledgementHint": "Damit bestätigen Sie nur, dass Sie den Elternbrief gelesen haben.",
     "newsMessageFrom": "Elternbrief von {school}",
-    "newsDeclarationFrom": "Erklärung von {school}",
+    "newsDeclarationFrom": "Einverständnis · {school}",
     "newsRead": "Gelesen",
     "newsActionError": "Aktion fehlgeschlagen. Bitte erneut versuchen.",
     "newsStaleError": "Dieser Elternbrief ist nicht mehr aktuell. Bitte laden Sie die Seite neu.",
     "newsPoll": "Umfrage",
-    "newsDeclaration": "Erklärung",
+    "newsDeclaration": "Einverständnis",
     "newsPollDeadline": "Antwort bis {date}",
     "newsPollClosed": "Umfrage geschlossen",
     "newsPollMulti": "Mehrfachauswahl möglich",
@@ -229,7 +229,7 @@
     "newsLetterBindingHint": "Diese E-Mail ist nur zur Information. Es zählt die Bestätigung hier im Eltern-Portal. Eine sorgeberechtigte Person pro Kind genügt."
   },
   "parentDeclaration": {
-    "sectionTitle": "Ihre Erklärung",
+    "sectionTitle": "Ihre Antwort",
     "signersAny": "Eine sorgeberechtigte Person pro Kind genügt.",
     "signersAll": "Jede sorgeberechtigte Person antwortet selbst.",
     "nothingPreselected": "Nichts ist vorausgewählt.",
@@ -242,7 +242,6 @@
       "partial": "Teilweise beantwortet",
       "agreed": "Zugestimmt",
       "declined": "Abgelehnt",
-      "acknowledged": "Zur Kenntnis genommen",
       "revoked": "Widerrufen",
       "no_signer": "Niemand kann antworten",
       "expired": "Frist abgelaufen"
@@ -250,30 +249,25 @@
     "action": {
       "agreed": "Zustimmen",
       "declined": "Ablehnen",
-      "acknowledged": "Zur Kenntnis genommen",
       "revoked": "Zustimmung widerrufen"
     },
     "done": {
       "agreed": "Zugestimmt",
       "declined": "Abgelehnt",
-      "acknowledged": "Zur Kenntnis genommen",
       "revoked": "Zustimmung widerrufen"
     },
     "explain": {
       "agreed": "Mit „Zustimmen“ erklären Sie für {name}, dass Sie einverstanden sind.",
-      "declined": "Mit „Ablehnen“ erklären Sie für {name}, dass Sie nicht einverstanden sind.",
-      "acknowledged": "Mit „Zur Kenntnis genommen“ bestätigen Sie für {name}, dass Sie den Text gelesen haben."
+      "declined": "Mit „Ablehnen“ erklären Sie für {name}, dass Sie nicht einverstanden sind."
     },
     "settled": {
       "agreed": "{name} hat zugestimmt.",
       "declined": "{name} hat abgelehnt.",
-      "acknowledged": "{name} hat es zur Kenntnis genommen.",
       "revoked": "{name} hat die Zustimmung widerrufen."
     },
     "settledOnDate": {
       "agreed": "{name} hat am {date} Uhr zugestimmt.",
       "declined": "{name} hat am {date} Uhr abgelehnt.",
-      "acknowledged": "{name} hat es am {date} Uhr zur Kenntnis genommen.",
       "revoked": "{name} hat die Zustimmung am {date} Uhr widerrufen."
     },
     "settledUnknown": "Für {name} liegt schon eine Antwort vor.",
@@ -288,7 +282,7 @@
     "revokeHint": "Sie können Ihre Zustimmung zurücknehmen. Die Schule sieht das sofort.",
     "closedNoAction": "Die Frist ist abgelaufen. Sie können nicht mehr antworten.",
     "confirmTitle": "Ihre Antwort prüfen",
-    "confirmBody": "Sie erklären für {name}: {action}.",
+    "confirmBody": "Ihre Antwort für {name}: {action}.",
     "confirmChild": "Kind",
     "confirmAction": "Ihre Antwort",
     "confirmVersion": "Text",
@@ -301,7 +295,7 @@
     "saving": "Wird gespeichert …",
     "saved": "Ihre Antwort für {name} ist gespeichert.",
     "errors": {
-      "notFound": "Diese Erklärung ist nicht mehr verfügbar. Die Liste wird neu geladen.",
+      "notFound": "Dieses Einverständnis ist nicht mehr verfügbar. Die Liste wird neu geladen.",
       "notPermitted": "Für dieses Kind dürfen Sie nicht antworten. Bei Fragen wenden Sie sich an die OGS.",
       "versionChanged": "Die Schule hat den Text geändert. Bitte lesen Sie ihn noch einmal und antworten Sie dann neu.",
       "closed": "Die Frist ist abgelaufen. Sie können nicht mehr antworten.",
@@ -315,23 +309,20 @@
     }
   },
   "parentDeclarationProof": {
-    "title": "Nachweis Ihrer Erklärung",
+    "title": "Nachweis Ihrer Antwort",
     "back": "Zurück zu den Elternbriefen",
     "download": "Als PDF herunterladen",
     "downloading": "Wird erstellt …",
     "downloadError": "Das PDF konnte nicht erstellt werden. Bitte versuchen Sie es noch einmal.",
     "integrityOk": "Text und Antworten sind seit der Veröffentlichung unverändert.",
     "integrityBroken": "Achtung: Ein gespeicherter Eintrag wurde nachträglich verändert. Bitte wenden Sie sich an die OGS.",
-    "notFound": "Für dieses Kind gibt es noch keinen Nachweis. Er entsteht, sobald Sie auf eine Erklärung geantwortet haben.",
+    "notFound": "Für dieses Kind gibt es noch keinen Nachweis. Er entsteht, sobald Sie auf ein Einverständnis geantwortet haben.",
     "loadError": "Der Nachweis konnte nicht geladen werden. Bitte versuchen Sie es noch einmal.",
     "retry": "Erneut versuchen",
     "generated": "Erstellt am {date} Uhr",
     "child": "Kind",
     "school": "Schule",
-    "declaration": "Erklärung",
-    "kind": "Art",
-    "kindConsent": "Zustimmen oder ablehnen",
-    "kindAcknowledge": "Zur Kenntnis nehmen",
+    "declaration": "Einverständnis",
     "method": "Verfahren",
     "historyTitle": "Ihr Verlauf",
     "entry": "{action} am {date} Uhr",
@@ -339,7 +330,7 @@
     "entryVersion": "Fassung {version}",
     "passwordYes": "Mit Passwort bestätigt",
     "passwordNo": "Ohne Passwort",
-    "versionsTitle": "Text der Erklärung",
+    "versionsTitle": "Text der Schule",
     "versionHeading": "Fassung {version}, veröffentlicht am {date} Uhr",
     "attachments": "Dateien",
     "note": "Dieser Nachweis belegt eine einfache elektronische Erklärung. Er ersetzt keine gesetzlich vorgeschriebene Unterschrift auf Papier."
@@ -1755,7 +1746,7 @@
       "messageTitleMany": "{count} neue Nachrichten",
       "messageContext": "OGS · Zu {name}",
       "pollContext": "Umfrage · {school}",
-      "declarationContext": "Erklärung · {school}",
+      "declarationContext": "Einverständnis · {school}",
       "newsContext": "Elternbrief · {school}",
       "ackContext": "Bestätigung erforderlich · {school}",
       "appointmentContext": "Termin für {name}",

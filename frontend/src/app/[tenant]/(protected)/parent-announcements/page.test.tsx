@@ -364,7 +364,7 @@ describe("ParentAnnouncementsPage: children handed over by another page (#3379)"
   });
 });
 
-describe("ParentAnnouncementsPage: Erklärungen (#3430)", () => {
+describe("ParentAnnouncementsPage: Einverständnisse (#3430)", () => {
   const declarationDraft: Announcement = {
     ...base,
     id: "9",
@@ -386,7 +386,7 @@ describe("ParentAnnouncementsPage: Erklärungen (#3430)", () => {
     listState.error = null;
   });
 
-  it("lists Erklärungen on their own tab", async () => {
+  it("lists Einverständnisse on their own tab", async () => {
     searchParams.set("art", "erklaerungen");
     listState.data = [base, declarationDraft];
     render(<ParentAnnouncementsPage />);
@@ -396,18 +396,27 @@ describe("ParentAnnouncementsPage: Erklärungen (#3430)", () => {
     ).toBeGreaterThan(0);
     expect(screen.queryByText("Sommerfest")).not.toBeInTheDocument();
     expect(
-      screen.getByText("1 Erklärung · 0 veröffentlicht"),
+      screen.getByText("1 Einverständnis · 0 veröffentlicht"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: /Einverständnisse/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Neues Einverständnis erstellen" })
+        .length,
+    ).toBeGreaterThan(0);
   });
 
-  it("sends the Erklärung settings and no poll or read confirmation", async () => {
+  it("sends the Einverständnis settings and offers no Kenntnisnahme, poll or read confirmation", async () => {
     searchParams.set("art", "erklaerungen");
     searchParams.set("bearbeiten", "9");
     listState.data = [declarationDraft];
     render(<ParentAnnouncementsPage />);
 
-    expect(await screen.findByText("Erklärung bearbeiten")).toBeInTheDocument();
-    // Neither a poll nor a read confirmation belongs to an Erklärung.
+    expect(
+      await screen.findByText("Einverständnis bearbeiten"),
+    ).toBeInTheDocument();
+    // Neither a poll nor a read confirmation belongs to an Einverständnis.
     expect(
       screen.queryByText("Lesebestätigung erforderlich"),
     ).not.toBeInTheDocument();
@@ -416,11 +425,18 @@ describe("ParentAnnouncementsPage: Erklärungen (#3430)", () => {
       screen.getByText(/Verlangt ein Gesetz eine Erklärung auf Papier/),
     ).toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("radio", { name: /Nur zur Kenntnis nehmen/ }),
-    );
-    // A withdrawal only exists for a consent.
-    expect(screen.queryByText("Widerruf erlauben")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Dann schreiben Sie einen Elternbrief mit/),
+    ).toBeInTheDocument();
+    // Only one kind is left: no choice, no Kenntnisnahme anywhere.
+    expect(screen.queryByText(/Kenntnis/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Was sollen die Eltern tun?"),
+    ).not.toBeInTheDocument();
+    const revocable = screen.getByRole("checkbox", {
+      name: /Widerruf erlauben/,
+    });
+    fireEvent.click(revocable);
     fireEvent.click(
       screen.getByRole("radio", { name: /Alle sorgeberechtigten Personen/ }),
     );
@@ -432,10 +448,11 @@ describe("ParentAnnouncementsPage: Erklärungen (#3430)", () => {
     expect(screen.getByText("Frist (optional)")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
-    // Pending enrollments are no audience for an Erklärung.
+    // Pending enrollments are no audience for an Einverständnis.
     expect((await screen.findAllByText("Ganze Schule")).length).toBeGreaterThan(
       0,
     );
+    expect(screen.getByText("Wer soll gefragt werden?")).toBeInTheDocument();
     expect(screen.queryByText("Offene Anmeldungen")).not.toBeInTheDocument();
 
     fireEvent.click(
@@ -451,7 +468,7 @@ describe("ParentAnnouncementsPage: Erklärungen (#3430)", () => {
         requires_acknowledgement: false,
         email_audience: "portal_only",
         response_deadline: null,
-        declaration_kind: "acknowledgement",
+        declaration_kind: "consent",
         declaration_signers: "all",
         declaration_revocable: false,
         declaration_requires_password: true,
@@ -496,7 +513,7 @@ describe("ParentAnnouncementsPage: Erklärungen (#3430)", () => {
 
     expect(
       await screen.findByText(
-        "Diese Erklärung war schon veröffentlicht. Die Dateien bleiben deshalb gleich. Für andere Dateien legen Sie eine neue Erklärung an.",
+        "Dieses Einverständnis war schon veröffentlicht. Die Dateien bleiben deshalb gleich. Für andere Dateien legen Sie ein neues Einverständnis an.",
       ),
     ).toBeInTheDocument();
     expect(

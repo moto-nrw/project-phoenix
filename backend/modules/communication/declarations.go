@@ -12,25 +12,22 @@ import (
 
 // Declaration vocabulary. The strings are the database values.
 const (
-	DeclarationKindConsent         = "consent"
-	DeclarationKindAcknowledgement = "acknowledgement"
+	DeclarationKindConsent = "consent"
 
 	DeclarationSignersAny = "any"
 	DeclarationSignersAll = "all"
 
-	DeclarationActionAgreed       = "agreed"
-	DeclarationActionDeclined     = "declined"
-	DeclarationActionAcknowledged = "acknowledged"
-	DeclarationActionRevoked      = "revoked"
+	DeclarationActionAgreed   = "agreed"
+	DeclarationActionDeclined = "declined"
+	DeclarationActionRevoked  = "revoked"
 
-	DeclarationStateOpen         = "open"
-	DeclarationStatePartial      = "partial"
-	DeclarationStateAgreed       = "agreed"
-	DeclarationStateDeclined     = "declined"
-	DeclarationStateAcknowledged = "acknowledged"
-	DeclarationStateRevoked      = "revoked"
-	DeclarationStateNoSigner     = "no_signer"
-	DeclarationStateExpired      = "expired"
+	DeclarationStateOpen     = "open"
+	DeclarationStatePartial  = "partial"
+	DeclarationStateAgreed   = "agreed"
+	DeclarationStateDeclined = "declined"
+	DeclarationStateRevoked  = "revoked"
+	DeclarationStateNoSigner = "no_signer"
+	DeclarationStateExpired  = "expired"
 )
 
 var (
@@ -143,8 +140,6 @@ func DeclarationActionLabel(action string) string {
 		return "Zugestimmt"
 	case DeclarationActionDeclined:
 		return "Abgelehnt"
-	case DeclarationActionAcknowledged:
-		return "Zur Kenntnis genommen"
 	case DeclarationActionRevoked:
 		return "Zustimmung widerrufen"
 	default:

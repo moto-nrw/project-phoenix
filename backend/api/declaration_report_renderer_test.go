@@ -7,27 +7,45 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
-	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
 )
 
-// One binding serves the staff report and the parent proof: both ports take
-// the same document shape.
-var (
-	_ announcementAPI.ReportRenderer = declarationReports{}
-	_ parentAPI.ReportRenderer       = declarationReports{}
+// The ports' document shape, spelled out: the consumers alias the same
+// unnamed structs, and base.go binding this adapter to both ports is what
+// proves it satisfies them.
+type (
+	testReportField = struct{ Label, Value string }
+	testReportBlock = struct {
+		Title  string
+		Fields []testReportField
+	}
+	testReportCard = struct {
+		Title  string
+		Fields []testReportField
+		Blocks []testReportBlock
+	}
+	testReportSection = struct {
+		Title string
+		Cards []testReportCard
+	}
+	testReportDocument = struct {
+		Title       string
+		Subtitle    string
+		GeneratedAt time.Time
+		Filters     []string
+		Footer      string
+		Sections    []testReportSection
+	}
 )
 
 func TestDeclarationReportsRenderTheMotoPDF(t *testing.T) {
 	t.Parallel()
-	doc := announcementAPI.ReportDocument{
+	doc := testReportDocument{
 		Title: "Nachweisbericht", Subtitle: "Einverständnis \x01Zoo", GeneratedAt: time.Date(2026, 9, 28, 8, 0, 0, 0, time.UTC),
-		Filters: []string{"Zustimmen oder ablehnen"}, Footer: "Vertraulich",
-		Sections: []announcementAPI.ReportSection{{Title: "Stand je Kind", Cards: []announcementAPI.ReportCard{{
+		Filters: []string{"Eine sorgeberechtigte Person genügt"}, Footer: "Vertraulich",
+		Sections: []testReportSection{{Title: "Stand je Kind", Cards: []testReportCard{{
 			Title:  "Lina Richter",
-			Fields: []announcementAPI.ReportField{{Label: "Stand", Value: "Zugestimmt"}},
-			Blocks: []announcementAPI.ReportBlock{{Title: "Klaus Richter", Fields: []announcementAPI.ReportField{{Label: "Antwort", Value: "Zugestimmt\nam 27.09.2026"}}}},
+			Fields: []testReportField{{Label: "Stand", Value: "Zugestimmt"}},
+			Blocks: []testReportBlock{{Title: "Klaus Richter", Fields: []testReportField{{Label: "Antwort", Value: "Zugestimmt\nam 27.09.2026"}}}},
 		}}}},
 	}
 

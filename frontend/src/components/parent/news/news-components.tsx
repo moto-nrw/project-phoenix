@@ -262,7 +262,7 @@ function NewsCardState({
 }
 
 /**
- * The card line of an Erklärung (#3430): "Antwort nötig" while this guardian
+ * The card line of an Einverständnis (#3430): "Antwort nötig" while this guardian
  * still owes an action for a child, otherwise where each child stands.
  */
 function DeclarationCardState({
@@ -305,10 +305,7 @@ function DeclarationCardState({
     )
     .join(" · ");
   const settled = children.every(
-    (child) =>
-      child.my_action !== null ||
-      child.state === "agreed" ||
-      child.state === "acknowledged",
+    (child) => child.my_action !== null || child.state === "agreed",
   );
 
   return (
@@ -871,7 +868,7 @@ export function NewsDetailModal({
   const [stale, setStale] = useState(false);
   const markedRef = useRef(false);
   const poll = usePollAnswers(item, onUpdated, onStale);
-  // An open Erklärung confirmation sits on top of this dialog; Escape and the
+  // An open Einverständnis confirmation sits on top of this dialog; Escape and the
   // backdrop must close only that one, never both.
   const [declarationBusy, setDeclarationBusy] = useState(false);
 

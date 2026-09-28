@@ -296,7 +296,7 @@ const PARENT_PREFIX_HELP_TOPICS: ReadonlyArray<
   ["/children", HELP_TOPICS.parentChildOverview],
   // Die Anmeldung laeuft ueber `/anmeldung/<schule>/<phase>`.
   ["/anmeldung", HELP_TOPICS.parentEnroll],
-  // Der Nachweis einer Erklärung `/news/<id>/nachweis` gehört zu den
+  // Der Nachweis eines Einverständnisses `/news/<id>/nachweis` gehört zu den
   // Elternbriefen.
   ["/news/", HELP_TOPICS.parentNews],
 ];

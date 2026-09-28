@@ -51,7 +51,7 @@ const (
 	letterEmailKicker  = "Elternbrief"
 	// declarationEmailKicker marks an Erklärung (#3430); its mail carries
 	// only title and link, like every Mitteilung.
-	declarationEmailKicker = "Erklärung"
+	declarationEmailKicker = "Einverständnis"
 )
 
 // EmailConfig is the static config for the announcement e-mail renderer.

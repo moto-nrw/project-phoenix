@@ -114,7 +114,7 @@ type declarationStatusResponse struct {
 
 var declarationSummaryStates = []string{
 	announcementService.DeclarationStateAgreed, announcementService.DeclarationStateDeclined,
-	announcementService.DeclarationStateAcknowledged, announcementService.DeclarationStateRevoked,
+	announcementService.DeclarationStateRevoked,
 	announcementService.DeclarationStatePartial, announcementService.DeclarationStateOpen,
 	announcementService.DeclarationStateNoSigner, announcementService.DeclarationStateExpired,
 }

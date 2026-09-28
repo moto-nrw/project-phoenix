@@ -193,12 +193,12 @@
     "newsAcknowledgement": "Potwierdzenie przeczytania",
     "newsAcknowledgementHint": "Potwierdzają Państwo tylko, że przeczytali Państwo list do rodziców.",
     "newsMessageFrom": "List do rodziców: {school}",
-    "newsDeclarationFrom": "Oświadczenie od {school}",
+    "newsDeclarationFrom": "Zgoda · {school}",
     "newsRead": "Przeczytane",
     "newsActionError": "To się nie udało. Proszę spróbować ponownie.",
     "newsStaleError": "Ten list do rodziców nie jest już aktualny. Proszę odświeżyć stronę.",
     "newsPoll": "Ankieta",
-    "newsDeclaration": "Oświadczenie",
+    "newsDeclaration": "Zgoda",
     "newsPollDeadline": "Odpowiedź do {date}",
     "newsPollClosed": "Ankieta zamknięta",
     "newsPollMulti": "Można wybrać kilka odpowiedzi",
@@ -229,7 +229,7 @@
     "newsLetterBindingHint": "Ten e-mail ma tylko charakter informacyjny. Liczy się potwierdzenie tutaj, w portalu dla rodziców. Wystarczy potwierdzenie jednego opiekuna dla każdego dziecka."
   },
   "parentDeclaration": {
-    "sectionTitle": "Twoje oświadczenie",
+    "sectionTitle": "Twoja odpowiedź",
     "signersAny": "Wystarczy jedna osoba sprawująca opiekę prawną na dziecko.",
     "signersAll": "Każda osoba sprawująca opiekę prawną odpowiada sama.",
     "nothingPreselected": "Nic nie jest wybrane z góry.",
@@ -242,7 +242,6 @@
       "partial": "Częściowo odpowiedziano",
       "agreed": "Zgoda",
       "declined": "Odmowa",
-      "acknowledged": "Przyjęto do wiadomości",
       "revoked": "Wycofano",
       "no_signer": "Nikt nie może odpowiedzieć",
       "expired": "Termin minął"
@@ -250,30 +249,25 @@
     "action": {
       "agreed": "Zgadzam się",
       "declined": "Nie zgadzam się",
-      "acknowledged": "Przyjmuję do wiadomości",
       "revoked": "Wycofaj zgodę"
     },
     "done": {
       "agreed": "Zgoda",
       "declined": "Odmowa",
-      "acknowledged": "Przyjęto do wiadomości",
       "revoked": "Zgoda wycofana"
     },
     "explain": {
       "agreed": "Wybierając „Zgadzam się”, oświadczasz w imieniu {name}, że wyrażasz zgodę.",
-      "declined": "Wybierając „Nie zgadzam się”, oświadczasz w imieniu {name}, że nie wyrażasz zgody.",
-      "acknowledged": "Wybierając „Przyjmuję do wiadomości”, potwierdzasz w imieniu {name}, że przeczytałeś(-aś) tekst."
+      "declined": "Wybierając „Nie zgadzam się”, oświadczasz w imieniu {name}, że nie wyrażasz zgody."
     },
     "settled": {
       "agreed": "{name} wyraził(a) zgodę.",
       "declined": "{name} odmówił(a).",
-      "acknowledged": "{name} przyjął(ęła) do wiadomości.",
       "revoked": "{name} wycofał(a) zgodę."
     },
     "settledOnDate": {
       "agreed": "{name} wyraził(a) zgodę {date}.",
       "declined": "{name} odmówił(a) {date}.",
-      "acknowledged": "{name} przyjął(ęła) do wiadomości {date}.",
       "revoked": "{name} wycofał(a) zgodę {date}."
     },
     "settledUnknown": "Dla {name} jest już odpowiedź.",
@@ -288,7 +282,7 @@
     "revokeHint": "Możesz wycofać swoją zgodę. Szkoła od razu to zobaczy.",
     "closedNoAction": "Termin minął. Nie możesz już odpowiedzieć.",
     "confirmTitle": "Sprawdź swoją odpowiedź",
-    "confirmBody": "Oświadczasz w imieniu {name}: {action}.",
+    "confirmBody": "Twoja odpowiedź dla {name}: {action}.",
     "confirmChild": "Dziecko",
     "confirmAction": "Twoja odpowiedź",
     "confirmVersion": "Tekst",
@@ -301,7 +295,7 @@
     "saving": "Zapisywanie …",
     "saved": "Twoja odpowiedź dla {name} została zapisana.",
     "errors": {
-      "notFound": "To oświadczenie nie jest już dostępne. Lista zostanie wczytana ponownie.",
+      "notFound": "Ta prośba o zgodę nie jest już dostępna. Lista zostanie wczytana ponownie.",
       "notPermitted": "Nie możesz odpowiedzieć za to dziecko. W razie pytań skontaktuj się z OGS.",
       "versionChanged": "Szkoła zmieniła tekst. Przeczytaj go ponownie, a potem odpowiedz jeszcze raz.",
       "closed": "Termin minął. Nie możesz już odpowiedzieć.",
@@ -315,23 +309,20 @@
     }
   },
   "parentDeclarationProof": {
-    "title": "Potwierdzenie Twojego oświadczenia",
+    "title": "Potwierdzenie Twojej odpowiedzi",
     "back": "Wróć do listów do rodziców",
     "download": "Pobierz jako PDF",
     "downloading": "Tworzenie …",
     "downloadError": "Nie udało się utworzyć pliku PDF. Spróbuj ponownie.",
     "integrityOk": "Tekst i odpowiedzi nie zmieniły się od publikacji.",
     "integrityBroken": "Uwaga: zapisany wpis został później zmieniony. Skontaktuj się z OGS.",
-    "notFound": "Dla tego dziecka nie ma jeszcze potwierdzenia. Powstanie, gdy odpowiesz na oświadczenie.",
+    "notFound": "Dla tego dziecka nie ma jeszcze potwierdzenia. Powstanie, gdy odpowiesz na prośbę o zgodę.",
     "loadError": "Nie udało się wczytać potwierdzenia. Spróbuj ponownie.",
     "retry": "Spróbuj ponownie",
     "generated": "Utworzono {date}",
     "child": "Dziecko",
     "school": "Szkoła",
-    "declaration": "Oświadczenie",
-    "kind": "Rodzaj",
-    "kindConsent": "Zgoda lub odmowa",
-    "kindAcknowledge": "Przyjęcie do wiadomości",
+    "declaration": "Zgoda",
     "method": "Sposób",
     "historyTitle": "Twoja historia",
     "entry": "{action}, {date}",
@@ -339,7 +330,7 @@
     "entryVersion": "Wersja {version}",
     "passwordYes": "Potwierdzone hasłem",
     "passwordNo": "Bez hasła",
-    "versionsTitle": "Treść oświadczenia",
+    "versionsTitle": "Tekst szkoły",
     "versionHeading": "Wersja {version}, opublikowana {date}",
     "attachments": "Pliki",
     "note": "To potwierdzenie dokumentuje proste oświadczenie elektroniczne. Nie zastępuje podpisu na papierze, jeśli wymaga go prawo."
@@ -1755,7 +1746,7 @@
       "messageTitleMany": "Nowe wiadomości: {count}",
       "messageContext": "OGS · Dotyczy: {name}",
       "pollContext": "Ankieta · {school}",
-      "declarationContext": "Oświadczenie · {school}",
+      "declarationContext": "Zgoda · {school}",
       "newsContext": "List do rodziców · {school}",
       "ackContext": "Wymagane potwierdzenie · {school}",
       "appointmentContext": "Termin, dotyczy: {name}",

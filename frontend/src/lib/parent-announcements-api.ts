@@ -40,16 +40,17 @@ interface AnnouncementOption {
 /**
  * How the announcement is delivered. "letter" is the Elternbrief (#2384):
  * e-mail and confirmation are mandatory and the mail carries the full text.
- * "declaration" is the Erklärung (#3430): parents agree, decline or
- * acknowledge per child, with a frozen version and a proof.
+ * "declaration" is the Einverständnis (#3430): parents agree or decline per
+ * child, with a frozen version and a proof.
  */
 type AnnouncementDeliveryMode = "standard" | "letter" | "declaration";
 
 /**
- * What an Erklärung asks for (#3430): "consent" is Zustimmen/Ablehnen,
- * "acknowledgement" only Zur Kenntnis genommen.
+ * What an Einverständnis asks for (#3430). Only "consent" (Zustimmen or
+ * Ablehnen) exists; a plain read confirmation is an Elternbrief with
+ * Lesebestätigung. The backend defaults a missing kind to "consent".
  */
-export type DeclarationKind = "consent" | "acknowledgement";
+type DeclarationKind = "consent";
 
 /** Whether one entitled guardian per child is enough, or all of them. */
 export type DeclarationSigners = "any" | "all";
@@ -92,7 +93,7 @@ export interface Announcement {
   reminder_text?: string;
   reminder_sent_at?: string;
   /**
-   * Erklärung settings (#3430). Present only when delivery_mode is
+   * Einverständnis settings (#3430). Present only when delivery_mode is
    * "declaration"; the deadline is the shared response_deadline.
    */
   declaration_kind?: DeclarationKind;
@@ -103,7 +104,7 @@ export interface Announcement {
   declaration_locked_attachments?: boolean;
 }
 
-/** True when the announcement is an Erklärung (#3430). */
+/** True when the announcement is an Einverständnis (#3430). */
 export function isDeclaration(announcement: Announcement): boolean {
   return announcement.delivery_mode === "declaration";
 }
@@ -184,7 +185,7 @@ export interface AnnouncementInput {
   /** Scheduled reminder (#3162): an instant (ISO) or null for none. */
   reminder_at?: string | null;
   reminder_text?: string | null;
-  /** Erklärung settings (#3430), only with delivery_mode "declaration". */
+  /** Einverständnis settings (#3430), only with delivery_mode "declaration". */
   declaration_kind?: DeclarationKind;
   declaration_signers?: DeclarationSigners;
   declaration_revocable?: boolean;
@@ -260,22 +261,20 @@ export interface LetterStatus {
   summary: LetterSummary;
 }
 
-/* --- Erklärungen (#3430) ------------------------------------------------- */
+/* --- Einverständnisse (#3430) --------------------------------------------- */
 
-/** Per-child state of an Erklärung for its current version. */
+/** Per-child state of an Einverständnis for its current version. */
 export type DeclarationChildState =
   | "open"
   | "partial"
   | "agreed"
   | "declined"
-  | "acknowledged"
   | "revoked"
   | "no_signer"
   | "expired";
 
 /** What one guardian did. */
-export type DeclarationAction =
-  "agreed" | "declined" | "acknowledged" | "revoked";
+export type DeclarationAction = "agreed" | "declined" | "revoked";
 
 interface DeclarationVersionAttachment {
   filename: string;
@@ -284,7 +283,7 @@ interface DeclarationVersionAttachment {
   sha256: string;
 }
 
-/** A frozen version (Fassung) of the Erklärung, created on publish. */
+/** A frozen version (Fassung) of the Einverständnis, created on publish. */
 export interface DeclarationVersion {
   id: string;
   version_no: number;
@@ -337,7 +336,6 @@ interface DeclarationSummary {
   children_total: number;
   agreed: number;
   declined: number;
-  acknowledged: number;
   revoked: number;
   partial: number;
   open: number;
@@ -598,7 +596,7 @@ export async function fetchLetterStatus(id: string): Promise<LetterStatus> {
 }
 
 /**
- * The Erklärung status (#3430): per child the state and who acted, the
+ * The Einverständnis status (#3430): per child the state and who acted, the
  * frozen versions with their checksums, and the full history.
  */
 export async function fetchDeclarationStatus(
@@ -613,13 +611,13 @@ export async function fetchDeclarationStatus(
   return data;
 }
 
-/** Download address of the Erklärung report (PDF) or history (CSV). */
+/** Download address of the Einverständnis report (PDF) or history (CSV). */
 function declarationExportUrl(id: string, format: "csv" | "pdf"): string {
   return `${BASE}/${encodeURIComponent(id)}/declaration-export?format=${format}`;
 }
 
 /**
- * Downloads the Erklärung report (PDF) or history (CSV) under the file name
+ * Downloads the Einverständnis report (PDF) or history (CSV) under the file name
  * the backend chose. Fetched first rather than opened as a link, so a failure
  * stays on the page as a message instead of replacing it with an error body.
  */

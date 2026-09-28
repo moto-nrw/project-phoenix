@@ -193,12 +193,12 @@
     "newsAcknowledgement": "Read confirmation",
     "newsAcknowledgementHint": "This only confirms that you have read the announcement.",
     "newsMessageFrom": "Message from {school}",
-    "newsDeclarationFrom": "Declaration from {school}",
+    "newsDeclarationFrom": "Consent · {school}",
     "newsRead": "Read",
     "newsActionError": "Action failed. Please try again.",
     "newsStaleError": "This announcement is no longer current. Please reload the page.",
     "newsPoll": "Survey",
-    "newsDeclaration": "Declaration",
+    "newsDeclaration": "Consent",
     "newsPollDeadline": "Reply by {date}",
     "newsPollClosed": "Survey closed",
     "newsPollMulti": "Multiple answers possible",
@@ -229,7 +229,7 @@
     "newsLetterBindingHint": "This e-mail is for information only. What counts is the confirmation here in the parent portal. One guardian per child is enough."
   },
   "parentDeclaration": {
-    "sectionTitle": "Your declaration",
+    "sectionTitle": "Your answer",
     "signersAny": "One guardian with custody per child is enough.",
     "signersAll": "Every guardian with custody answers for themselves.",
     "nothingPreselected": "Nothing is preselected.",
@@ -242,7 +242,6 @@
       "partial": "Partly answered",
       "agreed": "Agreed",
       "declined": "Declined",
-      "acknowledged": "Noted",
       "revoked": "Withdrawn",
       "no_signer": "Nobody can answer",
       "expired": "Deadline passed"
@@ -250,30 +249,25 @@
     "action": {
       "agreed": "Agree",
       "declined": "Decline",
-      "acknowledged": "Noted",
       "revoked": "Withdraw consent"
     },
     "done": {
       "agreed": "Agreed",
       "declined": "Declined",
-      "acknowledged": "Noted",
       "revoked": "Consent withdrawn"
     },
     "explain": {
       "agreed": "With “Agree” you declare for {name} that you consent.",
-      "declined": "With “Decline” you declare for {name} that you do not consent.",
-      "acknowledged": "With “Noted” you confirm for {name} that you have read the text."
+      "declined": "With “Decline” you declare for {name} that you do not consent."
     },
     "settled": {
       "agreed": "{name} has agreed.",
       "declined": "{name} has declined.",
-      "acknowledged": "{name} has taken note.",
       "revoked": "{name} has withdrawn the consent."
     },
     "settledOnDate": {
       "agreed": "{name} agreed on {date}.",
       "declined": "{name} declined on {date}.",
-      "acknowledged": "{name} took note on {date}.",
       "revoked": "{name} withdrew the consent on {date}."
     },
     "settledUnknown": "There is already an answer for {name}.",
@@ -288,7 +282,7 @@
     "revokeHint": "You can withdraw your consent. The school sees this right away.",
     "closedNoAction": "The deadline has passed. You can no longer answer.",
     "confirmTitle": "Check your answer",
-    "confirmBody": "You declare for {name}: {action}.",
+    "confirmBody": "Your answer for {name}: {action}.",
     "confirmChild": "Child",
     "confirmAction": "Your answer",
     "confirmVersion": "Text",
@@ -301,7 +295,7 @@
     "saving": "Saving …",
     "saved": "Your answer for {name} has been saved.",
     "errors": {
-      "notFound": "This declaration is no longer available. The list is being reloaded.",
+      "notFound": "This consent request is no longer available. The list is being reloaded.",
       "notPermitted": "You may not answer for this child. If you have questions, please contact the OGS.",
       "versionChanged": "The school has changed the text. Please read it again and then answer again.",
       "closed": "The deadline has passed. You can no longer answer.",
@@ -315,23 +309,20 @@
     }
   },
   "parentDeclarationProof": {
-    "title": "Proof of your declaration",
+    "title": "Proof of your answer",
     "back": "Back to letters to parents",
     "download": "Download as PDF",
     "downloading": "Creating …",
     "downloadError": "The PDF could not be created. Please try again.",
     "integrityOk": "Text and answers are unchanged since publication.",
     "integrityBroken": "Attention: A stored entry was changed afterwards. Please contact the OGS.",
-    "notFound": "There is no proof for this child yet. It is created as soon as you have answered a declaration.",
+    "notFound": "There is no proof for this child yet. It is created as soon as you have answered a consent request.",
     "loadError": "The proof could not be loaded. Please try again.",
     "retry": "Try again",
     "generated": "Created on {date}",
     "child": "Child",
     "school": "School",
-    "declaration": "Declaration",
-    "kind": "Type",
-    "kindConsent": "Agree or decline",
-    "kindAcknowledge": "Take note",
+    "declaration": "Consent",
     "method": "Method",
     "historyTitle": "Your history",
     "entry": "{action} on {date}",
@@ -339,7 +330,7 @@
     "entryVersion": "Version {version}",
     "passwordYes": "Confirmed with password",
     "passwordNo": "Without password",
-    "versionsTitle": "Text of the declaration",
+    "versionsTitle": "Text from the school",
     "versionHeading": "Version {version}, published on {date}",
     "attachments": "Files",
     "note": "This proof documents a simple electronic declaration. It does not replace a signature on paper that is required by law."
@@ -1755,7 +1746,7 @@
       "messageTitleMany": "{count} new messages",
       "messageContext": "OGS · About {name}",
       "pollContext": "Survey · {school}",
-      "declarationContext": "Declaration · {school}",
+      "declarationContext": "Consent · {school}",
       "newsContext": "Letter to parents · {school}",
       "ackContext": "Confirmation required · {school}",
       "appointmentContext": "Appointment for {name}",

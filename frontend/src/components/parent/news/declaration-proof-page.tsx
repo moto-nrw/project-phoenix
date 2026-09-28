@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Nachweis einer Erklärung (#3430): was dieses Konto für ein Kind erklärt hat,
+ * Nachweis eines Einverständnisses (#3430): was dieses Konto für ein Kind erklärt hat,
  * mit dem vollständigen Text der Fassung und dem eigenen Verlauf. Zum Lesen
  * auf dem Handy; „Als PDF herunterladen“ holt das PDF, das moto erzeugt.
  * Prüfsummen stehen nicht auf dem Schirm, nur ein Satz, ob alles unverändert
@@ -178,10 +178,6 @@ function ProofDocument({ proof }: Readonly<{ proof: ParentDeclarationProof }>) {
         <dd>{proof.school_name}</dd>
         <dt className="text-gray-600">{t("declaration")}</dt>
         <dd>{proof.title}</dd>
-        <dt className="text-gray-600">{t("kind")}</dt>
-        <dd>
-          {proof.kind === "consent" ? t("kindConsent") : t("kindAcknowledge")}
-        </dd>
         <dt className="text-gray-600">{t("method")}</dt>
         <dd>{proof.method_label}</dd>
       </dl>

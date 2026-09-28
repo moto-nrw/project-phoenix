@@ -56,7 +56,6 @@ function status(overrides: Partial<DeclarationStatus> = {}): DeclarationStatus {
       children_total: 4,
       agreed: 1,
       declined: 0,
-      acknowledged: 0,
       revoked: 0,
       partial: 1,
       open: 1,
@@ -253,7 +252,7 @@ describe("DeclarationStatusPanel (#3430)", () => {
     await waitFor(() => expect(downloadMock).toHaveBeenCalledWith("42", "csv"));
   });
 
-  it("offers no reminder for a withdrawn Erklärung and says when an export fails", async () => {
+  it("offers no reminder for a withdrawn Einverständnis and says when an export fails", async () => {
     downloadMock.mockRejectedValue(new Error("boom"));
     render(<DeclarationStatusPanel announcementId="42" canAct={false} />);
     await screen.findByText("Kinder mit Antwort");

@@ -511,7 +511,7 @@ function buildTodoItems(
       isOpenDeclaration(item) ||
       (item.requires_acknowledgement && !item.acknowledged),
   );
-  // An open Erklärung (#3430) is as urgent as an open poll: the school waits
+  // An open Einverständnis (#3430) is as urgent as an open poll: the school waits
   // for an answer per child, often with a deadline.
   const isUrgent = (item: ParentAnnouncement) =>
     isOpenPoll(item) || isOpenDeclaration(item);

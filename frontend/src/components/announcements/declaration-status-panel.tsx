@@ -50,7 +50,6 @@ const DECLARATION_STATE_META: Record<
   },
   agreed: { label: "Zugestimmt", tone: "green" },
   declined: { label: "Abgelehnt", tone: "red" },
-  acknowledged: { label: "Zur Kenntnis genommen", tone: "green" },
   revoked: { label: "Widerrufen", tone: "red" },
   no_signer: {
     label: "Niemand kann antworten",
@@ -64,7 +63,6 @@ const DECLARATION_STATE_META: Record<
 const DECLARATION_ACTION_LABEL: Record<DeclarationAction, string> = {
   agreed: "Zugestimmt",
   declined: "Abgelehnt",
-  acknowledged: "Zur Kenntnis genommen",
   revoked: "Widerrufen",
 };
 
@@ -83,7 +81,6 @@ const STATE_GROUP: Record<DeclarationChildState, number> = {
   agreed: 0,
   declined: 0,
   revoked: 0,
-  acknowledged: 0,
   partial: 0,
   open: 1,
   expired: 1,
@@ -119,8 +116,8 @@ function fullName(first: string, last: string): string {
 }
 
 /**
- * Status of an Erklärung (#3430), counted per child: who agreed, declined or
- * took note, who is still open, and the frozen versions. Checksums stay out
+ * Status of an Einverständnis (#3430), counted per child: who agreed or
+ * declined, who is still open, and the frozen versions. Checksums stay out
  * of the screen (they are in the CSV); one sentence says whether everything
  * stored is unchanged.
  * The history lists every action, also those for older versions, because
@@ -131,7 +128,7 @@ export function DeclarationStatusPanel({
   canAct,
 }: {
   readonly announcementId: string;
-  /** Reminders are only offered while the Erklärung is live. */
+  /** Reminders are only offered while the Einverständnis is live. */
   readonly canAct: boolean;
 }) {
   const [status, setStatus] = useState<DeclarationStatus | null>(null);
@@ -151,7 +148,7 @@ export function DeclarationStatusPanel({
           error,
           "laden",
           "Status",
-          "Der Stand der Erklärung konnte nicht geladen werden.",
+          "Der Stand der Antworten konnte nicht geladen werden.",
         ),
       );
     }
@@ -223,8 +220,7 @@ export function DeclarationStatusPanel({
   }
 
   const s = status.summary;
-  const consent = status.kind === "consent";
-  const done = s.agreed + s.declined + s.acknowledged + s.revoked;
+  const done = s.agreed + s.declined + s.revoked;
   const waiting = s.open + s.partial;
   const reachable = s.children_total - s.no_signer;
 
@@ -258,23 +254,15 @@ export function DeclarationStatusPanel({
 
         <div className="mt-4">
           <DataGrid columns={4}>
-            {consent ? (
-              <>
-                <DataField label="Zugestimmt">
-                  <span className="tabular-nums">{s.agreed}</span>
-                </DataField>
-                <DataField label="Abgelehnt">
-                  <span className="tabular-nums">{s.declined}</span>
-                </DataField>
-                {(status.revocable || s.revoked > 0) && (
-                  <DataField label="Widerrufen">
-                    <span className="tabular-nums">{s.revoked}</span>
-                  </DataField>
-                )}
-              </>
-            ) : (
-              <DataField label="Zur Kenntnis genommen">
-                <span className="tabular-nums">{s.acknowledged}</span>
+            <DataField label="Zugestimmt">
+              <span className="tabular-nums">{s.agreed}</span>
+            </DataField>
+            <DataField label="Abgelehnt">
+              <span className="tabular-nums">{s.declined}</span>
+            </DataField>
+            {(status.revocable || s.revoked > 0) && (
+              <DataField label="Widerrufen">
+                <span className="tabular-nums">{s.revoked}</span>
               </DataField>
             )}
             <DataField label="Offen">
@@ -366,7 +354,7 @@ export function DeclarationStatusPanel({
           <p className="text-sm text-gray-500">
             {childFilter === "open"
               ? "Für alle Kinder, bei denen das möglich ist, liegt eine Antwort vor."
-              : "Diese Erklärung erreicht derzeit kein Kind."}
+              : "Dieses Einverständnis erreicht derzeit kein Kind."}
           </p>
         ) : (
           <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">

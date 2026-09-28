@@ -63,7 +63,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("Nachweis einer Erklärung im Eltern-Portal (#3430)", () => {
+describe("Nachweis eines Einverständnisses im Eltern-Portal (#3430)", () => {
   it("shows the full text, own history, the integrity sentence and no checksums", async () => {
     const load = vi
       .spyOn(parentApi, "fetchDeclarationProof")
@@ -78,7 +78,7 @@ describe("Nachweis einer Erklärung im Eltern-Portal (#3430)", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "Nachweis Ihrer Erklärung",
+        name: "Nachweis Ihrer Antwort",
       }),
     ).toBeInTheDocument();
     expect(screen.getByText("Mia Muster")).toBeInTheDocument();
@@ -175,7 +175,7 @@ describe("Nachweis einer Erklärung im Eltern-Portal (#3430)", () => {
 
     expect(
       await screen.findByText(
-        "Für dieses Kind gibt es noch keinen Nachweis. Er entsteht, sobald Sie auf eine Erklärung geantwortet haben.",
+        "Für dieses Kind gibt es noch keinen Nachweis. Er entsteht, sobald Sie auf ein Einverständnis geantwortet haben.",
       ),
     ).toBeInTheDocument();
     expect(

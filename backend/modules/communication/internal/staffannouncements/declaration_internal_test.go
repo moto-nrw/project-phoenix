@@ -26,19 +26,19 @@ func TestNormalizeDeclarationCompletesAndRefuses(t *testing.T) {
 	t.Parallel()
 
 	in := declarationTestInput()
+	in.Declaration.Kind = ""
 	in.RequiresAcknowledgement = true
 	_, err := normalizeInput(&in)
 	require.NoError(t, err)
+	assert.Equal(t, usersModels.DeclarationKindConsent, in.Declaration.Kind, "an Einverständnis is the only kind")
 	assert.Equal(t, usersModels.DeclarationSignersAny, in.Declaration.Signers, "one guardian is the default")
 	assert.False(t, in.RequiresAcknowledgement, "a declaration is not a read confirmation")
 
 	cases := map[string]func(in *Input){
-		"acknowledgement cannot be revoked": func(in *Input) {
-			in.Declaration.Kind = usersModels.DeclarationKindAcknowledgement
-			in.Declaration.Revocable = true
-		},
-		"unknown kind":    func(in *Input) { in.Declaration.Kind = "signature" },
-		"not also a poll": func(in *Input) { in.ResponseType = usersModels.ParentAnnouncementResponseSingleChoice },
+		// A read confirmation is the Elternbrief's Lesebestätigung.
+		"no read confirmation": func(in *Input) { in.Declaration.Kind = "acknowledgement" },
+		"unknown kind":         func(in *Input) { in.Declaration.Kind = "signature" },
+		"not also a poll":      func(in *Input) { in.ResponseType = usersModels.ParentAnnouncementResponseSingleChoice },
 		"no open enrollment": func(in *Input) {
 			in.Targets = []TargetInput{{TargetType: usersModels.AnnouncementTargetPendingEnrollment}}
 		},

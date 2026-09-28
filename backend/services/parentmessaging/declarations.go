@@ -13,25 +13,24 @@ import (
 
 // Declaration vocabulary. The strings are the database values.
 const (
-	DeclarationKindConsent         = "consent"
-	DeclarationKindAcknowledgement = "acknowledgement"
+	// DeclarationKindConsent is the only kind: Zustimmung or Ablehnung. A
+	// plain read confirmation is the Elternbrief's Lesebestätigung.
+	DeclarationKindConsent = "consent"
 
 	DeclarationSignersAny = "any"
 	DeclarationSignersAll = "all"
 
-	DeclarationActionAgreed       = "agreed"
-	DeclarationActionDeclined     = "declined"
-	DeclarationActionAcknowledged = "acknowledged"
-	DeclarationActionRevoked      = "revoked"
+	DeclarationActionAgreed   = "agreed"
+	DeclarationActionDeclined = "declined"
+	DeclarationActionRevoked  = "revoked"
 
-	DeclarationStateOpen         = "open"
-	DeclarationStatePartial      = "partial"
-	DeclarationStateAgreed       = "agreed"
-	DeclarationStateDeclined     = "declined"
-	DeclarationStateAcknowledged = "acknowledged"
-	DeclarationStateRevoked      = "revoked"
-	DeclarationStateNoSigner     = "no_signer"
-	DeclarationStateExpired      = "expired"
+	DeclarationStateOpen     = "open"
+	DeclarationStatePartial  = "partial"
+	DeclarationStateAgreed   = "agreed"
+	DeclarationStateDeclined = "declined"
+	DeclarationStateRevoked  = "revoked"
+	DeclarationStateNoSigner = "no_signer"
+	DeclarationStateExpired  = "expired"
 )
 
 // ErrDeclarationInvalid reports declaration settings that do not fit together.
@@ -51,14 +50,11 @@ func (r DeclarationRules) Closed(now time.Time) bool {
 }
 
 // ValidateDeclarationSettings checks one declaration configuration.
-func ValidateDeclarationSettings(kind, signers string, revocable bool) error {
-	if kind != DeclarationKindConsent && kind != DeclarationKindAcknowledgement {
+func ValidateDeclarationSettings(kind, signers string) error {
+	if kind != DeclarationKindConsent {
 		return ErrDeclarationInvalid
 	}
 	if signers != DeclarationSignersAny && signers != DeclarationSignersAll {
-		return ErrDeclarationInvalid
-	}
-	if revocable && kind != DeclarationKindConsent {
 		return ErrDeclarationInvalid
 	}
 	return nil
@@ -86,14 +82,10 @@ func DeclarationChildState(rules DeclarationRules, eligible []int64, latest map[
 	case counts[DeclarationActionRevoked] > 0:
 		return DeclarationStateRevoked
 	}
-	positive := DeclarationActionAgreed
-	if rules.Kind == DeclarationKindAcknowledgement {
-		positive = DeclarationActionAcknowledged
-	}
-	done := counts[positive]
+	done := counts[DeclarationActionAgreed]
 	switch {
 	case done > 0 && (rules.Signers != DeclarationSignersAll || done == len(eligible)):
-		return positive
+		return DeclarationStateAgreed
 	case done > 0:
 		return DeclarationStatePartial
 	case rules.Closed(now):
@@ -112,12 +104,8 @@ func DeclarationAllowedActions(rules DeclarationRules, canSubmit bool, myLatest 
 	}
 	actions := []string{}
 	if !rules.Closed(now) {
-		candidates := []string{DeclarationActionAgreed, DeclarationActionDeclined}
-		if rules.Kind == DeclarationKindAcknowledgement {
-			candidates = []string{DeclarationActionAcknowledged}
-		}
-		revocableConsent := rules.Kind == DeclarationKindConsent && rules.Revocable && myLatest == DeclarationActionAgreed
-		for _, action := range candidates {
+		revocableConsent := rules.Revocable && myLatest == DeclarationActionAgreed
+		for _, action := range []string{DeclarationActionAgreed, DeclarationActionDeclined} {
 			// After a revocation the guardian may consent again, as with the
 			// photo consent; a revocation is not a lock-out. A revocable
 			// consent is withdrawn by revoking it, not by a second answer, so
@@ -127,7 +115,7 @@ func DeclarationAllowedActions(rules DeclarationRules, canSubmit bool, myLatest 
 			}
 		}
 	}
-	if rules.Kind == DeclarationKindConsent && rules.Revocable && myLatest == DeclarationActionAgreed {
+	if rules.Revocable && myLatest == DeclarationActionAgreed {
 		actions = append(actions, DeclarationActionRevoked)
 	}
 	return actions

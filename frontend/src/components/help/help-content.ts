@@ -3612,28 +3612,38 @@ function parentSurveyTopic(): HelpTopic {
 }
 
 /**
- * Erklärung (#3430): Eltern stimmen je Kind zu, lehnen ab oder nehmen zur
- * Kenntnis. Einfache Erklärung per Knopfdruck, mit Fassung und Nachweis.
+ * Einverständnis (#3430): Eltern stimmen je Kind zu oder lehnen ab. Einfache
+ * Erklärung per Knopfdruck, mit Fassung und Nachweis. Eine reine
+ * Lesebestätigung ist ein Elternbrief.
  */
 function parentDeclarationTopic(): HelpTopic {
+  const steps = parentAnnouncementSteps(
+    "Einverständnisse",
+    "Einverständnis",
+    "Titel",
+  );
   return {
     id: HELP_TOPICS.leadParentDeclaration,
-    title: "Eine Erklärung einholen",
-    question: "Wie hole ich die Zustimmung der Eltern ein?",
+    title: "Ein Einverständnis einholen",
+    question: "Wie hole ich das Einverständnis der Eltern ein?",
     summary:
-      "Mit einer Erklärung stimmen Eltern für jedes Kind zu, lehnen ab oder nehmen etwas zur Kenntnis.",
+      "Eltern stimmen für jedes Kind zu oder lehnen ab, zum Beispiel für einen Ausflug.",
     group: "elternarbeit",
     audience: "lead",
     icon: "ShieldCheck",
     steps: [
-      ...parentAnnouncementSteps("Erklärungen", "Erklärung", "Titel"),
-      "Wählen Sie unter `Was sollen die Eltern tun?` entweder `Zustimmen oder ablehnen` oder `Nur zur Kenntnis nehmen`.",
+      // Ohne die letzten zwei Schritte (Weiter, Empfänger): die Einstellungen
+      // stehen noch in Schritt 1, der Empfängerschritt heißt hier
+      // `Wer soll gefragt werden?`.
+      ...steps.slice(0, -2),
       "Wählen Sie unter `Wer muss antworten?`, ob eine sorgeberechtigte Person genügt oder alle antworten müssen.",
       "Tragen Sie bei Bedarf ein Datum bei `Frist (optional)` ein.",
+      "Wählen Sie unten `Weiter`.",
+      "Wählen Sie in `Schritt 2 von 2` unter `Wer soll gefragt werden?` die Empfänger.",
       "Wählen Sie `Veröffentlichen`.",
     ],
     result:
-      "Die Eltern sehen die Erklärung im Eltern-Portal. Den Stand je Kind sehen Sie beim Öffnen der Erklärung unter `Stand der Erklärung`.",
+      "Die Eltern sehen die Anfrage im Eltern-Portal. Den Stand je Kind sehen Sie beim Öffnen unter `Stand der Antworten`.",
     notes: [
       "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen, auch nach der Frist.",
       "Mit `Passwort vor dem Antworten abfragen` geben Eltern vor jeder Antwort ihr Passwort ein.",
@@ -3643,11 +3653,12 @@ function parentDeclarationTopic(): HelpTopic {
     ],
     differences: [
       "Nach dem Veröffentlichen stehen Text und Dateien fest.",
-      "Ziehen Sie eine Erklärung zurück und ändern den Text, müssen die Eltern neu antworten. Die alten Antworten bleiben im Verlauf.",
+      "Ziehen Sie ein Einverständnis zurück und ändern den Text, müssen die Eltern neu antworten. Die alten Antworten bleiben im Verlauf.",
     ],
     troubleshootingDetails: [
+      "Sollen Eltern nur bestätigen, dass sie etwas gelesen haben? Schreiben Sie dann einen Elternbrief mit Lesebestätigung.",
       "Ein Kind steht auf `Niemand kann antworten`? Dann hat keine sorgeberechtigte Person ein Eltern-Konto. Laden Sie die Eltern ein.",
-      "`Löschen` klappt nicht? Auf die Erklärung gibt es schon Antworten. Ziehen Sie sie stattdessen zurück.",
+      "`Löschen` klappt nicht? Auf das Einverständnis gibt es schon Antworten. Ziehen Sie es stattdessen zurück.",
     ],
     related: [
       HELP_TOPICS.leadParentLetter,
@@ -5922,7 +5933,7 @@ function parentNewsTopic(): HelpTopic {
     title: "Elternbriefe lesen und beantworten",
     question: "Wo finde ich Post von der OGS?",
     summary:
-      "Unter `Elternbriefe` stehen Mitteilungen, Umfragen und Erklärungen.",
+      "Unter `Elternbriefe` stehen Mitteilungen, Umfragen und Anfragen zum Einverständnis.",
     group: "nachrichten",
     audience: "parent",
     icon: "Megaphone",
@@ -5947,11 +5958,11 @@ function parentNewsTopic(): HelpTopic {
         ],
       },
       {
-        title: "Auf eine Erklärung antworten",
+        title: "Auf ein Einverständnis antworten",
         steps: [
-          "Öffnen Sie die Erklärung unter `Offen`.",
+          "Öffnen Sie den Eintrag `Einverständnis` unter `Offen`.",
           "Lesen Sie den Text und die Dateien.",
-          "Tippen Sie beim Kind auf `Zustimmen`, `Ablehnen` oder `Zur Kenntnis genommen`.",
+          "Tippen Sie beim Kind auf `Zustimmen` oder `Ablehnen`.",
           "Prüfen Sie im Fenster das Kind und Ihre Antwort.",
           "Bestätigen Sie im Fenster mit demselben Knopf.",
         ],
@@ -5965,8 +5976,8 @@ function parentNewsTopic(): HelpTopic {
       "Nach Ihrer Antwort öffnen Sie mit `Nachweis ansehen` Ihren Nachweis. Mit `Als PDF herunterladen` speichern Sie ihn.",
     ],
     differences: [
-      "Ein Eintrag trägt `Elternbrief`, `Umfrage`, `Erklärung`, `Wichtig` oder `Betreuung fällt aus`.",
-      "Fragt moto nach Ihrem Passwort? Dann möchte die Schule das vor jeder Erklärung.",
+      "Ein Eintrag trägt `Elternbrief`, `Umfrage`, `Einverständnis`, `Wichtig` oder `Betreuung fällt aus`.",
+      "Fragt moto nach Ihrem Passwort? Dann möchte die Schule das vor jeder Antwort.",
       "Bei einer Umfrage steht `Antwort bis` mit dem letzten Tag.",
       "Ist die Frist vorbei, steht dort `Umfrage geschlossen`.",
     ],

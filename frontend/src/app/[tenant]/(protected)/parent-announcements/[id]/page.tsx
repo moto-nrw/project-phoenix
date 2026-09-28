@@ -48,7 +48,7 @@ const BACK_LABEL: Record<AnnouncementKind, string> = {
   announcement: "Zurück zu den Mitteilungen",
   letter: "Zurück zu den Elternbriefen",
   poll: "Zurück zu den Umfragen",
-  declaration: "Zurück zu den Erklärungen",
+  declaration: "Zurück zu den Einverständnissen",
 };
 
 type LifecycleAction = "publish" | "unpublish" | "delete" | "reminder" | null;

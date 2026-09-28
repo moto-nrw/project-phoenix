@@ -109,7 +109,7 @@ type DeclarationSupport interface {
 	DeclarationFrozen(ctx context.Context, a *usersModels.ParentAnnouncement) (bool, error)
 }
 
-const declarationReminderKicker = "Erklärung: Ihre Antwort fehlt"
+const declarationReminderKicker = "Einverständnis: Ihre Antwort fehlt"
 
 // normalizeDeclaration validates and completes the declaration settings. It
 // runs inside normalizeDelivery, after the delivery mode is known.
@@ -118,11 +118,16 @@ func normalizeDeclaration(in *Input) error {
 		in.Declaration = usersModels.AnnouncementDeclarationSettings{}
 		return nil
 	}
+	// An Einverständnis is the only kind; the stored kind keeps every proof
+	// naming what was asked.
+	if in.Declaration.Kind == "" {
+		in.Declaration.Kind = usersModels.DeclarationKindConsent
+	}
 	if in.Declaration.Signers == "" {
 		in.Declaration.Signers = usersModels.DeclarationSignersAny
 	}
 	d := in.Declaration
-	if err := declarations.ValidateDeclarationSettings(d.Kind, d.Signers, d.Revocable); err != nil {
+	if err := declarations.ValidateDeclarationSettings(d.Kind, d.Signers); err != nil {
 		return fmt.Errorf("%w: declaration settings (kind %q, signers %q, revocable %t)", ErrValidation, d.Kind, d.Signers, d.Revocable)
 	}
 	// A declaration is answered per child by guardians who may declare; it is
@@ -457,7 +462,7 @@ func (s *service) remindDeclaration(ctx context.Context, a *usersModels.ParentAn
 	if len(recipients) == 0 {
 		return 0, nil
 	}
-	intro := "für Ihr Kind fehlt noch Ihre Antwort auf diese Erklärung. Sie können sie im Eltern-Portal lesen und dort beantworten."
+	intro := "für Ihr Kind fehlt noch Ihre Antwort. Bitte stimmen Sie im Eltern-Portal zu oder lehnen Sie ab."
 	emailed, err := s.enqueueReminderEmails(ctx, a, recipients, declarationReminderKicker, intro, s.letterPortalURL(a.ID))
 	if err != nil {
 		return 0, err
@@ -513,9 +518,9 @@ func declarationMailSpec(a *usersModels.ParentAnnouncement, spec mailSpec) mailS
 		return spec
 	}
 	spec.kicker = declarationEmailKicker
-	intro := "wir bitten Sie um Ihre Antwort auf eine Erklärung. Sie finden sie im Eltern-Portal."
+	intro := "wir bitten Sie um Ihr Einverständnis. Sie können im Eltern-Portal zustimmen oder ablehnen."
 	if a.ResponseDeadline != nil {
-		intro = fmt.Sprintf("wir bitten Sie bis zum %s um Ihre Antwort auf eine Erklärung. Sie finden sie im Eltern-Portal.",
+		intro = fmt.Sprintf("wir bitten Sie bis zum %s um Ihr Einverständnis. Sie können im Eltern-Portal zustimmen oder ablehnen.",
 			a.ResponseDeadline.In(berlinLocation()).Format("02.01.2006"))
 	}
 	spec.intro = func(string) string { return intro }

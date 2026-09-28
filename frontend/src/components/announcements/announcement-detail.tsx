@@ -467,7 +467,7 @@ export function AnnouncementDetail({
             : letter
               ? "Elternbrief"
               : declaration
-                ? "Erklärung"
+                ? "Einverständnis"
                 : "Mitteilung"
         }
         icon={poll ? ListChecks : declaration ? FileCheck : Megaphone}
@@ -498,23 +498,17 @@ export function AnnouncementDetail({
               ))}
             </span>
           </DataField>
-          <DataField
-            label={
-              poll ? "Antwortart" : declaration ? "Art" : "Lesebestätigung"
-            }
-          >
-            {poll
-              ? RESPONSE_TYPE_LABEL[announcement.response_type]
-              : declaration
-                ? announcement.declaration_kind === "acknowledgement"
-                  ? "Nur zur Kenntnis nehmen"
-                  : "Zustimmen oder ablehnen"
+          {!declaration && (
+            <DataField label={poll ? "Antwortart" : "Lesebestätigung"}>
+              {poll
+                ? RESPONSE_TYPE_LABEL[announcement.response_type]
                 : letter
                   ? "Erforderlich (Elternbrief)"
                   : announcement.requires_acknowledgement
                     ? "Erforderlich"
                     : "Nicht erforderlich"}
-          </DataField>
+            </DataField>
+          )}
           <DataField label="E-Mail an die Eltern">
             {letter
               ? announcement.email_audience === "all_contacts"
@@ -541,13 +535,11 @@ export function AnnouncementDetail({
                   ? `Bis ${formatBerlinDate(announcement.response_deadline)}`
                   : "Keine Frist"}
               </DataField>
-              {announcement.declaration_kind !== "acknowledgement" && (
-                <DataField label="Widerruf">
-                  {announcement.declaration_revocable
-                    ? "Erlaubt, auch nach der Frist"
-                    : "Nicht erlaubt"}
-                </DataField>
-              )}
+              <DataField label="Widerruf">
+                {announcement.declaration_revocable
+                  ? "Erlaubt, auch nach der Frist"
+                  : "Nicht erlaubt"}
+              </DataField>
               <DataField label="Passwort vor dem Antworten">
                 {announcement.declaration_requires_password
                   ? "Wird abgefragt"
@@ -582,11 +574,11 @@ export function AnnouncementDetail({
         </SectionCard>
       )}
 
-      {/* A withdrawn Erklärung is a draft again, but its history stays: a
+      {/* A withdrawn Einverständnis is a draft again, but its history stays: a
         school must still see who acted on the earlier version. */}
       {declaration &&
         (isPublished || announcement.declaration_locked_attachments) && (
-          <SectionCard title="Stand der Erklärung">
+          <SectionCard title="Stand der Antworten">
             <DeclarationStatusPanel
               announcementId={announcement.id}
               canAct={announcement.status === "published"}

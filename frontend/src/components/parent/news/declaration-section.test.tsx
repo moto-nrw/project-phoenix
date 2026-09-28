@@ -21,7 +21,7 @@ import type {
 import * as parentApi from "~/lib/parent-api";
 import { ParentApiError } from "~/lib/parent-api";
 
-// Erklärungen (#3430) in the parent portal: the portal shows exactly the
+// Einverständnisse (#3430) in the parent portal: the portal shows exactly the
 // server's allowed actions, never preselects one, repeats child, action and
 // version in a confirmation, asks for the password there when the school
 // wants it, and turns every backend refusal into a sentence.
@@ -80,9 +80,7 @@ function item(
   };
 }
 
-function submission(
-  action: "agreed" | "declined" | "acknowledged" | "revoked",
-) {
+function submission(action: "agreed" | "declined" | "revoked") {
   return {
     submission: {
       id: "77",
@@ -208,10 +206,10 @@ describe("declarationErrorKey", () => {
   });
 });
 
-describe("Erklärung in the feed card", () => {
+describe("Einverständnis in the feed card", () => {
   it("labels the card and flags the open answer", () => {
     render(<NewsCard item={item()} onOpen={vi.fn()} />);
-    expect(screen.getByText("Erklärung")).toBeInTheDocument();
+    expect(screen.getByText("Einverständnis")).toBeInTheDocument();
     expect(screen.getByText("Antwort nötig")).toBeInTheDocument();
   });
 
@@ -239,7 +237,7 @@ describe("Erklärung in the feed card", () => {
   });
 });
 
-describe("Erklärung in the detail view", () => {
+describe("Einverständnis in the detail view", () => {
   it("shows exactly the allowed actions, nothing preselected, with what each means", () => {
     render(
       <NewsDetailModal item={item()} onClose={vi.fn()} onUpdated={vi.fn()} />,
@@ -262,30 +260,6 @@ describe("Erklärung in the detail view", () => {
       screen.getByText("Nichts ist vorausgewählt.", { exact: false }),
     ).toBeInTheDocument();
     expect(screen.getByText("Fassung 2")).toBeInTheDocument();
-  });
-
-  it("shows only the acknowledgement button for a Kenntnisnahme", () => {
-    render(
-      <NewsDetailModal
-        item={item(
-          {},
-          {
-            kind: "acknowledgement",
-            revocable: false,
-            children: [child({ allowed_actions: ["acknowledged"] })],
-          },
-        )}
-        onClose={vi.fn()}
-        onUpdated={vi.fn()}
-      />,
-    );
-
-    expect(
-      screen.getByRole("button", { name: "Zur Kenntnis genommen" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Zustimmen" }),
-    ).not.toBeInTheDocument();
   });
 
   it("confirms child, action and version before it submits", async () => {
@@ -594,7 +568,7 @@ describe("Erklärung in the detail view", () => {
   });
 });
 
-describe("Erklärung decided by another guardian (#3430)", () => {
+describe("Einverständnis decided by another guardian (#3430)", () => {
   it("shows no pill but keeps the decline button", () => {
     const decided = item(
       {},
@@ -616,7 +590,7 @@ describe("Erklärung decided by another guardian (#3430)", () => {
   });
 });
 
-describe("Erklärung already settled by another guardian (#3430)", () => {
+describe("Einverständnis already settled by another guardian (#3430)", () => {
   function settled(submittedAt?: string) {
     return item(
       {},
@@ -691,12 +665,14 @@ describe("Erklärung already settled by another guardian (#3430)", () => {
     ).toContain("bg-gray-900");
   });
 
-  it("titles the text card as an Erklärung, not as an Elternbrief", () => {
+  it("titles the text card as an Einverständnis, not as an Elternbrief", () => {
     render(
       <NewsDetailModal item={item()} onClose={vi.fn()} onUpdated={vi.fn()} />,
     );
 
-    expect(screen.getByText("Erklärung von OGS Am Berg")).toBeInTheDocument();
+    expect(
+      screen.getByText("Einverständnis · OGS Am Berg"),
+    ).toBeInTheDocument();
     expect(
       screen.queryByText("Elternbrief von OGS Am Berg"),
     ).not.toBeInTheDocument();

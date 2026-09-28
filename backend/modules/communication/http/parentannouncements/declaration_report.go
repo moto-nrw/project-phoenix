@@ -63,33 +63,24 @@ const (
 )
 
 var declarationStateLabels = map[string]string{
-	announcementService.DeclarationStateAgreed:       "Zugestimmt",
-	announcementService.DeclarationStateDeclined:     "Abgelehnt",
-	announcementService.DeclarationStateAcknowledged: "Zur Kenntnis genommen",
-	announcementService.DeclarationStateRevoked:      "Widerrufen",
-	announcementService.DeclarationStatePartial:      "Teilweise beantwortet",
-	announcementService.DeclarationStateOpen:         "Offen",
-	announcementService.DeclarationStateExpired:      "Frist abgelaufen",
-	announcementService.DeclarationStateNoSigner:     "Niemand kann antworten",
+	announcementService.DeclarationStateAgreed:   "Zugestimmt",
+	announcementService.DeclarationStateDeclined: "Abgelehnt",
+	announcementService.DeclarationStateRevoked:  "Widerrufen",
+	announcementService.DeclarationStatePartial:  "Teilweise beantwortet",
+	announcementService.DeclarationStateOpen:     "Offen",
+	announcementService.DeclarationStateExpired:  "Frist abgelaufen",
+	announcementService.DeclarationStateNoSigner: "Niemand kann antworten",
 }
 
 // declarationStateOrder sorts children: answered first, then those still
 // waiting; children nobody can answer for are listed apart.
 var declarationStateOrder = map[string]int{
-	announcementService.DeclarationStateAgreed:       0,
-	announcementService.DeclarationStateDeclined:     0,
-	announcementService.DeclarationStateAcknowledged: 0,
-	announcementService.DeclarationStateRevoked:      0,
-	announcementService.DeclarationStatePartial:      0,
-	announcementService.DeclarationStateOpen:         1,
-	announcementService.DeclarationStateExpired:      1,
-}
-
-func declarationKindLabel(kind string) string {
-	if kind == announcementService.DeclarationKindAcknowledgement {
-		return "Nur zur Kenntnis nehmen"
-	}
-	return "Zustimmen oder ablehnen"
+	announcementService.DeclarationStateAgreed:   0,
+	announcementService.DeclarationStateDeclined: 0,
+	announcementService.DeclarationStateRevoked:  0,
+	announcementService.DeclarationStatePartial:  0,
+	announcementService.DeclarationStateOpen:     1,
+	announcementService.DeclarationStateExpired:  1,
 }
 
 func declarationSignersLabel(signers string) string {
@@ -113,7 +104,7 @@ func reportDeadline(deadline *time.Time) string {
 // declarationReport describes the staff report: overview, versions, the
 // state of every child and the full history.
 func declarationReport(s *announcementService.ParentDeclarationStatus) ReportDocument {
-	filters := []string{declarationKindLabel(s.Settings.Kind), declarationSignersLabel(s.Settings.Signers), reportDeadline(s.Deadline)}
+	filters := []string{declarationSignersLabel(s.Settings.Signers), reportDeadline(s.Deadline)}
 	if s.CurrentVersion != nil {
 		filters = append(filters, "Fassung "+strconv.Itoa(s.CurrentVersion.VersionNo))
 	}
@@ -137,7 +128,6 @@ func declarationSettingsCard(s *announcementService.ParentDeclarationStatus) Rep
 		password = "Ja"
 	}
 	return ReportCard{Title: "Einstellungen", Fields: []ReportField{
-		{Label: "Art", Value: declarationKindLabel(s.Settings.Kind)},
 		{Label: "Wer muss antworten", Value: declarationSignersLabel(s.Settings.Signers)},
 		{Label: "Widerruf", Value: revocable},
 		{Label: "Passwort vor dem Antworten", Value: password},

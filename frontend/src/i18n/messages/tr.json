@@ -193,12 +193,12 @@
     "newsAcknowledgement": "Okundu onayı",
     "newsAcknowledgementHint": "Bununla yalnızca veli mektubunu okuduğunuzu onaylarsınız.",
     "newsMessageFrom": "Veli mektubu: {school}",
-    "newsDeclarationFrom": "{school} okulundan beyan",
+    "newsDeclarationFrom": "İzin · {school}",
     "newsRead": "Okundu",
     "newsActionError": "İşlem başarısız oldu. Lütfen tekrar deneyin.",
     "newsStaleError": "Bu veli mektubu artık güncel değil. Lütfen sayfayı yenileyin.",
     "newsPoll": "Anket",
-    "newsDeclaration": "Beyan",
+    "newsDeclaration": "İzin",
     "newsPollDeadline": "{date} tarihine kadar yanıtlayın",
     "newsPollClosed": "Anket kapandı",
     "newsPollMulti": "Birden fazla seçim yapılabilir",
@@ -229,7 +229,7 @@
     "newsLetterBindingHint": "Bu e-posta yalnızca bilgilendirme amaçlıdır. Geçerli olan, buradaki veli portalındaki onaydır. Her çocuk için bir veli yeterlidir."
   },
   "parentDeclaration": {
-    "sectionTitle": "Beyanınız",
+    "sectionTitle": "Cevabınız",
     "signersAny": "Her çocuk için velayet sahibi bir kişi yeterlidir.",
     "signersAll": "Velayet sahibi her kişi kendisi yanıtlar.",
     "nothingPreselected": "Hiçbir şey önceden seçilmemiştir.",
@@ -242,7 +242,6 @@
       "partial": "Kısmen yanıtlandı",
       "agreed": "Onaylandı",
       "declined": "Reddedildi",
-      "acknowledged": "Bilgi alındı",
       "revoked": "Geri alındı",
       "no_signer": "Kimse yanıtlayamaz",
       "expired": "Süre doldu"
@@ -250,30 +249,25 @@
     "action": {
       "agreed": "Onaylıyorum",
       "declined": "Reddediyorum",
-      "acknowledged": "Bilgi aldım",
       "revoked": "Onayı geri al"
     },
     "done": {
       "agreed": "Onaylandı",
       "declined": "Reddedildi",
-      "acknowledged": "Bilgi alındı",
       "revoked": "Onay geri alındı"
     },
     "explain": {
       "agreed": "„Onaylıyorum“ ile {name} için kabul ettiğinizi beyan edersiniz.",
-      "declined": "„Reddediyorum“ ile {name} için kabul etmediğinizi beyan edersiniz.",
-      "acknowledged": "„Bilgi aldım“ ile {name} için metni okuduğunuzu onaylarsınız."
+      "declined": "„Reddediyorum“ ile {name} için kabul etmediğinizi beyan edersiniz."
     },
     "settled": {
       "agreed": "{name} onayladı.",
       "declined": "{name} reddetti.",
-      "acknowledged": "{name} bilgi aldı.",
       "revoked": "{name} onayı geri aldı."
     },
     "settledOnDate": {
       "agreed": "{name} {date} tarihinde onayladı.",
       "declined": "{name} {date} tarihinde reddetti.",
-      "acknowledged": "{name} {date} tarihinde bilgi aldı.",
       "revoked": "{name} {date} tarihinde onayı geri aldı."
     },
     "settledUnknown": "{name} için zaten bir yanıt var.",
@@ -288,7 +282,7 @@
     "revokeHint": "Onayınızı geri alabilirsiniz. Okul bunu hemen görür.",
     "closedNoAction": "Süre doldu. Artık yanıt veremezsiniz.",
     "confirmTitle": "Yanıtınızı kontrol edin",
-    "confirmBody": "{name} için beyanınız: {action}.",
+    "confirmBody": "{name} için cevabınız: {action}.",
     "confirmChild": "Çocuk",
     "confirmAction": "Yanıtınız",
     "confirmVersion": "Metin",
@@ -301,7 +295,7 @@
     "saving": "Kaydediliyor …",
     "saved": "{name} için yanıtınız kaydedildi.",
     "errors": {
-      "notFound": "Bu beyan artık mevcut değil. Liste yeniden yükleniyor.",
+      "notFound": "Bu izin talebi artık mevcut değil. Liste yeniden yükleniyor.",
       "notPermitted": "Bu çocuk için yanıt veremezsiniz. Sorularınız için OGS ile iletişime geçin.",
       "versionChanged": "Okul metni değiştirdi. Lütfen tekrar okuyun ve ardından yeniden yanıtlayın.",
       "closed": "Süre doldu. Artık yanıt veremezsiniz.",
@@ -315,23 +309,20 @@
     }
   },
   "parentDeclarationProof": {
-    "title": "Beyanınızın belgesi",
+    "title": "Cevabınızın belgesi",
     "back": "Veli mektuplarına dön",
     "download": "PDF olarak indir",
     "downloading": "Oluşturuluyor …",
     "downloadError": "PDF oluşturulamadı. Lütfen tekrar deneyin.",
     "integrityOk": "Metin ve cevaplar yayından bu yana değişmedi.",
     "integrityBroken": "Dikkat: Kayıtlı bir giriş sonradan değiştirildi. Lütfen OGS ile iletişime geçin.",
-    "notFound": "Bu çocuk için henüz belge yok. Bir beyanı yanıtladığınızda oluşturulur.",
+    "notFound": "Bu çocuk için henüz belge yok. Bir izin talebine cevap verdiğinizde oluşturulur.",
     "loadError": "Belge yüklenemedi. Lütfen tekrar deneyin.",
     "retry": "Tekrar dene",
     "generated": "Oluşturulma: {date}",
     "child": "Çocuk",
     "school": "Okul",
-    "declaration": "Beyan",
-    "kind": "Tür",
-    "kindConsent": "Onayla veya reddet",
-    "kindAcknowledge": "Bilgi al",
+    "declaration": "İzin",
     "method": "Yöntem",
     "historyTitle": "Geçmişiniz",
     "entry": "{action}, {date}",
@@ -339,7 +330,7 @@
     "entryVersion": "Sürüm {version}",
     "passwordYes": "Şifre ile onaylandı",
     "passwordNo": "Şifresiz",
-    "versionsTitle": "Beyan metni",
+    "versionsTitle": "Okulun metni",
     "versionHeading": "Sürüm {version}, yayınlanma: {date}",
     "attachments": "Dosyalar",
     "note": "Bu belge basit bir elektronik beyanı kanıtlar. Yasanın gerektirdiği kağıt üzerindeki imzanın yerini tutmaz."
@@ -1755,7 +1746,7 @@
       "messageTitleMany": "{count} yeni mesaj",
       "messageContext": "OGS · {name} hakkında",
       "pollContext": "Anket · {school}",
-      "declarationContext": "Beyan · {school}",
+      "declarationContext": "İzin · {school}",
       "newsContext": "Veli mektubu · {school}",
       "ackContext": "Onay gerekli · {school}",
       "appointmentContext": "{name} için randevu",

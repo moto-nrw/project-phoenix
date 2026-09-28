@@ -193,12 +193,12 @@
     "newsAcknowledgement": "Konfirmimi i leximit",
     "newsAcknowledgementHint": "Kjo konfirmon vetëm që e keni lexuar njoftimin.",
     "newsMessageFrom": "Mesazh nga {school}",
-    "newsDeclarationFrom": "Deklaratë nga {school}",
+    "newsDeclarationFrom": "Pëlqim · {school}",
     "newsRead": "Lexuar",
     "newsActionError": "Veprimi dështoi. Provoni përsëri.",
     "newsStaleError": "Ky njoftim nuk është më aktual. Ju lutemi, ringarkoni faqen.",
     "newsPoll": "Sondazh",
-    "newsDeclaration": "Deklaratë",
+    "newsDeclaration": "Pëlqim",
     "newsPollDeadline": "Përgjigjuni deri më {date}",
     "newsPollClosed": "Sondazhi është mbyllur",
     "newsPollMulti": "Mund të zgjidhni disa përgjigje",
@@ -229,7 +229,7 @@
     "newsLetterBindingHint": "Ky e-mail është vetëm për informim. Vlen konfirmimi këtu në portalin e prindërve. Mjafton një person kujdestar për çdo fëmijë."
   },
   "parentDeclaration": {
-    "sectionTitle": "Deklarata juaj",
+    "sectionTitle": "Përgjigjja juaj",
     "signersAny": "Mjafton një person me kujdestari për çdo fëmijë.",
     "signersAll": "Çdo person me kujdestari përgjigjet vetë.",
     "nothingPreselected": "Asgjë nuk është zgjedhur paraprakisht.",
@@ -242,7 +242,6 @@
       "partial": "Përgjigjur pjesërisht",
       "agreed": "Pranuar",
       "declined": "Refuzuar",
-      "acknowledged": "Marrë në dijeni",
       "revoked": "Tërhequr",
       "no_signer": "Askush nuk mund të përgjigjet",
       "expired": "Afati ka kaluar"
@@ -250,30 +249,25 @@
     "action": {
       "agreed": "Pranoj",
       "declined": "Refuzoj",
-      "acknowledged": "Marrë në dijeni",
       "revoked": "Tërhiq pëlqimin"
     },
     "done": {
       "agreed": "Pranuar",
       "declined": "Refuzuar",
-      "acknowledged": "Marrë në dijeni",
       "revoked": "Pëlqimi u tërhoq"
     },
     "explain": {
       "agreed": "Me „Pranoj“ deklaroni për {name} se jeni dakord.",
-      "declined": "Me „Refuzoj“ deklaroni për {name} se nuk jeni dakord.",
-      "acknowledged": "Me „Marrë në dijeni“ konfirmoni për {name} se e keni lexuar tekstin."
+      "declined": "Me „Refuzoj“ deklaroni për {name} se nuk jeni dakord."
     },
     "settled": {
       "agreed": "{name} ka pranuar.",
       "declined": "{name} ka refuzuar.",
-      "acknowledged": "{name} e ka marrë në dijeni.",
       "revoked": "{name} e ka tërhequr pëlqimin."
     },
     "settledOnDate": {
       "agreed": "{name} ka pranuar më {date}.",
       "declined": "{name} ka refuzuar më {date}.",
-      "acknowledged": "{name} e ka marrë në dijeni më {date}.",
       "revoked": "{name} e ka tërhequr pëlqimin më {date}."
     },
     "settledUnknown": "Për {name} ka tashmë një përgjigje.",
@@ -288,7 +282,7 @@
     "revokeHint": "Mund ta tërhiqni pëlqimin tuaj. Shkolla e sheh menjëherë.",
     "closedNoAction": "Afati ka kaluar. Nuk mund të përgjigjeni më.",
     "confirmTitle": "Kontrolloni përgjigjen tuaj",
-    "confirmBody": "Deklaroni për {name}: {action}.",
+    "confirmBody": "Përgjigjja juaj për {name}: {action}.",
     "confirmChild": "Fëmija",
     "confirmAction": "Përgjigjja juaj",
     "confirmVersion": "Teksti",
@@ -301,7 +295,7 @@
     "saving": "Po ruhet …",
     "saved": "Përgjigjja juaj për {name} u ruajt.",
     "errors": {
-      "notFound": "Kjo deklaratë nuk është më e disponueshme. Lista po ngarkohet përsëri.",
+      "notFound": "Kjo kërkesë për pëlqim nuk është më e disponueshme. Lista po ngarkohet përsëri.",
       "notPermitted": "Nuk mund të përgjigjeni për këtë fëmijë. Për pyetje kontaktoni OGS-në.",
       "versionChanged": "Shkolla e ka ndryshuar tekstin. Ju lutemi lexojeni përsëri dhe pastaj përgjigjuni sërish.",
       "closed": "Afati ka kaluar. Nuk mund të përgjigjeni më.",
@@ -315,23 +309,20 @@
     }
   },
   "parentDeclarationProof": {
-    "title": "Vërtetimi i deklaratës suaj",
+    "title": "Vërtetimi i përgjigjes suaj",
     "back": "Kthehu te letrat për prindërit",
     "download": "Shkarko si PDF",
     "downloading": "Po krijohet …",
     "downloadError": "PDF-ja nuk u krijua. Ju lutemi provoni përsëri.",
     "integrityOk": "Teksti dhe përgjigjet nuk kanë ndryshuar që nga publikimi.",
     "integrityBroken": "Kujdes: Një regjistrim i ruajtur u ndryshua më vonë. Ju lutemi kontaktoni OGS-në.",
-    "notFound": "Për këtë fëmijë nuk ka ende vërtetim. Ai krijohet sapo të jeni përgjigjur për një deklaratë.",
+    "notFound": "Për këtë fëmijë nuk ka ende vërtetim. Ai krijohet sapo t’i përgjigjeni një kërkese për pëlqim.",
     "loadError": "Vërtetimi nuk u ngarkua. Ju lutemi provoni përsëri.",
     "retry": "Provo përsëri",
     "generated": "Krijuar më {date}",
     "child": "Fëmija",
     "school": "Shkolla",
-    "declaration": "Deklarata",
-    "kind": "Lloji",
-    "kindConsent": "Prano ose refuzo",
-    "kindAcknowledge": "Merr në dijeni",
+    "declaration": "Pëlqim",
     "method": "Mënyra",
     "historyTitle": "Historiku juaj",
     "entry": "{action}, {date}",
@@ -339,7 +330,7 @@
     "entryVersion": "Versioni {version}",
     "passwordYes": "Konfirmuar me fjalëkalim",
     "passwordNo": "Pa fjalëkalim",
-    "versionsTitle": "Teksti i deklaratës",
+    "versionsTitle": "Teksti i shkollës",
     "versionHeading": "Versioni {version}, publikuar më {date}",
     "attachments": "Skedarët",
     "note": "Ky vërtetim dokumenton një deklaratë të thjeshtë elektronike. Nuk zëvendëson një nënshkrim në letër kur ai kërkohet me ligj."
@@ -1755,7 +1746,7 @@
       "messageTitleMany": "{count} mesazhe të reja",
       "messageContext": "OGS · Për {name}",
       "pollContext": "Sondazh · {school}",
-      "declarationContext": "Deklaratë · {school}",
+      "declarationContext": "Pëlqim · {school}",
       "newsContext": "Letër për prindërit · {school}",
       "ackContext": "Kërkohet konfirmim · {school}",
       "appointmentContext": "Takim për {name}",

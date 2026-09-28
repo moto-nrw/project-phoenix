@@ -1,26 +1,27 @@
 # Elternerklärungen: Verfahren, Einsatzfälle und Formulierungen
 
-Stand: #3430. Diese Seite beschreibt, was die Funktion „Erklärung“ in den
-Elternmitteilungen leistet, wofür sie reicht und wofür nicht. Sie ist keine
+Stand: #3430. Diese Seite beschreibt, was die Funktion „Einverständnis“ in
+den Elternmitteilungen leistet, wofür sie reicht und wofür nicht. Im Code
+heißt der Modus `declaration`. Sie ist keine
 Rechtsberatung. Die Einordnung der Einsatzfälle muss vor der Freigabe in der
 Website fachlich und rechtlich bestätigt werden (Abnahmekriterium 1).
 
 ## Was moto anbietet
 
-Eine Erklärung ist ein eigener Versandmodus einer Elternmitteilung. Die
-Einrichtung legt Art, Empfänger, Frist und Regeln fest, Eltern antworten im
-Eltern-Portal pro Kind.
+Ein Einverständnis ist ein eigener Versandmodus einer Elternmitteilung. Die
+Einrichtung legt Empfänger, Frist und Regeln fest, Eltern stimmen im
+Eltern-Portal pro Kind zu oder lehnen ab.
 
 | Baustein | Umsetzung |
 |---|---|
 | Verfahren | Einfache elektronische Erklärung im angemeldeten Eltern-Konto (`simple_electronic`). Keine gezeichnete Unterschrift, keine fortgeschrittene oder qualifizierte elektronische Signatur. |
-| Arten | Zustimmung oder Ablehnung (`consent`), reine Kenntnisnahme (`acknowledgement`). Kein vorausgewähltes Einverständnis. |
+| Art | Nur Zustimmung oder Ablehnung (`consent`). Kein vorausgewähltes Einverständnis. Eine reine Lesebestätigung ist bewusst keine Art dieses Modus: dafür gibt es den Elternbrief mit Lesebestätigung. Zwei Wege für dasselbe hätten das Personal verwirrt und „Erklärung“ zu einem unklaren Sammelbegriff gemacht. Die Art wird trotzdem gespeichert, damit jeder Nachweis nennt, was gefragt war. |
 | Wer antworten darf | Nur Personen mit `parent_portal.declarations.submit` für genau dieses Kind. Voreinstellung: Haupt-, Mit- und weitere Sorgeberechtigte. Abholberechtigte, Notfallkontakte und Sozialarbeit nie. Die Berechtigung wird bei jeder Antwort serverseitig erneut geprüft und für die Dauer der Antwort gesperrt. |
-| Mehrere Sorgeberechtigte | Pro Erklärung wählbar: eine berechtigte Person genügt, oder alle berechtigten Personen mit Eltern-Konto müssen antworten. Eine Ablehnung oder ein Widerruf einer berechtigten Person geht einer Zustimmung vor. |
-| Erneute Anmeldung | Pro Erklärung wählbar: Passwort des Eltern-Kontos vor jeder Antwort. Der Nachweis hält fest, ob das Passwort bestätigt wurde. Versuche laufen über die Anmelde-Drosselung. |
+| Mehrere Sorgeberechtigte | Pro Einverständnis wählbar: eine berechtigte Person genügt, oder alle berechtigten Personen mit Eltern-Konto müssen antworten. Eine Ablehnung oder ein Widerruf einer berechtigten Person geht einer Zustimmung vor. |
+| Erneute Anmeldung | Pro Einverständnis wählbar: Passwort des Eltern-Kontos vor jeder Antwort. Der Nachweis hält fest, ob das Passwort bestätigt wurde. Versuche laufen über die Anmelde-Drosselung. |
 | Fassung | Beim Veröffentlichen wird die Fassung eingefroren: Titel, Text, Art und SHA-256 jeder Anlage. Die Prüfsumme der Fassung ist SHA-256 über diese Angaben. Eine Korrektur (zurückziehen, ändern, erneut veröffentlichen) erzeugt eine neue Fassung; frühere Antworten bleiben unverändert gespeichert, zählen aber nicht mehr für den aktuellen Stand. Anlagen sind nach der ersten Veröffentlichung fest. |
 | Nachweis je Antwort | Kind, Einrichtung, Konto, Name der erklärenden Person (zum Zeitpunkt der Antwort), Berechtigungsrolle, Aktion, Verfahren, Passwortbestätigung, Zeitpunkt, Fassung, Prüfsumme der Fassung und eine Prüfsumme über den gesamten Eintrag. |
-| Unveränderlichkeit | Die Tabellen für Fassungen und Antworten erlauben den Anwendungsrollen nur Lesen und Einfügen. Eine Erklärung mit Antworten kann nicht gelöscht werden. Statusansicht, Bericht und Eltern-Nachweis prüfen jede gespeicherte Prüfsumme erneut. Sie zeigen die Prüfsummen nicht an, sondern einen Satz: unverändert, oder eine Warnung bei einer Abweichung. |
+| Unveränderlichkeit | Die Tabellen für Fassungen und Antworten erlauben den Anwendungsrollen nur Lesen und Einfügen. Ein Einverständnis mit Antworten kann nicht gelöscht werden. Statusansicht, Bericht und Eltern-Nachweis prüfen jede gespeicherte Prüfsumme erneut. Sie zeigen die Prüfsummen nicht an, sondern einen Satz: unverändert, oder eine Warnung bei einer Abweichung. |
 | Widerruf | Bei widerruflichen Einwilligungen jederzeit, auch nach Ablauf der Frist. Vor der Frist kann eine Antwort korrigiert werden; jede Änderung ist ein neuer Eintrag. |
 | Nachweis für Eltern | Seite im Eltern-Portal in der Sprache der Eltern und PDF im moto-Design (deutsch) mit vollständigem Text, Dateien und eigenem Verlauf. |
 | Nachweis für die Einrichtung | Statusansicht je Kind, vollständiger Verlauf, Bericht als PDF im moto-Design, CSV-Export. Nur der CSV-Export enthält die Prüfsummen, als maschinenlesbare Ablage für Support oder einen Streitfall. |
@@ -65,10 +66,10 @@ Eltern-Konto (optional mit erneuter Passworteingabe) und die Serverzeit.
 |---|---|---|
 | Ausflugserlaubnis (Tagesausflug) | Zustimmung, eine Person genügt, Frist | Alltagsangelegenheit; einfache Erklärung als Nachweis der Einrichtung üblich ausreichend. |
 | Mehrtägige Fahrt, besondere Risiken (z. B. Schwimmen, Klettern) | Zustimmung, alle Sorgeberechtigten, Passwort | Kann erhebliche Bedeutung haben; im Zweifel beide Sorgeberechtigten. |
-| Fotoeinwilligung / Veröffentlichung von Bildern | Zustimmung, widerruflich | Einwilligung nach DSGVO; Nachweis und einfacher Widerruf nötig. Die bestehende Fotoeinwilligung im Kinderprofil bleibt die maßgebliche Stelle; eine Erklärung ergänzt sie nicht automatisch. |
+| Fotoeinwilligung / Veröffentlichung von Bildern | Zustimmung, widerruflich | Einwilligung nach DSGVO; Nachweis und einfacher Widerruf nötig. Die bestehende Fotoeinwilligung im Kinderprofil bleibt die maßgebliche Stelle; ein Einverständnis ergänzt sie nicht automatisch. |
 | Alleingehervollmacht / Abholvollmacht | Zustimmung, Passwort; je nach Einrichtung alle Sorgeberechtigten | Einrichtungsspezifische Form prüfen; die Abholberechtigungen im Kinderprofil werden nicht automatisch geändert. |
-| Kenntnisnahme von Hausordnung, Hygieneplan, Informationen | Kenntnisnahme, eine Person genügt | Reine Lesebestätigung. |
-| Betreuungsvertrag, Kündigung, Anmeldung mit gesetzlicher oder vertraglicher Schriftform | Nicht über Erklärungen | Braucht die vereinbarte bzw. gesetzliche Form (§ 126, § 126a BGB). Erst mit QES-Ausbau denkbar. |
+| Kenntnisnahme von Hausordnung, Hygieneplan, Informationen | Kein Einverständnis, sondern Elternbrief mit Lesebestätigung | Reine Lesebestätigung, ohne festgehaltene Fassung und ohne Passwortabfrage. |
+| Betreuungsvertrag, Kündigung, Anmeldung mit gesetzlicher oder vertraglicher Schriftform | Nicht über Einverständnisse | Braucht die vereinbarte bzw. gesetzliche Form (§ 126, § 126a BGB). Erst mit QES-Ausbau denkbar. |
 
 ## QES
 
@@ -89,7 +90,7 @@ Validierungsnachweis. Für die Entscheidung in einem Folge-Issue zu klären:
 
 Zulässig:
 
-- „Eltern bestätigen Erklärungen wie Ausflugserlaubnisse direkt im
+- „Eltern geben ihr Einverständnis, etwa für Ausflüge, direkt im
   Eltern-Portal, ohne Papier.“
 - „Jede Antwort wird mit Fassung, Zeitpunkt und Person nachvollziehbar
   gespeichert und kann exportiert werden.“

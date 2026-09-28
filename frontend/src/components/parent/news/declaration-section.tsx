@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Erklärungen im Eltern-Portal (#3430): für jedes eigene Kind der Stand, die
+ * Einverständnisse im Eltern-Portal (#3430): für jedes eigene Kind der Stand, die
  * Knöpfe, die der Server erlaubt, und der Nachweis nach der Antwort.
  *
  * Nichts ist vorausgewählt. Jede Antwort läuft über eine Rückfrage, die Kind,
@@ -37,7 +37,7 @@ import {
 
 const logger = createLogger({ component: "ParentDeclaration" });
 
-/** True when the item is an Erklärung with its declaration block. */
+/** True when the item is an Einverständnis with its declaration block. */
 export function isDeclarationItem(
   item: ParentAnnouncement,
 ): item is ParentAnnouncement & { declaration: ParentDeclaration } {
@@ -66,7 +66,6 @@ const STATE_TONE: Record<ParentDeclarationState, StatusBadgeTone> = {
   partial: "blue",
   agreed: "green",
   declined: "red",
-  acknowledged: "green",
   revoked: "red",
   no_signer: "gray",
   expired: "gray",
@@ -76,7 +75,6 @@ const STATE_TONE: Record<ParentDeclarationState, StatusBadgeTone> = {
 const SETTLED_STATES = new Set<ParentDeclarationState>([
   "agreed",
   "declined",
-  "acknowledged",
   "revoked",
 ]);
 
@@ -84,7 +82,6 @@ const SETTLED_STATES = new Set<ParentDeclarationState>([
 const DECISION_ACTIONS: readonly ParentDeclarationAction[] = [
   "agreed",
   "declined",
-  "acknowledged",
 ];
 
 type ErrorKey =
@@ -103,7 +100,7 @@ type ErrorKey =
 /**
  * Maps a failed submit onto a message and on whether the dialog stays open.
  * Password and rate-limit errors keep it open so the guardian can try again;
- * everything that changed the Erklärung itself closes it and reloads.
+ * everything that changed the Einverständnis itself closes it and reloads.
  */
 export function declarationErrorKey(err: unknown): {
   key: ErrorKey;
@@ -193,7 +190,7 @@ export function DeclarationSection({
     message: string;
   } | null>(null);
 
-  // A different Erklärung starts clean. A new version of the same one keeps
+  // A different Einverständnis starts clean. A new version of the same one keeps
   // the notice: "the text was changed" must still be visible after the
   // reload brought the new version in.
   useEffect(() => {

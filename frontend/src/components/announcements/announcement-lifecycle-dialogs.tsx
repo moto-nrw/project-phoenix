@@ -36,13 +36,13 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 /**
- * Backend codes with their own German sentence. An Erklärung with submissions
+ * Backend codes with their own German sentence. An Einverständnis with answers
  * (#3430) must stay as evidence, so deleting it is refused; the sentence says
  * what still works.
  */
 const LIFECYCLE_CODE_MESSAGES: Record<string, string> = {
   declaration_has_submissions:
-    "Auf diese Erklärung haben Eltern schon geantwortet. Deshalb lässt sie sich nicht löschen. Sie können sie zurückziehen, dann sehen Eltern sie nicht mehr.",
+    "Auf dieses Einverständnis haben Eltern schon geantwortet. Deshalb lässt es sich nicht löschen. Sie können es zurückziehen, dann sehen Eltern es nicht mehr.",
 };
 
 function lifecycleErrorMessage(err: unknown, fallback: string): string {

@@ -81,7 +81,7 @@ func parentDeclarationsUp(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE users.parent_announcements
 			ADD CONSTRAINT chk_parent_announcements_declaration_shape CHECK (
 				(delivery_mode = 'declaration') = (declaration_kind IS NOT NULL AND declaration_signers IS NOT NULL)
-				AND (declaration_kind IS NULL OR declaration_kind IN ('consent','acknowledgement'))
+				AND (declaration_kind IS NULL OR declaration_kind = 'consent')
 				AND (declaration_signers IS NULL OR declaration_signers IN ('any','all'))
 				AND (NOT declaration_revocable OR declaration_kind = 'consent')
 				AND (NOT declaration_requires_password OR delivery_mode = 'declaration')
@@ -101,7 +101,7 @@ func parentDeclarationsUp(ctx context.Context, db *bun.DB) error {
 			version_no       INT NOT NULL CHECK (version_no > 0),
 			title            TEXT NOT NULL,
 			body             TEXT NOT NULL,
-			declaration_kind TEXT NOT NULL CHECK (declaration_kind IN ('consent','acknowledgement')),
+			declaration_kind TEXT NOT NULL CHECK (declaration_kind = 'consent'),
 			attachments      JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(attachments) = 'array'),
 			content_hash     TEXT NOT NULL CHECK (content_hash ~ '^[0-9a-f]{64}$'),
 			published_at     TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
@@ -130,7 +130,7 @@ func parentDeclarationsUp(ctx context.Context, db *bun.DB) error {
 			guardian_profile_id BIGINT,
 			signer_name        TEXT NOT NULL,
 			guardian_role      TEXT NOT NULL,
-			action             TEXT NOT NULL CHECK (action IN ('agreed','declined','acknowledged','revoked')),
+			action             TEXT NOT NULL CHECK (action IN ('agreed','declined','revoked')),
 			method             TEXT NOT NULL DEFAULT 'simple_electronic' CHECK (method IN ('simple_electronic')),
 			password_confirmed BOOLEAN NOT NULL DEFAULT false,
 			content_hash       TEXT NOT NULL CHECK (content_hash ~ '^[0-9a-f]{64}$'),

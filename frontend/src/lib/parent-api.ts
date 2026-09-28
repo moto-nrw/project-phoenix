@@ -1014,21 +1014,19 @@ export interface ParentAnnouncement {
   readonly reminder_sent_at?: string; // ISO timestamp
   readonly reminder_text?: string;
 
-  // Erklärung (#3430): present when delivery_mode is "declaration".
+  // Einverständnis (#3430): present when delivery_mode is "declaration".
   readonly declaration?: ParentDeclaration;
 }
 
-/** What a guardian can do or did for one child in an Erklärung. */
-export type ParentDeclarationAction =
-  "agreed" | "declined" | "acknowledged" | "revoked";
+/** What a guardian can do or did for one child in an Einverständnis. */
+export type ParentDeclarationAction = "agreed" | "declined" | "revoked";
 
-/** Per-child state of an Erklärung for its current version. */
+/** Per-child state of an Einverständnis for its current version. */
 export type ParentDeclarationState =
   | "open"
   | "partial"
   | "agreed"
   | "declined"
-  | "acknowledged"
   | "revoked"
   | "no_signer"
   | "expired";
@@ -1037,7 +1035,7 @@ export interface ParentDeclarationChild {
   readonly student_id: string;
   readonly first_name: string;
   readonly last_name: string;
-  /** False: this account sees the Erklärung but may not act for the child. */
+  /** False: this account sees the Einverständnis but may not act for the child. */
   readonly can_submit: boolean;
   readonly state: ParentDeclarationState;
   readonly my_action: ParentDeclarationAction | null;
@@ -1053,7 +1051,7 @@ export interface ParentDeclarationChild {
 }
 
 export interface ParentDeclaration {
-  readonly kind: "consent" | "acknowledgement";
+  readonly kind: "consent";
   readonly signers: "any" | "all";
   readonly revocable: boolean;
   readonly requires_password: boolean;
@@ -1241,10 +1239,10 @@ export async function respondToAnnouncement(
 }
 
 /**
- * Submits one action of an Erklärung for ONE child (#3430). `versionId` is
+ * Submits one action of an Einverständnis for ONE child (#3430). `versionId` is
  * the version the guardian read; the backend answers 409
  * `declaration_version_changed` when the school has published a new one.
- * `password` is sent only when the Erklärung asks for it. Password errors
+ * `password` is sent only when the Einverständnis asks for it. Password errors
  * are 403 on purpose, so they never trigger the 401 logout.
  */
 export async function submitDeclaration(
@@ -1267,7 +1265,7 @@ export async function submitDeclaration(
   });
 }
 
-/** One version of an Erklärung as frozen on publishing (#3430). */
+/** One version of an Einverständnis as frozen on publishing (#3430). */
 interface ParentDeclarationProofVersion {
   readonly id: string;
   readonly version_no: number;
@@ -1297,12 +1295,12 @@ interface ParentDeclarationProofEntry {
   readonly record_hash: string;
 }
 
-/** The proof (Nachweis) of this account's Erklärung for one child. */
+/** The proof (Nachweis) of this account's Einverständnis for one child. */
 export interface ParentDeclarationProof {
   readonly title: string;
   readonly school_name: string;
   readonly child_name: string;
-  readonly kind: "consent" | "acknowledgement";
+  readonly kind: "consent";
   readonly method_label: string;
   readonly generated_at: string;
   /** False when a stored text or answer was changed after the fact. */
@@ -1332,7 +1330,7 @@ export async function downloadDeclarationProofPdf(
 }
 
 /**
- * Proof data of this account's Erklärung for one child. 404 when the account
+ * Proof data of this account's Einverständnis for one child. 404 when the account
  * has no access or has not submitted anything for the child yet.
  */
 export async function fetchDeclarationProof(

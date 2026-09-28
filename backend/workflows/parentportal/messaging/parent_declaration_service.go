@@ -315,7 +315,7 @@ func DeclarationContentHash(version *usersModels.DeclarationVersion) string {
 func knownDeclarationAction(action string) bool {
 	switch action {
 	case declarations.DeclarationActionAgreed, declarations.DeclarationActionDeclined,
-		declarations.DeclarationActionAcknowledged, declarations.DeclarationActionRevoked:
+		declarations.DeclarationActionRevoked:
 		return true
 	default:
 		return false
