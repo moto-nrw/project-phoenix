@@ -17,8 +17,9 @@ import (
 
 // Erklärungen (#3430): the guardian side. A guardian with
 // parent_portal.declarations.submit on the relationship to exactly this child
-// declares for the version shown to them; every declaration is appended as
-// proof and never changed.
+// declares for the version shown to them. A guardian may withdraw their own
+// recorded declaration with current portal access after that permission changes;
+// every declaration is appended as proof and never changed.
 
 var (
 	// ErrDeclarationNotPermitted: the child is the guardian's, but the
@@ -69,8 +70,10 @@ func (s *Service) SubmitDeclaration(ctx context.Context, accountID, announcement
 	if err != nil {
 		return nil, false, err
 	}
-	if err := s.authorizeDeclarationChild(ctx, accountID, in.StudentID, target.tenantID); err != nil {
-		return nil, false, err
+	if in.Action != declarations.DeclarationActionRevoked {
+		if err := s.authorizeDeclarationChild(ctx, accountID, in.StudentID, target.tenantID); err != nil {
+			return nil, false, err
+		}
 	}
 	if !knownDeclarationAction(in.Action) {
 		return nil, false, ErrDeclarationActionNotAllowed

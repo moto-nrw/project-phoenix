@@ -227,6 +227,21 @@ func TestDeclaration_WithdrawnPermissionRefusesTheDeclaration(t *testing.T) {
 	assert.Empty(t, s.history(t))
 }
 
+func TestDeclaration_WithdrawnPermissionAllowsOwnRevocation(t *testing.T) {
+	t.Parallel()
+	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAny, true, false), nil)
+
+	_, created, err := s.submit(s.chain.AccountID, usersModels.DeclarationActionAgreed)
+	require.NoError(t, err)
+	require.True(t, created)
+	revokeDeclarationPermission(t, s.db, s.chain.AccountID)
+
+	revoked, created, err := s.submit(s.chain.AccountID, usersModels.DeclarationActionRevoked)
+	require.NoError(t, err)
+	assert.True(t, created)
+	assert.Equal(t, usersModels.DeclarationActionRevoked, revoked.Action)
+}
+
 func TestDeclaration_ForeignChildAndForeignSchoolAreNotFound(t *testing.T) {
 	t.Parallel()
 	s := newDeclarationSetup(t, consent(usersModels.DeclarationSignersAny, false, false), nil)

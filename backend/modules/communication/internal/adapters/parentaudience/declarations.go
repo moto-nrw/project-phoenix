@@ -274,7 +274,7 @@ func (p *Projection) HoldDeclarationSigner(ctx context.Context, schoolID, announ
 
 // holdHistoricalDeclarationSignerSQL keeps a consent withdrawable after an
 // activity enrollment ended. The owner store already verified the account's
-// submission; this query keeps the current declaration permissions locked.
+// submission; this query keeps current portal access to the relationship locked.
 //
 // Bind order: guardian links of the school, school, account, student.
 const holdHistoricalDeclarationSignerSQL = `
@@ -287,8 +287,8 @@ const holdHistoricalDeclarationSignerSQL = `
 				AND gp.account_id = ?
 			JOIN auth.account_tenants act ON act.account_id = gp.account_id
 				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
-			WHERE sg.student_id = ?
-				AND sg.permissions @> ` + declarationSignerPermissions + `
+		WHERE sg.student_id = ?
+				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			ORDER BY gp.id
 			LIMIT 1
 			FOR SHARE OF sg, gp, act`
