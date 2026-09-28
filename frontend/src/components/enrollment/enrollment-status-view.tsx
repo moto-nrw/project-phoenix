@@ -475,13 +475,11 @@ function EnrollmentStatusContent({
   const adjustHref = pathname?.startsWith("/parents")
     ? `/parents/anmeldung/status/${encodeURIComponent(token)}/adjust`
     : `${pathname?.replace(/\/$/, "") ?? ""}/adjust`;
-  const inParentsPortal = pathname?.startsWith("/parents") ?? false;
-  const parentsHref = inParentsPortal ? "/" : "/parents";
-  // Inside the parents portal the family is logged in already. On the public
-  // page the login is offered only to a family that has an account (#3742).
-  const parentAccess: ParentAppAccess = inParentsPortal
-    ? "account"
-    : parentAppAccess(status.has_parent_account);
+  const onParentsHost = pathname?.startsWith("/parents") ?? false;
+  const parentsHref = onParentsHost ? "/" : "/parents";
+  // The status page stays public on both hosts. Its status token, rather than
+  // the host path, determines whether this family can use the parent app.
+  const parentAccess = parentAppAccess(status.has_parent_account);
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">

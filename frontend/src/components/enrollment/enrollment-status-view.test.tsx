@@ -450,7 +450,7 @@ describe("EnrollmentStatusView", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps the parents-app link inside the logged-in portal", async () => {
+  it("shows invitation instructions on the public parents status route", async () => {
     mockPathname.value = "/parents/anmeldung/status/tok";
     mockFetchStatus.mockResolvedValueOnce(
       status({
@@ -471,10 +471,10 @@ describe("EnrollmentStatusView", () => {
     render(<EnrollmentStatusView token="tok" />);
 
     expect(
-      (await screen.findAllByRole("link", { name: "Zur Eltern-App" }))[0],
-    ).toHaveAttribute("href", "/");
+      await screen.findByText("Noch kein Zugang zur Eltern-App"),
+    ).toBeInTheDocument();
     expect(
-      screen.queryByText("Noch kein Zugang zur Eltern-App"),
+      screen.queryByRole("link", { name: "Zur Eltern-App" }),
     ).not.toBeInTheDocument();
   });
 
