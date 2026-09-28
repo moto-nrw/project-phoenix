@@ -191,7 +191,7 @@ type Factory struct {
 	AutoEnd                   timetable.InstanceAutoEnd
 	TimetableOperations       timetable.OperationCapability
 	Users                     users.PersonService
-	Birthdays                 users.BirthdayService
+	Birthdays                 peopledirectory.Birthdays
 	StaffDocuments            users.StaffDocumentService
 	StudentDocuments          careplan.StudentDocuments
 	FileStore                 *filestorageModule.Module
@@ -845,14 +845,9 @@ func newFactory(
 
 	// Birthday display (#1542): who is celebrating today, plus the school
 	// settings and personal opt-out that decide who may be shown.
-	birthdayService := users.NewBirthdayService(users.BirthdayServiceDependencies{
-		StudentRepo:     repos.Student,
-		StaffRepo:       repos.Staff,
-		PersonRepo:      repos.Person,
-		SettingsService: settingsService,
-		Logger:          logger.With("service", "birthdays"),
-		Now:             now,
-	})
+	birthdayService := NewBirthdays(
+		BirthdayRepositories{Students: repos.Student, Staff: repos.Staff, Persons: repos.Person},
+		settingsService, logger.With("service", "birthdays"), now)
 
 	// Staff documents (#1424): metadata + per-category authority for the
 	// Dokumente tab. Shares the Stammdaten audit trail and access log.

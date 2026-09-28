@@ -1,4 +1,4 @@
-package http
+package birthdays
 
 import (
 	"encoding/json"
@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
 type staffExportRequest struct {
-	Format listexport.Format `json:"format"`
-	Title  string            `json:"title"`
+	Format lists.Format `json:"format"`
+	Title  string       `json:"title"`
 	// Months restricts the list to the given birth months ("01".."12"), empty
 	// means the whole year. Same wire shape as the child birthday list so the
 	// frontend month picker is shared between them.
@@ -60,12 +60,12 @@ func (rs *Resource) exportStaffBirthdays(w http.ResponseWriter, r *http.Request)
 		title = staffBirthdayExportTitle
 	}
 
-	doc := listexport.Document{
+	doc := lists.Document{
 		Title:       title,
 		Subtitle:    staffExportSubtitle(len(entries)),
 		GeneratedAt: time.Now(),
 		Filters:     monthFilterLabels(req.Months),
-		Columns:     listexport.ResolveColumns(nil, listexport.PresetStaffBirthdayList),
+		Columns:     lists.ResolveColumns(nil, lists.PresetStaffBirthdayList),
 		Rows:        buildStaffBirthdayRows(entries),
 	}
 
@@ -100,13 +100,13 @@ func parseExportMonths(values []string) (map[time.Month]bool, error) {
 	return months, nil
 }
 
-func buildStaffBirthdayRows(entries []userModels.BirthdayEntry) []listexport.Row {
-	rows := make([]listexport.Row, 0, len(entries))
+func buildStaffBirthdayRows(entries []peopledirectory.StaffBirthday) []lists.Row {
+	rows := make([]lists.Row, 0, len(entries))
 	for _, entry := range entries {
-		rows = append(rows, listexport.Row{
-			Values: map[listexport.ColumnID]string{
-				listexport.ColumnName:     entry.FullName(),
-				listexport.ColumnBirthday: entry.Birthday.Format("02.01.2006"),
+		rows = append(rows, lists.Row{
+			Values: map[lists.ColumnID]string{
+				lists.ColumnName:     entry.Name,
+				lists.ColumnBirthday: entry.Birthday.Format("02.01.2006"),
 			},
 		})
 	}
