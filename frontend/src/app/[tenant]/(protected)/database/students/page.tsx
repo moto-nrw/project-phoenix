@@ -13,7 +13,6 @@ import {
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
-import { Skeleton } from "~/components/ui/skeleton";
 import { formatCount } from "~/lib/format-utils";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -511,7 +510,7 @@ function StudentsPageContent() {
       className="flex w-full flex-col"
       intro={{
         title: "Kinder",
-        description: loading ? <Skeleton className="h-4 w-48" /> : statusLine,
+        description: statusLine,
         actions: (
           <>
             {!isMobile ? (

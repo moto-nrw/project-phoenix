@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
-import { Skeleton } from "~/components/ui/skeleton";
 import { formatCount } from "~/lib/format-utils";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -322,7 +321,7 @@ function GroupsPageContent() {
       className="flex w-full flex-col"
       intro={{
         title: "Gruppen",
-        description: loading ? <Skeleton className="h-4 w-40" /> : statusLine,
+        description: statusLine,
         actions: (
           <DatabaseCreateAction
             label="Gruppe"
