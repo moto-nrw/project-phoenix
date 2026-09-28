@@ -629,6 +629,12 @@ export interface StatusResponse {
   children: StatusChild[];
   /** Co-guardians the parent added beyond the primary guardian. */
   additional_guardians?: StatusGuardian[];
+  /**
+   * Whether the primary guardian can log in to the parents app. Sent only
+   * while a child is taken over into care, and left out when the backend
+   * could not check it.
+   */
+  has_parent_account?: boolean;
 }
 
 /**

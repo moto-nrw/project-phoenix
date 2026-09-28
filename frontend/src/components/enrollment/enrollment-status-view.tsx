@@ -459,6 +459,7 @@ function EnrollmentStatusContent({
   const allLocked =
     status.children.length > 0 &&
     status.children.every((child) => child.locked);
+  const anyLocked = status.children.some((child) => child.locked);
   const pendingRenewalCount = status.children.filter(
     (child) => child.status === "pending_renewal",
   ).length;
@@ -473,7 +474,13 @@ function EnrollmentStatusContent({
   const adjustHref = pathname?.startsWith("/parents")
     ? `/parents/anmeldung/status/${encodeURIComponent(token)}/adjust`
     : `${pathname?.replace(/\/$/, "") ?? ""}/adjust`;
-  const parentsHref = pathname?.startsWith("/parents") ? "/" : "/parents";
+  const inParentsPortal = pathname?.startsWith("/parents") ?? false;
+  const parentsHref = inParentsPortal ? "/" : "/parents";
+  // Inside the parents portal the family is logged in already. On the public
+  // page the login is offered only to a family that has an account (#3742).
+  const parentAccess: ParentAppAccess = inParentsPortal
+    ? "account"
+    : parentAppAccess(status.has_parent_account);
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
@@ -512,9 +519,28 @@ function EnrollmentStatusContent({
               ? t("lockedAllBodyMany")
               : t("lockedAllBodyOne")}
           </p>
-          <ButtonLink href={parentsHref} className="w-full sm:w-auto">
-            {t("lockedAllAction")}
-          </ButtonLink>
+          {parentAccess === "none" ? (
+            <NoParentAccountSteps withTitle />
+          ) : (
+            <>
+              {parentAccess === "unknown" ? (
+                <p className="text-sm leading-6 text-gray-600">
+                  {t("noAccessFallback")}
+                </p>
+              ) : null}
+              <ButtonLink href={parentsHref} className="w-full sm:w-auto">
+                {t("lockedAllAction")}
+              </ButtonLink>
+            </>
+          )}
+        </section>
+      ) : null}
+      {!allLocked && anyLocked && parentAccess === "none" ? (
+        <section className="moto-content-surface space-y-2 rounded-2xl border p-5 shadow-sm sm:p-6">
+          <h2 className="text-lg font-semibold text-gray-900">
+            {t("noAccountTitle")}
+          </h2>
+          <NoParentAccountSteps />
         </section>
       ) : null}
 
@@ -545,7 +571,7 @@ function EnrollmentStatusContent({
         enrollments={status.children}
         hasMultipleChildren={hasMultipleChildren}
         justSubmitted={justSubmitted}
-        parentsHref={parentsHref}
+        parentsHref={parentAccess === "none" ? null : parentsHref}
         withdrawingChild={withdrawingChild}
         onWithdraw={onWithdraw}
       />
@@ -777,6 +803,44 @@ function RenewalBanners({
   );
 }
 
+/**
+ * Whether the family can log in to the parents app: "unknown" when the
+ * backend could not check it, so the page keeps its link to the login.
+ */
+type ParentAppAccess = "account" | "none" | "unknown";
+
+function parentAppAccess(
+  hasParentAccount: boolean | undefined,
+): ParentAppAccess {
+  if (hasParentAccount === undefined) return "unknown";
+  return hasParentAccount ? "account" : "none";
+}
+
+/**
+ * The way into the parents app for a family without an account: the login
+ * cannot work yet, and a password reset sends nothing without an account, so
+ * the page points at the invitation instead (#3742).
+ */
+function NoParentAccountSteps({ withTitle = false }: { withTitle?: boolean }) {
+  const t = useTranslations("enrollmentStatus");
+  return (
+    <div className="space-y-2 text-sm leading-6 text-gray-600">
+      {withTitle ? (
+        <h3 className="pt-2 font-semibold text-gray-900">
+          {t("noAccountTitle")}
+        </h3>
+      ) : null}
+      <p>{t("noAccountIntro")}</p>
+      <ol className="list-decimal space-y-1 pl-5">
+        <li>{t("noAccountStepOpen")}</li>
+        <li>{t("noAccountStepAccept")}</li>
+        <li>{t("noAccountStepPassword")}</li>
+      </ol>
+      <p>{t("noAccountHelp")}</p>
+    </div>
+  );
+}
+
 function childStatusTextKey(
   child: StatusChild,
   canWithdraw: boolean,
@@ -791,7 +855,8 @@ interface EnrollmentChildRowProps {
   readonly child: StatusChild;
   readonly isWithdrawing: boolean;
   readonly onWithdraw: (childId?: string) => void;
-  readonly parentsHref: string;
+  /** Null when the family has no account to log in with yet. */
+  readonly parentsHref: string | null;
 }
 
 function EnrollmentChildRow({
@@ -825,9 +890,11 @@ function EnrollmentChildRow({
             {child.locked ? (
               <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-600">
                 <span>{t("lockedChildHint")}</span>
-                <ButtonLink href={parentsHref} size="sm">
-                  {t("lockedAllAction")}
-                </ButtonLink>
+                {parentsHref ? (
+                  <ButtonLink href={parentsHref} size="sm">
+                    {t("lockedAllAction")}
+                  </ButtonLink>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -866,7 +933,7 @@ function EnrollmentChildrenSection({
   justSubmitted: boolean;
   withdrawingChild: string | null;
   onWithdraw: (childId?: string) => void;
-  parentsHref: string;
+  parentsHref: string | null;
 }>) {
   const t = useTranslations("enrollmentStatus");
   return (

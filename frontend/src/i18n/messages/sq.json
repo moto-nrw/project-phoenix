@@ -1050,7 +1050,7 @@
       "care": "Ofertat e rezervuara",
       "noCare": "Asnjë ofertë e rezervuar.",
       "hint": "Ndryshimet për {name} tani bëhen përmes aplikacionit për prindër.",
-      "noAccess": "Nuk keni ende akses në aplikacionin për prindër? OGS-ja mund t’ju ftojë."
+      "noAccess": "Nuk keni ende akses? Hapni emailin “Einladung zum Eltern-Portal”. Nuk ju erdhi emaili? Ju lutemi kontaktoni OGS-në."
     }
   },
   "enrollmentStatus": {
@@ -1237,9 +1237,16 @@
     "adjustSubmit": "Dërgo përshtatjen",
     "lockedChildHint": "Ndryshimet për këtë fëmijë bëhen përmes aplikacionit për prindër.",
     "lockedAllTitle": "Ndryshimet bëhen përmes aplikacionit për prindër",
-    "lockedAllBodyOne": "Fëmija juaj është tashmë në kujdes. Ndryshimet bëjini në aplikacionin për prindër. Nuk keni akses? OGS-ja mund t’ju ftojë.",
-    "lockedAllBodyMany": "Fëmijët tuaj janë tashmë në kujdes. Ndryshimet bëjini në aplikacionin për prindër. Nuk keni akses? OGS-ja mund t’ju ftojë.",
-    "lockedAllAction": "Te aplikacioni për prindër"
+    "lockedAllBodyOne": "Fëmija juaj është tashmë në kujdes. Ndryshimet bëjini në aplikacionin për prindër.",
+    "lockedAllBodyMany": "Fëmijët tuaj janë tashmë në kujdes. Ndryshimet bëjini në aplikacionin për prindër.",
+    "lockedAllAction": "Te aplikacioni për prindër",
+    "noAccountTitle": "Nuk keni ende akses në aplikacionin për prindër",
+    "noAccountIntro": "Aksesin e merrni me një ftesë me email:",
+    "noAccountStepOpen": "Hapni emailin “Einladung zum Eltern-Portal”.",
+    "noAccountStepAccept": "Prekni “Einladung annehmen”.",
+    "noAccountStepPassword": "Vendosni një fjalëkalim. Pastaj mund të hyni në aplikacionin për prindër.",
+    "noAccountHelp": "Nuk e gjeni emailin? Shikoni edhe te dosja e spamit. Emaili mungon ose lidhja nuk funksionon më? Ju lutemi kontaktoni OGS-në.",
+    "noAccessFallback": "Nuk keni ende akses? Hapni emailin “Einladung zum Eltern-Portal”. Nuk ju erdhi emaili? Ju lutemi kontaktoni OGS-në."
   },
   "parentRequestEdit": {
     "title": "Ndrysho kërkesën",

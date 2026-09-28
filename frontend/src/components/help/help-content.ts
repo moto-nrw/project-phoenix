@@ -6141,6 +6141,7 @@ function parentEnrollStatusTopic(): HelpTopic {
       "Steht dort `Bestätigung erforderlich`? Dann müssen Sie mit `Anmeldung bestätigen` zusagen, sonst läuft die Anmeldung zur Frist ab.",
       "Steht dort `Anmeldung wurde verlängert`? Dann müssen Sie nichts tun.",
       "Bei einem Kind steht `Diese Anmeldung kann nicht mehr online geändert werden`? Dann wenden Sie sich an die OGS.",
+      "Steht dort `Noch kein Zugang zur Eltern-App`? Dann öffnen Sie die E-Mail „Einladung zum Eltern-Portal“ und legen dort ein Passwort fest. Vorher klappt die Anmeldung nicht.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Status-Link sei ungültig? Prüfen Sie die Adresse aus der E-Mail oder fragen Sie bei der OGS nach.",

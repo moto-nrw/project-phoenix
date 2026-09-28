@@ -98,6 +98,7 @@ type ChangeRequestService interface {
 	CorrectApprovedChildData(ctx context.Context, input CorrectApprovedChildDataInput) (*ChangeRequestAggregate, error)
 	ListForReview(ctx context.Context, query ChangeRequestReviewQuery) ([]*ChangeRequestReviewRow, *ChangeRequestReviewCursor, error)
 	CountOpenForReview(ctx context.Context, statuses []string) (int, error)
+	PrimaryGuardianHasPortalAccount(ctx context.Context, token string) (bool, error)
 }
 
 // ChangeRequestReviewCursor is the keyset position after one page of the
@@ -251,4 +252,8 @@ func (s changeRequestService) ListForReview(ctx context.Context, query ChangeReq
 
 func (s changeRequestService) CountOpenForReview(ctx context.Context, statuses []string) (int, error) {
 	return s.owner.CountOpenForReview(ctx, statuses)
+}
+
+func (s changeRequestService) PrimaryGuardianHasPortalAccount(ctx context.Context, token string) (bool, error) {
+	return s.owner.PrimaryGuardianHasPortalAccount(ctx, token)
 }

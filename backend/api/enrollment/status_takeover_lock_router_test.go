@@ -373,3 +373,96 @@ func TestPublicStatus_AllChildrenTakenOverLeavesNoChangeForm(t *testing.T) {
 	created := env.postChangeRequest(t, env.changeRequestBody(2, 2))
 	assert.Equal(t, http.StatusForbidden, created.Code, created.Body.String())
 }
+
+// #3742: the status page links a taken-over child to the parent app only when
+// the family can log in there. The flag is pinned on the public status
+// response of the assembled router.
+
+const takeoverLockGuardianEmail = "takeover-lock@example.com"
+
+type parentAccountEnvelope struct {
+	Data struct {
+		HasParentAccount *bool `json:"has_parent_account"`
+	} `json:"data"`
+}
+
+func (env *takeoverLockEnv) statusParentAccount(t *testing.T) *bool {
+	t.Helper()
+	rec := env.get(t, "/requests/"+env.token)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var out parentAccountEnvelope
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &out), rec.Body.String())
+	return out.Data.HasParentAccount
+}
+
+// insertGuardianProfile stores a guardian profile at a school, linked to an
+// account when accountID is set.
+func insertGuardianProfile(t *testing.T, db *bun.DB, tenantID int64, email string, accountID *int64) {
+	t.Helper()
+	profile := &usersModels.GuardianProfile{
+		FirstName:              "Anna",
+		LastName:               "Beispiel",
+		Email:                  &email,
+		AccountID:              accountID,
+		HasAccount:             accountID != nil,
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+	profile.SetTenantID(tenantID)
+	require.NoError(t, db.NewInsert().
+		Model(profile).
+		ModelTableExpr(`users.guardian_profiles`).
+		Scan(testpkg.TenantContext(tenantID)))
+}
+
+func TestPublicStatus_ParentAccountFlagOnlyWhileAChildIsTakenOver(t *testing.T) {
+	t.Parallel()
+	env, cleanup := setupTakeoverLockTest(t)
+	defer cleanup()
+
+	assert.Nil(t, env.statusParentAccount(t),
+		"without a taken-over child the page needs no parent-app link")
+}
+
+func TestPublicStatus_ParentAccountFlagFalseWithoutAccount(t *testing.T) {
+	t.Parallel()
+	env, cleanup := setupTakeoverLockTest(t)
+	defer cleanup()
+	insertGuardianProfile(t, env.db, env.tenantID, takeoverLockGuardianEmail, nil)
+	env.takeOver(t, env.request.Children[0].ID, "Lina")
+
+	hasAccount := env.statusParentAccount(t)
+	require.NotNil(t, hasAccount)
+	assert.False(t, *hasAccount, "the invitation was never accepted")
+}
+
+func TestPublicStatus_ParentAccountFlagTrueWithLinkedAccount(t *testing.T) {
+	t.Parallel()
+	env, cleanup := setupTakeoverLockTest(t)
+	defer cleanup()
+	account := testpkg.CreateTestAccount(t, env.db, "status-parent-account")
+	insertGuardianProfile(t, env.db, env.tenantID, takeoverLockGuardianEmail, &account.ID)
+	env.takeOver(t, env.request.Children[0].ID, "Lina")
+
+	hasAccount := env.statusParentAccount(t)
+	require.NotNil(t, hasAccount)
+	assert.True(t, *hasAccount)
+}
+
+// The token lookup runs cross-tenant; the profile lookup must not. An account
+// the same address holds at another school does not let the family log in to
+// this one.
+func TestPublicStatus_ParentAccountFlagIgnoresOtherSchools(t *testing.T) {
+	t.Parallel()
+	env, cleanup := setupTakeoverLockTest(t)
+	defer cleanup()
+	otherTenant := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, env.db, otherTenant)
+	account := testpkg.CreateTestAccount(t, env.db, "status-parent-account-other")
+	insertGuardianProfile(t, env.db, otherTenant, takeoverLockGuardianEmail, &account.ID)
+	env.takeOver(t, env.request.Children[0].ID, "Lina")
+
+	hasAccount := env.statusParentAccount(t)
+	require.NotNil(t, hasAccount)
+	assert.False(t, *hasAccount)
+}
