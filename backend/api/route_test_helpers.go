@@ -4,8 +4,8 @@ import (
 	"log/slog"
 
 	"github.com/go-chi/chi/v5"
-	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
+	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -30,7 +30,7 @@ func newCareScheduleTestRouter(db *bun.DB, module services.StudentTestModule) (c
 	}
 	students := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		CareRequestService: module.CareRequests, UserContextService: module.UserContext,
-		SettingsService: module.Settings, DB: db, Logger: slog.Default(),
+		SettingsService: module.Settings, Logger: slog.Default(),
 	})
 	router := chi.NewRouter()
 	router.Mount("/parent", parentAPI.NewResource(parentAPI.ResourceConfig{Parent: parent, DB: db}).Router())

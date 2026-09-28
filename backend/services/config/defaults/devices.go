@@ -65,14 +65,15 @@ func init() {
 	// device checkin 409 includes the `details` object (name + occupancy)
 	// that the kiosk renders as a rich German message; when disabled, the
 	// response carries no details and the kiosk shows a generic hint.
-	// Activity defaults OFF (the rich message was never visible before);
-	// room defaults ON (preserves the behavior schools already have).
+	// Both default ON (#3633): without the activity's name, staff read the
+	// generic hint as "room full" and raised the room capacity, which changes
+	// nothing. Schools with a stored value keep it.
 	config.Register(config.Definition{
 		Key:             config.KeyCheckinActivityCapacityDetailsEnabled,
 		Label:           "Details bei voller Aktivität anzeigen",
-		Description:     "Zeigt beim Erreichen der Teilnehmergrenze den Namen der Aktivität und die Belegung auf dem Gerät an (z. B. Fußball AG ist voll (20/20 Teilnehmer)). Wenn deaktiviert, erscheint nur ein allgemeiner Hinweis.",
+		Description:     "Zeigt auf dem Gerät, welche Aktivität voll ist und wie viele Kinder dort sind (z. B. Fußball AG ist voll (20/20 Teilnehmer)). So ist klar, dass die Aktivität voll ist und nicht der Raum. Ausgeschaltet erscheint nur ein allgemeiner Hinweis ohne Namen.",
 		Type:            config.FieldBoolean,
-		Default:         false,
+		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "devices",

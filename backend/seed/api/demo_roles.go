@@ -8,8 +8,8 @@ import (
 )
 
 // The reduced roles of the demo school profile (#3469). A visitor of the
-// public demo sees the school as one of them; "Alle Funktionen" is the
-// administrator. The names are the contract with the demo role switch
+// public demo sees the school as one of them; the administrator is no
+// longer a choice. The names are the contract with the demo role switch
 // (modules/identityaccess/internal/domain/demo_access.go: DemoSchoolRole*).
 // Both roles are part of the profile, so the local seed has them as well;
 // its staff accounts keep the system roles as before.
@@ -40,7 +40,7 @@ type demoRoleDefinition struct {
 // grade transitions, and no admin wildcard. It also lacks users:manage,
 // which would let it hand out any role including the administrator
 // (authorize.CanGrantRole); staff invitations and parent-portal approvals
-// stay with "Alle Funktionen".
+// stay with the administrator.
 func demoRoleDefinitions() []demoRoleDefinition {
 	return []demoRoleDefinition{
 		{

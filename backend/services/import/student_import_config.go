@@ -98,6 +98,10 @@ type StudentImportDeps struct {
 	FindRFIDCard   func(context.Context, string) (string, bool, error)
 	Resolver       *RelationshipResolver
 	ConsentHistory consents.ConsentTransitions
+	// CountsTowardChildQuota is School Membership's Kontingentzahl rule for
+	// one membership (#3571); the preview counts the children a row adds
+	// with it. Required for a dry run.
+	CountsTowardChildQuota func(status, enrolledFrom, enrolledUntil, day string) bool
 }
 
 // NewStudentImportConfig creates a new student import configuration.

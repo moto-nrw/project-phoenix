@@ -70,6 +70,10 @@ type SettingsService interface {
 	// challenge handshake and the session being established).
 	ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error)
 
+	// ResolveBoolForTenantInTx resolves a bool setting on the caller's
+	// already-open transaction. It does not open another pooled connection.
+	ResolveBoolForTenantInTx(ctx context.Context, tenantID int64, key string) (bool, error)
+
 	// ResolveInt resolves a setting as an int.
 	ResolveInt(ctx context.Context, key string) (int, error)
 

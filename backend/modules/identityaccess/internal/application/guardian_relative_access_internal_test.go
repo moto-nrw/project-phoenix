@@ -157,6 +157,36 @@ func TestInviteToStudent_NewAccountGetsNoPortalAccessEmail(t *testing.T) {
 	assert.Empty(t, f.delivery.accessEmails)
 }
 
+func TestGuardianWelcomeRequiresQueuedPrimaryEmail(t *testing.T) {
+	t.Parallel()
+
+	t.Run("invitation", func(t *testing.T) {
+		t.Parallel()
+		f := newLifecycleFixture(t)
+		f.delivery.invitationMailQueued = false
+
+		f.lifecycle.mailNewInvitation(tenantContext(), domain.GuardianInvitation{TenantID: lifecycleTenant}, domain.GuardianProfile{
+			ID: 1, Email: "parent@example.test",
+		})
+
+		require.Len(t, f.delivery.emails, 1)
+		assert.Empty(t, f.delivery.welcomeEmails)
+	})
+
+	t.Run("existing account", func(t *testing.T) {
+		t.Parallel()
+		f := newLifecycleFixture(t)
+		f.delivery.existingAccountQueued = false
+
+		f.lifecycle.mailExistingAccountAccess(tenantContext(), domain.GuardianProfile{
+			ID: 1, Email: "parent@example.test",
+		}, lifecycleTenant)
+
+		require.Len(t, f.delivery.accessEmails, 1)
+		assert.Empty(t, f.delivery.welcomeEmails)
+	})
+}
+
 func TestInviteToStudent_ApprovalModeQueuesWithoutLinking(t *testing.T) {
 	t.Parallel()
 	f := newLifecycleFixture(t)

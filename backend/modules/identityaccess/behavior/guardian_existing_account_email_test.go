@@ -3,6 +3,7 @@ package behavior_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"html/template"
 	"path/filepath"
 	"testing"
@@ -24,10 +25,11 @@ func TestEnqueueExistingAccountEmail_RendersPortalLoginHint(t *testing.T) {
 		FrontendURL: "https://eltern.example.test/",
 	})
 
-	mailer.EnqueueExistingAccount(context.Background(), services.GuardianMailRecipient{
+	_, queued := mailer.EnqueueExistingAccount(context.Background(), services.GuardianMailRecipient{
 		FirstName: " Olga ", LastName: "Muster", Email: " admin@example.test ",
 	}, "OGS Musterschule")
 
+	assert.True(t, queued)
 	require.Len(t, outbox.Requests(), 1)
 	req := outbox.Requests()[0]
 	assert.Equal(t, emailKindGuardianInvitation, req.Kind)
@@ -55,7 +57,21 @@ func TestEnqueueExistingAccountEmail_SkipsWithoutAddress(t *testing.T) {
 	outbox := testpkg.NewCapturingOutbox()
 	mailer := services.NewGuardianInvitationMailer(services.GuardianInvitationMailerConfig{Outbox: outbox})
 
-	mailer.EnqueueExistingAccount(context.Background(), services.GuardianMailRecipient{Email: "  "}, "")
+	_, queued := mailer.EnqueueExistingAccount(context.Background(), services.GuardianMailRecipient{Email: "  "}, "")
+	assert.False(t, queued)
+	assert.Empty(t, outbox.Requests())
+}
+
+func TestEnqueueExistingAccountEmail_ReportsEnqueueFailure(t *testing.T) {
+	t.Parallel()
+	outbox := testpkg.NewCapturingOutbox()
+	outbox.FailKind(emailKindGuardianInvitation, func(context.Context) error {
+		return errors.New("outbox unavailable")
+	})
+	mailer := services.NewGuardianInvitationMailer(services.GuardianInvitationMailerConfig{Outbox: outbox})
+
+	_, queued := mailer.EnqueueExistingAccount(context.Background(), services.GuardianMailRecipient{Email: "parent@example.test"}, "")
+	assert.False(t, queued)
 	assert.Empty(t, outbox.Requests())
 }
 

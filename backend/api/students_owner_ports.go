@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/api/students"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -14,11 +14,36 @@ import (
 // and enrollment services, so the HTTP resource names neither owner's types.
 
 // studentSchoolGroups serves the students' SchoolGroups port from the
-// School Structure group service. The embedded service supplies the group
-// teachers unchanged; the three group reads below shadow its own and reduce
-// each group to the students' view.
+// School Structure group service. The group reads and the group teachers
+// below shadow the embedded service's own and reduce each to the students'
+// view.
 type studentSchoolGroups struct {
 	educationSvc.Service
+}
+
+// GetGroupTeachers reduces the group's teachers to the supervisor contact the
+// detail lists; a teacher without a staff member or person is left out.
+func (s studentSchoolGroups) GetGroupTeachers(ctx context.Context, groupID int64) ([]students.GroupTeacher, error) {
+	teachers, err := s.Service.GetGroupTeachers(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]students.GroupTeacher, 0, len(teachers))
+	for _, teacher := range teachers {
+		if teacher == nil || teacher.Staff == nil || teacher.Staff.Person == nil {
+			continue
+		}
+		view := students.GroupTeacher{
+			ID:        teacher.ID,
+			FirstName: teacher.Staff.Person.FirstName,
+			LastName:  teacher.Staff.Person.LastName,
+		}
+		if teacher.Staff.Person.Account != nil {
+			view.Email = teacher.Staff.Person.Account.Email
+		}
+		result = append(result, view)
+	}
+	return result, nil
 }
 
 func (s studentSchoolGroups) GetGroup(ctx context.Context, id int64) (*students.SchoolGroup, error) {

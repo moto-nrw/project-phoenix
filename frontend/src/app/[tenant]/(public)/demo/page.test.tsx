@@ -148,7 +148,6 @@ describe("DemoEntryPage", () => {
       expect.stringContaining("Betreuungskraft"),
       expect.stringContaining("OGS-Leitung"),
       expect.stringContaining("Elternteil"),
-      expect.stringContaining("Alle Funktionen"),
     ]);
     fireEvent.click(screen.getByRole("button", { name: /OGS-Leitung/ }));
 

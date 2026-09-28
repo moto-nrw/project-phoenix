@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -16,6 +18,41 @@ func TestDemoAccountScopeFitsTheUsernameLimit(t *testing.T) {
 	assert.Equal(t, "k3m9xp", demoAccountScope(slug, 1))
 	assert.Equal(t, "k3m9xp-2", demoAccountScope(slug, 2), "a repetition cannot reuse the accounts of the abandoned school")
 	assert.LessOrEqual(t, len(fmt.Sprintf("demo20-%s", demoAccountScope(slug, 2))), 30)
+}
+
+func TestDemoDeferredRequeuesRetryOnlyFailedOrders(t *testing.T) {
+	t.Parallel()
+
+	requeues := newDemoDeferredRequeues()
+	requeues.add("ogs-nord-abc123")
+	attempts := 0
+	requeue := func(context.Context, string) error {
+		attempts++
+		if attempts == 1 {
+			return errors.New("temporary database failure")
+		}
+		return nil
+	}
+
+	assert.Error(t, requeues.retry(context.Background(), requeue))
+	assert.NoError(t, requeues.retry(context.Background(), requeue))
+	assert.Equal(t, 2, attempts)
+	assert.Empty(t, requeues.slugs)
+}
+
+func TestDemoTickersBlockTickerUntilRequeueCompletes(t *testing.T) {
+	t.Parallel()
+
+	tickers := newDemoTickers()
+	stopped := false
+	tickers.add("ogs-nord-abc123", func() { stopped = true })
+	tickers.block("ogs-nord-abc123")
+	assert.True(t, stopped)
+	assert.Empty(t, tickers.keepOnly([]string{"ogs-nord-abc123"}), "a blocked school must not receive a replacement ticker")
+	assert.Nil(t, tickers.add("ogs-nord-abc123", func() {}), "a stale active-school snapshot must not start a blocked ticker")
+
+	tickers.unblock("ogs-nord-abc123")
+	assert.Equal(t, []string{"ogs-nord-abc123"}, tickers.keepOnly([]string{"ogs-nord-abc123"}))
 }
 
 // The simulation serves only demo schools in use (#3464): a school that falls

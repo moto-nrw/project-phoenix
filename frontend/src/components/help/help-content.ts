@@ -188,6 +188,9 @@ function invitationTopic(): HelpTopic {
     ],
     result:
       "Ihr moto-Konto ist eingerichtet und Sie können sich jetzt anmelden. Bewahren Sie Ihre E-Mail-Adresse und Ihr Passwort sicher auf und geben Sie beides nicht weiter.",
+    notes: [
+      "Zur Einladung bekommen Sie eine zweite E-Mail: `Willkommen bei moto`. Sie führt zu dieser Anleitung. Den Knopf `Einladung annehmen` finden Sie nur in der Einladungs-Mail.",
+    ],
     differences: [
       "Steht dort `Schule hinzufügen`? Dann haben Sie schon ein moto-Konto. Melden Sie sich an und wählen Sie `Einladung annehmen`. Ihr Passwort bleibt gleich.",
     ],
@@ -2640,6 +2643,11 @@ function roomsCatalogTopic(presenceMode: HelpPresenceMode): HelpTopic {
     troubleshootingDetails: [
       "Fehlt `Datenverwaltung` in der Seitenleiste? Dann fehlen Ihnen die Leitungsrechte. Fragen Sie Ihre Leitung.",
       "Lässt sich ein Raum nicht löschen? Dann ist er gerade belegt. Oder ein Betreuungsangebot braucht ihn.",
+      ...(tracksRooms
+        ? [
+            "Meldet moto oder das Tablet, der Raum ist voll? Dann ist `Maximale Belegung` erreicht. Erhöhen Sie die Zahl hier. Ist dagegen die Aktivität voll, ändern Sie `Maximale Teilnehmer` unter `Aktivitäten`.",
+          ]
+        : []),
     ],
     related: [
       HELP_TOPICS.leadGroups,
@@ -2785,7 +2793,7 @@ function activitiesCatalogTopic(): HelpTopic {
     troubleshootingDetails: [
       "Fehlt `Datenverwaltung` in der Seitenleiste? Dann fehlen Ihnen die Leitungsrechte. Fragen Sie Ihre Leitung.",
       "Fehlt die passende `Kategorie`? Legen Sie sie in der `Datenverwaltung` unter `Terminkategorien` an.",
-      "Nimmt das Tablet keine Kinder mehr an? Dann ist die Aktivität voll. Steht bei ihr `Überbucht`, sind sogar mehr Kinder da als erlaubt. Es kommen erst wieder Kinder dazu, wenn es weniger als `Maximale Teilnehmer` sind. Oder Sie erhöhen die Zahl.",
+      "Meldet moto oder das Tablet, die Aktivität ist voll? Dann ist `Maximale Teilnehmer` erreicht. Steht bei ihr `Überbucht`, sind sogar mehr Kinder da als erlaubt. Es kommen erst wieder Kinder dazu, wenn es weniger sind. Oder Sie erhöhen die Zahl. Die Grenze des Raums hilft hier nicht.",
     ],
     related: [
       HELP_TOPICS.leadRooms,
@@ -2871,6 +2879,7 @@ function createStudentTopic(): HelpTopic {
     troubleshootingDetails: [
       "Fehlt die passende `Gruppe`? Legen Sie sie zuerst in der `Datenverwaltung` unter `Gruppen` an.",
       "Der grüne Knopf ist grau? Dann hat die Vorschau noch Fehler. Beheben Sie sie in der Datei und laden Sie erneut hoch.",
+      "Über der Vorschau steht rot, der Import würde mehr Kinder hinzufügen, als im Kinderkontingent frei sind? Dann startet der Import gar nicht. Nehmen Sie Kinder aus der Datei heraus oder melden Sie sich beim moto-Team. Kinder, die der Import nur aktualisiert, zählen dabei nicht.",
       "moto erkennt eine Zeile an Vorname, Nachname und Klasse. Bei einem Klassenwechsel an der Spalte `RFID-Karte` oder am Geburtstag.",
       "moto meldet, das Kinderkontingent ist voll? Dann ist die Kontingentzahl erreicht. Wie viel belegt ist, steht oben in `Kinderdaten`. Ihre Eingaben bleiben im Fenster. Für weitere Kinder melden Sie sich beim moto-Team.",
     ],
@@ -5342,6 +5351,7 @@ function parentAccountTopic(): HelpTopic {
     notes: [
       "Das Passwort braucht mindestens 8 Zeichen, einen Großbuchstaben, einen Kleinbuchstaben, eine Zahl und ein Sonderzeichen.",
       "Unter `Passwortanforderungen` sehen Sie, was noch fehlt.",
+      "Zur Einladung bekommen Sie eine zweite E-Mail: `Willkommen bei moto`. Sie führt zu dieser Anleitung und zur Elterninfo. Den Link zum Einrichten finden Sie nur in der Einladungs-E-Mail.",
     ],
     differences: [
       "Sie sehen `Konto erstellt`? Dann hat es geklappt. Melden Sie sich jetzt an.",
@@ -5897,7 +5907,8 @@ function parentNewsTopic(): HelpTopic {
       "Angehängte Dateien öffnen Sie, indem Sie auf den Namen tippen.",
     ],
     differences: [
-      "Ein Eintrag trägt `Elternbrief`, `Umfrage`, `Wichtig` oder `Betreuung fällt aus`.",
+      "Umfragen tragen über dem Titel `Umfrage`, abgesagte Betreuung trägt `Betreuung fällt aus`.",
+      "Unten am Eintrag steht, ob er `Wichtig` ist, ob Sie eine `Erinnerung` bekommen haben und ob eine `Bestätigung erforderlich` ist.",
       "Bei einer Umfrage steht `Antwort bis` mit dem letzten Tag.",
       "Ist die Frist vorbei, steht dort `Umfrage geschlossen`.",
     ],
@@ -6308,6 +6319,7 @@ function teacherAccessTopic(): HelpTopic {
     notes: [
       "Haben Sie schon ein Konto? Dann melden Sie sich an und kehren zur Einladung zurück. Ihr Passwort bleibt unverändert.",
       "Der Link aus der E-Mail führt schon zur richtigen Adresse.",
+      "Zur Einladung bekommen Sie eine zweite E-Mail: `Willkommen bei moto`. Sie führt zu dieser Anleitung. Den Link zum Annehmen finden Sie nur in der Einladungs-Mail.",
     ],
     differences: [
       "moto schule hat eine eigene Adresse. Über die Adresse der OGS kommen Sie nicht hinein.",

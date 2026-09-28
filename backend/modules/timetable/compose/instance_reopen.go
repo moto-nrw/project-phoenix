@@ -165,7 +165,16 @@ func (s *InstanceLifecycleService) validateReopenOccupancy(ctx context.Context, 
 		return &ScheduleError{Op: "reopen instance: count room occupancy", Err: err}
 	}
 	if currentOccupancy+len(snapshot.VisitIDs) > *capacity {
-		return studentpresence.ErrRoomCapacityExceeded
+		// The typed refusal carries the numbers, so the client can name the
+		// full room (#3633). A failed name lookup keeps the refusal nameless.
+		name, _, _ := s.deps.Rooms.RoomName(ctx, instance.RoomID)
+		return &studentpresence.RoomCapacityError{
+			RoomID:           instance.RoomID,
+			RoomName:         name,
+			CurrentOccupancy: currentOccupancy,
+			MaxCapacity:      *capacity,
+			Incoming:         len(snapshot.VisitIDs),
+		}
 	}
 	return nil
 }

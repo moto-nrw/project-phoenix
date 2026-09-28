@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +34,7 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := testutil.NewPeopleRepositorySuiteFactory(db)
 
 	// The companion is created FIRST so its id is the lower one — the direction
 	// that cannot wait.
@@ -44,7 +44,7 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
-	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(factory.CarePlan()), subject.ID, []*users.StudentCompanion{
+	require.NoError(t, testutil.ReplacePeopleRepositorySuiteCompanions(ctx, testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), subject.ID, []*testpkg.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 		newCompanionEdge(t, subject.ID, companion.ID, 2),
 	}))
@@ -55,26 +55,26 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 	// dropped, which is what makes the far end's state relevant.
 	loaded, err := factory.Student.FindByID(ctx, subject.ID)
 	require.NoError(t, err)
-	loaded.AllowedDepartureModes = users.AllowedDepartureModes{
-		"mon": {users.DepartureAccompanied},
-		"tue": {users.DepartureBus},
+	loaded.AllowedDepartureModes = departure.AllowedDepartureModes{
+		"mon": {departure.DepartureAccompanied},
+		"tue": {departure.DepartureBus},
 	}
 
 	start := time.Now()
 	err = factory.Student.Update(ctx, loaded)
 
-	require.ErrorIs(t, err, users.ErrCompanionLockBusy)
+	require.ErrorIs(t, err, departure.ErrCompanionLockBusy)
 	assert.Less(t, time.Since(start), 2*time.Second, "the downward lock must refuse, not queue")
 
 	// Nothing was written: both edges survive and the plan is untouched, so the
 	// retry the user is asked for starts from the same state.
-	edges, err := repositories.NewStudentCompanionRepository(factory.CarePlan()).ListForStudent(ctx, subject.ID)
+	edges, err := testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, subject.ID)
 	require.NoError(t, err)
 	assert.Len(t, edges, 2)
 
 	stored, err := factory.Student.FindByID(ctx, subject.ID)
 	require.NoError(t, err)
-	assert.Contains(t, stored.AllowedDepartureModes["tue"], users.DepartureAccompanied)
+	assert.Contains(t, stored.AllowedDepartureModes["tue"], departure.DepartureAccompanied)
 }
 
 // TestStudentRepository_Update_UnaffectedWhenNoEdgeIsDropped guards the far more
@@ -87,14 +87,14 @@ func TestStudentRepository_Update_UnaffectedWhenNoEdgeIsDropped(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := testutil.NewPeopleRepositorySuiteFactory(db)
 
 	companion := testpkg.CreateTestStudent(t, db, "FarEndKept", "Companion", "1a")
 	subject := testpkg.CreateTestStudent(t, db, "FarEndKeeper", "Companion", "1a")
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
-	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(factory.CarePlan()), subject.ID, []*users.StudentCompanion{
+	require.NoError(t, testutil.ReplacePeopleRepositorySuiteCompanions(ctx, testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), subject.ID, []*testpkg.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 	}))
 
@@ -103,14 +103,14 @@ func TestStudentRepository_Update_UnaffectedWhenNoEdgeIsDropped(t *testing.T) {
 	// ACT — Tuesday gains the accompanied mode; the Monday edge keeps its basis.
 	loaded, err := factory.Student.FindByID(ctx, subject.ID)
 	require.NoError(t, err)
-	loaded.AllowedDepartureModes = users.AllowedDepartureModes{
-		"mon": {users.DepartureAccompanied},
-		"tue": {users.DepartureAccompanied},
+	loaded.AllowedDepartureModes = departure.AllowedDepartureModes{
+		"mon": {departure.DepartureAccompanied},
+		"tue": {departure.DepartureAccompanied},
 	}
 
 	require.NoError(t, factory.Student.Update(ctx, loaded))
 
-	edges, err := repositories.NewStudentCompanionRepository(factory.CarePlan()).ListForStudent(ctx, subject.ID)
+	edges, err := testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, subject.ID)
 	require.NoError(t, err)
 	assert.Len(t, edges, 1)
 }

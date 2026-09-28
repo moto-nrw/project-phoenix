@@ -57,10 +57,10 @@
   "runtime_evidence": {
     "source": "Local verification on the branch stacked on #3354; behavior and architecture checks, not a latency benchmark.",
     "sources": [
-      "backend/api/students/tenant_settings_test.go",
-      "backend/api/students/status_day_overview_test.go",
-      "backend/api/students/update_class_resync_test.go",
-      "backend/api/students/guardian_wake_test.go"
+      "backend/modules/peopledirectory/inbound/students/tenant_settings_test.go",
+      "backend/modules/peopledirectory/inbound/students/status_day_overview_test.go",
+      "backend/modules/peopledirectory/inbound/students/update_class_resync_test.go",
+      "backend/modules/peopledirectory/inbound/students/guardian_wake_test.go"
     ],
     "workload": "Affected Go package suites against the local test database and the architecture ratchet against the stacked parent branch.",
     "thresholds": "Preserve settings resolution, rendered export documents, response bodies, error strings and query budgets; retire exactly the 19 listed legacy keys; add no violation; keep the composition surface.",

@@ -4,8 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	enrollmentAudience "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -15,16 +14,16 @@ func TestParentAudienceWithoutStudentCompatibilityView(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
-	poll, _ := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID, usersModels.ParentAnnouncementResponseSingleChoice)
+	poll, _ := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID, testpkg.ParentAnnouncementResponseSingleChoice)
 	membershipID := testpkg.SeparateStudentMembership(t, db, chain.StudentID)
 	testpkg.AssertStudentCompatibilityStorageAbsent(t, db)
 
 	count, err := repo.CountAudience(ctx, chain.TenantID, poll.ID)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
-	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, usersModels.AnnouncementFeedScope{TenantIDs: []int64{chain.TenantID}})
+	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, testpkg.AnnouncementFeedScope{TenantIDs: []int64{chain.TenantID}})
 	require.NoError(t, err)
 	require.Len(t, feed, 1)
 	children, err := repo.PollChildren(ctx, chain.TenantID, poll.ID)
@@ -76,7 +75,7 @@ func TestParentInboxWithoutStudentCompatibilityView(t *testing.T) {
 	ctx := tenantCtx(t)
 	thread := newThread(t, chain.StudentID, chain.AccountID)
 	require.NoError(t, repos.Thread.Create(ctx, thread))
-	message := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "Owner read")
+	message := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, testpkg.ParentMessageSenderGuardian, "Owner read")
 	require.NoError(t, repos.Message.Create(ctx, message))
 	membershipID := testpkg.SeparateStudentMembership(t, db, chain.StudentID)
 	testpkg.AssertStudentCompatibilityStorageAbsent(t, db)

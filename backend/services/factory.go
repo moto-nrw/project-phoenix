@@ -1634,6 +1634,9 @@ func newFactory(
 		invitations: &invitationWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom, staffURL: frontendURL, schoolURL: schoolURL,
 			mailIdentity: tenantMailIdentity, expiry: invitationTokenExpiry,
+			settings:     settingsService,
+			outbox:       func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: emailOutboxService} },
+			welcomeDelay: staffWelcomeDelay,
 		},
 		// The lifecycle flows (#3225) read the retained role management back
 		// at call time; it is composed below.
@@ -1642,7 +1645,7 @@ func newFactory(
 			caregivers: caregiverProfiles{persons: persons, membership: membership},
 			guardianMail: &guardianInvitationWiring{
 				settings: settingsService, schools: organizations,
-				outbox:      func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: emailOutboxService} },
+				outbox:      func() platformModels.OutboxResultEnqueuer { return outboxEnqueuer{outbox: emailOutboxService} },
 				enrollments: repos.ParentEnrollmentRequest,
 				// The accept and login links go to the parents portal, never
 				// to the staff frontend.
@@ -1669,10 +1672,42 @@ func newFactory(
 		DB:          db,
 		Guardians:   repos.StudentGuardian,
 	}))
+	var deliveryForGuardianWelcome *deliveryCompose.Runtime
+	guardianPredecessorStatus := func(ctx context.Context, outboxID int64) (sent bool, terminal bool, err error) {
+		if deliveryForGuardianWelcome == nil {
+			return false, false, errors.New("delivery module is not initialized")
+		}
+		tenantID, err := tenant.TenantFromContext(ctx)
+		if err != nil {
+			return false, false, fmt.Errorf("guardian welcome predecessor: tenant is required: %w", err)
+		}
+		state, found, err := deliveryForGuardianWelcome.EmailStatus(ctx, tenantID.Int64(), outboxID)
+		if err != nil {
+			return false, false, err
+		}
+		if !found {
+			return false, true, nil
+		}
+		switch state {
+		case deliveryModule.StateSent:
+			return true, false, nil
+		case deliveryModule.StateCancelled, deliveryModule.StateDeadLetter:
+			return false, true, nil
+		default:
+			return false, false, nil
+		}
+	}
 	renderers := map[string]emailoutbox.Renderer{
 		platformModels.EmailKindGuardianInvitation: guardianInvitationRenderer(NewGuardianInvitationRenderer(GuardianInvitationRendererConfig{
 			DefaultFrom: defaultFrom,
 		})),
+		platformModels.EmailKindGuardianWelcome: guardianInvitationRenderer(NewGuardianWelcomeRenderer(GuardianInvitationRendererConfig{
+			DefaultFrom: defaultFrom, PrecedingEmailStatus: guardianPredecessorStatus,
+		})),
+		platformModels.EmailKindStaffWelcome: NewStaffWelcomeRenderer(StaffWelcomeRendererConfig{
+			DefaultFrom: defaultFrom, MailIdentity: tenantMailIdentity, Logger: authLogger,
+			InvitationDeliverySent: identityAccess.SchoolInvitationDeliverySent,
+		}),
 		platformModels.EmailKindParentAnnouncement: emailoutbox.RendererFunc(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
 			DefaultFrom: defaultFrom,
 		})),
@@ -1711,6 +1746,7 @@ func newFactory(
 	if err != nil {
 		return nil, fmt.Errorf("initialize delivery module: %w", err)
 	}
+	deliveryForGuardianWelcome = deliveryRuntime
 	emailOutboxWorker := deliveryRuntime.Worker
 	emailOutboxService = emailoutbox.NewService(durableEmailAdapter{module: deliveryRuntime.Module})
 

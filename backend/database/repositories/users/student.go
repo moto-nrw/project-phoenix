@@ -6,18 +6,15 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
 // StudentRepository implements users.StudentRepository interface
 type StudentRepository struct {
-	db *bun.DB
+	runtime Runtime
 	// teacherGroupIDs resolves education.group_teacher through composition. This
 	// Postgres adapter stays independent of the School Membership owner and can
 	// resolve several teachers without one owner call per teacher.
@@ -26,39 +23,37 @@ type StudentRepository struct {
 }
 
 // NewStudentRepository creates a new StudentRepository
-func NewStudentRepository(db *bun.DB) users.StudentRepository {
-	return &StudentRepository{
-		db: db,
-	}
+func NewStudentRepository(runtime Runtime) users.StudentRepository {
+	return &StudentRepository{runtime: requireRuntime(runtime)}
 }
 
 // List retains the legacy equality-filter contract without a generic
 // repository that can accidentally fall back to the rollback view.
 func (r *StudentRepository) List(ctx context.Context, filters map[string]any) ([]*users.Student, error) {
 	rows := make([]*users.Student, 0)
-	db := base.GetDB(ctx, r.db)
-	query := studentdirectoryview.ModelQuery(db, tenant.FromContext(ctx), &rows)
+	db := r.runtime.DB(ctx)
+	query := studentdirectoryview.ModelQuery(db, r.runtime.TenantID(ctx), &rows)
 	for field, value := range filters {
 		if value != nil {
 			query = query.Where("? = ?", bun.Ident(field), value)
 		}
 	}
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list", Err: err}
+		return nil, &users.DatabaseError{Op: "list", Err: err}
 	}
 	return rows, nil
 }
 
-func (r *StudentRepository) CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error) {
-	db := base.GetDB(ctx, r.db)
-	query := studentdirectoryview.Query(db, tenant.FromContext(ctx)).Column("student.id")
+func (r *StudentRepository) CountWithOptions(ctx context.Context, options *users.QueryOptions) (int, error) {
+	db := r.runtime.DB(ctx)
+	query := studentdirectoryview.Query(db, r.runtime.TenantID(ctx)).Column("student.id")
 	if options != nil && options.Filter != nil {
 		options.Filter.WithTableAlias("student")
-		query = base.ApplyFilter(query, options.Filter)
+		query = applyFilter(query, options.Filter)
 	}
 	count, err := query.Count(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count with options", Err: err}
+		return 0, &users.DatabaseError{Op: "count with options", Err: err}
 	}
 	return count, nil
 }
@@ -122,7 +117,7 @@ func (r *StudentRepository) FindAllWithGroups(context.Context) ([]*users.Student
 }
 
 func (r *StudentRepository) FindOverlappingWithGroups(
-	context.Context, timezone.Date, timezone.Date, timezone.Date,
+	context.Context, calendar.Date, calendar.Date, calendar.Date,
 ) ([]*users.StudentWithGroupInfo, error) {
 	return nil, errStudentWritesMoved
 }
@@ -172,7 +167,7 @@ func (r *StudentRepository) TransitionStatus(
 	return false, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindCareBoundsByIDs(context.Context, []int64) (map[int64]timezone.Date, error) {
+func (r *StudentRepository) FindCareBoundsByIDs(context.Context, []int64) (map[int64]calendar.Date, error) {
 	return nil, errStudentWritesMoved
 }
 
@@ -204,13 +199,13 @@ func (r *StudentRepository) FindByGroupIDs(context.Context, []int64) ([]*users.S
 }
 
 func (r *StudentRepository) ExistsEnrolledByNameAndBirthday(
-	context.Context, int64, string, string, timezone.Date,
+	context.Context, int64, string, string, calendar.Date,
 ) (bool, error) {
 	return false, errStudentWritesMoved
 }
 
 func (r *StudentRepository) FindEnrolledStudentIDByNameAndBirthday(
-	context.Context, int64, string, string, timezone.Date,
+	context.Context, int64, string, string, calendar.Date,
 ) (*int64, error) {
 	return nil, errStudentWritesMoved
 }
@@ -223,11 +218,11 @@ func (r *StudentRepository) CountByGroupIDs(context.Context, []int64) (map[int64
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindPendingDueForActivation(context.Context, timezone.Date) ([]*users.Student, error) {
+func (r *StudentRepository) FindPendingDueForActivation(context.Context, calendar.Date) ([]*users.Student, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindActiveDueForDeactivation(context.Context, timezone.Date) ([]*users.Student, error) {
+func (r *StudentRepository) FindActiveDueForDeactivation(context.Context, calendar.Date) ([]*users.Student, error) {
 	return nil, errStudentWritesMoved
 }
 

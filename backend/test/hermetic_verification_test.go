@@ -377,48 +377,48 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 
 	// Files to skip (mock tests, model unit tests without DB)
 	skipPatterns := []string{
-		"_internal_test.go",                                      // Internal tests often use mocks
-		"_mock_test.go",                                          // Mock tests
-		"models/",                                                // Model unit tests don't hit DB (Unix)
-		"modules/dataimport/student_test.go",                     // Pure DTO test moved from models/import; no database rows (#2744).
-		"models\\",                                               // Model unit tests don't hit DB (Windows)
-		"invitation_service_test.go",                             // Uses mocks
-		"reminder_notifications_test.go",                         // Pure in-memory fakes, no DB (#1624 follow-up)
-		"password_reset_integration_test.go",                     // Uses mocks (sqlmock + stubs)
-		"handlers_unit_test.go",                                  // Unit tests for converters (no DB)
-		"http_middleware_test.go",                                // Uses nil *bun.DB for unit testing middleware
-		"operator_invitation_test.go",                            // Uses mocks (sqlmock + stubs)
-		"operator_invitation_dispatch_test.go",                   // Uses mocks for email dispatch tests
-		"invitations_test.go",                                    // Uses mocks for handler tests
-		"error_helpers_test.go",                                  // Internal unit tests for helper functions (no DB)
-		"auth/authorize/role_grant_test.go",                      // Pure policy unit tests on stack-allocated roles (no DB); int64 literals are throwaway IDs
-		"api/iot/api_test.go",                                    // Uses mock SchoolRepo for unit testing handler
-		"api/iot/checkin/capacity_errors_test.go",                // Pure JSON-marshal regression tests for capacity/conflict renderers (ex api/iot/common); int64 literals are throwaway IDs, not DB rows
-		"api/iot/checkin/wire_test.go",                           // Wire goldens over a fake device-scan workflow (#2698); int64 literals are throwaway IDs, not DB rows
-		"api/iot/config_test.go",                                 // Uses mock settings service for unit testing config endpoint
-		"enrich_pickup_times_test.go",                            // Uses mock PickupScheduleService for unit testing enrichment
-		"modules/timetable/http/api_test.go",                     // Uses mock CalendarPeriodService for unit testing handlers
-		"modules/timetable/http/closing_days_test.go",            // Uses mock ClosingDayService for unit testing handlers; int64 literals are fake IDs, not DB rows
-		"modules/timetable/http/instances_test.go",               // Uses mock InstanceService + PersonService for unit testing handlers
-		"modules/timetable/http/understaffed_test.go",            // Uses mock InstanceService for unit testing the acknowledge-understaffed handler (no DB); int64 literals are fake instance IDs, not DB rows
-		"modules/timetable/http/instance_students_unit_test.go",  // Uses fake repo for unit testing attendance PATCH handler
-		"presence/attendance_mirror_unit_test.go",                // Uses fake repos for unit testing the attendance mirror's graceful-degradation branches
-		"timetable/substitute_conflicts_test.go",                 // Pure unit test with in-memory structs; int64(1)/int64(2) are fake IDs, not DB rows (WP-B12)
-		"realtime/hub_broadcast_to_tenant_test.go",               // Pure SSE-hub unit test; tenant IDs are in-memory channel routing keys, not DB rows
-		"services/config/sideeffects/registry_test.go",           // Pure registry unit test; tenant IDs are pass-through arguments, not DB rows
-		"services/facilities/settings_sideeffects_test.go",       // Pure side-effect dispatch unit test against fake services; tenant IDs are not DB rows
-		"api/students/response_helpers_test.go",                  // Pure unit tests on populatePhotoFields; int64 literals are fake IDs in stack-allocated structs
-		"auth/authorize/student_access_test.go",                  // Pure-logic tests against stub user-context + settings; int64 literals are fake group IDs in stack-allocated structs (no DB)
-		"api/students/photo_error_mappers_test.go",               // Table-driven mapper tests with httptest.NewRecorder; no DB
-		"api/students/photo_unlinker_test.go",                    // Pure file-system unit test for the unlinker; uses a temp dir, no DB
-		"services/users/student_photo_service_broadcast_test.go", // Pure unit tests for broadcast helpers + side-effect registry binding; tenant IDs are pass-through arguments, no DB
-		"api/common/trusted_device_dto_test.go",                  // Pure DTO-mapper unit tests against stack-allocated TrustedDeviceRow values; int64 literals are sentinel IDs in in-memory structs, not DB rows
-		"services/platform/outbox_worker_test.go",                // Uses sqlmock + in-memory stubOutboxRepo to drive the worker poll-loop state machine without a real DB
-		"services/platform/outbox_worker_reply_to_test.go",       // Uses sqlmock + in-memory doubles; IDs are only outbox-state sentinels, not database fixtures
-		"api/enrollment/change_request_handlers_test.go",         // Pure handler unit tests against a service mock; int64 literals are URL parser sentinels, not DB rows
-		"api/enrollment/export_handlers_test.go",                 // Pure unit test for the phase-export builders against an in-memory PhaseExport; int64 literals are sentinel schema/grade values, not DB rows
-		"guardian_related_accounts_errors_test.go",               // Pure mock-injection unit tests for the related-accounts error/best-effort branches; int64 literals are fake IDs in stack-allocated mocks, not DB rows
-		"services/parentmessaging/parentmessaging_test.go",       // Pure unit tests for the messaging core against narrow fakes (no DB); int64 literals are in-memory sentinel IDs (thread/account/ref), not DB rows
+		"_internal_test.go",                                                    // Internal tests often use mocks
+		"_mock_test.go",                                                        // Mock tests
+		"models/",                                                              // Model unit tests don't hit DB (Unix)
+		"modules/dataimport/student_test.go",                                   // Pure DTO test moved from models/import; no database rows (#2744).
+		"models\\",                                                             // Model unit tests don't hit DB (Windows)
+		"invitation_service_test.go",                                           // Uses mocks
+		"reminder_notifications_test.go",                                       // Pure in-memory fakes, no DB (#1624 follow-up)
+		"password_reset_integration_test.go",                                   // Uses mocks (sqlmock + stubs)
+		"handlers_unit_test.go",                                                // Unit tests for converters (no DB)
+		"http_middleware_test.go",                                              // Uses nil *bun.DB for unit testing middleware
+		"operator_invitation_test.go",                                          // Uses mocks (sqlmock + stubs)
+		"operator_invitation_dispatch_test.go",                                 // Uses mocks for email dispatch tests
+		"invitations_test.go",                                                  // Uses mocks for handler tests
+		"error_helpers_test.go",                                                // Internal unit tests for helper functions (no DB)
+		"auth/authorize/role_grant_test.go",                                    // Pure policy unit tests on stack-allocated roles (no DB); int64 literals are throwaway IDs
+		"api/iot/api_test.go",                                                  // Uses mock SchoolRepo for unit testing handler
+		"api/iot/checkin/capacity_errors_test.go",                              // Pure JSON-marshal regression tests for capacity/conflict renderers (ex api/iot/common); int64 literals are throwaway IDs, not DB rows
+		"api/iot/checkin/wire_test.go",                                         // Wire goldens over a fake device-scan workflow (#2698); int64 literals are throwaway IDs, not DB rows
+		"api/iot/config_test.go",                                               // Uses mock settings service for unit testing config endpoint
+		"enrich_pickup_times_test.go",                                          // Uses mock PickupScheduleService for unit testing enrichment
+		"modules/timetable/http/api_test.go",                                   // Uses mock CalendarPeriodService for unit testing handlers
+		"modules/timetable/http/closing_days_test.go",                          // Uses mock ClosingDayService for unit testing handlers; int64 literals are fake IDs, not DB rows
+		"modules/timetable/http/instances_test.go",                             // Uses mock InstanceService + PersonService for unit testing handlers
+		"modules/timetable/http/understaffed_test.go",                          // Uses mock InstanceService for unit testing the acknowledge-understaffed handler (no DB); int64 literals are fake instance IDs, not DB rows
+		"modules/timetable/http/instance_students_unit_test.go",                // Uses fake repo for unit testing attendance PATCH handler
+		"presence/attendance_mirror_unit_test.go",                              // Uses fake repos for unit testing the attendance mirror's graceful-degradation branches
+		"timetable/substitute_conflicts_test.go",                               // Pure unit test with in-memory structs; int64(1)/int64(2) are fake IDs, not DB rows (WP-B12)
+		"realtime/hub_broadcast_to_tenant_test.go",                             // Pure SSE-hub unit test; tenant IDs are in-memory channel routing keys, not DB rows
+		"services/config/sideeffects/registry_test.go",                         // Pure registry unit test; tenant IDs are pass-through arguments, not DB rows
+		"services/facilities/settings_sideeffects_test.go",                     // Pure side-effect dispatch unit test against fake services; tenant IDs are not DB rows
+		"modules/peopledirectory/inbound/students/response_helpers_test.go",    // Pure unit tests on populatePhotoFields; int64 literals are fake IDs in stack-allocated structs
+		"auth/authorize/student_access_test.go",                                // Pure-logic tests against stub user-context + settings; int64 literals are fake group IDs in stack-allocated structs (no DB)
+		"modules/peopledirectory/inbound/students/photo_error_mappers_test.go", // Table-driven mapper tests with httptest.NewRecorder; no DB
+		"modules/peopledirectory/inbound/students/photo_unlinker_test.go",      // Pure file-system unit test for the unlinker; uses a temp dir, no DB
+		"services/users/student_photo_service_broadcast_test.go",               // Pure unit tests for broadcast helpers + side-effect registry binding; tenant IDs are pass-through arguments, no DB
+		"api/common/trusted_device_dto_test.go",                                // Pure DTO-mapper unit tests against stack-allocated TrustedDeviceRow values; int64 literals are sentinel IDs in in-memory structs, not DB rows
+		"services/platform/outbox_worker_test.go",                              // Uses sqlmock + in-memory stubOutboxRepo to drive the worker poll-loop state machine without a real DB
+		"services/platform/outbox_worker_reply_to_test.go",                     // Uses sqlmock + in-memory doubles; IDs are only outbox-state sentinels, not database fixtures
+		"api/enrollment/change_request_handlers_test.go",                       // Pure handler unit tests against a service mock; int64 literals are URL parser sentinels, not DB rows
+		"api/enrollment/export_handlers_test.go",                               // Pure unit test for the phase-export builders against an in-memory PhaseExport; int64 literals are sentinel schema/grade values, not DB rows
+		"guardian_related_accounts_errors_test.go",                             // Pure mock-injection unit tests for the related-accounts error/best-effort branches; int64 literals are fake IDs in stack-allocated mocks, not DB rows
+		"services/parentmessaging/parentmessaging_test.go",                     // Pure unit tests for the messaging core against narrow fakes (no DB); int64 literals are in-memory sentinel IDs (thread/account/ref), not DB rows
 	}
 
 	files, err := goSourceIndex(root)
@@ -531,6 +531,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"newCareFixture",                   // modules/careplan/contracttest care-request tests — wraps SetupTestDB
 		"setupDashboardContext",            // api/active supervision-dashboard tests — wraps SetupActiveModule → SetupTestDB
 		"setupStudentStorageBeforeCutover", // database/migrations student-owner cutover + preflight tests — wraps SetupTestDB
+		"setupStudentsRoute",               // modules/peopledirectory/inbound/students route suites — wraps testutil.SetupStudentModule → SetupTestDB
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)

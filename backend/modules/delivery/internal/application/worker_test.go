@@ -27,6 +27,7 @@ type workerStore struct {
 	renewed             bool
 	renewToken          string
 	cancelledBeforeSend bool
+	deferredToken       string
 	statuses            []domain.EmailDeliveryStatus
 	expiredDispatches   int64
 	expiredDispatchErr  error
@@ -74,6 +75,11 @@ func (s *workerStore) FinalizeCancelled(_ context.Context, _ domain.Transport, _
 	return s.finalizeCancelled, nil
 }
 
+func (s *workerStore) FinalizeDeferred(_ context.Context, _ domain.Transport, _ int64, token, _ string, _ time.Time) (bool, error) {
+	s.deferredToken = token
+	return true, nil
+}
+
 func (s *workerStore) FinalizeFailure(_ context.Context, _ domain.Transport, _ int64, token string, attempts int, _ string, _ time.Time, maxAttempts int) (domain.FinalizeResult, error) {
 	s.failureToken = token
 	s.failureAttempts = attempts
@@ -87,6 +93,9 @@ func (*workerStore) Cancel(context.Context, int64, domain.Transport, string, int
 
 func (*workerStore) Statuses(context.Context, int64, domain.Transport, string, int64) ([]domain.Intent, error) {
 	return nil, nil
+}
+func (*workerStore) EmailStatus(context.Context, int64, int64) (domain.Intent, bool, error) {
+	return domain.Intent{}, false, nil
 }
 
 func (*workerStore) Backlog(context.Context) (int, error) { return 0, nil }
@@ -198,6 +207,23 @@ func TestWorkerRetriesProviderTimeout(t *testing.T) {
 	assert.Equal(t, 1, stats.Retried)
 	assert.Equal(t, 1, store.failureAttempts)
 	assert.NotEmpty(t, store.failureToken)
+}
+
+func TestWorkerDefersWithoutConsumingAnAttempt(t *testing.T) {
+	t.Parallel()
+	store := &workerStore{
+		claimed:       []domain.Intent{claimedEmail(2)},
+		renewed:       true,
+		failureResult: domain.FinalizeResult{Finalized: true, State: string(domain.StatePending)},
+	}
+	worker := NewWorker(store, &workerProvider{err: fmt.Errorf("access email pending: %w", domain.ErrDeferred)}, func(domain.Observation) {})
+
+	stats, err := worker.RunOnce(context.Background(), 1, 3)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, stats.Retried)
+	assert.NotEmpty(t, store.deferredToken)
+	assert.Zero(t, store.failureAttempts)
 }
 
 func TestWorkerCancelsNonRetryableProviderDecision(t *testing.T) {

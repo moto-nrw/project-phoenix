@@ -33,6 +33,15 @@ type BatchValidator[T any] interface {
 	ValidateBatch(ctx context.Context, rows []T) map[int][]importModels.ValidationError
 }
 
+// ChildQuotaCounter can be implemented by imports whose rows can raise the
+// Kontingentzahl (#3571). The dry run asks it for every row it would create
+// (existingID nil) or update, so the preview counts what the owner counts
+// instead of the rows it creates: a new child whose care already ended adds
+// nobody, an update that resumes a child's care adds one.
+type ChildQuotaCounter[T any] interface {
+	AddsToChildQuota(ctx context.Context, row T, existingID *int64) (bool, error)
+}
+
 // ProcessingOrderer can be implemented by imports that must create rows in a
 // deterministic order. The returned indexes always refer to the original
 // upload order, so row numbers in validation errors remain accurate.

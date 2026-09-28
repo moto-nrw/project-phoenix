@@ -636,8 +636,9 @@ func (c *StudentImportConfig) updatePersonFromRow(ctx context.Context, person po
 	return nil
 }
 
-func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, record ports.EnrollmentRecord, row importModels.StudentImportRow) error {
-	// Class, lifecycle window and status go through the renewal command.
+// renewalFromRow is the class, lifecycle window and status an update row
+// leaves on an existing child: only the cells the row carries change.
+func renewalFromRow(record ports.EnrollmentRecord, row importModels.StudentImportRow) ports.EnrollmentStudent {
 	renewal := ports.EnrollmentStudent{
 		PersonID: record.PersonID, SchoolClass: record.SchoolClass, Status: record.Status,
 		EnrolledFrom: record.EnrolledFrom, EnrolledUntil: record.EnrolledUntil,
@@ -656,6 +657,45 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, record p
 	if d := parseOptionalImportCalendarDate(row.EnrolledUntil); d != nil {
 		renewal.EnrolledUntil = d.String()
 	}
+	return renewal
+}
+
+// newEnrollmentStatus is the status a created child starts with: pending
+// while its care starts in the future, active otherwise.
+func newEnrollmentStatus(enrolledFrom *timezone.Date) string {
+	if enrollmentStartsInFuture(enrolledFrom) {
+		return ports.StudentStatusPending
+	}
+	return ports.StudentStatusActive
+}
+
+var errChildQuotaRuleUnbound = errors.New("student import: child quota rule is not bound")
+
+// AddsToChildQuota says whether applying the row raises the Kontingentzahl
+// (#3571): a new child that counts, or an update that moves a child who does
+// not count now into the count, for example by resuming ended care.
+func (c *StudentImportConfig) AddsToChildQuota(ctx context.Context, row importModels.StudentImportRow, existingID *int64) (bool, error) {
+	if c.CountsTowardChildQuota == nil {
+		return false, errChildQuotaRuleUnbound
+	}
+	day := timezone.TodayDate().String()
+	if existingID == nil {
+		enrolledFrom := parseOptionalImportCalendarDate(row.EnrolledFrom)
+		return c.CountsTowardChildQuota(newEnrollmentStatus(enrolledFrom),
+			calendarDateString(enrolledFrom), calendarDateString(parseOptionalImportCalendarDate(row.EnrolledUntil)), day), nil
+	}
+	record, err := c.Students.ReadEnrollmentStudent(ctx, *existingID, "")
+	if err != nil {
+		return false, fmt.Errorf("read student for child quota: %w", err)
+	}
+	after := renewalFromRow(record, row)
+	return !c.CountsTowardChildQuota(record.Status, record.EnrolledFrom, record.EnrolledUntil, day) &&
+		c.CountsTowardChildQuota(after.Status, after.EnrolledFrom, after.EnrolledUntil, day), nil
+}
+
+func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, record ports.EnrollmentRecord, row importModels.StudentImportRow) error {
+	// Class, lifecycle window and status go through the renewal command.
+	renewal := renewalFromRow(record, row)
 	if renewal.SchoolClass != record.SchoolClass || renewal.Status != record.Status ||
 		renewal.EnrolledFrom != record.EnrolledFrom || renewal.EnrolledUntil != record.EnrolledUntil {
 		if err := c.Students.RenewEnrollmentStudent(ctx, record.ID, renewal); err != nil {

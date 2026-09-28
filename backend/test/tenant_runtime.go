@@ -39,6 +39,35 @@ func CaptureUnitOfWorkEvidence(ctx context.Context) (context.Context, func() []U
 	return ctx, func() []UnitOfWorkEvidence { return append([]UnitOfWorkEvidence(nil), events...) }
 }
 
+// ContextWithTenantRuntime binds a tenant runtime to ctx, for repository
+// tests that drive their own transactions through it.
+func ContextWithTenantRuntime(ctx context.Context, runtime tenant.UnitOfWork) context.Context {
+	return tenant.WithUnitOfWork(ctx, runtime)
+}
+
+// ContextWithTransaction makes tx the ambient tenant transaction of ctx, so a
+// repository test can hold a lock in one transaction and contend in another.
+func ContextWithTransaction(ctx context.Context, tx any) context.Context {
+	return tenant.WithTransactionForTest(ctx, tx)
+}
+
+// TransactionFromContext returns the ambient tenant transaction of ctx.
+func TransactionFromContext(ctx context.Context) (any, bool) {
+	return tenant.TransactionFromContext(ctx)
+}
+
+// RunInTenantTransaction joins the ambient transaction or opens one for the
+// context's tenant.
+func RunInTenantTransaction(ctx context.Context, fn func(context.Context) error) error {
+	return tenant.NewTransactionRunner().RunInTx(ctx, fn)
+}
+
+// WithinTenantTransaction opens a transaction for one school and hands the
+// callback the Bun transaction.
+func WithinTenantTransaction(ctx context.Context, db *bun.DB, tenantID int64, fn func(context.Context, bun.Tx) error) error {
+	return tenant.WithTenantTx(ctx, db, tenantID, fn)
+}
+
 // WithinCurrentTenant runs a test callback through the bound production runtime.
 func WithinCurrentTenant(ctx context.Context, fn func(context.Context) error) error {
 	return tenant.WithinCurrentTenant(ctx, fn)

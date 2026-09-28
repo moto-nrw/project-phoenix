@@ -333,6 +333,7 @@ vi.mock("~/lib/timetable-operations-api", () => ({
     checkOut: vi.fn(),
     patchAttendance: vi.fn(),
     plannedNow: vi.fn(() => Promise.resolve([])),
+    reopen: vi.fn(),
   },
   isReopenUnavailableError: vi.fn(() => false),
 }));
@@ -607,6 +608,87 @@ describe("MeinRaumPage roster actions", () => {
     });
     expect(reload).not.toHaveBeenCalled();
     expect(mockRosterMutate).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      kind: "activity",
+      code: "presence.activity_participant_limit_reached",
+      details: {
+        activity_name: "Betreuung",
+        current_occupancy: 45,
+        max_participants: 45,
+        incoming_students: 1,
+      },
+      message:
+        "Die Aktivität „Betreuung“ ist voll (45 von 45 Kindern). Die Grenze ändern Sie unter Datenverwaltung → Aktivitäten bei „Maximale Teilnehmer“.",
+    },
+    {
+      kind: "room",
+      code: "presence.room_capacity_exceeded",
+      details: {
+        room_name: "Turnhalle",
+        current_occupancy: 30,
+        max_capacity: 30,
+        incoming_students: 1,
+      },
+      message:
+        "Der Raum „Turnhalle“ ist voll (30 von 30 Plätzen). Die Grenze ändern Sie unter Datenverwaltung → Räume bei „Maximale Belegung“.",
+    },
+  ])(
+    "says the $kind is full when the check-in is refused (#3633)",
+    async ({ code, details, message }) => {
+      vi.mocked(timetableOperationsApi.checkIn).mockRejectedValue(
+        Object.assign(new Error("capacity"), {
+          httpStatus: 409,
+          code,
+          details,
+        }),
+      );
+
+      render(<MeinRaumPage />);
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Einchecken" }),
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("alert-error")).toHaveTextContent(message);
+      });
+    },
+  );
+
+  it("says the room is full when undoing the completion is refused (#3633)", async () => {
+    globalThis.sessionStorage.setItem(
+      "timetable-reopenable-instance",
+      JSON.stringify({ instanceId: "99", expiresAt: Date.now() + 60_000 }),
+    );
+    vi.mocked(timetableOperationsApi.reopen).mockRejectedValue(
+      Object.assign(new Error("room capacity exceeded: Turnhalle (30/30)"), {
+        httpStatus: 409,
+        code: "presence.room_capacity_exceeded",
+        details: {
+          room_name: "Turnhalle",
+          current_occupancy: 29,
+          max_capacity: 30,
+          incoming_students: 2,
+        },
+      }),
+    );
+
+    try {
+      render(<MeinRaumPage />);
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Rückgängig" }),
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("alert-error")).toHaveTextContent(
+          "Im Raum „Turnhalle“ ist nur noch 1 Platz frei (29 von 30 Plätzen).",
+        );
+      });
+    } finally {
+      globalThis.sessionStorage.removeItem("timetable-reopenable-instance");
+    }
   });
 
   it("names the missing planning when the server forbids the action", async () => {

@@ -61,7 +61,7 @@
       "docs/runtime-checkpoints/request-review-2705.candidate.txt",
       "docs/runtime-checkpoints/request-review-2705.md",
       "docs/runtime-checkpoints/request-review-2705.plans.json",
-      "backend/api/students/change_request_review_runtime_test.go"
+      "backend/modules/peopledirectory/inbound/students/change_request_review_runtime_test.go"
     ],
     "affected_rows": {
       "state": "historical_gap",

@@ -68,7 +68,7 @@ func (d identityAccountDirectory) AccountEmail(ctx context.Context, accountID in
 // reachability check joins. Compositions that do not build the whole factory
 // use it so no call site can forget the owner queries.
 func NewGuardianProfileRepository(db *bun.DB) userModels.GuardianProfileRepository {
-	return usersRepo.NewGuardianProfileRepository(db,
+	return usersRepo.NewGuardianProfileRepository(peopleRuntime(db),
 		usersRepo.WithPortalMemberships(newIdentityAccess(db, nil).FindActiveGuardianMemberships),
 	)
 }
@@ -101,7 +101,7 @@ func schoolRoleClassQuery(roles identityaccess.StaffAccountQueries) usersRepo.Sc
 // NewPersonRepository composes the People Directory person repository with
 // the Identity & Access account lookup FindWithAccount attaches (#2720).
 func NewPersonRepository(db *bun.DB) userModels.PersonRepository {
-	return usersRepo.NewPersonRepository(db, usersRepo.WithAccountLookup(accountLookup(newIdentityAccess(db, nil))))
+	return usersRepo.NewPersonRepository(peopleRuntime(db), usersRepo.WithAccountLookup(accountLookup(newIdentityAccess(db, nil))))
 }
 
 // accountLookup adapts the owner's by-id read to the People Directory

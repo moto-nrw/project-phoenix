@@ -5,6 +5,7 @@ import {
   importBatchFailureAlertType,
   importBatchFailureMessage,
   readImportBatchFailure,
+  readImportBatchRejection,
 } from "./import-batch-result";
 
 const abortingWrite = {
@@ -136,5 +137,58 @@ describe("countAlreadyExistsRows", () => {
       ]),
     ).toBe(2);
     expect(countAlreadyExistsRows(null)).toBe(0);
+  });
+});
+
+describe("readImportBatchRejection", () => {
+  it("reads the refusal that stopped a batch (#3571)", () => {
+    const rejection = {
+      code: "students.child_quota_reached",
+      details: { booked_places: 150, occupied_places: 150 },
+    };
+    expect(
+      readImportBatchRejection({
+        code: "import_batch_failed",
+        details: { result: {}, rejection },
+      }),
+    ).toEqual(rejection);
+    expect(
+      readImportBatchRejection({ code: "import_batch_failed", details: {} }),
+    ).toBeNull();
+    expect(readImportBatchRejection({ code: "other" })).toBeNull();
+  });
+});
+
+describe("importBatchFailureMessage with a refusal", () => {
+  it("names the saved rows, the refusal and that the saved rows stay", () => {
+    expect(
+      importBatchFailureMessage(
+        {
+          TotalRows: 160,
+          CreatedCount: 100,
+          UpdatedCount: 0,
+          ErrorCount: 0,
+          Errors: [],
+        },
+        "Das Kinderkontingent Ihrer Schule ist voll.",
+      ),
+    ).toBe(
+      "100 Zeilen sind gespeichert. Das Kinderkontingent Ihrer Schule ist voll. Die gespeicherten Zeilen bleiben.",
+    );
+  });
+
+  it("is only the refusal when nothing was saved", () => {
+    expect(
+      importBatchFailureMessage(
+        {
+          TotalRows: 3,
+          CreatedCount: 0,
+          UpdatedCount: 0,
+          ErrorCount: 0,
+          Errors: [],
+        },
+        "Das Kinderkontingent Ihrer Schule ist voll.",
+      ),
+    ).toBe("Das Kinderkontingent Ihrer Schule ist voll.");
   });
 });

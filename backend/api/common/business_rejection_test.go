@@ -85,3 +85,27 @@ func TestBusinessRejectionLeavesOtherErrorsAlone(t *testing.T) {
 	common.RenderError(w, r, common.ErrorBusinessRejection(err))
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
+
+// TestBusinessRejectionOrKeepsTheCodeWithoutDetails pins the fallback for a
+// bare sentinel that carries no typed rejection: it still answers 409 with
+// the stable code, so the client can name the refusal without numbers.
+func TestBusinessRejectionOrKeepsTheCodeWithoutDetails(t *testing.T) {
+	t.Parallel()
+	renderRoomFull := common.ErrorBusinessRejectionOr("presence.room_capacity_exceeded")
+
+	w := httptest.NewRecorder()
+	common.RenderError(w, httptest.NewRequest(http.MethodPost, "/", nil),
+		renderRoomFull(fmt.Errorf("reopen: %w", errors.New("room capacity exceeded"))))
+	require.Equal(t, http.StatusConflict, w.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, "presence.room_capacity_exceeded", body["code"])
+	assert.NotContains(t, body, "details")
+
+	typed := httptest.NewRecorder()
+	common.RenderError(typed, httptest.NewRequest(http.MethodPost, "/", nil),
+		renderRoomFull(fmt.Errorf("create: %w", quotaRejection{})))
+	require.Equal(t, http.StatusConflict, typed.Code)
+	assert.Contains(t, typed.Body.String(), `"code":"students.child_quota_reached"`)
+	assert.Contains(t, typed.Body.String(), `"booked_places":50`)
+}

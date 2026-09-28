@@ -229,7 +229,7 @@ solange das Schema lädt) — `frontend/src/components/dashboard/sidebar.tsx:477
 | `operations.per_student_checkout_enabled` | `false` | Zeitschranke je Kind statt global | `iot/checkin/checkout_gate.go:106-137` |
 | `operations.per_student_checkout_delta_minutes` | `15` | Vorlauf vor der Abholzeit | `iot/checkin/checkout_gate.go:140-148` |
 | `checkin.room_capacity_details_enabled` | `true` | „Turnhalle ist voll (30/30 …)" statt allgemeinem Text | `api/iot/checkin/workflow.go:61-66`; `PyrePortal/src/services/apiErrors.ts:269-282` |
-| `checkin.activity_capacity_details_enabled` | `false` | dito für Aktivitäten | `api/iot/checkin/workflow.go:70-75` |
+| `checkin.activity_capacity_details_enabled` | `true` (seit #3633) | dito für Aktivitäten | `api/iot/checkin/workflow.go:70-75` |
 | `security.ogs_device_pin` | `"1234"` | PIN-Bildschirm am Tablet | `api/iot/api.go:79-94`; `PyrePortal/src/pages/PinPage.tsx:21-27,207` |
 | `feedback.enabled` | `false` | Tages-Feedback nach dem Auschecken | `api/iot/checkin/attendance_handlers.go:215`; `PyrePortal/src/hooks/pages/useActivityScanningPage.ts:536-546` |
 | `gdpr.attendance_log_enabled` | `false` | Navigationseintrag `Tagesauswertung`; im Kind-Detail wird der Button `Anwesenheitsprotokoll` mit „Für Ihre Schule deaktiviert" abgeschaltet; die Raum-Historie zeigt eine eigene Meldung | `sidebar.tsx:576`; `components/students/student-detail-components.tsx:1056,1075-1088`; `components/rooms/room-detail-content.tsx:167,241,328`; `app/[tenant]/(protected)/day-log/page.tsx:497-498`; `api/rooms/api.go:473` |

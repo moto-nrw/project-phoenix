@@ -370,11 +370,35 @@ func (s *ImportService[T]) processDryRunRow(ctx context.Context, request importM
 		result.UpdatedCount++
 	} else if request.Mode == importModels.ImportModeUpdate {
 		recordNotFoundError(s, result, rowNum, row)
+		return false
 	} else {
 		result.CreatedCount++
 	}
-
+	s.countChildQuota(ctx, result, row, rowNum, existingID)
 	return false
+}
+
+// countChildQuota adds a previewed row to ChildQuotaRequested when applying
+// it would raise the Kontingentzahl (#3571).
+func (s *ImportService[T]) countChildQuota(ctx context.Context, result *importModels.ImportResult[T], row *T, rowNum int, existingID *int64) {
+	counter, ok := s.config.(ChildQuotaCounter[T])
+	if !ok {
+		return
+	}
+	adds, err := counter.AddsToChildQuota(ctx, *row, existingID)
+	if err != nil {
+		appendRowErrors(result, rowNum, row, []importModels.ValidationError{{
+			Field:    "child_quota",
+			Message:  "Das Kinderkontingent ließ sich für diese Zeile nicht prüfen. Bitte versuchen Sie es noch einmal.",
+			Code:     "child_quota_check_failed",
+			Severity: importModels.ErrorSeverityError,
+		}})
+		result.ErrorCount++
+		return
+	}
+	if adds {
+		result.ChildQuotaRequested++
+	}
 }
 
 // recordWillUpdateInfo marks a preview row that resolves to an existing record

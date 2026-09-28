@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
@@ -16,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
 type CalendarFacts struct {
@@ -171,9 +171,7 @@ func calendarPortalPermission(raw json.RawMessage) (bool, error) {
 			return false, fmt.Errorf("calendar guardian portal permission: %w", err)
 		}
 	}
-	return usersRepo.GuardianPortalAccess(&userModels.StudentGuardian{
-		Permissions: map[string]any{peopledirectory.GuardianPermissionPortalAccess: value},
-	}), nil
+	return securityruntime.GuardianPermissionGranted(value), nil
 }
 
 func (p calendarGuardianPort) SearchByText(ctx context.Context, query string, limit int) ([]*calendarCompose.GuardianProfile, error) {
@@ -333,7 +331,7 @@ func calendarRelationship(value *userModels.StudentGuardian) *calendarCompose.St
 	if value == nil {
 		return nil
 	}
-	return &calendarCompose.StudentGuardian{GuardianProfileID: value.GuardianProfileID, StudentID: value.StudentID, PortalAccess: usersRepo.GuardianPortalAccess(value)}
+	return &calendarCompose.StudentGuardian{GuardianProfileID: value.GuardianProfileID, StudentID: value.StudentID, PortalAccess: securityruntime.GuardianPermissionGranted(value.Permissions[peopledirectory.GuardianPermissionPortalAccess])}
 }
 func calendarAccount(value identityaccess.ParentCalendarFeedAccount) *calendarCompose.Account {
 	return &calendarCompose.Account{ID: value.ID, Email: value.Email, Active: value.Active, CalendarFeedToken: &value.TokenHash}

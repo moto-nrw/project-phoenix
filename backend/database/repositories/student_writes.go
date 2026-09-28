@@ -524,5 +524,5 @@ func NewStudentRepository(db *bun.DB) userModels.StudentRepository {
 	if err != nil {
 		panic(fmt.Sprintf("student repository: compose membership: %v", err))
 	}
-	return bindStudentWrites(usersRepo.NewStudentRepository(db), MustNewPeopleDirectory(db), membership)
+	return bindStudentWrites(usersRepo.NewStudentRepository(peopleRuntime(db)), MustNewPeopleDirectory(db), membership)
 }

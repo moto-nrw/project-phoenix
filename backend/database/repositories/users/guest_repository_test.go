@@ -3,9 +3,8 @@ package users_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,13 +23,13 @@ func TestGuestRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Guest
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Guest
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates guest with valid data", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "Create")
 
-		guest := &users.Guest{
+		guest := &testpkg.Guest{
 			StaffID:           staff.ID,
 			ActivityExpertise: "Music",
 			Organization:      "Test Org",
@@ -45,7 +44,7 @@ func TestGuestRepository_Create(t *testing.T) {
 	t.Run("creates guest with contact info", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "Contact")
 
-		guest := &users.Guest{
+		guest := &testpkg.Guest{
 			StaffID:           staff.ID,
 			ActivityExpertise: "Art",
 			ContactEmail:      "guest@test.local",
@@ -61,10 +60,10 @@ func TestGuestRepository_Create(t *testing.T) {
 	t.Run("creates guest with date range", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "Dates")
 
-		startDate := timezone.TodayDate()
+		startDate := calendar.TodayDate()
 		endDate := startDate.AddDays(90)
 
-		guest := &users.Guest{
+		guest := &testpkg.Guest{
 			StaffID:           staff.ID,
 			ActivityExpertise: "Dance",
 			StartDate:         &startDate,
@@ -86,7 +85,7 @@ func TestGuestRepository_Create(t *testing.T) {
 	})
 
 	t.Run("fails without staff ID", func(t *testing.T) {
-		guest := &users.Guest{
+		guest := &testpkg.Guest{
 			ActivityExpertise: "Music",
 		}
 
@@ -98,7 +97,7 @@ func TestGuestRepository_Create(t *testing.T) {
 	t.Run("fails without activity expertise", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "NoExp")
 
-		guest := &users.Guest{
+		guest := &testpkg.Guest{
 			StaffID: staff.ID,
 		}
 
@@ -110,7 +109,7 @@ func TestGuestRepository_Create(t *testing.T) {
 	t.Run("fails with invalid email", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "BadEmail")
 
-		guest := &users.Guest{
+		guest := &testpkg.Guest{
 			StaffID:           staff.ID,
 			ActivityExpertise: "Music",
 			ContactEmail:      "not-an-email",
@@ -127,7 +126,7 @@ func TestGuestRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Guest
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Guest
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing guest", func(t *testing.T) {
@@ -150,7 +149,7 @@ func TestGuestRepository_FindByStaffID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Guest
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Guest
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds guest by staff ID", func(t *testing.T) {
@@ -173,7 +172,7 @@ func TestGuestRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Guest
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Guest
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates guest", func(t *testing.T) {
@@ -203,7 +202,7 @@ func TestGuestRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Guest
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Guest
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing guest", func(t *testing.T) {
@@ -232,7 +231,7 @@ func TestGuestRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Guest
+	repo := testutil.NewPeopleRepositorySuiteFactory(db).Guest
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists guests with organization filter", func(t *testing.T) {

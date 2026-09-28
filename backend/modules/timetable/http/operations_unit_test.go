@@ -1399,3 +1399,30 @@ func TestOperationsCheckInParticipantLimitWire(t *testing.T) {
 	assert.Equal(t, float64(45), details["max_participants"])
 	assert.Equal(t, float64(1), details["incoming_students"])
 }
+
+// TestOperationsCheckInRoomCapacityWire pins that a Betreuungsplan check-in
+// refused by the room's capacity answers 409 with the room code and numbers
+// (#3633), apart from the activity's participant limit.
+func TestOperationsCheckInRoomCapacityWire(t *testing.T) {
+	t.Parallel()
+	capacityErr := &studentpresence.OperationError{Op: "CreateVisit", Err: &studentpresence.RoomCapacityError{
+		RoomID: 12, RoomName: "Turnhalle", CurrentOccupancy: 30, MaxCapacity: 30, Incoming: 1,
+	}}
+	router := operationRouter(
+		http.MethodPost,
+		"/instances/{id}/students/{student_id}/check-in",
+		NewResource(Dependencies{OperationsService: &fakeOperationsService{err: capacityErr}}).operationsCheckInStudent,
+	)
+
+	rr := executeOperationRequest(t, router, http.MethodPost, "/instances/250/students/350/check-in", nil)
+
+	require.Equal(t, http.StatusConflict, rr.Code)
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, studentpresence.RoomCapacityCode, body["code"])
+	details, ok := body["details"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "Turnhalle", details["room_name"])
+	assert.Equal(t, float64(30), details["max_capacity"])
+	assert.Equal(t, float64(1), details["incoming_students"])
+}
