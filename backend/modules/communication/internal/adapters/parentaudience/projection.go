@@ -121,7 +121,7 @@ func (p *Projection) CountAudience(ctx context.Context, schoolID, announcementID
 	return count, nil
 }
 
-const accountMatchesSQL = pendingApplicantsFeedCTE + `SELECT (` + reachedAccountBound + ` OR ` + declarationSubmissionForAccountBound + `)`
+const accountMatchesSQL = pendingApplicantsFeedCTE + `SELECT ` + reachedAccountBound
 
 // AccountMatchesAnnouncement reports whether a guardian account is in an
 // announcement's audience right now.
@@ -140,7 +140,6 @@ func (p *Projection) AccountMatchesAnnouncement(ctx context.Context, schoolID, a
 		applicants,
 		schoolID, schoolID, today, today, today, announcementID, schoolID, guardianLinks(db, schoolID), schoolID, accountID,
 		schoolID, accountID, accountID, announcementID, schoolID,
-		guardianLinks(db, schoolID), schoolID, announcementID, schoolID, accountID,
 	).Scan(ctx, &matched); err != nil {
 		return false, fmt.Errorf("check parent announcement audience match: %w", err)
 	}
@@ -462,7 +461,7 @@ const feedSQL = pendingApplicantsFeedCTE + `
 			LEFT JOIN users.parent_announcement_reads par
 				ON par.announcement_id = a.id AND par.account_id = ?
 			WHERE ` + feedScopePredicate + liveAnnouncementPredicate + `
-				AND (` + reachedAccountFeed + ` OR ` + declarationSubmissionForAccountFeed + `)
+			AND ` + reachedAccountFeed + `
 			ORDER BY GREATEST(a.published_at, a.reminder_sent_at) DESC, a.id DESC`
 
 type feedRow struct {
@@ -505,7 +504,6 @@ func (p *Projection) ListFeedForAccount(ctx context.Context, accountID int64, sc
 		applicants,
 		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs),
 		today, today, today, guardianLinks(db, 0), accountID, accountID, accountID,
-		guardianLinks(db, 0), accountID,
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("list parent announcement feed: %w", err)
 	}

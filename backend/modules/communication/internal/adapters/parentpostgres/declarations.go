@@ -340,6 +340,52 @@ func (s *AnnouncementStore) ListDeclarationSubmissionsForStudents(ctx context.Co
 	return submissionValues(rows), nil
 }
 
+// ListDeclarationSubmissionsForAccountAndAnnouncements returns an account's
+// submission history for already authorized announcements.
+func (s *AnnouncementStore) ListDeclarationSubmissionsForAccountAndAnnouncements(ctx context.Context, accountID int64, announcementIDs []int64) ([]*domain.DeclarationSubmission, error) {
+	if len(announcementIDs) == 0 {
+		return []*domain.DeclarationSubmission{}, nil
+	}
+	db, _, err := s.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var rows []declarationSubmissionRow
+	if err := db.NewSelect().Model(&rows).ModelTableExpr(declarationSubmissionTableExpr).
+		ColumnExpr(declarationSubmissionColumns).
+		Join(declarationSubmissionVersionJoin).
+		Where(`"pds".account_id = ?`, accountID).
+		Where(`"pds".announcement_id IN (?)`, bun.List(announcementIDs)).
+		OrderExpr(`"pds".submitted_at DESC, "pds".id DESC`).
+		Scan(ctx); err != nil {
+		return nil, fmt.Errorf("list declaration submissions for account announcements: %w", err)
+	}
+	return submissionValues(rows), nil
+}
+
+// ListDeclarationSubmissionsForAccountInTenants returns an account's
+// submission history within the already authorized feed schools.
+func (s *AnnouncementStore) ListDeclarationSubmissionsForAccountInTenants(ctx context.Context, accountID int64, tenantIDs []int64) ([]*domain.DeclarationSubmission, error) {
+	if len(tenantIDs) == 0 {
+		return []*domain.DeclarationSubmission{}, nil
+	}
+	db, _, err := s.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var rows []declarationSubmissionRow
+	if err := db.NewSelect().Model(&rows).ModelTableExpr(declarationSubmissionTableExpr).
+		ColumnExpr(declarationSubmissionColumns).
+		Join(declarationSubmissionVersionJoin).
+		Where(`"pds".account_id = ?`, accountID).
+		Where(`"pds".tenant_id IN (?)`, bun.List(tenantIDs)).
+		OrderExpr(`"pds".submitted_at DESC, "pds".id DESC`).
+		Scan(ctx); err != nil {
+		return nil, fmt.Errorf("list declaration submissions for account tenants: %w", err)
+	}
+	return submissionValues(rows), nil
+}
+
 func submissionValues(rows []declarationSubmissionRow) []*domain.DeclarationSubmission {
 	out := make([]*domain.DeclarationSubmission, 0, len(rows))
 	for i := range rows {

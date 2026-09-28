@@ -55,6 +55,15 @@ type DeclarationSubmission struct {
 	SubmittedAt       time.Time
 }
 
+// DeclarationHistoryLink identifies the child a declaration submission keeps
+// reachable after an activity enrollment ends. Communication's store owns the
+// submission lookup; audience projections only receive these scoped values.
+type DeclarationHistoryLink struct {
+	TenantID       int64 `json:"tenant_id"`
+	AnnouncementID int64 `json:"announcement_id"`
+	StudentID      int64 `json:"student_id"`
+}
+
 // DeclarationChild is one child a declaration reaches.
 type DeclarationChild struct {
 	AnnouncementID int64

@@ -107,7 +107,11 @@ func (r *announcementRepository) InsertDeclarationSubmission(ctx context.Context
 }
 
 func (r *announcementRepository) DeclarationChildren(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.DeclarationChild, error) {
-	values, err := r.audience.DeclarationChildren(ctx, tenantID, announcementID)
+	submissions, err := r.store.ListDeclarationSubmissions(ctx, tenantID, announcementID)
+	if err != nil {
+		return nil, err
+	}
+	values, err := r.audience.DeclarationChildren(ctx, tenantID, announcementID, declarationHistoryLinks(submissions))
 	return declarationChildModels(values), err
 }
 
@@ -117,7 +121,11 @@ func (r *announcementRepository) DeclarationSigners(ctx context.Context, tenantI
 }
 
 func (r *announcementRepository) DeclarationChildrenForAccount(ctx context.Context, accountID int64, announcementIDs []int64) ([]*usersModels.DeclarationChild, error) {
-	values, err := r.audience.DeclarationChildrenForAccount(ctx, accountID, announcementIDs)
+	submissions, err := r.store.ListDeclarationSubmissionsForAccountAndAnnouncements(ctx, accountID, announcementIDs)
+	if err != nil {
+		return nil, err
+	}
+	values, err := r.audience.DeclarationChildrenForAccount(ctx, accountID, announcementIDs, declarationHistoryLinks(submissions))
 	return declarationChildModels(values), err
 }
 
@@ -136,12 +144,41 @@ func (r *announcementRepository) HoldDeclarationSigner(ctx context.Context, tena
 }
 
 func (r *announcementRepository) HoldHistoricalDeclarationSigner(ctx context.Context, tenantID, announcementID, accountID, studentID int64) (*usersModels.DeclarationSignerContext, error) {
-	value, err := r.audience.HoldHistoricalDeclarationSigner(ctx, tenantID, announcementID, accountID, studentID)
+	submissions, err := r.store.ListDeclarationSubmissions(ctx, tenantID, announcementID)
+	if err != nil || !hasDeclarationSubmission(submissions, accountID, studentID) {
+		return nil, err
+	}
+	value, err := r.audience.HoldHistoricalDeclarationSigner(ctx, tenantID, accountID, studentID)
 	if err != nil || value == nil {
 		return nil, err
 	}
 	signer := usersModels.DeclarationSignerContext(*value)
 	return &signer, nil
+}
+
+func declarationHistoryLinks(submissions []*domain.DeclarationSubmission) []domain.DeclarationHistoryLink {
+	links := make([]domain.DeclarationHistoryLink, 0, len(submissions))
+	seen := make(map[domain.DeclarationHistoryLink]struct{}, len(submissions))
+	for _, submission := range submissions {
+		link := domain.DeclarationHistoryLink{
+			TenantID: submission.TenantID, AnnouncementID: submission.AnnouncementID, StudentID: submission.StudentID,
+		}
+		if _, ok := seen[link]; ok {
+			continue
+		}
+		seen[link] = struct{}{}
+		links = append(links, link)
+	}
+	return links
+}
+
+func hasDeclarationSubmission(submissions []*domain.DeclarationSubmission, accountID, studentID int64) bool {
+	for _, submission := range submissions {
+		if submission.StudentID == studentID && submission.AccountID != nil && *submission.AccountID == accountID {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *announcementRepository) ReadOpenDeclarations(ctx context.Context, accountID int64, tenantIDs []int64) (map[int64]*time.Time, error) {

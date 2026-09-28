@@ -260,53 +260,6 @@ const reachedAccountBound = `(
 	)
 )`
 
-// declarationSubmissionForAccountFeed preserves an account's own declaration
-// after a targeted activity enrollment ends. It still requires the current
-// relationship-level portal permission, so a former guardian cannot use a
-// historical submission to regain access.
-//
-// Bind order: guardian links, account.
-const declarationSubmissionForAccountFeed = `(
-		a.delivery_mode = 'declaration'
-		AND EXISTS (
-			SELECT 1
-			FROM users.parent_announcement_declaration_submissions sub
-			JOIN (?) sg ON sg.student_id = sub.student_id AND sg.tenant_id = a.tenant_id
-				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
-			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = a.tenant_id
-				AND gp.account_id = sub.account_id
-			JOIN auth.account_tenants act ON act.account_id = gp.account_id
-				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
-			WHERE sub.announcement_id = a.id AND sub.tenant_id = a.tenant_id
-				AND sub.account_id = ?
-		)
-	)`
-
-// declarationSubmissionForAccountBound is declarationSubmissionForAccountFeed
-// for a bound announcement. It keeps the normal read path available when a
-// parent reopens their historical declaration after an activity enrollment.
-//
-// Bind order: guardian links, school, announcement, school, account.
-const declarationSubmissionForAccountBound = `(
-		EXISTS (
-			SELECT 1
-			FROM users.parent_announcement_declaration_submissions sub
-			JOIN (?) sg ON sg.student_id = sub.student_id AND sg.tenant_id = ?
-				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
-			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = sg.tenant_id
-				AND gp.account_id = sub.account_id
-			JOIN auth.account_tenants act ON act.account_id = gp.account_id
-				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
-			WHERE sub.announcement_id = ? AND sub.tenant_id = ?
-				AND sub.account_id = ?
-				AND EXISTS (
-					SELECT 1 FROM users.parent_announcements a
-					WHERE a.id = sub.announcement_id AND a.tenant_id = sub.tenant_id
-						AND a.delivery_mode = 'declaration'
-				)
-		)
-	)`
-
 // openPollForAccountFeed is the SQL boolean "announcement a is an open poll
 // and at least one of the bound account's reached children has no answer
 // yet". A guardian who read a poll but never answered still counts as

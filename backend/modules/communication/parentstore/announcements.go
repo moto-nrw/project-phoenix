@@ -3,6 +3,7 @@ package parentstore
 import (
 	"context"
 	"errors"
+	"sort"
 	"time"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -289,7 +290,15 @@ func (r *announcementRepository) CountAudience(ctx context.Context, tenantID, an
 }
 
 func (r *announcementRepository) AccountMatchesAnnouncement(ctx context.Context, tenantID, announcementID, accountID int64) (bool, error) {
-	return r.audience.AccountMatchesAnnouncement(ctx, tenantID, announcementID, accountID)
+	matched, err := r.audience.AccountMatchesAnnouncement(ctx, tenantID, announcementID, accountID)
+	if err != nil || matched {
+		return matched, err
+	}
+	submissions, err := r.store.ListDeclarationSubmissions(ctx, tenantID, announcementID)
+	if err != nil {
+		return false, err
+	}
+	return r.audience.HistoricalDeclarationAccess(ctx, tenantID, accountID, declarationHistoryLinksForAccount(submissions, accountID))
 }
 
 func (r *announcementRepository) ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementRecipient, error) {
@@ -360,10 +369,20 @@ func (r *announcementRepository) AudienceRecipients(ctx context.Context, tenantI
 }
 
 func (r *announcementRepository) ListFeedForAccount(ctx context.Context, accountID int64, scope usersModels.AnnouncementFeedScope) ([]*usersModels.AnnouncementFeedItem, error) {
-	values, err := r.audience.ListFeedForAccount(ctx, accountID, feedScope(scope))
+	scopeValue := feedScope(scope)
+	values, err := r.audience.ListFeedForAccount(ctx, accountID, scopeValue)
 	if err != nil {
 		return nil, err
 	}
+	submissions, err := r.store.ListDeclarationSubmissionsForAccountInTenants(ctx, accountID, feedTenantIDs(scopeValue))
+	if err != nil {
+		return nil, err
+	}
+	history, err := r.audience.HistoricalDeclarationFeed(ctx, accountID, scopeValue, declarationHistoryLinks(submissions))
+	if err != nil {
+		return nil, err
+	}
+	values = mergeFeedItems(values, history)
 	rows := make([]*usersModels.AnnouncementFeedItem, 0, len(values))
 	for _, value := range values {
 		rows = append(rows, &usersModels.AnnouncementFeedItem{
@@ -376,6 +395,45 @@ func (r *announcementRepository) ListFeedForAccount(ctx context.Context, account
 		})
 	}
 	return rows, nil
+}
+
+func declarationHistoryLinksForAccount(submissions []*domain.DeclarationSubmission, accountID int64) []domain.DeclarationHistoryLink {
+	owned := make([]*domain.DeclarationSubmission, 0, len(submissions))
+	for _, submission := range submissions {
+		if submission.AccountID != nil && *submission.AccountID == accountID {
+			owned = append(owned, submission)
+		}
+	}
+	return declarationHistoryLinks(owned)
+}
+
+func mergeFeedItems(current, historical []*domain.ParentAnnouncementFeedItem) []*domain.ParentAnnouncementFeedItem {
+	items := make(map[int64]*domain.ParentAnnouncementFeedItem, len(current)+len(historical))
+	for _, item := range historical {
+		items[item.ID] = item
+	}
+	for _, item := range current {
+		items[item.ID] = item
+	}
+	merged := make([]*domain.ParentAnnouncementFeedItem, 0, len(items))
+	for _, item := range items {
+		merged = append(merged, item)
+	}
+	sort.Slice(merged, func(i, j int) bool {
+		return feedItemTime(merged[i]).After(feedItemTime(merged[j])) ||
+			(feedItemTime(merged[i]).Equal(feedItemTime(merged[j])) && merged[i].ID > merged[j].ID)
+	})
+	return merged
+}
+
+func feedItemTime(item *domain.ParentAnnouncementFeedItem) time.Time {
+	if item.ReminderSentAt != nil && (item.PublishedAt == nil || item.ReminderSentAt.After(*item.PublishedAt)) {
+		return *item.ReminderSentAt
+	}
+	if item.PublishedAt != nil {
+		return *item.PublishedAt
+	}
+	return time.Time{}
 }
 
 func (r *announcementRepository) CountUnreadForAccount(ctx context.Context, accountID int64, scope usersModels.AnnouncementFeedScope) (int, error) {
@@ -415,6 +473,12 @@ func publishedError(err error) error {
 
 func feedScope(scope usersModels.AnnouncementFeedScope) domain.ParentAnnouncementFeedScope {
 	return domain.ParentAnnouncementFeedScope{TenantIDs: scope.TenantIDs, SystemOnlyTenantIDs: scope.SystemOnlyTenantIDs}
+}
+
+func feedTenantIDs(scope domain.ParentAnnouncementFeedScope) []int64 {
+	ids := make([]int64, 0, len(scope.TenantIDs)+len(scope.SystemOnlyTenantIDs))
+	ids = append(ids, scope.TenantIDs...)
+	return append(ids, scope.SystemOnlyTenantIDs...)
 }
 
 func announcementValue(a *usersModels.ParentAnnouncement) *domain.ParentAnnouncement {
