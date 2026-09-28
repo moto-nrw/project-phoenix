@@ -54,17 +54,11 @@ func (rs *Resource) Router() chi.Router {
 	rs.runtime.Protected(r, func(r chi.Router, withTx Middleware) {
 		r.Use(rs.runtime.RequireWrite)
 		r.With(withTx).Get("/", rs.status)
-		r.With(withTx).Put("/basics", rs.confirmBasics)
 		r.With(withTx).Put("/steps/{step}", rs.skipStep)
 		r.With(withTx).Post("/complete", rs.complete)
 		r.With(withTx).Put("/dismissal", rs.dismiss)
 	})
 	return r
-}
-
-type basicsRequest struct {
-	PresenceMode  string `json:"presence_mode"`
-	ParentAppUsed *bool  `json:"parent_app_used"`
 }
 
 type skipRequest struct {
@@ -86,27 +80,6 @@ func (rs *Resource) status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rs.runtime.Respond(w, r, http.StatusOK, status, "")
-}
-
-func (rs *Resource) confirmBasics(w http.ResponseWriter, r *http.Request) {
-	tenantID, accountID, ok := rs.actor(w, r)
-	if !ok {
-		return
-	}
-	var req basicsRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		rs.runtime.Failure(w, r, http.StatusBadRequest, err)
-		return
-	}
-	if req.ParentAppUsed == nil {
-		rs.runtime.Failure(w, r, http.StatusBadRequest, errors.New("parent_app_used is required"))
-		return
-	}
-	if err := rs.service.ConfirmBasics(r.Context(), tenantID, accountID, req.PresenceMode, *req.ParentAppUsed); err != nil {
-		rs.fail(w, r, err)
-		return
-	}
-	rs.respondStatus(w, r, tenantID, accountID)
 }
 
 func (rs *Resource) skipStep(w http.ResponseWriter, r *http.Request) {
@@ -181,10 +154,6 @@ func (rs *Resource) fail(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, schoolsetup.ErrUnknownStep):
 		rs.runtime.Failure(w, r, http.StatusNotFound, err)
 	case errors.Is(err, schoolsetup.ErrCompleted), errors.Is(err, schoolsetup.ErrIncomplete):
-		rs.runtime.Failure(w, r, http.StatusConflict, err)
-	case errors.Is(err, schoolsetup.ErrInvalidPresenceMode), errors.Is(err, schoolsetup.ErrStepNotSkippable):
-		rs.runtime.Failure(w, r, http.StatusBadRequest, err)
-	case errors.Is(err, schoolsetup.ErrPresenceModeBlocked):
 		rs.runtime.Failure(w, r, http.StatusConflict, err)
 	default:
 		rs.runtime.Failure(w, r, http.StatusInternalServerError, err)

@@ -9,34 +9,37 @@ Architekturentscheidung zulässt.
 ## Kontext
 
 Eine neue OGS soll nach der Anlage durch den Operator ohne moto startklar
-werden. Ein Assistent führt Schul-Admins durch sieben Schritte:
+werden. Ein Assistent führt Schul-Admins durch sechs Schritte:
 
-1. So arbeitet ihr: Anwesenheitsart, Betreuungsplan, feste Gruppen oder offene
-   Betreuung, Eltern-App
-2. Team einladen
-3. Räume anlegen (nur bei Anwesenheit pro Raum)
-4. Gruppen anlegen (nur bei festen Gruppen)
-5. Kinder anlegen
-6. Eltern einladen (nur wenn die Schule die Eltern-App nutzt)
-7. Abschluss
+1. Team einladen
+2. Räume anlegen (nur bei Anwesenheit pro Raum)
+3. Gruppen anlegen (nur bei festen Gruppen)
+4. Kinder anlegen
+5. Eltern einladen
+6. Abschluss
 
-Jeder Schritt lässt sich überspringen. Schritte 2 bis 6 gelten als erledigt,
+Jeder Schritt lässt sich überspringen. Schritte 1 bis 5 gelten als erledigt,
 sobald es mindestens einen passenden Datensatz gibt. Der Fortschritt gilt für
 die ganze Schule, das Ausblenden des Assistenten nur für die Person.
 
+Der Assistent fragt nicht, wie die OGS arbeitet. Eine neue Schule startet mit
+den Standardwerten der Einstellungen; Gruppenmodus und Betreuungsplan ändert
+sie in den Einstellungen, die Anwesenheitsart ändert moto. Ein erster Schritt
+„So arbeitet Ihre OGS“ mit Anwesenheitsart, Betreuungsplan, Gruppenmodus und
+Eltern-App war vorgesehen und wurde vor dem Merge wieder gestrichen.
+
 Daraus entstehen zwei Arten von Daten:
 
-- **Zustand, den der Assistent schreibt:** Antworten aus Schritt 1, die keine
-  Einstellung sind (Eltern-App), übersprungene Schritte, Abschluss der Schule,
-  Ausblenden pro Person.
+- **Zustand, den der Assistent schreibt:** übersprungene Schritte, Abschluss
+  der Schule, Ausblenden pro Person.
 - **Fortschritt, den der Assistent liest:** ob es Räume, Einladungen, Gruppen,
   Kinder und Eltern-Einladungen gibt. Diese Tabellen gehören fünf Ownern.
 
 ## Entscheidung
 
 1. **Der Zustand gehört `settings-platform`.** Zwei neue Tabellen:
-   `config.school_setups` (eine Zeile pro Schule: Eltern-App-Antwort,
-   übersprungene Schritte, Abschlusszeitpunkt) und
+   `config.school_setups` (eine Zeile pro Schule: übersprungene Schritte,
+   Abschlusszeitpunkt) und
    `config.school_setup_dismissals` (eine Zeile pro Schule und Konto). Beides
    ist Konfiguration der Schule wie `config.home_block_policies` und
    `config.home_layouts`, die `settings-platform` schon besitzt. Ein eigener
@@ -61,15 +64,14 @@ Daraus entstehen zwei Arten von Daten:
    Die Projektion besitzt keine Tabelle und schreibt nichts. Sie ist kein
    persistentes Read-Model.
 3. **Derselbe Owner `school-setup` setzt den Assistenten zusammen.** Er liest
-   die Projektion, hält den eigenen Zustand und schreibt einmal in die
-   Einstellungen; die Tabellen bleiben bei `settings-platform`. Die Routen
+   die Projektion und hält den eigenen Zustand; die Tabellen bleiben bei
+   `settings-platform`. In die Einstellungen schreibt er nicht. Die Routen
    unter `/api/school-setup` (Paket `modules/schoolsetup/http`, Rolle `http`)
    verlangen `config:update`:
 
    | Route | Zweck |
    |---|---|
    | `GET /` | Zustand für die aufrufende Person |
-   | `PUT /basics` | Anwesenheitsart und Eltern-App bestätigen |
    | `PUT /steps/{step}` | Schritt überspringen oder zurücknehmen |
    | `POST /complete` | Einrichtung für die Schule abschließen |
    | `PUT /dismissal` | Assistent für die Person aus- oder einblenden |
@@ -78,25 +80,19 @@ Daraus entstehen zwei Arten von Daten:
    Zustand und fragt die Projektion über den Consumer-Port `Progress` des
    öffentlichen Vertrags. Er liefert je Schritt „gilt“, „erledigt“ und
    „übersprungen“. Welche Schritte gelten, folgt aus den Einstellungen
-   `operations.presence_mode` und `operations.group_mode` und aus der
-   Eltern-App-Antwort. Gruppenmodus und Betreuungsplan schreibt der Client
-   über die vorhandene Settings-API. Das Paket `modules/schoolsetup/compose`
+   `operations.presence_mode` und `operations.group_mode`; die übrigen
+   Schritte gelten immer. Das Paket `modules/schoolsetup/compose`
    (Rolle `compose`) verdrahtet Speicher, Projektion und Service; die
    Root-Komposition baut daraus die Routen und hängt sie über eine Liste von
    Modul-Routen ein, nicht über ein neues Feld in `api.API`. Der Speicher
    liegt bei den Tabellen, die er schreibt: `database/repositories/config`
    (`settings-platform`, Rolle `postgres`) erfüllt den Port `Store` des
    öffentlichen Vertrags.
-4. **Die Anwesenheitsart darf der Admin genau während der Einrichtung
-   setzen.** `operations.presence_mode` bleibt `AccessOperatorOnly`. Ein
-   eigener Befehl von `settings-platform` schreibt den Wert für Schul-Admins
-   nur, solange `config.school_setups.completed_at` leer ist. Er nutzt die
-   Operator-Orchestrierung (`OperatorSettingsService`) innerhalb der
-   Tenant-Transaktion der Anfrage: dieselbe Sperre `CheckPresenceModeSwitch`,
-   derselbe Side-Effect-Hook, dieselbe Broadcast-Meldung, und Anwesenheitsart
-   und Antworten werden gemeinsam gespeichert oder gar nicht. Nach dem
-   Abschluss ändert nur noch moto die Anwesenheitsart. NFC und
-   Web-Anwesenheit bleiben ausschließlich beim Operator.
+4. **Die Anwesenheitsart bleibt beim Operator.** `operations.presence_mode`
+   bleibt `AccessOperatorOnly`, auch während der Einrichtung. Der Assistent
+   liest den Wert nur, um zu entscheiden, ob der Schritt „Räume“ gilt. Die
+   Anwesenheitsart klärt moto mit der Schule beim Onboarding. NFC und
+   Web-Anwesenheit bleiben ebenfalls ausschließlich beim Operator.
 5. **Bestehende Schulen sehen den Assistenten nicht.** Die Migration legt für
    jede vorhandene Schule eine Zeile mit gesetztem `completed_at` an. Eine
    Schule ohne Zeile gilt als neu. Die Zeile entsteht beim ersten Schreiben
@@ -141,9 +137,9 @@ Rollen. Architektur-Altlasten und Composition-Surface bleiben unverändert.
   Benennt ein Owner eine der fünf Tabellen oder Spalten um, muss er die
   Projektion im selben Change anpassen. Die Integrationstests der Projektion
   schlagen dann fehl.
-- Die Eltern-App-Antwort ist bewusst keine Einstellung. Wird die Eltern-App
-  später eine echte Einstellung (z. B. abhängig vom Tarif), ersetzt diese die
-  Antwort, und die Spalte entfällt.
+- Der Schritt „Eltern einladen“ gilt für jede Schule. Nutzt eine Schule die
+  Eltern-App nicht, überspringt sie ihn. Wird die Eltern-App später eine echte
+  Einstellung (z. B. abhängig vom Tarif), kann sie den Schritt ausblenden.
 - Der Assistent erscheint nur Konten mit `config:update`. Das Ausblenden ist
   keine Berechtigungsgrenze: Jede Seite, auf die ein Schritt führt, prüft ihre
   Rechte selbst.

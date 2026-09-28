@@ -139,7 +139,6 @@ interface ChecklistProps {
   readonly helpHref: (topic: HelpTopicId) => string;
   readonly helpGroupHref: (group: string) => string;
   readonly onExpand: (step: SchoolSetupStepKey | null) => void;
-  readonly onOpenBasics: () => void;
   readonly onStartTour: (step: SchoolSetupStepKey) => void;
   readonly onSkip: (step: SchoolSetupStepKey, skipped: boolean) => void;
   readonly onComplete: () => void;
@@ -162,7 +161,6 @@ export function SchoolSetupChecklist({
   helpHref,
   helpGroupHref,
   onExpand,
-  onOpenBasics,
   onStartTour,
   onSkip,
   onComplete,
@@ -335,19 +333,7 @@ export function SchoolSetupChecklist({
                         </p>
                       )}
                       <div className="flex flex-wrap gap-2">
-                        {step.key === "basics" ? (
-                          <Button
-                            type="button"
-                            variant="primary"
-                            size="compact"
-                            onClick={onOpenBasics}
-                          >
-                            {step.done
-                              ? "Antworten ändern"
-                              : "Fragen beantworten"}
-                          </Button>
-                        ) : (
-                          !step.done &&
+                        {!step.done &&
                           (blockedBy ? (
                             <Button
                               type="button"
@@ -369,8 +355,7 @@ export function SchoolSetupChecklist({
                                 Zeig es mir
                               </Button>
                             )
-                          ))
-                        )}
+                          ))}
                         {content.helpTopic && (
                           <ButtonLink
                             href={helpHref(content.helpTopic)}
@@ -380,7 +365,7 @@ export function SchoolSetupChecklist({
                             Anleitung lesen
                           </ButtonLink>
                         )}
-                        {step.key !== "basics" && !step.done && (
+                        {!step.done && (
                           <Button
                             type="button"
                             variant="ghost"

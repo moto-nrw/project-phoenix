@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSeedSchoolSetupStepCompletesTheWizard pins that the demo school keeps
-// its configured presence mode, skips only the open steps, completes setup and
-// hides the wizard, all through the wizard routes.
+// TestSeedSchoolSetupStepCompletesTheWizard pins that the demo school skips
+// only the open steps, completes setup and hides the wizard, all through the
+// wizard routes.
 func TestSeedSchoolSetupStepCompletesTheWizard(t *testing.T) {
 	t.Parallel()
 
@@ -30,7 +30,6 @@ func TestSeedSchoolSetupStepCompletesTheWizard(t *testing.T) {
 		requests = append(requests, request{method: r.Method, path: r.URL.Path, body: body})
 		if r.Method == http.MethodGet {
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"basics":{"presence_mode":"binary"},"steps":[`+
-				`{"key":"basics","applies":true,"done":false,"skipped":false},`+
 				`{"key":"team","applies":true,"done":true,"skipped":false},`+
 				`{"key":"rooms","applies":false,"done":false,"skipped":false},`+
 				`{"key":"groups","applies":true,"done":false,"skipped":false},`+
@@ -44,13 +43,11 @@ func TestSeedSchoolSetupStepCompletesTheWizard(t *testing.T) {
 	rt := &Runtime{Client: newTestClient(srv.URL, false), TenantAuth: AuthRef{Token: "admin"}}
 	require.NoError(t, (seedSchoolSetupStep{}).Run(t.Context(), rt))
 
-	require.Len(t, requests, 5)
+	require.Len(t, requests, 4)
 	assert.Equal(t, request{method: http.MethodGet, path: "/api/school-setup", body: map[string]any{}}, requests[0])
-	assert.Equal(t, "/api/school-setup/basics", requests[1].path)
-	assert.Equal(t, map[string]any{"presence_mode": "binary", "parent_app_used": true}, requests[1].body)
-	assert.Equal(t, "/api/school-setup/steps/groups", requests[2].path, "only the open, applicable step is skipped")
-	assert.Equal(t, map[string]any{"skipped": true}, requests[2].body)
-	assert.Equal(t, "/api/school-setup/complete", requests[3].path)
-	assert.Equal(t, "/api/school-setup/dismissal", requests[4].path)
-	assert.Equal(t, map[string]any{"dismissed": true}, requests[4].body)
+	assert.Equal(t, "/api/school-setup/steps/groups", requests[1].path, "only the open, applicable step is skipped")
+	assert.Equal(t, map[string]any{"skipped": true}, requests[1].body)
+	assert.Equal(t, "/api/school-setup/complete", requests[2].path)
+	assert.Equal(t, "/api/school-setup/dismissal", requests[3].path)
+	assert.Equal(t, map[string]any{"dismissed": true}, requests[3].body)
 }

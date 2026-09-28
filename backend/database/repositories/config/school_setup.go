@@ -20,15 +20,13 @@ const (
 
 // schoolSetupRow is one config.school_setups row (#2832, ADR 0040).
 type schoolSetupRow struct {
-	ID                int64      `bun:"id,pk,autoincrement"`
-	TenantID          int64      `bun:"tenant_id,notnull"`
-	ParentAppUsed     *bool      `bun:"parent_app_used"`
-	SkippedSteps      []string   `bun:"skipped_steps,array,notnull"`
-	BasicsConfirmedAt *time.Time `bun:"basics_confirmed_at"`
-	CompletedAt       *time.Time `bun:"completed_at"`
-	UpdatedBy         *int64     `bun:"updated_by"`
-	CreatedAt         time.Time  `bun:"created_at,notnull,default:now()"`
-	UpdatedAt         time.Time  `bun:"updated_at,notnull,default:now()"`
+	ID           int64      `bun:"id,pk,autoincrement"`
+	TenantID     int64      `bun:"tenant_id,notnull"`
+	SkippedSteps []string   `bun:"skipped_steps,array,notnull"`
+	CompletedAt  *time.Time `bun:"completed_at"`
+	UpdatedBy    *int64     `bun:"updated_by"`
+	CreatedAt    time.Time  `bun:"created_at,notnull,default:now()"`
+	UpdatedAt    time.Time  `bun:"updated_at,notnull,default:now()"`
 }
 
 // SchoolSetupRepository implements schoolsetup.Store. Both tables belong to
@@ -61,12 +59,10 @@ func (r *SchoolSetupRepository) SetupOfSchool(ctx context.Context) (*schoolsetup
 		return nil, fmt.Errorf("find school setup: %w", err)
 	}
 	return &schoolsetup.State{
-		TenantID:          stored.TenantID,
-		ParentAppUsed:     stored.ParentAppUsed,
-		SkippedSteps:      stored.SkippedSteps,
-		BasicsConfirmedAt: stored.BasicsConfirmedAt,
-		CompletedAt:       stored.CompletedAt,
-		UpdatedBy:         stored.UpdatedBy,
+		TenantID:     stored.TenantID,
+		SkippedSteps: stored.SkippedSteps,
+		CompletedAt:  stored.CompletedAt,
+		UpdatedBy:    stored.UpdatedBy,
 	}, nil
 }
 
@@ -85,18 +81,14 @@ func (r *SchoolSetupRepository) StoreSetup(ctx context.Context, state *schoolset
 
 	_, err := r.runtime.DB(ctx).NewInsert().
 		Model(&schoolSetupRow{
-			TenantID:          state.TenantID,
-			ParentAppUsed:     state.ParentAppUsed,
-			SkippedSteps:      skipped,
-			BasicsConfirmedAt: state.BasicsConfirmedAt,
-			CompletedAt:       state.CompletedAt,
-			UpdatedBy:         state.UpdatedBy,
+			TenantID:     state.TenantID,
+			SkippedSteps: skipped,
+			CompletedAt:  state.CompletedAt,
+			UpdatedBy:    state.UpdatedBy,
 		}).
 		ModelTableExpr(tableSchoolSetups).
 		On("CONFLICT (tenant_id) DO UPDATE").
-		Set("parent_app_used = EXCLUDED.parent_app_used").
 		Set("skipped_steps = EXCLUDED.skipped_steps").
-		Set("basics_confirmed_at = EXCLUDED.basics_confirmed_at").
 		Set("completed_at = EXCLUDED.completed_at").
 		Set("updated_by = EXCLUDED.updated_by").
 		Set("updated_at = NOW()").

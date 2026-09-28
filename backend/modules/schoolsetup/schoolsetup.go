@@ -1,7 +1,7 @@
 // Package schoolsetup is the public contract of the onboarding wizard for new
-// schools (#2832, ADR 0040): the answers of the first step, the skipped
-// steps, completion and the personal hiding of the wizard. Progress is not
-// stored; the school-setup progress projection derives it on every read.
+// schools (#2832, ADR 0040): the skipped steps, completion and the personal
+// hiding of the wizard. Progress is not stored; the school-setup progress
+// projection derives it on every read.
 //
 // Every method expects the caller's tenant transaction on ctx.
 package schoolsetup
@@ -16,9 +16,6 @@ import (
 // Service drives the wizard of one school for the calling person.
 type Service interface {
 	Status(ctx context.Context, tenantID, accountID int64) (Status, error)
-	// ConfirmBasics stores the answers of the first step. The presence mode
-	// is written through Settings Platform in the same transaction.
-	ConfirmBasics(ctx context.Context, tenantID, accountID int64, presenceMode string, parentAppUsed bool) error
 	// SetStepSkipped skips a step or takes the skip back; an unknown step
 	// key returns ErrUnknownStep.
 	SetStepSkipped(ctx context.Context, tenantID, accountID int64, step string, skipped bool) error
@@ -31,9 +28,6 @@ type Service interface {
 type StepKey string
 
 const (
-	// StepBasics answers how the school works: presence mode, care plan,
-	// fixed groups or open care, parent app.
-	StepBasics StepKey = "basics"
 	// StepTeam invites the staff.
 	StepTeam StepKey = "team"
 	// StepRooms creates rooms. Only for schools that track rooms.
@@ -42,13 +36,12 @@ const (
 	StepGroups StepKey = "groups"
 	// StepStudents creates or imports the children.
 	StepStudents StepKey = "students"
-	// StepGuardians invites the parents. Only when the school uses the
-	// parent app.
+	// StepGuardians invites the parents.
 	StepGuardians StepKey = "guardians"
 )
 
 // StepKeys lists every step in wizard order.
-var StepKeys = []StepKey{StepBasics, StepTeam, StepRooms, StepGroups, StepStudents, StepGuardians}
+var StepKeys = []StepKey{StepTeam, StepRooms, StepGroups, StepStudents, StepGuardians}
 
 // ParseStepKey accepts the known step keys and nothing else.
 func ParseStepKey(raw string) (StepKey, bool) {
@@ -64,7 +57,6 @@ func ParseStepKey(raw string) (StepKey, bool) {
 // them; the wizard only compares.
 const (
 	PresenceModeDetailed = "detailed"
-	PresenceModeBinary   = "binary"
 	GroupModeFixedGroups = "fixed_groups"
 )
 
@@ -76,13 +68,11 @@ type Step struct {
 	Skipped bool   `json:"skipped"`
 }
 
-// Basics are the answers of the first step.
+// Basics are the school's settings that decide which steps apply. The wizard
+// does not ask for them: a new school starts with the registry defaults.
 type Basics struct {
-	PresenceMode     string `json:"presence_mode"`
-	GroupMode        string `json:"group_mode"`
-	TimetableEnabled bool   `json:"timetable_enabled"`
-	// ParentAppUsed is nil until the school answered.
-	ParentAppUsed *bool `json:"parent_app_used"`
+	PresenceMode string `json:"presence_mode"`
+	GroupMode    string `json:"group_mode"`
 }
 
 // Status is the wizard's whole read model.
@@ -96,23 +86,13 @@ type Status struct {
 }
 
 var (
-	// ErrCompleted rejects writes after the school finished setup. Once
-	// completed, the presence mode is operator-only again.
+	// ErrCompleted rejects writes after the school finished setup.
 	ErrCompleted = errors.New("school setup is already completed")
 	// ErrIncomplete rejects completion while an applicable step is neither
 	// done nor skipped.
 	ErrIncomplete = errors.New("school setup has open steps")
-	// ErrStepNotSkippable rejects skipping the first step: the others depend
-	// on its answers.
-	ErrStepNotSkippable = errors.New("the first setup step cannot be skipped")
 	// ErrUnknownStep rejects a step key the wizard does not have.
 	ErrUnknownStep = errors.New("unknown setup step")
-	// ErrInvalidPresenceMode rejects a presence mode outside the registry
-	// options.
-	ErrInvalidPresenceMode = errors.New("invalid presence mode")
-	// ErrPresenceModeBlocked reports that Settings Platform refused the
-	// presence mode switch because attendance of the day is still open.
-	ErrPresenceModeBlocked = errors.New("presence mode switch is blocked while attendance is open")
 )
 
 // ConflictCode gives the client a stable code for each conflict of the
@@ -123,8 +103,6 @@ func ConflictCode(err error) string {
 		return "school_setup_completed"
 	case errors.Is(err, ErrIncomplete):
 		return "school_setup_incomplete"
-	case errors.Is(err, ErrPresenceModeBlocked):
-		return "presence_mode_switch_blocked"
 	default:
 		return "conflict"
 	}
@@ -134,15 +112,10 @@ func ConflictCode(err error) string {
 // is new and has not started; every school that existed when the tables were
 // created got a completed state, so it never sees the wizard.
 type State struct {
-	TenantID int64
-	// ParentAppUsed is the school's answer in the first step. It is not a
-	// setting: it only decides whether the wizard shows the parent step. nil
-	// means the school has not answered yet.
-	ParentAppUsed     *bool
-	SkippedSteps      []string
-	BasicsConfirmedAt *time.Time
-	CompletedAt       *time.Time
-	UpdatedBy         *int64
+	TenantID     int64
+	SkippedSteps []string
+	CompletedAt  *time.Time
+	UpdatedBy    *int64
 }
 
 // Skipped reports whether the school skipped the step.
@@ -195,11 +168,4 @@ type Progress interface {
 type Settings interface {
 	PresenceMode(ctx context.Context) (string, error)
 	GroupMode(ctx context.Context) (string, error)
-	TimetableEnabled(ctx context.Context) (bool, error)
 }
-
-// PresenceModeWriter writes the school's presence mode on behalf of a school
-// admin, in the caller's transaction, with the open-attendance guard, the
-// side effects and the broadcast of an operator's write. A refused switch
-// returns ErrPresenceModeBlocked.
-type PresenceModeWriter func(ctx context.Context, tenantID, accountID int64, mode string) error

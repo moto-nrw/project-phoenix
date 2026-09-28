@@ -22,16 +22,13 @@ function state(overrides: Partial<SchoolSetupState> = {}): SchoolSetupState {
     basics: {
       presenceMode: "detailed",
       groupMode: "fixed_groups",
-      timetableEnabled: true,
-      parentAppUsed: null,
     },
     steps: [
-      { key: "basics", applies: true, done: true, skipped: false },
-      { key: "team", applies: true, done: false, skipped: true },
+      { key: "team", applies: true, done: true, skipped: false },
       { key: "rooms", applies: false, done: false, skipped: false },
       { key: "groups", applies: true, done: false, skipped: false },
       { key: "students", applies: true, done: false, skipped: false },
-      { key: "guardians", applies: false, done: false, skipped: false },
+      { key: "guardians", applies: true, done: false, skipped: true },
     ],
     ...overrides,
   };
@@ -40,10 +37,10 @@ function state(overrides: Partial<SchoolSetupState> = {}): SchoolSetupState {
 describe("school setup steps", () => {
   it("only lists the steps that apply to the school", () => {
     expect(applicableSteps(state()).map((step) => step.key)).toEqual([
-      "basics",
       "team",
       "groups",
       "students",
+      "guardians",
     ]);
   });
 
@@ -58,8 +55,8 @@ describe("school setup steps", () => {
   it("reaches the closing screen once nothing is open", () => {
     const finished = state({
       steps: [
-        { key: "basics", applies: true, done: true, skipped: false },
-        { key: "team", applies: true, done: false, skipped: true },
+        { key: "team", applies: true, done: true, skipped: false },
+        { key: "rooms", applies: true, done: false, skipped: true },
       ],
     });
     expect(firstOpenStep(finished)).toBeNull();
@@ -70,6 +67,7 @@ describe("school setup steps", () => {
       "Das ganze Team einladen",
       "Alle Gruppen anlegen",
       "Alle Kinder übernehmen",
+      "Alle Eltern einladen",
     ]);
   });
 

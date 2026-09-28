@@ -36,15 +36,7 @@ vi.mock("./use-school-setup", () => ({
   }),
 }));
 
-const setSettingValue = vi.fn((_key: string, _value: unknown) =>
-  Promise.resolve<string | null>(null),
-);
-vi.mock("~/lib/settings-api", () => ({
-  setSettingValue: (key: string, value: unknown) => setSettingValue(key, value),
-}));
-
 const api = vi.hoisted(() => ({
-  confirmSchoolSetupBasics: vi.fn(),
   setSchoolSetupStepSkipped: vi.fn(),
   completeSchoolSetup: vi.fn(),
   setSchoolSetupDismissed: vi.fn(),
@@ -63,11 +55,8 @@ function newSchool(): SchoolSetupState {
     basics: {
       presenceMode: "detailed",
       groupMode: "fixed_groups",
-      timetableEnabled: true,
-      parentAppUsed: null,
     },
     steps: [
-      { key: "basics", applies: true, done: false, skipped: false },
       { key: "team", applies: true, done: false, skipped: false },
       { key: "rooms", applies: true, done: false, skipped: false },
       { key: "groups", applies: true, done: false, skipped: false },
@@ -199,16 +188,10 @@ async function waitForHighlight() {
   );
 }
 
-function afterBasics(): SchoolSetupState {
-  const state = newSchool();
-  state.steps[0] = { key: "basics", applies: true, done: true, skipped: false };
-  return state;
-}
-
 /** Team, Räume und Gruppen sind erledigt; als Nächstes kommen die Kinder. */
 function studentsNext(): SchoolSetupState {
-  const state = afterBasics();
-  for (const index of [1, 2, 3]) {
+  const state = newSchool();
+  for (const index of [0, 1, 2]) {
     const step = state.steps[index];
     if (step) state.steps[index] = { ...step, done: true };
   }
@@ -225,15 +208,24 @@ describe("SchoolSetupWizard", () => {
     pathname = "/dashboard";
   });
 
-  it("opens the basics once per sign-in, afterwards only the beacon", () => {
+  it("opens the checklist once per sign-in, afterwards only the beacon", () => {
     const { unmount } = render(<SchoolSetupWizard />);
-    expect(screen.getByText("So arbeitet Ihre OGS")).toBeInTheDocument();
+    // Keine Fragen vorweg: Die Liste beginnt mit dem Team.
+    expect(
+      screen.getByRole("region", { name: "Erste Schritte mit moto" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^Erste Person ins Team einladen/ }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByText("So arbeitet Ihre OGS")).not.toBeInTheDocument();
     unmount();
 
     render(<SchoolSetupWizard />);
-    expect(screen.queryByText("So arbeitet Ihre OGS")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Erste Schritte öffnen, 6 offen" }),
+      screen.queryByRole("region", { name: "Erste Schritte mit moto" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Erste Schritte öffnen, 5 offen" }),
     ).toBeInTheDocument();
   });
 
@@ -252,87 +244,25 @@ describe("SchoolSetupWizard", () => {
     expect(screen.queryByText(/Erste Schritte/)).not.toBeInTheDocument();
   });
 
-  it("explains every basic question behind a question mark", () => {
-    render(<SchoolSetupWizard />);
-    expect(
-      screen.getByLabelText("Was heißt das? Arbeiten Sie mit festen Gruppen?"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Jedes Kind gehört zu einer Gruppe mit eigener Leitung/),
-    ).toBeInTheDocument();
-  });
-
-  it("saves the answers and continues in the checklist", async () => {
-    api.confirmSchoolSetupBasics.mockImplementation(async () => {
-      setupState = afterBasics();
-      return setupState;
-    });
-    render(<SchoolSetupWizard />);
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Anwesend oder abwesend" }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Offene Betreuung" }));
-    const parentQuestion = screen.getByRole("group", {
-      name: /Sollen Eltern die Eltern-App nutzen\?/,
-    });
-    fireEvent.click(
-      Array.from(parentQuestion.querySelectorAll("button")).find(
-        (button) => button.textContent === "Nein",
-      )!,
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Speichern und weiter" }),
-    );
-
-    await waitFor(() =>
-      expect(api.confirmSchoolSetupBasics).toHaveBeenCalledWith(
-        "binary",
-        false,
-      ),
-    );
-    expect(setSettingValue).toHaveBeenCalledWith(
-      "operations.group_mode",
-      "open_care",
-    );
-    expect(setSettingValue).toHaveBeenCalledWith("timetable.enabled", true);
-    expect(
-      await screen.findByRole("button", {
-        name: /^Erste Person ins Team einladen/,
-      }),
-    ).toHaveAttribute("aria-expanded", "true");
-  });
-
-  it("asks for the parent app answer before saving", () => {
-    render(<SchoolSetupWizard />);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Speichern und weiter" }),
-    );
-    expect(
-      screen.getByText(
-        "Bitte sagen Sie noch, ob Eltern die Eltern-App nutzen sollen.",
-      ),
-    ).toBeInTheDocument();
-    expect(api.confirmSchoolSetupBasics).not.toHaveBeenCalled();
-  });
-
   it("shows the checklist with progress and the next open step expanded", () => {
-    setupState = afterBasics();
+    const state = newSchool();
+    state.steps[0] = { key: "team", applies: true, done: true, skipped: false };
+    setupState = state;
     render(<SchoolSetupWizard />);
 
     const checklist = screen.getByRole("region", {
       name: "Erste Schritte mit moto",
     });
-    expect(checklist).toHaveTextContent("1 von 6 erledigt");
+    expect(checklist).toHaveTextContent("1 von 5 erledigt");
     expect(
-      screen.getByRole("progressbar", { name: "1 von 6 Schritten erledigt" }),
+      screen.getByRole("progressbar", { name: "1 von 5 Schritten erledigt" }),
     ).toHaveAttribute("aria-valuenow", "1");
     expect(
       screen.getByRole("button", { name: /^Erste Person ins Team einladen/ }),
-    ).toHaveAttribute("aria-expanded", "true");
+    ).toHaveAttribute("aria-expanded", "false");
     expect(
       screen.getByRole("button", { name: /^Ersten Raum anlegen/ }),
-    ).toHaveAttribute("aria-expanded", "false");
+    ).toHaveAttribute("aria-expanded", "true");
     expect(
       screen.getByRole("button", { name: "Zeig es mir" }),
     ).toBeInTheDocument();
@@ -341,14 +271,14 @@ describe("SchoolSetupWizard", () => {
       screen.getByRole("button", { name: "Checkliste einklappen" }),
     );
     expect(
-      screen.getByRole("button", { name: "Erste Schritte öffnen, 5 offen" }),
+      screen.getByRole("button", { name: "Erste Schritte öffnen, 4 offen" }),
     ).toBeInTheDocument();
   });
 
   it("hides the checklist for good only after a confirmation", async () => {
-    setupState = afterBasics();
+    setupState = newSchool();
     api.setSchoolSetupDismissed.mockResolvedValue({
-      ...afterBasics(),
+      ...newSchool(),
       dismissed: true,
     });
     render(<SchoolSetupWizard />);
@@ -379,7 +309,7 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("offers the parent tour only once there is a child", () => {
-    setupState = afterBasics();
+    setupState = newSchool();
     const { unmount } = render(<SchoolSetupWizard />);
 
     fireEvent.click(
@@ -402,8 +332,8 @@ describe("SchoolSetupWizard", () => {
 
     // Mit einem Kind gibt es die Tour. Neue Sitzung, damit die Liste aufgeht.
     sessionStorage.clear();
-    setupState = afterBasics();
-    setupState.steps[4] = {
+    setupState = newSchool();
+    setupState.steps[3] = {
       key: "students",
       applies: true,
       done: true,
@@ -424,8 +354,8 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("shows how to enter a parent, and skips that when one is already there", async () => {
-    setupState = afterBasics();
-    setupState.steps[4] = {
+    setupState = newSchool();
+    setupState.steps[3] = {
       key: "students",
       applies: true,
       done: true,
@@ -493,7 +423,7 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("lets the person open any step of the checklist", () => {
-    setupState = afterBasics();
+    setupState = newSchool();
     render(<SchoolSetupWizard />);
 
     fireEvent.click(
@@ -509,10 +439,10 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("skips a step and moves on", async () => {
-    setupState = afterBasics();
+    setupState = newSchool();
     api.setSchoolSetupStepSkipped.mockImplementation(async () => {
-      const next = afterBasics();
-      next.steps[1] = {
+      const next = newSchool();
+      next.steps[0] = {
         key: "team",
         applies: true,
         done: false,
@@ -536,7 +466,7 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("starts the tour in the sidebar and follows the clicks to the page", async () => {
-    setupState = afterBasics();
+    setupState = newSchool();
     const { rerender } = render(<SchoolSetupWizard />);
     const database = visibleTarget("nav-database");
 
@@ -570,7 +500,7 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("does not skip a sidebar station whose entry sits in a folded area", async () => {
-    setupState = afterBasics();
+    setupState = newSchool();
     render(<SchoolSetupWizard />);
     visibleTarget("nav-group-verwaltung");
     // Eingeklappt: Die Bereiche bleiben im Baum, sind aber inert.
@@ -589,7 +519,7 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("starts on the page itself when the person is already there", async () => {
-    setupState = afterBasics();
+    setupState = newSchool();
     pathname = "/database/personal";
     render(<SchoolSetupWizard />);
     const create = visibleTarget("create");
@@ -619,7 +549,7 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("goes back into the sidebar to show the way again, without jumping forward", async () => {
-    setupState = afterBasics();
+    setupState = newSchool();
     pathname = "/database/personal";
     render(<SchoolSetupWizard />);
     visibleTarget("create");
@@ -648,7 +578,7 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("tells the person to click the spot when there is no Weiter", async () => {
-    setupState = afterBasics();
+    setupState = newSchool();
     pathname = "/database/personal";
     render(<SchoolSetupWizard />);
     const create = visibleTarget("create");
@@ -675,7 +605,7 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("waits for the new page instead of highlighting a button of the old one", async () => {
-    setupState = afterBasics();
+    setupState = newSchool();
     pathname = "/database/groups";
     const { rerender } = render(<SchoolSetupWizard />);
     visibleTarget("nav-database");
@@ -703,7 +633,7 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("looks again when the highlighted spot is replaced", async () => {
-    setupState = afterBasics();
+    setupState = newSchool();
     pathname = "/database/personal";
     render(<SchoolSetupWizard />);
     const first = visibleTarget("create");
@@ -823,7 +753,7 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("ends the tour when the person opens another page", async () => {
-    setupState = afterBasics();
+    setupState = newSchool();
     pathname = "/database/personal";
     const { rerender } = render(<SchoolSetupWizard />);
     visibleTarget("create");
@@ -847,7 +777,7 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("shows no bubble while it is still looking for the next spot", async () => {
-    setupState = afterBasics();
+    setupState = newSchool();
     pathname = "/database/personal";
     render(<SchoolSetupWizard />);
     const create = visibleTarget("create");
@@ -871,7 +801,7 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("opens the page itself when there is no sidebar", async () => {
-    setupState = afterBasics();
+    setupState = newSchool();
     render(<SchoolSetupWizard />);
 
     fireEvent.click(screen.getByRole("button", { name: "Zeig es mir" }));
@@ -914,23 +844,18 @@ describe("SchoolSetupWizard", () => {
     await waitFor(() => expect(api.completeSchoolSetup).toHaveBeenCalled());
   });
 
-  it("explains a refused presence mode switch", async () => {
+  it("says so when a step could not be saved", async () => {
     const { SchoolSetupError } = await import("~/lib/school-setup-api");
-    api.confirmSchoolSetupBasics.mockRejectedValue(new SchoolSetupError(409));
-    setupState = {
-      ...newSchool(),
-      basics: { ...newSchool().basics, parentAppUsed: true },
-    };
+    api.setSchoolSetupStepSkipped.mockRejectedValue(new SchoolSetupError(409));
     render(<SchoolSetupWizard />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Speichern und weiter" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Überspringen" }));
 
     expect(
       await screen.findByText(
-        "Heute sind schon Kinder angemeldet. Die Anwesenheitsart können Sie dann nur über das moto-Team ändern.",
+        "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
       ),
     ).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
   });
 });

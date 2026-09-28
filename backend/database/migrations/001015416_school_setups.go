@@ -28,9 +28,8 @@ func init() {
 // projection derives it from rooms, invitations, groups, students and guardian
 // invitations on every read.
 //
-// config.school_setups holds one row per school: the answers from the first
-// step that are not settings (parent app), the steps the school skipped and
-// when setup was completed. A school WITHOUT a row is new and has not started.
+// config.school_setups holds one row per school: the steps the school skipped
+// and when setup was completed. A school WITHOUT a row is new and has not started.
 //
 // config.school_setup_dismissals holds one row per (school, account): the
 // person hid the wizard. Hiding is personal; progress belongs to the school.
@@ -58,15 +57,13 @@ func schoolSetupsUp(ctx context.Context, db *bun.DB) error {
 
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS config.school_setups (
-			id                  BIGSERIAL PRIMARY KEY,
-			tenant_id           BIGINT      NOT NULL,
-			parent_app_used     BOOLEAN,
-			skipped_steps       TEXT[]      NOT NULL DEFAULT '{}',
-			basics_confirmed_at TIMESTAMPTZ,
-			completed_at        TIMESTAMPTZ,
-			updated_by          BIGINT,
-			created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			id            BIGSERIAL PRIMARY KEY,
+			tenant_id     BIGINT      NOT NULL,
+			skipped_steps TEXT[]      NOT NULL DEFAULT '{}',
+			completed_at  TIMESTAMPTZ,
+			updated_by    BIGINT,
+			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			CONSTRAINT uq_school_setups_tenant
 				UNIQUE (tenant_id),
 			CONSTRAINT fk_school_setups_tenant
@@ -88,8 +85,8 @@ func schoolSetupsUp(ctx context.Context, db *bun.DB) error {
 				FOREIGN KEY (account_id) REFERENCES auth.accounts(id) ON DELETE CASCADE
 		);
 
-		INSERT INTO config.school_setups (tenant_id, basics_confirmed_at, completed_at)
-		SELECT id, NOW(), NOW() FROM platform.schools
+		INSERT INTO config.school_setups (tenant_id, completed_at)
+		SELECT id, NOW() FROM platform.schools
 		ON CONFLICT (tenant_id) DO NOTHING;
 
 		DROP TRIGGER IF EXISTS update_school_setups_updated_at ON config.school_setups;

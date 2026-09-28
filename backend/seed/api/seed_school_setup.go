@@ -17,9 +17,6 @@ func (seedSchoolSetupStep) Name() string { return "Completing school setup" }
 
 type seedSchoolSetupStatus struct {
 	Data struct {
-		Basics struct {
-			PresenceMode string `json:"presence_mode"`
-		} `json:"basics"`
 		Steps []struct {
 			Key     string `json:"key"`
 			Applies bool   `json:"applies"`
@@ -43,17 +40,9 @@ func (seedSchoolSetupStep) Run(_ context.Context, rt *Runtime) error {
 	if err := parseJSON(raw, &status); err != nil {
 		return fmt.Errorf("decode school setup: %w", err)
 	}
-	// Confirm the presence mode the profile already configured: the wizard
-	// must not change how the demo school works.
-	if _, err := rt.Client.Put("/api/school-setup/basics", map[string]any{
-		"presence_mode":   status.Data.Basics.PresenceMode,
-		"parent_app_used": true,
-	}); err != nil {
-		return fmt.Errorf("confirm school setup basics: %w", err)
-	}
 	skipped := 0
 	for _, step := range status.Data.Steps {
-		if step.Key == "basics" || !step.Applies || step.Done || step.Skipped {
+		if !step.Applies || step.Done || step.Skipped {
 			continue
 		}
 		if _, err := rt.Client.Put("/api/school-setup/steps/"+step.Key, map[string]any{"skipped": true}); err != nil {

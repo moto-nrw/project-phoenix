@@ -921,10 +921,7 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	api.rateLimiting = os.Getenv("RATE_LIMIT_ENABLED") == "true"
 	api.authRateLimit = os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE")
 	schoolSetup, err := newSchoolSetupRoute(schoolSetupCompose.Dependencies{
-		Settings:       api.Services.Settings,
-		OpenAttendance: api.Services.OpenAttendanceChecker(),
-		Notify:         api.Services.SettingsChangedNotifier(),
-		SideEffect:     api.Services.SettingsSideEffects.Dispatch,
+		Settings: api.Services.Settings,
 	}, db)
 	if err != nil {
 		return nil, err

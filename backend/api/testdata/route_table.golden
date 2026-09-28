@@ -999,7 +999,6 @@ PUT /api/rooms/{id}
 PUT /api/schedules/dateframes/{id}
 PUT /api/schedules/recurrence-rules/{id}
 PUT /api/schedules/timeframes/{id}
-PUT /api/school-setup/basics
 PUT /api/school-setup/dismissal
 PUT /api/school-setup/steps/{step}
 PUT /api/settings/home-layout

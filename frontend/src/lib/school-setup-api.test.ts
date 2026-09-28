@@ -27,11 +27,9 @@ describe("mapSchoolSetupState", () => {
         basics: {
           presence_mode: "binary",
           group_mode: "open_care",
-          timetable_enabled: true,
-          parent_app_used: false,
         },
         steps: [
-          { key: "basics", applies: true, done: true, skipped: false },
+          { key: "team", applies: true, done: true, skipped: false },
           { key: "rooms", applies: false, done: false, skipped: false },
         ],
       }),
@@ -41,23 +39,27 @@ describe("mapSchoolSetupState", () => {
       basics: {
         presenceMode: "binary",
         groupMode: "open_care",
-        timetableEnabled: true,
-        parentAppUsed: false,
       },
       steps: [
-        { key: "basics", applies: true, done: true, skipped: false },
+        { key: "team", applies: true, done: true, skipped: false },
         { key: "rooms", applies: false, done: false, skipped: false },
       ],
     });
   });
 
-  it("keeps an unanswered parent app question open and drops unknown steps", () => {
+  it("falls back to the registry defaults and drops unknown steps", () => {
     const state = mapSchoolSetupState({
-      basics: { parent_app_used: null },
-      steps: [{ key: "someday", applies: true }],
+      basics: {},
+      // „basics“ war der gestrichene erste Schritt; ein alter Stand zeigt ihn nicht.
+      steps: [
+        { key: "someday", applies: true },
+        { key: "basics", applies: true },
+      ],
     });
-    expect(state.basics.parentAppUsed).toBeNull();
-    expect(state.basics.presenceMode).toBe("detailed");
+    expect(state.basics).toEqual({
+      presenceMode: "detailed",
+      groupMode: "fixed_groups",
+    });
     expect(state.steps).toEqual([]);
   });
 });

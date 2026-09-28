@@ -11,10 +11,10 @@ export interface SchoolSetupStepContent {
   description: string;
   /** Hinweise, die eine Entscheidung verändern. */
   hints: readonly string[];
-  /** Seite, auf der die Person den Schritt erledigt. Fehlt beim ersten Schritt. */
-  href?: string;
-  actionLabel?: string;
-  helpTopic?: HelpTopicId;
+  /** Seite, auf der die Person den Schritt erledigt. */
+  href: string;
+  actionLabel: string;
+  helpTopic: HelpTopicId;
   /**
    * Schritt, der erst erledigt sein muss, bevor die Tour hier Sinn ergibt,
    * mit dem Satz, der das sagt. Überspringen reicht nicht: ohne Kind gibt es
@@ -26,11 +26,6 @@ export interface SchoolSetupStepContent {
 export const SCHOOL_SETUP_STEP_CONTENT: Readonly<
   Record<SchoolSetupStepKey, SchoolSetupStepContent>
 > = {
-  basics: {
-    title: "So arbeitet Ihre OGS",
-    description: "Ihre Antworten bestimmen, welche Schritte folgen.",
-    hints: [],
-  },
   team: {
     // Singular mit „erste/n“: Ein Datensatz hakt den Schritt ab (#2832).
     // Der Satz darunter sagt, dass die übrigen danach genauso gehen.

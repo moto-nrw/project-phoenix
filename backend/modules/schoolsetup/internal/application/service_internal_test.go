@@ -66,9 +66,8 @@ func (f *fakeSetupProgress) Facts(context.Context, int64) (schoolsetup.Facts, er
 }
 
 type fakeSetupSettings struct {
-	presenceMode     string
-	groupMode        string
-	timetableEnabled bool
+	presenceMode string
+	groupMode    string
 }
 
 func (f *fakeSetupSettings) PresenceMode(context.Context) (string, error) {
@@ -79,17 +78,11 @@ func (f *fakeSetupSettings) GroupMode(context.Context) (string, error) {
 	return f.groupMode, nil
 }
 
-func (f *fakeSetupSettings) TimetableEnabled(context.Context) (bool, error) {
-	return f.timetableEnabled, nil
-}
-
 type setupFixture struct {
 	service  *Service
 	store    *fakeSchoolSetupStore
 	progress *fakeSetupProgress
 	settings *fakeSetupSettings
-	written  []string
-	writeErr error
 	now      time.Time
 }
 
@@ -99,23 +92,12 @@ func newSetupFixture(t *testing.T) *setupFixture {
 		store:    newFakeSchoolSetupStore(),
 		progress: &fakeSetupProgress{},
 		settings: &fakeSetupSettings{
-			presenceMode:     schoolsetup.PresenceModeDetailed,
-			groupMode:        schoolsetup.GroupModeFixedGroups,
-			timetableEnabled: true,
+			presenceMode: schoolsetup.PresenceModeDetailed,
+			groupMode:    schoolsetup.GroupModeFixedGroups,
 		},
 		now: time.Date(2026, time.September, 22, 9, 30, 0, 0, time.UTC),
 	}
-	presence := func(_ context.Context, tenantID, accountID int64, mode string) error {
-		assert.Equal(t, int64(setupTenant), tenantID)
-		assert.Equal(t, int64(setupAdmin), accountID)
-		if f.writeErr != nil {
-			return f.writeErr
-		}
-		f.written = append(f.written, mode)
-		f.settings.presenceMode = mode
-		return nil
-	}
-	service, err := New(f.store, f.progress, f.settings, presence, func() time.Time { return f.now })
+	service, err := New(f.store, f.progress, f.settings, func() time.Time { return f.now })
 	require.NoError(t, err)
 	f.service = service
 	return f
@@ -141,7 +123,7 @@ func stepByKey(t *testing.T, status schoolsetup.Status, step schoolsetup.StepKey
 
 func TestNewRequiresEveryDependency(t *testing.T) {
 	t.Parallel()
-	_, err := New(nil, &fakeSetupProgress{}, &fakeSetupSettings{}, func(context.Context, int64, int64, string) error { return nil }, time.Now)
+	_, err := New(nil, &fakeSetupProgress{}, &fakeSetupSettings{}, time.Now)
 	require.Error(t, err)
 }
 
@@ -153,32 +135,28 @@ func TestStatusOfANewSchool(t *testing.T) {
 
 	assert.False(t, status.Completed)
 	assert.False(t, status.Dismissed)
-	assert.Nil(t, status.Basics.ParentAppUsed)
 	keys := make([]string, 0, len(status.Steps))
 	for _, step := range status.Steps {
 		keys = append(keys, step.Key)
-		assert.True(t, step.Applies, "every step applies to a detailed, fixed-group school before it answered: %s", step.Key)
+		assert.True(t, step.Applies, "every step applies to a detailed, fixed-group school: %s", step.Key)
 		assert.False(t, step.Done, step.Key)
 		assert.False(t, step.Skipped, step.Key)
 	}
-	assert.Equal(t, []string{"basics", "team", "rooms", "groups", "students", "guardians"}, keys)
+	assert.Equal(t, []string{"team", "rooms", "groups", "students", "guardians"}, keys)
 }
 
-func TestSchoolSetupStepsFollowTheSchoolsAnswers(t *testing.T) {
+func TestSchoolSetupStepsFollowTheSchoolsSettings(t *testing.T) {
 	t.Parallel()
 	f := newSetupFixture(t)
+	f.settings.presenceMode = "binary"
 	f.settings.groupMode = "open_care"
 
-	require.NoError(t, f.service.ConfirmBasics(context.Background(), setupTenant, setupAdmin, schoolsetup.PresenceModeBinary, false))
 	status := f.status(t)
 
-	assert.True(t, stepByKey(t, status, schoolsetup.StepBasics).Done)
 	assert.False(t, stepByKey(t, status, schoolsetup.StepRooms).Applies, "rooms only apply when the school tracks rooms")
 	assert.False(t, stepByKey(t, status, schoolsetup.StepGroups).Applies, "groups only apply to fixed groups")
-	assert.False(t, stepByKey(t, status, schoolsetup.StepGuardians).Applies, "no parent app, no parent step")
-	assert.Equal(t, schoolsetup.PresenceModeBinary, status.Basics.PresenceMode)
-	require.NotNil(t, status.Basics.ParentAppUsed)
-	assert.False(t, *status.Basics.ParentAppUsed)
+	assert.True(t, stepByKey(t, status, schoolsetup.StepGuardians).Applies, "the parent step always applies; the school may skip it")
+	assert.Equal(t, schoolsetup.Basics{PresenceMode: "binary", GroupMode: "open_care"}, status.Basics)
 }
 
 func TestSchoolSetupStepsAreDoneFromTheProjection(t *testing.T) {
@@ -188,46 +166,9 @@ func TestSchoolSetupStepsAreDoneFromTheProjection(t *testing.T) {
 
 	status := f.status(t)
 
-	for _, step := range []schoolsetup.StepKey{schoolsetup.StepTeam, schoolsetup.StepRooms, schoolsetup.StepGroups, schoolsetup.StepStudents, schoolsetup.StepGuardians} {
+	for _, step := range schoolsetup.StepKeys {
 		assert.True(t, stepByKey(t, status, step).Done, step)
 	}
-	assert.False(t, stepByKey(t, status, schoolsetup.StepBasics).Done, "the first step is only done once confirmed")
-}
-
-func TestSchoolSetupConfirmBasicsWritesThePresenceModeOnlyOnChange(t *testing.T) {
-	t.Parallel()
-	f := newSetupFixture(t)
-
-	require.NoError(t, f.service.ConfirmBasics(context.Background(), setupTenant, setupAdmin, schoolsetup.PresenceModeDetailed, true))
-	assert.Empty(t, f.written, "an unchanged presence mode is not rewritten")
-
-	require.NoError(t, f.service.ConfirmBasics(context.Background(), setupTenant, setupAdmin, schoolsetup.PresenceModeBinary, true))
-	assert.Equal(t, []string{schoolsetup.PresenceModeBinary}, f.written)
-	require.NotNil(t, f.store.setup.BasicsConfirmedAt)
-	assert.Equal(t, f.now, *f.store.setup.BasicsConfirmedAt)
-	assert.Equal(t, int64(setupTenant), f.store.setup.TenantID)
-	assert.Equal(t, int64(setupAdmin), *f.store.setup.UpdatedBy)
-}
-
-func TestSchoolSetupConfirmBasicsRejectsAnUnknownPresenceMode(t *testing.T) {
-	t.Parallel()
-	f := newSetupFixture(t)
-
-	err := f.service.ConfirmBasics(context.Background(), setupTenant, setupAdmin, "rooms_only", true)
-
-	require.ErrorIs(t, err, schoolsetup.ErrInvalidPresenceMode)
-	assert.Zero(t, f.store.upserts)
-}
-
-func TestSchoolSetupConfirmBasicsKeepsTheAnswersWhenTheGuardRefuses(t *testing.T) {
-	t.Parallel()
-	f := newSetupFixture(t)
-	f.writeErr = schoolsetup.ErrPresenceModeBlocked
-
-	err := f.service.ConfirmBasics(context.Background(), setupTenant, setupAdmin, schoolsetup.PresenceModeBinary, true)
-
-	require.ErrorIs(t, err, schoolsetup.ErrPresenceModeBlocked)
-	assert.Zero(t, f.store.upserts, "no answer is stored when the presence mode could not be written")
 }
 
 func TestSchoolSetupSkippingAStep(t *testing.T) {
@@ -236,12 +177,14 @@ func TestSchoolSetupSkippingAStep(t *testing.T) {
 
 	require.NoError(t, f.service.SetStepSkipped(context.Background(), setupTenant, setupAdmin, string(schoolsetup.StepRooms), true))
 	assert.True(t, stepByKey(t, f.status(t), schoolsetup.StepRooms).Skipped)
+	assert.Equal(t, int64(setupTenant), f.store.setup.TenantID)
+	assert.Equal(t, int64(setupAdmin), *f.store.setup.UpdatedBy)
 
 	require.NoError(t, f.service.SetStepSkipped(context.Background(), setupTenant, setupAdmin, string(schoolsetup.StepRooms), false))
 	assert.False(t, stepByKey(t, f.status(t), schoolsetup.StepRooms).Skipped)
 
-	err := f.service.SetStepSkipped(context.Background(), setupTenant, setupAdmin, string(schoolsetup.StepBasics), true)
-	require.ErrorIs(t, err, schoolsetup.ErrStepNotSkippable)
+	err := f.service.SetStepSkipped(context.Background(), setupTenant, setupAdmin, "basics", true)
+	require.ErrorIs(t, err, schoolsetup.ErrUnknownStep, "the removed first step is no step any more")
 }
 
 func TestSchoolSetupCompletesOnlyWithoutOpenSteps(t *testing.T) {
@@ -249,7 +192,6 @@ func TestSchoolSetupCompletesOnlyWithoutOpenSteps(t *testing.T) {
 	f := newSetupFixture(t)
 	ctx := context.Background()
 
-	require.NoError(t, f.service.ConfirmBasics(ctx, setupTenant, setupAdmin, schoolsetup.PresenceModeDetailed, true))
 	require.ErrorIs(t, f.service.Complete(ctx, setupTenant, setupAdmin), schoolsetup.ErrIncomplete)
 
 	f.progress.facts = schoolsetup.Facts{StaffInvited: true, RoomCreated: true, StudentEnrolled: true}
@@ -260,21 +202,22 @@ func TestSchoolSetupCompletesOnlyWithoutOpenSteps(t *testing.T) {
 	status := f.status(t)
 	assert.True(t, status.Completed)
 	assert.Empty(t, status.Steps, "a finished school needs no steps")
+	require.NotNil(t, f.store.setup.CompletedAt)
+	assert.Equal(t, f.now, *f.store.setup.CompletedAt)
 }
 
-// TestSchoolSetupIsClosedAfterCompletion pins ADR 0040: once completed, the
-// presence mode is operator-only again, so no wizard write goes through.
+// TestSchoolSetupIsClosedAfterCompletion pins ADR 0040: once completed, no
+// wizard write goes through.
 func TestSchoolSetupIsClosedAfterCompletion(t *testing.T) {
 	t.Parallel()
 	f := newSetupFixture(t)
 	completed := f.now
-	f.store.setup = &schoolsetup.State{TenantID: setupTenant, BasicsConfirmedAt: &completed, CompletedAt: &completed}
+	f.store.setup = &schoolsetup.State{TenantID: setupTenant, CompletedAt: &completed}
 	ctx := context.Background()
 
-	require.ErrorIs(t, f.service.ConfirmBasics(ctx, setupTenant, setupAdmin, schoolsetup.PresenceModeBinary, true), schoolsetup.ErrCompleted)
 	require.ErrorIs(t, f.service.SetStepSkipped(ctx, setupTenant, setupAdmin, string(schoolsetup.StepRooms), true), schoolsetup.ErrCompleted)
 	require.ErrorIs(t, f.service.Complete(ctx, setupTenant, setupAdmin), schoolsetup.ErrCompleted)
-	assert.Empty(t, f.written)
+	assert.Zero(t, f.store.upserts)
 	assert.Zero(t, f.progress.reads, "a finished school reads no progress")
 }
 
@@ -297,7 +240,7 @@ func TestSchoolSetupDismissalIsPersonal(t *testing.T) {
 func TestSchoolSetupPropagatesProgressErrors(t *testing.T) {
 	t.Parallel()
 	failure := errors.New("projection unavailable")
-	service, err := New(newFakeSchoolSetupStore(), failingSetupProgress{err: failure}, &fakeSetupSettings{}, func(context.Context, int64, int64, string) error { return nil }, time.Now)
+	service, err := New(newFakeSchoolSetupStore(), failingSetupProgress{err: failure}, &fakeSetupSettings{}, time.Now)
 	require.NoError(t, err)
 
 	_, err = service.Status(context.Background(), setupTenant, setupAdmin)

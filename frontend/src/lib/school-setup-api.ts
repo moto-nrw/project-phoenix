@@ -5,7 +5,7 @@ const logger = createLogger({ component: "SchoolSetupApi" });
 
 /** Einrichtungs-Assistent für neue Schulen (#2832). */
 export type SchoolSetupStepKey =
-  "basics" | "team" | "rooms" | "groups" | "students" | "guardians";
+  "team" | "rooms" | "groups" | "students" | "guardians";
 
 export interface SchoolSetupStep {
   key: SchoolSetupStepKey;
@@ -15,12 +15,10 @@ export interface SchoolSetupStep {
   skipped: boolean;
 }
 
+/** Die Einstellungen der Schule, von denen abhängt, welche Schritte gelten. */
 export interface SchoolSetupBasics {
   presenceMode: "detailed" | "binary";
   groupMode: "fixed_groups" | "open_care";
-  timetableEnabled: boolean;
-  /** null, solange die Schule die Frage nicht beantwortet hat. */
-  parentAppUsed: boolean | null;
 }
 
 export interface SchoolSetupState {
@@ -40,7 +38,6 @@ export function schoolSetupSWRKey(
 }
 
 const STEP_KEYS: readonly SchoolSetupStepKey[] = [
-  "basics",
   "team",
   "rooms",
   "groups",
@@ -61,15 +58,12 @@ interface BackendState {
   basics?: {
     presence_mode?: unknown;
     group_mode?: unknown;
-    timetable_enabled?: unknown;
-    parent_app_used?: unknown;
   };
   steps?: unknown;
 }
 
 export function mapSchoolSetupState(raw: BackendState): SchoolSetupState {
   const steps = Array.isArray(raw.steps) ? (raw.steps as BackendStep[]) : [];
-  const parentApp = raw.basics?.parent_app_used;
   return {
     completed: raw.completed === true,
     dismissed: raw.dismissed === true,
@@ -78,8 +72,6 @@ export function mapSchoolSetupState(raw: BackendState): SchoolSetupState {
         raw.basics?.presence_mode === "binary" ? "binary" : "detailed",
       groupMode:
         raw.basics?.group_mode === "open_care" ? "open_care" : "fixed_groups",
-      timetableEnabled: raw.basics?.timetable_enabled === true,
-      parentAppUsed: typeof parentApp === "boolean" ? parentApp : null,
     },
     steps: steps
       .filter((step): step is BackendStep & { key: SchoolSetupStepKey } =>
@@ -143,18 +135,6 @@ async function send(
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   return readState(response, event);
-}
-
-export function confirmSchoolSetupBasics(
-  presenceMode: SchoolSetupBasics["presenceMode"],
-  parentAppUsed: boolean,
-): Promise<SchoolSetupState> {
-  return send(
-    "/api/school-setup/basics",
-    "PUT",
-    { presence_mode: presenceMode, parent_app_used: parentAppUsed },
-    "confirm_school_setup_basics_failed",
-  );
 }
 
 export function setSchoolSetupStepSkipped(

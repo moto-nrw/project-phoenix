@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { CoachMark } from "~/components/ui/coach-mark";
-import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { ConfirmationModal } from "~/components/ui/modal";
 import {
   buildHelpGroupHref,
   buildHelpHref,
@@ -12,20 +12,13 @@ import {
 import { createLogger } from "~/lib/logger";
 import {
   completeSchoolSetup,
-  confirmSchoolSetupBasics,
-  SchoolSetupError,
   setSchoolSetupDismissed,
   setSchoolSetupStepSkipped,
   type SchoolSetupState,
   type SchoolSetupStepKey,
 } from "~/lib/school-setup-api";
-import { setSettingValue } from "~/lib/settings-api";
 import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { useNFCEnabled } from "~/lib/tenant-context";
-import {
-  SchoolSetupBasicsForm,
-  type SchoolSetupBasicsAnswers,
-} from "./school-setup-basics-form";
 import {
   SchoolSetupBeacon,
   SchoolSetupChecklist,
@@ -33,7 +26,6 @@ import {
 import {
   applicableSteps,
   firstOpenStep,
-  SCHOOL_SETUP_STEP_CONTENT,
   setupProgress,
 } from "./school-setup-steps";
 import { useSchoolSetup } from "./use-school-setup";
@@ -43,8 +35,6 @@ const logger = createLogger({ component: "SchoolSetupWizard" });
 
 const SAVE_FAILED =
   "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
-const PRESENCE_BLOCKED =
-  "Heute sind schon Kinder angemeldet. Die Anwesenheitsart können Sie dann nur über das moto-Team ändern.";
 /** Nachladen nach dem Tourende, bis laufende Anfragen durch sind. */
 const TOUR_FOLLOW_UP_MS = [500, 2000, 5000];
 const TOUR_LEFT =
@@ -53,8 +43,8 @@ const CLICK_ACTION = "Klicken Sie auf die grün umrandete Stelle.";
 const TARGET_MISSING =
   "Diese Stelle ist gerade nicht zu sehen. Vielleicht fehlt Ihnen ein Recht, oder die Seite lädt noch.";
 
-/** Knopf unten rechts, offene Checkliste oder das Fenster der Grundlagen. */
-type View = "beacon" | "checklist" | "basics";
+/** Knopf unten rechts oder offene Checkliste. */
+type View = "beacon" | "checklist";
 
 /** Einmal pro Anmeldung öffnet sich der Assistent von selbst. */
 function claimFirstOpen(accountID: string): boolean {
@@ -73,7 +63,7 @@ function claimFirstOpen(accountID: string): boolean {
  *
  * Eine Checkliste unten rechts, über allen Seiten. Der nächste offene
  * Schritt ist aufgeklappt; „Zeig es mir“ führt per Tour durch die
- * Seitenleiste und die Seite. Die Grundlagen stehen in einem Fenster. Er
+ * Seitenleiste und die Seite. Er
  * zeigt sich nur Personen, die die Einstellungen der Schule ändern dürfen,
  * bis die Schule fertig ist oder die Person ihn ausblendet.
  */
@@ -125,15 +115,13 @@ function SchoolSetupWizardForAdmin() {
 
   const visible = state !== null && !state.completed && !state.dismissed;
   const nextOpen = state ? firstOpenStep(state) : null;
-  const basicsDone =
-    state?.steps.find((step) => step.key === "basics")?.done ?? false;
 
-  // Beim ersten Aufruf der Sitzung: erst die Grundlagen, sonst die Liste.
+  // Beim ersten Aufruf der Sitzung geht die Checkliste von selbst auf.
   useEffect(() => {
     if (visible && accountID && claimFirstOpen(accountID)) {
-      setView(basicsDone ? "checklist" : "basics");
+      setView("checklist");
     }
-  }, [visible, accountID, basicsDone]);
+  }, [visible, accountID]);
 
   // Aufgeklappt ist der nächste offene Schritt, solange die Person nicht
   // selbst einen anderen gewählt hat. Wird er erledigt, rückt der nächste nach.
@@ -167,7 +155,6 @@ function SchoolSetupWizardForAdmin() {
   const run = async (
     action: () => Promise<SchoolSetupState>,
     after?: (next: SchoolSetupState) => void,
-    conflictMessage = SAVE_FAILED,
   ) => {
     setBusy(true);
     setError(null);
@@ -179,37 +166,13 @@ function SchoolSetupWizardForAdmin() {
       logger.warn("school_setup_action_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        err instanceof SchoolSetupError && err.status === 409
-          ? conflictMessage
-          : SAVE_FAILED,
-      );
+      setError(SAVE_FAILED);
     } finally {
       setBusy(false);
     }
   };
 
-  const saveBasics = (answers: SchoolSetupBasicsAnswers) =>
-    run(
-      async () => {
-        // Gruppen und Betreuungsplan sind normale Einstellungen der Schule.
-        for (const [key, value] of [
-          ["operations.group_mode", answers.groupMode],
-          ["timetable.enabled", answers.timetableEnabled],
-        ] as const) {
-          const failure = await setSettingValue(key, value);
-          if (failure) throw new Error(failure);
-        }
-        return confirmSchoolSetupBasics(
-          answers.presenceMode,
-          answers.parentAppUsed,
-        );
-      },
-      () => setView("checklist"),
-      PRESENCE_BLOCKED,
-    );
-
-  // Während der Tour oder im Fenster tritt die Checkliste zurück.
+  // Während der Tour tritt die Checkliste zurück.
   if (tour.active) {
     const {
       stop,
@@ -250,35 +213,6 @@ function SchoolSetupWizardForAdmin() {
     );
   }
 
-  if (view === "basics") {
-    return (
-      <Modal
-        isOpen
-        onClose={() => setView("checklist")}
-        title="Erste Schritte mit moto"
-        widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
-      >
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1">
-            <h3 className="text-base font-semibold text-gray-900">
-              {SCHOOL_SETUP_STEP_CONTENT.basics.title}
-            </h3>
-            <p className="text-sm text-gray-700">
-              {SCHOOL_SETUP_STEP_CONTENT.basics.description} Danach führt Sie
-              eine Checkliste unten rechts durch die nächsten Schritte.
-            </p>
-          </div>
-          <SchoolSetupBasicsForm
-            basics={state.basics}
-            saving={busy}
-            error={error}
-            onSubmit={(answers) => void saveBasics(answers)}
-          />
-        </div>
-      </Modal>
-    );
-  }
-
   if (view === "beacon") {
     return (
       <SchoolSetupBeacon
@@ -307,7 +241,6 @@ function SchoolSetupWizardForAdmin() {
           setExpanded(step);
           setExpandedByPerson(true);
         }}
-        onOpenBasics={() => setView("basics")}
         onStartTour={(step) => {
           setNotice(null);
           tour.start(step);

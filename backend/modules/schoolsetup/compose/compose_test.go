@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
 	"github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
 	schoolsetuphttp "github.com/moto-nrw/project-phoenix/modules/schoolsetup/http"
@@ -23,11 +22,8 @@ import (
 )
 
 type harness struct {
-	db       *bun.DB
-	router   chi.Router
-	settings configSvc.SettingsService
-	// openAttendance answers the presence-mode guard.
-	openAttendance bool
+	db     *bun.DB
+	router chi.Router
 }
 
 func newHarness(t *testing.T) *harness {
@@ -40,14 +36,8 @@ func newHarness(t *testing.T) *harness {
 		nil, runtime, slog.Default(),
 	)
 	testpkg.SetTenantRuntime(t, settings, db)
-	h := &harness{db: db, settings: settings}
-	service, err := compose.New(compose.Dependencies{
-		Settings:       settings,
-		OpenAttendance: openAttendance{harness: h},
-		SideEffect: func(context.Context, int64, string, any) (func(), error) {
-			return nil, nil
-		},
-	})
+	h := &harness{db: db}
+	service, err := compose.New(compose.Dependencies{Settings: settings})
 	require.NoError(t, err)
 	resource := schoolsetuphttp.NewResource(service, schoolsetuphttp.Runtime{
 		Protected: func(r chi.Router, fn func(chi.Router, schoolsetuphttp.Middleware)) {
@@ -72,14 +62,6 @@ func newHarness(t *testing.T) *harness {
 	return h
 }
 
-// openAttendance answers the presence-mode guard from the harness, as
-// Student Presence does in production.
-type openAttendance struct{ harness *harness }
-
-func (o openAttendance) HasOpenAttendanceOn(context.Context, configModel.CalendarDate) (bool, error) {
-	return o.harness.openAttendance, nil
-}
-
 // accountKey carries the acting account in these tests. Production takes it
 // from the session principal.
 type accountKey struct{}
@@ -100,13 +82,6 @@ func (h *harness) do(t *testing.T, accountID int64, method, path string, body an
 		require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &status))
 	}
 	return recorder, status
-}
-
-func (h *harness) presenceMode(t *testing.T) string {
-	t.Helper()
-	mode, err := h.settings.ResolveStringForTenant(context.Background(), testpkg.Tenant(t), configModel.KeyPresenceMode)
-	require.NoError(t, err)
-	return mode
 }
 
 func step(t *testing.T, status schoolsetup.Status, key string) schoolsetup.Step {
