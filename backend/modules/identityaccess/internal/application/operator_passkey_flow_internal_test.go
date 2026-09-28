@@ -567,7 +567,7 @@ func TestOperatorPasskeyFinishLoginCredentialLookup(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			tt.store.consumedSession = &domain.OperatorPasskeySession{
-				SessionJSON:    json.RawMessage(`{"challenge":"Y2hhbGxlbmdl"}`),
+				SessionJSON:    json.RawMessage(`{"challenge":"cGFzc2tleS10ZXN0LWNoYWxsZW5nZS0zMi1ieXRlcyE"}`),
 				ExpectedOrigin: "http://school.localhost:3000",
 			}
 			transactions := &passkeyTransactions{}
