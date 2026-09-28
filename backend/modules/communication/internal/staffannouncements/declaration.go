@@ -149,6 +149,11 @@ func normalizeDeclaration(in *Input) error {
 	if in.ResponseDeadline != nil && !in.ResponseDeadline.After(time.Now()) {
 		return fmt.Errorf("%w: the deadline must lie in the future", ErrValidation)
 	}
+	// Parents cannot answer an Einverständnis after it disappears from their
+	// feed, so its Frist may not outlast the announcement itself.
+	if in.ResponseDeadline != nil && in.ExpiresAt != nil && in.ResponseDeadline.After(*in.ExpiresAt) {
+		return fmt.Errorf("%w: response_deadline must not be after expires_at", ErrValidation)
+	}
 	return nil
 }
 

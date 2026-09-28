@@ -46,6 +46,12 @@ func TestNormalizeDeclarationCompletesAndRefuses(t *testing.T) {
 			past := time.Now().Add(-time.Hour)
 			in.ResponseDeadline = &past
 		},
+		"deadline after expiry": func(in *Input) {
+			expires := time.Now().Add(24 * time.Hour)
+			deadline := expires.Add(time.Hour)
+			in.ExpiresAt = &expires
+			in.ResponseDeadline = &deadline
+		},
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
