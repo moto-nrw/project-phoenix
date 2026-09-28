@@ -3078,7 +3078,7 @@ func (f *Factory) EnableStudentPhotos(deps StudentPhotoBootstrap) {
 		Consents:    f.StudentConsents,
 		Logger:      deps.Logger,
 	})
-	users.RegisterStudentPhotoSettingsSideEffects(f.SettingsSideEffects, f.StudentPhotos)
+	RegisterStudentPhotoSettingsSideEffects(f.SettingsSideEffects, f.StudentPhotos)
 }
 
 // feedbackCounterOrUnconfigured keeps the reduced test graph constructible:
