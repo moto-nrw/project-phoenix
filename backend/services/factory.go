@@ -467,7 +467,7 @@ func NewFactoryWithModules(
 	observeCarePlan CarePlanObserver,
 	mealPlan parentportalcompose.MealPlanProvider,
 	bindMealPlanSettings MealPlanSettingsBinder,
-	feedbackCounter users.FeedbackEntryCounter,
+	feedbackCounter studentdeletioncompose.Feedback,
 	bindFeedbackSettings FeedbackSettingsBinder,
 	observeAuditAppend AuditAppendObserver,
 	observeDelivery DeliveryObserver,
@@ -516,7 +516,7 @@ func newFactory(
 	observeCarePlan CarePlanObserver,
 	mealPlan parentportalcompose.MealPlanProvider,
 	bindMealPlanSettings MealPlanSettingsBinder,
-	feedbackCounter users.FeedbackEntryCounter,
+	feedbackCounter studentdeletioncompose.Feedback,
 	bindFeedbackSettings FeedbackSettingsBinder,
 	observeAuditAppend AuditAppendObserver,
 	observeDelivery DeliveryObserver,
@@ -3085,7 +3085,7 @@ func (f *Factory) EnableStudentPhotos(deps StudentPhotoBootstrap) {
 // the composition requires a Feedback owner, and a graph built without one
 // fails at the first deletion preview instead of at startup, exactly as the
 // retired provider did.
-func feedbackCounterOrUnconfigured(counter users.FeedbackEntryCounter) users.FeedbackEntryCounter {
+func feedbackCounterOrUnconfigured(counter studentdeletioncompose.Feedback) studentdeletioncompose.Feedback {
 	if counter != nil {
 		return counter
 	}
