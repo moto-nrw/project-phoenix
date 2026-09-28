@@ -189,15 +189,11 @@ export const SETUP_TOURS: Readonly<
         advance: "click",
       },
       {
-        target: "#name",
-        title: "Raumname",
-        text: "So heißt der Raum in moto, zum Beispiel „Gruppenraum 1“.",
-        advance: "next",
-      },
-      {
-        target: "#category",
-        title: "Kategorie",
-        text: "Die Kategorie hilft beim Finden, zum Beispiel Turnhalle.",
+        // Das ganze Formular „Neuer Raum“ bis über den Speichern-Knopf.
+        target: DATA_FORM,
+        endBefore: formSubmit,
+        title: "Angaben eintragen",
+        text: "Geben Sie dem Raum einen Namen, zum Beispiel „Gruppenraum 1“. Die Kategorie hilft beim Finden, zum Beispiel Sport für die Turnhalle. Gebäude, Etage, maximale Belegung und Farbe können Sie später nachtragen.",
         advance: "next",
       },
       {

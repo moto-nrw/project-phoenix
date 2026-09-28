@@ -135,6 +135,74 @@ describe("CoachMark", () => {
     document.removeEventListener("pointerdown", outside);
   });
 
+  it("stands next to a sidebar entry instead of over the sidebar", () => {
+    // Unter dem Eintrag läge die Sprechblase über der Leiste und verdeckte
+    // die Einträge darunter -- also die nächste Station.
+    const entry = targetAt({ top: 460, left: 8, width: 190, height: 36 });
+    render(
+      <CoachMark
+        target={entry}
+        beside
+        title="Verwaltung öffnen"
+        text="Wählen Sie „Verwaltung“."
+        onNext={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+
+    const bubble = screen.getByRole("dialog", { name: "Verwaltung öffnen" });
+    expect(Number.parseFloat(bubble.style.left)).toBeGreaterThanOrEqual(198);
+    // Pfeilspitze links: die Sprechblase zeigt von rechts auf den Eintrag.
+    expect(bubble.querySelector(".-left-1\\.5")).not.toBeNull();
+  });
+
+  it("leaves the page where it is when the spot is already in view", () => {
+    // `scrollIntoView` zentriert die Stelle in JEDEM scrollbaren Vorfahren.
+    // Bei einem Eintrag der Seitenleiste rückte damit auch der Seiteninhalt
+    // daneben, obwohl dort nichts passiert.
+    const target = targetAt({ top: 100, left: 10, width: 160, height: 40 });
+    const scrollIntoView = vi.fn();
+    target.scrollIntoView = scrollIntoView;
+
+    render(
+      <CoachMark
+        target={target}
+        title="Verwaltung öffnen"
+        text="Wählen Sie „Verwaltung“."
+        onNext={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("scrolls a spot below the screen into view", () => {
+    const target = targetAt({
+      top: window.innerHeight + 200,
+      left: 10,
+      width: 160,
+      height: 40,
+    });
+    const scrollIntoView = vi.fn();
+    target.scrollIntoView = scrollIntoView;
+
+    render(
+      <CoachMark
+        target={target}
+        title="Speichern"
+        text="Speichern Sie den Raum."
+        onNext={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      block: "center",
+      behavior: "smooth",
+    });
+  });
+
   it("finds the form body next to the create button", () => {
     const form = document.createElement("form");
     const body = document.createElement("div");

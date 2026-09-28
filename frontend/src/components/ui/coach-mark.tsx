@@ -28,6 +28,12 @@ interface CoachMarkProps {
    * dem Knopf einer Karte, der erst die nächste Station ist.
    */
   readonly endBefore?: Element | null;
+  /**
+   * Die Sprechblase steht neben der Stelle statt darunter. Für Stellen in
+   * einer schmalen Spalte: in der Seitenleiste bleibt so die Leiste selbst
+   * sichtbar, statt unter der Sprechblase zu verschwinden.
+   */
+  readonly beside?: boolean;
   readonly title: string;
   readonly text: string;
   /** Zum Beispiel „Schritt 2 von 4“. */
@@ -84,6 +90,23 @@ function measure(
   };
 }
 
+/**
+ * Steht die Stelle schon ganz im Bild? Dann darf die Tour nicht scrollen.
+ * `scrollIntoView` rückt die Stelle in JEDEM scrollbaren Vorfahren in die
+ * Mitte, also auch im Seiteninhalt — ein Eintrag der Seitenleiste zöge die
+ * Seite daneben mit, obwohl dort nichts passiert (#2832).
+ */
+function isFullyVisible(target: Element): boolean {
+  const rect = target.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) return false;
+  return (
+    rect.top >= 0 &&
+    rect.left >= 0 &&
+    rect.bottom <= globalThis.innerHeight &&
+    rect.right <= globalThis.innerWidth
+  );
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
@@ -93,6 +116,11 @@ function clamp(value: number, min: number, max: number): number {
  * daneben (große Stellen wie ein ganzes Formular), sonst am unteren Rand
  * über der Stelle. `side` ist die Seite der Sprechblase, an der die
  * Pfeilspitze sitzt; bei „none“ gibt es keine.
+ *
+ * `beside` dreht die Reihenfolge um: erst neben die Stelle. Das brauchen
+ * Stellen in einer schmalen Spalte — unter einem Eintrag der Seitenleiste
+ * läge die Sprechblase über der Leiste und verdeckte genau die Einträge,
+ * die als Nächstes dran sind (#2832).
  */
 function place(
   box: Box,
@@ -100,6 +128,7 @@ function place(
   height: number,
   viewportWidth: number,
   viewportHeight: number,
+  beside = false,
 ): {
   top: number;
   left: number;
@@ -107,6 +136,17 @@ function place(
 } {
   const margin = 8;
   const horizontal = clamp(box.left, margin, viewportWidth - width - margin);
+  if (beside) {
+    const vertical = clamp(box.top, margin, viewportHeight - height - margin);
+    const rightOf = box.left + box.width + GAP;
+    if (rightOf + width <= viewportWidth - margin) {
+      return { top: vertical, left: rightOf, side: "left" };
+    }
+    const leftOf = box.left - GAP - width;
+    if (leftOf >= margin) {
+      return { top: vertical, left: leftOf, side: "right" };
+    }
+  }
   const below = box.top + box.height + GAP;
   if (below + height <= viewportHeight - margin) {
     return { top: below, left: horizontal, side: "top" };
@@ -147,6 +187,7 @@ export function CoachMark({
   target,
   searching = false,
   endBefore = null,
+  beside = false,
   title,
   text,
   progress,
@@ -163,7 +204,9 @@ export function CoachMark({
   // Die Stelle kann scrollen, aufklappen oder sich verschieben; die
   // Hervorhebung folgt ihr jedes Bild.
   useEffect(() => {
-    target?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    if (target && !isFullyVisible(target)) {
+      target.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    }
     let frame = 0;
     const follow = () => {
       const next = measure(target, endBefore);
@@ -222,6 +265,7 @@ export function CoachMark({
       bubbleHeight,
       viewportWidth,
       viewportHeight,
+      beside,
     );
     bubbleStyle = { width, left: placement.left, top: placement.top };
     if (placement.side === "top" || placement.side === "bottom") {

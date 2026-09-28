@@ -229,6 +229,10 @@ function SchoolSetupWizardForAdmin() {
         endBefore={
           stop.endBefore && target ? target.querySelector(stop.endBefore) : null
         }
+        // Stationen in der Seitenleiste: neben die Leiste, nicht darüber.
+        // Sonst verdeckt die Sprechblase die Einträge darunter -- also
+        // genau den Eintrag, den die nächste Station meint.
+        beside={stop.nav === true}
         title={stop.title}
         text={
           missing && !target ? (stop.missingText ?? TARGET_MISSING) : stop.text
