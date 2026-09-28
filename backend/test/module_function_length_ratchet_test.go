@@ -106,7 +106,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/communication/internal/staffannouncements/poll.go:(*service).pushPollReminder":                                          64,
 	"modules/communication/internal/staffannouncements/reminder.go:(*service).SendDueReminders":                                      72,
 	"modules/communication/internal/staffannouncements/service.go:(*service).Publish":                                                86,
-	"modules/communication/internal/staffannouncements/service.go:(*service).Update":                                                 70,
+	"modules/communication/internal/staffannouncements/service.go:(*service).Update":                                                 63,
 	"modules/communication/internal/staffannouncements/service.go:(*service).enqueueAnnouncementEmailsAs":                            131,
 	"modules/communication/internal/staffannouncements/service.go:(*service).notifyAnnouncementGuardiansWith":                        91,
 	"modules/communication/internal/staffannouncements/service.go:normalizeInput":                                                    78,

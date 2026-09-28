@@ -386,18 +386,8 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 	if a.IsPublished() {
 		return nil, ErrPublishedImmutable
 	}
-	targets, err := normalizeInput(&in)
+	targets, options, err := s.prepareUpdate(ctx, a, &in)
 	if err != nil {
-		return nil, err
-	}
-	if err := s.guardDeclarationModeChange(ctx, a, in.DeliveryMode); err != nil {
-		return nil, err
-	}
-	options, err := normalizePollOptions(&in)
-	if err != nil {
-		return nil, err
-	}
-	if err := normalizeReminder(&in); err != nil {
 		return nil, err
 	}
 
