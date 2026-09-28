@@ -70,6 +70,7 @@ func (d identityAccountDirectory) AccountEmail(ctx context.Context, accountID in
 func NewGuardianProfileRepository(db *bun.DB) userModels.GuardianProfileRepository {
 	return usersRepo.NewGuardianProfileRepository(peopleRuntime(db),
 		usersRepo.WithPortalMemberships(newIdentityAccess(db, nil).FindActiveGuardianMemberships),
+		usersRepo.WithPortalLoginMemberships(newIdentityAccess(db, nil).FindLoginReadyGuardianMemberships),
 	)
 }
 

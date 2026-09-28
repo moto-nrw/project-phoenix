@@ -24,7 +24,6 @@ func TestGuardianPortalMemberships(t *testing.T) {
 	disabled := testpkg.CreateTestParentGuardianChain(t, db)
 	departed := testpkg.CreateTestParentGuardianChain(t, db)
 	withoutRole := testpkg.CreateTestParentGuardianChain(t, db)
-	withoutPassword := testpkg.CreateTestParentGuardianChain(t, db)
 	unrequested := testpkg.CreateTestParentGuardianChain(t, db)
 	testpkg.EnsureAccountTenant(t, db, active.AccountID, other)
 	_, err = db.ExecContext(ctx, `INSERT INTO auth.account_roles (account_id, role_id, tenant_id)
@@ -38,9 +37,7 @@ func TestGuardianPortalMemberships(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, "DELETE FROM auth.account_roles WHERE account_id = ? AND tenant_id = ?", withoutRole.AccountID, home)
 	require.NoError(t, err)
-	_, err = db.ExecContext(ctx, "UPDATE auth.accounts SET password_hash = NULL WHERE id = ?", withoutPassword.AccountID)
-	require.NoError(t, err)
-	ids := []int64{active.AccountID, disabled.AccountID, departed.AccountID, withoutRole.AccountID, withoutPassword.AccountID}
+	ids := []int64{active.AccountID, disabled.AccountID, departed.AccountID, withoutRole.AccountID}
 	memberships, err := access.FindActiveGuardianMemberships(ctx, ids)
 	require.NoError(t, err)
 	require.Len(t, memberships, 1)
@@ -73,6 +70,23 @@ func TestGuardianPortalMemberships(t *testing.T) {
 	memberships, err = access.FindActiveGuardianMemberships(ctx, []int64{active.AccountID})
 	require.NoError(t, err)
 	require.ElementsMatch(t, []int64{home, other}, memberships[active.AccountID])
+}
+
+func TestLoginReadyGuardianPortalMembershipsRequirePassword(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	access, err := repositories.NewIdentityAccessForTests(db)
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	ready := testpkg.CreateTestParentGuardianChain(t, db)
+	withoutPassword := testpkg.CreateTestParentGuardianChain(t, db)
+	_, err = db.ExecContext(ctx, "UPDATE auth.accounts SET password_hash = 'test-password-hash' WHERE id = ?", ready.AccountID)
+	require.NoError(t, err)
+
+	memberships, err := access.FindLoginReadyGuardianMemberships(ctx, []int64{ready.AccountID, withoutPassword.AccountID})
+	require.NoError(t, err)
+	require.Contains(t, memberships, ready.AccountID)
+	require.NotContains(t, memberships, withoutPassword.AccountID)
 }
 
 func TestGuardianPortalMembershipsEmptyAndDatabaseFailure(t *testing.T) {

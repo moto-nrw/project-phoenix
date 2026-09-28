@@ -215,7 +215,7 @@ func (g enrollmentGuardianProfiles) GuardianProfileByEmail(ctx context.Context, 
 }
 
 func (g enrollmentGuardianProfiles) GuardianProfileHasActivePortalAccount(ctx context.Context, profileID int64) (bool, error) {
-	profiles, err := g.repo.FindActivePortalProfilesByIDs(ctx, []int64{profileID})
+	profiles, err := g.repo.FindLoginReadyPortalProfilesByIDs(ctx, []int64{profileID})
 	if err != nil {
 		return false, err
 	}
