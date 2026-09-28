@@ -1,0 +1,114 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2728",
+    "#3750"
+  ],
+  "owner_and_capability": "People Directory — the birthday display (#1542) leaves services/users as a native capability (internal domain, ports and application, public contract peopledirectory.Birthdays, composition in modules/peopledirectory/compose) and its HTTP adapter becomes modules/peopledirectory/inbound/birthdays; slice 2 of #2728 (#3751). The feedback counter, RFID card and student-photo settings side-effect files of services/users are dropped or moved to their consumers, and the parent request reason rule moves to Settings Platform's retained package (services/config).",
+  "affected_packages": [
+    "services/users",
+    "services",
+    "services/config",
+    "modules/peopledirectory",
+    "modules/peopledirectory/compose",
+    "modules/peopledirectory/inbound/birthdays",
+    "modules/birthdays/http",
+    "modules/careplan/inbound/parent",
+    "modules/documentrendering/lists",
+    "workflows/parentportal/care",
+    "api",
+    "api/testutil",
+    "test"
+  ],
+  "affected_tables": [
+    "users.persons",
+    "users.students",
+    "users.staff"
+  ],
+  "exact_ratchet_keys": [
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/models/config",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/services/config/sideeffects",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/birthdays/http|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/birthdays/http|github.com/moto-nrw/project-phoenix/services/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/services/config/sideeffects"
+  ],
+  "atomic_cutover": "One code-only change. birthday_service.go leaves services/users: the celebration window, leap-day, visibility and sorting rules are People Directory domain code, the person, student and staff reads and the two display settings are ports bound by services/birthday_composition.go over the retained repositories and the tenant settings, and the routes move from modules/birthdays/http to modules/peopledirectory/inbound/birthdays (owner people-directory, role http); the inbound-birthdays owner and its rules are removed from policy.json. feedback_counter.go is dropped for the consumer-owned workflows/studentdeletion/compose.Feedback port, rfid_cards.go is declared beside its only consumer, RegisterStudentPhotoSettingsSideEffects moves to the root composition behind a one-method port, and ReasonRequiredFor moves to services/config while the shared ErrParentRequestReasonRequired sentinel is retired in favour of the Care Plan sentinel the only matching renderer already maps to the same reason_required code.",
+  "tests": [
+    "modules/peopledirectory: the birthday behavior suite against the isolated PostgreSQL test database (Monday weekend carry, leap day, weekday isolation, staff visibility and opt-out, disabled display, settings errors with their users.<op> text, student data scope, ended care), the domain unit tests of the celebration window, and modules/peopledirectory/inbound/birthdays: the route tests (permissions, unauthenticated, opt-out round trip, missing staff record, staff export gate and month validation).",
+    "services/users: TestStudentBirthdaysExcludeEndedCare and TestBirthdayRepositoriesRejectAnEmptyDaySet keep asserting the repository queries unchanged; services: TestRegisterStudentPhotoSettingsSideEffects*; services/config: TestReasonRequiredForFollowsPolicy; workflows/parentportal and modules/careplan suites for the reason_required paths.",
+    "go test ./test (ratchets incl. the passthrough, complexity, file and function size ratchets and TestCompositionInventory), go test ./internal/architecture, golangci-lint on the affected packages, scripts/pre-push.sh against the stack parent, scripts/test-changed.sh against the stack parent without --fast.",
+    "scripts/backend-architecture.sh check with exactly the listed keys absent from legacy.jsonl and none added; scripts/backend-architecture.sh validate-ticket --all."
+  ],
+  "runtime_evidence": {
+    "source": "Local runs on the #3751 branch on 2026-09-29 against the local postgres-test server.",
+    "sources": [
+      "backend/modules/peopledirectory/birthdays.go",
+      "backend/modules/peopledirectory/compose/birthdays.go",
+      "backend/modules/peopledirectory/internal/application/birthday.go",
+      "backend/services/birthday_composition.go",
+      "backend/modules/peopledirectory/inbound/birthdays/api.go"
+    ],
+    "workload": "No load run. Go suites through scripts/run-go-toolchain.sh, scripts/pre-push.sh and scripts/test-changed.sh against the stack parent, local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "Code-only contract: every affected suite passes with the same assertions, and scripts/backend-architecture.sh check passes with exactly the listed keys removed, no key added and a composition surface that does not grow.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "The birthday reads issue the same repository statements against the same tables; the only write, the staff display opt-out, is the same SetBirthdayDisplayOptOut call."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No statement was added or removed: the ports call the same retained repository methods the service called, once per request path as before."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #3751 names zero old callers and zero listed keys as the gate for a code-only move, and the statements are unchanged."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #3751 names zero old callers and zero listed keys as the gate for a code-only move, and the statements are unchanged."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed with 383 remaining keys (388 at the stack parent) and a composition surface of 603 -> 603; golangci-lint reported 0 issues on the affected packages; scripts/pre-push.sh passed against the stack parent; scripts/test-changed.sh reported all 138 affected packages ok, except one run in which the timing-based TestSchoolWelcomeRejectsPermanentlyFailedInvitation of modules/identityaccess/behavior (untouched) failed once and then passed alone three times and in a full package rerun."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection acquisition or pool setting changed; the routes use the same tenant transaction middleware chain."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No row lock or transaction boundary changed; the opt-out writes one staff row in the request's tenant transaction as before."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No statement or transaction boundary changed, so no lock ordering can differ."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The change touches no worker or scheduler path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The change touches no worker or scheduler path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The change touches no worker or scheduler path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The settings-resolution and repository failure paths keep their users.<op> error text (asserted by the settings-errors test), a missing staff record still renders the 404 text, an unclassified caller still sees no child, and a missing export renderer still answers 500."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data write path or schema change. Reverting the change restores the files, the routes' old package and the baseline entries."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "go build ./... passed; the birthday route tests drive the mounted router with minted JWTs, and the router golden and the affected packages ran through scripts/test-changed.sh. No manual application start was made."
+    }
+  },
+  "rollback_and_cleanup": "Revert the code-only change if a hidden caller appears. No table, migration or configuration is touched, and nothing remains to clean up.",
+  "exit_criterion": "None of birthday_service.go, feedback_counter.go, rfid_cards.go, settings_sideeffects.go and parent_request_errors.go is left in services/users, modules/birthdays/http no longer exists, and every listed key is absent from legacy.jsonl; scripts/backend-architecture.sh check passes with no key added, no temporary policy rule added and no ownership of a data object changed."
+}
