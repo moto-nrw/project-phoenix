@@ -20,6 +20,7 @@ import (
 // The portal names who settled a child under "any" together with the date,
 // so the other signer's submission time must reach the wire.
 func TestDeclarationResponseCarriesOtherSignerSubmittedAt(t *testing.T) {
+	t.Parallel()
 	agreed := usersModels.DeclarationActionAgreed
 	at := time.Date(2026, 9, 20, 8, 30, 0, 0, time.UTC)
 	out := toDeclarationResponse(&usersModels.AnnouncementFeedDeclaration{
@@ -72,6 +73,7 @@ func declarationProofFixture(intact bool) *parentService.DeclarationProof {
 }
 
 func TestDeclarationProofReportShowsOwnAnswersAndTextsWithoutChecksums(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 9, 28, 8, 0, 0, 0, time.UTC)
 	text := proofTexts(declarationProofReport(declarationProofFixture(true), now))
 
@@ -86,6 +88,7 @@ func TestDeclarationProofReportShowsOwnAnswersAndTextsWithoutChecksums(t *testin
 }
 
 func TestDeclarationProofReportWarnsWhenAnEntryChanged(t *testing.T) {
+	t.Parallel()
 	text := proofTexts(declarationProofReport(declarationProofFixture(false), time.Date(2026, 9, 28, 8, 0, 0, 0, time.UTC)))
 	assert.Contains(t, text, "Prüfung=Achtung: Ein gespeicherter Eintrag wurde nachträglich verändert.")
 }
