@@ -4330,6 +4330,10 @@
       "write_owner": "identity-access"
     },
     {
+      "name": "auth.parent_declaration_permission_grants",
+      "write_owner": "migrations"
+    },
+    {
       "name": "users.student_profiles",
       "write_owner": "people-directory"
     },

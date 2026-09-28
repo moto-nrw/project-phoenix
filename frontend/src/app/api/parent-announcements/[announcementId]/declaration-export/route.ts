@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "DeclarationExportDownload" });
@@ -40,10 +41,13 @@ async function GETHandler(
 
   const backendUrl = `${getServerApiUrl()}/api/parent-announcements/${encodeURIComponent(announcementId)}/declaration-export?format=${format}`;
 
-  const makeRequest = (bearer: string) =>
+  const makeRequest = async (bearer: string) =>
     fetch(backendUrl, {
       method: "GET",
-      headers: { Authorization: `Bearer ${bearer}` },
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        ...(await incomingAnalyticsSessionHeaders()),
+      },
       cache: "no-store",
     });
 

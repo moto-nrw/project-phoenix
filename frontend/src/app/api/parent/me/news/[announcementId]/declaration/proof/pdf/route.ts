@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { parentAuth, uncachedParentAuth } from "~/server/auth/parent";
 import { withParentAuth } from "~/server/auth/parent-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ParentDeclarationProofPdf" });
@@ -39,10 +40,13 @@ async function GETHandler(
 
   const backendUrl = `${getServerApiUrl()}/parent/me/news/${encodeURIComponent(announcementId)}/declaration/proof?student_id=${encodeURIComponent(studentId)}&format=pdf`;
 
-  const makeRequest = (bearer: string) =>
+  const makeRequest = async (bearer: string) =>
     fetch(backendUrl, {
       method: "GET",
-      headers: { Authorization: `Bearer ${bearer}` },
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        ...(await incomingAnalyticsSessionHeaders()),
+      },
       cache: "no-store",
     });
 

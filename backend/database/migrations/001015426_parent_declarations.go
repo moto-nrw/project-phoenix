@@ -155,6 +155,15 @@ func parentDeclarationsUp(ctx context.Context, db *bun.DB) error {
 			ON users.parent_announcement_declaration_submissions (account_id)
 			WHERE account_id IS NOT NULL;
 
+		-- The down migration removes the permission only from relationships this
+		-- migration changed. A permission granted manually or by a later
+		-- migration must survive its rollback.
+		CREATE TABLE auth.parent_declaration_permission_grants (
+			tenant_id       BIGINT NOT NULL,
+			relationship_id BIGINT NOT NULL,
+			PRIMARY KEY (tenant_id, relationship_id)
+		);
+
 		GRANT SELECT, INSERT ON users.parent_announcement_declaration_versions TO phoenix_tenant, phoenix_admin;
 		GRANT SELECT, INSERT ON users.parent_announcement_declaration_submissions TO phoenix_tenant, phoenix_admin;
 		REVOKE UPDATE, DELETE, TRUNCATE ON users.parent_announcement_declaration_versions FROM phoenix_tenant, phoenix_admin;
@@ -176,12 +185,17 @@ func parentDeclarationsUp(ctx context.Context, db *bun.DB) error {
 	// pickup-only people, emergency contacts and social workers never do. New
 	// relationships receive it from the role presets in auth/authorize.
 	if _, err := tx.ExecContext(ctx, `
-		UPDATE auth.guardian_student_access AS access
-		SET permissions = access.permissions || '{"parent_portal.declarations.submit": true}'::jsonb
-		FROM users.student_guardian_relationships AS relationship
-		WHERE relationship.tenant_id = access.tenant_id AND relationship.id = access.relationship_id
-			AND relationship.guardian_role IN ('primary_guardian', 'legal_guardian', 'co_guardian')
-			AND NOT (access.permissions ? 'parent_portal.declarations.submit');
+		WITH granted AS (
+			UPDATE auth.guardian_student_access AS access
+			SET permissions = access.permissions || '{"parent_portal.declarations.submit": true}'::jsonb
+			FROM users.student_guardian_relationships AS relationship
+			WHERE relationship.tenant_id = access.tenant_id AND relationship.id = access.relationship_id
+				AND relationship.guardian_role IN ('primary_guardian', 'legal_guardian', 'co_guardian')
+				AND NOT (access.permissions ? 'parent_portal.declarations.submit')
+			RETURNING access.tenant_id, access.relationship_id
+		)
+		INSERT INTO auth.parent_declaration_permission_grants (tenant_id, relationship_id)
+		SELECT tenant_id, relationship_id FROM granted;
 	`); err != nil {
 		return fmt.Errorf("error granting parent_portal.declarations.submit: %w", err)
 	}
@@ -201,9 +215,12 @@ func parentDeclarationsDown(ctx context.Context, db *bun.DB) error {
 	}()
 
 	if _, err := tx.ExecContext(ctx, `
-		UPDATE auth.guardian_student_access
-		SET permissions = permissions - 'parent_portal.declarations.submit'
-		WHERE permissions ? 'parent_portal.declarations.submit';
+		UPDATE auth.guardian_student_access AS access
+		SET permissions = access.permissions - 'parent_portal.declarations.submit'
+		FROM auth.parent_declaration_permission_grants AS marker
+		WHERE marker.tenant_id = access.tenant_id AND marker.relationship_id = access.relationship_id
+			AND access.permissions @> '{"parent_portal.declarations.submit": true}'::jsonb;
+		DROP TABLE IF EXISTS auth.parent_declaration_permission_grants;
 
 		DROP TABLE IF EXISTS users.parent_announcement_declaration_submissions;
 		DROP TABLE IF EXISTS users.parent_announcement_declaration_versions;
