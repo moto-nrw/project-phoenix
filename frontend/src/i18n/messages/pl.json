@@ -299,7 +299,7 @@
     "revokeConfirm": "Wycofaj",
     "cancel": "Anuluj",
     "saving": "Zapisywanie …",
-    "saved": "Twoje oświadczenie w imieniu {name} zostało zapisane.",
+    "saved": "Twoja odpowiedź dla {name} została zapisana.",
     "errors": {
       "notFound": "To oświadczenie nie jest już dostępne. Lista zostanie wczytana ponownie.",
       "notPermitted": "Nie możesz odpowiedzieć za to dziecko. W razie pytań skontaktuj się z OGS.",

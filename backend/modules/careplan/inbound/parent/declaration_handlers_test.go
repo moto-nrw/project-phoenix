@@ -77,7 +77,7 @@ func TestDeclarationProofReportShowsOwnAnswersAndTextsWithoutChecksums(t *testin
 
 	assert.Contains(t, text, "Kind=Lina Richter")
 	assert.Contains(t, text, "Prüfung=Text und Antworten sind seit der Veröffentlichung unverändert.")
-	assert.Contains(t, text, "[Zugestimmt am 27.09.2026, 21:57 Uhr]\nVon=Klaus Richter (Hauptsorgeberechtigte Person)\nFassung=2\nPasswort bestätigt=Nein")
+	assert.Contains(t, text, "[Zugestimmt am 27.09.2026, 21:57 Uhr]\nVon=Klaus Richter (Hauptberechtigt)\nFassung=2\nPasswort bestätigt=Nein")
 	assert.Contains(t, text, "Passwort bestätigt=Ja")
 	assert.Less(t, strings.Index(text, "[Fassung 2]"), strings.Index(text, "[Fassung 1]"), "newest version first")
 	assert.NotContains(t, text, "Nie beantwortet", "only versions the guardian answered on")

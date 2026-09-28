@@ -166,13 +166,13 @@ func DeclarationMethodLabel(method string) string {
 func GuardianRoleLabel(role string) string {
 	switch role {
 	case "primary_guardian":
-		return "Hauptsorgeberechtigte Person"
+		return "Hauptberechtigt"
 	case "legal_guardian":
-		return "Sorgeberechtigte Person"
+		return "Erziehungsberechtigt"
 	case "co_guardian":
-		return "Weitere sorgeberechtigte Person"
+		return "Mitberechtigt"
 	case "custom":
-		return "Individuell berechtigte Person"
+		return "Individuell"
 	default:
 		return role
 	}

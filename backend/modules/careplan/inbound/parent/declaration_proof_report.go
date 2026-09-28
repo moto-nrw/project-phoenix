@@ -68,10 +68,10 @@ var proofActionLabels = map[string]string{
 }
 
 var proofRoleLabels = map[string]string{
-	"primary_guardian": "Hauptsorgeberechtigte Person",
-	"legal_guardian":   "Sorgeberechtigte Person",
-	"co_guardian":      "Weitere sorgeberechtigte Person",
-	"custom":           "Individuell berechtigte Person",
+	"primary_guardian": "Hauptberechtigt",
+	"legal_guardian":   "Erziehungsberechtigt",
+	"co_guardian":      "Mitberechtigt",
+	"custom":           "Individuell",
 }
 
 func labelOr(labels map[string]string, key string) string {

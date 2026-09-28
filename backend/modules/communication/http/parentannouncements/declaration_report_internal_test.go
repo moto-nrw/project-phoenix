@@ -73,7 +73,7 @@ func TestDeclarationReportDescribesTheProofWithoutChecksums(t *testing.T) {
 	assert.Contains(t, text, "Dateien=Zoo.pdf")
 	assert.Contains(t, text, "(Klaus Richter)\nAntwort=Zugestimmt am 27.09.2026, 21:57 Uhr")
 	assert.Contains(t, text, "(Thomas Adler)\nAntwort=Noch keine Antwort")
-	assert.Contains(t, text, "Von=Klaus Richter (Hauptsorgeberechtigte Person)")
+	assert.Contains(t, text, "Von=Klaus Richter (Hauptberechtigt)")
 	// Checksums are for the CSV and the automatic check, not for readers.
 	assert.NotContains(t, text, strings.Repeat("a", 64))
 	assert.NotContains(t, text, strings.Repeat("b", 64))

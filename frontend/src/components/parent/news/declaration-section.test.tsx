@@ -340,7 +340,7 @@ describe("Erklärung in the detail view", () => {
       }),
     );
     expect(
-      await screen.findByText("Ihre Erklärung für Mia ist gespeichert."),
+      await screen.findByText("Ihre Antwort für Mia ist gespeichert."),
     ).toBeInTheDocument();
     expect(onStale).toHaveBeenCalledWith("42");
   });

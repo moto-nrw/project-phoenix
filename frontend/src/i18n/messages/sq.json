@@ -299,7 +299,7 @@
     "revokeConfirm": "Tërhiq",
     "cancel": "Anulo",
     "saving": "Po ruhet …",
-    "saved": "Deklarata juaj për {name} u ruajt.",
+    "saved": "Përgjigjja juaj për {name} u ruajt.",
     "errors": {
       "notFound": "Kjo deklaratë nuk është më e disponueshme. Lista po ngarkohet përsëri.",
       "notPermitted": "Nuk mund të përgjigjeni për këtë fëmijë. Për pyetje kontaktoni OGS-në.",

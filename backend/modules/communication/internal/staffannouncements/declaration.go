@@ -109,7 +109,7 @@ type DeclarationSupport interface {
 	DeclarationFrozen(ctx context.Context, a *usersModels.ParentAnnouncement) (bool, error)
 }
 
-const declarationReminderKicker = "Erklärung — Ihre Antwort fehlt"
+const declarationReminderKicker = "Erklärung: Ihre Antwort fehlt"
 
 // normalizeDeclaration validates and completes the declaration settings. It
 // runs inside normalizeDelivery, after the delivery mode is known.

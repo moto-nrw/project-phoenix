@@ -299,7 +299,7 @@
     "revokeConfirm": "Widerrufen",
     "cancel": "Abbrechen",
     "saving": "Wird gespeichert …",
-    "saved": "Ihre Erklärung für {name} ist gespeichert.",
+    "saved": "Ihre Antwort für {name} ist gespeichert.",
     "errors": {
       "notFound": "Diese Erklärung ist nicht mehr verfügbar. Die Liste wird neu geladen.",
       "notPermitted": "Für dieses Kind dürfen Sie nicht antworten. Bei Fragen wenden Sie sich an die OGS.",

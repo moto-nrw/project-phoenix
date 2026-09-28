@@ -299,7 +299,7 @@
     "revokeConfirm": "Withdraw",
     "cancel": "Cancel",
     "saving": "Saving …",
-    "saved": "Your declaration for {name} has been saved.",
+    "saved": "Your answer for {name} has been saved.",
     "errors": {
       "notFound": "This declaration is no longer available. The list is being reloaded.",
       "notPermitted": "You may not answer for this child. If you have questions, please contact the OGS.",

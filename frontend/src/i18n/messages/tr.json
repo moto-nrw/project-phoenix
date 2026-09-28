@@ -299,7 +299,7 @@
     "revokeConfirm": "Geri al",
     "cancel": "Vazgeç",
     "saving": "Kaydediliyor …",
-    "saved": "{name} için beyanınız kaydedildi.",
+    "saved": "{name} için yanıtınız kaydedildi.",
     "errors": {
       "notFound": "Bu beyan artık mevcut değil. Liste yeniden yükleniyor.",
       "notPermitted": "Bu çocuk için yanıt veremezsiniz. Sorularınız için OGS ile iletişime geçin.",

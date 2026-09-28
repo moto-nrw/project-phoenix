@@ -1473,10 +1473,10 @@ function AnnouncementFormModal({
                       Erklärung
                     </h3>
                     <p className="mt-1 text-sm text-gray-600">
-                      Eltern geben die Erklärung im Eltern-Portal ab, für jedes
-                      Kind einzeln. Das ist eine einfache Erklärung per
-                      Knopfdruck. Verlangt ein Gesetz eine Erklärung auf Papier,
-                      reicht sie nicht aus.
+                      Eltern antworten im Eltern-Portal, für jedes Kind einzeln.
+                      Das ist eine einfache Erklärung per Knopfdruck. Verlangt
+                      ein Gesetz eine Erklärung auf Papier, reicht sie nicht
+                      aus.
                     </p>
                   </div>
 
