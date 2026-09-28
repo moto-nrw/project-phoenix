@@ -191,7 +191,7 @@ type Factory struct {
 	AutoEnd                   timetable.InstanceAutoEnd
 	TimetableOperations       timetable.OperationCapability
 	Users                     users.PersonService
-	Birthdays                 users.BirthdayService
+	Birthdays                 peopledirectory.Birthdays
 	StaffDocuments            users.StaffDocumentService
 	StudentDocuments          careplan.StudentDocuments
 	FileStore                 *filestorageModule.Module
@@ -467,7 +467,7 @@ func NewFactoryWithModules(
 	observeCarePlan CarePlanObserver,
 	mealPlan parentportalcompose.MealPlanProvider,
 	bindMealPlanSettings MealPlanSettingsBinder,
-	feedbackCounter users.FeedbackEntryCounter,
+	feedbackCounter studentdeletioncompose.Feedback,
 	bindFeedbackSettings FeedbackSettingsBinder,
 	observeAuditAppend AuditAppendObserver,
 	observeDelivery DeliveryObserver,
@@ -516,7 +516,7 @@ func newFactory(
 	observeCarePlan CarePlanObserver,
 	mealPlan parentportalcompose.MealPlanProvider,
 	bindMealPlanSettings MealPlanSettingsBinder,
-	feedbackCounter users.FeedbackEntryCounter,
+	feedbackCounter studentdeletioncompose.Feedback,
 	bindFeedbackSettings FeedbackSettingsBinder,
 	observeAuditAppend AuditAppendObserver,
 	observeDelivery DeliveryObserver,
@@ -845,14 +845,9 @@ func newFactory(
 
 	// Birthday display (#1542): who is celebrating today, plus the school
 	// settings and personal opt-out that decide who may be shown.
-	birthdayService := users.NewBirthdayService(users.BirthdayServiceDependencies{
-		StudentRepo:     repos.Student,
-		StaffRepo:       repos.Staff,
-		PersonRepo:      repos.Person,
-		SettingsService: settingsService,
-		Logger:          logger.With("service", "birthdays"),
-		Now:             now,
-	})
+	birthdayService := NewBirthdays(
+		BirthdayRepositories{Students: repos.Student, Staff: repos.Staff, Persons: repos.Person},
+		settingsService, logger.With("service", "birthdays"), now)
 
 	// Staff documents (#1424): metadata + per-category authority for the
 	// Dokumente tab. Shares the Stammdaten audit trail and access log.
@@ -3078,14 +3073,14 @@ func (f *Factory) EnableStudentPhotos(deps StudentPhotoBootstrap) {
 		Consents:    f.StudentConsents,
 		Logger:      deps.Logger,
 	})
-	users.RegisterStudentPhotoSettingsSideEffects(f.SettingsSideEffects, f.StudentPhotos)
+	RegisterStudentPhotoSettingsSideEffects(f.SettingsSideEffects, f.StudentPhotos)
 }
 
 // feedbackCounterOrUnconfigured keeps the reduced test graph constructible:
 // the composition requires a Feedback owner, and a graph built without one
 // fails at the first deletion preview instead of at startup, exactly as the
 // retired provider did.
-func feedbackCounterOrUnconfigured(counter users.FeedbackEntryCounter) users.FeedbackEntryCounter {
+func feedbackCounterOrUnconfigured(counter studentdeletioncompose.Feedback) studentdeletioncompose.Feedback {
 	if counter != nil {
 		return counter
 	}

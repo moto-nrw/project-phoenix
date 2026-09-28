@@ -1419,31 +1419,21 @@
     },
     {
       "scope": "test",
-      "file": "services/users/birthday_service_test.go",
+      "file": "services/users/birthday_repository_test.go",
       "declaration": "TestBirthdayRepositoriesRejectAnEmptyDaySet",
       "target": "database/repositories.NewFactory",
       "lines": [
-        530
+        97
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "services/users/birthday_service_test.go",
+      "file": "services/users/birthday_repository_test.go",
       "declaration": "TestStudentBirthdaysExcludeEndedCare",
       "target": "database/repositories.NewFactory",
       "lines": [
-        482
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/birthday_service_test.go",
-      "declaration": "newBirthdayService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        45
+        49
       ],
       "tables": []
     },

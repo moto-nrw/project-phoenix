@@ -1,22 +1,21 @@
-package users
+package services_test
 
-// The registry routing of the student-photo settings key stays an in-package
-// test: the handler it dispatches to is this package's contract, while the
-// lifecycle behind it lives with the People Directory owner (#3349).
+// The registry routing of the student-photo settings key is tested where the
+// root composition wires it; the lifecycle behind it lives with the People
+// Directory owner (#3349).
 
 import (
 	"context"
 	"sync/atomic"
 	"testing"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type fakeStudentPhotoService struct {
-	StudentPhotoService
 	calls int32
 }
 
@@ -31,9 +30,9 @@ func TestRegisterStudentPhotoSettingsSideEffectsDispatchesToTheService(t *testin
 	registry := sideeffects.NewRegistry()
 	service := &fakeStudentPhotoService{}
 
-	RegisterStudentPhotoSettingsSideEffects(registry, service)
+	services.RegisterStudentPhotoSettingsSideEffects(registry, service)
 
-	post, err := registry.Dispatch(context.Background(), 1, configModel.KeyStudentPhotosEnabled, true)
+	post, err := registry.Dispatch(context.Background(), 1, "operations.student_photos_enabled", true)
 	require.NoError(t, err)
 	require.NotNil(t, post)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&service.calls),
@@ -46,7 +45,7 @@ func TestRegisterStudentPhotoSettingsSideEffectsIgnoresOtherKeys(t *testing.T) {
 	registry := sideeffects.NewRegistry()
 	service := &fakeStudentPhotoService{}
 
-	RegisterStudentPhotoSettingsSideEffects(registry, service)
+	services.RegisterStudentPhotoSettingsSideEffects(registry, service)
 
 	post, err := registry.Dispatch(context.Background(), 1, "operations.session_end_time", "18:00")
 	require.NoError(t, err)

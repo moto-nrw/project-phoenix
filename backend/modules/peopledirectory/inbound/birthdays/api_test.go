@@ -5,7 +5,7 @@
 // What it pins: the permission gates (a colleague's birth date must not fall
 // out of a users:read route), the two settings that govern the display, and the
 // personal opt-out (#1542).
-package http_test
+package birthdays_test
 
 import (
 	"context"
@@ -24,10 +24,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/birthdays/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+)
+
+// The registry keys of the two display settings the resource itself never
+// reads; the tests flip them through the tenant settings service.
+const (
+	keyDisplayEnabled = "operations.birthday_display_enabled"
+	keyIncludeStaff   = "operations.birthday_display_include_staff"
 )
 
 type testContext struct {
@@ -47,7 +53,7 @@ func setupBirthdaysRoute(t *testing.T, clocks ...func() time.Time) *testContext 
 	return &testContext{
 		db: db,
 		resource: birthdaysAPI.NewResource(
-			svc.Birthdays, svc.ListExport, svc.UserContext, db, slog.Default(),
+			svc.Birthdays, svc.ListExport, svc.UserContext, slog.Default(),
 		),
 		setFlag: func(ctx context.Context, key string, value bool) error {
 			return svc.Settings.SetValue(ctx, key, value, nil, nil)
@@ -190,7 +196,7 @@ func TestOverviewListsTodaysChildren(t *testing.T) {
 	tc := setupBirthdaysRoute(t, func() time.Time {
 		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
 	})
-	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, true)
+	setSetting(t, tc, keyDisplayEnabled, true)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-children@example.com")
 
@@ -225,7 +231,7 @@ func TestOverviewDisabledReturnsNothing(t *testing.T) {
 	t.Parallel()
 
 	tc := setupBirthdaysRoute(t)
-	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, false)
+	setSetting(t, tc, keyDisplayEnabled, false)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-off@example.com")
 
@@ -247,7 +253,7 @@ func TestOverviewStaffVisibility(t *testing.T) {
 	t.Parallel()
 
 	tc := setupBirthdaysRoute(t)
-	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, true)
+	setSetting(t, tc, keyDisplayEnabled, true)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-staff@example.com")
 
@@ -277,7 +283,7 @@ func TestOverviewStaffVisibility(t *testing.T) {
 	})
 
 	t.Run("shown once the school opted in, except for the opt-out", func(t *testing.T) {
-		setSetting(t, tc, configModel.KeyBirthdayDisplayIncludeStaff, true)
+		setSetting(t, tc, keyIncludeStaff, true)
 
 		rr := getOverview(t, tc, account.ID, adminPermissions())
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -395,7 +401,7 @@ func TestOverviewAppliesStudentDataScope(t *testing.T) {
 	t.Parallel()
 
 	tc := setupBirthdaysRoute(t)
-	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, true)
+	setSetting(t, tc, keyDisplayEnabled, true)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-scope@example.com")
 
