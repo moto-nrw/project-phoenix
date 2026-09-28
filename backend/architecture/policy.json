@@ -500,6 +500,13 @@
       "external_test_role": "e2e-test"
     },
     {
+      "path": "modules/peopledirectory/userscontract",
+      "owner": "people-directory",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/peopledirectory/departure",
       "owner": "people-directory",
       "role": "contract",
