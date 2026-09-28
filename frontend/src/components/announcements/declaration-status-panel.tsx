@@ -222,7 +222,7 @@ export function DeclarationStatusPanel({
   const s = status.summary;
   const done = s.agreed + s.declined + s.revoked;
   const waiting = s.open + s.partial;
-  const reachable = s.children_total - s.no_signer;
+  const answerable = s.children_total - s.no_signer;
 
   return (
     <div className="space-y-4">
@@ -235,14 +235,16 @@ export function DeclarationStatusPanel({
             {done}
           </span>
           <span className="text-lg text-gray-500 tabular-nums">
-            / {reachable}
+            / {answerable}
           </span>
           <span className="text-sm text-gray-600">Kinder mit Antwort</span>
         </div>
         <p className="mt-1 text-sm text-gray-600">
-          {waiting === 0
-            ? "Für alle Kinder, bei denen das möglich ist, liegt eine Antwort vor."
-            : `Für ${waiting} ${waiting === 1 ? "Kind" : "Kinder"} fehlt noch eine Antwort.`}
+          {waiting > 0
+            ? `Für ${waiting} ${waiting === 1 ? "Kind" : "Kinder"} fehlt noch eine Antwort.`
+            : s.expired > 0
+              ? `Für ${s.expired} ${s.expired === 1 ? "Kind" : "Kinder"} ist die Frist abgelaufen.`
+              : "Für alle Kinder, bei denen das möglich ist, liegt eine Antwort vor."}
         </p>
         {s.no_signer > 0 && (
           <p className="mt-1 text-sm text-gray-600">

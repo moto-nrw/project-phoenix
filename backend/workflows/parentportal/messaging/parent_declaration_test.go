@@ -19,6 +19,7 @@ import (
 	"github.com/uptrace/bun"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
@@ -293,6 +294,70 @@ func TestDeclaration_ExpiredAllowsOnlyRevocation(t *testing.T) {
 	assert.True(t, created)
 	assert.Equal(t, usersModels.DeclarationActionRevoked, revoked.Action)
 	assert.Len(t, s.history(t), 2)
+}
+
+func TestDeclaration_EndedActivityEnrollmentKeepsHistoryAndRevocation(t *testing.T) {
+	t.Parallel()
+	testpkg.OwnTenant(t)
+	svc, db, repos := buildAnnouncementServiceOn(t, testpkg.SetupIsolatedTestDB(t), true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
+	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
+	group := testpkg.CreateTestActivityGroupForTenant(t, db, chain.TenantID, "Nachweis-AG")
+	enrollment := &testpkg.StudentEnrollment{
+		StudentID:       chain.StudentID,
+		ActivityGroupID: group.ID,
+		ValidFrom:       testpkg.ActivityDate(calendar.TodayDate().AddDays(-1)),
+	}
+	enrollment.SetTenantID(chain.TenantID)
+	_, err := db.NewInsert().
+		Model(enrollment).
+		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	announcement, version := seedDeclaration(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID,
+		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetActivityGroup, TargetRefID: &group.ID}},
+		consent(usersModels.DeclarationSignersAny, true, false), nil)
+	_, created, err := svc.SubmitDeclaration(ctx, chain.AccountID, announcement.ID, messaging.DeclarationInput{
+		StudentID: chain.StudentID, VersionID: version.ID, Action: usersModels.DeclarationActionAgreed,
+	}, nil)
+	require.NoError(t, err)
+	require.True(t, created)
+
+	_, err = db.NewUpdate().
+		Model((*testpkg.StudentEnrollment)(nil)).
+		ModelTableExpr("activities.student_enrollments").
+		Set("valid_until = ?", testpkg.ActivityDate(calendar.TodayDate())).
+		Where("id = ?", enrollment.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	children, err := repos.ParentAnnouncement.DeclarationChildren(seedCtx, chain.TenantID, announcement.ID)
+	require.NoError(t, err)
+	require.Len(t, children, 1, "staff status and export keep the recorded child")
+	assert.Equal(t, chain.StudentID, children[0].StudentID)
+
+	feed, err := svc.ListAnnouncements(ctx, chain.AccountID)
+	require.NoError(t, err)
+	item := findFeedItem(t, feed, announcement.ID)
+	require.NotNil(t, item.Declaration)
+	require.Len(t, item.Declaration.Children, 1)
+	persisted, err := repos.ParentAnnouncement.FindByID(seedCtx, announcement.ID)
+	require.NoError(t, err)
+	require.NotNil(t, persisted.PublishedAt)
+	require.NoError(t, svc.MarkAnnouncementRead(ctx, chain.AccountID, announcement.ID, *persisted.PublishedAt))
+
+	_, _, err = svc.SubmitDeclaration(ctx, chain.AccountID, announcement.ID, messaging.DeclarationInput{
+		StudentID: chain.StudentID, VersionID: version.ID, Action: usersModels.DeclarationActionDeclined,
+	}, nil)
+	require.ErrorIs(t, err, messaging.ErrDeclarationNotPermitted, "a past activity enrollment does not allow another declaration")
+
+	_, created, err = svc.SubmitDeclaration(ctx, chain.AccountID, announcement.ID, messaging.DeclarationInput{
+		StudentID: chain.StudentID, VersionID: version.ID, Action: usersModels.DeclarationActionRevoked,
+	}, nil)
+	require.NoError(t, err)
+	assert.True(t, created, "a recorded agreement remains revocable after enrollment ends")
 }
 
 func TestDeclaration_AllGuardiansMustDeclare(t *testing.T) {

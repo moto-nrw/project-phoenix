@@ -157,6 +157,39 @@ describe("DeclarationStatusPanel (#3430)", () => {
     expect(screen.getAllByText("Offen").length).toBeGreaterThan(0);
   });
 
+  it("states when an answerable child missed the deadline", async () => {
+    const expiredChild = status().children[0]!;
+    statusMock.mockResolvedValue(
+      status({
+        summary: {
+          ...status().summary,
+          agreed: 0,
+          partial: 0,
+          open: 0,
+          expired: 1,
+        },
+        children: [
+          {
+            ...expiredChild,
+            state: "expired",
+            signers: [],
+          },
+        ],
+      }),
+    );
+    render(<DeclarationStatusPanel announcementId="42" canAct />);
+
+    await screen.findByText("Kinder mit Antwort");
+    expect(
+      screen.getByText("Für 1 Kind ist die Frist abgelaufen."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Für alle Kinder, bei denen das möglich ist, liegt eine Antwort vor.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
   it("filters to the children a reminder reaches", async () => {
     render(<DeclarationStatusPanel announcementId="42" canAct />);
     await screen.findByText("Kinder mit Antwort");

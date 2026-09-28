@@ -188,6 +188,9 @@ type ParentDeclarationRepository interface {
 	// HoldDeclarationSigner reads and share-locks the relationship that
 	// authorizes accountID to declare for studentID, or returns nil.
 	HoldDeclarationSigner(ctx context.Context, tenantID, announcementID, accountID, studentID int64) (*DeclarationSignerContext, error)
+	// HoldHistoricalDeclarationSigner is the revocation-only counterpart for
+	// an account's own recorded declaration after an activity enrollment ended.
+	HoldHistoricalDeclarationSigner(ctx context.Context, tenantID, announcementID, accountID, studentID int64) (*DeclarationSignerContext, error)
 	// ReadOpenDeclarations returns the live, open Erklärungen of the schools
 	// that the account has already opened, with their deadline.
 	ReadOpenDeclarations(ctx context.Context, accountID int64, tenantIDs []int64) (map[int64]*time.Time, error)

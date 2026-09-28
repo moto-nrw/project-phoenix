@@ -206,6 +206,12 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 	if err != nil {
 		return nil, false, err
 	}
+	if signer == nil && in.Action == declarations.DeclarationActionRevoked {
+		signer, err = repo.HoldHistoricalDeclarationSigner(ctx, target.tenantID, announcementID, accountID, in.StudentID)
+		if err != nil {
+			return nil, false, err
+		}
+	}
 	if signer == nil {
 		return nil, false, ErrDeclarationNotPermitted
 	}

@@ -135,6 +135,15 @@ func (r *announcementRepository) HoldDeclarationSigner(ctx context.Context, tena
 	return &signer, nil
 }
 
+func (r *announcementRepository) HoldHistoricalDeclarationSigner(ctx context.Context, tenantID, announcementID, accountID, studentID int64) (*usersModels.DeclarationSignerContext, error) {
+	value, err := r.audience.HoldHistoricalDeclarationSigner(ctx, tenantID, announcementID, accountID, studentID)
+	if err != nil || value == nil {
+		return nil, err
+	}
+	signer := usersModels.DeclarationSignerContext(*value)
+	return &signer, nil
+}
+
 func (r *announcementRepository) ReadOpenDeclarations(ctx context.Context, accountID int64, tenantIDs []int64) (map[int64]*time.Time, error) {
 	return r.store.ReadOpenDeclarations(ctx, accountID, tenantIDs)
 }

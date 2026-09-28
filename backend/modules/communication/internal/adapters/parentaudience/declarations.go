@@ -22,8 +22,19 @@ const declarationSignerPermissions = `'{"parent_portal.access": true, "parent_po
 // declarationChildrenSQL lists every child the announcement reaches, with no
 // guardian requirement: a child nobody may declare for must stay visible.
 //
-// Bind order: school, school, today, today, today, announcement, school.
-const declarationChildrenSQL = `WITH reached AS (` + letterReachedStudentsBound + `)
+// Historical submission rows stay in the staff status and export after an
+// activity enrollment ends. The child deletion lifecycle removes those rows,
+// so this never revives a deleted child.
+//
+// Bind order: school, school, today, today, today, announcement, school,
+// announcement, school.
+const declarationChildrenSQL = `WITH reached AS (
+			` + letterReachedStudentsBound + `
+			UNION
+			SELECT DISTINCT sub.student_id
+			FROM users.parent_announcement_declaration_submissions sub
+			WHERE sub.announcement_id = ? AND sub.tenant_id = ?
+		)
 			SELECT s.id AS student_id,
 				COALESCE(p.first_name, '') AS first_name,
 				COALESCE(p.last_name, '')  AS last_name,
@@ -61,7 +72,7 @@ func (p *Projection) DeclarationChildren(ctx context.Context, schoolID, announce
 	today := p.day()
 	var rows []declarationChildRow
 	if err := db.NewRaw(declarationChildrenSQL,
-		schoolID, schoolID, today, today, today, announcementID, schoolID,
+		schoolID, schoolID, today, today, today, announcementID, schoolID, announcementID, schoolID,
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent declaration children: %w", err)
 	}
@@ -139,7 +150,12 @@ func (p *Projection) declarationSigners(ctx context.Context, schoolID int64, stu
 // children the declaration reaches, whether or not the account may declare
 // for them: a pickup-only guardian still sees the Erklärung.
 //
-// Bind order: today, today, today, guardian links, account, announcements.
+// A declaration already made by this account remains visible after an activity
+// enrollment ends. The historical branch still requires its current guardian
+// relationship with portal access; it does not make a former guardian visible.
+//
+// Bind order: today, today, today, guardian links, account, announcements,
+// guardian links, account, announcements.
 const declarationChildrenForAccountSQL = `
 			SELECT DISTINCT a.id AS announcement_id, s.id AS student_id,
 				COALESCE(p.first_name, '') AS first_name,
@@ -159,6 +175,27 @@ const declarationChildrenForAccountSQL = `
 			JOIN auth.account_tenants act ON act.account_id = gp.account_id
 				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
 			WHERE a.id IN (?)
+
+			UNION
+
+			SELECT DISTINCT a.id AS announcement_id, s.id AS student_id,
+				COALESCE(p.first_name, '') AS first_name,
+				COALESCE(p.last_name, '') AS last_name,
+				COALESCE(sm.school_class, '') AS school_class
+			FROM users.parent_announcements a
+			JOIN users.parent_announcement_declaration_submissions sub
+				ON sub.announcement_id = a.id AND sub.tenant_id = a.tenant_id
+			JOIN users.student_profiles s ON s.id = sub.student_id AND s.tenant_id = a.tenant_id` + studentMembershipJoins + `
+			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+				AND sm.status <> 'alumnus'
+			JOIN (?) sg ON sg.student_id = s.id AND sg.tenant_id = a.tenant_id
+				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
+			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = a.tenant_id
+				AND gp.account_id = sub.account_id
+			JOIN auth.account_tenants act ON act.account_id = gp.account_id
+				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
+			WHERE a.id IN (?) AND a.delivery_mode = 'declaration'
+				AND sub.account_id = ?
 			ORDER BY last_name ASC, first_name ASC, student_id ASC`
 
 // DeclarationChildrenForAccount returns the account's reached children per
@@ -175,6 +212,7 @@ func (p *Projection) DeclarationChildrenForAccount(ctx context.Context, accountI
 	var rows []declarationChildRow
 	if err := db.NewRaw(declarationChildrenForAccountSQL,
 		today, today, today, guardianLinks(db, 0), accountID, bun.List(announcementIDs),
+		guardianLinks(db, 0), bun.List(announcementIDs), accountID,
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent declaration children for account: %w", err)
 	}
@@ -230,6 +268,57 @@ func (p *Projection) HoldDeclarationSigner(ctx context.Context, schoolID, announ
 	}
 	if err != nil {
 		return nil, fmt.Errorf("hold parent declaration signer: %w", err)
+	}
+	signer := domain.DeclarationSignerContext(row)
+	return &signer, nil
+}
+
+// holdHistoricalDeclarationSignerSQL keeps a consent withdrawable after an
+// activity enrollment ended. It accepts only the account that owns an existing
+// submission and still holds both declaration permissions on the relationship.
+//
+// Bind order: guardian links of the school, school, account, student,
+// announcement, school.
+const holdHistoricalDeclarationSignerSQL = `
+			SELECT gp.id AS guardian_profile_id,
+				COALESCE(gp.first_name, '') AS first_name,
+				COALESCE(gp.last_name, '') AS last_name,
+				COALESCE(sg.guardian_role, '') AS guardian_role
+			FROM (?) sg
+			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
+				AND gp.account_id = ?
+			JOIN auth.account_tenants act ON act.account_id = gp.account_id
+				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
+			WHERE sg.student_id = ?
+				AND sg.permissions @> ` + declarationSignerPermissions + `
+				AND EXISTS (
+					SELECT 1
+					FROM users.parent_announcement_declaration_submissions sub
+					WHERE sub.announcement_id = ? AND sub.tenant_id = ?
+						AND sub.student_id = sg.student_id AND sub.account_id = gp.account_id
+				)
+			ORDER BY gp.id
+			LIMIT 1
+			FOR SHARE OF sg, gp, act`
+
+// HoldHistoricalDeclarationSigner reads and share-locks the current
+// relationship for an account's own historical declaration. It deliberately
+// does not re-evaluate the activity enrollment: that check would make a
+// recorded consent impossible to revoke after the activity has ended.
+func (p *Projection) HoldHistoricalDeclarationSigner(ctx context.Context, schoolID, announcementID, accountID, studentID int64) (*domain.DeclarationSignerContext, error) {
+	db, _, err := p.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var row declarationSignerContextRow
+	err = db.NewRaw(holdHistoricalDeclarationSignerSQL,
+		guardianLinks(db, schoolID), schoolID, accountID, studentID, announcementID, schoolID,
+	).Scan(ctx, &row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("hold historical parent declaration signer: %w", err)
 	}
 	signer := domain.DeclarationSignerContext(row)
 	return &signer, nil
