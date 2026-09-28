@@ -25,7 +25,13 @@ import {
   importBatchFailureMessage,
   importBatchSavedCount,
   readImportBatchFailure,
+  readImportBatchRejection,
 } from "~/lib/import-batch-result";
+import {
+  importChildQuotaNotice,
+  type ImportChildQuota,
+} from "~/lib/child-quota-import";
+import { childQuotaMessage } from "~/lib/child-quota-error";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 
@@ -78,6 +84,8 @@ interface ImportResult {
   Errors: ImportRowResult[];
   BulkActions: string[];
   DryRun: boolean;
+  /** Nur in der Vorschau einer Schule mit Kinderkontingent (#3571). */
+  child_quota?: ImportChildQuota;
 }
 
 // Status types for display
@@ -316,7 +324,11 @@ export default function StudentImportPage() {
             errors: [],
             notes: [],
             first_name: `${importData.TotalRows} Kinder`,
-            last_name: "bereit zum Import",
+            // Passt die Datei nicht ins Kinderkontingent, ist nichts bereit.
+            last_name:
+              importData.child_quota?.fits === false
+                ? "neu in der Datei"
+                : "bereit zum Import",
             school_class: "",
             group_name: "",
             guardian_info: "",
@@ -384,12 +396,27 @@ export default function StudentImportPage() {
           setImportResult(interrupted as ImportResult);
           setImportInterrupted(true);
           setPreviewData((interrupted.Errors ?? []).map(toDisplayStudent));
-          setError(importBatchFailureMessage(interrupted));
+          // Ein Stapel kann am Kinderkontingent scheitern, wenn zwischen
+          // Vorschau und Start andere Kinder dazukamen.
+          setError(
+            importBatchFailureMessage(
+              interrupted,
+              childQuotaMessage(readImportBatchRejection(result)),
+            ),
+          );
           logger.error("student_import_batch_failed", {
             created: interrupted.CreatedCount,
             updated: interrupted.UpdatedCount,
             errors: interrupted.ErrorCount,
           });
+          return;
+        }
+        // Das Kinderkontingent lehnt den ganzen Import ab, bevor er startet:
+        // Zwischen Vorschau und Start kamen andere Kinder dazu. Die Vorschau
+        // wird neu geprüft; ihr Hinweis nennt dann den aktuellen Stand und
+        // sperrt den Knopf.
+        if (childQuotaMessage(result)) {
+          await handleFileUpload(uploadedFile);
           return;
         }
         throw new Error(
@@ -491,6 +518,11 @@ export default function StudentImportPage() {
         ? `${childCountLabel(importable)} aktualisieren`
         : `${childCountLabel(importable)} übernehmen`;
   const savedCount = importResult ? importBatchSavedCount(importResult) : 0;
+  // Passen die neuen Kinder nicht ins Kinderkontingent, startet der Import
+  // gar nicht (ganz oder gar nicht).
+  const quotaNotice = importInterrupted
+    ? null
+    : importChildQuotaNotice(importResult?.child_quota);
 
   // Statuszeile des Seitenkopfs: der Stand des Imports, nicht ein Erklärsatz.
   const statusLine = uploadedFile
@@ -647,6 +679,10 @@ export default function StudentImportPage() {
       {/* Preview Section */}
       {(previewData.length > 0 || importInterrupted) && !importComplete && (
         <>
+          {quotaNotice && (
+            <Alert type={quotaNotice.type} message={quotaNotice.message} />
+          )}
+
           {/* Statistics */}
           <StatsCards
             total={stats.total}
@@ -706,7 +742,10 @@ export default function StudentImportPage() {
               disabled={
                 isImporting ||
                 isLoading ||
-                (!importInterrupted && (stats.errors > 0 || importable === 0))
+                (!importInterrupted &&
+                  (stats.errors > 0 ||
+                    importable === 0 ||
+                    quotaNotice?.type === "error"))
               }
               onClick={() => void handleImport()}
             >
