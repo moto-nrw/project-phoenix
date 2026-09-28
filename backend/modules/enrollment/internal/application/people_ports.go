@@ -252,6 +252,9 @@ type StudentRecords interface {
 type GuardianProfiles interface {
 	GuardianProfileByAccount(context.Context, int64) (*GuardianProfile, error)
 	GuardianProfileByEmail(context.Context, string) (*GuardianProfile, error)
+	// GuardianProfileHasActivePortalAccount reports whether the profile's
+	// linked account can sign in to the parent portal at this school.
+	GuardianProfileHasActivePortalAccount(context.Context, int64) (bool, error)
 	GuardianProfilesByEmails(context.Context, []string) ([]*GuardianProfile, error)
 	GuardianProfilesByID(context.Context, []int64) (map[int64]*GuardianProfile, error)
 	CreateGuardianProfile(context.Context, *GuardianProfile) error

@@ -22,6 +22,7 @@ import { createLogger } from "~/lib/logger";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { SectionCard } from "~/components/ui/section-card";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-request-diff";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
@@ -536,12 +537,9 @@ function EnrollmentStatusContent({
         </section>
       ) : null}
       {!allLocked && anyLocked && parentAccess === "none" ? (
-        <section className="moto-content-surface space-y-2 rounded-2xl border p-5 shadow-sm sm:p-6">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {t("noAccountTitle")}
-          </h2>
+        <SectionCard title={t("noAccountTitle")} bodyClassName="space-y-2">
           <NoParentAccountSteps />
-        </section>
+        </SectionCard>
       ) : null}
 
       {canRequestChange || changeRequests.length > 0 ? (

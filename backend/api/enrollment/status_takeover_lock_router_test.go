@@ -415,6 +415,17 @@ func insertGuardianProfile(t *testing.T, db *bun.DB, tenantID int64, email strin
 		Scan(testpkg.TenantContext(tenantID)))
 }
 
+func makeParentAccountReachable(t *testing.T, db *bun.DB, accountID, tenantID int64) {
+	t.Helper()
+	testpkg.EnsureAccountTenant(t, db, accountID, tenantID)
+	_, err := db.NewRaw(`
+		INSERT INTO auth.account_roles (account_id, role_id, tenant_id)
+		SELECT ?, id, ? FROM auth.roles WHERE name = 'guardian' AND tenant_id IS NULL`,
+		accountID, tenantID,
+	).Exec(context.Background())
+	require.NoError(t, err)
+}
+
 func TestPublicStatus_ParentAccountFlagOnlyWhileAChildIsTakenOver(t *testing.T) {
 	t.Parallel()
 	env, cleanup := setupTakeoverLockTest(t)
@@ -441,12 +452,63 @@ func TestPublicStatus_ParentAccountFlagTrueWithLinkedAccount(t *testing.T) {
 	env, cleanup := setupTakeoverLockTest(t)
 	defer cleanup()
 	account := testpkg.CreateTestAccount(t, env.db, "status-parent-account")
+	makeParentAccountReachable(t, env.db, account.ID, env.tenantID)
 	insertGuardianProfile(t, env.db, env.tenantID, takeoverLockGuardianEmail, &account.ID)
 	env.takeOver(t, env.request.Children[0].ID, "Lina")
 
 	hasAccount := env.statusParentAccount(t)
 	require.NotNil(t, hasAccount)
 	assert.True(t, *hasAccount)
+}
+
+func TestPublicStatus_ParentAccountFlagFalseWithInactiveAccount(t *testing.T) {
+	t.Parallel()
+	env, cleanup := setupTakeoverLockTest(t)
+	defer cleanup()
+	account := testpkg.CreateTestAccount(t, env.db, "status-parent-account-inactive")
+	makeParentAccountReachable(t, env.db, account.ID, env.tenantID)
+	_, err := env.db.NewRaw("UPDATE auth.accounts SET active = false WHERE id = ?", account.ID).Exec(context.Background())
+	require.NoError(t, err)
+	insertGuardianProfile(t, env.db, env.tenantID, takeoverLockGuardianEmail, &account.ID)
+	env.takeOver(t, env.request.Children[0].ID, "Lina")
+
+	hasAccount := env.statusParentAccount(t)
+	require.NotNil(t, hasAccount)
+	assert.False(t, *hasAccount, "a deactivated account cannot log in to the parent portal")
+}
+
+func TestPublicStatus_ParentAccountFlagFalseWithInactiveTenantMapping(t *testing.T) {
+	t.Parallel()
+	env, cleanup := setupTakeoverLockTest(t)
+	defer cleanup()
+	account := testpkg.CreateTestAccount(t, env.db, "status-parent-account-inactive-mapping")
+	makeParentAccountReachable(t, env.db, account.ID, env.tenantID)
+	_, err := env.db.NewRaw(
+		"UPDATE auth.account_tenants SET status = 'inactive' WHERE account_id = ? AND tenant_id = ?",
+		account.ID,
+		env.tenantID,
+	).Exec(context.Background())
+	require.NoError(t, err)
+	insertGuardianProfile(t, env.db, env.tenantID, takeoverLockGuardianEmail, &account.ID)
+	env.takeOver(t, env.request.Children[0].ID, "Lina")
+
+	hasAccount := env.statusParentAccount(t)
+	require.NotNil(t, hasAccount)
+	assert.False(t, *hasAccount, "an inactive tenant mapping cannot log in to the parent portal")
+}
+
+func TestPublicStatus_ParentAccountFlagFalseWithoutGuardianRole(t *testing.T) {
+	t.Parallel()
+	env, cleanup := setupTakeoverLockTest(t)
+	defer cleanup()
+	account := testpkg.CreateTestAccount(t, env.db, "status-parent-account-no-guardian-role")
+	testpkg.EnsureAccountTenant(t, env.db, account.ID, env.tenantID)
+	insertGuardianProfile(t, env.db, env.tenantID, takeoverLockGuardianEmail, &account.ID)
+	env.takeOver(t, env.request.Children[0].ID, "Lina")
+
+	hasAccount := env.statusParentAccount(t)
+	require.NotNil(t, hasAccount)
+	assert.False(t, *hasAccount, "an account without the guardian role cannot log in to the parent portal")
 }
 
 // The token lookup runs cross-tenant; the profile lookup must not. An account

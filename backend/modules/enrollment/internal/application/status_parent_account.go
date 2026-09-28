@@ -28,8 +28,11 @@ func (s *ChangeRequests) PrimaryGuardianHasPortalAccount(ctx context.Context, to
 		if err != nil {
 			return err
 		}
-		hasAccount = profile != nil && guardianHasPortalAccount(profile)
-		return nil
+		if profile == nil {
+			return nil
+		}
+		hasAccount, err = s.deps.People.GuardianProfiles.GuardianProfileHasActivePortalAccount(txCtx, profile.ID)
+		return err
 	}); err != nil {
 		return false, fmt.Errorf("status: load primary guardian profile: %w", err)
 	}
