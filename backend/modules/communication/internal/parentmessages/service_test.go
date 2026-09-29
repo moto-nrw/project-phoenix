@@ -96,7 +96,6 @@ func newPersons(repos *repositories.Factory, db *bun.DB) usersService.PersonServ
 		PersonRepo:    repos.Person,
 		AccountExists: repositories.AccountExists(repos.Profile),
 		StudentRepo:   repos.Student,
-		StaffRepo:     repos.Staff,
 		DB:            db,
 		Logger:        slog.Default(),
 	})

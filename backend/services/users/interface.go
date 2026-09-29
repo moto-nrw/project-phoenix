@@ -81,9 +81,6 @@ type PersonService interface {
 	// audit attribution; returns a wrapped error when either lookup fails.
 	ResolveStaffIDByAccountID(ctx context.Context, accountID int64) (int64, error)
 
-	// GetStaffWithPerson retrieves a staff member with person data preloaded.
-	GetStaffWithPerson(ctx context.Context, id int64) (*userModels.Staff, error)
-
 	// GetStaffWithPersonByIDs retrieves multiple staff with person data preloaded.
 	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error)
 
@@ -156,44 +153,6 @@ type PersonService interface {
 	// requested teacher-record change. Teacher-record failures are non-fatal
 	// and reported through the returned TeacherAction.
 	UpdateStaffWithTeacher(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, TeacherAction, error)
-
-	// UpdatePersonnelNumber sets or clears (nil / empty) the staff member's
-	// payroll Personalnummer (#1417). Writes an audit row in the same tenant
-	// transaction; returns ErrPersonnelNumberTaken on a per-tenant duplicate
-	// and ErrPersonnelNumberInvalid on a malformed value.
-	UpdatePersonnelNumber(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*userModels.Staff, error)
-
-	// Staff Stammdaten (#1423). Section-scoped reads/writes for the master
-	// data tab. Every write locks the staff row and records field-level
-	// audit rows in the same tenant transaction; every financial read
-	// writes an audit.data_access_log row before any value is served.
-
-	// GetStaffStammdaten returns the non-sensitive sections (person,
-	// contact, contract, qualifications). Financial data has its own
-	// permission-gated read path.
-	GetStaffStammdaten(ctx context.Context, staffID int64) (*StaffStammdaten, error)
-
-	// UpdateStaffStammdatenPerson replaces the person section.
-	UpdateStaffStammdatenPerson(ctx context.Context, staffID int64, input StammdatenPersonInput, changedByStaffID int64, note string) error
-
-	// UpdateStaffStammdatenKontakt replaces the contact section.
-	UpdateStaffStammdatenKontakt(ctx context.Context, staffID int64, input StammdatenKontaktInput, changedByStaffID int64, note string) error
-
-	// UpdateStaffStammdatenArbeitsvertrag replaces the contract section.
-	UpdateStaffStammdatenArbeitsvertrag(ctx context.Context, staffID int64, input StammdatenArbeitsvertragInput, changedByStaffID int64, note string) error
-
-	// ReplaceStaffQualifications replaces the full qualification list.
-	ReplaceStaffQualifications(ctx context.Context, staffID int64, inputs []StammdatenQualificationInput, changedByStaffID int64, note string) error
-
-	// GetStaffFinancialMasked serves masked bank & tax data (audited read).
-	GetStaffFinancialMasked(ctx context.Context, staffID int64, actorAccountID int64, actorRole string) (*StaffFinancialMasked, error)
-
-	// RevealStaffFinancial serves the full bank & tax values (audited).
-	RevealStaffFinancial(ctx context.Context, staffID int64, actorAccountID int64, actorRole string) (*StaffFinancialPlain, error)
-
-	// UpdateStaffFinancial replaces the bank & tax section; audit rows carry
-	// masked values only.
-	UpdateStaffFinancial(ctx context.Context, staffID int64, input StammdatenFinancialInput, changedByAccountID int64, note string) error
 
 	// GetStudentsWithGroupsByTeacher retrieves students with group info supervised by a teacher
 	GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]StudentWithGroup, error)

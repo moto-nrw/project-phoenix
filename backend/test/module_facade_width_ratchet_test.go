@@ -108,7 +108,6 @@ var moduleFacadeAllowlist = map[string]int{
 	"modules/timetable/timetable.go:Command":                                     17,
 	"modules/timetable/timetable.go:Query":                                       20,
 	"modules/workforce/shift.go:ShiftCommand":                                    19,
-	"modules/workforce/staffadmin.go:StaffDirectory":                             13,
 	"modules/workforce/staffadmin.go:StaffDocuments":                             16,
 	"modules/workforce/staffrecord.go:StaffRecordCommand":                        13,
 	"modules/workforce/timetracking.go:StaffAbsences":                            22,

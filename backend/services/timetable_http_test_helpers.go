@@ -307,7 +307,8 @@ func NewTimetableHTTPTestPeople(db *bun.DB) (TimetablePeople, error) {
 		return TimetablePeople{}, err
 	}
 	return NewTimetablePeople(users.NewPersonService(users.PersonServiceDependencies{
-		PersonRepo: r.Person, StaffRepo: r.Staff, StudentRepo: r.Student,
+		PersonRepo: r.Person, StudentRepo: r.Student,
+		StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{Persons: r.Person, Staff: r.Staff}),
 	})), nil
 }
 

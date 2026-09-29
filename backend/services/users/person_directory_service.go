@@ -8,7 +8,6 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -21,8 +20,8 @@ import (
 //
 // The writes reach People Directory (#3349); the reads below are the
 // remainder still served by the retained repositories, which that issue is
-// moving. The staff and teacher half lives in staff_directory_service.go,
-// because School Membership owns those tables.
+// moving. The staff and teacher half is the StaffDirectory port (#3752),
+// because School Membership and Workforce own those tables.
 
 const (
 	// opGetPerson is the operation name for Get operations
@@ -58,25 +57,10 @@ type PersonServiceDependencies struct {
 	RFIDRepo      RFIDCards
 	AccountExists func(context.Context, int64) (bool, error)
 	StudentRepo   userModels.StudentRepository
-	StaffRepo     userModels.StaffRepository
 	TeacherRepo   userModels.TeacherRepository
-	// LehrkraftRoles answers whether the staff member's account holds the
-	// Lehrkraft role. Required by the caregiver-profile paths: the Lehrkraft
-	// role (#1772) is provisioned without a profile on purpose and must not be
-	// handed one here.
-	LehrkraftRoles LehrkraftRoleQuery
-	// PersonnelNumberAudit is required for UpdatePersonnelNumber; the write
-	// path refuses to run without it (no change without a trace, #1417).
-	PersonnelNumberAudit auditModels.PersonnelNumberChangeCreator
-
-	// Stammdaten storage + audit (#1423). StammdatenAudit is required for
-	// every section write; DataAccessLog is required for every financial
-	// read — both paths refuse to run unaudited.
-	StaffMasterDataRepo    userModels.StaffMasterDataRepository
-	StaffQualificationRepo userModels.StaffQualificationRepository
-	StaffFinancialRepo     userModels.StaffFinancialDataRepository
-	StammdatenAudit        auditModels.StaffMasterDataChangeCreator
-	DataAccessLog          auditModels.DataAccessLogRepository
+	// StaffDirectory serves the staff and teacher lookups and the two staff
+	// writes (#3752); the composition root binds services.NewStaffDirectory.
+	StaffDirectory StaffDirectory
 
 	// Infrastructure
 	DB              *bun.DB
@@ -95,12 +79,15 @@ type CareParticipationResolver func(
 // personService implements the PersonService interface
 type personService struct {
 	PersonServiceDependencies
+	// StaffDirectory is embedded so its lookups and writes are the person
+	// service's own; the deps field of the same name feeds it.
+	StaffDirectory
 	careParticipation CareParticipationResolver
 }
 
 // NewPersonService creates a new person service
 func NewPersonService(deps PersonServiceDependencies) PersonService {
-	return &personService{PersonServiceDependencies: deps}
+	return &personService{PersonServiceDependencies: deps, StaffDirectory: deps.StaffDirectory}
 }
 
 func WirePersonCareParticipation(service PersonService, resolve CareParticipationResolver) {
@@ -602,6 +589,67 @@ func (s *personService) GetAllStudentsWithGroups(ctx context.Context) ([]Student
 	}
 
 	return results, nil
+}
+
+// GetStudentsWithGroupsByTeacher retrieves students with group info supervised by a teacher
+func (s *personService) GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]StudentWithGroup, error) {
+	// First verify the teacher exists
+	teacher, err := s.TeacherRepo.FindByID(ctx, teacherID)
+	if err != nil {
+		return nil, &UsersError{Op: opGetStudentsWithGroupsByTeacher, Err: err}
+	}
+	if teacher == nil {
+		return nil, &UsersError{Op: opGetStudentsWithGroupsByTeacher, Err: ErrTeacherNotFound}
+	}
+
+	// Use the enhanced repository method to get students with group info
+	studentsWithGroups, err := s.StudentRepo.FindByTeacherIDWithGroups(ctx, teacherID)
+	if err != nil {
+		return nil, &UsersError{Op: opGetStudentsWithGroupsByTeacher, Err: err}
+	}
+
+	// Convert to service layer struct
+	results := make([]StudentWithGroup, 0, len(studentsWithGroups))
+	for _, swg := range studentsWithGroups {
+		result := StudentWithGroup{
+			Student:   swg.Student,
+			GroupName: swg.GroupName,
+		}
+		results = append(results, result)
+	}
+
+	return results, nil
+}
+
+// GetStudentsWithGroupsByTeacherStaffIDs retrieves the union of students
+// supervised by teachers belonging to any supplied staff ID.
+func (s *personService) GetStudentsWithGroupsByTeacherStaffIDs(ctx context.Context, staffIDs []int64) ([]StudentWithGroup, error) {
+	if len(staffIDs) == 0 {
+		return []StudentWithGroup{}, nil
+	}
+	rows, err := s.StudentRepo.FindByTeacherStaffIDsWithGroups(ctx, staffIDs)
+	if err != nil {
+		return nil, &UsersError{Op: opGetStudentsWithGroupsByTeacher, Err: err}
+	}
+	results := make([]StudentWithGroup, 0, len(rows))
+	for _, row := range rows {
+		results = append(results, StudentWithGroup{Student: row.Student, GroupName: row.GroupName})
+	}
+	return results, nil
+}
+
+// ResolveStaffIDByAccountID maps a JWT account id to its staff id via the
+// account → person → staff chain.
+func (s *personService) ResolveStaffIDByAccountID(ctx context.Context, accountID int64) (int64, error) {
+	person, err := s.FindByAccountID(ctx, accountID)
+	if err != nil {
+		return 0, fmt.Errorf("person not found for account: %w", err)
+	}
+	staff, err := s.GetStaffByPersonID(ctx, person.ID)
+	if err != nil {
+		return 0, fmt.Errorf("staff not found for editor account: %w", err)
+	}
+	return staff.ID, nil
 }
 
 // LehrkraftRoleQuery is the consumer-owned port over the Identity & Access
