@@ -40,11 +40,12 @@ vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({ success: mocks.toastSuccess, error: vi.fn() }),
 }));
 
-vi.mock("~/components/ui/date-picker", async (importOriginal) => {
-  const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
-  const { ISODatePicker: Stub } = isoDatePickerMock();
+vi.mock("~/components/ui/date-picker", async () => {
+  const { datePickerModuleMock } = await import("~/test/mocks/date-picker");
+  const stubs = datePickerModuleMock();
+  const Stub = stubs.ISODatePicker;
   return {
-    ...(await importOriginal<object>()),
+    ...stubs,
     // Records the month the "Letzter Tag" calendar opens in.
     ISODatePicker: (props: Parameters<typeof Stub>[0]) => {
       if (props.id === "target-override-end") {

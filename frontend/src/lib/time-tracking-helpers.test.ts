@@ -92,6 +92,13 @@ describe("mapWorkSessionResponse", () => {
     expect(result.updatedBy).toBeNull();
   });
 
+  it("converts a set updated_by to a string ID", () => {
+    const backend = createMockBackendSession({ updated_by: 9 });
+    const result = mapWorkSessionResponse(backend);
+
+    expect(result.updatedBy).toBe("9");
+  });
+
   it("carries source through to the own-portal view", () => {
     const backend = createMockBackendSession({ source: "nfc" });
     const result = mapWorkSessionResponse(backend);
@@ -598,6 +605,7 @@ describe("formatDuration", () => {
   });
 
   it("formats minutes only for values under 60", () => {
+    expect(formatDuration(1)).toBe("1min");
     expect(formatDuration(30)).toBe("30min");
     expect(formatDuration(45)).toBe("45min");
     expect(formatDuration(59)).toBe("59min");
@@ -626,6 +634,7 @@ describe("formatTime", () => {
   });
 
   it("returns --:-- for invalid ISO string", () => {
+    expect(formatTime("")).toBe("--:--");
     expect(formatTime("not-a-date")).toBe("--:--");
     expect(formatTime("2026-13-45T99:99:99Z")).toBe("--:--");
   });
@@ -725,6 +734,8 @@ describe("getWeekNumber", () => {
   it("returns correct week number for mid-year", () => {
     const date = new Date("2026-06-15"); // Monday
     expect(getWeekNumber(date)).toBeGreaterThan(20);
+    // 2024-03-15 (Friday) is in ISO week 11.
+    expect(getWeekNumber(new Date(2024, 2, 15))).toBe(11);
   });
 
   it("handles year boundary correctly", () => {

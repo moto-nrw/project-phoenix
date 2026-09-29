@@ -3,8 +3,6 @@ package test
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"sort"
@@ -215,8 +213,7 @@ func moduleFacadeScan(backendRoot string) (map[string]int, error) {
 // moduleFacadeMeasureFile records every exported interface in one file whose
 // declared-method count exceeds the threshold.
 func moduleFacadeMeasureFile(path, rel string, widths map[string]int) error {
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, path, nil, 0) // #nosec G304 -- test scans repo-local source files
+	_, file, err := parseGoSourceCached(path, nil) // #nosec G304 -- test scans repo-local source files
 	if err != nil {
 		return fmt.Errorf("parse %s: %w", rel, err)
 	}

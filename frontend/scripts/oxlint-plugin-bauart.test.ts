@@ -1,42 +1,15 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { spawnSync } from "node:child_process";
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
+import { lintSource, removeProbeDirectories } from "./oxlint-probe";
 
-const temporaryDirectories: string[] = [];
+afterAll(removeProbeDirectories);
 
-function lintSource(source: string, relativePath = "src/components/probe.tsx") {
-  const directory = mkdtempSync(join(tmpdir(), "bauart-"));
-  temporaryDirectories.push(directory);
-  const sourcePath = join(directory, relativePath);
-  mkdirSync(dirname(sourcePath), { recursive: true });
-  writeFileSync(sourcePath, source);
-
-  const result = spawnSync(
-    resolve("node_modules/.bin/oxlint"),
-    ["-c", resolve(".oxlintrc.json"), sourcePath],
-    { encoding: "utf8" },
-  );
-  return { status: result.status, output: `${result.stdout}${result.stderr}` };
-}
-
-afterEach(() => {
-  for (const directory of temporaryDirectories.splice(0)) {
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
-
-describe("bauart/one-delete-confirm", () => {
-  it("rejects a ConfirmationModal whose action deletes", () => {
-    const { status, output } = lintSource(
-      `import { ConfirmationModal } from "~/components/ui/modal";
+describe.concurrent("bauart rules", () => {
+  describe("bauart/one-delete-confirm", () => {
+    it("rejects a ConfirmationModal whose action deletes", async () => {
+      const { status, output } = await lintSource(
+        `import { ConfirmationModal } from "~/components/ui/modal";
       export function Probe() {
         return (
           <ConfirmationModal
@@ -50,16 +23,16 @@ describe("bauart/one-delete-confirm", () => {
           </ConfirmationModal>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(one-delete-confirm)");
-    expect(output).toContain("Ja, endgültig löschen");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(one-delete-confirm)");
+      expect(output).toContain("Ja, endgültig löschen");
+    });
 
-  it("sees through a conditional action label", () => {
-    const { status, output } = lintSource(
-      `import { ConfirmationModal } from "~/components/ui/modal";
+    it("sees through a conditional action label", async () => {
+      const { status, output } = await lintSource(
+        `import { ConfirmationModal } from "~/components/ui/modal";
       export function Probe({ busy }: { busy: boolean }) {
         return (
           <ConfirmationModal
@@ -73,15 +46,15 @@ describe("bauart/one-delete-confirm", () => {
           </ConfirmationModal>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(one-delete-confirm)");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(one-delete-confirm)");
+    });
 
-  it("accepts a state change whose side effect removes data", () => {
-    const { status, output } = lintSource(
-      `import { ConfirmationModal } from "~/components/ui/modal";
+    it("accepts a state change whose side effect removes data", async () => {
+      const { status, output } = await lintSource(
+        `import { ConfirmationModal } from "~/components/ui/modal";
       export function Probe() {
         return (
           <ConfirmationModal
@@ -95,15 +68,15 @@ describe("bauart/one-delete-confirm", () => {
           </ConfirmationModal>
         );
       }`,
-    );
+      );
 
-    expect(output).not.toContain("bauart(one-delete-confirm)");
-    expect(status).toBe(0);
-  });
+      expect(output).not.toContain("bauart(one-delete-confirm)");
+      expect(status).toBe(0);
+    });
 
-  it("rejects a hand-built delete modal and a delete ChoiceModal", () => {
-    const { status, output } = lintSource(
-      `import { Modal } from "~/components/ui/modal";
+    it("rejects a hand-built delete modal and a delete ChoiceModal", async () => {
+      const { status, output } = await lintSource(
+        `import { Modal } from "~/components/ui/modal";
       import { ChoiceModal } from "~/components/ui/choice-modal";
       export function Probe() {
         return (
@@ -121,25 +94,25 @@ describe("bauart/one-delete-confirm", () => {
           </>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output.match(/bauart\(one-delete-confirm\)/g)).toHaveLength(2);
-  });
+      expect(status).toBe(1);
+      expect(output.match(/bauart\(one-delete-confirm\)/g)).toHaveLength(2);
+    });
 
-  it("rejects window.confirm", () => {
-    const { status, output } = lintSource(
-      `export function probe() {
+    it("rejects window.confirm", async () => {
+      const { status, output } = await lintSource(
+        `export function probe() {
         return window.confirm("Wirklich?");
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("window.confirm");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("window.confirm");
+    });
 
-  it("leaves the kit directory and tests alone", () => {
-    const source = `import { Modal } from "./modal";
+    it("leaves the kit directory and tests alone", async () => {
+      const source = `import { Modal } from "./modal";
       export function Probe() {
         return (
           <Modal isOpen onClose={() => {}} title="Eintrag löschen">
@@ -148,21 +121,22 @@ describe("bauart/one-delete-confirm", () => {
         );
       }`;
 
-    expect(
-      lintSource(source, "src/components/ui/confirm-delete-modal.tsx").output,
-    ).not.toContain("bauart(one-delete-confirm)");
-    expect(
-      lintSource(source, "src/components/probe.test.tsx").output,
-    ).not.toContain("bauart(one-delete-confirm)");
+      expect(
+        (await lintSource(source, "src/components/ui/confirm-delete-modal.tsx"))
+          .output,
+      ).not.toContain("bauart(one-delete-confirm)");
+      expect(
+        (await lintSource(source, "src/components/probe.test.tsx")).output,
+      ).not.toContain("bauart(one-delete-confirm)");
+    });
   });
-});
 
-describe("bauart/no-row-action-buttons", () => {
-  const ROW_ACTION = "bauart(no-row-action-buttons)";
+  describe("bauart/no-row-action-buttons", () => {
+    const ROW_ACTION = "bauart(no-row-action-buttons)";
 
-  it("rejects an icon row of edit/delete buttons per list item", () => {
-    const { status, output } = lintSource(
-      `import { Button } from "~/components/ui/button";
+    it("rejects an icon row of edit/delete buttons per list item", async () => {
+      const { status, output } = await lintSource(
+        `import { Button } from "~/components/ui/button";
       import { Pencil, Trash2 } from "lucide-react";
       export function Probe({ rows }: { rows: { id: string; name: string }[] }) {
         return (
@@ -181,16 +155,16 @@ describe("bauart/no-row-action-buttons", () => {
           </ul>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output.match(/bauart\(no-row-action-buttons\)/g)).toHaveLength(2);
-    expect(output).toContain("bearbeiten");
-  });
+      expect(status).toBe(1);
+      expect(output.match(/bauart\(no-row-action-buttons\)/g)).toHaveLength(2);
+      expect(output).toContain("bearbeiten");
+    });
 
-  it("rejects text buttons in a DataTable column render", () => {
-    const { status, output } = lintSource(
-      `import { Button } from "~/components/ui/button";
+    it("rejects text buttons in a DataTable column render", async () => {
+      const { status, output } = await lintSource(
+        `import { Button } from "~/components/ui/button";
       export const columns = [
         {
           key: "actions",
@@ -204,15 +178,15 @@ describe("bauart/no-row-action-buttons", () => {
           ),
         },
       ];`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output.match(/bauart\(no-row-action-buttons\)/g)).toHaveLength(2);
-  });
+      expect(status).toBe(1);
+      expect(output.match(/bauart\(no-row-action-buttons\)/g)).toHaveLength(2);
+    });
 
-  it("accepts the kebab, reorder arrows and chip removers", () => {
-    const { output } = lintSource(
-      `import { Button } from "~/components/ui/button";
+    it("accepts the kebab, reorder arrows and chip removers", async () => {
+      const { output } = await lintSource(
+        `import { Button } from "~/components/ui/button";
       import { ChevronUp, X } from "lucide-react";
       import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
       export function Probe({ rows }: { rows: { id: string; name: string }[] }) {
@@ -240,14 +214,14 @@ describe("bauart/no-row-action-buttons", () => {
           </ul>
         );
       }`,
-    );
+      );
 
-    expect(output).not.toContain(ROW_ACTION);
-  });
+      expect(output).not.toContain(ROW_ACTION);
+    });
 
-  it("rejects an icon-only object removal outside a form chip", () => {
-    const { status, output } = lintSource(
-      `import { Button } from "~/components/ui/button";
+    it("rejects an icon-only object removal outside a form chip", async () => {
+      const { status, output } = await lintSource(
+        `import { Button } from "~/components/ui/button";
       import { Trash2 } from "lucide-react";
       export function Probe({ rows }: { rows: { id: string; name: string }[] }) {
         return rows.map((row) => (
@@ -259,15 +233,15 @@ describe("bauart/no-row-action-buttons", () => {
           </div>
         ));
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain(ROW_ACTION);
-  });
+      expect(status).toBe(1);
+      expect(output).toContain(ROW_ACTION);
+    });
 
-  it("rejects removal of an object beside an editable field", () => {
-    const { status, output } = lintSource(
-      `import { Button } from "~/components/ui/button";
+    it("rejects removal of an object beside an editable field", async () => {
+      const { status, output } = await lintSource(
+        `import { Button } from "~/components/ui/button";
       import { Trash2 } from "lucide-react";
       export function Probe({ rows }: { rows: { id: string; name: string }[] }) {
         return rows.map((row) => (
@@ -279,15 +253,15 @@ describe("bauart/no-row-action-buttons", () => {
           </div>
         ));
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain(ROW_ACTION);
-  });
+      expect(status).toBe(1);
+      expect(output).toContain(ROW_ACTION);
+    });
 
-  it("ignores buttons outside a per-item render", () => {
-    const { output } = lintSource(
-      `import { Button } from "~/components/ui/button";
+    it("ignores buttons outside a per-item render", async () => {
+      const { output } = await lintSource(
+        `import { Button } from "~/components/ui/button";
       export function Probe() {
         return (
           <footer>
@@ -296,48 +270,57 @@ describe("bauart/no-row-action-buttons", () => {
           </footer>
         );
       }`,
-    );
+      );
 
-    expect(output).not.toContain(ROW_ACTION);
-  });
+      expect(output).not.toContain(ROW_ACTION);
+    });
 
-  it("leaves the other portals alone", () => {
-    const source = `import { Button } from "~/components/ui/button";
+    it("leaves the other portals alone", async () => {
+      const source = `import { Button } from "~/components/ui/button";
       export function Probe({ rows }: { rows: string[] }) {
         return rows.map((row) => (
           <Button key={row} type="button">Löschen</Button>
         ));
       }`;
 
-    for (const path of [
-      "src/app/operator/persons/page.tsx",
-      "src/app/parents/(protected)/page.tsx",
-      "src/app/school/page.tsx",
-      "src/components/operator/persons-table.tsx",
-      "src/components/parent/guardians-panel.tsx",
-      "src/components/school/list.tsx",
-    ]) {
-      expect(lintSource(source, path).output).not.toContain(ROW_ACTION);
-    }
-    expect(
-      lintSource(source, "src/app/[tenant]/(protected)/probe/page.tsx").output,
-    ).toContain(ROW_ACTION);
-  });
+      for (const path of [
+        "src/app/operator/persons/page.tsx",
+        "src/app/parents/(protected)/page.tsx",
+        "src/app/school/page.tsx",
+        "src/components/operator/persons-table.tsx",
+        "src/components/parent/guardians-panel.tsx",
+        "src/components/school/list.tsx",
+      ]) {
+        expect((await lintSource(source, path)).output).not.toContain(
+          ROW_ACTION,
+        );
+      }
+      expect(
+        (
+          await lintSource(
+            source,
+            "src/app/[tenant]/(protected)/probe/page.tsx",
+          )
+        ).output,
+      ).toContain(ROW_ACTION);
+    });
 
-  it("tolerates only the form-internal exception at its recorded location", () => {
-    // Since #3119 the exception list holds no object action any more; the
-    // remaining entries are chip removers inside forms, bound to their line.
-    const path = "src/app/[tenant]/(protected)/meal-plan/page.tsx";
-    const source = readFileSync(resolve(path), "utf8");
+    it("tolerates only the form-internal exception at its recorded location", async () => {
+      // Since #3119 the exception list holds no object action any more; the
+      // remaining entries are chip removers inside forms, bound to their line.
+      const path = "src/app/[tenant]/(protected)/meal-plan/page.tsx";
+      const source = readFileSync(resolve(path), "utf8");
 
-    expect(lintSource(source, path).output).not.toContain(ROW_ACTION);
-    // Moving the button by one line loses its tolerance.
-    expect(lintSource(`\n${source}`, path).output).toContain(ROW_ACTION);
-  });
+      expect((await lintSource(source, path)).output).not.toContain(ROW_ACTION);
+      // Moving the button by one line loses its tolerance.
+      expect((await lintSource(`\n${source}`, path)).output).toContain(
+        ROW_ACTION,
+      );
+    });
 
-  it("no longer tolerates the object actions #3111 deferred", () => {
-    const path = "src/components/planning/calendar-periods-editor.tsx";
-    const source = `import { Button } from "~/components/ui/button";
+    it("no longer tolerates the object actions #3111 deferred", async () => {
+      const path = "src/components/planning/calendar-periods-editor.tsx";
+      const source = `import { Button } from "~/components/ui/button";
       export function Probe({ rows }: { rows: { id: string }[] }) {
         return rows.map((row) => (
           <Button key={row.id} type="button" onClick={() => {}}>
@@ -345,14 +328,14 @@ describe("bauart/no-row-action-buttons", () => {
           </Button>
         ));
       }`;
-    expect(lintSource(source, path).output).toContain(ROW_ACTION);
+      expect((await lintSource(source, path)).output).toContain(ROW_ACTION);
+    });
   });
-});
 
-describe("bauart/no-unconfirmed-destructive-click", () => {
-  it("rejects a delete button that fires the removal from the click", () => {
-    const { status, output } = lintSource(
-      `import { Button } from "~/components/ui/button";
+  describe("bauart/no-unconfirmed-destructive-click", () => {
+    it("rejects a delete button that fires the removal from the click", async () => {
+      const { status, output } = await lintSource(
+        `import { Button } from "~/components/ui/button";
       export function Probe({ remove }: { remove: () => Promise<void> }) {
         return (
           <Button type="button" onClick={() => void remove()}>
@@ -360,16 +343,16 @@ describe("bauart/no-unconfirmed-destructive-click", () => {
           </Button>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(no-unconfirmed-destructive-click)");
-    expect(output).toContain("„Entfernen“");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-unconfirmed-destructive-click)");
+      expect(output).toContain("„Entfernen“");
+    });
 
-  it("rejects a direct returned action regardless of its function name", () => {
-    const { status, output } = lintSource(
-      `import { Button } from "~/components/ui/button";
+    it("rejects a direct returned action regardless of its function name", async () => {
+      const { status, output } = await lintSource(
+        `import { Button } from "~/components/ui/button";
       export function Probe({ archiveTrack }: { archiveTrack: (id: string) => Promise<void> }) {
         return (
           <Button type="button" onClick={() => archiveTrack("1")}>
@@ -377,15 +360,15 @@ describe("bauart/no-unconfirmed-destructive-click", () => {
           </Button>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(no-unconfirmed-destructive-click)");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-unconfirmed-destructive-click)");
+    });
 
-  it("rejects an implicitly returned action from an async handler", () => {
-    const { status, output } = lintSource(
-      `import { Button } from "~/components/ui/button";
+    it("rejects an implicitly returned action from an async handler", async () => {
+      const { status, output } = await lintSource(
+        `import { Button } from "~/components/ui/button";
       export function Probe({ revokePasskey }: { revokePasskey: (id: string) => Promise<void> }) {
         return (
           <Button type="button" onClick={async () => revokePasskey("1")}>
@@ -393,15 +376,15 @@ describe("bauart/no-unconfirmed-destructive-click", () => {
           </Button>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(no-unconfirmed-destructive-click)");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-unconfirmed-destructive-click)");
+    });
 
-  it("recognizes a translated destructive label", () => {
-    const { status, output } = lintSource(
-      `import { Button } from "~/components/ui/button";
+    it("recognizes a translated destructive label", async () => {
+      const { status, output } = await lintSource(
+        `import { Button } from "~/components/ui/button";
       export function Probe({
         archiveTrack,
         t,
@@ -415,15 +398,15 @@ describe("bauart/no-unconfirmed-destructive-click", () => {
           </Button>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(no-unconfirmed-destructive-click)");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-unconfirmed-destructive-click)");
+    });
 
-  it("sees the removal inside a branch, an aria-label and an async handler", () => {
-    const { status, output } = lintSource(
-      `export function Probe({
+    it("sees the removal inside a branch, an aria-label and an async handler", async () => {
+      const { status, output } = await lintSource(
+        `export function Probe({
         archive,
         ready,
       }: {
@@ -440,29 +423,29 @@ describe("bauart/no-unconfirmed-destructive-click", () => {
           />
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(no-unconfirmed-destructive-click)");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-unconfirmed-destructive-click)");
+    });
 
-  it("rejects a menu item that deletes from its click", () => {
-    const { status, output } = lintSource(
-      `export function items(remove: () => Promise<void>) {
+    it("rejects a menu item that deletes from its click", async () => {
+      const { status, output } = await lintSource(
+        `export function items(remove: () => Promise<void>) {
         return [
           { label: "Bearbeiten", onClick: () => {} },
           { label: "Löschen", destructive: true, onClick: () => void remove() },
         ];
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("Menüeintrag „Löschen“");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("Menüeintrag „Löschen“");
+    });
 
-  it("accepts a click that only opens the confirmation", () => {
-    const { status, output } = lintSource(
-      `import { Button } from "~/components/ui/button";
+    it("accepts a click that only opens the confirmation", async () => {
+      const { status, output } = await lintSource(
+        `import { Button } from "~/components/ui/button";
       export function Probe({
         setTarget,
       }: {
@@ -479,15 +462,15 @@ describe("bauart/no-unconfirmed-destructive-click", () => {
           </>
         );
       }`,
-    );
+      );
 
-    expect(output).not.toContain("bauart(no-unconfirmed-destructive-click)");
-    expect(status).toBe(0);
-  });
+      expect(output).not.toContain("bauart(no-unconfirmed-destructive-click)");
+      expect(status).toBe(0);
+    });
 
-  it("accepts a void state setter that opens the confirmation", () => {
-    const { status, output } = lintSource(
-      `import { Button } from "~/components/ui/button";
+    it("accepts a void state setter that opens the confirmation", async () => {
+      const { status, output } = await lintSource(
+        `import { Button } from "~/components/ui/button";
       export function Probe({
         setDeleteTarget,
       }: {
@@ -499,15 +482,15 @@ describe("bauart/no-unconfirmed-destructive-click", () => {
           </Button>
         );
       }`,
-    );
+      );
 
-    expect(output).not.toContain("bauart(no-unconfirmed-destructive-click)");
-    expect(status).toBe(0);
-  });
+      expect(output).not.toContain("bauart(no-unconfirmed-destructive-click)");
+      expect(status).toBe(0);
+    });
 
-  it("accepts a non-destructive action fired from the click", () => {
-    const { status, output } = lintSource(
-      `import { Button } from "~/components/ui/button";
+    it("accepts a non-destructive action fired from the click", async () => {
+      const { status, output } = await lintSource(
+        `import { Button } from "~/components/ui/button";
       export function Probe({ save }: { save: () => Promise<void> }) {
         return (
           <Button type="button" onClick={() => void save()}>
@@ -515,15 +498,15 @@ describe("bauart/no-unconfirmed-destructive-click", () => {
           </Button>
         );
       }`,
-    );
+      );
 
-    expect(output).not.toContain("bauart(no-unconfirmed-destructive-click)");
-    expect(status).toBe(0);
-  });
+      expect(output).not.toContain("bauart(no-unconfirmed-destructive-click)");
+      expect(status).toBe(0);
+    });
 
-  it("leaves the kit directory alone", () => {
-    const { output } = lintSource(
-      `import { Button } from "./button";
+    it("leaves the kit directory alone", async () => {
+      const { output } = await lintSource(
+        `import { Button } from "./button";
       export function Probe({ remove }: { remove: () => Promise<void> }) {
         return (
           <Button type="button" onClick={() => void remove()}>
@@ -531,17 +514,17 @@ describe("bauart/no-unconfirmed-destructive-click", () => {
           </Button>
         );
       }`,
-      "src/components/ui/confirm-delete-modal.tsx",
-    );
+        "src/components/ui/confirm-delete-modal.tsx",
+      );
 
-    expect(output).not.toContain("bauart(no-unconfirmed-destructive-click)");
+      expect(output).not.toContain("bauart(no-unconfirmed-destructive-click)");
+    });
   });
-});
 
-describe("bauart/no-toast-form-error", () => {
-  it("rejects a validation toast in a submit handler", () => {
-    const { status, output } = lintSource(
-      `import { useToast } from "~/contexts/ToastContext";
+  describe("bauart/no-toast-form-error", () => {
+    it("rejects a validation toast in a submit handler", async () => {
+      const { status, output } = await lintSource(
+        `import { useToast } from "~/contexts/ToastContext";
       export function Probe() {
         const toast = useToast();
         const handleSubmit = (event: React.FormEvent) => {
@@ -550,16 +533,16 @@ describe("bauart/no-toast-form-error", () => {
         };
         return <form onSubmit={handleSubmit} />;
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(no-toast-form-error)");
-    expect(output).toContain("handleSubmit");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-toast-form-error)");
+      expect(output).toContain("handleSubmit");
+    });
 
-  it("rejects a save error toasted from the catch of a save handler", () => {
-    const { status, output } = lintSource(
-      `import { useToast } from "~/contexts/ToastContext";
+    it("rejects a save error toasted from the catch of a save handler", async () => {
+      const { status, output } = await lintSource(
+        `import { useToast } from "~/contexts/ToastContext";
       export function Probe({ save }: { save: () => Promise<void> }) {
         const toast = useToast();
         const handleSave = useCallback(async () => {
@@ -571,16 +554,16 @@ describe("bauart/no-toast-form-error", () => {
         }, [save, toast]);
         return <button type="button" onClick={() => void handleSave()} />;
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(no-toast-form-error)");
-    expect(output).toContain("handleSave");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-toast-form-error)");
+      expect(output).toContain("handleSave");
+    });
 
-  it("sees the destructured alias and a promise callback inside the handler", () => {
-    const { status, output } = lintSource(
-      `import { useToast } from "~/contexts/ToastContext";
+    it("sees the destructured alias and a promise callback inside the handler", async () => {
+      const { status, output } = await lintSource(
+        `import { useToast } from "~/contexts/ToastContext";
       export function Probe({ save }: { save: () => Promise<void> }) {
         const { error: toastError } = useToast();
         return (
@@ -592,15 +575,15 @@ describe("bauart/no-toast-form-error", () => {
           />
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(no-toast-form-error)");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-toast-form-error)");
+    });
 
-  it("accepts a success toast and an error toast outside a submit handler", () => {
-    const { status, output } = lintSource(
-      `import { useToast } from "~/contexts/ToastContext";
+    it("accepts a success toast and an error toast outside a submit handler", async () => {
+      const { status, output } = await lintSource(
+        `import { useToast } from "~/contexts/ToastContext";
       export function Probe({ save, load }: { save: () => Promise<void>; load: () => Promise<void> }) {
         const toast = useToast();
         const handleSave = async () => {
@@ -621,36 +604,36 @@ describe("bauart/no-toast-form-error", () => {
           </>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(0);
-    expect(output).not.toContain("bauart(no-toast-form-error)");
-  });
+      expect(status).toBe(0);
+      expect(output).not.toContain("bauart(no-toast-form-error)");
+    });
 
-  it("leaves the kit directory, tests and the other portals alone", () => {
-    const source = `import { useToast } from "~/contexts/ToastContext";
+    it("leaves the kit directory, tests and the other portals alone", async () => {
+      const source = `import { useToast } from "~/contexts/ToastContext";
       export function Probe() {
         const toast = useToast();
         const handleSubmit = () => toast.error("Nein.");
         return <form onSubmit={handleSubmit} />;
       }`;
 
-    for (const path of [
-      "src/components/ui/probe.tsx",
-      "src/components/probe.test.tsx",
-      "src/app/operator/probe.tsx",
-      "src/components/parent/probe.tsx",
-    ]) {
-      const { output } = lintSource(source, path);
-      expect(output).not.toContain("bauart(no-toast-form-error)");
-    }
+      for (const path of [
+        "src/components/ui/probe.tsx",
+        "src/components/probe.test.tsx",
+        "src/app/operator/probe.tsx",
+        "src/components/parent/probe.tsx",
+      ]) {
+        const { output } = await lintSource(source, path);
+        expect(output).not.toContain("bauart(no-toast-form-error)");
+      }
+    });
   });
-});
 
-describe("bauart/no-manage-surface-in-overlay", () => {
-  it("rejects a per-row kebab with object actions inside a SlideOver", () => {
-    const { status, output } = lintSource(
-      `import { SlideOver, SlideOverContent } from "~/components/ui/slide-over";
+  describe("bauart/no-manage-surface-in-overlay", () => {
+    it("rejects a per-row kebab with object actions inside a SlideOver", async () => {
+      const { status, output } = await lintSource(
+        `import { SlideOver, SlideOverContent } from "~/components/ui/slide-over";
       import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
       export function Probe({ items }: { items: { id: string; name: string }[] }) {
         return (
@@ -674,16 +657,16 @@ describe("bauart/no-manage-surface-in-overlay", () => {
           </SlideOver>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(no-manage-surface-in-overlay)");
-    expect(output).toContain("Bearbeiten");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-manage-surface-in-overlay)");
+      expect(output).toContain("Bearbeiten");
+    });
 
-  it("follows a helper the overlay renders", () => {
-    const { status, output } = lintSource(
-      `import { AnchoredPopover } from "~/components/ui/anchored-popover";
+    it("follows a helper the overlay renders", async () => {
+      const { status, output } = await lintSource(
+        `import { AnchoredPopover } from "~/components/ui/anchored-popover";
       import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
       export function Probe({ items }: { items: { id: string; name: string }[] }) {
         const manageView = (
@@ -704,16 +687,16 @@ describe("bauart/no-manage-surface-in-overlay", () => {
           </AnchoredPopover>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(no-manage-surface-in-overlay)");
-    expect(output).toContain("Umbenennen");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-manage-surface-in-overlay)");
+      expect(output).toContain("Umbenennen");
+    });
 
-  it("rejects a rename button in a listbox menu slot", () => {
-    const { status, output } = lintSource(
-      `import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
+    it("rejects a rename button in a listbox menu slot", async () => {
+      const { status, output } = await lintSource(
+        `import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
       export function Probe() {
         return (
           <ListboxDropdown
@@ -726,16 +709,16 @@ describe("bauart/no-manage-surface-in-overlay", () => {
           />
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(no-manage-surface-in-overlay)");
-    expect(output).toContain("Auswahlfeld");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-manage-surface-in-overlay)");
+      expect(output).toContain("Auswahlfeld");
+    });
 
-  it("accepts the same list on a page", () => {
-    const { status, output } = lintSource(
-      `import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+    it("accepts the same list on a page", async () => {
+      const { status, output } = await lintSource(
+        `import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
       export function Probe({ items }: { items: { id: string; name: string }[] }) {
         return (
           <ul>
@@ -751,15 +734,15 @@ describe("bauart/no-manage-surface-in-overlay", () => {
           </ul>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(0);
-    expect(output).not.toContain("bauart(no-manage-surface-in-overlay)");
-  });
+      expect(status).toBe(0);
+      expect(output).not.toContain("bauart(no-manage-surface-in-overlay)");
+    });
 
-  it("accepts a plain select inside an overlay", () => {
-    const { status, output } = lintSource(
-      `import { Modal } from "~/components/ui/modal";
+    it("accepts a plain select inside an overlay", async () => {
+      const { status, output } = await lintSource(
+        `import { Modal } from "~/components/ui/modal";
       import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
       export function Probe({ items }: { items: { id: string; name: string }[] }) {
         return (
@@ -773,14 +756,14 @@ describe("bauart/no-manage-surface-in-overlay", () => {
           </Modal>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(0);
-    expect(output).not.toContain("bauart(no-manage-surface-in-overlay)");
-  });
+      expect(status).toBe(0);
+      expect(output).not.toContain("bauart(no-manage-surface-in-overlay)");
+    });
 
-  it("leaves the kit directory, tests and the other portals alone", () => {
-    const source = `import { Modal } from "~/components/ui/modal";
+    it("leaves the kit directory, tests and the other portals alone", async () => {
+      const source = `import { Modal } from "~/components/ui/modal";
       import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
       export function Probe({ items }: { items: { id: string }[] }) {
         return (
@@ -796,48 +779,48 @@ describe("bauart/no-manage-surface-in-overlay", () => {
         );
       }`;
 
-    for (const path of [
-      "src/components/ui/probe.tsx",
-      "src/components/probe.test.tsx",
-      "src/app/operator/probe.tsx",
-      "src/components/parent/probe.tsx",
-    ]) {
-      const { output } = lintSource(source, path);
-      expect(output).not.toContain("bauart(no-manage-surface-in-overlay)");
-    }
+      for (const path of [
+        "src/components/ui/probe.tsx",
+        "src/components/probe.test.tsx",
+        "src/app/operator/probe.tsx",
+        "src/components/parent/probe.tsx",
+      ]) {
+        const { output } = await lintSource(source, path);
+        expect(output).not.toContain("bauart(no-manage-surface-in-overlay)");
+      }
+    });
   });
-});
 
-describe("bauart/one-detail-per-type", () => {
-  const paneSource = `import { MasterDetailLayout } from "~/components/database/master-detail-layout";
+  describe("bauart/one-detail-per-type", () => {
+    const paneSource = `import { MasterDetailLayout } from "~/components/database/master-detail-layout";
     export function Probe() {
       return <MasterDetailLayout list={<div />} detail={<div />} />;
     }`;
 
-  it("rejects MasterDetailLayout outside the types whose pane is the only object view", () => {
-    const { status, output } = lintSource(
-      paneSource,
-      "src/components/students/students-master-detail.tsx",
-    );
+    it("rejects MasterDetailLayout outside the types whose pane is the only object view", async () => {
+      const { status, output } = await lintSource(
+        paneSource,
+        "src/components/students/students-master-detail.tsx",
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(one-detail-per-type)");
-    expect(output).toContain("Zweiter Detailbaum");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(one-detail-per-type)");
+      expect(output).toContain("Zweiter Detailbaum");
+    });
 
-  it("allows the pane for the listed types", () => {
-    for (const path of [
-      "src/components/groups/groups-master-detail.tsx",
-      "src/components/database/catalog/catalog-page.tsx",
-    ]) {
-      const { output } = lintSource(paneSource, path);
-      expect(output).not.toContain("bauart(one-detail-per-type)");
-    }
-  });
+    it("allows the pane for the listed types", async () => {
+      for (const path of [
+        "src/components/groups/groups-master-detail.tsx",
+        "src/components/database/catalog/catalog-page.tsx",
+      ]) {
+        const { output } = await lintSource(paneSource, path);
+        expect(output).not.toContain("bauart(one-detail-per-type)");
+      }
+    });
 
-  it("rejects the object-view field groups inside a SlideOver", () => {
-    const { status, output } = lintSource(
-      `import { SlideOver, SlideOverContent, SlideOverBody } from "~/components/ui/slide-over";
+    it("rejects the object-view field groups inside a SlideOver", async () => {
+      const { status, output } = await lintSource(
+        `import { SlideOver, SlideOverContent, SlideOverBody } from "~/components/ui/slide-over";
       import { InfoSection, DataGrid, DataField } from "~/components/ui/detail-modal-components";
       export function Probe({ room }: { room: { name: string } }) {
         return (
@@ -854,16 +837,16 @@ describe("bauart/one-detail-per-type", () => {
           </SlideOver>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(one-detail-per-type)");
-    expect(output).toContain("Detailansicht im Slide-over");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(one-detail-per-type)");
+      expect(output).toContain("Detailansicht im Slide-over");
+    });
 
-  it("rejects the pane components inside a modal", () => {
-    const { status, output } = lintSource(
-      `import { Modal } from "~/components/ui/modal";
+    it("rejects the pane components inside a modal", async () => {
+      const { status, output } = await lintSource(
+        `import { Modal } from "~/components/ui/modal";
       import { DetailPanel } from "~/components/database/detail-panel";
       export function Probe() {
         return (
@@ -874,16 +857,16 @@ describe("bauart/one-detail-per-type", () => {
           </Modal>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(one-detail-per-type)");
-    expect(output).toContain("DetailPanel");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(one-detail-per-type)");
+      expect(output).toContain("DetailPanel");
+    });
 
-  it("allows field groups on a page and in a FormModal", () => {
-    const { output } = lintSource(
-      `import { FormModal } from "~/components/ui/modal";
+    it("allows field groups on a page and in a FormModal", async () => {
+      const { output } = await lintSource(
+        `import { FormModal } from "~/components/ui/modal";
       import { InfoSection, DataGrid, DataField } from "~/components/ui/detail-modal-components";
       export function Probe({ room }: { room: { name: string } }) {
         return (
@@ -901,17 +884,17 @@ describe("bauart/one-detail-per-type", () => {
           </>
         );
       }`,
-      "src/app/[tenant]/(protected)/rooms/[id]/page.tsx",
-    );
+        "src/app/[tenant]/(protected)/rooms/[id]/page.tsx",
+      );
 
-    expect(output).not.toContain("bauart(one-detail-per-type)");
+      expect(output).not.toContain("bauart(one-detail-per-type)");
+    });
   });
-});
 
-describe("bauart/no-edit-overlay", () => {
-  it("rejects a modal titled „… bearbeiten“ and a slide-over titled „… verwalten“", () => {
-    const { status, output } = lintSource(
-      `import { FormModal } from "~/components/ui/form-modal";
+  describe("bauart/no-edit-overlay", () => {
+    it("rejects a modal titled „… bearbeiten“ and a slide-over titled „… verwalten“", async () => {
+      const { status, output } = await lintSource(
+        `import { FormModal } from "~/components/ui/form-modal";
       import { SlideOver, SlideOverContent, SlideOverTitle } from "~/components/ui/slide-over";
       export function Probe({ name }: { name: string }) {
         return (
@@ -927,17 +910,17 @@ describe("bauart/no-edit-overlay", () => {
           </>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(no-edit-overlay)");
-    expect(output).toContain("Personal bearbeiten");
-    expect(output).toContain("Rolle verwalten:");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-edit-overlay)");
+      expect(output).toContain("Personal bearbeiten");
+      expect(output).toContain("Rolle verwalten:");
+    });
 
-  it("sees the edit branch of a conditional title and of DatabaseFormModal mode", () => {
-    const { status, output } = lintSource(
-      `import { Modal } from "~/components/ui/modal";
+    it("sees the edit branch of a conditional title and of DatabaseFormModal mode", async () => {
+      const { status, output } = await lintSource(
+        `import { Modal } from "~/components/ui/modal";
       import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
       export function Probe({ initial }: { initial: object | null }) {
         return (
@@ -949,16 +932,16 @@ describe("bauart/no-edit-overlay", () => {
           </>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("Ordner bearbeiten Neuer Ordner");
-    expect(output).toContain('DatabaseFormModal mode="edit"');
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("Ordner bearbeiten Neuer Ordner");
+      expect(output).toContain('DatabaseFormModal mode="edit"');
+    });
 
-  it("accepts creating, adding and confirming in an overlay", () => {
-    const { output } = lintSource(
-      `import { FormModal } from "~/components/ui/form-modal";
+    it("accepts creating, adding and confirming in an overlay", async () => {
+      const { output } = await lintSource(
+        `import { FormModal } from "~/components/ui/form-modal";
       import { ConfirmationModal } from "~/components/ui/modal";
       import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
       export function Probe() {
@@ -974,13 +957,13 @@ describe("bauart/no-edit-overlay", () => {
           </>
         );
       }`,
-    );
+      );
 
-    expect(output).not.toContain("bauart(no-edit-overlay)");
-  });
+      expect(output).not.toContain("bauart(no-edit-overlay)");
+    });
 
-  it("leaves the kit directory, tests and the other portals alone", () => {
-    const source = `import { FormModal } from "~/components/ui/form-modal";
+    it("leaves the kit directory, tests and the other portals alone", async () => {
+      const source = `import { FormModal } from "~/components/ui/form-modal";
       export function Probe() {
         return (
           <FormModal isOpen onClose={() => {}} title="Träger bearbeiten" onSubmit={() => {}}>
@@ -989,20 +972,20 @@ describe("bauart/no-edit-overlay", () => {
         );
       }`;
 
-    for (const path of [
-      "src/components/ui/form-modal.tsx",
-      "src/components/probe.test.tsx",
-      "src/app/operator/provisioning/edit-organization-modal.tsx",
-      "src/app/parents/page.tsx",
-    ]) {
-      expect(lintSource(source, path).output).not.toContain(
-        "bauart(no-edit-overlay)",
-      );
-    }
-  });
+      for (const path of [
+        "src/components/ui/form-modal.tsx",
+        "src/components/probe.test.tsx",
+        "src/app/operator/provisioning/edit-organization-modal.tsx",
+        "src/app/parents/page.tsx",
+      ]) {
+        expect((await lintSource(source, path)).output).not.toContain(
+          "bauart(no-edit-overlay)",
+        );
+      }
+    });
 
-  it("tolerates only the baselined overlay at its recorded location", () => {
-    const source = `import { Modal } from "~/components/ui/modal";
+    it("tolerates only the baselined overlay at its recorded location", async () => {
+      const source = `import { Modal } from "~/components/ui/modal";
       export function Probe({ initial }: { initial: object | null }) {
         return (
           <Modal
@@ -1014,27 +997,27 @@ describe("bauart/no-edit-overlay", () => {
           </Modal>
         );
       }`;
-    const baselined = lintSource(
-      // Der Eintrag steht in der Baseline auf Zeile 89; darüber Leerzeilen,
-      // damit das Element genau dort landet.
-      `${"\n".repeat(85)}${source}`,
-      "src/components/planning/closing-day-modal.tsx",
-    );
-    expect(baselined.output).not.toContain("bauart(no-edit-overlay)");
+      const baselined = await lintSource(
+        // Der Eintrag steht in der Baseline auf Zeile 89; darüber Leerzeilen,
+        // damit das Element genau dort landet.
+        `${"\n".repeat(85)}${source}`,
+        "src/components/planning/closing-day-modal.tsx",
+      );
+      expect(baselined.output).not.toContain("bauart(no-edit-overlay)");
 
-    const moved = lintSource(
-      source,
-      "src/components/planning/closing-day-modal.tsx",
-    );
-    expect(moved.status).toBe(1);
-    expect(moved.output).toContain("bauart(no-edit-overlay)");
+      const moved = await lintSource(
+        source,
+        "src/components/planning/closing-day-modal.tsx",
+      );
+      expect(moved.status).toBe(1);
+      expect(moved.output).toContain("bauart(no-edit-overlay)");
+    });
   });
-});
 
-describe("bauart/no-local-field-grid", () => {
-  it("rejects a hand-written <dt>/<dd> field grid", () => {
-    const { status, output } = lintSource(
-      `export function Probe({ name }: { name: string }) {
+  describe("bauart/no-local-field-grid", () => {
+    it("rejects a hand-written <dt>/<dd> field grid", async () => {
+      const { status, output } = await lintSource(
+        `export function Probe({ name }: { name: string }) {
         return (
           <dl className="space-y-3">
             <div>
@@ -1044,15 +1027,15 @@ describe("bauart/no-local-field-grid", () => {
           </dl>
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(no-local-field-grid)");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-local-field-grid)");
+    });
 
-  it("accepts the kit's DataField and DataGrid", () => {
-    const { output } = lintSource(
-      `import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+    it("accepts the kit's DataField and DataGrid", async () => {
+      const { output } = await lintSource(
+        `import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
       export function Probe({ name }: { name: string }) {
         return (
           <DataGrid>
@@ -1060,13 +1043,13 @@ describe("bauart/no-local-field-grid", () => {
           </DataGrid>
         );
       }`,
-    );
+      );
 
-    expect(output).not.toContain("bauart(no-local-field-grid)");
-  });
+      expect(output).not.toContain("bauart(no-local-field-grid)");
+    });
 
-  it("leaves the kit directory, tests and the other portals alone", () => {
-    const source = `export function Probe() {
+    it("leaves the kit directory, tests and the other portals alone", async () => {
+      const source = `export function Probe() {
         return (
           <dl>
             <dt>Vorname</dt>
@@ -1075,22 +1058,22 @@ describe("bauart/no-local-field-grid", () => {
         );
       }`;
 
-    for (const path of [
-      "src/components/ui/detail-modal-components.tsx",
-      "src/components/probe.test.tsx",
-      "src/app/operator/settings/page.tsx",
-      "src/components/parent/child-master-data.tsx",
-    ]) {
-      expect(lintSource(source, path).output).not.toContain(
-        "bauart(no-local-field-grid)",
-      );
-    }
-  });
+      for (const path of [
+        "src/components/ui/detail-modal-components.tsx",
+        "src/components/probe.test.tsx",
+        "src/app/operator/settings/page.tsx",
+        "src/components/parent/child-master-data.tsx",
+      ]) {
+        expect((await lintSource(source, path)).output).not.toContain(
+          "bauart(no-local-field-grid)",
+        );
+      }
+    });
 
-  it("keeps no per-file tolerance: a formerly baselined file fails on its first <dt>", () => {
-    // custom-allowance-editor.tsx carried one <dt> until #3119; the baseline
-    // is gone, so the first hand-written label cell fails again.
-    const one = `export function Probe() {
+    it("keeps no per-file tolerance: a formerly baselined file fails on its first <dt>", async () => {
+      // custom-allowance-editor.tsx carried one <dt> until #3119; the baseline
+      // is gone, so the first hand-written label cell fails again.
+      const one = `export function Probe() {
         return (
           <dl>
             <dt>Zuschlag</dt>
@@ -1098,59 +1081,59 @@ describe("bauart/no-local-field-grid", () => {
           </dl>
         );
       }`;
-    const regrown = lintSource(
-      one,
-      "src/components/staff/custom-allowance-editor.tsx",
-    );
-    expect(regrown.status).toBe(1);
-    expect(regrown.output).toContain("bauart(no-local-field-grid)");
+      const regrown = await lintSource(
+        one,
+        "src/components/staff/custom-allowance-editor.tsx",
+      );
+      expect(regrown.status).toBe(1);
+      expect(regrown.output).toContain("bauart(no-local-field-grid)");
+    });
   });
-});
 
-describe("bauart/no-own-skeleton", () => {
-  it("rejects a hand-written pulse block on a gray fill", () => {
-    const { status, output } = lintSource(
-      `export function Probe() {
+  describe("bauart/no-own-skeleton", () => {
+    it("rejects a hand-written pulse block on a gray fill", async () => {
+      const { status, output } = await lintSource(
+        `export function Probe() {
         return <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />;
       }`,
-    );
-
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(no-own-skeleton)");
-  });
-
-  it("sees through a template class list", () => {
-    const { status, output } = lintSource(
-      `export function Probe({ width }: { width: string }) {
-        return (
-          <div className={\`ml-3 h-4 \${width} animate-pulse rounded bg-gray-200\`} />
-        );
-      }`,
-    );
-
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(no-own-skeleton)");
-  });
-
-  it("rejects gray fills with Tailwind variants and opacity", () => {
-    for (const className of [
-      "animate-pulse bg-gray-200/50",
-      "animate-pulse hover:bg-gray-200",
-      "animate-pulse dark:bg-gray-700",
-    ]) {
-      const { status, output } = lintSource(
-        `export function Probe() {
-          return <div className="${className}" />;
-        }`,
       );
 
       expect(status).toBe(1);
       expect(output).toContain("bauart(no-own-skeleton)");
-    }
-  });
+    });
 
-  it("lets a pulsing live indicator through", () => {
-    const source = `export function Probe({ occupied }: { occupied: boolean }) {
+    it("sees through a template class list", async () => {
+      const { status, output } = await lintSource(
+        `export function Probe({ width }: { width: string }) {
+        return (
+          <div className={\`ml-3 h-4 \${width} animate-pulse rounded bg-gray-200\`} />
+        );
+      }`,
+      );
+
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-own-skeleton)");
+    });
+
+    it("rejects gray fills with Tailwind variants and opacity", async () => {
+      for (const className of [
+        "animate-pulse bg-gray-200/50",
+        "animate-pulse hover:bg-gray-200",
+        "animate-pulse dark:bg-gray-700",
+      ]) {
+        const { status, output } = await lintSource(
+          `export function Probe() {
+          return <div className="${className}" />;
+        }`,
+        );
+
+        expect(status).toBe(1);
+        expect(output).toContain("bauart(no-own-skeleton)");
+      }
+    });
+
+    it("lets a pulsing live indicator through", async () => {
+      const source = `export function Probe({ occupied }: { occupied: boolean }) {
         return (
           <>
             <span className={occupied ? "bg-moto-red animate-pulse" : "bg-moto-green"} />
@@ -1159,160 +1142,164 @@ describe("bauart/no-own-skeleton", () => {
         );
       }`;
 
-    expect(lintSource(source).output).not.toContain("bauart(no-own-skeleton)");
-  });
+      expect((await lintSource(source)).output).not.toContain(
+        "bauart(no-own-skeleton)",
+      );
+    });
 
-  it("lets the kit skeleton and its consumers through", () => {
-    const source = `import { Skeleton } from "~/components/ui/skeleton";
+    it("lets the kit skeleton and its consumers through", async () => {
+      const source = `import { Skeleton } from "~/components/ui/skeleton";
       export function Probe() {
         return <Skeleton className="h-4 w-24 bg-gray-700" />;
       }`;
 
-    expect(lintSource(source).output).not.toContain("bauart(no-own-skeleton)");
-  });
+      expect((await lintSource(source)).output).not.toContain(
+        "bauart(no-own-skeleton)",
+      );
+    });
 
-  it("exempts the kit, tests, stories and the other portals", () => {
-    const source = `export function Probe() {
+    it("exempts the kit, tests, stories and the other portals", async () => {
+      const source = `export function Probe() {
         return <div className="h-4 animate-pulse rounded bg-gray-200" />;
       }`;
 
-    for (const path of [
-      "src/components/ui/skeleton.tsx",
-      "src/components/probe.test.tsx",
-      "src/components/probe.stories.tsx",
-      "src/app/parents/page.tsx",
-      "src/components/school/room-board.tsx",
-    ]) {
-      expect(lintSource(source, path).output).not.toContain(
-        "bauart(no-own-skeleton)",
-      );
-    }
-  });
+      for (const path of [
+        "src/components/ui/skeleton.tsx",
+        "src/components/probe.test.tsx",
+        "src/components/probe.stories.tsx",
+        "src/app/parents/page.tsx",
+        "src/components/school/room-board.tsx",
+      ]) {
+        expect((await lintSource(source, path)).output).not.toContain(
+          "bauart(no-own-skeleton)",
+        );
+      }
+    });
 
-  it("keeps no per-file tolerance: a formerly baselined file fails on its first block", () => {
-    // birthday-list.tsx carried one pulse block until #3119; the baseline is
-    // gone, so the first hand-written placeholder fails again.
-    const one = `export function Probe() {
+    it("keeps no per-file tolerance: a formerly baselined file fails on its first block", async () => {
+      // birthday-list.tsx carried one pulse block until #3119; the baseline is
+      // gone, so the first hand-written placeholder fails again.
+      const one = `export function Probe() {
         return <div className="h-12 animate-pulse rounded-xl bg-gray-100" />;
       }`;
-    const regrown = lintSource(
-      one,
-      "src/components/dashboard/birthday-list.tsx",
-    );
-    expect(regrown.status).toBe(1);
-    expect(regrown.output).toContain("bauart(no-own-skeleton)");
+      const regrown = await lintSource(
+        one,
+        "src/components/dashboard/birthday-list.tsx",
+      );
+      expect(regrown.status).toBe(1);
+      expect(regrown.output).toContain("bauart(no-own-skeleton)");
+    });
   });
-});
 
-describe("bauart/no-raw-status-hex", () => {
-  it("rejects a hex color inside an arbitrary-value class", () => {
-    const { status, output } = lintSource(
-      `export function Probe() {
+  describe("bauart/no-raw-status-hex", () => {
+    it("rejects a hex color inside an arbitrary-value class", async () => {
+      const { status, output } = await lintSource(
+        `export function Probe() {
         return <p className="mt-1 text-sm text-[#8A5600]">Offen</p>;
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(no-raw-status-hex)");
-    expect(output).toContain("#8A5600");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-raw-status-hex)");
+      expect(output).toContain("#8A5600");
+    });
 
-  it("rejects a hex constant and a template chunk", () => {
-    const { status, output } = lintSource(
-      `const FALLBACK = "#E5E7EB";
+    it("rejects a hex constant and a template chunk", async () => {
+      const { status, output } = await lintSource(
+        `const FALLBACK = "#E5E7EB";
       export function Probe({ tone }: { tone: string }) {
         return (
           <div className={\`border-[#F78C10]/30 \${tone}\`} style={{ background: FALLBACK }} />
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("#E5E7EB");
-    expect(output).toContain("#F78C10");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("#E5E7EB");
+      expect(output).toContain("#F78C10");
+    });
 
-  it("flags a bare three-digit hex but not an issue reference", () => {
-    const short = lintSource(
-      `export const MESSAGE_STYLE = { color: "#666" };`,
-      "src/components/probe.ts",
-    );
-    expect(short.status).toBe(1);
-    expect(short.output).toContain("bauart(no-raw-status-hex)");
+    it("flags a bare three-digit hex but not an issue reference", async () => {
+      const short = await lintSource(
+        `export const MESSAGE_STYLE = { color: "#666" };`,
+        "src/components/probe.ts",
+      );
+      expect(short.status).toBe(1);
+      expect(short.output).toContain("bauart(no-raw-status-hex)");
 
-    const reference = lintSource(
-      `export const LABEL = "Siehe Rückfrage #405 und #3118";
+      const reference = await lintSource(
+        `export const LABEL = "Siehe Rückfrage #405 und #3118";
       export const ANCHOR = "#section-2";`,
-      "src/components/probe.ts",
-    );
-    expect(reference.output).not.toContain("bauart(no-raw-status-hex)");
-  });
+        "src/components/probe.ts",
+      );
+      expect(reference.output).not.toContain("bauart(no-raw-status-hex)");
+    });
 
-  it("flags short hex colors in arbitrary-value classes", () => {
-    for (const color of ["#666", "#abcd"]) {
-      const { status, output } = lintSource(
-        `export function Probe() {
+    it("flags short hex colors in arbitrary-value classes", async () => {
+      for (const color of ["#666", "#abcd"]) {
+        const { status, output } = await lintSource(
+          `export function Probe() {
           return <p className="text-[${color}]">Offen</p>;
         }`,
+        );
+
+        expect(status).toBe(1);
+        expect(output).toContain("bauart(no-raw-status-hex)");
+        expect(output).toContain(color);
+      }
+    });
+
+    it("flags short hex colors in CSS declarations", async () => {
+      for (const [declaration, color] of [
+        ["border: 1px solid #666", "#666"],
+        ["color: #abcd", "#abcd"],
+      ]) {
+        const { status, output } = await lintSource(
+          `export const STYLE = "${declaration}";`,
+        );
+
+        expect(status).toBe(1);
+        expect(output).toContain("bauart(no-raw-status-hex)");
+        expect(output).toContain(color);
+      }
+    });
+
+    it("exempts the token source, the manifest, test support and the other portals", async () => {
+      const source = `export const COLOR = "#83CD2D";`;
+
+      for (const path of [
+        "src/lib/location-helper.ts",
+        "src/lib/favicon-variants.ts",
+        "src/app/global-error.tsx",
+        "src/test/fixtures/rooms.ts",
+        "src/components/ui/status-badge.tsx",
+        "src/components/probe.test.ts",
+        "src/app/operator/tenants/page.tsx",
+        "src/components/parent/child-card.tsx",
+      ]) {
+        expect((await lintSource(source, path)).output).not.toContain(
+          "bauart(no-raw-status-hex)",
+        );
+      }
+    });
+
+    it("keeps no per-file tolerance: a formerly baselined file fails on its first literal", async () => {
+      // timetable-style.ts carried one hex literal until #3119; the baseline is
+      // gone, so the first raw value fails again.
+      const one = `export const EDGE = "#D1D5DB";`;
+      const regrown = await lintSource(
+        one,
+        "src/components/timetable/timetable-style.ts",
       );
-
-      expect(status).toBe(1);
-      expect(output).toContain("bauart(no-raw-status-hex)");
-      expect(output).toContain(color);
-    }
+      expect(regrown.status).toBe(1);
+      expect(regrown.output).toContain("bauart(no-raw-status-hex)");
+    });
   });
 
-  it("flags short hex colors in CSS declarations", () => {
-    for (const [declaration, color] of [
-      ["border: 1px solid #666", "#666"],
-      ["color: #abcd", "#abcd"],
-    ]) {
-      const { status, output } = lintSource(
-        `export const STYLE = "${declaration}";`,
-      );
-
-      expect(status).toBe(1);
-      expect(output).toContain("bauart(no-raw-status-hex)");
-      expect(output).toContain(color);
-    }
-  });
-
-  it("exempts the token source, the manifest, test support and the other portals", () => {
-    const source = `export const COLOR = "#83CD2D";`;
-
-    for (const path of [
-      "src/lib/location-helper.ts",
-      "src/lib/favicon-variants.ts",
-      "src/app/global-error.tsx",
-      "src/test/fixtures/rooms.ts",
-      "src/components/ui/status-badge.tsx",
-      "src/components/probe.test.ts",
-      "src/app/operator/tenants/page.tsx",
-      "src/components/parent/child-card.tsx",
-    ]) {
-      expect(lintSource(source, path).output).not.toContain(
-        "bauart(no-raw-status-hex)",
-      );
-    }
-  });
-
-  it("keeps no per-file tolerance: a formerly baselined file fails on its first literal", () => {
-    // timetable-style.ts carried one hex literal until #3119; the baseline is
-    // gone, so the first raw value fails again.
-    const one = `export const EDGE = "#D1D5DB";`;
-    const regrown = lintSource(
-      one,
-      "src/components/timetable/timetable-style.ts",
-    );
-    expect(regrown.status).toBe(1);
-    expect(regrown.output).toContain("bauart(no-raw-status-hex)");
-  });
-});
-
-describe("bauart/no-disabled-menu-item", () => {
-  it("rejects a menu entry that is disabled by literal", () => {
-    const { status, output } = lintSource(
-      `import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+  describe("bauart/no-disabled-menu-item", () => {
+    it("rejects a menu entry that is disabled by literal", async () => {
+      const { status, output } = await lintSource(
+        `import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
       export function Probe() {
         return (
           <OverflowMenu
@@ -1323,14 +1310,14 @@ describe("bauart/no-disabled-menu-item", () => {
           />
         );
       }`,
-    );
+      );
 
-    expect(status).toBe(1);
-    expect(output).toContain("bauart(no-disabled-menu-item)");
-  });
+      expect(status).toBe(1);
+      expect(output).toContain("bauart(no-disabled-menu-item)");
+    });
 
-  it("lets a state-bound entry and a select placeholder through", () => {
-    const source = `export function Probe({ busy }: { busy: boolean }) {
+    it("lets a state-bound entry and a select placeholder through", async () => {
+      const source = `export function Probe({ busy }: { busy: boolean }) {
         const items = [
           { label: "Exportieren", onClick: () => {}, disabled: busy },
           { label: "Drucken", onClick: () => {}, disabled: !busy },
@@ -1339,25 +1326,26 @@ describe("bauart/no-disabled-menu-item", () => {
         return <div data-items={items.length} data-options={options.length} />;
       }`;
 
-    expect(lintSource(source).output).not.toContain(
-      "bauart(no-disabled-menu-item)",
-    );
-  });
+      expect((await lintSource(source)).output).not.toContain(
+        "bauart(no-disabled-menu-item)",
+      );
+    });
 
-  it("exempts the kit, tests and the other portals", () => {
-    const source = `export const items = [
+    it("exempts the kit, tests and the other portals", async () => {
+      const source = `export const items = [
         { label: "Exportieren", onClick: () => {}, disabled: true },
       ];`;
 
-    for (const path of [
-      "src/components/ui/page-header/OverflowMenu.stories.tsx",
-      "src/components/probe.test.tsx",
-      "src/app/school/page.tsx",
-      "src/components/operator/tenant-menu.tsx",
-    ]) {
-      expect(lintSource(source, path).output).not.toContain(
-        "bauart(no-disabled-menu-item)",
-      );
-    }
+      for (const path of [
+        "src/components/ui/page-header/OverflowMenu.stories.tsx",
+        "src/components/probe.test.tsx",
+        "src/app/school/page.tsx",
+        "src/components/operator/tenant-menu.tsx",
+      ]) {
+        expect((await lintSource(source, path)).output).not.toContain(
+          "bauart(no-disabled-menu-item)",
+        );
+      }
+    });
   });
 });

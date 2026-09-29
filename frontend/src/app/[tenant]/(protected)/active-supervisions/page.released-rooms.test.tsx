@@ -1,14 +1,9 @@
 /**
- * Tests for Active Supervisions Page
- * Tests the rendering states and user interactions of the active supervisions dashboard
- *
- * NOTE: split into 12 files (page.test.tsx + page.part2..12.test.tsx). The full-dashboard
- * render tests in the "MeinRaumPage (Active Supervisions)" describe are memory-heavy under
- * happy-dom + v8 coverage (~1.5 GB heap each), so a single combined file OOMs the Vitest
- * worker. Those heavy tests are pre-split into (N/M) chunks of 3 renders each, one chunk per
- * file (a 3-render chunk fits comfortably in a 6 GB heap; CI runs with 8 GB). All other
- * describes render cheaply and are packed together. All files share the identical mock header
- * below. When adding a heavy full-dashboard render test, keep it to its own small file.
+ * Tests for the Active Supervisions page with the supervision context and a
+ * block-aware timetable roster stub: action buttons, released rooms and their
+ * blocks (#3281), the role guard, the aggregate fetch contract and tracking
+ * indicators. Kept apart from page.test.tsx because those stubs change what
+ * the other tests render.
  */
 import {
   render,

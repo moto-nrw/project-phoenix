@@ -106,6 +106,8 @@ describe("GuardianInvitationAcceptForm", () => {
       tenantSlug: "demo",
     });
 
+    // The success screen redirects after 1.5 s; drive it with fake timers.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     render(
       <GuardianInvitationAcceptForm
         token="invite-token"
@@ -128,9 +130,9 @@ describe("GuardianInvitationAcceptForm", () => {
       );
     });
     expect(await screen.findByText("Konto erstellt")).toBeInTheDocument();
-    await new Promise((resolve) => setTimeout(resolve, 1600));
+    await vi.advanceTimersByTimeAsync(1600);
     expect(window.location.href).toBe("https://parents.example.test/login");
-  }, 7000);
+  });
 
   it("falls back to router push when parent hostname is not configured", async () => {
     delete process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
@@ -139,6 +141,8 @@ describe("GuardianInvitationAcceptForm", () => {
       email: "mara@example.test",
     });
 
+    // The success screen redirects after 1.5 s; drive it with fake timers.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     render(
       <GuardianInvitationAcceptForm
         token="invite-token"
@@ -151,9 +155,9 @@ describe("GuardianInvitationAcceptForm", () => {
     );
 
     expect(await screen.findByText("Konto erstellt")).toBeInTheDocument();
-    await new Promise((resolve) => setTimeout(resolve, 1600));
+    await vi.advanceTimersByTimeAsync(1600);
     expect(mocks.push).toHaveBeenCalledWith("/");
-  }, 7000);
+  });
 
   it("maps API and offline errors to German form messages", async () => {
     const apiError = new Error("gone") as Error & { status?: number };

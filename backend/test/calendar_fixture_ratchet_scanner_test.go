@@ -3,7 +3,6 @@ package test
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"io/fs"
 	"os"
@@ -70,7 +69,7 @@ func scanCalendarFixtureClockRisks(root string) ([]calendarClockFinding, error) 
 	if err != nil {
 		return nil, err
 	}
-	fset := token.NewFileSet()
+	fset := sharedGoFileSet
 	var findings []calendarClockFinding
 	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -133,7 +132,7 @@ func scanCalendarFixtureFile(root, path string, fset *token.FileSet, helpers cal
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
-	file, err := parser.ParseFile(fset, path, source, 0)
+	_, file, err := parseGoSourceCached(path, source)
 	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
@@ -400,7 +399,7 @@ func discoverCalendarPackageHelpers(root string) (calendarPackageHelpers, error)
 		candidates: map[string]map[string][]calendarHelperCandidate{}, effectiveParams: map[string]map[string]map[int]bool{},
 	}
 	candidates := map[string][]calendarHelperCandidate{}
-	fset := token.NewFileSet()
+	fset := sharedGoFileSet
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -444,7 +443,7 @@ func addCalendarHelperCandidates(path string, fset *token.FileSet, candidates ma
 	if err != nil {
 		return fmt.Errorf("read %s while finding calendar helpers: %w", path, err)
 	}
-	file, err := parser.ParseFile(fset, path, source, 0)
+	_, file, err := parseGoSourceCached(path, source)
 	if err != nil {
 		return fmt.Errorf("parse %s while finding calendar helpers: %w", path, err)
 	}

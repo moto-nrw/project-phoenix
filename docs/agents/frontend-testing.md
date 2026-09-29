@@ -3,9 +3,20 @@
 Read before writing or diagnosing a date- or time-sensitive Vitest test.
 Paths start at `frontend/`; commands run from `frontend/`.
 
+## Projects
+
+`vitest.config.ts` runs three projects. `api-node` covers `src/app/api/**`.
+`logic-node` runs the files listed in `src/test/node-test-files.ts` in the
+node environment with only `setup-common.ts`. Everything else runs in
+`app-dom` (happy-dom plus `setup.ts`). List a new `*.test.ts` in
+`node-test-files.ts` when it renders nothing and uses no DOM, window, storage,
+next-intl, SWR or tenant-context mock, and confirm it passes with
+`pnpm vitest run --project logic-node`.
+
 ## Scope
 
-Every Vitest test in both projects (`app-dom` and `api-node`) runs on a
+Every Vitest test in all projects (`app-dom`, `api-node`, `logic-node`) runs
+on a
 deterministic clock (#3101). `src/test/setup-common.ts` freezes `Date` at
 `TEST_CLOCK_INSTANT` before each test and normally restores the real clock
 afterwards. If a file enables fake timers in module scope or `beforeAll`, the

@@ -21,7 +21,6 @@ import (
 	"bufio"
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -115,7 +114,7 @@ func enrollmentDateIsString(backendRoot string) bool {
 }
 
 func declaredTypeIsString(backendRoot, source, name string) bool {
-	file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(backendRoot, source), nil, 0)
+	_, file, err := parseGoSourceCached(filepath.Join(backendRoot, source), nil)
 	if err != nil {
 		return false
 	}
@@ -434,13 +433,13 @@ type dateFieldInfo struct {
 func scanModelDateFields(t *testing.T, root string, dateColumns map[string]string) map[string][]dateFieldInfo {
 	t.Helper()
 	result := map[string][]dateFieldInfo{}
-	fset := token.NewFileSet()
+	fset := sharedGoFileSet
 
 	walk := func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
-		file, parseErr := parser.ParseFile(fset, path, nil, parser.ParseComments)
+		_, file, parseErr := parseGoSourceCached(path, nil)
 		if parseErr != nil {
 			return parseErr
 		}

@@ -2,7 +2,13 @@
  * Tests for PasswordChangeModal Component
  * Tests the rendering and basic functionality of password change modal
  */
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PasswordChangeModal } from "./password-change-modal";
 
@@ -487,6 +493,7 @@ describe("PasswordChangeModal", () => {
   });
 
   it("calls onSuccess after successful password change timeout", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     render(
       <PasswordChangeModal
         isOpen={true}
@@ -512,7 +519,8 @@ describe("PasswordChangeModal", () => {
       ).toBeInTheDocument();
     });
 
-    // Wait for the 2s setTimeout to fire onSuccess + handleClose
+    // Skip the 2 s delay before onSuccess + handleClose.
+    await act(() => vi.advanceTimersByTimeAsync(2100));
     await waitFor(
       () => {
         expect(mockOnSuccess).toHaveBeenCalled();

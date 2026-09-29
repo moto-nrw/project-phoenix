@@ -2,6 +2,7 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { availableParallelism } from "node:os";
+import { nodeLogicTestFiles } from "./src/test/node-test-files";
 
 const apiTestFiles = ["src/app/api/**/*.{test,spec}.ts"];
 const baseTestExcludes = ["**/node_modules/**", "**/e2e/**"];
@@ -46,10 +47,27 @@ export default defineConfig({
         },
       },
       {
+        // Reine Logik-Tests ohne DOM: spart pro Datei den happy-dom-Aufbau
+        // und das Laden von setup.ts (jest-dom, next-intl-Katalog, Mocks).
+        extends: true,
+        test: {
+          name: "logic-node",
+          include: nodeLogicTestFiles,
+          exclude: baseTestExcludes,
+          environment: "node",
+          setupFiles: ["./src/test/setup-common.ts"],
+          sequence: { groupOrder: 0 },
+        },
+      },
+      {
         extends: true,
         test: {
           name: "app-dom",
-          exclude: [...baseTestExcludes, ...apiTestFiles],
+          exclude: [
+            ...baseTestExcludes,
+            ...apiTestFiles,
+            ...nodeLogicTestFiles,
+          ],
           environment: "happy-dom",
           // happy-dom simuliert sonst 1024x768; Komponenten mit
           // Viewport-abhängigen Defaults (z. B. die einklappbare
