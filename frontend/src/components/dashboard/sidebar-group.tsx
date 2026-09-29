@@ -32,6 +32,8 @@ interface SidebarGroupProps {
   readonly collapsed?: boolean;
   readonly labelsMounted?: boolean;
   readonly labelsVisible?: boolean;
+  // Ziel der geführten Tour der ersten Schritte (#2832).
+  readonly tourId?: string;
   readonly children: ReactNode;
 }
 
@@ -55,6 +57,7 @@ export function SidebarGroup({
   collapsed = false,
   labelsMounted = true,
   labelsVisible = true,
+  tourId,
   children,
 }: SidebarGroupProps) {
   // Das Icon trägt die Farbe der Beschriftung (gray-600 der Kopfzeile),
@@ -70,6 +73,7 @@ export function SidebarGroup({
         variant="ghost"
         size="md"
         onClick={onToggle}
+        data-setup-tour={tourId}
         className={`${SIDEBAR_GROUP_HEADING_CLASSES} cursor-pointer`}
         aria-expanded={isOpen}
         {...(collapsed ? { title: label, "aria-label": label } : {})}

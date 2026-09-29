@@ -37,10 +37,9 @@ env:
 jobs:
   test-backend:
     if: ${{ inputs.run-backend }}
-    # Change-scoped runs cover only affected packages; four vCPUs avoid paying
-    # the 8-vCPU rate for that smaller workload. Protected-branch pushes keep
-    # eight vCPUs for the full suite.
-    runs-on: ${{ inputs.changed-scope && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    # Change-scoped runs cover only affected packages; full suites need eight
+    # vCPUs even when triggered by a pull request.
+    runs-on: ${{ inputs.changed-scope && !inputs.full-backend-suite && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     permissions:
       contents: read
       checks: write
@@ -190,7 +189,7 @@ jobs:
           fi
 
           test_args=(-parallel 8)
-          if [ "$CHANGED_SCOPE" = true ]; then
+          if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ]; then
             test_args+=(-p 4)
           else
             # The full suite compiles every package; six package binaries in
@@ -463,7 +462,7 @@ jobs:
           echo "server did not become healthy in 60s"
           exit 1
 
-      - name: Seed all four profiles and verify enrollment, withdrawal, web and NFC flows
+      - name: Seed all five profiles and verify enrollment, withdrawal, web and NFC flows
         working-directory: backend
         run: |
           "${RUNNER_TEMP}/phoenix" seed \

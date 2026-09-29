@@ -660,9 +660,18 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	assert.Equal(t, profile.Credentials.Accounts.Admin[0].Email, manual.Credentials.Accounts.Admin[0].Email)
 	assert.Equal(t, int64(5001), manual.Credentials.Accounts.Admin[0].StaffID)
 	assert.Zero(t, manual.Credentials.Accounts.Admin[0].TeacherID)
-	require.Len(t, state.Profiles, 4)
-	assert.Equal(t, 4, state.Topology.Schools)
-	assert.Equal(t, 2, state.Topology.Organizations)
+	require.Len(t, state.Profiles, 5)
+	assert.Equal(t, 5, state.Topology.Schools)
+	assert.Equal(t, 3, state.Topology.Organizations)
+	marketing, err := state.SelectProfile(marketingProfileKey)
+	require.NoError(t, err)
+	assert.Equal(t, "marketing", marketing.School.TenantSlug)
+	require.NotEmpty(t, marketing.Credentials.Accounts.Admin)
+	assert.Equal(t, "marketing-admin@example.test", marketing.Credentials.Accounts.Admin[0].Email)
+	assert.Equal(t, "Marketing1234%", marketing.Credentials.Accounts.Admin[0].Password)
+	assert.Len(t, marketing.Credentials.Parents, 4)
+	assert.Len(t, marketing.Entities.Students, 12)
+	assert.Equal(t, []string{marketingProfileKey}, state.Organizations["demo-traeger-marketing"].Profiles)
 	enrollmentProfile, err := state.SelectProfile("anmeldung-wochenplan")
 	require.NoError(t, err)
 	assert.Len(t, enrollmentProfile.Entities.Students, 12)
@@ -1038,6 +1047,7 @@ func serveDevicePIN(t *testing.T, trace *fullSeedAPITrace, w seedHTTPResponseWri
 func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestServer {
 	t.Helper()
 	weeklyMock := &weeklyProfileAPIMock{traces: traces}
+	marketingMock := newMarketingProfileAPIMock()
 	idCounter := int64(0)
 	var planningStaffID int64
 	manualStudents := make(map[int64]map[string]any)
@@ -1066,6 +1076,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			return
 		}
 		if trace != nil && trace.enforceDevicePIN && serveDevicePIN(t, trace, w, r) {
+			return
+		}
+		if marketingMock.serve(t, w, r) {
 			return
 		}
 		if weeklyMock.serve(t, w, r) {

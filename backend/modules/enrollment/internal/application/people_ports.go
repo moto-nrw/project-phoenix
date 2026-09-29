@@ -252,11 +252,20 @@ type StudentRecords interface {
 type GuardianProfiles interface {
 	GuardianProfileByAccount(context.Context, int64) (*GuardianProfile, error)
 	GuardianProfileByEmail(context.Context, string) (*GuardianProfile, error)
+	// GuardianProfileHasActivePortalAccount reports whether the profile's
+	// linked account can sign in to the parent portal at this school.
+	GuardianProfileHasActivePortalAccount(context.Context, int64) (bool, error)
 	GuardianProfilesByEmails(context.Context, []string) ([]*GuardianProfile, error)
 	GuardianProfilesByID(context.Context, []int64) (map[int64]*GuardianProfile, error)
 	CreateGuardianProfile(context.Context, *GuardianProfile) error
 	UpdateGuardianProfile(context.Context, *GuardianProfile) error
 	LinkGuardianAccount(ctx context.Context, profileID, accountID int64) error
+}
+
+// GuardianInvitationAvailability reports whether an account-less guardian
+// profile has a currently redeemable invitation to the parent portal.
+type GuardianInvitationAvailability interface {
+	HasRedeemableGuardianInvitation(context.Context, int64) (bool, error)
 }
 
 // StudentGuardians reads and writes the student-guardian relationships.

@@ -1049,7 +1049,7 @@
       "care": "Zarezerwowane oferty",
       "noCare": "Nie zarezerwowano żadnych ofert.",
       "hint": "Zmiany dla dziecka {name} wprowadzają Państwo teraz w aplikacji dla rodziców.",
-      "noAccess": "Nie mają Państwo jeszcze dostępu do aplikacji dla rodziców? OGS może Państwa zaprosić."
+      "noAccess": "Nie mogą Państwo korzystać z aplikacji dla rodziców? Proszę skontaktować się z OGS."
     }
   },
   "enrollmentStatus": {
@@ -1236,9 +1236,18 @@
     "adjustSubmit": "Wyślij zmianę",
     "lockedChildHint": "Zmiany dla tego dziecka zgłaszają Państwo w aplikacji dla rodziców.",
     "lockedAllTitle": "Zmiany zgłaszają Państwo w aplikacji dla rodziców",
-    "lockedAllBodyOne": "Państwa dziecko już korzysta z opieki. Zmiany zgłaszają Państwo teraz w aplikacji dla rodziców. Nie mają Państwo jeszcze dostępu? OGS może Państwa zaprosić.",
-    "lockedAllBodyMany": "Państwa dzieci już korzystają z opieki. Zmiany zgłaszają Państwo teraz w aplikacji dla rodziców. Nie mają Państwo jeszcze dostępu? OGS może Państwa zaprosić.",
-    "lockedAllAction": "Otwórz aplikację dla rodziców"
+    "lockedAllBodyOne": "Państwa dziecko już korzysta z opieki. Zmiany zgłaszają Państwo teraz w aplikacji dla rodziców.",
+    "lockedAllBodyMany": "Państwa dzieci już korzystają z opieki. Zmiany zgłaszają Państwo teraz w aplikacji dla rodziców.",
+    "lockedAllAction": "Otwórz aplikację dla rodziców",
+    "noAccountTitle": "Nie mają Państwo jeszcze dostępu do aplikacji dla rodziców",
+    "noAccountIntro": "Dostęp otrzymają Państwo przez zaproszenie e-mailem:",
+    "noAccountStepOpen": "Proszę otworzyć e-mail „Einladung zum Eltern-Portal”.",
+    "noAccountStepAccept": "Proszę kliknąć „Einladung annehmen”.",
+    "noAccountStepPassword": "Proszę ustawić hasło. Potem mogą się Państwo zalogować w aplikacji dla rodziców.",
+    "noAccountHelp": "Nie mogą Państwo znaleźć e-maila? Proszę sprawdzić też folder spam. Brak e-maila albo link już nie działa? Proszę skontaktować się z OGS.",
+    "unavailableAccountTitle": "Brak dostępu do aplikacji dla rodziców",
+    "unavailableAccountHelp": "Proszę skontaktować się z OGS. OGS pomoże Państwu dalej.",
+    "noAccessFallback": "Nie mają Państwo jeszcze dostępu? Proszę otworzyć e-mail „Einladung zum Eltern-Portal”. Nie dostali Państwo e-maila? Proszę skontaktować się z OGS."
   },
   "parentRequestEdit": {
     "title": "Edytuj prośbę",

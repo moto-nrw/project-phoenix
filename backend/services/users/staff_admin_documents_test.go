@@ -2,6 +2,7 @@ package users_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -10,7 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +27,7 @@ import (
 type staffDocumentScenario struct {
 	db      *bun.DB
 	repos   *repositories.Factory
-	svc     usersSvc.StaffDocumentService
+	svc     workforce.StaffDocuments
 	ctx     context.Context
 	staffID int64
 	account int64
@@ -37,15 +39,11 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	svc := usersSvc.NewStaffDocumentService(
-		db,
-		repos.StaffDocument,
-		repos.Staff,
-		repos.StaffMasterData,
-		repos.StaffMasterDataChange,
-		repos.DataAccessLog,
-		nil,
-	)
+	admin, err := services.NewStaffAdmin(services.StaffAdminDependencies{
+		DB: db, Staff: repos.Staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
+		MasterDataAudit: repos.StaffMasterDataChange, PersonnelNumber: repos.PersonnelNumberChange, DataAccessLog: repos.DataAccessLog,
+	})
+	require.NoError(t, err)
 
 	suffix := time.Now().UnixNano()
 	staff := testpkg.CreateTestStaff(t, db, "Dokumente", fmt.Sprintf("Service-%d", suffix))
@@ -54,20 +52,20 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 	return &staffDocumentScenario{
 		db:      db,
 		repos:   repos,
-		svc:     svc,
+		svc:     admin,
 		ctx:     testpkg.Ctx(t),
 		staffID: staff.ID,
 		account: account.ID,
 	}
 }
 
-func (s *staffDocumentScenario) actor(perms ...string) usersSvc.StaffDocumentActor {
-	return usersSvc.StaffDocumentActor{AccountID: s.account, Role: "test", Permissions: perms}
+func (s *staffDocumentScenario) actor(perms ...string) workforce.StaffDocumentActor {
+	return workforce.StaffDocumentActor{AccountID: s.account, Role: "test", Permissions: perms}
 }
 
-func (s *staffDocumentScenario) create(t *testing.T, category string, actor usersSvc.StaffDocumentActor) *usersSvc.StaffDocumentInfo {
+func (s *staffDocumentScenario) create(t *testing.T, category string, actor workforce.StaffDocumentActor) *workforce.StaffDocumentInfo {
 	t.Helper()
-	info, err := s.svc.CreateStaffDocument(s.ctx, usersSvc.CreateStaffDocumentInput{
+	info, err := s.svc.CreateStaffDocument(s.ctx, workforce.CreateStaffDocumentInput{
 		StaffID:         s.staffID,
 		Category:        category,
 		FilenameDisplay: category + "-datei.pdf",
@@ -76,6 +74,7 @@ func (s *staffDocumentScenario) create(t *testing.T, category string, actor user
 		ContentType:     "application/pdf",
 	}, actor)
 	require.NoError(t, err)
+	require.NotNil(t, info)
 	return info
 }
 
@@ -92,12 +91,22 @@ func (s *staffDocumentScenario) auditRows(t *testing.T) []*auditModels.StaffMast
 	return rows
 }
 
-func documentCategories(infos []*usersSvc.StaffDocumentInfo) []string {
+func documentCategories(infos []workforce.StaffDocumentInfo) []string {
 	out := make([]string, 0, len(infos))
 	for _, info := range infos {
 		out = append(out, info.Document.Category)
 	}
 	return out
+}
+
+// staffDocumentDate parses a non-empty "YYYY-MM-DD" retention date of the
+// document view.
+func staffDocumentDate(t *testing.T, value string) timezone.Date {
+	t.Helper()
+	require.NotEmpty(t, value)
+	date, err := timezone.ParseDate(value)
+	require.NoError(t, err)
+	return date
 }
 
 func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
@@ -112,7 +121,7 @@ func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
 
 	// Directory maintainers cover the four general categories only.
 	s.create(t, userModels.StaffDocumentCategoryZeugnis, directory)
-	_, err := s.svc.CreateStaffDocument(s.ctx, usersSvc.CreateStaffDocumentInput{
+	_, err := s.svc.CreateStaffDocument(s.ctx, workforce.CreateStaffDocumentInput{
 		StaffID:         s.staffID,
 		Category:        userModels.StaffDocumentCategoryAUBescheinigung,
 		FilenameDisplay: "au.pdf",
@@ -120,12 +129,12 @@ func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
 		SizeBytes:       1,
 		ContentType:     "application/pdf",
 	}, directory)
-	require.ErrorIs(t, err, usersSvc.ErrStaffDocumentForbidden)
+	require.ErrorIs(t, err, workforce.ErrStaffDocumentForbidden)
 
 	// The dedicated permissions cover exactly their category.
 	auInfo := s.create(t, userModels.StaffDocumentCategoryAUBescheinigung, health)
 	lohnInfo := s.create(t, userModels.StaffDocumentCategoryLohnabrechnung, payroll)
-	_, err = s.svc.CreateStaffDocument(s.ctx, usersSvc.CreateStaffDocumentInput{
+	_, err = s.svc.CreateStaffDocument(s.ctx, workforce.CreateStaffDocumentInput{
 		StaffID:         s.staffID,
 		Category:        userModels.StaffDocumentCategoryZeugnis,
 		FilenameDisplay: "zeugnis.pdf",
@@ -133,7 +142,7 @@ func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
 		SizeBytes:       1,
 		ContentType:     "application/pdf",
 	}, health)
-	require.ErrorIs(t, err, usersSvc.ErrStaffDocumentForbidden)
+	require.ErrorIs(t, err, workforce.ErrStaffDocumentForbidden)
 
 	// List visibility follows the same mapping.
 	infos, visible, err := s.svc.ListStaffDocuments(s.ctx, s.staffID, "", directory)
@@ -159,7 +168,7 @@ func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
 	// A category filter outside the caller's authority is refused, inside it
 	// narrows.
 	_, _, err = s.svc.ListStaffDocuments(s.ctx, s.staffID, userModels.StaffDocumentCategoryAUBescheinigung, directory)
-	require.ErrorIs(t, err, usersSvc.ErrStaffDocumentForbidden)
+	require.ErrorIs(t, err, workforce.ErrStaffDocumentForbidden)
 	infos, _, err = s.svc.ListStaffDocuments(s.ctx, s.staffID, userModels.StaffDocumentCategoryAUBescheinigung, health)
 	require.NoError(t, err)
 	require.Len(t, infos, 1)
@@ -168,7 +177,7 @@ func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
 	// Downloads: the general category serves without an access-log row, the
 	// sensitive ones refuse foreign permissions and log for the right ones.
 	_, err = s.svc.ResolveStaffDocumentDownload(s.ctx, s.staffID, auInfo.Document.ID, directory)
-	require.ErrorIs(t, err, usersSvc.ErrStaffDocumentForbidden)
+	require.ErrorIs(t, err, workforce.ErrStaffDocumentForbidden)
 
 	before := len(s.accessLogRowsFor(t))
 	_, err = s.svc.ResolveStaffDocumentDownload(s.ctx, s.staffID, lohnInfo.Document.ID, payroll)
@@ -214,6 +223,7 @@ func TestStaffDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
 
 	deleted, err := s.svc.DeleteStaffDocument(s.ctx, s.staffID, info.Document.ID, directory)
 	require.NoError(t, err)
+	require.NotNil(t, deleted)
 	assert.Equal(t, info.Document.FilenameStored, deleted.FilenameStored)
 
 	rows = s.auditRows(t)
@@ -237,6 +247,8 @@ func TestStaffDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
 	// Deleting again is a 404-shaped error, not a second audit row.
 	_, err = s.svc.DeleteStaffDocument(s.ctx, s.staffID, info.Document.ID, directory)
 	require.Error(t, err)
+	var marker interface{ RepositoryNotFound() }
+	assert.True(t, errors.As(err, &marker), "second delete must be not-found, got %v", err)
 	assert.Len(t, s.auditRows(t), 2)
 }
 
@@ -247,8 +259,8 @@ func TestStaffDocumentService_CreateHydratesGeneratedTimestamps(t *testing.T) {
 	info := s.create(t, userModels.StaffDocumentCategoryLohnabrechnung, s.actor("staff:financial"))
 
 	assert.False(t, info.Document.CreatedAt.IsZero())
-	require.NotNil(t, info.RetainUntil)
-	assert.Equal(t, timezone.DateFromTime(info.Document.CreatedAt).Year()+10, info.RetainUntil.Year())
+	retainUntil := staffDocumentDate(t, info.RetainUntil)
+	assert.Equal(t, timezone.DateFromTime(info.Document.CreatedAt).Year()+10, retainUntil.Year())
 }
 
 func TestStaffDocumentService_RefusesDownloadsAfterOffboarding(t *testing.T) {
@@ -273,23 +285,20 @@ func TestStaffDocumentService_RetentionSchedule(t *testing.T) {
 
 	lohn := s.create(t, userModels.StaffDocumentCategoryLohnabrechnung, admin)
 	uploaded := timezone.DateFromTime(lohn.Document.CreatedAt)
-	require.NotNil(t, lohn.RetainUntil)
-	assert.Equal(t, timezone.NewDate(uploaded.Year()+10, uploaded.Month(), uploaded.Day()), *lohn.RetainUntil)
-	assert.Nil(t, lohn.ReviewDue)
+	assert.Equal(t, timezone.NewDate(uploaded.Year()+10, uploaded.Month(), uploaded.Day()), staffDocumentDate(t, lohn.RetainUntil))
+	assert.Empty(t, lohn.ReviewDue)
 
 	au := s.create(t, userModels.StaffDocumentCategoryAUBescheinigung, admin)
-	require.NotNil(t, au.RetainUntil)
-	assert.Equal(t, uploaded.Year()+4, au.RetainUntil.Year())
+	assert.Equal(t, uploaded.Year()+4, staffDocumentDate(t, au.RetainUntil).Year())
 
 	bewerbung := s.create(t, userModels.StaffDocumentCategoryBewerbung, admin)
-	assert.Nil(t, bewerbung.RetainUntil)
-	require.NotNil(t, bewerbung.ReviewDue)
-	assert.Equal(t, timezone.NewDate(uploaded.Year(), uploaded.Month()+6, uploaded.Day()), *bewerbung.ReviewDue)
+	assert.Empty(t, bewerbung.RetainUntil)
+	assert.Equal(t, timezone.NewDate(uploaded.Year(), uploaded.Month()+6, uploaded.Day()), staffDocumentDate(t, bewerbung.ReviewDue))
 
 	// Arbeitsvertrag: open without a contract end, contract end + 6 years
 	// once the Stammdaten row carries one.
 	vertrag := s.create(t, userModels.StaffDocumentCategoryArbeitsvertrag, admin)
-	assert.Nil(t, vertrag.RetainUntil)
+	assert.Empty(t, vertrag.RetainUntil)
 
 	end := timezone.NewDate(2027, 7, 31)
 	require.NoError(t, s.repos.StaffMasterData.Create(s.ctx, &userModels.StaffMasterData{
@@ -300,18 +309,16 @@ func TestStaffDocumentService_RetentionSchedule(t *testing.T) {
 		_, _ = s.db.ExecContext(context.Background(), `DELETE FROM users.staff_master_data WHERE staff_id = ?`, s.staffID)
 	})
 	vertragWithEnd := s.create(t, userModels.StaffDocumentCategoryArbeitsvertrag, admin)
-	require.NotNil(t, vertragWithEnd.RetainUntil)
-	assert.Equal(t, timezone.NewDate(2033, 7, 31), *vertragWithEnd.RetainUntil)
+	assert.Equal(t, timezone.NewDate(2033, 7, 31), staffDocumentDate(t, vertragWithEnd.RetainUntil))
 
 	infos, _, err := s.svc.ListStaffDocuments(s.ctx, s.staffID, userModels.StaffDocumentCategoryArbeitsvertrag, admin)
 	require.NoError(t, err)
 	require.Len(t, infos, 2)
 	for _, info := range infos {
-		require.NotNil(t, info.RetainUntil)
-		assert.Equal(t, timezone.NewDate(2033, 7, 31), *info.RetainUntil)
+		assert.Equal(t, timezone.NewDate(2033, 7, 31), staffDocumentDate(t, info.RetainUntil))
 	}
 
 	zeugnis := s.create(t, userModels.StaffDocumentCategoryZeugnis, admin)
-	assert.Nil(t, zeugnis.RetainUntil)
-	assert.Nil(t, zeugnis.ReviewDue)
+	assert.Empty(t, zeugnis.RetainUntil)
+	assert.Empty(t, zeugnis.ReviewDue)
 }

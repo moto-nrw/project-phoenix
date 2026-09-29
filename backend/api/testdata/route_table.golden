@@ -323,6 +323,7 @@ GET /api/schedules/timeframes/
 GET /api/schedules/timeframes/active
 GET /api/schedules/timeframes/by-range
 GET /api/schedules/timeframes/{id}
+GET /api/school-setup/
 GET /api/settings/home-layout
 GET /api/settings/login-image
 GET /api/settings/payroll-status
@@ -747,6 +748,7 @@ POST /api/schedules/find-available-slots
 POST /api/schedules/recurrence-rules/
 POST /api/schedules/recurrence-rules/{id}/generate-events
 POST /api/schedules/timeframes/
+POST /api/school-setup/complete
 POST /api/settings/enrollment/legal-agb-document
 POST /api/settings/login-image
 POST /api/shift-types/
@@ -1009,6 +1011,8 @@ PUT /api/rooms/{id}
 PUT /api/schedules/dateframes/{id}
 PUT /api/schedules/recurrence-rules/{id}
 PUT /api/schedules/timeframes/{id}
+PUT /api/school-setup/dismissal
+PUT /api/school-setup/steps/{step}
 PUT /api/settings/home-layout
 PUT /api/settings/home-layout/policies
 PUT /api/settings/values/{key}

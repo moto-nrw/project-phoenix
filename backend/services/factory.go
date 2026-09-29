@@ -172,27 +172,29 @@ type Factory struct {
 	// The Dienstplan side of Workforce (#3418): the planning capability the
 	// staff-shift route mounts, the self-service assignments and the week
 	// overview, and the shift-type administration, all public contracts.
-	StaffShifts               workforceModule.StaffShiftPlanning
-	StaffAssignments          workforceModule.StaffAssignmentQuery
-	StaffScheduleOverview     workforceModule.StaffScheduleOverviewQuery
-	ShiftTypes                workforceModule.ShiftTypeAdministration
-	PlanningTracks            timetable.PlanningTrackAdministration
-	PickupSchedule            careplan.PickupScheduleService
-	PartialAbsence            careplan.PartialAbsenceService
-	ArrivalSchedule           careplan.ArrivalScheduleService
-	CareDay                   careplan.CareDayQuery
-	TimetableBridge           timetable.EndedSessionCompletion
-	Materialization           timetable.MaterializationCapability
-	TimetableCleanup          timetable.TimetableCleanup
-	TimeTrackingCleanup       timetracking.TimeTrackingCleanupService
-	StudentChangeLogCleanup   users.StudentChangeLogCleanupService
-	Instance                  timetable.InstanceLifecycleCapability
-	AutoStart                 timetable.InstanceAutoStart
-	AutoEnd                   timetable.InstanceAutoEnd
-	TimetableOperations       timetable.OperationCapability
-	Users                     users.PersonService
-	Birthdays                 peopledirectory.Birthdays
-	StaffDocuments            users.StaffDocumentService
+	StaffShifts             workforceModule.StaffShiftPlanning
+	StaffAssignments        workforceModule.StaffAssignmentQuery
+	StaffScheduleOverview   workforceModule.StaffScheduleOverviewQuery
+	ShiftTypes              workforceModule.ShiftTypeAdministration
+	PlanningTracks          timetable.PlanningTrackAdministration
+	PickupSchedule          careplan.PickupScheduleService
+	PartialAbsence          careplan.PartialAbsenceService
+	ArrivalSchedule         careplan.ArrivalScheduleService
+	CareDay                 careplan.CareDayQuery
+	TimetableBridge         timetable.EndedSessionCompletion
+	Materialization         timetable.MaterializationCapability
+	TimetableCleanup        timetable.TimetableCleanup
+	TimeTrackingCleanup     timetracking.TimeTrackingCleanupService
+	StudentChangeLogCleanup users.StudentChangeLogCleanupService
+	Instance                timetable.InstanceLifecycleCapability
+	AutoStart               timetable.InstanceAutoStart
+	AutoEnd                 timetable.InstanceAutoEnd
+	TimetableOperations     timetable.OperationCapability
+	Users                   users.PersonService
+	Birthdays               peopledirectory.Birthdays
+	// StaffDocuments is Workforce's personnel-record administration: the
+	// Dokumente tab, the Stammdaten sections and the payroll number (#3752).
+	StaffDocuments            *workforceModule.StaffAdmin
 	StudentDocuments          careplan.StudentDocuments
 	FileStore                 *filestorageModule.Module
 	CaregiverCapability       users.CaregiverCapabilityService
@@ -818,25 +820,23 @@ func newFactory(
 	var identityAccess *identityaccess.Module
 	identityRoles := roleAdministration{current: func() *identityaccess.Module { return identityAccess }}
 
+	// The staff and teacher lookups and the staff writes are School Membership
+	// and Workforce territory (#3752); the person service takes them through
+	// the StaffDirectory port.
+	staffDirectory := NewStaffDirectory(StaffDirectoryDependencies{
+		DB: db, Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher, LehrkraftRoles: identityRoles,
+	})
+
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
-		PersonDirectory:      repositories.NewPersonDirectory(persons),
-		StudentDirectory:     repositories.NewStudentDirectory(persons),
-		PersonRepo:           repos.Person,
-		RFIDRepo:             repos.RFIDCard,
-		AccountExists:        repositories.AccountExists(repos.Profile),
-		StudentRepo:          repos.Student,
-		StaffRepo:            repos.Staff,
-		TeacherRepo:          repos.Teacher,
-		LehrkraftRoles:       identityRoles,
-		PersonnelNumberAudit: repos.PersonnelNumberChange,
-
-		// Staff Stammdaten (#1423)
-		StaffMasterDataRepo:    repos.StaffMasterData,
-		StaffQualificationRepo: repos.StaffQualification,
-		StaffFinancialRepo:     repos.StaffFinancialData,
-		StammdatenAudit:        repos.StaffMasterDataChange,
-		DataAccessLog:          repos.DataAccessLog,
+		PersonDirectory:  repositories.NewPersonDirectory(persons),
+		StudentDirectory: repositories.NewStudentDirectory(persons),
+		PersonRepo:       repos.Person,
+		RFIDRepo:         repos.RFIDCard,
+		AccountExists:    repositories.AccountExists(repos.Profile),
+		StudentRepo:      repos.Student,
+		TeacherRepo:      repos.Teacher,
+		StaffDirectory:   staffDirectory,
 
 		DB:              db,
 		SettingsService: settingsService,
@@ -849,17 +849,17 @@ func newFactory(
 		BirthdayRepositories{Students: repos.Student, Staff: repos.Staff, Persons: repos.Person},
 		settingsService, logger.With("service", "birthdays"), now)
 
-	// Staff documents (#1424): metadata + per-category authority for the
-	// Dokumente tab. Shares the Stammdaten audit trail and access log.
-	staffDocumentService := users.NewStaffDocumentService(
-		db,
-		repos.StaffDocument,
-		repos.Staff,
-		repos.StaffMasterData,
-		repos.StaffMasterDataChange,
-		repos.DataAccessLog,
-		logger.With("service", "staff_documents"),
-	)
+	// Personnel record (#1417, #1423, #1424): the payroll number, the Stammdaten
+	// sections and the Dokumente tab are Workforce's own administration; the
+	// staff and person rows behind it and the audit trail are bound here.
+	staffAdmin, err := NewStaffAdmin(StaffAdminDependencies{
+		DB: db, Staff: repos.Staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
+		MasterDataAudit: repos.StaffMasterDataChange, PersonnelNumber: repos.PersonnelNumberChange, DataAccessLog: repos.DataAccessLog,
+		Logger: logger.With("service", "staff_documents"), Now: now,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("staff admin: %w", err)
+	}
 
 	// Initialize guardian service
 	// Replies to tenant-bound mail belong to the OGS, not to moto (#1936).
@@ -2178,6 +2178,7 @@ func newFactory(
 		Notifications:        enrollmentNotifications,
 		GuardianProfileRepo:  repos.GuardianProfile,
 		GuardianPhoneRepo:    repos.GuardianPhoneNumber,
+		GuardianInvitations:  enrollmentGuardianInvitationAvailability{invitations: guardianInvitationService},
 		PersonRepo:           repos.Person,
 		StudentRepo:          repos.Student,
 		GuardianAuthorizer:   repos.StudentGuardian,
@@ -2871,7 +2872,7 @@ func newFactory(
 		TimetableOperations:     timetableOperationsService,
 		Users:                   usersService,
 		Birthdays:               birthdayService,
-		StaffDocuments:          staffDocumentService,
+		StaffDocuments:          staffAdmin,
 		StudentDocuments:        studentDocumentService,
 		FileStore:               fileStoreService,
 		CaregiverCapability:     caregiverCapabilityService,

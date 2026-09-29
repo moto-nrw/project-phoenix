@@ -2409,6 +2409,14 @@ describe("EnrollmentForm", () => {
         /Änderungen für Anton Alster laufen jetzt über die Eltern-App\./,
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Sie kommen nicht in die Eltern-App\? Bitte melden Sie sich bei der OGS\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Einladung zum Eltern-Portal/),
+    ).not.toBeInTheDocument();
   });
 
   it("submits a taken-over child unchanged", async () => {

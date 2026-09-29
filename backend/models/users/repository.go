@@ -519,6 +519,10 @@ type GuardianProfileRepository interface {
 	// account and active account_tenants membership for the current tenant.
 	FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*GuardianProfile, error)
 
+	// FindLoginReadyPortalProfilesByIDs retrieves guardian profiles whose
+	// linked account can authenticate with a password at the current tenant.
+	FindLoginReadyPortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*GuardianProfile, error)
+
 	// Update updates an existing guardian profile
 	Update(ctx context.Context, profile *GuardianProfile) error
 

@@ -26,13 +26,14 @@ type WorkforceAdminCapabilities struct {
 	TimeExport         workforce.StaffTimeExport
 }
 
-// NewWorkforceAdminCapabilities adapts the retained services. The people and
-// work session services are required; every other capability is left nil
+// NewWorkforceAdminCapabilities adapts the retained services. The people
+// service, the personnel-record administration and the work session service
+// are required; every other capability is left nil
 // when its service is not wired, so a partial composition (a focused test
 // module) still serves the routes it has services for.
 func NewWorkforceAdminCapabilities(
 	people users.PersonService,
-	documents users.StaffDocumentService,
+	staffAdmin *workforce.StaffAdmin,
 	sessions timetracking.WorkSessionService,
 	absences timetracking.StaffAbsenceService,
 	months timetracking.WorkTimeMonthService,
@@ -43,11 +44,11 @@ func NewWorkforceAdminCapabilities(
 	export timetracking.StaffTimeExportService,
 ) WorkforceAdminCapabilities {
 	capabilities := WorkforceAdminCapabilities{
-		Staff:        StaffDirectoryCapability(people),
+		Staff:        StaffDirectoryCapability(people, staffAdmin),
 		WorkSessions: WorkSessionCapability(sessions, people),
 	}
-	if documents != nil {
-		capabilities.Documents = StaffDocumentCapability(documents)
+	if staffAdmin != nil {
+		capabilities.Documents = staffAdmin
 	}
 	if absences != nil {
 		capabilities.StaffAbsences = StaffAbsenceCapability(absences)

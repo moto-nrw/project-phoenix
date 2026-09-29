@@ -157,8 +157,15 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 	require.ErrorIs(t, err, lookupFailure)
 	require.Nil(t, listed, "failed membership reads must not return relationship candidates")
 
-	_, err = testutil.NewPeopleRepositorySuiteRetainedGuardianProfiles(db).
-		FindActivePortalProfilesByIDs(ctx, []int64{chain.GuardianProfileID})
+	unboundProfiles := testutil.NewPeopleRepositorySuiteRetainedGuardianProfiles(db)
+	emptyActiveProfiles, err := unboundProfiles.FindActivePortalProfilesByIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, emptyActiveProfiles)
+	emptyLoginProfiles, err := unboundProfiles.FindLoginReadyPortalProfilesByIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, emptyLoginProfiles)
+
+	_, err = unboundProfiles.FindActivePortalProfilesByIDs(ctx, []int64{chain.GuardianProfileID})
 	require.ErrorContains(t, err, "portal membership query is required")
 	projectionFailure := errors.New("portal membership lookup failed")
 	failingProfiles := testutil.NewPeopleRepositorySuiteRetainedGuardianProfiles(db, testutil.PeopleRepositorySuiteWithPortalMemberships(
