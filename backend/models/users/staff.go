@@ -26,9 +26,12 @@ const PersonnelNumberUniqueConstraintName = "uq_staff_tenant_personnel_number"
 // matches on this sentinel instead of the raw 23505 it can no longer see.
 var ErrPersonnelNumberConflict = errors.New("personnel number is already assigned")
 
-// Staff represents a staff member in the system
+// Staff represents a staff member in the system. It is a composed DTO, not a
+// table: School Membership (users.staff_school_memberships) and Workforce
+// (users.staff_employment_profiles) own its columns since #2753, and the old
+// users.staff table is gone since #2754.
 type Staff struct {
-	base.Model `bun:"schema:users,table:staff"`
+	base.Model
 	base.TenantModel
 	PersonID        int64   `bun:"person_id,notnull" json:"person_id"`
 	StaffNotes      string  `bun:"staff_notes" json:"staff_notes,omitempty"`

@@ -267,9 +267,9 @@ func TestOverviewStaffVisibility(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 	_, err := tc.db.NewUpdate().
-		Table("users.staff").
+		Table("users.staff_employment_profiles").
 		Set("birthday_display_opt_out = TRUE").
-		Where("id = ?", optedOut.ID).
+		Where("membership_id = ?", optedOut.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 

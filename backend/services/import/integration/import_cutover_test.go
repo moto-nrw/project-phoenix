@@ -530,8 +530,9 @@ func TestDataImportCutover_StaffStammdatenThroughOwners(t *testing.T) {
 		Birthday        string  `bun:"birthday"`
 		AccountID       *int64  `bun:"account_id"`
 	}
-	require.NoError(t, db.NewSelect().TableExpr("users.staff AS s").
-		ColumnExpr("s.id, s.person_id, s.staff_notes, s.employment_type, s.personnel_number, p.first_name, p.birthday::text AS birthday, p.account_id").
+	require.NoError(t, db.NewSelect().TableExpr("users.staff_school_memberships AS s").
+		ColumnExpr("s.id, s.person_id, ep.staff_notes, ep.employment_type, ep.personnel_number, p.first_name, p.birthday::text AS birthday, p.account_id").
+		Join("JOIN users.staff_employment_profiles ep ON ep.membership_id = s.id AND ep.tenant_id = s.tenant_id").
 		Join("JOIN users.persons p ON p.id = s.person_id").Where("s.tenant_id = ? AND p.last_name = ?", tenantID, "Cutover").Scan(ctx, &staff))
 	assert.Equal(t, "Anna", staff.FirstName)
 	assert.Equal(t, "1988-05-12", staff.Birthday)
@@ -580,8 +581,9 @@ func TestDataImportCutover_StaffStammdatenThroughOwners(t *testing.T) {
 	result = runStaffImport(importModels.ImportModeUpdate, []importModels.StaffImportRow{update})
 	require.Equal(t, 1, result.UpdatedCount)
 	require.Zero(t, result.ErrorCount)
-	require.NoError(t, db.NewSelect().TableExpr("users.staff AS s").
-		ColumnExpr("s.id, s.person_id, s.staff_notes, s.employment_type, s.personnel_number, p.first_name, p.birthday::text AS birthday, p.account_id").
+	require.NoError(t, db.NewSelect().TableExpr("users.staff_school_memberships AS s").
+		ColumnExpr("s.id, s.person_id, ep.staff_notes, ep.employment_type, ep.personnel_number, p.first_name, p.birthday::text AS birthday, p.account_id").
+		Join("JOIN users.staff_employment_profiles ep ON ep.membership_id = s.id AND ep.tenant_id = s.tenant_id").
 		Join("JOIN users.persons p ON p.id = s.person_id").Where("s.id = ?", staff.ID).Scan(ctx, &staff))
 	assert.Equal(t, "aktualisiert", staff.StaffNotes)
 	assert.Equal(t, "part_time", *staff.EmploymentType, "an empty cell keeps the employment type")
@@ -593,7 +595,7 @@ func TestDataImportCutover_StaffStammdatenThroughOwners(t *testing.T) {
 	assert.InDelta(t, 19.5, *master.WeeklyHours, 0.001)
 
 	var staffCount int
-	require.NoError(t, db.NewSelect().TableExpr("users.staff").ColumnExpr("count(*)").Where("tenant_id = ?", tenantID).Scan(ctx, &staffCount))
+	require.NoError(t, db.NewSelect().TableExpr("users.staff_school_memberships").ColumnExpr("count(*)").Where("tenant_id = ?", tenantID).Scan(ctx, &staffCount))
 	assert.Equal(t, 2, staffCount, "the importing staff member plus the imported one; the update created nobody")
 }
 

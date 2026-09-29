@@ -193,10 +193,10 @@ func TestGetCurrentStaff_Success(t *testing.T) {
 	personnelNumber := "90001"
 	teacher.Staff.PersonnelNumber = &personnelNumber
 	_, err := tc.db.NewUpdate().
-		Model(teacher.Staff).
-		ModelTableExpr(`users.staff AS "staff"`).
-		Column("personnel_number").
-		WherePK().
+		TableExpr(`users.staff_employment_profiles`).
+		Set("personnel_number = ?", personnelNumber).
+		Where("membership_id = ?", teacher.Staff.ID).
+		Where("tenant_id = ?", teacher.Staff.TenantID).
 		Exec(context.Background())
 	require.NoError(t, err)
 

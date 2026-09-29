@@ -164,7 +164,7 @@ func TestUpdatePersonnelNumber_DuplicateIsConflictAndLeavesNoAudit(t *testing.T)
 	// index skips soft-deleted rows).
 	_, err = s.db.NewUpdate().
 		Model((*userModels.Staff)(nil)).
-		ModelTableExpr(`users.staff AS "staff"`).
+		ModelTableExpr(`users.staff_school_memberships AS "staff"`).
 		Set("deleted_at = NOW()").
 		Where(`"staff".id = ?`, first.ID).
 		Exec(context.Background())

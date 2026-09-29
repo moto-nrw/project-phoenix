@@ -66,10 +66,13 @@ func createTestTeacherWithAccountForTenant(
 
 	staff := &userModels.Staff{PersonID: person.ID}
 	staff.SetTenantID(tenantID)
-	err = db.NewInsert().
-		Model(staff).
-		ModelTableExpr(`users.staff`).
-		Scan(context.Background())
+	err = db.NewRaw(`INSERT INTO users.staff_school_memberships (tenant_id, person_id)
+		VALUES (?, ?) RETURNING id, created_at, updated_at`,
+		tenantID, person.ID).
+		Scan(context.Background(), &staff.ID, &staff.CreatedAt, &staff.UpdatedAt)
+	require.NoError(t, err)
+	_, err = db.NewRaw(`INSERT INTO users.staff_employment_profiles (membership_id, tenant_id)
+		VALUES (?, ?)`, staff.ID, tenantID).Exec(context.Background())
 	require.NoError(t, err)
 	staff.Person = person
 

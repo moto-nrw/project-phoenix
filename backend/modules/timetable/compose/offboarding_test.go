@@ -43,7 +43,7 @@ func TestOperationalDateEditRejectsAssignmentsAddedAfterDiscovery(t *testing.T) 
 						// A separate committed writer adds B, then B retires while
 						// the assignment is still historical and must be retained.
 						createOwnedInstanceStaff(t, module, ctx, instance.ID, retired.ID, false, false)
-						_, err := db.NewRaw("UPDATE users.staff SET deleted_at = NOW() WHERE id = ? AND tenant_id = ?", retired.ID, testpkg.Tenant(t)).Exec(ctx)
+						_, err := db.NewRaw("UPDATE users.staff_school_memberships SET deleted_at = NOW() WHERE id = ? AND tenant_id = ?", retired.ID, testpkg.Tenant(t)).Exec(ctx)
 						return err
 					}
 					return nil

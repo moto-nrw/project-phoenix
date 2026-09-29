@@ -406,7 +406,7 @@ func TestOffboardStaff_WithAttendanceHistory(t *testing.T) {
 
 	var deletedAt *time.Time
 	err = sc.db.NewSelect().
-		TableExpr(`users.staff`).
+		TableExpr(`users.staff_school_memberships`).
 		ColumnExpr(`deleted_at`).
 		Where(`id = ?`, staff.ID).
 		Scan(context.Background(), &deletedAt)
@@ -571,7 +571,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	t.Cleanup(func() {
 		ctx := context.Background()
 		_, _ = sc.db.ExecContext(ctx, `DELETE FROM auth.invitation_tokens WHERE email = ?`, emailAddr)
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM users.staff WHERE person_id IN (SELECT id FROM users.persons WHERE account_id = ?)`, account.ID)
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM users.staff_school_memberships WHERE person_id IN (SELECT id FROM users.persons WHERE account_id = ?)`, account.ID)
 	})
 
 	// Before offboarding the re-invite is blocked (current production behavior).
@@ -609,7 +609,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 
 	var staffCount int
 	err = sc.db.NewSelect().
-		TableExpr(`users.staff AS "staff"`).
+		TableExpr(`users.staff_school_memberships AS "staff"`).
 		ColumnExpr(`COUNT(*)`).
 		Join(`JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
 		Where(`"person".account_id = ? AND "staff".deleted_at IS NULL AND "person".deleted_at IS NULL`, account.ID).
@@ -653,7 +653,7 @@ func TestOffboardStaff_ActiveSupervisionBlocks(t *testing.T) {
 
 	var deletedAt *time.Time
 	scanErr := sc.db.NewSelect().
-		TableExpr(`users.staff`).
+		TableExpr(`users.staff_school_memberships`).
 		ColumnExpr(`deleted_at`).
 		Where(`id = ?`, staff.ID).
 		Scan(context.Background(), &deletedAt)
@@ -700,7 +700,7 @@ func TestOffboardStaff_CleansUpAssignments(t *testing.T) {
 
 	var personID int64
 	require.NoError(t, sc.db.NewSelect().
-		TableExpr(`users.staff`).
+		TableExpr(`users.staff_school_memberships`).
 		ColumnExpr(`person_id`).
 		Where(`id = ?`, staffID).
 		Scan(context.Background(), &personID))
@@ -761,7 +761,7 @@ func TestOffboardStaff_BroadcastsGroupAccessChanged(t *testing.T) {
 
 	var personID int64
 	require.NoError(t, sc.db.NewSelect().
-		TableExpr(`users.staff`).
+		TableExpr(`users.staff_school_memberships`).
 		ColumnExpr(`person_id`).
 		Where(`id = ?`, teacher.StaffID).
 		Scan(context.Background(), &personID))
@@ -1116,7 +1116,7 @@ func TestOffboardStaff_AbsenceAuditFailureRollsBackOffboarding(t *testing.T) {
 
 	var deletedAt *time.Time
 	require.NoError(t, sc.db.NewSelect().
-		TableExpr(`users.staff`).
+		TableExpr(`users.staff_school_memberships`).
 		ColumnExpr(`deleted_at`).
 		Where(`id = ?`, staff.ID).
 		Scan(context.Background(), &deletedAt))
@@ -1188,7 +1188,7 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 		{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 300},
 	}))
 	_, err := sc.db.ExecContext(context.Background(),
-		`UPDATE users.staff SET work_time_model_id = ? WHERE id = ?`, model.ID, staff.ID)
+		`UPDATE users.staff_employment_profiles SET work_time_model_id = ? WHERE membership_id = ?`, model.ID, staff.ID)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -1201,9 +1201,9 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 
 	var workTimeModelID *int64
 	require.NoError(t, sc.db.NewSelect().
-		TableExpr(`users.staff`).
+		TableExpr(`users.staff_employment_profiles`).
 		ColumnExpr(`work_time_model_id`).
-		Where(`id = ?`, staff.ID).
+		Where(`membership_id = ?`, staff.ID).
 		Scan(context.Background(), &workTimeModelID))
 	assert.Nil(t, workTimeModelID, "work_time_model_id must be cleared on offboarding")
 
