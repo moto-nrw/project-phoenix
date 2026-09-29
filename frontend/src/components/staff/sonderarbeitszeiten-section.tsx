@@ -18,6 +18,7 @@ import {
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useToast } from "~/contexts/ToastContext";
 import { formatClosingDayRange } from "~/lib/closing-day-helpers";
 import { formatDate } from "~/lib/date-helpers";
@@ -36,17 +37,33 @@ import {
 
 const logger = createLogger({ component: "SonderarbeitszeitenSection" });
 
+// Monday to Friday, the days a Sonderarbeitszeit sets a Soll on.
+const WEEKDAYS = [
+  { short: "Mo", name: "Montag" },
+  { short: "Di", name: "Dienstag" },
+  { short: "Mi", name: "Mittwoch" },
+  { short: "Do", name: "Donnerstag" },
+  { short: "Fr", name: "Freitag" },
+] as const;
+
+type HoursMode = "uniform" | "weekdays";
+
 type Draft = {
   readonly startDate: string;
   readonly endDate: string;
+  readonly mode: HoursMode;
   readonly hours: string;
+  readonly weekdayHours: readonly string[];
 };
 
 type FieldErrors = {
   readonly startDate?: string;
   readonly endDate?: string;
   readonly hours?: string;
+  readonly weekdayHours?: string;
 };
+
+const HOURS_ERROR = "Bitte 0 bis 12 Stunden eingeben.";
 
 // A range reads like a closing day: "TT.MM.JJJJ – TT.MM.JJJJ", one date for a
 // single day.
@@ -59,11 +76,53 @@ function formatRange(row: StaffTargetOverride): string {
   });
 }
 
+// The Soll of a row as one line: "8,5 Std." for the same hours every day,
+// "Mo 3,5 Std. · Di–Fr je 0,5 Std." for hours per weekday (#3745). Weekdays in
+// a row with the same hours are joined, so the usual pattern stays short.
+function formatOverrideHours(row: StaffTargetOverride): string {
+  if (!row.weekdayMinutes) {
+    return `${formatDecimalHours(row.dailyMinutes ?? 0)} Std.`;
+  }
+  const minutes = row.weekdayMinutes;
+  const parts: string[] = [];
+  let start = 0;
+  while (start < minutes.length) {
+    let end = start;
+    while (end + 1 < minutes.length && minutes[end + 1] === minutes[start]) {
+      end++;
+    }
+    const hours = `${formatDecimalHours(minutes[start] ?? 0)} Std.`;
+    parts.push(
+      end === start
+        ? `${WEEKDAYS[start]?.short} ${hours}`
+        : `${WEEKDAYS[start]?.short}–${WEEKDAYS[end]?.short} je ${hours}`,
+    );
+    start = end + 1;
+  }
+  return parts.join(" · ");
+}
+
+function parseWeekdayMinutes(weekdayHours: readonly string[]): number[] | null {
+  const minutes: number[] = [];
+  for (const value of weekdayHours) {
+    const parsed = parseDecimalHours(value);
+    if (parsed.status !== "valid") return null;
+    minutes.push(parsed.minutes);
+  }
+  return minutes;
+}
+
+type ValidatedHours =
+  | { readonly dailyMinutes: number }
+  | { readonly weekdayMinutes: readonly number[] };
+
 function validateDraft(draft: Draft): {
   readonly fields: FieldErrors;
-  readonly minutes: number | null;
+  readonly hours: ValidatedHours | null;
 } {
   const parsed = parseDecimalHours(draft.hours);
+  const weekdayMinutes = parseWeekdayMinutes(draft.weekdayHours);
+  const uniform = draft.mode === "uniform";
   const fields: FieldErrors = {
     startDate: draft.startDate ? undefined : "Bitte den ersten Tag wählen.",
     endDate: !draft.endDate
@@ -71,19 +130,31 @@ function validateDraft(draft: Draft): {
       : draft.startDate && draft.endDate < draft.startDate
         ? "Der letzte Tag liegt vor dem ersten Tag."
         : undefined,
-    hours:
-      parsed.status === "valid"
-        ? undefined
-        : "Bitte 0 bis 12 Stunden eingeben.",
+    hours: uniform && parsed.status !== "valid" ? HOURS_ERROR : undefined,
+    weekdayHours:
+      !uniform && weekdayMinutes === null
+        ? "Bitte für jeden Tag 0 bis 12 Stunden eingeben."
+        : undefined,
   };
-  return {
-    fields,
-    minutes: parsed.status === "valid" ? parsed.minutes : null,
-  };
+  let hours: ValidatedHours | null = null;
+  if (uniform && parsed.status === "valid") {
+    hours = { dailyMinutes: parsed.minutes };
+  } else if (!uniform && weekdayMinutes !== null) {
+    hours = { weekdayMinutes };
+  }
+  return { fields, hours };
+}
+
+// The weekly sum of the weekday fields, or null while one is not a number.
+function weeklyHours(weekdayHours: readonly string[]): string | null {
+  const minutes = parseWeekdayMinutes(weekdayHours);
+  if (minutes === null) return null;
+  return formatDecimalHours(minutes.reduce((sum, value) => sum + value, 0));
 }
 
 // Sonderarbeitszeiten (#3259): a different daily Soll for a date range, for
-// example holiday care inside the autumn closure. Listed on the
+// example holiday care inside the autumn closure. The Soll is the same every
+// day or, for part-time staff, set per weekday (#3745). Listed on the
 // Arbeitszeitmodell tab; managers add and delete them here. A wrong entry is
 // deleted and entered again, there is no edit.
 export function SonderarbeitszeitenSection({
@@ -123,14 +194,42 @@ export function SonderarbeitszeitenSection({
   const openCreate = () => {
     setFormError(null);
     setFieldErrors({});
-    setDraft({ startDate: "", endDate: "", hours: "" });
+    setDraft({
+      startDate: "",
+      endDate: "",
+      mode: "uniform",
+      hours: "",
+      weekdayHours: WEEKDAYS.map(() => ""),
+    });
+  };
+
+  // Switching to hours per weekday starts every day with the hours already
+  // typed, so only the days that differ need a change. Switching back keeps
+  // the hours when every day has the same value.
+  const changeMode = (mode: HoursMode) => {
+    if (!draft || mode === draft.mode) return;
+    setFieldErrors({});
+    if (mode === "weekdays") {
+      const filled = draft.weekdayHours.every((value) => value.trim() === "");
+      setDraft({
+        ...draft,
+        mode,
+        weekdayHours: filled
+          ? WEEKDAYS.map(() => draft.hours)
+          : draft.weekdayHours,
+      });
+      return;
+    }
+    const first = draft.weekdayHours[0] ?? "";
+    const same = draft.weekdayHours.every((value) => value === first);
+    setDraft({ ...draft, mode, hours: same ? first : draft.hours });
   };
 
   const handleSave = async () => {
     if (!draft) return;
-    const { fields, minutes } = validateDraft(draft);
+    const { fields, hours } = validateDraft(draft);
     setFieldErrors(fields);
-    if (minutes === null || fields.startDate || fields.endDate) {
+    if (hours === null || fields.startDate || fields.endDate) {
       setFormError("Bitte die markierten Felder prüfen.");
       return;
     }
@@ -140,7 +239,7 @@ export function SonderarbeitszeitenSection({
       await staffTargetOverrideService.create(staffId, {
         startDate: draft.startDate,
         endDate: draft.endDate,
-        dailyMinutes: minutes,
+        ...hours,
       });
       toast.success("Sonderarbeitszeit angelegt.");
       setDraft(null);
@@ -174,6 +273,8 @@ export function SonderarbeitszeitenSection({
     }
   };
 
+  const weekSum = draft ? weeklyHours(draft.weekdayHours) : null;
+
   const createButton = canEdit ? (
     <Button
       type="button"
@@ -200,9 +301,7 @@ export function SonderarbeitszeitenSection({
       header: "Stunden pro Tag",
       stacked: "meta",
       render: (row) => (
-        <span className="tabular-nums">
-          {formatDecimalHours(row.dailyMinutes)} Std.
-        </span>
+        <span className="tabular-nums">{formatOverrideHours(row)}</span>
       ),
     },
   ];
@@ -320,26 +419,85 @@ export function SonderarbeitszeitenSection({
                 calendarLayout="popover"
               />
             </div>
-            <div>
-              <Input
-                id="target-override-hours"
-                label="Stunden pro Tag"
-                error={fieldErrors.hours}
-                // The kit Input marks only aria-invalid; the red ring matches
-                // the date fields, the way ISODateInput does it.
-                className={fieldErrors.hours ? "ring-moto-red" : ""}
-                type="text"
-                inputMode="decimal"
-                value={draft.hours}
-                onChange={(event) =>
-                  setDraft({ ...draft, hours: event.target.value })
-                }
-                placeholder="z. B. 8,5"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                Bei 0 hat die Person an diesen Tagen frei.
-              </p>
-            </div>
+            <SegmentedControl<HoursMode>
+              ariaLabel="Wie die Stunden gelten"
+              fullWidth
+              items={[
+                { value: "uniform", label: "Jeden Tag gleich" },
+                { value: "weekdays", label: "Je Wochentag" },
+              ]}
+              value={draft.mode}
+              onChange={changeMode}
+            />
+            {draft.mode === "uniform" ? (
+              <div>
+                <Input
+                  id="target-override-hours"
+                  label="Stunden pro Tag"
+                  error={fieldErrors.hours}
+                  // The kit Input marks only aria-invalid; the red ring matches
+                  // the date fields, the way ISODateInput does it.
+                  className={fieldErrors.hours ? "ring-moto-red" : ""}
+                  type="text"
+                  inputMode="decimal"
+                  value={draft.hours}
+                  onChange={(event) =>
+                    setDraft({ ...draft, hours: event.target.value })
+                  }
+                  placeholder="z. B. 8,5"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Bei 0 hat die Person an diesen Tagen frei.
+                </p>
+              </div>
+            ) : (
+              <fieldset>
+                <legend className="mb-1.5 block text-sm font-medium text-gray-700">
+                  Stunden je Wochentag
+                </legend>
+                <div className="grid grid-cols-5 gap-2">
+                  {WEEKDAYS.map((day, index) => {
+                    const value = draft.weekdayHours[index] ?? "";
+                    const invalid =
+                      fieldErrors.weekdayHours !== undefined &&
+                      parseDecimalHours(value).status !== "valid";
+                    return (
+                      <Input
+                        key={day.short}
+                        id={`target-override-hours-${index}`}
+                        label={day.short}
+                        aria-label={`Stunden am ${day.name}`}
+                        aria-invalid={invalid || undefined}
+                        className={`text-center tabular-nums ${invalid ? "ring-moto-red" : ""}`}
+                        type="text"
+                        inputMode="decimal"
+                        autoComplete="off"
+                        value={value}
+                        onFocus={(event) => event.target.select()}
+                        onChange={(event) =>
+                          setDraft({
+                            ...draft,
+                            weekdayHours: draft.weekdayHours.map((value, i) =>
+                              i === index ? event.target.value : value,
+                            ),
+                          })
+                        }
+                      />
+                    );
+                  })}
+                </div>
+                {fieldErrors.weekdayHours && (
+                  <p role="alert" className="text-moto-red-strong mt-1 text-xs">
+                    {fieldErrors.weekdayHours}
+                  </p>
+                )}
+                <p className="mt-2 text-xs text-gray-500">
+                  {weekSum === null
+                    ? "Bei 0 hat die Person an diesem Tag frei."
+                    : `Zusammen ${weekSum} Stunden pro Woche. Bei 0 hat die Person an diesem Tag frei.`}
+                </p>
+              </fieldset>
+            )}
           </div>
         )}
       </FormModal>

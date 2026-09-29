@@ -62,7 +62,9 @@ func TestTargetOverridesAPI_CRUD(t *testing.T) {
 	created := decodeOverride(t, rec)
 	assert.Equal(t, staff.ID, created.StaffID)
 	assert.Equal(t, "2026-10-19", created.StartDate)
-	assert.Equal(t, 510, created.DailyMinutes)
+	require.NotNil(t, created.DailyMinutes)
+	assert.Equal(t, 510, *created.DailyMinutes)
+	assert.Nil(t, created.WeekdayMinutes, "a uniform range has no weekday targets")
 	require.NotNil(t, created.CreatedBy, "the editor's staff record is the author")
 	assert.Equal(t, ctx.staffID, *created.CreatedBy)
 
@@ -106,6 +108,9 @@ func TestTargetOverridesAPI_RejectsInvalidInput(t *testing.T) {
 		"negative":        overrideBody("2026-10-19", "2026-10-23", -1),
 		"inverted range":  overrideBody("2026-10-23", "2026-10-19", 60),
 		"missing minutes": `{"start_date":"2026-10-19","end_date":"2026-10-23"}`,
+		"both targets":    `{"start_date":"2026-10-19","end_date":"2026-10-23","daily_minutes":60,"weekday_minutes":[60,60,60,60,60]}`,
+		"four weekdays":   `{"start_date":"2026-10-19","end_date":"2026-10-23","weekday_minutes":[60,60,60,60]}`,
+		"weekday over 12": `{"start_date":"2026-10-19","end_date":"2026-10-23","weekday_minutes":[60,721,60,60,60]}`,
 	} {
 		rec := ctx.post(path, body, "time_tracking:manage")
 		assert.Equal(t, http.StatusBadRequest, rec.Code, "%s: %s", name, rec.Body.String())
@@ -284,6 +289,62 @@ func TestTargetOverridesAPI_OverviewMatchesMonthSummary(t *testing.T) {
 	assert.Equal(t, workforce.TargetSourceOverride, days.Data[0].TargetSource)
 	assert.Equal(t, 270, days.Data[0].TargetMinutes)
 	assert.Empty(t, days.Data[3].TargetSource, "the Monday after the range is a regular day")
+}
+
+// #3745: a Sonderarbeitszeit with its own target per weekday prices every day
+// with that weekday's target, not the weekly average, in the daily table, the
+// Monatskarte and the cross-staff overview.
+func TestTargetOverridesAPI_WeekdayTargets(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupOverviewAPI(t)
+	staff := testpkg.CreateTestStaff(t, ctx.tc.db, "Sonder", "Weekdays")
+	rec := ctx.post(overridesPath(staff.ID),
+		`{"start_date":"2026-08-03","end_date":"2026-08-07","weekday_minutes":[210,30,30,30,30]}`, "time_tracking:manage")
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	created := decodeOverride(t, rec)
+	assert.Nil(t, created.DailyMinutes, "a weekday range has no single daily target")
+	assert.Equal(t, []int{210, 30, 30, 30, 30}, created.WeekdayMinutes)
+
+	rec = ctx.get(overridesPath(staff.ID), "time_tracking:manage")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	listed := decodeOverrides(t, rec)
+	require.Len(t, listed, 1)
+	assert.Equal(t, []int{210, 30, 30, 30, 30}, listed[0].WeekdayMinutes, "the weekday targets survive the round trip")
+
+	rec = ctx.get(fmt.Sprintf("/staff/%d/time-tracking/schedule-targets?from=2026-08-03&to=2026-08-07", staff.ID), "time_tracking:manage")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var days struct {
+		Data []workforce.DailyProjection `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &days))
+	require.Len(t, days.Data, 5)
+	targets := make([]int, 0, len(days.Data))
+	for _, day := range days.Data {
+		assert.Equal(t, workforce.TargetSourceOverride, day.TargetSource, day.Date)
+		targets = append(targets, day.TargetMinutes)
+	}
+	assert.Equal(t, []int{210, 30, 30, 30, 30}, targets)
+
+	rec = ctx.get(fmt.Sprintf("/staff/%d/time-tracking/month-summary?year=2026&month=8", staff.ID), "time_tracking:manage")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var detail struct {
+		Data workforce.MonthSummary `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &detail))
+	assert.Equal(t, 330, detail.Data.TargetMinutesToDate, "5.5 hours for the week")
+
+	rec = ctx.get("/staff/time-tracking/overview?year=2026&month=8", "time_tracking:manage")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var overview struct {
+		Data workforce.TimeTrackingOverview `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &overview))
+	for _, row := range overview.Data.Rows {
+		if row.StaffID == staff.ID {
+			assert.Equal(t, 330, row.SollMinutes)
+		}
+	}
 }
 
 // The weekly history summaries re-price a Sonderarbeitszeit week with the

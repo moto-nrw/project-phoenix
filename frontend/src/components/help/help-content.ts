@@ -4218,7 +4218,8 @@ function staffRecordTopic(): HelpTopic {
  * `/staff/[id]`, Reiter `Arbeitszeitmodell`, Abschnitt `Sonderarbeitszeiten`
  * (#3259). Der Fall aus der Praxis: die Herbstferien sind ein Schließtag,
  * einige arbeiten trotzdem in der Ferienbetreuung. Ohne Sonderarbeitszeit
- * bekämen sie Plusstunden.
+ * bekämen sie Plusstunden. Teilzeitkräfte mit ungleich verteilten Stunden
+ * tragen sie je Wochentag ein (#3745).
  */
 function targetOverrideTopic(): HelpTopic {
   return {
@@ -4239,7 +4240,9 @@ function targetOverrideTopic(): HelpTopic {
       "Wählen Sie die Person.",
       "Wählen Sie oben `Arbeitszeitmodell`.",
       "Wählen Sie `Sonderarbeitszeit anlegen`.",
-      "Tragen Sie `Erster Tag`, `Letzter Tag` und `Stunden pro Tag` ein, zum Beispiel `8,5`.",
+      "Tragen Sie `Erster Tag` und `Letzter Tag` ein.",
+      "Tragen Sie bei `Stunden pro Tag` die Stunden ein, zum Beispiel `8,5`.",
+      "Sind die Stunden nicht jeden Tag gleich? Wählen Sie `Je Wochentag` und tragen Sie die Stunden für Montag bis Freitag ein.",
       "Wählen Sie `Speichern`.",
     ],
     result:
@@ -4247,6 +4250,7 @@ function targetOverrideTopic(): HelpTopic {
     notes: [
       "Die Stunden gelten Montag bis Freitag, auch an Schließtagen. Gesetzliche Feiertage bleiben frei.",
       "Mit `0` Stunden muss die Person an diesen Tagen nicht arbeiten.",
+      "Bei `Je Wochentag` zeigt moto unter den Feldern die Summe für die Woche.",
       "Ändern geht nicht. Löschen Sie den Eintrag über die drei Punkte und legen Sie ihn neu an.",
     ],
     troubleshootingDetails: [

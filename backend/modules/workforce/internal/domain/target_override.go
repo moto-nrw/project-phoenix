@@ -37,27 +37,48 @@ func rejectedTargetOverride(format string, args ...any) error {
 	return &TargetOverrideError{Kind: ErrStaffTargetOverrideRejected, Reason: fmt.Sprintf(format, args...)}
 }
 
+// TargetOverrideWeekdays is the number of per-weekday targets a
+// Sonderarbeitszeit carries: Monday to Friday, index 0 is Monday.
+const TargetOverrideWeekdays = 5
+
 // StaffTargetOverride is a Sonderarbeitszeit: for every Monday to Friday in
 // [StartDate, EndDate] the staff member's daily target is DailyMinutes,
-// whatever the schedule or a closure day would say. Statutory holidays stay
-// at zero. Dates are calendar days in DateLayout, EndDate is inclusive.
+// whatever the schedule or a closure day would say. With WeekdayMinutes set
+// (#3745) each weekday has its own target instead and DailyMinutes is zero.
+// Statutory holidays stay at zero. Dates are calendar days in DateLayout,
+// EndDate is inclusive.
 type StaffTargetOverride struct {
-	ID           int64
-	TenantID     int64
-	StaffID      int64
-	StartDate    string
-	EndDate      string
-	DailyMinutes int
-	CreatedBy    *int64
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID             int64
+	TenantID       int64
+	StaffID        int64
+	StartDate      string
+	EndDate        string
+	DailyMinutes   int
+	WeekdayMinutes []int
+	CreatedBy      *int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+// MinutesOn returns the target the range sets on a Monday to Friday.
+func (o StaffTargetOverride) MinutesOn(weekday time.Weekday) int {
+	if o.WeekdayMinutes == nil {
+		return o.DailyMinutes
+	}
+	index := int(weekday) - int(time.Monday)
+	if index < 0 || index >= len(o.WeekdayMinutes) {
+		return 0
+	}
+	return o.WeekdayMinutes[index]
 }
 
 // StaffTargetOverrideFields is the writable part of a Sonderarbeitszeit.
+// WeekdayMinutes, when set, holds Monday to Friday and replaces DailyMinutes.
 type StaffTargetOverrideFields struct {
-	StartDate    string
-	EndDate      string
-	DailyMinutes int
+	StartDate      string
+	EndDate        string
+	DailyMinutes   int
+	WeekdayMinutes []int
 }
 
 // TargetOverrideQuery selects the Sonderarbeitszeiten of the given staff
@@ -90,8 +111,27 @@ func ValidateStaffTargetOverrideFields(fields StaffTargetOverrideFields) error {
 	if int(end.Sub(start).Hours()/24)+1 > MaxTargetOverrideDays {
 		return invalidTargetOverride(fmt.Sprintf("Der Zeitraum ist zu lang. Erlaubt sind höchstens %d Tage.", MaxTargetOverrideDays))
 	}
-	if fields.DailyMinutes < 0 || fields.DailyMinutes > MaxDailyMinutes {
-		return invalidTargetOverride(fmt.Sprintf("Die Stunden pro Tag müssen zwischen 0 und %d liegen.", MaxDailyMinutes/60))
+	return validateTargetOverrideMinutes(fields)
+}
+
+func validateTargetOverrideMinutes(fields StaffTargetOverrideFields) error {
+	outOfRange := invalidTargetOverride(fmt.Sprintf("Die Stunden pro Tag müssen zwischen 0 und %d liegen.", MaxDailyMinutes/60))
+	if fields.WeekdayMinutes == nil {
+		if fields.DailyMinutes < 0 || fields.DailyMinutes > MaxDailyMinutes {
+			return outOfRange
+		}
+		return nil
+	}
+	if len(fields.WeekdayMinutes) != TargetOverrideWeekdays {
+		return invalidTargetOverride(fmt.Sprintf("weekday_minutes must hold %d values, Monday to Friday", TargetOverrideWeekdays))
+	}
+	if fields.DailyMinutes != 0 {
+		return invalidTargetOverride("send either daily_minutes or weekday_minutes")
+	}
+	for _, minutes := range fields.WeekdayMinutes {
+		if minutes < 0 || minutes > MaxDailyMinutes {
+			return outOfRange
+		}
 	}
 	return nil
 }
@@ -146,7 +186,7 @@ func ExpandTargetOverrides(overrides []StaffTargetOverride, from, to string, hol
 				if result[override.StaffID] == nil {
 					result[override.StaffID] = make(map[string]int)
 				}
-				result[override.StaffID][key] = override.DailyMinutes
+				result[override.StaffID][key] = override.MinutesOn(weekday)
 			}
 			day = day.AddDate(0, 0, 1)
 		}

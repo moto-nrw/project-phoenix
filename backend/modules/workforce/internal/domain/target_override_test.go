@@ -29,12 +29,31 @@ func TestExpandTargetOverridesSkipsWeekendsAndStatutoryHolidays(t *testing.T) {
 	assert.Zero(t, days[8]["2026-12-28"], "a zero-minute override is still an override day")
 }
 
+func TestExpandTargetOverridesUsesTheWeekdayTargets(t *testing.T) {
+	t.Parallel()
+
+	// #3745: 5.5 hours a week, 3.5 on Monday and 0.5 on every other day.
+	overrides := []StaffTargetOverride{
+		{StaffID: 7, StartDate: "2026-10-19", EndDate: "2026-10-25", WeekdayMinutes: []int{210, 30, 30, 30, 30}},
+	}
+
+	days := ExpandTargetOverrides(overrides, "2026-10-01", "2026-10-31", map[string]bool{"2026-10-21": true})
+
+	assert.Equal(t, 210, days[7]["2026-10-19"], "Monday")
+	assert.Equal(t, 30, days[7]["2026-10-20"], "Tuesday")
+	assert.NotContains(t, days[7], "2026-10-21", "statutory holiday keeps Soll 0")
+	assert.Equal(t, 30, days[7]["2026-10-23"], "Friday")
+	assert.NotContains(t, days[7], "2026-10-24", "Saturday is not an override day")
+	assert.Len(t, days[7], 4)
+}
+
 func TestValidateStaffTargetOverrideFields(t *testing.T) {
 	t.Parallel()
 
 	valid := StaffTargetOverrideFields{StartDate: "2026-10-19", EndDate: "2026-10-23", DailyMinutes: 510}
 	require.NoError(t, ValidateStaffTargetOverrideFields(valid))
 	require.NoError(t, ValidateStaffTargetOverrideFields(StaffTargetOverrideFields{StartDate: "2026-10-19", EndDate: "2026-10-19", DailyMinutes: 0}))
+	require.NoError(t, ValidateStaffTargetOverrideFields(StaffTargetOverrideFields{StartDate: "2026-10-19", EndDate: "2026-10-23", WeekdayMinutes: []int{210, 30, 30, 0, MaxDailyMinutes}}))
 
 	cases := map[string]StaffTargetOverrideFields{
 		"inverted range": {StartDate: "2026-10-23", EndDate: "2026-10-19", DailyMinutes: 60},
@@ -42,6 +61,11 @@ func TestValidateStaffTargetOverrideFields(t *testing.T) {
 		"negative":       {StartDate: "2026-10-19", EndDate: "2026-10-23", DailyMinutes: -1},
 		"over 12h":       {StartDate: "2026-10-19", EndDate: "2026-10-23", DailyMinutes: MaxDailyMinutes + 1},
 		"too long":       {StartDate: "2026-01-01", EndDate: "2027-01-02", DailyMinutes: 60},
+		"four weekdays":  {StartDate: "2026-10-19", EndDate: "2026-10-23", WeekdayMinutes: []int{60, 60, 60, 60}},
+		"no weekdays":    {StartDate: "2026-10-19", EndDate: "2026-10-23", WeekdayMinutes: []int{}},
+		"weekday >12h":   {StartDate: "2026-10-19", EndDate: "2026-10-23", WeekdayMinutes: []int{60, 60, MaxDailyMinutes + 1, 60, 60}},
+		"weekday < 0":    {StartDate: "2026-10-19", EndDate: "2026-10-23", WeekdayMinutes: []int{60, -1, 60, 60, 60}},
+		"both targets":   {StartDate: "2026-10-19", EndDate: "2026-10-23", DailyMinutes: 60, WeekdayMinutes: []int{60, 60, 60, 60, 60}},
 	}
 	for name, fields := range cases {
 		err := ValidateStaffTargetOverrideFields(fields)

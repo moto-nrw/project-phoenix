@@ -13,18 +13,28 @@ import (
 )
 
 // targetOverrideRequest is the wire shape of a Sonderarbeitszeit (#3259):
-// an inclusive date range and one daily target in minutes.
+// an inclusive date range and either one daily target in minutes or, since
+// #3745, one target per weekday from Monday to Friday.
 type targetOverrideRequest struct {
-	StartDate    string `json:"start_date"`
-	EndDate      string `json:"end_date"`
-	DailyMinutes *int   `json:"daily_minutes"`
+	StartDate      string `json:"start_date"`
+	EndDate        string `json:"end_date"`
+	DailyMinutes   *int   `json:"daily_minutes"`
+	WeekdayMinutes []int  `json:"weekday_minutes"`
 }
 
 func (req targetOverrideRequest) fields() (workforce.StaffTargetOverrideFields, error) {
-	if req.DailyMinutes == nil {
-		return workforce.StaffTargetOverrideFields{}, errors.New("daily_minutes is required")
+	fields := workforce.StaffTargetOverrideFields{StartDate: req.StartDate, EndDate: req.EndDate}
+	switch {
+	case req.DailyMinutes != nil && req.WeekdayMinutes != nil:
+		return fields, errors.New("send either daily_minutes or weekday_minutes")
+	case req.DailyMinutes != nil:
+		fields.DailyMinutes = *req.DailyMinutes
+	case req.WeekdayMinutes != nil:
+		fields.WeekdayMinutes = req.WeekdayMinutes
+	default:
+		return fields, errors.New("daily_minutes or weekday_minutes is required")
 	}
-	return workforce.StaffTargetOverrideFields{StartDate: req.StartDate, EndDate: req.EndDate, DailyMinutes: *req.DailyMinutes}, nil
+	return fields, nil
 }
 
 // registerTargetOverrideRoutes serves the Sonderarbeitszeiten of one staff
