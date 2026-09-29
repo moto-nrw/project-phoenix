@@ -4184,6 +4184,14 @@
       "write_owner": "communication"
     },
     {
+      "name": "users.parent_announcement_declaration_submissions",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_announcement_declaration_versions",
+      "write_owner": "communication"
+    },
+    {
       "name": "users.parent_announcement_options",
       "write_owner": "communication"
     },
@@ -4362,6 +4370,10 @@
     {
       "name": "auth.guardian_student_access",
       "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.parent_declaration_permission_grants",
+      "write_owner": "migrations"
     },
     {
       "name": "users.student_profiles",

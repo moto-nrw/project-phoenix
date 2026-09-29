@@ -77,14 +77,14 @@ func TestCreateStudent_SelectExistingGuardian(t *testing.T) {
 	// Exactly one link, pointing at the EXISTING profile.
 	var linkedID int64
 	require.NoError(t, tc.db.NewSelect().
-		Table("users.students_guardians").
+		TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(tc.db)).
 		Column("guardian_profile_id").
 		Where("student_id = ?", resp.Data.ID).
 		Scan(ctx, &linkedID))
 	assert.Equal(t, existingID, linkedID, "link must target the existing profile, not a new one")
 
 	relCount, err := tc.db.NewSelect().
-		Table("users.students_guardians").
+		TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(tc.db)).
 		Where("student_id = ?", resp.Data.ID).
 		Count(ctx)
 	require.NoError(t, err)
@@ -130,7 +130,7 @@ func TestCreateStudent_SelectExistingGuardian(t *testing.T) {
 	}
 	require.NoError(t, tc.db.NewSelect().
 		ColumnExpr("relationship_type, is_primary, can_pickup").
-		Table("users.students_guardians").
+		TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(tc.db)).
 		Where("student_id = ?", resp.Data.ID).
 		Scan(ctx, &rel))
 	assert.Equal(t, "parent", rel.RelationshipType)
@@ -168,7 +168,7 @@ func TestCreateStudent_SelectExistingGuardian_DuplicateSkipped(t *testing.T) {
 	require.NotZero(t, resp.Data.ID)
 
 	relCount, err := tc.db.NewSelect().
-		Table("users.students_guardians").
+		TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(tc.db)).
 		Where("student_id = ?", resp.Data.ID).
 		Count(ctx)
 	require.NoError(t, err)
@@ -210,7 +210,7 @@ func TestCreateStudent_MixedNewAndExistingGuardian(t *testing.T) {
 	require.NotZero(t, resp.Data.ID)
 
 	relCount, err := tc.db.NewSelect().
-		Table("users.students_guardians").
+		TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(tc.db)).
 		Where("student_id = ?", resp.Data.ID).
 		Count(ctx)
 	require.NoError(t, err)
@@ -219,7 +219,7 @@ func TestCreateStudent_MixedNewAndExistingGuardian(t *testing.T) {
 	// The existing profile is linked alongside a freshly created one.
 	var existingLinks int
 	existingLinks, err = tc.db.NewSelect().
-		Table("users.students_guardians").
+		TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(tc.db)).
 		Where("student_id = ?", resp.Data.ID).
 		Where("guardian_profile_id = ?", existingID).
 		Count(ctx)

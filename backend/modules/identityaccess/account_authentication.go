@@ -255,6 +255,7 @@ type PendingAccountWideWipe struct {
 // AccountAuthentication is the capability tenant, parent and school login,
 // MFA exchange, refresh, switching, logout and session validation consume.
 type AccountAuthentication interface {
+	AccountPasswordConfirmation
 	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (accessToken, refreshToken string, err error)
 	LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*LoginResult, error)
 	LoginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
@@ -310,6 +311,18 @@ func (m *Module) LoginWithAudit(ctx context.Context, email, password, ipAddress,
 
 func (m *Module) LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*LoginResult, error) {
 	return m.engine.LoginWithMFAGate(ctx, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie)
+}
+
+// AccountPasswordConfirmation re-checks the signed-in account's password
+// without issuing a session: a guardian confirms a binding Erklärung with it
+// (#3430). It answers ErrInvalidCredentials for a wrong password and
+// ErrAccountInactive for a deactivated account.
+type AccountPasswordConfirmation interface {
+	ConfirmAccountPassword(ctx context.Context, accountID int64, password string) error
+}
+
+func (m *Module) ConfirmAccountPassword(ctx context.Context, accountID int64, password string) error {
+	return m.engine.ConfirmAccountPassword(ctx, accountID, password)
 }
 
 func (m *Module) LoginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {

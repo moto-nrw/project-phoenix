@@ -11,7 +11,7 @@ import (
 
 func TestStudentGuardianRolesMigration_LegalRelationshipWinsOverContactFlags(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeContract(t)
 	ctx := context.Background()
 
 	testpkg.EnsureTestTenant(t, db, 1)
@@ -47,7 +47,7 @@ func TestStudentGuardianRolesMigration_LegalRelationshipWinsOverContactFlags(t *
 
 func TestStudentGuardianRolesMigration_BackfillsRelativeEmergencyPickupWithoutPortalAccess(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupGuardianStorageBeforeContract(t)
 	ctx := context.Background()
 
 	testpkg.EnsureTestTenant(t, db, 1)

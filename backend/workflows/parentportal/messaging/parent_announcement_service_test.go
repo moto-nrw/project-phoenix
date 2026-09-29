@@ -29,7 +29,12 @@ import (
 // the announcement feed needs. newsEnabled controls the per-tenant feature gate.
 func buildAnnouncementService(t *testing.T, newsEnabled bool) (*messaging.Service, *bun.DB, *repositories.Factory) {
 	t.Helper()
-	db := testpkg.SetupIsolatedTestDB(t)
+	return buildAnnouncementServiceOn(t, testpkg.SetupIsolatedTestDB(t), newsEnabled)
+}
+
+// buildAnnouncementServiceOn wires the service on a database the caller set up.
+func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*messaging.Service, *bun.DB, *repositories.Factory) {
+	t.Helper()
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := messaging.New(messaging.Config{
 		Children:              childResolver(db, repos),

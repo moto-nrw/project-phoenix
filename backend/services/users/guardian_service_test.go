@@ -367,7 +367,7 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 
 	t.Run("plain delete is refused while the guardian is still linked (RESTRICT)", func(t *testing.T) {
 		// ARRANGE — guardian linked to a student. Since migration 1.15.127 the
-		// students_guardians → guardian_profiles FK is ON DELETE RESTRICT, so a
+		// relationship → guardian_profiles FK is ON DELETE RESTRICT, so a
 		// blind delete must fail instead of silently cascading the link away
 		// (the #819 sibling-data-loss bug).
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "restrict-linked")
@@ -2226,7 +2226,7 @@ func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
 			guardian := testpkg.CreateTestGuardianProfile(t, db, "inv-"+c.name)
 			student := testpkg.CreateTestStudent(t, db, "Inv", "State", "1a")
 			defer func() {
-				_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("student_id = ?", student.ID).Exec(ctx)
+				_, _ = db.NewDelete().TableExpr("users.student_guardian_relationships").Where("student_id = ?", student.ID).Exec(ctx)
 				_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", guardian.ID).Exec(ctx)
 			}()
 
@@ -2261,7 +2261,7 @@ func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
 // path locks before its read-modify-write and wholesale phone replace. Holding
 // that lock from a separate, uncommitted transaction must BLOCK each staff
 // writer, proven deterministically with a short lock_timeout (no goroutine
-// timing — mirrors the students_guardians FOR UPDATE test). Drop any of the
+// timing — mirrors the relationship FOR UPDATE test). Drop any of the
 // LockByIDForUpdate calls and that writer races straight through, so a staff
 // edit could clobber or lose a concurrent parent contact save.
 func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
@@ -2365,7 +2365,7 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "AcctPending", "Account")
 	defer func() {
 		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", guardian.ID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("guardian_profile_id = ?", guardian.ID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("users.student_guardian_relationships").Where("guardian_profile_id = ?", guardian.ID).Exec(context.Background())
 		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", guardian.ID).Exec(context.Background())
 		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id IN (?, ?)", student.ID, sibling.ID).Exec(context.Background())
 	}()

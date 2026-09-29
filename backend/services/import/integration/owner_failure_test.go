@@ -25,7 +25,8 @@ func TestDataImportCutover_StudentOwnerFailuresRollbackAndReplay(t *testing.T) {
 	// row trigger.
 	for _, table := range []string{
 		"users.persons", "users.student_profiles", "users.privacy_consents",
-		"users.guardian_profiles", "users.guardian_phone_numbers", "users.students_guardians",
+		"users.guardian_profiles", "users.guardian_phone_numbers", "users.student_guardian_relationships",
+		"users.student_guardian_pickup_permissions", "auth.guardian_student_access",
 		"schedule.student_arrival_schedules", "schedule.student_pickup_schedules",
 		"audit.student_consent_changes",
 	} {

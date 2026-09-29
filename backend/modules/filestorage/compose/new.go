@@ -433,6 +433,14 @@ func (e engine) OpenGuardianAttachment(ctx context.Context, accountID, announcem
 	return toContent(attachment, object), nil
 }
 
+func (e engine) OpenGuardianDeclarationProofAttachment(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (filestorage.Content, error) {
+	attachment, object, err := e.service.OpenGuardianDeclarationProofAttachment(ctx, accountID, announcementID, studentID, attachmentID)
+	if err != nil {
+		return filestorage.Content{}, mapError(err)
+	}
+	return toContent(attachment, object), nil
+}
+
 func (e engine) UploadAttachment(ctx context.Context, announcementID int64, value filestorage.Upload, who filestorage.Actor) (filestorage.Attachment, error) {
 	attachment, err := e.service.UploadAttachment(ctx, announcementID, upload(value), e.actor(who))
 	if err != nil {
@@ -452,6 +460,18 @@ func (e engine) QueueAttachmentCleanupForAnnouncement(ctx context.Context, annou
 func (e engine) CountAttachments(ctx context.Context, announcementID int64) (int, error) {
 	count, err := e.service.CountAttachments(ctx, announcementID)
 	return count, mapError(err)
+}
+
+func (e engine) AttachmentDigests(ctx context.Context, announcementID int64, digest func(io.Reader) (string, int64, error)) ([]filestorage.AttachmentDigest, error) {
+	digests, err := e.service.AttachmentDigests(ctx, announcementID, digest)
+	if err != nil {
+		return nil, mapError(err)
+	}
+	out := make([]filestorage.AttachmentDigest, 0, len(digests))
+	for _, digest := range digests {
+		out = append(out, filestorage.AttachmentDigest(digest))
+	}
+	return out, nil
 }
 
 func (e engine) CleanupOrphanedFiles(ctx context.Context) (int, error) {
