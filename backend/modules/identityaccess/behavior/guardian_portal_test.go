@@ -31,6 +31,8 @@ func TestGuardianPortalMemberships(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, "UPDATE auth.accounts SET active = FALSE WHERE id = ?", disabled.AccountID)
 	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, "UPDATE auth.accounts SET password_hash = 'test-password-hash' WHERE id = ?", active.AccountID)
+	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, "UPDATE auth.account_tenants SET status = 'inactive' WHERE account_id = ? AND tenant_id = ?", departed.AccountID, home)
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, "DELETE FROM auth.account_roles WHERE account_id = ? AND tenant_id = ?", withoutRole.AccountID, home)
@@ -68,6 +70,23 @@ func TestGuardianPortalMemberships(t *testing.T) {
 	memberships, err = access.FindActiveGuardianMemberships(ctx, []int64{active.AccountID})
 	require.NoError(t, err)
 	require.ElementsMatch(t, []int64{home, other}, memberships[active.AccountID])
+}
+
+func TestLoginReadyGuardianPortalMembershipsRequirePassword(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	access, err := repositories.NewIdentityAccessForTests(db)
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	ready := testpkg.CreateTestParentGuardianChain(t, db)
+	withoutPassword := testpkg.CreateTestParentGuardianChain(t, db)
+	_, err = db.ExecContext(ctx, "UPDATE auth.accounts SET password_hash = 'test-password-hash' WHERE id = ?", ready.AccountID)
+	require.NoError(t, err)
+
+	memberships, err := access.FindLoginReadyGuardianMemberships(ctx, []int64{ready.AccountID, withoutPassword.AccountID})
+	require.NoError(t, err)
+	require.Contains(t, memberships, ready.AccountID)
+	require.NotContains(t, memberships, withoutPassword.AccountID)
 }
 
 func TestGuardianPortalMembershipsEmptyAndDatabaseFailure(t *testing.T) {

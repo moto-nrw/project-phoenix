@@ -2178,6 +2178,7 @@ func newFactory(
 		Notifications:        enrollmentNotifications,
 		GuardianProfileRepo:  repos.GuardianProfile,
 		GuardianPhoneRepo:    repos.GuardianPhoneNumber,
+		GuardianInvitations:  enrollmentGuardianInvitationAvailability{invitations: guardianInvitationService},
 		PersonRepo:           repos.Person,
 		StudentRepo:          repos.Student,
 		GuardianAuthorizer:   repos.StudentGuardian,

@@ -82,15 +82,16 @@ type ChangeRequestDependencies struct {
 	Companions   CompanionGraphCoordinator
 	// CompanionLockBusy is the retriable conflict an approval answers when
 	// Care Plan reports a linked child held elsewhere.
-	CompanionLockBusy error
-	People            PeopleDirectory
-	Reviewers         ReviewerNames
-	Settings          IntakeSettings
-	Outbox            MailOutbox
-	FrontendURL       string
-	ParentsURL        string
-	Runtime           Runtime
-	Logger            *slog.Logger
+	CompanionLockBusy   error
+	People              PeopleDirectory
+	GuardianInvitations GuardianInvitationAvailability
+	Reviewers           ReviewerNames
+	Settings            IntakeSettings
+	Outbox              MailOutbox
+	FrontendURL         string
+	ParentsURL          string
+	Runtime             Runtime
+	Logger              *slog.Logger
 }
 
 // ChangeRequests implements the public ChangeRequests capability.

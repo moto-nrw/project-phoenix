@@ -83,6 +83,7 @@ type EnrollmentChangeRequestSources struct {
 	Notifications       enrollmentOwner.Notifications
 	GuardianProfileRepo userModels.GuardianProfileRepository
 	GuardianPhoneRepo   userModels.GuardianPhoneNumberRepository
+	GuardianInvitations enrollmentCompose.GuardianInvitationAvailability
 	PersonRepo          EnrollmentReviewerPersons
 	StudentRepo         enrollmentCompose.StudentMatches
 	GuardianAuthorizer  enrollmentCompose.GuardianStudentAuthorizer
@@ -120,7 +121,8 @@ func NewEnrollmentChangeRequests(src EnrollmentChangeRequestSources) enrollmentO
 		Notifications: src.Notifications, Students: src.StudentRepo, GuardianAuthorizer: src.GuardianAuthorizer,
 		Decisions: src.Decisions, BookingGates: src.BookingGates, Companions: src.CompanionGraphLocker,
 		CompanionLockBusy: userModels.ErrCompanionLockBusy, People: people,
-		Settings: intakeSettings(src.Settings), Outbox: intakeMailOutbox(src.OutboxEnqueuer),
+		GuardianInvitations: src.GuardianInvitations,
+		Settings:            intakeSettings(src.Settings), Outbox: intakeMailOutbox(src.OutboxEnqueuer),
 		FrontendURL: src.FrontendURL, ParentsURL: src.ParentsURL, Logger: src.Logger,
 	}
 	if src.PersonRepo != nil {

@@ -1049,7 +1049,7 @@
       "care": "Booked offerings",
       "noCare": "No offerings booked.",
       "hint": "Changes for {name} now go through the parents app.",
-      "noAccess": "No access to the parents app yet? The OGS can invite you."
+      "noAccess": "Cannot access the parents app? Please contact the OGS."
     }
   },
   "enrollmentStatus": {
@@ -1236,9 +1236,18 @@
     "adjustSubmit": "Send adjustment",
     "lockedChildHint": "Changes for this child go through the parents app.",
     "lockedAllTitle": "Changes go through the parents app",
-    "lockedAllBodyOne": "Your child is already in care. Please make changes in the parents app. No access yet? The OGS can invite you.",
-    "lockedAllBodyMany": "Your children are already in care. Please make changes in the parents app. No access yet? The OGS can invite you.",
-    "lockedAllAction": "Go to parents app"
+    "lockedAllBodyOne": "Your child is already in care. Please make changes in the parents app.",
+    "lockedAllBodyMany": "Your children are already in care. Please make changes in the parents app.",
+    "lockedAllAction": "Go to parents app",
+    "noAccountTitle": "No access to the parents app yet",
+    "noAccountIntro": "You get access with an invitation by email:",
+    "noAccountStepOpen": "Open the email “Einladung zum Eltern-Portal”.",
+    "noAccountStepAccept": "Tap “Einladung annehmen”.",
+    "noAccountStepPassword": "Set a password. Then you can log in to the parents app.",
+    "noAccountHelp": "Can’t find the email? Please check your spam folder too. Email missing or the link no longer works? Please contact the OGS.",
+    "unavailableAccountTitle": "Cannot access the parents app",
+    "unavailableAccountHelp": "Please contact the OGS. The OGS can help you.",
+    "noAccessFallback": "No access yet? Open the email “Einladung zum Eltern-Portal”. No email? Please contact the OGS."
   },
   "parentRequestEdit": {
     "title": "Edit request",

@@ -413,6 +413,15 @@ type StatusResponse struct {
 	// AdditionalGuardians are the co-guardians the parent added beyond the
 	// primary guardian above. Empty when none were added.
 	AdditionalGuardians []StatusGuardianResponse `json:"additional_guardians,omitempty"`
+	// HasParentAccount reports whether the primary guardian can log in to
+	// the parent app. It is set only while a child is taken over into care
+	// and left out when the lookup failed, so the page never claims a
+	// missing account it could not check (#3742).
+	HasParentAccount *bool `json:"has_parent_account,omitempty"`
+	// ParentPortalAccess is the next step for the primary guardian: account,
+	// invitation, or contact_ogs. It is sent with HasParentAccount only while
+	// a child is taken over into care.
+	ParentPortalAccess *string `json:"parent_portal_access,omitempty"`
 }
 
 // StatusGuardianResponse is one additional guardian on the public status
@@ -550,6 +559,16 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	resp, anyLocked := newStatusResponse(req, editMode, children, guardians)
+	if anyLocked {
+		resp.HasParentAccount, resp.ParentPortalAccess = rs.statusParentAccount(r.Context(), token, req.ID)
+	}
+	common.Respond(w, r, http.StatusOK, resp, "Status retrieved")
+}
+
+// newStatusResponse maps a request to the public status payload and reports
+// whether any child is taken over into care.
+func newStatusResponse(req *enrollmentModels.Request, editMode string, children []*RequestChild, guardians []*capability.RequestGuardian) (StatusResponse, bool) {
 	resp := StatusResponse{
 		RequestID:         strconv.FormatInt(req.ID, 10),
 		GuardianFirstName: req.GuardianFirstName,
@@ -560,14 +579,17 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		WithdrawnAt:       req.WithdrawnAt,
 		EditMode:          editMode,
 	}
+	anyLocked := false
 	for _, c := range children {
+		locked := ChildTakenOver(c)
+		anyLocked = anyLocked || locked
 		resp.Children = append(resp.Children, StatusChildResponse{
 			ID:           strconv.FormatInt(c.ID, 10),
 			FirstName:    c.FirstName,
 			LastName:     c.LastName,
 			Status:       c.Status,
 			StatusReason: c.StatusReason,
-			Locked:       ChildTakenOver(c),
+			Locked:       locked,
 		})
 	}
 	for _, g := range guardians {
@@ -578,7 +600,36 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 			Phone:     g.Phone,
 		})
 	}
-	common.Respond(w, r, http.StatusOK, resp, "Status retrieved")
+	return resp, anyLocked
+}
+
+// statusParentAccount answers the useful route into the parent app for the
+// family behind a status token. Best-effort: a failure must not hide the
+// status, so it answers nil values and the page keeps its existing login link.
+func (rs *Resource) statusParentAccount(ctx context.Context, token string, requestID int64) (*bool, *string) {
+	if rs.ChangeRequestService == nil {
+		return nil, nil
+	}
+	access, err := rs.ChangeRequestService.PrimaryGuardianPortalAccess(ctx, token)
+	if err != nil {
+		rs.logger().Warn("enrollment status: parent account lookup failed",
+			slog.Int64("request_id", requestID),
+			slog.String("error", err.Error()))
+		return nil, nil
+	}
+	switch access {
+	case "account":
+		hasAccount := true
+		return &hasAccount, &access
+	case "invitation", "contact_ogs":
+		hasAccount := false
+		return &hasAccount, &access
+	default:
+		rs.logger().Warn("enrollment status: unknown parent portal access",
+			slog.Int64("request_id", requestID),
+			slog.String("parent_portal_access", access))
+		return nil, nil
+	}
 }
 
 func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {
