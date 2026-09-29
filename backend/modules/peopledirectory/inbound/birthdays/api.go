@@ -1,4 +1,4 @@
-// Package http is the HTTP adapter of the birthday display (#1542, migrated
+// Package birthdays is the HTTP adapter of the birthday display (#1542, migrated
 // under #2706): it serves the dashboard birthday list, the personal opt-out
 // behind it and the staff Geburtstagsliste export.
 //
@@ -6,9 +6,9 @@
 // staff because it deliberately spans both populations and is governed by the
 // school's birthday settings — mounting it under either domain would have made
 // one of the two look like the owner of a rule that belongs to neither. The
-// birthday facts come from the retained People Directory birthday service;
+// birthday facts come from the People Directory birthday capability;
 // the printed list renders through the Document Rendering renderer.
-package http
+package birthdays
 
 import (
 	"encoding/json"
@@ -20,18 +20,16 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
 // Resource is the birthdays API resource.
 type Resource struct {
-	BirthdayService    usersSvc.BirthdayService
-	ListExportService  *listexport.RendererService
+	BirthdayService    peopledirectory.Birthdays
+	ListExportService  lists.Renderer
 	UserContextService common.StudentAccessSource
-	db                 *bun.DB
 	logger             *slog.Logger
 }
 
@@ -39,17 +37,15 @@ type Resource struct {
 // applied inside the birthday service, so the resource takes no settings
 // dependency of its own.
 func NewResource(
-	birthdayService usersSvc.BirthdayService,
-	listExportService *listexport.RendererService,
+	birthdayService peopledirectory.Birthdays,
+	listExportService lists.Renderer,
 	userContextService common.StudentAccessSource,
-	db *bun.DB,
 	logger *slog.Logger,
 ) *Resource {
 	return &Resource{
 		BirthdayService:    birthdayService,
 		ListExportService:  listExportService,
 		UserContextService: userContextService,
-		db:                 db,
 		logger:             logger,
 	}
 }
@@ -59,7 +55,7 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		// users:read is the permission that already grants the child directory
 		// this list is a narrow slice of, and the handler additionally applies
 		// the caller's student data scope so the list never reaches past that
@@ -194,7 +190,7 @@ func (rs *Resource) callerAccountID(w http.ResponseWriter, r *http.Request) (int
 }
 
 func (rs *Resource) renderServiceError(w http.ResponseWriter, r *http.Request, err error) {
-	if errors.Is(err, usersSvc.ErrStaffNotFound) {
+	if errors.Is(err, peopledirectory.ErrStaffNotFound) {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("kein Personaldatensatz für dieses Konto")))
 		return
 	}

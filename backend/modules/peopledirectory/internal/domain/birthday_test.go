@@ -1,4 +1,4 @@
-package users
+package domain
 
 import (
 	"testing"
@@ -6,8 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Which calendar days one dashboard view speaks for (#1542). The weekend rule
@@ -17,24 +16,24 @@ func TestCelebrationDates(t *testing.T) {
 	t.Parallel()
 
 	t.Run("an ordinary day speaks only for itself", func(t *testing.T) {
-		wednesday := timezone.NewDate(2026, time.August, 5)
-		assert.Equal(t, []timezone.Date{wednesday}, celebrationDates(wednesday))
+		wednesday := calendar.NewDate(2026, time.August, 5)
+		assert.Equal(t, []calendar.Date{wednesday}, CelebrationDates(wednesday))
 	})
 
 	t.Run("monday carries the weekend before it", func(t *testing.T) {
-		monday := timezone.NewDate(2026, time.August, 3)
-		got := celebrationDates(monday)
+		monday := calendar.NewDate(2026, time.August, 3)
+		got := CelebrationDates(monday)
 
-		assert.Equal(t, []timezone.Date{
+		assert.Equal(t, []calendar.Date{
 			monday,
-			timezone.NewDate(2026, time.August, 1), // Saturday
-			timezone.NewDate(2026, time.August, 2), // Sunday
+			calendar.NewDate(2026, time.August, 1), // Saturday
+			calendar.NewDate(2026, time.August, 2), // Sunday
 		}, got)
 	})
 
 	t.Run("sunday does not pre-empt the monday view", func(t *testing.T) {
-		sunday := timezone.NewDate(2026, time.August, 2)
-		assert.Len(t, celebrationDates(sunday), 1)
+		sunday := calendar.NewDate(2026, time.August, 2)
+		assert.Len(t, CelebrationDates(sunday), 1)
 	})
 }
 
@@ -43,31 +42,31 @@ func TestMonthDaysFor(t *testing.T) {
 	t.Parallel()
 
 	t.Run("1 March stands in for 29 February in a common year", func(t *testing.T) {
-		got := monthDaysFor(timezone.NewDate(2027, time.March, 1))
+		got := MonthDaysFor(calendar.NewDate(2027, time.March, 1))
 
-		assert.Equal(t, []userModels.MonthDay{
+		assert.Equal(t, []MonthDay{
 			{Month: time.March, Day: 1},
 			{Month: time.February, Day: 29},
 		}, got)
 	})
 
 	t.Run("in a leap year 1 March stands only for itself", func(t *testing.T) {
-		got := monthDaysFor(timezone.NewDate(2028, time.March, 1))
+		got := MonthDaysFor(calendar.NewDate(2028, time.March, 1))
 
-		assert.Equal(t, []userModels.MonthDay{{Month: time.March, Day: 1}}, got)
-		assert.NotContains(t, got, userModels.MonthDay{Month: time.February, Day: 29})
+		assert.Equal(t, []MonthDay{{Month: time.March, Day: 1}}, got)
+		assert.NotContains(t, got, MonthDay{Month: time.February, Day: 29})
 	})
 
 	t.Run("the leap day itself is used in a leap year", func(t *testing.T) {
-		got := monthDaysFor(timezone.NewDate(2028, time.February, 29))
+		got := MonthDaysFor(calendar.NewDate(2028, time.February, 29))
 
-		assert.Equal(t, []userModels.MonthDay{{Month: time.February, Day: 29}}, got)
+		assert.Equal(t, []MonthDay{{Month: time.February, Day: 29}}, got)
 	})
 
 	t.Run("an ordinary day maps to one recurring day", func(t *testing.T) {
-		got := monthDaysFor(timezone.NewDate(2026, time.August, 5))
+		got := MonthDaysFor(calendar.NewDate(2026, time.August, 5))
 
-		assert.Equal(t, []userModels.MonthDay{{Month: time.August, Day: 5}}, got)
+		assert.Equal(t, []MonthDay{{Month: time.August, Day: 5}}, got)
 	})
 }
 
@@ -85,40 +84,40 @@ func TestIsLeapYear(t *testing.T) {
 func TestBuildCelebrations(t *testing.T) {
 	t.Parallel()
 
-	monday := timezone.NewDate(2026, time.August, 3)
-	saturday := timezone.NewDate(2026, time.August, 1)
-	byMonthDay := map[userModels.MonthDay]timezone.Date{
+	monday := calendar.NewDate(2026, time.August, 3)
+	saturday := calendar.NewDate(2026, time.August, 1)
+	byMonthDay := map[MonthDay]calendar.Date{
 		{Month: time.August, Day: 3}: monday,
 		{Month: time.August, Day: 1}: saturday,
 	}
 
-	entries := []userModels.BirthdayEntry{
+	entries := []BirthdayEntry{
 		{
-			Kind:      userModels.BirthdayKindStaff,
+			Kind:      BirthdayKindStaff,
 			ID:        7,
 			FirstName: "Anna",
 			LastName:  "Berg",
-			Birthday:  timezone.NewDate(1988, time.August, 3),
+			Birthday:  calendar.NewDate(1988, time.August, 3),
 		},
 		{
-			Kind:        userModels.BirthdayKindStudent,
+			Kind:        BirthdayKindStudent,
 			ID:          2,
 			FirstName:   "Mika",
 			LastName:    "Klein",
-			Birthday:    timezone.NewDate(2019, time.August, 1),
+			Birthday:    calendar.NewDate(2019, time.August, 1),
 			GroupName:   "Delfine",
 			SchoolClass: "1a",
 		},
 		{
-			Kind:      userModels.BirthdayKindStudent,
+			Kind:      BirthdayKindStudent,
 			ID:        1,
 			FirstName: "Lina",
 			LastName:  "Adler",
-			Birthday:  timezone.NewDate(2018, time.August, 3),
+			Birthday:  calendar.NewDate(2018, time.August, 3),
 		},
 	}
 
-	got := buildCelebrations(entries, byMonthDay, monday)
+	got := BuildCelebrations(entries, byMonthDay, monday)
 
 	if assert.Len(t, got, 3) {
 		assert.Equal(t, "Lina Adler", got[0].Name, "today's children come first")
@@ -141,18 +140,18 @@ func TestBuildCelebrations(t *testing.T) {
 func TestBuildCelebrationsLeapDayAge(t *testing.T) {
 	t.Parallel()
 
-	firstOfMarch := timezone.NewDate(2027, time.March, 1)
-	byMonthDay := map[userModels.MonthDay]timezone.Date{
+	firstOfMarch := calendar.NewDate(2027, time.March, 1)
+	byMonthDay := map[MonthDay]calendar.Date{
 		{Month: time.March, Day: 1}:     firstOfMarch,
 		{Month: time.February, Day: 29}: firstOfMarch,
 	}
 
-	got := buildCelebrations([]userModels.BirthdayEntry{{
-		Kind:      userModels.BirthdayKindStudent,
+	got := BuildCelebrations([]BirthdayEntry{{
+		Kind:      BirthdayKindStudent,
 		ID:        3,
 		FirstName: "Jonas",
 		LastName:  "Feld",
-		Birthday:  timezone.NewDate(2020, time.February, 29),
+		Birthday:  calendar.NewDate(2020, time.February, 29),
 	}}, byMonthDay, firstOfMarch)
 
 	if assert.Len(t, got, 1) {
@@ -167,17 +166,17 @@ func TestBuildCelebrationsLeapDayAge(t *testing.T) {
 func TestBuildCelebrationsDropsUnmappedDays(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2026, time.August, 5)
-	byMonthDay := map[userModels.MonthDay]timezone.Date{
+	today := calendar.NewDate(2026, time.August, 5)
+	byMonthDay := map[MonthDay]calendar.Date{
 		{Month: time.August, Day: 5}: today,
 	}
 
-	got := buildCelebrations([]userModels.BirthdayEntry{{
-		Kind:      userModels.BirthdayKindStudent,
+	got := BuildCelebrations([]BirthdayEntry{{
+		Kind:      BirthdayKindStudent,
 		ID:        9,
 		FirstName: "Nicht",
 		LastName:  "Gefragt",
-		Birthday:  timezone.NewDate(2017, time.September, 9),
+		Birthday:  calendar.NewDate(2017, time.September, 9),
 	}}, byMonthDay, today)
 
 	assert.Empty(t, got)
