@@ -71,6 +71,51 @@ to check server health. Do not claim TypeScript semantic navigation from grep
 results. Commands launched from the Codex desktop can also use `devbox run`
 explicitly; a terminal's direnv activation does not configure another process.
 
+## Low-memory machines
+
+On a 16 GB laptop RAM runs out before the CPU does. Next dev alone holds
+about 2.5 GB, a Go link about 1.3 GB, and the IDE with gopls and tsserver
+several more. Measured on the reference machine:
+
+| Step | Before | After |
+|---|---|---|
+| `pnpm run typecheck`, cold | 25 s, 3.0 GB | 2.9 s (TypeScript 7 native) |
+| `pnpm run typecheck`, warm | 3.7 s | 1.0 s |
+| Backend start (`dev-native.sh up`) | `go run` + air: two links | one link, air reuses the cache |
+| Parallel Go test binaries, 16 GB | up to 8 (`test-changed`) / 10 (`test-backend`) | 4 (one per 4 GB) |
+
+What keeps a 16 GB machine out of swap:
+
+1. Run the app natively: `scripts/dev-native.sh up`. `docker compose up -d`
+   starts only `postgres` and `mailpit`; the full container stack needs
+   `--profile full`. Next dev and Go builds in the Docker VM cost the VM's
+   overhead on top and compile through slow bind mounts.
+   `docker-compose.yml` is a local copy: refresh it once with
+   `cp docker-compose.example.yml docker-compose.yml` in the main checkout
+   (new `wt` worktrees copy it from there).
+2. macOS: use [OrbStack](https://orbstack.dev) or Colima instead of Docker
+   Desktop. Docker Desktop reserves its VM memory up front (1.5-3 GB idle);
+   OrbStack returns unused memory to macOS. With Docker Desktop, set
+   Settings > Resources > Memory to 4 GB; the infrastructure services have
+   `mem_limit`s that fit.
+3. Windows: work inside WSL2 with the repository in the Linux filesystem
+   (`~/…`, not `/mnt/c/…`, which is several times slower for Go and Node).
+   Cap the WSL VM in `%UserProfile%\.wslconfig`:
+
+   ```ini
+   [wsl2]
+   memory=10GB
+   swap=8GB
+   ```
+
+   and set `autoMemoryReclaim=gradual` under `[experimental]` so the VM hands
+   freed memory back to Windows. Run `wsl --shutdown` afterwards.
+4. Run one dev loop at a time. Every running `wt` worktree adds its own
+   Postgres, Next dev (2.5 GB) and air. `scripts/dev-native.sh down` and
+   `docker compose stop` in worktrees you are not using.
+5. Close the second editor. VS Code/Cursor and Zed each start their own
+   gopls and tsserver.
+
 ## Troubleshooting
 
 | Symptom | Check |

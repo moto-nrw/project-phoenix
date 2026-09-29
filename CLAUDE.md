@@ -72,8 +72,7 @@ path-scoped rules automatically.
 
 ## Completion and commands
 
-Use Docker Compose for services (`docker compose up -d`, `docker compose logs -f server`).
-Host-side quality/test commands below are deliberate exceptions.
+Run the app with `scripts/dev-native.sh up` (infra in Compose, app native; `--profile full` for containers).
 Tools belong in Devbox; do not depend on unrecorded global installations.
 
 | Change | Required verification |

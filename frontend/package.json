@@ -7,8 +7,8 @@
   "scripts": {
     "build": "next build",
     "build-storybook": "node scripts/build-storybook.mjs",
-    "check": "node scripts/verify-locales.mjs && node scripts/verify-error-catalog.mjs && oxlint . && node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
-    "check:fresh": "rm -f *.tsbuildinfo && node scripts/verify-locales.mjs && node scripts/verify-error-catalog.mjs && oxlint . && node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
+    "check": "node scripts/verify-locales.mjs && node scripts/verify-error-catalog.mjs && oxlint . && node ./node_modules/typescript-native/bin/tsc --noEmit",
+    "check:fresh": "rm -f *.tsbuildinfo && node scripts/verify-locales.mjs && node scripts/verify-error-catalog.mjs && oxlint . && node ./node_modules/typescript-native/bin/tsc --noEmit",
     "depcruise": "dependency-cruise --config .dependency-cruiser.cjs src",
     "dev": "next dev",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
@@ -26,7 +26,7 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "vitest": "vitest",
-    "typecheck": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
+    "typecheck": "node ./node_modules/typescript-native/bin/tsc --noEmit",
     "validate:build-env": "node scripts/validate-build-env.mjs",
     "knip": "knip",
     "knip:production": "knip --production --include files",
@@ -97,6 +97,7 @@
     "storybook": "^10.6.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
+    "typescript-native": "npm:typescript@7.0.2",
     "vite": "^8.2.1",
     "vitest": "^4.1.11"
   },

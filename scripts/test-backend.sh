@@ -53,7 +53,12 @@ fi
 # 100 but never runs this script: test.yml pins its own -p 4 / -p 6.
 # -parallel 8 stays pinned on purpose - -test.parallel is part of the Go
 # test cache key, and a drifting value would split the cache universe.
-CONCURRENCY=(-p 10 -parallel 8)
+# -p also bounds RAM: each package binary link peaks around 1.3 GB, so a
+# 16 GB laptop gets 4 instead of 10 (one per 4 GB, at most 10).
+package_workers=$(( $("$repo_root/scripts/total-memory-gb.sh") / 4 ))
+if [ "$package_workers" -lt 1 ]; then package_workers=1; fi
+if [ "$package_workers" -gt 10 ]; then package_workers=10; fi
+CONCURRENCY=(-p "$package_workers" -parallel 8)
 
 if go tool gotestsum --help >/dev/null 2>&1; then
   go tool gotestsum --format pkgname-and-test-fails -- "${CONCURRENCY[@]}" "$@"
