@@ -9,7 +9,15 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { renderToStaticMarkup } from "react-dom/server";
 import BoringAvatar from "boring-avatars";
 import { createAvatar } from "@dicebear/core";
-import { glass, shapes } from "@dicebear/collection";
+import {
+  glass,
+  notionists,
+  openPeeps,
+  thumbs,
+  bigSmile,
+  shapes,
+} from "@dicebear/collection";
+import { renderAvatar, selectAvatar } from "@usenavii/core";
 
 import { StudentCard, SchoolClassIcon, StudentInfoRow } from "./student-card";
 import { LocationBadge } from "~/components/ui/location-badge";
@@ -17,6 +25,8 @@ import { LocationBadge } from "~/components/ui/location-badge";
 // moto brand colours from styles/globals.css (green, blue, orange, teal, amber).
 const MOTO = ["#83cd2d", "#5080d8", "#f78c10", "#159e90", "#eab308"];
 const MOTO_HEX = MOTO.map((c) => c.slice(1));
+// Soft brand tints (moto-*-soft) as background behind character styles.
+const MOTO_SOFT = ["eef9e1", "edf3fc", "fff3e5", "e8f8f5", "fef3c7"];
 
 type Style = (seed: string) => string;
 
@@ -43,6 +53,19 @@ const STYLES: Record<string, Style> = {
     }).toDataUri(),
   "DiceBear glass": (seed) =>
     createAvatar(glass, { seed, backgroundColor: MOTO_HEX }).toDataUri(),
+  // Concrete styles found via X (round 2, "zu abstrakt").
+  "DiceBear notionists": (seed) =>
+    createAvatar(notionists, { seed, backgroundColor: MOTO_SOFT }).toDataUri(),
+  "DiceBear open-peeps": (seed) =>
+    createAvatar(openPeeps, { seed, backgroundColor: MOTO_SOFT }).toDataUri(),
+  "DiceBear big-smile": (seed) =>
+    createAvatar(bigSmile, { seed, backgroundColor: MOTO_SOFT }).toDataUri(),
+  "DiceBear thumbs": (seed) =>
+    createAvatar(thumbs, { seed, backgroundColor: MOTO_HEX }).toDataUri(),
+  "Navii Maskottchen": (seed) =>
+    `data:image/svg+xml;utf8,${encodeURIComponent(
+      renderAvatar(selectAvatar(seed), { tileBg: "auto" }),
+    )}`,
 };
 
 const CHILDREN: [string, string, string, string][] = [
@@ -126,3 +149,16 @@ export const BoringMarble: Story = { args: { style: "Boring marble" } };
 export const BoringSunset: Story = { args: { style: "Boring sunset" } };
 export const DiceBearShapes: Story = { args: { style: "DiceBear shapes" } };
 export const DiceBearGlass: Story = { args: { style: "DiceBear glass" } };
+export const DiceBearNotionists: Story = {
+  args: { style: "DiceBear notionists" },
+};
+export const DiceBearOpenPeeps: Story = {
+  args: { style: "DiceBear open-peeps" },
+};
+export const DiceBearBigSmile: Story = {
+  args: { style: "DiceBear big-smile" },
+};
+export const DiceBearThumbs: Story = { args: { style: "DiceBear thumbs" } };
+export const NaviiMaskottchen: Story = {
+  args: { style: "Navii Maskottchen" },
+};
