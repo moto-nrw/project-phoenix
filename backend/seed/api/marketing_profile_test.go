@@ -170,6 +170,30 @@ func assertMarketingAPIWrites(t *testing.T, mock *marketingProfileAPIMock, profi
 	for _, group := range mock.groups {
 		assert.Len(t, group["teacher_ids"], 1, "each group has its caregiver")
 	}
+	assert.Len(t, mock.photos, 8, "two of three children get a picture, the rest keep initials")
+	for id, consent := range mock.photos {
+		assert.Equal(t, "true", consent, "student %d photo carries the parents' consent", id)
+	}
+	assert.ElementsMatch(t, []string{
+		marketingMockAdminToken,
+		marketingMockStaffPrefix + "miriam.sommer@example.test",
+		marketingMockStaffPrefix + "jonas.albrecht@example.test",
+	}, mock.avatars, "every staff member uploads their own picture while signed in")
+}
+
+// readMarketingPicture checks that an upload carries a PNG in field and
+// returns its consent flag.
+func readMarketingPicture(t *testing.T, r *seedHTTPRequest, field string) string {
+	t.Helper()
+	require.NoError(t, r.ParseMultipartForm(1<<20))
+	file, _, err := r.FormFile(field)
+	require.NoError(t, err)
+	defer func() { _ = file.Close() }()
+	head := make([]byte, 8)
+	_, err = io.ReadFull(file, head)
+	require.NoError(t, err)
+	assert.Equal(t, "\x89PNG\r\n\x1a\n", string(head), "%s upload is a PNG", field)
+	return r.FormValue("consent_acknowledged")
 }
 
 // marketingScheduleTimes returns the one arrival and pickup time a child has
@@ -199,6 +223,7 @@ const (
 	marketingMockAdminToken     = "marketing-admin-token"
 	marketingMockDeveloperToken = "marketing-developer-token"
 	marketingMockParentPrefix   = "marketing-parent-"
+	marketingMockStaffPrefix    = "marketing-staff-"
 )
 
 // marketingProfileAPIMock fakes the endpoints the marketing profile drives.
@@ -218,13 +243,15 @@ type marketingProfileAPIMock struct {
 	attendance      map[int64]string
 	parentPasswords map[string]string
 	parentGuardian  map[string]int64
+	photos          map[int64]string // student id → consent_acknowledged
+	avatars         []string         // signed-in accounts that uploaded one
 }
 
 func newMarketingProfileAPIMock() *marketingProfileAPIMock {
 	return &marketingProfileAPIMock{
 		nextID: 7500, settings: make(map[string]json.RawMessage), students: make(map[int64]map[string]any),
 		guardianOf: make(map[int64]int64), guardianEmail: make(map[int64]string), attendance: make(map[int64]string),
-		parentPasswords: make(map[string]string), parentGuardian: make(map[string]int64),
+		parentPasswords: make(map[string]string), parentGuardian: make(map[string]int64), photos: make(map[int64]string),
 	}
 }
 
@@ -249,7 +276,8 @@ func (m *marketingProfileAPIMock) claims(r *seedHTTPRequest, body map[string]any
 		return true
 	case !m.active:
 		return false
-	case auth == marketingMockAdminToken || auth == marketingMockDeveloperToken || strings.HasPrefix(auth, marketingMockParentPrefix):
+	case auth == marketingMockAdminToken || auth == marketingMockDeveloperToken ||
+		strings.HasPrefix(auth, marketingMockParentPrefix) || strings.HasPrefix(auth, marketingMockStaffPrefix):
 		return true
 	case strings.HasPrefix(r.URL.Path, fmt.Sprintf("/operator/schools/%d/", marketingMockSchoolID)):
 		return true
@@ -257,7 +285,7 @@ func (m *marketingProfileAPIMock) claims(r *seedHTTPRequest, body map[string]any
 		return true
 	case strings.HasPrefix(r.URL.Path, "/auth/invitations/marketing-") || strings.HasPrefix(r.URL.Path, "/auth/guardian-invitations/marketing-"):
 		return true
-	case r.URL.Path == "/auth/login" && body["email"] == "marketing-admin@example.test":
+	case r.URL.Path == "/auth/login" && strings.HasSuffix(fmt.Sprint(body["email"]), "@example.test"):
 		return true
 	case r.URL.Path == "/parent/auth/login":
 		_, ok := m.parentGuardian[fmt.Sprint(body["email"])]
@@ -309,6 +337,11 @@ func (m *marketingProfileAPIMock) id() int64 {
 func (m *marketingProfileAPIMock) respond(t *testing.T, r *seedHTTPRequest, body map[string]any) (any, int) {
 	t.Helper()
 	path := r.URL.Path
+	if path == "/api/me/profile/avatar" {
+		readMarketingPicture(t, r, "avatar")
+		m.avatars = append(m.avatars, strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+		return nil, 0
+	}
 	if data, ok := m.respondIdentity(r, body); ok {
 		return data, 0
 	}
@@ -360,7 +393,10 @@ func (m *marketingProfileAPIMock) respondIdentity(r *seedHTTPRequest, body map[s
 	case "/auth/invitations/marketing-admin-invite/accept":
 		return nil, true
 	case "/auth/login":
-		return marketingMockToken(marketingMockAdminToken), true
+		if body["email"] == "marketing-admin@example.test" {
+			return marketingMockToken(marketingMockAdminToken), true
+		}
+		return marketingMockToken(marketingMockStaffPrefix + fmt.Sprint(body["email"])), true
 	case "/api/me/profile":
 		m.adminName = fmt.Sprintf("%s %s", body["first_name"], body["last_name"])
 		return nil, true
@@ -425,6 +461,11 @@ func (m *marketingProfileAPIMock) respondFamily(t *testing.T, r *seedHTTPRequest
 	path := r.URL.Path
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	switch {
+	case strings.HasSuffix(path, "/photo"):
+		id, err := strconv.ParseInt(parts[2], 10, 64)
+		require.NoError(t, err)
+		m.photos[id] = readMarketingPicture(t, r, "photo")
+		return nil, 0
 	case path == "/api/students/arrival-settings":
 		return map[string]any{"care_days_source": "weekly_plan"}, 0
 	case strings.HasSuffix(path, "/school-checkin"):
