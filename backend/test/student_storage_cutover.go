@@ -95,8 +95,7 @@ func RestoreStudentStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 				  -- users.students, so moving their keys onto it would restore
 				  -- a shape that never existed — and the cutover's own guard
 				  -- would then rightly refuse a key its static list does not
-				  -- name. They keep pointing at the profile, which the expand
-				  -- migration had already created by this point in history.
+				  -- name. Their key is dropped below instead.
 				  AND con.conrelid <> to_regclass('users.student_notes')
 				ORDER BY con.conrelid::regclass::text, con.conname
 			LOOP
@@ -127,7 +126,15 @@ func RestoreStudentStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 		-- the cutover, so a restored historical state holds none of their rows
 		-- either; every other student reference was repointed onto
 		-- users.students a few lines up and is untouched by this.
+		-- The Kindnotizen came long after the cutover, so the restored history
+		-- holds neither their rows nor their key. Keeping the key would block
+		-- the expand migration's own rollback, which drops the profile table;
+		-- repointing it onto users.students would invent a shape that never
+		-- existed and trip the cutover's static key list.
+		ALTER TABLE IF EXISTS users.student_notes
+			DROP CONSTRAINT IF EXISTS fk_student_notes_student;
 		TRUNCATE users.student_care_profiles, users.student_school_memberships, users.student_profiles CASCADE;
+		TRUNCATE users.student_notes;
 		DELETE FROM platform.storage_backfill_checkpoints WHERE backfill = 'student-owner';
 	`); err != nil {
 		tb.Fatalf("restore student storage before cutover: %v", err)

@@ -1,4 +1,4 @@
-package compose_test
+package compose
 
 import (
 	"strings"
@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -19,7 +18,7 @@ import (
 func TestStudentNotesListQueryBudget(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	module, err := compose.New(compose.Dependencies{DB: db, Observe: func(compose.Observation) {}})
+	module, err := New(Dependencies{DB: db, Observe: func(Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 
