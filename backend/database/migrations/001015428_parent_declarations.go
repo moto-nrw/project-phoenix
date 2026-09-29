@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	parentDeclarationsVersion     = "1.15.427"
+	parentDeclarationsVersion     = "1.15.428"
 	parentDeclarationsDescription = "Add Erklärungen to parent announcements: frozen versions, an append-only submission record and the declarations.submit guardian permission (#3430)"
 )
 
@@ -21,7 +21,7 @@ func init() {
 			parentLetterDeliveryVersion, // users.parent_announcements.delivery_mode
 			"1.15.399",                  // users.student_profiles is the child's owner row
 			guardianOwnerCutoverVersion, // auth.guardian_student_access holds the permissions
-			schoolSetupsVersion,         // previous head
+			staffOwnerContractVersion,   // previous head
 		},
 	})
 
