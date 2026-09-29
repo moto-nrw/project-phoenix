@@ -73,6 +73,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@dicebear/collection": "^9.4.2",
+    "@dicebear/core": "^9.4.3",
     "@playwright/test": "^1.62.1",
     "@storybook/addon-a11y": "^10.6.0",
     "@storybook/nextjs-vite": "^10.6.0",
@@ -85,6 +87,7 @@
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.5",
     "@vitest/coverage-v8": "^4.1.11",
+    "boring-avatars": "^2.0.4",
     "dependency-cruiser": "^18.2.0",
     "happy-dom": "^20.11.2",
     "knip": "^6.32.1",
