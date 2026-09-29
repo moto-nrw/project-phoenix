@@ -16,6 +16,7 @@ import (
 
 type WorkforceTestRepositories struct {
 	WorkSessionTestRepositories
+	Membership                      schoolmembership.Capability
 	StaffDocument                   userModels.StaffDocumentRepository
 	StaffAbsenceType                workforceCapability.Capability
 	StaffAbsenceTypeAllowance       timerecords.StaffAbsenceTypeAllowanceRepository
@@ -72,6 +73,7 @@ func NewWorkforceTestRepositories(db *bun.DB, command auditModels.Command, clock
 	r.BindPeopleDirectory(people)
 	r.RouteAuditWrites(command)
 	return WorkforceTestRepositories{WorkSessionTestRepositories: sessions,
+		Membership:                      membership,
 		StaffDocument:                   staffDocumentMembershipRepository{StaffDocumentRepository: workforceLegacy.NewStaffDocumentRepository(workTime), membership: func() schoolmembership.Capability { return membership }},
 		StaffAbsenceType:                workTime,
 		StaffAbsenceTypeAllowance:       workforce.NewStaffAbsenceTypeAllowanceRepository(db),

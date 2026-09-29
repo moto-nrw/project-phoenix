@@ -936,6 +936,23 @@ clock consumes the public device-scan contract in `modules/devicescan`
 one rule anchored to that new point, and the staff-clock workflow reaches the
 Workforce time clock only through its own port.
 
+#3752 later moved the personnel-record administration out of `services/users`:
+the payroll number, the Stammdaten sections, the audited bank and tax reads and
+the Dokumente tab (the retained staff Stammdaten, payroll, document and default
+permission services) are Workforce's own `StaffAdmin`
+(`modules/workforce/internal/application`, rules in `internal/domain`, bound by
+`modules/workforce/compose.NewStaffAdmin`). The staff and person rows behind a
+record and the audit trail stay with School Membership, People Directory and the
+audit platform: Workforce reaches them through the consumer-owned ports
+`StaffAdminSubjects` and `StaffAdminAudit`, which the root binds over the
+retained repositories in `services/staff_admin_composition.go`, so every read
+and write still joins the caller's tenant transaction and reports its failure
+in the repository shape the HTTP layer classifies. The staff and teacher
+lookups and the two staff writes of the person service leave as the
+`users.StaffDirectory` port (`services/users/staff_directory_port.go`), bound
+by `services.NewStaffDirectory` and embedded in the person service, so the
+callers keep the verbatim repository results the IoT flows depend on.
+
 The retained Workforce time-tracking services
 (`modules/workforce/legacy/timetracking`, #3213) are classified
 `workforce`/`adapter` with `adapter-test` in both test scopes. They are the

@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
@@ -20,6 +21,11 @@ import (
 // routes but may only depend on the capability itself. Everything it still
 // needs from the legacy services is composed here, with plain types, so the
 // HTTP root can bind the adapter without importing any service package.
+
+// defaultStaffAccountPermission is granted to the login account of a newly
+// created staff member so the colleague sees the group list. Lehrkraft
+// accounts are excluded by the grant flow (#1772).
+const defaultStaffAccountPermission = securityruntime.PermissionGroupsRead
 
 // StaffDirectoryPerson is the People Directory entry behind a staff row.
 type StaffDirectoryPerson struct {
@@ -218,7 +224,7 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 		},
 
 		GrantDefaultPermissions: func(ctx context.Context, accountID int64, isTeacher bool) {
-			roles.GrantStaffDefaultPermission(ctx, accountID, isTeacher, usersSvc.DefaultStaffAccountPermission)
+			roles.GrantStaffDefaultPermission(ctx, accountID, isTeacher, defaultStaffAccountPermission)
 		},
 
 		TeacherGroups: func(ctx context.Context, teacherID int64) ([]StaffGroup, error) {

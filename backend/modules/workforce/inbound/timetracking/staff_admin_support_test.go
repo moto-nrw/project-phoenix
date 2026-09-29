@@ -75,7 +75,7 @@ func newWorkforceCapability(t *testing.T, db *bun.DB, clocks ...func() time.Time
 // testCapabilities adapts the retained services of a test module to the
 // public Workforce contracts exactly as the composition root does.
 func testCapabilities(svc services.WorkforceTestModule) services.WorkforceAdminCapabilities {
-	return services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth,
+	return services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffAdmin, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth,
 		svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport)
 }
 

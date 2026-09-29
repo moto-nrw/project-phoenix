@@ -11,6 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/services"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +28,8 @@ import (
 type payrollScenario struct {
 	db    *bun.DB
 	repos *repositories.Factory
-	svc   usersSvc.PersonService
+	svc   workforce.StaffRecordAdmin
+	dir   usersSvc.StaffDirectory
 	ctx   context.Context
 }
 
@@ -65,18 +68,20 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	svc := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
-		PersonRepo:           repos.Person,
-		RFIDRepo:             repos.RFIDCard,
-		AccountExists:        repositories.AccountExists(repos.Profile),
-		StudentRepo:          repos.Student,
-		StaffRepo:            repos.Staff,
-		TeacherRepo:          repos.Teacher,
-		PersonnelNumberAudit: repos.PersonnelNumberChange,
-		DB:                   db,
+	svc, err := services.NewStaffAdmin(payrollAdminDeps(db, repos, repos.Staff))
+	require.NoError(t, err)
+	dir := services.NewStaffDirectory(services.StaffDirectoryDependencies{
+		DB: db, Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher,
 	})
 
-	return &payrollScenario{db: db, repos: repos, svc: svc, ctx: testpkg.Ctx(t)}
+	return &payrollScenario{db: db, repos: repos, svc: svc, dir: dir, ctx: testpkg.Ctx(t)}
+}
+
+func payrollAdminDeps(db *bun.DB, repos *repositories.Factory, staff userModels.StaffRepository) services.StaffAdminDependencies {
+	return services.StaffAdminDependencies{
+		DB: db, Staff: staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
+		MasterDataAudit: repos.StaffMasterDataChange, PersonnelNumber: repos.PersonnelNumberChange, DataAccessLog: repos.DataAccessLog,
+	}
 }
 
 func (s *payrollScenario) auditRows(t *testing.T, staffID int64) []*auditModels.PersonnelNumberChange {
@@ -151,7 +156,7 @@ func TestUpdatePersonnelNumber_DuplicateIsConflictAndLeavesNoAudit(t *testing.T)
 	require.NoError(t, err)
 
 	_, err = s.svc.UpdatePersonnelNumber(s.ctx, second.ID, &value, actor.ID, "")
-	require.ErrorIs(t, err, usersSvc.ErrPersonnelNumberTaken)
+	require.ErrorIs(t, err, workforce.ErrPersonnelNumberTaken)
 
 	assert.Empty(t, s.auditRows(t, second.ID), "the rolled-back change must not leave an audit row")
 
@@ -183,16 +188,8 @@ func TestUpdatePersonnelNumber_SerializesConcurrentAuditValues(t *testing.T) {
 		secondRead:      make(chan struct{}),
 		releaseFirst:    make(chan struct{}),
 	}
-	svc := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
-		PersonRepo:           s.repos.Person,
-		RFIDRepo:             s.repos.RFIDCard,
-		AccountExists:        repositories.AccountExists(s.repos.Profile),
-		StudentRepo:          s.repos.Student,
-		StaffRepo:            staffRepo,
-		TeacherRepo:          s.repos.Teacher,
-		PersonnelNumberAudit: s.repos.PersonnelNumberChange,
-		DB:                   s.db,
-	})
+	svc, err := services.NewStaffAdmin(payrollAdminDeps(s.db, s.repos, staffRepo))
+	require.NoError(t, err)
 
 	personnelNumberSeed := staff.ID % 10_000_000
 	firstValue := fmt.Sprintf("7%07d1", personnelNumberSeed)
@@ -277,7 +274,7 @@ func TestUpdateStaffWithTeacher_PreservesConcurrentPersonnelNumber(t *testing.T)
 	require.NoError(t, err)
 
 	staleStaff.StaffNotes = "Aktualisierte Notiz"
-	_, _, err = s.svc.UpdateStaffWithTeacher(s.ctx, staleStaff, false, "", "", "")
+	_, _, err = s.dir.UpdateStaffWithTeacher(s.ctx, staleStaff, false, "", "", "")
 	require.NoError(t, err)
 
 	reloaded, err := s.repos.Staff.FindByID(s.ctx, staff.ID)
@@ -302,16 +299,14 @@ func TestUpdatePersonnelNumber_Validation(t *testing.T) {
 	for _, invalid := range []string{"12a", "1 2", "-5", "1234567890"} {
 		v := invalid
 		_, err := s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, &v, actor.ID, "")
-		require.ErrorIs(t, err, usersSvc.ErrPersonnelNumberInvalid, "value %q must be rejected", invalid)
+		require.ErrorIs(t, err, workforce.ErrPersonnelNumberInvalid, "value %q must be rejected", invalid)
 	}
 
-	// Missing audit wiring refuses the change entirely (fail fast).
-	unwired := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
-		StaffRepo: s.repos.Staff,
-		DB:        s.db,
-	})
-	v := "90020"
-	_, err := unwired.UpdatePersonnelNumber(s.ctx, staff.ID, &v, actor.ID, "")
+	// Missing audit wiring refuses the change entirely (fail fast): the
+	// administration cannot be composed without the audit repository.
+	unwired := payrollAdminDeps(s.db, s.repos, s.repos.Staff)
+	unwired.PersonnelNumber = nil
+	_, err := services.NewStaffAdmin(unwired)
 	require.Error(t, err, "without the audit repository no change may happen")
 }
 
