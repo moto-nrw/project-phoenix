@@ -123,10 +123,10 @@ func validateTargetOverrideMinutes(fields StaffTargetOverrideFields) error {
 		return nil
 	}
 	if len(fields.WeekdayMinutes) != TargetOverrideWeekdays {
-		return invalidTargetOverride(fmt.Sprintf("weekday_minutes must hold %d values, Monday to Friday", TargetOverrideWeekdays))
+		return invalidTargetOverride("Bitte geben Sie für Montag bis Freitag jeweils Stunden ein.")
 	}
 	if fields.DailyMinutes != 0 {
-		return invalidTargetOverride("send either daily_minutes or weekday_minutes")
+		return invalidTargetOverride("Bitte geben Sie entweder Stunden pro Tag oder Stunden für die Wochentage ein.")
 	}
 	for _, minutes := range fields.WeekdayMinutes {
 		if minutes < 0 || minutes > MaxDailyMinutes {

@@ -205,7 +205,7 @@ export function SonderarbeitszeitenSection({
 
   // Switching to hours per weekday starts every day with the hours already
   // typed, so only the days that differ need a change. Switching back keeps
-  // the hours when every day has the same value.
+  // the hours when every day has the same valid value.
   const changeMode = (mode: HoursMode) => {
     if (!draft || mode === draft.mode) return;
     setFieldErrors({});
@@ -220,9 +220,15 @@ export function SonderarbeitszeitenSection({
       });
       return;
     }
-    const first = draft.weekdayHours[0] ?? "";
-    const same = draft.weekdayHours.every((value) => value === first);
-    setDraft({ ...draft, mode, hours: same ? first : draft.hours });
+    const weekdayMinutes = parseWeekdayMinutes(draft.weekdayHours);
+    const [first, ...rest] = weekdayMinutes ?? [];
+    const same =
+      first !== undefined && rest.every((minutes) => minutes === first);
+    setDraft({
+      ...draft,
+      mode,
+      hours: same ? (draft.weekdayHours[0] ?? "") : draft.hours,
+    });
   };
 
   const handleSave = async () => {
@@ -455,7 +461,7 @@ export function SonderarbeitszeitenSection({
                 <legend className="mb-1.5 block text-sm font-medium text-gray-700">
                   Stunden je Wochentag
                 </legend>
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                   {WEEKDAYS.map((day, index) => {
                     const value = draft.weekdayHours[index] ?? "";
                     const invalid =

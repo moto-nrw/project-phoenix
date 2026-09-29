@@ -4299,7 +4299,8 @@ function targetOverrideTopic(): HelpTopic {
       "Wählen Sie `Sonderarbeitszeit anlegen`.",
       "Tragen Sie `Erster Tag` und `Letzter Tag` ein.",
       "Tragen Sie bei `Stunden pro Tag` die Stunden ein, zum Beispiel `8,5`.",
-      "Sind die Stunden nicht jeden Tag gleich? Wählen Sie `Je Wochentag` und tragen Sie die Stunden für Montag bis Freitag ein.",
+      "Wählen Sie `Je Wochentag`, wenn die Stunden unterschiedlich sind.",
+      "Tragen Sie die Stunden für Montag bis Freitag ein.",
       "Wählen Sie `Speichern`.",
     ],
     result:

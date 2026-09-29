@@ -22,17 +22,22 @@ type targetOverrideRequest struct {
 	WeekdayMinutes []int  `json:"weekday_minutes"`
 }
 
+// targetOverrideRequestError is localized at the HTTP boundary.
+type targetOverrideRequestError string
+
+func (e targetOverrideRequestError) Error() string { return string(e) }
+
 func (req targetOverrideRequest) fields() (workforce.StaffTargetOverrideFields, error) {
 	fields := workforce.StaffTargetOverrideFields{StartDate: req.StartDate, EndDate: req.EndDate}
 	switch {
 	case req.DailyMinutes != nil && req.WeekdayMinutes != nil:
-		return fields, errors.New("send either daily_minutes or weekday_minutes")
+		return fields, targetOverrideRequestError("Bitte geben Sie entweder Stunden pro Tag oder Stunden für die Wochentage ein.")
 	case req.DailyMinutes != nil:
 		fields.DailyMinutes = *req.DailyMinutes
 	case req.WeekdayMinutes != nil:
 		fields.WeekdayMinutes = req.WeekdayMinutes
 	default:
-		return fields, errors.New("daily_minutes or weekday_minutes is required")
+		return fields, targetOverrideRequestError("Bitte geben Sie Stunden pro Tag oder Stunden für die Wochentage ein.")
 	}
 	return fields, nil
 }
@@ -132,7 +137,7 @@ func decodeTargetOverride(w http.ResponseWriter, r *http.Request) (workforce.Sta
 	}
 	fields, err := req.fields()
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequestMessage(err.Error()))
 		return workforce.StaffTargetOverrideFields{}, false
 	}
 	return fields, true

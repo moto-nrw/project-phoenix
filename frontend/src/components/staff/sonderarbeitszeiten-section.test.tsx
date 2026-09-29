@@ -329,6 +329,27 @@ describe("SonderarbeitszeitenSection", () => {
     expect(screen.getByLabelText("Stunden pro Tag")).toHaveValue("8");
   });
 
+  it("keeps equal weekday hours with different decimal spellings", () => {
+    mocks.rows = [];
+    openCreate();
+    fireEvent.click(screen.getByRole("button", { name: "Je Wochentag" }));
+    const values = ["1", "1,0", "1.00", "1", "1"];
+    for (const [index, day] of [
+      "Montag",
+      "Dienstag",
+      "Mittwoch",
+      "Donnerstag",
+      "Freitag",
+    ].entries()) {
+      fireEvent.change(screen.getByLabelText(`Stunden am ${day}`), {
+        target: { value: values[index] },
+      });
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Jeden Tag gleich" }));
+
+    expect(screen.getByLabelText("Stunden pro Tag")).toHaveValue("1");
+  });
+
   it("names the section once, not again above the table", () => {
     render(<SonderarbeitszeitenSection staffId="42" canEdit />);
 

@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// A row carries either one daily target or five weekday targets in range; the
-// down migration folds weekday rows into their weekly average.
+// A row carries either one daily target or five weekday targets in range. The
+// down migration only permits weekday rows it can represent without loss.
 func TestStaffTargetOverrideWeekdaysConstraintsAndDown(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
@@ -42,11 +42,22 @@ func TestStaffTargetOverrideWeekdaysConstraintsAndDown(t *testing.T) {
 		assert.Error(t, insert("2026-11-02", row[0], row[1]), name)
 	}
 
+	require.ErrorContains(t, staffTargetOverrideWeekdaysDown(ctx, db), "non-uniform weekday targets")
+	var monday int
+	require.NoError(t, db.NewRaw(`SELECT weekday_minutes[1] FROM config.staff_target_overrides
+		WHERE staff_id = ? AND start_date = '2026-10-19'`, staff.ID).Scan(ctx, &monday))
+	assert.Equal(t, 210, monday, "a failed rollback must leave weekday targets unchanged")
+
+	_, err := db.NewRaw(`UPDATE config.staff_target_overrides
+		SET weekday_minutes = '{66,66,66,66,66}'
+		WHERE staff_id = ? AND start_date = '2026-10-19'`, staff.ID).Exec(ctx)
+	require.NoError(t, err)
+
 	require.NoError(t, staffTargetOverrideWeekdaysDown(ctx, db))
 	var folded int
 	require.NoError(t, db.NewRaw(`SELECT daily_minutes FROM config.staff_target_overrides
 		WHERE staff_id = ? AND start_date = '2026-10-19'`, staff.ID).Scan(ctx, &folded))
-	assert.Equal(t, 66, folded, "5.5 hours a week spread over five days")
+	assert.Equal(t, 66, folded, "a uniform weekday target stays unchanged")
 
 	require.NoError(t, staffTargetOverrideWeekdaysUp(ctx, db))
 	assert.Error(t, insert("2026-11-02", nil, nil), "the up migration restores the one-target check")

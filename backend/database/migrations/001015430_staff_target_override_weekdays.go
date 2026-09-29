@@ -78,8 +78,10 @@ func staffTargetOverrideWeekdaysUp(ctx context.Context, db *bun.DB) error {
 	return tx.Commit()
 }
 
-// staffTargetOverrideWeekdaysDown folds each weekday row back into one daily
-// target: the average of Monday to Friday, which keeps the weekly sum.
+// staffTargetOverrideWeekdaysDown restores the former daily target only for
+// uniform weekday rows. A non-uniform row cannot be represented by the former
+// schema without changing its day-specific targets, so the rollback stops
+// before it changes data.
 func staffTargetOverrideWeekdaysDown(ctx context.Context, db *bun.DB) error {
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -92,14 +94,34 @@ func staffTargetOverrideWeekdaysDown(ctx context.Context, db *bun.DB) error {
 	}()
 
 	_, err = tx.ExecContext(ctx, `
+		LOCK TABLE config.staff_target_overrides IN ACCESS EXCLUSIVE MODE;
+	`)
+	if err != nil {
+		return fmt.Errorf("lock config.staff_target_overrides for rollback: %w", err)
+	}
+
+	var hasNonUniformWeekdayTargets bool
+	if err := tx.NewRaw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM config.staff_target_overrides
+			WHERE weekday_minutes IS NOT NULL
+				AND NOT (weekday_minutes[1] = ALL(weekday_minutes))
+		)
+	`).Scan(ctx, &hasNonUniformWeekdayTargets); err != nil {
+		return fmt.Errorf("check weekday targets before rollback: %w", err)
+	}
+	if hasNonUniformWeekdayTargets {
+		return fmt.Errorf("cannot roll back weekday target overrides: non-uniform weekday targets cannot be represented by daily_minutes")
+	}
+
+	_, err = tx.ExecContext(ctx, `
 		ALTER TABLE config.staff_target_overrides
 			DROP CONSTRAINT IF EXISTS staff_target_overrides_one_target,
 			DROP CONSTRAINT IF EXISTS staff_target_overrides_weekday_minutes_ok;
 
 		UPDATE config.staff_target_overrides
-		SET daily_minutes = (
-			SELECT round(avg(minutes))::int FROM unnest(weekday_minutes) AS minutes
-		)
+		SET daily_minutes = weekday_minutes[1]
 		WHERE weekday_minutes IS NOT NULL;
 
 		ALTER TABLE config.staff_target_overrides
