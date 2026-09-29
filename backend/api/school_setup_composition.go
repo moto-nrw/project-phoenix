@@ -20,7 +20,7 @@ type moduleRoute struct {
 }
 
 // newSchoolSetupRoute mounts the onboarding wizard for new schools (#2832,
-// ADR 0042) at /api/school-setup. The caller supplies the retained settings
+// ADR 0043) at /api/school-setup. The caller supplies the retained settings
 // seams; this adds the tenant HTTP mechanics.
 func newSchoolSetupRoute(deps schoolSetupCompose.Dependencies, db *bun.DB) (moduleRoute, error) {
 	service, err := schoolSetupCompose.New(deps)

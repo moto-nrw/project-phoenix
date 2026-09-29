@@ -1,4 +1,4 @@
-package users_test
+package peopledirectory_test
 
 import (
 	"context"
@@ -10,19 +10,24 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // Birthday service against real repositories (#1542). The HTTP tests in
-// modules/birthdays/http pin the route contract; this file pins the rules the service
+// modules/peopledirectory/inbound/birthdays pin the route contract; this file pins the rules the service
 // itself owns: which days a view speaks for, who may appear, and what the
 // staff list contains.
+
+// The registry keys of the two display settings. The mock below fails on any
+// other key, so a renamed key fails these tests instead of reading as false.
+const (
+	keyDisplayEnabled = "operations.birthday_display_enabled"
+	keyIncludeStaff   = "operations.birthday_display_include_staff"
+)
 
 // birthdaySettings answers the two display settings and fails loudly on any
 // other key, so a future setting cannot silently read as false here.
@@ -30,9 +35,9 @@ func birthdaySettings(enabled, includeStaff bool) *configtest.Mock {
 	return &configtest.Mock{
 		ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
 			switch key {
-			case configModels.KeyBirthdayDisplayEnabled:
+			case keyDisplayEnabled:
 				return enabled, nil
-			case configModels.KeyBirthdayDisplayIncludeStaff:
+			case keyIncludeStaff:
 				return includeStaff, nil
 			default:
 				return false, errors.New("unexpected setting: " + key)
@@ -41,21 +46,14 @@ func birthdaySettings(enabled, includeStaff bool) *configtest.Mock {
 	}
 }
 
-func newBirthdayService(db *bun.DB, settings *configtest.Mock, now func() time.Time) usersService.BirthdayService {
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	return usersService.NewBirthdayService(usersService.BirthdayServiceDependencies{
-		StudentRepo:     repos.Student,
-		StaffRepo:       repos.Staff,
-		PersonRepo:      repos.Person,
-		SettingsService: settings,
-		Now:             now,
-	})
+func newBirthdayService(db *bun.DB, settings *configtest.Mock, now func() time.Time) peopledirectory.Birthdays {
+	return testutil.NewBirthdayCapability(db, settings, now)
 }
 
 // setBirthday stamps a birth date on a fixture person. The fixtures create
 // people without one, which is the realistic default: a school that has not
 // maintained every date must still get a working list.
-func setBirthday(t *testing.T, db *bun.DB, personID int64, date timezone.Date) {
+func setBirthday(t *testing.T, db *bun.DB, personID int64, date calendar.Date) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
@@ -80,7 +78,7 @@ type noAccess struct{}
 
 func (noAccess) HasFullAccess() bool { return false }
 
-func celebrationNames(overview *usersService.BirthdayOverview) []string {
+func celebrationNames(overview peopledirectory.BirthdayOverview) []string {
 	names := make([]string, 0, len(overview.Celebrations))
 	for _, celebration := range overview.Celebrations {
 		names = append(names, celebration.Name)
@@ -96,7 +94,7 @@ func TestBirthdayOverviewMondayCarriesTheWeekend(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	monday := time.Date(2026, time.August, 3, 9, 0, 0, 0, timezone.Berlin)
+	monday := time.Date(2026, time.August, 3, 9, 0, 0, 0, calendar.Berlin)
 	saturday := monday.AddDate(0, 0, -2)
 	friday := monday.AddDate(0, 0, -3)
 
@@ -105,9 +103,9 @@ func TestBirthdayOverviewMondayCarriesTheWeekend(t *testing.T) {
 	onFriday := testpkg.CreateTestStudent(t, db, "Nils", "Freitagskind", "1a")
 	testpkg.CreateTestStudent(t, db, "Ohne", "Datum", "1a")
 
-	setBirthday(t, db, onMonday.PersonID, timezone.NewDate(2018, monday.Month(), monday.Day()))
-	setBirthday(t, db, onSaturday.PersonID, timezone.NewDate(2019, saturday.Month(), saturday.Day()))
-	setBirthday(t, db, onFriday.PersonID, timezone.NewDate(2019, friday.Month(), friday.Day()))
+	setBirthday(t, db, onMonday.PersonID, calendar.NewDate(2018, monday.Month(), monday.Day()))
+	setBirthday(t, db, onSaturday.PersonID, calendar.NewDate(2019, saturday.Month(), saturday.Day()))
+	setBirthday(t, db, onFriday.PersonID, calendar.NewDate(2019, friday.Month(), friday.Day()))
 
 	service := newBirthdayService(db, birthdaySettings(true, false), func() time.Time { return monday })
 
@@ -127,7 +125,7 @@ func TestBirthdayOverviewMondayCarriesTheWeekend(t *testing.T) {
 			assert.Equal(t, 8, celebration.Age)
 		case "Mika Samstagskind":
 			assert.False(t, celebration.IsToday, "the weekend entry must not read as today")
-			assert.Equal(t, timezone.DateFromTime(saturday), celebration.Date)
+			assert.Equal(t, calendar.DateFromTime(saturday), celebration.Date)
 			assert.Equal(t, 7, celebration.Age)
 		}
 	}
@@ -139,14 +137,14 @@ func TestBirthdayOverviewWeekdayIgnoresOtherDays(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	wednesday := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
+	wednesday := time.Date(2026, time.August, 5, 9, 0, 0, 0, calendar.Berlin)
 	yesterday := wednesday.AddDate(0, 0, -1)
 
 	today := testpkg.CreateTestStudent(t, db, "Emma", "Heutekind", "2b")
 	other := testpkg.CreateTestStudent(t, db, "Paul", "Gesternkind", "2b")
 
-	setBirthday(t, db, today.PersonID, timezone.NewDate(2017, wednesday.Month(), wednesday.Day()))
-	setBirthday(t, db, other.PersonID, timezone.NewDate(2017, yesterday.Month(), yesterday.Day()))
+	setBirthday(t, db, today.PersonID, calendar.NewDate(2017, wednesday.Month(), wednesday.Day()))
+	setBirthday(t, db, other.PersonID, calendar.NewDate(2017, yesterday.Month(), yesterday.Day()))
 
 	service := newBirthdayService(db, birthdaySettings(true, false), func() time.Time { return wednesday })
 
@@ -156,7 +154,7 @@ func TestBirthdayOverviewWeekdayIgnoresOtherDays(t *testing.T) {
 	names := celebrationNames(overview)
 	assert.Contains(t, names, "Emma Heutekind")
 	assert.NotContains(t, names, "Paul Gesternkind")
-	assert.Equal(t, timezone.DateFromTime(wednesday), overview.Today)
+	assert.Equal(t, calendar.DateFromTime(wednesday), overview.Today)
 }
 
 // A leap-day child must not disappear for three years out of four.
@@ -166,9 +164,9 @@ func TestBirthdayOverviewLeapDayFallsOnFirstOfMarch(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Jonas", "Schalttagskind", "1a")
-	setBirthday(t, db, student.PersonID, timezone.NewDate(2020, time.February, 29))
+	setBirthday(t, db, student.PersonID, calendar.NewDate(2020, time.February, 29))
 
-	commonYear := time.Date(2027, time.March, 1, 9, 0, 0, 0, timezone.Berlin)
+	commonYear := time.Date(2027, time.March, 1, 9, 0, 0, 0, calendar.Berlin)
 	service := newBirthdayService(db, birthdaySettings(true, false), func() time.Time { return commonYear })
 
 	overview, err := service.Overview(testpkg.Ctx(t), fullAccess{})
@@ -177,7 +175,7 @@ func TestBirthdayOverviewLeapDayFallsOnFirstOfMarch(t *testing.T) {
 	assert.Contains(t, celebrationNames(overview), "Jonas Schalttagskind")
 
 	// In a leap year the day belongs to 29 February and not to 1 March.
-	leapYear := time.Date(2028, time.March, 1, 9, 0, 0, 0, timezone.Berlin)
+	leapYear := time.Date(2028, time.March, 1, 9, 0, 0, 0, calendar.Berlin)
 	leapService := newBirthdayService(db, birthdaySettings(true, false), func() time.Time { return leapYear })
 
 	leapOverview, err := leapService.Overview(testpkg.Ctx(t), fullAccess{})
@@ -193,12 +191,12 @@ func TestBirthdayOverviewStaffVisibility(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	today := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
+	today := time.Date(2026, time.August, 5, 9, 0, 0, 0, calendar.Berlin)
 
 	visible := testpkg.CreateTestStaff(t, db, "Anna", "Sichtbar")
 	optedOut, account := testpkg.CreateTestStaffWithAccount(t, db, "Bea", "Abgemeldet")
 
-	birthday := timezone.NewDate(1985, today.Month(), today.Day())
+	birthday := calendar.NewDate(1985, today.Month(), today.Day())
 	setBirthday(t, db, visible.PersonID, birthday)
 	setBirthday(t, db, optedOut.PersonID, birthday)
 
@@ -227,7 +225,7 @@ func TestBirthdayOverviewStaffVisibility(t *testing.T) {
 		assert.NotContains(t, names, "Bea Abgemeldet", "a personal opt-out outranks the school setting")
 
 		for _, celebration := range overview.Celebrations {
-			if celebration.Kind == userModels.BirthdayKindStaff {
+			if celebration.Kind == peopledirectory.BirthdayKindStaff {
 				assert.Zero(t, celebration.Age, "a colleague's age is never disclosed")
 			}
 		}
@@ -240,9 +238,9 @@ func TestBirthdayOverviewDisabled(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	today := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
+	today := time.Date(2026, time.August, 5, 9, 0, 0, 0, calendar.Berlin)
 	student := testpkg.CreateTestStudent(t, db, "Nicht", "Sichtbar", "3c")
-	setBirthday(t, db, student.PersonID, timezone.NewDate(2016, today.Month(), today.Day()))
+	setBirthday(t, db, student.PersonID, calendar.NewDate(2016, today.Month(), today.Day()))
 
 	service := newBirthdayService(db, birthdaySettings(false, true), func() time.Time { return today })
 
@@ -262,7 +260,7 @@ func TestBirthdayOverviewSettingsErrors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	now := func() time.Time { return time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin) }
+	now := func() time.Time { return time.Date(2026, time.August, 5, 9, 0, 0, 0, calendar.Berlin) }
 
 	t.Run("display setting fails", func(t *testing.T) {
 		settings := &configtest.Mock{
@@ -278,7 +276,7 @@ func TestBirthdayOverviewSettingsErrors(t *testing.T) {
 	t.Run("staff setting fails", func(t *testing.T) {
 		settings := &configtest.Mock{
 			ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
-				if key == configModels.KeyBirthdayDisplayEnabled {
+				if key == keyDisplayEnabled {
 					return true, nil
 				}
 				return false, errors.New("boom")
@@ -303,9 +301,9 @@ func TestListStaffBirthdays(t *testing.T) {
 	augustEarly, account := testpkg.CreateTestStaffWithAccount(t, db, "Erik", "Fruehaugust")
 	testpkg.CreateTestStaff(t, db, "Frank", "Ohnedatum")
 
-	setBirthday(t, db, march.PersonID, timezone.NewDate(1979, time.March, 14))
-	setBirthday(t, db, augustLate.PersonID, timezone.NewDate(1992, time.August, 21))
-	setBirthday(t, db, augustEarly.PersonID, timezone.NewDate(1996, time.August, 9))
+	setBirthday(t, db, march.PersonID, calendar.NewDate(1979, time.March, 14))
+	setBirthday(t, db, augustLate.PersonID, calendar.NewDate(1992, time.August, 21))
+	setBirthday(t, db, augustEarly.PersonID, calendar.NewDate(1996, time.August, 9))
 
 	ctx := testpkg.Ctx(t)
 	service := newBirthdayService(db, birthdaySettings(true, true), nil)
@@ -317,7 +315,7 @@ func TestListStaffBirthdays(t *testing.T) {
 
 		names := make([]string, 0, len(entries))
 		for _, entry := range entries {
-			names = append(names, entry.FullName())
+			names = append(names, entry.Name)
 		}
 
 		assert.Contains(t, names, "Clara Maerz")
@@ -337,7 +335,7 @@ func TestListStaffBirthdays(t *testing.T) {
 
 		names := make([]string, 0, len(entries))
 		for _, entry := range entries {
-			names = append(names, entry.FullName())
+			names = append(names, entry.Name)
 		}
 
 		assert.Contains(t, names, "Clara Maerz")
@@ -399,16 +397,16 @@ func TestBirthdayOptOutWithoutStaffRecord(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "birthday-no-person@example.com")
 
 		_, err := service.GetOptOut(ctx, account.ID)
-		require.ErrorIs(t, err, usersService.ErrStaffNotFound)
+		require.ErrorIs(t, err, peopledirectory.ErrStaffNotFound)
 
-		require.ErrorIs(t, service.SetOptOut(ctx, account.ID, true), usersService.ErrStaffNotFound)
+		require.ErrorIs(t, service.SetOptOut(ctx, account.ID, true), peopledirectory.ErrStaffNotFound)
 	})
 
 	t.Run("person without a staff record", func(t *testing.T) {
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "Hanna", "Nurperson")
 
 		_, err := service.GetOptOut(ctx, account.ID)
-		require.ErrorIs(t, err, usersService.ErrStaffNotFound)
+		require.ErrorIs(t, err, peopledirectory.ErrStaffNotFound)
 	})
 }
 
@@ -421,8 +419,8 @@ func TestBirthdayOverviewAppliesStudentDataScope(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	today := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
-	birthday := timezone.NewDate(2018, today.Month(), today.Day())
+	today := time.Date(2026, time.August, 5, 9, 0, 0, 0, calendar.Berlin)
+	birthday := calendar.NewDate(2018, today.Month(), today.Day())
 
 	myGroup := testpkg.CreateTestEducationGroup(t, db, "Meine Gruppe 1542")
 	otherGroup := testpkg.CreateTestEducationGroup(t, db, "Fremde Gruppe 1542")
@@ -479,35 +477,29 @@ func TestStudentBirthdaysExcludeEndedCare(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	staying := testpkg.CreateTestStudent(t, db, "Geburtstag", "Bleibt", "1a")
 	lastDay := testpkg.CreateTestStudent(t, db, "Geburtstag", "LetzterTag", "1a")
 	departed := testpkg.CreateTestStudent(t, db, "Geburtstag", "Weg", "1a")
 	for _, student := range []int64{staying.PersonID, lastDay.PersonID, departed.PersonID} {
-		setBirthday(t, db, student, timezone.NewDate(2018, today.Month(), today.Day()))
+		setBirthday(t, db, student, calendar.NewDate(2018, today.Month(), today.Day()))
 	}
 	setEnrolledUntil(t, db, lastDay.ID, today)
 	setEnrolledUntil(t, db, departed.ID, today.AddDays(-1))
 
-	entries, err := repos.Student.FindBirthdaysOn(ctx, []userModels.MonthDay{
-		{Month: today.Month(), Day: today.Day()},
-	})
+	overview, err := newBirthdayService(db, birthdaySettings(true, false), nil).Overview(ctx, fullAccess{})
 	require.NoError(t, err)
 
-	ids := make([]int64, 0, len(entries))
-	for _, entry := range entries {
-		ids = append(ids, entry.ID)
-	}
-	assert.Contains(t, ids, staying.ID)
-	assert.Contains(t, ids, lastDay.ID, "the last care day still counts as care")
-	assert.NotContains(t, ids, departed.ID)
+	names := celebrationNames(overview)
+	assert.Contains(t, names, "Geburtstag Bleibt")
+	assert.Contains(t, names, "Geburtstag LetzterTag", "the last care day still counts as care")
+	assert.NotContains(t, names, "Geburtstag Weg")
 }
 
 // setEnrolledUntil stamps the enrollment interval's inclusive upper bound.
-func setEnrolledUntil(t *testing.T, db *bun.DB, studentID int64, until timezone.Date) {
+func setEnrolledUntil(t *testing.T, db *bun.DB, studentID int64, until calendar.Date) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
@@ -518,23 +510,4 @@ func setEnrolledUntil(t *testing.T, db *bun.DB, studentID int64, until timezone.
 		Where("student_profile_id = ?", studentID).Where("deleted_at IS NULL").
 		Exec(ctx)
 	require.NoError(t, err, "stamp enrolled_until on test student")
-}
-
-// The repositories refuse an empty day set instead of building a WHERE clause
-// with no values (which would degenerate into "every person of the school").
-func TestBirthdayRepositoriesRejectAnEmptyDaySet(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	ctx := testpkg.Ctx(t)
-
-	students, err := repos.Student.FindBirthdaysOn(ctx, nil)
-	require.NoError(t, err)
-	assert.Empty(t, students)
-
-	staff, err := repos.Staff.FindBirthdaysOn(ctx, []userModels.MonthDay{})
-	require.NoError(t, err)
-	assert.Empty(t, staff)
 }

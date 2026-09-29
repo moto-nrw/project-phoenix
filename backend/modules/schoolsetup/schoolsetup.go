@@ -1,5 +1,5 @@
 // Package schoolsetup is the public contract of the onboarding wizard for new
-// schools (#2832, ADR 0042): the skipped steps, completion and the personal
+// schools (#2832, ADR 0043): the skipped steps, completion and the personal
 // hiding of the wizard. Progress is not stored; the school-setup progress
 // projection derives it on every read.
 //

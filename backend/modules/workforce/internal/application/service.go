@@ -43,6 +43,17 @@ func New(
 	return &Service{store: store, transaction: transaction, assignments: assignments, lockStaffAssignment: lockStaffAssignment, clock: clock, allowanceUses: allowanceUses, observe: observe, holidays: holidays}
 }
 
+// NewRecords is New for the personnel record rows alone (master data,
+// qualifications, financial data, documents and their cleanup intents): those
+// operations need the store, the unit of work, the clock and the observer, not
+// the template assignment ports. Every other operation needs New.
+func NewRecords(store ports.Store, transaction ports.Transaction, clock ports.Clock, observe ports.Observer) *Service {
+	if store == nil || transaction == nil || clock == nil || observe == nil {
+		panic("workforce application: all dependencies are required")
+	}
+	return &Service{store: store, transaction: transaction, clock: clock, observe: observe}
+}
+
 // --- work-time templates ---
 
 func (s *Service) lockAssignmentStaff(ctx context.Context, ids []int64) error {

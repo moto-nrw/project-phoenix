@@ -1,22 +1,23 @@
-package http
+package birthdays
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
 type staffExportRequest struct {
-	Format listexport.Format `json:"format"`
-	Title  string            `json:"title"`
+	Format lists.Format `json:"format"`
+	Title  string       `json:"title"`
 	// Months restricts the list to the given birth months ("01".."12"), empty
 	// means the whole year. Same wire shape as the child birthday list so the
 	// frontend month picker is shared between them.
@@ -32,7 +33,7 @@ const staffBirthdayExportTitle = "Geburtstagsliste Personal"
 // nobody's business, and the birth date itself is already visible only to the
 // roles that can open the Stammdaten it comes from.
 func (rs *Resource) exportStaffBirthdays(w http.ResponseWriter, r *http.Request) {
-	if rs.ListExportService == nil {
+	if !rs.exportConfigured() {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("list export service is not configured")))
 		return
 	}
@@ -60,12 +61,12 @@ func (rs *Resource) exportStaffBirthdays(w http.ResponseWriter, r *http.Request)
 		title = staffBirthdayExportTitle
 	}
 
-	doc := listexport.Document{
+	doc := lists.Document{
 		Title:       title,
 		Subtitle:    staffExportSubtitle(len(entries)),
 		GeneratedAt: time.Now(),
 		Filters:     monthFilterLabels(req.Months),
-		Columns:     listexport.ResolveColumns(nil, listexport.PresetStaffBirthdayList),
+		Columns:     lists.ResolveColumns(nil, lists.PresetStaffBirthdayList),
 		Rows:        buildStaffBirthdayRows(entries),
 	}
 
@@ -100,13 +101,13 @@ func parseExportMonths(values []string) (map[time.Month]bool, error) {
 	return months, nil
 }
 
-func buildStaffBirthdayRows(entries []userModels.BirthdayEntry) []listexport.Row {
-	rows := make([]listexport.Row, 0, len(entries))
+func buildStaffBirthdayRows(entries []peopledirectory.StaffBirthday) []lists.Row {
+	rows := make([]lists.Row, 0, len(entries))
 	for _, entry := range entries {
-		rows = append(rows, listexport.Row{
-			Values: map[listexport.ColumnID]string{
-				listexport.ColumnName:     entry.FullName(),
-				listexport.ColumnBirthday: entry.Birthday.Format("02.01.2006"),
+		rows = append(rows, lists.Row{
+			Values: map[lists.ColumnID]string{
+				lists.ColumnName:     entry.Name,
+				lists.ColumnBirthday: entry.Birthday.Format("02.01.2006"),
 			},
 		})
 	}
@@ -144,4 +145,15 @@ func monthFilterLabels(values []string) []string {
 		return []string{"Geburtsmonat: " + names[0]}
 	}
 	return []string{"Geburtsmonate: " + strings.Join(names, ", ")}
+}
+
+// exportConfigured reports whether a renderer is bound. The composition root
+// passes a concrete pointer, so a missing one arrives as a typed nil that an
+// interface comparison alone would not see.
+func (rs *Resource) exportConfigured() bool {
+	if rs.ListExportService == nil {
+		return false
+	}
+	value := reflect.ValueOf(rs.ListExportService)
+	return value.Kind() != reflect.Pointer || !value.IsNil()
 }

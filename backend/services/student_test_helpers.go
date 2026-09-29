@@ -35,6 +35,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -82,7 +83,7 @@ func (w studentAccessAuditWriter) Create(ctx context.Context, entry *auditModels
 	return w.Append(ctx, entry)
 }
 
-func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter users.FeedbackEntryCounter, clocks ...func() time.Time) (StudentTestModule, error) {
+func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter studentdeletioncompose.Feedback, clocks ...func() time.Time) (StudentTestModule, error) {
 	auditCommand, err := auditService.NewCommand(repositories.NewTestAuditStore(db), func(auditService.AppendObservation) {})
 	if err != nil {
 		return StudentTestModule{}, err

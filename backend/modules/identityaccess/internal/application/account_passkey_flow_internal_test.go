@@ -635,7 +635,7 @@ func TestAccountPasskeyFinishLoginRejectsInvalidSessionState(t *testing.T) {
 func newPasskeyAssertionForTests(t *testing.T, credentialID, userHandle []byte) json.RawMessage {
 	t.Helper()
 	encode := base64.RawURLEncoding.EncodeToString
-	clientData := `{"type":"webauthn.get","challenge":"Y2hhbGxlbmdl","origin":"http://school.localhost:3000"}`
+	clientData := `{"type":"webauthn.get","challenge":"cGFzc2tleS10ZXN0LWNoYWxsZW5nZS0zMi1ieXRlcyE","origin":"http://school.localhost:3000"}`
 	raw, err := json.Marshal(map[string]any{
 		"id": encode(credentialID), "rawId": encode(credentialID), "type": "public-key",
 		"response": map[string]string{
@@ -708,7 +708,7 @@ func TestAccountPasskeyFinishLoginCredentialLookup(t *testing.T) {
 			t.Parallel()
 			tt.store.consumedSession = &domain.AccountPasskeySession{
 				TenantID:       &tenantID,
-				SessionJSON:    json.RawMessage(`{"challenge":"Y2hhbGxlbmdl"}`),
+				SessionJSON:    json.RawMessage(`{"challenge":"cGFzc2tleS10ZXN0LWNoYWxsZW5nZS0zMi1ieXRlcyE"}`),
 				ExpectedOrigin: "http://school.localhost:3000",
 			}
 			transactions := &passkeyTransactions{}

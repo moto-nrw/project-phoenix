@@ -24,7 +24,7 @@ func init() {
 }
 
 // schoolSetupsUp creates the state behind the onboarding wizard (#2832,
-// ADR 0042). Progress itself is not stored: the school setup progress
+// ADR 0043). Progress itself is not stored: the school setup progress
 // projection derives it from rooms, invitations, groups, students and guardian
 // invitations on every read.
 //

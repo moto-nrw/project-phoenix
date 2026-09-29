@@ -5961,7 +5961,8 @@ function parentNewsTopic(): HelpTopic {
       "Angehängte Dateien öffnen Sie, indem Sie auf den Namen tippen.",
     ],
     differences: [
-      "Ein Eintrag trägt `Elternbrief`, `Umfrage`, `Wichtig` oder `Betreuung fällt aus`.",
+      "Umfragen tragen über dem Titel `Umfrage`, abgesagte Betreuung trägt `Betreuung fällt aus`.",
+      "Unten am Eintrag steht, ob er `Wichtig` ist, ob Sie eine `Erinnerung` bekommen haben und ob eine `Bestätigung erforderlich` ist.",
       "Bei einer Umfrage steht `Antwort bis` mit dem letzten Tag.",
       "Ist die Frist vorbei, steht dort `Umfrage geschlossen`.",
     ],
