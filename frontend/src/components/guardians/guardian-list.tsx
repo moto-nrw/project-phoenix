@@ -197,7 +197,10 @@ export default function GuardianList({
               </div>
 
               {!readOnly && menuItems.length > 0 && (
-                <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1">
+                <div
+                  className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1"
+                  data-setup-tour={showInvite ? "guardian-menu" : undefined}
+                >
                   <OverflowMenu
                     ariaLabel={`Aktionen für ${getGuardianFullName(guardian)}`}
                     items={menuItems}
