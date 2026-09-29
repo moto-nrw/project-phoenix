@@ -162,3 +162,58 @@ export const DiceBearThumbs: Story = { args: { style: "DiceBear thumbs" } };
 export const NaviiMaskottchen: Story = {
   args: { style: "Navii Maskottchen" },
 };
+
+// One PNG for the Slack vote: every style as a numbered row of eight
+// avatars in the real card-avatar size, plus one card for context.
+function Collage() {
+  return (
+    <div className="inline-block bg-white p-6">
+      <p className="mb-4 text-lg font-bold text-gray-900">
+        Avatar-Stil für die Marketing-Schule: welche Nummer?
+      </p>
+      <div className="flex flex-col gap-3">
+        {Object.entries(STYLES).map(([name, make], n) => (
+          <div key={name} className="flex items-center gap-4">
+            <span className="w-8 text-right text-xl font-bold text-gray-900">
+              {n + 1}
+            </span>
+            <span className="w-44 text-sm text-gray-600">{name}</span>
+            <div className="flex gap-2">
+              {CHILDREN.filter((_, i) => hasPhoto(i))
+                .slice(0, 8)
+                .map(([first, last]) => (
+                  // eslint-disable-next-line @next/next/no-img-element -- prototype
+                  <img
+                    key={last}
+                    src={make(`${first} ${last}`)}
+                    alt={`${first} ${last}`}
+                    className="size-14 rounded-full"
+                  />
+                ))}
+            </div>
+            <div className="w-72">
+              <StudentCard
+                studentId="c"
+                firstName="Mia"
+                lastName="Schmidt"
+                photoUrl={make("Mia Schmidt")}
+                onClick={() => undefined}
+                locationBadge={
+                  <LocationBadge
+                    student={{ current_location: "Anwesend" }}
+                    displayMode="roomName"
+                  />
+                }
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export const SlackCollage: StoryObj = {
+  render: () => <Collage />,
+  parameters: { layout: "fullscreen" },
+};
