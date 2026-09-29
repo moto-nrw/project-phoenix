@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import sharp from "sharp";
@@ -119,6 +120,40 @@ async function assertReplaceable(outDir: string): Promise<void> {
   }
 }
 
+/** Behält die vorige Ausgabe bis zum erfolgreichen Austausch als Rückfall. */
+export async function replaceOutput(
+  tmpDir: string,
+  outDir: string,
+): Promise<void> {
+  const backupDir = join(
+    dirname(outDir),
+    `.${basename(outDir)}.backup-${randomUUID()}`,
+  );
+  let hasBackup = false;
+  try {
+    await rename(outDir, backupDir);
+    hasBackup = true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  try {
+    await rename(tmpDir, outDir);
+  } catch (error) {
+    if (hasBackup) {
+      try {
+        await rename(backupDir, outDir);
+      } catch (restoreError) {
+        throw new Error(
+          `Ausgabe konnte nicht ersetzt werden (${String(error)}); vorige Ausgabe liegt in ${backupDir}`,
+          { cause: restoreError },
+        );
+      }
+    }
+    throw error;
+  }
+  if (hasBackup) await rm(backupDir, { recursive: true });
+}
+
 export async function runPipeline(options: PipelineOptions): Promise<Manifest> {
   const log = options.log ?? (() => undefined);
   const now = options.now ?? new Date();
@@ -183,8 +218,7 @@ export async function runPipeline(options: PipelineOptions): Promise<Manifest> {
       join(tmpDir, MANIFEST_FILE),
       `${JSON.stringify(manifest, null, 2)}\n`,
     );
-    await rm(options.outDir, { recursive: true, force: true });
-    await rename(tmpDir, options.outDir);
+    await replaceOutput(tmpDir, options.outDir);
   } catch (error) {
     await rm(tmpDir, { recursive: true, force: true });
     throw error;

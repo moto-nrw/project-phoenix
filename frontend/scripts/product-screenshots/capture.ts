@@ -251,8 +251,6 @@ async function captureOne(
       (step) => "klicken" in step,
     );
     let loadingIndicators = await waitForSettled(page, loadTimeoutMs);
-    // Vor den Schritten: ein Klick darf navigieren, die Zielseite nicht.
-    const finalPath = new URL(page.url()).pathname;
     for (const step of shot.vorbereitung ?? []) {
       try {
         await runStep(page, step);
@@ -269,7 +267,7 @@ async function captureOne(
       ...stepFailures,
       ...findBrokenReasons({
         requestedPath,
-        finalPath,
+        finalPath: new URL(page.url()).pathname,
         documentStatus: response?.status() ?? null,
         failedResponses,
         consoleErrors,
