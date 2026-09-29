@@ -511,11 +511,12 @@ describe("getParentHelpTopicForPath", () => {
     );
     const visible = new Set(leadTopics.map((topic) => topic.id));
 
-    // 48 eigene Leitungs-Themen plus die geteilten Artikel, deren Ablauf
-    // fuer Leitung und Betreuung derselbe ist -- die eigene Arbeitszeit,
-    // der eigene Kalender, der Aufbau der Navigation, die Seiten des
-    // Tagesbetriebs und der Umgang mit dem NFC-Tablet.
-    expect(leadTopics).toHaveLength(78);
+    // 49 eigene Leitungs-Themen (seit #2832 mit „Erste Schritte mit moto“,
+    // seit #3430 mit den Einverständnissen) plus die geteilten Artikel, deren
+    // Ablauf fuer Leitung und Betreuung derselbe ist -- die eigene
+    // Arbeitszeit, der eigene Kalender, der Aufbau der Navigation, die Seiten
+    // des Tagesbetriebs und der Umgang mit dem NFC-Tablet.
+    expect(leadTopics).toHaveLength(79);
     expect(
       leadTopics.every(
         (topic) =>

@@ -12,6 +12,7 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -255,4 +256,16 @@ type StudentPhotoRuntimeDependencies struct {
 	Unlinker    users.PhotoUnlinker
 	Consents    StudentPhotoConsentRecorder
 	Logger      *slog.Logger
+}
+
+// StudentPhotoFeatureToggle is the one photo lifecycle operation the settings
+// side effects call when the feature flag changes.
+type StudentPhotoFeatureToggle interface {
+	HandleFeatureToggle(ctx context.Context, tenantID int64, value any) (postCommit func(), err error)
+}
+
+// RegisterStudentPhotoSettingsSideEffects wires the student-photo feature flag
+// to the photo lifecycle service.
+func RegisterStudentPhotoSettingsSideEffects(registry *sideeffects.Registry, service StudentPhotoFeatureToggle) {
+	registry.Register(configModel.KeyStudentPhotosEnabled, service.HandleFeatureToggle)
 }

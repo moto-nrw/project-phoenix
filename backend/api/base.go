@@ -14,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	schoolSetupCompose "github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 
@@ -47,7 +48,6 @@ import (
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
-	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/birthdays/http"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
@@ -91,6 +91,7 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
+	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	schoolCalendarModule "github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -916,8 +917,7 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL,
 	api.securityLogging = os.Getenv("SECURITY_LOGGING_ENABLED") == "true"
 	api.rateLimiting = os.Getenv("RATE_LIMIT_ENABLED") == "true"
 	api.authRateLimit = os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE")
-	api.registerRoutesWithRateLimiting(requestFeedResource)
-	if err := requireCoreActionClassification(api.Router); err != nil {
+	if err := api.registerRoutes(requestFeedResource, db); err != nil {
 		return nil, err
 	}
 
@@ -1582,7 +1582,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	})
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.UserContext, db, logger.With("handler", "sse"))
 	api.SSE.SetSchoolAccess(api.Services.Auth)
-	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, db, logger.With("handler", "birthdays"))
+	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, logger.With("handler", "birthdays"))
 	api.UserContext = meAPI.NewResource(api.Services.UserContext.Caller(), api.Services.UserContext)
 	// The school portal's class-day surface reads the class-day projection
 	// (#2701): the day report over Enrollment's day roster and the
@@ -1815,8 +1815,21 @@ func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, conf
 	return limiters
 }
 
+// registerRoutes builds the module routes, mounts every route and refuses to
+// start while a writing route has no core-action classification.
+func (a *API) registerRoutes(requestFeed *requestFeedHTTP.Resource, db *bun.DB) error {
+	schoolSetup, err := newSchoolSetupRoute(schoolSetupCompose.Dependencies{
+		Settings: a.Services.Settings,
+	}, db)
+	if err != nil {
+		return err
+	}
+	a.registerRoutesWithRateLimiting(requestFeed, schoolSetup)
+	return requireCoreActionClassification(a.Router)
+}
+
 // registerRoutesWithRateLimiting registers all API routes with appropriate rate limiting
-func (a *API) registerRoutesWithRateLimiting(requestFeed *requestFeedHTTP.Resource) {
+func (a *API) registerRoutesWithRateLimiting(requestFeed *requestFeedHTTP.Resource, modules ...moduleRoute) {
 	// Get security logger if it exists
 	var securityLogger *customMiddleware.SecurityLogger
 	if a.securityLogging {
@@ -1831,7 +1844,7 @@ func (a *API) registerRoutesWithRateLimiting(requestFeed *requestFeedHTTP.Resour
 	}
 
 	a.registerPublicRoutes(requestFeed)
-	a.registerTenantRoutes(requestFeed)
+	a.registerTenantRoutes(requestFeed, modules)
 	a.registerPortalRoutes(limiters)
 }
 
@@ -1950,11 +1963,14 @@ func (a *API) registerPortalRoutes(limiters authRateLimiters) {
 }
 
 // registerTenantRoutes mounts all tenant API resources under the /api prefix.
-func (a *API) registerTenantRoutes(requestFeed *requestFeedHTTP.Resource) {
+func (a *API) registerTenantRoutes(requestFeed *requestFeedHTTP.Resource, modules []moduleRoute) {
 	// Other API routes under /api prefix for organization
 	a.Router.Route("/api", func(r chi.Router) {
 		if requestFeed != nil {
 			r.Mount("/students/change-requests/rss-feed", requestFeed.TenantRouter())
+		}
+		for _, module := range modules {
+			r.Mount(module.pattern, module.router)
 		}
 		// Mount room resources
 		r.Mount("/rooms", a.Rooms.Router())

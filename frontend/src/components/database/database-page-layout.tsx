@@ -89,6 +89,11 @@ export function DatabasePageLayout({
       <TenantPage
         title={intro.title}
         stats={intro.description}
+        // Das Gerüst setzt das Skelett der Statuszeile selbst. Eine Seite, die
+        // stattdessen ein eigenes <Skeleton> als Beschreibung übergibt, landet
+        // im <p> der Kopfkarte -- ein <div> in einem <p> ist ungültiges HTML
+        // und bricht die Hydration.
+        statsLoading={isLoading}
         actions={intro.actions}
         searchSlot={!isLoading && search ? search : undefined}
         error={error ?? null}

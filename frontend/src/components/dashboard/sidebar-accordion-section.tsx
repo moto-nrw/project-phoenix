@@ -45,6 +45,8 @@ interface SidebarAccordionSectionProps {
   // darunter bewegen sich zweimal. Der Inhalt bleibt deshalb für die Dauer
   // der äußeren Bewegung offen stehen.
   readonly keepBodyExpandedWhileCollapsing?: boolean;
+  // Ziel der geführten Tour der ersten Schritte (#2832).
+  readonly tourId?: string;
 }
 
 export function SidebarAccordionSection({
@@ -65,6 +67,7 @@ export function SidebarAccordionSection({
   labelsMounted = true,
   labelsVisible = true,
   keepBodyExpandedWhileCollapsing = false,
+  tourId,
 }: SidebarAccordionSectionProps) {
   const iconColorClass =
     (isIconActive ?? isActive) && activeColor ? activeColor : "";
@@ -94,6 +97,7 @@ export function SidebarAccordionSection({
         variant="ghost"
         size="md"
         onClick={onToggle}
+        data-setup-tour={tourId}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();

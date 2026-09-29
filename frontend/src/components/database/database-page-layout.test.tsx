@@ -53,6 +53,27 @@ describe("DatabasePageLayout", () => {
     expect(screen.getByTestId("mobile-back")).toBeInTheDocument();
   });
 
+  it("leaves the status line to the scaffold while it loads", () => {
+    // Die Kopfkarte setzt die Statuszeile im Ladezustand in ein <div>, sonst
+    // in ein <p>. Gibt das Gerüst `statsLoading` nicht weiter, landet das
+    // Skelett der Seite im <p> -- ungültiges HTML, das die Hydration bricht.
+    const { container } = render(
+      <DatabasePageLayout
+        loading={true}
+        sessionLoading={false}
+        intro={{
+          title: "Personal",
+          description: <div data-testid="eigene-statuszeile" />,
+        }}
+      >
+        <div>Content</div>
+      </DatabasePageLayout>,
+    );
+
+    expect(screen.queryByTestId("eigene-statuszeile")).not.toBeInTheDocument();
+    expect(container.querySelector("p div")).toBeNull();
+  });
+
   it("applies default className", () => {
     const { container } = render(
       <DatabasePageLayout loading={false} sessionLoading={false}>

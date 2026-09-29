@@ -151,10 +151,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-birthdays",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-calendar",
       "kind": "inbound"
     },
@@ -433,6 +429,10 @@
     {
       "id": "guardian-link-view",
       "kind": "projection"
+    },
+    {
+      "id": "school-setup",
+      "kind": "projection"
     }
   ],
   "roles": [
@@ -498,6 +498,13 @@
       "role": "test-support",
       "internal_test_role": "e2e-test",
       "external_test_role": "e2e-test"
+    },
+    {
+      "path": "modules/peopledirectory/userscontract",
+      "owner": "people-directory",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     },
     {
       "path": "modules/peopledirectory/departure",
@@ -803,13 +810,6 @@
     {
       "path": "modules/identityaccess/inbound/account",
       "owner": "identity-access",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
-      "path": "modules/birthdays/http",
-      "owner": "inbound-birthdays",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -3382,6 +3382,48 @@
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/inbound/birthdays",
+      "owner": "people-directory",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/schoolsetupview",
+      "owner": "school-setup",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/schoolsetup",
+      "owner": "school-setup",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolsetup/internal/application",
+      "owner": "school-setup",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolsetup/compose",
+      "owner": "school-setup",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/schoolsetup/http",
+      "owner": "school-setup",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
     }
   ],
   "data_objects": [
@@ -4380,6 +4422,14 @@
     {
       "name": "users.guardian_financial_data",
       "write_owner": "people-directory"
+    },
+    {
+      "name": "config.school_setup_dismissals",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.school_setups",
+      "write_owner": "settings-platform"
     }
   ],
   "read_projections": [
@@ -4533,6 +4583,18 @@
         "auth.guardian_student_access",
         "users.student_guardian_pickup_permissions",
         "users.student_guardian_relationships"
+      ],
+      "tenant_safe": true
+    },
+    {
+      "id": "school-setup-progress",
+      "package": "modules/schoolsetupview",
+      "data_objects": [
+        "auth.guardian_invitations",
+        "auth.invitation_tokens",
+        "education.groups",
+        "facilities.rooms",
+        "users.student_school_memberships"
       ],
       "tenant_safe": true
     }
@@ -19369,104 +19431,6 @@
       "target_role": "adapter"
     },
     {
-      "id": "root-composition.to.inbound-birthdays-http",
-      "description": "The production root constructs the birthdays HTTP adapter (#2706).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-birthdays",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-birthdays.http-common",
-      "description": "Birthday handlers reuse common HTTP rendering, the tenant middleware chain, the permission gates and the student access scope (#2706).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-birthdays",
-      "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-birthdays.security-contract",
-      "description": "Birthday handlers name the users and time-tracking permissions (#2706).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-birthdays",
-      "source_role": "http",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "inbound-birthdays.identity-adapter",
-      "description": "Birthday handlers read the acting account from the JWT claims for the personal opt-out (#2706).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-birthdays",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "adapter"
-    },
-    {
-      "id": "inbound-birthdays.document-rendering",
-      "description": "The staff Geburtstagsliste renders through the Document Rendering renderer (#2706).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-birthdays",
-      "source_role": "http",
-      "target_owner": "document-rendering",
-      "target_role": "application"
-    },
-    {
-      "id": "inbound-birthdays.orm-sql",
-      "description": "Birthday HTTP composition passes the concrete Bun database to the shared tenant middleware (#2706).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-birthdays",
-      "source_role": "http",
-      "target_class": "orm-sql"
-    },
-    {
-      "id": "inbound-birthdays.adapter-test.identity-adapter",
-      "description": "Birthday handler tests construct tenant claims (#2706).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-birthdays",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "adapter"
-    },
-    {
-      "id": "inbound-birthdays.adapter-test.calendar-date",
-      "description": "Birthday handler tests pin birth dates with the repository calendar-date value type (#2706).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-birthdays",
-      "source_role": "adapter-test",
-      "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
-      "id": "inbound-birthdays.adapter-test.settings-domain",
-      "description": "Birthday handler tests name the two birthday setting keys (#2706).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-birthdays",
-      "source_role": "adapter-test",
-      "target_owner": "settings-platform",
-      "target_role": "domain"
-    },
-    {
       "id": "request-review-view.public.calendar-date",
       "description": "The request-review projection parses the history's decided-at bounds and names today's calendar day with the shared calendar-date type (#2705).",
       "scopes": [
@@ -22810,6 +22774,214 @@
       "source_role": "http",
       "target_owner": "settings-platform",
       "target_role": "public"
+    },
+    {
+      "id": "school-setup.integration-test.projection",
+      "description": "The school setup projection integration tests exercise the projection itself.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-setup",
+      "target_role": "postgres"
+    },
+    {
+      "id": "school-setup.application.public",
+      "description": "The wizard service answers in its public contract and returns its errors.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "application",
+      "target_owner": "school-setup",
+      "target_role": "public"
+    },
+    {
+      "id": "school-setup.compose.application",
+      "description": "The wizard composition constructs its application service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "compose",
+      "target_owner": "school-setup",
+      "target_role": "application"
+    },
+    {
+      "id": "school-setup.compose.settings-platform-postgres",
+      "description": "The wizard composition constructs its store, which lives with the Settings Platform tables it writes (#2832).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "postgres"
+    },
+    {
+      "id": "school-setup.compose.public",
+      "description": "The wizard composition returns its public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "compose",
+      "target_owner": "school-setup",
+      "target_role": "public"
+    },
+    {
+      "id": "school-setup.compose.settings-platform-application",
+      "description": "The wizard composition resolves the settings that decide which steps apply through the retained settings service (#2832).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "school-setup.compose.settings-platform-domain",
+      "description": "The wizard composition names the setting keys it resolves (#2832).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "school-setup.compose.tenant-runtime",
+      "description": "The wizard composition binds the request tenant transaction the store and the projection require.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-setup.compose.orm-sql",
+      "description": "The wizard composition resolves the concrete ORM transaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "root-composition.to.school-setup-compose",
+      "description": "The serving root constructs the onboarding wizard once (#2832).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "school-setup",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.school-setup-http",
+      "description": "The serving root mounts the wizard routes with the tenant HTTP mechanics (#2832).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "school-setup",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.to.school-setup-public",
+      "description": "The serving root renders the wizard conflicts with the codes of its public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "school-setup",
+      "target_role": "public"
+    },
+    {
+      "id": "settings-platform.postgres.school-setup-public",
+      "description": "The wizard store implements the storage port of the onboarding wizard (#2832, ADR 0043).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "postgres",
+      "target_owner": "school-setup",
+      "target_role": "public"
+    },
+    {
+      "id": "school-setup.http.public",
+      "description": "The wizard routes call exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "http",
+      "target_owner": "school-setup",
+      "target_role": "public"
+    },
+    {
+      "id": "school-setup.compose.postgres",
+      "description": "The wizard composition constructs its tenant-safe progress projection behind the port of its public contract (ADR 0043).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "compose",
+      "target_owner": "school-setup",
+      "target_role": "postgres"
+    },
+    {
+      "id": "school-setup.integration-test.compose",
+      "description": "The wizard integration tests build the real composition and drive its routes against Postgres (#2832).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-setup",
+      "target_role": "compose"
+    },
+    {
+      "id": "school-setup.integration-test.http",
+      "description": "The wizard integration tests mount the wizard routes with the test tenant mechanics (#2832).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-setup",
+      "target_role": "http"
+    },
+    {
+      "id": "school-setup.integration-test.settings-platform-application",
+      "description": "The wizard integration tests build the real settings service and its registry defaults (#2832).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "school-setup.integration-test.settings-platform-postgres",
+      "description": "The wizard integration tests build the real setting value stores (#2832).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-setup",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "postgres"
     }
   ],
   "relocations": [

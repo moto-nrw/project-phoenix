@@ -85,6 +85,7 @@ const (
 	PresetPickupList         = listexport.PresetPickupList
 	PresetBlankChecklist     = listexport.PresetBlankChecklist
 	PresetBirthdayList       = listexport.PresetBirthdayList
+	PresetStaffBirthdayList  = listexport.PresetStaffBirthdayList
 	PresetHealthList         = listexport.PresetHealthList
 )
 

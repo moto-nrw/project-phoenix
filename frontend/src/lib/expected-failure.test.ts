@@ -12,6 +12,35 @@ describe("expectedFailure", () => {
     expect(expectedFailure({ error }, "client")).toBe("network");
   });
 
+  it.each([
+    ["The operation was aborted."],
+    ["AbortError: The operation was aborted."],
+    ["This operation was aborted"],
+    ["The user aborted a request."],
+    ["signal is aborted without reason"],
+    ["Error fetching students: The operation was aborted."],
+  ])("treats the aborted request %j as an aborted failure", (error) => {
+    expect(expectedFailure({ error }, "client")).toBe("aborted");
+  });
+
+  it("keeps server-side aborts and aborted 5xx responses as errors", () => {
+    expect(
+      expectedFailure({ error: "The operation was aborted." }, "server"),
+    ).toBeNull();
+    expect(
+      expectedFailure(
+        { status: 502, error: "The operation was aborted." },
+        "client",
+      ),
+    ).toBeNull();
+    expect(
+      expectedFailure(
+        { error: "The operation was aborted by policy" },
+        "client",
+      ),
+    ).toBeNull();
+  });
+
   it("keeps server-side fetch failures as errors", () => {
     expect(
       expectedFailure({ error: "TypeError: Failed to fetch" }, "server"),

@@ -44,7 +44,8 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork) (GroupsTestModule, 
 	persons := users.NewPersonService(users.PersonServiceDependencies{
 		PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
 		StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
-		PersonRepo:       tt.Person, StudentRepo: tt.Student, StaffRepo: tt.Staff, TeacherRepo: tt.Teacher, AccountExists: repositories.AccountExists(r.Profile), DB: db, Logger: slog.Default(),
+		PersonRepo:       tt.Person, StudentRepo: tt.Student, TeacherRepo: tt.Teacher, AccountExists: repositories.AccountExists(r.Profile), DB: db, Logger: slog.Default(),
+		StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{DB: db, Persons: tt.Person, Staff: tt.Staff, Teachers: tt.Teacher}),
 	})
 	rooms, err := repositories.NewFacilities(db)
 	if err != nil {
