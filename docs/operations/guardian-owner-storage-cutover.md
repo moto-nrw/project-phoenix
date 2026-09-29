@@ -44,7 +44,7 @@ savepoint that holds the relationship row lock. `TestGuardianStorageCallerInvent
 fails the build when a provider names the mirror or the counter again. Keep the
 mirror, the triggers and the counter for the
 [rollback window](../agents/operations.md#rollback-window-of-a-storage-cutover);
-[Contract #2757](guardian-owner-storage-contract.md) (migration `1.15.428`)
+[Contract #2757](guardian-owner-storage-contract.md) (migration `1.15.429`)
 removes them once its three conditions hold. There is no waiting period.
 
 ## Release and rollback

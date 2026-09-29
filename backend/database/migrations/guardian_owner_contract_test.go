@@ -304,18 +304,18 @@ func TestGuardianContractObservedLockWaitAndTimeout(t *testing.T) {
 func TestGuardianContractOrdinaryUpgradeContractsExistingStorage(t *testing.T) {
 	t.Parallel()
 	db, _, _ := guardianContractFixture(t)
-	_, err := db.ExecContext(t.Context(), `DELETE FROM public.bun_migrations WHERE name = '001015428';
+	_, err := db.ExecContext(t.Context(), `DELETE FROM public.bun_migrations WHERE name = '001015429';
 		SELECT setval('users.students_guardians_compatibility_writes', 7)`)
 	require.NoError(t, err)
 	before := guardianContractOwnerRows(t, db)
 	var output bytes.Buffer
 	require.NoError(t, migratePreflightTo(t.Context(), db, &output))
-	require.Contains(t, output.String(), "migration preflight OK 1.15.428")
+	require.Contains(t, output.String(), "migration preflight OK 1.15.429")
 	require.NoError(t, Migrate(t.Context(), db))
 	require.Equal(t, before, guardianContractOwnerRows(t, db))
 	require.False(t, guardianCompatibilityRetained(t, db), "ordinary upgrades must perform cleanup, not silently defer it")
 	var applied bool
-	require.NoError(t, db.NewRaw(`SELECT EXISTS (SELECT FROM public.bun_migrations WHERE name = '001015428')`).Scan(t.Context(), &applied))
+	require.NoError(t, db.NewRaw(`SELECT EXISTS (SELECT FROM public.bun_migrations WHERE name = '001015429')`).Scan(t.Context(), &applied))
 	require.True(t, applied)
 	require.NoError(t, migratePreflightTo(t.Context(), db, &output))
 }
@@ -323,14 +323,14 @@ func TestGuardianContractOrdinaryUpgradeContractsExistingStorage(t *testing.T) {
 func TestGuardianContractOrdinaryUpgradeRejectsIncompleteLink(t *testing.T) {
 	t.Parallel()
 	db, _, ids := guardianContractFixture(t)
-	_, err := db.ExecContext(t.Context(), `DELETE FROM public.bun_migrations WHERE name = '001015428';
+	_, err := db.ExecContext(t.Context(), `DELETE FROM public.bun_migrations WHERE name = '001015429';
 		DELETE FROM auth.guardian_student_access WHERE relationship_id = `+strconv.FormatInt(ids[0], 10))
 	require.NoError(t, err)
 	var output bytes.Buffer
 	require.ErrorContains(t, migratePreflightTo(t.Context(), db, &output), "incomplete links")
 	require.ErrorContains(t, Migrate(t.Context(), db), "incomplete links")
 	var applied bool
-	require.NoError(t, db.NewRaw(`SELECT EXISTS (SELECT FROM public.bun_migrations WHERE name = '001015428')`).Scan(t.Context(), &applied))
+	require.NoError(t, db.NewRaw(`SELECT EXISTS (SELECT FROM public.bun_migrations WHERE name = '001015429')`).Scan(t.Context(), &applied))
 	require.False(t, applied)
 	require.True(t, guardianCompatibilityRetained(t, db))
 }
@@ -339,7 +339,7 @@ func TestGuardianContractInitialMigrationReachesContractedSchema(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	var applied, removed bool
-	require.NoError(t, db.NewRaw(`SELECT EXISTS (SELECT 1 FROM public.bun_migrations WHERE name = '001015428'),
+	require.NoError(t, db.NewRaw(`SELECT EXISTS (SELECT 1 FROM public.bun_migrations WHERE name = '001015429'),
 		to_regclass('users.students_guardians') IS NULL
 		AND to_regclass('users.students_guardians_compatibility_writes') IS NULL`).Scan(t.Context(), &applied, &removed))
 	require.True(t, applied)

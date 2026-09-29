@@ -1,6 +1,6 @@
 # Guardian owner storage Contract (#2757)
 
-Migration `1.15.428` removes the rollback mirror that Cutover `1.15.417`
+Migration `1.15.429` removes the rollback mirror that Cutover `1.15.417`
 ([#2756](guardian-owner-storage-cutover.md)) kept for previous-image rollback.
 It follows the [student](student-owner-storage-contract.md),
 [request-child](enrollment-storage-contract-2719.md) and
@@ -11,7 +11,7 @@ mixed-version rollout and no observation window.
 ## Before the release
 
 The issue names three conditions. Check them before the release that carries
-`1.15.428`:
+`1.15.429`:
 
 1. The cutover shipped in an earlier production release: `1.15.417` is
    recorded in `public.bun_migrations` and the owner tables are in use.
