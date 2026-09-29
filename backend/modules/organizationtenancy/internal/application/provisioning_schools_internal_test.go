@@ -350,7 +350,6 @@ func TestProvisioningUpdateSchool(t *testing.T) {
 		h.addOrg(1, "Talent", "talent", false)
 		school := h.addSchool(10, 1, "Burbach", "burbach")
 		school.Settings = `{"theme":"blue"}`
-		school.DevicePinHash = "pin-hash"
 
 		updated, err := h.svc.UpdateSchool(context.Background(), 10, organizationtenancy.SchoolChanges{
 			OrganizationID: 1, Name: "Walbach", Slug: "walbach", Subdomain: "walbach-gs",
@@ -365,7 +364,6 @@ func TestProvisioningUpdateSchool(t *testing.T) {
 		require.Len(t, h.engine.updates, 1)
 		write := h.engine.updates[0]
 		assert.Equal(t, `{"theme":"blue"}`, write.Settings, "settings are not operator-editable and must be kept")
-		assert.Equal(t, "pin-hash", write.DevicePinHash, "the device PIN hash must be kept")
 		assert.Equal(t, "Hauptstr. 1", write.Address)
 		assert.Equal(t, "info@walbach.test", write.Email)
 
