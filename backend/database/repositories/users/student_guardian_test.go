@@ -31,11 +31,7 @@ func createTestStudentGuardian(t *testing.T, db *bun.DB, studentID, guardianProf
 	}
 	sg.SetTenantID(testpkg.Tenant(t))
 
-	_, err := db.NewInsert().
-		Model(sg).
-		ModelTableExpr(`users.students_guardians`).
-		Exec(ctx)
-	require.NoError(t, err)
+	require.NoError(t, testpkg.InsertTestStudentGuardian(ctx, db, sg))
 
 	return sg
 }
@@ -294,8 +290,7 @@ func TestStudentGuardianRepository_List_WithFilters(t *testing.T) {
 		Permissions:        map[string]interface{}{},
 	}
 	sg.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(sg).ModelTableExpr(`users.students_guardians`).Exec(ctx)
-	require.NoError(t, err)
+	require.NoError(t, testpkg.InsertTestStudentGuardian(ctx, db, sg))
 
 	// ACT
 	results, err := repo.List(ctx, map[string]interface{}{
@@ -442,7 +437,7 @@ func TestStudentGuardianRepository_ListLinkedChildrenForGuardians_EmptyInput(t *
 // FOR UPDATE row lock the parent guardian write paths rely on (PR #1743 review,
 // finding 3). UpdateGuardianContact and UpdateGuardianRelationship read the
 // relationship row, decide authorization from its role/account, then write — a
-// TOCTOU window a concurrent staff edit of the SAME students_guardians row could
+// TOCTOU window a concurrent staff edit of the SAME relationship row could
 // otherwise slip through (promote/demote/remove the link between the check and
 // the write). FindByStudentAndGuardianForUpdate closes it: the FOR UPDATE lock
 // makes a staff UPDATE/DELETE of that row block until the parent tx commits, so
@@ -496,7 +491,7 @@ func TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate(t *testing.
 		_, err = staffTx.ExecContext(ctx, "SET LOCAL lock_timeout = ?", "200ms")
 		require.NoError(t, err)
 		_, err = staffTx.NewUpdate().
-			TableExpr("users.students_guardians").
+			TableExpr("users.student_guardian_relationships").
 			Set("guardian_role = ?", testpkg.GuardianRoleSocialWorker).
 			Where("id = ?", sg.ID).
 			Exec(ctx)
@@ -507,7 +502,7 @@ func TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate(t *testing.
 		// Release the parent lock; the staff UPDATE must now succeed.
 		require.NoError(t, tx.Rollback())
 		_, err = db.NewUpdate().
-			TableExpr("users.students_guardians").
+			TableExpr("users.student_guardian_relationships").
 			Set("guardian_role = ?", testpkg.GuardianRoleSocialWorker).
 			Where("id = ?", sg.ID).
 			Exec(ctx)
@@ -601,12 +596,8 @@ func TestStudentGuardianRepository_GuardianEmailHasStudentPermission(t *testing.
 	// The fixture uniquifies the address, so read back what was actually stored.
 	accountlessEmail := *accountlessProfile.Email
 	accountlessLink := createTestStudentGuardian(t, db, accountlessChild.ID, accountlessProfile.ID, "parent", true)
-	_, err := db.NewUpdate().
-		TableExpr("users.students_guardians").
-		Set("permissions = ?", map[string]any{testpkg.GuardianPermissionEnrollmentSubmit: true}).
-		Where("id = ?", accountlessLink.ID).
-		Exec(ctx)
-	require.NoError(t, err)
+	require.NoError(t, testpkg.SetTestStudentGuardianPermissions(ctx, db, accountlessLink.ID,
+		map[string]any{testpkg.GuardianPermissionEnrollmentSubmit: true}))
 
 	perm := testpkg.GuardianPermissionEnrollmentSubmit
 

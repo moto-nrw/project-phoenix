@@ -74,7 +74,7 @@ func linkContactOnlyGuardian(t *testing.T, db *bun.DB, studentID int64, emailSee
 	cleanup := func() {
 		bg := testpkg.WithPackageTenantRuntime(context.Background())
 		_, _ = db.NewDelete().TableExpr("users.guardian_phone_numbers").Where("guardian_profile_id = ?", profile.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("guardian_profile_id = ?", profile.ID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.student_guardian_relationships").Where("guardian_profile_id = ?", profile.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(bg)
 	}
 	return profile.ID, cleanup
@@ -142,7 +142,7 @@ func TestCreateGuardianContact_AddsAccountlessPickupContact(t *testing.T) {
 		bg := testpkg.WithPackageTenantRuntime(context.Background())
 		_, _ = db.NewDelete().TableExpr("audit.guardian_changes").Where("guardian_profile_id = ?", created.GuardianProfileID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("users.guardian_phone_numbers").Where("guardian_profile_id = ?", created.GuardianProfileID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("guardian_profile_id = ?", created.GuardianProfileID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.student_guardian_relationships").Where("guardian_profile_id = ?", created.GuardianProfileID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", created.GuardianProfileID).Exec(bg)
 	}()
 
@@ -153,7 +153,7 @@ func TestCreateGuardianContact_AddsAccountlessPickupContact(t *testing.T) {
 	require.Len(t, created.Phones, 1)
 
 	var role string
-	err = db.NewSelect().TableExpr("users.students_guardians").ColumnExpr("guardian_role").
+	err = db.NewSelect().TableExpr("users.student_guardian_relationships").ColumnExpr("guardian_role").
 		Where("student_id = ? AND guardian_profile_id = ?", chain.StudentID, created.GuardianProfileID).
 		Scan(testpkg.WithPackageTenantRuntime(context.Background()), &role)
 	require.NoError(t, err)
@@ -396,7 +396,7 @@ func TestUpdateGuardianContact_RejectsCrossFamilySharedProfile(t *testing.T) {
 	other := testpkg.CreateTestStudent(t, db, "Fremd", "Kind", "3c")
 	defer func() {
 		bg := testpkg.WithPackageTenantRuntime(context.Background())
-		_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("student_id = ?", other.ID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.student_guardian_relationships").Where("student_id = ?", other.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", other.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", other.PersonID).Exec(bg)
 	}()
@@ -783,7 +783,7 @@ func linkAccountGuardian(t *testing.T, db *bun.DB, studentID int64, seed string,
 		Permissions:       permissions,
 	}
 	link.SetTenantID(testpkg.Tenant(t))
-	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(ctx)
+	err = testpkg.InsertTestStudentGuardian(ctx, db, link)
 	require.NoError(t, err)
 
 	now := time.Now()
@@ -803,7 +803,7 @@ func linkAccountGuardian(t *testing.T, db *bun.DB, studentID int64, seed string,
 
 	cleanup := func() {
 		bg := testpkg.WithPackageTenantRuntime(context.Background())
-		_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("guardian_profile_id = ?", profile.ID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.student_guardian_relationships").Where("guardian_profile_id = ?", profile.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", account.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(bg)
@@ -841,9 +841,10 @@ func guardianEmailForProfile(t *testing.T, db *bun.DB, profileID int64) string {
 func relationshipFlags(t *testing.T, db *bun.DB, studentID, profileID int64) (canPickup, emergency bool) {
 	t.Helper()
 	err := db.NewSelect().
-		TableExpr("users.students_guardians").
-		ColumnExpr("can_pickup, is_emergency_contact").
-		Where("student_id = ? AND guardian_profile_id = ?", studentID, profileID).
+		TableExpr("users.student_guardian_relationships AS r").
+		Join("JOIN users.student_guardian_pickup_permissions AS p ON p.tenant_id = r.tenant_id AND p.relationship_id = r.id").
+		ColumnExpr("p.can_pickup, r.is_emergency_contact").
+		Where("r.student_id = ? AND r.guardian_profile_id = ?", studentID, profileID).
 		Scan(testpkg.WithPackageTenantRuntime(context.Background()), &canPickup, &emergency)
 	require.NoError(t, err)
 	return canPickup, emergency
@@ -900,7 +901,7 @@ func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role
 	cleanup := func() {
 		bg := testpkg.WithPackageTenantRuntime(context.Background())
 		_, _ = db.NewDelete().TableExpr("users.guardian_phone_numbers").Where("guardian_profile_id = ?", profile.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("guardian_profile_id = ?", profile.ID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.student_guardian_relationships").Where("guardian_profile_id = ?", profile.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(bg)
 	}
 	return profile.ID, cleanup
@@ -1090,8 +1091,10 @@ func TestUpdateGuardianRelationship_ClearsPickupNote(t *testing.T) {
 
 	// Confirm it persisted as NULL in the row.
 	var note *string
-	err = db.NewSelect().TableExpr("users.students_guardians").ColumnExpr("pickup_notes").
-		Where("student_id = ? AND guardian_profile_id = ?", chain.StudentID, contactID).
+	err = db.NewSelect().TableExpr("users.student_guardian_relationships AS r").
+		Join("JOIN users.student_guardian_pickup_permissions AS p ON p.tenant_id = r.tenant_id AND p.relationship_id = r.id").
+		ColumnExpr("p.pickup_notes").
+		Where("r.student_id = ? AND r.guardian_profile_id = ?", chain.StudentID, contactID).
 		Scan(testpkg.WithPackageTenantRuntime(context.Background()), &note)
 	require.NoError(t, err)
 	assert.Nil(t, note, "cleared note stored as NULL")

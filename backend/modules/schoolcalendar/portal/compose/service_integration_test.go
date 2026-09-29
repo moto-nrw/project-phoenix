@@ -1738,8 +1738,7 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 	}
 	authorize.ApplyStudentGuardianRole(accountlessLink, authorize.GuardianRoleLegalGuardian)
 	accountlessLink.SetTenantID(testpkg.Tenant(t))
-	_, err = db.NewInsert().Model(accountlessLink).ModelTableExpr(`users.students_guardians`).Exec(context.Background())
-	require.NoError(t, err)
+	require.NoError(t, testpkg.InsertTestStudentGuardian(context.Background(), db, accountlessLink))
 
 	options, err := service.RecipientOptions(calendarContext(t, organizerAccount.ID), "target", 20)
 	require.NoError(t, err)

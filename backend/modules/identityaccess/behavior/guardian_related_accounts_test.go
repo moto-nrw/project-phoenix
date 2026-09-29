@@ -31,7 +31,7 @@ func (env *guardianTestEnv) linkExists(t *testing.T, studentID, guardianProfileI
 
 func (env *guardianTestEnv) deleteStudentGuardianLinks(studentID int64) {
 	_, _ = env.db.NewDelete().
-		TableExpr("users.students_guardians").
+		TableExpr("users.student_guardian_relationships").
 		Where("student_id = ?", studentID).
 		Exec(context.Background())
 }

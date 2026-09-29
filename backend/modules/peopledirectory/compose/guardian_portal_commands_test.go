@@ -79,7 +79,7 @@ func readGuardianLink(t *testing.T, db *bun.DB, studentID, guardianID int64) sto
 	var row storedGuardianLink
 	require.NoError(t, db.NewRaw(`SELECT id, tenant_id, relationship_type, guardian_role, is_primary, is_emergency_contact,
 		can_pickup, pickup_notes, emergency_priority, is_payer, permissions
-		FROM users.students_guardians WHERE student_id = ? AND guardian_profile_id = ?`, studentID, guardianID).
+		FROM (?) AS sg WHERE student_id = ? AND guardian_profile_id = ?`, testpkg.StudentGuardianLinks(db), studentID, guardianID).
 		Scan(context.Background(), &row))
 	return row
 }
@@ -315,7 +315,7 @@ func TestGuardianLinkCommandsInsertOnceAndPatchOnlySuppliedColumns(t *testing.T)
 
 	_, err = module.PatchGuardianLinkPickup(ctx, peopledirectory.GuardianLinkPickupPatch{LinkID: stored.ID})
 	require.ErrorIs(t, err, peopledirectory.ErrInvalidGuardian)
-	_, err = db.NewRaw(`DELETE FROM users.students_guardians WHERE id = ?`, stored.ID).Exec(context.Background())
+	_, err = db.NewRaw(`DELETE FROM users.student_guardian_relationships WHERE id = ?`, stored.ID).Exec(context.Background())
 	require.NoError(t, err)
 	affected, err = module.PatchGuardianLinkPickup(ctx, peopledirectory.GuardianLinkPickupPatch{LinkID: stored.ID, CanPickup: flagPtr(false)})
 	require.NoError(t, err)
