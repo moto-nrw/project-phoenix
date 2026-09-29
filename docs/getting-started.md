@@ -150,8 +150,10 @@ groups, and disabled enrollment. Two groups, two caregivers, and twelve
 children with contacts have weekly plans for all five weekdays, derived from
 the 10:15 reference clock (`marketingReferenceClock`): seven children are
 present, two were picked up early, and three are expected after 10:15. The
-presence itself is recorded through the web-attendance API at seed time. Four
-parent accounts (`ParentSeed1234%` unless `--staff-password` is set, one with
+presence itself is recorded through the web-attendance API at seed time. Product
+screenshots using this profile therefore require a seed from the capture day
+(Berlin time). Four parent accounts (`ParentSeed1234%` unless
+`--staff-password` is set, one with
 two children) are listed under
 `credentials.parents`.
 

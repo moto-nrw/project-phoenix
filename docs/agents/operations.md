@@ -237,17 +237,20 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
 
 - Needs the native stack (`scripts/dev-native.sh up`) seeded with the school
   profile `marketing`; the tenant and parents logins come from
-  `backend/.seed-state.json`. Only `*.localhost` hosts are photographed.
+  `backend/.seed-state.json`. Seed and capture must happen on the same Berlin
+  calendar day, or the command asks for a fresh seed instead of showing stale
+  attendance. Only `*.localhost` hosts are photographed.
 - Output per shot: `roh-<device>.png`, `<device>.png` (mockup, transparent
   background) and both as WebP in 640/960/1280/1600/2400/3200 px, plus
-  `manifest.json` (version, time, shots, files, sizes). The output directory is
-  replaced on every run and nothing is uploaded.
+  `manifest.json` (format marker, version, time, shots, files, sizes). The output
+  directory is replaced only when its marker and files match a previous pipeline
+  result; unrelated files and older outputs without the marker stay untouched.
+  Remove or move an older output explicitly before rerunning. Nothing is uploaded.
 - The browser clock stands at 10:15 Berlin of today's weekday
   (`reference-time.ts`); the seed derives its schedules from the same time. The
   server renders with its real clock, so the reference day must be the server's
   day; on a weekend the run aborts on the resulting hydration error instead of
-  printing an inconsistent image. Live presence follows the server clock too, so
-  a shot must not depend on day-scoped data of another day.
+  printing an inconsistent image. Live presence follows the server clock too.
 - A broken shot (HTTP error, error page, silent redirect away from its `pfad`,
   login redirect, unexpected dialog, loading state after the timeout, console
   error) aborts the whole run before anything is written.

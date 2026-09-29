@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import sharp from "sharp";
 
@@ -15,6 +22,7 @@ import type { Shot } from "./shot-list";
 // Ausgabeverzeichnis entsteht erst, wenn alle Bilder fertig sind.
 
 export const MANIFEST_FILE = "manifest.json";
+const MANIFEST_FORMAT = "moto-product-screenshots/v1";
 
 interface ManifestFile {
   /** Pfad relativ zum Ausgabeverzeichnis. */
@@ -39,6 +47,7 @@ interface ManifestShot {
 }
 
 export interface Manifest {
+  readonly format: typeof MANIFEST_FORMAT;
   readonly version: string;
   /** Wann die Bilder entstanden sind. */
   readonly zeitpunkt: string;
@@ -105,7 +114,7 @@ async function stageImage(
 }
 
 /** Ein Verzeichnis, das nicht von der Pipeline stammt, wird nie ersetzt. */
-async function assertReplaceable(outDir: string): Promise<void> {
+export async function assertReplaceable(outDir: string): Promise<void> {
   let entries: string[];
   try {
     entries = await readdir(outDir);
@@ -113,9 +122,68 @@ async function assertReplaceable(outDir: string): Promise<void> {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
     throw error;
   }
-  if (entries.length > 0 && !entries.includes(MANIFEST_FILE)) {
+  if (entries.length === 0) return;
+  if (!entries.includes(MANIFEST_FILE)) {
     throw new Error(
       `${outDir} ist nicht leer und enthält kein ${MANIFEST_FILE}. Die Pipeline ersetzt nur ihre eigene Ausgabe.`,
+    );
+  }
+  let manifest: Partial<Manifest>;
+  try {
+    manifest = JSON.parse(
+      await readFile(join(outDir, MANIFEST_FILE), "utf8"),
+    ) as Partial<Manifest>;
+  } catch (error) {
+    throw new Error(`${outDir} enthält kein gültiges Pipeline-Manifest.`, {
+      cause: error,
+    });
+  }
+  if (manifest?.format !== MANIFEST_FORMAT || !Array.isArray(manifest.shots)) {
+    throw new Error(
+      `${outDir} enthält kein Manifest dieser Pipeline und wird nicht ersetzt.`,
+    );
+  }
+
+  const expectedFiles = new Set<string>([MANIFEST_FILE]);
+  const expectedDirs = new Set<string>();
+  for (const shot of manifest.shots) {
+    if (!shot || typeof shot.id !== "string" || !Array.isArray(shot.dateien)) {
+      throw new Error(
+        `${outDir} enthält ein unvollständiges Pipeline-Manifest.`,
+      );
+    }
+    expectedDirs.add(shot.id);
+    for (const file of shot.dateien) {
+      if (
+        !file ||
+        typeof file.pfad !== "string" ||
+        file.pfad.split("/").length !== 2 ||
+        !file.pfad.startsWith(`${shot.id}/`)
+      ) {
+        throw new Error(
+          `${outDir} enthält einen ungültigen Dateipfad im Pipeline-Manifest.`,
+        );
+      }
+      expectedFiles.add(file.pfad);
+    }
+  }
+
+  async function checkEntries(dir: string, prefix = ""): Promise<void> {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory() && expectedDirs.delete(path)) {
+        await checkEntries(join(dir, entry.name), path);
+      } else if (!entry.isFile() || !expectedFiles.delete(path)) {
+        throw new Error(
+          `${outDir} enthält den nicht gelisteten Eintrag ${path} und wird nicht ersetzt.`,
+        );
+      }
+    }
+  }
+  await checkEntries(outDir);
+  if (expectedFiles.size > 0 || expectedDirs.size > 0) {
+    throw new Error(
+      `${outDir} enthält nicht alle im Pipeline-Manifest gelisteten Dateien und wird nicht ersetzt.`,
     );
   }
 }
@@ -186,6 +254,7 @@ export async function runPipeline(options: PipelineOptions): Promise<Manifest> {
   }
 
   const manifest: Manifest = {
+    format: MANIFEST_FORMAT,
     version: options.version,
     zeitpunkt: now.toISOString(),
     referenzzeit: referenceInstant(now).toISOString(),
@@ -218,6 +287,7 @@ export async function runPipeline(options: PipelineOptions): Promise<Manifest> {
       join(tmpDir, MANIFEST_FILE),
       `${JSON.stringify(manifest, null, 2)}\n`,
     );
+    await assertReplaceable(options.outDir);
     await replaceOutput(tmpDir, options.outDir);
   } catch (error) {
     await rm(tmpDir, { recursive: true, force: true });

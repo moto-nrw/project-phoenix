@@ -27,8 +27,8 @@ function isWeekend(day: Date): boolean {
  *
  * Grenze: Am Wochenende liegt der Referenztag vor dem Serverdatum. Der Lauf
  * bricht dann wegen dieses Fehlers ab, statt ein uneinheitliches Bild
- * auszugeben. Auch die Live-Anwesenheit folgt der Serveruhr, ein Shot darf
- * daher nicht von Tagesdaten eines anderen Tages abhängen.
+ * auszugeben. Die Live-Anwesenheit folgt ebenfalls dem Serverdatum; access.ts
+ * verlangt deshalb einen Seed vom heutigen Berliner Kalendertag.
  */
 export function referenceInstant(now: Date = new Date()): Date {
   let day = parseISODate(berlinTodayISO(now));

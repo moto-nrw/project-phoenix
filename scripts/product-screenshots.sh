@@ -11,8 +11,10 @@
 # Die Shot-Liste steht in frontend/scripts/product-screenshots/shots.yaml.
 #
 # Das Ausgabeverzeichnis (Standard: tmp/product-screenshots) wird bei jedem Lauf
-# ersetzt, aber nur, wenn es leer ist oder von dieser Pipeline stammt. Ein
-# kaputter Shot bricht den Lauf ab; dann bleibt die vorige Ausgabe stehen.
+# ersetzt, aber nur, wenn es leer ist oder ein vollständiges Manifest dieser
+# Pipeline enthält. Alte Ausgaben ohne Formatkennung müssen von Hand verschoben
+# oder entfernt werden. Ein kaputter Shot bricht den Lauf ab; dann bleibt die
+# vorige Ausgabe stehen.
 set -euo pipefail
 
 die() { echo "product-screenshots: $*" >&2; exit 1; }

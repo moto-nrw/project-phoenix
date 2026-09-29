@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { berlinTodayISO } from "../../src/lib/date-helpers";
 import { SEED_STATE_VERSION } from "../seed-state";
 import type { Shot } from "./shot-list";
 
@@ -39,6 +40,7 @@ interface SeedProfileJson {
 
 interface SeedStateJson {
   version?: string;
+  created_at?: string;
   profiles?: Record<string, SeedProfileJson>;
 }
 
@@ -87,6 +89,7 @@ export interface LoadAccessOptions {
   readonly statePath?: string;
   readonly frontendDir?: string;
   readonly env?: NodeJS.ProcessEnv;
+  readonly now?: Date;
 }
 
 export function loadStackAccess(options: LoadAccessOptions = {}): StackAccess {
@@ -116,6 +119,19 @@ export function loadStackAccess(options: LoadAccessOptions = {}): StackAccess {
   if (state.version !== SEED_STATE_VERSION) {
     throw new Error(
       `Seed-State Version ${JSON.stringify(state.version)} wird nicht unterstützt, erwartet ${SEED_STATE_VERSION}.`,
+    );
+  }
+  const seededAt = new Date(state.created_at ?? "");
+  if (Number.isNaN(seededAt.getTime())) {
+    throw new Error(
+      `Seed-State ${statePath} hat kein gültiges created_at. Die Datenbank neu seeden.`,
+    );
+  }
+  const seedDay = berlinTodayISO(seededAt);
+  const captureDay = berlinTodayISO(options.now ?? new Date());
+  if (seedDay !== captureDay) {
+    throw new Error(
+      `Die Anwesenheit des Marketing-Profils stammt vom ${seedDay}, heute ist ${captureDay}. Die Datenbank für Produkt-Screenshots zurücksetzen und neu seeden.`,
     );
   }
   const profile = state.profiles?.[PROFILE];
