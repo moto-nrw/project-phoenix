@@ -48,6 +48,7 @@ const BACK_LABEL: Record<AnnouncementKind, string> = {
   announcement: "Zurück zu den Mitteilungen",
   letter: "Zurück zu den Elternbriefen",
   poll: "Zurück zu den Umfragen",
+  declaration: "Zurück zu den Einverständnissen",
 };
 
 type LifecycleAction = "publish" | "unpublish" | "delete" | "reminder" | null;
@@ -178,7 +179,7 @@ function AnnouncementDetailPageContent() {
       ? `Veröffentlicht ${formatDate(announcement.published_at)}`
       : "Noch nicht veröffentlicht",
     announcement.response_deadline
-      ? `Antwort bis ${formatBerlinDate(announcement.response_deadline)}`
+      ? `${kind === "declaration" ? "Frist bis" : "Antwort bis"} ${formatBerlinDate(announcement.response_deadline)}`
       : announcement.expires_at
         ? `Läuft ab ${formatBerlinDate(announcement.expires_at)}`
         : null,
@@ -188,7 +189,11 @@ function AnnouncementDetailPageContent() {
     .join(" · ");
 
   const concept =
-    kind === "poll" ? MOTO_CONCEPTS.polls : MOTO_CONCEPTS.announcements;
+    kind === "poll"
+      ? MOTO_CONCEPTS.polls
+      : kind === "declaration"
+        ? MOTO_CONCEPTS.confirmations
+        : MOTO_CONCEPTS.announcements;
 
   return (
     <TenantPage

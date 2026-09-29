@@ -176,7 +176,7 @@ func TestSubmitCareException_PersistsGuardianRowWithNullCreatedBy(t *testing.T) 
 
 	// The load-bearing assertion: a guardian row stores created_by as NULL
 	// (nullzero) and references the account via created_by_guardian. NULL is
-	// what lets the row past the single-column created_by → users.staff(id) FK,
+	// what lets the row past the single-column created_by → users.staff_school_memberships(id) FK,
 	// which migration 1.15.136 made nullable for exactly this case.
 	var createdBy *int64
 	var createdByGuardian *int64
@@ -329,7 +329,7 @@ func TestSubmitCareException_ConflictWithStaffException(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Team", "Mitglied")
 	defer func() {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM schedule.student_pickup_exceptions WHERE student_id = ?`, chain.StudentID)
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.staff WHERE id = ?`, staff.ID)
+		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.staff_school_memberships WHERE id = ?`, staff.ID)
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
 	}()
 
@@ -529,7 +529,7 @@ func TestListCareExceptions_MergesBothLegsAndFlagsStaffSource(t *testing.T) {
 	defer func() {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM schedule.student_pickup_exceptions WHERE student_id = ?`, chain.StudentID)
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM schedule.student_arrival_exceptions WHERE student_id = ?`, chain.StudentID)
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.staff WHERE id = ?`, staff.ID)
+		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.staff_school_memberships WHERE id = ?`, staff.ID)
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
 	}()
 
@@ -612,7 +612,7 @@ func TestListCareExceptions_FlagsAbsentPickupRow(t *testing.T) {
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	defer func() {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM schedule.student_pickup_exceptions WHERE student_id = ?`, chain.StudentID)
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.staff WHERE id = ?`, staff.ID)
+		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.staff_school_memberships WHERE id = ?`, staff.ID)
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
 	}()
 
@@ -654,7 +654,7 @@ func TestListCareExceptions_FlagsAbsentArrivalRow(t *testing.T) {
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	defer func() {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM schedule.student_arrival_exceptions WHERE student_id = ?`, chain.StudentID)
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.staff WHERE id = ?`, staff.ID)
+		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.staff_school_memberships WHERE id = ?`, staff.ID)
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
 	}()
 
@@ -919,7 +919,7 @@ func TestSubmitCareExceptionWithReasonPreservesExistingArrival(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Ankunft", "Team")
 	defer func() {
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM schedule.student_arrival_exceptions WHERE student_id = ?`, chain.StudentID)
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.staff WHERE id = ?`, staff.ID)
+		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.staff_school_memberships WHERE id = ?`, staff.ID)
 		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
 	}()
 

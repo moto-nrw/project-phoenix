@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   BellRing,
   ExternalLink,
+  FileCheck,
   ListChecks,
   Megaphone,
   Send,
@@ -24,6 +25,7 @@ import {
   type SegmentedControlItem,
 } from "~/components/ui/segmented-control";
 import { LetterStatusPanel } from "~/components/announcements/letter-status-panel";
+import { DeclarationStatusPanel } from "~/components/announcements/declaration-status-panel";
 import type { Group } from "~/lib/api";
 import type { Activity } from "~/lib/activity-helpers";
 import { formatBerlinDate } from "~/lib/date-helpers";
@@ -34,6 +36,7 @@ import {
   fetchAnnouncementStats,
   fetchPollChildren,
   fetchPollResults,
+  isDeclaration,
   isLetter,
   isPoll,
   remindUnanswered,
@@ -409,7 +412,9 @@ export function AnnouncementDetail({
   // A published poll renders its Auswertung instead of the read/ack statistics
   // (see below), so it must not pay for the two requests behind them either.
   const showReadStats = !(
-    (isPoll(announcement) || isLetter(announcement)) &&
+    (isPoll(announcement) ||
+      isLetter(announcement) ||
+      isDeclaration(announcement)) &&
     announcement.status !== "draft"
   );
 
@@ -450,13 +455,22 @@ export function AnnouncementDetail({
   const isPublished = announcement.status !== "draft";
   const poll = isPoll(announcement);
   const letter = isLetter(announcement);
+  const declaration = isDeclaration(announcement);
   const chips = targetChips(announcement.targets, groups, activities);
 
   return (
     <div className="space-y-4 sm:space-y-6">
       <SectionCard
-        title={poll ? "Umfrage" : letter ? "Elternbrief" : "Mitteilung"}
-        icon={poll ? ListChecks : Megaphone}
+        title={
+          poll
+            ? "Umfrage"
+            : letter
+              ? "Elternbrief"
+              : declaration
+                ? "Einverständnis"
+                : "Mitteilung"
+        }
+        icon={poll ? ListChecks : declaration ? FileCheck : Megaphone}
       >
         <p className="text-sm leading-6 whitespace-pre-line text-gray-800">
           <LinkifiedText text={announcement.body} />
@@ -484,15 +498,17 @@ export function AnnouncementDetail({
               ))}
             </span>
           </DataField>
-          <DataField label={poll ? "Antwortart" : "Lesebestätigung"}>
-            {poll
-              ? RESPONSE_TYPE_LABEL[announcement.response_type]
-              : letter
-                ? "Erforderlich (Elternbrief)"
-                : announcement.requires_acknowledgement
-                  ? "Erforderlich"
-                  : "Nicht erforderlich"}
-          </DataField>
+          {!declaration && (
+            <DataField label={poll ? "Antwortart" : "Lesebestätigung"}>
+              {poll
+                ? RESPONSE_TYPE_LABEL[announcement.response_type]
+                : letter
+                  ? "Erforderlich (Elternbrief)"
+                  : announcement.requires_acknowledgement
+                    ? "Erforderlich"
+                    : "Nicht erforderlich"}
+            </DataField>
+          )}
           <DataField label="E-Mail an die Eltern">
             {letter
               ? announcement.email_audience === "all_contacts"
@@ -506,6 +522,30 @@ export function AnnouncementDetail({
             <DataField label="Antwort bis">
               {formatBerlinDate(announcement.response_deadline)}
             </DataField>
+          )}
+          {declaration && (
+            <>
+              <DataField label="Wer muss antworten?">
+                {announcement.declaration_signers === "all"
+                  ? "Alle sorgeberechtigten Personen"
+                  : "Eine sorgeberechtigte Person genügt"}
+              </DataField>
+              <DataField label="Frist">
+                {announcement.response_deadline
+                  ? `Bis ${formatBerlinDate(announcement.response_deadline)}`
+                  : "Keine Frist"}
+              </DataField>
+              <DataField label="Widerruf">
+                {announcement.declaration_revocable
+                  ? "Erlaubt, auch nach der Frist"
+                  : "Nicht erlaubt"}
+              </DataField>
+              <DataField label="Passwort vor dem Antworten">
+                {announcement.declaration_requires_password
+                  ? "Wird abgefragt"
+                  : "Wird nicht abgefragt"}
+              </DataField>
+            </>
           )}
           {!poll && (
             <DataField label="Erinnerung" fullWidth>
@@ -533,6 +573,18 @@ export function AnnouncementDetail({
           />
         </SectionCard>
       )}
+
+      {/* A withdrawn Einverständnis is a draft again, but its history stays: a
+        school must still see who acted on the earlier version. */}
+      {declaration &&
+        (isPublished || announcement.declaration_locked_attachments) && (
+          <SectionCard title="Stand der Antworten">
+            <DeclarationStatusPanel
+              announcementId={announcement.id}
+              canAct={announcement.status === "published"}
+            />
+          </SectionCard>
+        )}
 
       {/* A published poll shows its Auswertung instead of the read/ack
         statistics: the two count different things (children vs guardian
@@ -585,6 +637,13 @@ export function AnnouncementDetail({
  * sie schon raus ist. Ohne Erinnerung sagt die Zeile das ausdrücklich, damit
  * niemand eine zweite Zustellung erwartet, die nie kommt.
  */
+/** Was Empfänger schon getan haben können: beim Einverständnis antworten. */
+function reminderDoneVerb(announcement: Announcement): string {
+  return announcement.delivery_mode === "declaration"
+    ? "geantwortet"
+    : "gelesen oder bestätigt";
+}
+
 function reminderLine(announcement: Announcement) {
   const description = describeReminder(announcement);
   if (!description) {
@@ -600,8 +659,8 @@ function reminderLine(announcement: Announcement) {
         {description}
         <span className="block text-xs text-gray-500">
           {reminderStateOf(announcement) === "sent"
-            ? "Ging an alle Empfänger der Mitteilung, auch an die, die schon gelesen oder bestätigt hatten."
-            : "Geht an alle Empfänger der Mitteilung, auch wenn sie schon gelesen oder bestätigt haben."}
+            ? `Ging an alle Empfänger der Mitteilung, auch an die, die schon ${reminderDoneVerb(announcement)} hatten.`
+            : `Geht an alle Empfänger der Mitteilung, auch wenn sie schon ${reminderDoneVerb(announcement)} haben.`}
         </span>
       </span>
       {announcement.reminder_text ? (

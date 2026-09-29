@@ -168,9 +168,9 @@ func TestWorkTimeModelRefreshAssignedStaffSchedules_UpdatesCurrentSnapshots(t *t
 	}))
 	defer func() {
 		_, _ = db.NewUpdate().
-			Table("users.staff").
+			Table("users.staff_employment_profiles").
 			Set("work_time_model_id = NULL").
-			Where("id = ?", staff.ID).
+			Where("membership_id = ?", staff.ID).
 			Exec(ctx)
 		_ = repo.Delete(ctx, model.ID)
 	}()
@@ -185,10 +185,10 @@ func TestWorkTimeModelRefreshAssignedStaffSchedules_UpdatesCurrentSnapshots(t *t
 		},
 	}, configModel.CalendarDate("")))
 	_, err := db.NewUpdate().
-		Table("users.staff").
+		Table("users.staff_employment_profiles").
 		Set("work_time_model_id = ?", model.ID).
 		Set("rotation_anchor_date = ?", model.RotationAnchorDate).
-		Where("id = ?", staff.ID).
+		Where("membership_id = ?", staff.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -285,17 +285,17 @@ func TestWorkTimeModelDelete_BlocksAssignedModel(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, model, entries))
 	defer func() {
 		_, _ = db.NewUpdate().
-			Table("users.staff").
+			Table("users.staff_employment_profiles").
 			Set("work_time_model_id = NULL").
-			Where("id = ?", staff.ID).
+			Where("membership_id = ?", staff.ID).
 			Exec(ctx)
 		_ = repo.Delete(ctx, model.ID)
 	}()
 
 	_, err := db.NewUpdate().
-		Table("users.staff").
+		Table("users.staff_employment_profiles").
 		Set("work_time_model_id = ?", model.ID).
-		Where("id = ?", staff.ID).
+		Where("membership_id = ?", staff.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 

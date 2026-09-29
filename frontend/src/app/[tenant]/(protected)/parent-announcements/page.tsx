@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Check,
+  FileCheck,
   ListChecks,
   Megaphone,
   Plus,
@@ -35,6 +36,8 @@ import { Alert } from "~/components/ui/alert";
 import { useFormError } from "~/components/ui/form-error";
 import { Input } from "~/components/ui/input";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
+import { Radio } from "~/components/ui/radio";
 import { DatePicker } from "~/components/ui/date-picker";
 import { TimeField } from "~/components/ui/time-field";
 import {
@@ -107,6 +110,7 @@ import type {
   AnnouncementPriority,
   AnnouncementStatus,
   AnnouncementTarget,
+  DeclarationSigners,
 } from "~/lib/parent-announcements-api";
 
 const logger = createLogger({ component: "ParentAnnouncementsPage" });
@@ -123,6 +127,7 @@ const KIND_ITEMS: ReadonlyArray<SegmentedControlItem<AnnouncementKind>> = [
   { value: "announcement", label: "Mitteilungen" },
   { value: "letter", label: "Elternbriefe" },
   { value: "poll", label: "Umfragen" },
+  { value: "declaration", label: "Einverständnisse" },
 ];
 
 function announcementStatusFilterFromParam(
@@ -176,6 +181,14 @@ const KIND_COPY: Record<
     emptyTitle: "Keine Umfragen",
     emptyBody:
       "Stellen Sie den Eltern eine Frage, zum Beispiel ob ihr Kind zum Sommerfest kommt.",
+  },
+  declaration: {
+    title: "Einverständnisse",
+    action: "Einverständnis",
+    ariaLabel: "Neues Einverständnis erstellen",
+    emptyTitle: "Keine Einverständnisse",
+    emptyBody:
+      "Hier bitten Sie Eltern um ihr Einverständnis, zum Beispiel für einen Ausflug. Eltern stimmen für jedes Kind zu oder lehnen ab.",
   },
 };
 
@@ -343,6 +356,7 @@ function ParentAnnouncementsContent() {
       announcement: list.filter((a) => kindOf(a) === "announcement").length,
       letter: list.filter((a) => kindOf(a) === "letter").length,
       poll: list.filter((a) => kindOf(a) === "poll").length,
+      declaration: list.filter((a) => kindOf(a) === "declaration").length,
     }),
     [list],
   );
@@ -366,9 +380,13 @@ function ParentAnnouncementsContent() {
           ? ofKind.length === 1
             ? "Elternbrief"
             : "Elternbriefe"
-          : ofKind.length === 1
-            ? "Mitteilung"
-            : "Mitteilungen";
+          : kind === "declaration"
+            ? ofKind.length === 1
+              ? "Einverständnis"
+              : "Einverständnisse"
+            : ofKind.length === 1
+              ? "Mitteilung"
+              : "Mitteilungen";
     return `${ofKind.length} ${noun} · ${published} veröffentlicht`;
   })();
 
@@ -486,7 +504,9 @@ function ParentAnnouncementsContent() {
     {
       key: "dates",
       header:
-        kind === "poll" ? "Veröffentlicht / Frist" : "Veröffentlicht / Ablauf",
+        kind === "poll" || kind === "declaration"
+          ? "Veröffentlicht / Frist"
+          : "Veröffentlicht / Ablauf",
       render: (row) => (
         <div className="text-xs text-gray-600">
           <p>
@@ -495,7 +515,10 @@ function ParentAnnouncementsContent() {
               : "Noch nicht veröffentlicht"}
           </p>
           {row.response_deadline ? (
-            <p>Antwort bis {formatBerlinDate(row.response_deadline)}</p>
+            <p>
+              {kindOf(row) === "declaration" ? "Frist bis" : "Antwort bis"}{" "}
+              {formatBerlinDate(row.response_deadline)}
+            </p>
           ) : (
             row.expires_at && <p>Läuft ab {formatBerlinDate(row.expires_at)}</p>
           )}
@@ -570,7 +593,7 @@ function ParentAnnouncementsContent() {
           label: item.label,
           badge: kindCounts[item.value],
         })),
-        label: "Mitteilungen oder Umfragen",
+        label: "Art der Mitteilung",
       }}
       loading={isLoading}
       error={
@@ -587,6 +610,8 @@ function ParentAnnouncementsContent() {
               icon:
                 kind === "poll" ? (
                   <ListChecks className="h-12 w-12" aria-hidden />
+                ) : kind === "declaration" ? (
+                  <FileCheck className="h-12 w-12" aria-hidden />
                 ) : (
                   <Megaphone className="h-12 w-12" aria-hidden />
                 ),
@@ -731,6 +756,28 @@ const ACCEPTED_ATTACHMENT_TYPES = ".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg";
 // falls jemand die Schaltfläche doch noch erwischt.
 const ATTACHMENTS_LOCKED_HINT =
   "Die Mitteilung ist veröffentlicht. Die Dateien stehen jetzt fest. Ziehen Sie die Mitteilung zurück, wenn Sie etwas ändern möchten.";
+// Ein Einverständnis (#3430) friert ihre Dateien beim ersten Veröffentlichen ein.
+// Auch nach dem Zurückziehen bleiben sie gleich, damit jede Antwort auf genau
+// diese Dateien verweist.
+const DECLARATION_ATTACHMENTS_LOCKED_HINT =
+  "Dieses Einverständnis war schon veröffentlicht. Die Dateien bleiben deshalb gleich. Für andere Dateien legen Sie ein neues Einverständnis an.";
+
+const DECLARATION_SIGNER_OPTIONS: ReadonlyArray<{
+  value: DeclarationSigners;
+  label: string;
+  hint: string;
+}> = [
+  {
+    value: "any",
+    label: "Eine sorgeberechtigte Person genügt",
+    hint: "Eine Antwort pro Kind reicht.",
+  },
+  {
+    value: "all",
+    label: "Alle sorgeberechtigten Personen",
+    hint: "Jede sorgeberechtigte Person mit Eltern-Konto antwortet selbst.",
+  },
+];
 
 /**
  * Two-step wizard, like writing an e-mail: first the content, then who
@@ -755,6 +802,12 @@ function AnnouncementFormModal({
   // backend forces them and a DB constraint guarantees them, so the form shows
   // them as fixed facts rather than as choices that could be unticked.
   const isLetterForm = kind === "letter";
+  // An Einverständnis (#3430) is answered per child. It never carries poll options
+  // or a read confirmation, and it never reaches pending enrollments.
+  const isDeclarationForm = kind === "declaration";
+  const hasDeadline = isPollForm || isDeclarationForm;
+  const attachmentsFrozen =
+    isDeclarationForm && announcement?.declaration_locked_attachments === true;
   const [step, setStep] = useState(0);
   // Tracks the id of the draft once it exists in the backend. Seeded from an
   // existing draft when editing; set after a create so that a publish-retry
@@ -779,7 +832,11 @@ function AnnouncementFormModal({
   // Liste sagt es: ein Entwurf, der zwischenzeitlich anderswo veröffentlicht
   // wurde, ist es nicht mehr. Ohne diesen Zustand bietet der Assistent weiter
   // "Datei auswählen" und ein Kreuz an, die dann beide mit 409 scheitern.
-  const [attachmentsEditable, setAttachmentsEditable] = useState(true);
+  const [attachmentsEditable, setAttachmentsEditable] =
+    useState(!attachmentsFrozen);
+  const lockedHint = attachmentsFrozen
+    ? DECLARATION_ATTACHMENTS_LOCKED_HINT
+    : ATTACHMENTS_LOCKED_HINT;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Beim Bearbeiten eines Entwurfs die schon hochgeladenen Dateien nachladen.
@@ -793,7 +850,7 @@ function AnnouncementFormModal({
       .then((list) => {
         if (!cancelled) {
           setExistingAttachments(list.attachments);
-          setAttachmentsEditable(list.editable);
+          setAttachmentsEditable(list.editable && !attachmentsFrozen);
           setAttachmentError("");
         }
       })
@@ -810,7 +867,7 @@ function AnnouncementFormModal({
     return () => {
       cancelled = true;
     };
-  }, [persistedId]);
+  }, [persistedId, attachmentsFrozen]);
 
   const [title, setTitle] = useState(announcement?.title ?? "");
   const [body, setBody] = useState(announcement?.body ?? "");
@@ -880,6 +937,15 @@ function AnnouncementFormModal({
     if (existing.length > 0) return existing;
     return isPollForm ? ["Ja", "Nein"] : [];
   });
+  // Einverständnis settings (#3430). There is only one kind, consent; it can
+  // be withdrawn unless the school decides otherwise.
+  const [declarationSigners, setDeclarationSigners] =
+    useState<DeclarationSigners>(announcement?.declaration_signers ?? "any");
+  const [declarationRevocable, setDeclarationRevocable] = useState(
+    announcement?.declaration_revocable ?? true,
+  );
+  const [declarationRequiresPassword, setDeclarationRequiresPassword] =
+    useState(announcement?.declaration_requires_password ?? false);
   const [deadline, setDeadline] = useState<Date | null>(
     announcement?.response_deadline
       ? berlinDayFromISO(announcement.response_deadline)
@@ -938,6 +1004,12 @@ function AnnouncementFormModal({
         return false;
       }
     }
+    if (isDeclarationForm && deadline && expiresAt && deadline > expiresAt) {
+      setFormError(
+        "Die Frist darf nicht nach dem Ablaufdatum liegen, sonst sehen Eltern das Einverständnis nicht mehr.",
+      );
+      return false;
+    }
     const reminderTimeProblem = reminderTimeError(
       isPollForm ? null : reminderDay,
       reminderTime,
@@ -970,7 +1042,7 @@ function AnnouncementFormModal({
   const addFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
     if (!attachmentsEditable) {
-      setAttachmentError(ATTACHMENTS_LOCKED_HINT);
+      setAttachmentError(lockedHint);
       return;
     }
     setAttachmentError("");
@@ -1002,7 +1074,7 @@ function AnnouncementFormModal({
   const removeExistingAttachment = async (attachmentId: string) => {
     if (!persistedId) return;
     if (!attachmentsEditable) {
-      setAttachmentError(ATTACHMENTS_LOCKED_HINT);
+      setAttachmentError(lockedHint);
       return;
     }
     setAttachmentBusy(true);
@@ -1044,9 +1116,10 @@ function AnnouncementFormModal({
       // polls, so a value left over from a converted draft must not leak).
       // A letter always carries both channels; the backend forces them anyway,
       // but sending the true values keeps the payload honest.
-      requires_acknowledgement: isPollForm
-        ? false
-        : isLetterForm || requiresAck,
+      // An Einverständnis has its own per-child answer; the backend ignores the
+      // read confirmation there, so it is never sent as true.
+      requires_acknowledgement:
+        isPollForm || isDeclarationForm ? false : isLetterForm || requiresAck,
       send_email: isLetterForm || sendEmail,
       expires_at: expiresAt ? endOfBerlinDayISO(expiresAt) : null,
       targets,
@@ -1058,9 +1131,13 @@ function AnnouncementFormModal({
       // The chosen day is the LAST day parents can answer, so the cut-off is
       // its end — not midnight, which would close the poll a day early.
       response_deadline:
-        isPollForm && deadline ? endOfBerlinDayISO(deadline) : null,
+        hasDeadline && deadline ? endOfBerlinDayISO(deadline) : null,
       options: isPollForm ? options : undefined,
-      delivery_mode: isLetterForm ? "letter" : "standard",
+      delivery_mode: isLetterForm
+        ? "letter"
+        : isDeclarationForm
+          ? "declaration"
+          : "standard",
       // A broad e-mail audience belongs only to letters; standard announcements
       // always retain the existing portal-only delivery scope.
       email_audience: isLetterForm ? emailAudience : "portal_only",
@@ -1074,6 +1151,15 @@ function AnnouncementFormModal({
         !isPollForm && reminderDay && reminderText.trim()
           ? reminderText.trim()
           : null,
+      ...(isDeclarationForm
+        ? {
+            // The only kind; sent explicitly so the payload says what it is.
+            declaration_kind: "consent" as const,
+            declaration_signers: declarationSigners,
+            declaration_revocable: declarationRevocable,
+            declaration_requires_password: declarationRequiresPassword,
+          }
+        : {}),
     };
 
     setSubmitting(publish ? "publish" : "draft");
@@ -1221,9 +1307,13 @@ function AnnouncementFormModal({
                   ? isEdit
                     ? "Elternbrief bearbeiten"
                     : "Neuer Elternbrief"
-                  : isEdit
-                    ? "Elternmitteilung bearbeiten"
-                    : "Neue Elternmitteilung"}
+                  : isDeclarationForm
+                    ? isEdit
+                      ? "Einverständnis bearbeiten"
+                      : "Neues Einverständnis"
+                    : isEdit
+                      ? "Elternmitteilung bearbeiten"
+                      : "Neue Elternmitteilung"}
             </SlideOverTitle>
           </div>
           <SlideOverCloseButton />
@@ -1354,15 +1444,106 @@ function AnnouncementFormModal({
                 </section>
               )}
 
+              {isDeclarationForm && (
+                <section className="space-y-4">
+                  <div>
+                    <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                      Einverständnis
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-600">
+                      Eltern stimmen im Eltern-Portal für jedes Kind einzeln zu
+                      oder lehnen ab. Das ist eine einfache Erklärung per
+                      Knopfdruck. Verlangt ein Gesetz eine Erklärung auf Papier,
+                      reicht sie nicht aus.
+                    </p>
+                    <p className="mt-1 text-sm text-gray-600">
+                      Soll nur bestätigt werden, dass Eltern etwas gelesen
+                      haben? Dann schreiben Sie einen Elternbrief mit
+                      Lesebestätigung.
+                    </p>
+                  </div>
+
+                  <fieldset className="space-y-2">
+                    <legend className="mb-2 text-sm font-medium text-gray-700">
+                      Wer muss antworten?
+                    </legend>
+                    {DECLARATION_SIGNER_OPTIONS.map((option) => (
+                      <ChoiceTile
+                        key={option.value}
+                        selected={declarationSigners === option.value}
+                        className="items-start px-4 py-3"
+                      >
+                        <Radio
+                          name="declaration-signers"
+                          value={option.value}
+                          checked={declarationSigners === option.value}
+                          onChange={() => setDeclarationSigners(option.value)}
+                        />
+                        <span>
+                          <span className="block">{option.label}</span>
+                          <span className="block text-xs font-normal text-gray-500">
+                            {option.hint}
+                          </span>
+                        </span>
+                      </ChoiceTile>
+                    ))}
+                  </fieldset>
+
+                  <label
+                    htmlFor="declaration-revocable"
+                    className="flex cursor-pointer items-start gap-3"
+                  >
+                    <Checkbox
+                      id="declaration-revocable"
+                      checked={declarationRevocable}
+                      onChange={(e) =>
+                        setDeclarationRevocable(e.target.checked)
+                      }
+                    />
+                    <span className="text-sm text-gray-800">
+                      <span className="block">Widerruf erlauben</span>
+                      <span className="block text-xs text-gray-500">
+                        Eltern können eine Zustimmung später zurücknehmen, auch
+                        nach der Frist.
+                      </span>
+                    </span>
+                  </label>
+
+                  <label
+                    htmlFor="declaration-password"
+                    className="flex cursor-pointer items-start gap-3"
+                  >
+                    <Checkbox
+                      id="declaration-password"
+                      checked={declarationRequiresPassword}
+                      onChange={(e) =>
+                        setDeclarationRequiresPassword(e.target.checked)
+                      }
+                    />
+                    <span className="text-sm text-gray-800">
+                      <span className="block">
+                        Passwort vor dem Antworten abfragen
+                      </span>
+                      <span className="block text-xs text-gray-500">
+                        Eltern geben vor jeder Antwort das Passwort ihres
+                        Eltern-Kontos ein.
+                      </span>
+                    </span>
+                  </label>
+                </section>
+              )}
+
               <section className="space-y-3">
                 <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
                   Zeitraum
                 </h3>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {isPollForm && (
+                  {hasDeadline && (
                     <div>
                       <span className="mb-1.5 block text-sm font-medium text-gray-700">
-                        Antwortfrist (optional)
+                        {isDeclarationForm
+                          ? "Frist (optional)"
+                          : "Antwortfrist (optional)"}
                       </span>
                       <DatePicker
                         value={deadline}
@@ -1371,7 +1552,11 @@ function AnnouncementFormModal({
                         dropdownPlacement="down"
                       />
                       <p className="mt-1.5 text-xs text-gray-500">
-                        Danach ist die Umfrage geschlossen, bleibt aber lesbar.
+                        {isDeclarationForm
+                          ? declarationRevocable
+                            ? "Danach können Eltern nicht mehr antworten. Eine Zustimmung widerrufen geht weiter."
+                            : "Danach können Eltern nicht mehr antworten."
+                          : "Danach ist die Umfrage geschlossen, bleibt aber lesbar."}
                       </p>
                     </div>
                   )}
@@ -1391,7 +1576,9 @@ function AnnouncementFormModal({
                         ? "die Umfrage"
                         : isLetterForm
                           ? "der Elternbrief"
-                          : "die Mitteilung"}{" "}
+                          : isDeclarationForm
+                            ? "das Einverständnis"
+                            : "die Mitteilung"}{" "}
                       für Eltern ausgeblendet.
                     </p>
                   </div>
@@ -1405,9 +1592,17 @@ function AnnouncementFormModal({
                   </h3>
                   <p className="text-sm text-gray-600">
                     Optional: moto schickt{" "}
-                    {isLetterForm ? "den Elternbrief" : "die Mitteilung"} zu
-                    diesem Zeitpunkt noch einmal an alle Empfänger, auch wenn
-                    sie schon gelesen oder bestätigt haben.
+                    {isLetterForm
+                      ? "den Elternbrief"
+                      : isDeclarationForm
+                        ? "das Einverständnis"
+                        : "die Mitteilung"}{" "}
+                    zu diesem Zeitpunkt noch einmal an alle Empfänger, auch wenn
+                    sie schon{" "}
+                    {isDeclarationForm
+                      ? "geantwortet"
+                      : "gelesen oder bestätigt"}{" "}
+                    haben.
                   </p>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
@@ -1515,7 +1710,7 @@ function AnnouncementFormModal({
 
                 {/* A poll answer already IS the confirmation — offering a second,
                   weaker "gelesen" checkbox on top only muddies the result. */}
-                {!isPollForm && !isLetterForm && (
+                {!isPollForm && !isLetterForm && !isDeclarationForm && (
                   <label
                     htmlFor="announcement-ack"
                     className="flex cursor-pointer items-start gap-3"
@@ -1687,9 +1882,7 @@ function AnnouncementFormModal({
                     )}
                   </div>
                 ) : (
-                  <p className="text-xs text-gray-500">
-                    {ATTACHMENTS_LOCKED_HINT}
-                  </p>
+                  <p className="text-xs text-gray-500">{lockedHint}</p>
                 )}
 
                 {attachmentError && (
@@ -1713,9 +1906,16 @@ function AnnouncementFormModal({
                   ? "diese Umfrage"
                   : isLetterForm
                     ? "diesen Elternbrief"
-                    : "diese Mitteilung"
+                    : isDeclarationForm
+                      ? "dieses Einverständnis"
+                      : "diese Mitteilung"
               }
-              allowPendingEnrollment={!isPollForm && !isLetterForm}
+              heading={
+                isDeclarationForm ? "Wer soll gefragt werden?" : undefined
+              }
+              allowPendingEnrollment={
+                !isPollForm && !isLetterForm && !isDeclarationForm
+              }
             />
           )}
         </SlideOverBody>
@@ -1773,6 +1973,11 @@ interface TargetingStepProps {
   /** Names the thing being addressed in the heading (Mitteilung vs Umfrage). */
   readonly kindLabel: string;
   /**
+   * Replaces the whole heading where "Wer soll … erhalten?" reads wrong: an
+   * Einverständnis is asked for, not received.
+   */
+  readonly heading?: string;
+  /**
    * Offene Anmeldungen reach applicants who have no enrolled child yet — so a
    * poll would show them a question they cannot answer (answers are per child).
    * Polls therefore hide the option; the backend refuses it as well.
@@ -1789,6 +1994,7 @@ function TargetingStep({
   onChange,
   onSetStudentName,
   kindLabel,
+  heading,
   allowPendingEnrollment,
 }: TargetingStepProps) {
   // Single source of truth is `targets`; each control derives its selection
@@ -1879,7 +2085,7 @@ function TargetingStep({
     <div className="space-y-4">
       <div>
         <h4 className="text-sm font-semibold text-gray-900">
-          Wer soll {kindLabel} erhalten?
+          {heading ?? `Wer soll ${kindLabel} erhalten?`}
         </h4>
         <p className="mt-0.5 text-xs text-gray-500">
           Mehrere Zielgruppen lassen sich kombinieren; jedes Elternteil erhält

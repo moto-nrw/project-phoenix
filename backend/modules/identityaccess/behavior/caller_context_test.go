@@ -555,7 +555,7 @@ func TestCallerContext_GroupVisits(t *testing.T) {
 		require.Equal(t, staff.Person.ID, personID, "prerequisite: person ID should match")
 
 		var staffID int64
-		err = db.NewRaw(`SELECT id FROM users.staff WHERE person_id = ? AND tenant_id = ?`,
+		err = db.NewRaw(`SELECT id FROM users.staff_school_memberships WHERE person_id = ? AND tenant_id = ?`,
 			personID, testpkg.Tenant(t)).Scan(context.Background(), &staffID)
 		require.NoError(t, err, "prerequisite: staff should be findable by person_id")
 		require.Equal(t, staff.ID, staffID, "prerequisite: staff ID should match")

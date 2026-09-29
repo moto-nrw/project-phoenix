@@ -90,6 +90,9 @@ func CoreActionMiddleware(cfg CoreActionConfig) func(http.Handler) http.Handler 
 			if !ok || action.Event == "" {
 				return
 			}
+			if action.CreatedOnly && !responseCreated(body.Bytes()) {
+				return
+			}
 			actor, ok := resolveActor(cfg, r, action, body)
 			if !ok {
 				return
@@ -117,6 +120,25 @@ func lookupCoreAction(r *http.Request) (CoreAction, bool) {
 		return CoreAction{}, false
 	}
 	return coreActionFor(r.Method, routeCtx.RoutePattern())
+}
+
+// responseCreated accepts the standard response envelope used by idempotent
+// write handlers. A missing, malformed or false field is deliberately not a
+// new write and therefore must not produce a core-action event.
+func responseCreated(body []byte) bool {
+	var response struct {
+		Created *bool `json:"created"`
+		Data    struct {
+			Created *bool `json:"created"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(bytes.TrimSpace(body), &response); err != nil {
+		return false
+	}
+	if response.Data.Created != nil {
+		return *response.Data.Created
+	}
+	return response.Created != nil && *response.Created
 }
 
 // resolveActor names who acted. A session-minting route takes the minted

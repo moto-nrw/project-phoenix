@@ -17,6 +17,10 @@ type RouteKey struct {
 // deliberately not captured.
 type CoreAction struct {
 	Event string
+	// CreatedOnly captures an event only when the standard response envelope
+	// carries data.created=true. Idempotent writes return created=false and
+	// must not be counted as another completed core action.
+	CreatedOnly bool
 	// Session: the response mints a session (login, demo entry); the actor
 	// comes from its access token, and a 2xx without one sends nothing.
 	Session bool
@@ -30,7 +34,10 @@ type CoreAction struct {
 
 var notCaptured = CoreAction{}
 
-func event(name string) CoreAction   { return CoreAction{Event: name} }
+func event(name string) CoreAction { return CoreAction{Event: name} }
+func createdEvent(name string) CoreAction {
+	return CoreAction{Event: name, CreatedOnly: true}
+}
 func session(name string) CoreAction { return CoreAction{Event: name, Session: true} }
 func sessionOr(name, surface string) CoreAction {
 	return CoreAction{Event: name, Session: true, Surface: surface}
@@ -534,6 +541,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/parent/me/children/{studentId}/sick-note"}:                                event("absence_request_submitted"),
 	{http.MethodPost, "/parent/me/messages/children/{studentId}"}:                                 event("parent_message_sent"),
 	{http.MethodPost, "/parent/me/news/{announcementId}/acknowledge"}:                             notCaptured,
+	{http.MethodPost, "/parent/me/news/{announcementId}/declaration"}:                             createdEvent("parent_declaration_submitted"),
 	{http.MethodPost, "/parent/me/news/{announcementId}/read"}:                                    notCaptured,
 	{http.MethodPost, "/parent/me/news/{announcementId}/respond"}:                                 notCaptured,
 	{http.MethodDelete, "/parent/me/notification-preferences/"}:                                   notCaptured,

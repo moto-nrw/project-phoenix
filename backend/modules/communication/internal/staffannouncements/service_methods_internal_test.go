@@ -3,6 +3,7 @@ package announcement
 import (
 	"context"
 	"errors"
+	"io"
 	"testing"
 	"time"
 
@@ -19,6 +20,8 @@ import (
 // unexpectedly, which keeps each test honest about the repository calls it
 // drives.
 type mockRepo struct {
+	// Declaration reads are unused by these tests (#3430).
+	usersModels.ParentDeclarationRepository
 	createFn        func(ctx context.Context, a *usersModels.ParentAnnouncement) error
 	updateFn        func(ctx context.Context, a *usersModels.ParentAnnouncement) error
 	findByIDFn      func(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error)
@@ -529,6 +532,11 @@ func (p *stubPurger) QueueAttachmentCleanupForAnnouncement(_ context.Context, an
 }
 
 func (p *stubPurger) CountAttachments(context.Context, int64) (int, error) { return p.count, p.err }
+
+// AttachmentDigests is unused by these tests; declarations publish with it (#3430).
+func (p *stubPurger) AttachmentDigests(context.Context, int64, func(io.Reader) (string, int64, error)) ([]AttachmentDigest, error) {
+	return nil, p.err
+}
 
 // --- Delete -----------------------------------------------------------------
 

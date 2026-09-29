@@ -349,6 +349,13 @@ func (e engine) LoginWithMFAGate(ctx context.Context, email, password, ipAddress
 	return loginResult(result), authenticationError(err)
 }
 
+func (e engine) ConfirmAccountPassword(ctx context.Context, accountID int64, password string) error {
+	if e.auth == nil {
+		return errAccountAuthenticationUnavailable
+	}
+	return authenticationError(e.auth.ConfirmAccountPassword(e.attach(ctx), accountID, password))
+}
+
 func (e engine) LoginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
 	if e.auth == nil {
 		return "", "", errAccountAuthenticationUnavailable

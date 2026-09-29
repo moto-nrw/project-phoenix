@@ -2,6 +2,7 @@ package messaging
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -66,4 +67,34 @@ func (s *Service) GuardianAnnouncementTenant(ctx context.Context, accountID, ann
 		return 0, nil
 	}
 	return announcementTenantID, nil
+}
+
+// GuardianDeclarationProofAttachmentTenant answers whether one frozen
+// attachment belongs to this account's proof for this child. It intentionally
+// does not require the announcement to remain live: the proof remains useful
+// after expiry or withdrawal. The proof's relationship check still requires
+// parent_portal.access for exactly the supplied child.
+func (s *Service) GuardianDeclarationProofAttachmentTenant(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (int64, error) {
+	if accountID <= 0 || announcementID <= 0 || studentID <= 0 || attachmentID <= 0 {
+		return 0, nil
+	}
+	proof, err := s.DeclarationProof(ctx, accountID, announcementID, studentID)
+	if err != nil {
+		if errors.Is(err, ErrAnnouncementNotFound) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	for _, submission := range proof.Submissions {
+		version, ok := proof.Versions[submission.VersionID]
+		if !ok {
+			continue
+		}
+		for _, attachment := range version.Attachments {
+			if attachment.AttachmentID == attachmentID {
+				return version.TenantID, nil
+			}
+		}
+	}
+	return 0, nil
 }

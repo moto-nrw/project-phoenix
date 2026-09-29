@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -68,4 +69,45 @@ func TestSeedParentLetterMarksLetterReadByParent(t *testing.T) {
 		"/parent/auth/login", "/parent/me/news/71/read",
 		"/api/parent-announcements/", "/api/parent-announcements/72/publish",
 	}, paths)
+}
+
+func TestSeedParentDeclarationDeclaresThroughTheParentAPI(t *testing.T) {
+	t.Parallel()
+
+	var paths []string
+	var declared map[string]any
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		paths = append(paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/parent-announcements/":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":"81"}}`)
+		case "/parent/auth/login":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"access_token":"parent-token"}}`)
+		case "/parent/me/news":
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":[{"id":"81","title":%q,"declaration":{"version":{"id":"5"},"children":[{"student_id":"9","can_submit":false},{"student_id":"10","can_submit":true}]}}]}`, seedDeclarationTitle)
+		case "/parent/me/news/81/declaration":
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&declared))
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"created":true}}`)
+		default:
+			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
+		}
+	})
+	defer srv.Close()
+
+	client := newTestClient(srv.URL, false)
+	rt := &Runtime{
+		Client: client, Adapter: client.adapter, TenantAuth: AuthRef{Token: "staff"},
+		Parents: []ParentCredentials{{Email: "parent@example.test", Password: "Parent1234%"}},
+	}
+	require.NoError(t, (seedParentDeclarationStep{}).Run(t.Context(), rt))
+	// The document is attached before the first publication: after it the
+	// attachments of an Erklärung are fixed.
+	assert.Equal(t, []string{
+		"/api/parent-announcements/", "/api/announcement-attachments/81",
+		"/api/parent-announcements/81/publish",
+		"/parent/auth/login", "/parent/me/news", "/parent/me/news/81/declaration",
+	}, paths)
+	assert.Equal(t, map[string]any{"student_id": "10", "action": "agreed", "version_id": "5"}, declared,
+		"the parent declares only for a child they may declare for")
 }

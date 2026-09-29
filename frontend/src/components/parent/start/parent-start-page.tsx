@@ -10,6 +10,7 @@ import {
   NewsDetailModal,
   isOpenPoll,
 } from "~/components/parent/news/news-components";
+import { isOpenDeclaration } from "~/components/parent/news/declaration-section";
 import { TodoList, type TodoItem } from "~/components/parent/start/todo-list";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
@@ -507,10 +508,15 @@ function buildTodoItems(
     (item) =>
       !item.read ||
       isOpenPoll(item) ||
+      isOpenDeclaration(item) ||
       (item.requires_acknowledgement && !item.acknowledged),
   );
-  const polls = openAnnouncements.filter(isOpenPoll);
-  const notices = openAnnouncements.filter((item) => !isOpenPoll(item));
+  // An open Einverständnis (#3430) is as urgent as an open poll: the school waits
+  // for an answer per child, often with a deadline.
+  const isUrgent = (item: ParentAnnouncement) =>
+    isOpenPoll(item) || isOpenDeclaration(item);
+  const polls = openAnnouncements.filter(isUrgent);
+  const notices = openAnnouncements.filter((item) => !isUrgent(item));
 
   const appointments = sources.appointments
     .filter(
@@ -551,21 +557,26 @@ function todoFromAnnouncement(
 ): TodoItem {
   const needsAcknowledgement =
     item.requires_acknowledgement && !item.acknowledged;
+  const declaration = isOpenDeclaration(item);
   return {
     key: `announcement-${item.id}`,
-    concept: poll
-      ? "polls"
-      : needsAcknowledgement
-        ? "confirmations"
-        : "parentMessages",
+    concept: declaration
+      ? "confirmations"
+      : poll
+        ? "polls"
+        : needsAcknowledgement
+          ? "confirmations"
+          : "parentMessages",
     title: item.title,
     meta: formatTodoTimestamp(item.published_at, locale, t("todo.today")),
     unread: !item.read,
-    context: poll
-      ? t("todo.pollContext", { school: item.school_name })
-      : needsAcknowledgement
-        ? t("todo.ackContext", { school: item.school_name })
-        : t("todo.newsContext", { school: item.school_name }),
+    context: declaration
+      ? t("todo.declarationContext", { school: item.school_name })
+      : poll
+        ? t("todo.pollContext", { school: item.school_name })
+        : needsAcknowledgement
+          ? t("todo.ackContext", { school: item.school_name })
+          : t("todo.newsContext", { school: item.school_name }),
     // Kein Ziel: der Aushang oeffnet sich an Ort und Stelle, damit Lesen und
     // Antworten die Startseite nicht verlassen.
     onSelect: () => openAnnouncement(item.id),

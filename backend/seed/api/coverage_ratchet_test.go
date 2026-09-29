@@ -57,16 +57,17 @@ var seedCoverageExemptions = map[string]string{
 	"audit.room_color_migration_backup": "one-time migration snapshot; only installations with legacy reserved room colors can contain rows",
 	"audit.wc_alias_migration_backup":   "empty in prod too",
 
-	"auth.accounts_parents":           "empty in prod too",
-	"auth.demo_accesses":              "prospect contact data of the public demo; its routes exist under APP_ENV=demo only and the seeder must not invent prospects",
-	"auth.mfa_credentials":            "empty in prod too",
-	"auth.mfa_email_challenges":       "empty in prod too",
-	"auth.mfa_overrides":              "empty in prod too",
-	"auth.mfa_trusted_devices":        "empty in prod too",
-	"auth.passkey_credentials":        "empty in prod too",
-	"auth.passkey_sessions":           "short-lived WebAuthn challenge state; fake challenges would be invalid and cleanup removes them",
-	"auth.password_reset_rate_limits": "short-lived abuse-control state; deliberately created only by password-reset traffic",
-	"auth.password_reset_tokens":      "empty in prod too",
+	"auth.accounts_parents":                     "empty in prod too",
+	"auth.demo_accesses":                        "prospect contact data of the public demo; its routes exist under APP_ENV=demo only and the seeder must not invent prospects",
+	"auth.mfa_credentials":                      "empty in prod too",
+	"auth.mfa_email_challenges":                 "empty in prod too",
+	"auth.mfa_overrides":                        "empty in prod too",
+	"auth.mfa_trusted_devices":                  "empty in prod too",
+	"auth.passkey_credentials":                  "empty in prod too",
+	"auth.passkey_sessions":                     "short-lived WebAuthn challenge state; fake challenges would be invalid and cleanup removes them",
+	"auth.password_reset_rate_limits":           "short-lived abuse-control state; deliberately created only by password-reset traffic",
+	"auth.password_reset_tokens":                "empty in prod too",
+	"auth.parent_declaration_permission_grants": "one-time migration ledger; only upgrades with existing guardian relationships write it",
 
 	"calendar.appointment_occurrence_overrides":     "empty in prod too",
 	"calendar.appointment_recipient_students":       "empty in prod too",
@@ -122,7 +123,6 @@ var seedCoverageExemptions = map[string]string{
 	// Cutover #2753 froze users.staff as this rollback archive; the owner
 	// tables users.staff_school_memberships and users.staff_employment_profiles
 	// hold every seeded staff member. A fresh stack archives nothing.
-	"users.staff_legacy":                      "rollback-only archive of the pre-Cutover users.staff (#2753); empty on a fresh seed, dropped by #2754",
 	"users.staff_qualifications":              "empty in prod too",
 	"users.student_companions":                "empty in prod too",
 	"users.student_care_exit_removals":        "transient by design (#2487): holds a planned exit's removed plan only until the exit is cancelled or takes effect",

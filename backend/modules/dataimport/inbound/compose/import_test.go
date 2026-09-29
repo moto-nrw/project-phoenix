@@ -1133,9 +1133,10 @@ func TestImportStaff_FilesStammdatensatz(t *testing.T) {
 		WeeklyHours     *float64 `bun:"weekly_hours"`
 	}
 	var rows []staffRow
-	err := tc.db.NewSelect().Table("users.staff").
-		ColumnExpr("p.first_name, p.id AS person_id, p.account_id, staff.personnel_number, m.address_city, m.weekly_hours").
+	err := tc.db.NewSelect().TableExpr("users.staff_school_memberships AS staff").
+		ColumnExpr("p.first_name, p.id AS person_id, p.account_id, ep.personnel_number, m.address_city, m.weekly_hours").
 		Join("JOIN users.persons AS p ON p.id = staff.person_id").
+		Join("LEFT JOIN users.staff_employment_profiles AS ep ON ep.membership_id = staff.id AND ep.tenant_id = staff.tenant_id").
 		Join("LEFT JOIN users.staff_master_data AS m ON m.staff_id = staff.id").
 		Where("p.last_name = ?", fmt.Sprintf("Konto%d", unique)).
 		OrderExpr("p.first_name").

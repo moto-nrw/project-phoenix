@@ -51,6 +51,11 @@ const (
 	// change this child's recurring lunch schedule and day-specific overrides.
 	// Reading the meal plan and participation remains covered by portal access.
 	GuardianPermissionMealParticipationManage = "parent_portal.meal_participation.manage"
+	// GuardianPermissionDeclarationSubmit allows a guardian to give a binding
+	// Erklärung for this child (#3430): consent, refusal, acknowledgement or
+	// revocation. Only roles that carry custody receive it by default; seeing
+	// the Erklärung is covered by parent_portal.access.
+	GuardianPermissionDeclarationSubmit = "parent_portal.declarations.submit"
 )
 
 const (
@@ -77,6 +82,7 @@ var fullParentPortalPermissions = []string{
 	GuardianPermissionPickupManage,
 	GuardianPermissionConsentManage,
 	GuardianPermissionMealParticipationManage,
+	GuardianPermissionDeclarationSubmit,
 }
 
 // Guardian permission checks and grants are authorization concerns, not data
