@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	staffTargetOverrideWeekdaysVersion     = "1.15.429"
+	staffTargetOverrideWeekdaysVersion     = "1.15.430"
 	staffTargetOverrideWeekdaysDescription = "Add weekday_minutes to config.staff_target_overrides - a Sonderarbeitszeit with its own target per weekday (#3745)"
 )
 
@@ -17,7 +17,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     staffTargetOverrideWeekdaysVersion,
 		Description: staffTargetOverrideWeekdaysDescription,
-		DependsOn:   []string{staffTargetOverridesVersion, staffOwnerContractVersion},
+		DependsOn:   []string{staffTargetOverridesVersion, guardianOwnerContractVersion},
 	})
 
 	Migrations.MustRegister(
