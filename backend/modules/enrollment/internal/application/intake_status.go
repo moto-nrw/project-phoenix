@@ -241,7 +241,10 @@ func (s *Intake) Edit(ctx context.Context, token string, patch enrollment.EditPa
 	}
 	tenantCtx := s.deps.Runtime.WithTenant(ctx, req.TenantID)
 	return s.deps.Runtime.TenantTx(tenantCtx, req.TenantID, func(txCtx context.Context) error {
-		return s.writeEditPatch(txCtx, req, consentFlags != nil)
+		if err := s.writeEditPatch(txCtx, req, consentFlags != nil); err != nil {
+			return err
+		}
+		return s.markParentChanged(txCtx, req.ID)
 	})
 }
 
@@ -386,6 +389,11 @@ func (s *Intake) ConfirmRenewal(ctx context.Context, token string) (int, error) 
 	if err != nil {
 		return 0, err
 	}
+	if s.deps.Runtime.IsAdminTx(ctx) {
+		// Like Edit: the token lookup runs in an administrative transaction;
+		// the write opens a tenant transaction instead of reusing it.
+		ctx = s.deps.Runtime.DetachTransaction(ctx)
+	}
 	tenantCtx := s.deps.Runtime.WithTenant(ctx, req.TenantID)
 	var confirmed int
 	if err := s.deps.Runtime.TenantTx(tenantCtx, req.TenantID, func(txCtx context.Context) error {
@@ -398,7 +406,10 @@ func (s *Intake) ConfirmRenewal(ctx context.Context, token string) (int, error) 
 			}
 			confirmed++
 		}
-		return nil
+		if confirmed == 0 {
+			return nil
+		}
+		return s.markParentChanged(txCtx, req.ID)
 	}); err != nil {
 		return 0, err
 	}
@@ -409,4 +420,15 @@ func (s *Intake) ConfirmRenewal(ctx context.Context, token string) (int, error) 
 		)
 	}
 	return confirmed, nil
+}
+
+// markParentChanged makes the request unread for the staff again (#3778).
+func (s *Intake) markParentChanged(ctx context.Context, requestID int64) error {
+	if s.deps.ParentChanges == nil {
+		return nil
+	}
+	if err := s.deps.ParentChanges.MarkRequestParentChanged(ctx, requestID); err != nil {
+		return fmt.Errorf("record parent change: %w", err)
+	}
+	return nil
 }

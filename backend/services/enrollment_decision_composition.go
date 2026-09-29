@@ -119,6 +119,11 @@ func NewEnrollmentDecisions(src EnrollmentDecisionSources) *enrollmentCompose.De
 	if src.Companions != nil && src.DeleteCompanions != nil {
 		deps.Companions = enrollmentDepartureCompanions{edges: src.Companions, delete: src.DeleteCompanions}
 	}
+	// The Enrollment owner behind Requests also keeps the per-account read
+	// state of the queue (#3778).
+	if reads, ok := src.Requests.(enrollmentOwner.RequestReads); ok {
+		deps.Reads = reads
+	}
 	if src.Broadcaster != nil {
 		deps.Broadcasts = enrollmentPlanBroadcasts{hub: src.Broadcaster}
 	}

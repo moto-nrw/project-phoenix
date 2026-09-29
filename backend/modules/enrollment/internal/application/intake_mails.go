@@ -47,7 +47,7 @@ func (s *Intake) enqueueSubmissionEmails(ctx context.Context, tenantID int64, re
 			enrollment.EnrollmentPayloadGuardianLastName:  request.GuardianLastName,
 			enrollment.EnrollmentPayloadGuardianEmail:     request.GuardianEmail,
 			enrollment.EnrollmentPayloadSchoolName:        schoolName,
-			enrollment.EnrollmentPayloadAdminURL:          fmt.Sprintf("%s/enrollments/%d", s.deps.FrontendURL, request.ID),
+			enrollment.EnrollmentPayloadAdminURL:          fmt.Sprintf("%s/admin/enrollments/%d", s.deps.FrontendURL, request.ID),
 			enrollment.EnrollmentPayloadLogoURL:           logoURL,
 			enrollment.EnrollmentPayloadMotoLogoURL:       footerLogoURL,
 			enrollment.EnrollmentPayloadChildNames:        childNames,

@@ -49,6 +49,8 @@ type EnrollmentIntakeSources struct {
 	OutboxEnqueuer     platformModels.OutboxEnqueuer
 	Settings           EnrollmentIntakeSettings
 	ManualDecider      enrollmentCompose.ManualEnrollmentDecider
+	// ParentChanges makes a request unread again after a parent edit (#3778).
+	ParentChanges enrollmentCompose.RequestParentChanges
 	// FrontendURL is the base of the staff links, ParentsURL of the
 	// parent-facing ones; it falls back to FrontendURL.
 	FrontendURL string
@@ -64,7 +66,8 @@ func NewEnrollmentIntake(src EnrollmentIntakeSources) *enrollmentCompose.Intake 
 		Capacity: src.Capacity, Schools: src.SchoolRepo, Notifications: src.Notifications, Students: src.StudentRepo,
 		GuardianAuthorizer: src.GuardianAuthorizer, Outbox: intakeMailOutbox(src.OutboxEnqueuer),
 		Settings: intakeSettings(src.Settings), ManualDecider: src.ManualDecider,
-		Random: securityruntime.FillRandom, Fingerprint: securityruntime.Fingerprint,
+		ParentChanges: src.ParentChanges,
+		Random:        securityruntime.FillRandom, Fingerprint: securityruntime.Fingerprint,
 		FrontendURL: src.FrontendURL, ParentsURL: src.ParentsURL, Logger: src.Logger,
 	})
 }

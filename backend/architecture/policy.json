@@ -3940,6 +3940,10 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.request_reads",
+      "write_owner": "enrollment"
+    },
+    {
       "name": "enrollment.requests",
       "write_owner": "enrollment"
     },

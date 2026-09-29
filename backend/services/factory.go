@@ -2090,6 +2090,7 @@ func newFactory(
 	enrollmentOfferingCapacity := NewEnrollmentOfferingCapacity(enrollmentCareOfferings, repos.Enrollment(), settingsService)
 	enrollmentRequestService := NewEnrollmentIntake(EnrollmentIntakeSources{
 		Requests:           repos.Enrollment(),
+		ParentChanges:      repos.Enrollment(),
 		Children:           repos.Enrollment(),
 		Bookings:           enrollmentCareBookingCommands{owner: repos.CarePlan()},
 		Guardians:          repos.Enrollment(),

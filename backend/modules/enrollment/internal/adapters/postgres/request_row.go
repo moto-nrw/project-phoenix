@@ -31,6 +31,10 @@ type requestRow struct {
 	SubmittedAt              time.Time       `bun:"submitted_at,notnull,default:current_timestamp"`
 	WithdrawnAt              *time.Time      `bun:"withdrawn_at"`
 	DecisionNotificationMode *string         `bun:"decision_notification_mode"`
+	// ParentChangedAt is the read-state anchor (#3778). It stays out of the
+	// value: inserts take the column default and only MarkRequestParentChanged
+	// moves it.
+	ParentChangedAt time.Time `bun:"parent_changed_at,nullzero,notnull,default:current_timestamp"`
 }
 
 func (r requestRow) value() *enrollment.Request {

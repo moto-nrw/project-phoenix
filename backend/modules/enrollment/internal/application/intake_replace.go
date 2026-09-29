@@ -99,6 +99,9 @@ func (s *Intake) replaceInTenant(ctx context.Context, token string, tenantID int
 		return err
 	}
 	outcome.Request = plan.req
+	if err := s.markParentChanged(ctx, plan.req.ID); err != nil {
+		return err
+	}
 	if len(plan.overrides) == 0 || editReq.SuppressSubmissionEmails {
 		return nil
 	}

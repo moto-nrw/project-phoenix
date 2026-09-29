@@ -209,6 +209,11 @@ export interface AdminRequestSummary {
   submitted_at: string;
   withdrawn_at?: string | null;
   /**
+   * Ungelesen für die angemeldete Person (#3778). Der Lesestatus gilt pro
+   * Person; die Detailseite markiert beim Öffnen als gelesen.
+   */
+  is_unread?: boolean;
+  /**
    * Request-level custom field answers (everything where
    * applies_to_child=false). Populated only on the detail endpoint.
    */
@@ -343,6 +348,59 @@ export async function getAdminRequest(id: string): Promise<AdminRequestDetail> {
     throw await readError(response, "Anmeldung konnte nicht geladen werden");
   }
   return readJSON<AdminRequestDetail>(response);
+}
+
+/** Fenster-Ereignis, nach dem das Anmeldungen-Badge neu zählt (#3778). */
+export const ENROLLMENTS_UNREAD_REFRESH_EVENT = "enrollments-unread-refresh";
+
+function announceEnrollmentReadChange() {
+  globalThis.window?.dispatchEvent(new Event(ENROLLMENTS_UNREAD_REFRESH_EVENT));
+}
+
+/** Ungelesene Anmeldungen der Person; 0 bei Fehlern oder ohne Recht. */
+export async function fetchUnreadEnrollmentCount(): Promise<number> {
+  try {
+    const response = await fetch(`${BASE}/unread-count`, { cache: "no-store" });
+    if (!response.ok) return 0;
+    const data = await readJSON<{ unread_count?: number }>(response);
+    return data?.unread_count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Markiert eine Anmeldung für die Person als gelesen oder ungelesen. */
+export async function setAdminRequestRead(
+  id: string,
+  read: boolean,
+): Promise<void> {
+  const response = await fetch(`${BASE}/${encodeURIComponent(id)}/read`, {
+    method: read ? "PUT" : "DELETE",
+  });
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+    );
+  }
+  announceEnrollmentReadChange();
+}
+
+/** Markiert alle ungelesenen Anmeldungen der Person als gelesen. */
+export async function markAllAdminRequestsRead(): Promise<void> {
+  const response = await fetch(`${BASE}/mark-all-read`, { method: "POST" });
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+    );
+  }
+  announceEnrollmentReadChange();
+}
+
+/** Nach dem Öffnen einer Anmeldung: das Badge neu zählen lassen. */
+export function announceAdminRequestOpened() {
+  announceEnrollmentReadChange();
 }
 
 export async function getAdminRequestDeleteImpact(

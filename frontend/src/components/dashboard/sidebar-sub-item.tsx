@@ -1,7 +1,10 @@
 "use client";
 
 import { NavLink } from "~/components/ui/nav-link";
-import { UnreadBadge } from "~/components/messaging/unread-badge";
+import {
+  UnreadBadge,
+  type UnreadBadgeTone,
+} from "~/components/messaging/unread-badge";
 import { SIDEBAR_SUB_ITEM_CLASSES } from "~/components/dashboard/sidebar-geometry";
 
 interface SidebarSubItemProps {
@@ -12,6 +15,8 @@ interface SidebarSubItemProps {
   // Domain-colored pill for unread messages or pending requests. Distinct from
   // `count`, which is the muted gray attendance count.
   readonly badgeCount?: number;
+  readonly badgeTone?: UnreadBadgeTone;
+  readonly badgeNoun?: string;
   // Ziel der geführten Tour der ersten Schritte (#2832).
   readonly tourId?: string;
 }
@@ -22,6 +27,8 @@ export function SidebarSubItem({
   isActive,
   count,
   badgeCount = 0,
+  badgeTone,
+  badgeNoun,
   tourId,
 }: SidebarSubItemProps) {
   return (
@@ -36,7 +43,12 @@ export function SidebarSubItem({
     >
       <span className="truncate">{label}</span>
       {badgeCount > 0 ? (
-        <UnreadBadge count={badgeCount} className="ml-2" />
+        <UnreadBadge
+          count={badgeCount}
+          tone={badgeTone}
+          noun={badgeNoun}
+          className="ml-2"
+        />
       ) : (
         count !== undefined && (
           <span className="ml-2 shrink-0 text-xs text-gray-400">{count}</span>

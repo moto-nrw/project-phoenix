@@ -210,6 +210,16 @@ der OGS ausgehen und ist die einzige Anfrageart mit Rückfrage-Dialog zwischen
 OGS und Eltern. Nach der Übernahme des Kindes sind Änderungswünsche
 Elternanfragen, keine Anmeldungsänderungen.
 
+## Ungelesene Anmeldung
+
+Eine **ungelesene Anmeldung** ist eine noch nicht abgeschlossene Anmeldung in
+einer aktiven Anmeldephase, die eine Person der Leitung noch nicht gelesen hat.
+„Gelesen" gilt pro Person, nicht für die ganze Schule. Öffnen der Anmeldung
+zählt als Lesen; man kann sie auch von Hand als gelesen oder ungelesen
+markieren. Ändern Eltern die Anmeldung, ist sie wieder ungelesen, eine
+Entscheidung der OGS macht sie nicht wieder ungelesen. Eine Anmeldung ist keine
+Anfrage und zählt nicht zu den offenen Anfragen.
+
 ## Elternänderung
 
 Eine **Elternänderung** ist eine von einer sorgeberechtigten Person gewünschte

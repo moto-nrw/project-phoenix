@@ -21,6 +21,7 @@ DELETE /api/class-list-entries/{id}
 DELETE /api/display/{id}/
 DELETE /api/enrollment/admin/requests/{id}/
 DELETE /api/enrollment/admin/requests/{id}/children/{childId}
+DELETE /api/enrollment/admin/requests/{id}/read
 DELETE /api/enrollment/care-offerings/{id}/
 DELETE /api/enrollment/legal-documents/{filename}
 DELETE /api/enrollment/phases/{id}/
@@ -187,6 +188,7 @@ GET /api/enrollment/admin/change-requests/pending-count
 GET /api/enrollment/admin/change-requests/{id}/
 GET /api/enrollment/admin/reports/care-usage
 GET /api/enrollment/admin/requests/
+GET /api/enrollment/admin/requests/unread-count
 GET /api/enrollment/admin/requests/{id}/
 GET /api/enrollment/admin/requests/{id}/children/{childId}/delete-impact
 GET /api/enrollment/admin/requests/{id}/children/{childId}/offering-adjustments
@@ -662,6 +664,7 @@ POST /api/enrollment/admin/change-requests/{id}/reject
 POST /api/enrollment/admin/reports/care-usage/export
 POST /api/enrollment/admin/reports/class-roster/export
 POST /api/enrollment/admin/request-children/{id}/rollover-review
+POST /api/enrollment/admin/requests/mark-all-read
 POST /api/enrollment/admin/requests/{id}/children/{childId}/decide
 POST /api/enrollment/admin/requests/{id}/restore
 POST /api/enrollment/admin/students/{studentId}/requests/export
@@ -989,6 +992,7 @@ PUT /api/calendar/appointments/{appointmentId}
 PUT /api/class-list-entries/{id}
 PUT /api/enrollment/admin/requests/{id}/children/{childId}/data-correction
 PUT /api/enrollment/admin/requests/{id}/children/{childId}/offerings
+PUT /api/enrollment/admin/requests/{id}/read
 PUT /api/enrollment/care-offerings/{id}/
 PUT /api/enrollment/phases/{id}/
 PUT /api/enrollment/requests/{statusToken}
