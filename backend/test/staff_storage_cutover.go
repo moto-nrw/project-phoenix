@@ -2,10 +2,15 @@ package test
 
 import (
 	"context"
+	_ "embed"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
+
+//go:embed testdata/staff_storage_before_contract.sql
+var staffStorageBeforeContract string
 
 // RestoreStaffStorageBeforeCutover turns users.staff back into the
 // authoritative base table it was before migration 1.15.409 (#2753).
@@ -14,10 +19,12 @@ import (
 // describe a world in which users.staff holds the rows and the two owner
 // tables are empty or trail it. The cutover replaced it with a rollback-only
 // view over users.staff_school_memberships and users.staff_employment_profiles,
-// so those tests restore their world inside their own disposable clone first.
-// Every staff row the clone holds (the bootstrap staff member included) moves
-// back into users.staff before the owner tables are emptied. Production
-// rollback deliberately keeps the compatibility shape instead of reversing it.
+// and the Contract (#2754) removed that view and its archive, so those tests
+// restore their world inside their own disposable clone first: the frozen
+// archive schema comes back, then the pre-cutover table. Every staff row the
+// clone holds (the bootstrap staff member included) moves back into users.staff
+// before the owner tables are emptied. Production never reverses either
+// migration.
 //
 // It requires a per-test database (SetupIsolatedTestDB, or a package that
 // opted into PerTestDatabases).
@@ -30,15 +37,17 @@ func RestoreStaffStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 	if !isolated || entry.(*isolatedTestDatabase).db != db {
 		tb.Fatal("restore staff storage before cutover requires this test's isolated database")
 	}
-	var relkind string
-	if err := db.NewRaw(`SELECT relkind::text FROM pg_class WHERE oid = 'users.staff'::regclass`).
-		Scan(context.Background(), &relkind); err != nil {
-		tb.Fatalf("restore staff storage before cutover: inspect users.staff: %v", err)
+	var contracted bool
+	if err := db.NewRaw(`SELECT to_regclass('users.staff') IS NULL
+		AND to_regclass('users.staff_legacy') IS NULL
+		AND to_regclass('users.staff_compatibility_reads') IS NULL`).
+		Scan(context.Background(), &contracted); err != nil {
+		tb.Fatalf("restore staff storage before cutover: inspect schema: %v", err)
 	}
-	if relkind != "v" {
-		tb.Fatalf("restore staff storage before cutover: users.staff is already a base table (relkind %q)", relkind)
+	if !contracted {
+		tb.Fatal("restore staff storage before cutover requires the contracted schema")
 	}
-	if _, err := db.ExecContext(context.Background(), `
+	if _, err := db.ExecContext(context.Background(), staffStorageBeforeContract+`
 		INSERT INTO users.staff_legacy (id, tenant_id, person_id, created_at, updated_at, deleted_at,
 			staff_notes, employment_type, work_time_model_id, personnel_number,
 			rotation_anchor_date, birthday_display_opt_out)
@@ -58,11 +67,8 @@ func RestoreStaffStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 			(SELECT last_value FROM users.staff_id_seq),
 			(SELECT last_value FROM users.staff_school_memberships_id_seq)), true);
 
-		DROP VIEW users.staff;
-		DROP FUNCTION users.route_staff_compatibility();
 		DROP TRIGGER staff_employment_profiles_personnel_number ON users.staff_employment_profiles;
 		DROP FUNCTION users.enforce_staff_personnel_number();
-		DROP SEQUENCE users.staff_compatibility_reads, users.staff_compatibility_writes;
 		DROP TRIGGER update_staff_school_memberships_updated_at ON users.staff_school_memberships;
 		ALTER INDEX users.idx_staff_tenant_person RENAME TO uq_staff_school_memberships_active_person;
 		ALTER INDEX users.idx_staff_legacy_tenant_person RENAME TO idx_staff_tenant_person;
@@ -75,8 +81,8 @@ func RestoreStaffStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 		-- users.staff. The restored pre-cutover world must not give them that
 		-- reference, or the cutover's repoint guard sees an unknown staff key.
 		ALTER TABLE config.staff_target_overrides
-			DROP CONSTRAINT fk_staff_target_overrides_staff,
-			DROP CONSTRAINT fk_staff_target_overrides_created_by;
+			DROP CONSTRAINT IF EXISTS fk_staff_target_overrides_staff,
+			DROP CONSTRAINT IF EXISTS fk_staff_target_overrides_created_by;
 		TRUNCATE config.staff_target_overrides;
 		DO $$
 		DECLARE constraint_row RECORD;
@@ -112,4 +118,15 @@ func RestoreStaffStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 	`); err != nil {
 		tb.Fatalf("restore staff storage before cutover: %v", err)
 	}
+}
+
+// insertHistoricalStaff writes a staff fixture into users.staff when a test has
+// restored it as the pre-cutover base table (RestoreStaffStorageBeforeCutover).
+// It reports false, and writes nothing, on the current schema.
+func insertHistoricalStaff(ctx context.Context, db bun.IDB, staff *users.Staff) (bool, error) {
+	var historical bool
+	if err := db.NewRaw(`SELECT to_regclass('users.staff') IS NOT NULL`).Scan(ctx, &historical); err != nil || !historical {
+		return false, err
+	}
+	return true, db.NewInsert().Model(staff).ModelTableExpr(`users.staff`).Scan(ctx)
 }

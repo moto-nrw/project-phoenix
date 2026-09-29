@@ -1443,8 +1443,8 @@
       "declaration": "TestCaregiverCapability_EnableCreatesOperationalProfile",
       "target": "database/repositories.NewFactory",
       "lines": [
-        302,
-        306
+        305,
+        309
       ],
       "tables": []
     },

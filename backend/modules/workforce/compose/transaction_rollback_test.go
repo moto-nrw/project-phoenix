@@ -57,8 +57,8 @@ func TestWorkTimeModelUpdate_RollsBackEveryWriteAndRetriesCleanly(t *testing.T) 
 	})
 	require.NoError(t, err)
 	defer func() {
-		_, _ = db.NewUpdate().Table("users.staff").
-			Set("work_time_model_id = NULL").Where("id = ?", staff.ID).Exec(ctx)
+		_, _ = db.NewUpdate().Table("users.staff_employment_profiles").
+			Set("work_time_model_id = NULL").Where("membership_id = ?", staff.ID).Exec(ctx)
 		_ = capability.DeleteWorkTimeModel(ctx, created.ID)
 	}()
 
@@ -66,9 +66,9 @@ func TestWorkTimeModelUpdate_RollsBackEveryWriteAndRetriesCleanly(t *testing.T) 
 	require.NoError(t, schedules.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
 		{WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayMonday, TargetMinutes: 300},
 	}, configModel.CalendarDate("")))
-	_, err = db.NewUpdate().Table("users.staff").
+	_, err = db.NewUpdate().Table("users.staff_employment_profiles").
 		Set("work_time_model_id = ?", created.ID).
-		Where("id = ?", staff.ID).Exec(ctx)
+		Where("membership_id = ?", staff.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	revision := workforce.UpdateWorkTimeModel{

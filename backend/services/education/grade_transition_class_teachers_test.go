@@ -170,7 +170,7 @@ func TestGradeTransitionWorkflow_Revert_SkipsOffboardedStaff(t *testing.T) {
 	_, err = db.NewDelete().TableExpr("education.class_teachers").
 		Where("staff_id = ?", teacher.ID).Exec(ctx)
 	require.NoError(t, err)
-	_, err = db.NewUpdate().TableExpr("users.staff").
+	_, err = db.NewUpdate().TableExpr("users.staff_school_memberships").
 		Set("deleted_at = NOW()").
 		Where("id = ?", teacher.ID).Exec(ctx)
 	require.NoError(t, err)

@@ -69,9 +69,9 @@ func (f *overviewFixture) newDatevExportService(values settingstest.Values) time
 func (f *overviewFixture) setPersonnelNumber(t *testing.T, staffID int64, number string) {
 	t.Helper()
 	_, err := f.db.NewUpdate().
-		Table("users.staff").
+		Table("users.staff_employment_profiles").
 		Set("personnel_number = ?", number).
-		Where("id = ?", staffID).
+		Where("membership_id = ?", staffID).
 		Exec(f.ctx)
 	require.NoError(t, err)
 }

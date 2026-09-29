@@ -107,12 +107,12 @@ func cleanupAccessFixtures(t *testing.T, db *bun.DB, accountID int64) {
 	ctx := context.Background()
 	_, err := db.ExecContext(ctx, `
 		DELETE FROM users.teachers WHERE staff_id IN (
-			SELECT s.id FROM users.staff s
+			SELECT s.id FROM users.staff_school_memberships s
 			JOIN users.persons p ON p.id = s.person_id
 			WHERE p.account_id = ?)`, accountID)
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, `
-		DELETE FROM users.staff WHERE person_id IN (
+		DELETE FROM users.staff_school_memberships WHERE person_id IN (
 			SELECT id FROM users.persons WHERE account_id = ?)`, accountID)
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, `DELETE FROM audit.auth_events WHERE account_id = ?`, accountID)
@@ -176,7 +176,7 @@ func TestIntegration_GrantAccountTenantAccess_CustomUserBaseCreatesCaregiverProf
 
 	teacherCount, err := db.NewSelect().
 		TableExpr(`users.teachers AS "t"`).
-		Join(`JOIN users.staff AS "s" ON "s".id = "t".staff_id`).
+		Join(`JOIN users.staff_school_memberships AS "s" ON "s".id = "t".staff_id`).
 		Join(`JOIN users.persons AS "p" ON "p".id = "s".person_id`).
 		Where(`"p".account_id = ?`, account.ID).
 		Where(`"p".tenant_id = ?`, accessTargetTenantID(t)).
@@ -607,7 +607,7 @@ func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLa
 	err = db.NewSelect().
 		ColumnExpr(`"t".role`).
 		TableExpr(`users.teachers AS "t"`).
-		Join(`JOIN users.staff AS "s" ON "s".id = "t".staff_id`).
+		Join(`JOIN users.staff_school_memberships AS "s" ON "s".id = "t".staff_id`).
 		Join(`JOIN users.persons AS "p" ON "p".id = "s".person_id`).
 		Where(`"p".account_id = ?`, account.ID).
 		Scan(ctx, &position)
@@ -697,7 +697,7 @@ func TestIntegration_UpdateAccountTenantRole_ToCaregiverCreatesLocalIdentity(t *
 
 	teacherCount, err := db.NewSelect().
 		TableExpr(`users.teachers AS "t"`).
-		Join(`JOIN users.staff AS "s" ON "s".id = "t".staff_id`).
+		Join(`JOIN users.staff_school_memberships AS "s" ON "s".id = "t".staff_id`).
 		Join(`JOIN users.persons AS "p" ON "p".id = "s".person_id`).
 		Where(`"p".account_id = ?`, account.ID).
 		Where(`"p".tenant_id = ?`, accessTargetTenantID(t)).
