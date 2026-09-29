@@ -9,7 +9,7 @@ import {
 // überall gleich und plausibel sind. Das Seed-Profil `marketing` legt seine
 // Wochenpläne relativ zu dieser Uhrzeit an (marketingReferenceClock in
 // backend/seed/api); beide Werte ändern sich nur gemeinsam.
-export const REFERENCE_CLOCK = "10:15";
+const REFERENCE_CLOCK = "10:15";
 
 function isWeekend(day: Date): boolean {
   return day.getDay() === 0 || day.getDay() === 6;

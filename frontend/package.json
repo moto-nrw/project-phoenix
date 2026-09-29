@@ -120,6 +120,7 @@
       "**/*.@(spec|test).?(c|m)[jt]s?(x)",
       "scripts/perf/*.perf.ts",
       "scripts/generate-guides.ts",
+      "scripts/product-screenshots/*.pw.ts",
       "playwright*.config.ts",
       "e2e/**/*.ts"
     ],
@@ -134,7 +135,6 @@
       ".storybook/mocks/**"
     ],
     "ignoreDependencies": [
-      "sharp",
       "lint-staged",
       "react-scan"
     ]

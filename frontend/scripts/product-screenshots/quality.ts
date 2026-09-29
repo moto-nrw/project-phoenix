@@ -53,7 +53,7 @@ const ERROR_PAGE_TEXTS = [
  * jeder solchen Antwort auch einen Konsolenfehler ("Failed to load resource"),
  * den capture.ts über die URL ebenfalls verwirft.
  */
-export const IGNORED_RESPONSES: readonly {
+const IGNORED_RESPONSES: readonly {
   readonly method: string;
   readonly path: RegExp;
   readonly status: number;

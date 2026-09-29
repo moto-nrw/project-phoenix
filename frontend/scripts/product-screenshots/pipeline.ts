@@ -15,7 +15,7 @@ import type { Shot } from "./shot-list";
 
 export const MANIFEST_FILE = "manifest.json";
 
-export interface ManifestFile {
+interface ManifestFile {
   /** Pfad relativ zum Ausgabeverzeichnis. */
   readonly pfad: string;
   readonly art: "roh" | "mockup";
@@ -28,7 +28,7 @@ export interface ManifestFile {
   readonly hochskaliert?: boolean;
 }
 
-export interface ManifestShot {
+interface ManifestShot {
   readonly id: string;
   readonly titel: string;
   readonly portal: Shot["portal"];

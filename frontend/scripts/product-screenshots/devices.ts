@@ -9,7 +9,7 @@
 export const DEVICE_IDS = ["macbook", "ipad", "iphone"] as const;
 export type DeviceId = (typeof DEVICE_IDS)[number];
 
-export interface Rect {
+interface Rect {
   readonly left: number;
   readonly top: number;
   readonly width: number;

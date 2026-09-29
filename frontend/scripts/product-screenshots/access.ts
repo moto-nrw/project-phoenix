@@ -11,7 +11,7 @@ import type { Shot } from "./shot-list";
 // Die Pipeline fotografiert nur den eigenen Stack. Ein Host außerhalb von
 // *.localhost bricht ab (.claude/rules/no-production-requests.md).
 
-export const PROFILE = "marketing";
+const PROFILE = "marketing";
 
 export interface Credentials {
   readonly email: string;
