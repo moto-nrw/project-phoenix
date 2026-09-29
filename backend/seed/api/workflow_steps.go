@@ -256,6 +256,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			manualProfileStep{seeder: seeder},
 			seedEnrollmentWeeklyProfileStep{seeder: seeder},
 			seedEnrollmentBookingsProfileStep{seeder: seeder},
+			seedMarketingProfileStep{seeder: seeder},
 		)
 	}
 	if !seeder.options.DeferHistory {

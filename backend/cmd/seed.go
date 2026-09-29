@@ -81,6 +81,9 @@ so a repeated run fails with a clear conflict until the database is reset.
 The same run creates anmeldung-wochenplan in a second organization: twelve
 children, online enrollment, parent accounts, and weekly-plan-driven care
 without physical terminals. The first developer admin can switch to it.
+It also creates marketing (OGS Sonnenhang) in its own organization: twelve
+children, parent accounts, and web attendance whose weekly plans are relative
+to a 10:15 reference clock, for product screenshots.
 
   --tenant-slug vollbetrieb    Override the profile's tenant slug
   --staff-password 'Test1234%' Shared password for all 20 staff accounts
@@ -148,7 +151,7 @@ func init() {
 	seedCmd.Flags().String("staff-password", "", "Shared password for all 20 staff accounts")
 	seedCmd.Flags().String("admin-email", "", "Override the bootstrap school admin email")
 	seedCmd.Flags().String("school-name", "", "Override the default profile school name")
-	seedCmd.Flags().String("profile", "", "Seed only this profile (vollbetrieb); empty seeds all four")
+	seedCmd.Flags().String("profile", "", "Seed only this profile (vollbetrieb); empty seeds all five")
 	seedCmd.Flags().String("state", "", "Output path for the seed state (default .seed-state.json)")
 	seedCmd.Flags().Bool("randomize", false, "Create a unique ad-hoc school with generated admin credentials")
 }

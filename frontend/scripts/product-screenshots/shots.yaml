@@ -1,0 +1,26 @@
+# Die Shot-Liste der Produkt-Screenshots (#3759). Ein Eintrag ist ein Shot;
+# seine ID bleibt über Releases gleich, weil sie die Dateinamen bestimmt.
+#
+#   id           deutscher Kebab-Slug (a-z, 0-9, Bindestrich; Umlaute als ae/oe/ue)
+#   titel        Name für Menschen, landet im Manifest
+#   portal       tenant | eltern
+#   rolle        admin | betreuer (tenant) | eltern
+#   pfad         Pfad im Portal, so wie ihn die Person in der Adressleiste sieht
+#   geraete      optional: macbook | ipad | iphone.
+#                Standard: tenant = macbook + ipad, eltern = iphone + ipad
+#   vorbereitung optional: Schritte vor dem Foto, jeweils genau eines von
+#                klicken (Selektor), warten_auf (Selektor), scrollen (Pixel oder Selektor)
+#
+# Unbekannte Felder schlagen beim Laden fehl. Die Daten kommen aus dem
+# Seed-Profil `marketing` (backend/seed/api).
+shots:
+  - id: anwesenheit-ueberblick
+    titel: Anwesenheit im Überblick
+    portal: tenant
+    rolle: admin
+    pfad: /home
+  - id: eltern-kinder
+    titel: Meine Kinder im Eltern-Portal
+    portal: eltern
+    rolle: eltern
+    pfad: /children
