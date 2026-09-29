@@ -115,7 +115,7 @@ func (s schoolSettingsStore) UpdateSettings(ctx context.Context, schoolID int64,
 		ID: school.ID, OrganizationID: school.OrganizationID, Name: school.Name, Slug: school.Slug,
 		Subdomain: school.Subdomain, Active: school.Active, Hidden: school.Hidden, Settings: settings,
 		Address: school.Address, City: school.City, Zip: school.Zip, Phone: school.Phone,
-		Email: school.Email, DevicePinHash: school.DevicePinHash,
+		Email: school.Email,
 	})
 	return err
 }
