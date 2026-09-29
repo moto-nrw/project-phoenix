@@ -197,7 +197,9 @@ function HomeContent() {
   const { data: birthdays, isLoading: birthdaysLoading } =
     useSWRAuth<BirthdayOverview>(
       wantsBirthdayData ? "birthday-overview" : null,
-      fetchBirthdayOverviewClient,
+      // Ohne Argument: SWR reicht dem Abrufer sonst seinen Schlüssel durch,
+      // der dann als Woche beim Server ankäme.
+      () => fetchBirthdayOverviewClient(),
       { refreshInterval: 30 * 60 * 1000 },
     );
 

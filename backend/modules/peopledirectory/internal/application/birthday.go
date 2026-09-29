@@ -16,7 +16,12 @@ type BirthdayOverview struct {
 	Enabled      bool
 	IncludeStaff bool
 	Today        calendar.Date
-	Celebrations []domain.BirthdayCelebration
+	// Week is the Monday-to-Sunday week shown; EarliestWeekStart and
+	// LatestWeekStart bound how far the view may step (#3777).
+	Week              domain.BirthdayWeek
+	EarliestWeekStart calendar.Date
+	LatestWeekStart   calendar.Date
+	Celebrations      []domain.BirthdayCelebration
 }
 
 // BirthdayService resolves who is celebrating a birthday and who may see it.
@@ -42,9 +47,22 @@ func NewBirthdayService(store ports.BirthdayStore, settings ports.BirthdaySettin
 	return &BirthdayService{store: store, settings: settings, logger: logger, now: now}
 }
 
-func (s *BirthdayService) Overview(ctx context.Context, visibility domain.BirthdayVisibility) (BirthdayOverview, error) {
+// Overview returns the birthdays of the week containing weekOf; nil means
+// the current week. A week beyond domain.BirthdayWeekReach is rejected with
+// domain.ErrBirthdayWeekOutOfRange before anything is read.
+func (s *BirthdayService) Overview(ctx context.Context, visibility domain.BirthdayVisibility, weekOf *calendar.Date) (BirthdayOverview, error) {
 	today := calendar.DateFromTime(s.now())
-	overview := BirthdayOverview{Today: today}
+	week, err := domain.ResolveBirthdayWeek(today, weekOf)
+	if err != nil {
+		return BirthdayOverview{}, err
+	}
+	earliest, latest := domain.BirthdayWeekBounds(today)
+	overview := BirthdayOverview{
+		Today:             today,
+		Week:              week,
+		EarliestWeekStart: earliest,
+		LatestWeekStart:   latest,
+	}
 
 	enabled, err := s.settings.BirthdayDisplayEnabled(ctx)
 	if err != nil {
@@ -60,7 +78,7 @@ func (s *BirthdayService) Overview(ctx context.Context, visibility domain.Birthd
 	}
 	overview.IncludeStaff = includeStaff
 
-	days, byMonthDay := domain.BirthdayWindow(today)
+	days, byMonthDay := domain.BirthdayWindow(week)
 	students, err := s.store.StudentBirthdaysOn(ctx, days)
 	if err != nil {
 		return BirthdayOverview{}, &userscontract.UsersError{Op: "find student birthdays", Err: err}
@@ -79,6 +97,7 @@ func (s *BirthdayService) Overview(ctx context.Context, visibility domain.Birthd
 
 	s.logger.Debug("birthday overview resolved",
 		"date", today.String(),
+		"week_start", week.Start.String(),
 		"include_staff", includeStaff,
 		"count", len(overview.Celebrations),
 	)

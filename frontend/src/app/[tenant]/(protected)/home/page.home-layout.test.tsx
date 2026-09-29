@@ -115,6 +115,9 @@ vi.mock("~/lib/dashboard-helpers", () => ({
 }));
 
 vi.mock("~/lib/swr/hooks", () => ({ useSWRAuth: vi.fn() }));
+vi.mock("~/lib/birthdays-api", () => ({
+  fetchBirthdayOverviewClient: vi.fn(),
+}));
 
 const layoutState = {
   blocks: [] as readonly HomeBlockPlacement[],
@@ -145,6 +148,7 @@ vi.mock("~/lib/hooks/use-home-layout", () => ({
 
 import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr/hooks";
+import { fetchBirthdayOverviewClient } from "~/lib/birthdays-api";
 
 /** Die SWR-Schlüssel, mit denen die Seite in diesem Rendern gefragt hat. */
 function requestedKeys(): (string | null)[] {
@@ -238,6 +242,23 @@ describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
     render(<HomePage />);
 
     expect(requestedKeys()).not.toContain("birthday-overview");
+  });
+
+  // SWR ruft den Abrufer mit dem Schlüssel auf. Ginge der durch, fragte die
+  // Startseite nach einer „Woche" namens birthday-overview und bekäme 400.
+  it("fragt die laufende Geburtstagswoche ohne Wochenangabe", async () => {
+    render(<HomePage />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("user-context-provider")).toBeInTheDocument(),
+    );
+    const call = vi
+      .mocked(useSWRAuth)
+      .mock.calls.find(([key]) => key === "birthday-overview");
+    const fetcher = call?.[1] as unknown as (key: string) => unknown;
+    fetcher("demo:birthday-overview");
+
+    expect(fetchBirthdayOverviewClient).toHaveBeenCalledWith();
   });
 
   it("zeigt die Standardansicht, wenn die Anordnung nicht geladen werden kann", async () => {

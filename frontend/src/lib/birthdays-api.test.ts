@@ -34,9 +34,18 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// The week every fixture below speaks for (#3777).
+const WEEK = {
+  week_start: "2026-08-03",
+  week_end: "2026-08-09",
+  earliest_week_start: "2026-07-06",
+  latest_week_start: "2026-08-31",
+};
+
 describe("mapBirthdayOverview", () => {
   it("maps the backend payload into the camelCase shape the card renders", () => {
     const overview = mapBirthdayOverview({
+      ...WEEK,
       enabled: true,
       include_staff: true,
       today: "2026-08-03",
@@ -64,6 +73,10 @@ describe("mapBirthdayOverview", () => {
     expect(overview.enabled).toBe(true);
     expect(overview.includeStaff).toBe(true);
     expect(overview.today).toBe("2026-08-03");
+    expect(overview.weekStart).toBe("2026-08-03");
+    expect(overview.weekEnd).toBe("2026-08-09");
+    expect(overview.earliestWeekStart).toBe("2026-07-06");
+    expect(overview.latestWeekStart).toBe("2026-08-31");
     expect(overview.celebrations).toEqual([
       {
         kind: "student",
@@ -92,6 +105,7 @@ describe("mapBirthdayOverview", () => {
   // rather than crash on it.
   it("treats a null celebration list as empty", () => {
     const overview = mapBirthdayOverview({
+      ...WEEK,
       enabled: true,
       include_staff: false,
       today: "2026-08-05",
@@ -103,6 +117,7 @@ describe("mapBirthdayOverview", () => {
 
   it("keeps a disabled display disabled", () => {
     const overview = mapBirthdayOverview({
+      ...WEEK,
       enabled: false,
       include_staff: false,
       today: "2026-08-05",

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { BirthdayList } from "~/components/dashboard/birthday-list";
+import { BirthdaysBlock } from "~/components/home/birthdays-block";
 import { DayFlowBlock } from "~/components/home/day-flow-block";
 import { MessagesBlock } from "~/components/home/messages-block";
 import { MyDayBlock } from "~/components/home/my-day-block";
@@ -441,12 +441,10 @@ export function HomeBlockContent({
       return <ActiveGroupsCard data={data} />;
     case "section.birthdays":
       return (
-        <ListCard title="Geburtstage" concept="birthdays">
-          <BirthdayList
-            celebrations={data.birthdays?.celebrations ?? []}
-            isLoading={data.birthdaysLoading}
-          />
-        </ListCard>
+        <BirthdaysBlock
+          current={data.birthdays}
+          currentLoading={data.birthdaysLoading}
+        />
       );
     default:
       return <StatBlock blockKey={blockKey} data={data} />;

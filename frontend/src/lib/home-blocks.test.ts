@@ -674,11 +674,12 @@ describe("Raster mit Schwerkraft (#2180)", () => {
   });
 
   it("hängt einen Baustein unter die bestehende Anordnung", () => {
+    // Die Geburtstage (Zeile 3) sind drei Zeilen hoch (#3777).
     expect(appendPlacement(grid, "section.messages", 2).at(-1)).toEqual({
       key: "section.messages",
       span: 2,
       col: 0,
-      row: 5,
+      row: 6,
     });
     expect(
       appendPlacement(grid.slice(0, 2), "section.messages", 2).at(-1),
@@ -733,7 +734,7 @@ describe("Raster mit Schwerkraft (#2180)", () => {
       columnStart: 1,
       columnSpan: 4,
       rowStart: 4,
-      rowSpan: 2,
+      rowSpan: 3,
     });
   });
 
@@ -757,7 +758,7 @@ describe("Raster mit Schwerkraft (#2180)", () => {
       columnStart: 1,
       columnSpan: 2,
       rowStart: 6,
-      rowSpan: 2,
+      rowSpan: 3,
     });
   });
 });

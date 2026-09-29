@@ -441,9 +441,13 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     key: "section.birthdays",
     kind: "section",
     label: "Geburtstage",
-    description: "Wer heute oder in den nächsten Tagen Geburtstag hat.",
+    description:
+      "Wer in dieser Woche Geburtstag hat. Sie können eine Woche vor- und zurückblättern.",
     concept: "birthdays",
     spans: SECTION_SPANS,
+    // Eine Woche mit Wochenleiste braucht drei Zeilen (#3777), sonst stünde
+    // schon ab drei Namen „Noch 2 Geburtstage".
+    height: 3,
     permitted: (access) => access.has(PERMISSION.usersRead),
     available: (ctx) => ctx.birthdaysEnabled,
   },
@@ -509,7 +513,7 @@ export function homeBlockHeight(key: HomeBlockKey): number {
  * wartet, das Personal, die Hinweise, der Ablauf des Tages und die laufende
  * Betreuung.
  *
- * Geburtstage stehen in JEDER Standardansicht: wer heute Geburtstag hat,
+ * Geburtstage stehen in JEDER Standardansicht: wer diese Woche Geburtstag hat,
  * betrifft die Betreuungskraft am Tisch genauso wie die Leitung.
  *
  * Die Zellen hier sind das Bild, wenn ALLE Bausteine da sind. Beim Aufbau
