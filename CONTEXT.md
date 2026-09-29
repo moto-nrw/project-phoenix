@@ -647,3 +647,22 @@ vorgemerkten, deren Betreuung erst später beginnt. Sie ist bewusst größer als
 die Stichtagszahl, damit ein späteres Startdatum das Kinderkontingent nicht
 umgeht.
 _Vermeiden_: Stichtagszahl für diese Zahl.
+
+## Produkt-Screenshots
+
+Ein **Produkt-Screenshot** ist ein automatisch erzeugtes, unverändertes Bild
+eines festgelegten Zustands im Tenant- oder Eltern-Portal, gedacht für
+Website, Unterlagen und Social Media. Er zeigt ausschließlich synthetische
+Daten aus einem eigenen Demo-Schulprofil.
+
+Ein **Shot** ist ein Eintrag der **Shot-Liste** mit stabiler ID. Aus einem
+Shot entstehen pro Release ein roher Produkt-Screenshot und seine
+Geräte-Mockups; die ID bleibt über Releases gleich.
+
+Ein **Geräte-Mockup** ist ein Produkt-Screenshot, der in den offiziellen
+Rahmen eines Apple-Geräts (iPhone, iPad, MacBook) auf transparentem
+Hintergrund eingesetzt ist.
+
+_Vermeiden_: Marketing-Bild, Screen, gestaltetes Bild (für Mockups).
+
+Hilfe-Screenshots im Hilfebereich sind keine Produkt-Screenshots.

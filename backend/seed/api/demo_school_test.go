@@ -55,13 +55,13 @@ func TestFullDemoWorkflowOnlyProfileSkipsFurtherSchools(t *testing.T) {
 		count := 0
 		for _, step := range fullDemoWorkflow(&Seeder{options: options}).Steps {
 			switch step.(type) {
-			case manualProfileStep, seedEnrollmentWeeklyProfileStep, seedEnrollmentBookingsProfileStep:
+			case manualProfileStep, seedEnrollmentWeeklyProfileStep, seedEnrollmentBookingsProfileStep, seedMarketingProfileStep:
 				count++
 			}
 		}
 		return count
 	}
-	assert.Equal(t, 3, furtherSchools(SeedOptions{}))
+	assert.Equal(t, 4, furtherSchools(SeedOptions{}))
 	assert.Equal(t, 0, furtherSchools(SeedOptions{OnlyProfile: DefaultProfileKey}))
 
 	restricted := fullDemoWorkflow(&Seeder{options: SeedOptions{OnlyProfile: DefaultProfileKey}}).Steps

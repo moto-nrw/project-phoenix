@@ -395,10 +395,18 @@ function LoginForm() {
         setError(germanMFAErrorMessage(err));
         trackLoginEvent("login_failed", { reason: "error" });
       }
-      logger.error("login failed", {
+      // A 4xx is the backend rejecting the login (wrong password, no access
+      // to this school), not a defect, so it stays out of Sentry issues.
+      const status = errorStatus(err);
+      const logContext = {
         error: err instanceof Error ? err.message : String(err),
-        status: errorStatus(err),
-      });
+        status,
+      };
+      if (status !== undefined && status >= 400 && status < 500) {
+        logger.warn("login rejected", logContext);
+      } else {
+        logger.error("login failed", logContext);
+      }
     } finally {
       setIsLoading(false);
     }

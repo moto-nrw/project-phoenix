@@ -72,4 +72,34 @@ describe("reportLogToSentry", () => {
     expect(captureMessage).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
+
+  it("treats a client abort as a warning breadcrumb, not an event", () => {
+    createLogger({ component: "Probe" }).error("api operation failed", {
+      error: "AbortError: The operation was aborted.",
+    });
+
+    expect(addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: "warning",
+        data: expect.objectContaining({
+          expected_failure: "aborted",
+        }) as unknown,
+      }),
+    );
+    expect(captureMessage).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("keeps an unreadable JSON body an error breadcrumb", () => {
+    createLogger({ component: "Probe" }).error("swr_fetch_failed", {
+      error: "The string did not match the expected pattern.",
+    });
+
+    expect(addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "swr_fetch_failed",
+        level: "error",
+      }),
+    );
+  });
 });

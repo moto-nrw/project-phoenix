@@ -6,13 +6,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -43,7 +43,7 @@ func NewAbsenceTypeTestModule(db *bun.DB) (AbsenceTypeTestModule, error) {
 }
 
 type BirthdayTestModule struct {
-	Birthdays   users.BirthdayService
+	Birthdays   peopledirectory.Birthdays
 	UserContext *repositories.CallerRows
 	Settings    config.SettingsService
 	ListExport  *listexport.RendererService
@@ -58,11 +58,23 @@ func NewBirthdayTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() 
 	if err != nil {
 		return BirthdayTestModule{}, err
 	}
-	birthdays := users.NewBirthdayService(users.BirthdayServiceDependencies{
-		StudentRepo: repositories.NewStudentLookupTestRepository(db), StaffRepo: members.Staff, PersonRepo: members.Person,
-		SettingsService: settings.Settings, Logger: slog.Default(), Now: optionalClock(clocks),
-	})
+	birthdays := NewBirthdays(
+		BirthdayRepositories{Students: repositories.NewStudentLookupTestRepository(db), Staff: members.Staff, Persons: members.Person},
+		settings.Settings, slog.Default(), optionalClock(clocks))
 	return BirthdayTestModule{Birthdays: birthdays, UserContext: identity, Settings: settings.Settings, ListExport: listexport.NewService()}, nil
+}
+
+// NewBirthdayCapabilityForTests composes the birthday capability over the
+// retained repositories the way the factory does, with caller-supplied
+// settings and clock.
+func NewBirthdayCapabilityForTests(db *bun.DB, settings BirthdaySettingsSource, now func() time.Time) peopledirectory.Birthdays {
+	members, err := repositories.NewMembershipTestRepositories(db)
+	if err != nil {
+		panic(err)
+	}
+	return NewBirthdays(
+		BirthdayRepositories{Students: repositories.NewStudentLookupTestRepository(db), Staff: members.Staff, Persons: members.Person},
+		settings, slog.Default(), now)
 }
 
 type ShiftTypeTestModule struct {

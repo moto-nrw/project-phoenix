@@ -292,3 +292,35 @@ type Observation struct {
 }
 
 type Observer func(Observation)
+
+// StaffSubjects is the consumer-owned port over the staff and person rows
+// behind a personnel record. School Membership and People Directory own them;
+// Workforce never reads or writes them itself. Failures pass through
+// unchanged, so a missing row keeps the repository not-found shape the HTTP
+// layer classifies as 404.
+type StaffSubjects interface {
+	// StaffWithPerson reads a live staff member together with its person.
+	StaffWithPerson(ctx context.Context, staffID int64) (domain.StaffSubject, error)
+	// StaffExists proves the live staff member is visible in the tenant.
+	StaffExists(ctx context.Context, staffID int64) error
+	// LockStaff locks the staff row for the caller's transaction and, with
+	// withPerson, the person row too.
+	LockStaff(ctx context.Context, staffID int64, withPerson bool) (domain.StaffSubject, error)
+	// UpdatePerson writes the names and the birthday of a locked person.
+	UpdatePerson(ctx context.Context, personID int64, firstName, lastName string, birthday *string) error
+	// SetEmploymentType writes the employment type of a locked staff row.
+	SetEmploymentType(ctx context.Context, staffID int64, value *string) error
+	// SetPersonnelNumber writes the personnel number of a locked staff row and
+	// reports domain.ErrStaffPersonnelNumberTaken on a per-tenant duplicate.
+	SetPersonnelNumber(ctx context.Context, staffID int64, value *string) error
+	// OffboardedStaffIDs returns every staff member School Membership retired.
+	OffboardedStaffIDs(ctx context.Context) ([]int64, error)
+}
+
+// StaffAdminAudit is the consumer-owned port over the audit trail of the
+// personnel record. Each call joins the caller's tenant transaction.
+type StaffAdminAudit interface {
+	RecordMasterDataChange(context.Context, domain.MasterDataChange) error
+	RecordPersonnelNumberChange(context.Context, domain.PersonnelNumberChange) error
+	RecordDataAccess(context.Context, domain.DataAccess) error
+}

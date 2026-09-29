@@ -100,6 +100,12 @@ func SetupAbsenceTypeModule(t *testing.T) (*bun.DB, services.AbsenceTypeTestModu
 	return db, module
 }
 
+// NewBirthdayCapability composes the birthday capability over the retained
+// repositories and the given settings, for the module's behavior tests.
+func NewBirthdayCapability(db *bun.DB, settings services.BirthdaySettingsSource, now func() time.Time) services.BirthdayCapability {
+	return services.NewBirthdayCapabilityForTests(db, settings, now)
+}
+
 func SetupBirthdayModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.BirthdayTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)

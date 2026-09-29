@@ -193,12 +193,18 @@ func TestSchoolWelcomeRejectsPermanentlyFailedInvitation(t *testing.T) {
 		ActorPermissions: []string{usersManagePermission},
 	})
 	require.NoError(t, err)
-	require.Eventually(t, func() bool { return mailer.attempts() == 3 }, 5*time.Second, 10*time.Millisecond)
-
+	// The mailer counts an attempt before the dispatcher stores its outcome,
+	// so the third attempt does not yet mean the failure is recorded. Wait for
+	// the terminal state itself.
 	require.Eventually(t, func() bool {
-		sent, statusErr := module.Invitation.SchoolInvitationDeliverySent(ctx, invitation.ID)
-		return !sent && errors.Is(statusErr, identityaccess.ErrInvitationDeliveryFailed)
+		_, statusErr := module.Invitation.SchoolInvitationDeliverySent(ctx, invitation.ID)
+		return errors.Is(statusErr, identityaccess.ErrInvitationDeliveryFailed)
 	}, 5*time.Second, 10*time.Millisecond)
+
+	sent, err := module.Invitation.SchoolInvitationDeliverySent(ctx, invitation.ID)
+	assert.False(t, sent)
+	require.ErrorIs(t, err, identityaccess.ErrInvitationDeliveryFailed)
+	assert.Equal(t, 3, mailer.attempts())
 }
 
 func TestSchoolWelcomeRejectsRevokedAndReplacedInvitations(t *testing.T) {

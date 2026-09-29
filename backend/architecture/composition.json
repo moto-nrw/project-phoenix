@@ -1419,31 +1419,21 @@
     },
     {
       "scope": "test",
-      "file": "services/users/birthday_service_test.go",
+      "file": "services/users/birthday_repository_test.go",
       "declaration": "TestBirthdayRepositoriesRejectAnEmptyDaySet",
       "target": "database/repositories.NewFactory",
       "lines": [
-        530
+        97
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "services/users/birthday_service_test.go",
+      "file": "services/users/birthday_repository_test.go",
       "declaration": "TestStudentBirthdaysExcludeEndedCare",
       "target": "database/repositories.NewFactory",
       "lines": [
-        482
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/birthday_service_test.go",
-      "declaration": "newBirthdayService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        45
+        49
       ],
       "tables": []
     },
@@ -1532,11 +1522,31 @@
     },
     {
       "scope": "test",
-      "file": "services/users/staff_document_service_test.go",
+      "file": "services/users/staff_admin_documents_test.go",
       "declaration": "newStaffDocumentScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        39
+        41
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/users/staff_admin_payroll_test.go",
+      "declaration": "newPayrollScenario",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        70
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/users/staff_admin_stammdaten_test.go",
+      "declaration": "newStammdatenScenario",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        35
       ],
       "tables": []
     },
@@ -1547,26 +1557,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         67
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/staff_payroll_test.go",
-      "declaration": "newPayrollScenario",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        67
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/staff_stammdaten_service_test.go",
-      "declaration": "newStammdatenScenario",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        35
       ],
       "tables": []
     },
@@ -18045,12 +18035,12 @@
         },
         {
           "file": "services/factory.go",
-          "line": 452,
+          "line": 454,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 502,
+          "line": 504,
           "declaration": "newFactory"
         },
         {
