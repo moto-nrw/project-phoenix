@@ -270,7 +270,7 @@ func TestStaffDocumentService_RefusesDownloadsAfterOffboarding(t *testing.T) {
 	actor := s.actor("staff:documents")
 	info := s.create(t, userModels.StaffDocumentCategoryZeugnis, actor)
 
-	_, err := s.db.ExecContext(s.ctx, `UPDATE users.staff SET deleted_at = NOW() WHERE id = ?`, s.staffID)
+	_, err := s.db.ExecContext(s.ctx, `UPDATE users.staff_school_memberships SET deleted_at = NOW() WHERE id = ?`, s.staffID)
 	require.NoError(t, err)
 
 	_, err = s.svc.ResolveStaffDocumentDownload(s.ctx, s.staffID, info.Document.ID, actor)

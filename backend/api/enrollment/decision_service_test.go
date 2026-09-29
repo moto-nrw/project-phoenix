@@ -2471,7 +2471,7 @@ func TestDecisionService_Decide_SchedulePickupUsesReviewerStaffID(t *testing.T) 
 	require.Len(t, rows, 2)
 	for _, row := range rows {
 		assert.Equal(t, reviewerStaff.ID, row.CreatedBy,
-			"pickup schedule created_by must reference users.staff, not the reviewer account")
+			"pickup schedule created_by must reference the staff membership, not the reviewer account")
 		assert.NotEqual(t, reviewerAccountID, row.CreatedBy,
 			"the regression requires account id and staff id to stay distinct")
 	}
@@ -2901,7 +2901,7 @@ func TestDecisionService_Decide_ScheduleArrivalUsesReviewerStaffID(t *testing.T)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, reviewerStaff.ID, rows[0].CreatedBy,
-		"arrival schedule created_by must reference users.staff, not the reviewer account")
+		"arrival schedule created_by must reference the staff membership, not the reviewer account")
 	assert.NotEqual(t, reviewerAccountID, rows[0].CreatedBy,
 		"the regression requires account id and staff id to stay distinct")
 	assert.True(t, rows[0].ExpectedArrival.IsZero(),

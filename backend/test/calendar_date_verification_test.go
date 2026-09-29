@@ -93,6 +93,10 @@ var renamedDateColumns = map[string]string{
 	// the old name is only the rollback view over those same date columns.
 	"enrollment.request_child_offerings.valid_from":  "enrollment.care_offering_bookings.valid_from",
 	"enrollment.request_child_offerings.valid_until": "enrollment.care_offering_bookings.valid_until",
+	// Staff owner cutover moves the anchor to the Workforce employment profile;
+	// the Contract (#2754) removed users.staff, and the Staff DTO no longer
+	// declares it as its table.
+	"users.staff.rotation_anchor_date": "users.staff_employment_profiles.rotation_anchor_date",
 	// 001015034_template_extensions.go renames enrollment_date to valid_from.
 	"activities.student_enrollments.enrollment_date": "activities.student_enrollments.valid_from",
 }
