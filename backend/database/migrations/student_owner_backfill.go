@@ -800,8 +800,13 @@ func ResetStudentOwnerBackfill(ctx context.Context, db *bun.DB) error {
 		return err
 	}
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		// users.student_notes hangs off users.student_profiles by foreign key,
+		// so TRUNCATE names it too: a profile that goes has no notes left to
+		// carry, and PostgreSQL refuses to truncate a referenced table anyway.
+		// Named instead of CASCADE, so a future referencing table fails loudly
+		// here rather than being emptied unnoticed.
 		if _, err := tx.ExecContext(ctx, `
-			TRUNCATE users.student_care_profiles, users.student_school_memberships, users.student_profiles;
+			TRUNCATE users.student_notes, users.student_care_profiles, users.student_school_memberships, users.student_profiles;
 			DELETE FROM platform.storage_backfill_checkpoints WHERE backfill = ?;`, StudentOwnerBackfillName); err != nil {
 			return fmt.Errorf("student owner backfill: reset targets: %w", err)
 		}
