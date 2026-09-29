@@ -25,6 +25,9 @@ type LoginRuntime struct {
 	// NotAGuardian reports an account without guardian access at any
 	// school — a staff account at the parents login.
 	NotAGuardian func(error) bool
+	// ConfirmPassword re-checks the signed-in guardian's password before a
+	// binding Erklärung (#3430). A wrong password satisfies InvalidCredentials.
+	ConfirmPassword func(ctx context.Context, accountID int64, password string) error
 }
 
 func (rt *LoginRuntime) complete() bool {

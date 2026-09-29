@@ -3666,6 +3666,63 @@ function parentSurveyTopic(): HelpTopic {
 }
 
 /**
+ * Einverständnis (#3430): Eltern stimmen je Kind zu oder lehnen ab. Einfache
+ * Erklärung per Knopfdruck, mit Fassung und Nachweis. Eine reine
+ * Lesebestätigung ist ein Elternbrief.
+ */
+function parentDeclarationTopic(): HelpTopic {
+  const steps = parentAnnouncementSteps(
+    "Einverständnisse",
+    "Einverständnis",
+    "Titel",
+  );
+  return {
+    id: HELP_TOPICS.leadParentDeclaration,
+    title: "Ein Einverständnis einholen",
+    question: "Wie hole ich das Einverständnis der Eltern ein?",
+    summary:
+      "Eltern stimmen für jedes Kind zu oder lehnen ab, zum Beispiel für einen Ausflug.",
+    group: "elternarbeit",
+    audience: "lead",
+    icon: "ShieldCheck",
+    steps: [
+      // Ohne die letzten zwei Schritte (Weiter, Empfänger): die Einstellungen
+      // stehen noch in Schritt 1, der Empfängerschritt heißt hier
+      // `Wer soll gefragt werden?`.
+      ...steps.slice(0, -2),
+      "Wählen Sie unter `Wer muss antworten?`, ob eine sorgeberechtigte Person genügt oder alle antworten müssen.",
+      "Tragen Sie bei Bedarf ein Datum bei `Frist (optional)` ein.",
+      "Wählen Sie unten `Weiter`.",
+      "Wählen Sie in `Schritt 2 von 2` unter `Wer soll gefragt werden?` die Empfänger.",
+      "Wählen Sie `Veröffentlichen`.",
+    ],
+    result:
+      "Die Eltern sehen die Anfrage im Eltern-Portal. Den Stand je Kind sehen Sie beim Öffnen unter `Stand der Antworten`.",
+    notes: [
+      "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen, auch nach der Frist.",
+      "Mit `Passwort vor dem Antworten abfragen` geben Eltern vor jeder Antwort ihr Passwort ein.",
+      "`Offene erinnern` schickt eine Erinnerung an alle, die noch nicht geantwortet haben.",
+      "`Bericht als PDF` lädt den Stand und alle Antworten als PDF herunter. `Verlauf als CSV` enthält dieselben Antworten als Tabelle.",
+      "Das ist eine einfache Erklärung per Knopfdruck. Verlangt ein Gesetz eine Erklärung auf Papier, reicht sie nicht aus.",
+    ],
+    differences: [
+      "Nach dem Veröffentlichen stehen Text und Dateien fest.",
+      "Ziehen Sie ein Einverständnis zurück und ändern den Text, müssen die Eltern neu antworten. Die alten Antworten bleiben im Verlauf.",
+    ],
+    troubleshootingDetails: [
+      "Sollen Eltern nur bestätigen, dass sie etwas gelesen haben? Schreiben Sie dann einen Elternbrief mit Lesebestätigung.",
+      "Ein Kind steht auf `Niemand kann antworten`? Dann hat keine sorgeberechtigte Person ein Eltern-Konto. Laden Sie die Eltern ein.",
+      "`Löschen` klappt nicht? Auf das Einverständnis gibt es schon Antworten. Ziehen Sie es stattdessen zurück.",
+    ],
+    related: [
+      HELP_TOPICS.leadParentLetter,
+      HELP_TOPICS.leadParentSurvey,
+      HELP_TOPICS.leadInviteGuardians,
+    ],
+  };
+}
+
+/**
  * Essensplan unter `/meal-plan`. Wochenweise, mit ausdruecklichem Speichern:
  * Aenderungen sind bis dahin nur Entwurf (page.tsx:799).
  */
@@ -5336,6 +5393,7 @@ function leadTopics(
     parentAnnouncementTopic(),
     parentLetterTopic(),
     parentSurveyTopic(),
+    parentDeclarationTopic(),
     mealPlanTopic(),
     bankDetailsTopic(),
 
@@ -5929,7 +5987,8 @@ function parentNewsTopic(): HelpTopic {
     id: HELP_TOPICS.parentNews,
     title: "Elternbriefe lesen und beantworten",
     question: "Wo finde ich Post von der OGS?",
-    summary: "Unter `Elternbriefe` stehen Mitteilungen und Umfragen.",
+    summary:
+      "Unter `Elternbriefe` stehen Mitteilungen, Umfragen und Anfragen zum Einverständnis.",
     group: "nachrichten",
     audience: "parent",
     icon: "Megaphone",
@@ -5953,21 +6012,34 @@ function parentNewsTopic(): HelpTopic {
           "Tippen Sie auf `Antwort speichern`.",
         ],
       },
+      {
+        title: "Auf ein Einverständnis antworten",
+        steps: [
+          "Öffnen Sie den Eintrag `Einverständnis` unter `Offen`.",
+          "Lesen Sie den Text und die Dateien.",
+          "Tippen Sie beim Kind auf `Zustimmen` oder `Ablehnen`.",
+          "Prüfen Sie im Fenster das Kind und Ihre Antwort.",
+          "Bestätigen Sie im Fenster mit demselben Knopf.",
+        ],
+      },
     ],
     result: "Erledigte Einträge wandern von `Offen` zu `Erledigt`.",
     notes: [
       "Die Bestätigung heißt `Lesebestätigung`. Damit bestätigen Sie nur, dass Sie den Brief gelesen haben.",
       "Bei mehreren Kindern zeigt moto, wie viele Antworten noch fehlen.",
       "Angehängte Dateien öffnen Sie, indem Sie auf den Namen tippen.",
+      "Nach Ihrer Antwort öffnen Sie mit `Nachweis ansehen` Ihren Nachweis. Mit `Als PDF herunterladen` speichern Sie ihn.",
     ],
     differences: [
-      "Umfragen tragen über dem Titel `Umfrage`, abgesagte Betreuung trägt `Betreuung fällt aus`.",
+      "Umfragen tragen über dem Titel `Umfrage`, Einverständnisse `Einverständnis`, abgesagte Betreuung trägt `Betreuung fällt aus`.",
       "Unten am Eintrag steht, ob er `Wichtig` ist, ob Sie eine `Erinnerung` bekommen haben und ob eine `Bestätigung erforderlich` ist.",
+      "Fragt moto nach Ihrem Passwort? Dann möchte die Schule das vor jeder Antwort.",
       "Bei einer Umfrage steht `Antwort bis` mit dem letzten Tag.",
       "Ist die Frist vorbei, steht dort `Umfrage geschlossen`.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Elternbrief sei nicht mehr aktuell? Laden Sie die Seite neu.",
+      "moto sagt, die Schule habe den Text geändert? Lesen Sie ihn noch einmal und antworten Sie neu.",
       "Fehlt `Elternbriefe` ganz? Dann nutzt Ihre OGS diese Funktion nicht.",
     ],
     related: [

@@ -30,7 +30,11 @@ async function GETHandler(
   }
 
   const inline = request.nextUrl.searchParams.get("inline") === "1";
-  const backendUrl = `${getServerApiUrl()}/parent-news-attachments/${encodeURIComponent(announcementId)}/${encodeURIComponent(attachmentId)}/download${inline ? "?inline=1" : ""}`;
+  const studentId = request.nextUrl.searchParams.get("student_id");
+  const query = new URLSearchParams();
+  if (studentId !== null) query.set("student_id", studentId);
+  if (inline) query.set("inline", "1");
+  const backendUrl = `${getServerApiUrl()}/parent-news-attachments/${encodeURIComponent(announcementId)}/${encodeURIComponent(attachmentId)}/download${query.size > 0 ? `?${query.toString()}` : ""}`;
 
   const makeRequest = (bearer: string) =>
     fetch(backendUrl, {

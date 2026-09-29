@@ -290,3 +290,29 @@ describe("buildAnnouncementMenuItems: scheduled reminder (#3162)", () => {
     ).toEqual([]);
   });
 });
+
+describe("deleting an Einverständnis with answers (#3430)", () => {
+  it("explains that it must stay and that withdrawing still works", async () => {
+    const { ApiError } = await import("~/lib/api-error");
+    deleteMock.mockRejectedValue(
+      new ApiError("declaration has submissions", 409, {
+        code: "declaration_has_submissions",
+      }),
+    );
+    const onClose = vi.fn();
+    render(
+      <DeleteAnnouncementDialog
+        announcement={{ ...announcement, delivery_mode: "declaration" }}
+        onClose={onClose}
+        onDone={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Auf dieses Einverständnis haben Eltern schon geantwortet. Deshalb lässt es sich nicht löschen. Sie können es zurückziehen, dann sehen Eltern es nicht mehr.",
+    );
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});

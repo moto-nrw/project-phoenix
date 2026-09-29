@@ -55,6 +55,49 @@ function announcement(
   };
 }
 
+function declaration(
+  overrides: Partial<ParentAnnouncement> = {},
+): ParentAnnouncement {
+  return announcement({
+    title: "Einverständnis für den Ausflug",
+    delivery_mode: "declaration",
+    declaration: {
+      kind: "consent",
+      signers: "all",
+      revocable: true,
+      requires_password: false,
+      deadline: null,
+      closed: false,
+      version: {
+        id: "1",
+        version_no: 1,
+        content_hash: "test-content-hash",
+      },
+      children: [
+        {
+          student_id: "10",
+          first_name: "Felix",
+          last_name: "Schneider",
+          can_submit: true,
+          state: "partial",
+          my_action: "agreed",
+          my_submitted_at: "2026-07-01T08:00:00Z",
+          allowed_actions: [],
+          other_signers: [
+            {
+              first_name: "Mila",
+              last_name: "Schneider",
+              action: null,
+              submitted_at: null,
+            },
+          ],
+        },
+      ],
+    },
+    ...overrides,
+  });
+}
+
 // Opening the detail view asks the backend for the message's attachments
 // (#2890). Without a stub that becomes a real fetch, which happy-dom aborts at
 // teardown — noise that has nothing to do with what these tests check.
@@ -429,6 +472,15 @@ describe("Umfrage answering in the detail view", () => {
     expect(screen.getByText("Antwort nötig")).toBeInTheDocument();
     expect(screen.getByText("1 von 2 beantwortet")).toBeInTheDocument();
     expect(screen.getByText("Mila: Nein")).toBeInTheDocument();
+  });
+
+  it("does not mark a partial declaration as settled after this guardian agreed", () => {
+    render(<NewsCard item={declaration()} onOpen={vi.fn()} />);
+
+    const state = screen.getByText("Teilweise beantwortet");
+    expect(state).toHaveClass("text-gray-600");
+    expect(state).not.toHaveClass("text-moto-green-strong");
+    expect(state.querySelector("svg")).toBeNull();
   });
 
   it("shows read and confirmed states instead of another action", () => {

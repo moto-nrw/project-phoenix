@@ -85,8 +85,7 @@ var (
 	// are forbidden. Correcting means unpublish (retract) → edit → republish,
 	// which is visible to parents and re-triggers the opted-in e-mail.
 	ErrPublishedImmutable = errors.New("announcement: published announcements cannot be edited")
-	// ErrNotPublished: reminders and resends only make sense for an announcement
-	// that is actually live.
+	// ErrNotPublished: reminders and resends need a live announcement.
 	ErrNotPublished = errors.New("announcement: announcement is not published")
 	// ErrNothingOutstanding: the announcement never asked for anything, so there
 	// is nobody to remind.
@@ -135,6 +134,8 @@ type Input struct {
 	// delivery. Both nil = no reminder.
 	ReminderAt   *time.Time `json:"reminder_at,omitempty"`
 	ReminderText *string    `json:"reminder_text,omitempty"`
+	// Declaration configures an Erklärung (#3430); zero for other modes.
+	Declaration usersModels.AnnouncementDeclarationSettings `json:"-"`
 }
 
 // Service is the staff-facing parent-announcement contract.
@@ -184,6 +185,7 @@ type Service interface {
 
 	// AttachmentSupport is the announcement side of the attachments (#2890).
 	AttachmentSupport
+	DeclarationSupport
 }
 
 // ServiceConfig is the dependency bundle. Outbox, Notifier and ParentsURL are
@@ -343,6 +345,7 @@ func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*users
 		EmailAudience:           in.EmailAudience,
 		ReminderAt:              in.ReminderAt,
 		ReminderText:            in.ReminderText,
+		Declaration:             in.Declaration,
 		Active:                  true,
 		CreatedBy:               createdBy,
 	}
@@ -383,15 +386,8 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 	if a.IsPublished() {
 		return nil, ErrPublishedImmutable
 	}
-	targets, err := normalizeInput(&in)
+	targets, options, err := s.prepareUpdate(ctx, a, &in)
 	if err != nil {
-		return nil, err
-	}
-	options, err := normalizePollOptions(&in)
-	if err != nil {
-		return nil, err
-	}
-	if err := normalizeReminder(&in); err != nil {
 		return nil, err
 	}
 
@@ -408,10 +404,10 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 	a.EmailAudience = in.EmailAudience
 	a.ReminderAt = in.ReminderAt
 	a.ReminderText = in.ReminderText
+	a.Declaration = in.Declaration
 	if err := s.repo.Update(ctx, a); err != nil {
-		// The write is guarded by published_at IS NULL: if the draft was
-		// published between the load above and here, no row matched. Surface the
-		// same immutability conflict the load-time check would have.
+		// The write is guarded by published_at IS NULL: a publish between the
+		// load and here matches no row and surfaces the same conflict.
 		if errors.Is(err, usersModels.ErrAnnouncementPublished) {
 			return nil, ErrPublishedImmutable
 		}
@@ -455,6 +451,9 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	}
 	if a.IsSystem() {
 		return ErrSystemAnnouncementImmutable
+	}
+	if err := s.guardDeclarationDelete(ctx, a); err != nil {
+		return err
 	}
 	// Cancel any not-yet-sent e-mails and reminder pushes before removing the
 	// announcement: their outbox rows reference it only by related_entity_id
@@ -503,11 +502,8 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 	}
 	if !a.IsPublished() {
 		now := time.Now()
-		// Refuse an already-expired draft: the parent feed only shows rows with
-		// expires_at > NOW(), so publishing one would e-mail guardians about an
-		// announcement they can never open — and published announcements are
-		// immutable, so the mistake can't be corrected in place. Block it before
-		// any state change or e-mail.
+		// Refuse an already-expired draft: parents could never open it, and a
+		// published announcement cannot be corrected in place.
 		if a.ExpiresAt != nil && !a.ExpiresAt.After(now) {
 			return nil, fmt.Errorf("%w: expires_at is already in the past", ErrValidation)
 		}
@@ -543,18 +539,7 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 			if fresh == nil {
 				return nil, fmt.Errorf("announcement: reload after publish: row not found")
 			}
-			freshNow := time.Now()
-			// A concurrent edit may have moved expires_at into the past between the
-			// pre-publish check and the atomic flip. Publishing an already-expired
-			// announcement is invalid (invisible to parents, immutable), so fail
-			// with a 5xx: the tenant tx rolls back the flip and staff can retry.
-			if fresh.ExpiresAt != nil && !fresh.ExpiresAt.After(freshNow) {
-				return nil, fmt.Errorf("announcement: draft expired concurrently during publish; rolled back")
-			}
-			if fresh.ResponseDeadline != nil && !fresh.ResponseDeadline.After(freshNow) {
-				return nil, fmt.Errorf("announcement: draft response deadline elapsed concurrently during publish; rolled back")
-			}
-			if err := validateReminder(fresh.ReminderAt, fresh.ExpiresAt, freshNow); err != nil {
+			if err := s.settlePublication(ctx, fresh); err != nil {
 				return nil, err
 			}
 			s.logger.Info("parent announcement published", slog.Int64("announcement_id", id))
@@ -784,7 +769,7 @@ func publishMailSpec(a *usersModels.ParentAnnouncement) mailSpec {
 		}
 		spec.intro = func(string) string { return intro }
 	}
-	return spec
+	return declarationMailSpec(a, spec)
 }
 
 func (s *service) enqueueAnnouncementEmailsAs(ctx context.Context, a *usersModels.ParentAnnouncement, spec mailSpec) (int, error) {
@@ -939,17 +924,11 @@ func (s *service) resolveSchoolLogoURL(ctx context.Context, tenantID int64) stri
 }
 
 // cancelPendingEmails cancels announcement and poll-reminder e-mails that have
-// not crossed the worker's durable dispatch fence. Called when it is retracted
-// (unpublish) or deleted: both kinds of mail carry a portal link that must not
-// be delivered after the announcement is no longer available.
-// Leaving them would deliver a notification for an announcement staff has already
-// pulled — and, on the documented unpublish -> edit -> republish correction path,
-// a stale e-mail followed by a second corrected one. The cancel runs in the same
-// request tenant tx as the state change, so it commits atomically. A missing
-// outbox binding is a no-op. A cancel DB error is returned so the tenant tx rolls
-// back cleanly (mirrors enqueueAnnouncementEmails): a failed statement poisons
-// the tx anyway, so swallowing it would only mask the failure behind a later
-// error.
+// not crossed the worker's dispatch fence when the announcement is retracted or
+// deleted, so no portal link to a pulled (or since corrected) announcement goes
+// out. It runs in the request tenant tx and commits with the state change; a
+// missing outbox is a no-op, and a DB error is returned because a failed
+// statement poisons the tx anyway.
 func (s *service) cancelPendingEmails(ctx context.Context, id int64) error {
 	if s.outbox == nil {
 		return nil
@@ -1080,11 +1059,6 @@ func (s *service) Recipients(ctx context.Context, id int64) ([]*usersModels.Anno
 	return recipients, nil
 }
 
-// normalizeInput validates and trims the payload and returns the target rows to
-// persist. It enforces: non-empty title (<=200)/body (<=4000), a known priority, an
-// optional absolute http(s) link, at least one target, and per-type ref
-// consistency (class -> text, group/AG/student -> id, school_all/
-// pending_enrollment -> neither). Duplicate targets are collapsed.
 // normalizeDelivery validates and completes the two delivery axes of #2384:
 // delivery_mode (Mitteilung vs Elternbrief) and email_audience (who receives the
 // mail, independently of who sees the announcement in the portal).
@@ -1141,9 +1115,10 @@ func normalizeDelivery(in *Input) error {
 	if in.EmailAudience == usersModels.EmailAudienceAllContacts && !in.SendEmail {
 		return fmt.Errorf("%w: email_audience %q requires send_email", ErrValidation, in.EmailAudience)
 	}
-	return nil
+	return normalizeDeclaration(in)
 }
 
+// normalizeInput validates and trims the payload and returns the deduplicated target rows.
 func normalizeInput(in *Input) ([]*usersModels.ParentAnnouncementTarget, error) {
 	in.Title = strings.TrimSpace(in.Title)
 	in.Body = strings.TrimSpace(in.Body)

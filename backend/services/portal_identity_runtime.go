@@ -78,6 +78,7 @@ type ParentLoginRuntime struct {
 	InvalidCredentials func(error) bool
 	AccountInactive    func(error) bool
 	NotAGuardian       func(error) bool
+	ConfirmPassword    func(ctx context.Context, accountID int64, password string) error
 }
 
 // SchoolPortalAuthentication binds the school portal's session runtime. A
@@ -168,6 +169,7 @@ func ParentPortalLoginOver(sessions identityaccess.AccountAuthentication) Parent
 		InvalidCredentials: identityInvalidCredentials,
 		AccountInactive:    identityIs(identityaccess.ErrAccountInactive),
 		NotAGuardian:       identityIs(identityaccess.ErrAccountNoGuardianRole),
+		ConfirmPassword:    sessions.ConfirmAccountPassword,
 	}
 }
 
