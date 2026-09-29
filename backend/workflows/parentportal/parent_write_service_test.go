@@ -226,9 +226,11 @@ func TestChildMessaging_RequiresNotesWritePermission(t *testing.T) {
 
 	// Downgrade the guardian to read-only portal access (no notes.write).
 	_, err := db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
-		UPDATE users.students_guardians
+		UPDATE auth.guardian_student_access AS a
 		SET permissions = '{"parent_portal.access": true}'::jsonb
-		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+		FROM users.student_guardian_relationships AS r
+		WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id
+		  AND r.tenant_id = ? AND r.student_id = ? AND r.guardian_profile_id = ?
 	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 
@@ -542,9 +544,11 @@ func TestSubmitSickNote_MissingGuardianPermission(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	_, err := db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
-		UPDATE users.students_guardians
+		UPDATE auth.guardian_student_access AS a
 		SET permissions = '{"parent_portal.access": true}'::jsonb
-		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+		FROM users.student_guardian_relationships AS r
+		WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id
+		  AND r.tenant_id = ? AND r.student_id = ? AND r.guardian_profile_id = ?
 	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 
@@ -641,7 +645,7 @@ func TestListSickDays_HidesAnotherGuardiansReason(t *testing.T) {
 	link := &userModels.StudentGuardian{StudentID: chain.StudentID, GuardianProfileID: otherProfile.ID, RelationshipType: "parent"}
 	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleLegalGuardian)
 	link.SetTenantID(chain.TenantID)
-	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(testpkg.Ctx(t))
+	err = testpkg.InsertTestStudentGuardian(testpkg.Ctx(t), db, link)
 	require.NoError(t, err)
 
 	day := timezone.NewDate(2026, 8, 24).AddDays(3)
@@ -693,9 +697,11 @@ func TestListSickDays_AllowsPortalAccessWithoutWritePermissions(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
-		UPDATE users.students_guardians
+		UPDATE auth.guardian_student_access AS a
 		SET permissions = '{"parent_portal.access": true}'::jsonb
-		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+		FROM users.student_guardian_relationships AS r
+		WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id
+		  AND r.tenant_id = ? AND r.student_id = ? AND r.guardian_profile_id = ?
 	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 
@@ -952,9 +958,11 @@ func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
 
 	portalAndSick := `{"` + authorize.GuardianPermissionPortalAccess + `": true, "` + authorize.GuardianPermissionSickNoteSubmit + `": true}`
 	_, err := db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
-		UPDATE users.students_guardians
+		UPDATE auth.guardian_student_access AS a
 		SET permissions = ?::jsonb
-		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+		FROM users.student_guardian_relationships AS r
+		WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id
+		  AND r.tenant_id = ? AND r.student_id = ? AND r.guardian_profile_id = ?
 	`, portalAndSick, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 
@@ -965,9 +973,11 @@ func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
 
 	portalOnly := `{"` + authorize.GuardianPermissionPortalAccess + `": true}`
 	_, err = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
-		UPDATE users.students_guardians
+		UPDATE auth.guardian_student_access AS a
 		SET permissions = ?::jsonb
-		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+		FROM users.student_guardian_relationships AS r
+		WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id
+		  AND r.tenant_id = ? AND r.student_id = ? AND r.guardian_profile_id = ?
 	`, portalOnly, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 

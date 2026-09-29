@@ -167,8 +167,9 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 	require.NotNil(t, msg)
 
 	_, err = db.ExecContext(context.Background(), `
-		UPDATE users.students_guardians SET permissions = '{}'::jsonb
-		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+		UPDATE auth.guardian_student_access AS a SET permissions = '{}'::jsonb
+		FROM users.student_guardian_relationships AS r
+		WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id AND r.tenant_id = ? AND r.student_id = ? AND r.guardian_profile_id = ?
 	`, parentChain.TenantID, parentChain.StudentID, parentChain.GuardianProfileID)
 	require.NoError(t, err)
 

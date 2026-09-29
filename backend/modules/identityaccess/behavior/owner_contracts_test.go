@@ -41,7 +41,7 @@ type authEventRow struct {
 	CreatedAt time.Time      `bun:"created_at"`
 }
 
-// Guardian link role presets of users.students_guardians.guardian_role.
+// Guardian link role presets of users.student_guardian_relationships.guardian_role.
 const (
 	guardianRoleLegalGuardian = "legal_guardian"
 	guardianRoleEmergency     = "emergency_contact"
@@ -156,7 +156,7 @@ func writeTenantSettingOverride(t *testing.T, db *bun.DB, tenantID int64, key st
 	require.NoError(t, err)
 }
 
-// guardianLinkSpec describes a users.students_guardians row a suite writes
+// guardianLinkSpec describes a student guardian link a suite writes
 // directly, the way a staff member's contact maintenance leaves it.
 type guardianLinkSpec struct {
 	studentID, guardianProfileID int64
@@ -168,16 +168,16 @@ type guardianLinkSpec struct {
 // custom role and returns its id.
 func insertGuardianLink(t *testing.T, db *bun.DB, spec guardianLinkSpec) int64 {
 	t.Helper()
-	var id int64
-	require.NoError(t, db.NewRaw(`INSERT INTO users.students_guardians
-		(tenant_id, student_id, guardian_profile_id, relationship_type, is_primary, is_payer, emergency_priority)
-		VALUES (?, ?, ?, ?, ?, ?, 1) RETURNING id`,
-		testpkg.Tenant(t), spec.studentID, spec.guardianProfileID, spec.relationshipType, spec.isPrimary, spec.isPayer).
-		Scan(context.Background(), &id))
-	return id
+	link := &testpkg.StudentGuardian{
+		StudentID: spec.studentID, GuardianProfileID: spec.guardianProfileID, RelationshipType: spec.relationshipType,
+		IsPrimary: spec.isPrimary, IsPayer: spec.isPayer, EmergencyPriority: 1,
+	}
+	link.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, testpkg.InsertTestStudentGuardian(context.Background(), db, link))
+	return link.ID
 }
 
-// guardianLinkRow is a users.students_guardians row as the suites read it
+// guardianLinkRow is a student guardian link as the suites read it
 // back, with the portal access the stored permissions grant.
 type guardianLinkRow struct {
 	ID           int64  `bun:"id"`
@@ -190,7 +190,7 @@ type guardianLinkRow struct {
 func readGuardianLink(t *testing.T, db *bun.DB, studentID, guardianProfileID int64) *guardianLinkRow {
 	t.Helper()
 	var row guardianLinkRow
-	require.NoError(t, db.NewRaw(`SELECT id, guardian_role, is_payer FROM users.students_guardians
+	require.NoError(t, db.NewRaw(`SELECT id, guardian_role, is_payer FROM users.student_guardian_relationships
 		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?`, testpkg.Tenant(t), studentID, guardianProfileID).
 		Scan(context.Background(), &row))
 	row.portalAccess = testpkg.StudentGuardianLinkGrantsPortalAccess(t, db, row.ID)

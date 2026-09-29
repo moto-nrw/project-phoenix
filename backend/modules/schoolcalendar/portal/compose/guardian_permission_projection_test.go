@@ -30,8 +30,9 @@ func TestCalendarGuardianProjectionPreservesPermissionInterpretation(t *testing.
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			chain := testpkg.CreateTestParentGuardianChain(t, db)
-			_, err := db.NewRaw(`UPDATE users.students_guardians SET permissions = jsonb_build_object('parent_portal.access', ?::jsonb)
-				WHERE guardian_profile_id = ? AND student_id = ?`, tc.json, chain.GuardianProfileID, chain.StudentID).Exec(ctx)
+			_, err := db.NewRaw(`UPDATE auth.guardian_student_access AS a SET permissions = jsonb_build_object('parent_portal.access', ?::jsonb)
+				FROM users.student_guardian_relationships AS r
+				WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id AND r.guardian_profile_id = ? AND r.student_id = ?`, tc.json, chain.GuardianProfileID, chain.StudentID).Exec(ctx)
 			require.NoError(t, err)
 			detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 				Title: "Stored permission interpretation", StartDate: portalDate(2026, 10, 12), EndDate: portalDate(2026, 10, 12),

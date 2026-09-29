@@ -39,14 +39,16 @@ func insertEnrollablePhaseWithAudience(t *testing.T, db *bun.DB, tenantID int64,
 func revokeGuardianSubmitPermission(t *testing.T, db *bun.DB, studentID int64) {
 	t.Helper()
 	_, err := db.NewRaw(`
-		UPDATE users.students_guardians SET permissions = '{}'::jsonb WHERE student_id = ?
+		UPDATE auth.guardian_student_access AS a SET permissions = '{}'::jsonb
+		FROM users.student_guardian_relationships AS r
+		WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id AND r.student_id = ?
 	`, studentID).Exec(context.Background())
 	require.NoError(t, err)
 }
 
 // deactivateAccountTenantMapping flips the account's account_tenants row to
 // inactive, simulating a guardian whose school membership was revoked while
-// the historical guardian-profile / students_guardians rows linger.
+// the historical guardian-profile / relationship rows linger.
 func deactivateAccountTenantMapping(t *testing.T, db *bun.DB, accountID int64) {
 	t.Helper()
 	_, err := db.NewRaw(`

@@ -212,7 +212,7 @@ func TestMasterDataUsesSelectedChildGuardianProfile(t *testing.T) {
 	}
 	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRolePrimaryGuardian)
 	link.SetTenantID(secondTenantID)
-	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(ctx)
+	err = testpkg.InsertTestStudentGuardian(ctx, db, link)
 	require.NoError(t, err)
 
 	data, err := svc.GetChildMasterData(ctx, chain.AccountID, secondStudent.ID)
