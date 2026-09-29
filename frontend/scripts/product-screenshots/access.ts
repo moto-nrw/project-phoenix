@@ -68,13 +68,27 @@ function frontendEnv(
   return (name) => env[name] ?? file[name];
 }
 
-function assertLocalHost(host: string, name: string): void {
-  const hostname = host.split(":")[0] ?? "";
-  if (hostname !== "localhost" && !hostname.endsWith(".localhost")) {
+function localOrigin(origin: string, name: string): URL {
+  let url: URL;
+  try {
+    url = new URL(origin);
+  } catch {
+    throw new Error(`${name}=${origin} ist keine gültige lokale URL.`);
+  }
+  if (
+    url.protocol !== "http:" ||
+    url.username ||
+    url.password ||
+    url.pathname !== "/" ||
+    url.search ||
+    url.hash ||
+    (url.hostname !== "localhost" && !url.hostname.endsWith(".localhost"))
+  ) {
     throw new Error(
-      `${name}=${host} zeigt nicht auf localhost. Die Produkt-Screenshots fotografieren nur den lokalen Stack.`,
+      `${name}=${origin} zeigt nicht auf eine lokale Origin. Die Produkt-Screenshots fotografieren nur den lokalen Stack.`,
     );
   }
+  return url;
 }
 
 function credentialsOf(
@@ -105,10 +119,11 @@ export function loadStackAccess(options: LoadAccessOptions = {}): StackAccess {
       "NEXT_PUBLIC_PARENTS_HOSTNAME und TENANT_DOMAIN fehlen (frontend/.env.local).",
     );
   }
-  assertLocalHost(parentsHost, "NEXT_PUBLIC_PARENTS_HOSTNAME");
-  assertLocalHost(tenantDomain, "TENANT_DOMAIN");
-  const port = parentsHost.split(":")[1];
-  const portSuffix = port ? `:${port}` : "";
+  const parentsUrl = localOrigin(
+    `http://${parentsHost}`,
+    "NEXT_PUBLIC_PARENTS_HOSTNAME",
+  );
+  const domainUrl = localOrigin(`http://${tenantDomain}`, "TENANT_DOMAIN");
 
   if (!existsSync(statePath)) {
     throw new Error(
@@ -147,9 +162,13 @@ export function loadStackAccess(options: LoadAccessOptions = {}): StackAccess {
       `Das Seed-Profil ${PROFILE} hat keinen vollständigen Schul-Admin-Zugang.`,
     );
   }
+  const tenantUrl = localOrigin(
+    `http://${slug}.${domainUrl.host}${parentsUrl.port ? `:${parentsUrl.port}` : ""}`,
+    "Marketing-Tenant",
+  );
   return {
-    tenantOrigin: `http://${slug}.${tenantDomain}${portSuffix}`,
-    parentsOrigin: `http://${parentsHost}`,
+    tenantOrigin: tenantUrl.origin,
+    parentsOrigin: parentsUrl.origin,
     admin,
     betreuer: credentialsOf(profile.credentials?.accounts?.betreuer?.[0]),
     eltern: credentialsOf(profile.credentials?.parents?.[0]),
