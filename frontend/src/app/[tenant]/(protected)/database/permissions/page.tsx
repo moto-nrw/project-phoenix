@@ -4,7 +4,6 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
-import { Skeleton } from "~/components/ui/skeleton";
 import { formatCount } from "~/lib/format-utils";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -189,7 +188,7 @@ function PermissionsPageContent() {
       className="flex w-full flex-col"
       intro={{
         title: "Berechtigungen",
-        description: loading ? <Skeleton className="h-4 w-56" /> : statusLine,
+        description: statusLine,
       }}
       search={
         <PageHeaderWithSearch

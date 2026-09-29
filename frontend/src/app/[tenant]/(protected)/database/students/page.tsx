@@ -15,7 +15,6 @@ import { DatabaseGroupingToggle } from "~/components/database/database-grouping-
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { ChildQuotaStatus } from "~/components/database/child-quota-status";
 import { fetchChildQuota } from "~/lib/child-quota-api";
-import { Skeleton } from "~/components/ui/skeleton";
 import { formatCount } from "~/lib/format-utils";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -526,9 +525,7 @@ function StudentsPageContent() {
       className="flex w-full flex-col"
       intro={{
         title: "Kinder",
-        description: loading ? (
-          <Skeleton className="h-4 w-48" />
-        ) : (
+        description: (
           <>
             {statusLine}
             <ChildQuotaStatus quota={childQuota ?? null} />
@@ -545,6 +542,7 @@ function StudentsPageContent() {
                 />
                 <Link
                   href={tenantPath("/database/students/import")}
+                  data-setup-tour="student-import"
                   className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
                   Importieren
@@ -557,6 +555,7 @@ function StudentsPageContent() {
                 variant="outline"
                 size="md"
                 aria-pressed={selectionMode}
+                data-setup-tour="student-select"
                 className={cn(
                   "h-10 gap-2 px-3 shadow-none hover:ring-gray-300",
                   selectionMode && "ring-gray-900 hover:ring-gray-900",

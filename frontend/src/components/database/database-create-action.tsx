@@ -48,6 +48,8 @@ export function DatabaseCreateAction({
         disabled={disabled}
         className="bg-moto-green hover:bg-moto-green-hover hidden h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-gray-950 disabled:cursor-not-allowed disabled:opacity-50 md:flex"
         aria-label={ariaLabel}
+        // Ziel der geführten Tour der ersten Schritte (#2832).
+        data-setup-tour="create"
       >
         + {label}
       </button>
@@ -62,6 +64,7 @@ export function DatabaseCreateAction({
             // Schwebender Symbolknopf: Das Portal löst ihn aus dem
             // Filter-Kontext der Kopfkarte, damit `fixed` den Viewport meint.
             data-icon-only=""
+            data-setup-tour="create"
             aria-label={ariaLabel}
           >
             <svg

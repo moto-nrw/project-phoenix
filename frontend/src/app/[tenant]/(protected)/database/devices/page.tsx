@@ -6,7 +6,6 @@ import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
-import { Skeleton } from "~/components/ui/skeleton";
 import { formatCount } from "~/lib/format-utils";
 import {
   useGroupedItems,
@@ -404,7 +403,7 @@ function DevicesPageContent() {
       className="flex w-full flex-col"
       intro={{
         title: "Geräte",
-        description: loading ? <Skeleton className="h-4 w-44" /> : statusLine,
+        description: statusLine,
         actions: (
           <div className="flex items-center gap-2">
             {!isMobile ? (
