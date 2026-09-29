@@ -18,11 +18,13 @@ interface TargetOverrideBody {
   start_date?: string;
   end_date?: string;
   daily_minutes?: number;
+  weekday_minutes?: number[];
 }
 
 /**
  * POST /api/staff/[id]/target-overrides
- * Creates a Sonderarbeitszeit: a date range with one daily target.
+ * Creates a Sonderarbeitszeit: a date range with one daily target or one
+ * target per weekday from Monday to Friday (#3745).
  */
 export const POST = createPostHandler<unknown, TargetOverrideBody>(
   async (
@@ -39,6 +41,7 @@ export const POST = createPostHandler<unknown, TargetOverrideBody>(
         start_date: body.start_date,
         end_date: body.end_date,
         daily_minutes: body.daily_minutes,
+        weekday_minutes: body.weekday_minutes,
       },
     );
     return response.data;

@@ -13,18 +13,33 @@ import (
 )
 
 // targetOverrideRequest is the wire shape of a Sonderarbeitszeit (#3259):
-// an inclusive date range and one daily target in minutes.
+// an inclusive date range and either one daily target in minutes or, since
+// #3745, one target per weekday from Monday to Friday.
 type targetOverrideRequest struct {
-	StartDate    string `json:"start_date"`
-	EndDate      string `json:"end_date"`
-	DailyMinutes *int   `json:"daily_minutes"`
+	StartDate      string `json:"start_date"`
+	EndDate        string `json:"end_date"`
+	DailyMinutes   *int   `json:"daily_minutes"`
+	WeekdayMinutes []int  `json:"weekday_minutes"`
 }
 
+// targetOverrideRequestError is localized at the HTTP boundary.
+type targetOverrideRequestError string
+
+func (e targetOverrideRequestError) Error() string { return string(e) }
+
 func (req targetOverrideRequest) fields() (workforce.StaffTargetOverrideFields, error) {
-	if req.DailyMinutes == nil {
-		return workforce.StaffTargetOverrideFields{}, errors.New("daily_minutes is required")
+	fields := workforce.StaffTargetOverrideFields{StartDate: req.StartDate, EndDate: req.EndDate}
+	switch {
+	case req.DailyMinutes != nil && req.WeekdayMinutes != nil:
+		return fields, targetOverrideRequestError("Bitte geben Sie entweder Stunden pro Tag oder Stunden für die Wochentage ein.")
+	case req.DailyMinutes != nil:
+		fields.DailyMinutes = *req.DailyMinutes
+	case req.WeekdayMinutes != nil:
+		fields.WeekdayMinutes = req.WeekdayMinutes
+	default:
+		return fields, targetOverrideRequestError("Bitte geben Sie Stunden pro Tag oder Stunden für die Wochentage ein.")
 	}
-	return workforce.StaffTargetOverrideFields{StartDate: req.StartDate, EndDate: req.EndDate, DailyMinutes: *req.DailyMinutes}, nil
+	return fields, nil
 }
 
 // registerTargetOverrideRoutes serves the Sonderarbeitszeiten of one staff
@@ -122,7 +137,7 @@ func decodeTargetOverride(w http.ResponseWriter, r *http.Request) (workforce.Sta
 	}
 	fields, err := req.fields()
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequestMessage(err.Error()))
 		return workforce.StaffTargetOverrideFields{}, false
 	}
 	return fields, true
