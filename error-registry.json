@@ -121,6 +121,42 @@
       "legacy": "course_requests_disabled"
     },
     {
+      "code": "care.declaration_action_not_allowed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "declaration_action_not_allowed"
+    },
+    {
+      "code": "care.declaration_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "declaration_closed"
+    },
+    {
+      "code": "care.declaration_not_permitted",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "declaration_not_permitted"
+    },
+    {
+      "code": "care.declaration_password_incorrect",
+      "class": "input",
+      "parameters": [],
+      "legacy": "declaration_password_incorrect"
+    },
+    {
+      "code": "care.declaration_password_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "declaration_password_required"
+    },
+    {
+      "code": "care.declaration_version_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "declaration_version_changed"
+    },
+    {
       "code": "care.excused_request_not_pending",
       "class": "business_rejection",
       "parameters": [],
@@ -425,6 +461,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "announcement_reminder_sent"
+    },
+    {
+      "code": "communication.declaration_has_submissions",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "declaration_has_submissions"
     },
     {
       "code": "communication.parent_news_disabled",

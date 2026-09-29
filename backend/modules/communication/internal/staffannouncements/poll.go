@@ -62,7 +62,7 @@ func normalizePollOptions(in *Input) ([]*usersModels.ParentAnnouncementOption, e
 		if len(in.Options) > 0 {
 			return nil, fmt.Errorf("%w: options require a response_type", ErrValidation)
 		}
-		in.ResponseDeadline = nil
+		in.ResponseDeadline = deadlineWithoutPoll(in)
 		return []*usersModels.ParentAnnouncementOption{}, nil
 	}
 	// A poll response is the parent's explicit confirmation. Requiring a second

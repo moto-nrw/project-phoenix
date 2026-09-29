@@ -202,8 +202,11 @@ export function AnnouncementReminderDialog({
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
             moto schickt „{announcement.title}“ zu diesem Zeitpunkt noch einmal
-            an alle Empfänger, auch wenn sie schon gelesen oder bestätigt haben.
-            Titel, Text und Empfänger bleiben unverändert.
+            an alle Empfänger, auch wenn sie schon{" "}
+            {announcement.delivery_mode === "declaration"
+              ? "geantwortet"
+              : "gelesen oder bestätigt"}{" "}
+            haben. Titel, Text und Empfänger bleiben unverändert.
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>

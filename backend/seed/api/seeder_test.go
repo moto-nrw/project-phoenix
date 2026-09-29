@@ -1453,6 +1453,19 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if r.URL.Path == "/parent/me/news" {
+			// The seeded Erklärung (#3430) as the parent feed returns it.
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": []map[string]any{{
+					"id": "81", "title": seedDeclarationTitle,
+					"declaration": map[string]any{
+						"version":  map[string]any{"id": "5"},
+						"children": []map[string]any{{"student_id": "9", "can_submit": true}},
+					},
+				}},
+			})
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/api/parent-announcements/") && strings.HasSuffix(r.URL.Path, "/publish") {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"published_at": "2026-08-31T00:00:00Z"},

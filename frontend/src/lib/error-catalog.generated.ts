@@ -38,6 +38,13 @@ export const ERROR_CATALOG = {
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "care.course_requests_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "care.declaration_closed":
+        "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
+      "care.declaration_password_incorrect":
+        "Das Passwort stimmt nicht. Bitte versuchen Sie es noch einmal.",
+      "care.declaration_password_required": "Bitte geben Sie Ihr Passwort ein.",
+      "care.declaration_version_changed":
+        "Der Stand von {object} hat sich geändert. Bitte laden Sie die Seite neu.",
       "care.excused_request_not_pending":
         "{object} ist nicht mehr offen. Bitte laden Sie die Seite neu.",
       "care.excused_request_overlap":
@@ -304,7 +311,11 @@ export const ERROR_CATALOG = {
       crash: "{object} could not be processed. Please try again later.",
       fieldCheck: "Please check this field.",
     },
-    codes: {},
+    codes: {
+      "care.declaration_password_incorrect":
+        "The password is not correct. Please try again.",
+      "care.declaration_password_required": "Please enter your password.",
+    },
   },
   ru: {
     classes: {
@@ -322,7 +333,11 @@ export const ERROR_CATALOG = {
       crash: "Не удалось обработать: {object}. Повторите попытку позже.",
       fieldCheck: "Проверьте это поле.",
     },
-    codes: {},
+    codes: {
+      "care.declaration_password_incorrect":
+        "Пароль неверный. Пожалуйста, попробуйте ещё раз.",
+      "care.declaration_password_required": "Пожалуйста, введите пароль.",
+    },
   },
   sq: {
     classes: {
@@ -340,7 +355,11 @@ export const ERROR_CATALOG = {
       crash: "Nuk u përpunua: {object}. Provoni përsëri më vonë.",
       fieldCheck: "Kontrolloni këtë fushë.",
     },
-    codes: {},
+    codes: {
+      "care.declaration_password_incorrect":
+        "Fjalëkalimi nuk është i saktë. Ju lutemi provoni përsëri.",
+      "care.declaration_password_required": "Ju lutemi shkruani fjalëkalimin.",
+    },
   },
   pl: {
     classes: {
@@ -358,7 +377,11 @@ export const ERROR_CATALOG = {
       crash: "Nie udało się przetworzyć: {object}. Spróbuj ponownie później.",
       fieldCheck: "Sprawdź to pole.",
     },
-    codes: {},
+    codes: {
+      "care.declaration_password_incorrect":
+        "Hasło jest nieprawidłowe. Spróbuj ponownie.",
+      "care.declaration_password_required": "Wpisz swoje hasło.",
+    },
   },
   tr: {
     classes: {
@@ -376,7 +399,11 @@ export const ERROR_CATALOG = {
       crash: "{object} işlenemedi. Daha sonra yeniden deneyin.",
       fieldCheck: "Bu alanı kontrol edin.",
     },
-    codes: {},
+    codes: {
+      "care.declaration_password_incorrect":
+        "Şifre doğru değil. Lütfen tekrar deneyin.",
+      "care.declaration_password_required": "Lütfen şifrenizi girin.",
+    },
   },
   uk: {
     classes: {
@@ -394,6 +421,10 @@ export const ERROR_CATALOG = {
       crash: "Не вдалося обробити: {object}. Спробуйте пізніше.",
       fieldCheck: "Перевірте це поле.",
     },
-    codes: {},
+    codes: {
+      "care.declaration_password_incorrect":
+        "Пароль неправильний. Будь ласка, спробуйте ще раз.",
+      "care.declaration_password_required": "Будь ласка, введіть пароль.",
+    },
   },
 } as const;

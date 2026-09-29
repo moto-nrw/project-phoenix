@@ -257,8 +257,8 @@ const reachedAccountBound = `(
 				)
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ?
 				AND pt.target_type = 'pending_enrollment'
-		)
-	)`
+	)
+)`
 
 // openPollForAccountFeed is the SQL boolean "announcement a is an open poll
 // and at least one of the bound account's reached children has no answer

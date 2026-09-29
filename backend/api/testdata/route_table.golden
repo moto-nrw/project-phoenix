@@ -295,6 +295,8 @@ GET /api/notifications/preferences/
 GET /api/notifications/push/public-key
 GET /api/parent-announcements/
 GET /api/parent-announcements/{announcementId}
+GET /api/parent-announcements/{announcementId}/declaration-export
+GET /api/parent-announcements/{announcementId}/declaration-status
 GET /api/parent-announcements/{announcementId}/letter-status
 GET /api/parent-announcements/{announcementId}/poll-children
 GET /api/parent-announcements/{announcementId}/poll-results
@@ -569,6 +571,7 @@ GET /parent/me/messages/children/{studentId}/threads
 GET /parent/me/messages/unread-count
 GET /parent/me/news
 GET /parent/me/news/unread-count
+GET /parent/me/news/{announcementId}/declaration/proof
 GET /parent/me/notification-preferences/
 GET /parent/me/profile
 GET /parent/me/push/public-key
@@ -948,6 +951,7 @@ POST /parent/me/children/{studentId}/related-accounts
 POST /parent/me/children/{studentId}/sick-note
 POST /parent/me/messages/children/{studentId}
 POST /parent/me/news/{announcementId}/acknowledge
+POST /parent/me/news/{announcementId}/declaration
 POST /parent/me/news/{announcementId}/read
 POST /parent/me/news/{announcementId}/respond
 POST /parent/me/push/subscriptions
