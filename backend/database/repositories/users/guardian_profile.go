@@ -30,8 +30,9 @@ const (
 
 // GuardianProfileRepository implements the users.GuardianProfileRepository interface
 type GuardianProfileRepository struct {
-	runtime           Runtime
-	portalMemberships PortalMembershipQuery
+	runtime                Runtime
+	portalMemberships      PortalMembershipQuery
+	portalLoginMemberships PortalLoginMembershipQuery
 }
 
 // GuardianProfileOption configures a GuardianProfileRepository at construction.
@@ -40,6 +41,12 @@ type GuardianProfileOption func(*GuardianProfileRepository)
 // WithPortalMemberships binds account reachability without exposing owner SQL.
 func WithPortalMemberships(query PortalMembershipQuery) GuardianProfileOption {
 	return func(r *GuardianProfileRepository) { r.portalMemberships = query }
+}
+
+// WithPortalLoginMemberships binds parent-login reachability without exposing
+// owner SQL.
+func WithPortalLoginMemberships(query PortalLoginMembershipQuery) GuardianProfileOption {
+	return func(r *GuardianProfileRepository) { r.portalLoginMemberships = query }
 }
 
 // NewGuardianProfileRepository creates a new GuardianProfileRepository instance
@@ -124,14 +131,9 @@ func (r *GuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) 
 }
 
 // FindActivePortalProfilesByIDs returns only guardian profiles that are linked
-// to an account that can actually sign in to the parent portal for the current
-// tenant. Reachability mirrors the parent login flow (services/auth): the
-// tenant mapping (account_tenants.status) and the account itself
-// (accounts.active) must be active, AND the account must hold the guardian role
-// on that tenant. Parent login rejects accounts without the guardian role
-// (ErrAccountNoGuardianRole), so a profile whose account lacks it must not be
-// treated as reachable — otherwise staff could target a parent who can never
-// see or answer the invitation.
+// to an active account with active membership and guardian role at the current
+// tenant. It identifies portal participants for recipient and sharing flows;
+// it does not assert that the account can authenticate with a password.
 //
 // The owner projection opens no transaction of its own: its store resolves the
 // caller's ambient transaction from the context and runs on the root connection
@@ -144,6 +146,30 @@ func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Co
 	}
 	if r.portalMemberships == nil {
 		return nil, errors.New("find active portal guardian profiles: portal membership query is required")
+	}
+	return r.findPortalProfilesByIDs(ctx, ids, r.portalMemberships, "find active portal guardian memberships")
+}
+
+// FindLoginReadyPortalProfilesByIDs returns guardian profiles whose linked
+// account can authenticate with a password at the current tenant.
+func (r *GuardianProfileRepository) FindLoginReadyPortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*users.GuardianProfile), nil
+	}
+	if r.portalLoginMemberships == nil {
+		return nil, errors.New("find login-ready portal guardian profiles: portal login membership query is required")
+	}
+	return r.findPortalProfilesByIDs(ctx, ids, r.portalLoginMemberships, "find login-ready portal guardian memberships")
+}
+
+func (r *GuardianProfileRepository) findPortalProfilesByIDs(
+	ctx context.Context,
+	ids []int64,
+	membershipsQuery func(context.Context, []int64) (map[int64][]int64, error),
+	errorPrefix string,
+) (map[int64]*users.GuardianProfile, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*users.GuardianProfile), nil
 	}
 
 	var profiles []*users.GuardianProfile
@@ -167,9 +193,9 @@ func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Co
 	for _, profile := range profiles {
 		accountIDs = append(accountIDs, *profile.AccountID)
 	}
-	memberships, err := r.portalMemberships(ctx, accountIDs)
+	memberships, err := membershipsQuery(ctx, accountIDs)
 	if err != nil {
-		return nil, fmt.Errorf("find active portal guardian memberships: %w", err)
+		return nil, fmt.Errorf("%s: %w", errorPrefix, err)
 	}
 	for _, profile := range profiles {
 		if slices.Contains(memberships[*profile.AccountID], profile.GetTenantID()) {

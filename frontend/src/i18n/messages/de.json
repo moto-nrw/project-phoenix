@@ -1158,7 +1158,7 @@
       "care": "Gebuchte Angebote",
       "noCare": "Keine Angebote gebucht.",
       "hint": "Änderungen für {name} laufen jetzt über die Eltern-App.",
-      "noAccess": "Sie haben noch keinen Zugang zur Eltern-App? Die OGS kann Sie einladen."
+      "noAccess": "Sie kommen nicht in die Eltern-App? Bitte melden Sie sich bei der OGS."
     }
   },
   "enrollmentStatus": {
@@ -1345,9 +1345,18 @@
     "adjustSubmit": "Anpassung senden",
     "lockedChildHint": "Änderungen für dieses Kind laufen über die Eltern-App.",
     "lockedAllTitle": "Änderungen laufen über die Eltern-App",
-    "lockedAllBodyOne": "Ihr Kind ist schon in der Betreuung. Änderungen stellen Sie jetzt in der Eltern-App. Sie haben noch keinen Zugang? Die OGS kann Sie einladen.",
-    "lockedAllBodyMany": "Ihre Kinder sind schon in der Betreuung. Änderungen stellen Sie jetzt in der Eltern-App. Sie haben noch keinen Zugang? Die OGS kann Sie einladen.",
-    "lockedAllAction": "Zur Eltern-App"
+    "lockedAllBodyOne": "Ihr Kind ist schon in der Betreuung. Änderungen stellen Sie jetzt in der Eltern-App.",
+    "lockedAllBodyMany": "Ihre Kinder sind schon in der Betreuung. Änderungen stellen Sie jetzt in der Eltern-App.",
+    "lockedAllAction": "Zur Eltern-App",
+    "noAccountTitle": "Noch kein Zugang zur Eltern-App",
+    "noAccountIntro": "Den Zugang bekommen Sie mit einer Einladung per E-Mail:",
+    "noAccountStepOpen": "Öffnen Sie die E-Mail „Einladung zum Eltern-Portal“.",
+    "noAccountStepAccept": "Tippen Sie auf „Einladung annehmen“.",
+    "noAccountStepPassword": "Legen Sie ein Passwort fest. Danach können Sie sich in der Eltern-App anmelden.",
+    "noAccountHelp": "Keine E-Mail gefunden? Schauen Sie auch im Spam-Ordner nach. Die E-Mail fehlt oder der Link geht nicht mehr? Bitte melden Sie sich bei der OGS.",
+    "unavailableAccountTitle": "Zugang zur Eltern-App nicht möglich",
+    "unavailableAccountHelp": "Bitte melden Sie sich bei der OGS. Die OGS hilft Ihnen weiter.",
+    "noAccessFallback": "Noch kein Zugang? Öffnen Sie die E-Mail „Einladung zum Eltern-Portal“. Keine E-Mail bekommen? Bitte melden Sie sich bei der OGS."
   },
   "parentRequestEdit": {
     "title": "Anfrage bearbeiten",

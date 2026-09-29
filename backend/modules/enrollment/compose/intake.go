@@ -11,19 +11,20 @@ import (
 // Ports the composition root binds for Enrollment's intake and change
 // requests (#3565).
 type (
-	IntakeDependencies        = application.IntakeDependencies
-	IntakeRequests            = application.IntakeRequests
-	IntakeChildren            = application.IntakeChildren
-	IntakeGuardians           = application.IntakeGuardians
-	IntakeLateInvites         = application.IntakeLateInvites
-	IntakeCatalog             = application.IntakeCatalog
-	IntakeOfferings           = application.IntakeOfferings
-	IntakeSettings            = application.IntakeSettings
-	LegalSettings             = application.LegalSettings
-	SubmissionRateLimiter     = application.SubmissionRateLimiter
-	StudentMatches            = application.StudentMatches
-	GuardianStudentAuthorizer = application.GuardianStudentAuthorizer
-	ManualEnrollmentDecider   = application.ManualEnrollmentDecider
+	IntakeDependencies             = application.IntakeDependencies
+	IntakeRequests                 = application.IntakeRequests
+	IntakeChildren                 = application.IntakeChildren
+	IntakeGuardians                = application.IntakeGuardians
+	IntakeLateInvites              = application.IntakeLateInvites
+	IntakeCatalog                  = application.IntakeCatalog
+	IntakeOfferings                = application.IntakeOfferings
+	IntakeSettings                 = application.IntakeSettings
+	LegalSettings                  = application.LegalSettings
+	SubmissionRateLimiter          = application.SubmissionRateLimiter
+	StudentMatches                 = application.StudentMatches
+	GuardianStudentAuthorizer      = application.GuardianStudentAuthorizer
+	GuardianInvitationAvailability = application.GuardianInvitationAvailability
+	ManualEnrollmentDecider        = application.ManualEnrollmentDecider
 
 	ChangeRequestDependencies = application.ChangeRequestDependencies
 	ChangeRequestRecords      = application.ChangeRequestRecords

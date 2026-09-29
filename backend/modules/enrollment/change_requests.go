@@ -149,4 +149,9 @@ type ChangeRequests interface {
 	ListForReview(ctx context.Context, query ChangeRequestReviewQuery) ([]*ChangeRequestReviewItem, *ChangeRequestReviewCursor, error)
 	// CountOpenForReview counts the rows in the given statuses.
 	CountOpenForReview(ctx context.Context, statuses []string) (int, error)
+	// PrimaryGuardianPortalAccess reports one of "account", "invitation" or
+	// "contact_ogs" for the primary guardian behind a status token. The
+	// status page uses it to show a parent-app link only when the family can
+	// log in there.
+	PrimaryGuardianPortalAccess(ctx context.Context, token string) (string, error)
 }

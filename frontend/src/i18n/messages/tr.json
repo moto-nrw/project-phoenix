@@ -1158,7 +1158,7 @@
       "care": "Seçilen teklifler",
       "noCare": "Seçilen teklif yok.",
       "hint": "{name} için değişiklikler artık veli uygulaması üzerinden yapılır.",
-      "noAccess": "Veli uygulamasına henüz erişiminiz yok mu? OGS sizi davet edebilir."
+      "noAccess": "Veli uygulamasına giremiyor musunuz? Lütfen OGS ile iletişime geçin."
     }
   },
   "enrollmentStatus": {
@@ -1345,9 +1345,18 @@
     "adjustSubmit": "Değişikliği gönder",
     "lockedChildHint": "Bu çocuk için değişiklikler veli uygulamasından yapılır.",
     "lockedAllTitle": "Değişiklikler veli uygulamasından yapılır",
-    "lockedAllBodyOne": "Çocuğunuz zaten bakımda. Değişiklikleri artık veli uygulamasından yaparsınız. Henüz erişiminiz yok mu? OGS sizi davet edebilir.",
-    "lockedAllBodyMany": "Çocuklarınız zaten bakımda. Değişiklikleri artık veli uygulamasından yaparsınız. Henüz erişiminiz yok mu? OGS sizi davet edebilir.",
-    "lockedAllAction": "Veli uygulamasına git"
+    "lockedAllBodyOne": "Çocuğunuz zaten bakımda. Değişiklikleri artık veli uygulamasından yaparsınız.",
+    "lockedAllBodyMany": "Çocuklarınız zaten bakımda. Değişiklikleri artık veli uygulamasından yaparsınız.",
+    "lockedAllAction": "Veli uygulamasına git",
+    "noAccountTitle": "Veli uygulamasına henüz erişiminiz yok",
+    "noAccountIntro": "Erişimi e-posta ile gelen bir davetle alırsınız:",
+    "noAccountStepOpen": "“Einladung zum Eltern-Portal” başlıklı e-postayı açın.",
+    "noAccountStepAccept": "“Einladung annehmen” düğmesine dokunun.",
+    "noAccountStepPassword": "Bir şifre belirleyin. Ardından veli uygulamasına giriş yapabilirsiniz.",
+    "noAccountHelp": "E-postayı bulamıyor musunuz? Spam klasörüne de bakın. E-posta yok veya bağlantı artık çalışmıyor mu? Lütfen OGS ile iletişime geçin.",
+    "unavailableAccountTitle": "Veli uygulamasına erişemiyorsunuz",
+    "unavailableAccountHelp": "Lütfen OGS ile iletişime geçin. OGS size yardımcı olacaktır.",
+    "noAccessFallback": "Henüz erişiminiz yok mu? “Einladung zum Eltern-Portal” başlıklı e-postayı açın. E-posta gelmedi mi? Lütfen OGS ile iletişime geçin."
   },
   "parentRequestEdit": {
     "title": "Talebi düzenle",

@@ -7,6 +7,7 @@ import (
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 )
@@ -212,6 +213,36 @@ func (g enrollmentGuardianProfiles) GuardianProfileByEmail(ctx context.Context, 
 		return nil, err
 	}
 	return decisionGuardianProfileRecord(row), nil
+}
+
+func (g enrollmentGuardianProfiles) GuardianProfileHasActivePortalAccount(ctx context.Context, profileID int64) (bool, error) {
+	profiles, err := g.repo.FindLoginReadyPortalProfilesByIDs(ctx, []int64{profileID})
+	if err != nil {
+		return false, err
+	}
+	_, reachable := profiles[profileID]
+	return reachable, nil
+}
+
+type guardianInvitationReader interface {
+	ListOpenGuardianInvitations(context.Context, []int64) ([]identityaccess.GuardianInvitation, error)
+}
+
+type enrollmentGuardianInvitationAvailability struct {
+	invitations guardianInvitationReader
+}
+
+func (a enrollmentGuardianInvitationAvailability) HasRedeemableGuardianInvitation(ctx context.Context, profileID int64) (bool, error) {
+	invitations, err := a.invitations.ListOpenGuardianInvitations(ctx, []int64{profileID})
+	if err != nil {
+		return false, err
+	}
+	for _, invitation := range invitations {
+		if invitation.ApprovalStatus == identityaccess.GuardianInvitationApprovalNotRequired || invitation.ApprovalStatus == identityaccess.GuardianInvitationApprovalApproved {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (g enrollmentGuardianProfiles) GuardianProfilesByEmails(ctx context.Context, emails []string) ([]*enrollmentCompose.GuardianProfile, error) {
