@@ -42,9 +42,11 @@ const MAX_ROWS = 6;
 export function BirthdaysBlock({
   current,
   currentLoading,
+  currentError,
 }: {
   readonly current: BirthdayOverview | undefined;
   readonly currentLoading: boolean;
+  readonly currentError?: Error;
 }) {
   // null heißt: die laufende Woche.
   const [weekStart, setWeekStart] = useState<string | null>(null);
@@ -113,7 +115,7 @@ export function BirthdaysBlock({
             withoutContextRow
           />
         )}
-        {weekStart && other.error ? (
+        {(weekStart && other.error) || (!current && currentError) ? (
           <Alert
             type="error"
             message="Die Geburtstage konnten nicht geladen werden. Bitte versuchen Sie es noch einmal."

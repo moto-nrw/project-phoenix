@@ -442,7 +442,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     kind: "section",
     label: "Geburtstage",
     description:
-      "Wer in dieser Woche Geburtstag hat. Sie können eine Woche vor- und zurückblättern.",
+      "Wer in dieser Woche Geburtstag hat. Sie können bis zu vier Wochen vor- und zurückblättern.",
     concept: "birthdays",
     spans: SECTION_SPANS,
     // Eine Woche mit Wochenleiste braucht drei Zeilen (#3777), sonst stünde

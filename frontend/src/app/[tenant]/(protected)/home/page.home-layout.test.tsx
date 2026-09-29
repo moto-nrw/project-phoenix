@@ -261,6 +261,34 @@ describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
     expect(fetchBirthdayOverviewClient).toHaveBeenCalledWith();
   });
 
+  it("zeigt den Fehler der ersten Geburtstagsabfrage in der Karte", async () => {
+    vi.mocked(useSWRAuth).mockImplementation((key) =>
+      key === "birthday-overview"
+        ? ({
+            data: undefined,
+            isLoading: false,
+            error: new Error("Birthday fetch failed: 500"),
+            mutate: vi.fn(),
+            isValidating: false,
+          } as unknown as ReturnType<typeof useSWRAuth>)
+        : ({
+            data: undefined,
+            isLoading: false,
+            error: undefined,
+            mutate: vi.fn(),
+            isValidating: false,
+          } as unknown as ReturnType<typeof useSWRAuth>),
+    );
+
+    render(<HomePage />);
+
+    expect(
+      await screen.findByText(
+        "Die Geburtstage konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("zeigt die Standardansicht, wenn die Anordnung nicht geladen werden kann", async () => {
     layoutState.isLoading = true;
     layoutState.isReady = false;

@@ -111,6 +111,7 @@ function data(overrides: Partial<HomeBlockData> = {}): HomeBlockData {
     analyticsLoading: false,
     birthdays: undefined,
     birthdaysLoading: false,
+    birthdaysError: undefined,
     canOpenStudentSearch: true,
     tenantPath: (path: string) => `/test-tenant${path}`,
     ...overrides,

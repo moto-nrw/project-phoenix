@@ -56,6 +56,7 @@ export interface HomeBlockData {
   readonly analyticsLoading: boolean;
   readonly birthdays: BirthdayOverview | undefined;
   readonly birthdaysLoading: boolean;
+  readonly birthdaysError: Error | undefined;
   /** Darf die Person die Kindersuche hinter einer Kennzahl öffnen? */
   readonly canOpenStudentSearch: boolean;
   readonly tenantPath: (path: string) => string;
@@ -444,6 +445,7 @@ export function HomeBlockContent({
         <BirthdaysBlock
           current={data.birthdays}
           currentLoading={data.birthdaysLoading}
+          currentError={data.birthdaysError}
         />
       );
     default:

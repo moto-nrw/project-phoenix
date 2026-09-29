@@ -148,4 +148,34 @@ describe("BirthdaysBlock", () => {
       screen.getByText("Keine Geburtstage in dieser Woche"),
     ).toBeInTheDocument();
   });
+
+  it("shows an error instead of an empty week when the initial request fails", () => {
+    render(
+      <BirthdaysBlock
+        current={undefined}
+        currentLoading={false}
+        currentError={new Error("Birthday fetch failed: 500")}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Die Geburtstage konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+    );
+    expect(
+      screen.queryByText("Keine Geburtstage in dieser Woche"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps loaded birthdays visible when a later refresh fails", () => {
+    render(
+      <BirthdaysBlock
+        current={current}
+        currentLoading={false}
+        currentError={new Error("Birthday fetch failed: 500")}
+      />,
+    );
+
+    expect(screen.getByText("Kind 1")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });
