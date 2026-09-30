@@ -5,8 +5,10 @@ deployment, or PR screenshots. Commands start at the repo root unless noted.
 
 ## Service commands
 
-Use Docker Compose to run, build, migrate, and debug services. Host-side quality
-and test commands below are intentional exceptions; Go uses the repo toolchain.
+Run the app with `scripts/dev-native.sh up`: `postgres` and `mailpit` run in
+Docker Compose, backend and frontend natively (see Native dev loop). The
+`server` and `frontend` containers sit behind the `full` Compose profile.
+Go uses the repo toolchain.
 Add tools through `devbox search <tool>` / `devbox add <tool>@latest`, not a global install.
 
 For editor/LSP setup, fresh-worktree dependencies or mismatched tool versions,
@@ -15,18 +17,19 @@ through `devbox run` when the current process has not loaded the project environ
 
 | Task | Command |
 |---|---|
-| Start services | `docker compose up -d` |
-| Rebuild backend after go.mod / Dockerfile changes | `docker compose build server && docker compose up -d server` (air reloads plain Go edits) |
-| Migrate | `docker compose run server go run . migrate` |
-| Reset local DB | `docker compose run server go run . migrate reset` (seed credentials: `docs/getting-started.md`) |
-| Logs | `docker compose logs -f server` |
+| Start infra + backend + frontend | `scripts/dev-native.sh up` |
+| After go.mod changes | restart `scripts/dev-native.sh up` (air reloads plain Go edits) |
+| Migrate | `scripts/dev-native.sh backend go run . migrate` |
+| Reset local DB | `scripts/dev-native.sh backend go run . migrate reset` (seed credentials: `docs/getting-started.md`) |
+| Logs | `tmp/dev-native/backend.log`, `tmp/dev-native/frontend.log` |
+| Full container stack | `docker compose --profile full up -d`, logs via `docker compose logs -f server` |
 | Frontend quality | `cd frontend && pnpm run check` |
 | Backend suite | `cd backend && ../scripts/run-go-toolchain.sh go test ./...` |
 | Backend suite with immediate sweep | `scripts/run-go-toolchain.sh scripts/test-backend.sh` |
 | Backend unit-only loop | `cd backend && ../scripts/run-go-toolchain.sh go test -short ./...` (skips DB tests) |
 | Changed-code tests | `scripts/test-changed.sh origin/development` |
 | Fast inner loop | `scripts/test-changed.sh --fast origin/development` (run without `--fast` before push) |
-| Generate route docs | `docker compose run server go run . gendoc --routes` |
+| Generate route docs | `scripts/dev-native.sh backend go run . gendoc --routes` |
 
 ### Native dev loop
 
@@ -50,7 +53,8 @@ Logs land in `tmp/dev-native/backend.log` and `tmp/dev-native/frontend.log`.
 `up` stops the `server` and `frontend` containers first and refuses to start
 when a published port is taken. After `go.mod` changes restart `up`; plain Go
 edits reload through air. Worktrees created with `wt` carry their own ports in
-the copied `.env`, so several native loops run side by side.
+the copied `.env`, so several native loops run side by side; on 16 GB
+machines run one at a time ([low-memory machines](../development-environment.md#low-memory-machines)).
 
 ### Worktrees
 

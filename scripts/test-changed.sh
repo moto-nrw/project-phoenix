@@ -52,6 +52,12 @@ if [ "${#affected[@]}" -gt 0 ]; then
   elif [ "$package_workers" -gt 8 ]; then
     package_workers=8
   fi
+  # Each concurrent package binary links against the whole module and peaks
+  # around 1.3 GB RSS, so RAM binds before CPU on 16 GB laptops: one worker
+  # per 4 GB keeps the IDE and dev servers out of swap.
+  ram_workers=$(( $(scripts/total-memory-gb.sh) / 4 ))
+  if [ "$ram_workers" -lt 1 ]; then ram_workers=1; fi
+  if [ "$package_workers" -gt "$ram_workers" ]; then package_workers=$ram_workers; fi
 
   echo "==> go test (${#affected[@]} affected packages; -p $package_workers, -parallel 8)"
   backend_go_phase=0

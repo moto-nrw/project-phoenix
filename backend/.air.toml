@@ -5,8 +5,10 @@ tmp_dir = "tmp"
 [build]
   args_bin = ["serve"]
   bin = "./tmp/main"
-  cmd = "go build -o ./tmp/main ."
-  delay = 1000
+  # -s -w drops symbol/DWARF tables: smaller link, less RAM, same panics
+  # and stack traces. Keep in sync with scripts/dev-native.sh.
+  cmd = "go build -ldflags='-s -w' -o ./tmp/main ."
+  delay = 300
   exclude_dir = ["assets", "tmp", "vendor", "testdata"]
   exclude_file = []
   exclude_regex = ["_test.go"]
