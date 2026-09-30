@@ -2589,7 +2589,6 @@ func newFactory(
 		Persons:      persons,
 		Contacts:     repos.StudentGuardian,
 		Rooms:        rooms,
-		Settings:     settingsService,
 		Renderer:     listExportService,
 		Now:          now,
 		Logger:       logger.With("module", "emergency-snapshot"),

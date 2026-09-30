@@ -42,6 +42,9 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 	seedCtx := tenant.WithTenantID(context.Background(), tenantID)
 	require.NoError(t, settings.SetValue(seedCtx, tenantsettings.KeyTrackingIndicatorsEnabled, true, nil, nil))
 	require.NoError(t, settings.SetValue(seedCtx, tenantsettings.KeyTrackingIndicator1, "Bibliothek", nil, nil))
+	// Slot 2 defaults to "Hausaufgaben" since #3738; the explicit empty
+	// value keeps this test on the skipped-empty-slot path.
+	require.NoError(t, settings.SetValue(seedCtx, tenantsettings.KeyTrackingIndicator2, "", nil, nil))
 
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Budget", "Test", "1a")
 

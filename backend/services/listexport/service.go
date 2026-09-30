@@ -68,8 +68,8 @@ func DefaultColumnsForPreset(preset Preset) []ColumnID {
 
 // ColumnCatalog is the set of columns a caller-chosen column list may resolve
 // to. ColumnHealthInfo is deliberately NOT in it: the child's health note is
-// printed only by the two lists built for it, the Notfallliste (which asks
-// operations.emergency_list_health_info first, #2609) and the Gesundheitsliste
+// printed only by the two lists built for it, the Notfallliste (#2609, always
+// with the health column since #3732) and the Gesundheitsliste
 // (HealthListColumns, #3323). Listing it here would let any other export
 // request print Art. 9 data.
 func ColumnCatalog() map[ColumnID]Column {

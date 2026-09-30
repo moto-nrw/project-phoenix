@@ -297,10 +297,9 @@ func TestBuildExportRowLeavesBirthdayCellsEmptyWithoutBirthday(t *testing.T) {
 	assert.Empty(t, row.Values[lists.ColumnAge])
 }
 
-// The generic child export must not carry the health note: the decision whether
-// allergies are printed belongs to operations.emergency_list_health_info, which
-// only the Notfallliste asks (#2609). A value here would reach paper past that
-// switch, so a requested health column resolves to nothing at all.
+// The generic child export must not carry the health note: only the two lists
+// built for it, the Notfallliste (#2609) and the Gesundheitsliste (#3323),
+// print allergies. A requested health column resolves to nothing at all.
 func TestGenericExportCarriesNoHealthInfo(t *testing.T) {
 	t.Parallel()
 

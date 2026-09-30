@@ -71,7 +71,7 @@ func marketingProfileDefinition() demoProfileDefinition {
 	settings := fullOperationSettings()
 	settings[profileSettingPresenceMode] = SeedSetting{Value: json.RawMessage(`"` + profilePresenceBinary + `"`), ManagedBy: SettingManagedByOperator}
 	settings[profileSettingAttendanceNFC] = SeedSetting{Value: json.RawMessage(`false`), ManagedBy: SettingManagedByOperator}
-	settings[profileSettingCareConcept] = SeedSetting{Value: json.RawMessage(`"` + profileCareConceptOpenRooms + `"`), ManagedBy: SettingManagedByTenant}
+	settings[profileSettingWebSpontaneous] = SeedSetting{Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant}
 	settings[profileSettingEnrollmentEnabled] = SeedSetting{Value: json.RawMessage(`false`), ManagedBy: SettingManagedByTenant}
 	settings[profileSettingCareOfferingsEnabled] = SeedSetting{Value: json.RawMessage(`false`), ManagedBy: SettingManagedByTenant}
 	return demoProfileDefinition{

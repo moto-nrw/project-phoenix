@@ -26,14 +26,12 @@ const (
 	KeyAttendanceVisibleDays                 = configModel.KeyAttendanceVisibleDays
 	KeyAttendanceWebEnabled                  = configModel.KeyAttendanceWebEnabled
 	KeyCalendarCalDAVEnabled                 = configModel.KeyCalendarCalDAVEnabled
-	KeyCareConcept                           = configModel.KeyCareConcept
 	KeyCareDefaultArrivalTime                = configModel.KeyCareDefaultArrivalTime
 	KeyCareDefaultPickupTime                 = configModel.KeyCareDefaultPickupTime
 	KeyClassArrivalExceptionEditors          = configModel.KeyClassArrivalExceptionEditors
 	KeyDisplayEnabled                        = configModel.KeyDisplayEnabled
 	KeyEarlyCheckoutNoteEnabled              = configModel.KeyEarlyCheckoutNoteEnabled
 	KeyEarlyCheckoutNoteToleranceMinutes     = configModel.KeyEarlyCheckoutNoteToleranceMinutes
-	KeyEmergencyListHealthInfo               = configModel.KeyEmergencyListHealthInfo
 	KeyEnrollmentBookingsAuthoritative       = configModel.KeyEnrollmentBookingsAuthoritative
 	KeyEnrollmentCareOfferingsEnabled        = configModel.KeyEnrollmentCareOfferingsEnabled
 	KeyEnrollmentGradeLevelMax               = configModel.KeyEnrollmentGradeLevelMax
@@ -69,9 +67,6 @@ const (
 const (
 	AttendanceEditScopeOwn      = configModel.AttendanceEditScopeOwn
 	AttendanceEditScopeAllStaff = configModel.AttendanceEditScopeAllStaff
-
-	CareConceptFixedSchedule = configModel.CareConceptFixedSchedule
-	CareConceptOpenRooms     = configModel.CareConceptOpenRooms
 
 	GroupModeFixedGroups = configModel.GroupModeFixedGroups
 	GroupModeOpenCare    = configModel.GroupModeOpenCare

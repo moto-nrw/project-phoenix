@@ -47,15 +47,22 @@ export function suggestGuardianNotice(
   };
 }
 
+/** True when the block has booked children the families could hear about. */
+function noticeApplies(
+  reach: GuardianNoticeReach | null,
+): reach is GuardianNoticeReach {
+  return (reach?.childCount ?? 0) > 0;
+}
+
 /**
- * Turns a draft into the request payload, or nothing when the family notice is
- * switched off or not allowed for this block.
+ * Turns a draft into the request payload, or nothing when the box is not
+ * ticked or the block has no booked children.
  */
 export function guardianNoticePayload(
   draft: GuardianNoticeDraft | null,
   reach: GuardianNoticeReach | null,
 ): GuardianNoticeInput | undefined {
-  if (!draft?.send || !reach?.enabled) return undefined;
+  if (!draft?.send || !noticeApplies(reach)) return undefined;
   const title = draft.title.trim();
   const message = draft.message.trim();
   if (!title || !message) return undefined;
@@ -68,16 +75,16 @@ export function guardianNoticeIncomplete(
   reach: GuardianNoticeReach | null,
   previewApplies = false,
 ): boolean {
-  // Before the preview resolves, its school default is unknown. Do not let a
-  // cancellation silently turn that default into "off".
+  // Before the preview resolves, the box would start ticked. Do not let a
+  // cancellation silently skip the families while it is still loading.
   if (previewApplies && draft === null && reach === null) return true;
-  if (!draft?.send || !reach?.enabled) return false;
+  if (!draft?.send || !noticeApplies(reach)) return false;
   return draft.title.trim() === "" || draft.message.trim() === "";
 }
 
 function familiesLabel(count: number): string {
-  if (count === 1) return "Erreicht 1 Familie im Elternportal.";
-  return `Erreicht ${count} Familien im Elternportal.`;
+  if (count === 1) return "Erreicht 1 Familie.";
+  return `Erreicht ${count} Familien.`;
 }
 
 interface GuardianNoticeFieldsProps {
@@ -93,13 +100,13 @@ interface GuardianNoticeFieldsProps {
 }
 
 /**
- * "Eltern informieren" on a cancellation (#2601). Loads what the notice would
- * reach, seeds the draft from the school default and the block, and renders
- * the checkbox with the editable text below it. The parent surface owns the
- * draft so it can send it with the cancellation.
+ * "Eltern per App und E-Mail informieren" on a cancellation (#2601, #3731).
+ * Loads what the notice would reach, seeds a ticked draft from the block, and
+ * renders the checkbox with the editable text below it. The parent surface
+ * owns the draft so it can send it with the cancellation.
  *
- * Renders nothing while the school has the notice switched off or the block
- * lies in the past, so the cancel dialog looks exactly as before in that case.
+ * The person cancelling decides here; there are no school settings for it any
+ * more. Renders nothing for a block without booked children or in the past.
  */
 export function GuardianNoticeFields({
   block,
@@ -132,11 +139,8 @@ export function GuardianNoticeFields({
         if (cancelled) return;
         setReach(loaded);
         onReachChange(loaded);
-        if (loaded.enabled) {
-          onDraftChange({
-            send: loaded.defaultOn,
-            ...suggestGuardianNotice(block),
-          });
+        if (noticeApplies(loaded)) {
+          onDraftChange({ send: true, ...suggestGuardianNotice(block) });
         }
       })
       .catch((err: unknown) => {
@@ -169,7 +173,7 @@ export function GuardianNoticeFields({
       />
     );
   }
-  if (!reach?.enabled || !draft) return null;
+  if (!noticeApplies(reach) || !draft) return null;
 
   const surface = compact
     ? "space-y-2"
@@ -186,11 +190,11 @@ export function GuardianNoticeFields({
           checked={draft.send}
           disabled={disabled}
           onChange={(e) => onDraftChange({ ...draft, send: e.target.checked })}
-          aria-label="Eltern informieren"
+          aria-label="Eltern per App und E-Mail informieren"
         />
         <span className="min-w-0">
           <span className="block text-sm font-medium text-gray-900">
-            Eltern informieren
+            Eltern per App und E-Mail informieren
           </span>
           <span className="block text-xs text-gray-500">
             {reach.familyCount > 0

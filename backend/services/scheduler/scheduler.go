@@ -1695,10 +1695,26 @@ func markRunAtAfterCommit(ctx context.Context, lastRunMap *sync.Map, tenantID in
 	})
 }
 
+// statusFlagClearHour and statusFlagClearMinute are the fixed end of the day
+// for "Am Ende des Tages" (#3729). The time used to be a school setting; it is
+// 18:00 for every school now. Midnight would not work: the clear archives the
+// flag onto timezone.TodayDate(), which is already the next day at 00:00.
+const (
+	statusFlagClearHour   = 18
+	statusFlagClearMinute = 0
+)
+
+// statusFlagClearDue reports whether now is the minute the end-of-day clear
+// runs.
+func statusFlagClearDue(now time.Time) bool {
+	now = now.In(timezone.Berlin)
+	return now.Hour() == statusFlagClearHour && now.Minute() == statusFlagClearMinute
+}
+
 // scheduleStatusFlagClearTask schedules a daily task to clear sick / excused
 // flags for tenants whose operations.sick_clear_mode or
-// operations.excused_clear_mode is set to "end_of_day". The task fires at the
-// tenant's configured operations.status_flag_clear_time.
+// operations.excused_clear_mode is set to "end_of_day". The task fires at
+// the fixed end of the day (statusFlagClearHour:statusFlagClearMinute).
 func (s *Scheduler) scheduleStatusFlagClearTask() {
 	// Env var kill switch to allow ops to disable this task without code changes.
 	if s.env("STATUS_FLAG_CLEAR_ENABLED") == "false" {
@@ -1709,17 +1725,26 @@ func (s *Scheduler) scheduleStatusFlagClearTask() {
 	s.registerTask("status-flag-clear", "1m-poll", s.runStatusFlagClearTaskPolling)
 }
 
-// runStatusFlagClearTaskPolling checks every minute if any tenant's status
-// flag clear time matches now and clears the configured end_of_day flags.
+// runStatusFlagClearTaskPolling checks every minute whether the end of the
+// day has come and clears the configured end_of_day flags.
 func (s *Scheduler) runStatusFlagClearTaskPolling(task *ScheduledTask) {
 	s.runMinutePolling(task, "panic in status flag clear task",
 		"status flag clear task using minute-polling for per-tenant scheduling",
 		s.checkAndRunStatusFlagClear)
 }
 
-// checkAndRunStatusFlagClear evaluates each tenant's clear_mode settings and
-// clears flags when the configured status flag clear time matches now.
+// checkAndRunStatusFlagClear clears the end_of_day flags when the fixed end
+// of the day has come.
 func (s *Scheduler) checkAndRunStatusFlagClear(ctx context.Context, task *ScheduledTask) {
+	if !statusFlagClearDue(time.Now()) {
+		return
+	}
+	s.runStatusFlagClear(ctx, task)
+}
+
+// runStatusFlagClear evaluates each tenant's clear_mode settings and clears
+// the flags set to end_of_day, at most once per tenant and day.
+func (s *Scheduler) runStatusFlagClear(ctx context.Context, task *ScheduledTask) {
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
@@ -1737,11 +1762,6 @@ func (s *Scheduler) checkAndRunStatusFlagClear(ctx context.Context, task *Schedu
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "status-flag-clear", func(tenantCtx context.Context, tenantID int64) error {
-		clearTime := s.resolveStringSetting(tenantCtx, configModel.KeyStatusFlagClearTime, "", "18:00")
-		if clearTime == "" || !timeMatchesNow(clearTime) {
-			return nil
-		}
-
 		if wasRunToday(&s.lastStatusFlagClear, tenantID) {
 			return nil
 		}

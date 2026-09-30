@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { BooleanField } from "~/components/settings/fields/boolean-field";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { SectionCard } from "~/components/ui/section-card";
@@ -15,7 +16,14 @@ import {
   type HomeBlockPolicy,
 } from "~/lib/home-blocks";
 import { useHomeLayout } from "~/lib/hooks/use-home-layout";
+import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { createLogger } from "~/lib/logger";
+import { notifySettingsChanged } from "~/lib/settings-broadcast";
+import {
+  setSettingValue,
+  type SettingsSchema,
+  type ResolvedSetting,
+} from "~/lib/settings-api";
 import {
   useNFCEnabled,
   useOpenCareGroupMode,
@@ -30,6 +38,40 @@ const POLICY_ITEMS: readonly { value: HomeBlockPolicy; label: string }[] = [
   { value: "disabled", label: "Aus" },
 ];
 
+// Die beiden Geburtstags-Schalter der Schule (#3737) stehen direkt an der
+// Geburtstagskarte. Sie sind Registry-Einstellungen im Reiter „startseite“,
+// den die allgemeine Einstellungsseite ausblendet.
+const BIRTHDAY_BLOCK_KEY: HomeBlockKey = "section.birthdays";
+const BIRTHDAYS_ENABLED_KEY = "operations.birthday_display_enabled";
+const BIRTHDAYS_STAFF_KEY = "operations.birthday_display_include_staff";
+const BIRTHDAY_SETTING_KEYS = [BIRTHDAYS_ENABLED_KEY, BIRTHDAYS_STAFF_KEY];
+
+type BirthdaySettings = Record<string, boolean>;
+
+function schemaItem(
+  schema: SettingsSchema | null | undefined,
+  key: string,
+): ResolvedSetting | undefined {
+  for (const tab of schema?.tabs ?? []) {
+    for (const category of tab.categories) {
+      const item = category.items.find((candidate) => candidate.key === key);
+      if (item) return item;
+    }
+  }
+  return undefined;
+}
+
+function birthdaySettingsOf(
+  schema: SettingsSchema | null | undefined,
+): BirthdaySettings {
+  const values: BirthdaySettings = {};
+  for (const key of BIRTHDAY_SETTING_KEYS) {
+    const item = schemaItem(schema, key);
+    if (typeof item?.value === "boolean") values[key] = item.value;
+  }
+  return values;
+}
+
 /**
  * "Startseite für alle" in den Einstellungen (#2875): was die Einrichtung
  * festlegt. Der Name trägt das „für alle", weil daneben der persönliche
@@ -42,11 +84,18 @@ const POLICY_ITEMS: readonly { value: HomeBlockPolicy; label: string }[] = [
  */
 export function HomeBlocksTab() {
   const { state, isLoading, savePolicies } = useHomeLayout();
+  const {
+    data: schema,
+    isLoading: schemaLoading,
+    mutate: revalidateSchema,
+  } = useSettingsSchema();
   const presenceMode = usePresenceMode();
   const openCareGroupMode = useOpenCareGroupMode();
   const nfcEnabled = useNFCEnabled();
 
   const [draft, setDraft] = useState<HomeBlockPolicies>({});
+  const storedBirthdays = useMemo(() => birthdaySettingsOf(schema), [schema]);
+  const [birthdayDraft, setBirthdayDraft] = useState<BirthdaySettings>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -54,6 +103,10 @@ export function HomeBlocksTab() {
   useEffect(() => {
     setDraft(state.policies);
   }, [state.policies]);
+
+  useEffect(() => {
+    setBirthdayDraft(storedBirthdays);
+  }, [storedBirthdays]);
 
   // Bausteine, die es in dieser Schule wegen des Betriebsmodus gar nicht gibt,
   // stehen nicht zur Vorgabe: über etwas zu entscheiden, das niemand sieht,
@@ -77,7 +130,7 @@ export function HomeBlocksTab() {
     return HOME_BLOCKS.filter((block) => block.available(ctx));
   }, [presenceMode, openCareGroupMode, nfcEnabled]);
 
-  const dirty = useMemo(() => {
+  const policiesDirty = useMemo(() => {
     const keys = new Set([
       ...Object.keys(draft),
       ...Object.keys(state.policies),
@@ -89,6 +142,18 @@ export function HomeBlocksTab() {
     }
     return false;
   }, [draft, state.policies]);
+
+  const changedBirthdayKeys = BIRTHDAY_SETTING_KEYS.filter(
+    (key) =>
+      birthdayDraft[key] !== undefined &&
+      birthdayDraft[key] !== storedBirthdays[key],
+  );
+  const dirty = policiesDirty || changedBirthdayKeys.length > 0;
+
+  const changeBirthdaySetting = (key: string, value: boolean) => {
+    setSaved(false);
+    setBirthdayDraft((prev) => ({ ...prev, [key]: value }));
+  };
 
   const change = (key: HomeBlockKey, policy: HomeBlockPolicy) => {
     setSaved(false);
@@ -104,7 +169,15 @@ export function HomeBlocksTab() {
     setBusy(true);
     setError(null);
     try {
-      await savePolicies(draft);
+      for (const key of changedBirthdayKeys) {
+        const failure = await setSettingValue(key, birthdayDraft[key]);
+        if (failure) throw new Error(failure);
+      }
+      if (changedBirthdayKeys.length > 0) {
+        notifySettingsChanged();
+        await revalidateSchema();
+      }
+      if (policiesDirty) await savePolicies(draft);
       setSaved(true);
     } catch (err) {
       logger.error("home_block_policies_save_failed", {
@@ -118,12 +191,29 @@ export function HomeBlocksTab() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || schemaLoading) {
     return <Skeleton className="h-64 w-full" />;
   }
 
   const tiles = blocks.filter((block) => block.kind === "tile");
   const sections = blocks.filter((block) => block.kind === "section");
+  const birthdaysOn = birthdayDraft[BIRTHDAYS_ENABLED_KEY] !== false;
+  const birthdaySwitches = (
+    <BirthdaySwitches
+      schema={schema}
+      values={birthdayDraft}
+      disabled={busy}
+      onChange={changeBirthdaySetting}
+    />
+  );
+  const extras: Partial<Record<HomeBlockKey, ReactNode>> = {
+    [BIRTHDAY_BLOCK_KEY]: birthdaySwitches,
+  };
+  // Sind die Geburtstage für die Schule aus, gibt es keine Karte, über deren
+  // Anzeige man entscheiden könnte.
+  const hiddenPolicies = new Set<HomeBlockKey>(
+    birthdaysOn ? [] : [BIRTHDAY_BLOCK_KEY],
+  );
 
   return (
     <SectionCard
@@ -157,12 +247,16 @@ export function HomeBlocksTab() {
           blocks={tiles}
           draft={draft}
           onChange={change}
+          extras={extras}
+          hiddenPolicies={hiddenPolicies}
         />
         <PolicyGroup
           heading="Bereiche"
           blocks={sections}
           draft={draft}
           onChange={change}
+          extras={extras}
+          hiddenPolicies={hiddenPolicies}
         />
       </div>
     </SectionCard>
@@ -174,11 +268,15 @@ function PolicyGroup({
   blocks,
   draft,
   onChange,
+  extras,
+  hiddenPolicies,
 }: Readonly<{
   heading: string;
   blocks: readonly HomeBlockDefinition[];
   draft: HomeBlockPolicies;
   onChange: (key: HomeBlockKey, policy: HomeBlockPolicy) => void;
+  extras: Partial<Record<HomeBlockKey, ReactNode>>;
+  hiddenPolicies: ReadonlySet<HomeBlockKey>;
 }>) {
   if (blocks.length === 0) return null;
   return (
@@ -186,24 +284,75 @@ function PolicyGroup({
       <h3 className="text-sm font-semibold text-gray-900">{heading}</h3>
       <ul className="mt-2 divide-y divide-gray-100">
         {blocks.map((block) => (
-          <li
-            key={block.key}
-            className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-900">{block.label}</p>
-              <p className="text-xs text-gray-500">{block.description}</p>
+          <li key={block.key} className="space-y-3 py-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-900">
+                  {block.label}
+                </p>
+                <p className="text-xs text-gray-500">{block.description}</p>
+              </div>
+              {hiddenPolicies.has(block.key) ? null : (
+                <SegmentedControl<HomeBlockPolicy>
+                  items={POLICY_ITEMS}
+                  value={draft[block.key] ?? "optional"}
+                  onChange={(policy) => onChange(block.key, policy)}
+                  ariaLabel={`Vorgabe für ${block.label}`}
+                  className="shrink-0"
+                />
+              )}
             </div>
-            <SegmentedControl<HomeBlockPolicy>
-              items={POLICY_ITEMS}
-              value={draft[block.key] ?? "optional"}
-              onChange={(policy) => onChange(block.key, policy)}
-              ariaLabel={`Vorgabe für ${block.label}`}
-              className="shrink-0"
-            />
+            {extras[block.key] ?? null}
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+/**
+ * Die Schul-Einstellungen zur Geburtstagskarte (#3737). Label und
+ * Beschreibung kommen aus dem Registry-Schema, damit sie nur an einer Stelle
+ * gepflegt werden. Der Schalter für das Personal hängt am ersten.
+ */
+function BirthdaySwitches({
+  schema,
+  values,
+  disabled,
+  onChange,
+}: Readonly<{
+  schema: SettingsSchema | null | undefined;
+  values: BirthdaySettings;
+  disabled: boolean;
+  onChange: (key: string, value: boolean) => void;
+}>) {
+  const keys =
+    values[BIRTHDAYS_ENABLED_KEY] === false
+      ? [BIRTHDAYS_ENABLED_KEY]
+      : BIRTHDAY_SETTING_KEYS;
+  const rows = keys
+    .map((key) => ({ key, item: schemaItem(schema, key) }))
+    .filter(
+      (row): row is { key: string; item: ResolvedSetting } =>
+        row.item !== undefined && typeof values[row.key] === "boolean",
+    );
+  if (rows.length === 0) return null;
+  return (
+    <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
+      {rows.map(({ key, item }) => (
+        <div key={key} className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-gray-900">{item.label}</p>
+            <p className="text-xs text-gray-500">{item.description}</p>
+          </div>
+          <BooleanField
+            value={values[key] === true}
+            onChange={(next) => onChange(key, next)}
+            disabled={disabled || !item.writable}
+            ariaLabel={item.label}
+          />
+        </div>
+      ))}
+    </div>
   );
 }

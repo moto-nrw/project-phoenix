@@ -168,9 +168,6 @@ describe("tenant-api", () => {
         // (#2383): an older backend must not hide the Tagesplan entry.
         timetableEnabled: true,
         waitlistEnabled: true,
-        // Older backends omit the health-column flag (#2609). Absent means
-        // disabled because those backends do not print the health column.
-        emergencyHealthInfoEnabled: false,
         gradeLevelMax: 13,
         // Older backends omit the Analyse-Freigabe (#3603): off, and nothing
         // is recorded.
@@ -206,7 +203,6 @@ describe("tenant-api", () => {
                 attendance_edit_scope: "all_staff",
                 show_timetable_counts: true,
                 waitlist_enabled: true,
-                emergency_list_health_info_enabled: true,
               },
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
@@ -225,7 +221,6 @@ describe("tenant-api", () => {
                 attendance_edit_scope: "admins",
                 show_timetable_counts: false,
                 waitlist_enabled: false,
-                emergency_list_health_info_enabled: false,
               },
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
@@ -240,7 +235,6 @@ describe("tenant-api", () => {
         attendanceEditScope: "all_staff",
         showTimetableCounts: true,
         waitlistEnabled: true,
-        emergencyHealthInfoEnabled: true,
       });
       await expect(resolveTenant("settings-school")).resolves.toMatchObject({
         careOfferingsEnabled: false,
@@ -252,7 +246,6 @@ describe("tenant-api", () => {
         attendanceEditScope: "own",
         showTimetableCounts: false,
         waitlistEnabled: false,
-        emergencyHealthInfoEnabled: false,
       });
     });
 
