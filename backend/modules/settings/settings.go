@@ -130,12 +130,6 @@ func ResolveIntOrDefault(ctx context.Context, resolver Resolver, key string, fal
 	return configSvc.ResolveIntOrDefault(ctx, resolver, key, fallback, logger)
 }
 
-// ResolveStringOrDefault is ResolveBoolOrDefault for a string setting; an
-// empty override also yields fallback.
-func ResolveStringOrDefault(ctx context.Context, resolver Resolver, key, fallback string, logger *slog.Logger) string {
-	return configSvc.ResolveStringOrDefault(ctx, resolver, key, fallback, logger)
-}
-
 // Snapshot is a batch of one tenant's resolved settings. A reader that
 // resolves many keys at once returns it from
 // ResolveManyForTenant(ctx, tenantID, keys).
