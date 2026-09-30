@@ -691,11 +691,7 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	testpkg.CreateTestArrivalException(
 		t, db, student.ID, today.AddDays(30), staff.ID, "09:00", "Termin",
 	)
-	_, err := db.NewUpdate().TableExpr("schedule.instance_students").
-		Set("pickup_exception_id = ?", pickupException.ID).
-		Where("tenant_id = ? AND instance_id = ? AND student_id = ?", testpkg.Tenant(t), instance.ID, student.ID).
-		Exec(ctx)
-	require.NoError(t, err)
+	testpkg.UpdateSessionAttendance(t, ctx, db, roster.ID, map[string]any{"pickup_exception_id": pickupException.ID})
 	roster.PickupExceptionID = &pickupException.ID
 
 	// One open-ended booking (gets capped) and one starting after the exit

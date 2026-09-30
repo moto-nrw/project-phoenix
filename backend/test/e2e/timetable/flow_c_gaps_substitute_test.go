@@ -204,9 +204,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 		IsSpontaneous: true,
 	}
 	gapInstance.SetTenantID(s.primaryTenant)
-	_, err := s.db.NewInsert().Model(gapInstance).
-		ModelTableExpr(`schedule.activity_instances`).Exec(s.tenantCtx())
-	require.NoError(t, err, "insert gap instance")
+	testpkg.InsertActivityInstanceRow(t, s.tenantCtx(), s.db, gapInstance)
 
 	// Both staff on this instance are absent → qualifies as a gap.
 	for _, stid := range []int64{staff1.ID, staff5.ID} {

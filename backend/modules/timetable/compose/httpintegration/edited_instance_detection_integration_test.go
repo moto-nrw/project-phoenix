@@ -216,8 +216,7 @@ func TestDetectEditedInWindow_StudentRosterEdit(t *testing.T) {
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
 	extra.SetTenantID(s.tenantID)
-	_, err := s.db.NewInsert().Model(extra).ModelTableExpr(`schedule.instance_students`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertInstanceStudentRow(t, s.ctx, s.db, extra)
 
 	edited := detect(t, s)
 	require.Len(t, edited, 1)

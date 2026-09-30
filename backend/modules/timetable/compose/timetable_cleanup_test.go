@@ -116,8 +116,7 @@ func (f cleanupFixture) attachStudent(t *testing.T, instanceID, studentID int64,
 	t.Helper()
 	row := &scheduleModels.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Note: note}
 	row.SetTenantID(testpkg.Tenant(t))
-	_, err := f.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_students`).Exec(f.ctx)
-	require.NoError(t, err, "insert instance_students")
+	testpkg.InsertInstanceStudentRow(t, f.ctx, f.db, row)
 	return row.ID
 }
 
@@ -222,6 +221,10 @@ func TestTimetableCleanupCascadesToStaffAndParticipants(t *testing.T) {
 
 	f.assertRow(t, "schedule.instance_staff", staffRowID, false)
 	f.assertRow(t, "schedule.instance_students", studentRowID, false, "the participant row and its note go with the instance")
+	notes, err := f.db.NewSelect().Table("active.activity_session_attendance").
+		Where("instance_student_id = ?", studentRowID).Count(f.ctx)
+	require.NoError(t, err)
+	assert.Zero(t, notes, "the attendance row holding the note goes with the participant")
 }
 
 func TestTimetableCleanupDeletesEveryStatusPastRetention(t *testing.T) {

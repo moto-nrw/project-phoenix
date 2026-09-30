@@ -22,22 +22,26 @@ func VisitExitTime(tb testing.TB, db *bun.DB, visitID int64) *time.Time {
 	return exit
 }
 
-// InstanceStatus reads one activity instance's lifecycle status.
+// InstanceStatus reads one activity instance's lifecycle status: the status
+// of its Student Presence session, or the planning status without one.
 func InstanceStatus(tb testing.TB, db *bun.DB, instanceID int64) string {
 	tb.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var status string
-	require.NoError(tb, db.NewSelect().TableExpr("schedule.activity_instances").Column("status").Where("id = ?", instanceID).Scan(ctx, &status))
+	require.NoError(tb, db.NewRaw(`SELECT coalesce(session.status, instance.status)
+		FROM schedule.activity_instances AS instance
+		LEFT JOIN active.activity_sessions AS session
+			ON session.tenant_id = instance.tenant_id AND session.schedule_instance_id = instance.id
+		WHERE instance.id = ?`, instanceID).Scan(ctx, &status))
 	return status
 }
 
-// InstanceStudentByID reloads one instance_students row.
+// InstanceStudentByID reloads one participant with its attendance. A
+// participant without an attendance row reads as expected attendance.
 func InstanceStudentByID(tb testing.TB, db *bun.DB, id int64) *schedule.InstanceStudent {
 	tb.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	row := &schedule.InstanceStudent{}
-	require.NoError(tb, db.NewSelect().Model(row).ModelTableExpr(`schedule.instance_students AS "instance_student"`).Where(`"instance_student".id = ?`, id).Scan(ctx))
-	return row
+	return InstanceStudentByIDContext(tb, ctx, db, id)
 }

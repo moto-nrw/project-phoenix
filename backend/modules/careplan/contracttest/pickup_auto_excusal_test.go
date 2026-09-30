@@ -135,14 +135,7 @@ func setupAutoExcusalHarnessWithExtensions(t *testing.T, withBaseline, withExten
 
 func (h *autoExcusalHarness) attendance(t *testing.T, rowID int64) *scheduleModel.InstanceStudent {
 	t.Helper()
-	row := new(scheduleModel.InstanceStudent)
-	err := h.db.NewSelect().
-		Model(row).
-		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		Where(`"instance_student".id = ?`, rowID).
-		Scan(context.Background())
-	require.NoError(t, err)
-	return row
+	return testpkg.InstanceStudentByIDContext(t, context.Background(), h.db, rowID)
 }
 
 func (h *autoExcusalHarness) resolveStaff() (int64, error) { return h.staffID, nil }

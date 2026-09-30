@@ -39,12 +39,7 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 	presentStudent := testpkg.CreateTestStudent(t, db, "DailySync", "Present", "9z")
 	presentRow := testpkg.CreateTestInstanceStudent(t, db, instance.ID, presentStudent.ID, scheduleModels.AttendanceStatusPresent)
 	checkedInAt := time.Now().Add(-2 * time.Hour)
-	_, err := db.NewUpdate().
-		Table("schedule.instance_students").
-		Set("checked_in_at = ?", checkedInAt).
-		Where("id = ?", presentRow.ID).
-		Exec(ctx)
-	require.NoError(t, err)
+	testpkg.UpdateSessionAttendance(t, ctx, db, presentRow.ID, map[string]any{"checked_in_at": checkedInAt})
 
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	instanceRepo := factory.ActivityInstance
@@ -62,32 +57,14 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, completed)
 
-	var reloaded scheduleModels.ActivityInstance
-	err = db.NewSelect().
-		Model(&reloaded).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Where(`"activity_instance".id = ?`, instance.ID).
-		Scan(ctx)
-	require.NoError(t, err)
+	reloaded := testpkg.ActivityInstanceByID(t, ctx, db, instance.ID)
 	assert.Equal(t, scheduleModels.InstanceStatusCompleted, reloaded.Status)
 	assert.NotNil(t, reloaded.CompletedAt)
 
-	var reloadedStudent scheduleModels.InstanceStudent
-	err = db.NewSelect().
-		Model(&reloadedStudent).
-		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		Where(`"instance_student".id = ?`, instanceStudent.ID).
-		Scan(ctx)
-	require.NoError(t, err)
+	reloadedStudent := testpkg.InstanceStudentByIDContext(t, ctx, db, instanceStudent.ID)
 	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, reloadedStudent.Status)
 
-	var reloadedPresent scheduleModels.InstanceStudent
-	err = db.NewSelect().
-		Model(&reloadedPresent).
-		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		Where(`"instance_student".id = ?`, presentRow.ID).
-		Scan(ctx)
-	require.NoError(t, err)
+	reloadedPresent := testpkg.InstanceStudentByIDContext(t, ctx, db, presentRow.ID)
 	assert.Equal(t, scheduleModels.AttendanceStatusPresent, reloadedPresent.Status, "observed presence must be preserved")
 	require.NotNil(t, reloadedPresent.CheckedOutAt, "daily session end must close the open slot checkout")
 	assert.False(t, reloadedPresent.CheckedOutAt.Before(checkedInAt))

@@ -338,8 +338,7 @@ func TestSchoolSupervisionsCrossTenant(t *testing.T) {
 		Status:    scheduleModel.InstanceStatusPlanned,
 	}
 	foreign.SetTenantID(otherTenantID)
-	_, err := f.db.NewInsert().Model(foreign).ModelTableExpr("schedule.activity_instances").Exec(otherCtx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, otherCtx, f.db, foreign)
 
 	// Planting an assignment for this Lehrkraft at the OTHER school is not even
 	// expressible: the composite FK on instance_staff binds (staff_id,
@@ -348,7 +347,7 @@ func TestSchoolSupervisionsCrossTenant(t *testing.T) {
 	// token binding and the tenant transaction are the other two.
 	foreignAssignment := &scheduleModel.InstanceStaff{InstanceID: foreign.ID, StaffID: f.staffID, IsPrimary: true}
 	foreignAssignment.SetTenantID(otherTenantID)
-	_, err = f.db.NewInsert().Model(foreignAssignment).ModelTableExpr("schedule.instance_staff").Exec(otherCtx)
+	_, err := f.db.NewInsert().Model(foreignAssignment).ModelTableExpr("schedule.instance_staff").Exec(otherCtx)
 	require.Error(t, err, "a staff member must not be assignable to another school's block")
 
 	rec := f.request(t, http.MethodGet, "/supervisions/", nil)
