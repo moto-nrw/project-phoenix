@@ -16,6 +16,7 @@ var (
 	ErrParentMessageInvalidGuardian         = errors.New("messaging: recipient is not a guardian of this child")
 	ErrParentMessageGuardianAccessRevoked   = errors.New("messaging: recipient no longer has access to this child")
 	ErrParentMessagingDisabled              = errors.New("messaging: messaging disabled for this school")
+	ErrParentMessageInvalidCountScope       = errors.New("messaging: invalid count scope")
 	ErrStaffMessagingDisabled               = errors.New("staffmessaging: internal messaging disabled for this school")
 	ErrStaffMessagingNotParticipant         = errors.New("staffmessaging: not a participant of this thread")
 	ErrStaffMessageThreadNotFound           = errors.New("staffmessaging: thread not found")
@@ -65,6 +66,14 @@ type ParentMessageInboxThread struct {
 	UnreadCount      int
 }
 
+// ParentMessageCountSetting is the caller's count scope ("all",
+// "own_groups" or "none") and whether they have an OGS group today, without
+// which "own_groups" counts nothing.
+type ParentMessageCountSetting struct {
+	Scope        string
+	HasOwnGroups bool
+}
+
 type ParentMessageThread struct {
 	ThreadID         int64
 	StudentID        int64
@@ -87,6 +96,9 @@ type ParentMessagingQuery interface {
 	CountUnreadParentMessages(context.Context) (int, error)
 	ListMessageableGuardians(context.Context, int64) ([]MessageableGuardian, error)
 	ListParentMessageThreadsForStudent(context.Context, int64) ([]ParentMessageInboxThread, error)
+	// ParentMessageCountScope returns which conversations the caller's own
+	// counter counts (#3673).
+	ParentMessageCountScope(context.Context) (ParentMessageCountSetting, error)
 }
 
 // ParentMessagingCommand owns staff-side parent/OGS conversation writes.
@@ -103,6 +115,9 @@ type ParentMessagingCommand interface {
 	// unread as read for the caller's own account and returns the caller's new
 	// unread count. Colleagues see no change.
 	MarkAllParentMessagesRead(context.Context) (int, error)
+	// SetParentMessageCountScope stores which conversations the caller's own
+	// counter counts. It changes nothing for colleagues or parents.
+	SetParentMessageCountScope(context.Context, string) error
 }
 
 type ParentMessagingCapability interface {

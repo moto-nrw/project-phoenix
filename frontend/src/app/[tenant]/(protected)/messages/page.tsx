@@ -26,6 +26,7 @@ import { formatChatDateTime } from "~/lib/date-helpers";
 const logger = createLogger({ component: "MessagesInboxPage" });
 
 const MARK_ALL_READ_LABEL = "Alle als gelesen markieren";
+const COUNT_SETTING_LABEL = "Zahl bei Nachrichten einstellen";
 const MARK_ALL_READ_SUCCESS =
   "Alle Nachrichten sind für Sie als gelesen markiert.";
 // Shown when team-marked conversations (#3654) keep the badge above zero, so
@@ -85,9 +86,8 @@ function MessagesInboxContent() {
     marksRead: false,
   });
 
-  // "Alle als gelesen markieren" only moves this account's read cursors;
-  // colleagues keep their numbers. It is offered while the sidebar badge (the
-  // account's own unread count) shows something.
+  // "Alle als gelesen markieren" only clears this account's own numbers;
+  // colleagues keep theirs, and parents get no read receipt from it (#3673).
   const toast = useToast();
   const { unreadCount } = useMessagesUnread();
   const [markingAllRead, setMarkingAllRead] = useState(false);
@@ -99,9 +99,15 @@ function MessagesInboxContent() {
     try {
       const remaining = await markAllMessagesRead();
       window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
-      void mutate();
+      // The own counter may skip conversations (#3673), so a team-marked
+      // conversation can stay unread in the inbox while the count is zero.
+      // The reloaded inbox decides which confirmation is true.
+      const refreshed = await mutate();
+      const stillUnread =
+        remaining > 0 ||
+        (refreshed ?? []).some((thread) => thread.unread_count > 0);
       toast.success(
-        remaining > 0 ? MARK_ALL_READ_TEAM_MARKED : MARK_ALL_READ_SUCCESS,
+        stillUnread ? MARK_ALL_READ_TEAM_MARKED : MARK_ALL_READ_SUCCESS,
       );
     } catch (err) {
       logger.error("inbox_mark_all_read_failed", {
@@ -165,10 +171,22 @@ function MessagesInboxContent() {
       statsLoading={showSkeleton}
       actions={composeButton}
       overflowMenu={[
+        // Only offered while something is unread: an entry that can do
+        // nothing is not in the menu. Own counter or inbox rows, because a
+        // person who does not count every conversation (#3673) may still see
+        // unread rows here.
+        ...(messagingEnabled && (unreadCount > 0 || unreadThreads > 0)
+          ? [
+              {
+                label: MARK_ALL_READ_LABEL,
+                onClick: () => void handleMarkAllRead(),
+                disabled: markingAllRead,
+              },
+            ]
+          : []),
         {
-          label: MARK_ALL_READ_LABEL,
-          onClick: () => void handleMarkAllRead(),
-          disabled: markingAllRead || unreadCount === 0,
+          label: COUNT_SETTING_LABEL,
+          onClick: () => router.push("/profile"),
         },
       ]}
       search={{

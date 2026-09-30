@@ -21,6 +21,8 @@ import {
   postMessage,
   markThreadUnread,
   markAllMessagesRead,
+  fetchMessageCountSetting,
+  saveMessageCountScope,
   openThread,
   fetchGuardians,
   type InboxThread,
@@ -501,3 +503,48 @@ describe("fetchGuardians", () => {
 // endpoints: change requests are now decided on the Änderungsanfragen admin page
 // (care-request-review-api), not inline in the chat. Their tests were removed
 // with them.
+
+describe("message count setting", () => {
+  it("reads the scope and whether the caller has a group", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonOk({ data: { scope: "own_groups", has_own_groups: false } });
+    });
+    await expect(fetchMessageCountSetting()).resolves.toEqual({
+      scope: "own_groups",
+      hasOwnGroups: false,
+    });
+    expect(seenURL).toBe("/api/messages/count-scope");
+  });
+
+  it("falls back to all for an unknown scope", async () => {
+    mockFetch(async () => jsonOk({ data: { scope: "mine" } }));
+    await expect(fetchMessageCountSetting()).resolves.toEqual({
+      scope: "all",
+      hasOwnGroups: false,
+    });
+  });
+
+  it("PUTs the chosen scope", async () => {
+    let seenMethod = "";
+    let seenBody = "";
+    mockFetch(async (_input, init) => {
+      seenMethod = init?.method ?? "";
+      seenBody = String(init?.body);
+      return jsonOk({ data: { scope: "none" } });
+    });
+    await saveMessageCountScope("none");
+    expect(seenMethod).toBe("PUT");
+    expect(JSON.parse(seenBody)).toEqual({ scope: "none" });
+  });
+
+  it("throws the backend error when saving fails", async () => {
+    mockFetch(async () =>
+      jsonOk({ error: "messaging: invalid count scope" }, 400),
+    );
+    await expect(saveMessageCountScope("all")).rejects.toThrow(
+      "messaging: invalid count scope",
+    );
+  });
+});
