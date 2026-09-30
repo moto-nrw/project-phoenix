@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, within } from "@testing-library/react";
 import {
   expectIdleRenderBudget,
   RENDER_BUDGET_MAX_COMMITS,
@@ -108,6 +108,11 @@ vi.mock("~/lib/shell-auth-context", () => ({
 
 vi.mock("~/lib/hooks/use-change-request-access", () => ({
   useChangeRequestAccess: vi.fn(),
+}));
+
+const enrollmentsUnread = vi.hoisted(() => ({ count: 0 }));
+vi.mock("~/lib/hooks/use-enrollments-unread", () => ({
+  useEnrollmentsUnread: () => ({ unreadCount: enrollmentsUnread.count }),
 }));
 
 vi.mock("~/lib/operator-url", () => ({
@@ -298,6 +303,24 @@ describe("MobileBottomNav", () => {
         "href",
         "/test-tenant/admin/enrollments",
       );
+    });
+
+    // Ungelesene Anmeldungen (#3778) an der Zeile „Anmeldungen" im Menü.
+    it("zeigt ungelesene Anmeldungen an der Zeile Anmeldungen", () => {
+      enrollmentsUnread.count = 4;
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      try {
+        render(<MobileBottomNav />);
+        fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+        const row = screen.getByText("Anmeldungen").closest("a");
+        expect(
+          within(row!).getByLabelText("4 ungelesene Anmeldungen"),
+        ).toBeInTheDocument();
+      } finally {
+        enrollmentsUnread.count = 0;
+      }
     });
 
     it.each([

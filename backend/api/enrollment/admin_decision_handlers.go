@@ -57,6 +57,9 @@ type AdminRequestSummary struct {
 	// AdditionalGuardians are the co-guardians the parent added beyond the
 	// primary guardian above. Empty when none were added.
 	AdditionalGuardians []AdminRequestGuardian `json:"additional_guardians,omitempty"`
+	// IsUnread is the caller's own read state (#3778). The detail read
+	// marks the request read, so it is false there.
+	IsUnread bool `json:"is_unread"`
 }
 
 // AdminRequestDetail is the manage-only response shape for a single
@@ -261,11 +264,24 @@ func (rs *Resource) listAdminRequests(w http.ResponseWriter, r *http.Request) {
 		filters.ChildStatus = v
 	}
 
+	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
 	var summaries []*RequestSummary
+	unread := map[int64]bool{}
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		list, listErr := rs.DecisionService.List(ctx, filters)
+		if listErr != nil {
+			return listErr
+		}
 		summaries = list
-		return listErr
+		ids := make([]int64, 0, len(list))
+		for _, s := range list {
+			ids = append(ids, s.Request.ID)
+		}
+		unreadIDs, readErr := rs.DecisionService.UnreadRequestIDs(ctx, accountID, ids)
+		for _, id := range unreadIDs {
+			unread[id] = true
+		}
+		return readErr
 	})
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -274,7 +290,9 @@ func (rs *Resource) listAdminRequests(w http.ResponseWriter, r *http.Request) {
 
 	out := make([]AdminRequestSummary, 0, len(summaries))
 	for _, s := range summaries {
-		out = append(out, toAdminRequestSummary(s))
+		row := toAdminRequestSummary(s)
+		row.IsUnread = unread[s.Request.ID]
+		out = append(out, row)
 	}
 	common.Respond(w, r, http.StatusOK, out, "Admin requests retrieved")
 }
@@ -289,11 +307,20 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	claims := jwt.ClaimsFromCtx(r.Context())
 	var detail AdminRequestDetail
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, e := rs.DecisionService.Get(ctx, id)
 		if e != nil {
 			return e
+		}
+		// Opening the detail reads the enrollment for the caller (#3778).
+		// A read-only staff preview writes nothing in the previewed
+		// person's name.
+		if !claims.IsReadOnlyPreview() {
+			if e := rs.DecisionService.MarkRequestsRead(ctx, int64(claims.ID), []int64{id}); e != nil {
+				return e
+			}
 		}
 		detail = rs.toAdminRequestDetail(ctx, s)
 		return nil

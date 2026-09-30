@@ -4031,6 +4031,12 @@ function enrollmentReviewTopic(): HelpTopic {
       "Sie entscheiden je Kind. Eine Anmeldung kann mehrere Kinder enthalten.",
       "Mit `Statusseite öffnen` sehen Sie, was die Eltern sehen.",
       "Offene Rückfragen der Eltern stehen im Bereich `Anfragen`.",
+      "Die Zahl an `Anmeldungen` zeigt, wie viele neue Anmeldungen Sie noch nicht gelesen haben.",
+      "Gelesen gilt nur für Sie. Ihr Team hat eine eigene Zahl.",
+      "Wenn Sie eine Anmeldung öffnen, gilt sie als gelesen.",
+      "Offene Anmeldungen in aktiven Phasen markieren Sie im Menü `⋮` als gelesen oder ungelesen.",
+      "Im Menü `⋮` oben im `Überblick` wählen Sie `Alle als gelesen markieren`.",
+      "Ändern Eltern ihre Anmeldung, ist sie wieder ungelesen.",
     ],
     differences: [
       "Der Überblick zählt je Phase, wie viele Eingänge offen, bestätigt und abgelehnt sind.",

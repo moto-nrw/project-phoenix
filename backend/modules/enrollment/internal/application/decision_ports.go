@@ -185,7 +185,9 @@ type WeeklyPickupHooks struct {
 // without them; the flow reports every other missing dependency when it
 // needs it.
 type DecisionDependencies struct {
-	Requests          DecisionRequests
+	Requests DecisionRequests
+	// Reads is the per-account read state of the admin queue (#3778).
+	Reads             enrollment.RequestReads
 	Children          DecisionChildren
 	Guardians         DecisionGuardians
 	LateInvites       DecisionLateInvites

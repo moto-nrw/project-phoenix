@@ -34,10 +34,9 @@ type Decisions struct {
 	capacity *OfferingCapacity
 }
 
-var (
-	_ enrollment.Decisions            = (*Decisions)(nil)
-	_ enrollment.ApprovedChildChanges = (*Decisions)(nil)
-)
+// The public Decisions capability is served by compose.PublicDecisions,
+// which adds the owner's read state of the queue (#3778).
+var _ enrollment.ApprovedChildChanges = (*Decisions)(nil)
 
 // NewDecisions composes the decision flow over its owners.
 func NewDecisions(deps DecisionDependencies) *Decisions {

@@ -26,7 +26,10 @@ import {
   type DecisionStatus,
   decideAdminChild,
   listAdminRequests,
+  setAdminRequestRead,
 } from "~/lib/enrollment-admin-api";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { StatusBadge } from "~/components/ui/status-badge";
 import {
   getPhaseResponseOverview,
   listPhases,
@@ -417,6 +420,54 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     [requests],
   );
 
+  // Lesestatus pro Person (#3778): gilt für die ganze Anmeldung, die Tabelle
+  // zeigt ihn an jedem Kind dieser Anmeldung.
+  const unreadRequestIds = useMemo(
+    () =>
+      new Set(requests.filter((request) => request.is_unread).map((r) => r.id)),
+    [requests],
+  );
+  const unreadEligibleRequestIds = useMemo(
+    () =>
+      new Set(
+        phase?.is_active
+          ? requests
+              .filter((request) =>
+                request.children.some(
+                  (child) => !TERMINAL_STATUSES.has(child.status),
+                ),
+              )
+              .map((request) => request.id)
+          : [],
+      ),
+    [phase?.is_active, requests],
+  );
+  const handleToggleRead = useCallback(
+    async (requestId: string, read: boolean) => {
+      try {
+        await setAdminRequestRead(requestId, read);
+        setRequests((current) =>
+          current.map((request) =>
+            request.id === requestId
+              ? { ...request, is_unread: !read }
+              : request,
+          ),
+        );
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Unbekannter Fehler";
+        logger.error("admin_enrollment_toggle_read_failed", {
+          error: message,
+          request_id: requestId,
+        });
+        toast.error(
+          "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+        );
+      }
+    },
+    [toast],
+  );
+
   const handleQuickDecision = useCallback(
     async (row: CareUsageRow, status: DecisionStatus) => {
       setBusyChildId(row.child_id);
@@ -516,6 +567,9 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             {childQuotaHeldIds.has(row.child_id) ? (
               <ChildQuotaHeldBadge />
             ) : null}
+            {unreadRequestIds.has(row.request_id) ? (
+              <StatusBadge tone="blue" label="Ungelesen" />
+            ) : null}
           </div>
         ),
         sortValue: (row) => CHILD_STATUS_LABELS[row.status],
@@ -563,11 +617,22 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             href={requestHref(row.request_id)}
             busy={busyChildId === row.child_id}
             onDecide={(status) => requestQuickDecision(row, status)}
+            unread={unreadRequestIds.has(row.request_id)}
+            canToggleRead={unreadEligibleRequestIds.has(row.request_id)}
+            onToggleRead={(read) => void handleToggleRead(row.request_id, read)}
           />
         ),
       },
     ],
-    [busyChildId, childQuotaHeldIds, requestHref, requestQuickDecision],
+    [
+      busyChildId,
+      childQuotaHeldIds,
+      handleToggleRead,
+      unreadEligibleRequestIds,
+      requestHref,
+      requestQuickDecision,
+      unreadRequestIds,
+    ],
   );
 
   // Such- und Filterzeile der Kopfkarte. Die Auswertung filtert nach Status,
@@ -1453,11 +1518,17 @@ function PhaseChildActions({
   href,
   busy,
   onDecide,
+  unread,
+  canToggleRead,
+  onToggleRead,
 }: Readonly<{
   row: CareUsageRow;
   href: string;
   busy: boolean;
   onDecide: (status: DecisionStatus) => void;
+  unread: boolean;
+  canToggleRead: boolean;
+  onToggleRead: (read: boolean) => void;
 }>) {
   const terminal = TERMINAL_STATUSES.has(row.status);
   return (
@@ -1504,6 +1575,20 @@ function PhaseChildActions({
         Anmeldung ansehen
         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
       </NavigationLink>
+      {canToggleRead ? (
+        <OverflowMenu
+          ariaLabel={`Aktionen für die Anmeldung von ${row.child_first_name} ${row.child_last_name}`}
+          triggerSize="sm"
+          items={[
+            {
+              label: unread
+                ? "Als gelesen markieren"
+                : "Als ungelesen markieren",
+              onClick: () => onToggleRead(unread),
+            },
+          ]}
+        />
+      ) : null}
     </div>
   );
 }

@@ -974,3 +974,12 @@ func TestRestoreAdminRequestHandler_GenericErrorMapsTo500(t *testing.T) {
 		"/enrollment/admin/requests/1234/restore", nil)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
+
+// The read state (#3778) is a no-op here; the router tests cover it.
+func (m *mockDecisionService) CountUnreadRequests(context.Context, int64) (int, error) { return 0, nil }
+func (m *mockDecisionService) UnreadRequestIDs(context.Context, int64, []int64) ([]int64, error) {
+	return nil, nil
+}
+func (m *mockDecisionService) MarkRequestsRead(context.Context, int64, []int64) error { return nil }
+func (m *mockDecisionService) MarkAllRequestsRead(context.Context, int64) error       { return nil }
+func (m *mockDecisionService) MarkRequestUnread(context.Context, int64, int64) error  { return nil }
