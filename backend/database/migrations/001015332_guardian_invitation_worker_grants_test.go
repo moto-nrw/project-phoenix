@@ -24,8 +24,12 @@ func TestGuardianInvitationWorkerPrivileges(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	assert.True(t, roleHasTablePrivilege(t, db, "phoenix_auth", "users.students_guardians", "SELECT"),
-		"guardian invitation e-mail rendering reads child links from the phoenix_auth worker connection")
+	// Since Cutover #2756 the child links live in the three owner tables; the
+	// Contract (#2757) removed users.students_guardians.
+	for _, relation := range []string{"users.student_guardian_relationships", "users.student_guardian_pickup_permissions", "auth.guardian_student_access"} {
+		assert.True(t, roleHasTablePrivilege(t, db, "phoenix_auth", relation, "SELECT"),
+			"guardian invitation e-mail rendering reads child links from the phoenix_auth worker connection: %s", relation)
+	}
 	assert.True(t, roleHasTablePrivilege(t, db, "phoenix_auth", "auth.guardian_invitations", "SELECT"),
 		"guardian invitation e-mail rendering loads invitation rows from the phoenix_auth worker connection")
 	assert.True(t, roleHasTablePrivilege(t, db, "phoenix_auth", "auth.guardian_invitations", "UPDATE"),

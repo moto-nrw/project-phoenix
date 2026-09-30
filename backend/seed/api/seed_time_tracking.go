@@ -540,6 +540,16 @@ func seedTimeTrackingCoverage(rt *Runtime, staffID int64, year int) error {
 	}); err != nil {
 		return fmt.Errorf("seed target override for staff %d: %w", staffID, err)
 	}
+	// The week after, a part-time pattern with its own hours per weekday
+	// (#3745): 3.5h on Monday, 0.5h on Tuesday to Friday.
+	partTimeStart := careStart.AddDate(0, 0, 7)
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/staff/%d/target-overrides", staffID), map[string]any{
+		"start_date":      toDateKey(partTimeStart),
+		"end_date":        toDateKey(partTimeStart.AddDate(0, 0, 4)),
+		"weekday_minutes": []int{210, 30, 30, 30, 30},
+	}); err != nil {
+		return fmt.Errorf("seed weekday target override for staff %d: %w", staffID, err)
+	}
 	return nil
 }
 

@@ -40,7 +40,7 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 		testpkg.MapAccountToTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		_, err := db.NewUpdate().
-			TableExpr("users.staff").
+			TableExpr("users.staff_school_memberships").
 			Set("deleted_at = NOW()").
 			Where("id = ?", staff.ID).
 			Exec(ctx)
@@ -154,7 +154,7 @@ func TestStaffRepository_ListAllStaffAccountIDs(t *testing.T) {
 		testpkg.MapAccountToTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		_, err := db.NewUpdate().
-			TableExpr("users.staff").
+			TableExpr("users.staff_school_memberships").
 			Set("deleted_at = NOW()").
 			Where("id = ?", staff.ID).
 			Exec(ctx)

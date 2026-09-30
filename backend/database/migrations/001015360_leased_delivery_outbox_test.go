@@ -11,7 +11,7 @@ import (
 
 func TestLeasedDeliveryOutboxMigrationBackfillsLegacyRecipientSnapshot(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupGuardianStorageBeforeContract(t)
 	ctx := context.Background()
 	require.NoError(t, leasedDeliveryOutboxDown(ctx, db))
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -36,7 +36,7 @@ func TestLeasedDeliveryOutboxMigrationBackfillsLegacyRecipientSnapshot(t *testin
 
 func TestLeasedDeliveryOutboxMigrationDeadLettersLegacyRowsWithoutRecipient(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupGuardianStorageBeforeContract(t)
 	ctx := context.Background()
 	require.NoError(t, leasedDeliveryOutboxDown(ctx, db))
 	tenantID := testpkg.UniqueTestTenantID(t)

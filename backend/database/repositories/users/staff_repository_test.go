@@ -374,17 +374,17 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 
 		staffAnchor := calendar.NewDate(2026, time.January, 12)
 		_, err := db.NewUpdate().
-			Table("users.staff").
+			Table("users.staff_employment_profiles").
 			Set("work_time_model_id = ?", modelID).
 			Set("rotation_anchor_date = ?", staffAnchor).
-			Where("id = ?", staff.ID).
+			Where("membership_id = ?", staff.ID).
 			Exec(ctx)
 		require.NoError(t, err)
 		defer func() {
 			_, _ = db.NewUpdate().
-				Table("users.staff").
+				Table("users.staff_employment_profiles").
 				Set("work_time_model_id = NULL").
-				Where("id = ?", staff.ID).
+				Where("membership_id = ?", staff.ID).
 				Exec(ctx)
 			_, _ = db.NewDelete().Table("config.work_time_models").Where("id = ?", modelID).Exec(ctx)
 		}()

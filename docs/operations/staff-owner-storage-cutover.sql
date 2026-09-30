@@ -1,6 +1,7 @@
 -- Run with psql -v ON_ERROR_STOP=1 through the guarded maintenance connection.
 -- No application rows change. Nothing here queries users.staff: a probe of the
 -- compatibility view would advance the very read counter #2754 gates on.
+-- Valid until migration 1.15.427 (#2754) removes the counters and the view.
 BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
 SET LOCAL statement_timeout = '30s';
 SET LOCAL lock_timeout = '5s';

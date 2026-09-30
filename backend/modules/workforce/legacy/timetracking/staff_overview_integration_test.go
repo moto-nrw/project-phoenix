@@ -198,9 +198,9 @@ func (f *overviewFixture) addAbsence(t *testing.T, staffID int64, absenceType, s
 func (f *overviewFixture) setEmploymentType(t *testing.T, staffID int64, employmentType string) {
 	t.Helper()
 	_, err := f.db.NewUpdate().
-		Table("users.staff").
+		Table("users.staff_employment_profiles").
 		Set("employment_type = ?", employmentType).
-		Where("id = ?", staffID).
+		Where("membership_id = ?", staffID).
 		Exec(f.ctx)
 	require.NoError(t, err)
 }

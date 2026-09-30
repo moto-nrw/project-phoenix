@@ -778,7 +778,7 @@ func TestOperatorProvisioningIntegration_CreateSchoolAccount_BuildsIdentityChain
 	assert.Equal(t, "Leitung", person.LastName)
 
 	staffCount, err := db.NewSelect().
-		TableExpr("users.staff").
+		TableExpr("users.staff_school_memberships").
 		Where("person_id = ?", person.ID).
 		Count(dbCtx)
 	require.NoError(t, err)

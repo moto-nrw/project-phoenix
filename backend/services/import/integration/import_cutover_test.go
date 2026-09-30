@@ -40,7 +40,7 @@ func countImportRows(t *testing.T, db *bun.DB, tenantID int64) importCounts {
 	}
 	return importCounts{
 		persons: count("users.persons"), students: count("users.student_profiles"), guardians: count("users.guardian_profiles"),
-		links: count("users.students_guardians"), phones: count("users.guardian_phone_numbers"), consents: count("users.privacy_consents"),
+		links: count("users.student_guardian_relationships"), phones: count("users.guardian_phone_numbers"), consents: count("users.privacy_consents"),
 		arrivals: count("schedule.student_arrival_schedules"), pickups: count("schedule.student_pickup_schedules"),
 		audits: count("audit.data_imports"), consentHistory: count("audit.student_consent_changes"),
 	}
@@ -161,7 +161,7 @@ func TestDataImportCutover_StudentCreateUpdateAndReplay(t *testing.T) {
 		EmergencyPriority int     `bun:"emergency_priority"`
 		Permissions       string  `bun:"permissions"`
 	}
-	require.NoError(t, db.NewSelect().TableExpr("users.students_guardians").ColumnExpr("guardian_role, pickup_notes, emergency_priority, permissions::text AS permissions").
+	require.NoError(t, db.NewSelect().TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(db)).ColumnExpr("guardian_role, pickup_notes, emergency_priority, permissions::text AS permissions").
 		Where("tenant_id = ? AND student_id = ?", tenantID, student.ID).Scan(ctx, &link))
 	assert.Equal(t, authorize.GuardianRolePickupOnly, link.GuardianRole)
 	assert.Equal(t, "nur dienstags", *link.PickupNotes)
@@ -212,7 +212,7 @@ func TestDataImportCutover_StudentCreateUpdateAndReplay(t *testing.T) {
 	assert.Equal(t, "Bonn", *student.AddressCity)
 	assert.Equal(t, "Kinderweg 3", *student.AddressStreet, "empty cell keeps the street")
 	assert.Contains(t, student.DepartureDays, `"mon": "bus"`, "the plan survives an update without Gehweise columns")
-	require.NoError(t, db.NewSelect().TableExpr("users.students_guardians").ColumnExpr("guardian_role, pickup_notes, emergency_priority, permissions::text AS permissions").
+	require.NoError(t, db.NewSelect().TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(db)).ColumnExpr("guardian_role, pickup_notes, emergency_priority, permissions::text AS permissions").
 		Where("tenant_id = ? AND student_id = ?", tenantID, student.ID).Scan(ctx, &link))
 	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
 	assert.Equal(t, "nur dienstags", *link.PickupNotes)
@@ -265,7 +265,7 @@ func TestDataImportCutover_ReusesPhoneOnlyGuardian(t *testing.T) {
 	assert.Equal(t, before.phones+1, after.phones, "differently formatted number is stored as given; the profile stays one")
 	assert.Equal(t, before.consents, after.consents, "an existing consent is never rewritten")
 	var role string
-	require.NoError(t, db.NewSelect().TableExpr("users.students_guardians").Column("guardian_role").Where("tenant_id = ?", tenantID).OrderExpr("id DESC").Limit(1).Scan(ctx, &role))
+	require.NoError(t, db.NewSelect().TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(db)).Column("guardian_role").Where("tenant_id = ?", tenantID).OrderExpr("id DESC").Limit(1).Scan(ctx, &role))
 	assert.Equal(t, authorize.GuardianRoleLegalGuardian, role)
 
 	// A row whose numbers match nothing stored still resolves the guardian by
@@ -280,7 +280,7 @@ func TestDataImportCutover_ReusesPhoneOnlyGuardian(t *testing.T) {
 	requireNoRowErrors(t, result)
 	assert.Equal(t, after.guardians, countImportRows(t, db, tenantID).guardians)
 	var notes string
-	require.NoError(t, db.NewSelect().TableExpr("users.students_guardians").Column("pickup_notes").Where("tenant_id = ?", tenantID).OrderExpr("id DESC").Limit(1).Scan(ctx, &notes))
+	require.NoError(t, db.NewSelect().TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(db)).Column("pickup_notes").Where("tenant_id = ?", tenantID).OrderExpr("id DESC").Limit(1).Scan(ctx, &notes))
 	assert.Equal(t, "ab 15 Uhr", notes)
 }
 
@@ -323,7 +323,7 @@ func TestDataImportCutover_FindsGuardianByExactEmailAmongSubstringMatches(t *tes
 	after := countImportRows(t, db, tenantID)
 	assert.Equal(t, before.guardians, after.guardians, "the existing guardian is reused, not duplicated")
 	var linked int64
-	require.NoError(t, db.NewSelect().TableExpr("users.students_guardians").Column("guardian_profile_id").
+	require.NoError(t, db.NewSelect().TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(db)).Column("guardian_profile_id").
 		Where("tenant_id = ?", tenantID).OrderExpr("id DESC").Limit(1).Scan(context.Background(), &linked))
 	assert.Equal(t, existing.ID, linked)
 }
@@ -468,7 +468,7 @@ func countImportRowsInTx(t *testing.T, ctx context.Context, tenantID int64) impo
 	}
 	return importCounts{
 		persons: count("users.persons"), students: count("users.student_profiles"), guardians: count("users.guardian_profiles"),
-		links: count("users.students_guardians"), phones: count("users.guardian_phone_numbers"), consents: count("users.privacy_consents"),
+		links: count("users.student_guardian_relationships"), phones: count("users.guardian_phone_numbers"), consents: count("users.privacy_consents"),
 		arrivals: count("schedule.student_arrival_schedules"), pickups: count("schedule.student_pickup_schedules"),
 		audits: count("audit.data_imports"), consentHistory: count("audit.student_consent_changes"),
 	}
@@ -530,8 +530,9 @@ func TestDataImportCutover_StaffStammdatenThroughOwners(t *testing.T) {
 		Birthday        string  `bun:"birthday"`
 		AccountID       *int64  `bun:"account_id"`
 	}
-	require.NoError(t, db.NewSelect().TableExpr("users.staff AS s").
-		ColumnExpr("s.id, s.person_id, s.staff_notes, s.employment_type, s.personnel_number, p.first_name, p.birthday::text AS birthday, p.account_id").
+	require.NoError(t, db.NewSelect().TableExpr("users.staff_school_memberships AS s").
+		ColumnExpr("s.id, s.person_id, ep.staff_notes, ep.employment_type, ep.personnel_number, p.first_name, p.birthday::text AS birthday, p.account_id").
+		Join("JOIN users.staff_employment_profiles ep ON ep.membership_id = s.id AND ep.tenant_id = s.tenant_id").
 		Join("JOIN users.persons p ON p.id = s.person_id").Where("s.tenant_id = ? AND p.last_name = ?", tenantID, "Cutover").Scan(ctx, &staff))
 	assert.Equal(t, "Anna", staff.FirstName)
 	assert.Equal(t, "1988-05-12", staff.Birthday)
@@ -580,8 +581,9 @@ func TestDataImportCutover_StaffStammdatenThroughOwners(t *testing.T) {
 	result = runStaffImport(importModels.ImportModeUpdate, []importModels.StaffImportRow{update})
 	require.Equal(t, 1, result.UpdatedCount)
 	require.Zero(t, result.ErrorCount)
-	require.NoError(t, db.NewSelect().TableExpr("users.staff AS s").
-		ColumnExpr("s.id, s.person_id, s.staff_notes, s.employment_type, s.personnel_number, p.first_name, p.birthday::text AS birthday, p.account_id").
+	require.NoError(t, db.NewSelect().TableExpr("users.staff_school_memberships AS s").
+		ColumnExpr("s.id, s.person_id, ep.staff_notes, ep.employment_type, ep.personnel_number, p.first_name, p.birthday::text AS birthday, p.account_id").
+		Join("JOIN users.staff_employment_profiles ep ON ep.membership_id = s.id AND ep.tenant_id = s.tenant_id").
 		Join("JOIN users.persons p ON p.id = s.person_id").Where("s.id = ?", staff.ID).Scan(ctx, &staff))
 	assert.Equal(t, "aktualisiert", staff.StaffNotes)
 	assert.Equal(t, "part_time", *staff.EmploymentType, "an empty cell keeps the employment type")
@@ -593,7 +595,7 @@ func TestDataImportCutover_StaffStammdatenThroughOwners(t *testing.T) {
 	assert.InDelta(t, 19.5, *master.WeeklyHours, 0.001)
 
 	var staffCount int
-	require.NoError(t, db.NewSelect().TableExpr("users.staff").ColumnExpr("count(*)").Where("tenant_id = ?", tenantID).Scan(ctx, &staffCount))
+	require.NoError(t, db.NewSelect().TableExpr("users.staff_school_memberships").ColumnExpr("count(*)").Where("tenant_id = ?", tenantID).Scan(ctx, &staffCount))
 	assert.Equal(t, 2, staffCount, "the importing staff member plus the imported one; the update created nobody")
 }
 

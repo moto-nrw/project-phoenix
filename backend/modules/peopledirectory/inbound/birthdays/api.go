@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Resource is the birthdays API resource.
@@ -92,10 +93,14 @@ type celebrationResponse struct {
 }
 
 type overviewResponse struct {
-	Enabled      bool                  `json:"enabled"`
-	IncludeStaff bool                  `json:"include_staff"`
-	Today        string                `json:"today"`
-	Celebrations []celebrationResponse `json:"celebrations"`
+	Enabled           bool                  `json:"enabled"`
+	IncludeStaff      bool                  `json:"include_staff"`
+	Today             string                `json:"today"`
+	WeekStart         string                `json:"week_start"`
+	WeekEnd           string                `json:"week_end"`
+	EarliestWeekStart string                `json:"earliest_week_start"`
+	LatestWeekStart   string                `json:"latest_week_start"`
+	Celebrations      []celebrationResponse `json:"celebrations"`
 }
 
 type optOutResponse struct {
@@ -111,7 +116,23 @@ func (rs *Resource) getOverview(w http.ResponseWriter, r *http.Request) {
 	// verified staff record (#2329).
 	access := common.DetermineStudentAccess(r, rs.UserContextService)
 
-	overview, err := rs.BirthdayService.Overview(r.Context(), access)
+	// week_start picks the week to show (any day of it; the service moves it
+	// to its Monday). Without it the current week is shown (#3777).
+	var weekOf *calendar.Date
+	if raw := r.URL.Query().Get("week_start"); raw != "" {
+		parsed, err := calendar.ParseDate(raw)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid week_start, expected YYYY-MM-DD")))
+			return
+		}
+		weekOf = &parsed
+	}
+
+	overview, err := rs.BirthdayService.Overview(r.Context(), access, weekOf)
+	if errors.Is(err, peopledirectory.ErrBirthdayWeekOutOfRange) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("week_start is outside the allowed range")))
+		return
+	}
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -132,10 +153,14 @@ func (rs *Resource) getOverview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, overviewResponse{
-		Enabled:      overview.Enabled,
-		IncludeStaff: overview.IncludeStaff,
-		Today:        overview.Today.String(),
-		Celebrations: celebrations,
+		Enabled:           overview.Enabled,
+		IncludeStaff:      overview.IncludeStaff,
+		Today:             overview.Today.String(),
+		WeekStart:         overview.WeekStart.String(),
+		WeekEnd:           overview.WeekEnd.String(),
+		EarliestWeekStart: overview.EarliestWeekStart.String(),
+		LatestWeekStart:   overview.LatestWeekStart.String(),
+		Celebrations:      celebrations,
 	}, "Birthdays retrieved successfully")
 }
 

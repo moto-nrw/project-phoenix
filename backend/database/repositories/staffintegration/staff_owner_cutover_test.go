@@ -24,14 +24,23 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Inventory source literals rather than grep output: comments, the owner
-// tables and migration compatibility SQL are not application callers (#2753).
-// The one allowed literal is the table tag of the retained models/users.Staff
-// DTO, which only test fixtures still bind; #2754 removes it with the view.
+// Inventory source literals rather than grep output: comments and the owner
+// tables are not callers. The Contract (#2754) removed the compatibility view
+// and its archive, so application code, fixtures and behavior tests alike must
+// not name them. Historical migrations, the operator-only backfill command and
+// the restore helper keep the name for the frozen Expand/Backfill/Cutover
+// contracts, which recreate the retired table inside disposable clones.
 func TestStaffCutoverCallerInventory(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..", "..")
-	files, literals, allowed := 0, 0, 0
+	exempt := map[string]bool{
+		"cmd/backfill.go":                         true, // operator-only backfill command
+		"cmd/backfill_test.go":                    true, // drives that command on a restored pre-cutover clone
+		"test/staff_storage_cutover.go":           true, // historical restore helper
+		"test/calendar_date_verification_test.go": true, // renamed-column registry of historical migrations
+		"database/repositories/staffintegration/staff_owner_cutover_test.go": true, // this pattern
+	}
+	files, literals := 0, 0
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -41,16 +50,13 @@ func TestStaffCutoverCallerInventory(t *testing.T) {
 			return err
 		}
 		relative = filepath.ToSlash(relative)
-		if relative == "cmd/backfill.go" {
-			return nil // Operator-only backfill command, not an application caller.
-		}
 		if entry.IsDir() {
-			if relative == "database/migrations" || relative == "test" || relative == "internal/architecture" || entry.Name() == "testdata" || entry.Name() == "vendor" {
+			if relative == "database/migrations" || relative == "internal/architecture" || entry.Name() == "testdata" || entry.Name() == "vendor" {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+		if !strings.HasSuffix(path, ".go") || exempt[relative] {
 			return nil
 		}
 		positions := token.NewFileSet()
@@ -69,21 +75,15 @@ func TestStaffCutoverCallerInventory(t *testing.T) {
 				t.Fatal(err)
 			}
 			literals++
-			if !referencesOldStaffStorage(value) {
-				return true
+			if referencesOldStaffStorage(value) {
+				t.Errorf("retired staff storage literal at %s: %q", positions.Position(literal.Pos()), value)
 			}
-			if relative == "models/users/staff.go" && value == `bun:"schema:users,table:staff"` {
-				allowed++
-				return true
-			}
-			t.Errorf("old application table literal at %s: %q", positions.Position(literal.Pos()), value)
 			return true
 		})
 		return nil
 	})
 	require.NoError(t, err)
-	require.Equal(t, 1, allowed, "the retained DTO tag is the only documented exception")
-	t.Logf("Inventory: %d application Go files, %d string literals, zero old application staff table callers", files, literals)
+	t.Logf("Inventory: %d Go files, %d string literals, zero retired staff storage callers", files, literals)
 }
 
 var staffStorageSQLComment = regexp.MustCompile(`(?m)^\s*--[^\n]*`)
@@ -117,15 +117,19 @@ func TestStaffStorageCallerInventoryRecognizesStorageNotOwnerTables(t *testing.T
 	}
 }
 
-// TestStaffOwnersWorkWithoutCompatibilityView drops the rollback view in an
-// isolated database: every current staff path has to keep working on the two
-// owner tables alone.
-func TestStaffOwnersWorkWithoutCompatibilityView(t *testing.T) {
+// TestStaffOwnersWorkOnContractedStorage runs every current staff path on a
+// database where the Contract (#2754) removed the rollback view, its archive
+// and the hit counters: the two owner tables alone have to carry them.
+func TestStaffOwnersWorkOnContractedStorage(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
-	_, err := db.ExecContext(ctx, `DROP VIEW users.staff`)
-	require.NoError(t, err)
+	var retired bool
+	require.NoError(t, db.NewRaw(`SELECT to_regclass('users.staff') IS NULL
+		AND to_regclass('users.staff_legacy') IS NULL
+		AND to_regclass('users.staff_compatibility_reads') IS NULL
+		AND to_regclass('users.staff_compatibility_writes') IS NULL`).Scan(ctx, &retired))
+	require.True(t, retired, "the Contract must have removed the compatibility storage")
 	membership, err := repositories.NewSchoolMembership(db)
 	require.NoError(t, err)
 	employment := repositories.MustNewStaffEmployment(db)

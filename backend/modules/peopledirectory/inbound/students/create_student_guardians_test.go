@@ -69,7 +69,7 @@ func TestCreateStudent_WithGuardians(t *testing.T) {
 			ctx := context.Background()
 
 			relCount, err := tc.db.NewSelect().
-				Table("users.students_guardians").
+				TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(tc.db)).
 				Where("student_id = ?", resp.Data.ID).
 				Count(ctx)
 			require.NoError(t, err)
@@ -77,20 +77,20 @@ func TestCreateStudent_WithGuardians(t *testing.T) {
 
 			var guardianID int64
 			require.NoError(t, tc.db.NewSelect().
-				Table("users.students_guardians").
+				TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(tc.db)).
 				Column("guardian_profile_id").
 				Where("student_id = ?", resp.Data.ID).
 				Scan(ctx, &guardianID))
 
 			var canPickup, isPrimary bool
 			require.NoError(t, tc.db.NewSelect().
-				Table("users.students_guardians").
+				TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(tc.db)).
 				Column("can_pickup").
 				Where("student_id = ?", resp.Data.ID).
 				Scan(ctx, &canPickup))
 			assert.True(t, canPickup, "guardian should be marked as pickup-authorized")
 			require.NoError(t, tc.db.NewSelect().
-				Table("users.students_guardians").
+				TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(tc.db)).
 				Column("is_primary").
 				Where("student_id = ?", resp.Data.ID).
 				Scan(ctx, &isPrimary))
@@ -346,7 +346,7 @@ func TestCreateStudent_MultipleGuardians(t *testing.T) {
 
 	ctx := context.Background()
 	relCount, err := tc.db.NewSelect().
-		Table("users.students_guardians").
+		TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(tc.db)).
 		Where("student_id = ?", resp.Data.ID).
 		Count(ctx)
 	require.NoError(t, err)
@@ -413,7 +413,7 @@ func TestCreateStudent_GuardianOptionalFieldsPersisted(t *testing.T) {
 	require.NoError(t, tc.db.NewSelect().
 		ColumnExpr("gp.address_street, gp.address_city, gp.address_postal_code, gp.preferred_contact_method, gp.notes").
 		TableExpr("users.guardian_profiles AS gp").
-		Join("JOIN users.students_guardians AS sg ON sg.guardian_profile_id = gp.id").
+		Join("JOIN (?) AS sg ON sg.guardian_profile_id = gp.id", testpkg.StudentGuardianLinks(tc.db)).
 		Where("sg.student_id = ?", resp.Data.ID).
 		Scan(ctx, &profile))
 	assert.Equal(t, "Musterstraße 1", profile.AddressStreet)
@@ -430,7 +430,7 @@ func TestCreateStudent_GuardianOptionalFieldsPersisted(t *testing.T) {
 	}
 	require.NoError(t, tc.db.NewSelect().
 		ColumnExpr("relationship_type, is_emergency_contact, emergency_priority, pickup_notes").
-		Table("users.students_guardians").
+		TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(tc.db)).
 		Where("student_id = ?", resp.Data.ID).
 		Scan(ctx, &rel))
 	assert.Equal(t, "relative", rel.RelationshipType)

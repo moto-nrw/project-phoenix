@@ -74,7 +74,7 @@ export function BirthdayVisibilitySection() {
       icon={Cake}
       headingLevel={3}
       title="Geburtstag"
-      description="Ihr Name erscheint an Ihrem Geburtstag auf der Startseite, ohne Geburtsjahr."
+      description="Ihr Name erscheint in der Geburtstagsübersicht auf der Startseite, ohne Geburtsjahr."
     >
       {error && (
         <div className="mb-3">

@@ -449,6 +449,9 @@ func (s *service) RemindOutstanding(ctx context.Context, id int64) (int, error) 
 	if a.IsPoll() {
 		return s.RemindUnanswered(ctx, id)
 	}
+	if a.IsDeclaration() {
+		return s.remindDeclaration(ctx, a)
+	}
 	if !a.IsLetter() || !a.RequiresAcknowledgement {
 		// Nothing is owed, so there is nobody to remind. Refusing beats sending a
 		// nag about a notice that never asked for anything.

@@ -174,7 +174,7 @@ func (p *Provisioning) UpdateSchool(ctx context.Context, id int64, changes organ
 			ID: id, OrganizationID: changes.OrganizationID, Name: changes.Name, Slug: changes.Slug,
 			Subdomain: changes.Subdomain, Active: changes.Active, Hidden: changes.Hidden,
 			Settings: existing.Settings, Address: changes.Address, City: changes.City, Zip: changes.Zip,
-			Phone: changes.Phone, Email: changes.Email, DevicePinHash: existing.DevicePinHash,
+			Phone: changes.Phone, Email: changes.Email,
 		})
 		if err != nil {
 			if mapped, ok := translateSchoolError(err, id, changes.OrganizationID); ok {

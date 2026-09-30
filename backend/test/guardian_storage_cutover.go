@@ -2,10 +2,77 @@ package test
 
 import (
 	"context"
+	_ "embed"
 	"testing"
 
 	"github.com/uptrace/bun"
 )
+
+//go:embed testdata/guardian_storage_before_contract.sql
+var guardianStorageBeforeContract string
+
+// RestoreGuardianStorageBeforeContract rebuilds the rollback-only mirror the
+// Contract (#2757) removed: the frozen users.students_guardians schema with its
+// routing, single-primary and mirror triggers and the write counter, filled
+// from the joined owner rows. Contracts written for the Cutover (#2756) need
+// that world; production never reverses the Contract.
+//
+// It requires a per-test database (SetupIsolatedTestDB, or a package that
+// opted into PerTestDatabases).
+func RestoreGuardianStorageBeforeContract(tb testing.TB, db *bun.DB) {
+	tb.Helper()
+	requireIsolatedGuardianRestore(tb, db, "restore guardian storage before contract")
+	restoreGuardianMirror(tb, db)
+}
+
+func requireIsolatedGuardianRestore(tb testing.TB, db *bun.DB, action string) {
+	tb.Helper()
+	if db == nil {
+		tb.Fatalf("%s: database is required", action)
+	}
+	entry, isolated := isolatedTestDatabases.Load(topLevelTestName(tb))
+	if !isolated || entry.(*isolatedTestDatabase).db != db {
+		tb.Fatalf("%s requires this test's isolated database", action)
+	}
+}
+
+func restoreGuardianMirror(tb testing.TB, db *bun.DB) {
+	tb.Helper()
+	var contracted bool
+	if err := db.NewRaw(`SELECT to_regclass('users.students_guardians') IS NULL
+		AND to_regclass('users.students_guardians_compatibility_writes') IS NULL`).
+		Scan(context.Background(), &contracted); err != nil {
+		tb.Fatalf("restore guardian mirror: inspect schema: %v", err)
+	}
+	if !contracted {
+		tb.Fatal("restore guardian mirror requires the contracted schema")
+	}
+	// The mirror marker keeps the routing trigger from copying the restored
+	// rows back into the owners they come from.
+	if err := db.RunInTx(context.Background(), nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, guardianStorageBeforeContract); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `
+			SELECT set_config('users.guardian_compat_mirror', 'on', true);
+			INSERT INTO users.students_guardians
+				(id, tenant_id, student_id, guardian_profile_id, relationship_type, guardian_role,
+				 is_primary, is_emergency_contact, emergency_priority, is_payer,
+				 can_pickup, pickup_notes, permissions, created_at, updated_at)
+			SELECT r.id, r.tenant_id, r.student_id, r.guardian_profile_id, r.relationship_type, r.guardian_role,
+				r.is_primary, r.is_emergency_contact, r.emergency_priority, r.is_payer,
+				coalesce(p.can_pickup, false), p.pickup_notes, coalesce(a.permissions, '{}'::jsonb), r.created_at, r.updated_at
+			FROM users.student_guardian_relationships AS r
+			LEFT JOIN users.student_guardian_pickup_permissions AS p ON p.tenant_id = r.tenant_id AND p.relationship_id = r.id
+			LEFT JOIN auth.guardian_student_access AS a ON a.tenant_id = r.tenant_id AND a.relationship_id = r.id;
+			SELECT setval('users.students_guardians_id_seq',
+				(SELECT last_value FROM users.student_guardian_relationships_id_seq), true);
+			SELECT set_config('users.guardian_compat_mirror', 'off', true);`)
+		return err
+	}); err != nil {
+		tb.Fatalf("restore guardian mirror: %v", err)
+	}
+}
 
 // RestoreGuardianStorageBeforeCutover turns users.students_guardians back into
 // the authoritative storage it was before migration 1.15.417 (#2756).
@@ -17,23 +84,16 @@ import (
 // triggers, so those tests restore their world inside their own disposable
 // clone first: the mirror already holds every row, so dropping the triggers,
 // the counter and the targets and moving the dependent objects back is the
-// whole restore. Production rollback deliberately keeps the compatibility
-// shape instead of reversing it.
+// whole restore once RestoreGuardianStorageBeforeContract has rebuilt the
+// mirror the Contract (#2757) removed. Production never reverses either
+// migration.
 //
 // It requires a per-test database (SetupIsolatedTestDB, or a package that
 // opted into PerTestDatabases).
 func RestoreGuardianStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 	tb.Helper()
-	if db == nil {
-		tb.Fatal("restore guardian storage before cutover: database is required")
-	}
-	entry, isolated := isolatedTestDatabases.Load(topLevelTestName(tb))
-	if !isolated || entry.(*isolatedTestDatabase).db != db {
-		tb.Fatal("restore guardian storage before cutover requires this test's isolated database")
-	}
-	if !guardianCompatibilityInstalled(tb, db) {
-		tb.Fatal("restore guardian storage before cutover: the compatibility triggers are already gone")
-	}
+	requireIsolatedGuardianRestore(tb, db, "restore guardian storage before cutover")
+	restoreGuardianMirror(tb, db)
 	restoreGuardianStorage(tb, db)
 	if _, err := db.ExecContext(context.Background(),
 		`DELETE FROM platform.storage_backfill_checkpoints WHERE backfill = 'guardian-owner'`); err != nil {
@@ -48,20 +108,23 @@ func RestoreGuardianStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 // found them before the cutover existed.
 func restoreGuardianStorageIfCutOver(tb testing.TB, db *bun.DB) {
 	tb.Helper()
-	if guardianCompatibilityInstalled(tb, db) {
-		restoreGuardianStorage(tb, db)
+	var cutOver bool
+	if err := db.NewRaw(`SELECT to_regclass('users.students_guardians') IS NULL OR EXISTS (SELECT 1 FROM pg_trigger
+		WHERE tgname = 'students_guardians_route_compatibility' AND tgrelid = to_regclass('users.students_guardians'))`).
+		Scan(context.Background(), &cutOver); err != nil {
+		tb.Fatalf("restore guardian storage before cutover: inspect schema: %v", err)
 	}
-}
-
-func guardianCompatibilityInstalled(tb testing.TB, db *bun.DB) bool {
-	tb.Helper()
-	var installed bool
-	if err := db.NewRaw(`SELECT EXISTS (SELECT 1 FROM pg_trigger
-		WHERE tgname = 'students_guardians_route_compatibility' AND tgrelid = 'users.students_guardians'::regclass)`).
-		Scan(context.Background(), &installed); err != nil {
-		tb.Fatalf("restore guardian storage before cutover: inspect triggers: %v", err)
+	if !cutOver {
+		return
 	}
-	return installed
+	var contracted bool
+	if err := db.NewRaw(`SELECT to_regclass('users.students_guardians') IS NULL`).Scan(context.Background(), &contracted); err != nil {
+		tb.Fatalf("restore guardian storage before cutover: inspect schema: %v", err)
+	}
+	if contracted {
+		restoreGuardianMirror(tb, db)
+	}
+	restoreGuardianStorage(tb, db)
 }
 
 func restoreGuardianStorage(tb testing.TB, db *bun.DB) {

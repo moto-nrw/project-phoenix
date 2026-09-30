@@ -1443,8 +1443,8 @@
       "declaration": "TestCaregiverCapability_EnableCreatesOperationalProfile",
       "target": "database/repositories.NewFactory",
       "lines": [
-        302,
-        306
+        305,
+        309
       ],
       "tables": []
     },
@@ -1469,9 +1469,8 @@
       "tables": [
         "auth.guardian_invitations",
         "users.guardian_profiles",
-        "users.student_profiles",
-        "users.students",
-        "users.students_guardians"
+        "users.student_guardian_relationships",
+        "users.student_profiles"
       ]
     },
     {

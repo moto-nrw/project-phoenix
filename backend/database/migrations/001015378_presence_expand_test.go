@@ -361,7 +361,7 @@ func TestPresenceExpandReferenceDeletion(t *testing.T) {
 		{"active.student_status_days", f.statusDay},
 		{"schedule.student_pickup_exceptions", f.pickup},
 		{"active.groups", f.group},
-		{"users.staff", f.staff},
+		{"users.staff_school_memberships", f.staff},
 		{"auth.accounts", account.ID},
 	} {
 		_, err := db.ExecContext(t.Context(), "DELETE FROM "+tc.table+" WHERE id = ?", tc.id)

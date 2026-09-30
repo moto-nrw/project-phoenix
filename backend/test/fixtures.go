@@ -349,16 +349,38 @@ func CreateTestStaff(tb testing.TB, db *bun.DB, firstName, lastName string) *use
 	}
 	staff.SetTenantID(fixtureTenantID(tb))
 
-	err := db.NewInsert().
-		Model(staff).
-		ModelTableExpr(`users.staff`).
-		Scan(ctx)
+	err := insertTestStaff(ctx, db, staff)
 	require.NoError(tb, err, "Failed to create test staff")
 
 	// Store person reference for convenience
 	staff.Person = person
 
 	return staff
+}
+
+// insertTestStaff stores a staff fixture in its owners: the School Membership
+// row (tenant, person, lifecycle) and its Workforce employment profile. The
+// membership id is the staff id every dependent table references (#2754).
+// A test that restored the pre-cutover world gets the historical table.
+func insertTestStaff(ctx context.Context, db bun.IDB, staff *users.Staff) error {
+	if historical, err := insertHistoricalStaff(ctx, db, staff); err != nil || historical {
+		return err
+	}
+	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if err := tx.NewRaw(`INSERT INTO users.staff_school_memberships (tenant_id, person_id, deleted_at)
+			VALUES (?, ?, ?) RETURNING id, created_at, updated_at`,
+			staff.TenantID, staff.PersonID, staff.DeletedAt).
+			Scan(ctx, &staff.ID, &staff.CreatedAt, &staff.UpdatedAt); err != nil {
+			return err
+		}
+		_, err := tx.NewRaw(`INSERT INTO users.staff_employment_profiles
+			(membership_id, tenant_id, staff_notes, employment_type, work_time_model_id,
+			 personnel_number, rotation_anchor_date, birthday_display_opt_out)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			staff.ID, staff.TenantID, staff.StaffNotes, staff.EmploymentType, staff.WorkTimeModelID,
+			staff.PersonnelNumber, staff.RotationAnchorDate, staff.BirthdayDisplayOptOut).Exec(ctx)
+		return err
+	})
 }
 
 // CreateTestStaffForPerson creates a staff record for an existing person
@@ -374,10 +396,7 @@ func CreateTestStaffForPerson(tb testing.TB, db *bun.DB, personID int64) *users.
 	}
 	staff.SetTenantID(fixtureTenantID(tb))
 
-	err := db.NewInsert().
-		Model(staff).
-		ModelTableExpr(`users.staff`).
-		Scan(ctx)
+	err := insertTestStaff(ctx, db, staff)
 	require.NoError(tb, err, "Failed to create test staff for person")
 
 	return staff
@@ -912,10 +931,7 @@ func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName s
 	}
 	staff.SetTenantID(fixtureTenantID(tb))
 
-	err := db.NewInsert().
-		Model(staff).
-		ModelTableExpr(`users.staff`).
-		Scan(ctx)
+	err := insertTestStaff(ctx, db, staff)
 	require.NoError(tb, err, "Failed to create test staff with account")
 
 	// Store person reference for convenience
@@ -1959,10 +1975,7 @@ func CreateTestStaffForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstNa
 	}
 	staff.SetTenantID(tenantID)
 
-	err := db.NewInsert().
-		Model(staff).
-		ModelTableExpr(`users.staff`).
-		Scan(ctx)
+	err := insertTestStaff(ctx, db, staff)
 	require.NoError(tb, err, "Failed to create test staff for tenant")
 
 	staff.Person = person
@@ -1996,10 +2009,7 @@ func CreateTestStaffWithAccountForTenant(tb testing.TB, db *bun.DB, tenantID int
 
 	staff := &users.Staff{PersonID: person.ID}
 	staff.SetTenantID(tenantID)
-	err = db.NewInsert().
-		Model(staff).
-		ModelTableExpr(`users.staff`).
-		Scan(ctx)
+	err = insertTestStaff(ctx, db, staff)
 	require.NoError(tb, err, "Failed to create test staff with account for tenant")
 
 	staff.Person = person
@@ -2925,7 +2935,7 @@ func CreateTestInstanceStaffForTenant(tb testing.TB, db *bun.DB, tenantID, insta
 // ParentChain bundles the IDs of a fully-wired loginable-parent → child
 // relationship, mirroring what the guardian-invitation accept flow
 // produces: an auth account, a guardian profile linked to it, an active
-// account_tenants mapping, and a students_guardians link to a student.
+// account_tenants mapping, and a student guardian link to a student.
 // All rows live in tenant 1 so the parent-portal cross-tenant queries
 // resolve.
 type ParentChain struct {
@@ -2972,8 +2982,7 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRolePrimaryGuardian)
 	link.IsPrimary = true
 	link.SetTenantID(fixtureTenantID(tb))
-	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(ctx)
-	require.NoError(tb, err, "Failed to create students_guardians link")
+	require.NoError(tb, InsertTestStudentGuardian(ctx, db, link), "Failed to create student guardian link")
 
 	now := time.Now()
 	mapping := &AccountTenantFixture{
@@ -3184,8 +3193,7 @@ func CreateTestCoGuardianForStudent(
 	// A co-guardian, not the primary one: same portal access, no primacy.
 	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleCoGuardian)
 	link.SetTenantID(fixtureTenantID(tb))
-	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(ctx)
-	require.NoError(tb, err, "Failed to link co-guardian to student")
+	require.NoError(tb, InsertTestStudentGuardian(ctx, db, link), "Failed to link co-guardian to student")
 
 	now := time.Now()
 	mapping := &AccountTenantFixture{

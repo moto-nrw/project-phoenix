@@ -1404,8 +1404,8 @@ func TestPersonService_CreateStaffWithTeacher_RefusesAdoptionWithoutUpdatePermis
 
 	before, err := db.NewSelect().
 		ColumnExpr("staff_notes").
-		TableExpr(`users.staff`).
-		Where(`id = ?`, existing.ID).
+		TableExpr(`users.staff_employment_profiles`).
+		Where(`membership_id = ?`, existing.ID).
 		Rows(ctx)
 	require.NoError(t, err)
 	require.NoError(t, before.Close())
@@ -1427,14 +1427,14 @@ func TestPersonService_CreateStaffWithTeacher_RefusesAdoptionWithoutUpdatePermis
 	var notes string
 	require.NoError(t, db.NewSelect().
 		ColumnExpr("COALESCE(staff_notes, '')").
-		TableExpr(`users.staff`).
-		Where(`id = ?`, existing.ID).
+		TableExpr(`users.staff_employment_profiles`).
+		Where(`membership_id = ?`, existing.ID).
 		Scan(ctx, &notes))
 	assert.NotEqual(t, "Fremde Notiz", notes, "a refused adoption must not have written the notes")
 
 	// And no second staff record was created for the person either.
 	count, err := db.NewSelect().
-		TableExpr(`users.staff`).
+		TableExpr(`users.staff_school_memberships`).
 		Where(`person_id = ?`, existing.PersonID).
 		Where(`deleted_at IS NULL`).
 		Count(ctx)

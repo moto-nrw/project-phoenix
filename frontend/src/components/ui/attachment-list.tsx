@@ -57,9 +57,10 @@ export function AttachmentList({
     <ul className="flex flex-col gap-2">
       {attachments.map((attachment) => {
         const viewable = isViewableInBrowser(attachment.content_type);
+        const downloadHref = downloadUrl(attachment.id);
         const href = viewable
-          ? `${downloadUrl(attachment.id)}?inline=1`
-          : downloadUrl(attachment.id);
+          ? `${downloadHref}${downloadHref.includes("?") ? "&" : "?"}inline=1`
+          : downloadHref;
         return (
           <li
             key={attachment.id}

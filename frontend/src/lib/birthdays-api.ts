@@ -27,6 +27,12 @@ export interface BirthdayOverview {
   enabled: boolean;
   includeStaff: boolean;
   today: string;
+  /** Monday and Sunday of the week shown ("YYYY-MM-DD"). */
+  weekStart: string;
+  weekEnd: string;
+  /** Mondays of the furthest weeks the card may step to. */
+  earliestWeekStart: string;
+  latestWeekStart: string;
   celebrations: BirthdayCelebration[];
 }
 
@@ -45,6 +51,10 @@ interface BackendOverview {
   enabled: boolean;
   include_staff: boolean;
   today: string;
+  week_start: string;
+  week_end: string;
+  earliest_week_start: string;
+  latest_week_start: string;
   celebrations: BackendCelebration[] | null;
 }
 
@@ -55,6 +65,10 @@ export function mapBirthdayOverview(
     enabled: response.enabled,
     includeStaff: response.include_staff,
     today: response.today,
+    weekStart: response.week_start,
+    weekEnd: response.week_end,
+    earliestWeekStart: response.earliest_week_start,
+    latestWeekStart: response.latest_week_start,
     celebrations: (response.celebrations ?? []).map((celebration) => ({
       kind: celebration.kind,
       id: celebration.id.toString(),
@@ -68,9 +82,15 @@ export function mapBirthdayOverview(
   };
 }
 
-/** Client-side fetcher for SWR — calls the Next.js BFF route. */
-export async function fetchBirthdayOverviewClient(): Promise<BirthdayOverview> {
-  const response = await fetchWithAuth("/api/birthdays");
+/**
+ * Client-side fetcher for SWR — calls the Next.js BFF route. Without
+ * `weekStart` the current week is loaded.
+ */
+export async function fetchBirthdayOverviewClient(
+  weekStart?: string | null,
+): Promise<BirthdayOverview> {
+  const query = weekStart ? `?week_start=${encodeURIComponent(weekStart)}` : "";
+  const response = await fetchWithAuth(`/api/birthdays${query}`);
 
   if (!response.ok) {
     throw new Error(`Birthday fetch failed: ${response.status}`);

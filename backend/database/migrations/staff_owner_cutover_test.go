@@ -30,6 +30,15 @@ func setupIsolatedStaffStorageBeforeCutover(t *testing.T) *testpkg.DB {
 	return db
 }
 
+// Repairs older than both cutovers read and write users.students and
+// users.staff as the base tables they were.
+func setupPeopleStorageBeforeCutover(t *testing.T) *testpkg.DB {
+	t.Helper()
+	db := setupStudentStorageBeforeCutover(t)
+	testpkg.RestoreStaffStorageBeforeCutover(t, db)
+	return db
+}
+
 // staffOwnerCutoverFixture returns a backfilled tenant that is ready to be
 // switched.
 func staffOwnerCutoverFixture(t *testing.T, db *testpkg.DB, count int) (int64, []int64) {

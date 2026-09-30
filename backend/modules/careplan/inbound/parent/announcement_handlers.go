@@ -39,6 +39,8 @@ type AnnouncementResponse struct {
 	ResponseDeadline *time.Time              `json:"response_deadline,omitempty"`
 	Options          []AnnouncementOption    `json:"options,omitempty"`
 	Children         []AnnouncementPollChild `json:"children,omitempty"`
+	// Declaration is set for an Erklärung (delivery_mode "declaration", #3430).
+	Declaration *AnnouncementDeclarationResponse `json:"declaration,omitempty"`
 
 	// SystemKind marks a row the school's system wrote, e.g. the cancellation
 	// notice (#2601). The portal labels it instead of "Elternbrief".
@@ -107,6 +109,7 @@ func toAnnouncementResponse(item *usersModels.AnnouncementFeedItem) Announcement
 		Acknowledged:            item.AcknowledgedAt != nil,
 		ReminderSentAt:          item.ReminderSentAt,
 		ReminderText:            item.ReminderText,
+		Declaration:             toDeclarationResponse(item.Declaration),
 	}
 }
 

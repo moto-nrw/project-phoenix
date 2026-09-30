@@ -531,6 +531,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"newCareFixture",                   // modules/careplan/contracttest care-request tests — wraps SetupTestDB
 		"setupDashboardContext",            // api/active supervision-dashboard tests — wraps SetupActiveModule → SetupTestDB
 		"setupStudentStorageBeforeCutover", // database/migrations student-owner cutover + preflight tests — wraps SetupTestDB
+		"setupPeopleStorageBeforeCutover",  // database/migrations repairs older than the student and staff cutovers — wraps SetupTestDB
 		"setupStudentsRoute",               // modules/peopledirectory/inbound/students route suites — wraps testutil.SetupStudentModule → SetupTestDB
 	}
 
