@@ -561,7 +561,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyBirthdayDisplayEnabled,
 		Label:           "Geburtstage auf der Startseite",
-		Description:     "Zeigt auf der Startseite, wer heute Geburtstag hat. Montags werden zusätzlich die Geburtstage vom Wochenende nachgetragen. Kinder ohne hinterlegtes Geburtsdatum erscheinen nicht.",
+		Description:     "Zeigt auf der Startseite, wer in dieser Woche Geburtstag hat. Man kann bis zu 4 Wochen zurück- und vorblättern. Kinder ohne hinterlegtes Geburtsdatum erscheinen nicht.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",

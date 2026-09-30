@@ -36,8 +36,8 @@ var seedCoverageExemptions = map[string]string{
 	// users.student_guardian_relationships, users.student_guardian_pickup_permissions
 	// and auth.guardian_student_access held no rows while Expand #2716 kept
 	// them empty. Cutover #2756 made them the authoritative guardian link
-	// storage; the rollback mirror users.students_guardians is filled by its
-	// triggers. None of the four carries an exemption.
+	// storage, and Contract #2757 removed the rollback mirror. None of the
+	// three carries an exemption.
 	// users.student_profiles, users.student_school_memberships and
 	// users.student_care_profiles held no rows while Expand #2717 kept them
 	// empty. Cutover #2759 made them the authoritative student storage, so a

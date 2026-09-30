@@ -40,7 +40,7 @@ type guardianCompositionContext struct {
 	createNamedGuardian func(firstName, lastName, emailSeed string) (int64, string)
 	// createStudent creates an active student and returns (studentID, personID).
 	createStudent func(firstName, lastName, class string) (int64, int64)
-	// link inserts a students_guardians row with the role preset and returns
+	// link inserts a student guardian relationship with the role preset and returns
 	// the link id.
 	link func(studentID, guardianID int64, role string) int64
 	// linkGrantsPortalAccess reads the stored link's parent_portal.access.
@@ -206,8 +206,7 @@ func setupGuardiansCompositionRoute(t *testing.T, appEnvs ...string) *guardianCo
 				CanPickup bool   `bun:"can_pickup"`
 				Emergency bool   `bun:"is_emergency_contact"`
 			}
-			err := db.NewSelect().
-				TableExpr(`users.students_guardians AS "student_guardian"`).
+			err := testpkg.StudentGuardianLinks(db).
 				ColumnExpr(`"student_guardian".guardian_role, "student_guardian".can_pickup, "student_guardian".is_emergency_contact`).
 				Where(`"student_guardian".id = ?`, linkID).
 				Scan(ctx, &row)

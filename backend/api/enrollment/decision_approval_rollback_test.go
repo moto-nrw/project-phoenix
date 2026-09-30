@@ -78,7 +78,8 @@ func approvalOwnerSnapshot(t *testing.T, ctx context.Context, db bun.IDB, tenant
 	result := map[string]string{}
 	for _, table := range []string{
 		"enrollment.requests", "enrollment.request_children", "enrollment.request_child_offering_selections", "enrollment.care_offering_bookings",
-		"users.persons", "users.student_profiles", "users.student_school_memberships", "users.student_care_profiles", "users.guardian_profiles", "users.students_guardians",
+		"users.persons", "users.student_profiles", "users.student_school_memberships", "users.student_care_profiles", "users.guardian_profiles", "users.student_guardian_relationships",
+		"users.student_guardian_pickup_permissions", "auth.guardian_student_access",
 		"users.class_list_entries", "activities.student_enrollments", "schedule.instance_students",
 		"schedule.student_pickup_schedules", "schedule.student_arrival_schedules",
 		"auth.account_tenants", "auth.account_roles",
@@ -183,7 +184,7 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 		approvalOutboxFunc(func(txCtx context.Context, _ platformModels.OutboxEnqueueRequest) error {
 			reached = true
 			pending := approvalOwnerSnapshot(t, txCtx, txDB, testpkg.Tenant(t))
-			for _, table := range []string{"enrollment.request_children", "users.student_profiles", "users.student_school_memberships", "users.student_care_profiles", "users.persons", "users.students_guardians", "activities.student_enrollments", "schedule.instance_students", "auth.account_tenants", "auth.account_roles"} {
+			for _, table := range []string{"enrollment.request_children", "users.student_profiles", "users.student_school_memberships", "users.student_care_profiles", "users.persons", "users.student_guardian_relationships", "users.student_guardian_pickup_permissions", "auth.guardian_student_access", "activities.student_enrollments", "schedule.instance_students", "auth.account_tenants", "auth.account_roles"} {
 				require.NotEqual(t, before[table], pending[table], "the late failure must follow a real write to %s", table)
 			}
 			return injected
@@ -243,7 +244,7 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 	})
 	require.NoError(t, err)
 	afterRetry := approvalOwnerSnapshot(t, ctx, env.db, testpkg.Tenant(t))
-	for _, table := range []string{"users.student_profiles", "users.student_school_memberships", "users.student_care_profiles", "users.students_guardians", "activities.student_enrollments", "schedule.instance_students", "auth.account_tenants", "auth.account_roles"} {
+	for _, table := range []string{"users.student_profiles", "users.student_school_memberships", "users.student_care_profiles", "users.student_guardian_relationships", "users.student_guardian_pickup_permissions", "auth.guardian_student_access", "activities.student_enrollments", "schedule.instance_students", "auth.account_tenants", "auth.account_roles"} {
 		require.Equal(t, stable[table], afterRetry[table], "repeating approval must not duplicate or rewrite %s", table)
 	}
 	require.Equal(t, foreignBefore, approvalOwnerSnapshot(t, ctx, env.db, otherTenant))

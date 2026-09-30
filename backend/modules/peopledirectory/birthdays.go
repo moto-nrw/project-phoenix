@@ -12,6 +12,10 @@ import (
 // staff record in this tenant: it has nothing to opt out of.
 var ErrStaffNotFound = errors.New("staff not found")
 
+// ErrBirthdayWeekOutOfRange reports a requested week further from the current
+// one than the display may step (#3777).
+var ErrBirthdayWeekOutOfRange = errors.New("birthday week out of range")
+
 // BirthdayKind separates the two populations a birthday display mixes.
 type BirthdayKind string
 
@@ -33,12 +37,17 @@ type BirthdayCelebration struct {
 	IsToday bool
 }
 
-// BirthdayOverview is the dashboard payload.
+// BirthdayOverview is the dashboard payload: the birthdays of one
+// Monday-to-Sunday week and how far the view may step from it.
 type BirthdayOverview struct {
-	Enabled      bool
-	IncludeStaff bool
-	Today        calendar.Date
-	Celebrations []BirthdayCelebration
+	Enabled           bool
+	IncludeStaff      bool
+	Today             calendar.Date
+	WeekStart         calendar.Date
+	WeekEnd           calendar.Date
+	EarliestWeekStart calendar.Date
+	LatestWeekStart   calendar.Date
+	Celebrations      []BirthdayCelebration
 }
 
 // StaffBirthday is one row of the administrative staff Geburtstagsliste.
@@ -56,7 +65,8 @@ type BirthdayVisibility interface {
 // Birthdays is the birthday display capability (#1542): who celebrates and who
 // may see it.
 type Birthdays interface {
-	Overview(ctx context.Context, visibility BirthdayVisibility) (BirthdayOverview, error)
+	// Overview returns the week containing weekOf; nil means the current week.
+	Overview(ctx context.Context, visibility BirthdayVisibility, weekOf *calendar.Date) (BirthdayOverview, error)
 	GetOptOut(ctx context.Context, accountID int64) (bool, error)
 	SetOptOut(ctx context.Context, accountID int64, optOut bool) error
 	ListStaffBirthdays(ctx context.Context, months map[time.Month]bool) ([]StaffBirthday, error)

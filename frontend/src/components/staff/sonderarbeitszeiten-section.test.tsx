@@ -62,6 +62,7 @@ const holidayCare: StaffTargetOverride = {
   startDate: "2026-10-19",
   endDate: "2026-10-23",
   dailyMinutes: 510,
+  weekdayMinutes: null,
 };
 
 function openCreate() {
@@ -220,6 +221,134 @@ describe("SonderarbeitszeitenSection", () => {
       ),
     );
     expect(mocks.mutateList).toHaveBeenCalled();
+  });
+
+  it("lists hours per weekday with equal days joined (#3745)", () => {
+    mocks.rows = [
+      {
+        ...holidayCare,
+        dailyMinutes: null,
+        weekdayMinutes: [210, 30, 30, 30, 30],
+      },
+      {
+        ...holidayCare,
+        id: "8",
+        startDate: "2026-10-26",
+        endDate: "2026-10-30",
+        dailyMinutes: null,
+        weekdayMinutes: [240, 240, 0, 240, 120],
+      },
+    ];
+    render(<SonderarbeitszeitenSection staffId="42" canEdit />);
+
+    expect(
+      screen.getByText("Mo 3,5 Std. · Di–Fr je 0,5 Std."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Mo–Di je 4 Std. · Mi 0 Std. · Do 4 Std. · Fr 2 Std."),
+    ).toBeInTheDocument();
+  });
+
+  it("creates hours per weekday, starting from the hours already typed (#3745)", async () => {
+    mocks.rows = [];
+    mocks.create.mockResolvedValue({
+      ...holidayCare,
+      dailyMinutes: null,
+      weekdayMinutes: [210, 30, 30, 30, 30],
+    });
+    openCreate();
+    fillRange("0,5");
+    fireEvent.click(screen.getByRole("button", { name: "Je Wochentag" }));
+
+    expect(screen.queryByLabelText("Stunden pro Tag")).toBeNull();
+    for (const day of [
+      "Montag",
+      "Dienstag",
+      "Mittwoch",
+      "Donnerstag",
+      "Freitag",
+    ]) {
+      expect(screen.getByLabelText(`Stunden am ${day}`)).toHaveValue("0,5");
+    }
+    fireEvent.change(screen.getByLabelText("Stunden am Montag"), {
+      target: { value: "3,5" },
+    });
+    expect(
+      screen.getByText(/Zusammen 5,5 Stunden pro Woche\./),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mocks.create).toHaveBeenCalledWith("42", {
+        startDate: "2026-10-19",
+        endDate: "2026-10-23",
+        weekdayMinutes: [210, 30, 30, 30, 30],
+      }),
+    );
+  });
+
+  it("rejects a weekday without valid hours", async () => {
+    mocks.rows = [];
+    openCreate();
+    fillRange("1");
+    fireEvent.click(screen.getByRole("button", { name: "Je Wochentag" }));
+    fireEvent.change(screen.getByLabelText("Stunden am Mittwoch"), {
+      target: { value: "13" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText("Bitte für jeden Tag 0 bis 12 Stunden eingeben."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Stunden am Mittwoch")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(screen.getByLabelText("Stunden am Montag")).not.toHaveAttribute(
+      "aria-invalid",
+    );
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it("keeps equal weekday hours when switching back to the same hours every day", () => {
+    mocks.rows = [];
+    openCreate();
+    fireEvent.click(screen.getByRole("button", { name: "Je Wochentag" }));
+    for (const day of [
+      "Montag",
+      "Dienstag",
+      "Mittwoch",
+      "Donnerstag",
+      "Freitag",
+    ]) {
+      fireEvent.change(screen.getByLabelText(`Stunden am ${day}`), {
+        target: { value: "8" },
+      });
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Jeden Tag gleich" }));
+
+    expect(screen.getByLabelText("Stunden pro Tag")).toHaveValue("8");
+  });
+
+  it("keeps equal weekday hours with different decimal spellings", () => {
+    mocks.rows = [];
+    openCreate();
+    fireEvent.click(screen.getByRole("button", { name: "Je Wochentag" }));
+    const values = ["1", "1,0", "1.00", "1", "1"];
+    for (const [index, day] of [
+      "Montag",
+      "Dienstag",
+      "Mittwoch",
+      "Donnerstag",
+      "Freitag",
+    ].entries()) {
+      fireEvent.change(screen.getByLabelText(`Stunden am ${day}`), {
+        target: { value: values[index] },
+      });
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Jeden Tag gleich" }));
+
+    expect(screen.getByLabelText("Stunden pro Tag")).toHaveValue("1");
   });
 
   it("names the section once, not again above the table", () => {

@@ -57,9 +57,8 @@ type BirthdayStaff struct {
 }
 
 // BirthdayCelebration is one person celebrating on one concrete calendar day.
-// Date is the day the celebration is SHOWN on, which is not always the stored
-// birth date: a Monday carries the weekend's birthdays, and 29 February falls
-// on 1 March in a common year.
+// Date is the day the celebration is SHOWN on in the viewed week, which is not
+// always the stored birth date: 29 February falls on 1 March in a common year.
 type BirthdayCelebration struct {
 	Kind        BirthdayKind
 	ID          int64
@@ -71,8 +70,8 @@ type BirthdayCelebration struct {
 	// colleague's age is not published to the team, which is what the opt-out
 	// exists to prevent. Zero means "not disclosed".
 	Age int
-	// IsToday separates today's birthdays from the weekend ones the Monday view
-	// carries along, so the UI can label them without re-deriving it.
+	// IsToday separates today's birthdays from the rest of the week, so the UI
+	// can highlight them without re-deriving it.
 	IsToday bool
 }
 
@@ -88,11 +87,57 @@ func VisibleBirthdayStudents(entries []BirthdayEntry, visibility BirthdayVisibil
 	return append(visible, entries...)
 }
 
-// CelebrationDates are the calendar days one dashboard view speaks for.
-func CelebrationDates(today calendar.Date) []calendar.Date {
-	dates := []calendar.Date{today}
-	if today.Weekday() == time.Monday {
-		dates = append(dates, today.AddDays(-2), today.AddDays(-1))
+// BirthdayWeekReach is how many weeks the display may step back or ahead of
+// the current one (#3777). The OGS celebrates after the actual day, so the
+// previous weeks matter as much as the coming ones; beyond a month the card
+// would turn into a year-round staff birthday calendar, which is what the
+// administrative export exists for.
+const BirthdayWeekReach = 4
+
+// ErrBirthdayWeekOutOfRange reports a requested week beyond BirthdayWeekReach.
+var ErrBirthdayWeekOutOfRange = errors.New("birthday week out of range")
+
+// BirthdayWeek is the Monday-to-Sunday week one birthday view speaks for. The
+// weekend belongs to it: nobody opens the app on Saturday, and a child born on
+// a Saturday is celebrated during the week around it.
+type BirthdayWeek struct {
+	Start calendar.Date
+	End   calendar.Date
+}
+
+// WeekStartOf returns the Monday of the week containing date.
+func WeekStartOf(date calendar.Date) calendar.Date {
+	sinceMonday := (int(date.Weekday()) + 6) % 7
+	return date.AddDays(-sinceMonday)
+}
+
+// ResolveBirthdayWeek picks the week of weekOf (nil means the current week)
+// and rejects one further than BirthdayWeekReach weeks from today's week.
+func ResolveBirthdayWeek(today calendar.Date, weekOf *calendar.Date) (BirthdayWeek, error) {
+	current := WeekStartOf(today)
+	start := current
+	if weekOf != nil {
+		start = WeekStartOf(*weekOf)
+	}
+	earliest, latest := BirthdayWeekBounds(today)
+	if start.Before(earliest) || start.After(latest) {
+		return BirthdayWeek{}, ErrBirthdayWeekOutOfRange
+	}
+	return BirthdayWeek{Start: start, End: start.AddDays(6)}, nil
+}
+
+// BirthdayWeekBounds returns the Mondays of the earliest and latest week a
+// view may show.
+func BirthdayWeekBounds(today calendar.Date) (calendar.Date, calendar.Date) {
+	current := WeekStartOf(today)
+	return current.AddDays(-7 * BirthdayWeekReach), current.AddDays(7 * BirthdayWeekReach)
+}
+
+// CelebrationDates are the calendar days one week view speaks for.
+func CelebrationDates(week BirthdayWeek) []calendar.Date {
+	dates := make([]calendar.Date, 0, 7)
+	for date := week.Start; !date.After(week.End); date = date.AddDays(1) {
+		dates = append(dates, date)
 	}
 	return dates
 }
@@ -110,10 +155,10 @@ func isLeapYear(year int) bool {
 	return year%4 == 0 && (year%100 != 0 || year%400 == 0)
 }
 
-// BirthdayWindow returns the recurring days a view speaks for and the date each
-// one is shown on.
-func BirthdayWindow(today calendar.Date) ([]MonthDay, map[MonthDay]calendar.Date) {
-	dates := CelebrationDates(today)
+// BirthdayWindow returns the recurring days a week view speaks for and the
+// date each one is shown on.
+func BirthdayWindow(week BirthdayWeek) ([]MonthDay, map[MonthDay]calendar.Date) {
+	dates := CelebrationDates(week)
 	byMonthDay := make(map[MonthDay]calendar.Date, len(dates)*2)
 	days := make([]MonthDay, 0, len(dates)*2)
 	for _, date := range dates {
@@ -150,8 +195,9 @@ func BuildCelebrations(entries []BirthdayEntry, byMonthDay map[MonthDay]calendar
 	}
 	sort.SliceStable(celebrations, func(i, j int) bool {
 		a, b := celebrations[i], celebrations[j]
+		// Calendar order: the card reads as the week from Monday to Sunday.
 		if a.Date != b.Date {
-			return a.Date.After(b.Date)
+			return a.Date.Before(b.Date)
 		}
 		if a.Kind != b.Kind {
 			return a.Kind == BirthdayKindStudent

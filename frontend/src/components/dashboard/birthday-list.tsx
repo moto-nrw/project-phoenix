@@ -3,129 +3,141 @@
 import { EmptyState } from "~/components/ui/empty-state";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { formatDate } from "~/lib/date-helpers";
+import { parseISODate } from "~/lib/date-helpers";
 import type { BirthdayCelebration } from "~/lib/birthdays-api";
 
 /**
- * The dashboard birthday display (#1542).
+ * The birthdays of one week, grouped by day (#1542, #3777).
  *
  * Deliberately a list of names rather than a counter: "2 Geburtstage" tells
  * nobody who to congratulate, which is the entire purpose of the card.
  *
- * Two rules the first draft got wrong and this one enforces:
- *
- *  1. Every row states WHEN the birthday was. A Monday card carries Saturday
- *     and Sunday along, and "Samstag" alone still leaves the reader counting
- *     backwards, so the badge names the day AND the date.
- *  2. The badge means one thing only. It answers "wann", never "wer" —
- *     children and staff are separated by a section heading instead, so a
- *     green pill cannot mean "today" in one row and "colleague" in the next.
+ * Every day states weekday AND date on the left ("Mo, 28.09."), so a row
+ * never leaves the reader counting which Monday is meant. Today's day carries
+ * a green "Heute" badge and a green tint, so it stays recognisable at a glance
+ * in the middle of the week. A colleague's row is marked "Team" instead of a
+ * group: children and staff share the day, but never the same description.
  *
  * What may appear here is decided in the backend (school settings + personal
- * opt-out); this component renders whatever it is handed.
+ * opt-out); this component renders whatever it is handed, in the order it is
+ * handed (calendar order, children before staff on the same day).
  */
 export function BirthdayList({
   celebrations,
+  today,
   isLoading,
+  emptyTitle,
 }: {
   readonly celebrations: readonly BirthdayCelebration[];
+  /** Today as "YYYY-MM-DD"; decides "wird" or "wurde" for the age. */
+  readonly today: string;
   readonly isLoading: boolean;
+  readonly emptyTitle: string;
 }) {
   if (isLoading) {
     return (
-      <div className="space-y-2">
-        {[1, 2].map((i) => (
-          <Skeleton key={i} className="h-12 rounded-xl" />
+      <div className="space-y-2" aria-hidden="true">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-8 rounded-lg" />
         ))}
       </div>
     );
   }
 
-  // Derselbe Leerzustand wie in den Nachbarkarten der Startseite: stand hier
-  // ein eigener Satz in anderer Größe, las sich die Karte wie aus einer
-  // anderen App.
+  // Derselbe Leerzustand wie in den Nachbarkarten der Startseite.
   if (celebrations.length === 0) {
-    return <EmptyState className="py-4" title="Heute keine Geburtstage" />;
+    return <EmptyState className="py-4" title={emptyTitle} />;
   }
 
-  const children = celebrations.filter((entry) => entry.kind === "student");
-  const staff = celebrations.filter((entry) => entry.kind === "staff");
-  // Headings only earn their space once both populations are present. With
-  // children alone (the common case) a lone "KINDER" label is pure noise.
-  const showHeadings = children.length > 0 && staff.length > 0;
-
   return (
-    <div className="space-y-4">
-      {children.length > 0 && (
-        <BirthdaySection
-          label="Kinder"
-          showLabel={showHeadings}
-          celebrations={children}
-        />
-      )}
-      {staff.length > 0 && (
-        <BirthdaySection
-          label="Team"
-          showLabel={showHeadings}
-          celebrations={staff}
-        />
-      )}
-    </div>
+    <ul className="space-y-1">
+      {groupByDay(celebrations).map(({ date, isToday, entries }) => (
+        <li
+          key={date}
+          className={`flex gap-3 rounded-lg px-2 py-1.5 ${
+            isToday ? "bg-moto-green/10" : ""
+          }`}
+        >
+          <div className="flex h-5 w-20 shrink-0 items-center sm:w-24">
+            {isToday ? (
+              <StatusBadge
+                label="Heute"
+                tone="green"
+                compact
+                title={dayLabel(date)}
+                accessibleLabel={`Heute, ${dayLabel(date)}`}
+              />
+            ) : (
+              <span className="text-sm text-gray-600 tabular-nums">
+                {dayLabel(date)}
+              </span>
+            )}
+          </div>
+          <ul className="min-w-0 flex-1 space-y-1">
+            {entries.map((celebration) => (
+              <li
+                key={`${celebration.kind}-${celebration.id}`}
+                // Der Name hat Vorrang. Auf dem Handy rutschen Gruppe, Klasse
+                // und Alter darunter (die Karte wächst dort mit). In der festen
+                // Rasterzelle ab sm bleibt es eine Zeile, gekürzt wird dann
+                // zuerst die Beschreibung.
+                className="flex min-w-0 flex-wrap items-baseline gap-x-2 sm:flex-nowrap"
+              >
+                <span className="max-w-full truncate text-sm font-medium text-gray-900 sm:shrink-0">
+                  {celebration.name}
+                </span>
+                <span className="max-w-full min-w-0 truncate text-xs text-gray-500">
+                  {describeCelebration(celebration, today)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </li>
+      ))}
+    </ul>
   );
 }
 
-function BirthdaySection({
-  label,
-  showLabel,
-  celebrations,
-}: {
-  readonly label: string;
-  readonly showLabel: boolean;
-  readonly celebrations: readonly BirthdayCelebration[];
-}) {
-  return (
-    <div>
-      {showLabel && (
-        <h4 className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {label}
-        </h4>
-      )}
-      <ul className="grid gap-2 sm:grid-cols-2">
-        {celebrations.map((celebration) => (
-          <li
-            key={`${celebration.kind}-${celebration.id}`}
-            className="flex items-center justify-between gap-3 rounded-xl border border-gray-200/50 bg-gray-50/50 p-3"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-gray-900">
-                {celebration.name}
-              </p>
-              {describeCelebration(celebration) && (
-                <p className="truncate text-xs text-gray-500">
-                  {describeCelebration(celebration)}
-                </p>
-              )}
-            </div>
-            <StatusBadge
-              label={whenLabel(celebration)}
-              tone={celebration.isToday ? "green" : "gray"}
-              title={formatDate(celebration.date)}
-            />
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
+interface BirthdayDay {
+  readonly date: string;
+  readonly isToday: boolean;
+  readonly entries: readonly BirthdayCelebration[];
+}
+
+/** Consecutive entries of the same day, in the order they arrive. */
+function groupByDay(
+  celebrations: readonly BirthdayCelebration[],
+): BirthdayDay[] {
+  const days: {
+    date: string;
+    isToday: boolean;
+    entries: BirthdayCelebration[];
+  }[] = [];
+  for (const celebration of celebrations) {
+    const last = days.at(-1);
+    if (last?.date === celebration.date) {
+      last.entries.push(celebration);
+    } else {
+      days.push({
+        date: celebration.date,
+        isToday: celebration.isToday,
+        entries: [celebration],
+      });
+    }
+  }
+  return days;
 }
 
 /**
- * The secondary line: where the child belongs and which birthday it is. Staff
- * entries carry neither — publishing a colleague's age is exactly what the
- * personal opt-out exists to prevent, and their section heading already says
- * who they are — so their line is omitted rather than filled with a label.
+ * The secondary text: where the child belongs and which birthday it is. A
+ * colleague's row says "Team" and nothing else: publishing a colleague's age
+ * is exactly what the personal opt-out exists to prevent.
  */
-function describeCelebration(celebration: BirthdayCelebration): string {
-  if (celebration.kind === "staff") return "";
+function describeCelebration(
+  celebration: BirthdayCelebration,
+  today: string,
+): string {
+  if (celebration.kind === "staff") return "Team";
 
   const parts: string[] = [];
   if (celebration.groupName) parts.push(celebration.groupName);
@@ -134,36 +146,25 @@ function describeCelebration(celebration: BirthdayCelebration): string {
   // produced "Klasse Klasse 1a" on real data.
   if (celebration.schoolClass) parts.push(celebration.schoolClass);
   if (celebration.age && celebration.age > 0) {
-    parts.push(`wird ${celebration.age}`);
+    // ISO dates compare as strings. A birthday earlier this week is over.
+    const verb = celebration.date < today ? "wurde" : "wird";
+    parts.push(`${verb} ${celebration.age}`);
   }
   return parts.join(" · ");
 }
 
 const SHORT_WEEKDAYS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"] as const;
 
-/**
- * When the birthday was: "Heute", otherwise the weekday plus its date
- * ("Sa, 01.08."). The date is what makes a Monday card readable — the weekday
- * alone still leaves the reader working out which Saturday is meant.
- */
-function whenLabel(celebration: BirthdayCelebration): string {
-  if (celebration.isToday) return "Heute";
-
-  const parsed = parseISOParts(celebration.date);
-  if (!parsed) return formatDate(celebration.date);
-
-  const { year, month, day } = parsed;
-  // Local midnight, never `new Date("YYYY-MM-DD")` — that is UTC midnight and
-  // shifts the weekday for Berlin.
-  const weekday = SHORT_WEEKDAYS[new Date(year, month - 1, day).getDay()];
-  const dayMonth = `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}.`;
-  return weekday ? `${weekday}, ${dayMonth}` : dayMonth;
+/** "Mo, 28.09.": the weekday alone would leave the reader counting. */
+function dayLabel(isoDate: string): string {
+  const weekday = SHORT_WEEKDAYS[parseISODate(isoDate).getDay()];
+  return weekday
+    ? `${weekday}, ${dayMonthLabel(isoDate)}`
+    : dayMonthLabel(isoDate);
 }
 
-function parseISOParts(
-  isoDate: string,
-): { year: number; month: number; day: number } | null {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  if (!year || !month || !day) return null;
-  return { year, month, day };
+/** "28.09." */
+export function dayMonthLabel(isoDate: string): string {
+  const date = parseISODate(isoDate);
+  return `${String(date.getDate()).padStart(2, "0")}.${String(date.getMonth() + 1).padStart(2, "0")}.`;
 }

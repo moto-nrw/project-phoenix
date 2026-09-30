@@ -305,9 +305,11 @@ func TestCareExceptionRequiresPickupManagePermission(t *testing.T) {
 	_, err := svc.SubmitCareExceptionWithReason(ctx, chain.AccountID, chain.StudentID, date, wallClock(15, 0), "Arzttermin")
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, `
-		UPDATE users.students_guardians
+		UPDATE auth.guardian_student_access AS a
 		SET permissions = '{"parent_portal.access": true}'::jsonb
-		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+		FROM users.student_guardian_relationships AS r
+		WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id
+		  AND r.tenant_id = ? AND r.student_id = ? AND r.guardian_profile_id = ?
 	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 

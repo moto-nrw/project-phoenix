@@ -131,7 +131,9 @@ export function PlanningContextBar({
           </div>
         )}
 
-        {/* Eine Gruppe, drei Segmente: die Zeitnavigation liest sich als ein
+        {/* Die Segmente füllen die Gruppe in der Höhe (`h-full`): mit der
+            Kit-Höhe h-8 blieb unter jedem Knopf ein weißer Streifen stehen.
+            Eine Gruppe, drei Segmente: die Zeitnavigation liest sich als ein
             Bedienelement statt als zwei schwebende Pfeile mit Text dazwischen.
             Mobil sitzt sie rechts neben dem Datumsblock, ab md rückt sie per
             `order` wieder an den Anfang der Zeile. Mit `navigationInGroup`
@@ -146,7 +148,7 @@ export function PlanningContextBar({
             type="button"
             size="icon"
             variant="ghost"
-            className="rounded-none"
+            className="h-full rounded-none"
             onClick={onPrevious}
             disabled={!onPrevious}
             aria-label={previousLabel}
@@ -162,7 +164,7 @@ export function PlanningContextBar({
               type="button"
               size="compact"
               variant="ghost"
-              className="rounded-none px-3"
+              className="h-full rounded-none px-3"
               onClick={onToday}
               disabled={!onToday}
             >
@@ -173,7 +175,7 @@ export function PlanningContextBar({
             type="button"
             size="icon"
             variant="ghost"
-            className="rounded-none"
+            className="h-full rounded-none"
             onClick={onNext}
             disabled={!onNext}
             aria-label={nextLabel}

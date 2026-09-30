@@ -61,7 +61,7 @@ func ensureGuardianProfile(t *testing.T, db *bun.DB, accountID, tenantID int64) 
 	return profileID
 }
 
-// linkChildToAccount adds a students_guardians row tying the student
+// linkChildToAccount adds a guardian relationship tying the student
 // to the (account, tenant) guardian profile. Idempotent on the
 // (tenant, student, profile) unique index; safe to call multiple times
 // for the same triple.
@@ -84,11 +84,20 @@ func linkChildToAccountWithPermissions(
 	require.NoError(t, err)
 
 	_, err = db.NewRaw(`
-		INSERT INTO users.students_guardians
-		  (tenant_id, student_id, guardian_profile_id, relationship_type, is_primary,
-		   can_pickup, permissions)
-		VALUES (?, ?, ?, 'parent', TRUE, TRUE, ?::jsonb)
-		ON CONFLICT (tenant_id, student_id, guardian_profile_id) DO NOTHING
+		WITH relationship AS (
+			INSERT INTO users.student_guardian_relationships
+			  (tenant_id, student_id, guardian_profile_id, relationship_type, is_primary)
+			VALUES (?0, ?1, ?2, 'parent', TRUE)
+			ON CONFLICT (tenant_id, student_id, guardian_profile_id) DO NOTHING
+			RETURNING id, tenant_id, guardian_profile_id
+		), pickup AS (
+			INSERT INTO users.student_guardian_pickup_permissions (tenant_id, relationship_id, can_pickup)
+			SELECT tenant_id, id, TRUE FROM relationship
+		)
+		INSERT INTO auth.guardian_student_access (tenant_id, relationship_id, account_id, permissions)
+		SELECT r.tenant_id, r.id, g.account_id, ?3::jsonb
+		FROM relationship AS r
+		JOIN users.guardian_profiles AS g ON g.tenant_id = r.tenant_id AND g.id = r.guardian_profile_id
 	`, tenantID, studentID, profileID, string(permissionsJSON)).Exec(bg)
 	require.NoError(t, err)
 	return profileID

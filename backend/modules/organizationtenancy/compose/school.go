@@ -11,7 +11,7 @@ func (e engine) CreateSchool(ctx context.Context, input organizationtenancy.Crea
 	value, err := e.service.CreateSchool(ctx, domain.CreateSchool{
 		OrganizationID: input.OrganizationID, Name: input.Name, Slug: input.Slug, Subdomain: input.Subdomain,
 		Active: input.Active, Hidden: input.Hidden, Settings: input.Settings, Address: input.Address,
-		City: input.City, Zip: input.Zip, Phone: input.Phone, Email: input.Email, DevicePinHash: input.DevicePinHash,
+		City: input.City, Zip: input.Zip, Phone: input.Phone, Email: input.Email,
 	})
 	return toPublicSchool(value), mapError(err)
 }
@@ -20,7 +20,7 @@ func (e engine) UpdateSchool(ctx context.Context, input organizationtenancy.Upda
 	value, err := e.service.UpdateSchool(ctx, domain.UpdateSchool{
 		ID: input.ID, OrganizationID: input.OrganizationID, Name: input.Name, Slug: input.Slug, Subdomain: input.Subdomain,
 		Active: input.Active, Hidden: input.Hidden, Settings: input.Settings, Address: input.Address,
-		City: input.City, Zip: input.Zip, Phone: input.Phone, Email: input.Email, DevicePinHash: input.DevicePinHash,
+		City: input.City, Zip: input.Zip, Phone: input.Phone, Email: input.Email,
 	})
 	return toPublicSchool(value), mapError(err)
 }
@@ -110,7 +110,6 @@ func toPublicSchool(value domain.School) organizationtenancy.School {
 		OrganizationID: value.OrganizationID, Name: value.Name, Slug: value.Slug, Subdomain: value.Subdomain,
 		Active: value.Active, Hidden: value.Hidden, DeletedAt: value.DeletedAt, Settings: value.Settings,
 		Address: value.Address, City: value.City, Zip: value.Zip, Phone: value.Phone, Email: value.Email,
-		DevicePinHash:     value.DevicePinHash,
 		ChildQuotaBundles: value.ChildQuotaBundles, ChildQuotaBundleSize: value.ChildQuotaBundleSize,
 		Organization: organization,
 	}
