@@ -692,6 +692,16 @@ describe("earlyCheckoutMinutes (#3324)", () => {
     ).toBe(16);
   });
 
+  it("asks when the checkout exceeds the tolerance by seconds", () => {
+    expect(
+      earlyCheckoutMinutes({
+        plannedPickup: "13:55",
+        now: new Date("2025-01-15T13:39:30"),
+        toleranceMinutes: 15,
+      }),
+    ).toBe(15);
+  });
+
   it("never asks after the pickup time", () => {
     expect(
       earlyCheckoutMinutes({

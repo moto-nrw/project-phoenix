@@ -200,8 +200,11 @@ export function earlyCheckoutMinutes({
   if (!planned) {
     return null;
   }
-  const minutesEarly = Math.floor((planned.getTime() - now.getTime()) / 60000);
-  return minutesEarly > toleranceMinutes ? minutesEarly : null;
+  const millisecondsEarly = planned.getTime() - now.getTime();
+  if (millisecondsEarly <= toleranceMinutes * 60000) {
+    return null;
+  }
+  return Math.floor(millisecondsEarly / 60000);
 }
 
 function buildTimeDate(time: string, baseDate: Date): Date | null {
