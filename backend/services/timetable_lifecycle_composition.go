@@ -104,7 +104,7 @@ func (n timetableGuardianNotices) NoticeReach(ctx context.Context, studentIDs []
 	if err != nil {
 		return timetableCompose.GuardianNoticeAudience{}, err
 	}
-	return timetableCompose.GuardianNoticeAudience{Enabled: reach.Enabled, DefaultOn: reach.DefaultOn, FamilyCount: reach.FamilyCount}, nil
+	return timetableCompose.GuardianNoticeAudience{FamilyCount: reach.FamilyCount}, nil
 }
 
 func (n timetableGuardianNotices) PublishNotice(ctx context.Context, notice timetableCompose.GuardianNoticePublication) (timetableCompose.GuardianNoticePublished, error) {
@@ -112,8 +112,6 @@ func (n timetableGuardianNotices) PublishNotice(ctx context.Context, notice time
 		StudentIDs: notice.StudentIDs, Title: notice.Title, Body: notice.Body, CreatedBy: notice.CreatedBy,
 	})
 	switch {
-	case errors.Is(err, communication.ErrCareCancellationDisabled):
-		return timetableCompose.GuardianNoticePublished{}, fmt.Errorf("%w: %w", timetable.ErrGuardianNoticeDisabled, err)
 	case errors.Is(err, communication.ErrParentAnnouncementValidation):
 		return timetableCompose.GuardianNoticePublished{}, fmt.Errorf("%w: %w", timetable.ErrGuardianNoticeInvalid, err)
 	case err != nil:

@@ -18,10 +18,12 @@ import (
 // lifecycle owns which children count, when a notice is refused, and that
 // the cancellation and the notice commit together.
 
+// errGuardianNoticesNotWired is a composition error: a notice was requested
+// but no publisher is wired. It renders as 500, never as a user error.
+var errGuardianNoticesNotWired = errors.New("guardian notice publisher not wired")
+
 // GuardianNoticeAudience is how far a care cancellation notice reaches.
 type GuardianNoticeAudience struct {
-	Enabled     bool
-	DefaultOn   bool
 	FamilyCount int
 }
 
@@ -41,12 +43,12 @@ type GuardianNoticePublished struct {
 
 // GuardianNotices is the consumer-owned port to Communication's care
 // cancellation notice. A refused publication comes back wrapped in
-// timetable.ErrGuardianNoticeDisabled or timetable.ErrGuardianNoticeInvalid.
+// timetable.ErrGuardianNoticeInvalid.
 type GuardianNotices interface {
 	// ValidateNoticeText checks title and message before anything is written.
 	ValidateNoticeText(title, message string) error
-	// NoticeReach reports the school's switch and how many families the
-	// children's notice would reach.
+	// NoticeReach reports how many families the children's notice would
+	// reach.
 	NoticeReach(ctx context.Context, studentIDs []int64) (GuardianNoticeAudience, error)
 	PublishNotice(ctx context.Context, notice GuardianNoticePublication) (GuardianNoticePublished, error)
 }
@@ -70,8 +72,6 @@ func (s *InstanceLifecycleService) GuardianNoticeReachFor(ctx context.Context, i
 		return nil, &ScheduleError{Op: "guardian notice reach", Err: err}
 	}
 	return &timetable.GuardianNoticeReach{
-		Enabled:     reach.Enabled,
-		DefaultOn:   reach.DefaultOn,
 		ChildCount:  len(studentIDs),
 		FamilyCount: reach.FamilyCount,
 	}, nil
@@ -108,7 +108,7 @@ func (s *InstanceLifecycleService) CancelWithNotice(ctx context.Context, in time
 
 func (s *InstanceLifecycleService) validateGuardianNotice(ctx context.Context, in timetable.CancelInstanceInput) error {
 	if s.deps.GuardianNotices == nil {
-		return fmt.Errorf("%w: notice publisher not wired", timetable.ErrGuardianNoticeDisabled)
+		return &ScheduleError{Op: "guardian notice", Err: errGuardianNoticesNotWired}
 	}
 	if in.ActorAccountID == nil || *in.ActorAccountID <= 0 {
 		return fmt.Errorf("%w: acting account is required", timetable.ErrGuardianNoticeInvalid)
@@ -123,13 +123,6 @@ func (s *InstanceLifecycleService) validateGuardianNotice(ctx context.Context, i
 	// A block that already lies in the past is bookkeeping, not news.
 	if instance.Date.Before(timezone.TodayDate()) {
 		return fmt.Errorf("%w: block is in the past", timetable.ErrGuardianNoticeInvalid)
-	}
-	reach, err := s.deps.GuardianNotices.NoticeReach(ctx, nil)
-	if err != nil {
-		return &ScheduleError{Op: "guardian notice gate", Err: err}
-	}
-	if !reach.Enabled {
-		return timetable.ErrGuardianNoticeDisabled
 	}
 	return nil
 }
@@ -157,7 +150,7 @@ func (s *InstanceLifecycleService) publishGuardianNotice(
 		CreatedBy:  actorAccountID,
 	})
 	if err != nil {
-		if errors.Is(err, timetable.ErrGuardianNoticeDisabled) || errors.Is(err, timetable.ErrGuardianNoticeInvalid) {
+		if errors.Is(err, timetable.ErrGuardianNoticeInvalid) {
 			return nil, err
 		}
 		return nil, &ScheduleError{Op: "publish guardian notice", Err: err}

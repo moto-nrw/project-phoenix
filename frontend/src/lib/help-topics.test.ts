@@ -516,7 +516,7 @@ describe("getParentHelpTopicForPath", () => {
     // Ablauf fuer Leitung und Betreuung derselbe ist -- die eigene
     // Arbeitszeit, der eigene Kalender, der Aufbau der Navigation, die Seiten
     // des Tagesbetriebs und der Umgang mit dem NFC-Tablet.
-    expect(leadTopics).toHaveLength(79);
+    expect(leadTopics).toHaveLength(81);
     expect(
       leadTopics.every(
         (topic) =>

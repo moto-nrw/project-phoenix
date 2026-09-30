@@ -11,11 +11,9 @@ import {
   exportEmergencySnapshot,
   type EmergencySnapshotExportMode,
 } from "~/lib/emergency-export-api";
-import { useEmergencyHealthInfoEnabled } from "~/lib/tenant-context";
 
 export default function EmergencyPage() {
   const { status } = useSession({ required: true });
-  const healthInfoOnList = useEmergencyHealthInfoEnabled();
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,10 +59,8 @@ export default function EmergencyPage() {
         description={
           <>
             Druckbare Liste aller Kinder, die gerade anwesend sind. Sie enthält
-            Klasse, Ort oder Raum, Telefonnummern
-            {healthInfoOnList
-              ? ", Kontaktpersonen und die hinterlegten Gesundheitsinfos."
-              : " und Kontaktpersonen."}
+            Klasse, Ort oder Raum, Telefonnummern, Kontaktpersonen und die
+            hinterlegten Gesundheitsinfos.
           </>
         }
         leading={
@@ -103,13 +99,11 @@ export default function EmergencyPage() {
           Die Liste wird beim Erstellen aus der aktuellen Anwesenheit erzeugt.
         </p>
 
-        {healthInfoOnList ? (
-          <p className="mt-2 text-sm leading-6 text-gray-600">
-            Steht bei einem Kind &bdquo;Nicht hinterlegt&ldquo;, sind keine
-            Gesundheitsinfos eingetragen. Das heißt nicht, dass das Kind keine
-            Allergie hat.
-          </p>
-        ) : null}
+        <p className="mt-2 text-sm leading-6 text-gray-600">
+          Steht bei einem Kind &bdquo;Nicht hinterlegt&ldquo;, sind keine
+          Gesundheitsinfos eingetragen. Das heißt nicht, dass das Kind keine
+          Allergie hat.
+        </p>
       </SectionCard>
     </TenantPage>
   );

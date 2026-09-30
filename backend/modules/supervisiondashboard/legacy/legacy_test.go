@@ -378,23 +378,22 @@ func TestSettingsBranches(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, labels, "disabled indicators carry no labels")
 
-	mock.ResolveStringFn = func(context.Context, string) (string, error) { return "standard", nil }
+	// The switch alone decides since #3730; no string setting is consulted.
+	mock.ResolveStringFn = func(context.Context, string) (string, error) { return "", errors.New("settings unavailable") }
 	enabled, err := s.SpontaneousActivitiesEnabled(ctx)
 	require.NoError(t, err)
-	assert.False(t, enabled, "closed care concepts never start spontaneous activities")
+	assert.True(t, enabled)
 
-	mock.ResolveStringFn = func(context.Context, string) (string, error) { return configModel.CareConceptOpenRooms, nil }
+	mock.ResolveBoolFn = func(_ context.Context, key string) (bool, error) {
+		return key != configModel.KeyWebSpontaneousActivities, nil
+	}
 	enabled, err = s.SpontaneousActivitiesEnabled(ctx)
 	require.NoError(t, err)
-	assert.True(t, enabled)
+	assert.False(t, enabled, "a school with the switch off starts no spontaneous activities")
 
 	mock.ResolveBoolFn = func(context.Context, string) (bool, error) { return false, errors.New("boom") }
 	_, err = s.SpontaneousActivitiesEnabled(ctx)
 	require.ErrorContains(t, err, "spontaneous activities")
-
-	mock.ResolveStringFn = func(context.Context, string) (string, error) { return "", errors.New("settings unavailable") }
-	_, err = s.SpontaneousActivitiesEnabled(ctx)
-	require.ErrorContains(t, err, "care concept")
 
 	prepared, err := s.Prepare(ctx)
 	require.NoError(t, err)

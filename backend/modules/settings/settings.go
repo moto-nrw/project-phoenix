@@ -26,14 +26,12 @@ const (
 	KeyAttendanceVisibleDays                 = configModel.KeyAttendanceVisibleDays
 	KeyAttendanceWebEnabled                  = configModel.KeyAttendanceWebEnabled
 	KeyCalendarCalDAVEnabled                 = configModel.KeyCalendarCalDAVEnabled
-	KeyCareConcept                           = configModel.KeyCareConcept
 	KeyCareDefaultArrivalTime                = configModel.KeyCareDefaultArrivalTime
 	KeyCareDefaultPickupTime                 = configModel.KeyCareDefaultPickupTime
 	KeyClassArrivalExceptionEditors          = configModel.KeyClassArrivalExceptionEditors
 	KeyDisplayEnabled                        = configModel.KeyDisplayEnabled
 	KeyEarlyCheckoutNoteEnabled              = configModel.KeyEarlyCheckoutNoteEnabled
 	KeyEarlyCheckoutNoteToleranceMinutes     = configModel.KeyEarlyCheckoutNoteToleranceMinutes
-	KeyEmergencyListHealthInfo               = configModel.KeyEmergencyListHealthInfo
 	KeyEnrollmentBookingsAuthoritative       = configModel.KeyEnrollmentBookingsAuthoritative
 	KeyEnrollmentCareOfferingsEnabled        = configModel.KeyEnrollmentCareOfferingsEnabled
 	KeyEnrollmentGradeLevelMax               = configModel.KeyEnrollmentGradeLevelMax
@@ -69,9 +67,6 @@ const (
 const (
 	AttendanceEditScopeOwn      = configModel.AttendanceEditScopeOwn
 	AttendanceEditScopeAllStaff = configModel.AttendanceEditScopeAllStaff
-
-	CareConceptFixedSchedule = configModel.CareConceptFixedSchedule
-	CareConceptOpenRooms     = configModel.CareConceptOpenRooms
 
 	GroupModeFixedGroups = configModel.GroupModeFixedGroups
 	GroupModeOpenCare    = configModel.GroupModeOpenCare
@@ -133,12 +128,6 @@ func ResolveBoolOrDefault(ctx context.Context, resolver Resolver, key string, fa
 // ResolveIntOrDefault is ResolveBoolOrDefault for an integer setting.
 func ResolveIntOrDefault(ctx context.Context, resolver Resolver, key string, fallback int, logger *slog.Logger) int {
 	return configSvc.ResolveIntOrDefault(ctx, resolver, key, fallback, logger)
-}
-
-// ResolveStringOrDefault is ResolveBoolOrDefault for a string setting; an
-// empty override also yields fallback.
-func ResolveStringOrDefault(ctx context.Context, resolver Resolver, key, fallback string, logger *slog.Logger) string {
-	return configSvc.ResolveStringOrDefault(ctx, resolver, key, fallback, logger)
 }
 
 // Snapshot is a batch of one tenant's resolved settings. A reader that

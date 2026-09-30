@@ -285,9 +285,10 @@ closed/locked devices.
    `my_activity_starting`), which also applies each type's `reminders.*` gate.
    Nobody opted in → the tick ends **before** any reminder is computed, which
    is the normal case and keeps the per-minute cost at six cheap queries.
-3. **On duty** — with `notifications.on_duty_only` (default on) only people
-   with an open work session today remain. An empty presence map reaches
-   nobody; schools without time tracking must switch this setting off.
+3. **On duty** — with `notifications.on_duty_only` (default off since #3736;
+   schools that existed before keep "on" through migration 1.15.436) only
+   people with an open work session today remain. An empty presence map
+   reaches nobody, so only schools that use time tracking switch it on.
 4. **Compute** — one `reminders.ComputeBatch` for all recipients: the
    tenant-wide reads happen once, only the per-person slice is derived in
    memory (see the package comment in `services/reminders/batch.go`).

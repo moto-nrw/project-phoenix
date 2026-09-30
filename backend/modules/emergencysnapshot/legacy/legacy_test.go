@@ -91,17 +91,6 @@ func (f *fakeRooms) ListRoomsByID(_ context.Context, ids []int64) ([]facilities.
 	return f.rows, f.err
 }
 
-type fakeSettings struct {
-	enabled bool
-	key     string
-	err     error
-}
-
-func (f *fakeSettings) ResolveBool(_ context.Context, key string) (bool, error) {
-	f.key = key
-	return f.enabled, f.err
-}
-
 func fullSources() Sources {
 	return Sources{
 		Presence:     &fakePresence{},
@@ -110,7 +99,6 @@ func fullSources() Sources {
 		Persons:      fakePersons{},
 		Contacts:     fakeContacts{},
 		Rooms:        &fakeRooms{},
-		Settings:     &fakeSettings{},
 		Renderer:     listexport.NewService(),
 	}
 }
@@ -148,11 +136,9 @@ func TestExportRendersTheRetainedNotfallliste(t *testing.T) {
 		}},
 	}
 	rooms := &fakeRooms{rows: []facilities.Room{{ID: kreativraum, Name: "Kreativraum"}}}
-	settings := &fakeSettings{enabled: true}
 	sources := fullSources()
 	sources.Presence = presence
 	sources.Rooms = rooms
-	sources.Settings = settings
 	sources.Students = fakeStudents{rows: map[int64]*usersModels.Student{
 		101: {PersonID: 301, SchoolClass: "Klasse 3b", HealthInfo: new("Nussallergie, Epipen im Gruppenraum")},
 		202: {PersonID: 302, SchoolClass: "Klasse 2a"},
@@ -180,7 +166,6 @@ func TestExportRendersTheRetainedNotfallliste(t *testing.T) {
 		RunningGroupsOnly: true, LatestPerStudent: true,
 	}, presence.filter, "the owner query keeps the retained selection")
 	assert.Equal(t, []int64{kreativraum}, rooms.ids)
-	assert.Equal(t, "operations.emergency_list_health_info", settings.key)
 
 	assert.Equal(t, listexport.Document{
 		Title:       "Notfallliste",
@@ -445,7 +430,6 @@ func TestSnapshotInputsEnforceRLS(t *testing.T) {
 		Persons:      people,
 		Contacts:     usersRepo.NewGuardianRelationshipRepository(peopleCompose.NewLegacyRepositoryRuntime(db)),
 		Rooms:        facilitiesModule,
-		Settings:     &fakeSettings{enabled: false},
 		Renderer:     listexport.NewService(),
 	})
 	require.NoError(t, err)
