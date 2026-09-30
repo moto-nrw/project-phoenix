@@ -1,5 +1,11 @@
 # Presence storage cutover and rollback window (#2762)
 
+The rollback window ended with the
+[Contract (#2763)](presence-storage-contract-2763.md): migration 1.15.432
+removed the mirrored columns, the triggers and the counter described below.
+This runbook and its observation SQL apply only to databases between 1.15.415
+and 1.15.432.
+
 Migration 1.15.415 applies the final delta of the
 [Timetable → Presence backfill](../presence-backfill.md) under one write lock,
 verifies every school, and makes the two Presence targets authoritative:
@@ -29,7 +35,8 @@ the plan with the owner tables for the retained list endpoints.
 mirrored column or the counter again. Keep the triggers, the counter and the
 columns for the
 [rollback window](../agents/operations.md#rollback-window-of-a-storage-cutover);
-#2763 removes them once its three conditions hold. There is no waiting period.
+[#2763](presence-storage-contract-2763.md) removes them once its three
+conditions hold. There is no waiting period.
 
 ## Release and rollback
 

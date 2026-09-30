@@ -47,6 +47,12 @@ func RestoreStaffStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 	if !contracted {
 		tb.Fatal("restore staff storage before cutover requires the contracted schema")
 	}
+	// A world before the staff cutover (1.15.409) is also a world before the
+	// presence cutover (1.15.415): the old execution columns, among them the
+	// started_by key the staff cutover repoints, are still there.
+	if presenceStorageContracted(tb, db) {
+		restorePresenceMirror(tb, db)
+	}
 	if _, err := db.ExecContext(context.Background(), staffStorageBeforeContract+`
 		INSERT INTO users.staff_legacy (id, tenant_id, person_id, created_at, updated_at, deleted_at,
 			staff_notes, employment_type, work_time_model_id, personnel_number,

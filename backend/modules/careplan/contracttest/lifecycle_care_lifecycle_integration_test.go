@@ -332,14 +332,10 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	})
 
 	t.Run("the open roster check-in is closed", func(t *testing.T) {
-		var checkedOutAt *time.Time
-		err := db.NewSelect().
-			TableExpr("schedule.instance_students").
-			ColumnExpr("checked_out_at").
-			Where("instance_id = ? AND student_id = ?", openInstance.ID, studentID).
-			Scan(ctx, &checkedOutAt)
-		require.NoError(t, err)
-		assert.NotNil(t, checkedOutAt)
+		rows := testpkg.InstanceStudentsWhere(t, ctx, db,
+			`"instance_student".instance_id = ? AND "instance_student".student_id = ?`, openInstance.ID, studentID)
+		require.Len(t, rows, 1)
+		assert.NotNil(t, rows[0].CheckedOutAt)
 	})
 
 	t.Run("the family keeps the request in their history", func(t *testing.T) {

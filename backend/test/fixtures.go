@@ -2566,8 +2566,7 @@ func CreateTestActivityInstanceForTenant(tb testing.TB, db *bun.DB, tenantID int
 	if status == "" {
 		status = schedule.InstanceStatusPlanned
 		// A block bridged to a live group is running: since #2762 Student
-		// Presence owns that execution, and the compatibility routing only
-		// mirrors a session for a row in an execution state.
+		// Presence owns that execution in active.activity_sessions.
 		if opts.ActiveGroupID != nil {
 			status = schedule.InstanceStatusActive
 		}
@@ -2599,11 +2598,19 @@ func CreateTestActivityInstanceForTenant(tb testing.TB, db *bun.DB, tenantID int
 	}
 	row.SetTenantID(tenantID)
 
-	_, err := db.NewInsert().
-		Model(row).
-		ModelTableExpr(`schedule.activity_instances`).
-		Exec(ctx)
-	require.NoError(tb, err, "Failed to create test activity instance")
+	if !presenceStorageContracted(tb, db) {
+		// A migration test restored the old execution columns in its own
+		// clone; they are the storage there.
+		_, err := db.NewInsert().
+			Model(row).
+			ModelTableExpr(`schedule.activity_instances`).
+			Exec(ctx)
+		require.NoError(tb, err, "Failed to create test activity instance")
+		return row
+	}
+	// Timetable plans the block, Student Presence runs it (#2762, #2763): a
+	// running or completed block is a planned row plus its session.
+	InsertActivityInstanceRow(tb, ctx, db, row)
 	return row
 }
 
@@ -2848,11 +2855,19 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 	}
 	row.TenantID = fixtureTenantID(tb)
 
-	_, err := db.NewInsert().
-		Model(row).
-		ModelTableExpr(`schedule.instance_students`).
-		Exec(ctx)
-	require.NoError(tb, err, "Failed to create test instance student")
+	if !presenceStorageContracted(tb, db) {
+		// A migration test restored the old attendance columns in its own
+		// clone; they are the storage there.
+		_, err := db.NewInsert().
+			Model(row).
+			ModelTableExpr(`schedule.instance_students`).
+			Exec(ctx)
+		require.NoError(tb, err, "Failed to create test instance student")
+		return row
+	}
+	// Timetable plans the participant, Student Presence records the
+	// attendance (#2762, #2763). A missing attendance row means expected.
+	InsertInstanceStudentRow(tb, ctx, db, row)
 	return row
 }
 

@@ -194,9 +194,7 @@ func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
 	defer cleanupSameDayPlanned()
 	sameDayDoneInst, cleanupSameDayDone := createInstanceFixture(t, db, "offb-today-done", cutoff)
 	defer cleanupSameDayDone()
-	_, err := db.ExecContext(context.Background(),
-		`UPDATE schedule.activity_instances SET status = 'completed' WHERE id = ?`, sameDayDoneInst.ID)
-	require.NoError(t, err)
+	testpkg.SetActivityInstanceLifecycle(t, context.Background(), db, sameDayDoneInst.ID, scheduleModels.InstanceStatusCompleted)
 	futureInst, cleanupFuture := createInstanceFixture(t, db, "offb-future", cutoff.AddDays(7))
 	defer cleanupFuture()
 

@@ -229,7 +229,7 @@ func TestPresenceCutoverRefusesUnequalTargets(t *testing.T) {
 // columns equal without routing anything.
 func TestPresenceCompatibilityMirrorsOwnerWrites(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupPresenceStorageBeforeContract(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	writesBefore := presenceCompatibilityWrites(t, db)
@@ -302,7 +302,7 @@ func TestPresenceCompatibilityMirrorsOwnerWrites(t *testing.T) {
 // change into the owner tables and count it.
 func TestPresenceCompatibilityRoutesPreviousImageWrites(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupPresenceStorageBeforeContract(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	room := testpkg.CreateTestRoom(t, db, "Presence Routing")
@@ -396,7 +396,7 @@ func TestPresenceCompatibilityRoutesPreviousImageWrites(t *testing.T) {
 
 func TestPresenceCompatibilityIsTenantIsolated(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupPresenceStorageBeforeContract(t)
 	ctx := testpkg.Ctx(t)
 	own := testpkg.Tenant(t)
 	other := testpkg.UniqueTestTenantID(t)

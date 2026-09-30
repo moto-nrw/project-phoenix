@@ -112,10 +112,10 @@ func TestGradeTransitionWorkflow_Apply_ReconcilesFutureRosters(t *testing.T) {
 	assert.Equal(t, 1, countRow(pastInstance.ID), "past roster row stays a single historical entry after revert")
 
 	// The restored row is a clean planned expectation.
-	var restoredStatus string
-	require.NoError(t, db.NewSelect().TableExpr(`schedule.instance_students`).Column("status").
-		Where("instance_id = ?", futureInstance.ID).Where("student_id = ?", student.ID).Scan(ctx, &restoredStatus))
-	assert.Equal(t, scheduleModel.AttendanceStatusExpected, restoredStatus)
+	restored := testpkg.InstanceStudentsWhere(t, ctx, db, `"instance_student".instance_id = ? AND "instance_student".student_id = ?`,
+		futureInstance.ID, student.ID)
+	require.Len(t, restored, 1)
+	assert.Equal(t, scheduleModel.AttendanceStatusExpected, restored[0].Status)
 }
 
 // TestGradeTransitionWorkflow_Revert_PreservesPerOccurrenceRosterEdits covers

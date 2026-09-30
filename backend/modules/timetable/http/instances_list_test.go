@@ -899,18 +899,12 @@ func TestListInstances_OccupancyCountsChildrenStillThere(t *testing.T) {
 	var left int64
 	for i, name := range []string{"Anna", "Ben", "Cem"} {
 		student := testpkg.CreateTestStudent(t, s.db, name, fmt.Sprintf("Limit-%d-%d", suffix, i), "1a")
-		testpkg.CreateTestInstanceStudent(t, s.db, limited.ID, student.ID, timetable.SlotAttendancePresent)
-		left = student.ID
+		left = testpkg.CreateTestInstanceStudent(t, s.db, limited.ID, student.ID, timetable.SlotAttendancePresent).ID
 	}
-	_, err = s.db.NewUpdate().
-		TableExpr("schedule.instance_students").
-		Set("checked_in_at = ?", time.Now().Add(-time.Hour)).
-		Set("checked_out_at = ?", time.Now()).
-		Where("instance_id = ?", limited.ID).
-		Where("student_id = ?", left).
-		Where("tenant_id = ?", testpkg.Tenant(t)).
-		Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.UpdateSessionAttendance(t, s.ctx, s.db, left, map[string]any{
+		"checked_in_at":  time.Now().Add(-time.Hour),
+		"checked_out_at": time.Now(),
+	})
 
 	router := listRouter(s.ctx, s.res)
 	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))

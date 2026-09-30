@@ -100,9 +100,7 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 		IsSpontaneous: true,
 	}
 	spont.SetTenantID(s.primaryTenant)
-	_, err := s.db.NewInsert().Model(spont).
-		ModelTableExpr(`schedule.activity_instances`).Exec(s.tenantCtx())
-	require.NoError(t, err, "insert spontaneous instance")
+	testpkg.InsertActivityInstanceRow(t, s.tenantCtx(), s.db, spont)
 
 	// Capture snapshots of the 4 preserved instances for post-replan compare.
 	beforeActive := reload(t, s, instActive.ID)
@@ -167,12 +165,8 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 // the row has been deleted (signalled by an empty struct return).
 func reload(t *testing.T, s *scenario, id int64) scheduleModel.ActivityInstance {
 	t.Helper()
-	var inst scheduleModel.ActivityInstance
-	err := s.db.NewSelect().Model(&inst).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Where(`"activity_instance".id = ?`, id).
-		Where(`"activity_instance".tenant_id = ?`, s.primaryTenant).
-		Scan(s.tenantCtx())
-	require.NoError(t, err, "reload instance %d", id)
-	return inst
+	rows := testpkg.ActivityInstancesWhere(t, s.tenantCtx(), s.db,
+		`"activity_instance".id = ? AND "activity_instance".tenant_id = ?`, id, s.primaryTenant)
+	require.Len(t, rows, 1, "reload instance %d", id)
+	return *rows[0]
 }

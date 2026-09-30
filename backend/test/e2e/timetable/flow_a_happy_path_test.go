@@ -188,29 +188,22 @@ func TestFlowA_PlanToReport(t *testing.T) {
 // fetchOneInstance fetches the single materialized instance for (template, date).
 func fetchOneInstance(t *testing.T, s *scenario, templateID int64, date timezone.Date) *scheduleModel.ActivityInstance {
 	t.Helper()
-	var inst scheduleModel.ActivityInstance
-	err := s.db.NewSelect().
-		Model(&inst).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Where(`"activity_instance".activity_group_id = ?`, templateID).
-		Where(`"activity_instance".date = ?`, date).
-		Where(`"activity_instance".tenant_id = ?`, s.primaryTenant).
-		Scan(s.tenantCtx())
-	require.NoError(t, err, "fetch instance for template %d on %s", templateID, date)
-	return &inst
+	rows := testpkg.ActivityInstancesWhere(t, s.tenantCtx(), s.db,
+		`"activity_instance".activity_group_id = ? AND "activity_instance".date = ? AND "activity_instance".tenant_id = ?`,
+		templateID, date, s.primaryTenant)
+	require.NotEmpty(t, rows, "fetch instance for template %d on %s", templateID, date)
+	return rows[0]
 }
 
 // fetchInstanceStudents loads all instance_students rows for an instance.
 func fetchInstanceStudents(t *testing.T, s *scenario, instanceID int64) []scheduleModel.InstanceStudent {
 	t.Helper()
-	var rows []scheduleModel.InstanceStudent
-	err := s.db.NewSelect().
-		Model(&rows).
-		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		Where(`"instance_student".instance_id = ?`, instanceID).
-		Where(`"instance_student".tenant_id = ?`, s.primaryTenant).
-		Scan(s.tenantCtx())
-	require.NoError(t, err, "fetch instance_students for %d", instanceID)
+	composed := testpkg.InstanceStudentsWhere(t, s.tenantCtx(), s.db,
+		`"instance_student".instance_id = ? AND "instance_student".tenant_id = ?`, instanceID, s.primaryTenant)
+	rows := make([]scheduleModel.InstanceStudent, 0, len(composed))
+	for _, row := range composed {
+		rows = append(rows, *row)
+	}
 	return rows
 }
 

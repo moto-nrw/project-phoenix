@@ -66,14 +66,7 @@ func nextMonday() timezone.Date {
 
 func loadSlotRow(t *testing.T, db *bun.DB, rowID int64) *scheduleModels.InstanceStudent {
 	t.Helper()
-	row := new(scheduleModels.InstanceStudent)
-	err := db.NewSelect().
-		Model(row).
-		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		Where(`"instance_student".id = ?`, rowID).
-		Scan(testpkg.WithPackageTenantRuntime(context.Background()))
-	require.NoError(t, err)
-	return row
+	return testpkg.InstanceStudentByIDContext(t, testpkg.WithPackageTenantRuntime(context.Background()), db, rowID)
 }
 
 func TestSubmitCareException_PullForwardCouplesAndReleases(t *testing.T) {

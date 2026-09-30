@@ -128,8 +128,8 @@ func (s *Service) PatchActivityInstance(ctx context.Context, id int64, fields do
 
 // guardActivityInstancePatch locks what a date or planning-status change
 // touches: the staff assignments of an operational block, and the block
-// itself. A planning-status change would overwrite the rollback mirror of a
-// running block, so the execution has to end first.
+// itself. A cancelled block has no session, so a planning-status change of a
+// running block has to end its execution first.
 func (s *Service) guardActivityInstancePatch(ctx context.Context, id int64, fields domain.ActivityInstanceFields, columns []string, stats *domain.OperationStats) error {
 	if !slices.Contains(columns, "date") && !slices.Contains(columns, "status") {
 		return nil

@@ -72,12 +72,7 @@ func doJSON(t *testing.T, router chi.Router, method, path string, body any) *htt
 func completeInstance(t *testing.T, s *patchSetup, status string) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	_, err := db.NewUpdate().
-		TableExpr("schedule.activity_instances").
-		Set("status = ?", status).
-		Where("id = ?", s.instanceID).
-		Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.SetActivityInstanceLifecycle(t, s.ctx, db, s.instanceID, status)
 }
 
 func correctionPath(s *patchSetup) string {
@@ -151,14 +146,11 @@ func TestCorrectAttendance_NoteOnlyPreservesAttendanceProvenance(t *testing.T) {
 
 	s := buildPatchSetup(t)
 	db := testpkg.SetupTestDB(t)
-	_, err := db.NewUpdate().
-		TableExpr("schedule.instance_students").
-		Set("status = ?", timetable.SlotAttendanceExpected).
-		Set("not_scheduled = TRUE").
-		Set("manual_status_at = NULL").
-		Where("id = ?", s.rowID).
-		Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.UpdateSessionAttendance(t, s.ctx, db, s.rowID, map[string]any{
+		"status":           timetable.SlotAttendanceExpected,
+		"not_scheduled":    true,
+		"manual_status_at": nil,
+	})
 	completeInstance(t, s, timetable.InstanceStatusCompleted)
 	router := correctionRouter(testpkg.Ctx(t), s.res, s.db)
 
@@ -189,11 +181,11 @@ func TestCorrectAttendance_LeavesCompletionSnapshotUntouched(t *testing.T) {
 	s := buildPatchSetup(t)
 	snapshot := `{"active_group_id":42,"attendance":[{"row_id":1,"status":"present"}]}`
 	db := testpkg.SetupTestDB(t)
+	testpkg.SetActivityInstanceLifecycle(t, s.ctx, db, s.instanceID, timetable.InstanceStatusCompleted)
 	_, err := db.NewUpdate().
-		TableExpr("schedule.activity_instances").
-		Set("status = ?", timetable.InstanceStatusCompleted).
+		TableExpr("active.activity_sessions").
 		Set("completion_snapshot = ?::jsonb", snapshot).
-		Where("id = ?", s.instanceID).
+		Where("schedule_instance_id = ?", s.instanceID).
 		Exec(s.ctx)
 	require.NoError(t, err)
 
@@ -206,9 +198,9 @@ func TestCorrectAttendance_LeavesCompletionSnapshotUntouched(t *testing.T) {
 
 	var stored string
 	require.NoError(t, db.NewSelect().
-		TableExpr("schedule.activity_instances").
+		TableExpr("active.activity_sessions").
 		ColumnExpr("completion_snapshot::text").
-		Where("id = ?", s.instanceID).
+		Where("schedule_instance_id = ?", s.instanceID).
 		Scan(s.ctx, &stored))
 	assert.JSONEq(t, snapshot, stored, "the completion snapshot must survive a correction unchanged")
 }
