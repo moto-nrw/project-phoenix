@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import {
   ENROLLMENTS_UNREAD_REFRESH_EVENT,
   fetchUnreadEnrollmentCount,
-} from "~/lib/enrollment-admin-api";
+} from "~/lib/enrollment-unread-api";
 import { hasPermission } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useTenantSlugSafe } from "~/lib/tenant-context";

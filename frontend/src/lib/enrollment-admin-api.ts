@@ -1,3 +1,4 @@
+import { announceEnrollmentReadChange } from "~/lib/enrollment-unread-api";
 import { createLogger } from "~/lib/logger";
 import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 import type {
@@ -348,25 +349,6 @@ export async function getAdminRequest(id: string): Promise<AdminRequestDetail> {
     throw await readError(response, "Anmeldung konnte nicht geladen werden");
   }
   return readJSON<AdminRequestDetail>(response);
-}
-
-/** Fenster-Ereignis, nach dem das Anmeldungen-Badge neu zählt (#3778). */
-export const ENROLLMENTS_UNREAD_REFRESH_EVENT = "enrollments-unread-refresh";
-
-function announceEnrollmentReadChange() {
-  globalThis.window?.dispatchEvent(new Event(ENROLLMENTS_UNREAD_REFRESH_EVENT));
-}
-
-/** Ungelesene Anmeldungen der Person; 0 bei Fehlern oder ohne Recht. */
-export async function fetchUnreadEnrollmentCount(): Promise<number> {
-  try {
-    const response = await fetch(`${BASE}/unread-count`, { cache: "no-store" });
-    if (!response.ok) return 0;
-    const data = await readJSON<{ unread_count?: number }>(response);
-    return data?.unread_count ?? 0;
-  } catch {
-    return 0;
-  }
 }
 
 /** Markiert eine Anmeldung für die Person als gelesen oder ungelesen. */

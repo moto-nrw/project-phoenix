@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	enrollmentRequestReadsVersion     = "1.15.427"
+	enrollmentRequestReadsVersion     = "1.15.432"
 	enrollmentRequestReadsDescription = "Create enrollment.request_reads and enrollment.requests.parent_changed_at - per-account read state of enrollments (#3778)"
 )
 
@@ -20,7 +20,7 @@ func init() {
 		DependsOn: []string{
 			createEnrollmentRequestsVersion, // enrollment.requests
 			AuthAccountsVersion,             // auth.accounts (readers)
-			schoolSetupsVersion,             // latest migration at authoring time
+			dropPersonalPINColumnsVersion,   // latest migration at authoring time
 		},
 	})
 
