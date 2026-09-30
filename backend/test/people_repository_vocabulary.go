@@ -6,11 +6,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
-// The retained People Directory repository suites (database/repositories/users)
-// may import neither the retained models nor the authorization runtime
-// (#2727). They name the rows, values and errors they arrange and assert
-// through this test support. Every entry goes with the last suite that uses
-// it.
+// The retained People Directory repository suites (the tests of
+// database/repositories/users, which run in the modules/peopledirectory test
+// binary) may import neither the retained models nor the authorization
+// runtime (#2727). They name the rows, values and errors they arrange and
+// assert through this test support. Every entry goes with the last suite that
+// uses it.
 
 type (
 	AnnouncementDeliveryRecipient  = users.AnnouncementDeliveryRecipient

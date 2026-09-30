@@ -1,0 +1,223 @@
+package peopledirectory_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+// moveGuardianAccessToOtherSchool gives the chain's account an ACTIVE mapping
+// and the guardian role at a second school, then applies change at the
+// chain's own school. The owner queries list both schools, so only the
+// (account_id, tenant_id) pairing keeps the second school's facts from
+// authorizing reads at the first.
+func moveGuardianAccessToOtherSchool(t *testing.T, db *bun.DB, chain testpkg.ParentChain, change string) {
+	t.Helper()
+	ctx := testpkg.Ctx(t)
+	other, _ := testpkg.CreateTestTenant(t, db)
+	testpkg.EnsureAccountTenant(t, db, chain.AccountID, other)
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO auth.account_roles (account_id, role_id, tenant_id)
+		SELECT ?, id, ? FROM auth.roles WHERE name = ? AND tenant_id IS NULL`,
+		chain.AccountID, other, "guardian")
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, change, chain.AccountID, chain.TenantID)
+	require.NoError(t, err)
+}
+
+const (
+	deactivateMapping = `UPDATE auth.account_tenants SET status = 'inactive' WHERE account_id = ? AND tenant_id = ?`
+	dropGuardianRole  = `DELETE FROM auth.account_roles WHERE account_id = ? AND tenant_id = ?`
+)
+
+// TestIdentityMembership_PairsTheRelationshipSchool pins the #2721 cutover:
+// the People Directory reads filter through the Identity & Access owner
+// queries, and a membership or guardian role at another school never stands
+// in for the one at the relationship's school.
+func TestIdentityMembership_PairsTheRelationshipSchool(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	guardians := testutil.NewPeopleRepositorySuiteRelationships(db)
+	profiles := testutil.NewPeopleRepositorySuiteGuardianProfiles(db)
+	recipients := testutil.NewPeopleRepositorySuiteRecipients(db)
+	perm := testpkg.GuardianPermissionPortalAccess
+
+	t.Run("an active mapping at the relationship's school grants access", func(t *testing.T) {
+		chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+		granted, err := guardians.AccountHasStudentPermission(ctx, chain.AccountID, chain.StudentID, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.True(t, granted)
+
+		byEmail, err := guardians.GuardianEmailHasStudentPermission(ctx, chain.Email, chain.StudentID, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.True(t, byEmail)
+
+		permitted, err := guardians.FilterAccountsWithStudentAccess(ctx, []int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.Equal(t, []int64{chain.AccountID}, permitted)
+
+		reachable, err := profiles.FindActivePortalProfilesByIDs(ctx, []int64{chain.GuardianProfileID})
+		require.NoError(t, err)
+		assert.Contains(t, reachable, chain.GuardianProfileID)
+
+		listed, err := recipients.ListGuardiansForStudent(ctx, chain.StudentID)
+		require.NoError(t, err)
+		require.Len(t, listed, 1)
+		assert.Equal(t, chain.AccountID, listed[0].AccountID)
+	})
+
+	t.Run("a mapping at another school does not grant access here", func(t *testing.T) {
+		chain := testpkg.CreateTestParentGuardianChain(t, db)
+		moveGuardianAccessToOtherSchool(t, db, chain, deactivateMapping)
+
+		granted, err := guardians.AccountHasStudentPermission(ctx, chain.AccountID, chain.StudentID, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.False(t, granted)
+
+		byEmail, err := guardians.GuardianEmailHasStudentPermission(ctx, chain.Email, chain.StudentID, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.False(t, byEmail, "a profile with an account needs the active mapping at its own school")
+
+		permitted, err := guardians.FilterAccountsWithStudentAccess(ctx, []int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.Empty(t, permitted)
+
+		reachable, err := profiles.FindActivePortalProfilesByIDs(ctx, []int64{chain.GuardianProfileID})
+		require.NoError(t, err)
+		assert.NotContains(t, reachable, chain.GuardianProfileID)
+
+		listed, err := recipients.ListGuardiansForStudent(ctx, chain.StudentID)
+		require.NoError(t, err)
+		assert.Empty(t, listed)
+	})
+
+	t.Run("a guardian role at another school does not make the profile reachable here", func(t *testing.T) {
+		chain := testpkg.CreateTestParentGuardianChain(t, db)
+		moveGuardianAccessToOtherSchool(t, db, chain, dropGuardianRole)
+
+		reachable, err := profiles.FindActivePortalProfilesByIDs(ctx, []int64{chain.GuardianProfileID})
+		require.NoError(t, err)
+		assert.NotContains(t, reachable, chain.GuardianProfileID)
+	})
+}
+
+// TestIdentityMembership_UnboundQueriesFailClosed pins that a composition
+// without the Identity & Access owner queries reports an error instead of
+// widening or silently emptying a result.
+func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	perm := testpkg.GuardianPermissionPortalAccess
+
+	unbound := testutil.NewPeopleRepositorySuiteRetainedRelationships(db)
+	_, err := unbound.AccountHasStudentPermission(ctx, chain.AccountID, chain.StudentID, chain.TenantID, perm)
+	require.Error(t, err)
+	_, err = unbound.FilterAccountsWithStudentAccess(ctx, []int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID, perm)
+	require.Error(t, err)
+	_, err = unbound.GuardianEmailHasStudentPermission(ctx, chain.Email, chain.StudentID, chain.TenantID, perm)
+	require.Error(t, err)
+
+	_, err = testutil.NewPeopleRepositorySuiteRetainedRecipients(db, nil).ListGuardiansForStudent(ctx, chain.StudentID)
+	require.Error(t, err)
+	lookupFailure := errors.New("school membership lookup failed")
+	failingRelationships := testutil.NewPeopleRepositorySuiteRetainedRelationships(db, testutil.PeopleRepositorySuiteWithMemberships(
+		func(_ context.Context, accountIDs, schoolIDs []int64) (map[int64][]int64, error) {
+			require.Equal(t, []int64{chain.AccountID}, accountIDs)
+			require.Equal(t, []int64{chain.TenantID}, schoolIDs)
+			return nil, lookupFailure
+		}))
+	accountGranted, err := failingRelationships.AccountHasStudentPermission(ctx, chain.AccountID, chain.StudentID, chain.TenantID, perm)
+	require.ErrorIs(t, err, lookupFailure)
+	require.False(t, accountGranted)
+	emailGranted, err := failingRelationships.GuardianEmailHasStudentPermission(ctx, chain.Email, chain.StudentID, chain.TenantID, perm)
+	require.ErrorIs(t, err, lookupFailure)
+	require.False(t, emailGranted)
+	permitted, err := failingRelationships.FilterAccountsWithStudentAccess(ctx, []int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID, perm)
+	require.ErrorIs(t, err, lookupFailure)
+	require.Nil(t, permitted)
+	failingRecipients := testutil.NewPeopleRepositorySuiteRetainedRecipients(db,
+		func(_ context.Context, accountIDs, schoolIDs []int64) (map[int64][]int64, error) {
+			require.Equal(t, []int64{chain.AccountID}, accountIDs)
+			require.Equal(t, []int64{chain.TenantID}, schoolIDs)
+			return nil, lookupFailure
+		})
+	listed, err := failingRecipients.ListGuardiansForStudent(ctx, chain.StudentID)
+	require.ErrorIs(t, err, lookupFailure)
+	require.Nil(t, listed, "failed membership reads must not return relationship candidates")
+
+	unboundProfiles := testutil.NewPeopleRepositorySuiteRetainedGuardianProfiles(db)
+	emptyActiveProfiles, err := unboundProfiles.FindActivePortalProfilesByIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, emptyActiveProfiles)
+	emptyLoginProfiles, err := unboundProfiles.FindLoginReadyPortalProfilesByIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, emptyLoginProfiles)
+
+	_, err = unboundProfiles.FindActivePortalProfilesByIDs(ctx, []int64{chain.GuardianProfileID})
+	require.ErrorContains(t, err, "portal membership query is required")
+	projectionFailure := errors.New("portal membership lookup failed")
+	failingProfiles := testutil.NewPeopleRepositorySuiteRetainedGuardianProfiles(db, testutil.PeopleRepositorySuiteWithPortalMemberships(
+		func(_ context.Context, accountIDs []int64) (map[int64][]int64, error) {
+			require.Equal(t, []int64{chain.AccountID}, accountIDs)
+			return nil, projectionFailure
+		}))
+	profiles, err := failingProfiles.FindActivePortalProfilesByIDs(ctx, []int64{chain.GuardianProfileID})
+	require.ErrorIs(t, err, projectionFailure)
+	require.Nil(t, profiles, "failed account reachability must not return candidates")
+
+	staffAccounts := func(context.Context) ([]int64, error) { return []int64{chain.AccountID}, nil }
+	reads := testutil.NewPeopleRepositorySuiteRetainedColleagues(db, staffAccounts, testutil.PeopleRepositorySuiteStaffMessageIdentity{})
+	_, err = reads.ListMessageableStaff(ctx, chain.AccountID)
+	require.ErrorContains(t, err, "active school account lookup is required")
+	_, err = reads.IsMessageableStaff(ctx, chain.AccountID)
+	require.ErrorContains(t, err, "active school account lookup is required")
+	_, err = reads.StaffRoleKinds(ctx, []int64{chain.AccountID})
+	require.ErrorContains(t, err, "role class query is required")
+
+	failingStaff := testutil.NewPeopleRepositorySuiteRetainedColleagues(db, staffAccounts, testutil.PeopleRepositorySuiteStaffMessageIdentity{
+		ActiveSchoolAccounts: func(_ context.Context, schoolID int64, accountIDs []int64) ([]int64, error) {
+			require.Equal(t, chain.TenantID, schoolID)
+			require.Equal(t, []int64{chain.AccountID}, accountIDs)
+			return nil, lookupFailure
+		},
+	})
+	staff, err := failingStaff.ListMessageableStaff(ctx, chain.AccountID)
+	require.ErrorIs(t, err, lookupFailure)
+	require.Nil(t, staff)
+	allowed, err := failingStaff.IsMessageableStaff(ctx, chain.AccountID)
+	require.ErrorIs(t, err, lookupFailure)
+	require.False(t, allowed)
+}
+
+// TestIdentityMembership_RoleClassFailureIsNotSwallowed pins that a failing
+// owner read surfaces through the staff role classification instead of
+// degrading every account to plain staff.
+func TestIdentityMembership_RoleClassFailureIsNotSwallowed(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	account := testpkg.CreateTestAccount(t, db, "role-class-failure")
+	ownerFailure := errors.New("identity access unavailable")
+
+	reads := testutil.NewPeopleRepositorySuiteRetainedColleagues(db, nil, testutil.PeopleRepositorySuiteStaffMessageIdentity{
+		RoleClasses: func(context.Context, int64, []int64) ([]testutil.PeopleRepositorySuiteSchoolRoleClass, error) {
+			return nil, ownerFailure
+		},
+	})
+	kinds, err := reads.StaffRoleKinds(ctx, []int64{account.ID})
+	require.ErrorIs(t, err, ownerFailure)
+	assert.Nil(t, kinds)
+}

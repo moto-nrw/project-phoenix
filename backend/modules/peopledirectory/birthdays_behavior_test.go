@@ -18,7 +18,7 @@ import (
 )
 
 // Birthday service against real repositories (#1542). The HTTP tests in
-// modules/peopledirectory/inbound/birthdays pin the route contract; this file pins the rules the service
+// modules/peopledirectory/inbound/students (birthdays_api_test.go) pin the route contract; this file pins the rules the service
 // itself owns: which week a view speaks for, who may appear, and what the
 // staff list contains.
 
