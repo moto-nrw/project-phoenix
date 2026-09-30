@@ -65,7 +65,7 @@ func TestWithdrawPhotoConsentMapsGuardianPermissionError(t *testing.T) {
 	rs.withdrawPhotoConsent(w, req)
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
-	assert.Contains(t, w.Body.String(), `"code":"guardian_permission_denied"`)
+	assert.Contains(t, w.Body.String(), `"code":"care.guardian_permission_denied"`)
 }
 
 func TestGrantPhotoConsentReturnsUpdatedState(t *testing.T) {
@@ -99,7 +99,7 @@ func TestGrantPhotoConsentRequiresPreviousWithdrawal(t *testing.T) {
 	rs.grantPhotoConsent(w, req)
 
 	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), `"code":"photo_consent_not_withdrawn"`)
+	assert.Contains(t, w.Body.String(), `"code":"care.photo_consent_not_withdrawn"`)
 }
 
 func TestGrantPhotoConsentMapsEndedCareError(t *testing.T) {
@@ -113,5 +113,5 @@ func TestGrantPhotoConsentMapsEndedCareError(t *testing.T) {
 	rs.grantPhotoConsent(w, req)
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
-	assert.Contains(t, w.Body.String(), `"code":"child_care_ended"`)
+	assert.Contains(t, w.Body.String(), `"code":"care.child_care_ended"`)
 }

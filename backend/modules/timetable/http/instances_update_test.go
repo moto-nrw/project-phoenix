@@ -144,7 +144,7 @@ func TestUpdateInstance_ServiceErrors(t *testing.T) {
 	s.mock.updateErr = &wrappedErr{inner: timetable.ErrInvalidInstanceTransition}
 	conflict := doTemplateJSON(t, router, http.MethodPut, "/instances/50", body)
 	assert.Equal(t, http.StatusConflict, conflict.Code)
-	assert.Contains(t, conflict.Body.String(), "invalid_transition")
+	assert.Contains(t, conflict.Body.String(), "timetable.invalid_transition")
 
 	s.mock.updateErr = fmt.Errorf("wrapped: %w", timetable.ErrInvalidInstanceReference)
 	badReference := doTemplateJSON(t, router, http.MethodPut, "/instances/50", body)
@@ -156,7 +156,7 @@ func TestUpdateInstance_ServiceErrors(t *testing.T) {
 		timetablePgErrorWithConstraint("23505", "idx_activity_instances_template_unique"))
 	duplicate := doTemplateJSON(t, router, http.MethodPut, "/instances/50", body)
 	assert.Equal(t, http.StatusConflict, duplicate.Code)
-	assert.Contains(t, duplicate.Body.String(), "duplicate_instance")
+	assert.Contains(t, duplicate.Body.String(), "timetable.duplicate_instance")
 
 	s.mock.updateErr = fmt.Errorf("database down")
 	internal := doTemplateJSON(t, router, http.MethodPut, "/instances/50", body)

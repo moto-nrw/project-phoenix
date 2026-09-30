@@ -88,27 +88,27 @@ function resolveGuardianError(
 ): string {
   if (err instanceof ParentApiError) {
     switch (err.code) {
-      case "guardian_contact_invalid":
+      case "care.guardian_contact_invalid":
         return t("guardians.errors.contactInvalid");
-      case "guardian_relationship_invalid":
+      case "care.guardian_relationship_invalid":
         return t("guardians.errors.relationshipInvalid");
-      case "guardian_email_conflict":
+      case "care.guardian_email_conflict":
         return t("guardians.errors.emailConflict");
-      case "guardian_has_own_account":
+      case "care.guardian_has_own_account":
         return t("guardians.errors.hasOwnAccount");
-      case "guardian_shared_across_families":
+      case "care.guardian_shared_across_families":
         return t("guardians.errors.sharedAcrossFamilies");
-      case "guardian_social_worker_managed":
+      case "care.guardian_social_worker_managed":
         return t("guardians.errors.socialWorkerManaged");
-      case "guardian_role_managed":
+      case "care.guardian_role_managed":
         return t("guardians.errors.roleManaged");
-      case "guardian_management_disabled":
+      case "care.guardian_management_disabled":
         return t("guardians.errors.managementDisabled");
-      case "guardian_not_linked":
+      case "care.guardian_not_linked":
         return t("guardians.errors.notLinked");
-      case "guardian_permission_denied":
+      case "care.guardian_permission_denied":
         return t("guardians.errors.permissionDenied");
-      case "guardian_no_change":
+      case "care.guardian_no_change":
         return t("guardians.errors.noChange");
     }
   }
@@ -242,7 +242,7 @@ export default function GuardiansPanel({
       setUpgradePrompt(null);
       setInviteError(
         err instanceof ParentApiError &&
-          err.code === "guardian_social_worker_managed"
+          err.code === "care.guardian_social_worker_managed"
           ? t("guardians.errors.socialWorkerManaged")
           : t("guardians.access.inviteError"),
       );
@@ -1241,7 +1241,7 @@ function PickupModal({
     // For a CLEARED note send "" (empty string), never null: the backend
     // unmarshals JSON null into a nil *string, which it treats as "field
     // omitted, leave unchanged" — so a null would silently keep the old note (or
-    // come back as guardian_no_change). An empty string is a present value the
+    // come back as care.guardian_no_change). An empty string is a present value the
     // backend trims and stores as NULL, actually clearing the note.
     //
     // The note may ONLY travel when the caller can edit contact: the textarea is
@@ -1263,7 +1263,7 @@ function PickupModal({
       ...(noteChanged ? { pickup_notes: normalizedNotes } : {}),
     };
     // Nothing changed: skip the write (the backend rejects an empty payload
-    // with guardian_no_change) and just close.
+    // with care.guardian_no_change) and just close.
     if (Object.keys(payload).length === 0) {
       setBusy(false);
       onClose();

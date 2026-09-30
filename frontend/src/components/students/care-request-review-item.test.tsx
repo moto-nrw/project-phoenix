@@ -329,7 +329,10 @@ describe("CareRequestReviewItem", () => {
 
   it("asks for a reload when the pickup impact changed", async () => {
     mockDecide.mockRejectedValueOnce(
-      new CareRequestApiError("changed", "pickup_change_impact_changed"),
+      new CareRequestApiError(
+        "changed",
+        "students.pickup_change_impact_changed",
+      ),
     );
     render(<CareRequestReviewItem row={pickupRow()} onDecided={vi.fn()} />);
 
@@ -339,31 +342,11 @@ describe("CareRequestReviewItem", () => {
     await expectErrorToast(/Der Betreuungsplan hat sich geändert\./);
   });
 
-  it("surfaces the recovery action when approval is blocked by messaging_disabled", async () => {
-    mockDecide.mockRejectedValueOnce(
-      new CareRequestApiError(
-        "schedule: care request messaging disabled",
-        "messaging_disabled",
-      ),
-    );
-    const onDecided = vi.fn();
-
-    render(<CareRequestReviewItem row={row()} onDecided={onDecided} />);
-
-    expand();
-    fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
-
-    // The blocking reason must tell the reviewer to reject instead — not a
-    // generic failure that leaves the request silently pending.
-    await expectErrorToast(/Bitte die Anfrage stattdessen ablehnen\./);
-    expect(onDecided).not.toHaveBeenCalled();
-  });
-
   it("surfaces the recovery action when approval is blocked by pickup_change_conflict", async () => {
     mockDecide.mockRejectedValueOnce(
       new CareRequestApiError(
         "schedule: pickup change conflict",
-        "pickup_change_conflict",
+        "students.pickup_change_conflict",
       ),
     );
     const onDecided = vi.fn();
@@ -388,7 +371,7 @@ describe("CareRequestReviewItem", () => {
     mockDecide.mockRejectedValueOnce(
       new CareRequestApiError(
         "schedule: care day is managed by an offering booking",
-        "care_day_managed_by_booking",
+        "students.care_day_managed_by_booking",
       ),
     );
 

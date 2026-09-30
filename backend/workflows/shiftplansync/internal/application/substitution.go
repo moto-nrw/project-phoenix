@@ -218,7 +218,7 @@ func (a *SubstitutionAdapter) apply(
 	if hasAppointmentChanges(assignment) {
 		return nil, &education.OperationError{
 			Target:  education.ErrInvalidTarget,
-			Code:    "invalid_target",
+			Code:    codeSubstitutionInvalidTarget,
 			Message: "Eine Sammelvertretung kann nicht mit Terminänderungen verbunden werden.",
 		}
 	}

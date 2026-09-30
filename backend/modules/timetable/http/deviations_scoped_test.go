@@ -337,7 +337,7 @@ func TestApplyDeviations_CannotClearSickAbsence(t *testing.T) {
 		}},
 	})
 	require.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), "sick_absence_scope_locked")
+	assert.Contains(t, w.Body.String(), "timetable.sick_absence_scope_locked")
 
 	stored := readScopedInstanceStaff(t, s.db, s.ctx, row.ID)
 	assert.True(t, stored.IsAbsent)
@@ -403,7 +403,7 @@ func TestApplyDeviations_CannotRemoveSickSubstitute(t *testing.T) {
 		}},
 	})
 	require.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), "sick_absence_scope_locked")
+	assert.Contains(t, w.Body.String(), "timetable.sick_absence_scope_locked")
 
 	stored := readScopedInstanceStaff(t, s.db, s.ctx, row.ID)
 	assert.True(t, stored.IsSubstitute)
@@ -510,7 +510,7 @@ func TestApplyDeviations_PartialAbsenceElsewhereDoesNotMakeSelectedBlockUndersta
 		}},
 	})
 	require.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), "understaffed_still_staffed")
+	assert.Contains(t, w.Body.String(), "timetable.understaffed_still_staffed")
 
 	assert.False(t, readScopedInstanceStaff(t, s.db, s.ctx, rowA.ID).IsAbsent)
 	assert.False(t, readScopedInstanceStaff(t, s.db, s.ctx, rowBTarget.ID).IsAbsent)
@@ -554,7 +554,7 @@ func TestApplyDeviations_RejectsTerminalAppointmentInExplicitScope(t *testing.T)
 		}},
 	})
 	require.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), "instance_not_editable")
+	assert.Contains(t, w.Body.String(), "timetable.instance_not_editable")
 	assert.False(t, readScopedInstanceStaff(t, s.db, s.ctx, selectedRow.ID).IsAbsent)
 }
 
@@ -577,7 +577,7 @@ func TestApplyDeviations_RejectsAlreadyAbsentTerminalAppointmentInExplicitScope(
 		}},
 	})
 	require.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), "instance_not_editable")
+	assert.Contains(t, w.Body.String(), "timetable.instance_not_editable")
 	assert.False(t, readScopedInstanceStaff(t, s.db, s.ctx, selectedRow.ID).IsAbsent)
 }
 
@@ -600,7 +600,7 @@ func TestApplyDeviations_RejectsAlreadyPresentTerminalAppointmentInExplicitScope
 		}},
 	})
 	require.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), "instance_not_editable")
+	assert.Contains(t, w.Body.String(), "timetable.instance_not_editable")
 	assert.True(t, readScopedInstanceStaff(t, s.db, s.ctx, selectedRow.ID).IsAbsent)
 }
 

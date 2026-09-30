@@ -125,7 +125,7 @@ var convertInstanceToSeriesErrorRules = []common.ErrorRule{
 				errors.Is(err, timetableModule.ErrInstanceAlreadyInSeries)
 		},
 		Render: func(err error) render.Renderer {
-			return common.ErrorConflictWithCode(err, "instance_not_convertible")
+			return common.ErrorConflictWithCode(err, common.CodeTimetableInstanceNotConvertible)
 		},
 	},
 	{

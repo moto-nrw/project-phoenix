@@ -51,7 +51,9 @@ export class TimetableOperationsApiError extends ApiError {
 // those can clear while the window is still open.
 export function isReopenUnavailableError(err: unknown): boolean {
   if (err instanceof TimetableOperationsApiError) {
-    return err.httpStatus === 403 || err.code === "invalid_transition";
+    return (
+      err.httpStatus === 403 || err.code === "timetable.invalid_transition"
+    );
   }
   return (
     err instanceof Error &&

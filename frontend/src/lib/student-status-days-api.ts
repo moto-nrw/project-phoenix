@@ -1,3 +1,5 @@
+import type { ErrorCode } from "~/lib/error-codes.generated";
+
 export type StudentStatusKind = "sick" | "excused" | "class_trip";
 
 export interface StudentStatusDay {
@@ -23,12 +25,13 @@ interface ApiResponse<T> {
   conflict_count?: number;
   message?: string;
   error?: string;
-  /** Stable backend conflict code (e.g. partial_absence_conflict). */
+  /** Stable backend conflict code (e.g. students.partial_absence_conflict). */
   code?: string;
 }
 
-/** Matches backend `partial_absence_conflict` on status-day writes. */
-const PARTIAL_ABSENCE_CONFLICT_CODE = "partial_absence_conflict";
+/** Matches backend `students.partial_absence_conflict` on status-day writes. */
+const PARTIAL_ABSENCE_CONFLICT_CODE: ErrorCode =
+  "students.partial_absence_conflict";
 
 interface BackendStudentStatusDay {
   id: number;

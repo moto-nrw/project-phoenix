@@ -97,13 +97,13 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 			// Mask the specific cause to prevent account
 			// enumeration. Same pattern as the tenant login.
 			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
-				ErrInvalidCredentials, "invalid_credentials"))
+				ErrInvalidCredentials, common.CodeCareInvalidCredentials))
 		case rs.Auth.AccountInactive(err):
 			// Distinct code so the frontend can show
 			// "your account is disabled, contact the school"
 			// instead of a generic credentials error.
 			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
-				ErrAccountInactive, "account_inactive"))
+				ErrAccountInactive, common.CodeIdentitySessionAccountInactive))
 		case rs.Auth.NotAGuardian(err):
 			// 403 with a stable code — frontend masks this as
 			// invalid_credentials in the user-facing copy (the
@@ -111,7 +111,7 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 			// for this case) to avoid leaking that the email is
 			// a known staff account.
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(
-				ErrAccountNoGuardianRole, "not_a_guardian"))
+				ErrAccountNoGuardianRole, common.CodeCareNotAGuardian))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}

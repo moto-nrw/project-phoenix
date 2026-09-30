@@ -411,8 +411,9 @@ export async function performSchoolLogin(
     if (!response.ok) {
       const text = await response.text();
       // Backend sends { status, error, code } on failures. The code field
-      // disambiguates invalid_credentials / account_inactive from the
-      // 403 no_school_portal_role (non-Lehrkraft hitting the school
+      // disambiguates care.invalid_credentials /
+      // identity.session_account_inactive from the 403
+      // school.no_school_portal_role (non-Lehrkraft hitting the school
       // portal).
       let code: string | undefined;
       try {

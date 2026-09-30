@@ -80,9 +80,9 @@ func (rs *StaffAdminResource) updatePayrollNumber(w http.ResponseWriter, r *http
 	if err != nil {
 		switch {
 		case errors.Is(err, workforce.ErrPersonnelNumberInvalid):
-			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "personnel_number_invalid"))
+			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeWorkforcePersonnelNumberInvalid))
 		case errors.Is(err, workforce.ErrPersonnelNumberTaken):
-			common.RenderError(w, r, common.ErrorConflictWithCode(err, "personnel_number_taken"))
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeWorkforcePersonnelNumberTaken))
 		case common.IsNotFound(err):
 			common.RenderError(w, r, common.ErrorNotFound(err))
 		default:

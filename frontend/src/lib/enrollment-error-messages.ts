@@ -1,4 +1,6 @@
+import { wireErrorCode } from "~/lib/api-error";
 import { childQuotaMessage } from "~/lib/child-quota-error";
+import type { ErrorCode } from "~/lib/error-codes.generated";
 
 type EnrollmentErrorLogger = {
   error: (message: string, context?: Record<string, unknown>) => void;
@@ -24,7 +26,7 @@ export const CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE =
 const PHASE_NAME_EXISTS_MESSAGE =
   "Es gibt bereits eine Anmeldephase mit diesem Namen. Bitte wählen Sie einen anderen Namen.";
 
-const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
+const ENROLLMENT_CODE_MESSAGES: Partial<Record<ErrorCode, string>> = {
   "enrollment.complete_withdrawal_confirmation_required":
     "Bitte bestätigen Sie, dass alle Betreuungstage entfernt werden sollen.",
   "enrollment.care_offering_missing":
@@ -377,8 +379,9 @@ export function translateEnrollmentErrorMessage(
   rawMessage?: string,
   code?: string,
 ): string | undefined {
-  if (code) {
-    const codedMessage = ENROLLMENT_CODE_MESSAGES[code];
+  const knownCode = wireErrorCode(code);
+  if (knownCode) {
+    const codedMessage = ENROLLMENT_CODE_MESSAGES[knownCode];
     if (codedMessage) return codedMessage;
   }
   if (!rawMessage) return undefined;

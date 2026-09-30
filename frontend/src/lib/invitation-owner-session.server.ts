@@ -31,7 +31,7 @@ export async function withInvitationOwnerSession(
     const token = authRequest.auth?.user?.token;
     if (!token) {
       return NextResponse.json(
-        { code: "INVITATION_ACCOUNT_LOGIN_REQUIRED" },
+        { code: "identity.invitation_account_login_required" },
         { status: 401 },
       );
     }

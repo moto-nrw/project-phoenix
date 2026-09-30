@@ -517,7 +517,8 @@ export async function switchTenant(
     const code =
       response.status === 401 && message === TENANT_ACCESS_DENIED_MESSAGE
         ? "access_denied"
-        : response.status === 403 && responseCode === "use_school_portal"
+        : response.status === 403 &&
+            responseCode === "identity.use_school_portal"
           ? "use_school_portal"
           : "unknown";
     throw new TenantSwitchError(message, response.status, code);

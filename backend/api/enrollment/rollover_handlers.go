@@ -362,33 +362,20 @@ func (rs *Resource) adminAccountID(r *http.Request) int64 {
 	return int64(claims.ID)
 }
 
-// Stable error codes returned in the response envelope so the frontend
-// can map to localized German messages without parsing the free-form
-// `error` string. Keep in sync with the matching map in
-// `frontend/src/lib/enrollment-phase-api.ts`.
-const (
-	ErrCodeRolloverSourceNotFound      = "rollover.source_not_found"
-	ErrCodeRolloverInvalidRequest      = "rollover.invalid_request"
-	ErrCodeRolloverReviewInvalid       = "rollover.review_invalid"
-	ErrCodeRolloverReviewNotFound      = "rollover.review_not_found"
-	ErrCodeRolloverDuplicateName       = "rollover.duplicate_name"
-	ErrCodeRolloverSourceAlreadyRolled = "rollover.source_already_rolled"
-)
-
 func (rs *Resource) mapRolloverError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, capability.ErrRolloverSourceNotFound):
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, ErrCodeRolloverSourceNotFound))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeRolloverSourceNotFound))
 	case errors.Is(err, capability.ErrRolloverInvalidRequest):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeRolloverInvalidRequest))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeRolloverInvalidRequest))
 	case errors.Is(err, capability.ErrRolloverReviewInvalid):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeRolloverReviewInvalid))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeRolloverReviewInvalid))
 	case errors.Is(err, capability.ErrRolloverReviewNotFound):
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, ErrCodeRolloverReviewNotFound))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeRolloverReviewNotFound))
 	case errors.Is(err, capability.ErrRolloverDuplicateName):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeRolloverDuplicateName))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeRolloverDuplicateName))
 	case errors.Is(err, capability.ErrRolloverSourceAlreadyRolled):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeRolloverSourceAlreadyRolled))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeRolloverSourceAlreadyRolled))
 	default:
 		rs.logger().Error("rollover handler failed", slog.String("error", err.Error()))
 		common.RenderError(w, r, common.ErrorInternalServer(err))

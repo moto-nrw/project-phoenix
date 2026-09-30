@@ -296,7 +296,7 @@ describe("deleting an Einverständnis with answers (#3430)", () => {
     const { ApiError } = await import("~/lib/api-error");
     deleteMock.mockRejectedValue(
       new ApiError("declaration has submissions", 409, {
-        code: "declaration_has_submissions",
+        code: "communication.declaration_has_submissions",
       }),
     );
     const onClose = vi.fn();

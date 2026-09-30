@@ -61,13 +61,10 @@ const (
 // (apiErrors.ts). The generic HTTP fallbacks at its end are no backend
 // contract and stay out.
 var iotErrorMessages = []iotErrorContract{
-	{"ACTIVITY_CAPACITY_EXCEEDED", checkinCapacity},
 	{"activity capacity exceeded", checkinCapacity},
 	{"Activity capacity exceeded", checkinCapacity},
-	{"ROOM_CAPACITY_EXCEEDED", checkinCapacity},
 	{"room capacity exceeded", checkinCapacity},
 	{"Room capacity exceeded", checkinCapacity},
-	{"STUDENT_ALREADY_ACTIVE", checkinCapacity},
 	{"student already has an active visit", presenceOperations},
 
 	{"invalid device API key", deviceAuthErrors},
@@ -126,22 +123,29 @@ var iotErrorMessages = []iotErrorContract{
 	{"failed to get person data for staff", deviceScanTags},
 }
 
-// iotErrorCodes are the stable codes of STAFF_CLOCK_MESSAGES (apiErrors.ts).
+// iotErrorCodes are the registry codes the kiosk branches on
+// (errorCodes.generated.ts in PyrePortal, synced from error-registry.json):
+// the check-in conflicts, STAFF_CLOCK_MESSAGES and, since the one-time rename
+// (#2506), their bereich.fehlername names.
 var iotErrorCodes = []iotErrorContract{
-	{"invalid_staff_clock_request", staffClockErrors},
-	{"invalid_rfid_tag", staffClockErrors},
-	{"rfid_tag_not_found", staffClockErrors},
-	{"rfid_tag_inactive", staffClockErrors},
-	{"rfid_tag_not_staff", staffClockErrors},
-	{"planned_start_not_reached", staffClockErrors},
-	{"deviation_reason_required", staffClockErrors},
-	{"invalid_staff_clock_state", staffClockErrors},
+	{"iot.activity_capacity_exceeded", checkinCapacity},
+	{"iot.room_capacity_exceeded", checkinCapacity},
+	{"iot.student_already_active", checkinCapacity},
+
+	{"iot.invalid_staff_clock_request", staffClockErrors},
+	{"iot.invalid_rfid_tag", staffClockErrors},
+	{"iot.rfid_tag_not_found", staffClockErrors},
+	{"iot.rfid_tag_inactive", staffClockErrors},
+	{"iot.rfid_tag_not_staff", staffClockErrors},
+	{"iot.planned_start_not_reached", staffClockErrors},
+	{"iot.deviation_reason_required", staffClockErrors},
+	{"iot.invalid_staff_clock_state", staffClockErrors},
 
 	// Destination booking into a released room (POST /move-to-room, #3067).
-	{"room_not_found", deviceScanOpenRoom},
-	{"room_not_released", deviceScanOpenRoom},
-	{"student_not_present", deviceScanOpenRoom},
-	{"open_room_binary_mode", deviceScanOpenRoom},
+	{"iot.room_not_found", deviceScanOpenRoom},
+	{"rooms.not_released", deviceScanOpenRoom},
+	{"iot.student_not_present", deviceScanOpenRoom},
+	{"iot.open_room_binary_mode", deviceScanOpenRoom},
 }
 
 // iotErrorExclusions are PyrePortal mappings the backend deliberately does not

@@ -519,7 +519,7 @@ func (rs *GradeTransitionResource) renderDraftMutationError(w http.ResponseWrite
 	case errors.Is(err, gradetransition.ErrUnauthorized):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, gradetransition.ErrTransitionNotDraft):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "not_draft"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeGradeTransitionNotDraft))
 	case errors.Is(err, gradetransition.ErrTransitionNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(errMsgTransitionNotFound)))
 	case errors.Is(err, gradetransition.ErrInvalidTransitionData):
@@ -594,11 +594,11 @@ func (rs *GradeTransitionResource) renderApplyError(w http.ResponseWriter, r *ht
 	case errors.Is(err, gradetransition.ErrUnauthorized):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, gradetransition.ErrGraduatesCheckedIn):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "graduates_checked_in"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeGradeTransitionGraduatesCheckedIn))
 	case errors.Is(err, gradetransition.ErrPreviewStale):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "preview_stale"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeGradeTransitionPreviewStale))
 	case errors.Is(err, gradetransition.ErrTransitionNotDraft):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "not_draft"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeGradeTransitionNotDraft))
 	case errors.Is(err, gradetransition.ErrTransitionNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(errMsgTransitionNotFound)))
 	default:
@@ -635,9 +635,9 @@ func (rs *GradeTransitionResource) renderRevertError(w http.ResponseWriter, r *h
 	case errors.Is(err, gradetransition.ErrUnauthorized):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, gradetransition.ErrNotLatestApplied):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "not_latest_transition"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeGradeTransitionNotLatestTransition))
 	case errors.Is(err, gradetransition.ErrTransitionNotApplied):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "not_applied"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeGradeTransitionNotApplied))
 	case errors.Is(err, gradetransition.ErrTransitionNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(errMsgTransitionNotFound)))
 	default:

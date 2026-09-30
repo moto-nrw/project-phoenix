@@ -1657,7 +1657,7 @@ describe("api.ts helper functions", () => {
       const sickExcused = await respondWith(
         JSON.stringify({
           error: "a student cannot be both sick and excused at the same time",
-          code: "SICK_EXCUSED_CONFLICT",
+          code: "students.sick_excused_conflict",
         }),
       );
       expect(sickExcused).not.toBeInstanceOf(CompanionPlanConflictError);
@@ -1707,7 +1707,7 @@ describe("api.ts helper functions", () => {
           status: "error",
           error:
             "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
-          code: "companion_would_lose_departure",
+          code: "students.companion_would_lose_departure",
         }),
       );
       expect(stranded).toBeInstanceOf(CompanionDepartureRefusedError);
@@ -1772,7 +1772,7 @@ describe("api.ts helper functions", () => {
           status: "error",
           error:
             "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert. Bitte neu laden und noch einmal speichern.",
-          code: "companions_changed",
+          code: "students.companions_changed",
         }),
       );
       expect(stale).toBeInstanceOf(CompanionsChangedError);
@@ -1794,7 +1794,7 @@ describe("api.ts helper functions", () => {
       const body = JSON.stringify({
         error:
           "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert.",
-        code: "companions_changed",
+        code: "students.companions_changed",
       });
       expect(isCompanionsChangedBody(body)).toBe(true);
       expect(isCompanionPlanConflictBody(body)).toBe(false);
@@ -1904,7 +1904,7 @@ describe("api.ts helper functions", () => {
         409,
         JSON.stringify({
           error: "Die Laufgemeinschaft wurde zwischenzeitlich geändert.",
-          code: "companions_changed",
+          code: "students.companions_changed",
           details,
         }),
       );
@@ -1915,7 +1915,7 @@ describe("api.ts helper functions", () => {
         400,
         JSON.stringify({
           error: "Bitte zuerst den Heimweg dieses Kindes anpassen.",
-          code: "companion_would_lose_departure",
+          code: "students.companion_would_lose_departure",
           details,
         }),
       );
@@ -1927,7 +1927,7 @@ describe("api.ts helper functions", () => {
         409,
         JSON.stringify({
           error: "Die Laufgemeinschaft wurde zwischenzeitlich geändert.",
-          code: "companions_changed",
+          code: "students.companions_changed",
         }),
       );
       expect(unmarked).toBeInstanceOf(CompanionsChangedError);

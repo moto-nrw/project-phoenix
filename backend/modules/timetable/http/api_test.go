@@ -790,7 +790,7 @@ func TestCreatePeriod(t *testing.T) {
 		w := executeRequest(router, http.MethodPost, "/", body)
 
 		assert.Equal(t, http.StatusConflict, w.Code)
-		assert.Contains(t, w.Body.String(), calendarPeriodOverlapConflictCode)
+		assert.Contains(t, w.Body.String(), "timetable.calendar_period_overlap_conflict")
 		assert.Contains(t, w.Body.String(), "aktiver Zeitraum desselben Typs")
 	})
 
@@ -817,7 +817,7 @@ func TestCreatePeriod(t *testing.T) {
 		w := executeRequest(router, http.MethodPost, "/", body)
 
 		assert.Equal(t, http.StatusConflict, w.Code)
-		assert.Contains(t, w.Body.String(), calendarPeriodOverlapConflictCode)
+		assert.Contains(t, w.Body.String(), "timetable.calendar_period_overlap_conflict")
 		assert.Contains(t, w.Body.String(), "aktiver Zeitraum desselben Typs")
 		assert.Contains(t, w.Body.String(), "Schuljahr 2025/2026")
 		assert.Contains(t, w.Body.String(), "01.08.2025 – 31.07.2026")
@@ -1081,7 +1081,7 @@ func TestUpdatePeriod(t *testing.T) {
 		w := executeRequest(r, http.MethodPut, "/42", body)
 
 		assert.Equal(t, http.StatusConflict, w.Code)
-		assert.Contains(t, w.Body.String(), calendarPeriodOverlapConflictCode)
+		assert.Contains(t, w.Body.String(), "timetable.calendar_period_overlap_conflict")
 		assert.Contains(t, w.Body.String(), "aktiver Zeitraum desselben Typs")
 	})
 
@@ -1112,7 +1112,7 @@ func TestUpdatePeriod(t *testing.T) {
 		w := executeRequest(r, http.MethodPut, "/42", body)
 
 		assert.Equal(t, http.StatusConflict, w.Code)
-		assert.Contains(t, w.Body.String(), calendarPeriodOverlapConflictCode)
+		assert.Contains(t, w.Body.String(), "timetable.calendar_period_overlap_conflict")
 		assert.Contains(t, w.Body.String(), "Schuljahr 2025/2026")
 		assert.Contains(t, w.Body.String(), `"overlapping_period_names":["Schuljahr 2025/2026"]`)
 	})
@@ -1362,7 +1362,7 @@ func TestUpdatePeriod(t *testing.T) {
 		w := executeRequest(r, http.MethodPut, "/42", body)
 
 		assert.Equal(t, http.StatusConflict, w.Code)
-		assert.Contains(t, w.Body.String(), `"code":"calendar_period_care_offering_conflict"`)
+		assert.Contains(t, w.Body.String(), `"code":"timetable.calendar_period_care_offering_conflict"`)
 		assert.Contains(t, w.Body.String(), "verknüpften Betreuungsangebot")
 	})
 
@@ -1457,7 +1457,7 @@ func TestDeletePeriod(t *testing.T) {
 		w := executeRequest(router, http.MethodDelete, "/42", nil)
 
 		assert.Equal(t, http.StatusConflict, w.Code)
-		assert.Contains(t, w.Body.String(), `"code":"calendar_period_care_offering_conflict"`)
+		assert.Contains(t, w.Body.String(), `"code":"timetable.calendar_period_care_offering_conflict"`)
 		assert.Contains(t, w.Body.String(), "verknüpften Betreuungsangebot")
 	})
 
@@ -1560,7 +1560,7 @@ func TestDeletePeriod_CareOfferingConflictMarksTenantRollback(t *testing.T) {
 	w := executeRequest(router, http.MethodDelete, "/42", nil)
 
 	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), `"code":"calendar_period_care_offering_conflict"`)
+	assert.Contains(t, w.Body.String(), `"code":"timetable.calendar_period_care_offering_conflict"`)
 	assert.False(t, probe.Committed(t),
 		"care-offering period conflicts must roll back writes despite returning 409")
 }

@@ -662,7 +662,7 @@ func TestGradeTransitionResource_Apply(t *testing.T) {
 		rr := testutil.ExecuteRequest(router, req)
 		require.Equal(t, http.StatusConflict, rr.Code)
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-		assert.Equal(t, "graduates_checked_in", response["code"])
+		assert.Equal(t, "grade_transition.graduates_checked_in", response["code"])
 	})
 
 	// #405 review: applying a draft another admin has since applied is a normal
@@ -689,7 +689,7 @@ func TestGradeTransitionResource_Apply(t *testing.T) {
 		))
 		require.Equal(t, http.StatusConflict, secondRR.Code)
 		response := testutil.ParseJSONResponse(t, secondRR.Body.Bytes())
-		assert.Equal(t, "not_draft", response["code"])
+		assert.Equal(t, "grade_transition.not_draft", response["code"])
 	})
 
 	// #405 review: a deleted (or never-existing) transition is 404, not 500.
@@ -780,7 +780,7 @@ func TestGradeTransitionResource_Revert(t *testing.T) {
 		rr := testutil.ExecuteRequest(router, req)
 		require.Equal(t, http.StatusConflict, rr.Code)
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-		assert.Equal(t, "not_applied", response["code"])
+		assert.Equal(t, "grade_transition.not_applied", response["code"])
 	})
 
 	t.Run("revert already-reverted transition returns 409 not_applied", func(t *testing.T) {
@@ -809,7 +809,7 @@ func TestGradeTransitionResource_Revert(t *testing.T) {
 		))
 		require.Equal(t, http.StatusConflict, secondRR.Code)
 		response := testutil.ParseJSONResponse(t, secondRR.Body.Bytes())
-		assert.Equal(t, "not_applied", response["code"])
+		assert.Equal(t, "grade_transition.not_applied", response["code"])
 	})
 
 	// #405 review: a deleted (or never-existing) transition is 404, not 500.
@@ -999,7 +999,7 @@ func TestGradeTransitionResource_UpdateDelete_ErrorMapping(t *testing.T) {
 		rr := testutil.ExecuteRequest(router, req)
 		require.Equal(t, http.StatusConflict, rr.Code)
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-		assert.Equal(t, "not_draft", response["code"])
+		assert.Equal(t, "grade_transition.not_draft", response["code"])
 
 		delReq := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/%d", transition.ID), nil,
 			testutil.WithJWTBearer(token),
@@ -1007,7 +1007,7 @@ func TestGradeTransitionResource_UpdateDelete_ErrorMapping(t *testing.T) {
 		delRR := testutil.ExecuteRequest(router, delReq)
 		require.Equal(t, http.StatusConflict, delRR.Code)
 		delResponse := testutil.ParseJSONResponse(t, delRR.Body.Bytes())
-		assert.Equal(t, "not_draft", delResponse["code"])
+		assert.Equal(t, "grade_transition.not_draft", delResponse["code"])
 	})
 
 	t.Run("update deleted transition returns 404", func(t *testing.T) {

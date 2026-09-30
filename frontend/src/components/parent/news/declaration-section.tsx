@@ -112,22 +112,20 @@ export function declarationErrorKey(err: unknown): {
       return { key: "tooMany", keepDialog: true, reload: false };
     }
     switch (err.code) {
-      case "declaration_password_required":
+      case "care.declaration_password_required":
         return { key: "passwordRequired", keepDialog: true, reload: false };
-      case "declaration_password_incorrect":
+      case "care.declaration_password_incorrect":
         return { key: "passwordIncorrect", keepDialog: true, reload: false };
-      case "declaration_version_changed":
+      case "care.declaration_version_changed":
         return { key: "versionChanged", keepDialog: false, reload: true };
-      case "declaration_closed":
+      case "care.declaration_closed":
         return { key: "closed", keepDialog: false, reload: true };
-      case "declaration_action_not_allowed":
+      case "care.declaration_action_not_allowed":
         return { key: "actionNotAllowed", keepDialog: false, reload: true };
-      case "declaration_not_permitted":
+      case "care.declaration_not_permitted":
         return { key: "notPermitted", keepDialog: false, reload: true };
-      case "child_care_ended":
+      case "care.child_care_ended":
         return { key: "careEnded", keepDialog: false, reload: true };
-      case "not_found":
-        return { key: "notFound", keepDialog: false, reload: true };
     }
     if (err.status === 404) {
       return { key: "notFound", keepDialog: false, reload: true };

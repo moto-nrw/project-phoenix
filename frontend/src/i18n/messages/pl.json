@@ -1990,6 +1990,9 @@
       "server": "Nie udało się przetworzyć: {object}. Spróbuj ponownie później."
     },
     "codes": {
+      "attendance": {
+        "web_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
+      },
       "care": {
         "announcement_ack_not_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "announcement_not_a_poll": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -2149,6 +2152,12 @@
       "identity": {
         "account_already_has_tenant_access": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "account_inactive": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "demo_access_expired": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "demo_access_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "demo_access_rate_limited": "{object} jest teraz niedostępne. Spróbuj ponownie.",
+        "demo_access_unknown": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "demo_capacity_reached": "{object} jest teraz niedostępne. Spróbuj ponownie.",
+        "demo_school_preparing": "{object} jest teraz niedostępne. Spróbuj ponownie.",
         "demo_session": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "invitation_account_login_required": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "invitation_account_mismatch": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
@@ -2211,10 +2220,13 @@
         "source_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "rooms": {
+        "color_already_in_use": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "not_released": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "school": {
-        "no_school_portal_role": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
+        "no_school_portal_role": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "setup_completed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "setup_incomplete": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "students": {
         "absence_read_required": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
@@ -2226,6 +2238,7 @@
         "care_withdrawal_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "change_request_not_pending": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "change_request_stale": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "child_quota_reached": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "companion_lock_busy": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "companion_would_lose_departure": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "companions_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2273,19 +2286,36 @@
         "self_assignment": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
       },
       "timetable": {
+        "ambiguous_template_instance_delete": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "calendar_period_care_offering_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "calendar_period_overlap_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "complete_too_early": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "completion_confirmation_stale": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "duplicate_instance": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "guardian_notice_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "idempotency_key_reused": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "instance_moved": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "instance_not_convertible": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "instance_not_editable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "invalid_transition": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "only_supervisor_replacement_required": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "pickup_extension_block_gone": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "pickup_extension_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "presence_would_overstaff": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "sick_absence_scope_locked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "staff_absent_on_date": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "staff_absent_on_target": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "staff_already_on_target": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "start_too_early": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "start_window_expired": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "substitute_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "template_care_offering_conflict": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "template_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "template_roster_rebase_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "template_start_in_past": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "template_start_not_earlier": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
-        "template_start_predecessor_overlap": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
+        "template_start_predecessor_overlap": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "understaffed_still_staffed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "workforce": {
         "absence_allowance_exceeded": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

@@ -319,7 +319,7 @@ describe("OpeningBalanceImportPage", () => {
           Promise.resolve({
             status: "error",
             error: "Import fehlgeschlagen",
-            code: "import_batch_failed",
+            code: "import.import_batch_failed",
             details: {
               result: {
                 TotalRows: 205,

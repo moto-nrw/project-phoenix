@@ -57,7 +57,7 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, status int, errorM
 			slog.String("correlation_id", requestID(r)),
 			slog.String("error", errorMsg),
 		)
-		noteServerError(r.Context(), errors.New(errorMsg), "")
+		noteServerError(r.Context(), errors.New(errorMsg), ErrorClassCode(status))
 	}
 	render.Status(r, status)
 	render.JSON(w, r, map[string]string{

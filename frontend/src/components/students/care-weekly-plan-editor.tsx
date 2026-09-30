@@ -776,7 +776,7 @@ export function CareWeeklyPlanEditForm({
       // The backend refuses to let an account without a staff profile overwrite
       // a parent-set time. Surface that as a readable reason, not a raw 403.
       setError(
-        raw.includes("staff_profile_required")
+        raw.includes("students.staff_profile_required")
           ? "Diese Zeit wurde von den Eltern gesetzt und kann nur von Mitarbeitenden mit Personalprofil geändert werden."
           : raw,
       );

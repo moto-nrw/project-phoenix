@@ -109,7 +109,7 @@ describe("decideExcusedAbsenceRequest", () => {
       jsonResponse(
         {
           error: "Die Anfrage ist nicht mehr offen",
-          code: "change_request_not_pending",
+          code: "students.change_request_not_pending",
         },
         409,
       ),
@@ -120,7 +120,7 @@ describe("decideExcusedAbsenceRequest", () => {
     );
     expect(err).toBeInstanceOf(ExcusedRequestApiError);
     expect((err as ExcusedRequestApiError).code).toBe(
-      "change_request_not_pending",
+      "students.change_request_not_pending",
     );
   });
 

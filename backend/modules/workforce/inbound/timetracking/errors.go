@@ -15,7 +15,7 @@ import (
 func classifyServiceError(err error) render.Renderer {
 	var plannedStart *workforce.PlannedStartNotReachedError
 	if errors.As(err, &plannedStart) {
-		return common.ErrorConflictWithDetails(err, "planned_start_not_reached", map[string]any{
+		return common.ErrorConflictWithDetails(err, common.CodeIotPlannedStartNotReached, map[string]any{
 			"planned_start_time": plannedStart.PlannedStartTime,
 			"current_time":       plannedStart.CurrentTime,
 		})
@@ -26,7 +26,7 @@ func classifyServiceError(err error) render.Renderer {
 	// Planende aus" and retry the same stamp with a reason.
 	var deviation *workforce.DeviationReasonRequiredError
 	if errors.As(err, &deviation) {
-		return common.ErrorConflictWithDetails(err, "deviation_reason_required", map[string]any{
+		return common.ErrorConflictWithDetails(err, common.CodeIotDeviationReasonRequired, map[string]any{
 			"action":            deviation.Action,
 			"planned_time":      deviation.PlannedTime,
 			"actual_time":       deviation.ActualTime,
@@ -46,7 +46,7 @@ func classifyServiceError(err error) render.Renderer {
 	// frontend cannot use it as a mapping key — the stable code drives the
 	// specific German toast instead of the generic stamp error.
 	case strings.HasPrefix(msg, "work session overlaps an existing block"):
-		return common.ErrorConflictWithCode(err, "work_session_overlap")
+		return common.ErrorConflictWithCode(err, common.CodeWorkforceWorkSessionOverlap)
 
 	case msg == "no active session found",
 		msg == "no session found for today",
@@ -82,19 +82,19 @@ func classifyAbsenceError(err error) render.Renderer {
 
 	switch {
 	case errors.Is(err, workforce.ErrManagerControlledAbsence):
-		return common.ErrorForbiddenWithCode(err, "manager_controlled_absence")
+		return common.ErrorForbiddenWithCode(err, common.CodeWorkforceManagerControlledAbsence)
 
 	// School-defined Abwesenheitsarten (#2403). A retired or unknown art is a
 	// bad selection, not a server fault — the client has to pick another one.
 	case errors.Is(err, workforce.ErrAbsenceTypeInactive):
-		return common.ErrorConflictWithCode(err, "absence_type_inactive")
+		return common.ErrorConflictWithCode(err, common.CodeWorkforceAbsenceTypeInactive)
 
 	case errors.Is(err, workforce.ErrAbsenceTypeNotFound):
 		return common.ErrorInvalidRequest(err)
 
 	// Kontingente may not go negative (#3256); the client explains the code.
 	case errors.Is(err, workforce.ErrVacationQuotaExceeded):
-		return common.ErrorConflictWithCode(err, "vacation_quota_exceeded")
+		return common.ErrorConflictWithCode(err, common.CodeWorkforceVacationQuotaExceeded)
 
 	case errors.Is(err, workforce.ErrAllowanceBookingOverlap):
 		return common.ErrorConflict(err)

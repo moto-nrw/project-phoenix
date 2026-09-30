@@ -74,7 +74,7 @@ describe("files-api error wording", () => {
     mockFetch().mockResolvedValue(
       errorResponse(409, {
         error: "folder name already exists",
-        code: "folder_name_taken",
+        code: "files.folder_name_taken",
       }),
     );
 
@@ -92,7 +92,7 @@ describe("files-api error wording", () => {
     mockFetch().mockResolvedValue(
       errorResponse(409, {
         error: "file storage quota exceeded",
-        code: "quota_exceeded",
+        code: "files.quota_exceeded",
       }),
     );
 

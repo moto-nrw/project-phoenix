@@ -211,7 +211,7 @@ func (rs *StaffAdminResource) approveAbsence(w http.ResponseWriter, r *http.Requ
 // and a stale decision out of the 5xx bucket.
 var approveAbsenceErrorRules = []common.ErrorRule{
 	{Target: workforce.ErrVacationQuotaExceeded, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "vacation_quota_exceeded")
+		return common.ErrorConflictWithCode(err, common.CodeWorkforceVacationQuotaExceeded)
 	}},
 	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
 	{Match: absenceMsgIs("only requested absences can be approved"), Render: common.ErrorConflict},
@@ -252,7 +252,7 @@ var questionAbsenceErrorRules = []common.ErrorRule{
 	// School-defined Abwesenheitsarten (#2403): a retired or unknown art is a
 	// bad selection, not a server fault.
 	{Target: workforce.ErrAbsenceTypeInactive, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "absence_type_inactive")
+		return common.ErrorConflictWithCode(err, common.CodeWorkforceAbsenceTypeInactive)
 	}},
 	{Target: workforce.ErrAbsenceTypeNotFound, Render: common.ErrorInvalidRequest},
 	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
@@ -328,7 +328,7 @@ func (rs *StaffAdminResource) setStaffVacationQuota(w http.ResponseWriter, r *ht
 	}
 	// Every change of the Urlaubsanspruch is recorded with its reason (#3256).
 	if strings.TrimSpace(body.Reason) == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("reason is required"), "vacation_quota_reason_required"))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("reason is required"), common.CodeWorkforceVacationQuotaReasonRequired))
 		return
 	}
 	changedBy, err := rs.resolveEditorStaffID(r.Context())
@@ -343,7 +343,7 @@ func (rs *StaffAdminResource) setStaffVacationQuota(w http.ResponseWriter, r *ht
 		if errors.Is(err, workforce.ErrVacationQuotaInvalid) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		} else if errors.Is(err, workforce.ErrVacationQuotaExceeded) {
-			common.RenderError(w, r, common.ErrorConflictWithCode(err, "vacation_quota_below_used"))
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeWorkforceVacationQuotaBelowUsed))
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
@@ -474,7 +474,7 @@ func classifyAdminEditError(err error) render.Renderer {
 	case strings.Contains(msg, "work session overlaps an existing block"):
 		// Same stable code as the self-service route: the message carries the
 		// dynamic conflicting interval and is unusable as a mapping key.
-		return common.ErrorConflictWithCode(err, "work_session_overlap")
+		return common.ErrorConflictWithCode(err, common.CodeWorkforceWorkSessionOverlap)
 	default:
 		return common.ErrorInternalServer(err)
 	}
@@ -573,19 +573,19 @@ var adminAbsenceErrorRules = []common.ErrorRule{
 	// School-defined Abwesenheitsarten (#2403): a retired or unknown art is a
 	// bad selection, not a server fault.
 	{Target: workforce.ErrAbsenceTypeInactive, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "absence_type_inactive")
+		return common.ErrorConflictWithCode(err, common.CodeWorkforceAbsenceTypeInactive)
 	}},
 	{Target: workforce.ErrAbsenceTypeNotFound, Render: common.ErrorInvalidRequest},
 	{Target: workforce.ErrAbsenceTypeAllowanceInvalid, Render: common.ErrorInvalidRequest},
 	{Target: workforce.ErrAbsenceTypeAllowanceExceeded, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "absence_allowance_exceeded")
+		return common.ErrorConflictWithCode(err, common.CodeWorkforceAbsenceAllowanceExceeded)
 	}},
 	{Target: workforce.ErrVacationQuotaExceeded, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "vacation_quota_exceeded")
+		return common.ErrorConflictWithCode(err, common.CodeWorkforceVacationQuotaExceeded)
 	}},
 	{Target: workforce.ErrAllowanceBookingOverlap, Render: common.ErrorConflict},
 	{Target: workforce.ErrAbsenceRebookingBlocked, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, "absence_rebooking_blocked")
+		return common.ErrorConflictWithCode(err, common.CodeWorkforceAbsenceRebookingBlocked)
 	}},
 	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
 	{Match: absenceMsgIs("can only delete own absences"), Render: common.ErrorForbidden},

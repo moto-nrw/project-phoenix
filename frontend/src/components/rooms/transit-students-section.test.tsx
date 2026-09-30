@@ -722,7 +722,7 @@ describe("TransitStudentsSection booking into a released room", () => {
       "Move students to open room failed: 409",
     ) as ApiError;
     stale.status = 409;
-    stale.code = "room_not_released";
+    stale.code = "rooms.not_released";
     vi.mocked(activeService.moveStudentsToOpenRoom).mockRejectedValue(stale);
     render(<TransitStudentsSection />);
 
@@ -746,7 +746,7 @@ describe("TransitStudentsSection booking into a released room", () => {
   it.each([
     {
       kind: "activity",
-      code: "presence.activity_participant_limit_reached",
+      code: "presence.activity_participant_limit_reached" as const,
       details: {
         activity_name: "Betreuung",
         current_occupancy: 45,
@@ -758,7 +758,7 @@ describe("TransitStudentsSection booking into a released room", () => {
     },
     {
       kind: "room",
-      code: "presence.room_capacity_exceeded",
+      code: "presence.room_capacity_exceeded" as const,
       details: {
         room_name: "Aula",
         current_occupancy: 30,

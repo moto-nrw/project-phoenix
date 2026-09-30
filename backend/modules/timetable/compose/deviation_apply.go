@@ -55,7 +55,7 @@ func (s *staffDeviations) ApplyDeviations(ctx context.Context, instanceID int64,
 	}
 
 	if !isPlannableInstance(instance) {
-		return nil, timetable.DeviationConflict("invalid_transition", msgInstanceNotEditable)
+		return nil, timetable.DeviationConflict(timetable.CodeInvalidTransition, msgInstanceNotEditable)
 	}
 
 	if in.UnderstaffedNote != nil && utf8.RuneCountInString(*in.UnderstaffedNote) > scheduleModel.ActivityExceptionReasonMaxLength {
@@ -128,7 +128,7 @@ func (s *staffDeviations) cancelDeviation(ctx context.Context, instanceID int64,
 	// cancelling the moved block would break the day-lock ordering. Abort so the
 	// client reopens it on its new day (#1840).
 	if locked.Date != instance.Date {
-		return nil, timetable.DeviationConflict("instance_moved", msgInstanceMoved)
+		return nil, timetable.DeviationConflict(timetable.CodeInstanceMoved, msgInstanceMoved)
 	}
 	// A move to a past day would rewrite history; the initial guard ran against a
 	// possibly-stale read, so re-check under the lock.

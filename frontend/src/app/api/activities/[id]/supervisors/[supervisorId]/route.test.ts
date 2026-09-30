@@ -366,7 +366,7 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
         JSON.stringify({
           status: "error",
           error: "cannot remove the only supervisor",
-          code: "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED",
+          code: "timetable.only_supervisor_replacement_required",
         }),
         {
           status: 409,
@@ -400,7 +400,7 @@ describe("DELETE /api/activities/[id]/supervisors/[supervisorId]", () => {
     await expect(response.json()).resolves.toEqual({
       status: "error",
       error: "cannot remove the only supervisor",
-      code: "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED",
+      code: "timetable.only_supervisor_replacement_required",
     });
   });
 

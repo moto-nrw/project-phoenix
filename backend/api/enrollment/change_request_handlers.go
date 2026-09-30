@@ -343,12 +343,12 @@ func mapChangeRequestError(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, capability.ErrChangeRequestNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, capability.ErrChangeRequestChildLocked):
-		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "enrollment.change_request_child_locked"))
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentChangeRequestChildLocked))
 	case errors.Is(err, capability.ErrChangeRequestNotAllowed),
 		errors.Is(err, capability.ErrEditNotAllowed):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, capability.ErrChangeRequestConflict):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.change_request_conflict"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentChangeRequestConflict))
 	case errors.Is(err, capability.ErrChangeRequestInvalidStatus),
 		errors.Is(err, capability.ErrChangeRequestInvalidData):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -360,9 +360,9 @@ func mapChangeRequestError(w http.ResponseWriter, r *http.Request, err error) {
 	// the client shows its clean German instruction instead of the wrapped
 	// sync context (#1694).
 	case errors.Is(err, userModels.ErrCompanionWouldLoseDeparture):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(userModels.ErrCompanionWouldLoseDeparture, common.CodeCompanionWouldLoseDeparture))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(userModels.ErrCompanionWouldLoseDeparture, common.CodeStudentsCompanionWouldLoseDeparture))
 	case errors.Is(err, userModels.ErrCompanionLockBusy):
-		common.RenderError(w, r, common.ErrorConflictWithCode(userModels.ErrCompanionLockBusy, common.CodeCompanionLockBusy))
+		common.RenderError(w, r, common.ErrorConflictWithCode(userModels.ErrCompanionLockBusy, common.CodeStudentsCompanionLockBusy))
 	default:
 		mapEditError(w, r, err)
 	}

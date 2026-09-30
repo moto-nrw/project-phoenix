@@ -164,7 +164,7 @@ func renderCreateInvitationError(w http.ResponseWriter, r *http.Request, err err
 		return true
 	}
 	if errors.Is(err, identityaccess.ErrAccountAlreadyHasTenantAccess) {
-		common.RenderError(w, r, common.ErrorConflictWithCode(identityaccess.ErrAccountAlreadyHasTenantAccess, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(identityaccess.ErrAccountAlreadyHasTenantAccess, common.CodeIdentityAccountAlreadyHasTenantAccess))
 		return true
 	}
 	switch {
@@ -272,13 +272,13 @@ type AcceptInvitationResponse struct {
 
 var acceptInvitationErrorRules = []common.ErrorRule{
 	{Target: identityaccess.ErrInvitationOwnerRequired, Render: func(err error) render.Renderer {
-		return common.ErrorUnauthorizedWithCode(err, "INVITATION_ACCOUNT_LOGIN_REQUIRED")
+		return common.ErrorUnauthorizedWithCode(err, common.CodeIdentityInvitationAccountLoginRequired)
 	}},
 	{Target: identityaccess.ErrInvitationOwnerMismatch, Render: func(err error) render.Renderer {
-		return common.ErrorForbiddenWithCode(err, "INVITATION_ACCOUNT_MISMATCH")
+		return common.ErrorForbiddenWithCode(err, common.CodeIdentityInvitationAccountMismatch)
 	}},
 	{Target: identityaccess.ErrAccountInactive, Render: func(err error) render.Renderer {
-		return common.ErrorForbiddenWithCode(err, "ACCOUNT_INACTIVE")
+		return common.ErrorForbiddenWithCode(err, common.CodeIdentityAccountInactive)
 	}},
 	{Target: identityaccess.ErrPasswordTooWeak, Render: common.ErrorInvalidRequest},
 	{Target: identityaccess.ErrInvitationPasswordMismatch, Render: common.ErrorInvalidRequest},

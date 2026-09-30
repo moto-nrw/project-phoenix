@@ -237,7 +237,7 @@ describe("PersonalInfoEditPanel — remote companion changes", () => {
       ),
       {
         name: "CompanionsChangedError",
-        body: JSON.stringify({ code: "companions_changed" }),
+        body: JSON.stringify({ code: "students.companions_changed" }),
       },
     );
     const onSave = vi.fn().mockRejectedValue(staleError);

@@ -25,7 +25,7 @@ function envelope(result: Record<string, unknown>) {
   return {
     status: "error",
     error: "Import fehlgeschlagen",
-    code: "import_batch_failed",
+    code: "import.import_batch_failed",
     details: { result },
   };
 }
@@ -62,7 +62,9 @@ describe("readImportBatchFailure", () => {
         message: "Import fehlgeschlagen",
       }),
     ).toBeNull();
-    expect(readImportBatchFailure({ code: "import_batch_failed" })).toBeNull();
+    expect(
+      readImportBatchFailure({ code: "import.import_batch_failed" }),
+    ).toBeNull();
     expect(readImportBatchFailure(null)).toBeNull();
   });
 });
@@ -148,12 +150,15 @@ describe("readImportBatchRejection", () => {
     };
     expect(
       readImportBatchRejection({
-        code: "import_batch_failed",
+        code: "import.import_batch_failed",
         details: { result: {}, rejection },
       }),
     ).toEqual(rejection);
     expect(
-      readImportBatchRejection({ code: "import_batch_failed", details: {} }),
+      readImportBatchRejection({
+        code: "import.import_batch_failed",
+        details: {},
+      }),
     ).toBeNull();
     expect(readImportBatchRejection({ code: "other" })).toBeNull();
   });

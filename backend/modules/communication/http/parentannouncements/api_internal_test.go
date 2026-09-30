@@ -18,5 +18,5 @@ func TestRenderAnnouncementErrorMapsSystemAnnouncementImmutableToConflict(t *tes
 	renderAnnouncementError(recorder, request, announcementService.ErrSystemParentAnnouncementImmutable)
 
 	assert.Equal(t, http.StatusConflict, recorder.Code)
-	assert.Contains(t, recorder.Body.String(), `"code":"system_announcement_immutable"`)
+	assert.Contains(t, recorder.Body.String(), `"code":"communication.system_announcement_immutable"`)
 }

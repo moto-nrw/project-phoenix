@@ -15,61 +15,44 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
-// Wire error codes shared by every parent-request decide, correct, resolve
-// and mark-done route. They are a contract with the frontend — the client
-// branches on the code, never on the German message.
-const (
-	codeChangeRequestStale = "change_request_stale"
-	codeAbsenceReadRequird = "absence_read_required"
-	codeReasonRequired     = "reason_required"
-	codeRequestPast        = "request_past"
-	codeRequestNotPast     = "request_not_past"
-	codeRequestNotDecided  = "request_not_decided"
-	codeCorrectionUnsupp   = "correction_unsupported"
-	// Conflict-resolution codes (#2267, stories 6-10).
-	codeConflictKindUnsupported = "conflict_kind_unsupported"
-	codeStaffValueUnsupported   = "staff_value_unsupported"
-	codeStaffValueInvalid       = "staff_value_invalid"
-)
-
 // parentRequestSharedRules are the rules every parent-request route shares.
 // Per-route tables prepend their own domain sentinels and then append these,
 // so one sentinel can never render two different codes on two routes.
 var parentRequestSharedRules = []common.ErrorRule{
 	{Target: parentrequests.ErrStale, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, codeChangeRequestStale)
+		return common.ErrorConflictWithCode(err, common.CodeStudentsChangeRequestStale)
 	}},
 	// The Care Plan excused-absence workflow (#3093) answers with its own
 	// lifecycle sentinels; they render the same wire codes as the shared ones.
 	{Target: excusedrequests.ErrParentRequestStale, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, codeChangeRequestStale)
+		return common.ErrorConflictWithCode(err, common.CodeStudentsChangeRequestStale)
 	}},
 	{Target: excusedrequests.ErrParentRequestReasonRequired, Render: func(error) render.Renderer {
 		return common.ErrorInvalidRequestMessageWithCode(
 			"Bitte tragen Sie eine Begründung ein.",
-			codeReasonRequired,
+			common.CodeStudentsReasonRequired,
 		)
 	}},
 	{Target: excusedrequests.ErrParentRequestPast, Render: func(error) render.Renderer {
 		return common.ErrorConflictMessageWithCode(
 			"Diese Anfrage betrifft nur vergangene Tage. Sie können sie nur ablehnen oder als erledigt markieren.",
-			codeRequestPast,
+			common.CodeStudentsRequestPast,
 		)
 	}},
 	{Target: excusedrequests.ErrParentRequestNotPast, Render: func(error) render.Renderer {
 		return common.ErrorConflictMessageWithCode(
 			"Diese Anfrage betrifft noch kommende Tage. Bitte entscheiden Sie sie.",
-			codeRequestNotPast,
+			common.CodeStudentsRequestNotPast,
 		)
 	}},
 	{Target: excusedrequests.ErrParentRequestNotDecided, Render: func(error) render.Renderer {
 		return common.ErrorConflictMessageWithCode(
 			"Diese Anfrage ist noch nicht entschieden. Es gibt nichts zu korrigieren.",
-			codeRequestNotDecided,
+			common.CodeStudentsRequestNotDecided,
 		)
 	}},
 	{Target: excusedrequests.ErrParentRequestCorrectionUnsupported, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, codeCorrectionUnsupp)
+		return common.ErrorConflictWithCode(err, common.CodeStudentsCorrectionUnsupported)
 	}},
 	{Target: securityruntime.ErrAbsenceReadRequired, Render: absenceReadRequiredResponse},
 	{Target: reviewidentity.ErrAbsenceReadRequired, Render: absenceReadRequiredResponse},
@@ -78,29 +61,29 @@ var parentRequestSharedRules = []common.ErrorRule{
 	{Target: parentrequests.ErrReasonRequired, Render: func(error) render.Renderer {
 		return common.ErrorInvalidRequestMessageWithCode(
 			"Bitte tragen Sie eine Begründung ein.",
-			codeReasonRequired,
+			common.CodeStudentsReasonRequired,
 		)
 	}},
 	{Target: parentrequests.ErrPast, Render: func(error) render.Renderer {
 		return common.ErrorConflictMessageWithCode(
 			"Diese Anfrage betrifft nur vergangene Tage. Sie können sie nur ablehnen oder als erledigt markieren.",
-			codeRequestPast,
+			common.CodeStudentsRequestPast,
 		)
 	}},
 	{Target: parentrequests.ErrNotPast, Render: func(error) render.Renderer {
 		return common.ErrorConflictMessageWithCode(
 			"Diese Anfrage betrifft noch kommende Tage. Bitte entscheiden Sie sie.",
-			codeRequestNotPast,
+			common.CodeStudentsRequestNotPast,
 		)
 	}},
 	{Target: parentrequests.ErrNotDecided, Render: func(error) render.Renderer {
 		return common.ErrorConflictMessageWithCode(
 			"Diese Anfrage ist noch nicht entschieden. Es gibt nichts zu korrigieren.",
-			codeRequestNotDecided,
+			common.CodeStudentsRequestNotDecided,
 		)
 	}},
 	{Target: parentrequests.ErrCorrectionUnsupported, Render: func(err error) render.Renderer {
-		return common.ErrorConflictWithCode(err, codeCorrectionUnsupp)
+		return common.ErrorConflictWithCode(err, common.CodeStudentsCorrectionUnsupported)
 	}},
 }
 
@@ -115,7 +98,7 @@ func parentRequestRules(own ...common.ErrorRule) []common.ErrorRule {
 func absenceReadRequiredResponse(error) render.Renderer {
 	return common.ErrorForbiddenMessageWithCode(
 		"Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
-		codeAbsenceReadRequird,
+		common.CodeStudentsAbsenceReadRequired,
 	)
 }
 

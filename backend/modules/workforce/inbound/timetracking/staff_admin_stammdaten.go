@@ -218,7 +218,7 @@ func (rs *StaffAdminResource) runStammdatenUpdate(w http.ResponseWriter, r *http
 	if err := update(id, changedBy); err != nil {
 		switch {
 		case errors.Is(err, workforce.ErrStaffStammdatenInvalid):
-			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "stammdaten_invalid"))
+			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeWorkforceStammdatenInvalid))
 		case common.IsNotFound(err):
 			common.RenderError(w, r, common.ErrorNotFound(err))
 		default:
@@ -389,7 +389,7 @@ func (rs *StaffAdminResource) updateStammdatenFinancial(w http.ResponseWriter, r
 	}, accountID, req.Note); err != nil {
 		switch {
 		case errors.Is(err, workforce.ErrStaffStammdatenInvalid):
-			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "stammdaten_invalid"))
+			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeWorkforceStammdatenInvalid))
 		case common.IsNotFound(err):
 			common.RenderError(w, r, common.ErrorNotFound(err))
 		default:

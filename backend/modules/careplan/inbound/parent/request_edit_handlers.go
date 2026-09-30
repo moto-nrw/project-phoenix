@@ -86,9 +86,9 @@ func renderParentRequestError(w http.ResponseWriter, r *http.Request, err error)
 	// The Care Plan excused-absence workflow (#3093) raises its own lifecycle
 	// sentinels; they render the same wire codes as the shared ones.
 	case errors.Is(err, parentrequests.ErrStale), errors.Is(err, careplan.ErrParentRequestStale):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "change_request_stale"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeStudentsChangeRequestStale))
 	case errors.Is(err, careplan.ErrParentRequestReasonRequired):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "reason_required"))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeStudentsReasonRequired))
 	default:
 		renderParentWriteError(w, r, err)
 	}
@@ -104,7 +104,7 @@ func parseCreateRecipients(w http.ResponseWriter, r *http.Request, raw []string)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
 			errors.New("recipient_guardian_profile_ids must be distinct numeric guardian profile ids"),
-			"invalid_recipients"))
+			common.CodeCareInvalidRecipients))
 		return nil, false
 	}
 	return ids, true
@@ -258,7 +258,7 @@ func (rs *Resource) editOfferingChangeRequest(w http.ResponseWriter, r *http.Req
 	effectiveFrom, err := timezone.ParseDate(strings.TrimSpace(body.EffectiveFrom))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
-			errors.New("effective_from must be a date in YYYY-MM-DD form"), "offering_change_invalid"))
+			errors.New("effective_from must be a date in YYYY-MM-DD form"), common.CodeCareOfferingChangeInvalid))
 		return
 	}
 	selections := make([]careplan.OfferingChangeSelection, 0, len(body.Offerings))
@@ -266,7 +266,7 @@ func (rs *Resource) editOfferingChangeRequest(w http.ResponseWriter, r *http.Req
 		offeringID, convErr := strconv.ParseInt(strings.TrimSpace(entry.OfferingID), 10, 64)
 		if convErr != nil || offeringID <= 0 {
 			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
-				errors.New("offering_id must be a numeric id"), "offering_change_invalid"))
+				errors.New("offering_id must be a numeric id"), common.CodeCareOfferingChangeInvalid))
 			return
 		}
 		selections = append(selections, careplan.OfferingChangeSelection{

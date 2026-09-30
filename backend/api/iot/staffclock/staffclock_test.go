@@ -105,7 +105,7 @@ func TestStaffClock_FullNFCFlow(t *testing.T) {
 		"status":   workforce.WorkSessionStatusPresent,
 	})
 	require.Equal(t, 409, duplicateCode, "response: %v", duplicate)
-	assert.Equal(t, "invalid_staff_clock_state", duplicate["code"])
+	assert.Equal(t, "iot.invalid_staff_clock_state", duplicate["code"])
 	assert.Equal(t, "already checked in", duplicate["error"])
 
 	onBreak := route.stamp(t, "/staff-clock", map[string]string{
@@ -149,7 +149,7 @@ func TestStaffClock_FullNFCFlow(t *testing.T) {
 		"action":   devicescan.StaffClockActionBreakEnd,
 	})
 	require.Equal(t, 409, breakEndCode, "response: %v", breakEnd)
-	assert.Equal(t, "invalid_staff_clock_state", breakEnd["code"])
+	assert.Equal(t, "iot.invalid_staff_clock_state", breakEnd["code"])
 	assert.Equal(t, "no active break found", breakEnd["error"])
 }
 
@@ -161,7 +161,7 @@ func TestStaffClock_RejectsStudentCard(t *testing.T) {
 
 	code, parsed := route.call(t, "/staff-clock/state", map[string]string{"rfid_tag": tag})
 	assert.Equal(t, 409, code)
-	assert.Equal(t, "rfid_tag_not_staff", parsed["code"])
+	assert.Equal(t, "iot.rfid_tag_not_staff", parsed["code"])
 }
 
 func TestStaffClock_ClassifiesCardAndRequestFailures(t *testing.T) {
@@ -171,18 +171,18 @@ func TestStaffClock_ClassifiesCardAndRequestFailures(t *testing.T) {
 
 	code, parsed := route.call(t, "/staff-clock/state", map[string]string{"rfid_tag": "not a tag"})
 	assert.Equal(t, 400, code)
-	assert.Equal(t, "invalid_rfid_tag", parsed["code"])
+	assert.Equal(t, "iot.invalid_rfid_tag", parsed["code"])
 
 	code, parsed = route.call(t, "/staff-clock/state", map[string]string{"rfid_tag": "C1654FEED"})
 	assert.Equal(t, 404, code)
-	assert.Equal(t, "rfid_tag_not_found", parsed["code"])
+	assert.Equal(t, "iot.rfid_tag_not_found", parsed["code"])
 
 	code, parsed = route.call(t, "/staff-clock", map[string]string{"rfid_tag": "C1654FEED", "action": "dance"})
 	assert.Equal(t, 400, code)
-	assert.Equal(t, "invalid_staff_clock_request", parsed["code"])
+	assert.Equal(t, "iot.invalid_staff_clock_request", parsed["code"])
 
 	code, parsed = route.call(t, "/staff-clock", map[string]string{"rfid_tag": "C1654FEED", "action": devicescan.StaffClockActionCheckIn})
 	assert.Equal(t, 400, code)
-	assert.Equal(t, "invalid_staff_clock_request", parsed["code"])
+	assert.Equal(t, "iot.invalid_staff_clock_request", parsed["code"])
 	assert.Equal(t, "status is required for check-in", parsed["error"])
 }

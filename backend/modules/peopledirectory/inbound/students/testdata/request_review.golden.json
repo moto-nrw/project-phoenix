@@ -1729,7 +1729,7 @@
     "path": "/change-requests?view=open&search=Golda",
     "status": 403,
     "body": {
-      "code": "absence_read_required",
+      "code": "students.absence_read_required",
       "detail": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
       "error": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
       "instance": "",
@@ -1743,7 +1743,7 @@
     "path": "/change-requests?view=history&search=Golda",
     "status": 403,
     "body": {
-      "code": "absence_read_required",
+      "code": "students.absence_read_required",
       "detail": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
       "error": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
       "instance": "",
@@ -1757,7 +1757,7 @@
     "path": "/change-requests/pending-count",
     "status": 403,
     "body": {
-      "code": "absence_read_required",
+      "code": "students.absence_read_required",
       "detail": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
       "error": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
       "instance": "",

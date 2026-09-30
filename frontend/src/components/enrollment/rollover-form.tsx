@@ -1,5 +1,6 @@
 "use client";
 
+import { wireErrorCode } from "~/lib/api-error";
 import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import {
@@ -188,7 +189,7 @@ export function RolloverForm({
       onSuccess(result);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      const code = (err as { code?: string } | undefined)?.code;
+      const code = wireErrorCode((err as { code?: unknown } | undefined)?.code);
       logger.error("rollover_create_failed", { error: message, code });
       if (code === "rollover.duplicate_name") {
         setNameError(message);

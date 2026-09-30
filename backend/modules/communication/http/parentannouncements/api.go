@@ -674,25 +674,25 @@ func renderAnnouncementError(w http.ResponseWriter, r *http.Request, err error) 
 	case errors.Is(err, announcementService.ErrParentAnnouncementNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, announcementService.ErrParentNewsDisabled):
-		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "parent_news_disabled"))
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCommunicationParentNewsDisabled))
 	case errors.Is(err, announcementService.ErrPublishedParentAnnouncement):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_published_immutable"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationAnnouncementPublishedImmutable))
 	case errors.Is(err, announcementService.ErrSystemParentAnnouncementImmutable):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "system_announcement_immutable"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationSystemAnnouncementImmutable))
 	case errors.Is(err, announcementService.ErrParentAnnouncementNotPoll):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, announcementService.ErrParentAnnouncementPollClosed):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "poll_not_open"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationPollNotOpen))
 	case errors.Is(err, announcementService.ErrParentAnnouncementNotPublished):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_not_published"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationAnnouncementNotPublished))
 	case errors.Is(err, announcementService.ErrParentAnnouncementNothingDue):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, announcementService.ErrParentAnnouncementReminderSent):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_reminder_sent"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationAnnouncementReminderSent))
 	case errors.Is(err, announcementService.ErrParentAnnouncementValidation):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, announcementService.ErrDeclarationHasSubmissions):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "declaration_has_submissions"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationDeclarationHasSubmissions))
 	case errors.Is(err, announcementService.ErrNotDeclaration):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	default:

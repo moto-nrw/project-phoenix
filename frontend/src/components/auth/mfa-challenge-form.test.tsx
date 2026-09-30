@@ -138,7 +138,11 @@ describe("MFAChallengeForm", () => {
   });
 
   it("delegates a coded portal handoff error to the embedding login flow", async () => {
-    global.fetch = mockErr(403, "school portal required", "use_school_portal");
+    global.fetch = mockErr(
+      403,
+      "school portal required",
+      "identity.use_school_portal",
+    );
     const onError = vi.fn().mockResolvedValue(true);
 
     render(
@@ -156,7 +160,10 @@ describe("MFAChallengeForm", () => {
 
     await waitFor(() => {
       expect(onError).toHaveBeenCalledWith(
-        expect.objectContaining({ code: "use_school_portal", status: 403 }),
+        expect.objectContaining({
+          code: "identity.use_school_portal",
+          status: 403,
+        }),
       );
     });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();

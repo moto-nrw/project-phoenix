@@ -132,7 +132,7 @@ func TestPickupExtensions_ListAndResolve(t *testing.T) {
 
 	w = executeRequest(router, http.MethodPost, fmt.Sprintf("/pickup-extensions/%d/resolve", task.ID), map[string]any{})
 	assert.Equal(t, http.StatusNotFound, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), pickupExtensionNotFoundCode)
+	assert.Contains(t, w.Body.String(), "timetable.pickup_extension_not_found")
 }
 
 func TestPickupExtensions_ResolveErrors(t *testing.T) {
@@ -150,7 +150,7 @@ func TestPickupExtensions_ResolveErrors(t *testing.T) {
 	})
 	w := executeRequest(router, http.MethodPost, path, map[string]any{"block_ids": []int64{office.ID}})
 	assert.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), pickupExtensionBlockGoneCode)
+	assert.Contains(t, w.Body.String(), "timetable.pickup_extension_block_gone")
 
 	w = executeRequest(router, http.MethodPost, path, map[string]any{"block_ids": []int64{-4}})
 	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())

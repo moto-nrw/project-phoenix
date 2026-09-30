@@ -152,7 +152,7 @@ func (s *InstanceLifecycleService) AcknowledgeUnderstaffed(ctx context.Context, 
 		return nil, err
 	}
 	if locked.Date != instance.Date {
-		return nil, timetable.DeviationConflict("instance_moved", msgInstanceMoved)
+		return nil, timetable.DeviationConflict(timetable.CodeInstanceMoved, msgInstanceMoved)
 	}
 	return s.SetUnderstaffedAck(ctx, instanceID, ack, note, actorAccountID)
 }

@@ -23,23 +23,23 @@ var balanceAdjustmentErrorRules = []common.ErrorRule{
 
 func renderBalanceAdjustmentError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, workforce.ErrBalanceAlreadyReset) {
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "balance_already_reset"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeWorkforceBalanceAlreadyReset))
 		return
 	}
 	if errors.Is(err, workforce.ErrAdjustmentHasDependentReset) {
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "dependent_balance_reset"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeWorkforceDependentBalanceReset))
 		return
 	}
 	if errors.Is(err, workforce.ErrAdjustmentExceedsBalance) {
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "balance_adjustment_exceeds_balance"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeWorkforceBalanceAdjustmentExceedsBalance))
 		return
 	}
 	if errors.Is(err, workforce.ErrAdjustmentInClosedMonth) {
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "adjustment_in_closed_month"))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeWorkforceAdjustmentInClosedMonth))
 		return
 	}
 	if errors.Is(err, workforce.ErrOpeningAlreadyExists) {
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "opening_balance_already_exists"))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeWorkforceOpeningBalanceAlreadyExists))
 		return
 	}
 	common.RenderError(w, r, common.RenderWithRules(err, balanceAdjustmentErrorRules, common.ErrorInternalServer))

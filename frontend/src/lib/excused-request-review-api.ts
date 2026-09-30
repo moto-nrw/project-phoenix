@@ -46,7 +46,7 @@ function unwrap<T>(json: Envelope<T>): T {
 
 /**
  * Error thrown by the excused-request client. Carries the backend's stable 409
- * `code` (e.g. "change_request_not_pending") so the review UI can name the
+ * `code` (e.g. "students.change_request_not_pending") so the review UI can name the
  * concrete recovery action instead of collapsing every failure into one generic
  * message. The raw `error` string stays the Error message for logging.
  */

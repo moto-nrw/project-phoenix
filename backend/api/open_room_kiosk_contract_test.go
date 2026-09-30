@@ -70,9 +70,9 @@ func checkOpenRoomKioskBooking(t *testing.T, api *API) {
 		status int
 		code   string
 	}{
-		{"unreleased room", unreleased.ID, http.StatusConflict, "room_not_released"},
-		{"foreign tenant's released room", foreignGym.ID, http.StatusNotFound, "room_not_found"},
-		{"unknown room", 999_999_999, http.StatusNotFound, "room_not_found"},
+		{"unreleased room", unreleased.ID, http.StatusConflict, "rooms.not_released"},
+		{"foreign tenant's released room", foreignGym.ID, http.StatusNotFound, "iot.room_not_found"},
+		{"unknown room", 999_999_999, http.StatusNotFound, "iot.room_not_found"},
 	} {
 		refused := kiosk.post(t, "/api/iot/move-to-room", map[string]any{"student_rfid": tag, "room_id": refusal.roomID}, "1234")
 		assert.Equal(t, refusal.status, refused.Code, "%s: %s", refusal.name, refused.Body.String())
@@ -83,7 +83,7 @@ func checkOpenRoomKioskBooking(t *testing.T, api *API) {
 	absentTag, absentID := openRoomKioskChild(t, db, "Absent")
 	absent := kiosk.post(t, "/api/iot/move-to-room", map[string]any{"student_rfid": absentTag, "room_id": gym.ID}, "1234")
 	assert.Equal(t, http.StatusConflict, absent.Code, absent.Body.String())
-	assert.Contains(t, absent.Body.String(), `"code":"student_not_present"`)
+	assert.Contains(t, absent.Body.String(), `"code":"iot.student_not_present"`)
 	assert.Empty(t, openVisitSessions(t, db, absentID))
 
 	// The kiosk's device key and the school PIN stay required.

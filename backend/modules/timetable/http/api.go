@@ -27,10 +27,6 @@ const dateLayout = "2006-01-02"
 const calendarPeriodRosterDeleteConflictMessage = "Kalenderzeitraum kann nicht gelöscht werden: " +
 	"Durch das Entfernen der Verknüpfungen würden doppelte aktive Kinder- oder Personalzuordnungen entstehen."
 
-const calendarPeriodCareOfferingConflictCode = "calendar_period_care_offering_conflict"
-
-const calendarPeriodOverlapConflictCode = "calendar_period_overlap_conflict"
-
 const (
 	calendarPeriodsLoadErrorMessage      = "Kalenderzeiträume konnten nicht geladen werden"
 	calendarPeriodUsageErrorMessage      = "Verwendung der Kalenderzeiträume konnte nicht geladen werden"
@@ -53,7 +49,7 @@ var errCalendarPeriodOverlapConflict = errors.New(
 func calendarPeriodOverlapRenderer(err error) render.Renderer {
 	var overlapErr *schoolcalendar.CalendarPeriodOverlapError
 	if !errors.As(err, &overlapErr) || len(overlapErr.Overlaps) == 0 {
-		return common.ErrorConflictWithCode(errCalendarPeriodOverlapConflict, calendarPeriodOverlapConflictCode)
+		return common.ErrorConflictWithCode(errCalendarPeriodOverlapConflict, common.CodeTimetableCalendarPeriodOverlapConflict)
 	}
 	first := overlapErr.Overlaps[0]
 	ids := make([]int64, 0, len(overlapErr.Overlaps))
@@ -68,7 +64,7 @@ func calendarPeriodOverlapRenderer(err error) render.Renderer {
 		germanCalendarDate(first.StartDate),
 		germanCalendarDate(first.EndDate),
 	)
-	return common.ErrorConflictWithDetails(message, calendarPeriodOverlapConflictCode, map[string]any{
+	return common.ErrorConflictWithDetails(message, common.CodeTimetableCalendarPeriodOverlapConflict, map[string]any{
 		"overlapping_period_ids":   ids,
 		"overlapping_period_names": names,
 	})
@@ -523,7 +519,7 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 			tenant.MarkRollback(r.Context())
 			common.RenderError(w, r, common.ErrorConflictWithCode(
 				errCalendarPeriodCareOfferingConflict,
-				calendarPeriodCareOfferingConflictCode,
+				common.CodeTimetableCalendarPeriodCareOfferingConflict,
 			))
 		case errors.Is(err, schoolcalendar.ErrCalendarPeriodOverlapConflict):
 			tenant.MarkRollback(r.Context())
@@ -560,7 +556,7 @@ func (rs *Resource) deletePeriod(w http.ResponseWriter, r *http.Request) {
 			tenant.MarkRollback(r.Context())
 			common.RenderError(w, r, common.ErrorConflictWithCode(
 				errCalendarPeriodCareOfferingConflict,
-				calendarPeriodCareOfferingConflictCode,
+				common.CodeTimetableCalendarPeriodCareOfferingConflict,
 			))
 			return
 		}

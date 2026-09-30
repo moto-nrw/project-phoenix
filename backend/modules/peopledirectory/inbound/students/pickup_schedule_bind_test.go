@@ -1034,7 +1034,7 @@ func TestPickupResetErrorRenderer_NoOfferingIsConflict(t *testing.T) {
 	require.NoError(t, render.Render(w, r, pickupResetErrorRenderer(ErrPickupResetNoOffering)))
 
 	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), `"code":"pickup_reset_requires_offering"`)
+	assert.Contains(t, w.Body.String(), `"code":"students.pickup_reset_requires_offering"`)
 }
 
 // =============================================================================

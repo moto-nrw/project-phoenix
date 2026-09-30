@@ -83,7 +83,7 @@ func (s *InstanceLifecycleService) planStaffMove(ctx context.Context, targetID i
 		return nil, err
 	}
 	if timezone.Date(target.Date) != lockedDate || !isPlannableInstance(target) {
-		return nil, timetable.DeviationConflict("instance_moved", "block was changed concurrently; reopen it and try again")
+		return nil, timetable.DeviationConflict(timetable.CodeInstanceMoved, "block was changed concurrently; reopen it and try again")
 	}
 	source, err := s.loadMoveSource(ctx, target, in.SourceInstanceID)
 	if err != nil {
@@ -118,7 +118,7 @@ func (s *InstanceLifecycleService) loadMoveSource(ctx context.Context, target *s
 		return nil, err
 	}
 	if !isPlannableInstance(source) {
-		return nil, timetable.DeviationConflict("invalid_transition", "source block is no longer editable")
+		return nil, timetable.DeviationConflict(timetable.CodeInvalidTransition, "source block is no longer editable")
 	}
 	if source.Date != target.Date {
 		return nil, timetable.DeviationBadRequest("source and target block must be on the same day")
@@ -159,7 +159,7 @@ func (s *InstanceLifecycleService) staffRowOn(ctx context.Context, instanceID, s
 func (s *InstanceLifecycleService) planPoolAssign(ctx context.Context, plan *staffMovePlan, onTarget *scheduleModel.InstanceStaff) (*staffMovePlan, error) {
 	if onTarget != nil {
 		if onTarget.IsAbsent {
-			return nil, timetable.DeviationConflict("staff_absent_on_target", msgStaffAbsentOnTarget)
+			return nil, timetable.DeviationConflict(timetable.CodeStaffAbsentOnTarget, msgStaffAbsentOnTarget)
 		}
 		plan.action = timetable.MoveStaffActionAlreadyApplied
 		return plan, nil
@@ -177,13 +177,13 @@ func (s *InstanceLifecycleService) planPoolAssign(ctx context.Context, plan *sta
 func (s *InstanceLifecycleService) planRelocation(ctx context.Context, plan *staffMovePlan, onTarget, onSource *scheduleModel.InstanceStaff) (*staffMovePlan, error) {
 	if onTarget != nil {
 		if onTarget.IsAbsent {
-			return nil, timetable.DeviationConflict("staff_absent_on_target", msgStaffAbsentOnTarget)
+			return nil, timetable.DeviationConflict(timetable.CodeStaffAbsentOnTarget, msgStaffAbsentOnTarget)
 		}
 		if onSource == nil {
 			plan.action = timetable.MoveStaffActionAlreadyApplied
 			return plan, nil
 		}
-		return nil, timetable.DeviationConflict("staff_already_on_target", msgStaffAlreadyOnTarget)
+		return nil, timetable.DeviationConflict(timetable.CodeStaffAlreadyOnTarget, msgStaffAlreadyOnTarget)
 	}
 	if onSource == nil {
 		return nil, timetable.DeviationBadRequest(msgStaffNotOnSource)
@@ -209,7 +209,7 @@ func (s *InstanceLifecycleService) rejectDayWideAbsence(ctx context.Context, sta
 	}
 	for _, row := range dayRows {
 		if row != nil && row.IsAbsent {
-			return timetable.DeviationConflict("staff_absent_on_date", msgStaffAbsentOnDate)
+			return timetable.DeviationConflict(timetable.CodeStaffAbsentOnDate, msgStaffAbsentOnDate)
 		}
 	}
 	return nil

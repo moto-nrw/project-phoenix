@@ -74,7 +74,7 @@ func TestErrorRoomCapacityExceeded(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, "error", resp.Status)
 	assert.Equal(t, "Room capacity exceeded", resp.Message)
-	assert.Equal(t, "ROOM_CAPACITY_EXCEEDED", resp.Code)
+	assert.Equal(t, "iot.room_capacity_exceeded", resp.Code)
 	assert.NotNil(t, resp.Details)
 	assert.Equal(t, int64(42), resp.Details.RoomID)
 	assert.Equal(t, "Test Room", resp.Details.RoomName)
@@ -91,7 +91,7 @@ func TestErrorActivityCapacityExceeded(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, "error", resp.Status)
 	assert.Equal(t, "Activity capacity exceeded", resp.Message)
-	assert.Equal(t, "ACTIVITY_CAPACITY_EXCEEDED", resp.Code)
+	assert.Equal(t, "iot.activity_capacity_exceeded", resp.Code)
 	assert.NotNil(t, resp.Details)
 	assert.Equal(t, int64(77), resp.Details.ActivityID)
 	assert.Equal(t, "Test Activity", resp.Details.ActivityName)
@@ -106,7 +106,7 @@ func TestCapacityErrorResponse_Render(t *testing.T) {
 	resp := &checkin.CapacityErrorResponse{
 		Status:  "error",
 		Message: "Room capacity exceeded",
-		Code:    "ROOM_CAPACITY_EXCEEDED",
+		Code:    "iot.room_capacity_exceeded",
 		Details: &checkin.RoomCapacityExceededError{
 			RoomID:           1,
 			RoomName:         "Test Room",
@@ -129,7 +129,7 @@ func TestActivityCapacityErrorResponse_Render(t *testing.T) {
 	resp := &checkin.ActivityCapacityErrorResponse{
 		Status:  "error",
 		Message: "Activity capacity exceeded",
-		Code:    "ACTIVITY_CAPACITY_EXCEEDED",
+		Code:    "iot.activity_capacity_exceeded",
 		Details: &checkin.ActivityCapacityExceededError{
 			ActivityID:       1,
 			ActivityName:     "Test Activity",
@@ -172,7 +172,7 @@ func TestErrorStudentAlreadyActive_DegradedPathOmitsOptionalFields(t *testing.T)
 	var decoded map[string]interface{}
 	require.NoError(t, json.Unmarshal(body, &decoded))
 
-	assert.Equal(t, "STUDENT_ALREADY_ACTIVE", decoded["code"])
+	assert.Equal(t, "iot.student_already_active", decoded["code"])
 	details, ok := decoded["details"].(map[string]interface{})
 	require.True(t, ok)
 

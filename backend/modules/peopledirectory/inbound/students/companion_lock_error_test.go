@@ -110,7 +110,7 @@ func TestUpdateStudentTxErrorRenderer_CompanionsChanged(t *testing.T) {
 		resp := rendererStatus(t, updateStudentTxErrorRenderer(careplan.ErrCompanionsChanged))
 
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
-		assert.Equal(t, CodeCompanionsChanged, resp.Code)
+		assert.Equal(t, common.CodeStudentsCompanionsChanged, resp.Code)
 		// The German sentence reaches the UI unchanged — it carries the one
 		// instruction that gets the user out ("neu laden").
 		assert.Equal(t, careplan.ErrCompanionsChanged.Error(), resp.ErrorText)
@@ -122,12 +122,12 @@ func TestUpdateStudentTxErrorRenderer_CompanionsChanged(t *testing.T) {
 		))
 
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
-		assert.Equal(t, CodeCompanionsChanged, resp.Code)
+		assert.Equal(t, common.CodeStudentsCompanionsChanged, resp.Code)
 	})
 
 	t.Run("its code is distinct from the lock collision", func(t *testing.T) {
 		// The client keys "reload first" off this code and "just try again" off
 		// the other; collapsing them would show the wrong instruction.
-		assert.NotEqual(t, CodeCompanionLockBusy, CodeCompanionsChanged)
+		assert.NotEqual(t, common.CodeStudentsCompanionLockBusy, common.CodeStudentsCompanionsChanged)
 	})
 }

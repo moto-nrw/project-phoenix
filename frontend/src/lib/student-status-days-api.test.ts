@@ -100,7 +100,7 @@ describe("student-status-days-api", () => {
         {
           status: "error",
           error: "student status day conflicts with a partial absence",
-          code: "partial_absence_conflict",
+          code: "students.partial_absence_conflict",
         },
         { status: 409 },
       ),

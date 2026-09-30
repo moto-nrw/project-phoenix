@@ -512,7 +512,7 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 func renderSchemaVersionError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, capability.ErrFormSchemaNameExists):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeSchemaNameExists))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentSchemaNameExists))
 	case errors.Is(err, capability.ErrFormSchemaNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	default:
@@ -555,7 +555,7 @@ func (rs *Resource) renameSchema(w http.ResponseWriter, r *http.Request) {
 	if txErr != nil {
 		switch {
 		case errors.Is(txErr, capability.ErrFormSchemaNameExists):
-			common.RenderError(w, r, common.ErrorConflictWithCode(txErr, ErrCodeSchemaNameExists))
+			common.RenderError(w, r, common.ErrorConflictWithCode(txErr, common.CodeEnrollmentSchemaNameExists))
 			return
 		case errors.Is(txErr, capability.ErrFormSchemaNotFound):
 			common.RenderError(w, r, common.ErrorNotFound(txErr))
@@ -587,10 +587,10 @@ func (rs *Resource) deleteSchema(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, capability.ErrFormSchemaHasPhases):
-			common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeSchemaHasPhases))
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentSchemaHasPhases))
 			return
 		case errors.Is(err, capability.ErrFormSchemaHasRequests):
-			common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeSchemaHasRequests))
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentSchemaHasRequests))
 			return
 		case errors.Is(err, capability.ErrFormSchemaNotFound):
 			common.RenderError(w, r, common.ErrorNotFound(err))
@@ -601,12 +601,6 @@ func (rs *Resource) deleteSchema(w http.ResponseWriter, r *http.Request) {
 	}
 	common.RespondNoContent(w, r)
 }
-
-const (
-	ErrCodeSchemaHasPhases   = "enrollment.schema_has_phases"
-	ErrCodeSchemaHasRequests = "enrollment.schema_has_requests"
-	ErrCodeSchemaNameExists  = "enrollment.schema_name_exists"
-)
 
 // runInTenantTx wraps the request's tenant context in a tenant
 // transaction so the service's repo calls hit the right RLS scope.

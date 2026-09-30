@@ -3,7 +3,7 @@
 //   - GET /templates/{id}?period_id=N resolves an id that belongs to an
 //     already-capped predecessor segment to the living successor and reports
 //     the resolution via resolved_from_template_id; a genuine miss stays a 404
-//     carrying the stable code "template_not_found".
+//     carrying the stable code "timetable.template_not_found".
 //   - PUT /templates/{id} accepts series_roster_from (YYYY-MM-DD) plus the
 //     scope of changed people and mirrors exactly that change onto the
 //     predecessor segment; a malformed date is a 400.
@@ -111,7 +111,7 @@ func TestGetTemplate_UnknownTemplateReturns404WithCode(t *testing.T) {
 	w := doTemplateJSON(t, s.router, http.MethodGet,
 		fmt.Sprintf("/templates/%d?period_id=%d", unknownID, s.periodID), nil)
 	require.Equal(t, http.StatusNotFound, w.Code, "body=%s", w.Body.String())
-	assert.Equal(t, templateNotFoundCode, decodeTemplateError(t, w).Code,
+	assert.Equal(t, "timetable.template_not_found", decodeTemplateError(t, w).Code,
 		"a genuine miss must carry the stable error code the editor maps")
 }
 
