@@ -1,4 +1,9 @@
 import { isNotCheckedInLocation, LOCATION_COLORS } from "./location-helper";
+import {
+  berlinDateTimeISO,
+  berlinTodayISO,
+  parseISODate,
+} from "./date-helpers";
 
 const APPROACHING_THRESHOLD_MINUTES = 30;
 
@@ -208,14 +213,17 @@ export function earlyCheckoutMinutes({
 }
 
 function buildTimeDate(time: string, baseDate: Date): Date | null {
-  const parts = parseTimeParts(time);
-  if (!parts) {
+  if (!parseTimeParts(time)) {
     return null;
   }
 
-  const result = new Date(baseDate);
-  result.setHours(parts.hours, parts.minutes, 0, 0);
-  return result;
+  try {
+    return new Date(
+      berlinDateTimeISO(parseISODate(berlinTodayISO(baseDate)), time),
+    );
+  } catch {
+    return null;
+  }
 }
 
 function formatTimeDisplay(time?: string): string | undefined {

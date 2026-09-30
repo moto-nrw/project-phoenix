@@ -478,10 +478,10 @@ func (s *service) absorbConcurrentCheckIn(ctx context.Context, studentID int64, 
 // Visits entered on day itself or earlier (orphaned leftovers) are still
 // ended. Single-student callers derive day from their own now, so for them
 // every open visit qualifies and behavior is unchanged. It returns the ended
-// row so callers can mirror the same checkout into slot attendance. A missing
-// or newer-day visit returns nil; every other failure propagates so the
-// request transaction rolls back.
-func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64, day timezone.Date) (*studentpresence.Visit, error) {
+// row so callers can mirror the same checkout instant into slot attendance.
+// A missing or newer-day visit returns nil; every other failure propagates so
+// the request transaction rolls back.
+func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64, day timezone.Date, at time.Time) (*studentpresence.Visit, error) {
 	visit, err := s.GetStudentCurrentVisit(ctx, studentID)
 	if err != nil {
 		if errors.Is(err, ErrVisitNotFound) {
@@ -492,7 +492,7 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64, d
 	if timezone.DateFromTime(visit.EntryTime).After(day) {
 		return nil, nil
 	}
-	closed, err := s.SchoolPresence.CloseVisits(ctx, []int64{visit.ID}, time.Now())
+	closed, err := s.SchoolPresence.CloseVisits(ctx, []int64{visit.ID}, at)
 	if err != nil {
 		return nil, err
 	}
@@ -544,7 +544,7 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID, check
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("database error during state-checked checkout: %w", err)}
 	}
 
-	endedVisit, err := s.endOpenVisitForStudent(ctx, studentID, today)
+	endedVisit, err := s.endOpenVisitForStudent(ctx, studentID, today, now)
 	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("end open visit during checkout: %w", err)}
 	}

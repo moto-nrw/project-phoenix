@@ -702,6 +702,23 @@ describe("earlyCheckoutMinutes (#3324)", () => {
     ).toBe(15);
   });
 
+  it("uses the school's Berlin wall clock outside the browser timezone", () => {
+    const originalTimeZone = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+
+    try {
+      expect(
+        earlyCheckoutMinutes({
+          plannedPickup: "14:14",
+          now: new Date("2026-06-01T12:00:00Z"), // 14:00 in Berlin
+          toleranceMinutes: 15,
+        }),
+      ).toBeNull();
+    } finally {
+      process.env.TZ = originalTimeZone;
+    }
+  });
+
   it("never asks after the pickup time", () => {
     expect(
       earlyCheckoutMinutes({
