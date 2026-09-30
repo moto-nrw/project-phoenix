@@ -253,6 +253,7 @@ func (a *ParentAnnouncement) AcceptsResponsesAt(t time.Time) bool {
 // updated_at (targets are insert/delete only, replaced wholesale on edit), so
 // it declares its own ID and CreatedAt instead of embedding base.Model.
 type ParentAnnouncementTarget struct {
+	// Documents the source table; bun reads table tags only from bun.BaseModel.
 	base.TenantModel `bun:"table:users.parent_announcement_targets,alias:pat"`
 	ID               int64     `bun:"id,pk,autoincrement" json:"id"`
 	AnnouncementID   int64     `bun:"announcement_id,notnull" json:"announcement_id"`
@@ -268,6 +269,7 @@ type ParentAnnouncementTarget struct {
 // updated_at and this declares its own ID and CreatedAt instead of embedding
 // base.Model.
 type ParentAnnouncementOption struct {
+	// Documents the source table; bun reads table tags only from bun.BaseModel.
 	base.TenantModel `bun:"table:users.parent_announcement_options,alias:pao"`
 	ID               int64     `bun:"id,pk,autoincrement" json:"id"`
 	AnnouncementID   int64     `bun:"announcement_id,notnull" json:"announcement_id"`
@@ -282,6 +284,7 @@ type ParentAnnouncementOption struct {
 // guardian submitted it (two guardians share a child; the service replaces the
 // child's whole row set, so the last writer wins).
 type ParentAnnouncementResponse struct {
+	// Documents the source table; bun reads table tags only from bun.BaseModel.
 	base.TenantModel `bun:"table:users.parent_announcement_responses,alias:par_resp"`
 	ID               int64     `bun:"id,pk,autoincrement" json:"id"`
 	AnnouncementID   int64     `bun:"announcement_id,notnull" json:"announcement_id"`
@@ -352,6 +355,7 @@ type AnnouncementPollReminderRecipient struct {
 // the guardian's, not a child's. AcknowledgedAt is nil until the guardian
 // explicitly confirms an announcement that RequiresAcknowledgement.
 type ParentAnnouncementRead struct {
+	// Documents the source table; bun reads table tags only from bun.BaseModel.
 	base.TenantModel `bun:"table:users.parent_announcement_reads,alias:par"`
 	AnnouncementID   int64      `bun:"announcement_id,pk" json:"announcement_id"`
 	AccountID        int64      `bun:"account_id,pk" json:"account_id"`

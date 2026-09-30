@@ -12,6 +12,7 @@ import (
 // in the thread after the cursor (LastReadAt, LastReadMessageID) that the reader
 // did not send.
 type ParentMessageRead struct {
+	// Documents the source table; bun reads table tags only from bun.BaseModel.
 	base.TenantModel `bun:"table:users.parent_message_reads,alias:pmr"`
 	ThreadID         int64     `bun:"thread_id,pk" json:"thread_id"`
 	AccountID        int64     `bun:"account_id,pk" json:"account_id"`

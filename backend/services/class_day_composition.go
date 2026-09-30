@@ -182,7 +182,8 @@ func (b classDayEmergencyContacts) EmergencyContactRows(ctx context.Context, stu
 	return out, nil
 }
 
-// stringValue reads a nullable projection column; NULL reads as "".
+// stringValue reads a nullable projection column; NULL reads as "". The
+// shared copies live in packages services may not import.
 func stringValue(value *string) string {
 	if value == nil {
 		return ""

@@ -41,7 +41,7 @@ func NewStudentReads(directory StudentReadCapability) *StudentReads {
 func (r *StudentReads) FindByID(ctx context.Context, id any) (*userModels.Student, error) {
 	studentID, ok := studentIDOf(id)
 	if !ok {
-		return nil, missingStudent("find by id")
+		return nil, usersRepo.MissingStudentError("find by id")
 	}
 	record, err := r.directory.FindStudentRecord(ctx, studentID)
 	if err != nil {
@@ -56,7 +56,7 @@ func (r *StudentReads) FindByPersonID(ctx context.Context, personID int64) (*use
 		return nil, translateStudentReadError("find by person id", err)
 	}
 	if len(records) == 0 {
-		return nil, missingStudent("find by person id")
+		return nil, usersRepo.MissingStudentError("find by person id")
 	}
 	return studentRecordToModel(records[0]), nil
 }
@@ -299,19 +299,12 @@ func studentRecordsByID(records []peopleModule.StudentRecord) map[int64]*userMod
 	return result
 }
 
-// missingStudent is the shape the retained callers branch on for a child that
-// is not there. The retained users repositories build it, because this
-// package may not name the driver's no-rows sentinel itself.
-func missingStudent(op string) error {
-	return usersRepo.MissingStudentError(op)
-}
-
 func translateStudentReadError(op string, err error) error {
 	if err == nil {
 		return nil
 	}
 	if errors.Is(err, peopleModule.ErrStudentNotFound) || errors.Is(err, peopleModule.ErrInvalidStudent) {
-		return missingStudent(op)
+		return usersRepo.MissingStudentError(op)
 	}
 	return err
 }

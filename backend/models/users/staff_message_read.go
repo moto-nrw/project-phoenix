@@ -10,6 +10,7 @@ import (
 // StaffMessageParticipant links an account to a conversation. For a direct chat
 // there are exactly two rows, mirroring StaffMessageThread.ParticipantKey.
 type StaffMessageParticipant struct {
+	// Documents the source table; bun reads table tags only from bun.BaseModel.
 	base.TenantModel `bun:"table:users.staff_message_participants,alias:smp"`
 	ThreadID         int64     `bun:"thread_id,pk" json:"thread_id"`
 	AccountID        int64     `bun:"account_id,pk" json:"account_id"`
@@ -24,6 +25,7 @@ type StaffMessageParticipant struct {
 // that committed after the reader's snapshot as already read and silently drop
 // it from the unread badge.
 type StaffMessageRead struct {
+	// Documents the source table; bun reads table tags only from bun.BaseModel.
 	base.TenantModel  `bun:"table:users.staff_message_reads,alias:smr"`
 	ThreadID          int64     `bun:"thread_id,pk" json:"thread_id"`
 	AccountID         int64     `bun:"account_id,pk" json:"account_id"`

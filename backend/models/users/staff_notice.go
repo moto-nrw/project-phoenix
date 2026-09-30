@@ -170,6 +170,7 @@ func (n *StaffNotice) Validate() error {
 // für den Hinweis, nicht für den einzelnen Tag: ein wiederkehrender Hinweis
 // wird einmal bestätigt, nicht jeden Dienstag erneut.
 type StaffNoticeAck struct {
+	// Documents the source table; bun reads table tags only from bun.BaseModel.
 	base.TenantModel `bun:"table:users.staff_notice_acks,alias:sna"`
 	NoticeID         int64     `bun:"notice_id,pk" json:"notice_id"`
 	AccountID        int64     `bun:"account_id,pk" json:"account_id"`
