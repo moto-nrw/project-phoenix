@@ -1378,9 +1378,10 @@ func TestStudentActivationInterval(t *testing.T) {
 	assert.Nil(t, def.DependsOn, "activate-students interval is independent of other settings")
 }
 
-// TestStatusFlagClearMode_Defaults guards that the clear-mode settings
-// preserve existing behavior (sick clears on next check-in unconditionally,
-// new Entschuldigt flow clears at end of day).
+// TestStatusFlagClearMode_Defaults guards that both clear-mode settings end
+// the flag at the end of the day unless the school chose otherwise (#3728:
+// a sick note must not outlive its end date just because the child has not
+// checked in again).
 func TestStatusFlagClearMode_Defaults(t *testing.T) {
 	t.Parallel()
 
@@ -1389,8 +1390,10 @@ func TestStatusFlagClearMode_Defaults(t *testing.T) {
 	assert.Equal(t, "operations", sickDef.Tab)
 	assert.Equal(t, "abwesenheit", sickDef.Category)
 	assert.Equal(t, "config:update", sickDef.WritePermission)
-	assert.Equal(t, config.ClearModeNextCheckin, sickDef.Default,
-		"sick default must stay next_checkin to preserve prior behavior")
+	assert.Equal(t, config.ClearModeEndOfDay, sickDef.Default,
+		"sick default must be end_of_day so an ended sick note does not linger (#3728)")
+	assert.Contains(t, sickDef.Description, "Enddatum",
+		"description must warn that next_checkin keeps a sick note past its end date")
 
 	excusedDef := config.GetDefinition(config.KeyExcusedClearMode)
 	require.NotNil(t, excusedDef)
