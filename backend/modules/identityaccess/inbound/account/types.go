@@ -133,6 +133,14 @@ type TenantResolveResponse struct {
 	// with the Freigabe (analytics.recording_sample_percent). 0 when it cannot
 	// be resolved, which records nothing.
 	AnalyticsRecordingSamplePercent int `json:"analytics_recording_sample_percent"`
+	// EarlyCheckoutNoteEnabled and EarlyCheckoutNoteToleranceMinutes are the
+	// school's resolved operations.early_checkout_note_* settings (#3324).
+	// Shell metadata: the web checkout dialogs offer an optional note when a
+	// child leaves more than the tolerance before its pickup time, and staff
+	// carry no config:read. The note is never required, so a settings read
+	// error only hides the field (fails closed to false).
+	EarlyCheckoutNoteEnabled          bool `json:"early_checkout_note_enabled"`
+	EarlyCheckoutNoteToleranceMinutes int  `json:"early_checkout_note_tolerance_minutes"`
 }
 
 type tenantShellSettings struct {
@@ -156,6 +164,8 @@ type tenantShellSettings struct {
 	emergencyHealthInfo    bool
 	analyticsFreigabe      bool
 	analyticsSamplePercent int
+	earlyCheckoutNote      bool
+	earlyCheckoutTolerance int
 }
 
 // SwitchTenantRequest represents the switch-tenant request payload

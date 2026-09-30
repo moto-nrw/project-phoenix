@@ -162,11 +162,13 @@ interface UseSchoolCheckinModeResult {
   /**
    * Toggle a student's attendance. Resolves the next action from their
    * current StudentCheckinState, calls the school-checkin endpoint, and
-   * invalidates the SWR caches that surface presence data.
+   * invalidates the SWR caches that surface presence data. `checkoutNote`
+   * is the optional reason for an early checkout (#3324), sent only with "out".
    */
   toggle: (
     studentId: string,
     currentState: StudentCheckinState,
+    checkoutNote?: string,
   ) => Promise<void>;
   /**
    * Selection sub-mode (#2359). While ON, tapping a card is expected to call
@@ -303,7 +305,11 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
   }, []);
 
   const toggle = useCallback(
-    async (studentId: string, currentState: StudentCheckinState) => {
+    async (
+      studentId: string,
+      currentState: StudentCheckinState,
+      checkoutNote?: string,
+    ) => {
       if (pendingIds.has(studentId)) return;
 
       setPendingIds((prev) => {
@@ -315,7 +321,7 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
       const action = actionForState(currentState);
 
       try {
-        await schoolCheckinStudent(studentId, action);
+        await schoolCheckinStudent(studentId, action, checkoutNote);
 
         await globalMutate(
           (key) =>

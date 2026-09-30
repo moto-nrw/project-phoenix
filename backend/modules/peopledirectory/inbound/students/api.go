@@ -113,7 +113,7 @@ type StudentPresence interface {
 	GetActiveGroup(ctx context.Context, id int64) (*studentpresence.SessionDetail, error)
 	EndVisit(ctx context.Context, id int64) error
 	CheckInStudent(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*studentpresence.AttendanceResult, error)
-	CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*studentpresence.AttendanceResult, error)
+	CheckOutStudentWithNote(ctx context.Context, studentID, staffID int64, note string, skipAuthCheck bool) (*studentpresence.AttendanceResult, error)
 	ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action string) (*studentpresence.SchoolCheckinBatchResult, error)
 }
 

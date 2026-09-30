@@ -134,7 +134,12 @@ function studentDetailLine(student: DayLogStudent): string {
     const range = until
       ? `Ankunft ${from} · gegangen ${until}`
       : `Ankunft ${from} · noch anwesend`;
-    return student.hint ? `${range} · ${student.hint}` : range;
+    const parts = [range];
+    if (student.check_out_note) {
+      parts.push(`Grund für das frühe Gehen: ${student.check_out_note}`);
+    }
+    if (student.hint) parts.push(student.hint);
+    return parts.join(" · ");
   }
   const parts: string[] = [];
   if (student.reported_at) {

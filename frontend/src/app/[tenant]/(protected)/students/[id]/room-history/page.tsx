@@ -166,6 +166,11 @@ function DayCard({
                 {statusLabel}
               </span>
             )}
+            {day.attendance?.checkOutNote && (
+              <span className="mt-0.5 block text-xs text-gray-600">
+                Grund für das frühe Gehen: {day.attendance.checkOutNote}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -402,6 +407,12 @@ function HistoryTable({
                                 ? formatTime(day.attendance.checkOutTime)
                                 : "Noch anwesend"
                               : "–"}
+                            {day.attendance?.checkOutNote && (
+                              <span className="mt-0.5 block text-xs text-gray-500">
+                                Grund für das frühe Gehen:{" "}
+                                {day.attendance.checkOutNote}
+                              </span>
+                            )}
                           </td>
                           <td className="px-6 py-3">
                             {day.attendance ? (

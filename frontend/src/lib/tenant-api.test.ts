@@ -16,6 +16,7 @@ vi.mock("./session-cache", () => ({
 }));
 
 import {
+  normalizeEarlyCheckoutTolerance,
   resolveTenant,
   listAvailableTenants,
   switchTenant,
@@ -175,6 +176,9 @@ describe("tenant-api", () => {
         // is recorded.
         analyticsFreigabe: false,
         analyticsRecordingSamplePercent: 0,
+        // Older backends omit the early-checkout question (#3324): no note
+        // field, so the dialog never guesses a window.
+        earlyCheckoutNoteToleranceMinutes: null,
       });
     });
 
@@ -908,5 +912,21 @@ describe("staffReasonRequired", () => {
     // Ein älteres Backend ohne dieses Feld darf die Pflicht nicht
     // stillschweigend abschalten (#2267).
     expect(staffReasonRequired(undefined)).toBe(true);
+  });
+});
+
+describe("normalizeEarlyCheckoutTolerance (#3324)", () => {
+  it("keeps the tolerance while the question is on", () => {
+    expect(normalizeEarlyCheckoutTolerance(true, 15)).toBe(15);
+    expect(normalizeEarlyCheckoutTolerance(true, 0)).toBe(0);
+  });
+
+  it("switches the question off for anything else", () => {
+    expect(normalizeEarlyCheckoutTolerance(false, 15)).toBeNull();
+    expect(normalizeEarlyCheckoutTolerance(undefined, 15)).toBeNull();
+    expect(normalizeEarlyCheckoutTolerance(true, undefined)).toBeNull();
+    expect(normalizeEarlyCheckoutTolerance(true, -5)).toBeNull();
+    expect(normalizeEarlyCheckoutTolerance(true, 7.5)).toBeNull();
+    expect(normalizeEarlyCheckoutTolerance(true, "15")).toBeNull();
   });
 });

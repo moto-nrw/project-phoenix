@@ -29,7 +29,7 @@ func TestEndOpenVisitForStudent_LookupErrorPropagates(t *testing.T) {
 	}},
 	}
 
-	_, err := svc.endOpenVisitForStudent(context.Background(), 4711, calendar.TodayDate())
+	_, err := svc.endOpenVisitForStudent(context.Background(), 4711, calendar.TodayDate(), time.Now())
 
 	require.Error(t, err, "a non-NotFound lookup failure must propagate so the checkout transaction rolls back")
 	assert.False(t, errors.Is(err, ErrVisitNotFound))
@@ -60,7 +60,7 @@ func TestEndOpenVisitForStudent_AlreadyEndedIsTolerated(t *testing.T) {
 	}},
 	}
 
-	result, err := svc.endOpenVisitForStudent(context.Background(), 4711, calendar.TodayDate())
+	result, err := svc.endOpenVisitForStudent(context.Background(), 4711, calendar.TodayDate(), time.Now())
 
 	require.NoError(t, err, "a visit ended by a concurrent caller is the desired end state, not an error")
 	require.NotNil(t, result)
@@ -97,7 +97,7 @@ func TestEndOpenVisitForStudent_BinaryModeStillEndsStaleVisit(t *testing.T) {
 	},
 	}
 
-	_, err := svc.endOpenVisitForStudent(context.Background(), 4711, calendar.TodayDate())
+	_, err := svc.endOpenVisitForStudent(context.Background(), 4711, calendar.TodayDate(), time.Now())
 
 	require.NoError(t, err)
 	assert.True(t, endCalled, "checkout stale-visit healing must bypass the binary-mode EndVisit no-op")
@@ -125,7 +125,7 @@ func TestEndOpenVisitForStudent_EndVisitErrorPropagates(t *testing.T) {
 	}},
 	}
 
-	_, err := svc.endOpenVisitForStudent(context.Background(), 4711, calendar.TodayDate())
+	_, err := svc.endOpenVisitForStudent(context.Background(), 4711, calendar.TodayDate(), time.Now())
 
 	require.Error(t, err, "an EndVisit failure must propagate so attendance close and visit end stay atomic")
 	assert.False(t, errors.Is(err, ErrVisitAlreadyEnded))
@@ -153,9 +153,37 @@ func TestEndOpenVisitForStudent_NextDayVisitIsLeftAlone(t *testing.T) {
 	}},
 	}
 
-	result, err := svc.endOpenVisitForStudent(context.Background(), 4711, calendar.TodayDate().AddDays(-1))
+	result, err := svc.endOpenVisitForStudent(context.Background(), 4711, calendar.TodayDate().AddDays(-1), time.Now())
 
 	require.NoError(t, err)
 	assert.Nil(t, result, "a newer-day visit reports as nothing-to-end, not as an ended row")
 	assert.False(t, endCalled, "a visit entered after the checkout's day must not be ended")
+}
+
+func TestEndOpenVisitForStudent_UsesCheckoutInstant(t *testing.T) {
+	t.Parallel()
+
+	day := calendar.TodayDate()
+	checkoutAt := day.BerlinMidnight().Add(15*time.Hour + 30*time.Minute)
+	visit := &studentpresence.Visit{ID: 4716, StudentID: 4711, EntryTime: checkoutAt.Add(-time.Hour)}
+
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: &mockVisitRepository{
+		getCurrentByStudentIDFunc: func(context.Context, int64) (*studentpresence.Visit, error) {
+			return visit, nil
+		},
+		closeVisitsFunc: func(_ context.Context, ids []int64, at time.Time) ([]studentpresence.Visit, error) {
+			require.Equal(t, []int64{visit.ID}, ids)
+			require.Equal(t, checkoutAt, at)
+			closed := *visit
+			closed.ExitTime = &at
+			return []studentpresence.Visit{closed}, nil
+		},
+	}},
+	}
+
+	result, err := svc.endOpenVisitForStudent(context.Background(), visit.StudentID, day, checkoutAt)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, checkoutAt, *result.ExitTime)
 }

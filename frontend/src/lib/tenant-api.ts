@@ -139,6 +139,12 @@ export interface TenantInfo {
   analyticsFreigabe?: boolean;
   /** Share of OGS sessions recorded with the Freigabe, 0 to 100. */
   analyticsRecordingSamplePercent?: number;
+  /**
+   * Minutes before the pickup time from which a web checkout counts as early
+   * and offers an optional note (operations.early_checkout_note_*, #3324).
+   * null when the school switched the question off or the value is missing.
+   */
+  earlyCheckoutNoteToleranceMinutes?: number | null;
 }
 
 /** Identity-only tenant row returned by list/switch endpoints. Feature and
@@ -184,6 +190,8 @@ interface TenantResolveResponse {
   grade_level_max: number;
   analytics_freigabe?: boolean;
   analytics_recording_sample_percent?: number;
+  early_checkout_note_enabled?: boolean;
+  early_checkout_note_tolerance_minutes?: number;
 }
 
 /**
@@ -198,6 +206,23 @@ export function normalizeRecordingSamplePercent(raw: unknown): number {
     raw <= 100
     ? raw
     : 0;
+}
+
+/**
+ * Normalize the early-checkout note pair (#3324) into one tolerance. Anything
+ * unreadable switches the question off: the note is optional, so a missing
+ * field must never make the dialog guess a window.
+ */
+export function normalizeEarlyCheckoutTolerance(
+  enabled: unknown,
+  minutes: unknown,
+): number | null {
+  return enabled === true &&
+    typeof minutes === "number" &&
+    Number.isInteger(minutes) &&
+    minutes >= 0
+    ? minutes
+    : null;
 }
 
 /** Scope values of operations.operational_overview_scope (#2380). */
@@ -316,6 +341,10 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       analyticsFreigabe: data.analytics_freigabe === true,
       analyticsRecordingSamplePercent: normalizeRecordingSamplePercent(
         data.analytics_recording_sample_percent,
+      ),
+      earlyCheckoutNoteToleranceMinutes: normalizeEarlyCheckoutTolerance(
+        data.early_checkout_note_enabled,
+        data.early_checkout_note_tolerance_minutes,
       ),
     };
   } catch {
