@@ -125,6 +125,8 @@ const (
 	KeyStudentDailyCheckoutTime              = "operations.student_daily_checkout_time"
 	KeyPerStudentCheckoutEnabled             = "operations.per_student_checkout_enabled"
 	KeyPerStudentCheckoutDeltaMinutes        = "operations.per_student_checkout_delta_minutes"
+	KeyEarlyCheckoutNoteEnabled              = "operations.early_checkout_note_enabled"
+	KeyEarlyCheckoutNoteToleranceMinutes     = "operations.early_checkout_note_tolerance_minutes"
 	KeySessionCleanupEnabled                 = "operations.session_cleanup_enabled"
 	KeySessionCleanupIntervalMinutes         = "operations.session_cleanup_interval_minutes"
 	KeySessionAbandonedThresholdMin          = "operations.session_abandoned_threshold_minutes"

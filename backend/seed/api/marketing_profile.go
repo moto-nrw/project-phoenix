@@ -423,11 +423,11 @@ func seedMarketingAttendance(rt *Runtime, students map[string]SeedStudent) error
 			if source.presence == marketingNotArrived {
 				continue
 			}
-			if err := postSchoolAttendance(rt, student.ID, "in", "checked_in"); err != nil {
+			if err := postSchoolAttendance(rt, student.ID, "in", "checked_in", ""); err != nil {
 				return err
 			}
 			if source.presence == marketingPickedUp {
-				if err := postSchoolAttendance(rt, student.ID, "out", "checked_out"); err != nil {
+				if err := postSchoolAttendance(rt, student.ID, "out", "checked_out", ""); err != nil {
 					return err
 				}
 			}

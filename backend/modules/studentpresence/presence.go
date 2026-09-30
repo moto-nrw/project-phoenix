@@ -139,6 +139,10 @@ type AttendanceCommands interface {
 	// CheckOutStudent applies "out" unconditionally and ends any open room
 	// visit in the same transaction (issue #895).
 	CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error)
+	// CheckOutStudentWithNote is CheckOutStudent with the optional reason for
+	// an early checkout (#3324). The note is stored only when this call closes
+	// the open stay; a blank note stores nothing.
+	CheckOutStudentWithNote(ctx context.Context, studentID, staffID int64, note string, skipAuthCheck bool) (*AttendanceResult, error)
 	// ProcessSchoolCheckinBatch applies one explicit school check-in/out
 	// action ("in" | "out") to a set of students in a single call (#2359).
 	ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action string) (*SchoolCheckinBatchResult, error)

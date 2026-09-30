@@ -179,6 +179,31 @@ export function comesOnlyIfLessonCancelled(day: StudentDayTimes): boolean {
   return arrival !== null && pickup !== null && arrival >= pickup;
 }
 
+/**
+ * How many minutes a checkout at `now` lies before today's planned pickup,
+ * when that is more than `toleranceMinutes` (#3324). Returns null for an
+ * ordinary checkout, a missing pickup time, or a switched-off question.
+ */
+export function earlyCheckoutMinutes({
+  plannedPickup,
+  now,
+  toleranceMinutes,
+}: Readonly<{
+  plannedPickup?: string | null;
+  now: Date;
+  toleranceMinutes?: number | null;
+}>): number | null {
+  if (toleranceMinutes == null || !plannedPickup) {
+    return null;
+  }
+  const planned = buildTimeDate(plannedPickup, now);
+  if (!planned) {
+    return null;
+  }
+  const minutesEarly = Math.floor((planned.getTime() - now.getTime()) / 60000);
+  return minutesEarly > toleranceMinutes ? minutesEarly : null;
+}
+
 function buildTimeDate(time: string, baseDate: Date): Date | null {
   const parts = parseTimeParts(time);
   if (!parts) {

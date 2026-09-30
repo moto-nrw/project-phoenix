@@ -9,6 +9,7 @@ import { readTenantSessionSnapshot } from "~/lib/tenant-session-snapshot.server"
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
 import {
   normalizeAttendanceEditScope,
+  normalizeEarlyCheckoutTolerance,
   normalizeOverviewScope,
   normalizePresenceMode,
   normalizeRecordingSamplePercent,
@@ -46,6 +47,8 @@ interface TenantResolveResponse {
   grade_level_max: number;
   analytics_freigabe?: boolean;
   analytics_recording_sample_percent?: number;
+  early_checkout_note_enabled?: boolean;
+  early_checkout_note_tolerance_minutes?: number;
 }
 
 /**
@@ -104,6 +107,10 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     analyticsFreigabe: data.analytics_freigabe === true,
     analyticsRecordingSamplePercent: normalizeRecordingSamplePercent(
       data.analytics_recording_sample_percent,
+    ),
+    earlyCheckoutNoteToleranceMinutes: normalizeEarlyCheckoutTolerance(
+      data.early_checkout_note_enabled,
+      data.early_checkout_note_tolerance_minutes,
     ),
   };
 }

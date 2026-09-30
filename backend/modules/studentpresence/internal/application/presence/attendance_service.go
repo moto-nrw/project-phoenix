@@ -38,6 +38,7 @@ func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs 
 			CheckInTime:  attendance.CheckInTime,
 			CheckOutTime: attendance.CheckOutTime,
 			YardSince:    attendance.YardSince,
+			CheckOutNote: attendance.CheckOutNote,
 		}
 		statuses[attendance.StudentID] = status
 	}
@@ -64,6 +65,7 @@ func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int6
 		CheckInTime:  attendance.CheckInTime,
 		CheckOutTime: attendance.CheckOutTime,
 		YardSince:    attendance.YardSince,
+		CheckOutNote: attendance.CheckOutNote,
 	}
 
 	if attendance.CheckedInBy > 0 {
@@ -127,7 +129,7 @@ func (s *service) toggleStudentAttendance(ctx context.Context, studentID, staffI
 	if currentStatus.Status == "not_checked_in" || currentStatus.Status == "checked_out" {
 		result, err = s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today, checkinTypeToggle)
 	} else {
-		result, err = s.performCheckOut(ctx, studentID, authorizedStaffID, deviceID, now, today, checkoutTypeToggle)
+		result, err = s.performCheckOut(ctx, studentID, authorizedStaffID, deviceID, now, today, checkoutTypeToggle, "")
 	}
 	if err != nil {
 		return nil, err
@@ -232,10 +234,22 @@ func (s *service) checkInStudent(ctx context.Context, studentID, staffID, device
 // timestamps for display. Any open room visit is ended as part of the same
 // operation (issue #895) — callers don't need a separate EndVisit call.
 func (s *service) CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error) {
+	return s.CheckOutStudentWithNote(ctx, studentID, staffID, "", skipAuthCheck)
+}
+
+// CheckOutStudentWithNote is CheckOutStudent with the optional reason staff
+// leave when a child goes home earlier than planned (#3324). The note lands
+// on the stay this call closes; an idempotent retry stores nothing, so it can
+// never overwrite the note of a checkout someone else already made.
+func (s *service) CheckOutStudentWithNote(ctx context.Context, studentID, staffID int64, note string, skipAuthCheck bool) (*AttendanceResult, error) {
+	note, err := studentpresence.NormalizeCheckoutNote(note)
+	if err != nil {
+		return nil, &ActiveError{Op: "CheckOutStudent", Err: err}
+	}
 	var result *AttendanceResult
-	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+	err = s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		var err error
-		result, err = s.checkOutStudent(txCtx, studentID, staffID, skipAuthCheck)
+		result, err = s.checkOutStudent(txCtx, studentID, staffID, note, skipAuthCheck)
 		return err
 	})
 	if err != nil {
@@ -244,7 +258,7 @@ func (s *service) CheckOutStudent(ctx context.Context, studentID, staffID int64,
 	return result, nil
 }
 
-func (s *service) checkOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error) {
+func (s *service) checkOutStudent(ctx context.Context, studentID, staffID int64, note string, skipAuthCheck bool) (*AttendanceResult, error) {
 	// Auth path is shared with the toggle — pass deviceID=0 because the
 	// caller is web-side (no kiosk involved); IsIoTDeviceRequest is false
 	// for web so authorizeWebToggle runs and validates teacher access.
@@ -253,7 +267,7 @@ func (s *service) checkOutStudent(ctx context.Context, studentID, staffID int64,
 		return nil, err
 	}
 	now := time.Now()
-	result, err := s.performCheckOut(ctx, studentID, authorizedStaffID, 0, now, timezone.DateFromTime(now), checkoutTypeWeb)
+	result, err := s.performCheckOut(ctx, studentID, authorizedStaffID, 0, now, timezone.DateFromTime(now), checkoutTypeWeb, note)
 	if err != nil {
 		return nil, err
 	}
@@ -292,7 +306,7 @@ func (s *service) CheckOutStudentFromDevice(ctx context.Context, studentID, devi
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		now := time.Now()
 		var err error
-		result, err = s.performCheckOut(txCtx, studentID, staffID, deviceID, now, timezone.DateFromTime(now), checkoutTypeDaily)
+		result, err = s.performCheckOut(txCtx, studentID, staffID, deviceID, now, timezone.DateFromTime(now), checkoutTypeDaily, "")
 		return err
 	})
 	if err != nil {
@@ -517,7 +531,7 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64, d
 //     session's and stays open (see endOpenVisitForStudent).
 //  4. A checkout that closed attendance or healed an orphaned visit fans out
 //     over SSE after the request transaction commits (#2113).
-func (s *service) performCheckOut(ctx context.Context, studentID, staffID, checkoutDeviceID int64, now time.Time, today timezone.Date, checkoutType string) (*AttendanceResult, error) {
+func (s *service) performCheckOut(ctx context.Context, studentID, staffID, checkoutDeviceID int64, now time.Time, today timezone.Date, checkoutType, note string) (*AttendanceResult, error) {
 	mode, err := s.GetPresenceMode(ctx)
 	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
@@ -525,7 +539,7 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID, check
 	if err := s.SchoolPresence.LockStudentAttendance(ctx, studentID); err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("lock attendance checkout: %w", err)}
 	}
-	closedRows, err := s.SchoolPresence.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{studentID}, Date: today.String(), At: now, StaffID: staffID, DeviceID: checkoutDeviceID})
+	closedRows, err := s.SchoolPresence.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{studentID}, Date: today.String(), At: now, StaffID: staffID, DeviceID: checkoutDeviceID, Note: note})
 	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("database error during state-checked checkout: %w", err)}
 	}
