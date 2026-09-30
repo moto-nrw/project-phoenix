@@ -6,10 +6,9 @@ import type { ClosingDay } from "~/lib/closing-day-helpers";
 
 // The factory is hoisted above the imports, so the mock helper has to be
 // pulled in inside it rather than at the top of the file.
-vi.mock("~/components/ui/date-picker", async (importOriginal) => {
-  const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
-  return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
-});
+vi.mock("~/components/ui/date-picker", async () =>
+  (await import("~/test/mocks/date-picker")).datePickerModuleMock(),
+);
 
 const { mockCreate, mockUpdate, mockBulkCancel } = vi.hoisted(() => ({
   mockCreate: vi.fn(),

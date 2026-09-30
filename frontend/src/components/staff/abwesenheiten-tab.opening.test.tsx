@@ -6,10 +6,9 @@ import type { StaffVacationQuotaSummary } from "~/lib/staff-api";
 // Same stub as stundenkonto-panel.test.tsx: the kit picker opens a calendar
 // overlay, the native input keeps the Stichtag settable via fireEvent.change
 // and forwards min/max so the computed bounds stay assertable.
-vi.mock("~/components/ui/date-picker", async (importOriginal) => {
-  const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
-  return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
-});
+vi.mock("~/components/ui/date-picker", async () =>
+  (await import("~/test/mocks/date-picker")).datePickerModuleMock(),
+);
 
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({

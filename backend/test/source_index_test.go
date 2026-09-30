@@ -1,6 +1,11 @@
 package test
 
 import (
+	"bytes"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path"
@@ -67,5 +72,78 @@ func TestGoSourceIndexReportsWalkErrors(t *testing.T) {
 	_, err := goSourceIndex(filepath.Join(t.TempDir(), "missing"))
 	if err == nil {
 		t.Fatal("goSourceIndex succeeded for a missing root")
+	}
+}
+
+// parsedGoFile is one cached parse result. content is kept so a later request
+// for the same path with different bytes (self-tests rewriting temp fixtures)
+// reparses instead of returning a stale tree.
+type parsedGoFile struct {
+	once    sync.Once
+	content []byte
+	file    *ast.File
+	err     error
+}
+
+var (
+	parsedGoFiles sync.Map // path as passed -> *parsedGoFile
+	// sharedGoFileSet positions every cached tree. token.FileSet is safe for
+	// concurrent use, and positions resolve identically to a per-call set.
+	sharedGoFileSet = token.NewFileSet()
+)
+
+// parseGoSourceCached parses path once per process with parser.ParseComments
+// (a superset of mode 0; comments are not visited by ast.Inspect) and returns
+// the shared FileSet with the tree. src follows parser.ParseFile: nil reads
+// path, otherwise []byte or string. Callers must treat the *ast.File as
+// read-only because other ratchets share it.
+func parseGoSourceCached(path string, src any) (*token.FileSet, *ast.File, error) {
+	var content []byte
+	switch s := src.(type) {
+	case nil:
+		b, err := os.ReadFile(path) // #nosec G304 -- test scans repo-local source files
+		if err != nil {
+			return nil, nil, err
+		}
+		content = b
+	case []byte:
+		content = s
+	case string:
+		content = []byte(s)
+	default:
+		return nil, nil, fmt.Errorf("parseGoSourceCached: unsupported src type %T", src)
+	}
+	// Keyed by the exact path spelling so positions and parse errors report
+	// the filename each caller passed, as a per-call parse would.
+	key := path
+	for {
+		entry, _ := parsedGoFiles.LoadOrStore(key, &parsedGoFile{})
+		parsed := entry.(*parsedGoFile)
+		parsed.once.Do(func() {
+			parsed.content = content
+			parsed.file, parsed.err = parser.ParseFile(sharedGoFileSet, path, content, parser.ParseComments)
+		})
+		if bytes.Equal(parsed.content, content) {
+			return sharedGoFileSet, parsed.file, parsed.err
+		}
+		parsedGoFiles.CompareAndDelete(key, parsed)
+	}
+}
+
+func TestParseGoSourceCachedReparsesChangedContent(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "a.go")
+	_, first, err := parseGoSourceCached(path, "package a\n")
+	if err != nil || first.Name.Name != "a" {
+		t.Fatalf("first parse: %v", err)
+	}
+	_, again, _ := parseGoSourceCached(path, "package a\n")
+	if again != first {
+		t.Fatal("identical content was reparsed instead of served from cache")
+	}
+	_, changed, err := parseGoSourceCached(path, "package b\n")
+	if err != nil || changed.Name.Name != "b" {
+		t.Fatalf("changed content served stale tree: %v", err)
 	}
 }

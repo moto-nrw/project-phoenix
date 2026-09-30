@@ -2,7 +2,6 @@ package test
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"io/fs"
 	"path/filepath"
@@ -50,8 +49,7 @@ func TestPresenceStorageCallerInventory(t *testing.T) {
 		if !strings.HasSuffix(path, ".go") || exempt[relative] {
 			return nil
 		}
-		positions := token.NewFileSet()
-		file, err := parser.ParseFile(positions, path, nil, 0)
+		positions, file, err := parseGoSourceCached(path, nil)
 		if err != nil {
 			return err
 		}

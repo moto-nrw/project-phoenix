@@ -1,8 +1,7 @@
 /**
- * Tests for the "Kind ungeplant hinzufügen" panel (issue #2387): selection
- * flow with multiple search results. Shares the identical mock header with
- * page.test.tsx / page.part2..11.test.tsx (see the note in page.part5.test.tsx);
- * heavy full-dashboard renders stay at <=3 per file.
+ * Tests for the Active Supervisions page with the student search and the
+ * timetable check-in stubbed: the full-dashboard renders and the
+ * "Kind ungeplant hinzufügen" panel (issue #2387).
  */
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import { useLayoutEffect } from "react";
@@ -358,6 +357,412 @@ const makeStudent = (id: string, first: string, last: string) => ({
   current_location: "",
 });
 
+describe("MeinRaumPage (Active Supervisions) (4/5)", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
+    vi.mocked(useShowTimetableCounts).mockReturnValue(true);
+    navigationMockState.roomParam = null;
+    global.fetch = vi.fn();
+    // Default mock: loading state
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("displays supervised room with students", async () => {
+    // First call: dashboard data, Second call: per-room visits (return null to skip)
+    const dashboardData = {
+      supervisedGroups: [
+        // Use a non-Schulhof room name to avoid triggering Schulhof-specific code path
+        { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "1" },
+      educationalGroups: [
+        { id: "2", name: "OGS Gruppe A", room: { name: "Raum 101" } },
+      ],
+      firstRoomVisits: [
+        {
+          studentId: "100",
+          studentName: "Max Mustermann",
+          schoolClass: "1a",
+          groupName: "OGS Gruppe A",
+          activeGroupId: "1",
+          checkInTime: new Date().toISOString(),
+          isActive: true,
+        },
+      ],
+      firstRoomId: "1",
+    };
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: dashboardData,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null, // Second hook (per-room visits) returns null
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card")).toBeInTheDocument();
+    });
+  });
+
+  it("does not flash student cards while timetable roster is still loading", async () => {
+    const dashboardData = {
+      supervisedGroups: [
+        { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "1" },
+      educationalGroups: [
+        { id: "2", name: "OGS Gruppe A", room: { name: "Raum 101" } },
+      ],
+      firstRoomVisits: [
+        {
+          studentId: "100",
+          studentName: "Max Mustermann",
+          schoolClass: "1a",
+          groupName: "OGS Gruppe A",
+          activeGroupId: "1",
+          checkInTime: new Date().toISOString(),
+          isActive: true,
+        },
+      ],
+      firstRoomId: "10",
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (key?.startsWith("active-supervision-dashboard")) {
+        return {
+          data: dashboardData,
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+
+      if (key?.startsWith("timetable-roster-active-group")) {
+        return {
+          data: undefined,
+          isLoading: true,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+    }) as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByLabelText("Aktuelle Aufsicht wird geladen…"),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
+    });
+  });
+
+  it("renders timetable roster UI when an active roster is available", async () => {
+    const dashboardData = {
+      supervisedGroups: [
+        { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "1" },
+      educationalGroups: [],
+      firstRoomVisits: [
+        {
+          studentId: "100",
+          studentName: "Max Mustermann",
+          schoolClass: "1a",
+          groupName: "OGS Gruppe A",
+          activeGroupId: "1",
+          checkInTime: new Date().toISOString(),
+          isActive: true,
+        },
+      ],
+      firstRoomId: "10",
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (key?.startsWith("active-supervision-dashboard")) {
+        return {
+          data: dashboardData,
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+
+      if (key?.startsWith("timetable-roster-active-group")) {
+        return {
+          data: {
+            instance: {
+              id: "99",
+              title: "Kreativ AG",
+              activeGroupId: "1",
+              isSpontaneous: false,
+            },
+            rows: [
+              {
+                studentId: "100",
+                studentName: "Max Mustermann",
+                schoolClass: "1a",
+                groupName: "OGS Gruppe A",
+                planned: true,
+                isUnplanned: false,
+                currentlyPresent: true,
+                visitId: "visit-100",
+                status: "present",
+                substatus: null,
+                note: null,
+              },
+              {
+                studentId: "101",
+                studentName: "Erika Erwartet",
+                schoolClass: "2b",
+                groupName: "OGS Gruppe B",
+                planned: true,
+                isUnplanned: false,
+                currentlyPresent: false,
+                visitId: null,
+                status: "expected",
+                substatus: null,
+                note: null,
+              },
+              {
+                studentId: "102",
+                studentName: "Lina Krank",
+                schoolClass: "3c",
+                groupName: "OGS Gruppe C",
+                planned: true,
+                isUnplanned: false,
+                currentlyPresent: false,
+                visitId: null,
+                status: "absent",
+                substatus: "sick",
+                note: "Abgemeldet",
+              },
+              {
+                studentId: "103",
+                studentName: "Noah Gegangen",
+                schoolClass: "4d",
+                groupName: "OGS Gruppe D",
+                planned: true,
+                isUnplanned: false,
+                currentlyPresent: false,
+                visitId: "visit-103",
+                status: "present",
+                substatus: null,
+                note: null,
+              },
+              {
+                studentId: "104",
+                studentName: "Mia Spontan",
+                schoolClass: "1b",
+                groupName: "OGS Gruppe A",
+                planned: false,
+                isUnplanned: true,
+                currentlyPresent: true,
+                visitId: "visit-104",
+                status: "present",
+                substatus: null,
+                note: null,
+              },
+            ],
+          },
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+    }) as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Kreativ AG")).toBeInTheDocument();
+      expect(screen.getByText("Aktiv")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "1 erwartete bestätigen" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Anwesend (1)")).toBeInTheDocument();
+      expect(screen.getByText("Erwartet (1)")).toBeInTheDocument();
+      expect(
+        screen.getByText("Entschuldigt / Abwesend (1)"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Nicht mehr im Raum (1)")).toBeInTheDocument();
+      expect(screen.getByText("Ungeplant (1)")).toBeInTheDocument();
+      expect(
+        screen.getByText("1b · OGS Gruppe A · ungeplant"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Krank · Abgemeldet")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Einchecken" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getAllByRole("button", { name: "Raum verlassen" }),
+      ).toHaveLength(2);
+      // Das Nachtragen ist eine Kopf-Aktion mit Dialog (#3112): die Suche
+      // erscheint erst nach „Kind hinzufügen“.
+      expect(
+        screen.queryByRole("searchbox", { name: "Kind ungeplant suchen" }),
+      ).not.toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Kind hinzufügen" }));
+    await waitFor(() => {
+      expect(
+        screen.getByRole("searchbox", { name: "Kind ungeplant suchen" }),
+      ).toHaveAttribute("name", "unplanned-student-search");
+      expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
+    });
+  });
+
+  it("hides roster attendance controls and counts when tenant settings disable them", async () => {
+    vi.mocked(useAttendanceWebEnabled).mockReturnValue(false);
+    vi.mocked(useShowTimetableCounts).mockReturnValue(false);
+    const dashboardData = {
+      supervisedGroups: [
+        { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "10",
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (key?.startsWith("active-supervision-dashboard")) {
+        return {
+          data: dashboardData,
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+      if (key?.startsWith("timetable-roster-active-group")) {
+        return {
+          data: {
+            instance: {
+              id: "99",
+              title: "Kreativ AG",
+              activeGroupId: "1",
+              isSpontaneous: false,
+            },
+            rows: [
+              {
+                studentId: "100",
+                studentName: "Max Anwesend",
+                schoolClass: "1a",
+                groupName: "OGS Gruppe A",
+                planned: true,
+                isUnplanned: false,
+                currentlyPresent: true,
+                visitId: "visit-100",
+                status: "present",
+                substatus: null,
+                note: null,
+              },
+              {
+                studentId: "101",
+                studentName: "Erika Erwartet",
+                schoolClass: "2b",
+                groupName: "OGS Gruppe B",
+                planned: true,
+                isUnplanned: false,
+                currentlyPresent: false,
+                visitId: null,
+                status: "expected",
+                substatus: null,
+                note: null,
+              },
+            ],
+          },
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+    }) as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Max Anwesend")).toBeInTheDocument();
+      expect(screen.getByText("Erika Erwartet")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Anwesend")).toBeInTheDocument();
+    expect(screen.getByText("Erwartet")).toBeInTheDocument();
+    expect(screen.queryByText("Anwesend (1)")).not.toBeInTheDocument();
+    expect(screen.queryByText("Erwartet (1)")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /erwartete bestätigen/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Einchecken" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Raum verlassen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Beenden" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Kind hinzufügen" }),
+    ).not.toBeInTheDocument();
+  });
+});
 describe("AddUnplannedStudentForm selection flow (#2387)", () => {
   const mockMutate = vi.fn();
 

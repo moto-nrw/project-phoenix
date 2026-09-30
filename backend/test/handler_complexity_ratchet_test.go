@@ -3,8 +3,6 @@ package test
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"sort"
@@ -116,8 +114,7 @@ func scanHandlerComplexity(backendRoot string) (map[string]int, error) {
 		}
 		rel = filepath.ToSlash(rel)
 
-		fset := token.NewFileSet()
-		file, parseErr := parser.ParseFile(fset, path, nil, 0)
+		_, file, parseErr := parseGoSourceCached(path, nil)
 		if parseErr != nil {
 			return fmt.Errorf("parse %s: %w", rel, parseErr)
 		}

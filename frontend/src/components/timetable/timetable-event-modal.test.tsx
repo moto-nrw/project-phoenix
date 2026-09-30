@@ -14,10 +14,9 @@ import { setTestClock } from "~/test/clock";
 // them settable via fireEvent.change and forwards min/max so the bound
 // assertions below still pin what the component computes. Imported inside the
 // factory because vi.mock is hoisted above the imports.
-vi.mock("~/components/ui/date-picker", async (importOriginal) => {
-  const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
-  return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
-});
+vi.mock("~/components/ui/date-picker", async () =>
+  (await import("~/test/mocks/date-picker")).datePickerModuleMock(),
+);
 
 const {
   mockToastSuccess,
@@ -4204,6 +4203,7 @@ describe("TimetableEventModal", () => {
   });
 
   it("probes conflicts after a room change and keeps Speichern enabled", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     mockCheckConflicts.mockResolvedValue({
       date: "2026-05-04",
       startTime: "12:00",
@@ -4224,6 +4224,7 @@ describe("TimetableEventModal", () => {
     await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
 
     // 500ms debounce, then the advisory warning renders above the footer.
+    await act(() => vi.advanceTimersByTimeAsync(500));
     await waitFor(
       () =>
         expect(mockCheckConflicts).toHaveBeenCalledWith(
@@ -4246,6 +4247,7 @@ describe("TimetableEventModal", () => {
   });
 
   it("shows conflict hints already on step 1 without blocking the save on the last step", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     mockCheckConflicts.mockResolvedValue({
       date: "2026-05-04",
       startTime: "12:00",
@@ -4264,6 +4266,7 @@ describe("TimetableEventModal", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
     await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await act(() => vi.advanceTimersByTimeAsync(500));
 
     // Without any step navigation the advisory hint appears on step 1.
     expect(
@@ -4277,6 +4280,7 @@ describe("TimetableEventModal", () => {
   });
 
   it("shows uncovered-shift warnings without blocking save", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     mockCheckShiftCoverage.mockResolvedValue({
       coverageWarnings: [
         {
@@ -4297,6 +4301,7 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
     await goToStep(3);
     fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
+    await act(() => vi.advanceTimersByTimeAsync(500));
 
     expect(
       await screen.findByText(
@@ -4307,6 +4312,7 @@ describe("TimetableEventModal", () => {
   });
 
   it("aggregates large coverage results without creating assertive alerts", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const warnings = Array.from({ length: 100 }, (_, index) => ({
       staffId: "11",
       staffName: "Ada Staff",
@@ -4326,6 +4332,7 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
     await goToStep(3);
     fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
+    await act(() => vi.advanceTimersByTimeAsync(500));
 
     expect(
       await screen.findByText(
@@ -4519,6 +4526,7 @@ describe("TimetableEventModal", () => {
   });
 
   it("preserves an A-week series in both coverage and direct saves", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const aWeekTemplate: TimetableTemplate = {
       ...template,
       schedules: template.schedules.map((schedule) => ({
@@ -4529,6 +4537,7 @@ describe("TimetableEventModal", () => {
     renderModal({ initialSeries: aWeekTemplate });
 
     await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await act(() => vi.advanceTimersByTimeAsync(500));
     await waitFor(() =>
       expect(mockCheckShiftCoverage).toHaveBeenCalledWith(
         expect.objectContaining({ weekPattern: 1 }),
@@ -4840,6 +4849,7 @@ describe("TimetableEventModal", () => {
   });
 
   it("shows a non-blocking warning when shift coverage cannot be checked", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     mockCheckShiftCoverage.mockRejectedValue(new Error("probe down"));
     renderModal();
 
@@ -4847,6 +4857,7 @@ describe("TimetableEventModal", () => {
     await goToStep(3);
     fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
 
+    await act(() => vi.advanceTimersByTimeAsync(500));
     await waitFor(() => expect(mockCheckShiftCoverage).toHaveBeenCalled(), {
       timeout: 2000,
     });
@@ -4885,6 +4896,7 @@ describe("TimetableEventModal", () => {
   });
 
   it("uses the moved converted instance's effective roster without a replan group", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     renderModal({
       convertInstance: {
         ...savedInstance,
@@ -4904,6 +4916,7 @@ describe("TimetableEventModal", () => {
     fireEvent.change(screen.getByLabelText("Datum*"), {
       target: { value: "2026-05-05" },
     });
+    await act(() => vi.advanceTimersByTimeAsync(500));
     await waitFor(
       () =>
         expect(mockCheckConflicts).toHaveBeenCalledWith(
@@ -4914,6 +4927,7 @@ describe("TimetableEventModal", () => {
         ),
       { timeout: 2000 },
     );
+    await act(() => vi.advanceTimersByTimeAsync(500));
     await waitFor(
       () =>
         expect(mockCheckShiftCoverage).toHaveBeenCalledWith(
@@ -4932,6 +4946,7 @@ describe("TimetableEventModal", () => {
   });
 
   it("skips the stale conflict probe when the modal reopens mid-debounce", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const onClose = vi.fn();
     const onSaved = vi.fn();
     const baseProps = {
@@ -4951,6 +4966,7 @@ describe("TimetableEventModal", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
     await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await act(() => vi.advanceTimersByTimeAsync(500));
     await waitFor(() => expect(mockCheckConflicts).toHaveBeenCalledTimes(1), {
       timeout: 2000,
     });
@@ -4958,6 +4974,7 @@ describe("TimetableEventModal", () => {
     // Editing a probe-key field (Start) re-arms the ~500ms debounce; the
     // debounced draft is stale by the time the modal reopens. Reopening
     // inside that window used to fire one probe with the previous draft.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     fireEvent.change(screen.getByLabelText("Start*"), {
       target: { value: "11:00" },
     });
@@ -4967,9 +4984,7 @@ describe("TimetableEventModal", () => {
     rerender(<TimetableEventModal {...baseProps} isOpen />);
 
     await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 700));
-    });
+    await act(() => vi.advanceTimersByTimeAsync(700));
     expect(mockCheckConflicts).not.toHaveBeenCalled();
   });
 
