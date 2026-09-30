@@ -22,20 +22,21 @@ type attendanceRow struct {
 	DeviceID           int64      `bun:"device_id,notnull"`
 	CheckedOutDeviceID *int64     `bun:"checked_out_device_id"`
 	YardSince          *time.Time `bun:"yard_since"`
+	CheckOutNote       *string    `bun:"check_out_note"`
 }
 
 func attendanceRowFromRecord(row *ports.Attendance) *attendanceRow {
 	return &attendanceRow{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		StudentID: row.StudentID, Date: row.Date, CheckInTime: row.CheckInTime, CheckOutTime: row.CheckOutTime,
 		CheckedInBy: row.CheckedInBy, CheckedOutBy: row.CheckedOutBy, DeviceID: row.DeviceID,
-		CheckedOutDeviceID: row.CheckedOutDeviceID, YardSince: row.YardSince}
+		CheckedOutDeviceID: row.CheckedOutDeviceID, YardSince: row.YardSince, CheckOutNote: row.CheckOutNote}
 }
 
 func (row *attendanceRow) record() *ports.Attendance {
 	return &ports.Attendance{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		StudentID: row.StudentID, Date: row.Date, CheckInTime: row.CheckInTime, CheckOutTime: row.CheckOutTime,
 		CheckedInBy: row.CheckedInBy, CheckedOutBy: row.CheckedOutBy, DeviceID: row.DeviceID,
-		CheckedOutDeviceID: row.CheckedOutDeviceID, YardSince: row.YardSince}
+		CheckedOutDeviceID: row.CheckedOutDeviceID, YardSince: row.YardSince, CheckOutNote: row.CheckOutNote}
 }
 
 func attendanceRecordsFromRows(rows []*attendanceRow) []*ports.Attendance {

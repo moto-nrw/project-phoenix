@@ -31,6 +31,8 @@ const (
 	KeyCareDefaultPickupTime                 = configModel.KeyCareDefaultPickupTime
 	KeyClassArrivalExceptionEditors          = configModel.KeyClassArrivalExceptionEditors
 	KeyDisplayEnabled                        = configModel.KeyDisplayEnabled
+	KeyEarlyCheckoutNoteEnabled              = configModel.KeyEarlyCheckoutNoteEnabled
+	KeyEarlyCheckoutNoteToleranceMinutes     = configModel.KeyEarlyCheckoutNoteToleranceMinutes
 	KeyEmergencyListHealthInfo               = configModel.KeyEmergencyListHealthInfo
 	KeyEnrollmentBookingsAuthoritative       = configModel.KeyEnrollmentBookingsAuthoritative
 	KeyEnrollmentCareOfferingsEnabled        = configModel.KeyEnrollmentCareOfferingsEnabled

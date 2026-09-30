@@ -97,6 +97,39 @@ func init() {
 		DependsOn:       config.DependsOnEq(config.KeyPerStudentCheckoutEnabled, true),
 	})
 
+	// --- Early checkout note (#3324) ---
+	// Web-only and independent of NFC: the web checkout dialogs offer an
+	// optional note when a child leaves this many minutes before its pickup
+	// time. The note is never required.
+
+	config.Register(config.Definition{
+		Key:             config.KeyEarlyCheckoutNoteEnabled,
+		Label:           "Bei frühem Gehen nach dem Grund fragen",
+		Description:     "Wird ein Kind früher als geplant abgemeldet, erscheint ein Feld für den Grund. Der Grund ist freiwillig.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "abholung",
+		SortOrder:       1,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyEarlyCheckoutNoteToleranceMinutes,
+		Label:           "Früh heißt: mehr als so viele Minuten vor der Abholzeit",
+		Description:     "Beispiel: Abholzeit 15:00 und 15 Minuten. Wer ein Kind vor 14:45 abmeldet, wird nach dem Grund gefragt.",
+		Type:            config.FieldNumber,
+		Default:         15,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "abholung",
+		SortOrder:       2,
+		Validation:      config.Range(0, 240),
+		DependsOn:       config.DependsOnEq(config.KeyEarlyCheckoutNoteEnabled, true),
+	})
+
 	// --- Abandoned Session Cleanup (system tab — automated background process) ---
 
 	config.Register(config.Definition{

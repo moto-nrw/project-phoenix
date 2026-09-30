@@ -572,11 +572,15 @@ function webAttendanceTopic(presenceMode: HelpPresenceMode): HelpTopic {
     notes: [
       "Möchten Sie mehrere Kinder ändern? Wählen Sie `Mehrere`.",
       // Live geprueft: in `Direkt` schreibt jeder Tipp sofort, ohne Rueckfrage.
+      // Ausnahme seit #3324: frühes Gehen öffnet vorher ein Fenster.
       "In `Direkt` meldet jeder Tipp sofort an oder ab. Auf der Karte steht `Tippen zum Anmelden`.",
+      "Geht ein Kind früher als seine Abholzeit, fragt moto nach dem Grund. Der Grund ist freiwillig.",
+      "Den Grund sehen Sie danach beim Kind unter `Heutige Abholung`. Mit Anwesenheitsprotokoll steht er auch in der `Tagesauswertung` und im Verlauf.",
     ],
     differences: [
       "moto zeigt nur die Aktion, die zum aktuellen Status passt.",
       "Fehlt `Anmelden` oder `Abmelden`? Fragen Sie Ihre Leitung nach dem Recht zum An- und Abmelden.",
+      "moto fragt nie nach einem Grund? Dann hat Ihre Schule die Frage ausgeschaltet oder das Kind hat heute keine Abholzeit.",
     ],
     troubleshooting: HELP_TOPICS.attendanceProblem,
     related: [
@@ -810,6 +814,9 @@ function dayLogTopic(groupMode: HelpGroupMode): HelpTopic {
     differences: [
       "Fehlt `Tagesauswertung`? Bitten Sie Ihre Leitung, das `Anwesenheitsprotokoll` unter `Einstellungen` und `Datenschutz` einzuschalten.",
       "Steht dort `Anwesenheitsprotokoll ist ausgeschaltet`? Dann ist es für Ihre Schule nicht eingeschaltet.",
+    ],
+    notes: [
+      "Ist ein Kind früher gegangen, steht der Grund hinter `gegangen`. Er steht auch im `PDF` und in `Excel`.",
     ],
     related: [
       HELP_TOPICS.absences,

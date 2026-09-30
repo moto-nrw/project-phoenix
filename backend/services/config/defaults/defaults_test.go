@@ -23,6 +23,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.student_daily_checkout_time",
 		"operations.per_student_checkout_enabled",
 		"operations.per_student_checkout_delta_minutes",
+		// Optional note when a child leaves early (#3324).
+		"operations.early_checkout_note_enabled",
+		"operations.early_checkout_note_tolerance_minutes",
 		"operations.session_cleanup_enabled",
 		"operations.session_cleanup_interval_minutes",
 		"operations.session_abandoned_threshold_minutes",
@@ -955,6 +958,8 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.student_daily_checkout_time", config.FieldTime},
 		{"operations.per_student_checkout_enabled", config.FieldBoolean},
 		{"operations.per_student_checkout_delta_minutes", config.FieldNumber},
+		{"operations.early_checkout_note_enabled", config.FieldBoolean},
+		{"operations.early_checkout_note_tolerance_minutes", config.FieldNumber},
 		{"operations.session_cleanup_enabled", config.FieldBoolean},
 		{"operations.session_cleanup_interval_minutes", config.FieldNumber},
 		{"operations.session_abandoned_threshold_minutes", config.FieldNumber},
@@ -1751,6 +1756,7 @@ func TestValidation_NumberFields(t *testing.T) {
 		"gdpr.room_detail_visible_days",
 		"feedback.data_retention_days",
 		"operations.per_student_checkout_delta_minutes",
+		"operations.early_checkout_note_tolerance_minutes",
 	}
 
 	for _, key := range numberKeys {
@@ -2134,4 +2140,34 @@ func TestAnalyticsFreigabeSettings(t *testing.T) {
 	assert.Equal(t, float64(100), *sample.Validation.Max)
 	require.NotNil(t, sample.DependsOn)
 	assert.Equal(t, config.KeyAnalyticsFreigabe, sample.DependsOn.Key)
+}
+
+// TestEarlyCheckoutNoteSettings pins the early-checkout note pair (#3324): the
+// prompt is on by default, independent of NFC, and its tolerance only shows
+// while the prompt is on.
+func TestEarlyCheckoutNoteSettings(t *testing.T) {
+	t.Parallel()
+
+	enabled := config.GetDefinition(config.KeyEarlyCheckoutNoteEnabled)
+	require.NotNil(t, enabled)
+	assert.Equal(t, config.FieldBoolean, enabled.Type)
+	assert.Equal(t, true, enabled.Default)
+	assert.Equal(t, "operations", enabled.Tab)
+	assert.Equal(t, "config:update", enabled.WritePermission)
+	assert.Nil(t, enabled.DependsOn, "the web prompt must not depend on NFC")
+	assert.Equal(t, config.AccessShared, enabled.AccessPolicy)
+
+	tolerance := config.GetDefinition(config.KeyEarlyCheckoutNoteToleranceMinutes)
+	require.NotNil(t, tolerance)
+	assert.Equal(t, config.FieldNumber, tolerance.Type)
+	assert.Equal(t, 15, tolerance.Default)
+	require.NotNil(t, tolerance.Validation)
+	require.NotNil(t, tolerance.Validation.Min)
+	require.NotNil(t, tolerance.Validation.Max)
+	assert.InDelta(t, 0, *tolerance.Validation.Min, 0)
+	assert.InDelta(t, 240, *tolerance.Validation.Max, 0)
+	require.NotNil(t, tolerance.DependsOn)
+	assert.Equal(t, config.KeyEarlyCheckoutNoteEnabled, tolerance.DependsOn.Key)
+	assert.Equal(t, "eq", tolerance.DependsOn.Condition)
+	assert.Equal(t, true, tolerance.DependsOn.Value)
 }

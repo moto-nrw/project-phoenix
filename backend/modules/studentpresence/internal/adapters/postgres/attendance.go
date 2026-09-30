@@ -134,6 +134,9 @@ func (s *Store) CloseAttendance(ctx context.Context, checkout ports.AttendanceCh
 	if checkout.DeviceID > 0 {
 		query = query.Set("checked_out_device_id = ?", checkout.DeviceID)
 	}
+	if checkout.Note != "" {
+		query = query.Set("check_out_note = ?", checkout.Note)
+	}
 	started := time.Now()
 	err = query.Scan(ctx, &rows)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}

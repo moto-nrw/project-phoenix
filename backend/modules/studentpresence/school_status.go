@@ -11,6 +11,7 @@ type SchoolStatus struct {
 	CheckedOutBy                         *int64
 	Date, Status                         string
 	CheckInTime, CheckOutTime, YardSince *time.Time
+	CheckOutNote                         *string
 }
 
 // ListSchoolStatuses returns one status per requested student. Checkout wins
