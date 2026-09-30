@@ -400,7 +400,7 @@ func TestParentAnnouncementMarkRead_VersionGuard(t *testing.T) {
 
 // TestParentAnnouncementAudience_InactiveMembershipExcluded verifies that a
 // guardian whose auth.account_tenants mapping is no longer active drops out of
-// every audience surface, even though the guardian_profiles + students_guardians
+// every audience surface, even though the guardian_profiles + relationship
 // rows (with parent_portal.access) still exist. Membership, not just the
 // relationship, is what grants parent-portal access.
 func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {

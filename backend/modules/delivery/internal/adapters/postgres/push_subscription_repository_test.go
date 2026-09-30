@@ -248,8 +248,9 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		// Access revoked after the producer picked its audience — the account,
 		// its tenant mapping, its guardian role and its device all stay intact.
 		_, err = db.ExecContext(context.Background(),
-			`UPDATE users.students_guardians SET permissions = permissions - 'parent_portal.access'
-			 WHERE student_id = ? AND tenant_id = ?`, chain.StudentID, chain.TenantID)
+			`UPDATE auth.guardian_student_access AS a SET permissions = a.permissions - 'parent_portal.access'
+			 FROM users.student_guardian_relationships AS r
+			 WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id AND r.student_id = ? AND r.tenant_id = ?`, chain.StudentID, chain.TenantID)
 		require.NoError(t, err)
 
 		subs, err = repo.FindForGuardians(chainCtx, []int64{chain.AccountID}, []int64{chain.StudentID})
@@ -264,9 +265,10 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		// account while any one of them still permits it, and drops it once none
 		// does. Restoring access to the family's own child shows both directions.
 		_, err = db.ExecContext(context.Background(),
-			`UPDATE users.students_guardians
-			 SET permissions = permissions || '{"parent_portal.access": true}'::jsonb
-			 WHERE student_id = ? AND tenant_id = ?`, chain.StudentID, chain.TenantID)
+			`UPDATE auth.guardian_student_access AS a
+			 SET permissions = a.permissions || '{"parent_portal.access": true}'::jsonb
+			 FROM users.student_guardian_relationships AS r
+			 WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id AND r.student_id = ? AND r.tenant_id = ?`, chain.StudentID, chain.TenantID)
 		require.NoError(t, err)
 
 		subs, err = repo.FindForGuardians(chainCtx, []int64{chain.AccountID}, []int64{otherFamily.StudentID, chain.StudentID})

@@ -118,11 +118,10 @@ func TestResolveDeliveryRecipients_IncludesGuardiansWithoutPortalAccess(t *testi
 
 	// Revoke portal access on the link. The classic audience query drops the
 	// person entirely; this one must keep them, flagged.
-	_, err = db.NewUpdate().
-		Table("users.students_guardians").
-		Set(`permissions = permissions - 'parent_portal.access'`).
-		Where("student_id = ? AND guardian_profile_id = ?", chain.StudentID, chain.GuardianProfileID).
-		Exec(ctx)
+	_, err = db.ExecContext(ctx, `UPDATE auth.guardian_student_access AS a SET permissions = a.permissions - 'parent_portal.access'
+		FROM users.student_guardian_relationships AS r
+		WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id AND r.student_id = ? AND r.guardian_profile_id = ?`,
+		chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 
 	after, err := repo.ResolveDeliveryRecipients(ctx, chain.TenantID, letter.ID)
@@ -186,11 +185,9 @@ func TestLetterChildStatuses_KeepsChildrenNobodyCanConfirmFor(t *testing.T) {
 
 	// Strip portal access. The child is STILL reached by a school-wide letter and
 	// must stay in the list — only now nobody can confirm for it.
-	_, err = db.NewUpdate().
-		Table("users.students_guardians").
-		Set(`permissions = permissions - 'parent_portal.access'`).
-		Where("student_id = ?", chain.StudentID).
-		Exec(ctx)
+	_, err = db.ExecContext(ctx, `UPDATE auth.guardian_student_access AS a SET permissions = a.permissions - 'parent_portal.access'
+		FROM users.student_guardian_relationships AS r
+		WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id AND r.student_id = ?`, chain.StudentID)
 	require.NoError(t, err)
 
 	after, err := repo.LetterChildStatuses(ctx, chain.TenantID, letter.ID)

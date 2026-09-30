@@ -116,10 +116,12 @@ export async function fetchPickupExtensions(
     headers: { Accept: "application/json" },
     credentials: "include",
   });
+  // The BFF route unwraps the backend envelope and wraps its own around the
+  // result: { success, message, data: { tasks } } (#3776).
   const responseData = await readData<{
-    tasks: BackendPickupExtension[] | null;
+    data: { tasks: BackendPickupExtension[] | null };
   }>(response);
-  return (responseData.tasks ?? []).map(mapPickupExtension);
+  return (responseData.data.tasks ?? []).map(mapPickupExtension);
 }
 
 /**

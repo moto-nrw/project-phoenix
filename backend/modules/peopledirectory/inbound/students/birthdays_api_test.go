@@ -434,3 +434,52 @@ func TestOverviewAppliesStudentDataScope(t *testing.T) {
 		assert.Contains(t, decodeOverview(t, rr).names(), "Fremdes Scopekind")
 	})
 }
+
+// week_start steps the display through the weeks (#3777): any day selects its
+// Monday-to-Sunday week, the answer carries the bounds the frontend may step
+// to, and a malformed or out-of-range week is a client mistake.
+func TestOverviewWeekStart(t *testing.T) {
+	t.Parallel()
+
+	tc := setupBirthdaysRoute(t, func() time.Time {
+		return timezone.NewDate(2026, 9, 29).BerlinMidnight().Add(12 * time.Hour)
+	})
+	setSetting(t, tc, keyDisplayEnabled, true)
+
+	account := testpkg.CreateTestAccount(t, tc.db, "birthday-week@example.com")
+	lastWeek := testpkg.CreateTestStudent(t, tc.db, "Nora", "Vorwoche", "3a")
+	setPersonBirthday(t, tc.db, lastWeek.PersonID, timezone.NewDate(2018, 9, 24))
+
+	request := func(query string) *httptest.ResponseRecorder {
+		req, err := http.NewRequest("GET", "/"+query, nil)
+		require.NoError(t, err)
+		return birthdayAuthExec(t, tc, req, claimsFor(t, account.ID), adminPermissions())
+	}
+
+	t.Run("current week without a parameter", func(t *testing.T) {
+		rr := request("")
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `"week_start":"2026-09-28"`)
+		assert.Contains(t, rr.Body.String(), `"week_end":"2026-10-04"`)
+		assert.Contains(t, rr.Body.String(), `"earliest_week_start":"2026-08-31"`)
+		assert.Contains(t, rr.Body.String(), `"latest_week_start":"2026-10-26"`)
+		assert.NotContains(t, decodeOverview(t, rr).names(), "Nora Vorwoche")
+	})
+
+	t.Run("previous week", func(t *testing.T) {
+		rr := request("?week_start=2026-09-21")
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `"week_start":"2026-09-21"`)
+		assert.Contains(t, decodeOverview(t, rr).names(), "Nora Vorwoche")
+	})
+
+	t.Run("malformed date", func(t *testing.T) {
+		rr := request("?week_start=21.09.2026")
+		assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+	})
+
+	t.Run("beyond the reach", func(t *testing.T) {
+		rr := request("?week_start=2026-11-02")
+		assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+	})
+}

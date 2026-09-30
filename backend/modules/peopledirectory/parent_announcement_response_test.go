@@ -207,10 +207,9 @@ func TestParentAnnouncementSetResponse_SingleChoiceRejectsMultipleOptions(t *tes
 // guardian link while leaving parent_portal.access in place.
 func revokePollResponse(t *testing.T, db *bun.DB, chain testpkg.ParentChain) {
 	t.Helper()
-	_, err := db.NewUpdate().
-		TableExpr("users.students_guardians").
-		Set("permissions = permissions - ?", testpkg.GuardianPermissionPollResponse).
-		Where("student_id = ? AND tenant_id = ?", chain.StudentID, chain.TenantID).
-		Exec(context.Background())
+	_, err := db.ExecContext(context.Background(), `UPDATE auth.guardian_student_access AS a SET permissions = a.permissions - ?
+		FROM users.student_guardian_relationships AS r
+		WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id AND r.student_id = ? AND r.tenant_id = ?`,
+		testpkg.GuardianPermissionPollResponse, chain.StudentID, chain.TenantID)
 	require.NoError(t, err)
 }

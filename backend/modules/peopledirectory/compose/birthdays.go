@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The birthday display reads persons, students and staff through a store the
@@ -46,9 +47,9 @@ func NewBirthdays(deps BirthdayDependencies) peopledirectory.Birthdays {
 
 type birthdays struct{ service *application.BirthdayService }
 
-func (b birthdays) Overview(ctx context.Context, visibility peopledirectory.BirthdayVisibility) (peopledirectory.BirthdayOverview, error) {
+func (b birthdays) Overview(ctx context.Context, visibility peopledirectory.BirthdayVisibility, weekOf *calendar.Date) (peopledirectory.BirthdayOverview, error) {
 	// A nil visibility stays nil through the conversion: no child is visible.
-	value, err := b.service.Overview(ctx, visibility)
+	value, err := b.service.Overview(ctx, visibility, weekOf)
 	if err != nil {
 		return peopledirectory.BirthdayOverview{}, mapBirthdayError(err)
 	}
@@ -60,7 +61,10 @@ func (b birthdays) Overview(ctx context.Context, visibility peopledirectory.Birt
 		})
 	}
 	return peopledirectory.BirthdayOverview{
-		Enabled: value.Enabled, IncludeStaff: value.IncludeStaff, Today: value.Today, Celebrations: celebrations,
+		Enabled: value.Enabled, IncludeStaff: value.IncludeStaff, Today: value.Today,
+		WeekStart: value.Week.Start, WeekEnd: value.Week.End,
+		EarliestWeekStart: value.EarliestWeekStart, LatestWeekStart: value.LatestWeekStart,
+		Celebrations: celebrations,
 	}, nil
 }
 
@@ -88,6 +92,9 @@ func (b birthdays) ListStaffBirthdays(ctx context.Context, months map[time.Month
 func mapBirthdayError(err error) error {
 	if errors.Is(err, domain.ErrBirthdayStaffNotFound) {
 		return fmt.Errorf("%w: %w", peopledirectory.ErrStaffNotFound, err)
+	}
+	if errors.Is(err, domain.ErrBirthdayWeekOutOfRange) {
+		return fmt.Errorf("%w: %w", peopledirectory.ErrBirthdayWeekOutOfRange, err)
 	}
 	return err
 }

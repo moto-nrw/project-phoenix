@@ -309,7 +309,6 @@ func (e *fakeEngine) CreateSchool(_ context.Context, input organizationtenancy.C
 		OrganizationID: input.OrganizationID, Name: input.Name, Slug: input.Slug, Subdomain: input.Subdomain,
 		Active: input.Active, Hidden: input.Hidden, Settings: input.Settings,
 		Address: input.Address, City: input.City, Zip: input.Zip, Phone: input.Phone, Email: input.Email,
-		DevicePinHash: input.DevicePinHash,
 	}
 	e.schools[school.ID] = school
 	return *school, nil
@@ -327,7 +326,6 @@ func (e *fakeEngine) UpdateSchool(_ context.Context, input organizationtenancy.U
 	school.OrganizationID, school.Name, school.Slug, school.Subdomain = input.OrganizationID, input.Name, input.Slug, input.Subdomain
 	school.Active, school.Hidden, school.Settings = input.Active, input.Hidden, input.Settings
 	school.Address, school.City, school.Zip, school.Phone, school.Email = input.Address, input.City, input.Zip, input.Phone, input.Email
-	school.DevicePinHash = input.DevicePinHash
 	return *school, nil
 }
 

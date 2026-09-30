@@ -489,9 +489,8 @@ func TestParentMessaging_ListGuardiansForStudent_ExcludesNoPortalAccess(t *testi
 	}
 	testpkg.ApplyStudentGuardianRole(pickupLink, testpkg.GuardianRolePickupOnly)
 	pickupLink.SetTenantID(chain.TenantID)
-	_, err = db.NewInsert().Model(pickupLink).ModelTableExpr(`users.students_guardians`).Exec(context.Background())
-	require.NoError(t, err)
-	// students_guardians for this student is cleaned by CleanupParentGuardianChain.
+	require.NoError(t, testpkg.InsertTestStudentGuardian(context.Background(), db, pickupLink))
+	// The relationship for this student is cleaned by CleanupParentGuardianChain.
 
 	threadRepo := parentRepos(t, db).Thread
 	guardians, err := threadRepo.ListGuardiansForStudent(ctx, chain.StudentID)

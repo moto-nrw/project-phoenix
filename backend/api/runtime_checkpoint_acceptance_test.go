@@ -214,7 +214,7 @@ func (w *acceptanceWorkload) finalState(t *testing.T) map[string]int {
 		FROM enrollment.request_children child
 		JOIN enrollment.requests request ON request.id = child.request_id AND request.tenant_id = child.tenant_id
 		JOIN users.guardian_profiles profile ON profile.account_id = request.guardian_account_id AND profile.tenant_id = child.tenant_id
-		LEFT JOIN users.students_guardians link ON link.student_id = child.created_student_id AND link.tenant_id = child.tenant_id AND link.is_primary
+		LEFT JOIN users.student_guardian_relationships link ON link.student_id = child.created_student_id AND link.tenant_id = child.tenant_id AND link.is_primary
 		WHERE request.phase_id = ? AND child.tenant_id = ? AND request.guardian_account_id = ?`, w.phaseID, w.tenantID, w.parentAccountID).Scan(ctx, &parentApproved, &parentLinked))
 	require.Equal(t, w.parentApproved, parentApproved, "parent-account approvals must be persisted")
 	require.Equal(t, parentApproved, parentLinked, "every parent-account approval must link the student to the parent's guardian profile")

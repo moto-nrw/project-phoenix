@@ -43,14 +43,18 @@ func TestParentAudienceWithoutStudentCompatibilityView(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, visible, may)
 	})
-	_, err = db.ExecContext(ctx, `UPDATE users.students_guardians SET permissions = '{}'::jsonb WHERE student_id = ?`, chain.StudentID)
+	_, err = db.ExecContext(ctx, `UPDATE auth.guardian_student_access AS a SET permissions = '{}'::jsonb
+		FROM users.student_guardian_relationships AS r
+		WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id AND r.student_id = ?`, chain.StudentID)
 	require.NoError(t, err)
 	may, err = repo.AccountMayAnswerForStudent(ctx, chain.TenantID, poll.ID, chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.False(t, may, "a relationship and active account are not parent authorization")
 	// Restore the fixture's explicit permissions so the row-existence checks
 	// below cannot pass merely because authorization was removed.
-	_, err = db.ExecContext(ctx, `UPDATE users.students_guardians SET permissions = '{"parent_portal.access":true,"parent_portal.poll.response":true}'::jsonb WHERE student_id = ?`, chain.StudentID)
+	_, err = db.ExecContext(ctx, `UPDATE auth.guardian_student_access AS a SET permissions = '{"parent_portal.access":true,"parent_portal.poll.response":true}'::jsonb
+		FROM users.student_guardian_relationships AS r
+		WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id AND r.student_id = ?`, chain.StudentID)
 	require.NoError(t, err)
 
 	testpkg.AssertMissingStudentProjectionStates(t, db, membershipID, func() {

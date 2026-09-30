@@ -2935,7 +2935,7 @@ func CreateTestInstanceStaffForTenant(tb testing.TB, db *bun.DB, tenantID, insta
 // ParentChain bundles the IDs of a fully-wired loginable-parent → child
 // relationship, mirroring what the guardian-invitation accept flow
 // produces: an auth account, a guardian profile linked to it, an active
-// account_tenants mapping, and a students_guardians link to a student.
+// account_tenants mapping, and a student guardian link to a student.
 // All rows live in tenant 1 so the parent-portal cross-tenant queries
 // resolve.
 type ParentChain struct {
@@ -2982,8 +2982,7 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRolePrimaryGuardian)
 	link.IsPrimary = true
 	link.SetTenantID(fixtureTenantID(tb))
-	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(ctx)
-	require.NoError(tb, err, "Failed to create students_guardians link")
+	require.NoError(tb, InsertTestStudentGuardian(ctx, db, link), "Failed to create student guardian link")
 
 	now := time.Now()
 	mapping := &AccountTenantFixture{
@@ -3194,8 +3193,7 @@ func CreateTestCoGuardianForStudent(
 	// A co-guardian, not the primary one: same portal access, no primacy.
 	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleCoGuardian)
 	link.SetTenantID(fixtureTenantID(tb))
-	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(ctx)
-	require.NoError(tb, err, "Failed to link co-guardian to student")
+	require.NoError(tb, InsertTestStudentGuardian(ctx, db, link), "Failed to link co-guardian to student")
 
 	now := time.Now()
 	mapping := &AccountTenantFixture{

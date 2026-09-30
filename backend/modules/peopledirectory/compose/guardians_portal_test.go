@@ -20,7 +20,7 @@ func TestGuardianPortalContactsBatchProfilesAndRelationships(t *testing.T) {
 	sibling := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Sibling", "Directory", "2a")
 	testpkg.CreateTestStudentGuardianLinkForTenant(t, db, tenantID, sibling.ID, guardianID, "pickup_only")
 	_, loneGuardian, _, loneLink := guardianRows(t, db, tenantID, "primary_guardian")
-	_, err := db.NewRaw("DELETE FROM users.students_guardians WHERE id = ?", loneLink).Exec(ctx)
+	_, err := db.NewRaw("DELETE FROM users.student_guardian_relationships WHERE id = ?", loneLink).Exec(ctx)
 	require.NoError(t, err)
 	_, err = db.NewRaw("UPDATE users.guardian_profiles SET portal_locale = 'en' WHERE id = ?", guardianID).Exec(ctx)
 	require.NoError(t, err)

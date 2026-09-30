@@ -172,12 +172,11 @@ func TestAnnouncementPoll_IneligibleChildIsNotOutstanding(t *testing.T) {
 			TargetRefID: &chain.StudentID,
 		}},
 		"Ja", "Nein")
-	_, err := db.NewUpdate().
-		TableExpr("users.students_guardians").
-		Set("permissions = ?", `{"parent_portal.access": true}`).
-		Where("student_id = ?", chain.StudentID).
-		Where("guardian_profile_id = ?", chain.GuardianProfileID).
-		Exec(testpkg.WithTestTenantRuntime(t, context.Background()))
+	_, err := db.ExecContext(testpkg.WithTestTenantRuntime(t, context.Background()), `
+		UPDATE auth.guardian_student_access AS a SET permissions = '{"parent_portal.access": true}'::jsonb
+		FROM users.student_guardian_relationships AS r
+		WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id AND r.student_id = ? AND r.guardian_profile_id = ?`,
+		chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 
 	results, err := repos.ParentAnnouncement.PollResults(seedCtx, chain.TenantID, poll.ID)
