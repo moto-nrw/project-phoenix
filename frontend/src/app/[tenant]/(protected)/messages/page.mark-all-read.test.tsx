@@ -10,6 +10,7 @@ const {
   mockToastSuccess,
   mockPush,
   mockInbox,
+  mockTenant,
 } = vi.hoisted(() => ({
   mockMarkAllMessagesRead: vi.fn(),
   mockMutate: vi.fn(),
@@ -17,6 +18,7 @@ const {
   mockToastSuccess: vi.fn(),
   mockPush: vi.fn(),
   mockInbox: { threads: [] as Array<Record<string, unknown>> },
+  mockTenant: { messagingEnabled: true },
 }));
 
 vi.mock("swr", () => ({
@@ -29,7 +31,7 @@ vi.mock("swr", () => ({
 }));
 
 vi.mock("~/lib/tenant-context", () => ({
-  useTenant: () => ({ tenant: { messagingEnabled: true } }),
+  useTenant: () => ({ tenant: mockTenant }),
   useTenantSlugSafe: () => "schule",
 }));
 
@@ -109,6 +111,7 @@ describe("Alle als gelesen markieren", () => {
     vi.clearAllMocks();
     mockUnread.unreadCount = 3;
     mockInbox.threads = [];
+    mockTenant.messagingEnabled = true;
     mockMutate.mockResolvedValue(undefined);
     unreadRefreshes = 0;
     window.addEventListener("messages-unread-refresh", countRefresh);
@@ -225,6 +228,15 @@ describe("Alle als gelesen markieren", () => {
     );
 
     expect(mockPush).toHaveBeenCalledWith("/profile");
+  });
+
+  it("does not offer the hidden setting while messaging is off", () => {
+    mockTenant.messagingEnabled = false;
+    render(<MessagesPage />);
+
+    expect(
+      screen.queryByRole("button", { name: "Weitere Aktionen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a hint and no confirmation when marking fails", async () => {

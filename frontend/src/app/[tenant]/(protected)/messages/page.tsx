@@ -184,10 +184,14 @@ function MessagesInboxContent() {
               },
             ]
           : []),
-        {
-          label: COUNT_SETTING_LABEL,
-          onClick: () => router.push("/profile"),
-        },
+        ...(messagingEnabled
+          ? [
+              {
+                label: COUNT_SETTING_LABEL,
+                onClick: () => router.push("/profile"),
+              },
+            ]
+          : []),
       ]}
       search={{
         value: searchTerm,
