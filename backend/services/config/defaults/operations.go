@@ -342,9 +342,9 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeySickClearMode,
 		Label:           "Krankmeldung automatisch beenden",
-		Description:     "Legt fest, wann die Krankmeldung eines Kindes automatisch aufgehoben wird.",
+		Description:     "Legt fest, wann die Krankmeldung eines Kindes automatisch aufgehoben wird. Bei \"Beim nächsten Check-in\" bleibt sie auch nach dem Enddatum sichtbar. Sie endet erst, wenn das Kind wieder eincheckt.",
 		Type:            config.FieldSelect,
-		Default:         config.ClearModeNextCheckin,
+		Default:         config.ClearModeEndOfDay,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",

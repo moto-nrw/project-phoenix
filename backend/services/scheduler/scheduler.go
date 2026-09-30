@@ -1745,7 +1745,7 @@ func (s *Scheduler) checkAndRunStatusFlagClear(ctx context.Context, task *Schedu
 		if wasRunToday(&s.lastStatusFlagClear, tenantID) {
 			return nil
 		}
-		sickMode := s.resolveStringSetting(tenantCtx, configModel.KeySickClearMode, "", configModel.ClearModeNextCheckin)
+		sickMode := s.resolveStringSetting(tenantCtx, configModel.KeySickClearMode, "", configModel.ClearModeEndOfDay)
 		excusedMode := s.resolveStringSetting(tenantCtx, configModel.KeyExcusedClearMode, "", configModel.ClearModeEndOfDay)
 		succeeded := true
 

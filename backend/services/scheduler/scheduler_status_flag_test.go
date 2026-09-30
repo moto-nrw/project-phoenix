@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -416,6 +417,66 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_RespectsModeSetting(t *testing.T) {
 	_, gotExcused := reloadStudentFlags(t, db, excusedStudent.ID)
 	assert.False(t, gotSick, "sick must be cleared when sick_clear_mode = end_of_day")
 	assert.True(t, gotExcused, "excused must NOT be cleared when excused_clear_mode != end_of_day")
+}
+
+// TestCheckAndRunStatusFlagClear_EndToEnd_ClearsUnconfiguredModes covers a
+// school without its own clear-mode values (#3728). The scheduler reads those
+// through its own fallback, so that fallback must match the registry default
+// "end_of_day"; otherwise an ended sick note would linger with nobody clearing it.
+func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsUnconfiguredModes(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	db := testpkg.SetupTestDB(t)
+
+	for _, key := range []string{configModel.KeySickClearMode, configModel.KeyExcusedClearMode} {
+		definition := configModel.GetDefinition(key)
+		require.NotNil(t, definition, "%s must be registered", key)
+		require.Equal(t, configModel.ClearModeEndOfDay, definition.Default,
+			"premise of this test: %s defaults to end_of_day", key)
+	}
+
+	now := time.Now()
+	if now.Second() >= 58 {
+		t.Skip("skipping to avoid minute-boundary race on timeMatchesNow")
+	}
+	nowHHMM := fmt.Sprintf("%02d:%02d", now.Hour(), now.Minute())
+
+	sickStudent := testpkg.CreateTestStudent(t, db, "E2E", "DefaultSick", "d1")
+	excusedStudent := testpkg.CreateTestStudent(t, db, "E2E", "DefaultExcused", "d2")
+
+	flagTrue := true
+	_, err := db.NewUpdate().
+		Table("users.student_care_profiles").
+		Set("sick = ?", flagTrue).
+		Set("sick_since = ?", now).
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", sickStudent.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+	_, err = db.NewUpdate().
+		Table("users.student_care_profiles").
+		Set("excused = ?", flagTrue).
+		Set("excused_since = ?", now).
+		Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", excusedStudent.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	s := isolatedUnitScheduler(t, db, &Scheduler{
+		db:                   db,
+		schoolRepo:           dbTenantDirectory{db: db},
+		studentStatusDayRepo: statusDayRepository(t, db),
+		settings: &fakeStatusFlagSettings{
+			overrides: map[string]string{
+				"operations.status_flag_clear_time": nowHHMM,
+			},
+		},
+		logger: slog.Default()})
+
+	s.checkAndRunStatusFlagClear(context.Background(), &ScheduledTask{Name: "status-flag-clear"})
+
+	gotSick, _ := reloadStudentFlags(t, db, sickStudent.ID)
+	_, gotExcused := reloadStudentFlags(t, db, excusedStudent.ID)
+	assert.False(t, gotSick, "sick must be cleared at end of day when the school kept the default")
+	assert.False(t, gotExcused, "excused must be cleared at end of day when the school kept the default")
 }
 
 // TestCheckAndRunStatusFlagClear_EndToEnd_DoesNothingWhenTimeDoesNotMatch

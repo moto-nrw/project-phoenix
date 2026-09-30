@@ -82,7 +82,7 @@ func (s presenceSettingsStub) WebParticipantLimitEnforced(context.Context) (bool
 func defaultPresenceSettings() presenceSettingsStub {
 	return presenceSettingsStub{
 		presenceMode:             active.PresenceModeDetailed,
-		sickClearMode:            active.ClearModeNextCheckin,
+		sickClearMode:            "end_of_day",
 		excusedClearMode:         "end_of_day",
 		attendanceEditScope:      active.AttendanceEditScopeOwn,
 		operationalOverviewScope: active.OverviewScopeAllStaff,
