@@ -2,7 +2,6 @@ package legacy
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -130,8 +129,11 @@ func TestNewRejectsMissingSources(t *testing.T) {
 	require.NotNil(t, query)
 }
 
-func nullString(value string) sql.NullString {
-	return sql.NullString{String: value, Valid: value != ""}
+func nullString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 // The retained service's fixture (#2609 tests): one child in the Kreativraum

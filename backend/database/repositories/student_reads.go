@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
@@ -299,10 +300,10 @@ func studentRecordsByID(records []peopleModule.StudentRecord) map[int64]*userMod
 }
 
 // missingStudent is the shape the retained callers branch on for a child that
-// is not there; the model owns it, because the seam may not name the error
-// package itself.
+// is not there. The retained users repositories build it, because this
+// package may not name the driver's no-rows sentinel itself.
 func missingStudent(op string) error {
-	return userModels.MissingStudentError(op)
+	return usersRepo.MissingStudentError(op)
 }
 
 func translateStudentReadError(op string, err error) error {

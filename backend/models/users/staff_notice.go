@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Wichtigkeit einer Tagesinformation (spiegelt chk_staff_notices_priority).
@@ -171,11 +170,10 @@ func (n *StaffNotice) Validate() error {
 // für den Hinweis, nicht für den einzelnen Tag: ein wiederkehrender Hinweis
 // wird einmal bestätigt, nicht jeden Dienstag erneut.
 type StaffNoticeAck struct {
-	bun.BaseModel `bun:"table:users.staff_notice_acks,alias:sna"`
-	base.TenantModel
-	NoticeID       int64     `bun:"notice_id,pk" json:"notice_id"`
-	AccountID      int64     `bun:"account_id,pk" json:"account_id"`
-	AcknowledgedAt time.Time `bun:"acknowledged_at,nullzero,notnull,default:current_timestamp" json:"acknowledged_at"`
+	base.TenantModel `bun:"table:users.staff_notice_acks,alias:sna"`
+	NoticeID         int64     `bun:"notice_id,pk" json:"notice_id"`
+	AccountID        int64     `bun:"account_id,pk" json:"account_id"`
+	AcknowledgedAt   time.Time `bun:"acknowledged_at,nullzero,notnull,default:current_timestamp" json:"acknowledged_at"`
 }
 
 // StaffNoticeView ist die Sicht einer Person auf einen Hinweis: der Hinweis

@@ -245,9 +245,9 @@ func (c contacts) EmergencyContacts(ctx context.Context, studentIDs []int64) ([]
 	for _, row := range rows {
 		result = append(result, emergencysnapshot.Contact{
 			StudentID: row.StudentID,
-			FirstName: row.FirstName.String,
-			LastName:  row.LastName.String,
-			Phone:     row.PhoneNumber.String,
+			FirstName: deref(row.FirstName),
+			LastName:  deref(row.LastName),
+			Phone:     deref(row.PhoneNumber),
 		})
 	}
 	return result, nil

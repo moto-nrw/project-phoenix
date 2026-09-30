@@ -174,12 +174,20 @@ func (b classDayEmergencyContacts) EmergencyContactRows(ctx context.Context, stu
 	for _, row := range rows {
 		out = append(out, classdayCompose.EmergencyContactRow{
 			StudentID: row.StudentID, GuardianProfileID: row.GuardianProfileID,
-			FirstName: row.FirstName.String, LastName: row.LastName.String,
-			RelationshipType: row.RelationshipType.String, PickupNotes: row.PickupNotes.String,
-			PhoneNumber: row.PhoneNumber.String, CanPickup: row.CanPickup, IsEmergencyContact: row.IsEmergencyContact,
+			FirstName: stringValue(row.FirstName), LastName: stringValue(row.LastName),
+			RelationshipType: stringValue(row.RelationshipType), PickupNotes: stringValue(row.PickupNotes),
+			PhoneNumber: stringValue(row.PhoneNumber), CanPickup: row.CanPickup, IsEmergencyContact: row.IsEmergencyContact,
 		})
 	}
 	return out, nil
+}
+
+// stringValue reads a nullable projection column; NULL reads as "".
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 // classDayAccessLog appends the school portal's reads to
