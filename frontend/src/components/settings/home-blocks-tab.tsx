@@ -42,34 +42,30 @@ const POLICY_ITEMS: readonly { value: HomeBlockPolicy; label: string }[] = [
 // Geburtstagskarte. Sie sind Registry-Einstellungen im Reiter „startseite“,
 // den die allgemeine Einstellungsseite ausblendet.
 const BIRTHDAY_BLOCK_KEY: HomeBlockKey = "section.birthdays";
-const BIRTHDAYS_ENABLED_KEY = "operations.birthday_display_enabled";
-const BIRTHDAYS_STAFF_KEY = "operations.birthday_display_include_staff";
-const BIRTHDAY_SETTING_KEYS = [BIRTHDAYS_ENABLED_KEY, BIRTHDAYS_STAFF_KEY];
+const BIRTHDAY_SETTINGS_TAB_KEY = "startseite";
+const BIRTHDAY_SETTINGS_CATEGORY_KEY = "geburtstage";
 
 type BirthdaySettings = Record<string, boolean>;
+type BirthdaySetting = ResolvedSetting & { value: boolean };
 
-function schemaItem(
+/**
+ * The settings schema is the backend-generated contract for registry keys.
+ * This hand-written tab deliberately locates its birthday controls by their
+ * schema location so a registry-key rename needs no duplicate frontend key.
+ */
+function birthdaySettingsIn(
   schema: SettingsSchema | null | undefined,
-  key: string,
-): ResolvedSetting | undefined {
-  for (const tab of schema?.tabs ?? []) {
-    for (const category of tab.categories) {
-      const item = category.items.find((candidate) => candidate.key === key);
-      if (item) return item;
-    }
-  }
-  return undefined;
-}
-
-function birthdaySettingsOf(
-  schema: SettingsSchema | null | undefined,
-): BirthdaySettings {
-  const values: BirthdaySettings = {};
-  for (const key of BIRTHDAY_SETTING_KEYS) {
-    const item = schemaItem(schema, key);
-    if (typeof item?.value === "boolean") values[key] = item.value;
-  }
-  return values;
+): readonly BirthdaySetting[] {
+  const tab = schema?.tabs.find(
+    (item) => item.key === BIRTHDAY_SETTINGS_TAB_KEY,
+  );
+  const category = tab?.categories.find(
+    (item) => item.key === BIRTHDAY_SETTINGS_CATEGORY_KEY,
+  );
+  return (category?.items ?? []).filter(
+    (item): item is BirthdaySetting =>
+      item.type === "boolean" && typeof item.value === "boolean",
+  );
 }
 
 /**
@@ -94,7 +90,17 @@ export function HomeBlocksTab() {
   const nfcEnabled = useNFCEnabled();
 
   const [draft, setDraft] = useState<HomeBlockPolicies>({});
-  const storedBirthdays = useMemo(() => birthdaySettingsOf(schema), [schema]);
+  const birthdaySettings = useMemo(() => birthdaySettingsIn(schema), [schema]);
+  const storedBirthdays = useMemo(
+    () =>
+      Object.fromEntries(
+        birthdaySettings.map(({ key, value }) => [key, value]),
+      ),
+    [birthdaySettings],
+  );
+  const birthdayRootKey = birthdaySettings.find(
+    (item) => !item.depends_on,
+  )?.key;
   const [birthdayDraft, setBirthdayDraft] = useState<BirthdaySettings>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,11 +149,13 @@ export function HomeBlocksTab() {
     return false;
   }, [draft, state.policies]);
 
-  const changedBirthdayKeys = BIRTHDAY_SETTING_KEYS.filter(
-    (key) =>
-      birthdayDraft[key] !== undefined &&
-      birthdayDraft[key] !== storedBirthdays[key],
-  );
+  const changedBirthdayKeys = birthdaySettings
+    .map(({ key }) => key)
+    .filter(
+      (key) =>
+        birthdayDraft[key] !== undefined &&
+        birthdayDraft[key] !== storedBirthdays[key],
+    );
   const dirty = policiesDirty || changedBirthdayKeys.length > 0;
 
   const changeBirthdaySetting = (key: string, value: boolean) => {
@@ -197,10 +205,12 @@ export function HomeBlocksTab() {
 
   const tiles = blocks.filter((block) => block.kind === "tile");
   const sections = blocks.filter((block) => block.kind === "section");
-  const birthdaysOn = birthdayDraft[BIRTHDAYS_ENABLED_KEY] !== false;
+  const birthdaysOn =
+    birthdayRootKey === undefined || birthdayDraft[birthdayRootKey] !== false;
   const birthdaySwitches = (
     <BirthdaySwitches
-      schema={schema}
+      settings={birthdaySettings}
+      rootKey={birthdayRootKey}
       values={birthdayDraft}
       disabled={busy}
       onChange={changeBirthdaySetting}
@@ -316,38 +326,34 @@ function PolicyGroup({
  * gepflegt werden. Der Schalter für das Personal hängt am ersten.
  */
 function BirthdaySwitches({
-  schema,
+  settings,
+  rootKey,
   values,
   disabled,
   onChange,
 }: Readonly<{
-  schema: SettingsSchema | null | undefined;
+  settings: readonly BirthdaySetting[];
+  rootKey: string | undefined;
   values: BirthdaySettings;
   disabled: boolean;
   onChange: (key: string, value: boolean) => void;
 }>) {
-  const keys =
-    values[BIRTHDAYS_ENABLED_KEY] === false
-      ? [BIRTHDAYS_ENABLED_KEY]
-      : BIRTHDAY_SETTING_KEYS;
-  const rows = keys
-    .map((key) => ({ key, item: schemaItem(schema, key) }))
-    .filter(
-      (row): row is { key: string; item: ResolvedSetting } =>
-        row.item !== undefined && typeof values[row.key] === "boolean",
-    );
+  const rows =
+    rootKey !== undefined && values[rootKey] === false
+      ? settings.filter((item) => item.key === rootKey)
+      : settings;
   if (rows.length === 0) return null;
   return (
     <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
-      {rows.map(({ key, item }) => (
-        <div key={key} className="flex items-start justify-between gap-4">
+      {rows.map((item) => (
+        <div key={item.key} className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="text-sm font-medium text-gray-900">{item.label}</p>
             <p className="text-xs text-gray-500">{item.description}</p>
           </div>
           <BooleanField
-            value={values[key] === true}
-            onChange={(next) => onChange(key, next)}
+            value={values[item.key] === true}
+            onChange={(next) => onChange(item.key, next)}
             disabled={disabled || !item.writable}
             ariaLabel={item.label}
           />

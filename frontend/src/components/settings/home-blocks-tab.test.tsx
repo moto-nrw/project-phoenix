@@ -9,6 +9,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { HomeBlockPolicies } from "~/lib/home-blocks";
 
+const BIRTHDAYS_ENABLED_KEY = "birthday.display_enabled";
+const BIRTHDAYS_STAFF_KEY = "birthday.display_include_staff";
+
 const mockSavePolicies = vi.fn();
 const mockState = {
   value: {
@@ -37,7 +40,12 @@ vi.mock("~/lib/tenant-context", () => ({
 
 // Die beiden Geburtstags-Schalter der Schule (#3737) kommen aus dem
 // Einstellungs-Schema, Reiter "startseite".
-function birthdaySetting(key: string, label: string, value: boolean) {
+function birthdaySetting(
+  key: string,
+  label: string,
+  value: boolean,
+  dependsOn?: { key: string; condition: string; value: unknown },
+) {
   return {
     key,
     label,
@@ -50,6 +58,7 @@ function birthdaySetting(key: string, label: string, value: boolean) {
     visible: true,
     sort_order: 1,
     access_policy: "shared" as const,
+    depends_on: dependsOn,
   };
 }
 const mockSchema = {
@@ -67,14 +76,19 @@ function setBirthdaySettings(enabled: boolean, staff: boolean) {
             label: "geburtstage",
             items: [
               birthdaySetting(
-                "operations.birthday_display_enabled",
+                BIRTHDAYS_ENABLED_KEY,
                 "Geburtstage auf der Startseite",
                 enabled,
               ),
               birthdaySetting(
-                "operations.birthday_display_include_staff",
+                BIRTHDAYS_STAFF_KEY,
                 "Geburtstage von Mitarbeitenden mitanzeigen",
                 staff,
+                {
+                  key: BIRTHDAYS_ENABLED_KEY,
+                  condition: "eq",
+                  value: true,
+                },
               ),
             ],
           },
@@ -216,7 +230,7 @@ describe("HomeBlocksTab", () => {
 
     await waitFor(() =>
       expect(mockSetSettingValue).toHaveBeenCalledWith(
-        "operations.birthday_display_include_staff",
+        BIRTHDAYS_STAFF_KEY,
         true,
       ),
     );
