@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -14,6 +15,10 @@ import (
 // ErrUnknownNotificationType is returned when a caller names a type that is not
 // in the catalogue. Handlers map it to 400.
 var ErrUnknownNotificationType = errors.New("unknown notification type")
+
+// ErrEmailPermissionRequired is returned when a caller decides an e-mail type
+// without holding its permission. Handlers map it to 403.
+var ErrEmailPermissionRequired = errors.New("permission required for this e-mail notification")
 
 // PreferenceState is one row of the profile page: what the type is, whether the
 // person agreed, and whether the school currently allows it at all.
@@ -48,6 +53,14 @@ type PreferenceService interface {
 	// offered there (OfferedInPortal). The school portal (#2208) writes the
 	// same row as the staff portal.
 	SetForPortalAccount(ctx context.Context, accountID int64, portal, notificationType string, enabled bool) error
+
+	// EmailSubscribed and SetEmailSubscribed read and record the account's own
+	// decision for an opt-in e-mail type (#3780). No decision reads as off.
+	// permissions are the caller's; without the type's permission both return
+	// ErrEmailPermissionRequired. EmailRecipientResolver checks the permission
+	// again when a mail is sent.
+	EmailSubscribed(ctx context.Context, accountID int64, permissions []string, notificationType string) (bool, error)
+	SetEmailSubscribed(ctx context.Context, accountID int64, permissions []string, notificationType string, enabled bool) error
 
 	// DisableAllForAccount switches every stored staff-portal decision off.
 	DisableAllForAccount(ctx context.Context, accountID int64) error
@@ -219,6 +232,43 @@ func (s *preferenceService) SetForPortalAccount(ctx context.Context, accountID i
 
 	if err := s.consent.RecordConsent(ctx, accountID, notificationType, enabled); err != nil {
 		return fmt.Errorf("save notification preference: %w", err)
+	}
+	return nil
+}
+
+func (s *preferenceService) EmailSubscribed(ctx context.Context, accountID int64, permissions []string, notificationType string) (bool, error) {
+	if err := checkOwnEmailDecision(accountID, permissions, notificationType); err != nil {
+		return false, err
+	}
+	stored, err := s.consent.StoredConsent(ctx, accountID)
+	if err != nil {
+		return false, fmt.Errorf("load e-mail subscription: %w", err)
+	}
+	return stored[notificationType], nil
+}
+
+func (s *preferenceService) SetEmailSubscribed(ctx context.Context, accountID int64, permissions []string, notificationType string, enabled bool) error {
+	if err := checkOwnEmailDecision(accountID, permissions, notificationType); err != nil {
+		return err
+	}
+	if err := s.consent.RecordConsent(ctx, accountID, notificationType, enabled); err != nil {
+		return fmt.Errorf("save e-mail subscription: %w", err)
+	}
+	return nil
+}
+
+// checkOwnEmailDecision admits a decision on a known e-mail type by an
+// account that holds the type's permission.
+func checkOwnEmailDecision(accountID int64, permissions []string, notificationType string) error {
+	if accountID <= 0 {
+		return errors.New("account id is required")
+	}
+	def, ok := EmailType(notificationType)
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrUnknownNotificationType, notificationType)
+	}
+	if !authorize.HasPermission(def.Permission, permissions) {
+		return fmt.Errorf("%w: %s", ErrEmailPermissionRequired, notificationType)
 	}
 	return nil
 }

@@ -25,6 +25,9 @@ var (
 	// NewEnrollmentCareOfferingRecords reads Care Plan's offerings in
 	// enrollment rows.
 	NewEnrollmentCareOfferingRecords = services.NewEnrollmentCareOfferingRecords
+	// NewEnrollmentAdminSubscribers binds the opt-in "Neue Anmeldung" mail
+	// (#3780) to real consent rows and returns the consent store as well.
+	NewEnrollmentAdminSubscribers = services.NewEnrollmentAdminSubscribersForTests
 	// PublicEnrollmentDecisions hands the decision flow out with the public
 	// refusal values.
 	PublicEnrollmentDecisions = services.PublicEnrollmentDecisions

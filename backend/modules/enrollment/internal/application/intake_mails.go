@@ -41,7 +41,11 @@ func (s *Intake) enqueueSubmissionEmails(ctx context.Context, tenantID int64, re
 	}); err != nil {
 		return fmt.Errorf("parent confirmation: %w", err)
 	}
-	for _, admin := range resolveAdminEmails(s.adminNotificationEmails(ctx)) {
+	admins, err := s.adminNotificationRecipients(ctx)
+	if err != nil {
+		return fmt.Errorf("admin notification recipients: %w", err)
+	}
+	for _, admin := range admins {
 		adminPayload := map[string]any{
 			enrollment.EnrollmentPayloadGuardianFirstName: request.GuardianFirstName,
 			enrollment.EnrollmentPayloadGuardianLastName:  request.GuardianLastName,
@@ -64,6 +68,16 @@ func (s *Intake) enqueueSubmissionEmails(ctx context.Context, tenantID int64, re
 		}
 	}
 	return nil
+}
+
+// adminNotificationRecipients is the configured address list plus, when
+// bound, the staff who switched the mail on.
+func (s *Intake) adminNotificationRecipients(ctx context.Context) ([]string, error) {
+	configured := resolveAdminEmails(s.adminNotificationEmails(ctx))
+	if s.deps.AdminSubscribers == nil {
+		return configured, nil
+	}
+	return s.deps.AdminSubscribers.AdminNotificationRecipients(ctx, configured)
 }
 
 func (s *Intake) adminNotificationEmails(ctx context.Context) string {

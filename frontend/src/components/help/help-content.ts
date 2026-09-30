@@ -4037,6 +4037,9 @@ function enrollmentReviewTopic(): HelpTopic {
       "Offene Anmeldungen in aktiven Phasen markieren Sie im Menü `⋮` als gelesen oder ungelesen.",
       "Im Menü `⋮` oben im `Überblick` wählen Sie `Alle als gelesen markieren`.",
       "Ändern Eltern ihre Anmeldung, ist sie wieder ungelesen.",
+      "Sie möchten bei jeder neuen Anmeldung eine E-Mail? Wählen Sie im Menü `⋮` oben im `Überblick` `E-Mail an mich bei neuer Anmeldung`.",
+      "Ein Haken zeigt: Die E-Mail ist eingeschaltet. Noch einmal wählen schaltet sie aus. Das gilt nur für Sie.",
+      "Die E-Mail geht an Ihre E-Mail-Adresse in moto.",
     ],
     differences: [
       "Der Überblick zählt je Phase, wie viele Eingänge offen, bestätigt und abgelehnt sind.",
@@ -4047,6 +4050,7 @@ function enrollmentReviewTopic(): HelpTopic {
       "Beim Bestätigen erscheint `Das Kinderkontingent Ihrer Schule ist voll`? Dann bleibt die Anmeldung offen. Für weitere Kinder melden Sie sich beim moto-Team.",
       "Kinder, die schon aktiv oder vorgemerkt sind, können Sie auch bei vollem Kinderkontingent verlängern.",
       "Bei einer Anmeldung steht `Wegen Kinderkontingent offen`? Beim Schuljahreswechsel war das Kinderkontingent voll. Das Kind wurde nicht automatisch verlängert. Entscheiden Sie selbst.",
+      "Trotz Haken kommt keine E-Mail? Schauen Sie im Spam-Ordner nach.",
     ],
     related: [
       HELP_TOPICS.leadEnrollmentSetup,

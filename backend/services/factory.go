@@ -2088,6 +2088,15 @@ func newFactory(
 	// One capacity gate for the submissions, their edits, the change-request
 	// approvals and the restore of a withdrawn request.
 	enrollmentOfferingCapacity := NewEnrollmentOfferingCapacity(enrollmentCareOfferings, repos.Enrollment(), settingsService)
+	// Consent rows back both the notification preferences below and the
+	// opt-in "Neue Anmeldung" mail of the intake (#3780).
+	notificationConsent, err := communicationCompose.NewNotificationConsent(communicationCompose.NotificationConsentConfig{
+		DB:      db,
+		Observe: observeCommunication,
+	})
+	if err != nil {
+		return nil, err
+	}
 	enrollmentRequestService := NewEnrollmentIntake(EnrollmentIntakeSources{
 		Requests:           repos.Enrollment(),
 		ParentChanges:      repos.Enrollment(),
@@ -2105,6 +2114,7 @@ func newFactory(
 		RateLimitRepo:      repos.Enrollment(),
 		OutboxEnqueuer:     outboxEnqueuer{outbox: emailOutboxService},
 		Settings:           settingsService,
+		AdminSubscribers:   NewEnrollmentAdminSubscribers(notificationConsent, identityAccess),
 		ManualDecider:      enrollmentDecisions,
 		FrontendURL:        frontendURL, // admin notification email
 		ParentsURL:         parentsURL,  // parent confirmation/status emails
@@ -2295,13 +2305,6 @@ func newFactory(
 			durablePushAdapter{module: deliveryRuntime.Module}, logger.With("channel", "web_push"),
 		),
 	)
-	notificationConsent, err := communicationCompose.NewNotificationConsent(communicationCompose.NotificationConsentConfig{
-		DB:      db,
-		Observe: observeCommunication,
-	})
-	if err != nil {
-		return nil, err
-	}
 	notificationPreferencesService := notifications.NewPreferenceService(
 		notificationConsent,
 		settingsService,
