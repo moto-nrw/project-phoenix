@@ -7,7 +7,7 @@ import { earlyCheckoutMinutes } from "~/lib/student-time-status";
 import { useTenantSafe } from "~/lib/tenant-context";
 
 /** Matches the backend limit (studentpresence.MaxCheckoutNoteLength). */
-export const MAX_CHECKOUT_NOTE_LENGTH = 500;
+const MAX_CHECKOUT_NOTE_LENGTH = 500;
 
 /**
  * Tells whether a checkout right now would be early (#3324): more than the
