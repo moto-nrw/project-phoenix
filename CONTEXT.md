@@ -220,6 +220,16 @@ markieren. Ändern Eltern die Anmeldung, ist sie wieder ungelesen, eine
 Entscheidung der OGS macht sie nicht wieder ungelesen. Eine Anmeldung ist keine
 Anfrage und zählt nicht zu den offenen Anfragen.
 
+## Zahl bei Nachrichten
+
+Die **Zahl bei Nachrichten** zählt die ungelesenen Elternnachrichten einer
+Person im OGS-Portal. „Gelesen“ gilt pro Person; eine Antwort erledigt die
+Unterhaltung für das ganze Team. Jede Person legt selbst fest, ob ihre Zahl
+alle Nachrichten, nur Kinder aus den eigenen Gruppen oder nichts zählt. Die
+Einstellung ändert nur die Zahl, nicht den Posteingang. Die Lesebestätigung
+für Eltern („Von der OGS gelesen“) entsteht nur, wenn jemand die Unterhaltung
+öffnet, nie durch „Alle als gelesen markieren“ (ADR 0044).
+
 ## Elternänderung
 
 Eine **Elternänderung** ist eine von einer sorgeberechtigten Person gewünschte

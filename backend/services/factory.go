@@ -2359,7 +2359,7 @@ func newFactory(
 		MessageRepo: repos.ParentMessage,
 		ReadRepo:    repos.ParentMessageRead,
 		Persons:     usersService,
-		UserContext: userContextService,
+		UserContext: callerContext,
 		Settings:    settingsService,
 		Broadcaster: realtimeHub,
 		DB:          db,

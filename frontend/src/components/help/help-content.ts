@@ -1494,11 +1494,22 @@ function parentMessageTopic(): HelpTopic {
       {
         title: "Alle Nachrichten für sich als gelesen markieren",
         description:
-          "Ihre Zahl bei `Nachrichten` kann bleiben. Vom Team als ungelesen markierte Unterhaltungen bleiben ungelesen. Für Ihr Team ändert sich nichts.",
+          "Ihre Zahl bei `Nachrichten` kann bleiben. Vom Team als ungelesen markierte Unterhaltungen bleiben ungelesen. Für Ihr Team und die Eltern ändert sich nichts.",
         steps: [
           "Öffnen Sie den Posteingang unter `Nachrichten`.",
           "Öffnen Sie oben das Menü mit den drei Punkten.",
           "Wählen Sie `Alle als gelesen markieren`.",
+        ],
+      },
+      {
+        title: "Festlegen, was Ihre Zahl bei Nachrichten zählt",
+        description:
+          "Beantworten andere die Elternnachrichten? Dann können Sie die Zahl für sich ändern. Für Ihr Team ändert sich nichts.",
+        steps: [
+          "Öffnen Sie oben rechts Ihr `Profil`.",
+          "Gehen Sie zu `Zahl bei Nachrichten`.",
+          "Wählen Sie `Alle Nachrichten`, `Nur Kinder aus meinen Gruppen` oder `Keine Zahl anzeigen`.",
+          "moto speichert Ihre Wahl sofort.",
         ],
       },
     ],
@@ -1512,7 +1523,8 @@ function parentMessageTopic(): HelpTopic {
       "Schreiben Sie persönliche Angaben nur in die Unterhaltung der richtigen Bezugsperson.",
       "Mit `Nur ungelesen` sehen Sie nur neue Unterhaltungen.",
       "Eine als ungelesen markierte Unterhaltung bleibt für alle ungelesen, bis jemand aus dem Team sie öffnet oder antwortet.",
-      "Nach `Alle als gelesen markieren` sehen die Eltern: Die OGS hat ihre Nachrichten gelesen.",
+      "Die Eltern sehen `Gelesen` erst, wenn jemand aus dem Team die Unterhaltung öffnet.",
+      "Die Nachrichten stehen immer im Posteingang, auch wenn Ihre Zahl sie nicht zählt.",
       "Über `Zum Kinderprofil` wechseln Sie direkt zu den Angaben des Kindes.",
     ],
     related: [HELP_TOPICS.parentRequests, HELP_TOPICS.studentSearch],

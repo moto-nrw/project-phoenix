@@ -192,6 +192,7 @@ export function PageHeaderWithSearch({
           filterVariant={filterVariant}
           filterSections={filterSections}
           hideClass={desktopFiltersFrom === "xl" ? "xl:hidden" : "lg:hidden"}
+          overflowMenu={overflowMenu}
         />
 
         {/* Desktop Search & Filters. Default kicks in at `lg` (1024px); pages
@@ -364,6 +365,12 @@ interface MobileSearchSectionProps {
   readonly filterSections?: PageHeaderWithSearchProps["filterSections"];
   /** Tailwind class that hides this section at the desktop breakpoint. */
   readonly hideClass: "lg:hidden" | "xl:hidden";
+  /**
+   * Rendered next to the search when neither a title row nor a tabs row
+   * carries the kebab, as in the embedded TenantPage header. Without it the
+   * menu existed only from the desktop breakpoint on.
+   */
+  readonly overflowMenu?: PageHeaderWithSearchProps["overflowMenu"];
 }
 
 function MobileSearchSection({
@@ -388,6 +395,7 @@ function MobileSearchSection({
   filterVariant,
   filterSections,
   hideClass,
+  overflowMenu,
 }: MobileSearchSectionProps) {
   const {
     anchorRef: filterButtonRef,
@@ -438,6 +446,13 @@ function MobileSearchSection({
           {/* Mobile action button when no tabs and no title */}
           {!hasTabs && !hasTitle && mobileActionButton && (
             <div className="flex-shrink-0">{mobileActionButton}</div>
+          )}
+
+          {/* Kebab when no title row and no tabs row carries it */}
+          {!hasTabs && !hasTitle && overflowMenu && overflowMenu.length > 0 && (
+            <div className="flex-shrink-0">
+              <OverflowMenu items={overflowMenu} />
+            </div>
           )}
 
           {/* Badge/Status inline with search */}

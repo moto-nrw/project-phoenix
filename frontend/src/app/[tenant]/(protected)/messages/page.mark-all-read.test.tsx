@@ -3,17 +3,27 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
 
-const { mockMarkAllMessagesRead, mockMutate, mockUnread, mockToastSuccess } =
-  vi.hoisted(() => ({
-    mockMarkAllMessagesRead: vi.fn(),
-    mockMutate: vi.fn(),
-    mockUnread: { unreadCount: 0 },
-    mockToastSuccess: vi.fn(),
-  }));
+const {
+  mockMarkAllMessagesRead,
+  mockMutate,
+  mockUnread,
+  mockToastSuccess,
+  mockPush,
+  mockInbox,
+  mockTenant,
+} = vi.hoisted(() => ({
+  mockMarkAllMessagesRead: vi.fn(),
+  mockMutate: vi.fn(),
+  mockUnread: { unreadCount: 0 },
+  mockToastSuccess: vi.fn(),
+  mockPush: vi.fn(),
+  mockInbox: { threads: [] as Array<Record<string, unknown>> },
+  mockTenant: { messagingEnabled: true },
+}));
 
 vi.mock("swr", () => ({
   default: () => ({
-    data: [],
+    data: mockInbox.threads,
     error: undefined,
     isLoading: false,
     mutate: mockMutate,
@@ -21,12 +31,12 @@ vi.mock("swr", () => ({
 }));
 
 vi.mock("~/lib/tenant-context", () => ({
-  useTenant: () => ({ tenant: { messagingEnabled: true } }),
+  useTenant: () => ({ tenant: mockTenant }),
   useTenantSlugSafe: () => "schule",
 }));
 
 vi.mock("~/lib/tenant-router", () => ({
-  useTenantRouter: () => ({ push: vi.fn() }),
+  useTenantRouter: () => ({ push: mockPush }),
 }));
 
 vi.mock("~/lib/hooks/use-messages-activity", () => ({
@@ -82,8 +92,12 @@ vi.mock("~/lib/parent-messages-api", async (importOriginal) => ({
 
 import MessagesPage from "./page";
 
-async function findMarkAllRead() {
+function openMenu() {
   fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+}
+
+async function findMarkAllRead() {
+  openMenu();
   return screen.findByRole("menuitem", { name: "Alle als gelesen markieren" });
 }
 
@@ -96,6 +110,9 @@ describe("Alle als gelesen markieren", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUnread.unreadCount = 3;
+    mockInbox.threads = [];
+    mockTenant.messagingEnabled = true;
+    mockMutate.mockResolvedValue(undefined);
     unreadRefreshes = 0;
     window.addEventListener("messages-unread-refresh", countRefresh);
   });
@@ -134,15 +151,92 @@ describe("Alle als gelesen markieren", () => {
     expect(unreadRefreshes).toBe(1);
   });
 
-  it("is disabled without unread messages", async () => {
+  // #3673: an action that can do nothing is not in the menu, instead of a
+  // greyed-out entry without a reason.
+  it("is not offered without anything unread", async () => {
     mockUnread.unreadCount = 0;
     render(<MessagesPage />);
 
-    const item = await findMarkAllRead();
+    openMenu();
 
-    expect(item).toBeDisabled();
-    fireEvent.click(item);
+    expect(
+      await screen.findByRole("menuitem", {
+        name: "Zahl bei Nachrichten einstellen",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Alle als gelesen markieren" }),
+    ).not.toBeInTheDocument();
     expect(mockMarkAllMessagesRead).not.toHaveBeenCalled();
+  });
+
+  // A person whose own counter skips some conversations (#3673) still sees
+  // them unread in the inbox and can clear them.
+  it("is offered for unread inbox rows while the own counter is zero", async () => {
+    mockUnread.unreadCount = 0;
+    mockInbox.threads = [
+      {
+        thread_id: "7",
+        student_id: "3",
+        student_name: "Felix Schneider",
+        guardian_name: "Sabine Schneider",
+        unread_count: 2,
+      },
+    ];
+    mockMarkAllMessagesRead.mockResolvedValue(0);
+    render(<MessagesPage />);
+
+    fireEvent.click(await findMarkAllRead());
+
+    await waitFor(() =>
+      expect(mockMarkAllMessagesRead).toHaveBeenCalledTimes(1),
+    );
+  });
+
+  // #3673: with a counter that skips conversations the reported count is 0,
+  // yet a team-marked conversation stays unread in the inbox.
+  it("explains team-marked conversations the counter does not count", async () => {
+    mockMarkAllMessagesRead.mockResolvedValue(0);
+    mockMutate.mockResolvedValue([
+      {
+        thread_id: "7",
+        student_id: "3",
+        student_name: "Felix Schneider",
+        guardian_name: "Sabine Schneider",
+        unread_count: 1,
+      },
+    ]);
+    render(<MessagesPage />);
+
+    fireEvent.click(await findMarkAllRead());
+
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Gelesen. Vom Team als ungelesen markierte Unterhaltungen bleiben ungelesen.",
+      ),
+    );
+  });
+
+  it("leads to the own count setting in the profile", async () => {
+    render(<MessagesPage />);
+
+    openMenu();
+    fireEvent.click(
+      await screen.findByRole("menuitem", {
+        name: "Zahl bei Nachrichten einstellen",
+      }),
+    );
+
+    expect(mockPush).toHaveBeenCalledWith("/profile");
+  });
+
+  it("does not offer the hidden setting while messaging is off", () => {
+    mockTenant.messagingEnabled = false;
+    render(<MessagesPage />);
+
+    expect(
+      screen.queryByRole("button", { name: "Weitere Aktionen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a hint and no confirmation when marking fails", async () => {
