@@ -294,8 +294,9 @@ func partialAbsenceResponseID(t *testing.T, body []byte) int64 {
 	return response.Data.ID
 }
 
-// attendanceSlotRow is the slice of schedule.instance_students the partial
-// absence assertions read.
+// attendanceSlotRow is the slice of a participant's attendance the partial
+// absence assertions read: the planned participant joined with its Student
+// Presence attendance row, where a missing row means expected.
 type attendanceSlotRow struct {
 	bun.BaseModel `bun:"table:schedule.instance_students,alias:instance_student"`
 
@@ -312,6 +313,10 @@ func loadAttendanceRows(t *testing.T, tc *testContext, ids ...int64) map[int64]*
 	require.NoError(t, tc.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
+		Join(`LEFT JOIN active.activity_session_attendance AS attendance
+			ON attendance.tenant_id = "instance_student".tenant_id AND attendance.instance_student_id = "instance_student".id`).
+		ColumnExpr(`"instance_student".id, coalesce(attendance.status, 'expected') AS status, attendance.substatus,
+			attendance.checked_in_at, attendance.pickup_exception_id`).
 		Where(`"instance_student".id IN (?)`, bun.List(ids)).
 		Scan(context.Background()))
 

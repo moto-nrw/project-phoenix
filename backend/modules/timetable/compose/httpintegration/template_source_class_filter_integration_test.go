@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -386,25 +385,15 @@ func TestTemplateSourceClassFilter_RejectsCombinedFilters(t *testing.T) {
 
 func singleInstanceID(t *testing.T, s *scenarioSetup, templateID int64, date calendar.Date) int64 {
 	t.Helper()
-	var instances []scheduleModels.ActivityInstance
-	require.NoError(t, s.db.NewSelect().
-		Model(&instances).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Where(`"activity_instance".activity_group_id = ?`, templateID).
-		Where(`"activity_instance".date = ?`, date).
-		Scan(s.ctx))
+	instances := testpkg.ActivityInstancesWhere(t, s.ctx, s.db,
+		`"activity_instance".activity_group_id = ? AND "activity_instance".date = ?`, templateID, date)
 	require.Len(t, instances, 1)
 	return instances[0].ID
 }
 
 func instanceStudentIDs(t *testing.T, s *scenarioSetup, instanceID int64) []int64 {
 	t.Helper()
-	var rows []scheduleModels.InstanceStudent
-	require.NoError(t, s.db.NewSelect().
-		Model(&rows).
-		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		Where(`"instance_student".instance_id = ?`, instanceID).
-		Scan(s.ctx))
+	rows := testpkg.InstanceStudentsWhere(t, s.ctx, s.db, `"instance_student".instance_id = ?`, instanceID)
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		ids = append(ids, row.StudentID)

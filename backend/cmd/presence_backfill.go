@@ -23,7 +23,7 @@ func newPresenceBackfillCommand(root migrateRoot) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "presence-backfill [run|status|restart]",
 		Short: "Backfill Presence targets while old Timetable rows remain authoritative",
-		Long:  "Run resumable tenant batches, inspect checkpoints, or restart target-only data before cutover. No caller switch or dual write. Restart must not be used after #2762 cutover.",
+		Long:  "Run resumable tenant batches, inspect checkpoints, or restart target-only data before cutover. No caller switch or dual write. Run and restart refuse after the #2762 cutover and the #2763 Contract; status reads the frozen checkpoints.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			action := "run"

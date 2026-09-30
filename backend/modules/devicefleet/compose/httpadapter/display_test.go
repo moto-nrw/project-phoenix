@@ -348,8 +348,7 @@ func TestDisplayDashboardPublic(t *testing.T) {
 			buildInstance(tenantID, "Frühsport", room.ID, past),
 		}
 		for _, inst := range instances {
-			_, err := db.NewInsert().Model(inst).ModelTableExpr("schedule.activity_instances").Exec(ctx)
-			require.NoError(t, err)
+			testpkg.InsertActivityInstanceRow(t, ctx, db, inst)
 		}
 		defer func() {
 			_, _ = db.NewDelete().TableExpr("schedule.activity_instances").Where("tenant_id = ?", tenantID).Exec(context.Background())

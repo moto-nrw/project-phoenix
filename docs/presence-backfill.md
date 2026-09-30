@@ -10,7 +10,8 @@ Cutover migration 1.15.415 (#2762) runs the final delta itself and makes the
 Presence targets authoritative; see the
 [cutover runbook](operations/presence-storage-cutover-2762.md). After that
 switch `run` and `restart` refuse; `status` still reads the frozen
-checkpoint evidence.
+checkpoint evidence. The [Contract (#2763)](operations/presence-storage-contract-2763.md)
+removed the old source columns; `run` and `restart` keep refusing.
 
 ## Run and resume
 
@@ -108,9 +109,9 @@ docker compose run --rm server go run . migrate presence-backfill restart --tena
 It does not delete or mutate old authoritative rows and cannot restart all
 schools in one invocation. Stop competing runners before using it. Ordinary
 stopping needs no reset. Schema rollback refuses to discard any checkpoint;
-Expand rollback still refuses populated targets. After cutover, remove this
-backfill/restart entry point as part of the contract cleanup, never use it to
-erase authoritative Presence data.
+Expand rollback still refuses populated targets. After cutover the
+backfill/restart entry point refuses instead of erasing authoritative Presence
+data, and after the Contract (#2763) it has no source columns left to read.
 
 ## Verification
 

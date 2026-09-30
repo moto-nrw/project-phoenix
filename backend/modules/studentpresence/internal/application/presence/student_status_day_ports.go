@@ -15,12 +15,13 @@ type StatusDayRow = absencerecords.StudentStatusDay
 // StudentStatusDayRepository is the status-day port of the presence services.
 // Care Plan persists broad day statuses (sick / excused / class trip) and
 // CASCADES them into per-slot attendance: UpsertReported and the MarkCleared*
-// methods also apply/release the status on matching
-// schedule.instance_students rows (see #1913), so no write path skips it.
+// methods also apply/release the status on the matching participants'
+// attendance (active.activity_session_attendance, see #1913), so no write
+// path skips it.
 type StudentStatusDayRepository interface {
 	// UpsertReported inserts or refreshes a reported status day AND marks the
 	// student's still-expected slots on that date absent with status-day
-	// provenance (schedule.instance_students.student_status_day_id).
+	// provenance (active.activity_session_attendance.student_status_day_id).
 	UpsertReported(ctx context.Context, entry *absencerecords.StudentStatusDay) error
 	// ArchiveAndClearStatusFlag archives a legacy boolean student flag into
 	// student_status_days for the date and clears the flag on

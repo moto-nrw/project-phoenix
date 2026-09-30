@@ -28,6 +28,13 @@ const (
 // given date (or a spontaneous instance created without a template). It lives
 // in the "instance layer" between the template layer (activities.*) and the
 // live layer (active.*).
+//
+// It is a composed legacy DTO. schedule.activity_instances stores the plan,
+// whose status is only planned or cancelled; Student Presence stores the
+// execution (status active or completed, ActiveGroupID, StartedBy through
+// CompletionSnapshot) in active.activity_sessions (#2762). Since the Contract
+// (#2763) the plan table has no execution columns: write and read those
+// fields only through the owner commands or the presence projection.
 type ActivityInstance struct {
 	Model `bun:"schema:schedule,table:activity_instances"`
 	TenantModel
