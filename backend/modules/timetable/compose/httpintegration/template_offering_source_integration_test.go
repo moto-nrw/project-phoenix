@@ -185,13 +185,8 @@ func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing
 	require.NotNil(t, mat)
 	require.GreaterOrEqual(t, mat.InstancesCreated, 1)
 
-	var instances []scheduleModels.ActivityInstance
-	require.NoError(t, s.db.NewSelect().
-		Model(&instances).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Where(`"activity_instance".activity_group_id = ?`, result.TemplateID).
-		Where(`"activity_instance".date = ?`, monday).
-		Scan(s.ctx))
+	instances := testpkg.ActivityInstancesWhere(t, s.ctx, s.db,
+		`"activity_instance".activity_group_id = ? AND "activity_instance".date = ?`, result.TemplateID, monday)
 	require.Len(t, instances, 1)
 	// Materialize is tenant-wide and also fills the scenario's baseline
 	// template. Tear those rows down before makeScenario drops students/rooms.
@@ -211,12 +206,7 @@ func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing
 		).Exec(s.ctx)
 	}}, s.extraCleanups...)
 
-	var rows []scheduleModels.InstanceStudent
-	require.NoError(t, s.db.NewSelect().
-		Model(&rows).
-		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		Where(`"instance_student".instance_id = ?`, instances[0].ID).
-		Scan(s.ctx))
+	rows := testpkg.InstanceStudentsWhere(t, s.ctx, s.db, `"instance_student".instance_id = ?`, instances[0].ID)
 	require.Len(t, rows, 1, "materialize must copy the sourced child onto the occurrence")
 	assert.Equal(t, s.students[0], rows[0].StudentID)
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, rows[0].Status)
@@ -979,8 +969,7 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 		Status:           scheduleModels.InstanceStatusPlanned,
 	}
 	instance.SetTenantID(s.tenantID)
-	_, err = s.db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, instance)
 	s.extraCleanups = append([]func(){func() {
 		_, _ = s.db.NewRaw(`DELETE FROM schedule.instance_students WHERE instance_id = ?`, instance.ID).Exec(s.ctx)
 	}}, s.extraCleanups...)
@@ -1005,12 +994,7 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 		GradeLevelMax:    testpkg.MaxSchoolGradeLevel,
 	}))
 
-	var rows []scheduleModels.InstanceStudent
-	require.NoError(t, s.db.NewSelect().
-		Model(&rows).
-		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		Where(`"instance_student".instance_id = ?`, instance.ID).
-		Scan(s.ctx))
+	rows := testpkg.InstanceStudentsWhere(t, s.ctx, s.db, `"instance_student".instance_id = ?`, instance.ID)
 	require.Len(t, rows, 1, "the manually re-picked child must land on the pre-existing occurrence")
 	assert.Equal(t, manualStudentID, rows[0].StudentID)
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, rows[0].Status)
@@ -1061,8 +1045,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 		Status:           scheduleModels.InstanceStatusPlanned,
 	}
 	instance.SetTenantID(s.tenantID)
-	_, err = s.db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, instance)
 	s.extraCleanups = append([]func(){func() {
 		_, _ = s.db.NewRaw(`DELETE FROM schedule.instance_students WHERE instance_id = ?`, instance.ID).Exec(s.ctx)
 	}}, s.extraCleanups...)
@@ -1072,8 +1055,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
 	instanceStudent.SetTenantID(s.tenantID)
-	_, err = s.db.NewInsert().Model(instanceStudent).ModelTableExpr(`schedule.instance_students`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertInstanceStudentRow(t, s.ctx, s.db, instanceStudent)
 
 	// The offering has no enrolled children, so the new source covers nobody:
 	// the retired manual child must disappear from the existing occurrence.
@@ -1096,12 +1078,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 		GradeLevelMax:    testpkg.MaxSchoolGradeLevel,
 	}))
 
-	var rows []scheduleModels.InstanceStudent
-	require.NoError(t, s.db.NewSelect().
-		Model(&rows).
-		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		Where(`"instance_student".instance_id = ?`, instance.ID).
-		Scan(s.ctx))
+	rows := testpkg.InstanceStudentsWhere(t, s.ctx, s.db, `"instance_student".instance_id = ?`, instance.ID)
 	require.Empty(t, rows, "the retired manual child must be removed from the already-materialized occurrence")
 }
 

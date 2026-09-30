@@ -553,14 +553,12 @@ func TestInstance_Reopen_RestoresAbsenceProvenance(t *testing.T) {
 	require.NoError(t, s.repos.StudentStatusDay.UpsertReported(s.ctx, sick))
 
 	partial := testpkg.CreateTestPickupException(t, s.db, s.student2, ai.Date.AddDays(1), s.staffID, "13:00", "Termin")
-	_, err := s.db.NewUpdate().
-		Table("schedule.instance_students").
-		Set("status = ?", scheduleModels.AttendanceStatusAbsent).
-		Set("substatus = ?", scheduleModels.AttendanceSubstatusExcused).
-		Set("pickup_exception_id = ?", partial.ID).
-		Where("instance_id = ? AND student_id = ?", ai.ID, s.student2).
-		Exec(s.ctx)
-	require.NoError(t, err)
+	partialRow := fetchAttendance(t, s, ai.ID, s.student2)
+	testpkg.UpdateSessionAttendance(t, s.ctx, s.db, partialRow.ID, map[string]any{
+		"status":              scheduleModels.AttendanceStatusAbsent,
+		"substatus":           scheduleModels.AttendanceSubstatusExcused,
+		"pickup_exception_id": partial.ID,
+	})
 
 	beforeSick := fetchAttendance(t, s, ai.ID, s.student1)
 	require.Equal(t, scheduleModels.AttendanceStatusAbsent, beforeSick.Status)
@@ -574,7 +572,7 @@ func TestInstance_Reopen_RestoresAbsenceProvenance(t *testing.T) {
 	require.NotNil(t, beforePickup.PickupExceptionID)
 	assert.Equal(t, partial.ID, *beforePickup.PickupExceptionID)
 
-	_, err = s.svc.Start(s.ctx, ai.ID, 0)
+	_, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
 
 	_, err = s.svc.Complete(s.ctx, ai.ID)
@@ -645,6 +643,16 @@ func testReopenWriteRollback(t *testing.T, stage string) {
 	require.NotNil(t, completedSupervisors[0].EndDate)
 	completedFirst := fetchAttendance(t, s, ai.ID, s.student1)
 	completedSecond := fetchAttendance(t, s, ai.ID, s.student2)
+	// Restoration writes the Student Presence rows of the block: its session
+	// and the attendance of each participant (#2762, #2763).
+	ownerRowID := func(query string, key int64) int64 {
+		var id int64
+		require.NoError(t, s.db.NewRaw(query, key).Scan(s.ctx, &id))
+		return id
+	}
+	firstAttendanceID := ownerRowID(`SELECT id FROM active.activity_session_attendance WHERE instance_student_id = ?`, completedFirst.ID)
+	secondAttendanceID := ownerRowID(`SELECT id FROM active.activity_session_attendance WHERE instance_student_id = ?`, completedSecond.ID)
+	sessionID := ownerRowID(`SELECT id FROM active.activity_sessions WHERE schedule_instance_id = ?`, ai.ID)
 	targets := map[string]struct {
 		table string
 		id    int64
@@ -652,9 +660,9 @@ func testReopenWriteRollback(t *testing.T, stage string) {
 		"group":             {"active.groups", started.ActiveGroupID},
 		"visits":            {"active.visits", visit.ID},
 		"supervisors":       {"active.group_supervisors", completedSupervisors[0].ID},
-		"first-assignment":  {"schedule.instance_students", completedFirst.ID},
-		"second-assignment": {"schedule.instance_students", completedSecond.ID},
-		"instance":          {"schedule.activity_instances", ai.ID},
+		"first-assignment":  {"active.activity_session_attendance", firstAttendanceID},
+		"second-assignment": {"active.activity_session_attendance", secondAttendanceID},
+		"instance":          {"active.activity_sessions", sessionID},
 	}
 	fault := &failingRecoveryRestore{ActivityRecoveryRepository: repositories.NewActivityRecoveryRepository(s.db, s.repos.InstanceStudent)}
 	removeFault := func() {}
@@ -901,9 +909,9 @@ func TestInstance_Reopen_RejectsExpiredWindow(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s.db.NewUpdate().
-		Table("schedule.activity_instances").
+		Table("active.activity_sessions").
 		Set("reopen_until = ?", time.Now().Add(-time.Minute)).
-		Where("id = ?", ai.ID).
+		Where("schedule_instance_id = ?", ai.ID).
 		Exec(s.ctx)
 	require.NoError(t, err)
 
@@ -957,9 +965,9 @@ func TestInstance_Reopen_RejectsSupervisorChangedAfterComplete(t *testing.T) {
 		Exec(s.ctx)
 	require.NoError(t, err)
 	_, err = s.db.NewUpdate().
-		Table("schedule.activity_instances").
+		Table("active.activity_sessions").
 		Set("completed_at = completed_at - interval '2 minutes'").
-		Where("id = ?", ai.ID).
+		Where("schedule_instance_id = ?", ai.ID).
 		Exec(s.ctx)
 	require.NoError(t, err)
 
@@ -996,9 +1004,9 @@ func TestInstance_Reopen_RejectsMissingSnapshot(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s.db.NewUpdate().
-		Table("schedule.activity_instances").
+		Table("active.activity_sessions").
 		Set("completion_snapshot = NULL").
-		Where("id = ?", ai.ID).
+		Where("schedule_instance_id = ?", ai.ID).
 		Exec(s.ctx)
 	require.NoError(t, err)
 
@@ -1234,13 +1242,12 @@ func seedBridgedActiveInstance(t *testing.T, s *lifecycleSetup, group *studentpr
 		ActiveGroupID: &group.ID,
 	}
 	ai.SetTenantID(testpkg.Tenant(t))
-	_, err := s.db.NewInsert().Model(ai).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, ai)
 
 	if withStaffRow {
 		row := &scheduleModels.InstanceStaff{InstanceID: ai.ID, StaffID: staffID, IsPrimary: true, RoomID: overrideRoomID}
 		row.SetTenantID(testpkg.Tenant(t))
-		_, err = s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
+		_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 		require.NoError(t, err)
 	}
 }
@@ -1435,13 +1442,12 @@ func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
 		Status:    scheduleModels.InstanceStatusPlanned,
 	}
 	plannedManual.SetTenantID(tenant.FromContext(s.ctx))
-	_, err := s.db.NewInsert().Model(plannedManual).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, plannedManual)
 
 	// Manual cleanup for the survivors (the planned-normal row may be deleted
 	// by ReplanWeek; if so, the cleanup becomes a no-op).
 
-	_, err = s.svc.ReplanWeek(s.ctx, from, to, nil, nil)
+	_, err := s.svc.ReplanWeek(s.ctx, from, to, nil, nil)
 	require.NoError(t, err)
 
 	assert.False(t, instanceExists(t, s, plannedNormal), "planned non-spontaneous must be deleted")
@@ -1496,8 +1502,7 @@ func TestInstance_ReplanWeek_ScopedToActivityGroup(t *testing.T) {
 		ActivityGroupID: &otherGroup.ID,
 	}
 	other.SetTenantID(testpkg.Tenant(t))
-	_, err := s.db.NewInsert().Model(other).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, other)
 
 	result, err := s.svc.ReplanWeek(s.ctx, from, to, &s.tmplID, nil)
 	require.NoError(t, err)

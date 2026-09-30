@@ -378,8 +378,7 @@ func buildMensaFixtureOn(t *testing.T, db *bun.DB) *mensaFixture {
 		ListKind:        &listKind,
 	}
 	instance.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	planned := testpkg.CreateTestStudent(t, db, "SL-Planned", fmt.Sprintf("P-%d", suffix), "3a")
 	missing := testpkg.CreateTestStudent(t, db, "SL-Missing", fmt.Sprintf("M-%d", suffix), "3a")
@@ -510,8 +509,7 @@ func TestBuildList_ManualAbsenceOverridesStaleVisit(t *testing.T) {
 		ListKind:        &listKind,
 	}
 	instance.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	corrected := testpkg.CreateTestStudent(t, db, "SL-ManCorr", fmt.Sprintf("MC-%d", suffix), "3a")
 
@@ -582,8 +580,7 @@ func TestBuildList_VisitOutsideNominalWindowCountsPresent(t *testing.T) {
 		ListKind:        &listKind,
 	}
 	instance.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	attended := testpkg.CreateTestStudent(t, db, "SL-LateAttended", fmt.Sprintf("LA-%d", suffix), "3a")
 	absent := testpkg.CreateTestStudent(t, db, "SL-LateAbsent", fmt.Sprintf("LB-%d", suffix), "3a")
@@ -714,8 +711,7 @@ func TestBuildList_CancelledManualAttendanceExcluded(t *testing.T) {
 		ListKind:        &listKind,
 	}
 	instance.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	corrected := testpkg.CreateTestStudent(t, db, "SL-CxlManCorr", fmt.Sprintf("CMC-%d", suffix), "3a")
 
@@ -770,8 +766,7 @@ func TestBuildList_ListKindRestrictsSlots(t *testing.T) {
 		ListKind:        &listKind,
 	}
 	otherInstance.SetTenantID(testpkg.Tenant(t))
-	_, err := f.db.NewInsert().Model(otherInstance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, f.db, otherInstance)
 
 	student := testpkg.CreateTestStudent(t, f.db, "SL-Other", fmt.Sprintf("O-%d", suffix), "3c")
 	row := &scheduleModels.InstanceStudent{
@@ -1341,8 +1336,7 @@ func TestBuildList_ExcusedAbsence(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusActive,
 	}
 	instance.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	expected := testpkg.CreateTestStudent(t, db, "SL-Expected", fmt.Sprintf("EX-%d", suffix), "5a")
 	excused := testpkg.CreateTestStudent(t, db, "SL-Excused", fmt.Sprintf("AB-%d", suffix), "5a")
@@ -1427,8 +1421,7 @@ func TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet(t *testing.T) 
 		Status:          scheduleModels.InstanceStatusCompleted,
 	}
 	instance.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	child := testpkg.CreateTestStudent(t, db, "SL-Cxl", fmt.Sprintf("CC-%d", suffix), "3b")
 
@@ -1449,7 +1442,7 @@ func TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet(t *testing.T) 
 		StudentID: child.ID, ExceptionDate: scheduleModels.Date(listDate), PickupTime: nil, CreatedBy: staff.ID,
 	}
 	exc.SetTenantID(testpkg.Tenant(t))
-	_, err = db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
+	_, err := db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
 	require.NoError(t, err)
 
 	svc := newTestService(db)
@@ -2017,14 +2010,13 @@ func TestBuildList_SlotListDropsPlannedRowForEndedEnrollment(t *testing.T) {
 		ListKind:        &listKind,
 	}
 	instance.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	enrolled := testpkg.CreateTestStudent(t, db, "SL-StillHere", fmt.Sprintf("SH-%d", suffix), "5a")
 	ended := testpkg.CreateTestStudent(t, db, "SL-Left", fmt.Sprintf("LF-%d", suffix), "5a")
 
 	endedUntil := listDate.AddDays(-1) // day before listDate
-	_, err = db.NewUpdate().TableExpr(`users.student_school_memberships`).
+	_, err := db.NewUpdate().TableExpr(`users.student_school_memberships`).
 		Set(`status = ?`, string(userModels.StudentStatusInactive)).
 		Set(`enrolled_until = ?`, endedUntil).
 		Where(`student_profile_id = ? AND deleted_at IS NULL`, ended.ID).Exec(ctx)
@@ -2084,8 +2076,7 @@ func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
 		ListKind:        &listKind,
 	}
 	instance.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	booked := testpkg.CreateTestStudent(t, db, "SL-Booked", fmt.Sprintf("BK-%d", suffix), "5a")
 	unbooked := testpkg.CreateTestStudent(t, db, "SL-Unbooked", fmt.Sprintf("UB-%d", suffix), "5a")
@@ -2169,8 +2160,7 @@ func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
 		ListKind:        &listKind,
 	}
 	instance.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	booked := testpkg.CreateTestStudent(t, db, "SL-UpBooked", fmt.Sprintf("UB-%d", suffix), "5a")
 	unbooked := testpkg.CreateTestStudent(t, db, "SL-UpUnbooked", fmt.Sprintf("UU-%d", suffix), "5a")
@@ -2261,8 +2251,7 @@ func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing
 		ListKind:        &listKind,
 	}
 	instance.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	attended := testpkg.CreateTestStudent(t, db, "SL-CxaAtt", fmt.Sprintf("CXAA-%d", suffix), "5a")
 	noShow := testpkg.CreateTestStudent(t, db, "SL-CxaNo", fmt.Sprintf("CXAN-%d", suffix), "5a")
@@ -2274,7 +2263,7 @@ func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing
 			StudentID: sid, ExceptionDate: scheduleModels.Date(listDate), PickupTime: nil, CreatedBy: staff.ID,
 		}
 		exc.SetTenantID(testpkg.Tenant(t))
-		_, err = db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
+		_, err := db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
 		require.NoError(t, err)
 	}
 
@@ -2365,8 +2354,7 @@ func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCoun
 		ListKind:        &listKind,
 	}
 	instance.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	attended := testpkg.CreateTestStudent(t, db, "SL-CxvAtt", fmt.Sprintf("CXVA-%d", suffix), "5a")
 	noShow := testpkg.CreateTestStudent(t, db, "SL-CxvNo", fmt.Sprintf("CXVN-%d", suffix), "5a")
@@ -2378,7 +2366,7 @@ func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCoun
 			StudentID: sid, ExceptionDate: scheduleModels.Date(listDate), PickupTime: nil, CreatedBy: staff.ID,
 		}
 		exc.SetTenantID(testpkg.Tenant(t))
-		_, err = db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
+		_, err := db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
 		require.NoError(t, err)
 	}
 
@@ -2470,8 +2458,7 @@ func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 		ListKind:        &listKind,
 	}
 	instance.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	booked := testpkg.CreateTestStudent(t, db, "SL-SdBooked", fmt.Sprintf("SB-%d", suffix), "5a")
 	sickUnbooked := testpkg.CreateTestStudent(t, db, "SL-SdSick", fmt.Sprintf("SS-%d", suffix), "5a")
@@ -2570,8 +2557,7 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 		ListKind:        &mensa,
 	}
 	future.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(future).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, future)
 
 	sickUnbooked := testpkg.CreateTestStudent(t, db, "SL-DefSdSick", fmt.Sprintf("DS-%d", suffix), "5a")
 	cancelled := testpkg.CreateTestStudent(t, db, "SL-DefSdCxl", fmt.Sprintf("DC-%d", suffix), "5a")
@@ -2594,7 +2580,7 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 		StudentID: cancelled.ID, ExceptionDate: scheduleModels.Date(pickupDate), PickupTime: nil, CreatedBy: staff.ID,
 	}
 	cancelExc.SetTenantID(testpkg.Tenant(t))
-	_, err = db.NewInsert().Model(cancelExc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
+	_, err := db.NewInsert().Model(cancelExc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
 	require.NoError(t, err)
 
 	// A broad sick day stamps sickUnbooked's expected row absent and owns it via
@@ -2668,8 +2654,7 @@ func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 		ListKind:        &listKind,
 	}
 	instance.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	cancelled := testpkg.CreateTestStudent(t, db, "SL-CxChild", fmt.Sprintf("CX-%d", suffix), "5a")
 
@@ -2686,7 +2671,7 @@ func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 		StudentID: cancelled.ID, ExceptionDate: scheduleModels.Date(listDate), PickupTime: nil, CreatedBy: staff.ID,
 	}
 	exc.SetTenantID(testpkg.Tenant(t))
-	_, err = db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
+	_, err := db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
 	require.NoError(t, err)
 
 	isRepo := newBoundInstanceStudentRepository(db)
@@ -2755,8 +2740,7 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 		ListKind:        &mensa,
 	}
 	future.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(future).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, future)
 
 	planned := testpkg.CreateTestStudent(t, db, "SL-NysPlanned", fmt.Sprintf("NP-%d", suffix), "3a")
 
@@ -2805,8 +2789,7 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 		ListKind:        &mensa,
 	}
 	started.SetTenantID(testpkg.Tenant(t))
-	_, err = db.NewInsert().Model(started).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, started)
 	startedRow := &scheduleModels.InstanceStudent{
 		InstanceID: started.ID,
 		StudentID:  planned.ID,
@@ -2860,8 +2843,7 @@ func TestBuildList_SlotReconciliationKeepsRegisteredAbsenceBeforeStart(t *testin
 		ListKind:        &mensa,
 	}
 	future.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(future).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, future)
 
 	excused := testpkg.CreateTestStudent(t, db, "SL-RegAbsExcused", fmt.Sprintf("RE-%d", suffix), "3a")
 	notYetDue := testpkg.CreateTestStudent(t, db, "SL-RegAbsExpected", fmt.Sprintf("RP-%d", suffix), "3a")

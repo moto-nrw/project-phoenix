@@ -11,11 +11,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// activityInstanceRow maps the planning columns of schedule.activity_instances.
-// The execution columns still present on the table are a rollback-only mirror
-// of active.activity_sessions (#2762) and are neither read nor written here;
-// the planning status is read through activityInstancePlanningStatus so a
-// mirrored execution state reads as planned.
+// activityInstanceRow maps schedule.activity_instances, the plan of a block.
+// Its status is a planning state (planned, cancelled); the execution lives in
+// active.activity_sessions (#2762, #2763).
 type activityInstanceRow struct {
 	bun.BaseModel          `bun:"table:activity_instances,alias:activity_instance"`
 	ID                     int64     `bun:"id,pk,autoincrement"`
@@ -42,10 +40,6 @@ type activityInstanceRow struct {
 	IdempotencyFingerprint *string   `bun:"idempotency_fingerprint"`
 	CreatedBy              *int64    `bun:"created_by"`
 }
-
-// activityInstancePlanningStatus projects the stored status onto the planning
-// states: the mirrored execution states are planned occurrences.
-const activityInstancePlanningStatus = `CASE WHEN "activity_instance".status = 'cancelled' THEN 'cancelled' ELSE 'planned' END`
 
 // activityInstanceNotCancelled is the planning predicate for an occurrence
 // that may still take place.
@@ -284,8 +278,7 @@ func activityInstanceInsertResult(row activityInstanceRow, stats domain.Operatio
 }
 
 // UpdateActivityInstance replaces every planning field except the status,
-// which only PatchActivityInstance changes: writing the status back would
-// overwrite the rollback mirror of a running block.
+// which only PatchActivityInstance changes.
 func (s *Store) UpdateActivityInstance(ctx context.Context, id int64, fields domain.ActivityInstanceFields) (domain.ActivityInstance, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -459,7 +452,7 @@ func (s *Store) DeleteActivityInstancesBefore(ctx context.Context, before string
 const activityInstanceColumns = `id, tenant_id, created_at, updated_at, date::text AS date,
 	activity_group_id, calendar_period_id, title, description, start_time::text AS start_time,
 	end_time::text AS end_time, room_id, required_staff,
-	CASE WHEN status = 'cancelled' THEN 'cancelled' ELSE 'planned' END AS status, list_kind,
+	status, list_kind,
 	is_spontaneous, understaffed_ack, understaffed_note, cancel_reason, notes, idempotency_key,
 	idempotency_fingerprint, created_by`
 
@@ -468,7 +461,7 @@ func activityInstanceSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQu
 		ColumnExpr(`"activity_instance".id, "activity_instance".tenant_id, "activity_instance".created_at, "activity_instance".updated_at`).
 		ColumnExpr(`"activity_instance".date::text AS date, "activity_instance".activity_group_id, "activity_instance".calendar_period_id`).
 		ColumnExpr(`"activity_instance".title, "activity_instance".description, "activity_instance".start_time::text AS start_time, "activity_instance".end_time::text AS end_time`).
-		ColumnExpr(`"activity_instance".room_id, "activity_instance".required_staff, `+activityInstancePlanningStatus+` AS status, "activity_instance".list_kind`).
+		ColumnExpr(`"activity_instance".room_id, "activity_instance".required_staff, "activity_instance".status, "activity_instance".list_kind`).
 		ColumnExpr(`"activity_instance".is_spontaneous, "activity_instance".understaffed_ack, "activity_instance".understaffed_note, "activity_instance".cancel_reason, "activity_instance".notes`).
 		ColumnExpr(`"activity_instance".idempotency_key, "activity_instance".idempotency_fingerprint, "activity_instance".created_by`).
 		Where(`"activity_instance".tenant_id = ?`, tenantID)

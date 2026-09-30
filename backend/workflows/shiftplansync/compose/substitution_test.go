@@ -323,8 +323,7 @@ func TestScheduleSubstitutionExternalInterfacePermissionAndTenantIsolation(t *te
 		Status:    scheduleModels.InstanceStatusPlanned,
 	}
 	foreignInstance.SetTenantID(foreignTenant)
-	_, err = db.NewInsert().Model(foreignInstance).ModelTableExpr(`schedule.activity_instances`).Exec(context.Background())
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, context.Background(), db, foreignInstance)
 	foreignRow := &scheduleModels.InstanceStaff{InstanceID: foreignInstance.ID, StaffID: foreignAbsent.ID}
 	foreignRow.SetTenantID(foreignTenant)
 	_, err = db.NewInsert().Model(foreignRow).ModelTableExpr(`schedule.instance_staff`).Exec(context.Background())
