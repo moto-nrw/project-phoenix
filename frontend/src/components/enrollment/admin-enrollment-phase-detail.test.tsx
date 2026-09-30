@@ -291,6 +291,35 @@ describe("AdminEnrollmentPhaseDetail", () => {
     });
   });
 
+  it.each([
+    ["inaktiver Phase", false, false],
+    ["abgeschlossenen Kindern", true, true],
+  ])(
+    "bietet bei %s kein Markieren als ungelesen an",
+    async (_scenario, isActive, allTerminal) => {
+      mocks.listPhases.mockResolvedValue([{ ...phase, is_active: isActive }]);
+      if (allTerminal) {
+        mocks.listAdminRequests.mockResolvedValue([
+          {
+            ...requests[0],
+            children: requests[0]!.children.map((child) => ({
+              ...child,
+              status: "approved",
+            })),
+          },
+        ]);
+      }
+      await renderPhase();
+
+      expect(
+        screen.queryByRole("button", {
+          name: "Aktionen für die Anmeldung von Lina Muster",
+        }),
+      ).not.toBeInTheDocument();
+      expect(mocks.setAdminRequestRead).not.toHaveBeenCalled();
+    },
+  );
+
   it("keeps the tenant in the parent enrollment link in path routing", async () => {
     await renderPhase();
 

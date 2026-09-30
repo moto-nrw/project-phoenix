@@ -4034,7 +4034,7 @@ function enrollmentReviewTopic(): HelpTopic {
       "Die Zahl an `Anmeldungen` zeigt, wie viele neue Anmeldungen Sie noch nicht gelesen haben.",
       "Gelesen gilt nur für Sie. Ihr Team hat eine eigene Zahl.",
       "Wenn Sie eine Anmeldung öffnen, gilt sie als gelesen.",
-      "Im Menü `⋮` einer Zeile markieren Sie eine Anmeldung als gelesen oder ungelesen.",
+      "Offene Anmeldungen in aktiven Phasen markieren Sie im Menü `⋮` als gelesen oder ungelesen.",
       "Im Menü `⋮` oben im `Überblick` wählen Sie `Alle als gelesen markieren`.",
       "Ändern Eltern ihre Anmeldung, ist sie wieder ungelesen.",
     ],

@@ -427,6 +427,21 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       new Set(requests.filter((request) => request.is_unread).map((r) => r.id)),
     [requests],
   );
+  const unreadEligibleRequestIds = useMemo(
+    () =>
+      new Set(
+        phase?.is_active
+          ? requests
+              .filter((request) =>
+                request.children.some(
+                  (child) => !TERMINAL_STATUSES.has(child.status),
+                ),
+              )
+              .map((request) => request.id)
+          : [],
+      ),
+    [phase?.is_active, requests],
+  );
   const handleToggleRead = useCallback(
     async (requestId: string, read: boolean) => {
       try {
@@ -603,6 +618,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             busy={busyChildId === row.child_id}
             onDecide={(status) => requestQuickDecision(row, status)}
             unread={unreadRequestIds.has(row.request_id)}
+            canToggleRead={unreadEligibleRequestIds.has(row.request_id)}
             onToggleRead={(read) => void handleToggleRead(row.request_id, read)}
           />
         ),
@@ -612,6 +628,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       busyChildId,
       childQuotaHeldIds,
       handleToggleRead,
+      unreadEligibleRequestIds,
       requestHref,
       requestQuickDecision,
       unreadRequestIds,
@@ -1502,6 +1519,7 @@ function PhaseChildActions({
   busy,
   onDecide,
   unread,
+  canToggleRead,
   onToggleRead,
 }: Readonly<{
   row: CareUsageRow;
@@ -1509,6 +1527,7 @@ function PhaseChildActions({
   busy: boolean;
   onDecide: (status: DecisionStatus) => void;
   unread: boolean;
+  canToggleRead: boolean;
   onToggleRead: (read: boolean) => void;
 }>) {
   const terminal = TERMINAL_STATUSES.has(row.status);
@@ -1556,16 +1575,20 @@ function PhaseChildActions({
         Anmeldung ansehen
         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
       </NavigationLink>
-      <OverflowMenu
-        ariaLabel={`Aktionen für die Anmeldung von ${row.child_first_name} ${row.child_last_name}`}
-        triggerSize="sm"
-        items={[
-          {
-            label: unread ? "Als gelesen markieren" : "Als ungelesen markieren",
-            onClick: () => onToggleRead(unread),
-          },
-        ]}
-      />
+      {canToggleRead ? (
+        <OverflowMenu
+          ariaLabel={`Aktionen für die Anmeldung von ${row.child_first_name} ${row.child_last_name}`}
+          triggerSize="sm"
+          items={[
+            {
+              label: unread
+                ? "Als gelesen markieren"
+                : "Als ungelesen markieren",
+              onClick: () => onToggleRead(unread),
+            },
+          ]}
+        />
+      ) : null}
     </div>
   );
 }
