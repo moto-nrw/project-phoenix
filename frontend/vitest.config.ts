@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { availableParallelism } from "node:os";
 import { nodeLogicTestFiles } from "./src/test/node-test-files";
+import { phosphorPerIconImports } from "./src/test/phosphor-imports-plugin";
 
 const apiTestFiles = ["src/app/api/**/*.{test,spec}.ts"];
 const baseTestExcludes = ["**/node_modules/**", "**/e2e/**"];
@@ -16,13 +17,30 @@ const baseTestExcludes = ["**/node_modules/**", "**/e2e/**"];
 process.env.TZ = "Europe/Berlin";
 
 export default defineConfig({
-  plugins: [react()],
+  // Per-icon phosphor imports instead of the 3,000-module barrels; mirrors
+  // optimizePackageImports in next.config.js. See the plugin file.
+  plugins: [phosphorPerIconImports(), react()],
   test: {
     globals: true,
     silent: "passed-only",
     // threads statt des Default-Pools "forks": gemessen auf der vollen Suite
     // (1027 Dateien / 14160 Tests, 16-Core-MacBook) 124s → 76s Wandzeit und
     // -24% CPU — der Unterschied ist reiner Prozess-Spawn-/IPC-Overhead.
+    //
+    // "vmThreads" für app-dom ist verworfen (volle Suite, 1243 Dateien,
+    // 4 Worker, 09/2026): Es spart rund 40 % CPU (306–346 s statt 484–532 s
+    // user), weil happy-dom nicht pro Datei neu geladen wird. Der Peak-RSS
+    // liegt aber bei jedem getesteten vmMemoryLimit über threads
+    // (2,24–2,27 GB): 50MB 2,54 GB, 100MB 2,38–2,78 GB, 200MB 3,05 GB,
+    // 300MB 2,64–2,82 GB, 500MB 3,28 GB, 1600MB (0,1 von 16 GB) 7,5 GB.
+    // Ohne Limit recycelt Vitest erst bei RAM/maxWorkers, auf 16 GB also bei
+    // 4 GB pro Worker. Außerdem scheitern darunter 52 Tests in 12 Dateien an
+    // Realm-Grenzen (toStrictEqual-Prototypen, happy-dom-URL, File/Blob).
+    //
+    // isolate: false bleibt aus. logic-node spart damit etwa 14 s CPU, wird
+    // aber reihenfolgeabhängig rot, weil Module samt vi.mock-Ersatz über
+    // Dateigrenzen im Cache bleiben (shift-api*.test.ts mocken session-cache
+    // verschieden). api-node scheitert so in 165 von 274 Dateien.
     pool: "threads",
     // Höchstens die Hälfte der CPUs und nie mehr als vier Worker.
     // Gemessen auf 231 Dateien: 8 → 4 Worker senkt CPU um 19% und Peak-RSS

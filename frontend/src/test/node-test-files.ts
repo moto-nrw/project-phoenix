@@ -30,6 +30,7 @@ export const nodeLogicTestFiles = [
   "src/components/timetable/event-form/weekday-roster.test.ts",
   "src/components/timetable/planung-redirect.test.ts",
   "src/components/ui/calendar-panel-position.test.ts",
+  "src/components/ui/lazy-day-picker.test.ts",
   "src/components/ui/page-header/types.test.ts",
   "src/env.client.test.ts",
   "src/i18n/date-fns-locale.test.ts",
@@ -164,4 +165,5 @@ export const nodeLogicTestFiles = [
   "src/server/auth/route-handler-coverage.test.ts",
   "src/server/auth/route-handler.test.ts",
   "src/styles/moto-token-drift.test.ts",
+  "src/test/phosphor-imports-plugin.test.ts",
 ];

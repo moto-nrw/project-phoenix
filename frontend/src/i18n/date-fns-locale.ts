@@ -1,5 +1,11 @@
 import type { Locale } from "date-fns";
-import { de, enUS, pl, ru, sq, tr, uk } from "date-fns/locale";
+import { de } from "date-fns/locale/de";
+import { enUS } from "date-fns/locale/en-US";
+import { pl } from "date-fns/locale/pl";
+import { ru } from "date-fns/locale/ru";
+import { sq } from "date-fns/locale/sq";
+import { tr } from "date-fns/locale/tr";
+import { uk } from "date-fns/locale/uk";
 
 import { normalizeLocale, type AppLocale } from "./locales";
 

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
+import { preloadDayPicker } from "~/components/ui/lazy-day-picker";
 import { CareWeeklyPlanEditForm } from "./care-weekly-plan-editor";
 import type { PickupAdjustmentPreview } from "~/lib/pickup-schedule-api";
 
@@ -199,6 +200,10 @@ function decisionPreview(token: string): PickupAdjustmentPreview {
     },
   };
 }
+
+// The kit loads the calendar grid lazily; load it once up front so a cold
+// import on a busy machine does not race the findBy timeout.
+beforeAll(() => preloadDayPicker());
 
 describe("CareWeeklyPlanEditForm", () => {
   beforeEach(() => {
