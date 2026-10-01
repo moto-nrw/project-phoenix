@@ -55,7 +55,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -399,7 +398,7 @@ type RequestOption func(*http.Request)
 // WithPermissions adds permissions to the request context.
 func WithPermissions(permissions ...string) RequestOption {
 	return func(req *http.Request) {
-		ctx := context.WithValue(req.Context(), jwt.CtxPermissions, permissions)
+		ctx := testpkg.WithPermissionsContext(req.Context(), permissions)
 		*req = *req.WithContext(ctx)
 	}
 }
@@ -408,10 +407,10 @@ func WithPermissions(permissions ...string) RequestOption {
 // Also injects tenant context (mirroring TenantMiddleware) so that
 // handler-level WithTenantTx can read the tenant ID. Claims carrying the
 // bootstrap tenant follow the test into its own tenant (#2419).
-func WithClaims(tb testing.TB, claims jwt.AppClaims) RequestOption {
+func WithClaims(tb testing.TB, claims testpkg.Claims) RequestOption {
 	claims.TenantID = testpkg.RebaseTenantID(tb, claims.TenantID)
 	return func(req *http.Request) {
-		ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+		ctx := testpkg.WithAuthenticatedContext(req.Context(), claims, nil)
 		if claims.TenantID != 0 {
 			ctx = tenant.WithTenantID(ctx, claims.TenantID)
 		}
@@ -539,15 +538,7 @@ func WithJWTBearer(token string) RequestOption {
 // Claims carrying the bootstrap tenant are rebased onto the tenant the test
 // owns, so a test that opted into a per-test tenant gets a matching token
 // without passing the tenant through every claims helper (#2419).
-func MintTestJWT(t testing.TB, claims jwt.AppClaims) string {
-	t.Helper()
-	claims.TenantID = testpkg.RebaseTenantID(t, claims.TenantID)
-	tokenAuth, err := testpkg.ConfiguredTokenAuth()
-	require.NoError(t, err, "MintTestJWT: NewTokenAuth")
-	token, err := tokenAuth.CreateJWT(claims)
-	require.NoError(t, err, "MintTestJWT: CreateJWT")
-	return token
-}
+func MintTestJWT(t testing.TB, claims testpkg.Claims) string { return testpkg.MintTestJWT(t, claims) }
 
 // SeedTestJWTConfig installs deterministic viper defaults for JWT auth so that
 // tests work in environments without a populated .env (e.g. CI). Use it from
@@ -775,12 +766,8 @@ func NewJSONRouter() chi.Router {
 
 // AuthenticationContext returns the identity values injected by request
 // options, preferring an explicit test permission set over claims defaults.
-func AuthenticationContext(ctx context.Context) (jwt.AppClaims, []string) {
-	claims := jwt.ClaimsFromCtx(ctx)
-	if granted := jwt.PermissionsFromCtx(ctx); granted != nil {
-		return claims, granted
-	}
-	return claims, claims.Permissions
+func AuthenticationContext(ctx context.Context) (testpkg.Claims, []string) {
+	return testpkg.AuthenticationContext(ctx)
 }
 
 // ExecuteRequest executes an HTTP request against a Chi router and returns the response recorder.
@@ -799,7 +786,7 @@ func ExecuteRequest(router chi.Router, req *http.Request) *httptest.ResponseReco
 
 // ExecuteWithAuth signs a JWT for the given claims (used as-is, including any
 // permissions they already carry) and executes the request through the router.
-func ExecuteWithAuth(t *testing.T, router chi.Router, req *http.Request, claims jwt.AppClaims) *httptest.ResponseRecorder {
+func ExecuteWithAuth(t *testing.T, router chi.Router, req *http.Request, claims testpkg.Claims) *httptest.ResponseRecorder {
 	t.Helper()
 	req.Header.Set("Authorization", "Bearer "+MintTestJWT(t, claims))
 	return ExecuteRequestForTest(t, router, req)
@@ -808,7 +795,7 @@ func ExecuteWithAuth(t *testing.T, router chi.Router, req *http.Request, claims 
 // ExecuteWithAuthPermissions folds the given permission set into the claims
 // (replacing whatever they carried — an empty slice deliberately produces a
 // permissionless token), signs a JWT, and executes the request.
-func ExecuteWithAuthPermissions(t *testing.T, router chi.Router, req *http.Request, claims jwt.AppClaims, permissions []string) *httptest.ResponseRecorder {
+func ExecuteWithAuthPermissions(t *testing.T, router chi.Router, req *http.Request, claims testpkg.Claims, permissions []string) *httptest.ResponseRecorder {
 	t.Helper()
 	claims.Permissions = permissions
 	req.Header.Set("Authorization", "Bearer "+MintTestJWT(t, claims))
@@ -906,77 +893,37 @@ func AssertBadRequest(t *testing.T, rr *httptest.ResponseRecorder) {
 }
 
 // DefaultTestClaims returns default JWT claims for testing.
-func DefaultTestClaims() jwt.AppClaims {
-	return jwt.AppClaims{
-		ID:          1,
-		Sub:         "test@example.com",
-		Username:    "testuser",
-		FirstName:   "Test",
-		LastName:    "User",
-		Roles:       []string{"admin"},
-		Permissions: []string{"admin:*"},
-		IsAdmin:     true,
-		TenantID:    1,
-	}
+func DefaultTestClaims() testpkg.Claims {
+	return testpkg.DefaultTestClaims()
 }
 
 // TeacherTestClaims returns JWT claims for a teacher user.
-func TeacherTestClaims(accountID int) jwt.AppClaims {
-	return jwt.AppClaims{
-		ID:          accountID,
-		Sub:         "teacher@example.com",
-		Username:    "teacher",
-		FirstName:   "Test",
-		LastName:    "Teacher",
-		Roles:       []string{"user"},
-		Permissions: []string{"students:read", "groups:read", "groups:update", "groups:list", "visits:read", "visits:create", "visits:update", "visits:delete", "visits:list", "activities:update", "activities:delete", "activities:list", "activities:manage", "activities:enroll", "activities:assign", "users:list", "rooms:list", "schedules:read", "schedules:list", "feedback:read", "feedback:list", "substitutions:read"},
-		TenantID:    1,
-	}
+func TeacherTestClaims(accountID int) testpkg.Claims {
+	return testpkg.TeacherTestClaims(accountID)
 }
 
 // AdminTestClaims returns JWT claims for an admin user.
-func AdminTestClaims(accountID int) jwt.AppClaims {
-	return AdminTestClaimsForTenant(accountID, 1)
+func AdminTestClaims(accountID int) testpkg.Claims {
+	return testpkg.AdminTestClaims(accountID)
 }
 
 // AdminTestClaimsForTenant returns admin JWT claims scoped to a specific tenant.
 // Use this for tests that run in an isolated tenant (e.g., to avoid cross-package
 // fixture interference) instead of the default test tenant id=1.
-func AdminTestClaimsForTenant(accountID int, tenantID int64) jwt.AppClaims {
-	return jwt.AppClaims{
-		ID:          accountID,
-		Sub:         "admin@example.com",
-		Username:    "admin",
-		FirstName:   "Admin",
-		LastName:    "User",
-		Roles:       []string{"admin"},
-		Permissions: []string{"admin:*"},
-		IsAdmin:     true,
-		TenantID:    tenantID,
-	}
+func AdminTestClaimsForTenant(accountID int, tenantID int64) testpkg.Claims {
+	return testpkg.AdminTestClaimsForTenant(accountID, tenantID)
 }
 
 // TenantUserTestClaims returns the claims of a regular (non-admin) staff
 // account on the given tenant that holds exactly the listed permissions.
-func TenantUserTestClaims(accountID int, tenantID int64, permissions ...string) jwt.AppClaims {
-	return jwt.AppClaims{
-		ID:          accountID,
-		Sub:         "user@example.com",
-		Roles:       []string{"user"},
-		TenantID:    tenantID,
-		Permissions: permissions,
-	}
+func TenantUserTestClaims(accountID int, tenantID int64, permissions ...string) testpkg.Claims {
+	return testpkg.TenantUserTestClaims(accountID, tenantID, permissions...)
 }
 
 // ParentTestClaims returns the claims of a guardian account in the
 // cross-tenant parent scope, as the parent portal mints them.
-func ParentTestClaims(accountID int) jwt.AppClaims {
-	return jwt.AppClaims{
-		ID:    accountID,
-		Sub:   "parent@example.com",
-		Roles: []string{"guardian"},
-		Scope: tenant.ScopeParent,
-	}
+func ParentTestClaims(accountID int) testpkg.Claims {
+	return testpkg.ParentTestClaims(accountID)
 }
 
 // WithSessionVerifier mounts the verifier the API root mounts once for every
@@ -984,12 +931,7 @@ func ParentTestClaims(accountID int) jwt.AppClaims {
 func WithSessionVerifier(next http.Handler) http.Handler { return testpkg.SessionVerifier(next) }
 
 // TestTokenAuth returns the signer of the seeded test configuration.
-func TestTokenAuth(tb testing.TB) *jwt.TokenAuth {
-	tb.Helper()
-	tokenAuth, err := testpkg.ConfiguredTokenAuth()
-	require.NoError(tb, err)
-	return tokenAuth
-}
+var TestTokenAuth = testpkg.TestTokenAuth
 
 // servedBy mounts the session verifier unless the test already placed a
 // verified token on the context, which the verifier would overwrite.
