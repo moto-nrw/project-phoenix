@@ -23,6 +23,7 @@ const (
 	profileSettingCareOfferingsEnabled  = "enrollment.care_offerings_enabled"
 	profileSettingBookingsAuthoritative = "enrollment.bookings_authoritative"
 	profileSettingDevicePIN             = "security.ogs_device_pin"
+	profileSettingStudentPhotos         = "operations.student_photos_enabled"
 	profilePresenceDetailed             = "detailed"
 	profilePresenceBinary               = "binary"
 	profileGroupModeFixed               = "fixed_groups"
