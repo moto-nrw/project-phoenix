@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { ResolvedSetting, SchemaTab } from "~/lib/settings-api";
 import {
@@ -87,61 +90,25 @@ const tabs: SchemaTab[] = [
 ];
 
 describe("displayCategoryLabel", () => {
-  it("covers every category emitted by the tenant and operator schemas", () => {
+  it("matches all category keys registered by backend defaults", () => {
+    const defaultsDirectory = resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      "../../../../backend/services/config/defaults",
+    );
+    const backendCategoryKeys = new Set<string>();
+
+    for (const filename of readdirSync(defaultsDirectory)) {
+      if (!filename.endsWith(".go") || filename.endsWith("_test.go")) {
+        continue;
+      }
+      const source = readFileSync(resolve(defaultsDirectory, filename), "utf8");
+      for (const match of source.matchAll(/Category:\s*"([^"]+)"/g)) {
+        backendCategoryKeys.add(match[1]!);
+      }
+    }
+
     expect(Object.keys(categoryLabels).sort()).toEqual(
-      [
-        "abholung",
-        "abwesenheit",
-        "aktivierung",
-        "aktivitaeten",
-        "allgemein",
-        "anmeldung",
-        "anwesenheit",
-        "anwesenheit-erfassen",
-        "aufsicht",
-        "benachrichtigung",
-        "benachrichtigungen",
-        "betreuungsangebote",
-        "betreuungszeiten",
-        "bewegungsdaten",
-        "checkout",
-        "dateien",
-        "datenbereinigung",
-        "datev_mandant",
-        "e-mail",
-        "einladungen",
-        "elternmeldungen",
-        "elternportal",
-        "feedback",
-        "formular",
-        "frueh-abgeholt",
-        "geburtstage",
-        "info-displays",
-        "kalender",
-        "kapazität",
-        "kinder",
-        "lockout",
-        "lohnarten",
-        "mfa",
-        "monitoring",
-        "nach-hause",
-        "nutzungsanalyse",
-        "organisation",
-        "pin",
-        "rechtstexte",
-        "schulstunden",
-        "schülerdaten",
-        "sehen-und-bearbeiten",
-        "sicherheit",
-        "sitzungsbereinigung",
-        "sitzungsende",
-        "standort",
-        "stundenplan",
-        "team",
-        "termine",
-        "zeiterfassung",
-        "zeitkonten-export",
-      ].sort(),
+      [...backendCategoryKeys].sort(),
     );
   });
 

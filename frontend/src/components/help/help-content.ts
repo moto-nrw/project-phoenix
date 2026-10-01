@@ -2524,7 +2524,7 @@ function loginProblemTopic(nfcEnabled: boolean | null): HelpTopic {
  * Die Themen des laufenden Betriebs. Die Reihenfolge einer Gruppe in
  * Seitenleiste und Gruppenseite folgt dieser Liste, deshalb stehen die zwei
  * Leitungsthemen zum NFC-Gerät hier und nicht in `leadTopics`: ohne
- * gesetzte `OGS Geräte-PIN` kommt am Tablet niemand weiter, und stünden sie
+ * gesetzte `Geräte-PIN` kommt am Tablet niemand weiter, und stünden sie
  * am Ende, müsste die Leitung zuerst nach unten springen. Die Betreuung
  * sieht beide nicht.
  */

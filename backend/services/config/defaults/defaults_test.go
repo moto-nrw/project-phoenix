@@ -1619,6 +1619,9 @@ func TestDependsOn_GDPRGroup(t *testing.T) {
 
 	timeoutDef := config.GetDefinition("gdpr.data_cleanup_timeout_minutes")
 	require.NotNil(t, timeoutDef)
+	// The duration is a technical limit for the deletion job. Schools decide
+	// whether and when data is deleted, while moto sets this safety limit.
+	assert.Equal(t, config.AccessOperatorOnly, timeoutDef.AccessPolicy)
 	require.NotNil(t, timeoutDef.DependsOn)
 	assert.Equal(t, "gdpr.data_cleanup_enabled", timeoutDef.DependsOn.Key)
 }
