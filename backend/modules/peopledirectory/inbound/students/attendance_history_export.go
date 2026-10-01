@@ -31,6 +31,7 @@ const (
 	attendanceColumnCheckIn    lists.ColumnID = "checked_in_at"
 	attendanceColumnCheckOut   lists.ColumnID = "checked_out_at"
 	attendanceColumnAssignment lists.ColumnID = "assignment"
+	attendanceColumnNote       lists.ColumnID = "check_out_note"
 )
 
 func (rs *Resource) exportStudentAttendanceHistory(w http.ResponseWriter, r *http.Request) {
@@ -161,6 +162,7 @@ func attendanceExportColumns() []lists.Column {
 		{ID: attendanceColumnWindow, Label: "Zeitslot"}, {ID: attendanceColumnStatus, Label: "Status"},
 		{ID: attendanceColumnCheckIn, Label: "Anwesend ab"}, {ID: attendanceColumnCheckOut, Label: "Anwesend bis"},
 		{ID: attendanceColumnAssignment, Label: "Zuordnung"},
+		{ID: attendanceColumnNote, Label: "Früher gegangen"},
 	}
 }
 
@@ -171,6 +173,7 @@ func attendanceSessionExportColumns() []lists.Column {
 		{ID: attendanceColumnDate, Label: "Datum"},
 		{ID: attendanceColumnWindow, Label: "Zeitraum"}, {ID: attendanceColumnStatus, Label: "Status"},
 		{ID: attendanceColumnCheckIn, Label: "Anwesend ab"}, {ID: attendanceColumnCheckOut, Label: "Anwesend bis"},
+		{ID: attendanceColumnNote, Label: "Früher gegangen"},
 	}
 }
 
@@ -184,6 +187,7 @@ func attendanceExportRows(slots []*studentpresence.HistorySlot, attendanceRows [
 		row   lists.Row
 	}
 	entries := make([]sortableExportRow, 0, len(slots)+len(attendanceRows))
+	notes := checkOutNotesByInstant(attendanceRows)
 	coverageByDate := make(map[timezone.Date][]slotCoverage, len(slots))
 	for _, row := range slots {
 		if row == nil || row.Instance == nil || row.Attendance == nil {
@@ -203,7 +207,7 @@ func attendanceExportRows(slots []*studentpresence.HistorySlot, attendanceRows [
 		entries = append(entries, sortableExportRow{
 			date:  instanceDate,
 			clock: row.Instance.StartTime.Format("15:04:05"),
-			row:   slotExportRow(row),
+			row:   slotExportRow(row, notes),
 		})
 	}
 	for _, attendance := range attendanceRows {
@@ -229,7 +233,27 @@ func attendanceExportRows(slots []*studentpresence.HistorySlot, attendanceRows [
 	return rows
 }
 
-func slotExportRow(row *studentpresence.HistorySlot) lists.Row {
+// checkOutNotesByInstant indexes the early-checkout notes (#3324) by their
+// checkout instant. A checkout mirrors into the slot it closes with the same
+// timestamp, so a slot row finds the note of the stay that ended it.
+func checkOutNotesByInstant(rows []*studentpresence.Attendance) map[int64]string {
+	notes := make(map[int64]string)
+	for _, row := range rows {
+		if row.CheckOutTime != nil && row.CheckOutNote != nil && *row.CheckOutNote != "" {
+			notes[row.CheckOutTime.UnixNano()] = *row.CheckOutNote
+		}
+	}
+	return notes
+}
+
+func slotCheckOutNote(row *studentpresence.HistorySlot, notes map[int64]string) string {
+	if row.Attendance.CheckedOutAt == nil {
+		return ""
+	}
+	return notes[row.Attendance.CheckedOutAt.UnixNano()]
+}
+
+func slotExportRow(row *studentpresence.HistorySlot, notes map[int64]string) lists.Row {
 	assignment := "Gebucht"
 	if row.Attendance.IsUnplanned {
 		assignment = "Ungeplant, ohne Buchung"
@@ -240,6 +264,7 @@ func slotExportRow(row *studentpresence.HistorySlot) lists.Row {
 		attendanceColumnStatus:  attendanceSlotStatusLabel(row.Attendance.Status, row.Attendance.Substatus),
 		attendanceColumnCheckIn: exportOptionalTime(row.Attendance.CheckedInAt), attendanceColumnCheckOut: exportOptionalTime(row.Attendance.CheckedOutAt),
 		attendanceColumnAssignment: assignment,
+		attendanceColumnNote:       slotCheckOutNote(row, notes),
 	}}
 }
 
@@ -253,6 +278,7 @@ func unassignedExportRow(attendance *studentpresence.Attendance) lists.Row {
 		attendanceColumnWindow: exportOptionalTime(&attendance.CheckInTime) + "–" + exportOptionalTime(attendance.CheckOutTime),
 		attendanceColumnStatus: "Anwesend", attendanceColumnCheckIn: exportOptionalTime(&attendance.CheckInTime),
 		attendanceColumnCheckOut: exportOptionalTime(attendance.CheckOutTime), attendanceColumnAssignment: "Nicht zugeordnet",
+		attendanceColumnNote: optionalString(attendance.CheckOutNote),
 	}}
 }
 
@@ -282,4 +308,11 @@ func attendanceSlotStatusLabel(status string, substatus *string) string {
 	default:
 		return "Erwartet"
 	}
+}
+
+func optionalString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }

@@ -18,14 +18,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// noticeSettings answers the three cancellation-notice keys and keeps the
-// dispatch switch on so the push router does not short-circuit.
-func noticeSettings(enabled, email bool) *configtest.Mock {
+// noticeSettings keeps the dispatch switch on so the push router does not
+// short-circuit. The notice itself has no school settings since #3731.
+func noticeSettings() *configtest.Mock {
 	values := map[string]bool{
-		configModel.KeyNotificationsCareCancelledEnabled:   enabled,
-		configModel.KeyNotificationsCareCancelledDefaultOn: true,
-		configModel.KeyNotificationsCareCancelledEmail:     email,
-		configModel.KeyNotificationsDispatchEnabled:        true,
+		configModel.KeyNotificationsDispatchEnabled: true,
 	}
 	return &configtest.Mock{
 		ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
@@ -53,7 +50,7 @@ func buildNoticeService(t *testing.T, settings *configtest.Mock) (announcement.S
 
 func TestPublishCareCancellation_PublishesSystemRowForBookedChildren(t *testing.T) {
 	t.Parallel()
-	svc, db, repos := buildNoticeService(t, noticeSettings(true, false))
+	svc, db, repos := buildNoticeService(t, noticeSettings())
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.Ctx(t)
 
@@ -91,33 +88,16 @@ func TestPublishCareCancellation_PublishesSystemRowForBookedChildren(t *testing.
 	assert.Equal(t, usersModels.ParentAnnouncementSystemKindCareCancellation, *stored.SystemKind)
 	assert.True(t, stored.IsPublished(), "the notice is live immediately")
 	assert.Equal(t, usersModels.ParentAnnouncementPriorityImportant, stored.Priority)
-	assert.False(t, stored.SendEmail, "e-mail follows the school setting")
+	assert.True(t, stored.SendEmail, "the dialog promises App und E-Mail; family opt-outs apply in the outbox")
 	require.Len(t, stored.Targets, 1, "duplicate student ids collapse to one target")
 	assert.Equal(t, usersModels.AnnouncementTargetStudent, stored.Targets[0].TargetType)
 	require.NotNil(t, stored.Targets[0].TargetRefID)
 	assert.Equal(t, chain.StudentID, *stored.Targets[0].TargetRefID)
 }
 
-func TestPublishCareCancellation_RefusesWhenSchoolSwitchedItOff(t *testing.T) {
-	t.Parallel()
-	svc, db, _ := buildNoticeService(t, noticeSettings(false, false))
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-
-	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		_, err := svc.PublishCareCancellation(txCtx, announcement.CareCancellationInput{
-			StudentIDs: []int64{chain.StudentID},
-			Title:      "Entfällt",
-			Body:       "Heute keine Betreuung.",
-			CreatedBy:  chain.AccountID,
-		})
-		return err
-	})
-	assert.ErrorIs(t, err, announcement.ErrCareCancellationDisabled)
-}
-
 func TestPublishCareCancellation_RejectsEmptyText(t *testing.T) {
 	t.Parallel()
-	svc, db, _ := buildNoticeService(t, noticeSettings(true, false))
+	svc, db, _ := buildNoticeService(t, noticeSettings())
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -134,7 +114,7 @@ func TestPublishCareCancellation_RejectsEmptyText(t *testing.T) {
 
 func TestCareCancellationReachFor_CountsLinkedGuardians(t *testing.T) {
 	t.Parallel()
-	svc, db, _ := buildNoticeService(t, noticeSettings(true, false))
+	svc, db, _ := buildNoticeService(t, noticeSettings())
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	// A second child with no guardian at all must not inflate the count.
 	orphan := testpkg.CreateTestStudent(t, db, "Ohne", "Eltern", "1a")
@@ -146,23 +126,5 @@ func TestCareCancellationReachFor_CountsLinkedGuardians(t *testing.T) {
 		return err
 	}))
 	require.NotNil(t, reach)
-	assert.True(t, reach.Enabled)
-	assert.True(t, reach.DefaultOn)
 	assert.Equal(t, 1, reach.FamilyCount)
-}
-
-func TestCareCancellationReachFor_DisabledSchoolReportsNoReach(t *testing.T) {
-	t.Parallel()
-	svc, db, _ := buildNoticeService(t, noticeSettings(false, false))
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-
-	var reach *announcement.CareCancellationReach
-	require.NoError(t, tenant.WithTenantTx(testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		var err error
-		reach, err = svc.CareCancellationReachFor(txCtx, []int64{chain.StudentID})
-		return err
-	}))
-	require.NotNil(t, reach)
-	assert.False(t, reach.Enabled)
-	assert.Zero(t, reach.FamilyCount)
 }

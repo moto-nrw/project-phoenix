@@ -309,7 +309,7 @@ func (p *parentAnnouncements) CareCancellationReachFor(ctx context.Context, stud
 	if reach == nil {
 		return nil, mapParentAnnouncementError(err)
 	}
-	return &communication.CareCancellationReach{Enabled: reach.Enabled, DefaultOn: reach.DefaultOn, FamilyCount: reach.FamilyCount}, mapParentAnnouncementError(err)
+	return &communication.CareCancellationReach{FamilyCount: reach.FamilyCount}, mapParentAnnouncementError(err)
 }
 
 func (p *parentAnnouncements) AnnouncementExists(ctx context.Context, id int64) (bool, error) {
@@ -401,7 +401,6 @@ func mapParentAnnouncementError(err error) error {
 		{staff.ErrNothingOutstanding, communication.ErrParentAnnouncementNothingDue},
 		{staff.ErrNotAPoll, communication.ErrParentAnnouncementNotPoll},
 		{staff.ErrPollNotOpen, communication.ErrParentAnnouncementPollClosed},
-		{staff.ErrCareCancellationDisabled, communication.ErrCareCancellationDisabled},
 		{staff.ErrReminderAlreadySent, communication.ErrParentAnnouncementReminderSent},
 		{staff.ErrDeclarationHasSubmissions, communication.ErrDeclarationHasSubmissions},
 		{staff.ErrNotDeclaration, communication.ErrNotDeclaration},

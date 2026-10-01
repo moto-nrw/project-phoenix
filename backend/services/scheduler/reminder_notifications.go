@@ -404,7 +404,7 @@ func (s *Scheduler) resolveReminderRecipients(ctx context.Context) ([]reminderRe
 // notifications.on_duty_only. A nil map means "no restriction"; an empty,
 // non-nil map means nobody is currently on duty.
 func (s *Scheduler) resolveOnDutyStaff(ctx context.Context) (map[int64]struct{}, error) {
-	if !s.resolveBoolSetting(ctx, configModel.KeyNotificationsOnDutyOnly, "", true) {
+	if !s.resolveBoolSetting(ctx, configModel.KeyNotificationsOnDutyOnly, "", false) {
 		return nil, nil
 	}
 

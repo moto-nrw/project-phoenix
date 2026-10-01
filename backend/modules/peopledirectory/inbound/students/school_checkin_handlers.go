@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -21,6 +22,9 @@ import (
 // "in" when the student is already checked in returns 200 without change.
 type schoolCheckinRequest struct {
 	Action string `json:"action"` // "in" | "out"
+	// Note is the optional reason for an early checkout (#3324). Only valid
+	// with Action "out"; blank means no note.
+	Note string `json:"note,omitempty"`
 }
 
 // schoolCheckinResponse mirrors the shape of AttendanceStatus so the frontend
@@ -69,8 +73,8 @@ func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request)
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if req.Action != schoolCheckinActionIn && req.Action != schoolCheckinActionOut {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(`action must be "in" or "out"`)))
+	if err := validateSchoolCheckinRequest(req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -86,7 +90,7 @@ func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	resp, changeErr := rs.applySchoolCheckinAction(r.Context(), student, staffID, req.Action, current)
+	resp, changeErr := rs.applySchoolCheckinAction(r.Context(), student, staffID, req, current)
 	if changeErr != nil {
 		// A graduated (alumnus) student — reached via CheckInStudent's
 		// ensureStudentCheckinAllowed guard on a stale request or graduation
@@ -94,6 +98,10 @@ func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request)
 		// IoT and timetable mappers rather than surfacing a 500 (#405).
 		if errors.Is(changeErr, studentpresence.ErrStudentGraduated) || errors.Is(changeErr, studentpresence.ErrStudentCareEnded) {
 			common.RenderError(w, r, common.ErrorNotFound(changeErr))
+			return
+		}
+		if errors.Is(changeErr, studentpresence.ErrCheckoutNoteTooLong) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(changeErr))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(changeErr))
@@ -106,9 +114,22 @@ func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request)
 		slog.String("action", req.Action),
 		slog.String("resulting_status", resp.Status),
 		slog.Bool("changed", resp.Changed),
+		slog.Bool("with_note", strings.TrimSpace(req.Note) != ""),
 	)
 
 	common.Respond(w, r, http.StatusOK, resp, "School checkin toggled successfully")
+}
+
+// validateSchoolCheckinRequest checks the action and that a note only comes
+// with a checkout. The note's length is the owner's rule and is checked there.
+func validateSchoolCheckinRequest(req schoolCheckinRequest) error {
+	if req.Action != schoolCheckinActionIn && req.Action != schoolCheckinActionOut {
+		return errors.New(`action must be "in" or "out"`)
+	}
+	if req.Action == schoolCheckinActionIn && strings.TrimSpace(req.Note) != "" {
+		return errors.New(`note is only allowed with action "out"`)
+	}
+	return nil
 }
 
 // maxSchoolCheckinBatchSize caps one batch request. The student search view
@@ -314,9 +335,10 @@ func (rs *Resource) applySchoolCheckinAction(
 	ctx context.Context,
 	student *Student,
 	staffID int64,
-	action string,
+	req schoolCheckinRequest,
 	current *studentpresence.DailyAttendanceStatus,
 ) (*schoolCheckinResponse, error) {
+	action := req.Action
 	if studentpresence.IsSchoolCheckinNoop(action, current.Status) {
 		return buildSchoolCheckinResponse(student.ID, current, false), nil
 	}
@@ -337,7 +359,7 @@ func (rs *Resource) applySchoolCheckinAction(
 		// transaction (issue #895 — see modules/studentpresence/internal/application/presence.performCheckOut), so
 		// detailed-mode supervisor views never show "still in Room X" after
 		// a web checkout. No separate EndVisit call is needed here.
-		result, err = rs.ActiveService.CheckOutStudent(ctx, student.ID, staffID, true)
+		result, err = rs.ActiveService.CheckOutStudentWithNote(ctx, student.ID, staffID, req.Note, true)
 	}
 	if err != nil {
 		return nil, err

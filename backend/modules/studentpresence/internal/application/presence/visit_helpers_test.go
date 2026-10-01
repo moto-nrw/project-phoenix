@@ -233,15 +233,24 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 // Auto-clear status flag Tests (sick / excused on check-in)
 // =============================================================================
 
-// TestCreateVisit_AutoClearsSick — with default settings (sick_clear_mode =
-// next_checkin), a sick student's flag is cleared when they check in.
-func TestCreateVisit_AutoClearsSick(t *testing.T) {
+// TestCreateVisit_AutoClearsSick_WhenSettingNextCheckin — when the tenant
+// chose sick_clear_mode = next_checkin, a sick student's flag is cleared when
+// they check in.
+func TestCreateVisit_AutoClearsSick_WhenSettingNextCheckin(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
 	ctx := testpkg.Ctx(t)
+
+	_, err := db.NewRaw(`
+		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
+		VALUES (?, 'operations.sick_clear_mode', '"next_checkin"', NULL)
+		ON CONFLICT (tenant_id, setting_key)
+		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+	`, testpkg.Tenant(t)).Exec(ctx)
+	require.NoError(t, err)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "autoclear-sick-test")
 	room := testpkg.CreateTestRoom(t, db, "Autoclear Sick Room")
@@ -255,7 +264,7 @@ func TestCreateVisit_AutoClearsSick(t *testing.T) {
 	now := time.Now()
 	student.Sick = &sickTrue
 	student.SickSince = &now
-	_, err := db.NewUpdate().Model(student).ModelTableExpr("users.student_care_profiles").Column("sick", "sick_since").Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).Exec(ctx)
+	_, err = db.NewUpdate().Model(student).ModelTableExpr("users.student_care_profiles").Column("sick", "sick_since").Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
@@ -345,6 +354,54 @@ func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, reloaded.Excused, "excused must be cleared when clear_mode override is next_checkin")
 	assert.Nil(t, reloaded.ExcusedSince)
+}
+
+// TestCreateVisit_DoesNotClearSick_WhenDefaultMode — sick default is
+// end_of_day (#3728), so check-in must NOT clear the flag.
+func TestCreateVisit_DoesNotClearSick_WhenDefaultMode(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	service := setupVisitHelperService(t, db)
+	ctx := testpkg.Ctx(t)
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "keepsick-test")
+	room := testpkg.CreateTestRoom(t, db, "Keep Sick Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, db, "KeepSick", "Student", "4e")
+	staff := testpkg.CreateTestStaff(t, db, "KeepSick", "Staff")
+	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-KSK-001")
+
+	sickTrue := true
+	now := time.Now()
+	student.Sick = &sickTrue
+	student.SickSince = &now
+	_, err := db.NewUpdate().Model(student).ModelTableExpr("users.student_care_profiles").Column("sick", "sick_since").Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := services.WithAttendanceDevice(staffCtx, rfidDevice.ID, rfidDevice.TenantID)
+
+	visit := &studentpresence.Visit{
+		StudentID:     student.ID,
+		ActiveGroupID: activeGroup.ID,
+		EntryTime:     time.Now(),
+	}
+	require.NoError(t, service.CreateVisit(deviceCtx, visit))
+
+	var reloaded struct {
+		Sick      bool       `bun:"sick"`
+		SickSince *time.Time `bun:"sick_since"`
+	}
+	err = db.NewSelect().
+		Table("users.student_care_profiles").
+		Column("sick", "sick_since").
+		Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).
+		Scan(ctx, &reloaded)
+	require.NoError(t, err)
+	assert.True(t, reloaded.Sick, "sick should remain set when clear_mode is end_of_day (default)")
+	assert.NotNil(t, reloaded.SickSince)
 }
 
 // TestCreateVisit_DoesNotClearExcused_WhenDefaultMode — excused default is

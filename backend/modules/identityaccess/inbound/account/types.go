@@ -114,15 +114,6 @@ type TenantResolveResponse struct {
 	// the registry default.
 	TimetableEnabled bool `json:"timetable_enabled"`
 	WaitlistEnabled  bool `json:"waitlist_enabled"`
-	// EmergencyHealthInfoEnabled is the tenant's resolved
-	// operations.emergency_list_health_info setting (#2609). Shell metadata
-	// like the flags above: the Notfall page describes what the printed list
-	// contains, and every member of staff can open it without carrying
-	// config:read — so a school that switched the health column off must not
-	// be told the list carries it. Defaults to false when the setting is
-	// missing or unresolvable, matching the export's fail-closed behavior so
-	// the page never promises health data that its PDF omits.
-	EmergencyHealthInfoEnabled bool `json:"emergency_list_health_info_enabled"`
 	// AnalyticsFreigabe is the school's resolved analytics.freigabe setting
 	// (#3603): the OGS portal records masked sessions and sends pseudonymous
 	// user IDs only while it is true, and shows staff a notice. Shell metadata
@@ -133,6 +124,14 @@ type TenantResolveResponse struct {
 	// with the Freigabe (analytics.recording_sample_percent). 0 when it cannot
 	// be resolved, which records nothing.
 	AnalyticsRecordingSamplePercent int `json:"analytics_recording_sample_percent"`
+	// EarlyCheckoutNoteEnabled and EarlyCheckoutNoteToleranceMinutes are the
+	// school's resolved operations.early_checkout_note_* settings (#3324).
+	// Shell metadata: the web checkout dialogs offer an optional note when a
+	// child leaves more than the tolerance before its pickup time, and staff
+	// carry no config:read. The note is never required, so a settings read
+	// error only hides the field (fails closed to false).
+	EarlyCheckoutNoteEnabled          bool `json:"early_checkout_note_enabled"`
+	EarlyCheckoutNoteToleranceMinutes int  `json:"early_checkout_note_tolerance_minutes"`
 }
 
 type tenantShellSettings struct {
@@ -153,9 +152,10 @@ type tenantShellSettings struct {
 	reasonPolicy           string
 	showTimetableCounts    bool
 	waitlistEnabled        bool
-	emergencyHealthInfo    bool
 	analyticsFreigabe      bool
 	analyticsSamplePercent int
+	earlyCheckoutNote      bool
+	earlyCheckoutTolerance int
 }
 
 // SwitchTenantRequest represents the switch-tenant request payload

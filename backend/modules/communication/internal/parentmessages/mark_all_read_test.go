@@ -101,6 +101,28 @@ func cursorOf(t *testing.T, threadID, accountID int64) *readCursor {
 	return &rows[0]
 }
 
+type clearBoundary struct {
+	At        *time.Time `bun:"cleared_up_to_at"`
+	MessageID *int64     `bun:"cleared_up_to_message_id"`
+}
+
+// clearBoundaryOf returns the account's personal clear boundary in the thread
+// (#3673), or nil when the account has no row there.
+func clearBoundaryOf(t *testing.T, threadID, accountID int64) *clearBoundary {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	var rows []clearBoundary
+	require.NoError(t, db.NewSelect().
+		TableExpr("users.parent_message_reads").
+		Column("cleared_up_to_at", "cleared_up_to_message_id").
+		Where("thread_id = ? AND account_id = ?", threadID, accountID).
+		Scan(context.Background(), &rows))
+	if len(rows) == 0 {
+		return nil
+	}
+	return &rows[0]
+}
+
 type handledBoundary struct {
 	At        *time.Time `bun:"staff_handled_up_to_at"`
 	MessageID *int64     `bun:"staff_handled_up_to_message_id"`
@@ -151,14 +173,17 @@ func TestMarkAllRead_OnlyForOwnAccount(t *testing.T) {
 		assert.Equal(t, boundary, handledBoundaryOf(t, threadID), "the team boundary stays where it was")
 	}
 
-	firstCursor := cursorOf(t, firstThread, f.staffAccount)
-	require.NotNil(t, firstCursor)
-	assert.Equal(t, firstQuestion.ID, firstCursor.LastReadMessageID, "the cursor stops at the newest guardian message")
-	secondCursor := cursorOf(t, secondThread, f.staffAccount)
-	require.NotNil(t, secondCursor)
-	assert.Equal(t, secondQuestion.ID, secondCursor.LastReadMessageID)
+	for threadID, question := range map[int64]*usersModels.ParentMessage{firstThread: firstQuestion, secondThread: secondQuestion} {
+		cleared := clearBoundaryOf(t, threadID, f.staffAccount)
+		require.NotNil(t, cleared)
+		require.NotNil(t, cleared.MessageID)
+		assert.Equal(t, question.ID, *cleared.MessageID, "the clear boundary stops at the newest guardian message")
+		cursor := cursorOf(t, threadID, f.staffAccount)
+		require.NotNil(t, cursor)
+		assert.Zero(t, cursor.LastReadMessageID, "clearing is not a read: the read cursor stays before every message")
+	}
 
-	assert.Equal(t, 2, parentEventCount(f.bc, realtime.EventParentMessageRead), "each guardian whose message was read gets the receipt update")
+	assert.Zero(t, parentEventCount(f.bc, realtime.EventParentMessageRead), "nothing was read, so no receipt update")
 }
 
 func TestMarkAllRead_RepeatChangesNothing(t *testing.T) {
@@ -169,36 +194,43 @@ func TestMarkAllRead_RepeatChangesNothing(t *testing.T) {
 	ctx := adminCtx(t, f.staffAccount)
 
 	markAllRead(t, f, ctx)
-	first := cursorOf(t, threadID, f.staffAccount)
+	first := clearBoundaryOf(t, threadID, f.staffAccount)
 	require.NotNil(t, first)
+	require.NotNil(t, first.MessageID)
 
 	f.bc.Reset()
 	markAllRead(t, f, ctx)
-	second := cursorOf(t, threadID, f.staffAccount)
+	second := clearBoundaryOf(t, threadID, f.staffAccount)
 	require.NotNil(t, second)
-	assert.Equal(t, first.LastReadMessageID, second.LastReadMessageID)
-	assert.True(t, first.LastReadAt.Equal(second.LastReadAt))
-	assert.Zero(t, parentEventCount(f.bc, realtime.EventParentMessageRead), "nothing new was read, so no receipt update")
+	require.NotNil(t, second.MessageID)
+	assert.Equal(t, *first.MessageID, *second.MessageID)
+	assert.True(t, first.At.Equal(*second.At))
+	assert.Zero(t, parentEventCount(f.bc, realtime.EventParentMessageRead), "nothing was read, so no receipt update")
 }
 
-func TestMarkAllRead_CursorNeverMovesBackward(t *testing.T) {
+func TestMarkAllRead_BoundaryNeverMovesBackward(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, true)
+	_, colleague := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
 	threadID, question := startThreadWithQuestions(t, f, f.chain, "Frage")
-	// A cursor ahead of every message the thread holds.
+	// A clear boundary ahead of every message. The team mark keeps the
+	// conversation in the unread inbox, so marking all read selects it with a
+	// bound behind the stored boundary and must not move it back.
 	ahead := question.CreatedAt.Add(time.Hour)
 	_, err := f.db.ExecContext(context.Background(), `
-		INSERT INTO users.parent_message_reads (tenant_id, thread_id, account_id, last_read_at, last_read_message_id)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO users.parent_message_reads (tenant_id, thread_id, account_id, last_read_at, last_read_message_id, cleared_up_to_at, cleared_up_to_message_id)
+		VALUES (?, ?, ?, '1970-01-01', 0, ?, ?)
 	`, f.chain.TenantID, threadID, f.staffAccount, ahead, question.ID+1000)
 	require.NoError(t, err)
+	require.NoError(t, f.svc.MarkUnread(adminCtx(t, colleague.ID), threadID))
 
 	markAllRead(t, f, adminCtx(t, f.staffAccount))
-	cursor := cursorOf(t, threadID, f.staffAccount)
-	require.NotNil(t, cursor)
-	assert.Equal(t, question.ID+1000, cursor.LastReadMessageID)
-	assert.True(t, cursor.LastReadAt.Equal(ahead))
+	cleared := clearBoundaryOf(t, threadID, f.staffAccount)
+	require.NotNil(t, cleared)
+	require.NotNil(t, cleared.MessageID)
+	assert.Equal(t, question.ID+1000, *cleared.MessageID)
+	assert.True(t, cleared.At.Equal(ahead))
 }
 
 func TestMarkAllRead_LaterGuardianMessageIsUnreadAgain(t *testing.T) {
@@ -240,9 +272,10 @@ func TestMarkAllRead_MessageCommittedAfterInboxSnapshotStaysUnread(t *testing.T)
 	}}
 
 	assert.Equal(t, 1, markAllRead(t, f, adminCtx(t, f.staffAccount)))
-	cursor := cursorOf(t, threadID, f.staffAccount)
-	require.NotNil(t, cursor)
-	assert.Equal(t, first.ID, cursor.LastReadMessageID)
+	cleared := clearBoundaryOf(t, threadID, f.staffAccount)
+	require.NotNil(t, cleared)
+	require.NotNil(t, cleared.MessageID)
+	assert.Equal(t, first.ID, *cleared.MessageID)
 	assert.Equal(t, map[int64]int{threadID: 1}, readUnreadView(t, f, f.staffAccount).onlyUnread)
 }
 
@@ -318,7 +351,7 @@ func TestMarkAllRead_OtherSchoolUntouched(t *testing.T) {
 }
 
 // TestMarkAllRead_KeepsTeamMark: a conversation a colleague marked unread for
-// the team (#3654) stays marked. Marking all read only moves the own cursor.
+// the team (#3654) stays marked. Marking all read only moves the own boundary.
 func TestMarkAllRead_KeepsTeamMark(t *testing.T) {
 	t.Parallel()
 
@@ -339,10 +372,11 @@ func TestMarkAllRead_KeepsTeamMark(t *testing.T) {
 	assertTeamUnread(t, f, colleague.ID, 2)
 }
 
-// TestMarkAllRead_SetsParentReadReceipt: the parent-facing "Von der OGS
-// gelesen" follows the staff cursors, so marking all read sets it. This is the
-// accepted consequence of a deliberate action.
-func TestMarkAllRead_SetsParentReadReceipt(t *testing.T) {
+// TestMarkAllRead_LeavesParentReadReceipt: the parent-facing "Von der OGS
+// gelesen" follows the staff read cursors. Clearing the own numbers is not a
+// read (#3673), so the receipt appears only once someone opens the
+// conversation.
+func TestMarkAllRead_LeavesParentReadReceipt(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, true)
@@ -360,5 +394,9 @@ func TestMarkAllRead_SetsParentReadReceipt(t *testing.T) {
 
 	require.False(t, readByStaff())
 	markAllRead(t, f, adminCtx(t, f.staffAccount))
-	assert.True(t, readByStaff())
+	assert.False(t, readByStaff(), "clearing the own numbers tells the parents nothing")
+
+	_, err := f.svc.GetThread(adminCtx(t, f.staffAccount), threadID)
+	require.NoError(t, err)
+	assert.True(t, readByStaff(), "opening the conversation is a read")
 }

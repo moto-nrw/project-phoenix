@@ -188,6 +188,18 @@ type reminderTestSetup struct {
 // map. Both staff are on duty by default so tests that do not care about the
 // duty gate are unaffected.
 func buildReminderSched(results map[int64]*reminders.Result, consent map[string][]int64) *reminderTestSetup {
+	return buildReminderSchedWithSettings(results, consent, nil)
+}
+
+// buildOnDutyReminderSched is buildReminderSched with notifications.on_duty_only
+// switched on. Since #3736 the gate is off unless a school switches it on.
+func buildOnDutyReminderSched(results map[int64]*reminders.Result, consent map[string][]int64) *reminderTestSetup {
+	return buildReminderSchedWithSettings(results, consent, &fakeSettingsResolver{boolValues: map[string]bool{
+		configModel.KeyNotificationsOnDutyOnly: true,
+	}})
+}
+
+func buildReminderSchedWithSettings(results map[int64]*reminders.Result, consent map[string][]int64, settings SettingsResolver) *reminderTestSetup {
 	setup := &reminderTestSetup{
 		computer: &fakeBatchComputer{results: results},
 		consent:  &fakeConsent{byType: consent},
@@ -203,8 +215,9 @@ func buildReminderSched(results map[int64]*reminders.Result, consent map[string]
 		notifier: &captureBatchNotifier{},
 	}
 	setup.sched = unitScheduler(&Scheduler{
-		tasks:  make(map[string]*ScheduledTask),
-		logger: slog.Default(),
+		tasks:    make(map[string]*ScheduledTask),
+		logger:   slog.Default(),
+		settings: settings,
 		reminderNotifications: ReminderNotificationDeps{
 			Computer:     setup.computer,
 			Notifier:     setup.notifier,
@@ -295,7 +308,7 @@ func TestPersonalRemindersIncludeStafflessEffectiveAdminsWhenDutyGateDisabled(t 
 func TestPersonalRemindersExcludeStafflessEffectiveAdminsWhenDutyGateEnabled(t *testing.T) {
 	t.Parallel()
 
-	setup := buildReminderSched(
+	setup := buildOnDutyReminderSched(
 		map[int64]*reminders.Result{-stafflessAdminID: resultOf(pickupFixture("11", "14:00"))},
 		map[string][]int64{notifications.TypePickupUpcoming: {stafflessAdminID}},
 	)
@@ -452,7 +465,7 @@ func TestPersonalRemindersOnDutyGate(t *testing.T) {
 	}
 
 	t.Run("only stamped-in people are addressed", func(t *testing.T) {
-		setup := buildReminderSched(results, consent)
+		setup := buildOnDutyReminderSched(results, consent)
 		setup.duty.presence = map[int64]string{
 			caregiverStaffID: workforce.WorkSessionStatusPresent,
 			adminStaffID:     "checked_out",
@@ -465,7 +478,7 @@ func TestPersonalRemindersOnDutyGate(t *testing.T) {
 	})
 
 	t.Run("home office counts as on duty", func(t *testing.T) {
-		setup := buildReminderSched(results, consent)
+		setup := buildOnDutyReminderSched(results, consent)
 		setup.duty.presence = map[int64]string{
 			caregiverStaffID: workforce.WorkSessionStatusHomeOffice,
 		}
@@ -477,7 +490,7 @@ func TestPersonalRemindersOnDutyGate(t *testing.T) {
 	})
 
 	t.Run("nobody clocked in fails closed", func(t *testing.T) {
-		setup := buildReminderSched(results, consent)
+		setup := buildOnDutyReminderSched(results, consent)
 		setup.duty.presence = nil
 
 		setup.sched.runReminderNotificationsForTenant(context.Background(), testTenant, time.Now())
@@ -488,7 +501,7 @@ func TestPersonalRemindersOnDutyGate(t *testing.T) {
 	})
 
 	t.Run("everybody stamped out stays quiet", func(t *testing.T) {
-		setup := buildReminderSched(results, consent)
+		setup := buildOnDutyReminderSched(results, consent)
 		setup.duty.presence = map[int64]string{
 			caregiverStaffID: "checked_out",
 			adminStaffID:     "checked_out",
@@ -499,6 +512,23 @@ func TestPersonalRemindersOnDutyGate(t *testing.T) {
 		assert.Empty(t, setup.notifier.events)
 		assert.Zero(t, setup.computer.calls)
 	})
+}
+
+// Without an own value the duty gate is off (#3736): a school without time
+// tracking reaches its team even though nobody is clocked in.
+func TestPersonalRemindersDutyGateOffByDefault(t *testing.T) {
+	t.Parallel()
+
+	setup := buildReminderSched(
+		map[int64]*reminders.Result{caregiverStaffID: resultOf(pickupFixture("11", "14:00"))},
+		map[string][]int64{notifications.TypePickupUpcoming: {caregiverAccountID}},
+	)
+	setup.duty.presence = nil
+
+	setup.sched.runReminderNotificationsForTenant(context.Background(), testTenant, time.Now())
+
+	require.Len(t, setup.notifier.events, 1)
+	assert.Equal(t, []int64{caregiverAccountID}, setup.notifier.events[0].Audience.StaffAccountIDs)
 }
 
 func TestPersonalRemindersSkipConditions(t *testing.T) {

@@ -289,6 +289,7 @@ GET /api/meal-plan/
 GET /api/meal-plan/participants
 GET /api/meal-plan/participants/export
 GET /api/messages/
+GET /api/messages/count-scope
 GET /api/messages/students/{studentId}/guardians
 GET /api/messages/students/{studentId}/threads
 GET /api/messages/threads/{threadId}
@@ -1013,6 +1014,7 @@ PUT /api/iot/*/{id}
 PUT /api/iot/session/{sessionId}/supervisors
 PUT /api/me/profile
 PUT /api/meal-plan/{date}
+PUT /api/messages/count-scope
 PUT /api/notifications/email-subscriptions/{type}
 PUT /api/notifications/preferences/{type}
 PUT /api/parent-announcements/{announcementId}

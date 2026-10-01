@@ -85,6 +85,7 @@ import { createLogger } from "~/lib/logger";
 import { OgsGroupsPageSkeleton } from "./page-skeleton";
 import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 import { berlinTodayISO } from "~/lib/date-helpers";
+import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
 const GROUP_ACCESS_RECONCILE_INTERVAL_MS = 15 * 60_000;
@@ -326,6 +327,11 @@ function OGSGroupPageContent() {
   // isActive, clicking a card toggles that student's attendance instead of
   // navigating to the detail page.
   const schoolCheckin = useSchoolCheckinMode();
+  // A checkout well before today's pickup time asks for an optional reason
+  // (#3324); every other tap keeps checking in or out right away.
+  const earlyCheckout = useEarlyCheckoutDialog((studentId, note) => {
+    void schoolCheckin.toggle(studentId, "anwesend", note);
+  });
 
   // Check if user has access to OGS groups
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
@@ -930,9 +936,22 @@ function OGSGroupPageContent() {
                   checkinMode={isGroupCardCheckinMode}
                   checkinState={checkinState}
                   isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
-                  onCheckinClick={() =>
-                    void schoolCheckin.toggle(studentIdStr, checkinState)
-                  }
+                  onCheckinClick={() => {
+                    if (
+                      checkinState !== "abwesend" &&
+                      checkinState !== "unknown" &&
+                      earlyCheckout.request({
+                        studentId: studentIdStr,
+                        studentName:
+                          `${student.first_name} ${student.second_name}`.trim(),
+                        plannedPickup: studentPickup?.pickupTime,
+                        room: null,
+                      })
+                    ) {
+                      return;
+                    }
+                    void schoolCheckin.toggle(studentIdStr, checkinState);
+                  }}
                   locationBadge={
                     <StudentPresenceBadge
                       student={(() => {
@@ -1175,6 +1194,7 @@ function OGSGroupPageContent() {
         }
         overlays={
           <>
+            {earlyCheckout.dialog}
             {/* Group Transfer Modal */}
             <GroupTransferModal
               isOpen={groupTransfer.open}

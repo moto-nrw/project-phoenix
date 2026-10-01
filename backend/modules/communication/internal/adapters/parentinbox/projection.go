@@ -187,7 +187,7 @@ func unreadMessageCountSelect(q *bun.SelectQuery, accountID int64, staffReader b
 		Where(afterReadCursorUM).
 		Where(notReaderAuthoredUM, accountID)
 	if staffReader {
-		return query.Where(counterpartUnreadUMForStaff).Where(afterStaffHandledCursorUM)
+		return query.Where(counterpartUnreadUMForStaff).Where(afterStaffHandledCursorUM).Where(afterStaffClearedCursorUM)
 	}
 	return query.Where(counterpartUnreadUMForGuardian)
 }
@@ -308,21 +308,48 @@ func (p *Projection) ListThreadsForGuardianTenants(ctx context.Context, accountI
 // the same floor its pill shows. Both counts run as one statement, so the
 // badge stays a single query.
 func (p *Projection) UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error) {
+	return p.unreadMessageCountForStaff(ctx, accountID, allStudents, nil)
+}
+
+// UnreadMessageCountForStaffInGroups is UnreadMessageCountForStaff limited to
+// children whose OGS group is one of groupIDs: the counter of a staff member
+// who chose to count only their own groups (#3673). No group counts nothing.
+func (p *Projection) UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error) {
+	if len(groupIDs) == 0 {
+		return 0, nil
+	}
+	return p.unreadMessageCountForStaff(ctx, accountID, allStudents, groupIDs)
+}
+
+// unreadMessageCountForStaff runs both badge counts as one statement. A
+// non-nil groupIDs keeps only children of those OGS groups in both counts.
+func (p *Projection) unreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error) {
 	db, tenantID, err := p.database(ctx)
 	if err != nil {
 		return 0, err
 	}
 	messages := unreadMessageCountSelect(db.NewSelect(), accountID, true)
 	messages = applyStaffScope(messages, allStudents)
+	messages = withChildGroups(messages, groupIDs)
 	messages = withTenant(messages, "t", tenantID).ColumnExpr("COUNT(*)")
 	marked := markedThreadsWithoutUnreadSelect(db.NewSelect(), accountID)
 	marked = applyStaffScope(marked, allStudents)
+	marked = withChildGroups(marked, groupIDs)
 	marked = withTenant(marked, "t", tenantID).ColumnExpr("COUNT(*)")
 	var count int
 	if err := db.NewSelect().ColumnExpr("(?) + (?)", messages, marked).Scan(ctx, &count); err != nil {
 		return 0, fmt.Errorf("count unread parent messages for staff: %w", err)
 	}
 	return count, nil
+}
+
+// withChildGroups keeps only children whose school membership (alias sm)
+// belongs to one of groupIDs. nil leaves the query untouched.
+func withChildGroups(q *bun.SelectQuery, groupIDs []int64) *bun.SelectQuery {
+	if groupIDs == nil {
+		return q
+	}
+	return q.Where("sm.group_id IN (?)", bun.List(groupIDs))
 }
 
 // markedThreadsWithoutUnreadSelect builds a query whose ROWS are the threads

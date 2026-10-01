@@ -23,6 +23,7 @@ type Attendance struct {
 	DeviceID             int64
 	CheckedOutDeviceID   *int64
 	YardSince            *time.Time
+	CheckOutNote         *string
 }
 
 type AttendanceFilter struct {
@@ -44,6 +45,9 @@ type AttendanceCheckout struct {
 	At         time.Time
 	StaffID    int64
 	DeviceID   int64
+	// Note is the optional reason for an early checkout (#3324). Empty
+	// leaves the column NULL.
+	Note string
 }
 
 type AttendanceDay struct {
