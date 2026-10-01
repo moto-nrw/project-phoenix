@@ -308,6 +308,8 @@ func (s *StudentNoteStore) upsertLegacySupervisorNote(
 ) (domain.OperationStats, error) {
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
+	// A tombstone remains the source row for this legacy field. Seeing it here
+	// prevents an unchanged legacy write from restoring a deliberately deleted hint.
 	result, err := db.NewUpdate().
 		Model((*studentNoteRow)(nil)).
 		ModelTableExpr(studentNotesTable+" AS note").
@@ -315,7 +317,6 @@ func (s *StudentNoteStore) upsertLegacySupervisorNote(
 		Where(`"note".tenant_id = ?`, tenantID).
 		Where(`"note".student_id = ?`, studentID).
 		Where(`"note".origin = ?`, domain.StudentNoteOriginMasterData).
-		Where(`"note".deleted_at IS NULL`).
 		Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {

@@ -206,6 +206,50 @@ func TestStudentNotesStayInSyncWithLegacySupervisorNotes(t *testing.T) {
 	assert.Empty(t, listPermanent())
 }
 
+func TestDeletedLegacyStudentNoteStaysDeleted(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := notesModuleWithOwners(t, db, noteTestStudentOwners{})
+	ctx := testpkg.Ctx(t)
+	child := testpkg.CreateTestStudent(t, db, "Mira", "Gelöscht", "3a")
+	audience := peopledirectory.StudentNoteAudience{
+		Visibilities: []string{peopledirectory.StudentNoteVisibilityAllStaff},
+	}
+
+	legacyText := "Braucht Zeit zum Ankommen."
+	record, err := module.FindStudentRecord(ctx, child.ID)
+	require.NoError(t, err)
+	record.SupervisorNotes = &legacyText
+	_, err = module.UpdateStudent(ctx, peopledirectory.StudentWrite{
+		Record: record, SupervisorNotesSupplied: true,
+	})
+	require.NoError(t, err)
+
+	notes, err := module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
+		StudentID: child.ID, Kind: peopledirectory.StudentNoteKindPermanent, Audience: audience,
+	})
+	require.NoError(t, err)
+	require.Len(t, notes, 1)
+	require.NoError(t, module.DeleteStudentNote(ctx, peopledirectory.DeleteStudentNote{
+		ID: notes[0].ID, StudentID: child.ID, ActorAccountID: noteAuthor(t, db, "Mara", "Verwaltung"),
+		Authorization: peopledirectory.StudentNoteDeleteAuthorization{Admin: true},
+	}))
+
+	record, err = module.FindStudentRecord(ctx, child.ID)
+	require.NoError(t, err)
+	record.SupervisorNotes = &legacyText
+	_, err = module.UpdateStudent(ctx, peopledirectory.StudentWrite{
+		Record: record, SupervisorNotesSupplied: true,
+	})
+	require.NoError(t, err)
+
+	notes, err = module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
+		StudentID: child.ID, Kind: peopledirectory.StudentNoteKindPermanent, Audience: audience,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, notes, "a later legacy write must not restore a deliberately deleted hint")
+}
+
 // The audience predicate is the security boundary of this feature. It is built
 // from four OR branches, and a wrong bracket would widen all of them at once.
 func TestStudentNotesAudience(t *testing.T) {
