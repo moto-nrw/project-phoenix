@@ -957,6 +957,7 @@ describe("StudentDetailPage", () => {
       >;
       expect(payload).not.toHaveProperty("privacy_consent_accepted");
       expect(payload).not.toHaveProperty("data_retention_days");
+      expect(payload).not.toHaveProperty("supervisor_notes");
     });
 
     it("revalidates field history after saving personal info", async () => {

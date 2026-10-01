@@ -897,7 +897,6 @@ function StudentDetailPageContent() {
       confirmed_companion_extensions:
         editedStudent.confirmed_companion_extensions ?? [],
       health_info: editedStudent.health_info,
-      supervisor_notes: editedStudent.supervisor_notes,
       extra_info: editedStudent.extra_info,
       pickup_status: editedStudent.pickup_status,
       pickup_days: editedStudent.pickup_days,
