@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -409,6 +410,54 @@ func TestStandbyRunsIntervalStartupCheckOnTakeover(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("the skipped startup check was not retried on takeover")
 	}
+}
+
+func TestStandbyRunsMinuteStartupCheckOnTakeover(t *testing.T) {
+	t.Parallel()
+	testMinuteTakeoverCheck(t, 0)
+}
+
+func TestStandbyRunsMinuteCheckOnTakeoverAfterTick(t *testing.T) {
+	t.Parallel()
+	testMinuteTakeoverCheck(t, 2*time.Minute+time.Second)
+}
+
+func testMinuteTakeoverCheck(t *testing.T, standbyFor time.Duration) {
+	t.Helper()
+	synctest.Test(t, func(t *testing.T) {
+		store := newMemoryLeaseStore()
+		store.takeOver("other-worker")
+		recorder := &leaseRecorder{}
+		worker := leaseWorker(t, store, "standby", recorder)
+		defer func() {
+			worker.Stop()
+			if term, held, _ := worker.leadership.snapshot(); held {
+				worker.leadership.stepDown(term, "released")
+			}
+		}()
+
+		checked := make(chan struct{}, 1)
+		worker.registerTask("minute-takeover-check", "1m", func(task *ScheduledTask) {
+			worker.runMinutePolling(task, "minute takeover check", "minute takeover check started",
+				func(context.Context, *ScheduledTask) { checked <- struct{}{} })
+		})
+		synctest.Wait()
+		require.Equal(t, 1, recorder.count("standby"), "the startup check was skipped")
+		if standbyFor > 0 {
+			time.Sleep(standbyFor)
+			synctest.Wait()
+			require.GreaterOrEqual(t, recorder.count("standby"), 2, "a scheduled minute check was skipped")
+		}
+
+		store.set(func(m *memoryLeaseStore) { m.until = time.Now() })
+		require.True(t, worker.leadership.acquire(context.Background()))
+		synctest.Wait()
+		select {
+		case <-checked:
+		default:
+			t.Fatal("the skipped check was not retried before the next minute")
+		}
+	})
 }
 
 func TestDatabaseOutageEndsTheTermLocallyBeforeTheLeaseExpires(t *testing.T) {

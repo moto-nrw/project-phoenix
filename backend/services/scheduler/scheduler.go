@@ -686,12 +686,18 @@ func (s *Scheduler) runMinutePolling(task *ScheduledTask, panicName, startupMsg 
 	}()
 
 	s.getLogger().Info(startupMsg)
+	var acquired <-chan struct{}
+	if s.leadership != nil {
+		acquired = s.leadership.nextAcquisition()
+	}
 
 	// Immediate check on startup so we don't miss the current minute after a restart.
 	s.runJobCheck(task, check)
 
 	// Align to the next minute boundary so ticks land at HH:MM:00.
-	if !s.waitUntilNextMinute() {
+	var aligned bool
+	acquired, aligned = s.waitUntilNextMinute(acquired, func() { s.runJobCheck(task, check) })
+	if !aligned {
 		return
 	}
 
@@ -701,6 +707,9 @@ func (s *Scheduler) runMinutePolling(task *ScheduledTask, panicName, startupMsg 
 	for {
 		select {
 		case <-ticker.C:
+			s.runJobCheck(task, check)
+		case <-acquired:
+			acquired = s.leadership.nextAcquisition()
 			s.runJobCheck(task, check)
 		case <-s.done:
 			return
@@ -1696,18 +1705,23 @@ func (s *Scheduler) resolveNonNegativeIntSetting(ctx context.Context, key string
 	return fallback
 }
 
-// waitUntilNextMinute blocks until the start of the next wall-clock minute,
-// so that subsequent 60-second ticks are aligned to HH:MM:00.
-// Returns false if the scheduler is shutting down during the wait.
-func (s *Scheduler) waitUntilNextMinute() bool {
+// waitUntilNextMinute keeps the wall-clock alignment while checking again on
+// takeover. It returns the next acquisition signal for the aligned tick loop.
+func (s *Scheduler) waitUntilNextMinute(acquired <-chan struct{}, onAcquire func()) (<-chan struct{}, bool) {
 	now := time.Now()
 	nextMinute := now.Truncate(time.Minute).Add(time.Minute) //nolint:forbidigo // sub-day minute alignment, not calendar-date math
-	delay := time.Until(nextMinute)
-	select {
-	case <-time.After(delay):
-		return true
-	case <-s.done:
-		return false
+	timer := time.NewTimer(time.Until(nextMinute))
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+			return acquired, true
+		case <-acquired:
+			acquired = s.leadership.nextAcquisition()
+			onAcquire()
+		case <-s.done:
+			return acquired, false
+		}
 	}
 }
 
