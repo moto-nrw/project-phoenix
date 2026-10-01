@@ -1139,6 +1139,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                         <NavLink
                           key={item.href}
                           href={href}
+                          // Ziel der geführten Touren (#3748), wie in der
+                          // Seitenleiste.
+                          data-setup-tour={`nav-${item.href}`}
                           onClick={closeOverflowMenu}
                           {...(item.newTab
                             ? { target: "_blank", rel: "noopener noreferrer" }
@@ -1331,6 +1334,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       navRefs.current[index] = el;
                     }}
                     aria-label={item.label}
+                    // Ziel der geführten Touren auf dem Handy (#3748).
+                    data-setup-tour={`mobile-nav-${item.href}`}
                     className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
                       isActive
                         ? "bg-gray-100 text-gray-900"
@@ -1360,6 +1365,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   type="button"
                   onClick={() => setIsOverflowMenuOpen(true)}
                   aria-label={moreLabel}
+                  data-setup-tour="nav-more"
                   className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
                     isOverflowMenuOpen || isAnyAdditionalNavActive
                       ? "bg-gray-100 text-gray-900"

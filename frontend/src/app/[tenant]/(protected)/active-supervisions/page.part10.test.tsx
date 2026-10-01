@@ -1317,7 +1317,7 @@ describe("open-room tab onTabChange callback", () => {
       screen.getByText("13:00–14:00 Uhr · Sie sind hier nicht eingeplant."),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Sporthalle" })).toBeVisible();
-    expect(screen.getByText("1 Kind", { selector: "p" })).toBeVisible();
+    expect(screen.getByText("1 Kind", { selector: "div" })).toBeVisible();
   });
 
   it("shows a released room the caller does not supervise", async () => {
@@ -1638,7 +1638,7 @@ describe("released room with running blocks (#3281)", () => {
     // The head counts every child in the room once: the blocks' and the
     // independent stay.
     expect(screen.getByRole("heading", { name: "Schulhof" })).toBeVisible();
-    expect(screen.getByText("5 Kinder", { selector: "p" })).toBeVisible();
+    expect(screen.getByText("5 Kinder", { selector: "div" })).toBeVisible();
     // Block children live in the rosters; only the independent stay is a card.
     expect(screen.getByRole("heading", { name: "Ohne Angebot" })).toBeVisible();
     expect(
@@ -1698,7 +1698,7 @@ describe("released room with running blocks (#3281)", () => {
     ).toHaveAttribute("aria-expanded", "true");
     expect(rosterKeysRequested()).toEqual([]);
     expect(screen.getByRole("heading", { name: "Schulhof" })).toBeVisible();
-    expect(screen.getByText("1 Kind", { selector: "p" })).toBeVisible();
+    expect(screen.getByText("1 Kind", { selector: "div" })).toBeVisible();
   });
 
   it("lets an admin operate and staff every block", async () => {

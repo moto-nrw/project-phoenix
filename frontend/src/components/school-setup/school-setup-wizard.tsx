@@ -19,16 +19,14 @@ import {
 } from "~/lib/school-setup-api";
 import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { useNFCEnabled } from "~/lib/tenant-context";
-import {
-  SchoolSetupBeacon,
-  SchoolSetupChecklist,
-} from "./school-setup-checklist";
+import { SetupBeacon, SchoolSetupChecklist } from "./school-setup-checklist";
 import {
   applicableSteps,
   firstOpenStep,
   setupProgress,
 } from "./school-setup-steps";
 import { useSchoolSetup } from "./use-school-setup";
+import { SETUP_TOURS } from "./setup-tours";
 import { useSetupTour } from "./use-setup-tour";
 
 const logger = createLogger({ component: "SchoolSetupWizard" });
@@ -111,7 +109,7 @@ function SchoolSetupWizardForAdmin() {
     setExpandedByPerson(true);
     setNotice(TOUR_LEFT);
   }, []);
-  const tour = useSetupTour(onTourFinished, onTourLeft);
+  const tour = useSetupTour(SETUP_TOURS, onTourFinished, onTourLeft);
 
   const visible = state !== null && !state.completed && !state.dismissed;
   const nextOpen = state ? firstOpenStep(state) : null;
@@ -198,7 +196,9 @@ function SchoolSetupWizardForAdmin() {
         beside={stop.nav === true}
         title={stop.title}
         text={
-          missing && !target ? (stop.missingText ?? TARGET_MISSING) : stop.text
+          missing && !target
+            ? (stop.missingText ?? TARGET_MISSING)
+            : tour.active.text
         }
         progress={`Station ${stopIndex + 1} von ${stopTotal}`}
         action={stop.advance === "click" && target ? CLICK_ACTION : undefined}
@@ -215,7 +215,7 @@ function SchoolSetupWizardForAdmin() {
 
   if (view === "beacon") {
     return (
-      <SchoolSetupBeacon
+      <SetupBeacon
         open={total - finished}
         onOpen={() => {
           setView("checklist");

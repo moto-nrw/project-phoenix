@@ -899,7 +899,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     // demselben Namen (#3065).
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Schulhof" })).toBeVisible();
-      expect(screen.getByText("9 Kinder", { selector: "p" })).toBeVisible();
+      expect(screen.getByText("9 Kinder", { selector: "div" })).toBeVisible();
     });
     expect(screen.queryAllByRole("tab", { name: "Schulhof" })).toHaveLength(0);
     // Der Zähler kommt aus dem Raum, nicht aus einer der Sitzungen: er zählt
@@ -985,7 +985,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     expect(
       await screen.findByRole("heading", { name: "Schulhof" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("9 Kinder", { selector: "p" })).toBeVisible();
+    expect(screen.getByText("9 Kinder", { selector: "div" })).toBeVisible();
     expect(screen.getByText("Offener Raum")).toBeInTheDocument();
     expect(screen.queryByText("Eigene Aufsicht")).not.toBeInTheDocument();
   });
@@ -1673,7 +1673,7 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
     // Der Titel nennt die Aufsicht, die Statuszeile ihre Kinderzahl (beweist,
     // dass currentRoom gesetzt ist).
     expect(screen.getByRole("heading", { name: "Only Room" })).toBeVisible();
-    expect(screen.getByText("1 Kind", { selector: "p" })).toBeVisible();
+    expect(screen.getByText("1 Kind", { selector: "div" })).toBeVisible();
   });
 
   it("shows the released room and its occupancy in the page header", async () => {
@@ -1744,7 +1744,7 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
     // The count is the room's, reported by the shared view.
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Schulhof" })).toBeVisible();
-      expect(screen.getByText("5 Kinder", { selector: "p" })).toBeVisible();
+      expect(screen.getByText("5 Kinder", { selector: "div" })).toBeVisible();
     });
   });
 });

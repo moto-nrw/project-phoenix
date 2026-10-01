@@ -704,7 +704,7 @@ describe("MeinRaumPage additional scenarios", () => {
     // Statuszeile der Kopfkarte. Der Name der Aufsicht ist der Seitentitel
     // und steht deshalb nicht noch einmal in der Statuszeile (#3312).
     await waitFor(() => {
-      expect(screen.getByText("2 Kinder", { selector: "p" })).toBeVisible();
+      expect(screen.getByText("2 Kinder", { selector: "div" })).toBeVisible();
     });
     expect(screen.getByRole("heading", { name: "Raum 101" })).toBeVisible();
     expect(
@@ -766,7 +766,7 @@ describe("MeinRaumPage additional scenarios", () => {
       render(<MeinRaumPage />);
 
       await waitFor(() => {
-        expect(screen.getByText(line, { selector: "p" })).toBeVisible();
+        expect(screen.getByText(line, { selector: "div" })).toBeVisible();
       });
       const hint = screen.queryByText(
         /^Mehr Kinder als erlaubt \(höchstens 1\)\./,

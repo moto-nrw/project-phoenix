@@ -272,6 +272,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/api/staff-notices/{noticeId}"}:                                                   notCaptured,
 	{http.MethodPut, "/api/staff-notices/{noticeId}"}:                                                      notCaptured,
 	{http.MethodPost, "/api/staff-notices/{noticeId}/acknowledge"}:                                         notCaptured,
+	{http.MethodPut, "/api/staff-onboarding/dismissal"}:                                                    notCaptured,
+	{http.MethodPut, "/api/staff-onboarding/steps/{step}"}:                                                 notCaptured,
 	{http.MethodPost, "/api/staff-shifts/"}:                                                                notCaptured,
 	{http.MethodPost, "/api/staff-shifts/export"}:                                                          export("staff_shifts"),
 	{http.MethodPost, "/api/staff-shifts/series"}:                                                          notCaptured,

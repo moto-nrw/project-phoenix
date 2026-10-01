@@ -36,6 +36,15 @@ func New(deps Dependencies) (schoolsetup.Service, error) {
 	return application.New(store, progress{projection: projection}, settings{deps.Settings}, time.Now)
 }
 
+// NewStaffOnboarding returns the first steps of care workers (#3748): the
+// person's own progress and the same progress projection, which says whether
+// the school has a group or a child yet.
+func NewStaffOnboarding() (schoolsetup.StaffOnboardingService, error) {
+	store := configRepo.NewStaffOnboardingRepository(ambientRuntime{})
+	projection := schoolsetupview.New(ambientTx)
+	return application.NewStaffOnboarding(store, progress{projection: projection}, time.Now)
+}
+
 // ambientTx resolves the request's tenant transaction. The wizard never runs
 // outside one: the store relies on RLS and the projection's tenant_safe
 // invariant requires it (ADR 0043).

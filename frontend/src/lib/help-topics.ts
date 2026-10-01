@@ -60,6 +60,7 @@ export const HELP_TOPICS = {
   login: "bei-moto-anmelden",
   installApp: "moto-als-app-hinzufuegen",
   appOverview: "sich-in-moto-zurechtfinden",
+  caregiverFirstSteps: "erste-schritte-im-arbeitsalltag",
   mySchedule: "meine-termine-und-einsaetze",
   carePlan: "betreuungsplan-ansehen",
   dayPlan: "tagesplan-ansehen",

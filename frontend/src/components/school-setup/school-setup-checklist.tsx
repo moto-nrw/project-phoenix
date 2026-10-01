@@ -8,6 +8,7 @@ import {
   ListChecksIcon,
   MinusCircleIcon,
 } from "@phosphor-icons/react";
+import type { ReactNode } from "react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ProgressBar } from "~/components/ui/progress-bar";
 import { TileCard } from "~/components/ui/tile-card";
@@ -38,7 +39,7 @@ interface BeaconProps {
 }
 
 /** Der Knopf unten rechts, der die Checkliste öffnet. */
-export function SchoolSetupBeacon({ open, onOpen }: BeaconProps) {
+export function SetupBeacon({ open, onOpen }: BeaconProps) {
   return (
     <div className={BEACON_POSITION}>
       {/* Wie ein Helfer-Knopf zum Aufklappen: Symbol, runder Zähler, Pfeil
@@ -69,7 +70,7 @@ export function SchoolSetupBeacon({ open, onOpen }: BeaconProps) {
   );
 }
 
-function StepIcon({ step }: Readonly<{ step: SchoolSetupStep }>) {
+function StepIcon({ step }: Readonly<{ step: SetupChecklistStepState }>) {
   if (step.done) {
     return (
       <CheckCircleIcon
@@ -86,7 +87,7 @@ function StepIcon({ step }: Readonly<{ step: SchoolSetupStep }>) {
   return <CircleIcon size={20} className="text-gray-400" aria-hidden />;
 }
 
-function TopicList({
+export function TopicList({
   title,
   topics,
   helpHref,
@@ -123,50 +124,84 @@ function TopicList({
   );
 }
 
-function stepStatus(step: SchoolSetupStep): string {
+function stepStatus(step: SetupChecklistStepState): string {
   if (step.done) return "Erledigt";
   if (step.skipped) return "Übersprungen";
   return "Offen";
 }
 
-interface ChecklistProps {
-  readonly steps: readonly SchoolSetupStep[];
-  readonly expanded: SchoolSetupStepKey | null;
+/** Was ein Schritt der Checkliste sagt und ob es eine Tour gibt. */
+export interface SetupChecklistStep<
+  K extends string,
+> extends SetupChecklistStepState {
+  readonly key: K;
+  readonly title: string;
+  readonly description: string;
+  /** Hinweise, die eine Entscheidung verändern. */
+  readonly hints: readonly string[];
+  readonly helpTopic?: HelpTopicId;
+  readonly hasTour: boolean;
+  /**
+   * Ein vorausgesetzter Schritt, der noch fehlt, etwa: erst ein Kind, dann
+   * Eltern. Statt „Zeig es mir“ führt ein Knopf zu diesem Schritt.
+   */
+  readonly blockedBy?: {
+    readonly step: K;
+    readonly title: string;
+    readonly reason: string;
+  } | null;
+}
+
+interface SetupChecklistStepState {
+  readonly done: boolean;
+  readonly skipped: boolean;
+}
+
+interface SetupChecklistProps<K extends string> {
+  readonly steps: readonly SetupChecklistStep<K>[];
+  readonly expanded: K | null;
   readonly busy: boolean;
   readonly error: string | null;
   /** Ein ruhiger Hinweis, etwa warum eine Tour endete. */
   readonly notice: string | null;
   readonly helpHref: (topic: HelpTopicId) => string;
-  readonly helpGroupHref: (group: string) => string;
-  readonly onExpand: (step: SchoolSetupStepKey | null) => void;
-  readonly onStartTour: (step: SchoolSetupStepKey) => void;
-  readonly onSkip: (step: SchoolSetupStepKey, skipped: boolean) => void;
-  readonly onComplete: () => void;
+  /** Erledigte Schritte bieten die Tour noch einmal an. */
+  readonly replayDone?: boolean;
+  /** Was dasteht, wenn alle Schritte erledigt oder übersprungen sind. */
+  readonly finished: ReactNode;
+  /** Beschriftung des Knopfs, der die fertige Checkliste schließt. */
+  readonly finishLabel: string;
+  readonly onFinish: () => void;
+  readonly onExpand: (step: K | null) => void;
+  readonly onStartTour: (step: K) => void;
+  readonly onSkip: (step: K, skipped: boolean) => void;
   readonly onCollapse: () => void;
   readonly onDismiss: () => void;
 }
 
 /**
- * Die Checkliste der ersten Schritte (#2832): unten rechts, über allen
- * Seiten. Der nächste offene Schritt ist aufgeklappt und führt per Tour
- * dorthin; sind alle erledigt oder übersprungen, gratuliert sie und bietet
- * den Abschluss an.
+ * Die Checkliste der ersten Schritte (#2832, #3748): unten rechts, über
+ * allen Seiten. Der nächste offene Schritt ist aufgeklappt und führt per
+ * Tour dorthin; sind alle erledigt oder übersprungen, steht dort, was die
+ * Checkliste als Abschluss mitgibt.
  */
-export function SchoolSetupChecklist({
+export function SetupChecklist<K extends string>({
   steps,
   expanded,
   busy,
   error,
   notice,
   helpHref,
-  helpGroupHref,
+  replayDone = false,
+  finished: finishedContent,
+  finishLabel,
+  onFinish,
   onExpand,
   onStartTour,
   onSkip,
-  onComplete,
   onCollapse,
   onDismiss,
-}: ChecklistProps) {
+}: SetupChecklistProps<K>) {
   const finished = steps.filter((step) => step.done || step.skipped).length;
   const allFinished = finished === steps.length;
 
@@ -202,59 +237,14 @@ export function SchoolSetupChecklist({
 
       <div className="flex-1 overflow-y-auto p-2">
         {allFinished ? (
-          <div className="flex flex-col gap-3 p-2">
-            <div className="flex flex-col gap-1">
-              <h3 className="text-base font-semibold text-gray-900">
-                Herzlichen Glückwunsch!
-              </h3>
-              {/* Ein Eintrag hakt einen Schritt ab: Jetzt kommen die übrigen
-                  Daten, nicht „fertig“. */}
-              <p className="text-sm text-gray-700">
-                Die ersten Einträge stehen. Legen Sie jetzt die übrigen Daten
-                Ihrer OGS an. Die Anleitungen zeigen, wie es geht.
-              </p>
-            </div>
-            <TopicList
-              title="Jetzt die übrigen Daten anlegen"
-              topics={fillTopics(steps)}
-              helpHref={helpHref}
-              helpGroupHref={helpGroupHref}
-            />
-            <TopicList
-              title="Danach"
-              topics={NEXT_HELP_GROUPS}
-              helpHref={helpHref}
-              helpGroupHref={helpGroupHref}
-            />
-            <p className="text-sm text-gray-600">
-              Mit „Abschließen“ verschwindet die Checkliste für alle. Die
-              Anleitungen bleiben unter „Hilfe“.
-            </p>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              disabled={busy}
-              onClick={onComplete}
-            >
-              Abschließen
-            </Button>
-          </div>
+          <div className="flex flex-col gap-3 p-2">{finishedContent}</div>
         ) : (
           <ol className="flex flex-col gap-1">
             {steps.map((step) => {
-              const content = SCHOOL_SETUP_STEP_CONTENT[step.key];
               const isExpanded = expanded === step.key;
-              const panelId = `school-setup-step-${step.key}`;
-              // Die Tour ergibt erst Sinn, wenn der vorausgesetzte Schritt
-              // wirklich erledigt ist (etwa: erst ein Kind, dann Eltern).
-              const required = content.requires;
-              const blockedBy =
-                required &&
-                !steps.find((candidate) => candidate.key === required.step)
-                  ?.done
-                  ? required
-                  : null;
+              const panelId = `setup-step-${step.key}`;
+              const blockedBy = step.blockedBy ?? null;
+              const showTour = step.hasTour && (!step.done || replayDone);
               return (
                 <li key={step.key} className="rounded-lg">
                   <button
@@ -273,7 +263,7 @@ export function SchoolSetupChecklist({
                             : "text-gray-900"
                         }`}
                       >
-                        {content.title}
+                        {step.title}
                       </span>
                       <span className="sr-only">{stepStatus(step)}</span>
                     </span>
@@ -298,9 +288,9 @@ export function SchoolSetupChecklist({
                     >
                       <div className="flex flex-col gap-1">
                         <p className="text-sm text-gray-700">
-                          {content.description}
+                          {step.description}
                         </p>
-                        {content.hints.map((hint) => (
+                        {step.hints.map((hint) => (
                           <p key={hint} className="text-sm text-gray-600">
                             {hint}
                           </p>
@@ -333,32 +323,30 @@ export function SchoolSetupChecklist({
                         </p>
                       )}
                       <div className="flex flex-wrap gap-2">
-                        {!step.done &&
-                          (blockedBy ? (
+                        {!step.done && blockedBy ? (
+                          <Button
+                            type="button"
+                            variant="primary"
+                            size="compact"
+                            onClick={() => onExpand(blockedBy.step)}
+                          >
+                            Zu „{blockedBy.title}“
+                          </Button>
+                        ) : (
+                          showTour && (
                             <Button
                               type="button"
-                              variant="primary"
+                              variant={step.done ? "outline" : "primary"}
                               size="compact"
-                              onClick={() => onExpand(blockedBy.step)}
+                              onClick={() => onStartTour(step.key)}
                             >
-                              Zu „
-                              {SCHOOL_SETUP_STEP_CONTENT[blockedBy.step].title}“
+                              {step.done ? "Noch einmal zeigen" : "Zeig es mir"}
                             </Button>
-                          ) : (
-                            SETUP_TOURS[step.key] && (
-                              <Button
-                                type="button"
-                                variant="primary"
-                                size="compact"
-                                onClick={() => onStartTour(step.key)}
-                              >
-                                Zeig es mir
-                              </Button>
-                            )
-                          ))}
-                        {content.helpTopic && (
+                          )
+                        )}
+                        {step.helpTopic && (
                           <ButtonLink
-                            href={helpHref(content.helpTopic)}
+                            href={helpHref(step.helpTopic)}
                             variant="outline"
                             size="compact"
                           >
@@ -389,19 +377,135 @@ export function SchoolSetupChecklist({
       </div>
 
       <footer className="border-t border-gray-100 p-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="compact"
-          disabled={busy}
-          onClick={onDismiss}
-        >
-          Nicht mehr anzeigen
-        </Button>
-        <p className="px-2 pb-1 text-xs text-gray-500">
+        {/* Sind alle Schritte fertig, steht der Abschluss hier und nicht am
+            Ende der Karten darüber: Auf dem Handy läge er sonst unterhalb
+            des sichtbaren Bereichs der Liste. */}
+        {allFinished ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            className="w-full"
+            disabled={busy}
+            onClick={onFinish}
+          >
+            {finishLabel}
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="compact"
+            disabled={busy}
+            onClick={onDismiss}
+          >
+            Nicht mehr anzeigen
+          </Button>
+        )}
+        <p className="px-2 pt-1 pb-1 text-xs text-gray-500">
           Die Anleitungen zu allen Schritten finden Sie jederzeit unter „Hilfe“.
         </p>
       </footer>
     </section>
+  );
+}
+
+interface SchoolSetupChecklistProps {
+  readonly steps: readonly SchoolSetupStep[];
+  readonly expanded: SchoolSetupStepKey | null;
+  readonly busy: boolean;
+  readonly error: string | null;
+  /** Ein ruhiger Hinweis, etwa warum eine Tour endete. */
+  readonly notice: string | null;
+  readonly helpHref: (topic: HelpTopicId) => string;
+  readonly helpGroupHref: (group: string) => string;
+  readonly onExpand: (step: SchoolSetupStepKey | null) => void;
+  readonly onStartTour: (step: SchoolSetupStepKey) => void;
+  readonly onSkip: (step: SchoolSetupStepKey, skipped: boolean) => void;
+  readonly onComplete: () => void;
+  readonly onCollapse: () => void;
+  readonly onDismiss: () => void;
+}
+
+/**
+ * Die Checkliste der Einrichtung einer neuen Schule (#2832). Sind alle
+ * Schritte erledigt oder übersprungen, gratuliert sie und bietet den
+ * Abschluss an.
+ */
+export function SchoolSetupChecklist({
+  steps,
+  helpHref,
+  helpGroupHref,
+  busy,
+  onComplete,
+  ...rest
+}: SchoolSetupChecklistProps) {
+  const checklistSteps = steps.map((step) => {
+    const content = SCHOOL_SETUP_STEP_CONTENT[step.key];
+    // Die Tour ergibt erst Sinn, wenn der vorausgesetzte Schritt wirklich
+    // erledigt ist (etwa: erst ein Kind, dann Eltern).
+    const required = content.requires;
+    const blocked =
+      required &&
+      !steps.find((candidate) => candidate.key === required.step)?.done;
+    return {
+      key: step.key,
+      done: step.done,
+      skipped: step.skipped,
+      title: content.title,
+      description: content.description,
+      hints: content.hints,
+      helpTopic: content.helpTopic,
+      hasTour: SETUP_TOURS[step.key] !== undefined,
+      blockedBy: blocked
+        ? {
+            step: required.step,
+            title: SCHOOL_SETUP_STEP_CONTENT[required.step].title,
+            reason: required.reason,
+          }
+        : null,
+    };
+  });
+
+  return (
+    <SetupChecklist
+      {...rest}
+      steps={checklistSteps}
+      busy={busy}
+      helpHref={helpHref}
+      finished={
+        <>
+          <div className="flex flex-col gap-1">
+            <h3 className="text-base font-semibold text-gray-900">
+              Herzlichen Glückwunsch!
+            </h3>
+            {/* Ein Eintrag hakt einen Schritt ab: Jetzt kommen die übrigen
+                Daten, nicht „fertig“. */}
+            <p className="text-sm text-gray-700">
+              Die ersten Einträge stehen. Legen Sie jetzt die übrigen Daten
+              Ihrer OGS an. Die Anleitungen zeigen, wie es geht.
+            </p>
+          </div>
+          <TopicList
+            title="Jetzt die übrigen Daten anlegen"
+            topics={fillTopics(steps)}
+            helpHref={helpHref}
+            helpGroupHref={helpGroupHref}
+          />
+          <TopicList
+            title="Danach"
+            topics={NEXT_HELP_GROUPS}
+            helpHref={helpHref}
+            helpGroupHref={helpGroupHref}
+          />
+          <p className="text-sm text-gray-600">
+            Mit „Abschließen“ verschwindet die Checkliste für alle. Die
+            Anleitungen bleiben unter „Hilfe“.
+          </p>
+        </>
+      }
+      finishLabel="Abschließen"
+      onFinish={onComplete}
+    />
   );
 }

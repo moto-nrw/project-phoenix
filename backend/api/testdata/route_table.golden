@@ -340,6 +340,7 @@ GET /api/staff-messages/unread-count
 GET /api/staff-notices/
 GET /api/staff-notices/today
 GET /api/staff-notices/{noticeId}/acknowledgements
+GET /api/staff-onboarding/
 GET /api/staff-shifts/
 GET /api/staff-shifts/overview
 GET /api/staff-shifts/series/{id}
@@ -1022,6 +1023,8 @@ PUT /api/settings/home-layout/policies
 PUT /api/settings/values/{key}
 PUT /api/shift-types/{id}
 PUT /api/staff-notices/{noticeId}
+PUT /api/staff-onboarding/dismissal
+PUT /api/staff-onboarding/steps/{step}
 PUT /api/staff-shifts/series/{id}/split
 PUT /api/staff-shifts/{id}
 PUT /api/staff-shifts/{id}/cancellation
