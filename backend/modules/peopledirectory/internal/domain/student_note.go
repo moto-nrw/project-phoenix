@@ -316,6 +316,9 @@ func (n StudentNote) AllowsDelete(authorization StudentNoteDeleteAuthorization) 
 	if authorization.Admin {
 		return nil
 	}
+	if n.Visibility == StudentNoteVisibilityGroupLeads && !n.Subject.HasReference() {
+		return ErrStudentNoteDeleteForbidden
+	}
 	if n.Subject.ActivityGroupID != nil &&
 		slices.Contains(authorization.LedActivityGroupIDs, *n.Subject.ActivityGroupID) {
 		return nil

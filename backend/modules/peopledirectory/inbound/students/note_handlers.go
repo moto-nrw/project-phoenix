@@ -459,8 +459,7 @@ func buildNoteResponse(
 		Kind: note.Kind, Visibility: note.Visibility, Category: note.Category,
 		Body: note.Body, Origin: note.Origin, Edited: note.Edited(),
 		CreatedAt: note.CreatedAt, UpdatedAt: note.UpdatedAt,
-		CanDelete: securityruntime.CanDeleteStudentNote(
-			audience, note.Subject.ActivityGroupID, note.Subject.EducationGroupID, student.GroupID),
+		CanDelete: noteCanBeDeleted(note, audience, student.GroupID),
 	}
 	if note.AuthorAccountID != nil {
 		response.AuthorAccountID = strconv.FormatInt(*note.AuthorAccountID, 10)
@@ -490,6 +489,22 @@ func buildNoteResponse(
 func noteCanBeEdited(note peopleModule.StudentNote) bool {
 	return note.Visibility != peopleModule.StudentNoteVisibilityGroupLeads ||
 		note.Subject.ActivityGroupID != nil || note.Subject.EducationGroupID != nil
+}
+
+// noteCanBeDeleted mirrors the owner's special case for a retained leadership
+// note. Once its reference is gone, the current group may not replace the
+// original audience; only administration may remove the retained record.
+func noteCanBeDeleted(
+	note peopleModule.StudentNote,
+	audience securityruntime.StudentNoteAudience,
+	childEducationGroupID *int64,
+) bool {
+	if note.Visibility == peopleModule.StudentNoteVisibilityGroupLeads &&
+		note.Subject.ActivityGroupID == nil && note.Subject.EducationGroupID == nil {
+		return audience.Admin
+	}
+	return securityruntime.CanDeleteStudentNote(
+		audience, note.Subject.ActivityGroupID, note.Subject.EducationGroupID, childEducationGroupID)
 }
 
 var studentNoteErrorRenderer = common.RulesRenderer([]common.ErrorRule{

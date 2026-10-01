@@ -224,6 +224,13 @@ func TestStudentNoteAllowsDelete(t *testing.T) {
 	assert.NoError(t, note.AllowsDelete(StudentNoteDeleteAuthorization{
 		LedEducationGroupIDs: []int64{groupID}, ChildEducationGroupID: &groupID,
 	}))
+
+	note.Visibility = StudentNoteVisibilityGroupLeads
+	assert.ErrorIs(t, note.AllowsDelete(StudentNoteDeleteAuthorization{
+		LedEducationGroupIDs: []int64{groupID}, ChildEducationGroupID: &groupID,
+	}), ErrStudentNoteDeleteForbidden,
+		"a retained leadership note must not fall back to the child's current group")
+	assert.NoError(t, note.AllowsDelete(StudentNoteDeleteAuthorization{Admin: true}))
 }
 
 func TestStudentNoteEdited(t *testing.T) {

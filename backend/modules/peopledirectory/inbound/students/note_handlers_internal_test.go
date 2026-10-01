@@ -164,9 +164,14 @@ func TestBuildNoteResponseDoesNotOfferEditingForOrphanedLeadershipNote(t *testin
 		Body: "Der Bezug wurde gelöscht.", Subject: peopleModule.StudentNoteSubject{Date: &date},
 	}
 
-	response := buildNoteResponse(note, securityruntime.StudentNoteAudience{}, &Student{}, author)
+	groupID := int64(19)
+	response := buildNoteResponse(note, securityruntime.StudentNoteAudience{
+		LedEducationGroupIDs: []int64{groupID},
+	}, &Student{GroupID: &groupID}, author)
 	assert.False(t, response.CanEdit,
 		"the response must not offer an edit that the owner rejects without a group reference")
+	assert.False(t, response.CanDelete,
+		"the response must not offer deletion of a retained leadership note to a current group leader")
 }
 
 func int64Pointer(value int64) *int64 { return &value }
