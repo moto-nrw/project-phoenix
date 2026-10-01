@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanHTTP "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
 	"github.com/stretchr/testify/assert"
@@ -43,14 +43,14 @@ func TestStaffRoutesKeepProtectedPermissionBoundaries(t *testing.T) {
 	protected := false
 	var accesses []mealplanHTTP.Access
 	resource := mealplanHTTP.NewResource(module, mealplanHTTP.Runtime{
-		Protected: testutil.RecordingUnprotectedGroupFunc(&protected),
+		Protected: routetest.RecordingUnprotectedGroupFunc(&protected),
 		Permission: func(access mealplanHTTP.Access) mealplanHTTP.Middleware {
 			accesses = append(accesses, access)
-			return testutil.IdentityMiddleware
+			return routetest.IdentityMiddleware
 		},
-		Success:        testutil.RespondSuccess,
-		InvalidRequest: testutil.RespondInvalidRequest,
-		ModuleFailure:  testutil.ErrorResponder(resolveModuleFailure),
+		Success:        routetest.RespondSuccess,
+		InvalidRequest: routetest.RespondInvalidRequest,
+		ModuleFailure:  routetest.ErrorResponder(resolveModuleFailure),
 		ExportDailyList: func(mealplanModule.DailyList, string) (mealplanHTTP.ExportFile, error) {
 			return mealplanHTTP.ExportFile{}, nil
 		},
@@ -103,13 +103,13 @@ func resource(available bool) *mealplanHTTP.Resource {
 		Date: date, Position: 0, Dish: "Nudeln",
 	}}})
 	return mealplanHTTP.NewResource(module, mealplanHTTP.Runtime{
-		Protected: testutil.UnprotectedGroupFunc(),
+		Protected: routetest.UnprotectedGroupFunc(),
 		Permission: func(mealplanHTTP.Access) mealplanHTTP.Middleware {
-			return testutil.IdentityMiddleware
+			return routetest.IdentityMiddleware
 		},
-		Success:        testutil.RespondSuccess,
-		InvalidRequest: testutil.RespondInvalidRequest,
-		ModuleFailure:  testutil.ErrorResponder(resolveModuleFailure),
+		Success:        routetest.RespondSuccess,
+		InvalidRequest: routetest.RespondInvalidRequest,
+		ModuleFailure:  routetest.ErrorResponder(resolveModuleFailure),
 		ExportDailyList: func(mealplanModule.DailyList, string) (mealplanHTTP.ExportFile, error) {
 			return mealplanHTTP.ExportFile{}, nil
 		},
@@ -118,7 +118,7 @@ func resource(available bool) *mealplanHTTP.Resource {
 
 func TestStaffDailyListResponseContract(t *testing.T) {
 	t.Parallel()
-	response := testutil.ExecuteRequest(resource(true).Router(), testutil.NewRequest("GET", "/participants?date=2026-09-07", nil))
+	response := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/participants?date=2026-09-07", nil))
 	if response.Code != 200 {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
@@ -127,8 +127,8 @@ func TestStaffDailyListResponseContract(t *testing.T) {
 
 func TestStaffWeekResponseContract(t *testing.T) {
 	t.Parallel()
-	request := testutil.NewRequest("GET", "/?week_start=2026-09-07", nil)
-	response := testutil.ExecuteRequest(resource(true).Router(), request)
+	request := routetest.NewRequest("GET", "/?week_start=2026-09-07", nil)
+	response := routetest.ExecuteRequest(resource(true).Router(), request)
 
 	if response.Code != 200 {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
@@ -143,12 +143,12 @@ func TestStaffWeekResponseContract(t *testing.T) {
 func TestStaffDisabledAndMalformedContracts(t *testing.T) {
 	t.Parallel()
 
-	disabled := testutil.ExecuteRequest(resource(false).Router(), testutil.NewRequest("GET", "/?week_start=2026-09-07", nil))
+	disabled := routetest.ExecuteRequest(resource(false).Router(), routetest.NewRequest("GET", "/?week_start=2026-09-07", nil))
 	if disabled.Code != 403 {
 		t.Fatalf("disabled status = %d, body = %s", disabled.Code, disabled.Body.String())
 	}
 
-	malformed := testutil.ExecuteRequest(resource(true).Router(), testutil.NewRequest("PUT", "/2026-09-07", strings.NewReader(`{}`)))
+	malformed := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("PUT", "/2026-09-07", strings.NewReader(`{}`)))
 	if malformed.Code != 400 {
 		t.Fatalf("malformed status = %d, body = %s", malformed.Code, malformed.Body.String())
 	}
@@ -157,7 +157,7 @@ func TestStaffDisabledAndMalformedContracts(t *testing.T) {
 func TestStaffDeleteKeepsWeekendNoOpContract(t *testing.T) {
 	t.Parallel()
 
-	response := testutil.ExecuteRequest(resource(true).Router(), testutil.NewRequest("DELETE", "/2026-09-05", nil))
+	response := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("DELETE", "/2026-09-05", nil))
 	if response.Code != 200 {
 		t.Fatalf("weekend delete status = %d, body = %s", response.Code, response.Body.String())
 	}
@@ -166,7 +166,7 @@ func TestStaffDeleteKeepsWeekendNoOpContract(t *testing.T) {
 func TestStaffWeekendWriteKeepsLegacyErrorContract(t *testing.T) {
 	t.Parallel()
 
-	response := testutil.ExecuteRequest(resource(true).Router(), testutil.NewRequest(
+	response := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest(
 		"PUT", "/2026-09-05", strings.NewReader(`{"dishes":[{"dish":"Suppe"}]}`),
 	))
 	if response.Code != 400 {

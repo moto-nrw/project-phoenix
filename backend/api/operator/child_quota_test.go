@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/operator"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
@@ -86,7 +86,7 @@ func TestSchoolTokenCannotSetTheKinderkontingent(t *testing.T) {
 			return nil, nil
 		},
 	})
-	schoolToken, err := testutil.TestTokenAuth(t).CreateJWT(testutil.Claims{
+	schoolToken, err := routetest.TestTokenAuth(t).CreateJWT(routetest.Claims{
 		ID:    7,
 		Sub:   "school-admin",
 		Roles: []string{"admin"},

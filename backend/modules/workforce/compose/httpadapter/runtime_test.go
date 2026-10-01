@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	worktimemodelsHTTP "github.com/moto-nrw/project-phoenix/api/work-time-models"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
@@ -18,7 +18,7 @@ import (
 
 // init seeds the JWT viper defaults before any test constructs a router; CI
 // runs without a .env file.
-func init() { testutil.SeedTestJWTConfig() }
+func init() { routetest.SeedTestJWTConfig() }
 
 // capabilityStub answers the one write call /api/work-time-models makes on
 // PUT. The capability rewrites the assigned staff schedules inside that same
@@ -101,11 +101,11 @@ func TestRouterRejectsUsersRead(t *testing.T) {
 
 	resource := worktimemodelsHTTP.NewResource(&capabilityStub{}, runtime(nil, func(context.Context) {}))
 	router := resource.Router()
-	claims := testutil.DefaultTestClaims()
+	claims := routetest.DefaultTestClaims()
 	claims.Roles = []string{"user"}
 	claims.Permissions = []string{"users:read"}
 	claims.IsAdmin = false
-	token := testutil.MintTestJWT(t, claims)
+	token := routetest.MintTestJWT(t, claims)
 
 	for _, test := range []struct {
 		method string
@@ -117,8 +117,8 @@ func TestRouterRejectsUsersRead(t *testing.T) {
 		{method: http.MethodPut, path: "/123"},
 		{method: http.MethodDelete, path: "/123"},
 	} {
-		request := testutil.NewAuthenticatedRequest(t, test.method, test.path, nil, testutil.WithJWTBearer(token))
-		recorder := testutil.ExecuteRequest(router, request)
+		request := routetest.NewAuthenticatedRequest(t, test.method, test.path, nil, routetest.WithJWTBearer(token))
+		recorder := routetest.ExecuteRequest(router, request)
 
 		require.Equal(t, http.StatusForbidden, recorder.Code)
 	}
