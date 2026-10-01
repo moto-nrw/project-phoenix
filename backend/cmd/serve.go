@@ -25,48 +25,65 @@ var serveCmd = &cobra.Command{
 	Short: "start http server with configured api",
 	Long:  `Starts a http server and serves the configured api`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		config := currentServeConfig()
-		if err := validateServeConfig(config); err != nil {
-			return fmt.Errorf("invalid server configuration: %w", err)
+		embeddedWorker, err := cmd.Flags().GetBool("embedded-worker")
+		if err != nil {
+			return err
 		}
-
-		logFormat := "json"
-		if config.LogTextLogging {
-			logFormat = "text"
+		process := api.ServeAPIWithWorker
+		if !embeddedWorker {
+			process = api.ServeAPIOnly
 		}
-
-		logger := applog.New(applog.Config{
-			Level:  config.LogLevel,
-			Format: logFormat,
-			Env:    config.AppEnv,
-		})
-		applog.ConfigureDefault(logger)
-
-		if strings.TrimSpace(config.SentryDSN) != "" {
-			if err := sentry.Init(sentryClientOptions(config)); err != nil {
-				return fmt.Errorf("initialize sentry: %w", err)
-			}
-			defer sentry.Flush(2 * time.Second)
-			logger.Info("sentry error tracking initialized")
-		}
-
-		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
-		defer stop()
-		if err := api.WithRuntime(ctx, api.ServeConfig{
-			Port:         config.Port,
-			FrontendURL:  config.FrontendURL,
-			PublicAPIURL: config.PublicAPIURL,
-			EnableCORS:   config.EnableCORS,
-			Logger:       logger,
-			// A malformed DSN stops the runtime build.
-			SentryPyrePortalDSN: config.SentryPyrePortalDSN,
-		}, func(runtime *api.Runtime) error {
-			return runtime.Serve(ctx)
-		}); err != nil {
-			return fmt.Errorf("run Serve runtime: %w", err)
-		}
-		return nil
+		return runServeRoot(cmd, process)
 	},
+}
+
+// runServeRoot validates the Serve configuration, sets up logging and
+// Sentry, and runs one Serve root until SIGINT or SIGTERM. The HTTP server
+// and the standalone Worker share it, so both fail on the same missing
+// configuration and connect to the database the same way.
+func runServeRoot(cmd *cobra.Command, process api.ServeProcess) error {
+	config := currentServeConfig()
+	if err := validateServeConfig(config); err != nil {
+		return fmt.Errorf("invalid server configuration: %w", err)
+	}
+
+	logFormat := "json"
+	if config.LogTextLogging {
+		logFormat = "text"
+	}
+
+	logger := applog.New(applog.Config{
+		Level:  config.LogLevel,
+		Format: logFormat,
+		Env:    config.AppEnv,
+	})
+	applog.ConfigureDefault(logger)
+
+	if strings.TrimSpace(config.SentryDSN) != "" {
+		if err := sentry.Init(sentryClientOptions(config)); err != nil {
+			return fmt.Errorf("initialize sentry: %w", err)
+		}
+		defer sentry.Flush(2 * time.Second)
+		logger.Info("sentry error tracking initialized")
+	}
+
+	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := api.WithRuntime(ctx, api.ServeConfig{
+		Port:         config.Port,
+		FrontendURL:  config.FrontendURL,
+		PublicAPIURL: config.PublicAPIURL,
+		EnableCORS:   config.EnableCORS,
+		Logger:       logger,
+		// A malformed DSN stops the runtime build.
+		SentryPyrePortalDSN: config.SentryPyrePortalDSN,
+		Process:             process,
+	}, func(runtime *api.Runtime) error {
+		return runtime.Serve(ctx)
+	}); err != nil {
+		return fmt.Errorf("run Serve runtime: %w", err)
+	}
+	return nil
 }
 
 // release is the full commit SHA of the deployed build. The image build sets
@@ -147,6 +164,10 @@ func init() {
 	RootCmd.AddCommand(serveCmd)
 
 	viper.SetDefault("log_level", "debug")
+	// The Worker cutover (#2726): start the standalone worker first; it waits
+	// in standby while this process leads. Then restart serve with
+	// --embedded-worker=false and the standalone worker takes over.
+	serveCmd.Flags().Bool("embedded-worker", true, "run the background jobs in this process; turn off once a standalone worker runs them")
 	// Capacity of the public demo (#3466); required under APP_ENV=demo.
 	serveCmd.Flags().Int("demo-max-active-schools", 0, "public demo: how many demo schools may exist at once; further requests answer 503")
 	_ = viper.BindPFlag("demo_max_active_schools", serveCmd.Flags().Lookup("demo-max-active-schools"))

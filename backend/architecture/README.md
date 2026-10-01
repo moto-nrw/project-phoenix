@@ -95,6 +95,17 @@ wider module engine. The demo school stays with `organization-tenancy`: the
 capability resolves it through that owner's `FindSchoolBySlug`, bound in
 `services.NewDemoAccess`, and reads no `platform` table itself.
 
+#2726 creates `platform.worker_leases` (migration 1.15.437) and assigns it to
+`scheduler-runtime`: the Worker's runtime leadership, one fenced holder per
+lease name, no tenant data. The only package that reads or writes it is
+`modules/schedulerruntime/workerlease` (`scheduler-runtime`/`postgres`); it
+opens its administrative transaction and joins the job transaction through
+the tenant runtime. `services/scheduler` reaches it through its own
+`LeaseStore` port, which the Serve root binds. Job transactions assert the
+term through `platform.assert_worker_lease` before they commit, so the tenant
+role needs no grant on the table. Runbook:
+[worker lease](../../docs/operations/worker-lease-2726.md).
+
 #3349 settles the one table two owners reached for: `users.privacy_consents`
 stays with `student-presence`. The recorded window bounds how long presence
 data is kept, and the GDPR cleanup reads it through that owner's

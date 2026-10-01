@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -210,6 +211,10 @@ type Scheduler struct {
 	getenv                     func(string) string
 	lifecycleCtx               context.Context
 	stopLifecycle              context.CancelFunc
+	// leadership gates every job run on the Worker lease (#2726). It keeps
+	// renewing while Stop drains the jobs and releases the lease afterwards.
+	leadership  *leadership
+	jobsStarted atomic.Bool
 	// done signals goroutines to stop when closed (replaces stored context)
 	done chan struct{}
 	wg   sync.WaitGroup
@@ -262,8 +267,9 @@ type Scheduler struct {
 	// Personal reminder notifications. Anything missing prevents Worker
 	// construction. reminderNotified is the
 	// once-per-day re-fire guard (now per person), rotated on civil-date
-	// rollover like overdueEmitted. It is process-local, so production must run
-	// only one scheduler instance until this state is shared.
+	// rollover like overdueEmitted. It is process-local: the Worker lease
+	// keeps one leader at a time (#2726), and a Worker that takes over starts
+	// with an empty guard.
 	reminderNotifications ReminderNotificationDeps
 	reminderNotified      sync.Map // reminderNotificationKey → time.Time
 	reminderNotifiedDay   timezone.Date
@@ -326,6 +332,9 @@ func newScheduler(deps WorkerDependencies) *Scheduler {
 	addCleanupDependencies(scheduler, deps)
 	addScheduleDependencies(scheduler, deps)
 	addRuntimeDependencies(scheduler, deps)
+	if !isNilDependency(deps.Lease.Store) {
+		scheduler.leadership = newLeadership(deps.Lease, scheduler.getLogger(), lifecycleCtx)
+	}
 	return scheduler
 }
 
@@ -561,7 +570,9 @@ func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn
 	})
 }
 
-// Start begins the scheduler
+// Start begins the scheduler. With a lease it first tries to lead once, so a
+// sole Worker runs its startup checks; a standby starts its jobs too, and
+// each run waits for the lease.
 func (s *Scheduler) Start() {
 	if s.registry == nil {
 		panic("worker registry is required")
@@ -571,21 +582,58 @@ func (s *Scheduler) Start() {
 		slog.Int("registered_job_count", len(ids)),
 		slog.Any("registered_job_ids", ids),
 	)
+	if s.leadership != nil {
+		s.leadership.start()
+	}
 	s.registry.Start()
+	s.jobsStarted.Store(true)
 }
 
-// Stop gracefully stops the scheduler
+// Stop gracefully stops the scheduler: running jobs are cancelled and
+// drained while the lease stays renewed, then the lease is released.
 func (s *Scheduler) Stop() {
 	started := time.Now()
 	s.getLogger().Info("stopping scheduler service")
+	s.jobsStarted.Store(false)
 	if s.stopLifecycle != nil {
 		s.stopLifecycle()
 	}
 	close(s.done)
 	s.wg.Wait()
+	drain := time.Since(started)
+	if s.leadership != nil {
+		s.leadership.stop()
+		s.leadership.drained(drain)
+	}
 	s.getLogger().Info("scheduler service stopped",
-		slog.Duration("shutdown_drain_time", time.Since(started)),
+		slog.Duration("shutdown_drain_time", drain),
 	)
+}
+
+// Ready reports whether this Worker runs jobs: it started them and holds
+// the lease. A standby is alive but not ready.
+func (s *Scheduler) Ready() bool {
+	if s.leadership == nil || !s.jobsStarted.Load() {
+		return false
+	}
+	_, _, held := s.leadership.current()
+	return held
+}
+
+// jobContext returns the context a job run executes under. With a lease it
+// is the running term's context, ended with the term, and every transaction
+// opened under it asserts the term before it commits. ok is false while
+// this Worker does not lead.
+func (s *Scheduler) jobContext() (context.Context, bool) {
+	if s.leadership == nil {
+		return s.lifecycleContext(), true
+	}
+	term, termCtx, held := s.leadership.current()
+	if !held {
+		s.leadership.suppress("standby")
+		return nil, false
+	}
+	return tenant.WithCommitGuard(termCtx, s.leadership.fence(term)), true
 }
 
 // taskContext is cancelled when the scheduler stops, in addition to its
@@ -699,7 +747,10 @@ func (s *Scheduler) runIntervalPolling(task *ScheduledTask, panicName, startupMs
 }
 
 func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context, *ScheduledTask)) {
-	ctx := s.lifecycleContext()
+	ctx, leads := s.jobContext()
+	if !leads {
+		return
+	}
 	if traced, err := s.startWorkerJob(ctx, task.Name); err == nil {
 		ctx = traced
 	} else {
