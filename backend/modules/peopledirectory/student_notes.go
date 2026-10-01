@@ -106,6 +106,9 @@ type CreateStudentNote struct {
 	Category        string
 	Body            string
 	Subject         StudentNoteSubject
+	// RevalidateSubject is supplied by the caller that owns group and activity
+	// assignments. The note service invokes it after locking the child.
+	RevalidateSubject func(context.Context) error
 }
 
 // UpdateStudentNote corrects an entry. Its group reference stays fixed, but an
@@ -133,6 +136,9 @@ type DeleteStudentNote struct {
 	StudentID      int64
 	ActorAccountID int64
 	Authorization  StudentNoteDeleteAuthorization
+	// ResolveAuthorization reloads leadership and the child's group after the
+	// note service has locked the child and note rows for this deletion.
+	ResolveAuthorization func(context.Context) (StudentNoteDeleteAuthorization, error)
 }
 
 // StudentNoteDeleteAuthorization contains the caller-resolved facts that are

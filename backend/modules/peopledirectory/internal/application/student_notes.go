@@ -86,6 +86,11 @@ func (s *StudentNoteService) Create(ctx context.Context, input domain.CreateStud
 		if !found || status == domain.StudentStatusAlumnus {
 			return domain.ErrStudentNotFound
 		}
+		if input.RevalidateSubject != nil {
+			if err := input.RevalidateSubject(txCtx); err != nil {
+				return err
+			}
+		}
 		var writeStats domain.OperationStats
 		result, writeStats, err = s.store.Insert(txCtx, input)
 		stats.Add(writeStats)
@@ -127,21 +132,43 @@ func (s *StudentNoteService) Delete(ctx context.Context, input domain.DeleteStud
 		return domain.ErrStudentNoteInvalid
 	}
 	return s.run(ctx, "delete_student_note", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
-		stored, found, readStats, readErr := s.store.FindByID(txCtx, input.ID, "UPDATE")
-		stats.Add(readStats)
-		if readErr != nil {
-			return readErr
+		stored, err := s.lockForDeletion(txCtx, stats, input)
+		if err != nil {
+			return err
 		}
-		if !found || stored.StudentID != input.StudentID {
-			return domain.ErrStudentNoteNotFound
+		authorization, err := input.CurrentAuthorization(txCtx)
+		if err != nil {
+			return err
 		}
-		if allowErr := stored.AllowsDelete(input.Authorization); allowErr != nil {
+		if allowErr := stored.AllowsDelete(authorization); allowErr != nil {
 			return allowErr
 		}
 		deleteStats, err := s.store.SoftDelete(txCtx, input)
 		stats.Add(deleteStats)
 		return err
 	})
+}
+
+func (s *StudentNoteService) lockForDeletion(
+	ctx context.Context, stats *domain.OperationStats, input domain.DeleteStudentNote,
+) (domain.StudentNote, error) {
+	_, foundStudent, studentStats, err := s.students.LockLifecycle(ctx, input.StudentID)
+	stats.Add(studentStats)
+	if err != nil {
+		return domain.StudentNote{}, err
+	}
+	if !foundStudent {
+		return domain.StudentNote{}, domain.ErrStudentNoteNotFound
+	}
+	stored, found, readStats, err := s.store.FindByID(ctx, input.ID, "UPDATE")
+	stats.Add(readStats)
+	if err != nil {
+		return domain.StudentNote{}, err
+	}
+	if !found || stored.StudentID != input.StudentID {
+		return domain.StudentNote{}, domain.ErrStudentNoteNotFound
+	}
+	return stored, nil
 }
 
 // lockNote reads one note FOR UPDATE and confirms it belongs to the child the

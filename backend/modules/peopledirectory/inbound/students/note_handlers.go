@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Child note card ("Notizen", Kartei): the durable hints that replaced the
@@ -99,6 +100,9 @@ func (rs *Resource) createStudentNote(w http.ResponseWriter, r *http.Request) {
 		StudentID: student.ID, AuthorAccountID: callerAccountID(r),
 		Kind: body.Kind, Visibility: body.Visibility, Category: body.Category,
 		Body: body.Body, Subject: subject,
+		RevalidateSubject: func(ctx context.Context) error {
+			return rs.revalidateNoteSubject(ctx, student.ID, subject)
+		},
 	})
 	if err != nil {
 		renderError(w, r, studentNoteErrorRenderer(err))
@@ -169,6 +173,9 @@ func (rs *Resource) deleteStudentNote(w http.ResponseWriter, r *http.Request) {
 			LedEducationGroupIDs:  audience.LedEducationGroupIDs,
 			ChildEducationGroupID: child.GroupID,
 		},
+		ResolveAuthorization: func(ctx context.Context) (peopleModule.StudentNoteDeleteAuthorization, error) {
+			return rs.currentNoteDeleteAuthorization(ctx, student.ID, callerAccountID(r))
+		},
 	}); err != nil {
 		renderError(w, r, studentNoteErrorRenderer(err))
 		return
@@ -176,6 +183,54 @@ func (rs *Resource) deleteStudentNote(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, map[string]string{
 		"id": strconv.FormatInt(noteID, 10),
 	}, "Student note deleted")
+}
+
+// revalidateNoteSubject reads the current assignment while the note service
+// holds the child's row lock. Group changes serialize on that row, so the
+// reference cannot be written against the earlier handler snapshot.
+func (rs *Resource) revalidateNoteSubject(
+	ctx context.Context, studentID int64, subject peopleModule.StudentNoteSubject,
+) error {
+	student, err := rs.lockStudent(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	child, err := rs.noteChild(ctx, student)
+	if err != nil {
+		return err
+	}
+	return validateNoteSubjectForChild(subject, child)
+}
+
+// currentNoteDeleteAuthorization reloads the foreign authorization facts in
+// the transaction that removes the note. The ordinary request cache is right
+// for reads, but would preserve the stale answer this write must reject.
+func (rs *Resource) currentNoteDeleteAuthorization(
+	ctx context.Context, studentID, accountID int64,
+) (peopleModule.StudentNoteDeleteAuthorization, error) {
+	student, err := rs.lockStudent(ctx, studentID)
+	if err != nil {
+		return peopleModule.StudentNoteDeleteAuthorization{}, err
+	}
+	if cache := jwt.RequestIdentityCacheFrom(ctx); cache != nil {
+		cache.Evict(tenant.FromContext(ctx), accountID)
+	}
+	reader, err := rs.noteReader(ctx)
+	if err != nil {
+		return peopleModule.StudentNoteDeleteAuthorization{}, err
+	}
+	child, err := rs.noteChild(ctx, student)
+	if err != nil {
+		return peopleModule.StudentNoteDeleteAuthorization{}, err
+	}
+	audience := securityruntime.ResolveStudentNoteAudience(
+		jwt.PermissionsFromCtx(ctx), reader, child)
+	return peopleModule.StudentNoteDeleteAuthorization{
+		Admin:                 audience.Admin,
+		LedActivityGroupIDs:   audience.LedActivityGroupIDs,
+		LedEducationGroupIDs:  audience.LedEducationGroupIDs,
+		ChildEducationGroupID: child.GroupID,
+	}, nil
 }
 
 // resolveNoteReader loads the child, re-checks the per-child read predicate and

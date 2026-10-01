@@ -347,7 +347,6 @@ func (e *recordingEngine) CreateStudentNote(
 	_ context.Context, input peopledirectory.CreateStudentNote,
 ) (peopledirectory.StudentNote, error) {
 	e.calls++
-	e.createdNote = input
 	return peopledirectory.StudentNote{ID: 1, StudentID: input.StudentID, Body: input.Body}, nil
 }
 
@@ -359,8 +358,7 @@ func (e *recordingEngine) UpdateStudentNote(
 	return peopledirectory.StudentNote{ID: input.ID, Body: input.Body}, nil
 }
 
-func (e *recordingEngine) DeleteStudentNote(_ context.Context, input peopledirectory.DeleteStudentNote) error {
+func (e *recordingEngine) DeleteStudentNote(context.Context, peopledirectory.DeleteStudentNote) error {
 	e.calls++
-	e.deletedNote = input
 	return nil
 }

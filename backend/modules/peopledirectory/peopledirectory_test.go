@@ -22,9 +22,7 @@ type recordingEngine struct {
 	directory peopledirectory.StudentDirectoryFilter
 
 	noteFilter  peopledirectory.StudentNoteFilter
-	createdNote peopledirectory.CreateStudentNote
 	updatedNote peopledirectory.UpdateStudentNote
-	deletedNote peopledirectory.DeleteStudentNote
 
 	lockedRecord int64
 	recordIDs    []int64

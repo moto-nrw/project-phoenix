@@ -23,7 +23,7 @@ func (e engine) CreateStudentNote(ctx context.Context, input peopledirectory.Cre
 	note, err := e.studentNotes.Create(ctx, domain.CreateStudentNote{
 		StudentID: input.StudentID, AuthorAccountID: input.AuthorAccountID,
 		Kind: input.Kind, Visibility: input.Visibility, Category: input.Category,
-		Body: input.Body, Subject: toDomainNoteSubject(input.Subject),
+		Body: input.Body, Subject: toDomainNoteSubject(input.Subject), RevalidateSubject: input.RevalidateSubject,
 	})
 	if err != nil {
 		return peopledirectory.StudentNote{}, mapError(err)
@@ -44,6 +44,18 @@ func (e engine) UpdateStudentNote(ctx context.Context, input peopledirectory.Upd
 }
 
 func (e engine) DeleteStudentNote(ctx context.Context, input peopledirectory.DeleteStudentNote) error {
+	var resolveAuthorization func(context.Context) (domain.StudentNoteDeleteAuthorization, error)
+	if input.ResolveAuthorization != nil {
+		resolveAuthorization = func(ctx context.Context) (domain.StudentNoteDeleteAuthorization, error) {
+			resolved, err := input.ResolveAuthorization(ctx)
+			return domain.StudentNoteDeleteAuthorization{
+				Admin:                 resolved.Admin,
+				LedActivityGroupIDs:   resolved.LedActivityGroupIDs,
+				LedEducationGroupIDs:  resolved.LedEducationGroupIDs,
+				ChildEducationGroupID: resolved.ChildEducationGroupID,
+			}, err
+		}
+	}
 	return mapError(e.studentNotes.Delete(ctx, domain.DeleteStudentNote{
 		ID: input.ID, StudentID: input.StudentID, ActorAccountID: input.ActorAccountID,
 		Authorization: domain.StudentNoteDeleteAuthorization{
@@ -52,6 +64,7 @@ func (e engine) DeleteStudentNote(ctx context.Context, input peopledirectory.Del
 			LedEducationGroupIDs:  input.Authorization.LedEducationGroupIDs,
 			ChildEducationGroupID: input.Authorization.ChildEducationGroupID,
 		},
+		ResolveAuthorization: resolveAuthorization,
 	}))
 }
 

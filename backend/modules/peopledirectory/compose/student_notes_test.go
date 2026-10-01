@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -154,6 +155,63 @@ func TestStudentNotesRoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Empty(t, notes, "a removed note leaves every timeline, including its author's")
+}
+
+func TestStudentNoteCreateRevalidatesSubjectInWriteTransaction(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := notesModuleWithOwners(t, db, noteTestStudentOwners{})
+	ctx := testpkg.Ctx(t)
+	child := testpkg.CreateTestStudent(t, db, "Mila", "Prüfung", "3a")
+	author := noteAuthor(t, db, "Sara", "Betreuerin")
+	date := calendar.NewDate(2026, 9, 9)
+	called := false
+
+	_, err := module.CreateStudentNote(ctx, peopledirectory.CreateStudentNote{
+		StudentID: child.ID, AuthorAccountID: author,
+		Kind: peopledirectory.StudentNoteKindJournal, Visibility: peopledirectory.StudentNoteVisibilityAllStaff,
+		Body: "Veralteter Bezug.", Subject: peopledirectory.StudentNoteSubject{Date: &date},
+		RevalidateSubject: func(ctx context.Context) error {
+			called = true
+			if _, ok := tenant.TransactionFromContext(ctx); !ok {
+				return assert.AnError
+			}
+			return peopledirectory.ErrStudentNoteInvalid
+		},
+	})
+	require.ErrorIs(t, err, peopledirectory.ErrStudentNoteInvalid)
+	assert.True(t, called, "the reference check runs after the service opens its write transaction")
+}
+
+func TestStudentNoteDeleteReloadsAuthorizationInWriteTransaction(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := notesModuleWithOwners(t, db, noteTestStudentOwners{})
+	ctx := testpkg.Ctx(t)
+	child := testpkg.CreateTestStudent(t, db, "Mila", "Löschung", "3a")
+	author := noteAuthor(t, db, "Sara", "Betreuerin")
+	date := calendar.NewDate(2026, 9, 9)
+	note, err := module.CreateStudentNote(ctx, peopledirectory.CreateStudentNote{
+		StudentID: child.ID, AuthorAccountID: author,
+		Kind: peopledirectory.StudentNoteKindJournal, Visibility: peopledirectory.StudentNoteVisibilityAllStaff,
+		Body: "Bleibt bestehen.", Subject: peopledirectory.StudentNoteSubject{Date: &date},
+	})
+	require.NoError(t, err)
+
+	called := false
+	err = module.DeleteStudentNote(ctx, peopledirectory.DeleteStudentNote{
+		ID: note.ID, StudentID: child.ID, ActorAccountID: author,
+		Authorization: peopledirectory.StudentNoteDeleteAuthorization{Admin: true},
+		ResolveAuthorization: func(ctx context.Context) (peopledirectory.StudentNoteDeleteAuthorization, error) {
+			called = true
+			if _, ok := tenant.TransactionFromContext(ctx); !ok {
+				return peopledirectory.StudentNoteDeleteAuthorization{}, assert.AnError
+			}
+			return peopledirectory.StudentNoteDeleteAuthorization{}, nil
+		},
+	})
+	require.ErrorIs(t, err, peopledirectory.ErrStudentNoteDeleteForbidden)
+	assert.True(t, called, "the supplied authorization is replaced in the write transaction")
 }
 
 // The temporary supervisor_notes column still has two product writers: the

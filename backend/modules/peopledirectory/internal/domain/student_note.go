@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"time"
@@ -155,13 +156,14 @@ func (n StudentNote) Edited() bool { return n.UpdatedAt.After(n.CreatedAt) }
 
 // CreateStudentNote is a new entry.
 type CreateStudentNote struct {
-	StudentID       int64
-	AuthorAccountID int64
-	Kind            string
-	Visibility      string
-	Category        string
-	Body            string
-	Subject         StudentNoteSubject
+	StudentID         int64
+	AuthorAccountID   int64
+	Kind              string
+	Visibility        string
+	Category          string
+	Body              string
+	Subject           StudentNoteSubject
+	RevalidateSubject func(context.Context) error
 }
 
 // UpdateStudentNote rewrites the parts of an entry its author may correct.
@@ -189,9 +191,10 @@ type DeleteStudentNote struct {
 	// service re-checks it under the row lock, so a note that moved between
 	// the caller's authorization read and this write cannot be deleted on the
 	// strength of the old answer.
-	StudentID      int64
-	ActorAccountID int64
-	Authorization  StudentNoteDeleteAuthorization
+	StudentID            int64
+	ActorAccountID       int64
+	Authorization        StudentNoteDeleteAuthorization
+	ResolveAuthorization func(context.Context) (StudentNoteDeleteAuthorization, error)
 }
 
 // StudentNoteDeleteAuthorization is the caller-resolved leadership data that
@@ -202,6 +205,15 @@ type StudentNoteDeleteAuthorization struct {
 	LedActivityGroupIDs   []int64
 	LedEducationGroupIDs  []int64
 	ChildEducationGroupID *int64
+}
+
+// CurrentAuthorization reloads the caller-owned authorization facts when the
+// inbound adapter supplied a resolver for this write.
+func (d DeleteStudentNote) CurrentAuthorization(ctx context.Context) (StudentNoteDeleteAuthorization, error) {
+	if d.ResolveAuthorization == nil {
+		return d.Authorization, nil
+	}
+	return d.ResolveAuthorization(ctx)
 }
 
 // StudentNoteFilter is the audience-resolved read. The caller resolves WHO the
