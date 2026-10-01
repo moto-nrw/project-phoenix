@@ -2,7 +2,6 @@ package legacy
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -118,8 +117,11 @@ func TestNewRejectsMissingSources(t *testing.T) {
 	require.NotNil(t, query)
 }
 
-func nullString(value string) sql.NullString {
-	return sql.NullString{String: value, Valid: value != ""}
+func optionalString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 // The retained service's fixture (#2609 tests): one child in the Kreativraum
@@ -148,10 +150,10 @@ func TestExportRendersTheRetainedNotfallliste(t *testing.T) {
 		{ID: 302, FirstName: "Max", LastName: "Schmitt"},
 	}}
 	sources.Contacts = fakeContacts{rows: []usersModels.GuardianEmergencyContactRow{
-		{StudentID: 202, FirstName: nullString("Familie"), LastName: nullString("Schmitt"), PhoneNumber: nullString("02551 444")},
-		{StudentID: 101, FirstName: nullString("Lea"), LastName: nullString("Albrecht"), PhoneNumber: nullString("02551 111")},
-		{StudentID: 101, FirstName: nullString("Noah"), LastName: nullString("Albrecht"), PhoneNumber: nullString("02551 222")},
-		{StudentID: 101, FirstName: nullString("Lea"), LastName: nullString("Albrecht"), PhoneNumber: nullString("02551 333")},
+		{StudentID: 202, FirstName: optionalString("Familie"), LastName: optionalString("Schmitt"), PhoneNumber: optionalString("02551 444")},
+		{StudentID: 101, FirstName: optionalString("Lea"), LastName: optionalString("Albrecht"), PhoneNumber: optionalString("02551 111")},
+		{StudentID: 101, FirstName: optionalString("Noah"), LastName: optionalString("Albrecht"), PhoneNumber: optionalString("02551 222")},
+		{StudentID: 101, FirstName: optionalString("Lea"), LastName: optionalString("Albrecht"), PhoneNumber: optionalString("02551 333")},
 	}}
 	generatedAt := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
 	sources.Now = func() time.Time { return generatedAt }
