@@ -28,9 +28,13 @@ const (
 // ReviewReason codes set when a rollover row lands in
 // pending_admin_review. Free text would be tempting but a constant
 // set lets the frontend show localised labels without parsing.
+// ReviewReasonChildQuotaReached is the exception: it marks a renewal the
+// automatic approval skipped because it would exceed the Kinderkontingent
+// (#3570), and that row stays submitted for a manual decision.
 const (
-	ReviewReasonGradeAboveMax = "grade_above_max"
-	ReviewReasonNoGradeLevel  = "no_grade_level"
+	ReviewReasonGradeAboveMax     = "grade_above_max"
+	ReviewReasonNoGradeLevel      = "no_grade_level"
+	ReviewReasonChildQuotaReached = "child_quota_reached"
 )
 
 // Activation mode values matching the column CHECK constraint.

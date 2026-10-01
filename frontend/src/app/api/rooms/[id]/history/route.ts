@@ -1,6 +1,10 @@
 // app/api/rooms/[id]/history/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, ApiResponseError } from "~/lib/api-helpers.server";
+import {
+  apiGet,
+  ApiResponseError,
+  handleApiError,
+} from "~/lib/api-helpers.server";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
@@ -125,12 +129,7 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
       room_id: roomId,
       error: apiError instanceof Error ? apiError.message : String(apiError),
     });
-    const errorMessage =
-      apiError instanceof Error ? apiError.message : String(apiError);
-    return NextResponse.json(
-      { error: `Backend API error: ${errorMessage}` },
-      { status: 500 },
-    );
+    return handleApiError(apiError);
   }
 }
 

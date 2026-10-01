@@ -1,6 +1,9 @@
 package platform
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // OutboxEnqueueRequest is the transport-neutral enqueue input shared by the
 // feature services (auth, enrollment) and the platform outbox service. It
@@ -11,12 +14,25 @@ type OutboxEnqueueRequest struct {
 	RelatedEntityType string
 	RelatedEntityID   int64
 	IdempotencyKey    string
+	DeliverAfter      time.Time
 }
 
 // OutboxEnqueuer is the narrow contract feature services need from the
 // platform email outbox. Declared here (models/platform is a leaf package)
-// so services/auth and services/enrollment can depend on it without
+// so services/auth and the composition root can depend on it without
 // importing services/platform.
 type OutboxEnqueuer interface {
 	EnqueueOutbox(ctx context.Context, req OutboxEnqueueRequest) error
+}
+
+// OutboxEnqueued identifies one persisted e-mail intent.
+type OutboxEnqueued struct {
+	ID int64
+}
+
+// OutboxResultEnqueuer is the variant producers use when a later intent must
+// depend on the e-mail row this call creates.
+type OutboxResultEnqueuer interface {
+	OutboxEnqueuer
+	EnqueueOutboxWithResult(ctx context.Context, req OutboxEnqueueRequest) (OutboxEnqueued, error)
 }

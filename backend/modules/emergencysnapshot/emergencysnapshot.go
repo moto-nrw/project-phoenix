@@ -80,9 +80,7 @@ type Row struct {
 type Snapshot struct {
 	GeneratedAt time.Time
 	Date        Date
-	// IncludeHealthInfo reports whether the school prints the health column.
-	IncludeHealthInfo bool
-	Rows              []Row
+	Rows        []Row
 }
 
 // Document is the printable form of a Snapshot.
@@ -119,7 +117,6 @@ type Dependencies struct {
 	Students Students
 	Persons  Persons
 	Contacts Contacts
-	Settings Settings
 	Calendar Calendar
 	Renderer Renderer
 	// Collate orders two names in German dictionary order (DIN 5007-1).
@@ -139,7 +136,7 @@ type Projection struct {
 // required.
 func New(deps Dependencies) (*Projection, error) {
 	if deps.Presence == nil || deps.Rooms == nil || deps.Students == nil || deps.Persons == nil ||
-		deps.Contacts == nil || deps.Settings == nil || deps.Calendar == nil || deps.Renderer == nil ||
+		deps.Contacts == nil || deps.Calendar == nil || deps.Renderer == nil ||
 		deps.Collate == nil {
 		return nil, ErrIncompleteDependencies
 	}
@@ -181,32 +178,10 @@ func (p *Projection) Snapshot(ctx context.Context, at time.Time) (Snapshot, erro
 	}
 
 	return Snapshot{
-		GeneratedAt:       at,
-		Date:              date,
-		IncludeHealthInfo: p.healthInfoEnabled(ctx),
-		Rows:              rows,
+		GeneratedAt: at,
+		Date:        date,
+		Rows:        rows,
 	}, nil
-}
-
-// healthInfoEnabled reports whether the school prints health notes on the
-// Notfallliste. It is NOT a read gate: the note is already visible to every
-// account with users:read in the child's record, and this export requires
-// the same permission; the switch only decides what lands on the paper.
-//
-// It errs towards leaving the column OFF when the setting cannot be read: a
-// school that switched it off did so for a data-protection reason, and a
-// column that appears because a lookup failed would break that silently.
-// The rest of the list (names, location, phone numbers) is unaffected, so
-// the sheet still does its job.
-func (p *Projection) healthInfoEnabled(ctx context.Context) bool {
-	enabled, err := p.deps.Settings.HealthInfoEnabled(ctx)
-	if err != nil {
-		p.deps.Logger.WarnContext(ctx, "emergency list: health info setting could not be resolved, printing list without health column",
-			slog.String("error", err.Error()),
-		)
-		return false
-	}
-	return enabled
 }
 
 func (p *Projection) loadRows(ctx context.Context, date Date, studentIDs []int64) ([]Row, error) {
@@ -386,9 +361,7 @@ func BuildDocument(snapshot Snapshot) Document {
 		{ID: ColumnCurrentLocation, Label: "Ort / Raum"},
 		{ID: ColumnContactPhone, Label: "Telefonnummer"},
 		{ID: ColumnContactName, Label: "Kontakt"},
-	}
-	if snapshot.IncludeHealthInfo {
-		columns = append(columns, Column{ID: ColumnHealthInfo, Label: "Gesundheit / Allergien"})
+		{ID: ColumnHealthInfo, Label: "Gesundheit / Allergien"},
 	}
 	rows := make([]map[ColumnID]string, 0, len(snapshot.Rows))
 	for _, row := range snapshot.Rows {
@@ -398,9 +371,7 @@ func BuildDocument(snapshot Snapshot) Document {
 			ColumnCurrentLocation: row.Location,
 			ColumnContactPhone:    row.ContactPhone,
 			ColumnContactName:     row.ContactName,
-		}
-		if snapshot.IncludeHealthInfo {
-			values[ColumnHealthInfo] = HealthInfoCell(row.HealthInfo)
+			ColumnHealthInfo:      HealthInfoCell(row.HealthInfo),
 		}
 		rows = append(rows, values)
 	}

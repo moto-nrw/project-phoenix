@@ -102,6 +102,10 @@ import {
   fetchStudentPartialAbsences,
   saveStudentPartialAbsence,
 } from "~/lib/student-partial-absences-api";
+import {
+  EarlyCheckoutNoteField,
+  useEarlyCheckoutCheck,
+} from "~/components/students/early-checkout-note";
 import { StudentDetailLoadingPage } from "./page-skeleton";
 
 type TodayArrival = {
@@ -540,6 +544,11 @@ function StudentDetailPageContent() {
   // Checkout states
   const [showConfirmCheckout, setShowConfirmCheckout] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
+  // Early checkout (#3324): decided when the dialog opens, so the field does
+  // not appear or vanish while someone is typing.
+  const isEarlyCheckout = useEarlyCheckoutCheck();
+  const [checkoutIsEarly, setCheckoutIsEarly] = useState(false);
+  const [checkoutNote, setCheckoutNote] = useState("");
 
   // Check-in states
   const [showConfirmCheckin, setShowConfirmCheckin] = useState(false);
@@ -905,7 +914,11 @@ function StudentDetailPageContent() {
 
     setCheckingOut(true);
     try {
-      await schoolCheckinStudent(studentId, "out");
+      await schoolCheckinStudent(
+        studentId,
+        "out",
+        checkoutIsEarly ? checkoutNote : undefined,
+      );
       refreshData();
       setShowConfirmCheckout(false);
       toast.success(`${student.name} wurde erfolgreich abgemeldet`);
@@ -1247,6 +1260,7 @@ function StudentDetailPageContent() {
             todayPickupPlannedTime={todayPickup.time}
             todayPickupActualTime={student.actual_pickup_time}
             todayPickupNote={todayPickup.note}
+            todayCheckoutNote={student.actual_pickup_note}
             isPickupException={todayPickup.isException}
             todayArrivalPlannedTime={todayArrival.time}
             todayArrivalActualTime={student.actual_arrival_time}
@@ -1265,7 +1279,11 @@ function StudentDetailPageContent() {
           showCheckin={showCheckin}
           hasAbsenceWriteAccess={hasAbsenceWriteAccess}
           hasSickExcusedWriteAccess={hasSickExcusedWriteAccess}
-          onCheckoutClick={() => setShowConfirmCheckout(true)}
+          onCheckoutClick={() => {
+            setCheckoutNote("");
+            setCheckoutIsEarly(isEarlyCheckout(todayPickup.time));
+            setShowConfirmCheckout(true);
+          }}
           onCheckinClick={() => setShowConfirmCheckin(true)}
           onSickClick={handleSickClick}
           sickLoading={sickLoading}
@@ -1297,6 +1315,14 @@ function StudentDetailPageContent() {
             <p>
               Möchten Sie <strong>{student.name}</strong> jetzt abmelden?
             </p>
+            {checkoutIsEarly && todayPickup.time ? (
+              <EarlyCheckoutNoteField
+                id="student-checkout-note"
+                plannedPickup={todayPickup.time}
+                value={checkoutNote}
+                onChange={setCheckoutNote}
+              />
+            ) : null}
           </ConfirmationModal>
 
           {/* Checkin Confirmation Modal */}

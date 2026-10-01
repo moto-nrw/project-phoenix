@@ -4,6 +4,7 @@ import {
   FileValidationError,
 } from "~/lib/file-upload-wrapper.server";
 import { uncachedAuth } from "~/server/auth";
+import { backendResponseError } from "~/lib/api-helpers.server";
 
 interface EnrollmentLegalDocumentResponse {
   document_url: string;
@@ -46,10 +47,7 @@ export const POST = createFileUploadHandler<EnrollmentLegalDocumentResponse>(
     );
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `API error (${response.status}): ${errorText || response.statusText}`,
-      );
+      throw await backendResponseError(response);
     }
 
     return (

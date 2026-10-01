@@ -1,3 +1,4 @@
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Anhänge einer Elternmitteilung (#2890), Elternseite: die Datei selbst.
 //
 // Eigener Handler statt des JSON-Proxys, weil hier Bytes durchlaufen. Der
@@ -29,7 +30,11 @@ async function GETHandler(
   }
 
   const inline = request.nextUrl.searchParams.get("inline") === "1";
-  const backendUrl = `${getServerApiUrl()}/parent-news-attachments/${encodeURIComponent(announcementId)}/${encodeURIComponent(attachmentId)}/download${inline ? "?inline=1" : ""}`;
+  const studentId = request.nextUrl.searchParams.get("student_id");
+  const query = new URLSearchParams();
+  if (studentId !== null) query.set("student_id", studentId);
+  if (inline) query.set("inline", "1");
+  const backendUrl = `${getServerApiUrl()}/parent-news-attachments/${encodeURIComponent(announcementId)}/${encodeURIComponent(attachmentId)}/download${query.size > 0 ? `?${query.toString()}` : ""}`;
 
   const makeRequest = (bearer: string) =>
     fetch(backendUrl, {
@@ -51,7 +56,7 @@ async function GETHandler(
       attachment_id: attachmentId,
       status: upstream.status,
     });
-    return new NextResponse(null, { status: upstream.status });
+    return forwardBackendResponse(upstream);
   }
 
   const headers = new Headers();

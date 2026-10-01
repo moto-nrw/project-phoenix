@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
-import { AxiosError } from "axios";
+import { ApiResponseError } from "~/lib/api-helpers.server";
 
 // ============================================================================
 // Types
@@ -24,7 +24,8 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiPost: mockApiPost,
   apiGet: vi.fn(),
   apiPut: vi.fn(),
@@ -145,15 +146,13 @@ describe("POST /api/auth/password", () => {
   });
 
   it("handles backend error with message field", async () => {
-    const axiosError = new AxiosError("Request failed", "ERR_BAD_REQUEST");
-    axiosError.response = {
-      status: 400,
-      data: { message: "Aktuelles Passwort ist falsch" },
-      statusText: "Bad Request",
-      headers: {},
-      config: {} as never,
-    };
-    mockApiPost.mockRejectedValueOnce(axiosError);
+    mockApiPost.mockRejectedValueOnce(
+      new ApiResponseError(
+        400,
+        JSON.stringify({ message: "Aktuelles Passwort ist falsch" }),
+        { contentType: "application/json" },
+      ),
+    );
 
     const request = createMockRequest("/api/auth/password", {
       currentPassword: "Wrong1234!",
@@ -163,20 +162,19 @@ describe("POST /api/auth/password", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Aktuelles Passwort ist falsch");
+    expect(await response.json()).toEqual({
+      message: "Aktuelles Passwort ist falsch",
+    });
   });
 
   it("handles backend error with error field", async () => {
-    const axiosError = new AxiosError("Request failed", "ERR_BAD_REQUEST");
-    axiosError.response = {
-      status: 400,
-      data: { error: "Passwort zu schwach" },
-      statusText: "Bad Request",
-      headers: {},
-      config: {} as never,
-    };
-    mockApiPost.mockRejectedValueOnce(axiosError);
+    mockApiPost.mockRejectedValueOnce(
+      new ApiResponseError(
+        400,
+        JSON.stringify({ error: "Passwort zu schwach" }),
+        { contentType: "application/json" },
+      ),
+    );
 
     const request = createMockRequest("/api/auth/password", {
       currentPassword: "Old1234!",
@@ -202,7 +200,7 @@ describe("POST /api/auth/password", () => {
 
     expect(response.status).toBe(500);
     const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Passwortänderung fehlgeschlagen");
+    expect(json.error).toBe("Unexpected error");
   });
 
   it("parses serverFetchWithRetry error with JSON body", async () => {
@@ -243,9 +241,11 @@ describe("POST /api/auth/password", () => {
     expect(json.error).toBe("password doesn't meet complexity requirements");
   });
 
-  it("falls back to generic error when serverFetchWithRetry body is not JSON", async () => {
+  it("forwards a non-JSON backend error body unchanged", async () => {
     mockApiPost.mockRejectedValueOnce(
-      new Error("API error (500): Internal Server Error"),
+      new ApiResponseError(500, "Internal Server Error", {
+        contentType: "text/plain",
+      }),
     );
 
     const request = createMockRequest("/api/auth/password", {
@@ -256,7 +256,7 @@ describe("POST /api/auth/password", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Passwortänderung fehlgeschlagen");
+    expect(response.headers.get("Content-Type")).toBe("text/plain");
+    expect(await response.text()).toBe("Internal Server Error");
   });
 });

@@ -29,6 +29,7 @@ type ParentAnnouncement struct {
 	ReminderAt     *time.Time
 	ReminderText   *string
 	ReminderSentAt *time.Time
+	Declaration    DeclarationSettings
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	Targets        []*ParentAnnouncementTarget

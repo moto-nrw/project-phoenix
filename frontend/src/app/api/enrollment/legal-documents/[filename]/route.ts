@@ -67,7 +67,7 @@ async function DELETEHandler(_request: NextRequest, context: RouteContext) {
     }
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    return handleApiError(error);
+    return handleApiError(error, _request);
   }
 }
 

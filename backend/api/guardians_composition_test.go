@@ -40,7 +40,7 @@ type guardianCompositionContext struct {
 	createNamedGuardian func(firstName, lastName, emailSeed string) (int64, string)
 	// createStudent creates an active student and returns (studentID, personID).
 	createStudent func(firstName, lastName, class string) (int64, int64)
-	// link inserts a students_guardians row with the role preset and returns
+	// link inserts a student guardian relationship with the role preset and returns
 	// the link id.
 	link func(studentID, guardianID int64, role string) int64
 	// linkGrantsPortalAccess reads the stored link's parent_portal.access.
@@ -206,8 +206,7 @@ func setupGuardiansCompositionRoute(t *testing.T, appEnvs ...string) *guardianCo
 				CanPickup bool   `bun:"can_pickup"`
 				Emergency bool   `bun:"is_emergency_contact"`
 			}
-			err := db.NewSelect().
-				TableExpr(`users.students_guardians AS "student_guardian"`).
+			err := testpkg.StudentGuardianLinks(db).
 				ColumnExpr(`"student_guardian".guardian_role, "student_guardian".can_pickup, "student_guardian".is_emergency_contact`).
 				Where(`"student_guardian".id = ?`, linkID).
 				Scan(ctx, &row)
@@ -431,6 +430,35 @@ func TestGuardianComposition_UpdateGuardian(t *testing.T) {
 	data := dataObject(t, rr.Body.Bytes())
 	assert.Equal(t, "Updated", data["first_name"])
 	assert.Equal(t, "Test", data["last_name"], "fields left out of the partial update keep their value")
+}
+
+// Model validation failures are user input, not server faults: they must
+// render as 400 with the German reason instead of a Sentry-reported 500 (#3549).
+func TestGuardianComposition_InvalidContactIsBadRequest(t *testing.T) {
+	t.Parallel()
+	ctx := setupGuardiansCompositionRoute(t)
+	admin := testutil.AdminTestClaims(999)
+	guardianID, phoneID, _ := ctx.createGuardianWithPhones(t)
+
+	for _, tc := range []struct {
+		name, method, path string
+		body               map[string]any
+		reason             string
+	}{
+		{"update with invalid email", http.MethodPut, fmt.Sprintf("/%d", guardianID), map[string]any{"email": "not-an-email"}, "ungültiges E-Mail-Format"},
+		{"update with invalid contact method", http.MethodPut, fmt.Sprintf("/%d", guardianID), map[string]any{"preferred_contact_method": "fax"}, "ungültige bevorzugte Kontaktmethode"},
+		{"create with invalid email", http.MethodPost, "/", map[string]any{"first_name": "Invalid", "last_name": "Email", "email": "not-an-email"}, "ungültiges E-Mail-Format"},
+		{"add phone with invalid format", http.MethodPost, fmt.Sprintf("/%d/phone-numbers", guardianID), map[string]any{"phone_number": "abc"}, "ungültiges Telefonnummer-Format"},
+		{"add blank phone", http.MethodPost, fmt.Sprintf("/%d/phone-numbers", guardianID), map[string]any{"phone_number": "   "}, "Telefonnummer ist erforderlich"},
+		{"update phone with invalid format", http.MethodPut, fmt.Sprintf("/%d/phone-numbers/%d", guardianID, phoneID), map[string]any{"phone_number": "abc"}, "ungültiges Telefonnummer-Format"},
+		{"update phone with too few digits", http.MethodPut, fmt.Sprintf("/%d/phone-numbers/%d", guardianID, phoneID), map[string]any{"phone_number": "12"}, "Telefonnummer muss mindestens 3 Ziffern enthalten"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := ctx.do(t, admin, tc.method, tc.path, tc.body)
+			testutil.AssertBadRequest(t, rr)
+			assert.Equal(t, tc.reason, errorText(t, rr.Body.String()))
+		})
+	}
 }
 
 // ===========================================================================

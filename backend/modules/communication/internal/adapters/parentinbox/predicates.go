@@ -51,6 +51,16 @@ const (
 	afterStaffHandledCursorUM = `(um.created_at, um.id) > (COALESCE(t.staff_handled_up_to_at, '1970-01-01'::timestamptz), COALESCE(t.staff_handled_up_to_message_id, 0))`
 )
 
+// afterStaffClearedCursor* keeps only guardian activity after the staff
+// reader's personal clear boundary, which "Alle als gelesen markieren" moves
+// (#3673). It is a second bound on the staff side only: unlike the read cursor
+// it never feeds the parent-facing receipt, so clearing the numbers does not
+// tell the parents that the OGS read anything.
+const (
+	afterStaffClearedCursorCM = `(cm.created_at, cm.id) > (COALESCE(r.cleared_up_to_at, '1970-01-01'::timestamptz), COALESCE(r.cleared_up_to_message_id, 0))`
+	afterStaffClearedCursorUM = `(um.created_at, um.id) > (COALESCE(r.cleared_up_to_at, '1970-01-01'::timestamptz), COALESCE(r.cleared_up_to_message_id, 0))`
+)
+
 // notReaderAuthored* excludes the reader's OWN plain messages from their unread
 // set. Each carries a single ? bound to the reader's account id at the call
 // site.
@@ -77,6 +87,10 @@ const (
 // guardian queries run under an admin transaction where RLS injects no tenant
 // predicate — a thread_id-only correlated filter would then seq-scan
 // parent_messages once per thread row.
+//
+// The staff column is lifted to at least one while the thread carries the
+// team-wide unread mark (staffMarkedUnreadFloor, #3654). Real unread messages
+// keep their real count, so a new guardian message after the mark adds no +1.
 const (
 	unreadCountPrefix = `(
 		SELECT COUNT(*) FROM users.parent_messages cm
@@ -85,11 +99,15 @@ const (
 	unreadCountSuffix = `
 	) AS unread_count`
 
-	unreadCountForStaff = unreadCountPrefix +
+	staffMarkedUnreadFloor = `CASE WHEN t.staff_marked_unread_at IS NULL THEN 0 ELSE 1 END`
+
+	unreadCountForStaff = `GREATEST(` + unreadCountPrefix +
 		counterpartUnreadCMForStaff + `
 		  AND ` + afterReadCursorCM + `
+		  AND ` + afterStaffClearedCursorCM + `
 		  AND ` + notReaderAuthoredCM + `
-		  AND ` + afterStaffHandledCursorCM + unreadCountSuffix
+		  AND ` + afterStaffHandledCursorCM + `
+	), ` + staffMarkedUnreadFloor + `) AS unread_count`
 
 	unreadCountForGuardian = unreadCountPrefix +
 		counterpartUnreadCMForGuardian + `
@@ -202,9 +220,20 @@ const guardianUnreadExists = `EXISTS (
 	WHERE um.thread_id = t.id AND um.tenant_id = t.tenant_id
 	  AND ` + counterpartUnreadUMForStaff + `
 	  AND ` + afterReadCursorUM + `
+	  AND ` + afterStaffClearedCursorUM + `
 	  AND ` + notReaderAuthoredUM + `
 	  AND ` + afterStaffHandledCursorUM + `
 )`
+
+// staffUnreadThread keeps a thread in the staff inbox's unread filter when it
+// has unread guardian activity OR carries the team-wide unread mark, matching
+// the lifted unread_count column. Carries the single ? of guardianUnreadExists.
+const staffUnreadThread = `(t.staff_marked_unread_at IS NOT NULL OR ` + guardianUnreadExists + `)`
+
+// staffMarkedWithoutUnread selects marked threads whose reader has no real
+// unread message, the ones the aggregate badge must add as one each. Carries
+// the single ? of guardianUnreadExists.
+const staffMarkedWithoutUnread = `(t.staff_marked_unread_at IS NOT NULL AND NOT ` + guardianUnreadExists + `)`
 
 // withTenant applies the defense-in-depth tenant_id filter that complements
 // RLS. A zero tenant leaves the query untouched, which is what the

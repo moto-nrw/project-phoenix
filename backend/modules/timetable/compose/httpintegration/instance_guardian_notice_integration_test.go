@@ -18,22 +18,18 @@ import (
 )
 
 // recordingNoticePublisher stands in for the announcement service: it records
-// what the cancel path hands over and answers the gate from a field.
+// what the cancel path hands over.
 type recordingNoticePublisher struct {
-	enabled   bool
 	published []communication.CareCancellationInput
 }
 
 func (p *recordingNoticePublisher) PublishCareCancellation(_ context.Context, in communication.CareCancellationInput) (*communication.CareCancellationResult, error) {
-	if !p.enabled {
-		return nil, communication.ErrCareCancellationDisabled
-	}
 	p.published = append(p.published, in)
 	return &communication.CareCancellationResult{AnnouncementID: int64(len(p.published)), RecipientCount: len(in.StudentIDs)}, nil
 }
 
 func (p *recordingNoticePublisher) CareCancellationReachFor(_ context.Context, studentIDs []int64) (*communication.CareCancellationReach, error) {
-	return &communication.CareCancellationReach{Enabled: p.enabled, DefaultOn: true, FamilyCount: len(studentIDs)}, nil
+	return &communication.CareCancellationReach{FamilyCount: len(studentIDs)}, nil
 }
 
 // lifecycleGuardianNotices binds Communication's care cancellation notice to
@@ -54,7 +50,7 @@ func (n lifecycleGuardianNotices) NoticeReach(ctx context.Context, studentIDs []
 	if err != nil {
 		return compose.GuardianNoticeAudience{}, err
 	}
-	return compose.GuardianNoticeAudience{Enabled: reach.Enabled, DefaultOn: reach.DefaultOn, FamilyCount: reach.FamilyCount}, nil
+	return compose.GuardianNoticeAudience{FamilyCount: reach.FamilyCount}, nil
 }
 
 func (n lifecycleGuardianNotices) PublishNotice(ctx context.Context, notice compose.GuardianNoticePublication) (compose.GuardianNoticePublished, error) {
@@ -62,8 +58,6 @@ func (n lifecycleGuardianNotices) PublishNotice(ctx context.Context, notice comp
 		StudentIDs: notice.StudentIDs, Title: notice.Title, Body: notice.Body, CreatedBy: notice.CreatedBy,
 	})
 	switch {
-	case errors.Is(err, communication.ErrCareCancellationDisabled):
-		return compose.GuardianNoticePublished{}, fmt.Errorf("%w: %w", timetable.ErrGuardianNoticeDisabled, err)
 	case errors.Is(err, communication.ErrParentAnnouncementValidation):
 		return compose.GuardianNoticePublished{}, fmt.Errorf("%w: %w", timetable.ErrGuardianNoticeInvalid, err)
 	case err != nil:
@@ -105,7 +99,7 @@ func noticeInput(instanceID int64, actor int64, notice *timetable.GuardianNotice
 func TestCancelWithNotice_PublishesForBookedChildrenOnly(t *testing.T) {
 	t.Parallel()
 	s := buildLifecycle(t)
-	publisher := &recordingNoticePublisher{enabled: true}
+	publisher := &recordingNoticePublisher{}
 	svc := instanceServiceWithGuardianNotices(t, s, publisher)
 	instance, child1, child2 := seedNoticeInstance(t, s, calendar.TodayDate().AddDays(1))
 	actor := testpkg.CreateTestAccount(t, s.db, "cancel-actor")
@@ -130,7 +124,7 @@ func TestCancelWithNotice_PublishesForBookedChildrenOnly(t *testing.T) {
 func TestCancelWithNotice_NilNoticeCancelsSilently(t *testing.T) {
 	t.Parallel()
 	s := buildLifecycle(t)
-	publisher := &recordingNoticePublisher{enabled: true}
+	publisher := &recordingNoticePublisher{}
 	svc := instanceServiceWithGuardianNotices(t, s, publisher)
 	instance, _, _ := seedNoticeInstance(t, s, calendar.TodayDate().AddDays(1))
 	actor := testpkg.CreateTestAccount(t, s.db, "cancel-actor")
@@ -145,7 +139,7 @@ func TestCancelWithNotice_NilNoticeCancelsSilently(t *testing.T) {
 func TestCancelWithNotice_RefusesBeforeCancellingWhenInvalid(t *testing.T) {
 	t.Parallel()
 	s := buildLifecycle(t)
-	publisher := &recordingNoticePublisher{enabled: true}
+	publisher := &recordingNoticePublisher{}
 	svc := instanceServiceWithGuardianNotices(t, s, publisher)
 	actor := testpkg.CreateTestAccount(t, s.db, "cancel-actor")
 
@@ -191,35 +185,23 @@ func TestCancelWithNotice_RefusesBeforeCancellingWhenInvalid(t *testing.T) {
 		require.ErrorIs(t, err, timetable.ErrGuardianNoticeInvalid)
 	})
 
-	t.Run("school switched it off", func(t *testing.T) {
-		instance, _, _ := seedNoticeInstance(t, s, calendar.TodayDate().AddDays(1))
-		publisher.enabled = false
-		defer func() { publisher.enabled = true }()
-		_, err := svc.CancelWithNotice(s.ctx, noticeInput(instance.ID, actor.ID, &timetable.GuardianNoticeInput{Title: "x", Message: "y"}))
-		require.ErrorIs(t, err, timetable.ErrGuardianNoticeDisabled)
-		reloaded, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)
-		require.NoError(t, err)
-		assert.Equal(t, scheduleModels.InstanceStatusPlanned, reloaded.Status)
-	})
 	assert.Empty(t, publisher.published)
 }
 
 func TestGuardianNoticeReachFor_CountsBookedChildren(t *testing.T) {
 	t.Parallel()
 	s := buildLifecycle(t)
-	publisher := &recordingNoticePublisher{enabled: true}
+	publisher := &recordingNoticePublisher{}
 	svc := instanceServiceWithGuardianNotices(t, s, publisher)
 	instance, _, _ := seedNoticeInstance(t, s, calendar.TodayDate().AddDays(1))
 
 	reach, err := svc.GuardianNoticeReachFor(s.ctx, instance.ID)
 	require.NoError(t, err)
-	assert.True(t, reach.Enabled)
-	assert.True(t, reach.DefaultOn)
 	assert.Equal(t, 2, reach.ChildCount)
 	assert.Equal(t, 2, reach.FamilyCount)
 }
 
-func TestGuardianNoticeReachFor_WithoutPublisherReportsDisabled(t *testing.T) {
+func TestGuardianNoticeReachFor_WithoutPublisherReportsNoReach(t *testing.T) {
 	t.Parallel()
 	s := buildLifecycle(t)
 	svc := instanceServiceWithBroadcaster(t, s, nil)
@@ -227,5 +209,24 @@ func TestGuardianNoticeReachFor_WithoutPublisherReportsDisabled(t *testing.T) {
 
 	reach, err := svc.GuardianNoticeReachFor(s.ctx, instance.ID)
 	require.NoError(t, err)
-	assert.False(t, reach.Enabled)
+	assert.Zero(t, reach.ChildCount)
+	assert.Zero(t, reach.FamilyCount)
+}
+
+// A notice asked for without a wired publisher is a composition error. The
+// school cannot switch the notice off any more (#3731), so this is never a
+// user-facing refusal, and the block must stay planned.
+func TestCancelWithNotice_WithoutPublisherRefusesBeforeCancelling(t *testing.T) {
+	t.Parallel()
+	s := buildLifecycle(t)
+	svc := instanceServiceWithBroadcaster(t, s, nil)
+	actor := testpkg.CreateTestAccount(t, s.db, "notice-unwired")
+	instance, _, _ := seedNoticeInstance(t, s, calendar.TodayDate().AddDays(1))
+
+	_, err := svc.CancelWithNotice(s.ctx, noticeInput(instance.ID, actor.ID, &timetable.GuardianNoticeInput{Title: "x", Message: "y"}))
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, timetable.ErrGuardianNoticeInvalid)
+	reloaded, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.InstanceStatusPlanned, reloaded.Status)
 }

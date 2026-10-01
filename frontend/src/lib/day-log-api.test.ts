@@ -91,15 +91,28 @@ describe("fetchDayLog", () => {
     );
   });
 
-  it("maps a known backend error code onto DayLogError", async () => {
+  it("keeps the legacy display code while carrying the backend code", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({ error: "feature_disabled" }, { status: 403 }),
+      jsonResponse(
+        {
+          error: "feature_disabled",
+          code: "students.day_log_disabled",
+          details: { setting: "day_log" },
+          errors: [{ field: "date", reason: "unavailable" }],
+          instance: "request-day-log-403",
+        },
+        { status: 403 },
+      ),
     );
 
     const failure = fetchDayLog("2026-07-24");
     await expect(failure).rejects.toBeInstanceOf(DayLogError);
     await expect(failure).rejects.toMatchObject({
-      code: "feature_disabled",
+      legacyCode: "feature_disabled",
+      code: "students.day_log_disabled",
+      details: { setting: "day_log" },
+      errors: [{ field: "date", reason: "unavailable" }],
+      requestId: "request-day-log-403",
       message: "day log request failed (403)",
     });
   });
@@ -114,10 +127,12 @@ describe("fetchDayLog", () => {
       );
 
     await expect(fetchDayLog("2026-07-24", "9")).rejects.toMatchObject({
-      code: "not_group_supervisor",
+      legacyCode: "not_group_supervisor",
+      code: "general.permission",
     });
     await expect(fetchDayLog("2026-07-24")).rejects.toMatchObject({
-      code: "no_permitted_groups",
+      legacyCode: "no_permitted_groups",
+      code: "general.permission",
     });
   });
 
@@ -127,7 +142,8 @@ describe("fetchDayLog", () => {
     );
 
     await expect(fetchDayLog("2026-07-24")).rejects.toMatchObject({
-      code: "unknown",
+      legacyCode: "unknown",
+      code: "general.server",
     });
   });
 
@@ -137,7 +153,8 @@ describe("fetchDayLog", () => {
     );
 
     await expect(fetchDayLog("2026-07-24")).rejects.toMatchObject({
-      code: "unknown",
+      legacyCode: "unknown",
+      code: "general.unavailable",
       message: "day log request failed (504)",
     });
   });
@@ -179,6 +196,8 @@ describe("DayLogError", () => {
     const error = new DayLogError("invalid_request");
     expect(error.name).toBe("DayLogError");
     expect(error.message).toBe("invalid_request");
+    expect(error.legacyCode).toBe("invalid_request");
+    expect(error.code).toBeUndefined();
   });
 });
 

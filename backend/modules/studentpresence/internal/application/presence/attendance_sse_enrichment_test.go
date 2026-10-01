@@ -99,8 +99,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		ActiveGroupID:   &activeGroup.ID,
 	}
 	instance.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	isRepo := repos.InstanceStudent
 	row := &scheduleModels.InstanceStudent{
@@ -159,8 +158,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		ActiveGroupID:   &targetGroup.ID,
 	}
 	targetInstance.SetTenantID(testpkg.Tenant(t))
-	_, err = db.NewInsert().Model(targetInstance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, targetInstance)
 
 	targetRow := &scheduleModels.InstanceStudent{
 		InstanceID: targetInstance.ID,

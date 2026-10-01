@@ -31,6 +31,7 @@ type APIError struct {
 	Code       string
 	Message    string
 	Body       string
+	RetryAfter string
 }
 
 func (e *APIError) Error() string {

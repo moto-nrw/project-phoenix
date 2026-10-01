@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 )
@@ -18,7 +19,6 @@ var (
 	ErrParentAnnouncementNothingDue      = errors.New("announcement: nothing is outstanding for this announcement")
 	ErrParentAnnouncementNotPoll         = errors.New("announcement: not a poll")
 	ErrParentAnnouncementPollClosed      = errors.New("announcement: poll is not open for answers")
-	ErrCareCancellationDisabled          = errors.New("announcement: cancellation notice is disabled for this school")
 	// ErrParentAnnouncementReminderSent: the scheduled reminder already went
 	// out; its moment and wording can no longer be changed or removed (#3162).
 	ErrParentAnnouncementReminderSent = errors.New("announcement: the reminder has already been sent")
@@ -48,6 +48,8 @@ type ParentAnnouncementInput struct {
 	// delivery. Both nil = no reminder.
 	ReminderAt   *time.Time
 	ReminderText *string
+	// Declaration configures an Erklärung (delivery_mode "declaration", #3430).
+	Declaration ParentDeclarationSettings
 }
 
 // ParentAnnouncementReminderInput is the one edit a published announcement
@@ -81,6 +83,9 @@ type ParentAnnouncement struct {
 	ReminderAt              *time.Time
 	ReminderText            *string
 	ReminderSentAt          *time.Time
+	Declaration             ParentDeclarationSettings
+	// DeclarationFrozen: a version exists, so the attachments are fixed.
+	DeclarationFrozen bool
 }
 
 type ParentAnnouncementTarget struct {
@@ -213,14 +218,24 @@ type CareCancellationResult struct {
 }
 
 type CareCancellationReach struct {
-	Enabled     bool
-	DefaultOn   bool
 	FamilyCount int
 }
 
 type ParentAnnouncementAttachmentPurger interface {
 	QueueAttachmentCleanupForAnnouncement(context.Context, int64) error
 	CountAttachments(context.Context, int64) (int, error)
+	AttachmentDigests(context.Context, int64, func(io.Reader) (string, int64, error)) ([]ParentAnnouncementAttachmentDigest, error)
+}
+
+// ParentAnnouncementAttachmentDigest identifies one attachment by content
+// (#3430). An alias of an unnamed struct, identical to File Storage's
+// AttachmentDigest, so neither module imports the other.
+type ParentAnnouncementAttachmentDigest = struct {
+	AttachmentID int64
+	Filename     string
+	ContentType  string
+	SizeBytes    int64
+	SHA256       string
 }
 
 type CareCancellationPublisher interface {
@@ -262,6 +277,7 @@ type ParentAnnouncementCapability interface {
 	SendDueParentAnnouncementReminders(ctx context.Context, notBefore, dueBefore time.Time) (sent int, retryFrom *time.Time, err error)
 	CareCancellationPublisher
 	ParentAnnouncementAttachmentSupport
+	ParentDeclarationCapability
 }
 
 func ValidateCareCancellationText(title, body string) (string, string, error) {

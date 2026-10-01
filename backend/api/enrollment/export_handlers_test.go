@@ -21,7 +21,6 @@ import (
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
@@ -81,7 +80,7 @@ func TestParsePhaseExportRequest(t *testing.T) {
 // sampleExport builds an in-memory PhaseExport (no DB) covering the
 // shapes the renderers must handle: guardian + child custom fields,
 // a select with an option label, consents, and an offering.
-func sampleExport() *enrollmentService.PhaseExport {
+func sampleExport() *PhaseExport {
 	schema := &capability.FormSchema{
 		Fields: []capability.FormField{
 			{Key: "notes", Label: "Hinweise", Type: capability.FormFieldText, SortOrder: 1},
@@ -108,7 +107,7 @@ func sampleExport() *enrollmentService.PhaseExport {
 	}
 
 	grade := int16(1)
-	child := &enrollmentService.RequestChild{
+	child := &RequestChild{
 		FirstName:        "Lina",
 		LastName:         "Muster",
 		DateOfBirth:      "2018-05-12",
@@ -118,20 +117,20 @@ func sampleExport() *enrollmentService.PhaseExport {
 		CustomData:       map[string]any{"bus": true, "meal": "veg"},
 	}
 
-	offerings := []enrollmentService.ChildOfferingRow{
+	offerings := []ChildOfferingRow{
 		{OfferingName: "Kernzeit", AvailableDays: []string{"mon", "tue"}},
 	}
 
-	return &enrollmentService.PhaseExport{
+	return &PhaseExport{
 		Phase:   &capability.Phase{Name: "Schuljahr 2026/27"},
 		Schemas: map[int64]*capability.FormSchema{schema.ID: schema},
-		Rows: []enrollmentService.ExportRequestRow{
-			{Request: req, Children: []enrollmentService.ExportChildRow{{Child: child, Offerings: offerings}}},
+		Rows: []ExportRequestRow{
+			{Request: req, Children: []ExportChildRow{{Child: child, Offerings: offerings}}},
 		},
 	}
 }
 
-func sampleStudentEnrollmentExport() *enrollmentService.StudentEnrollmentExport {
+func sampleStudentEnrollmentExport() *StudentEnrollmentExport {
 	data := sampleExport()
 	phase := data.Phase
 	phase.ID = 7801
@@ -139,7 +138,7 @@ func sampleStudentEnrollmentExport() *enrollmentService.StudentEnrollmentExport 
 	withdrawnAt := time.Date(2026, 6, 2, 9, 30, 0, 0, time.UTC)
 	data.Rows[0].Request.WithdrawnAt = &withdrawnAt
 
-	return &enrollmentService.StudentEnrollmentExport{
+	return &StudentEnrollmentExport{
 		StudentID: 8801,
 		Schemas:   data.Schemas,
 		Phases:    map[int64]*capability.Phase{phase.ID: phase},
@@ -426,7 +425,7 @@ func TestPhaseExport_IncludesAdditionalGuardians(t *testing.T) {
 	}
 }
 
-func statusExportSample() *enrollmentService.PhaseExport {
+func statusExportSample() *PhaseExport {
 	mkReq := func(first, last string) *enrollmentModels.Request {
 		return &enrollmentModels.Request{
 			GuardianFirstName: first,
@@ -436,24 +435,24 @@ func statusExportSample() *enrollmentService.PhaseExport {
 			ConsentFlags:      map[string]any{},
 		}
 	}
-	mkChild := func(first, last, status string) enrollmentService.ExportChildRow {
-		return enrollmentService.ExportChildRow{Child: &enrollmentService.RequestChild{
+	mkChild := func(first, last, status string) ExportChildRow {
+		return ExportChildRow{Child: &RequestChild{
 			FirstName:   first,
 			LastName:    last,
 			DateOfBirth: "2018-01-01",
 			Status:      status,
 		}}
 	}
-	return &enrollmentService.PhaseExport{
+	return &PhaseExport{
 		Phase: &capability.Phase{Name: "P"},
-		Rows: []enrollmentService.ExportRequestRow{
-			{Request: mkReq("Gesa", "Submitted"), Children: []enrollmentService.ExportChildRow{mkChild("Sina", "Ziegler", enrollmentModels.ChildStatusSubmitted)}},
-			{Request: mkReq("Gesa", "Approved"), Children: []enrollmentService.ExportChildRow{
+		Rows: []ExportRequestRow{
+			{Request: mkReq("Gesa", "Submitted"), Children: []ExportChildRow{mkChild("Sina", "Ziegler", enrollmentModels.ChildStatusSubmitted)}},
+			{Request: mkReq("Gesa", "Approved"), Children: []ExportChildRow{
 				mkChild("Aaron", "Meyer", enrollmentModels.ChildStatusApproved),
 				mkChild("Lena", "Alt", enrollmentModels.ChildStatusApproved),
 			}},
-			{Request: mkReq("Gesa", "Rejected"), Children: []enrollmentService.ExportChildRow{mkChild("Ben", "Rose", enrollmentModels.ChildStatusRejected)}},
-			{Request: mkReq("Gesa", "Waitlist"), Children: []enrollmentService.ExportChildRow{mkChild("Mia", "Klein", enrollmentModels.ChildStatusWaitlisted)}},
+			{Request: mkReq("Gesa", "Rejected"), Children: []ExportChildRow{mkChild("Ben", "Rose", enrollmentModels.ChildStatusRejected)}},
+			{Request: mkReq("Gesa", "Waitlist"), Children: []ExportChildRow{mkChild("Mia", "Klein", enrollmentModels.ChildStatusWaitlisted)}},
 		},
 	}
 }
@@ -527,8 +526,8 @@ func TestBuildPhaseExportTable_InsertsStatusGroupRows(t *testing.T) {
 func TestBuildPhaseExportRecords_OrdersChildrenBySurname(t *testing.T) {
 	t.Parallel()
 
-	mk := func(first, last string) enrollmentService.ExportChildRow {
-		return enrollmentService.ExportChildRow{Child: &enrollmentService.RequestChild{
+	mk := func(first, last string) ExportChildRow {
+		return ExportChildRow{Child: &RequestChild{
 			FirstName: first, LastName: last,
 			Status:      enrollmentModels.ChildStatusApproved,
 			DateOfBirth: "2018-01-01",
@@ -536,12 +535,12 @@ func TestBuildPhaseExportRecords_OrdersChildrenBySurname(t *testing.T) {
 	}
 	reqA := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "A", SubmittedAt: time.Now()}
 	reqB := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "B", SubmittedAt: time.Now()}
-	data := &enrollmentService.PhaseExport{
+	data := &PhaseExport{
 		Phase: &capability.Phase{Name: "P"},
-		Rows: []enrollmentService.ExportRequestRow{
+		Rows: []ExportRequestRow{
 			// Submission order is deliberately NOT alphabetical.
-			{Request: reqB, Children: []enrollmentService.ExportChildRow{mk("Max", "Muster"), mk("Lina", "Muster")}},
-			{Request: reqA, Children: []enrollmentService.ExportChildRow{mk("Ava", "schmidt"), mk("Tim", "Braun")}},
+			{Request: reqB, Children: []ExportChildRow{mk("Max", "Muster"), mk("Lina", "Muster")}},
+			{Request: reqA, Children: []ExportChildRow{mk("Ava", "schmidt"), mk("Tim", "Braun")}},
 		},
 	}
 
@@ -562,8 +561,8 @@ func TestBuildPhaseExportRecords_OrdersChildrenBySurname(t *testing.T) {
 func TestPhaseExport_PDFAndXLSXShareRowOrder(t *testing.T) {
 	t.Parallel()
 
-	mk := func(first, last string) enrollmentService.ExportChildRow {
-		return enrollmentService.ExportChildRow{Child: &enrollmentService.RequestChild{
+	mk := func(first, last string) ExportChildRow {
+		return ExportChildRow{Child: &RequestChild{
 			FirstName: first, LastName: last,
 			Status:      enrollmentModels.ChildStatusApproved,
 			DateOfBirth: "2018-01-01",
@@ -571,11 +570,11 @@ func TestPhaseExport_PDFAndXLSXShareRowOrder(t *testing.T) {
 	}
 	reqA := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "A", SubmittedAt: time.Now()}
 	reqB := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "B", SubmittedAt: time.Now()}
-	data := &enrollmentService.PhaseExport{
+	data := &PhaseExport{
 		Phase: &capability.Phase{Name: "P"},
-		Rows: []enrollmentService.ExportRequestRow{
-			{Request: reqB, Children: []enrollmentService.ExportChildRow{mk("Max", "Muster"), mk("Lina", "Muster")}},
-			{Request: reqA, Children: []enrollmentService.ExportChildRow{mk("Ava", "schmidt"), mk("Tim", "Braun")}},
+		Rows: []ExportRequestRow{
+			{Request: reqB, Children: []ExportChildRow{mk("Max", "Muster"), mk("Lina", "Muster")}},
+			{Request: reqA, Children: []ExportChildRow{mk("Ava", "schmidt"), mk("Tim", "Braun")}},
 		},
 	}
 
@@ -607,9 +606,9 @@ func TestPhaseExport_PDFAndXLSXShareRowOrder(t *testing.T) {
 func TestBuildPhaseExportRecords_ChildlessRegistrationKeepsGuardian(t *testing.T) {
 	t.Parallel()
 
-	data := &enrollmentService.PhaseExport{
+	data := &PhaseExport{
 		Phase: &capability.Phase{Name: "P"},
-		Rows: []enrollmentService.ExportRequestRow{
+		Rows: []ExportRequestRow{
 			{Request: &enrollmentModels.Request{
 				GuardianFirstName: "Solo", GuardianLastName: "Parent",
 				GuardianEmail: "solo@example.test", SubmittedAt: time.Now(),
@@ -769,29 +768,29 @@ func TestParseCareUsageExportRequestTreatsEmptyCareOfferingIDsAsExplicit(t *test
 func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 	t.Parallel()
 
-	report := &enrollmentService.CareUsageReport{
-		Phase: enrollmentService.CareUsagePhase{ID: 9007199254740993, Name: "Demo"},
-		Filters: enrollmentService.CareUsageAppliedFilters{
+	report := &capability.CareUsageReport{
+		Phase: capability.CareUsagePhase{ID: 9007199254740993, Name: "Demo"},
+		Filters: capability.CareUsageAppliedFilters{
 			PhaseID:         9007199254740993,
 			Status:          "all",
 			CareOfferingIDs: []int64{9007199254740995},
 			Weekday:         "mon",
 			PickupTime:      "14:30",
 		},
-		Totals: enrollmentService.CareUsageTotals{
+		Totals: capability.CareUsageTotals{
 			Children:            1,
 			ByDayCount:          map[string]int{"1": 1},
 			ByWeekdayPickupTime: map[string]map[string]int{"mon": {"14:30": 1}},
 		},
-		ByOffering: []enrollmentService.CareUsageOfferingStat{
+		ByOffering: []capability.CareUsageOfferingStat{
 			{OfferingID: 9007199254740995, OfferingName: "OGS", Children: 1, ByDayCount: map[string]int{"1": 1}},
 		},
-		FilterOptions: enrollmentService.CareUsageFilterOptions{
-			Offerings: []enrollmentService.CareUsageOfferingOption{
+		FilterOptions: capability.CareUsageFilterOptions{
+			Offerings: []capability.CareUsageOfferingOption{
 				{ID: 9007199254740995, Name: "OGS"},
 			},
 		},
-		Rows: []enrollmentService.CareUsageRow{
+		Rows: []capability.CareUsageRow{
 			{
 				RequestID:         9007199254740997,
 				ChildID:           9007199254740999,
@@ -806,7 +805,7 @@ func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 				GuardianLastName:  "Muster",
 				GuardianEmail:     "eva@example.test",
 				SubmittedAt:       time.Date(2026, 6, 18, 11, 15, 0, 0, time.UTC),
-				Offerings: []enrollmentService.CareUsageRowOffering{
+				Offerings: []capability.CareUsageRowOffering{
 					{ID: 9007199254740995, Name: "OGS", Days: []string{"mon"}, DaysSource: "selected", DaysOfWeekMode: "parent_choice"},
 				},
 			},
@@ -838,10 +837,10 @@ func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 func TestCareUsageReportResponseSerializesExplicitEmptyCareOfferingIDs(t *testing.T) {
 	t.Parallel()
 
-	report := &enrollmentService.CareUsageReport{
-		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
-		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all", CareOfferingIDs: []int64{}},
-		Totals:  enrollmentService.CareUsageTotals{ByDayCount: map[string]int{"0": 1}},
+	report := &capability.CareUsageReport{
+		Phase:   capability.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: capability.CareUsageAppliedFilters{PhaseID: 42, Status: "all", CareOfferingIDs: []int64{}},
+		Totals:  capability.CareUsageTotals{ByDayCount: map[string]int{"0": 1}},
 	}
 
 	raw, err := json.Marshal(toCareUsageReportResponse(report))
@@ -856,14 +855,14 @@ func TestCareUsageReportResponseSerializesExplicitEmptyCareOfferingIDs(t *testin
 func TestCareUsageReportResponseSerializesEmptyDaySlicesAsArrays(t *testing.T) {
 	t.Parallel()
 
-	report := &enrollmentService.CareUsageReport{
-		Phase: enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
-		Filters: enrollmentService.CareUsageAppliedFilters{
+	report := &capability.CareUsageReport{
+		Phase: capability.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: capability.CareUsageAppliedFilters{
 			PhaseID: 42,
 			Status:  "all",
 		},
-		Totals: enrollmentService.CareUsageTotals{ByDayCount: map[string]int{"0": 1}},
-		Rows: []enrollmentService.CareUsageRow{
+		Totals: capability.CareUsageTotals{ByDayCount: map[string]int{"0": 1}},
+		Rows: []capability.CareUsageRow{
 			{
 				RequestID:         10,
 				ChildID:           20,
@@ -877,7 +876,7 @@ func TestCareUsageReportResponseSerializesEmptyDaySlicesAsArrays(t *testing.T) {
 				GuardianLastName:  "Muster",
 				GuardianEmail:     "eva@example.test",
 				SubmittedAt:       time.Date(2026, 6, 18, 11, 15, 0, 0, time.UTC),
-				Offerings: []enrollmentService.CareUsageRowOffering{
+				Offerings: []capability.CareUsageRowOffering{
 					{ID: 1, Name: "OGS", Days: nil, DaysSource: "selected", DaysOfWeekMode: "parent_choice"},
 				},
 			},
@@ -899,11 +898,11 @@ func TestCareUsageReportResponseSerializesEmptyDaySlicesAsArrays(t *testing.T) {
 func TestCareUsageReportResponseSerializesDayProvenance(t *testing.T) {
 	t.Parallel()
 
-	report := &enrollmentService.CareUsageReport{
-		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
-		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
-		Totals:  enrollmentService.CareUsageTotals{ByDayCount: map[string]int{"5": 1}},
-		Rows: []enrollmentService.CareUsageRow{
+	report := &capability.CareUsageReport{
+		Phase:   capability.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: capability.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
+		Totals:  capability.CareUsageTotals{ByDayCount: map[string]int{"5": 1}},
+		Rows: []capability.CareUsageRow{
 			{
 				RequestID:         10,
 				ChildID:           20,
@@ -917,7 +916,7 @@ func TestCareUsageReportResponseSerializesDayProvenance(t *testing.T) {
 				GuardianLastName:  "Muster",
 				GuardianEmail:     "eva@example.test",
 				SubmittedAt:       time.Date(2026, 6, 18, 11, 15, 0, 0, time.UTC),
-				Offerings: []enrollmentService.CareUsageRowOffering{
+				Offerings: []capability.CareUsageRowOffering{
 					{
 						ID:                    1,
 						Name:                  "Randstunde",
@@ -947,7 +946,7 @@ func TestCareUsageReportResponseSerializesDayProvenance(t *testing.T) {
 func TestCareUsageOfferingDayDetailsIncludesDayProvenance(t *testing.T) {
 	t.Parallel()
 
-	got := careUsageOfferingDayDetails([]enrollmentService.CareUsageRowOffering{
+	got := careUsageOfferingDayDetails([]capability.CareUsageRowOffering{
 		{
 			Name:                  "Randstunde",
 			Days:                  []string{"mon", "tue", "wed", "thu", "fri"},
@@ -965,10 +964,10 @@ func TestCareUsageOfferingDayDetailsIncludesDayProvenance(t *testing.T) {
 func TestBuildCareUsageRecordDocumentUsesPickupPlanningBuckets(t *testing.T) {
 	t.Parallel()
 
-	report := &enrollmentService.CareUsageReport{
-		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
-		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
-		Totals: enrollmentService.CareUsageTotals{
+	report := &capability.CareUsageReport{
+		Phase:   capability.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: capability.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
+		Totals: capability.CareUsageTotals{
 			Children: 3,
 			ByWeekdayPickupTime: map[string]map[string]int{
 				"mon": {"15:30": 2, "16:00": 1},
@@ -976,7 +975,7 @@ func TestBuildCareUsageRecordDocumentUsesPickupPlanningBuckets(t *testing.T) {
 				"fri": {"16:00": 3},
 			},
 		},
-		FilterOptions: enrollmentService.CareUsageFilterOptions{
+		FilterOptions: capability.CareUsageFilterOptions{
 			PickupTimes: []string{"14:45", "15:30"},
 		},
 	}
@@ -999,10 +998,10 @@ func TestBuildCareUsageRecordDocumentUsesPickupPlanningBuckets(t *testing.T) {
 func TestBuildCareUsageExportFile_DOCX(t *testing.T) {
 	t.Parallel()
 
-	report := &enrollmentService.CareUsageReport{
-		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
-		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
-		Totals: enrollmentService.CareUsageTotals{
+	report := &capability.CareUsageReport{
+		Phase:   capability.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: capability.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
+		Totals: capability.CareUsageTotals{
 			Children:   0,
 			ByDayCount: map[string]int{"1": 0, "2": 0, "3": 0, "4": 0, "5": 0},
 		},
@@ -1261,7 +1260,7 @@ func TestExportPhaseRegistrations_ServiceErrorIs500(t *testing.T) {
 func TestExportStudentEnrollmentRequests_StudentNotFoundIs404(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockDecisionService{exportStudentErr: enrollmentService.ErrDecisionStudentNotFound}
+	mock := &mockDecisionService{exportStudentErr: capability.ErrDecisionStudentNotFound}
 	rs := &Resource{DecisionService: mock, ListExportService: listexport.NewService()}
 	router := buildExportRouter(rs, jwt.AppClaims{
 		ID:    exportTestActorID,

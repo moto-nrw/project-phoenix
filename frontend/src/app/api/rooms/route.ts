@@ -109,29 +109,10 @@ export const GET = createGetHandler(
         },
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      const logContext = {
-        error: errorMessage,
-        ...(errorMessage.includes("API error (429)") && {
-          rate_limited: true,
-        }),
-      };
-      if (logContext.rate_limited) {
-        logger.warn("rooms fetch failed", logContext);
-      } else {
-        logger.error("rooms fetch failed", logContext);
-      }
-      // Return empty response with pagination
-      return {
-        data: [],
-        pagination: {
-          current_page: 1,
-          page_size: 50,
-          total_pages: 1,
-          total_records: 0,
-        },
-      };
+      logger.warn("rooms fetch failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     }
   },
 );
@@ -152,36 +133,6 @@ export const POST = createPostHandler<BackendRoom, RoomCreateRequest>(
       throw new Error("Capacity must be greater than 0");
     }
 
-    try {
-      // Create the room via the API
-      return await apiPost<BackendRoom>("/api/rooms", token, body);
-    } catch (error) {
-      // Check for permission errors (403 Forbidden)
-      if (error instanceof Error && error.message.includes("403")) {
-        logger.error("permission denied when creating room", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        throw new Error(
-          "Permission denied: You need the 'rooms:create' permission to create rooms.",
-          { cause: error },
-        );
-      }
-
-      // Check for validation errors
-      if (error instanceof Error && error.message.includes("400")) {
-        const errorMessage = error.message;
-        logger.error("validation error when creating room", {
-          error: errorMessage,
-        });
-
-        // Extract specific error message if possible
-        if (errorMessage.includes("name: cannot be blank")) {
-          throw new Error("Room name cannot be blank", { cause: error });
-        }
-      }
-
-      // Re-throw other errors
-      throw error;
-    }
+    return apiPost<BackendRoom>("/api/rooms", token, body);
   },
 );

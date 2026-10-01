@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 /**
  * Client for the per-account notification consent API.
  *
@@ -43,12 +44,12 @@ const notificationPreferencesEnvelopeSchema = z.object({
   data: notificationPreferencesSchema,
 });
 
-class PreferencesApiError extends Error {
+class PreferencesApiError extends ApiError {
   constructor(
     public status: number,
     message: string,
   ) {
-    super(message);
+    super(message, status);
     this.name = "PreferencesApiError";
   }
 }
@@ -88,7 +89,10 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
       data && typeof data === "object" && "error" in data
         ? String((data as { error: unknown }).error)
         : `Einstellung konnte nicht geladen werden (${response.status}).`;
-    throw new PreferencesApiError(response.status, message);
+    throw enrichApiError(
+      new PreferencesApiError(response.status, message),
+      data,
+    );
   }
   return data as T;
 }
@@ -120,4 +124,36 @@ export async function disableAllNotificationPreferences(
   portal: PreferencePortal = "tenant",
 ): Promise<void> {
   await requestJson<void>(basePath(portal), { method: "DELETE" });
+}
+
+/**
+ * Opt-in e-mails to staff (#3780), decided where their event happens rather
+ * than on the profile page. The backend checks the type's permission.
+ */
+const emailSubscriptionSchema = z.object({ enabled: z.boolean() });
+const emailSubscriptionEnvelopeSchema = z.object({
+  data: emailSubscriptionSchema,
+});
+
+function emailSubscriptionPath(type: string): string {
+  return `/api/notifications/email-subscriptions/${encodeURIComponent(type)}`;
+}
+
+export async function fetchEmailSubscription(type: string): Promise<boolean> {
+  const response = await requestJson<unknown>(emailSubscriptionPath(type), {
+    cache: "no-store",
+  });
+  const direct = emailSubscriptionSchema.safeParse(response);
+  if (direct.success) return direct.data.enabled;
+  return emailSubscriptionEnvelopeSchema.parse(response).data.enabled;
+}
+
+export async function setEmailSubscription(
+  type: string,
+  enabled: boolean,
+): Promise<void> {
+  await requestJson<void>(emailSubscriptionPath(type), {
+    method: "PUT",
+    body: JSON.stringify({ enabled }),
+  });
 }

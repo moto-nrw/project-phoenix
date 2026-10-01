@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { REQUEST_ID_HEADER } from "~/lib/request-id";
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 import { LOCALE_SCOPE_HEADER } from "~/i18n/locales";
 
@@ -133,6 +134,9 @@ function preserveOriginalRequestTarget(
   const host = originalHost(request);
   if (host) headers.set(ORIGINAL_HOST_HEADER, host);
   headers.set(ORIGINAL_PROTO_HEADER, originalProtocol(request));
+  // A fresh Vorgangskennung per request, never the client's value: the BFF
+  // tags its Sentry events with it and forwards it to the backend.
+  headers.set(REQUEST_ID_HEADER, crypto.randomUUID());
   return headers;
 }
 
@@ -880,6 +884,8 @@ function routeRequest(request: NextRequest): NextResponse {
 export const config = {
   matcher: [
     // Next.js requires a literal so it can statically analyze the matcher.
-    "/((?!_next/static|_next/image|favicon\\.ico|favicon\\.png|apple-touch-icon\\.png|site\\.webmanifest|manifest\\.webmanifest|sw\\.js|favicons/|icons/|images/).*)",
+    // downloads/ holds public files that mails link on every host, such as
+    // the Elterninfo on the parents host (#3534).
+    "/((?!_next/static|_next/image|favicon\\.ico|favicon\\.png|apple-touch-icon\\.png|site\\.webmanifest|manifest\\.webmanifest|sw\\.js|favicons/|icons/|images/|downloads/).*)",
   ],
 };

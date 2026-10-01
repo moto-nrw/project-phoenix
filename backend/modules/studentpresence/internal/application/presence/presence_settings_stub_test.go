@@ -18,12 +18,16 @@ type presenceSettingsStub struct {
 	attendanceEditScope      string
 	operationalOverviewScope string
 	inactivityTimeoutMinutes int
+	// webParticipantLimitEnforced is the negated #3632 setting; the zero value
+	// is the registry default (exceeding the limit on the web is allowed).
+	webParticipantLimitEnforced bool
 
 	presenceModeErr             error
 	sickClearModeErr            error
 	excusedClearModeErr         error
 	attendanceEditScopeErr      error
 	operationalOverviewScopeErr error
+	webParticipantLimitErr      error
 
 	// Answers that depend on what the test has already done take a function
 	// instead of a fixed value.
@@ -67,6 +71,10 @@ func (s presenceSettingsStub) OperationalOverviewScope(context.Context) (string,
 	return s.operationalOverviewScope, s.operationalOverviewScopeErr
 }
 
+func (s presenceSettingsStub) WebParticipantLimitEnforced(context.Context) (bool, error) {
+	return s.webParticipantLimitEnforced, s.webParticipantLimitErr
+}
+
 // defaultPresenceSettings answers every question with the value an
 // unconfigured tenant gets. That these are the registry defaults is asserted
 // where the settings ports are bound; tests that only need "a tenant that
@@ -74,7 +82,7 @@ func (s presenceSettingsStub) OperationalOverviewScope(context.Context) (string,
 func defaultPresenceSettings() presenceSettingsStub {
 	return presenceSettingsStub{
 		presenceMode:             active.PresenceModeDetailed,
-		sickClearMode:            active.ClearModeNextCheckin,
+		sickClearMode:            "end_of_day",
 		excusedClearMode:         "end_of_day",
 		attendanceEditScope:      active.AttendanceEditScopeOwn,
 		operationalOverviewScope: active.OverviewScopeAllStaff,

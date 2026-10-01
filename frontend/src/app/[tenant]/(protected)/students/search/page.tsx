@@ -82,6 +82,7 @@ import {
   deriveCheckinState,
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
+import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import type { SchoolCheckinAction } from "~/lib/student-api";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
@@ -103,6 +104,7 @@ import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import { createLogger } from "~/lib/logger";
 import {
   getStudentAbsence,
+  getStudentDayTimes,
   getStudentTimeStatus,
   getTimeStatusSortRank,
 } from "~/lib/student-time-status";
@@ -893,11 +895,18 @@ function groupStudents(students: Student[], groupMode: GroupMode) {
     });
 }
 
-function compareByPickupTime(a: Student, b: Student, now: Date) {
+function compareByPickupTime(
+  a: Student,
+  b: Student,
+  now: Date,
+  isToday: boolean,
+) {
   const statusA = getStudentTimeStatus({
     plannedTime: a.pickup_time,
     actualTime: a.actual_pickup_time,
     now,
+    kind: "pickup",
+    day: getStudentDayTimes(a, { ignoreCurrentAttendance: !isToday }),
     sick: a.sick,
     classTrip: a.class_trip,
     excused: a.excused,
@@ -906,6 +915,8 @@ function compareByPickupTime(a: Student, b: Student, now: Date) {
     plannedTime: b.pickup_time,
     actualTime: b.actual_pickup_time,
     now,
+    kind: "pickup",
+    day: getStudentDayTimes(b, { ignoreCurrentAttendance: !isToday }),
     sick: b.sick,
     classTrip: b.class_trip,
     excused: b.excused,
@@ -964,17 +975,11 @@ function SearchPageContent() {
     [session?.user],
   );
   const hasUrlFilterParams = searchParamsHavePersistedFilters(searchParams);
-  const storedInitialFilters = useMemo(
-    () => (hasUrlFilterParams ? null : readStoredFilters(storageKey)),
-    [hasUrlFilterParams, storageKey],
-  );
-  const initialFilterParams = useMemo(
-    () =>
-      storedInitialFilters
-        ? persistedFiltersToSearchParams(storedInitialFilters)
-        : searchParams,
-    [searchParams, storedInitialFilters],
-  );
+  // Initial state comes from the URL only. localStorage is unavailable on the
+  // server, so reading it during render made the first client render differ
+  // from the server HTML (hydration mismatch, Sentry FRONTEND-17). The mount
+  // effect below restores stored filters when the URL carries none.
+  const initialFilterParams = searchParams;
 
   // Read initial filters from URL params so refreshes, revisits via browser
   // history, and copied links restore the same operational view. When no URL
@@ -1353,6 +1358,12 @@ function SearchPageContent() {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const checkinModeAvailable = isToday && attendanceWebEnabled;
   const schoolCheckin = useSchoolCheckinMode();
+  // A checkout well before today's pickup time asks for an optional reason
+  // (#3324); every other checkout keeps its current behaviour.
+  const earlyCheckout = useEarlyCheckoutDialog((studentId, note) => {
+    void schoolCheckin.toggle(studentId, "anwesend", note);
+  });
+  const requestEarlyCheckout = earlyCheckout.request;
   // Checkout of a student who is currently in a room asks first and names the
   // room; every roomless state stays a single tap (#2220).
   const [pendingRoomCheckout, setPendingRoomCheckout] = useState<{
@@ -2686,7 +2697,7 @@ function SearchPageContent() {
 
     return [...filteredStudents].sort((a, b) => {
       if (sortMode === "pickup") {
-        return compareByPickupTime(a, b, planningNow);
+        return compareByPickupTime(a, b, planningNow, isToday);
       }
 
       // Whether a child has checked in yet only orders today's list; for a
@@ -2702,6 +2713,8 @@ function SearchPageContent() {
         plannedTime: a.arrival_time,
         actualTime: a.actual_arrival_time,
         now: planningNow,
+        kind: "arrival",
+        day: getStudentDayTimes(a, { ignoreCurrentAttendance: !isToday }),
         sick: a.sick,
         classTrip: a.class_trip,
         excused: a.excused,
@@ -2710,6 +2723,8 @@ function SearchPageContent() {
         plannedTime: b.arrival_time,
         actualTime: b.actual_arrival_time,
         now: planningNow,
+        kind: "arrival",
+        day: getStudentDayTimes(b, { ignoreCurrentAttendance: !isToday }),
         sick: b.sick,
         classTrip: b.class_trip,
         excused: b.excused,
@@ -2932,6 +2947,18 @@ function SearchPageContent() {
         return;
       }
       const room = checkoutConfirmationRoom(student.current_location);
+      const checkinState = deriveCheckinState(student.current_location);
+      if (
+        (checkinState === "anwesend" || checkinState === "schulhof") &&
+        requestEarlyCheckout({
+          studentId: studentIdStr,
+          studentName: `${student.first_name} ${student.second_name}`.trim(),
+          plannedPickup: student.pickup_time,
+          room,
+        })
+      ) {
+        return;
+      }
       if (room) {
         setPendingRoomCheckout({
           studentId: studentIdStr,
@@ -2940,12 +2967,9 @@ function SearchPageContent() {
         });
         return;
       }
-      void schoolCheckin.toggle(
-        studentIdStr,
-        deriveCheckinState(student.current_location),
-      );
+      void schoolCheckin.toggle(studentIdStr, checkinState);
     },
-    [schoolCheckin],
+    [schoolCheckin, requestEarlyCheckout],
   );
   const checkinClickRef = useLatest(checkinClick);
   const handleCheckinClick = useCallback(
@@ -3098,6 +3122,7 @@ function SearchPageContent() {
         }
         overlays={
           <>
+            {earlyCheckout.dialog}
             {/* Checkout out of a room ends the running room visit, so it asks
           first and names the room (#2220). Roomless states never reach
           this dialog — they stay a single tap. */}
@@ -3558,6 +3583,9 @@ function SearchPageContent() {
                                     notes={student.arrival_notes}
                                     now={planningNow}
                                     absentWording={absenceWording}
+                                    day={getStudentDayTimes(student, {
+                                      ignoreCurrentAttendance: !isToday,
+                                    })}
                                   />
                                   <PickupTimeRow
                                     pickupTime={
@@ -3569,6 +3597,9 @@ function SearchPageContent() {
                                     }
                                     notes={student.pickup_notes}
                                     now={planningNow}
+                                    day={getStudentDayTimes(student, {
+                                      ignoreCurrentAttendance: !isToday,
+                                    })}
                                   />
                                 </>
                               );

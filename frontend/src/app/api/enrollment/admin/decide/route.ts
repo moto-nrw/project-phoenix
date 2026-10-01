@@ -1,3 +1,5 @@
+import { captureBffException } from "~/lib/sentry-bff.server";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
@@ -66,9 +68,9 @@ async function POSTHandler(request: NextRequest) {
         }),
       },
     );
-    const payload = await upstream.json().catch(() => ({}));
-    return NextResponse.json(payload, { status: upstream.status });
+    return forwardBackendResponse(upstream);
   } catch (error) {
+    captureBffException(error, request);
     logger.error("admin_request_decide_failed", {
       error: error instanceof Error ? error.message : String(error),
     });

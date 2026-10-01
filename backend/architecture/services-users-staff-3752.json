@@ -1,0 +1,119 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2728",
+    "#3750",
+    "#3751"
+  ],
+  "owner_and_capability": "Workforce — the personnel-record administration (payroll number #1417, Stammdaten #1423, Dokumente #1424) leaves services/users as the native Workforce StaffAdmin (internal domain, ports and application, public contract workforce.StaffRecordAdmin and workforce.StaffDocuments, composition in modules/workforce/compose.NewStaffAdmin); slice 3 of #2728 (#3752). The staff and teacher lookups and the two staff writes of the person service leave as the users.StaffDirectory port, bound by services.NewStaffDirectory. Permission and account logic stays at Identity & Access: the default staff account permission is a constant of the root composition over the security runtime's restated name.",
+  "affected_packages": [
+    "services/users",
+    "services/users/userstest",
+    "services",
+    "modules/workforce",
+    "modules/workforce/compose",
+    "modules/workforce/internal/application",
+    "modules/workforce/internal/domain",
+    "modules/workforce/internal/ports",
+    "modules/securityruntime",
+    "api",
+    "database/repositories",
+    "test"
+  ],
+  "affected_tables": [
+    "users.staff",
+    "users.persons",
+    "users.staff_master_data",
+    "users.staff_qualifications",
+    "users.staff_financial_data",
+    "users.staff_documents",
+    "users.staff_document_file_cleanup",
+    "audit.staff_master_data_changes",
+    "audit.personnel_number_changes",
+    "audit.data_access_log"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users/userstest|github.com/moto-nrw/project-phoenix/services/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+  ],
+  "atomic_cutover": "One code-only change. staff_stammdaten_service.go, staff_payroll.go and staff_document_service.go leave services/users: validation, masking, audit diffs, category authority and retention are Workforce domain code, the orchestration is Workforce application code over the Workforce-owned record rows, and the staff and person rows and the audit trail are the consumer-owned ports StaffAdminSubjects and StaffAdminAudit that services/staff_admin_composition.go binds over the retained repositories, so every read and write still joins the caller's tenant transaction and fails in the repository shape the HTTP layer classifies (404 marker, 400/403/409 wording). staff_directory_service.go leaves as the users.StaffDirectory port (services/users/staff_directory_port.go) with its implementation in services/staff_membership_directory.go, embedded in the person service so no caller changes and the lookups keep returning verbatim repository results; the two student-by-teacher reads and ResolveStaffIDByAccountID stay in the person service file. staff_default_permission.go becomes a root-composition constant over securityruntime.PermissionGroupsRead. The staff-adoption check uses securityruntime.PermissionStaffManage; both restated names are pinned to the permission registry by a test. The masking helpers the guardian payment service still uses moved to guardian_payment_masking.go. The Factory field keeps its name (StaffDocuments) and now holds the Workforce administration, so the composition surface does not grow. Missing audit wiring now fails at construction instead of at the first call.",
+  "tests": [
+    "modules/workforce/internal/domain: the section rules (normalization order and wording, masking, audit diffs with masked bank data only, category authority, retention schedule, cleanup delay outlasting the upload deadline). modules/workforce/internal/application: orchestration against in-memory ports (audit before apply, no audit for a no-op, apply stopped by a failed audit, financial reads and sensitive downloads refused when the access log write fails, documents refused per category, offboarded cleanup through the membership port).",
+    "services/users: the staff Stammdaten, personnel-number and document behavior suites against the isolated PostgreSQL test database, adapted to the Workforce contract with the same scenarios; the offboarding suite; modules/workforce/inbound/timetracking: the staff route suites (Stammdaten, payroll number, documents, cleanup) through the production middleware chain.",
+    "go test ./test (ratchets incl. facade width, passthrough, complexity, file and function size, repository interface callers), modules/securityruntime permission pin, golangci-lint on the affected packages, scripts/test-changed.sh against the base without --fast.",
+    "scripts/backend-architecture.sh check with exactly the two listed keys absent from legacy.jsonl and none added; scripts/backend-architecture.sh validate-ticket --all."
+  ],
+  "runtime_evidence": {
+    "source": "Local runs on the #3752 branch on 2026-09-29 against the local postgres-test server.",
+    "sources": [
+      "backend/modules/workforce/internal/application/staffadmin.go",
+      "backend/modules/workforce/internal/application/staffadmin_documents.go",
+      "backend/modules/workforce/internal/domain/staffadmin.go",
+      "backend/modules/workforce/compose/staffadmin.go",
+      "backend/services/staff_admin_composition.go",
+      "backend/services/staff_membership_directory.go"
+    ],
+    "workload": "No load run. Go suites through scripts/run-go-toolchain.sh and scripts/test-changed.sh against the base, local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "Code-only contract: every affected suite passes with the same scenarios, and scripts/backend-architecture.sh check passes with exactly the listed keys removed, no key added and a composition surface that does not grow.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "The same repositories and the same Workforce store statements are issued against the same tables; the audit rows and access-log rows carry the same fields."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No statement was added on the read paths. The person and employment-type writes re-select the row they already hold locked in the same transaction, once per write section."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #3752 names zero old files and the route goldens as the gate for a code-only move."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #3752 names zero old files and the route goldens as the gate for a code-only move."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed with 381 remaining keys (383 at the base) and a composition surface of 603 -> 603; golangci-lint reported 0 issues on the affected packages; the module, policy and repository-interface ratchets in go test ./test pass."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection acquisition or pool setting changed; every path runs in the same tenant unit of work."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "The same rows are locked in the same order (staff row, then person row); the personnel-number and section writes re-select a row they already hold locked."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No lock order changed, so no new deadlock can arise."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The change touches no worker or scheduler path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "The change touches no worker or scheduler path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "The change touches no worker or scheduler path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "An unaudited section, personnel-number or upload write is refused when the audit write fails and applies nothing; a financial read or sensitive download serves nothing when the access-log write fails; a category the caller may not touch answers 403; a missing document keeps the repository not-found shape and its 404 body. Asserted by the application unit tests and the adapted behavior suites."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data write path or schema change. Reverting the change restores the files and the baseline entries."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "go build ./... and go vet ./... passed; the staff route suites drive the mounted router with minted JWTs through the production middleware chain, and the affected packages ran through scripts/test-changed.sh. No manual application start was made."
+    }
+  },
+  "rollback_and_cleanup": "Revert the code-only change if a hidden caller appears. No table, migration or configuration is touched, and nothing remains to clean up.",
+  "exit_criterion": "None of staff_stammdaten_service.go, staff_document_service.go, staff_directory_service.go, staff_payroll.go and staff_default_permission.go is left in services/users, the staff routes and permissions are unchanged, and every listed key is absent from legacy.jsonl with none added."
+}

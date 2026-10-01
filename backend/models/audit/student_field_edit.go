@@ -87,12 +87,6 @@ func StudentDocumentCategoryFromField(field string) string {
 	return strings.TrimPrefix(field, StudentFieldDocumentPrefix)
 }
 
-// IsStudentDocumentField reports whether the field records a document event,
-// in either the categorised or the legacy form.
-func IsStudentDocumentField(field string) bool {
-	return field == StudentFieldDocument || strings.HasPrefix(field, StudentFieldDocumentPrefix)
-}
-
 // Validate ensures the edit record is well-formed before persistence.
 func (e *StudentFieldEdit) Validate() error {
 	if e.StudentID <= 0 {

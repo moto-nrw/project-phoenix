@@ -13,6 +13,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// peopleRuntime binds the retained People Directory repositories
+// (database/repositories/users) to the tenant runtime (#2727).
+func peopleRuntime(db *bun.DB) peopleCompose.LegacyRepositoryRuntime {
+	return peopleCompose.NewLegacyRepositoryRuntime(db)
+}
+
 // NewPeopleDirectory composes the person and student owner behind the
 // legacy composition seam for test graphs and CLI roots. The observed
 // instance of the serve root replaces it through BindPeopleDirectory.

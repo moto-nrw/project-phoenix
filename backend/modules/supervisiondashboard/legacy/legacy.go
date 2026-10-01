@@ -208,8 +208,8 @@ func (s sessions) records(ctx context.Context, groups []*studentpresence.Session
 	result := make([]supervisiondashboard.Session, 0, len(groups))
 	for _, group := range groups {
 		item := supervisiondashboard.Session{ID: group.ID}
-		if group.Activity != nil {
-			item.Name = group.Activity.Name
+		if activity := group.Activity; activity != nil {
+			item.Name, item.ParticipantLimit = activity.Name, timetable.ParticipantLimitPtr(activity.MaxParticipants)
 		}
 		if group.RoomID > 0 {
 			roomID := group.RoomID
@@ -637,7 +637,6 @@ func (s settings) Prepare(ctx context.Context) (context.Context, error) {
 		configModel.KeyOperationalOverviewScope,
 		configModel.KeyGroupMode,
 		configModel.KeyStudentPhotosEnabled,
-		configModel.KeyCareConcept,
 		configModel.KeyWebSpontaneousActivities,
 		configModel.KeyTrackingIndicatorsEnabled,
 		configModel.KeyTrackingIndicator1,
@@ -673,13 +672,6 @@ func (s settings) TrackingIndicatorLabels(ctx context.Context) ([]string, error)
 }
 
 func (s settings) SpontaneousActivitiesEnabled(ctx context.Context) (bool, error) {
-	careConcept, err := s.settings.ResolveString(ctx, configModel.KeyCareConcept)
-	if err != nil {
-		return false, fmt.Errorf("resolve care concept setting: %w", err)
-	}
-	if careConcept != configModel.CareConceptOpenRooms {
-		return false, nil
-	}
 	enabled, err := s.settings.ResolveBool(ctx, configModel.KeyWebSpontaneousActivities)
 	if err != nil {
 		return false, fmt.Errorf("resolve spontaneous activities setting: %w", err)

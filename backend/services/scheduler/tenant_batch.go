@@ -156,7 +156,20 @@ func (failures *jobCommandFailures) result() error {
 	return failures.err
 }
 
+// recordJobCommandFailure marks the current job run as failed with err and
+// leaves err as a breadcrumb for the run's Sentry event. The failure is bound
+// to no single school.
 func recordJobCommandFailure(ctx context.Context, err error) {
+	if err == nil {
+		return
+	}
+	recordStandingJobFailure(ctx, 0, "job command failed", err, nil)
+	addJobCommandFailure(ctx, err)
+}
+
+// addJobCommandFailure marks the current job run as failed with err whose
+// parts already left their breadcrumbs.
+func addJobCommandFailure(ctx context.Context, err error) {
 	failures, _ := ctx.Value(jobCommandFailuresKey{}).(*jobCommandFailures)
 	if failures != nil {
 		failures.add(err)
@@ -200,12 +213,16 @@ func (s *Scheduler) runTenantBatches(
 	tenantIDs = s.resumeTenantIDs(stableJobID, tenantIDs)
 	for tenantBatch := range slices.Chunk(tenantIDs, tenantBatchSize) {
 		if err := ctx.Err(); err != nil {
+			recordStandingJobFailure(ctx, 0, "tenant batches stopped", err, nil)
 			failures.add(err)
 			break
 		}
 
 		batch := s.runTenantBatch(ctx, tenantBatch, stableJobID, command)
 		result.Outcomes = append(result.Outcomes, batch.outcomes...)
+		if batch.err != nil {
+			recordStandingJobFailure(ctx, 0, "tenant batch stopped", batch.err, nil)
+		}
 		failures.add(batch.err)
 		for _, outcome := range batch.outcomes {
 			if outcome.Err != nil {
@@ -226,7 +243,8 @@ func (s *Scheduler) runTenantBatches(
 	if result.Batches == 0 {
 		s.observeTenantBacklog(stableJobID, result.Backlog)
 	}
-	recordJobCommandFailure(ctx, result.Err)
+	// Every part of result.Err already left its breadcrumb.
+	addJobCommandFailure(ctx, result.Err)
 	return result
 }
 
@@ -289,7 +307,16 @@ func (s *Scheduler) runTenantCommand(
 	} else {
 		if _, retrySafe := command.(RetrySafeTenantCommand); retrySafe {
 			outcome.Err = tenant.WithinTenantRetry(ctx, id, func(txCtx context.Context) error {
-				return command.Execute(txCtx, id)
+				err := command.Execute(txCtx, id)
+				if err != nil {
+					// The runtime may replay the command; a later success
+					// drops this breadcrumb with the run.
+					recordFailedJobAttempt(ctx, "tenant command attempt failed", err, map[string]any{
+						"job_id":    string(jobID),
+						"school_id": tenantID,
+					})
+				}
+				return err
 			})
 		} else {
 			outcome.Err = tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
@@ -305,7 +332,7 @@ func (s *Scheduler) runTenantCommand(
 		s.tenantBatchCursors.Store(jobID, tenantID)
 	}
 	if outcome.Err != nil {
-		s.reportTenantCommandFailure(jobID, outcome)
+		s.reportTenantCommandFailure(ctx, jobID, outcome)
 	}
 	return outcome
 }
@@ -346,10 +373,15 @@ func classifyTenantOutcome(err error, retries int) TenantOutcomeClassification {
 	}
 }
 
-func (s *Scheduler) reportTenantCommandFailure(jobID JobID, outcome TenantOutcome) {
+func (s *Scheduler) reportTenantCommandFailure(ctx context.Context, jobID JobID, outcome TenantOutcome) {
 	if outcome.Classification != TenantOutcomeMissingTenant {
 		s.observeTenantRuntime("transaction_failure")
 	}
+	recordStandingJobFailure(ctx, outcome.TenantID, "tenant command failed", outcome.Err, map[string]any{
+		"job_id":         string(jobID),
+		"classification": string(outcome.Classification),
+		"retries":        outcome.Retries,
+	})
 	s.getLogger().Error("tenant operation failed, continuing to next tenant",
 		slog.String("job_id", string(jobID)),
 		slog.Int64("tenant_id", outcome.TenantID),

@@ -29,9 +29,13 @@ func (s *Service) Enqueue(ctx context.Context, input domain.EnqueueInput) (resul
 	defer func() {
 		s.observe(domain.Observation{Operation: "enqueue", Transport: string(input.Transport), Template: input.Template, Duration: time.Since(started), Count: boolCount(err == nil), Err: err})
 	}()
+	nextRetryAt := time.Now()
+	if input.DeliverAfter.After(nextRetryAt) {
+		nextRetryAt = input.DeliverAfter
+	}
 	intent := domain.Intent{
 		TenantID: input.TenantID, Transport: input.Transport, Template: input.Template,
-		Recipient: input.Recipient, Payload: input.Payload, Status: string(domain.StatePending), NextRetryAt: time.Now(),
+		Recipient: input.Recipient, Payload: input.Payload, Status: string(domain.StatePending), NextRetryAt: nextRetryAt,
 	}
 	if input.IdempotencyKey != "" {
 		intent.IdempotencyKey = &input.IdempotencyKey

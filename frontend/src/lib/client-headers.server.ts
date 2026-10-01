@@ -1,6 +1,7 @@
 import { isIP } from "node:net";
 import type { NextRequest } from "next/server";
 import { analyticsSessionHeaders } from "~/lib/analytics-session-header.server";
+import { REQUEST_ID_HEADER } from "~/lib/request-id";
 
 type HeaderReader = Pick<Headers, "get">;
 
@@ -131,7 +132,19 @@ export function getClientForwardHeaders(
     "X-Moto-Frontend-Origin": frontendOrigin(request),
     "User-Agent": userAgent,
     ...analyticsSessionHeaders(request.headers),
+    ...requestIdHeaders(request.headers),
   };
+}
+
+/**
+ * Passes the proxy's Vorgangskennung on to the backend, which keeps it, so
+ * backend and BFF events of one request share the same `request_id`.
+ */
+export function requestIdHeaders(
+  headers: HeaderReader,
+): Record<string, string> {
+  const requestId = headers.get(REQUEST_ID_HEADER);
+  return requestId ? { [REQUEST_ID_HEADER]: requestId } : {};
 }
 
 export function canonicalForwardedFor(headers: HeaderReader | null): string {

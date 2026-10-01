@@ -426,6 +426,8 @@ describe("api.ts helper functions", () => {
                 occupied_places: 50,
                 requested_places: 1,
               },
+              errors: [{ field: "first_name", reason: "required" }],
+              instance: "request-409",
             }),
           ),
       });
@@ -444,6 +446,9 @@ describe("api.ts helper functions", () => {
         ).rejects.toMatchObject({
           status: 409,
           code: "students.child_quota_reached",
+          errors: [{ field: "first_name", reason: "required" }],
+          instance: "request-409",
+          requestId: "request-409",
           details: {
             booked_places: 50,
             occupied_places: 50,
@@ -460,6 +465,8 @@ describe("api.ts helper functions", () => {
       const axiosError = new Error(
         "Request failed with status code 409",
       ) as Error & {
+        isAxiosError: boolean;
+        code: string;
         response: {
           status: number;
           data: {
@@ -470,9 +477,13 @@ describe("api.ts helper functions", () => {
               occupied_places: number;
               requested_places: number;
             };
+            errors: { field: string; reason: string }[];
+            instance: string;
           };
         };
       };
+      axiosError.isAxiosError = true;
+      axiosError.code = "ERR_BAD_REQUEST";
       axiosError.response = {
         status: 409,
         data: {
@@ -483,6 +494,8 @@ describe("api.ts helper functions", () => {
             occupied_places: 50,
             requested_places: 1,
           },
+          errors: [{ field: "first_name", reason: "required" }],
+          instance: "request-server-409",
         },
       };
       const postSpy = vi
@@ -508,6 +521,8 @@ describe("api.ts helper functions", () => {
             occupied_places: 50,
             requested_places: 1,
           },
+          errors: [{ field: "first_name", reason: "required" }],
+          requestId: "request-server-409",
         });
       } finally {
         postSpy.mockRestore();

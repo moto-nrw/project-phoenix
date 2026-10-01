@@ -18,16 +18,16 @@ const (
 	profileSettingParentExcusedMode     = "operations.parent_excused_reports_enabled"
 	profileSettingParentReviewScope     = "operations.parent_absence_review_scope"
 	profileSettingGroupMode             = "operations.group_mode"
-	profileSettingCareConcept           = "operations.care_concept"
+	profileSettingWebSpontaneous        = "attendance.web_spontaneous_activities_enabled"
 	profileSettingEnrollmentEnabled     = "enrollment.enabled"
 	profileSettingCareOfferingsEnabled  = "enrollment.care_offerings_enabled"
 	profileSettingBookingsAuthoritative = "enrollment.bookings_authoritative"
+	profileSettingDevicePIN             = "security.ogs_device_pin"
+	profileSettingStudentPhotos         = "operations.student_photos_enabled"
 	profilePresenceDetailed             = "detailed"
 	profilePresenceBinary               = "binary"
 	profileGroupModeFixed               = "fixed_groups"
 	profileGroupModeOpenCare            = "open_care"
-	profileCareConceptFixedSchedule     = "fixed_schedule"
-	profileCareConceptOpenRooms         = "open_rooms"
 )
 
 type demoProfileDefinition struct {
@@ -84,8 +84,8 @@ func fullOperationSettings() map[string]SeedSetting {
 		profileSettingGroupMode: {
 			Value: json.RawMessage(`"` + profileGroupModeFixed + `"`), ManagedBy: SettingManagedByTenant,
 		},
-		profileSettingCareConcept: {
-			Value: json.RawMessage(`"` + profileCareConceptFixedSchedule + `"`), ManagedBy: SettingManagedByTenant,
+		profileSettingWebSpontaneous: {
+			Value: json.RawMessage(`false`), ManagedBy: SettingManagedByTenant,
 		},
 		profileSettingEnrollmentEnabled: {
 			Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant,
@@ -157,8 +157,8 @@ func manualProfileSettings() map[string]SeedSetting {
 		profileSettingGroupMode: {
 			Value: json.RawMessage(`"` + profileGroupModeOpenCare + `"`), ManagedBy: SettingManagedByTenant,
 		},
-		profileSettingCareConcept: {
-			Value: json.RawMessage(`"` + profileCareConceptOpenRooms + `"`), ManagedBy: SettingManagedByTenant,
+		profileSettingWebSpontaneous: {
+			Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant,
 		},
 		profileSettingEnrollmentEnabled: {
 			Value: json.RawMessage(`false`), ManagedBy: SettingManagedByTenant,

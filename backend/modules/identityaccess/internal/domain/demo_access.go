@@ -46,11 +46,14 @@ type DemoAccessRateLimitedError struct{ RetryAt time.Time }
 func (e *DemoAccessRateLimitedError) Error() string { return "too many demo access requests" }
 
 // DemoAccess connects a prospect's address with the demo. Only the SHA-256
-// fingerprint of its token is kept.
+// fingerprint of its token is kept. FirstName and LastName are the
+// prospect's name as given; the demo school's caregiver and parent carry
+// exactly this name.
 type DemoAccess struct {
 	ID           int64
 	Email        string
-	PersonName   string
+	FirstName    string
+	LastName     string
 	SchoolName   string
 	Source       string
 	ContactOptIn bool
@@ -146,10 +149,12 @@ type DemoEntry struct {
 	FixedRole bool
 }
 
-// Normalize trims the prospect's fields and validates them.
+// Normalize trims the prospect's fields and validates them. First and last
+// name are both required; runs of whitespace inside a name become one space.
 func (a *DemoAccess) Normalize() error {
 	a.Email = strings.ToLower(strings.TrimSpace(a.Email))
-	a.PersonName = strings.TrimSpace(a.PersonName)
+	a.FirstName = strings.Join(strings.Fields(a.FirstName), " ")
+	a.LastName = strings.Join(strings.Fields(a.LastName), " ")
 	a.SchoolName = strings.TrimSpace(a.SchoolName)
 	a.Source = strings.TrimSpace(a.Source)
 	parsed, err := mail.ParseAddress(a.Email)
@@ -159,7 +164,8 @@ func (a *DemoAccess) Normalize() error {
 	if a.Role, err = ParseDemoRole(string(a.Role)); err != nil {
 		return err
 	}
-	if a.PersonName == "" || len(a.PersonName) > 120 || a.SchoolName == "" || len(a.SchoolName) > 120 || len(a.Source) > 60 {
+	if a.FirstName == "" || len(a.FirstName) > 120 || a.LastName == "" || len(a.LastName) > 120 ||
+		a.SchoolName == "" || len(a.SchoolName) > 120 || len(a.Source) > 60 {
 		return ErrDemoAccessInvalid
 	}
 	return nil

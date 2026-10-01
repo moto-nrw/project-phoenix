@@ -581,11 +581,7 @@ func TestInstanceStudentRepository_FindCurrentCandidates_ExcludesEndedInstances(
 	for _, status := range statuses {
 		inst, cleanup := createInstanceFixture(t, db, "candidate-"+status, day)
 		defer cleanup()
-		_, err := db.NewUpdate().Table("schedule.activity_instances").
-			Set("status = ?", status).
-			Where("id = ?", inst.ID).
-			Exec(ctx)
-		require.NoError(t, err)
+		testpkg.SetActivityInstanceLifecycle(t, ctx, db, inst.ID, status)
 		row := &scheduleModels.InstanceStudent{InstanceID: inst.ID, StudentID: student.ID, Status: scheduleModels.AttendanceStatusExpected}
 		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
@@ -715,12 +711,7 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 		ReportedAt: time.Date(2026, 10, 3, 8, 0, 0, 0, time.UTC), Source: absencerecords.StudentStatusSourcePlanned,
 	}
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, completedStatus))
-	_, err = db.NewUpdate().
-		Table("schedule.activity_instances").
-		Set("status = ?", scheduleModels.InstanceStatusCompleted).
-		Where("id = ?", inst.ID).
-		Exec(ctx)
-	require.NoError(t, err)
+	testpkg.SetActivityInstanceLifecycle(t, ctx, db, inst.ID, scheduleModels.InstanceStatusCompleted)
 	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, completedStatus.ID, time.Now(), absencerecords.StudentStatusSourceManual))
 	got, err = factory.InstanceStudent.FindByID(ctx, attendance.ID)
 	require.NoError(t, err)

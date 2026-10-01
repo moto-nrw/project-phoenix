@@ -20,7 +20,10 @@ The provisioning API, simulator and demo banner are separate work in #3456.
 Compose owns the `demo` network and PostgreSQL volume within its own project.
 The uploads volume is explicitly named `phoenix-demo-uploads`. Nothing mounts
 the staging or production volumes. Containers reach the API as `server:8080`
-and PostgreSQL as `postgres:5432`, never through a public host. For read-only
+and PostgreSQL as `postgres:5432`, never through a public host. The demo
+process shares the server's network namespace and calls the API as
+`127.0.0.1:8080`; the server's rate limiters exempt that loopback peer only
+under `APP_ENV=demo` (see [demo process](standing-demo.md#deployed-sidecar)). For read-only
 database access, open a tunnel: `ssh -L 5434:127.0.0.1:5434 root@<DEMO_HOST>`.
 
 ## Host
@@ -68,7 +71,9 @@ frontend route to 3002. `reverse_proxy` preserves Host and the forwarded
 protocol. The operator surface stays internal: the demo operator signs in
 without a second factor (#3460), so Caddy answers 404 for the operator host
 and every operator path on all demo hosts. The demo process reaches the API
-as `server:8080` and is not affected. `/etc/caddy/Caddyfile`:
+as `127.0.0.1:8080` inside the server's network namespace and is not affected.
+Caddy's requests arrive in the container from Docker's bridge gateway, never
+from loopback, so public traffic keeps its rate limits. `/etc/caddy/Caddyfile`:
 
 ```caddyfile
 demo.moto-app.de, *.demo.moto-app.de {
@@ -101,7 +106,9 @@ demo.moto-app.de, *.demo.moto-app.de {
 `environments/demo.sops.env` has the same keys as staging and production.
 The initial configuration reuses staging SMTP with the name `moto Demo`.
 Database, application-role, JWT, NextAuth, metrics, admin, operator and device
-secrets are independently generated. Frontend analytics use the shared PostHog
+secrets are independently generated. The device PIN `OGS_DEVICE_PIN` has
+exactly four digits, the format of the school setting the demo seeder writes
+it into. Frontend analytics use the shared PostHog
 project (free plan, one project); demo events carry `deployment=demo`, so they
 filter apart from schools. They need the build secret
 `DEMO_NEXT_PUBLIC_POSTHOG_KEY` besides the SOPS value. Backend analytics
@@ -110,10 +117,17 @@ filter apart from schools. They need the build secret
 Frontend Sentry reports through the build secret `DEMO_NEXT_PUBLIC_SENTRY_DSN`,
 which holds the shared frontend project's DSN; the build sets
 `NEXT_PUBLIC_SENTRY_ENVIRONMENT=demo`, so demo events filter apart from schools.
-Whether demo gets its own Sentry project is open in #3589. Backend Sentry and
-Web Push are disabled (`SENTRY_DSN` is empty in `demo.sops.env`); configure
-their demo destinations before enabling them. Absent demo keys disable the
-integrations without falling back to production keys.
+Whether demo gets its own Sentry project is open in #3589. Backend Sentry
+reports through `SENTRY_DSN` in `demo.sops.env`, the DSN of the shared backend
+project that staging and production use. The backend takes its Sentry
+environment from `APP_ENV`, so demo events carry `environment=demo` and filter
+apart from schools. The release is the full commit SHA of the workflow run,
+the same value the frontend reports. After a successful deploy, the build
+workflow finalizes that release and records a deploy to `demo` in the `backend`
+and `frontend` projects (`scripts/report-sentry-deploy.sh`, like staging and
+production); a Sentry failure only warns. Web Push is disabled (the VAPID keys are
+empty); configure its demo destination before enabling it. Absent demo keys
+disable the integrations without falling back to production keys.
 No staging or production application secret is reused.
 `scripts/create-demo-env.py` creates the initial SOPS file through SOPS only
 and refuses to overwrite an existing file. Use `sops edit` for later changes.

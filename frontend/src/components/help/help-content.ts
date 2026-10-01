@@ -109,6 +109,58 @@ function loginResult(
   return "Nach der Anmeldung öffnet moto die für Sie vorgesehene Startseite.";
 }
 
+function errorMessagesTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.errorMessages,
+    title: "Fehlermeldungen verstehen",
+    question: "Was kann ich bei einer Fehlermeldung tun?",
+    summary:
+      "Hier finden Sie den nächsten Schritt, wenn moto einen Fehler meldet.",
+    group: "probleme",
+    audience: "all",
+    icon: "ListChecks",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Eingabe prüfen",
+        steps: [
+          "Prüfen Sie die markierten Felder.",
+          "Verbessern Sie die Angaben und versuchen Sie es erneut.",
+        ],
+      },
+      {
+        title: "Zugriff prüfen",
+        steps: [
+          "Melden Sie sich erneut an, falls moto Sie dazu auffordert.",
+          "Fehlt Ihnen weiterhin der Zugriff? Fragen Sie Ihre Ansprechperson.",
+        ],
+      },
+      {
+        title: "Vorgang nicht möglich",
+        steps: [
+          "Lesen Sie, warum moto den Vorgang nicht ausführen kann.",
+          "Ändern Sie die Angaben oder fragen Sie Ihre Ansprechperson.",
+        ],
+      },
+      {
+        title: "Gerade nicht erreichbar",
+        steps: [
+          "Prüfen Sie Ihre Internetverbindung.",
+          "Tippen Sie auf `Wiederholen`, wenn der Knopf zu sehen ist.",
+        ],
+      },
+      {
+        title: "Unerwarteter Fehler",
+        steps: [
+          "Tippen Sie auf `Wiederholen`, wenn der Knopf zu sehen ist.",
+          "Klappt es weiter nicht? Tippen Sie auf die Vorgangskennung und nennen Sie sie dem moto-Team.",
+        ],
+      },
+    ],
+    related: [],
+  };
+}
+
 function invitationTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.acceptInvitation,
@@ -136,6 +188,9 @@ function invitationTopic(): HelpTopic {
     ],
     result:
       "Ihr moto-Konto ist eingerichtet und Sie können sich jetzt anmelden. Bewahren Sie Ihre E-Mail-Adresse und Ihr Passwort sicher auf und geben Sie beides nicht weiter.",
+    notes: [
+      "Zur Einladung bekommen Sie eine zweite E-Mail: `Willkommen bei moto`. Sie führt zu dieser Anleitung. Den Knopf `Einladung annehmen` finden Sie nur in der Einladungs-Mail.",
+    ],
     differences: [
       "Steht dort `Schule hinzufügen`? Dann haben Sie schon ein moto-Konto. Melden Sie sich an und wählen Sie `Einladung annehmen`. Ihr Passwort bleibt gleich.",
     ],
@@ -517,11 +572,15 @@ function webAttendanceTopic(presenceMode: HelpPresenceMode): HelpTopic {
     notes: [
       "Möchten Sie mehrere Kinder ändern? Wählen Sie `Mehrere`.",
       // Live geprueft: in `Direkt` schreibt jeder Tipp sofort, ohne Rueckfrage.
+      // Ausnahme seit #3324: frühes Gehen öffnet vorher ein Fenster.
       "In `Direkt` meldet jeder Tipp sofort an oder ab. Auf der Karte steht `Tippen zum Anmelden`.",
+      "Geht ein Kind früher als seine Abholzeit, fragt moto nach dem Grund. Der Grund ist freiwillig.",
+      "Den Grund sehen Sie danach beim Kind unter `Heutige Abholung`. Mit Anwesenheitsprotokoll steht er auch in der `Tagesauswertung` und im Verlauf.",
     ],
     differences: [
       "moto zeigt nur die Aktion, die zum aktuellen Status passt.",
       "Fehlt `Anmelden` oder `Abmelden`? Fragen Sie Ihre Leitung nach dem Recht zum An- und Abmelden.",
+      "moto fragt nie nach einem Grund? Dann hat Ihre Schule die Frage ausgeschaltet oder das Kind hat heute keine Abholzeit.",
     ],
     troubleshooting: HELP_TOPICS.attendanceProblem,
     related: [
@@ -756,6 +815,9 @@ function dayLogTopic(groupMode: HelpGroupMode): HelpTopic {
       "Fehlt `Tagesauswertung`? Bitten Sie Ihre Leitung, das `Anwesenheitsprotokoll` unter `Einstellungen` und `Datenschutz` einzuschalten.",
       "Steht dort `Anwesenheitsprotokoll ist ausgeschaltet`? Dann ist es für Ihre Schule nicht eingeschaltet.",
     ],
+    notes: [
+      "Ist ein Kind früher gegangen, steht der Grund hinter `gegangen`. Er steht auch im `PDF` und in `Excel`.",
+    ],
     related: [
       HELP_TOPICS.absences,
       HELP_TOPICS.emergency,
@@ -808,7 +870,7 @@ function emergencyTopic(presenceMode: HelpPresenceMode): HelpTopic {
     result: [
       "Die Liste enthält alle Kinder, die beim Erstellen anwesend sind, mit ihrer Klasse und wichtigen Kontakten.",
       locationDescription,
-      "Je nach Einstellung enthält die Liste auch `Gesundheitsinfos`.",
+      "Die Liste enthält auch die hinterlegten `Gesundheitsinfos`.",
       "`Nicht hinterlegt` bedeutet: Es fehlen Gesundheitsinfos, eine Allergie ist trotzdem möglich.",
     ].join(" "),
     notes: [
@@ -1312,6 +1374,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Sie starten einen Termin, für den Sie nicht eingeplant sind? Dann werden Sie nicht zur Aufsicht. Wer beenden darf, legt Ihre OGS fest.",
       "Fehlt `Beenden`? Dann dürfen hier nur eingeplante Kräfte beenden. Ihre OGS kann das Beenden für das ganze Team freigeben.",
       "Welche freien Räume Sie übernehmen können, legt Ihre OGS fest.",
+      "Fehlt `Spontane Aktivität starten`? Dann hat Ihre OGS in den `Einstellungen` unter `Betrieb` den Schalter `Spontane Aktivitäten erlauben` ausgeschaltet.",
     ],
     troubleshooting: HELP_TOPICS.attendanceProblem,
     related: [HELP_TOPICS.rooms, HELP_TOPICS.ownGroups],
@@ -1425,6 +1488,38 @@ function parentMessageTopic(): HelpTopic {
           "Wählen Sie `Senden`.",
         ],
       },
+      {
+        title: "Eine Unterhaltung wieder als ungelesen markieren",
+        description:
+          "So sieht das ganze Team: Hier ist noch etwas offen. Die Eltern merken davon nichts.",
+        steps: [
+          "Öffnen Sie die Unterhaltung im Posteingang.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Als ungelesen markieren`.",
+          "moto bringt Sie zurück zum Posteingang.",
+        ],
+      },
+      {
+        title: "Alle Nachrichten für sich als gelesen markieren",
+        description:
+          "Ihre Zahl bei `Nachrichten` kann bleiben. Vom Team als ungelesen markierte Unterhaltungen bleiben ungelesen. Für Ihr Team und die Eltern ändert sich nichts.",
+        steps: [
+          "Öffnen Sie den Posteingang unter `Nachrichten`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Alle als gelesen markieren`.",
+        ],
+      },
+      {
+        title: "Festlegen, was Ihre Zahl bei Nachrichten zählt",
+        description:
+          "Beantworten andere die Elternnachrichten? Dann können Sie die Zahl für sich ändern. Für Ihr Team ändert sich nichts.",
+        steps: [
+          "Öffnen Sie oben rechts Ihr `Profil`.",
+          "Gehen Sie zu `Zahl bei Nachrichten`.",
+          "Wählen Sie `Alle Nachrichten`, `Nur Kinder aus meinen Gruppen` oder `Keine Zahl anzeigen`.",
+          "moto speichert Ihre Wahl sofort.",
+        ],
+      },
     ],
     result:
       "Die Bezugsperson sieht die Nachricht in der Eltern-App. Sie wird dort im Namen der OGS angezeigt.",
@@ -1435,6 +1530,9 @@ function parentMessageTopic(): HelpTopic {
     notes: [
       "Schreiben Sie persönliche Angaben nur in die Unterhaltung der richtigen Bezugsperson.",
       "Mit `Nur ungelesen` sehen Sie nur neue Unterhaltungen.",
+      "Eine als ungelesen markierte Unterhaltung bleibt für alle ungelesen, bis jemand aus dem Team sie öffnet oder antwortet.",
+      "Die Eltern sehen `Gelesen` erst, wenn jemand aus dem Team die Unterhaltung öffnet.",
+      "Die Nachrichten stehen immer im Posteingang, auch wenn Ihre Zahl sie nicht zählt.",
       "Über `Zum Kinderprofil` wechseln Sie direkt zu den Angaben des Kindes.",
     ],
     related: [HELP_TOPICS.parentRequests, HELP_TOPICS.studentSearch],
@@ -2161,16 +2259,18 @@ function nfcCheckInTopic(
         steps: [
           "Das bereits eingecheckte Kind hält sein Armband erneut an den Sensor.",
           "Das Kind wählt unter `Wohin geht ...?` das passende Ziel.",
-          "Wählen Sie `Raumwechsel` für einen anderen betreuten Raum.",
+          "Wählen Sie `Raumwechsel` für einen anderen betreuten Raum. Dort hält das Kind sein Armband erneut an.",
+          "Offene Räume stehen mit ihrem Namen da, zum Beispiel `Turnhalle`. Ein Tipp trägt das Kind sofort dort ein.",
           "Wählen Sie `nach Hause`, wenn das Kind die OGS verlässt.",
           "Je nach Einstellung können auch `Schulhof` oder `Toilette` erscheinen.",
         ],
       },
     ],
     result:
-      "moto aktualisiert Anwesenheit und Aufenthaltsort. Nach `nach Hause` ist das Kind abgemeldet.",
+      "moto aktualisiert den Aufenthaltsort. Bei einem Ortswechsel bleibt das Kind angemeldet. Erst nach `nach Hause` ist es abgemeldet.",
     differences: [
       "Welche Ziele angezeigt werden, legt Ihre OGS fest.",
+      "Ein offener Raum erscheint nur, wenn die Leitung ihn unter `Räume` als `Offener Raum` freigegeben hat. Dort braucht es kein Tablet und keine Aufsicht.",
       "Eine tägliche Abmeldezeit kann verhindern, dass `nach Hause` zu früh gewählt wird.",
       "Nach dem Abmelden kann ein freiwilliges Tages-Feedback erscheinen.",
     ],
@@ -2563,6 +2663,11 @@ function roomsCatalogTopic(presenceMode: HelpPresenceMode): HelpTopic {
     troubleshootingDetails: [
       "Fehlt `Datenverwaltung` in der Seitenleiste? Dann fehlen Ihnen die Leitungsrechte. Fragen Sie Ihre Leitung.",
       "Lässt sich ein Raum nicht löschen? Dann ist er gerade belegt. Oder ein Betreuungsangebot braucht ihn.",
+      ...(tracksRooms
+        ? [
+            "Meldet moto oder das Tablet, der Raum ist voll? Dann ist `Maximale Belegung` erreicht. Erhöhen Sie die Zahl hier. Ist dagegen die Aktivität voll, ändern Sie `Maximale Teilnehmer` unter `Aktivitäten`.",
+          ]
+        : []),
     ],
     related: [
       HELP_TOPICS.leadGroups,
@@ -2708,6 +2813,7 @@ function activitiesCatalogTopic(): HelpTopic {
     troubleshootingDetails: [
       "Fehlt `Datenverwaltung` in der Seitenleiste? Dann fehlen Ihnen die Leitungsrechte. Fragen Sie Ihre Leitung.",
       "Fehlt die passende `Kategorie`? Legen Sie sie in der `Datenverwaltung` unter `Terminkategorien` an.",
+      "Meldet moto oder das Tablet, die Aktivität ist voll? Dann ist `Maximale Teilnehmer` erreicht. Steht bei ihr `Überbucht`, sind sogar mehr Kinder da als erlaubt. Es kommen erst wieder Kinder dazu, wenn es weniger sind. Oder Sie erhöhen die Zahl. Die Grenze des Raums hilft hier nicht.",
     ],
     related: [
       HELP_TOPICS.leadRooms,
@@ -2793,6 +2899,7 @@ function createStudentTopic(): HelpTopic {
     troubleshootingDetails: [
       "Fehlt die passende `Gruppe`? Legen Sie sie zuerst in der `Datenverwaltung` unter `Gruppen` an.",
       "Der grüne Knopf ist grau? Dann hat die Vorschau noch Fehler. Beheben Sie sie in der Datei und laden Sie erneut hoch.",
+      "Über der Vorschau steht rot, der Import würde mehr Kinder hinzufügen, als im Kinderkontingent frei sind? Dann startet der Import gar nicht. Nehmen Sie Kinder aus der Datei heraus oder melden Sie sich beim moto-Team. Kinder, die der Import nur aktualisiert, zählen dabei nicht.",
       "moto erkennt eine Zeile an Vorname, Nachname und Klasse. Bei einem Klassenwechsel an der Spalte `RFID-Karte` oder am Geburtstag.",
       "moto meldet, das Kinderkontingent ist voll? Dann ist die Kontingentzahl erreicht. Wie viel belegt ist, steht oben in `Kinderdaten`. Ihre Eingaben bleiben im Fenster. Für weitere Kinder melden Sie sich beim moto-Team.",
     ],
@@ -2859,6 +2966,9 @@ function careTimesTopic(): HelpTopic {
       "Die Zeiten gelten sofort. Eine Notiz ohne Abholzeit steht auf der Kinderkarte unter `Kommt heute nicht`. Eine Ausnahme ändert den Wochenplan nicht.",
     notes: [
       "Ohne eigene Zeit gilt die Klassenzeit des Kindes.",
+      // #3373: Ankunft nicht vor Abholung (comesOnlyIfLessonCancelled in
+      // student-time-status.ts) warnt nicht mehr als überfällig.
+      "Endet der Unterricht erst zur Abholzeit? Dann steht auf der Kinderkarte `Nur bei Unterrichtsausfall`. Das Kind gilt nicht als verspätet. Kommt es doch, checken Sie es wie gewohnt ein.",
       "Den Wochenplan können Sie schon beim Anlegen des Kindes mitgeben.",
       // #3372: Die Auswahl erscheint nur mit gepflegten Schulstunden
       // (school-period-select.tsx) und kopiert die Uhrzeit ins Zeitfeld.
@@ -2934,6 +3044,58 @@ function dataManagementTopic(): HelpTopic {
 }
 
 /**
+ * Der Assistent „Erste Schritte“ für neue Schulen (#2832). Er öffnet sich nur
+ * Personen mit `config:update`, solange die Schule nicht fertig ist. Die
+ * Beschriftungen stammen aus `components/school-setup/`.
+ */
+function firstStepsTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadFirstSteps,
+    title: "Erste Schritte mit moto",
+    question: "Wie führt mich moto durch den Start?",
+    summary:
+      "Eine neue OGS geht die ersten Schritte mit einer Checkliste durch.",
+    group: "einrichten",
+    audience: "lead",
+    icon: "ClipboardList",
+    requirements: [
+      "Ihre OGS ist neu bei moto.",
+      "Sie dürfen die Einstellungen Ihrer OGS ändern.",
+    ],
+    steps: [
+      "Melden Sie sich an. Unten rechts öffnet sich die Checkliste `Erste Schritte mit moto`.",
+      "Der nächste Schritt ist aufgeklappt. Wählen Sie `Zeig es mir`.",
+      "moto zeigt Ihnen in der Seitenleiste den Weg zur Seite und dann jede Stelle. Klicken Sie die hervorgehobene Stelle an.",
+      "Ist der Schritt erledigt, bekommt er einen Haken. Der nächste Schritt klappt auf.",
+      "Sind alle Schritte erledigt, wählen Sie `Abschließen`.",
+    ],
+    result:
+      "Die ersten Einträge stehen, und die Checkliste verschwindet. Die übrigen Daten legen Sie mit den Anleitungen hier in der Hilfe an.",
+    notes: [
+      "Jeden Schritt können Sie mit `Überspringen` auslassen.",
+      "Ein Schritt ist erledigt, sobald es den ersten Eintrag gibt, zum Beispiel das erste Kind. Die übrigen legen Sie danach genauso an.",
+      "Sie können die Checkliste einklappen. Unten rechts steht dann `Erste Schritte` mit der Zahl der offenen Schritte.",
+      "Sie können jeden Schritt in der Checkliste aufklappen, auch in anderer Reihenfolge.",
+      "Ob moto auch den Raum erfasst, stimmt das moto-Team mit Ihnen ab.",
+      "Sie möchten die Anwesenheit mit NFC-Armbändern erfassen? Dann melden Sie sich beim moto-Team.",
+      "Sie haben eine Liste aller Kinder? Wählen Sie in der Tour zu `Erstes Kind anlegen` den Knopf `Importieren`. Dann zeigt die Tour den Import.",
+      "Ihre OGS nutzt die Eltern-App nicht? Dann überspringen Sie `Erste Eltern einladen`.",
+      "Der Stand gilt für die ganze OGS. Andere Leitungen sehen denselben Stand.",
+    ],
+    troubleshootingDetails: [
+      "Die Tour ist plötzlich weg? Sie endet, wenn Sie eine andere Seite öffnen. Mit `Zeig es mir` starten Sie sie neu.",
+      "Sie haben `Nicht mehr anzeigen` gewählt? Die Checkliste kommt nicht wieder. Die Anleitungen zu jedem Schritt stehen hier in der Hilfe, zum Beispiel unter `Weitere Themen`.",
+    ],
+    related: [
+      HELP_TOPICS.leadGoLive,
+      HELP_TOPICS.leadInviteStaff,
+      HELP_TOPICS.leadCreateStudent,
+      HELP_TOPICS.leadInviteGuardians,
+    ],
+  };
+}
+
+/**
  * Einstiegs-Checkliste. Verweist nur, statt Schritte zu wiederholen
  * (Informationsarchitektur Abschnitt 7). Alle drei Einstellungen wirken hier:
  * ohne NFC entfaellt die Geraetevorbereitung, bei einfacher Anwesenheit gibt
@@ -3004,6 +3166,7 @@ function goLiveTopic(
       "Ein Punkt fehlt Ihnen in der Seitenleiste? Dann fehlen Ihnen die Leitungsrechte. Fragen Sie Ihre Leitung.",
     ],
     related: [
+      HELP_TOPICS.leadFirstSteps,
       HELP_TOPICS.leadRooms,
       ...(usesGroups ? [HELP_TOPICS.leadGroups] : []),
       HELP_TOPICS.leadInviteStaff,
@@ -3595,6 +3758,63 @@ function parentSurveyTopic(): HelpTopic {
 }
 
 /**
+ * Einverständnis (#3430): Eltern stimmen je Kind zu oder lehnen ab. Einfache
+ * Erklärung per Knopfdruck, mit Fassung und Nachweis. Eine reine
+ * Lesebestätigung ist ein Elternbrief.
+ */
+function parentDeclarationTopic(): HelpTopic {
+  const steps = parentAnnouncementSteps(
+    "Einverständnisse",
+    "Einverständnis",
+    "Titel",
+  );
+  return {
+    id: HELP_TOPICS.leadParentDeclaration,
+    title: "Ein Einverständnis einholen",
+    question: "Wie hole ich das Einverständnis der Eltern ein?",
+    summary:
+      "Eltern stimmen für jedes Kind zu oder lehnen ab, zum Beispiel für einen Ausflug.",
+    group: "elternarbeit",
+    audience: "lead",
+    icon: "ShieldCheck",
+    steps: [
+      // Ohne die letzten zwei Schritte (Weiter, Empfänger): die Einstellungen
+      // stehen noch in Schritt 1, der Empfängerschritt heißt hier
+      // `Wer soll gefragt werden?`.
+      ...steps.slice(0, -2),
+      "Wählen Sie unter `Wer muss antworten?`, ob eine sorgeberechtigte Person genügt oder alle antworten müssen.",
+      "Tragen Sie bei Bedarf ein Datum bei `Frist (optional)` ein.",
+      "Wählen Sie unten `Weiter`.",
+      "Wählen Sie in `Schritt 2 von 2` unter `Wer soll gefragt werden?` die Empfänger.",
+      "Wählen Sie `Veröffentlichen`.",
+    ],
+    result:
+      "Die Eltern sehen die Anfrage im Eltern-Portal. Den Stand je Kind sehen Sie beim Öffnen unter `Stand der Antworten`.",
+    notes: [
+      "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen, auch nach der Frist.",
+      "Mit `Passwort vor dem Antworten abfragen` geben Eltern vor jeder Antwort ihr Passwort ein.",
+      "`Offene erinnern` schickt eine Erinnerung an alle, die noch nicht geantwortet haben.",
+      "`Bericht als PDF` lädt den Stand und alle Antworten als PDF herunter. `Verlauf als CSV` enthält dieselben Antworten als Tabelle.",
+      "Das ist eine einfache Erklärung per Knopfdruck. Verlangt ein Gesetz eine Erklärung auf Papier, reicht sie nicht aus.",
+    ],
+    differences: [
+      "Nach dem Veröffentlichen stehen Text und Dateien fest.",
+      "Ziehen Sie ein Einverständnis zurück und ändern den Text, müssen die Eltern neu antworten. Die alten Antworten bleiben im Verlauf.",
+    ],
+    troubleshootingDetails: [
+      "Sollen Eltern nur bestätigen, dass sie etwas gelesen haben? Schreiben Sie dann einen Elternbrief mit Lesebestätigung.",
+      "Ein Kind steht auf `Niemand kann antworten`? Dann hat keine sorgeberechtigte Person ein Eltern-Konto. Laden Sie die Eltern ein.",
+      "`Löschen` klappt nicht? Auf das Einverständnis gibt es schon Antworten. Ziehen Sie es stattdessen zurück.",
+    ],
+    related: [
+      HELP_TOPICS.leadParentLetter,
+      HELP_TOPICS.leadParentSurvey,
+      HELP_TOPICS.leadInviteGuardians,
+    ],
+  };
+}
+
+/**
  * Essensplan unter `/meal-plan`. Wochenweise, mit ausdruecklichem Speichern:
  * Aenderungen sind bis dahin nur Entwurf (page.tsx:799).
  */
@@ -3903,6 +4123,15 @@ function enrollmentReviewTopic(): HelpTopic {
       "Sie entscheiden je Kind. Eine Anmeldung kann mehrere Kinder enthalten.",
       "Mit `Statusseite öffnen` sehen Sie, was die Eltern sehen.",
       "Offene Rückfragen der Eltern stehen im Bereich `Anfragen`.",
+      "Die Zahl an `Anmeldungen` zeigt, wie viele neue Anmeldungen Sie noch nicht gelesen haben.",
+      "Gelesen gilt nur für Sie. Ihr Team hat eine eigene Zahl.",
+      "Wenn Sie eine Anmeldung öffnen, gilt sie als gelesen.",
+      "Offene Anmeldungen in aktiven Phasen markieren Sie im Menü `⋮` als gelesen oder ungelesen.",
+      "Im Menü `⋮` oben im `Überblick` wählen Sie `Alle als gelesen markieren`.",
+      "Ändern Eltern ihre Anmeldung, ist sie wieder ungelesen.",
+      "Sie möchten bei jeder neuen Anmeldung eine E-Mail? Wählen Sie im Menü `⋮` oben im `Überblick` `E-Mail an mich bei neuer Anmeldung`.",
+      "Ein Haken zeigt: Die E-Mail ist eingeschaltet. Noch einmal wählen schaltet sie aus. Das gilt nur für Sie.",
+      "Die E-Mail geht an Ihre E-Mail-Adresse in moto.",
     ],
     differences: [
       "Der Überblick zählt je Phase, wie viele Eingänge offen, bestätigt und abgelehnt sind.",
@@ -3910,6 +4139,10 @@ function enrollmentReviewTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "Eine Anmeldung war versehentlich abgelehnt? Wählen Sie `Anmeldung wiederherstellen`.",
+      "Beim Bestätigen erscheint `Das Kinderkontingent Ihrer Schule ist voll`? Dann bleibt die Anmeldung offen. Für weitere Kinder melden Sie sich beim moto-Team.",
+      "Kinder, die schon aktiv oder vorgemerkt sind, können Sie auch bei vollem Kinderkontingent verlängern.",
+      "Bei einer Anmeldung steht `Wegen Kinderkontingent offen`? Beim Schuljahreswechsel war das Kinderkontingent voll. Das Kind wurde nicht automatisch verlängert. Entscheiden Sie selbst.",
+      "Trotz Haken kommt keine E-Mail? Schauen Sie im Spam-Ordner nach.",
     ],
     related: [
       HELP_TOPICS.leadEnrollmentSetup,
@@ -4144,7 +4377,8 @@ function staffRecordTopic(): HelpTopic {
  * `/staff/[id]`, Reiter `Arbeitszeitmodell`, Abschnitt `Sonderarbeitszeiten`
  * (#3259). Der Fall aus der Praxis: die Herbstferien sind ein Schließtag,
  * einige arbeiten trotzdem in der Ferienbetreuung. Ohne Sonderarbeitszeit
- * bekämen sie Plusstunden.
+ * bekämen sie Plusstunden. Teilzeitkräfte mit ungleich verteilten Stunden
+ * tragen sie je Wochentag ein (#3745).
  */
 function targetOverrideTopic(): HelpTopic {
   return {
@@ -4165,7 +4399,10 @@ function targetOverrideTopic(): HelpTopic {
       "Wählen Sie die Person.",
       "Wählen Sie oben `Arbeitszeitmodell`.",
       "Wählen Sie `Sonderarbeitszeit anlegen`.",
-      "Tragen Sie `Erster Tag`, `Letzter Tag` und `Stunden pro Tag` ein, zum Beispiel `8,5`.",
+      "Tragen Sie `Erster Tag` und `Letzter Tag` ein.",
+      "Tragen Sie bei `Stunden pro Tag` die Stunden ein, zum Beispiel `8,5`.",
+      "Wählen Sie `Je Wochentag`, wenn die Stunden unterschiedlich sind.",
+      "Tragen Sie die Stunden für Montag bis Freitag ein.",
       "Wählen Sie `Speichern`.",
     ],
     result:
@@ -4173,6 +4410,7 @@ function targetOverrideTopic(): HelpTopic {
     notes: [
       "Die Stunden gelten Montag bis Freitag, auch an Schließtagen. Gesetzliche Feiertage bleiben frei.",
       "Mit `0` Stunden muss die Person an diesen Tagen nicht arbeiten.",
+      "Bei `Je Wochentag` zeigt moto unter den Feldern die Summe für die Woche.",
       "Ändern geht nicht. Löschen Sie den Eintrag über die drei Punkte und legen Sie ihn neu an.",
     ],
     troubleshootingDetails: [
@@ -4513,6 +4751,44 @@ function leadCarePlanTopic(): HelpTopic {
   };
 }
 
+/**
+ * Einen einzelnen Termin im Betreuungsplan absagen (#2601, #3731). Ob die
+ * Eltern Bescheid bekommen, entscheidet die absagende Person im Dialog; es
+ * gibt dafür keine Schuleinstellungen mehr. Beschriftungen live geprüft.
+ */
+function leadCancelBlockTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadCancelBlock,
+    title: "Einen Termin absagen",
+    question: "Wie sage ich einen Termin ab und informiere die Eltern?",
+    summary:
+      "Ein abgesagter Termin bleibt im Plan sichtbar. Die Eltern der eingetragenen Kinder können Sie dabei gleich informieren.",
+    group: "planung",
+    audience: "lead",
+    icon: "CalendarCheck",
+    requirements: ["Sie dürfen den Betreuungsplan bearbeiten."],
+    steps: [
+      "Klappen Sie in der Seitenleiste `Planung` auf.",
+      "Öffnen Sie `Betreuungsplan` und wählen Sie den Termin.",
+      "Wählen Sie `Absagen`.",
+      "Lassen Sie den Haken bei `Eltern per App und E-Mail informieren` gesetzt, wenn die Familien Bescheid bekommen sollen.",
+      "Prüfen Sie `Betreff` und `Text an die Eltern`. moto schlägt beides vor.",
+      "Wählen Sie `Absagen`.",
+    ],
+    result:
+      "Der Termin ist als abgesagt markiert. Mit Haken bekommen die Familien eine Mitteilung im Elternportal und eine E-Mail.",
+    notes: [
+      "Der interne Grund der Absage geht nicht an die Eltern. Sie sehen nur Ihren Text.",
+      "Ohne Haken bekommen die Eltern keine Nachricht.",
+    ],
+    differences: [
+      "Fehlt der Haken? Dann sind für diesen Termin keine Kinder eingetragen, oder der Termin liegt in der Vergangenheit.",
+      "Einzelne Familien haben E-Mails oder Hinweise in ihrem Konto abgeschaltet. Diese Familien sehen die Mitteilung nur im Elternportal.",
+    ],
+    related: [HELP_TOPICS.leadCarePlan, HELP_TOPICS.leadCalendarPeriods],
+  };
+}
+
 /** `/dienstplan`. Ansichten `Woche` und `Halbjahr`, Schichten je Person. */
 function dutyRosterTopic(): HelpTopic {
   return {
@@ -4789,12 +5065,17 @@ function exportsTopic(): HelpTopic {
     notes: [
       "Die Listen sind in `Kinderlisten`, `Personallisten` und `Momentaufnahmen` geordnet.",
       "Eine `Momentaufnahme` wie die `Notfallliste` zeigt den Stand von jetzt.",
+      "Die `Gesundheitsliste` zeigt Allergien, Medikamente und andere Gesundheitsinformationen.",
+      "Sie enthält zuerst nur Kinder mit einem Eintrag.",
+      "`Auch Kinder ohne Eintrag` nimmt alle Kinder auf.",
+      "Jeder Export der `Gesundheitsliste` wird protokolliert.",
       "Jede Datei enthält personenbezogene Daten. Behandeln Sie sie wie jede andere Unterlage dieser Art.",
     ],
     differences: [
       "Sie sehen weniger Listen als eine Kollegin? Jede Liste hängt an einem eigenen Recht.",
     ],
     troubleshootingDetails: [
+      "Fehlt ein Kind auf der `Gesundheitsliste`? Dann ist bei ihm nichts eingetragen. Haken Sie `Auch Kinder ohne Eintrag` an.",
       "Brauchen Sie Zahlen statt Namen? Nutzen Sie die `Statistik`.",
       "Brauchen Sie eine Liste für einen bestimmten Tag? Nutzen Sie die `Tageslisten`.",
     ],
@@ -5057,12 +5338,12 @@ function nfcSettingsTopic(presenceMode: HelpPresenceMode): HelpTopic {
             "Die Knöpfe zum Auschecken und die `Tägliche Abmeldezeit` ändern bei Ihnen nichts.",
           ]
         : []),
-      "Arbeitet Ihre OGS ohne NFC, bleibt `Geräte` in den `Einstellungen` leer.",
+      "Arbeitet Ihre OGS ohne NFC, gibt es den Bereich `Geräte` in den `Einstellungen` nicht.",
       "Die `OGS Geräte-PIN` darf nur ändern, wer die OGS verwaltet.",
     ],
     troubleshootingDetails: [
       "Die neue PIN klappt am Tablet nicht? Starten Sie das Tablet neu.",
-      "Der Bereich bleibt leer? Dann arbeitet Ihre OGS ohne NFC.",
+      "Sie finden den Bereich `Geräte` nicht? Dann arbeitet Ihre OGS ohne NFC.",
     ],
     related: [
       HELP_TOPICS.nfcCheckIn,
@@ -5131,6 +5412,43 @@ function devicesTopic(): HelpTopic {
       HELP_TOPICS.nfcProblem,
       HELP_TOPICS.leadInfoDisplays,
     ],
+  };
+}
+
+/**
+ * Die beiden Geburtstags-Schalter der Schule (#1542) stehen seit #3737 in
+ * `Einstellungen` unter `Startseite für alle`, direkt an der Karte
+ * `Geburtstage`. Beschriftungen live geprüft.
+ */
+function leadBirthdaysTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadBirthdays,
+    title: "Geburtstage auf der Startseite zeigen",
+    question: "Wie zeige ich Geburtstage auf der Startseite?",
+    summary:
+      "Die Startseite zeigt, wer in dieser Woche Geburtstag hat. Sie legen fest, ob auch das Team dabei ist.",
+    group: "konfiguration",
+    audience: "lead",
+    icon: "Sparkles",
+    steps: [
+      "Öffnen Sie unten in der Seitenleiste `Einstellungen`.",
+      "Wählen Sie oben `Startseite für alle`.",
+      "Gehen Sie zur Karte `Geburtstage`.",
+      "Schalten Sie `Geburtstage auf der Startseite` ein oder aus.",
+      "Sollen auch Mitarbeitende erscheinen? Schalten Sie `Geburtstage von Mitarbeitenden mitanzeigen` ein.",
+      "Wählen Sie `Speichern`.",
+    ],
+    result:
+      "Die Karte `Geburtstage` zeigt die Geburtstage der Woche. Mitarbeitende erscheinen ohne Geburtsjahr.",
+    notes: [
+      "Jede Person kann sich im eigenen Profil von der Anzeige abmelden.",
+      "Kinder ohne hinterlegtes Geburtsdatum erscheinen nicht.",
+    ],
+    differences: [
+      "Sind die Geburtstage ausgeschaltet, fehlen die Vorgabe für die Karte und der Schalter für Mitarbeitende.",
+      "Sie sehen `Startseite für alle` nicht? Dann fehlt Ihnen das Recht, Einstellungen zu ändern.",
+    ],
+    related: [HELP_TOPICS.leadParentVisibility],
   };
 }
 
@@ -5232,6 +5550,7 @@ function leadTopics(
 ): readonly HelpTopic[] {
   return [
     // --- moto fuer die OGS einrichten ---
+    firstStepsTopic(),
     goLiveTopic(presenceMode, groupMode, nfcEnabled),
     dataManagementTopic(),
     roomsCatalogTopic(presenceMode),
@@ -5257,6 +5576,7 @@ function leadTopics(
     parentAnnouncementTopic(),
     parentLetterTopic(),
     parentSurveyTopic(),
+    parentDeclarationTopic(),
     mealPlanTopic(),
     bankDetailsTopic(),
 
@@ -5279,6 +5599,7 @@ function leadTopics(
     // --- Betreuung und Team planen ---
     calendarPeriodsTopic(),
     leadCarePlanTopic(),
+    leadCancelBlockTopic(),
     dutyRosterTopic(),
     substitutionPlanTopic(),
     dayListsTopic(),
@@ -5293,6 +5614,7 @@ function leadTopics(
     settingsTopic(),
     parentVisibilityTopic(),
     infoDisplaysTopic(),
+    leadBirthdaysTopic(),
 
     // --- Wenn etwas nicht klappt ---
     leadMissingMenuTopic(),
@@ -5326,6 +5648,7 @@ function parentAccountTopic(): HelpTopic {
     notes: [
       "Das Passwort braucht mindestens 8 Zeichen, einen Großbuchstaben, einen Kleinbuchstaben, eine Zahl und ein Sonderzeichen.",
       "Unter `Passwortanforderungen` sehen Sie, was noch fehlt.",
+      "Zur Einladung bekommen Sie eine zweite E-Mail: `Willkommen bei moto`. Sie führt zu dieser Anleitung und zur Elterninfo. Den Link zum Einrichten finden Sie nur in der Einladungs-E-Mail.",
     ],
     differences: [
       "Sie sehen `Konto erstellt`? Dann hat es geklappt. Melden Sie sich jetzt an.",
@@ -5849,7 +6172,8 @@ function parentNewsTopic(): HelpTopic {
     id: HELP_TOPICS.parentNews,
     title: "Elternbriefe lesen und beantworten",
     question: "Wo finde ich Post von der OGS?",
-    summary: "Unter `Elternbriefe` stehen Mitteilungen und Umfragen.",
+    summary:
+      "Unter `Elternbriefe` stehen Mitteilungen, Umfragen und Anfragen zum Einverständnis.",
     group: "nachrichten",
     audience: "parent",
     icon: "Megaphone",
@@ -5873,20 +6197,34 @@ function parentNewsTopic(): HelpTopic {
           "Tippen Sie auf `Antwort speichern`.",
         ],
       },
+      {
+        title: "Auf ein Einverständnis antworten",
+        steps: [
+          "Öffnen Sie den Eintrag `Einverständnis` unter `Offen`.",
+          "Lesen Sie den Text und die Dateien.",
+          "Tippen Sie beim Kind auf `Zustimmen` oder `Ablehnen`.",
+          "Prüfen Sie im Fenster das Kind und Ihre Antwort.",
+          "Bestätigen Sie im Fenster mit demselben Knopf.",
+        ],
+      },
     ],
     result: "Erledigte Einträge wandern von `Offen` zu `Erledigt`.",
     notes: [
       "Die Bestätigung heißt `Lesebestätigung`. Damit bestätigen Sie nur, dass Sie den Brief gelesen haben.",
       "Bei mehreren Kindern zeigt moto, wie viele Antworten noch fehlen.",
       "Angehängte Dateien öffnen Sie, indem Sie auf den Namen tippen.",
+      "Nach Ihrer Antwort öffnen Sie mit `Nachweis ansehen` Ihren Nachweis. Mit `Als PDF herunterladen` speichern Sie ihn.",
     ],
     differences: [
-      "Ein Eintrag trägt `Elternbrief`, `Umfrage`, `Wichtig` oder `Betreuung fällt aus`.",
+      "Umfragen tragen über dem Titel `Umfrage`, Einverständnisse `Einverständnis`, abgesagte Betreuung trägt `Betreuung fällt aus`.",
+      "Unten am Eintrag steht, ob er `Wichtig` ist, ob Sie eine `Erinnerung` bekommen haben und ob eine `Bestätigung erforderlich` ist.",
+      "Fragt moto nach Ihrem Passwort? Dann möchte die Schule das vor jeder Antwort.",
       "Bei einer Umfrage steht `Antwort bis` mit dem letzten Tag.",
       "Ist die Frist vorbei, steht dort `Umfrage geschlossen`.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Elternbrief sei nicht mehr aktuell? Laden Sie die Seite neu.",
+      "moto sagt, die Schule habe den Text geändert? Lesen Sie ihn noch einmal und antworten Sie neu.",
       "Fehlt `Elternbriefe` ganz? Dann nutzt Ihre OGS diese Funktion nicht.",
     ],
     related: [
@@ -6115,6 +6453,8 @@ function parentEnrollStatusTopic(): HelpTopic {
       "Steht dort `Bestätigung erforderlich`? Dann müssen Sie mit `Anmeldung bestätigen` zusagen, sonst läuft die Anmeldung zur Frist ab.",
       "Steht dort `Anmeldung wurde verlängert`? Dann müssen Sie nichts tun.",
       "Bei einem Kind steht `Diese Anmeldung kann nicht mehr online geändert werden`? Dann wenden Sie sich an die OGS.",
+      "Steht dort `Noch kein Zugang zur Eltern-App`? Dann öffnen Sie die E-Mail „Einladung zum Eltern-Portal“ und legen dort ein Passwort fest. Vorher klappt die Anmeldung nicht.",
+      "Steht dort `Zugang zur Eltern-App nicht möglich`? Dann wenden Sie sich an die OGS.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Status-Link sei ungültig? Prüfen Sie die Adresse aus der E-Mail oder fragen Sie bei der OGS nach.",
@@ -6292,6 +6632,7 @@ function teacherAccessTopic(): HelpTopic {
     notes: [
       "Haben Sie schon ein Konto? Dann melden Sie sich an und kehren zur Einladung zurück. Ihr Passwort bleibt unverändert.",
       "Der Link aus der E-Mail führt schon zur richtigen Adresse.",
+      "Zur Einladung bekommen Sie eine zweite E-Mail: `Willkommen bei moto`. Sie führt zu dieser Anleitung. Den Link zum Annehmen finden Sie nur in der Einladungs-Mail.",
     ],
     differences: [
       "moto schule hat eine eigene Adresse. Über die Adresse der OGS kommen Sie nicht hinein.",
@@ -6936,6 +7277,7 @@ export function getHelpTopics(
     ...leadTopics(presenceMode, groupMode, nfcEnabled),
     ...PARENT_DRAFT_TOPICS,
     ...TEACHER_DRAFT_TOPICS,
+    errorMessagesTopic(),
   ];
 
   const hidden = new Set<HelpTopicId>();

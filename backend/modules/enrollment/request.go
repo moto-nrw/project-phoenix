@@ -39,7 +39,7 @@ type RequestListFilters struct {
 
 // LegalBlockSnapshot is one resolved legal block exactly as the public
 // form rendered it at (re)submission time. It mirrors the resolved view
-// (services/enrollment.LegalBlock), not the template row, so the record
+// (enrollment.LegalBlock), not the template row, so the record
 // stays meaningful for blocks that came from live tenant settings.
 type LegalBlockSnapshot struct {
 	Key      string `json:"key"`

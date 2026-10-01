@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 )
@@ -473,9 +474,12 @@ type harness struct {
 	groups   *fakeGroups
 	pickups  *fakePickups
 	settings *fakeSettings
-	unit     *fakeUnit
-	clock    fakeClock
-	logger   *slog.Logger
+	// openRooms stays nil, like a graph without the open-room move, unless
+	// a test sets it.
+	openRooms *fakeOpenRooms
+	unit      *fakeUnit
+	clock     fakeClock
+	logger    *slog.Logger
 }
 
 // newHarness builds a service around a device, a student card and an
@@ -512,6 +516,10 @@ func newHarness(t *testing.T) *harness {
 }
 
 func (h *harness) service() *Service {
+	var openRooms devicescan.OpenRoomMover
+	if h.openRooms != nil {
+		openRooms = h.openRooms
+	}
 	var rosters ports.Rosters
 	if h.rosters != nil {
 		rosters = h.rosters
@@ -520,6 +528,7 @@ func (h *harness) service() *Service {
 		Fleet: h.fleet, Presence: h.presence, Rooms: h.rooms, Principals: h.principals, People: h.people,
 		Visits: h.visits, Sessions: h.sessions, Attendance: h.attendance, Activities: h.activities,
 		Rosters: rosters, Groups: h.groups, Pickups: h.pickups, Settings: h.settings, UnitOfWork: h.unit, Clock: h.clock, Logger: h.logger,
+		OpenRooms: openRooms,
 	})
 }
 

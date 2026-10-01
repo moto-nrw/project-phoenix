@@ -12,6 +12,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres"
 	parentMessages "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/ports"
 	staffMessages "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
@@ -28,8 +29,11 @@ type ParentMessagingConfig struct {
 	MessageRepo usersModels.ParentMessageRepository
 	ReadRepo    usersModels.ParentMessageReadRepository
 	Persons     userService.PersonService
+	// UserContext is the caller context: its staff check gates the read
+	// scope, and its groups serve the "own groups" count scope (#3673).
 	UserContext interface {
 		HasCurrentStaff(context.Context) (bool, error)
+		MyGroupIDs(context.Context) ([]int64, error)
 	}
 	Settings         configService.SettingsService
 	Broadcaster      realtime.Broadcaster
@@ -54,9 +58,17 @@ func NewParentMessaging(cfg ParentMessagingConfig) communication.ParentMessaging
 			Notifier: cfg.Notifier, Preferences: cfg.Preferences, Outbox: cfg.Outbox,
 			GuardianProfiles: cfg.GuardianProfiles, Schools: cfg.Schools,
 			LoginImages: cfg.LoginImages, ParentsURL: cfg.ParentsURL,
+			CountPreferences: newCountPreferences(cfg.DB),
+			Groups:           cfg.UserContext,
 		}),
 		observe: cfg.Observe,
 	}
+}
+
+// newCountPreferences builds the store behind the personal count scope
+// (#3673) over users.parent_message_count_preferences.
+func newCountPreferences(db *bun.DB) *parentpostgres.CountPreferenceStore {
+	return parentpostgres.NewCountPreferenceStore(parentDatabase(db))
 }
 
 type ParentMessageRendererConfig struct{ DefaultFrom email.Email }
@@ -146,6 +158,41 @@ func (m *parentMessaging) PostParentMessage(ctx context.Context, threadID int64,
 		}
 		return mapParentMessages(rows)
 	})
+}
+
+func (m *parentMessaging) MarkParentMessageThreadUnread(ctx context.Context, threadID int64) error {
+	_, err := observeResult(ctx, m.observe, "parent_messages.mark_unread", func(runCtx context.Context) (struct{}, error) {
+		return struct{}{}, mapParentMessagingError(m.service.MarkUnread(runCtx, threadID))
+	})
+	return err
+}
+
+func (m *parentMessaging) MarkAllParentMessagesRead(ctx context.Context) (int, error) {
+	return observeResult(ctx, m.observe, "parent_messages.mark_all_read", func(runCtx context.Context) (int, error) {
+		count, err := m.service.MarkAllRead(runCtx)
+		return count, mapParentMessagingError(err)
+	})
+}
+
+func (m *parentMessaging) ParentMessageCountScope(ctx context.Context) (communication.ParentMessageCountSetting, error) {
+	return observeResult(ctx, m.observe, "parent_messages.count_scope", func(runCtx context.Context) (communication.ParentMessageCountSetting, error) {
+		scope, err := m.service.CountScope(runCtx)
+		if err != nil {
+			return communication.ParentMessageCountSetting{}, mapParentMessagingError(err)
+		}
+		hasOwnGroups, err := m.service.HasOwnGroups(runCtx)
+		if err != nil {
+			return communication.ParentMessageCountSetting{}, mapParentMessagingError(err)
+		}
+		return communication.ParentMessageCountSetting{Scope: scope, HasOwnGroups: hasOwnGroups}, nil
+	})
+}
+
+func (m *parentMessaging) SetParentMessageCountScope(ctx context.Context, scope string) error {
+	_, err := observeResult(ctx, m.observe, "parent_messages.set_count_scope", func(runCtx context.Context) (struct{}, error) {
+		return struct{}{}, mapParentMessagingError(m.service.SetCountScope(runCtx, scope))
+	})
+	return err
 }
 
 type StaffMessagingConfig struct {
@@ -368,6 +415,8 @@ func mapParentMessagingError(err error) error {
 		return fmt.Errorf("%w: %w", communication.ErrParentMessageGuardianAccessRevoked, err)
 	case errors.Is(err, parentMessages.ErrMessagingDisabled):
 		return fmt.Errorf("%w: %w", communication.ErrParentMessagingDisabled, err)
+	case errors.Is(err, parentMessages.ErrInvalidCountScope):
+		return fmt.Errorf("%w: %w", communication.ErrParentMessageInvalidCountScope, err)
 	default:
 		return err
 	}

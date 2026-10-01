@@ -19,6 +19,18 @@ type parentEnrollmentSeedStep struct {
 
 func (parentEnrollmentSeedStep) Name() string { return "Parent portal and enrollment seeding" }
 
+// parentSeedHandoff carries what the parent accounts leave for
+// parentRequestsSeedStep, which may run later (DeferHistory).
+type parentSeedHandoff struct {
+	settings    map[string]any
+	parentAuths map[string]AuthRef
+}
+
+const parentSeedHandoffKey = "parent.handoff"
+
+// Run creates the parent accounts; the visitor enters the parent portal
+// through one of them, so a demo school cannot open before they exist.
+// parentRequestsSeedStep adds the enrollment requests and portal actions.
 func (s parentEnrollmentSeedStep) Run(ctx context.Context, rt *Runtime) error {
 	if rt.FixedSeeder == nil {
 		return fmt.Errorf("fixed seeder not available")
@@ -43,33 +55,66 @@ func (s parentEnrollmentSeedStep) Run(ctx context.Context, rt *Runtime) error {
 		return err
 	}
 	rt.Parents = parents
+	rt.Values[parentSeedHandoffKey] = parentSeedHandoff{settings: settings, parentAuths: parentAuths}
+	rt.SetTenantAuth(adminAuth)
+	fmt.Printf("Seeded %d parent accounts\n", len(rt.Parents))
+	return nil
+}
 
-	enrollmentState, err := s.seedEnrollment(rt, adminAuth, parents, parentAuths)
+type parentRequestsSeedStep struct {
+	seeder *Seeder
+}
+
+func (parentRequestsSeedStep) Name() string { return "Parent enrollment requests seeding" }
+
+func (s parentRequestsSeedStep) Run(ctx context.Context, rt *Runtime) error {
+	handoff, ok := rt.Values[parentSeedHandoffKey].(parentSeedHandoff)
+	if !ok {
+		return fmt.Errorf("parent accounts not available")
+	}
+	adminAuth, err := rt.Adapter.LoginTenant(ctx, rt.Bootstrap.AdminEmail, rt.Bootstrap.AdminPassword, rt.Bootstrap.TenantSlug)
+	if err != nil {
+		return fmt.Errorf("login seed school admin: %w", err)
+	}
+	rt.SetTenantAuth(adminAuth)
+	step := parentEnrollmentSeedStep(s)
+	parents, parentAuths := rt.Parents, handoff.parentAuths
+
+	enrollmentState, err := step.seedEnrollment(rt, adminAuth, parents, parentAuths)
 	if err != nil {
 		return err
 	}
-	enrollmentState.Settings, err = encodeSeedStateSettings(settings)
+	enrollmentState.Settings, err = encodeSeedStateSettings(handoff.settings)
 	if err != nil {
 		return fmt.Errorf("encode enrollment settings: %w", err)
 	}
 
 	if len(parents) > 0 {
-		actions, err := s.seedParentPortalActions(rt, parentAuths[parents[0].Email], parents[0])
+		actions, err := step.seedParentPortalActions(rt, parentAuths[parents[0].Email], parents[0])
 		if err != nil {
 			return err
 		}
 		enrollmentState.ParentActions = actions
-		if err := s.seedDecidedPickupChange(rt, adminAuth, parentAuths[parents[0].Email], parents[0]); err != nil {
+		if err := step.seedDecidedPickupChange(rt, adminAuth, parentAuths[parents[0].Email], parents[0]); err != nil {
 			return err
 		}
-		if err := s.seedPendingLaterPickupChange(rt, adminAuth, parents, parentAuths); err != nil {
+		if err := step.seedPendingLaterPickupChange(rt, adminAuth, parents, parentAuths); err != nil {
 			return err
 		}
 	}
 
+	// After the seeded requests, so they send no mail: the admin receives
+	// "Neue Anmeldung" by e-mail from now on (#3780), and the Anmeldungen
+	// menu shows the check on every dev machine.
+	if _, err := rt.Client.PutWithAuth(adminAuth, "/api/notifications/email-subscriptions/enrollment_submitted", map[string]any{
+		"enabled": true,
+	}); err != nil {
+		return fmt.Errorf("seed enrollment e-mail subscription: %w", err)
+	}
+
 	rt.Enrollment = enrollmentState
 	rt.SetTenantAuth(adminAuth)
-	fmt.Printf("Seeded %d parent accounts and %d enrollment requests\n", len(rt.Parents), len(rt.Enrollment.Requests))
+	fmt.Printf("Seeded %d enrollment requests\n", len(rt.Enrollment.Requests))
 	fmt.Println()
 	return nil
 }
@@ -903,16 +948,7 @@ func careOfferingSeedTranslations(offering seedCareOffering) map[string]map[stri
 
 func (s parentEnrollmentSeedStep) enrollmentSubmissionWithDays(phaseID int64, offerings map[string]int64, childFirstName, childLastName, dob string, grade int16, guardianFirstName, guardianLastName, guardianEmail, source string, offeringIDs []int64, selectedDaysByOffering map[int64][]string) map[string]any {
 	phone := "+49 221 555 990"
-	// Names carry real umlauts (bbcdda558), but the canonical email pattern
-	// (users.ValidateOptionalEmail) only accepts ASCII — transliterate for
-	// the derived address or the public submit rejects the whole seed run.
-	emailLocalPart := strings.NewReplacer(
-		"ä", "ae",
-		"ö", "oe",
-		"ü", "ue",
-		"ß", "ss",
-	).Replace(strings.ReplaceAll(strings.ToLower(guardianFirstName+"."+guardianLastName), " ", "."))
-	additionalEmail := emailLocalPart + ".2@example.test"
+	additionalEmail := emailLocalPart(guardianFirstName, guardianLastName) + ".2@example.test"
 	offeringDays := []map[string]any{}
 	for _, offeringID := range offeringIDs {
 		days, ok := selectedDaysByOffering[offeringID]

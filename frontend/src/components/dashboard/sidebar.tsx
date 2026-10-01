@@ -27,7 +27,6 @@ import {
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
-import { buildHelpHref, type HelpRole } from "~/lib/help-topics";
 import type { SupervisedRoom } from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { isDemoBannerShown } from "~/components/demo/demo-banner";
@@ -53,7 +52,9 @@ import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
 import { useStaffNoticesPending } from "~/lib/hooks/use-staff-notices-pending";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
+import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
+import { useHelpHref } from "~/lib/hooks/use-help-href";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
 import { SidebarGroup } from "~/components/dashboard/sidebar-group";
@@ -429,6 +430,9 @@ const TENANT_SCOPED_HREFS = new Set<string>([
 ]);
 
 // Rows that carry a counter, with the wording a screen reader gets.
+// Vorlesetext des Anmeldungen-Zählers (#3778).
+const ENROLLMENTS_UNREAD_NOUN = "ungelesene Anmeldungen";
+
 const ROW_BADGE_LABELS: Readonly<
   Record<string, { readonly tone: "staff" | "parents"; readonly noun: string }>
 > = {
@@ -609,6 +613,9 @@ function SidebarContent({
     useEnrollmentRequestsPending();
   const { unreadCount: careWithdrawalsPendingCount } =
     useCareWithdrawalsPending();
+  // Ungelesene Anmeldungen (#3778): eigener Zähler am Bereich „Anmeldungen",
+  // keine Anfrage und deshalb nicht im Anfragen-Zähler.
+  const { unreadCount: enrollmentsUnreadCount } = useEnrollmentsUnread();
   const requestsPendingCount =
     changeRequestsPendingCount +
     staffAbsencesPendingCount +
@@ -705,36 +712,9 @@ function SidebarContent({
   // Berechtigten mit allen Kindern.
   const openCareGroupMode = useOpenCareGroupMode();
 
-  /**
-   * Die Adresse hinter dem Eintrag `Hilfe` ganz unten.
-   *
-   * Nackt auf `/help` fragte die Hilfe zuerst, fuer wen die Anleitung ist
-   * und wie die OGS arbeitet -- vier Fragen, deren Antworten die angemeldete
-   * Sitzung bereits kennt. Wer aus der App kommt, soll direkt bei seinen
-   * Themen landen. Dieselben Werte gibt schon das Fragezeichen im Seitenkopf
-   * mit (`ContextHelpLink`); beide bauen die Adresse jetzt mit demselben
-   * `buildHelpHref`.
-   */
-  const helpHref = useMemo(() => {
-    const role: HelpRole =
-      mode === "parent" ? "parent" : userLeadsSchool ? "lead" : "caregiver";
-    const currentQuery = searchParams.toString();
-    return buildHelpHref({
-      role,
-      nfcEnabled,
-      presenceMode: presenceMode === "binary" ? "binary" : "detailed",
-      groupMode: openCareGroupMode ? "open_care" : "fixed_groups",
-      returnTo: currentQuery ? `${rawPathname}?${currentQuery}` : rawPathname,
-    });
-  }, [
-    mode,
-    nfcEnabled,
-    openCareGroupMode,
-    presenceMode,
-    rawPathname,
-    searchParams,
-    userLeadsSchool,
-  ]);
+  // Die Adresse hinter dem Eintrag `Hilfe` ganz unten, mit dem Kontext der
+  // Sitzung. Die mobile Navigation holt sie aus demselben Hook (#3575).
+  const helpHref = useHelpHref();
 
   const formatGroupAttendanceCount = (groupId: string) => {
     if (!canShowGroupAttendanceCounts) return undefined;
@@ -1752,6 +1732,7 @@ function SidebarContent({
         label={DATABASE_SECTION.label}
         activeColor="text-gray-500"
         isExpanded={expanded === "database"}
+        tourId="nav-database"
         {...sectionProps("database", handleDatabaseToggle)}
         isActive={isAccordionSectionActive(
           "/database",
@@ -1774,6 +1755,7 @@ function SidebarContent({
             // Eltern accordion. No-op in subdomain mode.
             href={tenantPath(page.href)}
             label={page.label}
+            tourId={`nav-${page.href}`}
             // Auch aktiv, wenn die Objektroute (Kindakte, Personalakte,
             // Raumseite) aus diesem Register geöffnet wurde (#3115).
             isActive={
@@ -1799,6 +1781,9 @@ function SidebarContent({
         isActive={isOnEnrollmentsPage}
         isIconActive={isOnEnrollmentsPage}
         hasChildren={ENROLLMENT_SUB_PAGES.length > 0}
+        badgeCount={enrollmentsUnreadCount}
+        badgeTone="staff"
+        badgeNoun={ENROLLMENTS_UNREAD_NOUN}
       >
         {ENROLLMENT_SUB_PAGES.map((page) => (
           <SidebarSubItem
@@ -1806,6 +1791,13 @@ function SidebarContent({
             href={page.href}
             label={page.label}
             isActive={activeEnrollmentSubPageHref === page.href}
+            {...(page.href === ENROLLMENT_SECTION.href
+              ? {
+                  badgeCount: enrollmentsUnreadCount,
+                  badgeTone: "staff" as const,
+                  badgeNoun: ENROLLMENTS_UNREAD_NOUN,
+                }
+              : {})}
           />
         ))}
       </SidebarAccordionSection>
@@ -1854,10 +1846,16 @@ function SidebarContent({
     }
   };
 
-  const entryBadgeCount = (entry: StaffNavEntry) =>
-    entry.kind === "page" && visibleItemsByHref.has(entry.href)
-      ? (rowBadgeCounts[entry.href] ?? 0)
+  const entryBadgeCount = (entry: StaffNavEntry) => {
+    if (entry.kind === "page") {
+      return visibleItemsByHref.has(entry.href)
+        ? (rowBadgeCounts[entry.href] ?? 0)
+        : 0;
+    }
+    return entry.section === "enrollments" && userLeadsSchool
+      ? enrollmentsUnreadCount
       : 0;
+  };
 
   return (
     <aside className={asideClasses(collapsed, className)}>
@@ -1889,6 +1887,7 @@ function SidebarContent({
                 <SidebarGroup
                   label={group.label}
                   icon={group.icon}
+                  tourId={`nav-group-${group.key}`}
                   isOpen={isGroupOpen(group.key)}
                   onToggle={() => toggleGroup(group.key)}
                   containsActive={group.entries.some(isEntryActive)}

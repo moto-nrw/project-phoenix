@@ -160,7 +160,7 @@ export function Header() {
   useEffect(() => {
     if (!hasCollapsibleSidebar) return;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== "b") return;
+      if (event.key?.toLowerCase() !== "b") return;
       if (!(event.metaKey || event.ctrlKey)) return;
       if (event.altKey || event.shiftKey) return;
       if (isEditableTarget(event.target)) return;

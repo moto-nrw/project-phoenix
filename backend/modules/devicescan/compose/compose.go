@@ -26,8 +26,11 @@ import (
 )
 
 // DeviceScan is the composed kiosk scan capability the roots hand to the
-// HTTP resources.
-type DeviceScan = devicescan.DeviceScan
+// HTTP resources, including the open-room destination booking (#3067).
+type DeviceScan interface {
+	devicescan.DeviceScan
+	devicescan.OpenRoomBooking
+}
 
 // Fleet is the part of the Device Fleet capability the scans use.
 type Fleet = application.Fleet
@@ -73,6 +76,9 @@ type Dependencies struct {
 	Education educationSvc.Service
 	// Pickups reads the effective pickup plan.
 	Pickups PickupReader
+	// OpenRooms books independent stays in released rooms (#3067). The root
+	// binds it to the open-room move workflow; nil refuses the booking.
+	OpenRooms devicescan.OpenRoomMover
 	// Settings resolves tenant settings and is required.
 	Settings configSvc.SettingsService
 	// Now is the workflow clock; nil means the wall clock.
@@ -122,6 +128,7 @@ func New(deps Dependencies) DeviceScan {
 		Rosters:    deps.Rosters,
 		Groups:     groups,
 		Pickups:    pickups,
+		OpenRooms:  deps.OpenRooms,
 		Settings:   settings{settings: deps.Settings, active: deps.Active},
 		UnitOfWork: unitOfWork{},
 		Clock:      clock,

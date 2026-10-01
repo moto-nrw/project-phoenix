@@ -236,32 +236,74 @@ func (d *Dispatcher) resolveConfigWithMessage(req DeliveryRequest, message Messa
 	return cfg
 }
 
-// deliverWithRetry attempts to send the email with retries
+// emailDeliveryJob names asynchronous email delivery in Sentry events.
+const emailDeliveryJob = "email-delivery"
+
+// deliverWithRetry attempts to send the email with retries. Only a delivery
+// that fails for good becomes a Sentry event, with the failed attempts as
+// breadcrumbs (#3640); a failed attempt that a retry makes good sends none.
 func (d *Dispatcher) deliverWithRetry(ctx context.Context, cfg dispatchConfig) {
+	hub := deliveryHub(ctx)
 	defer func() {
 		if r := recover(); r != nil {
 			err := fmt.Errorf("panic in email delivery: %v", r)
 			d.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
+			hub.RecoverWithContext(ctx, r)
+			hub.Flush(2 * time.Second)
 		}
 	}()
+	var lastErr error
 	for attempt := 1; attempt <= cfg.maxAttempts; attempt++ {
-		if d.tryDelivery(ctx, cfg, attempt) {
+		lastErr = d.tryDelivery(ctx, cfg, attempt)
+		if lastErr == nil {
 			return
 		}
+		hub.AddBreadcrumb(&sentry.Breadcrumb{
+			Type:     "error",
+			Category: "job.attempt",
+			Message:  "email send attempt failed",
+			Data: map[string]any{
+				"email_type":   cfg.metadata.Type,
+				"attempt":      attempt,
+				"max_attempts": cfg.maxAttempts,
+				"error":        lastErr.Error(),
+			},
+			Level:     sentry.LevelWarning,
+			Timestamp: time.Now(),
+		}, nil)
 		if attempt < cfg.maxAttempts {
 			time.Sleep(backoffDuration(cfg.backoff, attempt))
 		}
 	}
+	if lastErr != nil {
+		hub.CaptureException(fmt.Errorf("%s email delivery failed after %d attempt(s): %w", cfg.metadata.Type, cfg.maxAttempts, lastErr))
+	}
 }
 
-// tryDelivery attempts a single delivery; returns true if successful
-func (d *Dispatcher) tryDelivery(ctx context.Context, cfg dispatchConfig, attempt int) bool {
+// deliveryHub gives one asynchronous delivery a Sentry hub of its own: an
+// empty scope tagged with the job, so its breadcrumbs never mix with another
+// delivery's. It reuses only the client of the hub on ctx or of the global
+// hub: a delivery a request started carries none of the request's user,
+// session tags or request data.
+func deliveryHub(ctx context.Context) *sentry.Hub {
+	var parent *sentry.Hub
+	if ctx != nil {
+		parent = sentry.GetHubFromContext(ctx)
+	}
+	if parent == nil {
+		parent = sentry.CurrentHub()
+	}
+	hub := sentry.NewHub(parent.Client(), sentry.NewScope())
+	hub.Scope().SetTag("job", emailDeliveryJob)
+	return hub
+}
+
+// tryDelivery attempts a single delivery; returns nil if successful
+func (d *Dispatcher) tryDelivery(ctx context.Context, cfg dispatchConfig, attempt int) error {
 	err := d.mailer.Send(cfg.message)
 	if err == nil {
 		d.invokeCallback(ctx, cfg, attempt, DeliveryStatusSent, nil, true)
-		return true
+		return nil
 	}
 
 	d.getLogger().Warn("email send attempt failed",
@@ -273,7 +315,7 @@ func (d *Dispatcher) tryDelivery(ctx context.Context, cfg dispatchConfig, attemp
 	)
 
 	d.invokeCallback(ctx, cfg, attempt, DeliveryStatusFailed, err, attempt == cfg.maxAttempts)
-	return false
+	return err
 }
 
 // invokeCallback safely calls the callback if present

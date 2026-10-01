@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -23,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
@@ -56,6 +54,14 @@ type StaffMessageCleanupResult struct {
 // StaffMessageCleanup is supplied by the composition root. The scheduler
 // owns when cleanup runs but remains independent of the Communication module.
 type StaffMessageCleanup func(context.Context) (StaffMessageCleanupResult, error)
+
+// RejectedEnrollmentCleaner removes the rejected enrollments of the tenant in
+// context after their retention window and reports how many requests, late
+// invites and outbox rows it removed. The composition root supplies it; the
+// scheduler owns when it runs but stays independent of Enrollment.
+type RejectedEnrollmentCleaner interface {
+	CleanupRejectedEnrollments(ctx context.Context) (requests int, lateInvites, outboxRows int64, err error)
+}
 
 // CleanupJob represents a single cleanup task that can be executed.
 type CleanupJob struct {
@@ -178,7 +184,7 @@ type Scheduler struct {
 	pwaUsageCleanup            pwaSvc.UsageService
 	staffMessageCleanup        StaffMessageCleanup
 	bookingConsistency         auditModel.BookingConsistencyRepository
-	enrollmentRejectedCleanup  enrollmentSvc.RejectedEnrollmentCleaner
+	enrollmentRejectedCleanup  RejectedEnrollmentCleaner
 	autoStart                  timetable.InstanceAutoStart
 	autoEnd                    timetable.InstanceAutoEnd
 	settings                   SettingsResolver
@@ -627,8 +633,7 @@ func (s *Scheduler) runMinutePolling(task *ScheduledTask, panicName, startupMsg 
 				slog.String("job_id", task.Name),
 				slog.String("error", err.Error()),
 			)
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
+			reportJobPanic(startJobRunReport(context.Background(), task.Name), r)
 		}
 	}()
 
@@ -670,8 +675,7 @@ func (s *Scheduler) runIntervalPolling(task *ScheduledTask, panicName, startupMs
 				slog.String("job_id", task.Name),
 				slog.String("error", err.Error()),
 			)
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
+			reportJobPanic(startJobRunReport(context.Background(), task.Name), r)
 		}
 	}()
 
@@ -704,6 +708,9 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 			slog.String("error", err.Error()),
 		)
 	}
+	// Sentry sees the run once it failed for good or panicked (#3640); its
+	// failed attempts collect as breadcrumbs until then.
+	ctx = startJobRunReport(ctx, task.Name)
 	failures := &jobCommandFailures{}
 	ctx = context.WithValue(ctx, jobCommandFailuresKey{}, failures)
 	ctx = context.WithValue(ctx, workerJobIDKey{}, JobID(task.Name))
@@ -720,8 +727,7 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 			)
 			// Report and swallow the panic so only this run fails; re-panicking
 			// would end the polling loop until the next restart (#3597).
-			sentry.CurrentHub().Recover(recovered)
-			sentry.Flush(2 * time.Second)
+			reportJobPanic(ctx, recovered)
 			return
 		}
 		if commandErr := failures.result(); commandErr != nil {
@@ -732,6 +738,9 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 				slog.Duration("duration", duration),
 				slog.String("error", commandErr.Error()),
 			)
+			if !stoppedByShutdown(ctx, commandErr) {
+				reportJobRunFailure(ctx, commandErr)
+			}
 			return
 		}
 		s.observeWorkerRun(JobID(task.Name), "completed", duration)
@@ -741,6 +750,36 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 		)
 	}()
 	check(ctx, task)
+}
+
+// stoppedByShutdown reports whether the run only failed because the
+// scheduler stopped under it. Like a request the client canceled, that is no
+// defect and no Sentry event.
+func stoppedByShutdown(ctx context.Context, err error) bool {
+	return ctx.Err() != nil && onlyCancellationErrors(err)
+}
+
+// errors.Is on errors.Join would hide a real failure beside a cancellation.
+func onlyCancellationErrors(err error) bool {
+	if err == nil {
+		return false
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		parts := joined.Unwrap()
+		if len(parts) == 0 {
+			return false
+		}
+		for _, part := range parts {
+			if !onlyCancellationErrors(part) {
+				return false
+			}
+		}
+		return true
+	}
+	if wrapped := errors.Unwrap(err); wrapped != nil {
+		return onlyCancellationErrors(wrapped)
+	}
+	return errors.Is(err, context.Canceled)
 }
 
 // scheduleCleanupTask schedules the daily cleanup task using minute-polling.
@@ -938,19 +977,19 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 	}
 
 	if s.enrollmentRejectedCleanup != nil {
-		result, cleanupErr := s.enrollmentRejectedCleanup.CleanupRejectedEnrollments(ctx)
+		requests, lateInvites, outboxRows, cleanupErr := s.enrollmentRejectedCleanup.CleanupRejectedEnrollments(ctx)
 		if cleanupErr != nil {
 			s.getLogger().Error("rejected enrollment cleanup failed",
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", cleanupErr.Error()))
 			return false
 		}
-		if result.DeletedRequests > 0 {
+		if requests > 0 {
 			s.getLogger().Info("rejected enrollment cleanup completed",
 				slog.Int64("tenant_id", tenantID),
-				slog.Int("requests_deleted", result.DeletedRequests),
-				slog.Int64("late_invites_deleted", result.DeletedLateInvites),
-				slog.Int64("outbox_rows_deleted", result.DeletedOutboxRows))
+				slog.Int("requests_deleted", requests),
+				slog.Int64("late_invites_deleted", lateInvites),
+				slog.Int64("outbox_rows_deleted", outboxRows))
 		}
 	}
 
@@ -1009,8 +1048,7 @@ func (s *Scheduler) runTokenCleanupTask(task *ScheduledTask) {
 				slog.String("job_id", task.Name),
 				slog.String("error", err.Error()),
 			)
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
+			reportJobPanic(startJobRunReport(context.Background(), task.Name), r)
 		}
 	}()
 
@@ -1052,7 +1090,8 @@ func (s *Scheduler) executeTokenCleanup(ctx context.Context, task *ScheduledTask
 	}()
 
 	if err := s.runCleanupJobs(ctx); err != nil {
-		recordJobCommandFailure(ctx, err)
+		// runCleanupJobs left a breadcrumb for every failed cleanup job.
+		addJobCommandFailure(ctx, err)
 	}
 }
 
@@ -1105,6 +1144,7 @@ func (s *Scheduler) runCleanupJobs(ctx context.Context) error {
 			count, err = job.Run(ctx)
 		}
 		if err != nil {
+			recordStandingJobFailure(ctx, 0, "cleanup job failed", err, map[string]any{"cleanup_job": job.Description})
 			if !s.traceWorkerFailure(ctx, job.Description, "transaction_failure", err) {
 				logger.ErrorContext(ctx, "cleanup job failed", slog.String("job", job.Description))
 			}
@@ -1655,10 +1695,26 @@ func markRunAtAfterCommit(ctx context.Context, lastRunMap *sync.Map, tenantID in
 	})
 }
 
+// statusFlagClearHour and statusFlagClearMinute are the fixed end of the day
+// for "Am Ende des Tages" (#3729). The time used to be a school setting; it is
+// 18:00 for every school now. Midnight would not work: the clear archives the
+// flag onto timezone.TodayDate(), which is already the next day at 00:00.
+const (
+	statusFlagClearHour   = 18
+	statusFlagClearMinute = 0
+)
+
+// statusFlagClearDue reports whether now is the minute the end-of-day clear
+// runs.
+func statusFlagClearDue(now time.Time) bool {
+	now = now.In(timezone.Berlin)
+	return now.Hour() == statusFlagClearHour && now.Minute() == statusFlagClearMinute
+}
+
 // scheduleStatusFlagClearTask schedules a daily task to clear sick / excused
 // flags for tenants whose operations.sick_clear_mode or
-// operations.excused_clear_mode is set to "end_of_day". The task fires at the
-// tenant's configured operations.status_flag_clear_time.
+// operations.excused_clear_mode is set to "end_of_day". The task fires at
+// the fixed end of the day (statusFlagClearHour:statusFlagClearMinute).
 func (s *Scheduler) scheduleStatusFlagClearTask() {
 	// Env var kill switch to allow ops to disable this task without code changes.
 	if s.env("STATUS_FLAG_CLEAR_ENABLED") == "false" {
@@ -1669,17 +1725,26 @@ func (s *Scheduler) scheduleStatusFlagClearTask() {
 	s.registerTask("status-flag-clear", "1m-poll", s.runStatusFlagClearTaskPolling)
 }
 
-// runStatusFlagClearTaskPolling checks every minute if any tenant's status
-// flag clear time matches now and clears the configured end_of_day flags.
+// runStatusFlagClearTaskPolling checks every minute whether the end of the
+// day has come and clears the configured end_of_day flags.
 func (s *Scheduler) runStatusFlagClearTaskPolling(task *ScheduledTask) {
 	s.runMinutePolling(task, "panic in status flag clear task",
 		"status flag clear task using minute-polling for per-tenant scheduling",
 		s.checkAndRunStatusFlagClear)
 }
 
-// checkAndRunStatusFlagClear evaluates each tenant's clear_mode settings and
-// clears flags when the configured status flag clear time matches now.
+// checkAndRunStatusFlagClear clears the end_of_day flags when the fixed end
+// of the day has come.
 func (s *Scheduler) checkAndRunStatusFlagClear(ctx context.Context, task *ScheduledTask) {
+	if !statusFlagClearDue(time.Now()) {
+		return
+	}
+	s.runStatusFlagClear(ctx, task)
+}
+
+// runStatusFlagClear evaluates each tenant's clear_mode settings and clears
+// the flags set to end_of_day, at most once per tenant and day.
+func (s *Scheduler) runStatusFlagClear(ctx context.Context, task *ScheduledTask) {
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
@@ -1697,15 +1762,10 @@ func (s *Scheduler) checkAndRunStatusFlagClear(ctx context.Context, task *Schedu
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "status-flag-clear", func(tenantCtx context.Context, tenantID int64) error {
-		clearTime := s.resolveStringSetting(tenantCtx, configModel.KeyStatusFlagClearTime, "", "18:00")
-		if clearTime == "" || !timeMatchesNow(clearTime) {
-			return nil
-		}
-
 		if wasRunToday(&s.lastStatusFlagClear, tenantID) {
 			return nil
 		}
-		sickMode := s.resolveStringSetting(tenantCtx, configModel.KeySickClearMode, "", configModel.ClearModeNextCheckin)
+		sickMode := s.resolveStringSetting(tenantCtx, configModel.KeySickClearMode, "", configModel.ClearModeEndOfDay)
 		excusedMode := s.resolveStringSetting(tenantCtx, configModel.KeyExcusedClearMode, "", configModel.ClearModeEndOfDay)
 		succeeded := true
 

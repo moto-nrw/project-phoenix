@@ -60,13 +60,13 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
 		StaffNames: services.NewAttendanceStaffNames(repos.Staff, userService.NewPersonService(userService.PersonServiceDependencies{
-			PersonRepo:    repos.Person,
-			RFIDRepo:      repos.RFIDCard,
-			AccountExists: repositories.AccountExists(repos.Profile),
-			StudentRepo:   repos.Student,
-			StaffRepo:     repos.Staff,
-			TeacherRepo:   repos.Teacher,
-			DB:            db,
+			PersonRepo:     repos.Person,
+			RFIDRepo:       repos.RFIDCard,
+			AccountExists:  repositories.AccountExists(repos.Profile),
+			StudentRepo:    repos.Student,
+			StaffDirectory: services.NewStaffDirectory(services.StaffDirectoryDependencies{Persons: repos.Person, Staff: repos.Staff}),
+			TeacherRepo:    repos.Teacher,
+			DB:             db,
 		})),
 		DB:     db,
 		Logger: slog.Default(),
@@ -172,13 +172,13 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 
 	t.Run("the child is gone from the group roster reads", func(t *testing.T) {
 		personSvc := userService.NewPersonService(userService.PersonServiceDependencies{
-			PersonRepo:    repos.Person,
-			RFIDRepo:      repos.RFIDCard,
-			AccountExists: repositories.AccountExists(repos.Profile),
-			StudentRepo:   repos.Student,
-			StaffRepo:     repos.Staff,
-			TeacherRepo:   repos.Teacher,
-			DB:            db,
+			PersonRepo:     repos.Person,
+			RFIDRepo:       repos.RFIDCard,
+			AccountExists:  repositories.AccountExists(repos.Profile),
+			StudentRepo:    repos.Student,
+			StaffDirectory: services.NewStaffDirectory(services.StaffDirectoryDependencies{Persons: repos.Person, Staff: repos.Staff}),
+			TeacherRepo:    repos.Teacher,
+			DB:             db,
 		})
 		userService.WirePersonCareParticipation(personSvc, func(
 			ctx context.Context, studentIDs []int64, on, today timezone.Date,
@@ -332,14 +332,10 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	})
 
 	t.Run("the open roster check-in is closed", func(t *testing.T) {
-		var checkedOutAt *time.Time
-		err := db.NewSelect().
-			TableExpr("schedule.instance_students").
-			ColumnExpr("checked_out_at").
-			Where("instance_id = ? AND student_id = ?", openInstance.ID, studentID).
-			Scan(ctx, &checkedOutAt)
-		require.NoError(t, err)
-		assert.NotNil(t, checkedOutAt)
+		rows := testpkg.InstanceStudentsWhere(t, ctx, db,
+			`"instance_student".instance_id = ? AND "instance_student".student_id = ?`, openInstance.ID, studentID)
+		require.Len(t, rows, 1)
+		assert.NotNil(t, rows[0].CheckedOutAt)
 	})
 
 	t.Run("the family keeps the request in their history", func(t *testing.T) {

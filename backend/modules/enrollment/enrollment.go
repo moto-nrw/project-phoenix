@@ -46,6 +46,12 @@ type engine interface {
 	SetChangeRequestStatus(context.Context, int64, string) error
 	MarkChangeRequestReviewed(context.Context, int64, string, *string, int64, time.Time) error
 	CountChangeRequestsForReview(context.Context, []string) (int, error)
+	CountUnreadRequests(context.Context, int64) (int, error)
+	UnreadRequestIDs(context.Context, int64, []int64) ([]int64, error)
+	MarkRequestsRead(context.Context, int64, []int64) error
+	MarkAllRequestsRead(context.Context, int64) error
+	MarkRequestUnread(context.Context, int64, int64) error
+	MarkRequestParentChanged(context.Context, int64) error
 	InsertLateInvite(context.Context, *LateInvite) error
 	UsableLateInvite(context.Context, string, int64, time.Time, bool) (*LateInvite, error)
 	LateInviteByUsedRequestID(context.Context, int64) (*LateInvite, error)
@@ -68,6 +74,7 @@ type engine interface {
 	TransitionPhaseChildren(context.Context, int64, string, string) (int, error)
 	UpdateChildStatus(context.Context, int64, string, *string, int64) error
 	ReviewRolloverChild(context.Context, int64, string, *string, *int16, int64) error
+	HoldAutoRenewedChild(context.Context, int64, string) (bool, error)
 	DeleteRequestChildren(context.Context, int64) error
 	CountCreatedStudentsByPhase(context.Context, int64) (int, error)
 	InsertRequest(context.Context, *Request) error

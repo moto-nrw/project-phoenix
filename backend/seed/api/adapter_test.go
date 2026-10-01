@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -52,17 +53,17 @@ func (a *seedTestAdapter) CheckHealth(ctx context.Context) error { return a.inne
 
 func (a *seedTestAdapter) LoginOperator(ctx context.Context, email, password string) (AuthRef, error) {
 	auth, err := a.inner.Login(ctx, "/operator/auth/login", email, password, "")
-	return seedTestAuth(auth), err
+	return seedTestAuth(auth), seedTestLoginError(err, "operator login request failed")
 }
 
 func (a *seedTestAdapter) LoginTenant(ctx context.Context, email, password, tenantSlug string) (AuthRef, error) {
 	auth, err := a.inner.Login(ctx, "/auth/login", email, password, tenantSlug)
-	return seedTestAuth(auth), err
+	return seedTestAuth(auth), seedTestLoginError(err, "login request failed")
 }
 
 func (a *seedTestAdapter) LoginParent(ctx context.Context, email, password string) (AuthRef, error) {
 	auth, err := a.inner.Login(ctx, "/parent/auth/login", email, password, "")
-	return seedTestAuth(auth), err
+	return seedTestAuth(auth), seedTestLoginError(err, "parent login request failed")
 }
 
 func (a *seedTestAdapter) Raw(ctx context.Context, auth AuthRef, method, path string, body any, headers map[string]string) ([]byte, int, error) {
@@ -86,7 +87,18 @@ func seedTestAPIAuth(auth AuthRef) testpkg.APIAuth {
 func seedTestError(err error) error {
 	var requestErr *testpkg.APIRequestError
 	if errors.As(err, &requestErr) {
-		return &APIError{Method: requestErr.Method, Path: requestErr.Path, StatusCode: requestErr.StatusCode, Code: requestErr.Code, Message: requestErr.Message, Body: requestErr.Body}
+		return &APIError{Method: requestErr.Method, Path: requestErr.Path, StatusCode: requestErr.StatusCode, Code: requestErr.Code, Message: requestErr.Message, Body: requestErr.Body, RetryAfter: requestErr.RetryAfter}
 	}
 	return err
+}
+
+func seedTestLoginError(err error, operation string) error {
+	if err == nil {
+		return nil
+	}
+	var apiErr *testpkg.APIRequestError
+	if !errors.As(err, &apiErr) {
+		return err
+	}
+	return fmt.Errorf("%s: %w", operation, seedTestError(err))
 }

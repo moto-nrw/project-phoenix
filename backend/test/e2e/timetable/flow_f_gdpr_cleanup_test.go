@@ -61,13 +61,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	_ = testpkg.CreateTestInstanceStudent(t, s.db, oldInstance.ID, studA.ID, "")
 	isB := testpkg.CreateTestInstanceStudent(t, s.db, oldInstance.ID, studB.ID, "")
 	note := "sensitive context — must be CASCADE-deleted"
-	_, err := s.db.NewUpdate().
-		Model((*scheduleModel.InstanceStudent)(nil)).
-		ModelTableExpr(`schedule.instance_students`).
-		Set("note = ?", note).
-		Where("id = ?", isB.ID).
-		Exec(s.tenantCtx())
-	require.NoError(t, err, "annotate note on instance_student")
+	testpkg.UpdateSessionAttendance(t, s.tenantCtx(), s.db, isB.ID, map[string]any{"note": note})
 
 	// Fresh instance also has a student; must survive.
 	_ = testpkg.CreateTestInstanceStudent(t, s.db, freshInstance.ID, studA.ID, "")
@@ -91,7 +85,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 		validFrom:  today.AddDays(-100),
 	})
 	oldExc.ActivityGroupID = tmpl.group.ID
-	_, err = s.db.NewInsert().Model(oldExc).
+	_, err := s.db.NewInsert().Model(oldExc).
 		ModelTableExpr(`schedule.activity_exceptions`).Exec(s.tenantCtx())
 	require.NoError(t, err, "insert old activity_exception")
 	// --- Set retention to 30 days via the settings service ----------------
@@ -186,7 +180,7 @@ func setRetentionDays(t *testing.T, s *scenario, days int) {
 	}
 	err := testpkg.WithTenantTx(t, context.Background(), s.db, s.primaryTenant,
 		func(ctx context.Context, _ bun.Tx) error {
-			return s.resource.SettingsService.SetValue(ctx, "gdpr.timetable_retention_days", days, nil, perms)
+			return s.resource.SettingsService.(settingsWriter).SetValue(ctx, "gdpr.timetable_retention_days", days, nil, perms)
 		})
 	require.NoError(t, err, "set gdpr.timetable_retention_days=%d", days)
 }

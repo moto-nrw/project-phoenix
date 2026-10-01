@@ -41,6 +41,7 @@ type APIError struct {
 	Code       string
 	Message    string
 	Body       string
+	RetryAfter string
 }
 
 func (e *APIError) Error() string {
@@ -361,7 +362,11 @@ func (a *Adapter) send(req *http.Request, auth AuthRef, method, path string) ([]
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, resp.StatusCode, parseHTTPError(method, path, resp.StatusCode, respBody)
+		apiErr := parseHTTPError(method, path, resp.StatusCode, respBody)
+		if rateErr, ok := apiErr.(*APIError); ok {
+			rateErr.RetryAfter = resp.Header.Get("Retry-After")
+		}
+		return nil, resp.StatusCode, apiErr
 	}
 
 	return respBody, resp.StatusCode, nil

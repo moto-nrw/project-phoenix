@@ -220,7 +220,7 @@ export function createFileUploadHandler<T>(
             { status: error.status },
           );
         }
-        return handleApiError(error);
+        return handleApiError(error, request);
       }
     },
   );

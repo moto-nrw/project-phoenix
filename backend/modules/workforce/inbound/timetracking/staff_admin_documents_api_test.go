@@ -321,7 +321,7 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesOffboardedStaffDocument(t *tes
 	// Offboarding committed, but its after-commit unlink never ran: the staff
 	// row is soft-deleted while the document row stays active. No UI route
 	// reaches that record, so the scheduler pass must recover the file.
-	_, err = c.tc.db.ExecContext(ctx, `UPDATE users.staff SET deleted_at = NOW() WHERE id = ?`, c.staffID)
+	_, err = c.tc.db.ExecContext(ctx, `UPDATE users.staff_school_memberships SET deleted_at = NOW() WHERE id = ?`, c.staffID)
 	require.NoError(t, err)
 
 	removed, err := c.tc.resource.CleanupOrphanedStaffDocumentFiles(ctx)
@@ -360,7 +360,7 @@ func TestStaffDocumentsAPI_OffboardingCleanupLeaseRetriesFileFailure(t *testing.
 	require.NoError(t, os.WriteFile(filepath.Join(filePath, "block-removal"), []byte("test"), 0600))
 	runtime := testpkg.ConfigRuntime(c.tc.db)
 	require.NoError(t, testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-		if _, err := runtime.DB(txCtx).ExecContext(txCtx, "UPDATE users.staff SET deleted_at = NOW() WHERE id = ?", c.staffID); err != nil {
+		if _, err := runtime.DB(txCtx).ExecContext(txCtx, "UPDATE users.staff_school_memberships SET deleted_at = NOW() WHERE id = ?", c.staffID); err != nil {
 			return err
 		}
 		return c.tc.resource.QueueOffboardedStaffDocumentCleanup(txCtx, c.staffID)
@@ -398,7 +398,7 @@ func TestStaffDocumentsAPI_DirectoryRetryRespectsCommittedOffboardingLease(t *te
 	ctx := testpkg.Ctx(t)
 	var storedName string
 	require.NoError(t, c.tc.db.NewRaw("SELECT filename_stored FROM users.staff_documents WHERE id = ?", docID).Scan(ctx, &storedName))
-	_, err := c.tc.db.ExecContext(ctx, "UPDATE users.staff SET deleted_at = NOW() WHERE id = ?", c.staffID)
+	_, err := c.tc.db.ExecContext(ctx, "UPDATE users.staff_school_memberships SET deleted_at = NOW() WHERE id = ?", c.staffID)
 	require.NoError(t, err)
 	queue := c.tc.resource.OffboardingCleanup
 	require.NoError(t, queue.Enqueue(ctx, c.staffID))

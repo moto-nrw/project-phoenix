@@ -42,10 +42,9 @@ import {
 // component's `err instanceof OfferingRequestApiError` branch resolves.
 // Das Gültigkeitsdatum wird als Feld getestet, nicht als Kalender-Overlay: die
 // Regel dahinter ist, welches Datum die Freigabe mitnimmt (#2484).
-vi.mock("~/components/ui/date-picker", async (importOriginal) => {
-  const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
-  return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
-});
+vi.mock("~/components/ui/date-picker", async () =>
+  (await import("~/test/mocks/date-picker")).datePickerModuleMock(),
+);
 
 vi.mock("~/lib/offering-request-review-api", async (importActual) => {
   const actual =

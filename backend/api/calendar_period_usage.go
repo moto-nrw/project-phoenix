@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
 )
 
 // periodUsageSource is the planning owners' one-statement usage read.

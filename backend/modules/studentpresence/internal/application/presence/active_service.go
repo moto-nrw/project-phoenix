@@ -67,6 +67,10 @@ type SettingsResolver interface {
 	// attendance and who sees the tenant-wide overview.
 	AttendanceEditScope(ctx context.Context) (string, error)
 	OperationalOverviewScope(ctx context.Context) (string, error)
+	// WebParticipantLimitEnforced reports whether web and app assignments
+	// must respect an activity's participant limit the way the terminal does
+	// (#3632). False, the registry default, lets them exceed it.
+	WebParticipantLimitEnforced(ctx context.Context) (bool, error)
 }
 
 // Settings values the presence flows compare against. They are the stored
@@ -128,8 +132,8 @@ type ServiceDependencies struct {
 	WorkSessionService WorkSessionService
 
 	// Optional: Attendance sync (WP-B10). When non-nil, visit create/end
-	// calls mirror into schedule.instance_students and enrich check-in/out
-	// SSE events with attendance status/substatus/note.
+	// calls mirror into the slot attendance (active.activity_session_attendance)
+	// and enrich check-in/out SSE events with attendance status/substatus/note.
 	AttendanceSyncer AttendanceSyncer
 
 	// Optional: Timetable bridge cleanup for force-ended IoT sessions.

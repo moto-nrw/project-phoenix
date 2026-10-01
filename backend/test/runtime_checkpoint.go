@@ -2,8 +2,11 @@ package test
 
 import (
 	"context"
+	"encoding/hex"
+	"encoding/json"
 	"math"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -42,6 +45,8 @@ type RuntimeCheckpointWorkerResult struct {
 	Errors        []string                     `json:"errors"`
 	MetricsBefore string                       `json:"metrics_before"`
 	MetricsAfter  string                       `json:"metrics_after"`
+	// JSONBRecordsets records the measured samples' jsonb_to_recordset sizes.
+	JSONBRecordsets []RuntimeCheckpointRecordset `json:"jsonb_recordsets,omitempty"`
 }
 
 // CheckpointDeliveryWorker is the public worker seam used by the checkpoint.
@@ -67,6 +72,7 @@ func MeasureDeliveryCheckpoint(t *testing.T, db, fixtureDB *bun.DB, worker Check
 			return count
 		}
 		var deadlocksBefore int64
+		var recordsets RuntimeCheckpointRecordsets
 		for iteration := range 35 {
 			payload := `{"recipient_email":"checkpoint@example.invalid","invitation_url":"http://localhost/invite/checkpoint","expiry_hours":48}`
 			if name == "delivery.render-failure" {
@@ -127,6 +133,7 @@ func MeasureDeliveryCheckpoint(t *testing.T, db, fixtureDB *bun.DB, worker Check
 				result.States = append(result.States, status.Status)
 				result.Attempts = append(result.Attempts, status.Attempts)
 				result.Errors = append(result.Errors, status.LastError)
+				recordsets.Observe(counter.Queries())
 			}
 			if name != "delivery.idle" {
 				// Remove only the owned fixture after observing its scheduled retry, so
@@ -139,6 +146,7 @@ func MeasureDeliveryCheckpoint(t *testing.T, db, fixtureDB *bun.DB, worker Check
 		result.LockSamples = stopSampling()
 		require.Empty(t, result.LockSamples.Error)
 		result.Deadlocks = deadlocks() - deadlocksBefore
+		result.JSONBRecordsets = recordsets.Result()
 		results = append(results, result)
 	}
 	return results
@@ -230,6 +238,7 @@ func MeasureTimetableCheckpoint(t *testing.T, db, fixtureDB *bun.DB, uow tenant.
 			return count
 		}
 		var deadlocksBefore int64
+		var recordsets RuntimeCheckpointRecordsets
 		for iteration := range 35 {
 			if name == "timetable.materialize-create" {
 				reset()
@@ -265,14 +274,136 @@ func MeasureTimetableCheckpoint(t *testing.T, db, fixtureDB *bun.DB, uow tenant.
 				result.Samples[len(result.Samples)-1].RowsAffected, result.Samples[len(result.Samples)-1].StatementsWithRows = counter.Rows()
 				result.RowsAffected = append(result.RowsAffected, created)
 				result.RowsSkipped = append(result.RowsSkipped, skipped)
+				recordsets.Observe(counter.Queries())
 			}
 		}
 		result.MetricsAfter = metrics()
 		result.LockSamples = stopSampling()
 		require.Empty(t, result.LockSamples.Error)
 		result.Deadlocks = deadlocks() - deadlocksBefore
+		result.JSONBRecordsets = recordsets.Result()
 		reset()
 		results = append(results, result)
 	}
 	return results
+}
+
+// RuntimeCheckpointRecordset aggregates the id sets one jsonb_to_recordset
+// call site received during a measured scenario (#3411). A foreign id set
+// shipped into an owner query is legitimate while it stays bounded; the row
+// counts per call tell a bounded use from one that grows with the tenant.
+type RuntimeCheckpointRecordset struct {
+	Site      string `json:"site"`
+	Calls     int    `json:"calls"`
+	MinRows   int    `json:"min_rows"`
+	MaxRows   int    `json:"max_rows"`
+	TotalRows int    `json:"total_rows"`
+	// Unparsed counts calls whose argument was not an inline literal.
+	Unparsed int `json:"unparsed,omitempty"`
+}
+
+// RuntimeCheckpointRecordsets collects jsonb_to_recordset sizes from counted
+// statements. bun inlines the bound argument, as a quoted string or a hex
+// bytea literal, so the set size is read back from the statement text.
+type RuntimeCheckpointRecordsets struct {
+	sites map[string]*RuntimeCheckpointRecordset
+	order []string
+}
+
+const recordsetCall = "jsonb_to_recordset("
+
+// Observe records every jsonb_to_recordset argument in the statements.
+func (r *RuntimeCheckpointRecordsets) Observe(statements []string) {
+	for _, statement := range statements {
+		rest := statement
+		for {
+			index := strings.Index(rest, recordsetCall)
+			if index < 0 {
+				break
+			}
+			rest = rest[index+len(recordsetCall):]
+			rows, consumed, ok := recordsetRows(rest)
+			rest = rest[consumed:]
+			site, _, _ := strings.Cut(rest, "\n")
+			site = recordsetCall + "<set>" + strings.Join(strings.Fields(site), " ")
+			if len(site) > 160 {
+				site = site[:160]
+			}
+			r.add(site, rows, ok)
+		}
+	}
+}
+
+func (r *RuntimeCheckpointRecordsets) add(site string, rows int, parsed bool) {
+	if r.sites == nil {
+		r.sites = map[string]*RuntimeCheckpointRecordset{}
+	}
+	entry, found := r.sites[site]
+	if !found {
+		entry = &RuntimeCheckpointRecordset{Site: site, MinRows: math.MaxInt}
+		r.sites[site] = entry
+		r.order = append(r.order, site)
+	}
+	entry.Calls++
+	if !parsed {
+		entry.Unparsed++
+		return
+	}
+	entry.MinRows = min(entry.MinRows, rows)
+	entry.MaxRows = max(entry.MaxRows, rows)
+	entry.TotalRows += rows
+}
+
+// Result lists the observed call sites in first-seen order; nil when none ran.
+func (r *RuntimeCheckpointRecordsets) Result() []RuntimeCheckpointRecordset {
+	var out []RuntimeCheckpointRecordset
+	for _, site := range r.order {
+		entry := *r.sites[site]
+		if entry.MinRows == math.MaxInt {
+			entry.MinRows = 0
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+// recordsetRows reads the inline literal at the start of text and returns the
+// number of JSON array elements and how many bytes the literal used.
+func recordsetRows(text string) (int, int, bool) {
+	leading := len(text) - len(strings.TrimLeft(text, " \t\n"))
+	text = text[leading:]
+	if !strings.HasPrefix(text, "'") {
+		return 0, leading, false
+	}
+	var literal strings.Builder
+	end := -1
+	for i := 1; i < len(text); i++ {
+		if text[i] != '\'' {
+			literal.WriteByte(text[i])
+			continue
+		}
+		if i+1 < len(text) && text[i+1] == '\'' {
+			literal.WriteByte('\'')
+			i++
+			continue
+		}
+		end = i + 1
+		break
+	}
+	if end < 0 {
+		return 0, leading, false
+	}
+	payload := []byte(literal.String())
+	if hexPayload, isHex := strings.CutPrefix(literal.String(), `\x`); isHex {
+		decoded, err := hex.DecodeString(hexPayload)
+		if err != nil {
+			return 0, leading + end, false
+		}
+		payload = decoded
+	}
+	var elements []json.RawMessage
+	if err := json.Unmarshal(payload, &elements); err != nil {
+		return 0, leading + end, false
+	}
+	return len(elements), leading + end, true
 }

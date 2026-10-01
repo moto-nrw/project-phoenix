@@ -116,6 +116,11 @@ func (s *service) updateActiveGroupLocked(ctx context.Context, group *ports.Acti
 			return err
 		}
 	}
+	// Switching the running session to another activity puts all its
+	// children into that activity at once (#3632).
+	if err := s.ensureSessionFitsNewActivity(ctx, existing, group); err != nil {
+		return err
+	}
 
 	if err := s.GroupRepo.Update(ctx, group); err != nil {
 		return &ActiveError{Op: "UpdateActiveGroup", Err: fmt.Errorf("update failed: %w", err)}

@@ -24,21 +24,12 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiGet: mockApiGet,
   apiPost: vi.fn(),
   apiPut: vi.fn(),
   apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
 }));
 
 // ============================================================================
@@ -232,8 +223,9 @@ describe("GET /api/schedules/timeframes", () => {
     const request = createMockRequest("/api/schedules/timeframes");
     const response = await GET(request, createMockContext());
 
-    const json = await parseJsonResponse<ApiResponse<unknown[]>>(response);
-    expect(json.data).toEqual([]);
+    expect(response.status).toBe(500);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).toBe("Unexpected timeframe response format");
   });
 
   it("returns empty array when API call fails", async () => {
@@ -242,7 +234,8 @@ describe("GET /api/schedules/timeframes", () => {
     const request = createMockRequest("/api/schedules/timeframes");
     const response = await GET(request, createMockContext());
 
-    const json = await parseJsonResponse<ApiResponse<unknown[]>>(response);
-    expect(json.data).toEqual([]);
+    expect(response.status).toBe(500);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).toBe("Backend error");
   });
 });

@@ -24,6 +24,24 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
+// StaffAccount returns a mock whose every account resolves to the person
+// personID and every person to the staff member staffID, for callers that
+// only need the acting account's staff identity.
+func StaffAccount(personID, staffID int64) *PersonServiceMock {
+	return &PersonServiceMock{
+		FindByAccountIDFn: func(context.Context, int64) (*userModels.Person, error) {
+			person := &userModels.Person{}
+			person.ID = personID
+			return person, nil
+		},
+		GetStaffByPersonIDFn: func(context.Context, int64) (*userModels.Staff, error) {
+			staff := &userModels.Staff{}
+			staff.ID = staffID
+			return staff, nil
+		},
+	}
+}
+
 // PersonServiceMock is a func-field test double for users.PersonService.
 type PersonServiceMock struct {
 	GetFn                                    func(ctx context.Context, id interface{}) (*userModels.Person, error)
@@ -43,14 +61,13 @@ type PersonServiceMock struct {
 	GetStaffByIDFn                           func(ctx context.Context, id int64) (*userModels.Staff, error)
 	GetStaffByPersonIDFn                     func(ctx context.Context, personID int64) (*userModels.Staff, error)
 	ResolveStaffIDByAccountIDFn              func(ctx context.Context, accountID int64) (int64, error)
-	GetStaffWithPersonFn                     func(ctx context.Context, id int64) (*userModels.Staff, error)
 	GetStaffWithPersonByIDsFn                func(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error)
 	ListStaffWithPersonFn                    func(ctx context.Context) ([]*userModels.Staff, error)
 	ListStaffByRolesFn                       func(ctx context.Context, roles []string) ([]*userModels.StaffWithRoleInfo, error)
-	GetTeacherByStaffIDFn                    func(ctx context.Context, staffID int64) (*userModels.Teacher, error)
 	GetTeachersByStaffIDsFn                  func(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error)
-	GetTeachersBySpecializationFn            func(ctx context.Context, specialization string) ([]*userModels.Teacher, error)
 	GetTeacherWithStaffAndPersonFn           func(ctx context.Context, id int64) (*userModels.Teacher, error)
+	GetTeacherByStaffIDFn                    func(ctx context.Context, staffID int64) (*userModels.Teacher, error)
+	GetTeachersBySpecializationFn            func(ctx context.Context, specialization string) ([]*userModels.Teacher, error)
 	ListTeachersWithStaffAndPersonFn         func(ctx context.Context) ([]*userModels.Teacher, error)
 	GetStudentByIDFn                         func(ctx context.Context, id int64) (*userModels.Student, error)
 	GetStudentByIDForUpdateFn                func(ctx context.Context, id int64) (*userModels.Student, error)
@@ -63,76 +80,9 @@ type PersonServiceMock struct {
 	CountStudentsByGroupIDsFn                func(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 	CreateStaffWithTeacherFn                 func(ctx context.Context, input users.CreateStaffInput) (staff *userModels.Staff, teacher *userModels.Teacher, teacherCreationFailed bool, err error)
 	UpdateStaffWithTeacherFn                 func(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, users.TeacherAction, error)
-	UpdatePersonnelNumberFn                  func(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*userModels.Staff, error)
 	GetStudentsWithGroupsByTeacherFn         func(ctx context.Context, teacherID int64) ([]users.StudentWithGroup, error)
 	GetStudentsWithGroupsByTeacherStaffIDsFn func(ctx context.Context, staffIDs []int64) ([]users.StudentWithGroup, error)
 	GetAllStudentsWithGroupsFn               func(ctx context.Context) ([]users.StudentWithGroup, error)
-
-	// Staff Stammdaten (#1423)
-	GetStaffStammdatenFn                  func(ctx context.Context, staffID int64) (*users.StaffStammdaten, error)
-	UpdateStaffStammdatenPersonFn         func(ctx context.Context, staffID int64, input users.StammdatenPersonInput, changedByStaffID int64, note string) error
-	UpdateStaffStammdatenKontaktFn        func(ctx context.Context, staffID int64, input users.StammdatenKontaktInput, changedByStaffID int64, note string) error
-	UpdateStaffStammdatenArbeitsvertragFn func(ctx context.Context, staffID int64, input users.StammdatenArbeitsvertragInput, changedByStaffID int64, note string) error
-	ReplaceStaffQualificationsFn          func(ctx context.Context, staffID int64, inputs []users.StammdatenQualificationInput, changedByStaffID int64, note string) error
-	GetStaffFinancialMaskedFn             func(ctx context.Context, staffID int64, actorAccountID int64, actorRole string) (*users.StaffFinancialMasked, error)
-	RevealStaffFinancialFn                func(ctx context.Context, staffID int64, actorAccountID int64, actorRole string) (*users.StaffFinancialPlain, error)
-	UpdateStaffFinancialFn                func(ctx context.Context, staffID int64, input users.StammdatenFinancialInput, changedByAccountID int64, note string) error
-}
-
-func (m *PersonServiceMock) GetStaffStammdaten(ctx context.Context, staffID int64) (*users.StaffStammdaten, error) {
-	if m.GetStaffStammdatenFn != nil {
-		return m.GetStaffStammdatenFn(ctx, staffID)
-	}
-	return nil, nil
-}
-
-func (m *PersonServiceMock) UpdateStaffStammdatenPerson(ctx context.Context, staffID int64, input users.StammdatenPersonInput, changedByStaffID int64, note string) error {
-	if m.UpdateStaffStammdatenPersonFn != nil {
-		return m.UpdateStaffStammdatenPersonFn(ctx, staffID, input, changedByStaffID, note)
-	}
-	return nil
-}
-
-func (m *PersonServiceMock) UpdateStaffStammdatenKontakt(ctx context.Context, staffID int64, input users.StammdatenKontaktInput, changedByStaffID int64, note string) error {
-	if m.UpdateStaffStammdatenKontaktFn != nil {
-		return m.UpdateStaffStammdatenKontaktFn(ctx, staffID, input, changedByStaffID, note)
-	}
-	return nil
-}
-
-func (m *PersonServiceMock) UpdateStaffStammdatenArbeitsvertrag(ctx context.Context, staffID int64, input users.StammdatenArbeitsvertragInput, changedByStaffID int64, note string) error {
-	if m.UpdateStaffStammdatenArbeitsvertragFn != nil {
-		return m.UpdateStaffStammdatenArbeitsvertragFn(ctx, staffID, input, changedByStaffID, note)
-	}
-	return nil
-}
-
-func (m *PersonServiceMock) ReplaceStaffQualifications(ctx context.Context, staffID int64, inputs []users.StammdatenQualificationInput, changedByStaffID int64, note string) error {
-	if m.ReplaceStaffQualificationsFn != nil {
-		return m.ReplaceStaffQualificationsFn(ctx, staffID, inputs, changedByStaffID, note)
-	}
-	return nil
-}
-
-func (m *PersonServiceMock) GetStaffFinancialMasked(ctx context.Context, staffID int64, actorAccountID int64, actorRole string) (*users.StaffFinancialMasked, error) {
-	if m.GetStaffFinancialMaskedFn != nil {
-		return m.GetStaffFinancialMaskedFn(ctx, staffID, actorAccountID, actorRole)
-	}
-	return nil, nil
-}
-
-func (m *PersonServiceMock) RevealStaffFinancial(ctx context.Context, staffID int64, actorAccountID int64, actorRole string) (*users.StaffFinancialPlain, error) {
-	if m.RevealStaffFinancialFn != nil {
-		return m.RevealStaffFinancialFn(ctx, staffID, actorAccountID, actorRole)
-	}
-	return nil, nil
-}
-
-func (m *PersonServiceMock) UpdateStaffFinancial(ctx context.Context, staffID int64, input users.StammdatenFinancialInput, changedByAccountID int64, note string) error {
-	if m.UpdateStaffFinancialFn != nil {
-		return m.UpdateStaffFinancialFn(ctx, staffID, input, changedByAccountID, note)
-	}
-	return nil
 }
 
 var _ users.PersonService = (*PersonServiceMock)(nil)
@@ -256,13 +206,6 @@ func (m *PersonServiceMock) ResolveStaffIDByAccountID(ctx context.Context, accou
 	return 0, nil
 }
 
-func (m *PersonServiceMock) GetStaffWithPerson(ctx context.Context, id int64) (*userModels.Staff, error) {
-	if m.GetStaffWithPersonFn != nil {
-		return m.GetStaffWithPersonFn(ctx, id)
-	}
-	return nil, nil
-}
-
 func (m *PersonServiceMock) GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error) {
 	if m.GetStaffWithPersonByIDsFn != nil {
 		return m.GetStaffWithPersonByIDsFn(ctx, ids)
@@ -291,23 +234,9 @@ func (m *PersonServiceMock) GetTeacherByStaffID(ctx context.Context, staffID int
 	return nil, nil
 }
 
-func (m *PersonServiceMock) GetTeachersByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error) {
-	if m.GetTeachersByStaffIDsFn != nil {
-		return m.GetTeachersByStaffIDsFn(ctx, staffIDs)
-	}
-	return nil, nil
-}
-
 func (m *PersonServiceMock) GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*userModels.Teacher, error) {
 	if m.GetTeachersBySpecializationFn != nil {
 		return m.GetTeachersBySpecializationFn(ctx, specialization)
-	}
-	return nil, nil
-}
-
-func (m *PersonServiceMock) GetTeacherWithStaffAndPerson(ctx context.Context, id int64) (*userModels.Teacher, error) {
-	if m.GetTeacherWithStaffAndPersonFn != nil {
-		return m.GetTeacherWithStaffAndPersonFn(ctx, id)
 	}
 	return nil, nil
 }
@@ -403,13 +332,6 @@ func (m *PersonServiceMock) UpdateStaffWithTeacher(ctx context.Context, staff *u
 	return nil, users.TeacherActionNone, nil
 }
 
-func (m *PersonServiceMock) UpdatePersonnelNumber(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*userModels.Staff, error) {
-	if m.UpdatePersonnelNumberFn != nil {
-		return m.UpdatePersonnelNumberFn(ctx, staffID, value, changedByStaffID, note)
-	}
-	return nil, nil
-}
-
 func (m *PersonServiceMock) GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]users.StudentWithGroup, error) {
 	if m.GetStudentsWithGroupsByTeacherFn != nil {
 		return m.GetStudentsWithGroupsByTeacherFn(ctx, teacherID)
@@ -427,6 +349,20 @@ func (m *PersonServiceMock) GetStudentsWithGroupsByTeacherStaffIDs(ctx context.C
 func (m *PersonServiceMock) GetAllStudentsWithGroups(ctx context.Context) ([]users.StudentWithGroup, error) {
 	if m.GetAllStudentsWithGroupsFn != nil {
 		return m.GetAllStudentsWithGroupsFn(ctx)
+	}
+	return nil, nil
+}
+
+func (m *PersonServiceMock) GetTeachersByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error) {
+	if m.GetTeachersByStaffIDsFn != nil {
+		return m.GetTeachersByStaffIDsFn(ctx, staffIDs)
+	}
+	return nil, nil
+}
+
+func (m *PersonServiceMock) GetTeacherWithStaffAndPerson(ctx context.Context, id int64) (*userModels.Teacher, error) {
+	if m.GetTeacherWithStaffAndPersonFn != nil {
+		return m.GetTeacherWithStaffAndPersonFn(ctx, id)
 	}
 	return nil, nil
 }

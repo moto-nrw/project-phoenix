@@ -27,7 +27,7 @@ type instanceLister interface {
 // MirrorCheckOutAt closes the latest open slot attendance for roomless binary
 // mode. It never changes another slot's status or history.
 func (s *attendanceMirror) MirrorCheckOutAt(ctx context.Context, studentID int64, at time.Time) (err error) {
-	defer s.recoverMirrorPanic("roomless attendance checkout mirror panic", "MirrorCheckOutAt panic", &err)
+	defer s.recoverMirrorPanic(ctx, "roomless attendance checkout mirror panic", "MirrorCheckOutAt panic", &err)
 
 	day := scheduleModel.Date(timezone.DateFromTime(at))
 	rows, err := s.instanceStudentRepo.FindByStudentAndDateRange(ctx, studentID, day, day)
@@ -91,7 +91,7 @@ func latestOpenPresence(rows []*scheduleModel.InstanceStudent) map[int64]*schedu
 // booked slot, ambiguous or unbooked students stay unassigned, and rows in a
 // manual or already-open state are preserved.
 func (s *attendanceMirror) MirrorCheckInAtBatch(ctx context.Context, studentIDs []int64, at time.Time) (err error) {
-	defer s.recoverMirrorPanic("roomless attendance batch mirror panic", "batch check-in sync panic", &err)
+	defer s.recoverMirrorPanic(ctx, "roomless attendance batch mirror panic", "batch check-in sync panic", &err)
 	if len(studentIDs) == 0 {
 		return nil
 	}
@@ -152,7 +152,7 @@ func (s *attendanceMirror) uniqueCheckinKeys(rows []*scheduleModel.InstanceStude
 // Per student the same rule as MirrorCheckOutAt applies — only the most
 // recently checked-in open present row of the day closes.
 func (s *attendanceMirror) MirrorCheckOutAtBatch(ctx context.Context, studentIDs []int64, at time.Time) (err error) {
-	defer s.recoverMirrorPanic("roomless attendance batch checkout mirror panic", "MirrorCheckOutAtBatch panic", &err)
+	defer s.recoverMirrorPanic(ctx, "roomless attendance batch checkout mirror panic", "MirrorCheckOutAtBatch panic", &err)
 	if len(studentIDs) == 0 {
 		return nil
 	}
@@ -191,7 +191,7 @@ func (s *attendanceMirror) MirrorCheckOutAtBatch(ctx context.Context, studentIDs
 // which bulk events do not carry (#848), so the batch skips it and relies on
 // the UPDATE's own guards.
 func (s *attendanceMirror) MirrorCheckOutForVisits(ctx context.Context, visits []timetable.AttendanceVisit, at time.Time) (err error) {
-	defer s.recoverMirrorPanic("attendance batch visit checkout mirror panic", "visit batch checkout sync panic", &err)
+	defer s.recoverMirrorPanic(ctx, "attendance batch visit checkout mirror panic", "visit batch checkout sync panic", &err)
 	groupIDs := visitActiveGroupIDs(visits)
 	if len(groupIDs) == 0 {
 		return nil

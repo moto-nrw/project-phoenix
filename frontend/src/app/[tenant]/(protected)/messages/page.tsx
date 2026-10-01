@@ -13,14 +13,28 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import {
   type InboxThread,
   fetchInboxWithFilters,
+  markAllMessagesRead,
   relationshipLabel,
 } from "~/lib/parent-messages-api";
 import { NewMessageModal } from "~/components/messaging/new-message-modal";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
+import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
+import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
 
 const logger = createLogger({ component: "MessagesInboxPage" });
+
+const MARK_ALL_READ_LABEL = "Alle als gelesen markieren";
+const COUNT_SETTING_LABEL = "Zahl bei Nachrichten einstellen";
+const MARK_ALL_READ_SUCCESS =
+  "Alle Nachrichten sind für Sie als gelesen markiert.";
+// Shown when team-marked conversations (#3654) keep the badge above zero, so
+// the remaining number does not read as a failed click.
+const MARK_ALL_READ_TEAM_MARKED =
+  "Gelesen. Vom Team als ungelesen markierte Unterhaltungen bleiben ungelesen.";
+const MARK_ALL_READ_ERROR =
+  "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
 
 function MessagesInboxContent() {
   const router = useTenantRouter();
@@ -71,6 +85,39 @@ function MessagesInboxContent() {
     debounceMs: 500,
     marksRead: false,
   });
+
+  // "Alle als gelesen markieren" only clears this account's own numbers;
+  // colleagues keep theirs, and parents get no read receipt from it (#3673).
+  const toast = useToast();
+  const { unreadCount } = useMessagesUnread();
+  const [markingAllRead, setMarkingAllRead] = useState(false);
+  const [markAllReadError, setMarkAllReadError] = useState<string | null>(null);
+  const handleMarkAllRead = async () => {
+    if (markingAllRead) return;
+    setMarkingAllRead(true);
+    setMarkAllReadError(null);
+    try {
+      const remaining = await markAllMessagesRead();
+      window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
+      // The own counter may skip conversations (#3673), so a team-marked
+      // conversation can stay unread in the inbox while the count is zero.
+      // The reloaded inbox decides which confirmation is true.
+      const refreshed = await mutate();
+      const stillUnread =
+        remaining > 0 ||
+        (refreshed ?? []).some((thread) => thread.unread_count > 0);
+      toast.success(
+        stillUnread ? MARK_ALL_READ_TEAM_MARKED : MARK_ALL_READ_SUCCESS,
+      );
+    } catch (err) {
+      logger.error("inbox_mark_all_read_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setMarkAllReadError(MARK_ALL_READ_ERROR);
+    } finally {
+      setMarkingAllRead(false);
+    }
+  };
 
   const filteredThreads = useMemo(() => {
     const list: InboxThread[] = threads ?? [];
@@ -123,6 +170,29 @@ function MessagesInboxContent() {
       stats={inboxSummary}
       statsLoading={showSkeleton}
       actions={composeButton}
+      overflowMenu={[
+        // Only offered while something is unread: an entry that can do
+        // nothing is not in the menu. Own counter or inbox rows, because a
+        // person who does not count every conversation (#3673) may still see
+        // unread rows here.
+        ...(messagingEnabled && (unreadCount > 0 || unreadThreads > 0)
+          ? [
+              {
+                label: MARK_ALL_READ_LABEL,
+                onClick: () => void handleMarkAllRead(),
+                disabled: markingAllRead,
+              },
+            ]
+          : []),
+        ...(messagingEnabled
+          ? [
+              {
+                label: COUNT_SETTING_LABEL,
+                onClick: () => router.push("/profile"),
+              },
+            ]
+          : []),
+      ]}
       search={{
         value: searchTerm,
         onChange: setSearchTerm,
@@ -175,6 +245,7 @@ function MessagesInboxContent() {
       }
     >
       <>
+        {markAllReadError && <Alert type="error" message={markAllReadError} />}
         {loadFailed && (
           <Alert
             type="error"

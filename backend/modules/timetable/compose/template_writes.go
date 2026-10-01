@@ -20,8 +20,9 @@ import (
 // timetable.TemplateAdministration: create, update, archive, the split-series
 // roster and, in template_split.go, split and end. They run over the retained
 // repository rows. Collaborators the owner may not name arrive as
-// consumer-owned ports the composition root binds: Enrollment's care-offering
-// checks and roster resync, School Structure's education groups and class
+// consumer-owned ports the composition root binds: Care Plan's care-offering
+// checks, Enrollment's roster resync, School Structure's education groups and
+// class
 // rules, and the realtime announcement of staffing changes.
 
 // ScheduleError wraps a failed step of the template writes, the roster
@@ -92,7 +93,7 @@ func (r SchoolClassRules) validate() error {
 	return nil
 }
 
-// CareOfferingChecks are Enrollment's guards of template mutations, bound at
+// CareOfferingChecks are Care Plan's guards of template mutations, bound at
 // the root. ValidateSeries rejects a mutation that makes a linked care
 // offering impossible to materialize; ValidateOfferingSource resolves the
 // offering-source references before the template row carrying them is

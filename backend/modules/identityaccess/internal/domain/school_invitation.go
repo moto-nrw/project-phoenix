@@ -11,11 +11,12 @@ import (
 // and unexpired; accepting it creates or reuses the account, maps it to the
 // school, assigns the role and completes the identity chain the role needs.
 var (
-	ErrInvitationNotFound      = errors.New("invitation not found")
-	ErrInvitationExpired       = errors.New("invitation has expired")
-	ErrInvitationUsed          = errors.New("invitation has already been used")
-	ErrInvitationTenantDeleted = errors.New("the school for this invitation has been deleted")
-	ErrInvitationNameRequired  = errors.New("first name and last name are required")
+	ErrInvitationNotFound       = errors.New("invitation not found")
+	ErrInvitationExpired        = errors.New("invitation has expired")
+	ErrInvitationUsed           = errors.New("invitation has already been used")
+	ErrInvitationDeliveryFailed = errors.New("invitation delivery failed")
+	ErrInvitationTenantDeleted  = errors.New("the school for this invitation has been deleted")
+	ErrInvitationNameRequired   = errors.New("first name and last name are required")
 	// ErrInvitationOwnerRequired reports an acceptance for an address that
 	// already has an account without a session of that account.
 	ErrInvitationOwnerRequired = errors.New("sign in to the invited account before accepting")

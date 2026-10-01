@@ -1160,6 +1160,22 @@ export function useGlobalSSE(): SSEHookState {
           break;
         }
 
+        // Staff marked a conversation unread for the team, or the mark ended
+        // (#3654). The badge, inbox and child cards refetch. The detail flags
+        // the event as unread-only, so a view that marks read on load (the
+        // open conversation) skips it: reloading would end the mark at once.
+        case "parent_message_unread_changed": {
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
+            window.dispatchEvent(
+              new CustomEvent("messages-activity", {
+                detail: { threadId: null, studentId: null, unreadOnly: true },
+              }),
+            );
+          }
+          break;
+        }
+
         case "staff_message": {
           // A colleague wrote in the OGS-internal Team-Chat. Fanned out on its
           // OWN window events so a team message never nudges the parent badge

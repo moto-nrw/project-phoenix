@@ -37,7 +37,8 @@ func NewActivitiesTestModule(db *bun.DB) (ActivitiesTestModule, error) {
 		Users: users.NewPersonService(users.PersonServiceDependencies{
 			PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
 			StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
-			PersonRepo:       r.Person, StaffRepo: r.Staff, TeacherRepo: r.Teacher, DB: db, Logger: slog.Default(),
+			PersonRepo:       r.Person, TeacherRepo: r.Teacher, DB: db, Logger: slog.Default(),
+			StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{DB: db, Persons: r.Person, Staff: r.Staff, Teachers: r.Teacher}),
 		}),
 	}, nil
 }

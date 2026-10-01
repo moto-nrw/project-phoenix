@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -22,21 +22,21 @@ import (
 // every other RequestService method panics through the embedded nil
 // interface, which would flag an unintended dependency.
 type parentBootstrapRequestStub struct {
-	enrollmentService.RequestService
+	enrollmentAPI.RequestService
 	enrolleeCalled bool
 	publicCalled   bool
-	access         enrollmentService.EnrolleeAudienceAccess
+	access         enrollmentAPI.EnrolleeAudienceAccess
 }
 
-func (s *parentBootstrapRequestStub) LoadEnrolleeFormBootstrap(_ context.Context, _ int64, _ time.Time, _ string, access enrollmentService.EnrolleeAudienceAccess) (*enrollmentService.PublicFormBootstrapData, error) {
+func (s *parentBootstrapRequestStub) LoadEnrolleeFormBootstrap(_ context.Context, _ int64, _ time.Time, _ string, access enrollmentAPI.EnrolleeAudienceAccess) (*enrollmentAPI.PublicFormBootstrapData, error) {
 	s.enrolleeCalled = true
 	s.access = access
-	return &enrollmentService.PublicFormBootstrapData{Phase: &enrollmentModels.Phase{}}, nil
+	return &enrollmentAPI.PublicFormBootstrapData{Phase: &enrollmentModels.Phase{}}, nil
 }
 
-func (s *parentBootstrapRequestStub) LoadPublicFormBootstrap(context.Context, int64, time.Time, string) (*enrollmentService.PublicFormBootstrapData, error) {
+func (s *parentBootstrapRequestStub) LoadPublicFormBootstrap(context.Context, int64, time.Time, string) (*enrollmentAPI.PublicFormBootstrapData, error) {
 	s.publicCalled = true
-	return &enrollmentService.PublicFormBootstrapData{Phase: &enrollmentModels.Phase{}}, nil
+	return &enrollmentAPI.PublicFormBootstrapData{Phase: &enrollmentModels.Phase{}}, nil
 }
 
 func serveBootstrap(t *testing.T, rs *Resource, accountID int) *httptest.ResponseRecorder {
@@ -136,7 +136,7 @@ func TestGetEnrollmentBootstrap_IneligibleAccountUsesPublicGate(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.True(t, requestSvc.enrolleeCalled)
-	assert.Equal(t, enrollmentService.EnrolleeAudienceAccess{}, requestSvc.access,
+	assert.Equal(t, enrollmentAPI.EnrolleeAudienceAccess{}, requestSvc.access,
 		"an account without submit permission must unlock no restricted audience")
 }
 
@@ -164,7 +164,7 @@ func TestGetEnrollmentBootstrap_RevokedPermissionUsesPublicGate(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.True(t, requestSvc.enrolleeCalled)
-	assert.Equal(t, enrollmentService.EnrolleeAudienceAccess{}, requestSvc.access,
+	assert.Equal(t, enrollmentAPI.EnrolleeAudienceAccess{}, requestSvc.access,
 		"revoked submit permission must unlock no restricted audience")
 	assert.False(t, requestSvc.publicCalled)
 }

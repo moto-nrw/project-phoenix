@@ -123,8 +123,31 @@ describe("GET /api/auth/account", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(404);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Not Found");
+    expect(response.headers.get("Content-Type")).toBe("text/plain");
+    expect(await response.text()).toBe("Not Found");
+  });
+
+  it("forwards a structured read conflict byte-for-byte", async () => {
+    const body = JSON.stringify({
+      code: "ACCOUNT_CONFLICT",
+      details: { account_id: "1" },
+      errors: [{ field: "role", reason: "stale" }],
+      instance: "/auth/account",
+    });
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      new Response(body, {
+        status: 409,
+        headers: { "Content-Type": "application/problem+json" },
+      }),
+    );
+
+    const response = await GET(createMockRequest("/api/auth/account"));
+
+    expect(response.status).toBe(409);
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/problem+json",
+    );
+    expect(await response.text()).toBe(body);
   });
 
   it("handles unauthorized backend response", async () => {
@@ -139,8 +162,8 @@ describe("GET /api/auth/account", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Token expired");
+    expect(response.headers.get("Content-Type")).toBe("text/plain");
+    expect(await response.text()).toBe("Token expired");
   });
 
   it("returns 500 on fetch failure", async () => {

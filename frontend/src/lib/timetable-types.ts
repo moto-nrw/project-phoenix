@@ -127,6 +127,12 @@ export interface InstanceStudentSummary {
  * expected/present student counts. is_live is true when the instance has an
  * active.group bridge — drives the LÄUFT badge.
  */
+/** Grenze eines Blocks und die Kinder, die gerade da sind (#3634). */
+interface InstanceOccupancy {
+  participantLimit: number;
+  currentStudentsCount: number;
+}
+
 export interface EnrichedInstance {
   id: string;
   date: string; // YYYY-MM-DD
@@ -171,6 +177,12 @@ export interface EnrichedInstance {
   cancelReason?: string;
   expectedStudentsCount: number;
   presentStudentsCount: number;
+  /**
+   * Teilnehmergrenze der Aktivität hinter dem Block und die Kinder, die noch
+   * da sind; null ohne Grenze (#3634). `presentStudentsCount` taugt dafür
+   * nicht: es behält auch die Kinder, die schon gegangen sind.
+   */
+  occupancy?: InstanceOccupancy | null;
   /** Why an offering-sourced occurrence intentionally has no children. */
   emptyRosterReason?: EmptyRosterReason;
   /**
@@ -268,6 +280,10 @@ export interface BackendEnrichedInstance {
   cancel_reason?: string | null;
   expected_students_count: number;
   present_students_count: number;
+  occupancy?: {
+    participant_limit: number;
+    current_students_count: number;
+  } | null;
   empty_roster_reason?: {
     kind: "before_offering_start" | "offering_source_empty";
     phase_name?: string;
@@ -809,8 +825,6 @@ export interface GuardianNoticeResult {
 
 /** Preview the cancel dialog shows before anything is sent. */
 export interface GuardianNoticeReach {
-  enabled: boolean;
-  defaultOn: boolean;
   childCount: number;
   familyCount: number;
 }
@@ -822,8 +836,6 @@ export interface BackendGuardianNoticeResult {
 }
 
 export interface BackendGuardianNoticeReach {
-  enabled: boolean;
-  default_on: boolean;
   child_count: number;
   family_count: number;
 }

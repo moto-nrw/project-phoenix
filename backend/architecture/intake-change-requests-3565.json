@@ -1,0 +1,170 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3020",
+    "#2733",
+    "#3564"
+  ],
+  "owner_and_capability": "Enrollment — parent intake (submission, edit, withdrawal, renewal confirmation, status link, form loads, late invites, manual approved enrollment) and the change requests with their review list in modules/enrollment, published as enrollment.IntakeSubmissions, IntakeStatus, IntakeForms and ChangeRequests (#3565); services/enrollment is deleted",
+  "affected_packages": [
+    "services/enrollment",
+    "services/enrollment/enrollmenttest",
+    "services",
+    "services/scheduler",
+    "api",
+    "api/enrollment",
+    "api/students",
+    "api/testutil",
+    "modules/careplan/inbound/parent",
+    "modules/careplan/contracttest",
+    "modules/enrollment",
+    "modules/enrollment/compose",
+    "modules/enrollment/enrollmenttest",
+    "modules/enrollment/internal/application",
+    "modules/enrollment/selection",
+    "modules/enrollment/integration",
+    "modules/peopledirectory/contact",
+    "modules/peopledirectory/peopletest",
+    "models/users",
+    "internal/strutil",
+    "workflows/parentportal/compose"
+  ],
+  "affected_tables": [
+    "enrollment.requests",
+    "enrollment.request_children",
+    "enrollment.request_guardians",
+    "enrollment.request_child_offerings",
+    "enrollment.request_child_offering_selections",
+    "enrollment.late_invites",
+    "enrollment.submission_rate_limits",
+    "enrollment.change_requests",
+    "enrollment.change_request_messages",
+    "platform.email_outbox"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/enrollment|github.com/moto-nrw/project-phoenix/services/enrollment",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/services/enrollment",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/auth/authorize",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/database/repositories",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/activities",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/audit",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/config",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/education",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/enrollment",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/platform",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/schedule",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/users",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/realtime",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/services/enrollment",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/services/users",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/tenant",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/enrollment|github.com/moto-nrw/project-phoenix/services/enrollment",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/services/enrollment",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent|github.com/moto-nrw/project-phoenix/services/enrollment",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/auth/authorize",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/config",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/enrollment|github.com/moto-nrw/project-phoenix/services/enrollment",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api/students|github.com/moto-nrw/project-phoenix/services/enrollment",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/services/enrollment",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent|github.com/moto-nrw/project-phoenix/services/enrollment",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|crypto/rand",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|crypto/sha256",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|database/sql",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/auth/authorize",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/internal/schoolclass",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/internal/strutil",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/platform",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/services/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/services/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/uptrace/bun",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/scheduler|github.com/moto-nrw/project-phoenix/services/enrollment",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/enrollment"
+  ],
+  "atomic_cutover": "The intake and change-request flows move from services/enrollment into the Enrollment application with no second provider; the retained package, its enrollmenttest helper and its goldens are deleted. Settings, random bytes, fingerprints, People Directory rows, reviewer names and the outbox reach the application through ports services binds; bookings go through Care Plan's offering booking commands; every write keeps the ambient tenant transaction. api/enrollment decodes the raw public values for its handlers and the parents portal.",
+  "tests": [
+    "The intake, change-request, form-visibility, eligibility, legal-block and status-token unit suites run in modules/enrollment/internal/application, the selection rule suites in modules/enrollment/selection, against fakes of the new ports.",
+    "The intake, change-request, decision, rollover, restore, deletion, phase, form-schema, two-tenant and n+1 query budget suites run in api/enrollment and compose the flows through api/testutil the way the root does.",
+    "The care-offering catalog, offering change, offering adjustment, offering source and arrival/pickup projection suites run in modules/careplan/contracttest.",
+    "scripts/backend-architecture.sh check and scripts/test-changed.sh verify the architecture ratchet and affected packages."
+  ],
+  "runtime_evidence": {
+    "source": "The PR on the #3565 branch after the intake and change-request cutover. The PR description records the local architecture, lint, vet and changed-package test runs; the evidence is behavioral and structural, not a latency benchmark.",
+    "sources": [
+      "backend/api/enrollment/request_service_test.go",
+      "backend/api/enrollment/change_request_service_test.go",
+      "backend/api/enrollment/n_plus_one_query_budget_test.go",
+      "backend/modules/enrollment/internal/application/form_visibility_internal_test.go",
+      "backend/modules/careplan/contracttest/offering_source_service_test.go"
+    ],
+    "workload": "Affected Go package suites against the local PostgreSQL test database, the moved unit suites and source-level architecture checks.",
+    "thresholds": "No new forbidden import, rule or composition target; the 45 listed legacy keys retired; the moved suites retain their assertions and scripts/backend-architecture.sh check passes.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "This cutover changes implementation ownership and bindings, not the schema or row-update statements; every write keeps its columns and transaction."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The n+1 query budget suites run unchanged against the composed flows with their scenario names."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run for this code relocation; no new network round trip was added."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run for this code relocation; no new network round trip was added."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "The moved suites pin the intake and change-request error texts; the public sentinels mirror the retained texts and mark selection and Care Plan refusals so errors.Is keeps matching."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection-pool configuration or acquisition path changes."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No lock is added or reordered; the submission dedup lock, the request-before-children lock order and the offering row locks are unchanged."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No lock order changes were intended or measured in this code relocation."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The retention cleanup and the rollover deadline worker keep their scheduler bindings and statements."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No retry policy changes."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No job queue is introduced."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The unit suites cover missing bindings, rate limits, eligibility refusals, stale change-request snapshots and the companion stranding batch refusal."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No schema or data migration accompanies this code cutover; reverting the PR restores the former service implementations and bindings."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally at 468 legacy keys with a composition surface of 607."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR as a unit to restore services/enrollment and its bindings. No data cleanup is required.",
+  "exit_criterion": "backend/services/enrollment no longer exists; intake and change requests run through modules/enrollment; the 45 listed legacy keys are absent, no new key or rule is added, and validate-ticket --all --base-ref accepts their retirement."
+}

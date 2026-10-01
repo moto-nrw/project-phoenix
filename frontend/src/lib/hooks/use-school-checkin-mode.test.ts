@@ -163,7 +163,11 @@ describe("useSchoolCheckinMode", () => {
       await result.current.toggle("42", "abwesend");
     });
 
-    expect(mockSchoolCheckinStudent).toHaveBeenCalledWith("42", "in");
+    expect(mockSchoolCheckinStudent).toHaveBeenCalledWith(
+      "42",
+      "in",
+      undefined,
+    );
     expect(mockGlobalMutate).toHaveBeenCalledTimes(1);
   });
 
@@ -181,7 +185,11 @@ describe("useSchoolCheckinMode", () => {
       await result.current.toggle("42", "anwesend");
     });
 
-    expect(mockSchoolCheckinStudent).toHaveBeenCalledWith("42", "out");
+    expect(mockSchoolCheckinStudent).toHaveBeenCalledWith(
+      "42",
+      "out",
+      undefined,
+    );
   });
 
   it("toggle of a schulhof student calls action='out'", async () => {
@@ -197,7 +205,31 @@ describe("useSchoolCheckinMode", () => {
       await result.current.toggle("7", "schulhof");
     });
 
-    expect(mockSchoolCheckinStudent).toHaveBeenCalledWith("7", "out");
+    expect(mockSchoolCheckinStudent).toHaveBeenCalledWith(
+      "7",
+      "out",
+      undefined,
+    );
+  });
+
+  it("passes the early-checkout note on (#3324)", async () => {
+    mockSchoolCheckinStudent.mockResolvedValueOnce({
+      studentId: 9,
+      status: "checked_out",
+      location: "Abwesend",
+      changed: true,
+    });
+
+    const { result } = renderHook(() => useSchoolCheckinMode());
+    await act(async () => {
+      await result.current.toggle("9", "anwesend", "Arzttermin");
+    });
+
+    expect(mockSchoolCheckinStudent).toHaveBeenCalledWith(
+      "9",
+      "out",
+      "Arzttermin",
+    );
   });
 
   it("tracks pendingIds while a toggle is in flight and clears after", async () => {

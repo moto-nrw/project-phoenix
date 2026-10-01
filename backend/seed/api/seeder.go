@@ -30,13 +30,15 @@ type SeedOptions struct {
 	AdminEmail    string // Optional bootstrap school admin email override
 	Randomize     bool   // Append unique suffixes and generate admin credentials
 	SchoolName    string // Optional school name override
-	OnlyProfile   string // Restrict the run to one profile; empty seeds all four
+	OnlyProfile   string // Restrict the run to one profile; empty seeds all five
 	StatePath     string // Output path; empty uses DefaultSeedStatePath
 	StandingDemo  bool   // Keep simulation devices but disable their user interface
-	// VisitorName puts a prospect of the public demo into the school (#3463):
-	// one caregiver with a group and one parent carry this name. Only the
-	// name is taken; every account keeps its synthetic address.
-	VisitorName string
+	// VisitorFirstName and VisitorLastName put a prospect of the public demo
+	// into the school (#3463): one caregiver with a group and one parent
+	// carry exactly this name. Only the name is taken; every account keeps
+	// its synthetic address. Both are set, or neither.
+	VisitorFirstName string
+	VisitorLastName  string
 	// AccountScope replaces the tenant slug in account emails and usernames.
 	// A repeated seed of the same slug needs a fresh one: accounts are unique
 	// across the database and the abandoned school keeps its own.
@@ -47,6 +49,12 @@ type SeedOptions struct {
 	// SaveState replaces file output, allowing the demo process to persist
 	// credentials in the database. A failure fails the seed workflow.
 	SaveState func(context.Context, *SeedState) error
+	// SaveBootstrap persists the created school before later seed steps can
+	// fail. It is only used by the queued public-demo provisioner.
+	SaveBootstrap func(context.Context, int64) error
+	// DeferHistory leaves the deferred steps out of Seed: the school is usable
+	// without them, and SeedResult.Deferred runs them afterwards.
+	DeferHistory bool
 }
 
 // Seeder orchestrates the complete API-based seeding process
@@ -63,6 +71,8 @@ type Seeder struct {
 // SeedResult contains counts of created entities
 type SeedResult struct {
 	Fixed *FixedResult
+	// Deferred seeds what DeferHistory left out; nil without it.
+	Deferred func(context.Context) error
 }
 
 type bootstrapSeedState struct {
@@ -115,10 +125,14 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 	if s.random == nil {
 		return nil, fmt.Errorf("seed random source is required")
 	}
+	if (s.options.VisitorFirstName == "") != (s.options.VisitorLastName == "") {
+		return nil, fmt.Errorf("a demo visitor needs a first and a last name")
+	}
 	if s.options.OnlyProfile != "" && s.options.OnlyProfile != s.definition.Key {
 		return nil, fmt.Errorf("a run can only be restricted to profile %q, got %q", s.definition.Key, s.options.OnlyProfile)
 	}
 	runtime := newRuntime(s, email, password, staffPIN)
+	runtime.DeferredSeedPending = s.options.DeferHistory
 	workflow := fullDemoWorkflow(s)
 	if err := workflow.Run(ctx, runtime); err != nil {
 		var stepErr *StepError
@@ -126,6 +140,21 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 			return nil, s.formatProfileError(s.profile, stepErr.Step, stepErr.Err)
 		}
 		return nil, s.formatProfileError(s.profile, workflow.Name, err)
+	}
+	if s.options.DeferHistory {
+		steps := append(deferredDemoSteps(s), buildStateStep{seeder: s})
+		runtime.Result.Deferred = func(ctx context.Context) error {
+			for index, step := range steps {
+				if index == len(steps)-1 {
+					runtime.DeferredSeedPending = false
+				}
+				if err := step.Run(ctx, runtime); err != nil {
+					runtime.DeferredSeedPending = true
+					return s.formatProfileError(s.profile, step.Name(), err)
+				}
+			}
+			return nil
+		}
 	}
 	return runtime.Result, nil
 }
@@ -206,13 +235,28 @@ func (s *Seeder) accountScope() string {
 	return s.options.TenantSlug
 }
 
-// scopedEmail puts the scope in front of the @, e.g. demo1.ogs-nord@mail.de.
+// scopedEmail moves an address into the school's own demo domain, e.g.
+// julia.klein@demo-ogs-nord.moto-ogs.de. The scope keeps it unique across
+// schools; in the domain it leaves the name readable and the address
+// recognizable as one of the demo.
 func scopedEmail(email, scope string) string {
-	local, domain, ok := strings.Cut(email, "@")
+	local, _, ok := strings.Cut(email, "@")
 	if scope == "" || !ok {
 		return email
 	}
-	return local + "." + scope + "@" + domain
+	return local + "@demo-" + scope + ".moto-ogs.de"
+}
+
+// emailLocalPart turns a name into the part of an address before the @.
+// Names carry real umlauts, but the canonical email pattern
+// (users.ValidateOptionalEmail) only accepts ASCII.
+func emailLocalPart(firstName, lastName string) string {
+	return strings.NewReplacer(
+		"ä", "ae",
+		"ö", "oe",
+		"ü", "ue",
+		"ß", "ss",
+	).Replace(strings.ReplaceAll(strings.ToLower(firstName+"."+lastName), " ", "."))
 }
 
 func (s *Seeder) profileAdminCredentials() (string, string, error) {

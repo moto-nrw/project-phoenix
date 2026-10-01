@@ -57,8 +57,8 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		return StudentTestRepositories{}, err
 	}
 	r := &Factory{db: db,
-		ParentRequestEvent:           usersRepo.NewParentRequestEventRepository(db),
-		FamilyProtection:             usersRepo.NewFamilyProtectionEventRepository(db),
+		ParentRequestEvent:           usersRepo.NewParentRequestEventRepository(peopleRuntime(db)),
+		FamilyProtection:             usersRepo.NewFamilyProtectionEventRepository(peopleRuntime(db)),
 		EnrollmentOfferingAdjustment: auditRepo.NewEnrollmentOfferingAdjustmentRepository(newTestAuditRuntime(db)),
 		EnrollmentRestorationAudit:   auditRepo.NewEnrollmentRestorationRepository(newTestAuditRuntime(db)),
 		GuardianFinancialChange:      auditRepo.NewGuardianFinancialChangeRepository(newTestAuditRuntime(db)),
@@ -73,7 +73,7 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 	r.RouteAuditWrites(command)
 	return StudentTestRepositories{
 		CarePlan:                     care,
-		ParentRequestShare:           usersRepo.NewParentRequestShareEventRepository(db),
+		ParentRequestShare:           usersRepo.NewParentRequestShareEventRepository(peopleRuntime(db)),
 		CareScheduleChangeRequest:    r.CareScheduleChangeRequest,
 		ExcusedAbsenceRequest:        r.ExcusedAbsenceRequest,
 		ParentRequestEvent:           r.ParentRequestEvent,

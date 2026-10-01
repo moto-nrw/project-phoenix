@@ -74,6 +74,7 @@ import {
   getStudentAbsence,
   getStudentTimeStatus,
   getTimeStatusSortRank,
+  type StudentDayTimes,
 } from "~/lib/student-time-status";
 import {
   getDayPlanningNotComingLabel,
@@ -84,6 +85,7 @@ import { createLogger } from "~/lib/logger";
 import { OgsGroupsPageSkeleton } from "./page-skeleton";
 import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 import { berlinTodayISO } from "~/lib/date-helpers";
+import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
 const GROUP_ACCESS_RECONCILE_INTERVAL_MS = 15 * 60_000;
@@ -215,6 +217,20 @@ function mapStudentForOgsPage(student: OgsLiveWireStudent): Student {
   };
 }
 
+// Both ends of the child's day for the whole-day time rules (#3373).
+function getOgsStudentDay(
+  student: Student,
+  pickupTimes: ReadonlyMap<string, OgsPickupInfo>,
+): StudentDayTimes {
+  return {
+    plannedArrival: student.arrival_time,
+    actualArrival: student.actual_arrival_time,
+    plannedPickup: pickupTimes.get(student.id.toString())?.pickupTime,
+    actualPickup: student.actual_pickup_time,
+    checkedIn: !isNotCheckedInLocation(student.current_location),
+  };
+}
+
 // Content equality for the group list — used to keep a stable array
 // reference across sync-effect runs that change nothing.
 function areOgsGroupsEqual(a: OGSGroup[], b: OGSGroup[]): boolean {
@@ -311,6 +327,11 @@ function OGSGroupPageContent() {
   // isActive, clicking a card toggles that student's attendance instead of
   // navigating to the detail page.
   const schoolCheckin = useSchoolCheckinMode();
+  // A checkout well before today's pickup time asks for an optional reason
+  // (#3324); every other tap keeps checking in or out right away.
+  const earlyCheckout = useEarlyCheckoutDialog((studentId, note) => {
+    void schoolCheckin.toggle(studentId, "anwesend", note);
+  });
 
   // Check if user has access to OGS groups
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
@@ -700,6 +721,8 @@ function OGSGroupPageContent() {
           plannedTime: timeA,
           actualTime: a.actual_arrival_time,
           now,
+          kind: "arrival",
+          day: getOgsStudentDay(a, pickupTimes),
           sick: a.sick,
           classTrip: a.class_trip,
           excused: a.excused,
@@ -708,6 +731,8 @@ function OGSGroupPageContent() {
           plannedTime: timeB,
           actualTime: b.actual_arrival_time,
           now,
+          kind: "arrival",
+          day: getOgsStudentDay(b, pickupTimes),
           sick: b.sick,
           classTrip: b.class_trip,
           excused: b.excused,
@@ -911,9 +936,22 @@ function OGSGroupPageContent() {
                   checkinMode={isGroupCardCheckinMode}
                   checkinState={checkinState}
                   isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
-                  onCheckinClick={() =>
-                    void schoolCheckin.toggle(studentIdStr, checkinState)
-                  }
+                  onCheckinClick={() => {
+                    if (
+                      checkinState !== "abwesend" &&
+                      checkinState !== "unknown" &&
+                      earlyCheckout.request({
+                        studentId: studentIdStr,
+                        studentName:
+                          `${student.first_name} ${student.second_name}`.trim(),
+                        plannedPickup: studentPickup?.pickupTime,
+                        room: null,
+                      })
+                    ) {
+                      return;
+                    }
+                    void schoolCheckin.toggle(studentIdStr, checkinState);
+                  }}
                   locationBadge={
                     <StudentPresenceBadge
                       student={(() => {
@@ -964,6 +1002,7 @@ function OGSGroupPageContent() {
                               />
                             );
                           }
+                          const day = getOgsStudentDay(student, pickupTimes);
                           return (
                             <>
                               <ArrivalTimeRow
@@ -978,6 +1017,7 @@ function OGSGroupPageContent() {
                                 }
                                 notes={student.arrival_notes}
                                 now={now}
+                                day={day}
                               />
                               <PickupTimeRow
                                 pickupTime={studentPickup?.pickupTime}
@@ -994,6 +1034,7 @@ function OGSGroupPageContent() {
                                     : undefined
                                 }
                                 now={now}
+                                day={day}
                               />
                             </>
                           );
@@ -1153,6 +1194,7 @@ function OGSGroupPageContent() {
         }
         overlays={
           <>
+            {earlyCheckout.dialog}
             {/* Group Transfer Modal */}
             <GroupTransferModal
               isOpen={groupTransfer.open}

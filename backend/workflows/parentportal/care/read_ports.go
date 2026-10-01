@@ -83,3 +83,37 @@ type StatusDayReads interface {
 type CareOfferingReads interface {
 	ListByIDs(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error)
 }
+
+// CarePeriod is one approved enrollment that created the child, together
+// with the care window of its phase. The offering view needs the window to
+// decide which care period is the current one for a child that is enrolled
+// across several school years (#1665).
+type CarePeriod struct {
+	RequestChildID   int64
+	RequestID        int64
+	PhaseID          int64
+	PhaseName        string
+	ServiceStartDate timezone.Date
+	ServiceEndDate   timezone.Date
+}
+
+// CarePeriodReads lists the child's care periods from Enrollment, latest
+// window first.
+type CarePeriodReads interface {
+	CarePeriods(ctx context.Context, studentID int64) ([]*CarePeriod, error)
+}
+
+// OfferingBooking is one care-offering selection of an enrollment. ValidUntil
+// is exclusive, matching student enrollments.
+type OfferingBooking struct {
+	CareOfferingID int64
+	SelectedDays   []string
+	ValidFrom      *timezone.Date
+	ValidUntil     *timezone.Date
+}
+
+// OfferingHistoryReads lists every offering selection one enrollment child
+// ever had, from Enrollment.
+type OfferingHistoryReads interface {
+	OfferingHistory(ctx context.Context, requestChildID int64) ([]*OfferingBooking, error)
+}

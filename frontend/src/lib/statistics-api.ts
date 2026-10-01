@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 // Statistik (#2606): client for GET /api/statistics/report and the export
 // URL. The proxy routes forward to the Go backend, which enforces
 // config:read + users:read, validates the window and writes the audit row.
@@ -95,13 +96,13 @@ export interface StatisticsReport {
 
 export type StatisticsErrorCode = "forbidden" | "invalid_request" | "unknown";
 
-export class StatisticsError extends Error {
-  readonly code: StatisticsErrorCode;
+export class StatisticsError extends ApiError {
+  readonly legacyCode: StatisticsErrorCode;
 
-  constructor(code: StatisticsErrorCode, message?: string) {
-    super(message ?? code);
+  constructor(legacyCode: StatisticsErrorCode, message?: string) {
+    super(message ?? legacyCode);
     this.name = "StatisticsError";
-    this.code = code;
+    this.legacyCode = legacyCode;
   }
 }
 
@@ -145,9 +146,14 @@ export async function fetchStatisticsReport(
     let code: StatisticsErrorCode = "unknown";
     if (response.status === 403) code = "forbidden";
     if (response.status === 400) code = "invalid_request";
-    throw new StatisticsError(
-      code,
-      `statistics request failed (${response.status})`,
+    const payload: unknown = await response.json().catch(() => null);
+    throw enrichApiError(
+      new StatisticsError(
+        code,
+        `statistics request failed (${response.status})`,
+      ),
+      payload,
+      response.status,
     );
   }
   const body = (await response.json()) as { data: StatisticsReport };

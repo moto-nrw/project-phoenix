@@ -46,7 +46,6 @@ import (
 // commit 19feca2822, measured with an AST walk over the scan area described
 // above (23 files, all with exactly one bun import).
 var moduleHTTPORMAllowlist = map[string]int{
-	"modules/birthdays/http/api.go":                          1,
 	"modules/careplan/inbound/parent/api.go":                 1,
 	"modules/careplan/inbound/parent/enrollment_handlers.go": 1,
 	"modules/classday/http/api.go":                           1,

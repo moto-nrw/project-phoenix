@@ -1,3 +1,4 @@
+import { backendResponseError } from "~/lib/api-helpers.server";
 // Child documents (#777): list + multipart upload proxy. The backend owns the
 // authoritative magic-number validation and the per-category permission
 // checks; this route mirrors the size/MIME gate so oversized or obviously
@@ -14,9 +15,6 @@ import { proxyGet } from "~/lib/route-proxy.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 import { uncachedAuth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
-import { createLogger } from "~/lib/logger";
-
-const logger = createLogger({ component: "StudentDocumentsRoute" });
 
 export const GET = proxyGet(
   (p) => `/api/students/${requirePathSegmentParam(p)}/documents`,
@@ -67,20 +65,7 @@ export const POST = createFileUploadHandler<unknown>(
       }
     }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error("student_document_upload_proxy_failed", {
-        student_id: studentId,
-        status: response.status,
-        error: errorText,
-      });
-      // The "API error (XXX)" prefix keeps the backend's status code (400
-      // invalid file, 403 category permission, 404 child) intact through
-      // handleApiError instead of collapsing everything into a 500.
-      throw new Error(
-        `API error (${response.status}): ${errorText || "Upload fehlgeschlagen"}`,
-      );
-    }
+    if (!response.ok) throw await backendResponseError(response);
 
     const body = (await response.json()) as BackendDocumentResponse;
     return body.data ?? {};

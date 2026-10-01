@@ -23,28 +23,29 @@ var (
 	// have seen a child still in care while the exit took effect mid-request,
 	// so the write path re-checks under the row lock. The message is part of
 	// the /api/iot/* wire contract PyrePortal maps to German text.
-	ErrStudentCareEnded              = studentpresence.ErrStudentCareEnded
-	ErrActiveGroupAlreadyEnded       = studentpresence.ErrGroupAlreadyEnded
-	ErrVisitAlreadyEnded             = studentpresence.ErrVisitAlreadyEnded
-	ErrSupervisionAlreadyEnded       = studentpresence.ErrSupervisionAlreadyEnded
-	ErrCombinedGroupAlreadyEnded     = studentpresence.ErrCombinedGroupAlreadyEnded
-	ErrStudentAlreadyInGroup         = studentpresence.ErrStudentAlreadyInGroup
-	ErrGroupAlreadyInCombination     = studentpresence.ErrGroupAlreadyInCombination
-	ErrInvalidTimeRange              = studentpresence.ErrInvalidTimeRange
-	ErrCannotDeleteActiveGroup       = studentpresence.ErrCannotDeleteActiveGroup
-	ErrStudentAlreadyActive          = studentpresence.ErrStudentAlreadyActive
-	ErrStaffAlreadySupervising       = studentpresence.ErrStaffAlreadySupervising
-	ErrStudentsNotPresent            = studentpresence.ErrStudentsNotPresent
-	ErrStudentMoveForbidden          = studentpresence.ErrStudentMoveForbidden
-	ErrInvalidData                   = studentpresence.ErrInvalidData
-	ErrDatabaseOperation             = studentpresence.ErrDatabaseOperation
-	ErrNoAttendanceRecordForCheckout = studentpresence.ErrNoAttendanceRecordForCheckout
-	ErrDeviceAlreadyActive           = studentpresence.ErrDeviceAlreadyActive
-	ErrNoActiveSession               = studentpresence.ErrNoActiveSession
-	ErrSessionConflict               = studentpresence.ErrSessionConflict
-	ErrInvalidActivitySession        = studentpresence.ErrInvalidActivitySession
-	ErrRoomConflict                  = studentpresence.ErrRoomConflict
-	ErrRoomCapacityExceeded          = studentpresence.ErrRoomCapacityExceeded
+	ErrStudentCareEnded                 = studentpresence.ErrStudentCareEnded
+	ErrActiveGroupAlreadyEnded          = studentpresence.ErrGroupAlreadyEnded
+	ErrVisitAlreadyEnded                = studentpresence.ErrVisitAlreadyEnded
+	ErrSupervisionAlreadyEnded          = studentpresence.ErrSupervisionAlreadyEnded
+	ErrCombinedGroupAlreadyEnded        = studentpresence.ErrCombinedGroupAlreadyEnded
+	ErrStudentAlreadyInGroup            = studentpresence.ErrStudentAlreadyInGroup
+	ErrGroupAlreadyInCombination        = studentpresence.ErrGroupAlreadyInCombination
+	ErrInvalidTimeRange                 = studentpresence.ErrInvalidTimeRange
+	ErrCannotDeleteActiveGroup          = studentpresence.ErrCannotDeleteActiveGroup
+	ErrStudentAlreadyActive             = studentpresence.ErrStudentAlreadyActive
+	ErrStaffAlreadySupervising          = studentpresence.ErrStaffAlreadySupervising
+	ErrStudentsNotPresent               = studentpresence.ErrStudentsNotPresent
+	ErrStudentMoveForbidden             = studentpresence.ErrStudentMoveForbidden
+	ErrInvalidData                      = studentpresence.ErrInvalidData
+	ErrDatabaseOperation                = studentpresence.ErrDatabaseOperation
+	ErrNoAttendanceRecordForCheckout    = studentpresence.ErrNoAttendanceRecordForCheckout
+	ErrDeviceAlreadyActive              = studentpresence.ErrDeviceAlreadyActive
+	ErrNoActiveSession                  = studentpresence.ErrNoActiveSession
+	ErrSessionConflict                  = studentpresence.ErrSessionConflict
+	ErrInvalidActivitySession           = studentpresence.ErrInvalidActivitySession
+	ErrRoomConflict                     = studentpresence.ErrRoomConflict
+	ErrRoomCapacityExceeded             = studentpresence.ErrRoomCapacityExceeded
+	ErrActivityParticipantLimitExceeded = studentpresence.ErrActivityParticipantLimitExceeded
 	// ErrNoRoomAvailable: no room was selected and the activity has no planned
 	// room. There is no safe default here — room id 1 belongs to one specific
 	// school, so any hardcoded fallback trips fk_active_groups_room_tenant for
@@ -54,6 +55,10 @@ var (
 
 // RoomCapacityError preserves the service contract for the presence domain error.
 type RoomCapacityError = studentpresence.RoomCapacityError
+
+// ActivityParticipantLimitError preserves the service contract for the
+// participant-limit refusal of web assignments.
+type ActivityParticipantLimitError = studentpresence.ActivityParticipantLimitError
 
 // ActiveError is the owner's operation error; the service wraps every
 // classified sentinel in it.

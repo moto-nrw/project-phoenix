@@ -8,10 +8,12 @@ import useSWR from "swr";
 import { AlertTriangle, Check, Clock, Info } from "lucide-react";
 import { LocationBadge } from "@/components/ui/location-badge";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
+import { isNotCheckedInLocation } from "~/lib/location-helper";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import {
   getStudentAbsence,
   getStudentTimeStatus,
+  type StudentDayTimes,
 } from "~/lib/student-time-status";
 import {
   getDayPlanningNotComingLabel,
@@ -310,6 +312,8 @@ interface StudentHeaderProps {
   todayPickupPlannedTime?: string;
   todayPickupActualTime?: string;
   todayPickupNote?: string;
+  /** Why the child went home early today (#3324), shown once it has left. */
+  todayCheckoutNote?: string;
   isPickupException?: boolean;
   todayArrivalPlannedTime?: string;
   todayArrivalActualTime?: string;
@@ -419,6 +423,7 @@ export function StudentHeaderStats({
   todayPickupPlannedTime,
   todayPickupActualTime,
   todayPickupNote,
+  todayCheckoutNote,
   isPickupException,
   todayArrivalPlannedTime,
   todayArrivalActualTime,
@@ -440,6 +445,13 @@ export function StudentHeaderStats({
   });
   const dayPlanningNotComingLabel = getDayPlanningNotComingLabel(student);
   const notComingLabel = absence?.label ?? dayPlanningNotComingLabel;
+  const todayDay: StudentDayTimes = {
+    plannedArrival: todayArrivalPlannedTime,
+    actualArrival: todayArrivalActualTime,
+    plannedPickup: todayPickupPlannedTime,
+    actualPickup: todayPickupActualTime,
+    checkedIn: !isNotCheckedInLocation(student.current_location),
+  };
 
   return (
     <span className="block">
@@ -483,6 +495,7 @@ export function StudentHeaderStats({
       ) : (
         <>
           <TodayTimeStatusInlineRow
+            day={todayDay}
             kind="arrival"
             label="Heutige Ankunft"
             plannedTime={todayArrivalPlannedTime}
@@ -493,6 +506,7 @@ export function StudentHeaderStats({
             absentReason={todayArrivalNote}
           />
           <TodayTimeStatusInlineRow
+            day={todayDay}
             kind="pickup"
             label="Heutige Abholung"
             plannedTime={todayPickupPlannedTime}
@@ -500,6 +514,20 @@ export function StudentHeaderStats({
             isException={isPickupException}
             note={todayPickupNote}
           />
+          {todayPickupActualTime && todayCheckoutNote ? (
+            <span
+              data-testid="today-checkout-note"
+              className="mt-1 flex items-start gap-2 text-sm text-gray-600"
+            >
+              <span className="w-4 shrink-0" aria-hidden="true" />
+              <span>
+                Grund für das frühe Gehen:{" "}
+                <span className="font-medium text-gray-900">
+                  {todayCheckoutNote}
+                </span>
+              </span>
+            </span>
+          ) : null}
         </>
       )}
     </span>
@@ -536,7 +564,9 @@ function TodayTimeStatusInlineRow({
   note,
   isAbsent = false,
   absentReason,
+  day,
 }: Readonly<{
+  day: StudentDayTimes;
   kind: "arrival" | "pickup";
   label: string;
   plannedTime?: string;
@@ -570,6 +600,8 @@ function TodayTimeStatusInlineRow({
     plannedTime,
     actualTime,
     now,
+    kind,
+    day,
   });
 
   const plannedDisplay = plannedTime?.slice(0, 5);

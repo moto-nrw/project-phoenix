@@ -21,10 +21,13 @@ type staffTargetOverrideRow struct {
 	StaffID       int64        `bun:"staff_id,notnull"`
 	StartDate     calendarDate `bun:"start_date,notnull,type:date"`
 	EndDate       calendarDate `bun:"end_date,notnull,type:date"`
-	DailyMinutes  int          `bun:"daily_minutes,notnull"`
-	CreatedBy     *int64       `bun:"created_by"`
-	CreatedAt     time.Time    `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt     time.Time    `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	// DailyMinutes and WeekdayMinutes are exclusive (#3745): a row has one
+	// target for every weekday or one per weekday, Monday to Friday.
+	DailyMinutes   *int      `bun:"daily_minutes"`
+	WeekdayMinutes []int     `bun:"weekday_minutes,array"`
+	CreatedBy      *int64    `bun:"created_by"`
+	CreatedAt      time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt      time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
 
 func (s *Store) ListStaffTargetOverrides(ctx context.Context, query domain.TargetOverrideQuery) ([]domain.StaffTargetOverride, domain.OperationStats, error) {
@@ -108,19 +111,29 @@ func (s *Store) DeleteStaffTargetOverride(ctx context.Context, staffID, id int64
 }
 
 func staffTargetOverrideFromDomain(value domain.StaffTargetOverride) *staffTargetOverrideRow {
-	return &staffTargetOverrideRow{
+	row := &staffTargetOverrideRow{
 		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID,
 		StartDate: calendarDate(value.StartDate), EndDate: calendarDate(value.EndDate),
-		DailyMinutes: value.DailyMinutes, CreatedBy: value.CreatedBy,
+		WeekdayMinutes: value.WeekdayMinutes, CreatedBy: value.CreatedBy,
 		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
+	if value.WeekdayMinutes == nil {
+		dailyMinutes := value.DailyMinutes
+		row.DailyMinutes = &dailyMinutes
+	}
+	return row
 }
 
 func staffTargetOverrideToDomain(row staffTargetOverrideRow) domain.StaffTargetOverride {
-	return domain.StaffTargetOverride{
+	value := domain.StaffTargetOverride{
 		ID: row.ID, TenantID: row.TenantID, StaffID: row.StaffID,
 		StartDate: string(row.StartDate), EndDate: string(row.EndDate),
-		DailyMinutes: row.DailyMinutes, CreatedBy: row.CreatedBy,
+		WeekdayMinutes: row.WeekdayMinutes, CreatedBy: row.CreatedBy,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
+	if row.DailyMinutes != nil {
+		value.DailyMinutes = *row.DailyMinutes
+		value.WeekdayMinutes = nil
+	}
+	return value
 }

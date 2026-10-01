@@ -20,6 +20,42 @@ two-repo change: `backend/api/testdata/iot_error_strings.golden`
 and the golden move together.
 Backend header and attribution rules: `backend/CLAUDE.md` RFID/IoT Integration.
 
+### Error reports relay
+
+`POST /api/iot/error-reports` is PyrePortal's Sentry tunnel (#3645, SDK option
+`tunnel`). It authenticates with `Authorization: Bearer <device API key>`
+alone, without `X-Staff-PIN`, and opens no tenant transaction. The body is one
+Sentry envelope (`application/x-sentry-envelope`) of at most 1 MB.
+
+The relay accepts only envelopes whose header `dsn` names the project of
+`SENTRY_PYREPORTAL_DSN` (`pyreportal`). It writes the tags `device_id` (the
+device's `device_id`) and `school_id` into every event item, replacing what
+the kiosk sent under these keys, and posts the envelope to that project's
+envelope endpoint, never to a host the envelope names. The device key does not
+leave the backend. Code: `backend/api/iot/error_reports.go` (handler and
+texts), `backend/api/iot/compose/error_reports.go` (forwarding),
+`backend/observability/sentry_envelope.go` (envelope check and tags).
+
+| Status | `error` | When |
+|---|---|---|
+| Sentry's | Sentry's body | Forwarded; `Retry-After` and `X-Sentry-Rate-Limits` pass through |
+| 400 | `invalid error report` | The body is no envelope |
+| 400 | `error report project is not allowed` | The envelope names another project or no DSN |
+| 401 / 403 | Device key strings above | Key missing, invalid, or device inactive |
+| 429 | `error report too large` | Envelope over 1 MB |
+| 429 | `too many error reports` | Over 60 envelopes per minute and device (burst 60, per process); `Retry-After: 60` |
+| 502 | `error reporting service unavailable` | Sentry unreachable or answering 5xx; logged, never a Sentry event |
+| 503 | `error reporting is not configured` | The backend runs without Sentry (local development) |
+
+The 502 is the only 5xx that `ServerErrorReporting` does not report
+(`common.SkipServerErrorReport`); reporting it could only loop. PyrePortal's
+SDK transport consumes these answers and shows no text, so they are not part
+of `ERROR_MESSAGE_MAPPINGS` or `iot_error_strings.golden`. Changing a status or
+text is still a two-repo change. `serve` refuses to start with `SENTRY_DSN` set
+and `SENTRY_PYREPORTAL_DSN` empty, and a malformed DSN stops the start.
+With `SENTRY_DSN` set, `APP_ENV` must be `production`, `staging`, `demo` or
+`development`; it is the Sentry environment of backend events.
+
 ### Presence mode
 
 `GET /api/iot/config` returns `presence_mode: "detailed" | "binary"`.
@@ -29,6 +65,30 @@ for a door kiosk, three when yard state is enabled. Missing or unknown mode
 values default to `detailed` for older kiosks. This wire-compatibility rule is
 not permission to default missing infrastructure configuration.
 Backend check-in semantics adapt transparently; the kiosk UI branches per mode.
+
+### Destination choice into released rooms (#3067)
+
+`GET /api/iot/rooms/available` flags each room with `is_open_room` (released
+by the administration) and `is_schulhof` (the system Schulhof room). After a
+checkout scan the kiosk offers every released room as a destination. The
+Schulhof keeps its `POST /api/iot/checkin` flow (ADR 0019 block rosters and
+yard state). Every other released room goes through
+`POST /api/iot/move-to-room` with `{student_rfid, room_id}`. That route runs
+the phone's open-room move (ADR 0018), with the kiosk's device trust: it
+records an independent stay in the room's own session and needs no device,
+second scan or supervision in the destination. It never joins an activity
+that runs in that room. A repeated booking answers `moved: false`.
+
+Refusals carry stable codes PyrePortal maps:
+- `room_not_found` (404, also a foreign tenant's room)
+- `room_not_released` (409)
+- `student_not_present` (409)
+- `open_room_binary_mode` (409)
+- the check-in capacity and `STUDENT_ALREADY_ACTIVE` bodies
+
+`backend/api/iot/pyreportal_error_strings_test.go` pins the codes. Deploy the
+backend first. A kiosk that finds neither flag nor route (404) keeps the old
+Schulhof/WC buttons.
 
 ## Tenant boundary
 
@@ -122,7 +182,7 @@ not composed. The backend routes are public, take no cookies, and rely on
 
 | Route | Contract |
 |---|---|
-| `POST /demo/access-requests` | `email`, `school_name`, `person_name`, `contact_opt_in`, optional `src` and `role` (a demo role, appended to the mailed link as `&role=`) → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid`; `429 demo_access_rate_limited` with `Retry-After` (seconds); `503 demo_capacity_reached` |
+| `POST /demo/access-requests` | `email`, `school_name`, `first_name`, `last_name` (both required, at most 120 bytes each, whitespace runs collapsed; the demo school's caregiver and parent carry exactly these names), `contact_opt_in`, optional `src` and `role` (a demo role, appended to the mailed link as `&role=`) → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid`; `429 demo_access_rate_limited` with `Retry-After` (seconds); `503 demo_capacity_reached` |
 | `GET /demo/access/status` | token in `Authorization: Bearer` → `{status: preparing\|ready\|failed, school_name}` (the OGS name the prospect gave, shown while waiting, #3464), plus `school_url` (origin of the demo school) when `ready` |
 | `POST /demo/access/sessions` | `{token, role?}` → `{access_token, refresh_token, demo: {access_id, role, src, fixed_role}}` (tenant session; parents portal session for `role: parent`, #3468); `409 demo_school_preparing`; `422 demo_access_invalid` for an unknown role |
 | `POST /demo/access/reset` | `{token}` → `202 {status: "preparing", entry_url}` (#3470): a fresh demo school is queued for the same access with the same names, the old one is soft-deleted and its sessions are revoked; `entry_url` is the waiting room with the token in the fragment, as in the mailed link. `409 demo_school_preparing` while the current school is still being seeded; `422 demo_access_invalid` for the shared standing school; `429 demo_access_rate_limited` with `Retry-After`, because a restart counts against the same per-address and per-IP windows as a request; `503 demo_capacity_reached` never for a restart, because the old school gives its place back first |
@@ -211,7 +271,7 @@ An address is active while its newest unexpired access enters a school that
 did not fail. A further request of an active address stores an access into
 that same school; only an inactive address queues a new one. The prospect's
 address stays in `auth.demo_accesses`. The order carries
-only the OGS name and the person's name, so the address cannot become an
+only the OGS name and the person's first and last name, so the address cannot become an
 account or guardian address in a demo school, where
 `attachExistingAccountByEmail` would hand an existing account of that address
 to the inviting tenant. The serving role reads `name`, `status`, `tenant_id`,

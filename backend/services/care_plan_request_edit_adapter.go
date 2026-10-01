@@ -7,7 +7,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 )
 
 type requestEditAdapter struct{ requestSubmissionAdapter }
@@ -20,11 +20,9 @@ func (a requestEditAdapter) RecordGuardianEdit(ctx context.Context, request *car
 func legacyEditError(err error) error {
 	switch {
 	case errors.Is(err, careplan.ErrParentRequestStale):
-		return usersService.ErrParentRequestStale
-	case errors.Is(err, careplan.ErrParentRequestReasonRequired):
-		return usersService.ErrParentRequestReasonRequired
+		return parentrequests.ErrStale
 	case errors.Is(err, careplan.ErrParentRequestNotPast):
-		return usersService.ErrParentRequestNotPast
+		return parentrequests.ErrNotPast
 	default:
 		return err
 	}

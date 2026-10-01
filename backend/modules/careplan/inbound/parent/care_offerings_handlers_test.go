@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -48,7 +48,7 @@ func TestToCareOfferingsResponseUsesStableOfferingDiffValues(t *testing.T) {
 
 	response := toCareOfferingsResponse(&parentService.ChildCareOfferings{
 		PendingRequest: &parentService.PendingOfferingChange{
-			Diff: []enrollmentService.OfferingChangeDiffEntry{{
+			Diff: []careplan.OfferingChangeDiffEntry{{
 				Label:    "Care club",
 				OldState: "not_booked",
 				NewState: "booked",
@@ -70,7 +70,7 @@ func TestToCareOfferingsResponseUsesStableOfferingDiffValues(t *testing.T) {
 func TestOfferingDiffResponseSeparatesRuleDaysFromRequiredAutomaticDays(t *testing.T) {
 	t.Parallel()
 
-	response := offeringDiffResponse(enrollmentService.OfferingChangeDiffEntry{
+	response := offeringDiffResponse(careplan.OfferingChangeDiffEntry{
 		Label:            "Mittagessen",
 		NewState:         "booked",
 		NewDays:          []string{"mon", "tue", "wed"},
@@ -88,9 +88,9 @@ func TestToCareOfferingsResponsePreservesEmptyDecisionSnapshot(t *testing.T) {
 	t.Parallel()
 
 	response := toCareOfferingsResponse(&parentService.ChildCareOfferings{
-		LastDecision: &enrollmentService.OfferingChangeDecision{
+		LastDecision: &careplan.OfferingChangeDecision{
 			Status:      "approved",
-			AppliedDiff: []enrollmentService.OfferingChangeDiffEntry{},
+			AppliedDiff: []careplan.OfferingChangeDiffEntry{},
 		},
 	})
 

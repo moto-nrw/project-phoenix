@@ -5,6 +5,9 @@ import (
 	"time"
 )
 
+// StatusPending is the status of a request no reviewer has decided yet.
+const StatusPending = "pending"
+
 type Request struct {
 	ID               int64
 	TenantID         int64

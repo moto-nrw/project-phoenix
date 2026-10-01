@@ -28,5 +28,6 @@ func (s *service) ensureRoomCapacity(ctx context.Context, roomID int64, incoming
 		RoomName:         room.Name,
 		CurrentOccupancy: currentOccupancy,
 		MaxCapacity:      *room.Capacity,
+		Incoming:         incoming,
 	}
 }

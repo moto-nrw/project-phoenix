@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
@@ -53,7 +52,7 @@ type WorkerDependencies struct {
 	PWAUsageCleanup           pwaSvc.UsageService
 	StaffMessageCleanup       StaffMessageCleanup
 	BookingConsistency        auditModel.BookingConsistencyRepository
-	EnrollmentRejectedCleanup enrollmentSvc.RejectedEnrollmentCleaner
+	EnrollmentRejectedCleanup RejectedEnrollmentCleaner
 	AutoStart                 timetable.InstanceAutoStart
 	AutoEnd                   timetable.InstanceAutoEnd
 	InstanceRepo              scheduleModel.ActivityInstanceRepository

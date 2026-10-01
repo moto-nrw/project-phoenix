@@ -80,6 +80,37 @@ describe("schoolCheckinStudent", () => {
     );
   });
 
+  it("sends a trimmed early-checkout note only with a checkout (#3324)", async () => {
+    mockAuthFetch.mockResolvedValue({
+      data: {
+        student_id: 42,
+        status: "checked_out" as const,
+        location: "Abwesend" as const,
+        changed: true,
+      },
+    });
+
+    await schoolCheckinStudent("42", "out", "  Arzttermin ");
+    expect(mockAuthFetch).toHaveBeenLastCalledWith(
+      "/api/students/42/school-checkin",
+      expect.objectContaining({
+        body: { action: "out", note: "Arzttermin" },
+      }),
+    );
+
+    await schoolCheckinStudent("42", "out", "   ");
+    expect(mockAuthFetch).toHaveBeenLastCalledWith(
+      "/api/students/42/school-checkin",
+      expect.objectContaining({ body: { action: "out" } }),
+    );
+
+    await schoolCheckinStudent("42", "in", "Arzttermin");
+    expect(mockAuthFetch).toHaveBeenLastCalledWith(
+      "/api/students/42/school-checkin",
+      expect.objectContaining({ body: { action: "in" } }),
+    );
+  });
+
   it("handles an unwrapped response (no `data` envelope)", async () => {
     // extractApiData accepts either shape; the raw object is the fallback path.
     mockAuthFetch.mockResolvedValueOnce({

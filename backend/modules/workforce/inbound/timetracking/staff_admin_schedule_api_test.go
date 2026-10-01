@@ -74,7 +74,7 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 	// config.work_time_model_entries has no tenant of its own; it only goes
 	// away with its model, so the delete has to actually happen (#2419).
 	t.Cleanup(func() {
-		_, err := ctx.db.NewUpdate().TableExpr("users.staff").
+		_, err := ctx.db.NewUpdate().TableExpr("users.staff_employment_profiles").
 			Set("work_time_model_id = NULL").
 			Where("work_time_model_id = ?", *reloadedStaff.WorkTimeModelID).
 			Exec(context.Background())

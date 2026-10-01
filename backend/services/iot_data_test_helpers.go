@@ -6,10 +6,10 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -54,11 +54,10 @@ func NewIoTDataTestModule(db *bun.DB, unit tenant.UnitOfWork) (IoTDataTestModule
 	if err != nil {
 		return IoTDataTestModule{}, err
 	}
-	offerings := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
-		Repo: enrollment.NewCareOfferingRepository(r.CarePlan), Phases: r.Enrollment(), Bookings: r.Enrollment(), Settings: settings.Settings,
-		ActivityGroupRepo: r.ActivityGroup, ActivityScheduleRepo: r.ActivitySchedule,
-		CalendarPeriodRepo: r.CalendarPeriod, TimeframeRepo: r.Timeframe, ActivityExceptionRepo: r.ActivityException,
-	}).(enrollment.CareOfferingMaterializationResourceValidator)
+	offerings, err := newTestCareOfferingCatalog(r, settings.Settings, CareOfferingCatalogTestOptions{})
+	if err != nil {
+		return IoTDataTestModule{}, err
+	}
 	facility := facilities.NewServiceWithConfig(facilities.ServiceConfig{
 		Rooms: rooms, Occupancy: facilitiesLegacy.OccupancyProjection(roomOccupancyPresence{newStudentPresence(db, slog.Default())}, r.ActivityGroup, membership, people),
 		History: facilitiesLegacy.HistoryProjection(roomHistoryPresence{newStudentPresence(db, slog.Default())}, r.ActivityGroup, membership, people),
@@ -71,7 +70,7 @@ func NewIoTDataTestModule(db *bun.DB, unit tenant.UnitOfWork) (IoTDataTestModule
 				return facilitiesModule.ErrRoomInUse
 			}
 			if err := offerings.ValidateRoomDeletion(ctx, roomID); err != nil {
-				if errors.Is(err, enrollment.ErrCareOfferingInvalid) {
+				if errors.Is(err, careplan.ErrCareOfferingConfigInvalid) {
 					return facilitiesModule.ErrRoomRequiredByOffering
 				}
 				return err

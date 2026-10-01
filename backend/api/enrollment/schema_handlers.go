@@ -18,7 +18,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -155,13 +154,13 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 	)
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		if schemaID > 0 {
-			loaded, loadErr := rs.FormSchemaService.GetByID(ctx, schemaID)
+			loaded, loadErr := rs.FormSchemaService.SchemaVersion(ctx, schemaID)
 			if loadErr != nil {
 				return loadErr
 			}
 			schema = loaded
 		}
-		list, listErr := rs.PhaseService.List(ctx)
+		list, listErr := rs.PhaseService.AllPhases(ctx)
 		phases = list
 		return listErr
 	})
@@ -169,7 +168,7 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 		// A missing schema id is the caller's problem (404); everything
 		// else (phase listing, DB failures) is a genuine 500 — rendering
 		// those as 400 would hide internal failures behind client blame.
-		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, enrollmentService.ErrFormSchemaNotFound) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, capability.ErrFormSchemaNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
 		}
@@ -299,9 +298,13 @@ func (rs *Resource) publicCaptchaConfig(w http.ResponseWriter, r *http.Request) 
 	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
 	if resolveErr == nil {
 		resolveErr = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
-			out.Enabled = rs.CaptchaService.IsEnabled(txCtx)
-			out.SiteKey = rs.CaptchaService.SiteKey(txCtx)
-			return nil
+			var err error
+			out.Enabled, err = rs.CaptchaService.IsEnabled(txCtx)
+			if err != nil {
+				return err
+			}
+			out.SiteKey, err = rs.CaptchaService.SiteKey(txCtx)
+			return err
 		})
 	}
 	if resolveErr != nil {
@@ -327,7 +330,7 @@ func (rs *Resource) getActiveSchema(w http.ResponseWriter, r *http.Request) {
 		return innerErr
 	})
 	if err != nil {
-		if errors.Is(err, enrollmentService.ErrNoActiveSchema) {
+		if errors.Is(err, capability.ErrNoActiveSchema) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
 		}
@@ -381,12 +384,12 @@ func (rs *Resource) getSchemaByID(w http.ResponseWriter, r *http.Request) {
 
 	var schema *capability.FormSchema
 	txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
-		s, innerErr := rs.FormSchemaService.GetByID(ctx, id)
+		s, innerErr := rs.FormSchemaService.SchemaVersion(ctx, id)
 		schema = s
 		return innerErr
 	})
 	if txErr != nil {
-		if errors.Is(txErr, sql.ErrNoRows) || errors.Is(txErr, enrollmentService.ErrFormSchemaNotFound) {
+		if errors.Is(txErr, sql.ErrNoRows) || errors.Is(txErr, capability.ErrFormSchemaNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(txErr))
 			return
 		}
@@ -422,7 +425,7 @@ func (rs *Resource) publishSchema(w http.ResponseWriter, r *http.Request) {
 
 	var schema *capability.FormSchema
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		s, publishErr := rs.FormSchemaService.PublishForm(ctx, enrollmentService.PublishFormInput{
+		s, publishErr := rs.FormSchemaService.PublishForm(ctx, capability.PublishFormInput{
 			Name:             req.Name,
 			Fields:           req.Fields,
 			CoreRequirements: req.CoreRequirements,
@@ -475,7 +478,7 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 
 	var schema *capability.FormSchema
 	txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
-		s, publishErr := rs.FormSchemaService.PublishFormVersion(ctx, enrollmentService.PublishFormVersionInput{
+		s, publishErr := rs.FormSchemaService.PublishFormVersion(ctx, capability.PublishFormVersionInput{
 			ID:               id,
 			Name:             req.Name,
 			Fields:           req.Fields,
@@ -508,12 +511,12 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 // errors keep the 400 contract shared with POST /schema.
 func renderSchemaVersionError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, enrollmentService.ErrFormSchemaNameExists):
+	case errors.Is(err, capability.ErrFormSchemaNameExists):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeSchemaNameExists))
-	case errors.Is(err, enrollmentService.ErrFormSchemaNotFound):
+	case errors.Is(err, capability.ErrFormSchemaNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	default:
-		var rf enrollmentService.RenameStepError
+		var rf capability.RenameStepError
 		if errors.As(err, &rf) {
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 			return
@@ -551,10 +554,10 @@ func (rs *Resource) renameSchema(w http.ResponseWriter, r *http.Request) {
 	})
 	if txErr != nil {
 		switch {
-		case errors.Is(txErr, enrollmentService.ErrFormSchemaNameExists):
+		case errors.Is(txErr, capability.ErrFormSchemaNameExists):
 			common.RenderError(w, r, common.ErrorConflictWithCode(txErr, ErrCodeSchemaNameExists))
 			return
-		case errors.Is(txErr, enrollmentService.ErrFormSchemaNotFound):
+		case errors.Is(txErr, capability.ErrFormSchemaNotFound):
 			common.RenderError(w, r, common.ErrorNotFound(txErr))
 			return
 		}
@@ -583,13 +586,13 @@ func (rs *Resource) deleteSchema(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		switch {
-		case errors.Is(err, enrollmentService.ErrFormSchemaHasPhases):
+		case errors.Is(err, capability.ErrFormSchemaHasPhases):
 			common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeSchemaHasPhases))
 			return
-		case errors.Is(err, enrollmentService.ErrFormSchemaHasRequests):
+		case errors.Is(err, capability.ErrFormSchemaHasRequests):
 			common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeSchemaHasRequests))
 			return
-		case errors.Is(err, enrollmentService.ErrFormSchemaNotFound):
+		case errors.Is(err, capability.ErrFormSchemaNotFound):
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
 		}

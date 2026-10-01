@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -53,8 +54,18 @@ func HTTPRuntime(db *bun.DB, people peopledirectory.Capability, membership schoo
 			return staffForAccount(ctx, id)
 		},
 		OpeningDecider: staffForAccount,
-		Success:        common.Respond,
-		Failure:        renderFailure,
+		ChildQuota: func(ctx context.Context) (importapi.ChildQuota, bool, error) {
+			// The module behind the capability also reads the Kinderkontingent
+			// (#3571); the capability interface stays as narrow as it is.
+			quota, ok := membership.(schoolmembership.ChildQuotaUsages)
+			if !ok {
+				return importapi.ChildQuota{}, false, errChildQuotaReaderUnbound
+			}
+			usage, limited, err := quota.ChildQuotaUsage(ctx)
+			return importapi.ChildQuota{Booked: usage.Booked, Occupied: usage.Occupied, Free: usage.Free(), Admit: usage.Admit}, limited, err
+		},
+		Success: common.Respond,
+		Failure: renderFailure,
 	}
 	if opening != nil {
 		runtime.ValidateOpeningDate = opening.ValidateDate
@@ -62,6 +73,8 @@ func HTTPRuntime(db *bun.DB, people peopledirectory.Capability, membership schoo
 	}
 	return runtime
 }
+
+var errChildQuotaReaderUnbound = errors.New("data import: child quota reader is not bound")
 
 func accountID(ctx context.Context) (int64, error) {
 	claims, ok := ctx.Value(jwt.CtxClaims).(jwt.AppClaims)
@@ -71,13 +84,27 @@ func accountID(ctx context.Context) (int64, error) {
 	return int64(claims.ID), nil
 }
 
+// batchFailure answers a failed batch with the progress committed before it.
+// A batch the owner refused, such as one a full Kinderkontingent stops after
+// a concurrent write (#3571), is a 409 that also names the refusal's code and
+// details, so the client can say both what was saved and why it stopped.
+func batchFailure(failure importapi.Failure) render.Renderer {
+	details := map[string]any{"result": failure.Result}
+	status := failure.Status
+	var rejection common.BusinessRejection
+	if errors.As(failure.Cause, &rejection) {
+		status = http.StatusConflict
+		details["rejection"] = map[string]any{"code": rejection.ErrorCode(), "details": rejection.ErrorDetails()}
+	}
+	return &common.ErrResponse{Err: failure.Cause, HTTPStatusCode: status,
+		Status: "error", ErrorText: failure.Message, Code: failure.Code, Details: details}
+}
+
 func renderFailure(w http.ResponseWriter, r *http.Request, failure importapi.Failure) {
 	var response render.Renderer
 	switch {
 	case failure.Code != "":
-		response = &common.ErrResponse{Err: failure.Cause, HTTPStatusCode: failure.Status,
-			Status: "error", ErrorText: failure.Message, Code: failure.Code,
-			Details: map[string]any{"result": failure.Result}}
+		response = batchFailure(failure)
 	case failure.Status == http.StatusBadRequest:
 		response = common.ErrorInvalidRequest(failure.Cause)
 	case failure.Status == http.StatusUnauthorized:

@@ -87,6 +87,7 @@ type APIRequestError struct {
 	Code       string
 	Message    string
 	Body       string
+	RetryAfter string
 }
 
 func (e *APIRequestError) Error() string {
@@ -220,7 +221,7 @@ func (a *HTTPAPIAdapter) do(ctx context.Context, auth APIAuth, method, path, con
 		if payload.Message == "" {
 			payload.Message = payload.Error
 		}
-		return raw, response.StatusCode, &APIRequestError{Method: method, Path: path, StatusCode: response.StatusCode, Code: payload.Code, Message: payload.Message, Body: string(raw)}
+		return raw, response.StatusCode, &APIRequestError{Method: method, Path: path, StatusCode: response.StatusCode, Code: payload.Code, Message: payload.Message, Body: string(raw), RetryAfter: response.Header.Get("Retry-After")}
 	}
 	return raw, response.StatusCode, nil
 }

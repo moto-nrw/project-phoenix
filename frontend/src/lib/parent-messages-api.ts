@@ -185,6 +185,88 @@ export async function postMessage(
 }
 
 /**
+ * Mark the conversation unread for the whole team. Every staff member who may
+ * read the child sees it as unread again until someone opens or answers it.
+ * Parents see no change.
+ */
+export async function markThreadUnread(threadId: string): Promise<void> {
+  await postEnvelope<null>(
+    `/api/messages/threads/${encodeURIComponent(threadId)}/unread`,
+    {},
+    "Die Unterhaltung wurde nicht als ungelesen markiert.",
+  );
+}
+
+/**
+ * Clear the caller's own unread numbers for every conversation they see as
+ * unread. Colleagues see no change, and parents get no read receipt (#3673).
+ * Returns the caller's new unread count: above zero only while conversations
+ * the team marked unread remain.
+ */
+export async function markAllMessagesRead(): Promise<number> {
+  const result = await postEnvelope<{ unread_count: number }>(
+    "/api/messages/mark-all-read",
+    {},
+    "Die Nachrichten wurden nicht als gelesen markiert.",
+  );
+  return result.data?.unread_count ?? 0;
+}
+
+/**
+ * Which parent conversations the own counter at "Nachrichten" counts (#3673).
+ * Personal: colleagues and parents see no change.
+ */
+export type MessageCountScope = "all" | "own_groups" | "none";
+
+export interface MessageCountSetting {
+  scope: MessageCountScope;
+  /** Without an OGS group today, "own_groups" counts nothing. */
+  hasOwnGroups: boolean;
+}
+
+const COUNT_SCOPES: readonly MessageCountScope[] = [
+  "all",
+  "own_groups",
+  "none",
+];
+
+function toCountScope(value: unknown): MessageCountScope {
+  return COUNT_SCOPES.includes(value as MessageCountScope)
+    ? (value as MessageCountScope)
+    : "all";
+}
+
+export async function fetchMessageCountSetting(): Promise<MessageCountSetting> {
+  const result = await getEnvelope<{
+    scope?: string;
+    has_own_groups?: boolean;
+  }>(
+    "/api/messages/count-scope",
+    "Die Einstellung konnte nicht geladen werden.",
+  );
+  return {
+    scope: toCountScope(result.data?.scope),
+    hasOwnGroups: result.data?.has_own_groups === true,
+  };
+}
+
+export async function saveMessageCountScope(
+  scope: MessageCountScope,
+): Promise<void> {
+  const response = await fetch("/api/messages/count-scope", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scope }),
+  });
+  if (!response.ok) {
+    await throwApiError(
+      response,
+      "Die Einstellung konnte nicht gespeichert werden.",
+    );
+  }
+}
+
+/**
  * Get-or-create the conversation for a (child, guardian) pair and return it
  * (with history if any) WITHOUT sending a message — opens the chat window
  * directly from the recipient picker, WhatsApp-style. The empty thread stays

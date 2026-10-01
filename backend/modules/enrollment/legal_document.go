@@ -74,3 +74,13 @@ func PublicEnrollmentFormLegalDocumentURL(storedURL string) string {
 	}
 	return storedURL
 }
+
+// PublicEnrollmentLegalDocumentURL maps the stored upload path of an
+// enrollment legal document, tenant-wide or form-owned, onto its public
+// serving route. Other URLs pass through unchanged.
+func PublicEnrollmentLegalDocumentURL(storedURL string) string {
+	if strings.HasPrefix(storedURL, EnrollmentLegalDocumentUploadPrefix) {
+		return EnrollmentLegalDocumentPublicPrefix + strings.TrimPrefix(storedURL, EnrollmentLegalDocumentUploadPrefix)
+	}
+	return PublicEnrollmentFormLegalDocumentURL(storedURL)
+}

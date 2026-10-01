@@ -2,6 +2,8 @@ package api
 
 import (
 	"fmt"
+	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -108,13 +110,50 @@ func TestToDateKey(t *testing.T) {
 	assert.Equal(t, "2026-05-04", toDateKey(d))
 }
 
-func TestShouldSeedTimeTrackingDaySkipsTodayForStatisticsSupervisor(t *testing.T) {
+// Today belongs to the live stamps, which a demo school's simulation writes
+// while the history is still seeded.
+func TestShouldSeedTimeTrackingDayKeepsToPastWeekdays(t *testing.T) {
+	t.Parallel()
+
+	today := time.Date(2026, 8, 31, 0, 0, 0, 0, time.UTC) // Monday
+	assert.False(t, shouldSeedTimeTrackingDay(today, today))
+	assert.True(t, shouldSeedTimeTrackingDay(today.AddDate(0, 0, -3), today))  // Friday
+	assert.False(t, shouldSeedTimeTrackingDay(today.AddDate(0, 0, -1), today)) // Sunday
+}
+
+func TestBreakSessionDayIsOldestHistoryWeekday(t *testing.T) {
 	t.Parallel()
 
 	today := time.Date(2026, 8, 31, 0, 0, 0, 0, time.UTC)
-	assert.False(t, shouldSeedTimeTrackingDay(today, today, true))
-	assert.True(t, shouldSeedTimeTrackingDay(today, today, false))
-	assert.True(t, shouldSeedTimeTrackingDay(today.AddDate(0, 0, -3), today, true))
+	day := breakSessionDay(today)
+	assert.True(t, shouldSeedTimeTrackingDay(day, today))
+	assert.False(t, day.Before(today.AddDate(0, 0, -(timeTrackingDaysBack-1))))
+	for earlier := today.AddDate(0, 0, -(timeTrackingDaysBack - 1)); earlier.Before(day); earlier = earlier.AddDate(0, 0, 1) {
+		assert.False(t, shouldSeedTimeTrackingDay(earlier, today))
+	}
+}
+
+// A demo school opens before its history exists; the history, its export
+// audit and the past course dates follow while the simulation runs.
+func TestFullDemoWorkflowDeferHistoryLeavesOutDeferredSteps(t *testing.T) {
+	t.Parallel()
+
+	contains := func(steps []Step, want Step) bool {
+		return slices.ContainsFunc(steps, func(step Step) bool { return reflect.TypeOf(step) == reflect.TypeOf(want) })
+	}
+	full := fullDemoWorkflow(&Seeder{options: SeedOptions{OnlyProfile: DefaultProfileKey}}).Steps
+	deferred := fullDemoWorkflow(&Seeder{options: SeedOptions{OnlyProfile: DefaultProfileKey, DeferHistory: true}}).Steps
+	for _, step := range deferredDemoSteps(&Seeder{}) {
+		assert.True(t, contains(full, step), "%T runs in a full seed", step)
+		assert.False(t, contains(deferred, step), "%T waits for Deferred", step)
+	}
+	assert.Len(t, deferred, len(full)-len(deferredDemoSteps(&Seeder{})))
+	assert.True(t, contains(deferred, parentEnrollmentSeedStep{}), "the visitor's parent account exists when the school opens")
+	assert.True(t, contains(deferred, seedWorkSessionBreakStep{}), "the live break block precedes the simulation")
+	stepIndex := func(steps []Step, want Step) int {
+		return slices.IndexFunc(steps, func(step Step) bool { return reflect.TypeOf(step) == reflect.TypeOf(want) })
+	}
+	assert.Less(t, stepIndex(deferred, seedWorkSessionBreakStep{}), stepIndex(deferred, seedStatisticsDemoStep{}), "the break block must be the first live stamp")
 }
 
 func TestExtractSessionID(t *testing.T) {
@@ -195,6 +234,7 @@ func TestSeedTimeTrackingCoverageCreatesQuotaOpeningAndBreak(t *testing.T) {
 		"/api/staff/17/time-tracking/opening",
 		"/api/staff/17/time-tracking/adjustments",
 		"/api/staff/17/time-tracking/adjustments/91",
+		"/api/staff/17/target-overrides",
 		"/api/staff/17/target-overrides",
 	}, paths)
 

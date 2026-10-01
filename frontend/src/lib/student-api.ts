@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 // lib/student-api.ts
 import { getCachedSession, sessionFetch } from "./session-cache";
 import { createLogger } from "~/lib/logger";
@@ -389,15 +390,19 @@ interface BackendSchoolCheckinResponse {
 export async function schoolCheckinStudent(
   studentId: string,
   action: SchoolCheckinAction,
+  checkoutNote?: string,
 ): Promise<SchoolCheckinResponse> {
   const url = `/api/students/${studentId}/school-checkin`;
+  // Optional reason for an early checkout (#3324); the backend accepts it
+  // only with "out" and stores nothing for a blank note.
+  const note = action === "out" ? checkoutNote?.trim() : undefined;
   try {
     const session = await getCachedSession();
     const response = await authFetch<
       ApiResponse<BackendSchoolCheckinResponse> | BackendSchoolCheckinResponse
     >(url, {
       method: "POST",
-      body: { action },
+      body: note ? { action, note } : { action },
       token: session?.user?.token,
     });
 
@@ -602,15 +607,13 @@ export interface DeleteStudentWithDataInput {
   acknowledged: true;
 }
 
-export class StudentDeletionApiError extends Error {
+export class StudentDeletionApiError extends ApiError {
   readonly status: number;
-  readonly code?: string;
 
   constructor(status: number, message: string, code?: string) {
-    super(message);
+    super(message, status, { code });
     this.name = "StudentDeletionApiError";
     this.status = status;
-    this.code = code;
   }
 }
 
@@ -659,10 +662,9 @@ async function studentDeletionResponse<T>(
   const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
     const error = studentDeletionErrorDetails(payload, fallbackError);
-    throw new StudentDeletionApiError(
-      response.status,
-      error.message,
-      error.code,
+    throw enrichApiError(
+      new StudentDeletionApiError(response.status, error.message, error.code),
+      payload,
     );
   }
   if (payload && typeof payload === "object" && "data" in payload) {

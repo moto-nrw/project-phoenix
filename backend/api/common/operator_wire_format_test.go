@@ -29,6 +29,7 @@
 package common_test
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http/httptest"
 	"testing"
@@ -116,7 +117,17 @@ func TestWireFormat_Operator_ErrHelpers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gotStatus, gotBody := renderWireOperator(t, tt.renderer)
 			assert.Equal(t, tt.wantStatus, gotStatus)
-			assert.Equal(t, tt.wantBody, gotBody)
+			var legacy, actual map[string]any
+			assert.NoError(t, json.Unmarshal([]byte(tt.wantBody), &legacy))
+			assert.NoError(t, json.Unmarshal([]byte(gotBody), &actual))
+			assert.Regexp(t, `^https://moto-app\.de/help/fehlermeldungen#anleitung-[a-z-]+$`, actual["type"])
+			assert.Equal(t, tt.renderer.(*common.OperatorErrResponse).ErrorText, actual["detail"])
+			assert.Contains(t, actual, "title")
+			assert.Contains(t, actual, "instance")
+			for _, key := range []string{"type", "title", "detail", "instance", "code"} {
+				delete(actual, key)
+			}
+			assert.Equal(t, legacy, actual, "legacy operator fields must remain unchanged")
 		})
 	}
 }

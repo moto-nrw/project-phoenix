@@ -25,6 +25,7 @@ func TestDecisionErrorTexts(t *testing.T) {
 		{careplan.ErrOfferingChangeForbidden, "enrollment: offering change request forbidden"},
 		{careplan.ErrOfferingChangeCapacityFull, "enrollment: care offering is at capacity"},
 		{careplan.ErrOfferingChangeDateOutOfRange, "enrollment: confirmed effective date is out of range"},
+		{careplan.ErrOfferingChangeAlreadyPending, "enrollment: offering change request already pending"},
 		{careplan.ErrCareOfferingsDisabled, "care offerings are disabled for this tenant"},
 		{careplan.ErrOfferingAdjustmentInvalid, "offering adjustment is invalid"},
 		{careplan.ErrCompleteWithdrawalConfirmationRequired, "Alle Betreuungstage werden entfernt. Bitte bestätigen Sie die Komplett-Abmeldung."},

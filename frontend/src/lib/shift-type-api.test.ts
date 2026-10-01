@@ -225,6 +225,39 @@ describe("shiftTypeService errors", () => {
     ).rejects.toMatchObject({ status: 409, detail: "name already exists" });
   });
 
+  it("keeps the 409 problem fields in a domain error", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          error: "name already exists",
+          code: "workforce.shift_type_name_taken",
+          details: { existing_id: "12" },
+          errors: [{ field: "name", reason: "duplicate" }],
+          instance: "request-shift-409",
+        }),
+        {
+          status: 409,
+          headers: { "content-type": "application/problem+json" },
+        },
+      ),
+    );
+
+    await expect(
+      shiftTypeService.createShiftType({
+        name: "Betreuung",
+        color: "#83CD2D",
+        description: "",
+        isActive: true,
+      }),
+    ).rejects.toMatchObject({
+      name: "ShiftTypeApiError",
+      code: "workforce.shift_type_name_taken",
+      details: { existing_id: "12" },
+      errors: [{ field: "name", reason: "duplicate" }],
+      requestId: "request-shift-409",
+    });
+  });
+
   it("reads text error bodies for non-JSON responses", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       new Response("database timeout", { status: 500 }),

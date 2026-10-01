@@ -155,6 +155,11 @@ var pyreportalErrorCodes = []string{
 	"planned_start_not_reached",
 	"deviation_reason_required",
 	"invalid_staff_clock_state",
+	// Destination booking into a released room (POST /move-to-room, #3067).
+	"room_not_found",
+	"room_not_released",
+	"student_not_present",
+	"open_room_binary_mode",
 }
 
 // extraGuardSources are files OUTSIDE api/iot whose error strings surface
@@ -183,6 +188,8 @@ var extraGuardSources = []string{
 	// Staff bracelet errors moved behind the kiosk capability in #2739.
 	"modules/devicescan/internal/application/tag_commands.go",
 	"modules/devicescan/internal/application/session_lifecycle.go",
+	// The destination booking into released rooms (#3067).
+	"modules/devicescan/open_room.go",
 }
 
 // TestPyrePortalErrorStringsGuard asserts every PyrePortal-mapped substring
@@ -249,11 +256,12 @@ func TestPyrePortalErrorStringsGuard(t *testing.T) {
 }
 
 // The mirror of PyrePortal's expect(ERROR_MESSAGE_MAPPINGS).toHaveLength(56):
-// 55 business patterns plus the "locked" exclusion, and 8 of the 9
-// STAFF_CLOCK_MESSAGES codes plus the retired reopen_status_conflict.
+// 55 business patterns plus the "locked" exclusion. The codes are 8 of the 9
+// STAFF_CLOCK_MESSAGES plus the retired reopen_status_conflict, and the four
+// OPEN_ROOM_MESSAGES of the destination booking (#3067).
 const (
 	wantPyrePortalErrorStrings = 55
-	wantPyrePortalErrorCodes   = 8
+	wantPyrePortalErrorCodes   = 12
 )
 
 // assertReconciledWithGolden fails when this guard's lists and the contract

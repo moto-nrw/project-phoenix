@@ -12,6 +12,7 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  HeartPulse,
   Printer,
 } from "lucide-react";
 import { CollectionGrid } from "~/components/ui/collection-grid";
@@ -38,7 +39,6 @@ import {
   type StudentExportPreset,
 } from "~/lib/student-export-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import { useEmergencyHealthInfoEnabled } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "DatabaseExportsPage" });
 
@@ -74,6 +74,9 @@ const STUDENT_LIST_ICONS: Record<StudentExportPreset, ReactNode> = {
   pickup_list: <MotoConceptIcon concept="pickup" size={20} />,
   blank_checklist: <MotoConceptIcon concept="activities" size={20} />,
   birthday_list: <MotoConceptIcon concept="birthdays" size={20} />,
+  // No moto concept names health data; "sick" is the Krank status and would
+  // read as a list of sick children.
+  health_list: <HeartPulse className="h-5 w-5" />,
 };
 
 /**
@@ -103,9 +106,6 @@ export default function DatabaseExportsPage() {
   // of the users:read that gates this page. Without rooms:read the export 403s,
   // so hide the card rather than offer a button that always fails.
   const canReadRooms = isAdmin(session) || hasPermission(session, "rooms:read");
-  // The Notfallliste card names what the PDF contains, so it has to know
-  // whether this school prints the health column (#2609).
-  const healthInfoOnEmergencyList = useEmergencyHealthInfoEnabled();
   // Der Dienstplan ist admin-only (die Seite leitet andere auf /staff um), der
   // Export folgt derselben Grenze statt auf eine Sackgasse zu verlinken.
   const canEditPlans = isAdmin(session);
@@ -244,11 +244,8 @@ export default function DatabaseExportsPage() {
           >
             <ExportDescription>
               Alle aktuell anwesenden Kinder mit Kontaktdaten der
-              Erziehungsberechtigten
-              {healthInfoOnEmergencyList
-                ? " und den hinterlegten Gesundheitsinfos"
-                : ""}
-              . Momentaufnahme.
+              Erziehungsberechtigten und den hinterlegten Gesundheitsinfos.
+              Momentaufnahme.
             </ExportDescription>
             <ExportActions>
               <Button

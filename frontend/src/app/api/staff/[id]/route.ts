@@ -1,6 +1,11 @@
 // app/api/staff/[id]/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
+import {
+  ApiResponseError,
+  apiGet,
+  apiPut,
+  apiDelete,
+} from "~/lib/api-helpers.server";
 import {
   createGetHandler,
   createPutHandler,
@@ -147,6 +152,7 @@ export const GET = createGetHandler(
         person: staff.person,
       };
     } catch (error) {
+      if (error instanceof ApiResponseError) throw error;
       logger.error("staff member fetch failed", {
         staff_id: id,
         error: error instanceof Error ? error.message : String(error),
@@ -254,6 +260,7 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
       );
       return mapStaffResponse(response);
     } catch (error) {
+      if (error instanceof ApiResponseError) throw error;
       if (!(error instanceof Error)) throw error;
 
       if (error.message.includes("403")) {
@@ -296,6 +303,7 @@ export const DELETE = createDeleteHandler(
       // Return null to indicate success with no content
       return null;
     } catch (error) {
+      if (error instanceof ApiResponseError) throw error;
       // Check for permission errors (403 Forbidden)
       if (error instanceof Error && error.message.includes("403")) {
         logger.error("permission denied when deleting staff", {

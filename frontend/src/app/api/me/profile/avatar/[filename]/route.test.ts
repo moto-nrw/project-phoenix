@@ -186,11 +186,12 @@ describe("GET /api/me/profile/avatar/[filename]", () => {
   });
 
   it("handles backend fetch errors", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      text: async () => "Avatar not found",
-    });
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      new Response("Avatar not found", {
+        status: 404,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/me/profile/avatar/nonexistent.jpg",
@@ -201,7 +202,6 @@ describe("GET /api/me/profile/avatar/[filename]", () => {
     );
 
     expect(response.status).toBe(404);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toContain("Avatar not found");
+    expect(await response.text()).toBe("Avatar not found");
   });
 });

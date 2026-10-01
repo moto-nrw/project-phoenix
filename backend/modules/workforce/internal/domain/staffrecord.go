@@ -107,6 +107,7 @@ type StaffQualification struct {
 	ID         int64
 	TenantID   int64
 	StaffID    int64
+	SortOrder  int
 	Name       string
 	AcquiredOn string
 	ExpiresOn  string

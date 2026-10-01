@@ -11,15 +11,14 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // RenderError renders an error response and logs any render failures.
-// For server errors (5xx), it also logs the root cause to slog and reports
-// the error to Sentry so that failures are visible in both Grafana and Sentry.
+// For server errors (5xx), it also logs the root cause to slog and hands it to
+// ServerErrorReporting, which reports the answer to Sentry once.
 func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
 	// A business rejection is never a server error, even where a handler
 	// does not classify it yet: it keeps its 409, code and details (ADR 0006).
@@ -32,16 +31,16 @@ func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 	if errResp, ok := renderer.(*ErrResponse); ok && IsBusinessRejection(errResp.Err) {
 		tenant.MarkRollback(r.Context())
 	}
+	if errResp, ok := renderer.(*ErrResponse); ok && errResp.Code == "" {
+		errResp.Code = ErrorClassCode(errResp.HTTPStatusCode)
+	}
 	if errResp, ok := renderer.(*ErrResponse); ok && errResp.HTTPStatusCode >= 500 && errResp.Err != nil {
 		slog.Default().ErrorContext(r.Context(), "server error",
 			slog.Int("status", errResp.HTTPStatusCode),
+			slog.String("correlation_id", requestID(r)),
 			slog.String("error", errResp.Err.Error()),
 		)
-		if hub := sentry.GetHubFromContext(r.Context()); hub != nil {
-			hub.CaptureException(errResp.Err)
-		} else {
-			sentry.CaptureException(errResp.Err)
-		}
+		noteServerError(r.Context(), errResp.Err, errResp.Code)
 	}
 	if err := render.Render(w, r, renderer); err != nil {
 		slog.Default().Error("error rendering error response", slog.String("error", err.Error()))
@@ -93,6 +92,10 @@ type ErrResponse struct {
 	HTTPStatusCode int   `json:"-"`
 
 	Status    string       `json:"status"`
+	Type      string       `json:"type"`
+	Title     string       `json:"title"`
+	Detail    string       `json:"detail"`
+	Instance  string       `json:"instance"`
 	ErrorText string       `json:"error,omitempty"`
 	Code      string       `json:"code,omitempty"`
 	Errors    []FieldError `json:"errors,omitempty"`
@@ -105,6 +108,13 @@ type ErrResponse struct {
 
 // Render implements the render.Renderer interface for ErrResponse
 func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
+	if e.Code == "" {
+		e.Code = ErrorClassCode(e.HTTPStatusCode)
+	}
+	e.Type = problemType(e.Code, e.HTTPStatusCode)
+	e.Title = problemTitle(e.HTTPStatusCode)
+	e.Detail = e.ErrorText
+	e.Instance = requestID(r)
 	render.Status(r, e.HTTPStatusCode)
 	return nil
 }
@@ -134,6 +144,23 @@ func newErrResponse(status int, err error) *ErrResponse {
 func ErrorInvalidRequest(err error) render.Renderer {
 	return newErrResponse(http.StatusBadRequest, err)
 }
+
+// CodeCompanionLockBusy marks the retriable 409 raised when a linked child's
+// row is held by a concurrent edit. It exists because the student PUT answers
+// 409 for two very different reasons, and only this one has nothing for the
+// user to confirm — the client keys its "Ergänzen?" question off the ABSENCE of
+// this code (and off the conflicts list the other 409 carries). Every flow that
+// rewrites a departure plan answers with it, so it lives with the shared
+// renderers rather than with one route.
+const CodeCompanionLockBusy = "companion_lock_busy"
+
+// CodeCompanionWouldLoseDeparture marks the 400 raised when removing a link
+// would leave the OTHER child with an accompanied departure plan and no way to
+// say who it walks home with. The client keys the user-actionable German
+// message off this code: the save paths reduce a failed student PUT to a
+// generic "Fehler beim Speichern", which hides the one instruction that lets
+// the user get out of the refusal (fix that child's Heimweg first).
+const CodeCompanionWouldLoseDeparture = "companion_would_lose_departure"
 
 // ErrorInvalidRequestWithCode returns a 400 Bad Request with a stable
 // error code so the frontend can map to a localized German message
@@ -287,6 +314,19 @@ func ErrorBusinessRejection(err error) render.Renderer {
 	return ErrorConflictWithDetails(rejection, rejection.ErrorCode(), details)
 }
 
+// ErrorBusinessRejectionOr renders like ErrorBusinessRejection. An error
+// without a typed rejection in its chain, a bare sentinel whose raiser knows
+// no numbers, still answers 409 with fallbackCode instead of a server error,
+// so the client can name the refusal without details.
+func ErrorBusinessRejectionOr(fallbackCode string) func(error) render.Renderer {
+	return func(err error) render.Renderer {
+		if IsBusinessRejection(err) {
+			return ErrorBusinessRejection(err)
+		}
+		return ErrorConflictWithCode(err, fallbackCode)
+	}
+}
+
 // detailsObject turns a rejection's typed details into the wire map.
 func detailsObject(value any) (map[string]any, error) {
 	if value == nil {
@@ -402,6 +442,18 @@ func ErrorClientClosed(err error) render.Renderer {
 // the request without globally locking other callers out.
 func ErrorServiceUnavailable(err error) render.Renderer {
 	return newErrResponse(http.StatusServiceUnavailable, err)
+}
+
+// ErrorBadGatewayWrap returns a 502 response with a stable client-facing
+// message for an upstream service that did not take the request. The cause
+// stays in the log.
+func ErrorBadGatewayWrap(clientMsg string, cause error) render.Renderer {
+	return &ErrResponse{
+		Err:            fmt.Errorf("%s: %w", clientMsg, cause),
+		HTTPStatusCode: http.StatusBadGateway,
+		Status:         "error",
+		ErrorText:      clientMsg,
+	}
 }
 
 // IsTransientDatabaseError reports whether err represents a temporary database

@@ -32,6 +32,9 @@ func (m *mockVisitRepository) ReviseVisit(ctx context.Context, row studentpresen
 }
 
 func (m *mockVisitRepository) CloseVisits(ctx context.Context, ids []int64, at time.Time) ([]studentpresence.Visit, error) {
+	if m.closeVisitsFunc != nil {
+		return m.closeVisitsFunc(ctx, ids, at)
+	}
 	rows := make([]studentpresence.Visit, 0, len(ids))
 	for _, id := range ids {
 		if err := m.EndVisit(ctx, id); err != nil {
@@ -223,6 +226,7 @@ type mockVisitRepository struct {
 	findByIDFunc                          func(ctx context.Context, id interface{}) (*studentpresence.Visit, error)
 	updateFunc                            func(ctx context.Context, entity *studentpresence.Visit) error
 	endVisitFunc                          func(ctx context.Context, id int64) error
+	closeVisitsFunc                       func(ctx context.Context, ids []int64, at time.Time) ([]studentpresence.Visit, error)
 	getCurrentByStudentIDFunc             func(ctx context.Context, studentID int64) (*studentpresence.Visit, error)
 	getCurrentByStudentIDWithRoomFunc     func(ctx context.Context, studentID int64) (*studentpresence.VisitLocation, error)
 	countActiveByRoomIDFunc               func(ctx context.Context, roomID int64) (int, error)

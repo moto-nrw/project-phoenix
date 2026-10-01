@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { Download, FileSpreadsheet, FileText, Info } from "lucide-react";
 import {
   BIRTHDAY_MONTH_OPTIONS,
+  HEALTH_LIST_FIXED_COLUMNS,
   STUDENT_EXPORT_COLUMNS,
   STUDENT_EXPORT_PRESETS,
   buildStudentExportColumns,
@@ -100,8 +101,11 @@ export function StudentExportModal({
   );
   const [groupByClass, setGroupByClass] = useState(false);
   const [months, setMonths] = useState<string[]>([]);
+  const [includeWithoutHealthInfo, setIncludeWithoutHealthInfo] =
+    useState(false);
   const [exporting, setExporting] = useState(false);
   const toast = useToast();
+  const isHealthList = preset === "health_list";
 
   useEffect(() => {
     if (!isOpen) return;
@@ -114,6 +118,7 @@ export function StudentExportModal({
   useEffect(() => {
     if (!isOpen) return;
     setMonths([currentBirthdayMonth()]);
+    setIncludeWithoutHealthInfo(false);
   }, [isOpen]);
 
   useEffect(() => {
@@ -154,14 +159,33 @@ export function StudentExportModal({
   );
 
   // A locked dialog offers only the columns its list is made of; the full
-  // catalog would put a weekly matrix on a birthday list.
+  // catalog would put a weekly matrix on a birthday list. The Gesundheitsliste
+  // is held to its own columns even in the template picker, because the
+  // backend prints nothing else on it, and its fixed columns get no checkbox.
   const availableColumns = useMemo(() => {
-    if (!lockedPreset) return columnCatalog;
+    if (!lockedPreset && !isHealthList) return columnCatalog;
     const allowed = new Set<StudentExportColumn>(activePreset?.columns ?? []);
-    return columnCatalog.filter((column) => allowed.has(column.id));
-  }, [activePreset, columnCatalog, lockedPreset]);
+    return columnCatalog.filter(
+      (column) =>
+        allowed.has(column.id) &&
+        !(isHealthList && HEALTH_LIST_FIXED_COLUMNS.has(column.id)),
+    );
+  }, [activePreset, columnCatalog, isHealthList, lockedPreset]);
 
   if (!isOpen) return null;
+
+  // "Alle Kinder" would contradict the Gesundheitsliste's default scope,
+  // which leaves children without a note off the list. The Kindersuche only
+  // knows its general result count, so it must not report that count for
+  // the narrower health-list scope.
+  const isDefaultHealthListScope = isHealthList && !includeWithoutHealthInfo;
+  const scopeWithoutCount = isDefaultHealthListScope
+    ? resultCount === undefined
+      ? "Kinder der Schule mit hinterlegten Gesundheitsinformationen."
+      : "Kinder aus der aktuellen Filterung mit hinterlegten Gesundheitsinformationen."
+    : "Alle Kinder der Schule.";
+  const showsResultCount =
+    resultCount !== undefined && !isDefaultHealthListScope;
 
   const toggleColumn = (column: StudentExportColumn) => {
     setColumns((current) =>
@@ -198,6 +222,9 @@ export function StudentExportModal({
           // A birthday list is only readable in calendar order, so the preset
           // carries its own sort rather than inheriting the page's.
           ...(preset === "birthday_list" ? { months, sort: "birthday" } : {}),
+          ...(isHealthList
+            ? { include_without_health_info: includeWithoutHealthInfo }
+            : {}),
         },
         columns,
       });
@@ -247,9 +274,9 @@ export function StudentExportModal({
           <div className="min-w-0">
             <SlideOverTitle>{heading}</SlideOverTitle>
             <SlideOverDescription>
-              {resultCount === undefined
-                ? "Alle Kinder der Schule."
-                : `${resultCount} Kinder aus der aktuellen Filterung.`}
+              {showsResultCount
+                ? `${resultCount} Kinder aus der aktuellen Filterung.`
+                : scopeWithoutCount}
             </SlideOverDescription>
           </div>
           <SlideOverCloseButton
@@ -364,6 +391,27 @@ export function StudentExportModal({
             </section>
           )}
 
+          {isHealthList && (
+            <section>
+              <p className="text-sm font-medium text-gray-900">Kinder</p>
+              <p className="text-xs text-gray-500">
+                {includeWithoutHealthInfo
+                  ? "Alle Kinder. Ohne Eintrag steht „Nicht hinterlegt“ in der Liste."
+                  : "Nur Kinder mit hinterlegten Gesundheitsinformationen."}
+              </p>
+              <div className="mt-2">
+                <ExportToggleCheckbox
+                  checked={includeWithoutHealthInfo}
+                  label="Auch Kinder ohne Eintrag"
+                  description="So sehen Sie auf einen Blick, bei wem noch nichts eingetragen ist."
+                  onChange={() =>
+                    setIncludeWithoutHealthInfo((current) => !current)
+                  }
+                />
+              </div>
+            </section>
+          )}
+
           {!lockedPreset && !isSingleClassSelection(filters.school_class) && (
             <section>
               <p className="text-sm font-medium text-gray-900">Gliederung</p>
@@ -383,10 +431,12 @@ export function StudentExportModal({
               <div>
                 <p className="text-sm font-medium text-gray-900">Spalten</p>
                 <p className="text-xs text-gray-500">
-                  {activePreset?.label ?? "Vorlage"} kann angepasst werden.
+                  {isHealthList
+                    ? "Name und Gesundheitsinformationen sind immer enthalten."
+                    : `${activePreset?.label ?? "Vorlage"} kann angepasst werden.`}
                 </p>
               </div>
-              <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">
+              <span className="shrink-0 rounded-full bg-gray-100 px-2 py-1 text-xs font-medium whitespace-nowrap text-gray-600">
                 {columns.length} aktiv
               </span>
             </div>
@@ -417,7 +467,11 @@ function sortColumns(columns: StudentExportColumn[]): StudentExportColumn[] {
   const order = new Map(
     STUDENT_EXPORT_COLUMNS.map((column, index) => [column.id, index]),
   );
-  return [...columns].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+  // A column outside the shared catalog (the Gesundheitsliste's health note)
+  // stays at the end, where that list prints it.
+  const rank = (column: StudentExportColumn) =>
+    order.get(column) ?? Number.MAX_SAFE_INTEGER;
+  return [...columns].sort((a, b) => rank(a) - rank(b));
 }
 
 function ExportToggleCheckbox({

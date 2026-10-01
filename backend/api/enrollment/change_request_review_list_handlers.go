@@ -15,8 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // Anmeldungsänderungen in the request module (#2435). The Eltern tab shows all
@@ -116,9 +114,9 @@ type reviewListCursor struct {
 	ID      int64     `json:"i"`
 }
 
-func parseReviewListQuery(r *http.Request) (enrollmentService.ChangeRequestReviewQuery, error) {
+func parseReviewListQuery(r *http.Request) (ChangeRequestReviewQuery, error) {
 	values := r.URL.Query()
-	q := enrollmentService.ChangeRequestReviewQuery{}
+	q := ChangeRequestReviewQuery{}
 	q.Limit = reviewListDefaultLimit
 
 	switch values.Get("view") {
@@ -159,7 +157,7 @@ func parseReviewListQuery(r *http.Request) (enrollmentService.ChangeRequestRevie
 
 // parseReviewListHistoryFilters reads status/from/to. They only exist in the
 // history; passing them on the open list is a client bug and refused loudly.
-func parseReviewListHistoryFilters(q *enrollmentService.ChangeRequestReviewQuery, values url.Values) error {
+func parseReviewListHistoryFilters(q *ChangeRequestReviewQuery, values url.Values) error {
 	rawStatus := values.Get("status")
 	rawFrom := values.Get("from")
 	rawTo := values.Get("to")
@@ -256,8 +254,8 @@ func (rs *Resource) listChangeRequestReviewEntries(w http.ResponseWriter, r *htt
 		return
 	}
 
-	var items []*enrollmentService.ChangeRequestReviewItem
-	var next *usersService.HistoryCursor
+	var items []*ChangeRequestReviewRow
+	var next *ChangeRequestReviewCursor
 	txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
 		rows, cursor, listErr := rs.ChangeRequestService.ListForReview(ctx, q)
 		if listErr != nil {
@@ -281,7 +279,7 @@ func (rs *Resource) listChangeRequestReviewEntries(w http.ResponseWriter, r *htt
 	common.Respond(w, r, http.StatusOK, page, "Enrollment change requests retrieved")
 }
 
-func encodeReviewListCursor(cursor *usersService.HistoryCursor) string {
+func encodeReviewListCursor(cursor *ChangeRequestReviewCursor) string {
 	raw, err := json.Marshal(reviewListCursor{Instant: cursor.UpdatedAt, ID: cursor.ID})
 	if err != nil {
 		return ""
@@ -298,7 +296,7 @@ func orEmptyMap(value map[string]any) map[string]any {
 	return value
 }
 
-func toChangeRequestReviewItem(item *enrollmentService.ChangeRequestReviewItem, history bool) ChangeRequestReviewItem {
+func toChangeRequestReviewItem(item *ChangeRequestReviewRow, history bool) ChangeRequestReviewItem {
 	row := item.ChangeRequest
 	entry := ChangeRequestReviewEntry{
 		ID:               strconv.FormatInt(row.ID, 10),
@@ -334,7 +332,7 @@ func toChangeRequestReviewItem(item *enrollmentService.ChangeRequestReviewItem, 
 	}
 }
 
-func formatReviewChildren(requestID int64, children []enrollmentService.ChangeRequestReviewChild) []ChangeRequestReviewChildEntry {
+func formatReviewChildren(requestID int64, children []ChangeRequestReviewChild) []ChangeRequestReviewChildEntry {
 	formatted := make([]ChangeRequestReviewChildEntry, 0, len(children))
 	for _, child := range children {
 		var studentID *string

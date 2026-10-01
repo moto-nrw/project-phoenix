@@ -94,6 +94,18 @@ func (a *Authenticators) Device() Middleware { return a.authenticator.Device() }
 func (a *Authenticators) DeviceOnly() Middleware { return a.authenticator.DeviceOnly() }
 
 // fleetDirectory serves the device port from the public capability.
+// DeviceID reports the device id of the kiosk the device authenticator
+// admitted on this request, or false when the request carries none. Routes
+// that log or attribute the kiosk read it through this instead of the
+// authenticator's context key.
+func DeviceID(ctx context.Context) (string, bool) {
+	authenticated := device.DeviceFromCtx(ctx)
+	if authenticated == nil {
+		return "", false
+	}
+	return authenticated.DeviceID, true
+}
+
 type fleetDirectory struct{ fleet Fleet }
 
 func (d fleetDirectory) FindByAPIKey(ctx context.Context, apiKey string) (*device.AuthenticatedDevice, error) {

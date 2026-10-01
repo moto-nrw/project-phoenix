@@ -97,7 +97,7 @@ func TestLinkToTenantReusesExistingPersonWithoutNames(t *testing.T) {
 	// The person that was already there carries the new staff record — no
 	// second person, and no name invented for one.
 	staffCount, err := tc.db.NewSelect().
-		TableExpr("users.staff").
+		TableExpr("users.staff_school_memberships").
 		Where("person_id = ?", person.ID).
 		Where("deleted_at IS NULL").
 		Count(t.Context())

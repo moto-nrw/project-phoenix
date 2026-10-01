@@ -19,6 +19,10 @@ import {
   fetchUnreadCount,
   fetchThread,
   postMessage,
+  markThreadUnread,
+  markAllMessagesRead,
+  fetchMessageCountSetting,
+  saveMessageCountScope,
   openThread,
   fetchGuardians,
   type InboxThread,
@@ -364,6 +368,48 @@ describe("postMessage", () => {
 // openThread
 // ---------------------------------------------------------------------------
 
+describe("markThreadUnread", () => {
+  it("POSTs to the thread's unread route", async () => {
+    let seenURL = "";
+    let seenMethod = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method ?? "";
+      return jsonOk({ data: null });
+    });
+    await markThreadUnread("t42");
+    expect(seenURL).toBe("/api/messages/threads/t42/unread");
+    expect(seenMethod).toBe("POST");
+  });
+
+  it("throws the backend error on failure", async () => {
+    mockFetch(async () => jsonOk({ error: "messaging: forbidden" }, 403));
+    await expect(markThreadUnread("t42")).rejects.toThrow(
+      "messaging: forbidden",
+    );
+  });
+});
+
+describe("markAllMessagesRead", () => {
+  it("POSTs to the mark-all-read route", async () => {
+    let seenURL = "";
+    let seenMethod = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method ?? "";
+      return jsonOk({ data: { unread_count: 2 } });
+    });
+    await expect(markAllMessagesRead()).resolves.toBe(2);
+    expect(seenURL).toBe("/api/messages/mark-all-read");
+    expect(seenMethod).toBe("POST");
+  });
+
+  it("throws the backend error on failure", async () => {
+    mockFetch(async () => jsonOk({ error: "messaging: forbidden" }, 403));
+    await expect(markAllMessagesRead()).rejects.toThrow("messaging: forbidden");
+  });
+});
+
 describe("openThread", () => {
   it("POSTs to /api/messages/threads/open and returns the ThreadDetail", async () => {
     let seenURL = "";
@@ -457,3 +503,48 @@ describe("fetchGuardians", () => {
 // endpoints: change requests are now decided on the Änderungsanfragen admin page
 // (care-request-review-api), not inline in the chat. Their tests were removed
 // with them.
+
+describe("message count setting", () => {
+  it("reads the scope and whether the caller has a group", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonOk({ data: { scope: "own_groups", has_own_groups: false } });
+    });
+    await expect(fetchMessageCountSetting()).resolves.toEqual({
+      scope: "own_groups",
+      hasOwnGroups: false,
+    });
+    expect(seenURL).toBe("/api/messages/count-scope");
+  });
+
+  it("falls back to all for an unknown scope", async () => {
+    mockFetch(async () => jsonOk({ data: { scope: "mine" } }));
+    await expect(fetchMessageCountSetting()).resolves.toEqual({
+      scope: "all",
+      hasOwnGroups: false,
+    });
+  });
+
+  it("PUTs the chosen scope", async () => {
+    let seenMethod = "";
+    let seenBody = "";
+    mockFetch(async (_input, init) => {
+      seenMethod = init?.method ?? "";
+      seenBody = String(init?.body);
+      return jsonOk({ data: { scope: "none" } });
+    });
+    await saveMessageCountScope("none");
+    expect(seenMethod).toBe("PUT");
+    expect(JSON.parse(seenBody)).toEqual({ scope: "none" });
+  });
+
+  it("throws the backend error when saving fails", async () => {
+    mockFetch(async () =>
+      jsonOk({ error: "messaging: invalid count scope" }, 400),
+    );
+    await expect(saveMessageCountScope("all")).rejects.toThrow(
+      "messaging: invalid count scope",
+    );
+  });
+});

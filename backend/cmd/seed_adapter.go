@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 
 	backendapi "github.com/moto-nrw/project-phoenix/api"
@@ -16,22 +17,24 @@ func newSeedCommandAdapter(baseURL string, verbose bool) seedCommandAdapter {
 	return seedCommandAdapter{inner: backendapi.NewCommandAdapter(baseURL, verbose)}
 }
 
-func (a seedCommandAdapter) BaseURL() string                       { return a.inner.BaseURL() }
-func (a seedCommandAdapter) CheckHealth(ctx context.Context) error { return a.inner.CheckHealth(ctx) }
+func (a seedCommandAdapter) BaseURL() string { return a.inner.BaseURL() }
+func (a seedCommandAdapter) CheckHealth(ctx context.Context) error {
+	return commandSeedWrappedError(a.inner.CheckHealth(ctx), "server health check failed")
+}
 
 func (a seedCommandAdapter) LoginOperator(ctx context.Context, email, password string) (seedapi.AuthRef, error) {
 	auth, err := a.inner.LoginOperator(ctx, email, password)
-	return commandSeedAuth(auth), err
+	return commandSeedAuth(auth), commandSeedWrappedError(err, "operator login request failed")
 }
 
 func (a seedCommandAdapter) LoginTenant(ctx context.Context, email, password, tenantSlug string) (seedapi.AuthRef, error) {
 	auth, err := a.inner.LoginTenant(ctx, email, password, tenantSlug)
-	return commandSeedAuth(auth), err
+	return commandSeedAuth(auth), commandSeedWrappedError(err, "login request failed")
 }
 
 func (a seedCommandAdapter) LoginParent(ctx context.Context, email, password string) (seedapi.AuthRef, error) {
 	auth, err := a.inner.LoginParent(ctx, email, password)
-	return commandSeedAuth(auth), err
+	return commandSeedAuth(auth), commandSeedWrappedError(err, "parent login request failed")
 }
 
 func (a seedCommandAdapter) Raw(ctx context.Context, auth seedapi.AuthRef, method, path string, body any, headers map[string]string) ([]byte, int, error) {
@@ -55,9 +58,20 @@ func commandAPIAuth(auth seedapi.AuthRef) backendapi.AuthRef {
 func commandSeedError(err error) error {
 	var apiErr *backendapi.APIError
 	if errors.As(err, &apiErr) {
-		return &seedapi.APIError{Method: apiErr.Method, Path: apiErr.Path, StatusCode: apiErr.StatusCode, Code: apiErr.Code, Message: apiErr.Message, Body: apiErr.Body}
+		return &seedapi.APIError{Method: apiErr.Method, Path: apiErr.Path, StatusCode: apiErr.StatusCode, Code: apiErr.Code, Message: apiErr.Message, Body: apiErr.Body, RetryAfter: apiErr.RetryAfter}
 	}
 	return err
+}
+
+func commandSeedWrappedError(err error, operation string) error {
+	if err == nil {
+		return nil
+	}
+	var apiErr *backendapi.APIError
+	if !errors.As(err, &apiErr) {
+		return err
+	}
+	return fmt.Errorf("%s: %w", operation, commandSeedError(err))
 }
 
 func newSimulationClient(baseURL string, verbose bool) (simulate.Client, error) {

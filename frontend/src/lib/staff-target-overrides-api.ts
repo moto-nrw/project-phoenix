@@ -1,28 +1,34 @@
 import { sessionFetch } from "./session-cache";
 
 // Sonderarbeitszeit (#3259): for every Monday to Friday in [startDate,
-// endDate] the staff member's daily Soll is dailyMinutes. It wins over
-// closing days and the Arbeitszeitmodell; statutory holidays stay at zero.
+// endDate] the staff member's daily Soll is dailyMinutes, or with
+// weekdayMinutes (#3745, Monday to Friday) the Soll of that weekday. Exactly
+// one of the two is set. It wins over closing days and the
+// Arbeitszeitmodell; statutory holidays stay at zero.
 export interface StaffTargetOverride {
   id: string;
   staffId: string;
   startDate: string;
   endDate: string;
-  dailyMinutes: number;
+  dailyMinutes: number | null;
+  weekdayMinutes: readonly number[] | null;
 }
 
-interface StaffTargetOverrideInput {
+type StaffTargetOverrideInput = {
   startDate: string;
   endDate: string;
-  dailyMinutes: number;
-}
+} & (
+  | { dailyMinutes: number; weekdayMinutes?: never }
+  | { weekdayMinutes: readonly number[]; dailyMinutes?: never }
+);
 
 interface BackendStaffTargetOverride {
   id: number | string;
   staff_id: number | string;
   start_date: string;
   end_date: string;
-  daily_minutes: number;
+  daily_minutes: number | null;
+  weekday_minutes?: number[] | null;
 }
 
 function mapStaffTargetOverride(
@@ -34,6 +40,7 @@ function mapStaffTargetOverride(
     startDate: row.start_date.slice(0, 10),
     endDate: row.end_date.slice(0, 10),
     dailyMinutes: row.daily_minutes,
+    weekdayMinutes: row.weekday_minutes ?? null,
   };
 }
 
@@ -64,7 +71,9 @@ function toBody(input: StaffTargetOverrideInput): string {
   return JSON.stringify({
     start_date: input.startDate,
     end_date: input.endDate,
-    daily_minutes: input.dailyMinutes,
+    ...(input.weekdayMinutes
+      ? { weekday_minutes: input.weekdayMinutes }
+      : { daily_minutes: input.dailyMinutes }),
   });
 }
 

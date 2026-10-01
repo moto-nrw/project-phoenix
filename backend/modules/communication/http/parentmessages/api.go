@@ -46,10 +46,16 @@ func (rs *Resource) Router() chi.Router {
 		read := common.RequiresPermission(permissions.UsersRead)
 		r.With(read, withTx).Get("/", rs.listInbox)
 		r.With(read, withTx).Get("/unread-count", rs.unreadCount)
+		r.With(read, withTx).Post("/mark-all-read", rs.markAllRead)
+		// The caller's own counter scope (#3673): personal, so reading the
+		// inbox is the only permission it needs.
+		r.With(read, withTx).Get("/count-scope", rs.getCountScope)
+		r.With(read, withTx).Put("/count-scope", rs.setCountScope)
 		r.With(read, withTx).Post("/threads", rs.startThread)
 		r.With(read, withTx).Post("/threads/open", rs.openThread)
 		r.With(read, withTx).Get("/threads/{threadId}", rs.getThread)
 		r.With(read, withTx).Post("/threads/{threadId}", rs.postMessage)
+		r.With(read, withTx).Post("/threads/{threadId}/unread", rs.markThreadUnread)
 		r.With(read, withTx).Get("/students/{studentId}/guardians", rs.listGuardians)
 		r.With(read, withTx).Get("/students/{studentId}/threads", rs.listStudentThreads)
 	})
@@ -240,6 +246,66 @@ func (rs *Resource) getThread(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, toThreadDetail(detail), "Thread retrieved")
 }
 
+// markAllRead marks every conversation the caller sees as unread as read for
+// the caller's own account (#3663). It answers with the caller's new unread
+// count, which stays above zero while team-marked conversations remain.
+func (rs *Resource) markAllRead(w http.ResponseWriter, r *http.Request) {
+	count, err := rs.Service.MarkAllParentMessagesRead(r.Context())
+	if err != nil {
+		renderMessagingError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]int{"unread_count": count}, "Messages marked read")
+}
+
+// CountScopeBody carries the caller's count scope in both directions:
+// "all", "own_groups" or "none".
+type CountScopeBody struct {
+	Scope string `json:"scope"`
+}
+
+// CountScopeResponse adds whether the caller has an OGS group today, so the
+// setting can say when "own_groups" would count nothing.
+type CountScopeResponse struct {
+	Scope        string `json:"scope"`
+	HasOwnGroups bool   `json:"has_own_groups"`
+}
+
+func (rs *Resource) getCountScope(w http.ResponseWriter, r *http.Request) {
+	setting, err := rs.Service.ParentMessageCountScope(r.Context())
+	if err != nil {
+		renderMessagingError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, CountScopeResponse{Scope: setting.Scope, HasOwnGroups: setting.HasOwnGroups}, "Count scope retrieved")
+}
+
+func (rs *Resource) setCountScope(w http.ResponseWriter, r *http.Request) {
+	var req CountScopeBody
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
+		return
+	}
+	if err := rs.Service.SetParentMessageCountScope(r.Context(), req.Scope); err != nil {
+		renderMessagingError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, req, "Count scope saved")
+}
+
+// markThreadUnread marks the conversation unread for the whole team (#3654).
+func (rs *Resource) markThreadUnread(w http.ResponseWriter, r *http.Request) {
+	threadID, ok := parseInt64Param(w, r, "threadId", "thread")
+	if !ok {
+		return
+	}
+	if err := rs.Service.MarkParentMessageThreadUnread(r.Context(), threadID); err != nil {
+		renderMessagingError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "Thread marked unread")
+}
+
 func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {
 	threadID, ok := parseInt64Param(w, r, "threadId", "thread")
 	if !ok {
@@ -350,7 +416,8 @@ func renderMessagingError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, communication.ErrParentMessageEmptyBody),
 		errors.Is(err, communication.ErrParentMessageBodyTooLong),
-		errors.Is(err, communication.ErrParentMessageInvalidGuardian):
+		errors.Is(err, communication.ErrParentMessageInvalidGuardian),
+		errors.Is(err, communication.ErrParentMessageInvalidCountScope):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, communication.ErrParentMessageGuardianAccessRevoked):
 		common.RenderError(w, r, common.ErrorConflictMessage("Der Empfänger hat keinen Zugriff mehr auf dieses Kind."))

@@ -1,10 +1,12 @@
 package messaging
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,6 +43,7 @@ func TestParentMessageHTTPErrorContract(t *testing.T) {
 		{communication.ErrParentMessageEmptyBody, http.StatusBadRequest},
 		{communication.ErrParentMessageBodyTooLong, http.StatusBadRequest},
 		{communication.ErrParentMessageInvalidGuardian, http.StatusBadRequest},
+		{communication.ErrParentMessageInvalidCountScope, http.StatusBadRequest},
 		{communication.ErrParentMessageGuardianAccessRevoked, http.StatusConflict},
 		{communication.ErrParentMessageHandledBoundaryRequired, http.StatusConflict},
 		{errors.New("database unavailable"), http.StatusInternalServerError},
@@ -50,4 +53,56 @@ func TestParentMessageHTTPErrorContract(t *testing.T) {
 		renderMessagingError(recorder, httptest.NewRequest(http.MethodGet, "/", nil), test.err)
 		assert.Equal(t, test.status, recorder.Code)
 	}
+}
+
+// countScopeService records the scope the handler passes on and answers with
+// a fixed one.
+type countScopeService struct {
+	communication.ParentMessagingCapability
+	stored string
+	setErr error
+}
+
+func (s *countScopeService) ParentMessageCountScope(context.Context) (communication.ParentMessageCountSetting, error) {
+	return communication.ParentMessageCountSetting{Scope: s.stored, HasOwnGroups: true}, nil
+}
+
+func (s *countScopeService) SetParentMessageCountScope(_ context.Context, scope string) error {
+	if s.setErr != nil {
+		return s.setErr
+	}
+	s.stored = scope
+	return nil
+}
+
+// TestCountScopeHandlers pins the wire shape of the personal count scope
+// (#3673): {"scope": "..."} in and out, 400 for a malformed body or an
+// unknown scope.
+func TestCountScopeHandlers(t *testing.T) {
+	t.Parallel()
+
+	service := &countScopeService{stored: "all"}
+	rs := &Resource{Service: service}
+
+	recorder := httptest.NewRecorder()
+	rs.getCountScope(recorder, httptest.NewRequest(http.MethodGet, "/count-scope", nil))
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"scope":"all"`)
+	assert.Contains(t, recorder.Body.String(), `"has_own_groups":true`)
+
+	recorder = httptest.NewRecorder()
+	rs.setCountScope(recorder, httptest.NewRequest(http.MethodPut, "/count-scope", strings.NewReader(`{"scope":"own_groups"}`)))
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, "own_groups", service.stored)
+	assert.Contains(t, recorder.Body.String(), `"scope":"own_groups"`)
+
+	recorder = httptest.NewRecorder()
+	rs.setCountScope(recorder, httptest.NewRequest(http.MethodPut, "/count-scope", strings.NewReader(`{`)))
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+
+	service.setErr = communication.ErrParentMessageInvalidCountScope
+	recorder = httptest.NewRecorder()
+	rs.setCountScope(recorder, httptest.NewRequest(http.MethodPut, "/count-scope", strings.NewReader(`{"scope":"mine"}`)))
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	assert.Equal(t, "own_groups", service.stored, "a rejected scope stores nothing")
 }

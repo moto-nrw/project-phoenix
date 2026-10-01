@@ -11,9 +11,17 @@ interface BackendOverviewEnvelope {
   data: unknown;
 }
 
-export async function fetchBirthdayOverview(token: string): Promise<unknown> {
+/**
+ * `weekStart` picks the week to show (#3777); without it the backend answers
+ * with the current week. The backend validates the value and its range.
+ */
+export async function fetchBirthdayOverview(
+  token: string,
+  weekStart?: string | null,
+): Promise<unknown> {
+  const query = weekStart ? `?week_start=${encodeURIComponent(weekStart)}` : "";
   const response = await apiGet<BackendOverviewEnvelope>(
-    "/api/birthdays",
+    `/api/birthdays${query}`,
     token,
   );
   return response.data;

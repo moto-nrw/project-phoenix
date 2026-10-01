@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format } from "date-fns/format";
 import { describe, expect, it } from "vitest";
 
 import { dateFnsLocaleFor } from "./date-fns-locale";

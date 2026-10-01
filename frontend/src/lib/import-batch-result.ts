@@ -59,6 +59,21 @@ export function readImportBatchFailure<T>(
   return { ...result, Errors: errors } as unknown as ImportBatchResult<T>;
 }
 
+/**
+ * Reads the refusal that stopped a batch, such as a full Kinderkontingent
+ * (#3571): `{ code, details }` in `details.rejection` of an
+ * `import_batch_failed` envelope. Null when a batch failed for another reason.
+ */
+export function readImportBatchRejection(payload: unknown): unknown {
+  if (!isRecord(payload) || payload.code !== importBatchFailedCode) {
+    return null;
+  }
+  if (!isRecord(payload.details) || !isRecord(payload.details.rejection)) {
+    return null;
+  }
+  return payload.details.rejection;
+}
+
 export function importBatchSavedCount(result: {
   CreatedCount: number;
   UpdatedCount: number;
@@ -88,9 +103,26 @@ function importBatchBlockingRow(result: ImportBatchResult): number | undefined {
   return undefined;
 }
 
-/** Persistent alert copy: saved rows first, then the blocking row and next step. */
-export function importBatchFailureMessage(result: ImportBatchResult): string {
+function savedRowsSentence(saved: number): string {
+  return saved === 1
+    ? "1 Zeile ist gespeichert."
+    : `${saved} Zeilen sind gespeichert.`;
+}
+
+/**
+ * Persistent alert copy: saved rows first, then the blocking row and next
+ * step. A refusal (already worded for the reader) replaces the blocking row:
+ * the batch stopped as a whole, not at one row.
+ */
+export function importBatchFailureMessage(
+  result: ImportBatchResult,
+  refusal?: string | null,
+): string {
   const saved = importBatchSavedCount(result);
+  if (refusal) {
+    if (saved === 0) return refusal;
+    return `${savedRowsSentence(saved)} ${refusal} Die gespeicherten Zeilen bleiben.`;
+  }
   const blockingRow = importBatchBlockingRow(result);
   if (saved === 0) {
     if (blockingRow === undefined) {
@@ -98,10 +130,7 @@ export function importBatchFailureMessage(result: ImportBatchResult): string {
     }
     return `Zeile ${blockingRow} hat nicht geklappt. Bitte korrigieren Sie diese Zeile. Laden Sie die Datei danach erneut hoch.`;
   }
-  const savedSentence =
-    saved === 1
-      ? "1 Zeile ist gespeichert."
-      : `${saved} Zeilen sind gespeichert.`;
+  const savedSentence = savedRowsSentence(saved);
   if (blockingRow === undefined) {
     return `${savedSentence} Der Rest hat nicht geklappt. Laden Sie die Datei danach erneut hoch. Die gespeicherten Zeilen bleiben.`;
   }

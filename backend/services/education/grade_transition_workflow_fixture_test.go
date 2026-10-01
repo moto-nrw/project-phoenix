@@ -2,6 +2,7 @@ package education_test
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -50,7 +51,7 @@ func newTransitionFixture(t *testing.T, db *bun.DB) *transitionFixture {
 	membership, err := repositories.NewSchoolMembership(db)
 	require.NoError(t, err)
 	f.membership = membership
-	actor := testpkg.CreateTestAccount(t, db, "grade-transition-actor@example.com")
+	actor := testpkg.CreateTestAccount(t, db, fmt.Sprintf("grade-transition-actor-%d", f.tenantID))
 	f.actorID = actor.ID
 	deps, err := gradetransitioncompose.Assemble(gradetransitioncompose.Dependencies{
 		DB: db, Directory: f.people, Membership: f.membership,

@@ -1,4 +1,10 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import GuardianPickerPanel from "./guardian-picker-panel";
 import type { Guardian } from "@/lib/guardian-helpers";
@@ -29,6 +35,8 @@ function makeGuardian(i: number): Guardian {
 describe("GuardianPickerPanel truncation hint", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The search is debounced; fake timers skip the wait instead of sleeping.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
   });
 
   it("shows the narrow-your-search hint when results hit the cap", async () => {
@@ -42,6 +50,7 @@ describe("GuardianPickerPanel truncation hint", () => {
     fireEvent.change(screen.getByPlaceholderText("Name oder E-Mail suchen…"), {
       target: { value: "mueller" },
     });
+    await act(() => vi.advanceTimersByTimeAsync(300));
 
     await waitFor(() => {
       expect(
@@ -60,6 +69,7 @@ describe("GuardianPickerPanel truncation hint", () => {
     fireEvent.change(screen.getByPlaceholderText("Name oder E-Mail suchen…"), {
       target: { value: "schmidt" },
     });
+    await act(() => vi.advanceTimersByTimeAsync(300));
 
     // Wait for the results to render, then assert the hint is absent.
     await waitFor(() => {
@@ -74,6 +84,8 @@ describe("GuardianPickerPanel truncation hint", () => {
 describe("GuardianPickerPanel select-and-confirm flow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The search is debounced; fake timers skip the wait instead of sleeping.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
   });
 
   // Search for one guardian, wait for it to render, and click it — leaving the
@@ -83,6 +95,7 @@ describe("GuardianPickerPanel select-and-confirm flow", () => {
     fireEvent.change(screen.getByPlaceholderText("Name oder E-Mail suchen…"), {
       target: { value: "schmidt" },
     });
+    await act(() => vi.advanceTimersByTimeAsync(300));
     const fullName = `${guardian.firstName} ${guardian.lastName}`;
     await waitFor(() => {
       expect(screen.getByText(fullName)).toBeInTheDocument();
@@ -206,6 +219,7 @@ describe("GuardianPickerPanel select-and-confirm flow", () => {
     fireEvent.change(screen.getByPlaceholderText("Name oder E-Mail suchen…"), {
       target: { value: "schmidt" },
     });
+    await act(() => vi.advanceTimersByTimeAsync(300));
 
     await waitFor(() => {
       expect(screen.getByText("(bereits hinzugefügt)")).toBeInTheDocument();
@@ -223,6 +237,7 @@ describe("GuardianPickerPanel select-and-confirm flow", () => {
     fireEvent.change(screen.getByPlaceholderText("Name oder E-Mail suchen…"), {
       target: { value: "schmidt" },
     });
+    await act(() => vi.advanceTimersByTimeAsync(300));
 
     await waitFor(() => {
       expect(
@@ -238,6 +253,7 @@ describe("GuardianPickerPanel select-and-confirm flow", () => {
     fireEvent.change(screen.getByPlaceholderText("Name oder E-Mail suchen…"), {
       target: { value: "schmidt" },
     });
+    await act(() => vi.advanceTimersByTimeAsync(300));
 
     await waitFor(() => {
       expect(
@@ -254,6 +270,7 @@ describe("GuardianPickerPanel select-and-confirm flow", () => {
     fireEvent.change(screen.getByPlaceholderText("Name oder E-Mail suchen…"), {
       target: { value: "ab" },
     });
+    await act(() => vi.advanceTimersByTimeAsync(300));
 
     expect(
       screen.getByText("Mindestens 3 Zeichen eingeben."),

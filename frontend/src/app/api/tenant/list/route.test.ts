@@ -85,8 +85,9 @@ describe("GET /api/tenant/list", () => {
     const response = await GET();
 
     expect(response.status).toBe(429);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toBe("Rate limit exceeded. Please try again later.");
+    expect(await response.text()).toBe(
+      "Rate limit exceeded. Please try again later.",
+    );
   });
 
   it("returns 500 on network error", async () => {

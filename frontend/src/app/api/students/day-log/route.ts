@@ -1,12 +1,13 @@
 // app/api/students/day-log/route.ts
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { apiGet } from "~/lib/api-helpers.server";
-import { createLogger } from "~/lib/logger";
+import {
+  apiGet,
+  ApiResponseError,
+  handleApiError,
+} from "~/lib/api-helpers.server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
-
-const logger = createLogger({ component: "StudentsDayLogRoute" });
 
 /**
  * Proxy for GET /api/students/day-log (Tagesauswertung, #1456).
@@ -36,9 +37,8 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
     try {
       envelope = await apiGet<{ data: unknown }>(endpoint, session.user.token);
     } catch (apiError) {
-      const message =
-        apiError instanceof Error ? apiError.message : String(apiError);
-      if (!message.includes("API error (401)")) throw apiError;
+      if (!(apiError instanceof ApiResponseError) || apiError.status !== 401)
+        throw apiError;
 
       const refreshed = await uncachedAuth();
       if (
@@ -57,29 +57,7 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (apiError) {
-    const message =
-      apiError instanceof Error ? apiError.message : String(apiError);
-
-    // apiGet throws errors in the format "API error (STATUS): body".
-    const statusMatch = message.match(/API error \((\d+)\)/);
-    const status = statusMatch?.[1] ? Number.parseInt(statusMatch[1], 10) : 500;
-
-    if (status === 403) {
-      let code = "feature_disabled";
-      if (message.includes("not_group_supervisor"))
-        code = "not_group_supervisor";
-      if (message.includes("no_permitted_groups")) code = "no_permitted_groups";
-      return NextResponse.json({ error: code }, { status: 403 });
-    }
-    if (status === 400) {
-      return NextResponse.json({ error: "invalid_request" }, { status: 400 });
-    }
-
-    logger.error("day_log_fetch_failed", { error: message });
-    return NextResponse.json(
-      { error: `Backend API error: ${message}` },
-      { status },
-    );
+    return handleApiError(apiError);
   }
 }
 

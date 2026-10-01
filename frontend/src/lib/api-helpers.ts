@@ -2,6 +2,7 @@
 import { isBrowserContext } from "./api-url";
 import { sanitizeEndpoint } from "./log-sanitize";
 import { createLogger } from "~/lib/logger";
+import { ApiError, apiErrorFromBody } from "./api-error";
 
 // Logger instance for API helpers
 const logger = createLogger({ component: "ApiHelpers" });
@@ -26,6 +27,8 @@ export interface ApiErrorResponse {
   // Forwarded through the proxy so codes like reopen_status_conflict can
   // carry identifying fields (session_id, existing_status, …) to the UI.
   details?: Record<string, unknown>;
+  errors?: { field: string; reason: string }[];
+  instance?: string;
 }
 
 /**
@@ -36,19 +39,34 @@ export interface ApiErrorResponse {
  * existing string-based parsers (handleApiError, handleDomainApiError) and
  * any caller catching it as a plain Error continue to work unchanged.
  */
-export class ApiResponseError extends Error {
+export class ApiResponseError extends ApiError {
   readonly status: number;
   readonly bodyText: string;
-  // Memoized parse result — `null` means "not JSON". Lazy so callers that
-  // only check status never pay the JSON.parse cost.
+  // Memoized parse result — `null` means "not JSON".
   private parsedBody: unknown | undefined;
   private parseAttempted = false;
 
-  constructor(status: number, bodyText: string, options?: ErrorOptions) {
-    super(`API error (${status}): ${bodyText}`, options);
+  constructor(status: number, bodyText: string, _options?: ErrorOptions) {
+    super(`API error (${status}): ${bodyText}`, status);
+    this.cause = _options?.cause;
     this.name = "ApiResponseError";
     this.status = status;
     this.bodyText = bodyText;
+    try {
+      const parsed: unknown = JSON.parse(bodyText);
+      this.parsedBody = parsed;
+      this.parseAttempted = true;
+      const structured = apiErrorFromBody(this.message, status, parsed);
+      this.code = structured.code;
+      this.details = structured.details;
+      this.errors = structured.errors;
+      this.instance = structured.instance;
+      this.requestId = structured.requestId;
+    } catch {
+      this.parsedBody = null;
+      this.parseAttempted = true;
+      // A text body still has a status-derived class code.
+    }
   }
 
   /**
@@ -178,7 +196,19 @@ export async function authFetch<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`API error (${response.status}): ${response.statusText}`);
+    const bodyText =
+      typeof response.text === "function" ? await response.text() : "";
+    let payload: unknown;
+    try {
+      payload = JSON.parse(bodyText) as unknown;
+    } catch {
+      // Keep the historical statusText message for non-JSON responses.
+    }
+    throw apiErrorFromBody(
+      `API error (${response.status}): ${response.statusText}`,
+      response.status,
+      payload,
+    );
   }
 
   // Handle 204 No Content
@@ -287,7 +317,18 @@ export async function fetchWithRetry<T>(
     } else {
       logger.error("api error", logContext);
     }
-    throw new Error(`API error: ${response.status}`);
+    const parsed = (() => {
+      try {
+        return JSON.parse(errorText) as unknown;
+      } catch {
+        return undefined;
+      }
+    })();
+    throw apiErrorFromBody(
+      `API error: ${response.status}`,
+      response.status,
+      parsed,
+    );
   }
 
   const data = (await response.json()) as T;

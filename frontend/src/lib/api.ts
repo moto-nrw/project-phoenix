@@ -1,4 +1,5 @@
 import type { AxiosError } from "axios";
+import { ApiError, apiErrorFromBody, enrichApiError } from "./api-error";
 import { clearSessionCache, getCachedSession } from "./session-cache";
 import { createLogger } from "~/lib/logger";
 import api from "./api-transport";
@@ -146,36 +147,40 @@ function handleApiError(error: unknown, context: string): Error {
     logger.error("api operation failed", logContext);
   }
 
-  const handled = new Error(`${context}: ${errorMessage}`);
-  if (status !== undefined) {
-    Object.assign(handled, { status });
-  }
+  const handled = new ApiError(`${context}: ${errorMessage}`, status);
   if (error && typeof error === "object") {
     const structured = error as {
       code?: unknown;
       details?: unknown;
+      errors?: unknown;
+      instance?: unknown;
+      isAxiosError?: boolean;
       body?: unknown;
       response?: { data?: unknown };
     };
-    const responseData = structured.response?.data;
-    const responseStructured =
-      responseData && typeof responseData === "object"
-        ? (responseData as { code?: unknown; details?: unknown })
-        : undefined;
-    const code =
-      typeof structured.code === "string"
-        ? structured.code
-        : responseStructured?.code;
-    const details =
-      structured.details !== undefined
-        ? structured.details
-        : responseStructured?.details;
-
-    if (typeof code === "string") {
-      Object.assign(handled, { code });
-    }
-    if (details !== undefined) {
-      Object.assign(handled, { details });
+    if (status !== undefined) {
+      enrichApiError(handled, structured.response?.data, status);
+      if (typeof structured.body === "string") {
+        try {
+          enrichApiError(
+            handled,
+            JSON.parse(structured.body) as unknown,
+            status,
+          );
+        } catch {
+          // Keep non-JSON legacy body below.
+        }
+      }
+      // Axios `code` is its transport label (e.g. ERR_BAD_REQUEST), not the
+      // backend's stable error code carried in response.data.
+      const directFields = structured.isAxiosError
+        ? {
+            details: structured.details,
+            errors: structured.errors,
+            instance: structured.instance,
+          }
+        : structured;
+      enrichApiError(handled, directFields, status);
     }
     if (typeof structured.body === "string") {
       Object.assign(handled, { body: structured.body });
@@ -456,21 +461,18 @@ function parseApiErrorMessage(errorText: string): string | null {
 
 function browserApiError(status: number, body: string): Error {
   const message = parseApiErrorMessage(body);
-  const error = Object.assign(
-    new Error(message ? `API error: ${message}` : `API error: ${status}`),
-    { status, body },
-  );
+  let payload: unknown;
   try {
-    const parsed = JSON.parse(body) as ApiErrorResponse;
-    if (typeof parsed.code === "string") {
-      Object.assign(error, { code: parsed.code });
-    }
-    if (parsed.details !== undefined) {
-      Object.assign(error, { details: parsed.details });
-    }
+    payload = JSON.parse(body) as ApiErrorResponse;
   } catch {
-    // The body is retained above for callers that understand a non-JSON error.
+    // Non-JSON legacy responses still retain their raw body.
   }
+  const error = apiErrorFromBody(
+    message ? `API error: ${message}` : `API error: ${status}`,
+    status,
+    payload,
+  );
+  Object.assign(error, { body });
   return error;
 }
 

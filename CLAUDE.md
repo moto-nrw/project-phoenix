@@ -28,7 +28,7 @@ All paths below are relative to the repository root.
   Parent-child access requires relationship-level permissions, not membership alone.
 - **Production data:** use localhost for moto API calls. Read
   [.claude/rules/no-production-requests.md](.claude/rules/no-production-requests.md)
-  before constructing requests; the staging/production domain guard stays active.
+  before constructing requests; never target staging or production domains.
   The seeder is dev-only; production infrastructure uses migrations or admin UI.
 - **Secrets:** keep credentials out of source and output. Edit deployed envs
   only through SOPS, not ciphertext or SSH `.env` edits. Read
@@ -72,8 +72,7 @@ path-scoped rules automatically.
 
 ## Completion and commands
 
-Use Docker Compose for services (`docker compose up -d`, `docker compose logs -f server`).
-Host-side quality/test commands below are deliberate exceptions.
+Run the app with `scripts/dev-native.sh up` (infra in Compose, app native; `--profile full` for containers).
 Tools belong in Devbox; do not depend on unrecorded global installations.
 
 | Change | Required verification |

@@ -37,6 +37,12 @@ import {
   respondToAnnouncement,
 } from "~/lib/parent-api";
 
+import {
+  DeclarationSection,
+  isDeclarationItem,
+  isOpenDeclaration,
+} from "~/components/parent/news/declaration-section";
+
 const logger = createLogger({ component: "ParentNews" });
 
 /** Tell the sidebar badge to refetch after a read/ack. */
@@ -85,7 +91,8 @@ export function isOutstandingAnnouncement(item: ParentAnnouncement): boolean {
   return (
     !item.read ||
     (item.requires_acknowledgement && !item.acknowledged) ||
-    isOpenPoll(item)
+    isOpenPoll(item) ||
+    isOpenDeclaration(item)
   );
 }
 
@@ -105,49 +112,33 @@ function pollAnswerSummary(
   return format(child.first_name, answer);
 }
 
-function NewsCardMeta({
+/**
+ * The type line above the title, only where the type is news: an Umfrage, an
+ * Einverständnis or a cancelled care day. The page is called "Elternbriefe", so "Elternbrief" on
+ * every card only repeated it. "Wichtig" and "Erinnerung" describe the message
+ * and sit with its other states in the last line; up here they stacked into
+ * two or three mini-headings above the title on a phone (#3719).
+ */
+function NewsCardType({
   item,
 }: Readonly<{ item: ParentAnnouncement }>): React.ReactNode {
   const t = useTranslations("parentDashboard");
-  const cancellation = item.system_kind === "care_cancellation";
-  const type = cancellation
-    ? t("newsCareCancellation")
-    : isPoll(item)
-      ? t("newsPoll")
-      : t("newsLetter");
-  const outstanding = isOutstandingAnnouncement(item);
-  const typeClass = cancellation
-    ? "text-moto-red-strong"
-    : outstanding
-      ? "text-moto-blue-strong"
-      : "text-gray-500";
+  if (item.system_kind === "care_cancellation") {
+    return (
+      <span className="text-moto-red-strong mb-1 block text-xs font-semibold tracking-wide uppercase">
+        {t("newsCareCancellation")}
+      </span>
+    );
+  }
+  const type = isPoll(item)
+    ? t("newsPoll")
+    : isDeclarationItem(item)
+      ? t("newsDeclaration")
+      : null;
+  if (type === null) return null;
   return (
-    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold tracking-wide uppercase">
-      <span className={typeClass}>{type}</span>
-      {item.reminder_sent_at && (
-        <>
-          <span className="text-gray-300" aria-hidden="true">
-            ·
-          </span>
-          <span className="text-moto-blue-strong">{t("newsReminder")}</span>
-        </>
-      )}
-      {isBindingLetter(item) && !item.acknowledged && (
-        <>
-          <span className="text-gray-300" aria-hidden="true">
-            ·
-          </span>
-          <span className="text-moto-amber-strong">{t("newsLetterBadge")}</span>
-        </>
-      )}
-      {item.priority === "important" && (
-        <>
-          <span className="text-gray-300" aria-hidden="true">
-            ·
-          </span>
-          <span className="text-moto-amber-strong">{t("newsImportant")}</span>
-        </>
-      )}
+    <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+      {type}
     </span>
   );
 }
@@ -161,39 +152,46 @@ function isBindingLetter(item: ParentAnnouncement): boolean {
   return item.delivery_mode === "letter";
 }
 
+/**
+ * The card's last line states where the item stands; it never names an
+ * action. The whole card is the button, so a bold "Lesen" or "Antworten"
+ * down here read as a second button that did nothing of its own, and it
+ * looked exactly like the finished states "Gelesen" / "Bestätigt" next to it.
+ * An unread message without anything owed shows no line at all: the dot on
+ * the icon and the bold title already say it is new.
+ */
 function NewsCardState({
   item,
 }: Readonly<{ item: ParentAnnouncement }>): React.ReactNode {
   const t = useTranslations("parentDashboard");
   const locale = useLocale();
 
+  if (isDeclarationItem(item)) {
+    return <DeclarationCardState item={item} />;
+  }
+
   if (!isPoll(item)) {
+    if (item.requires_acknowledgement && !item.acknowledged) {
+      return <StatusBadge label={t("newsLetterBadge")} tone="orange" />;
+    }
     const complete = item.requires_acknowledgement
       ? item.acknowledged
       : item.read;
-    const label = item.requires_acknowledgement
-      ? item.acknowledged
-        ? t("newsAcknowledged")
-        : t("newsReadAndConfirm")
-      : item.read
-        ? t("newsRead")
-        : t("newsReadAnnouncement");
+    if (!complete) return null;
     return (
-      <span
-        className={`flex items-center gap-1.5 text-sm font-semibold ${complete ? "text-moto-green-strong" : "text-gray-900"}`}
-      >
-        {complete && (
-          <Check
-            className="text-moto-green-strong h-4 w-4 shrink-0"
-            aria-hidden="true"
-          />
-        )}
-        {label}
+      <span className="text-moto-green-strong flex items-center gap-1.5 font-semibold">
+        <Check
+          className="text-moto-green-strong h-4 w-4 shrink-0"
+          aria-hidden="true"
+        />
+        {item.requires_acknowledgement ? t("newsAcknowledged") : t("newsRead")}
       </span>
     );
   }
 
   const children = item.children ?? [];
+  if (children.length === 0) return null;
+
   const answered = children.filter(
     (child) => child.selected_options.length > 0,
   );
@@ -208,29 +206,30 @@ function NewsCardState({
     .filter((summary): summary is string => summary !== null);
   const closed = isPollClosed(item);
   const complete = children.length > 0 && answered.length === children.length;
-  const action = closed
+  const settled = complete || (closed && answered.length > 0);
+  const state = closed
     ? answered.length > 0
       ? t("newsPollClosed")
       : t("newsPollNoAnswer")
-    : complete
-      ? t("newsPollDone")
-      : answered.length > 0
-        ? t("newsPollContinue")
-        : t("newsAnswer");
+    : t("newsPollDone");
 
   return (
-    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-      <span
-        className={`flex items-center gap-1.5 font-semibold ${complete || (closed && answered.length > 0) ? "text-moto-green-strong" : "text-gray-900"}`}
-      >
-        {(complete || closed) && answered.length > 0 && (
-          <Check
-            className="text-moto-green-strong h-4 w-4 shrink-0"
-            aria-hidden="true"
-          />
-        )}
-        {action}
-      </span>
+    <>
+      {!closed && !complete ? (
+        <StatusBadge label={t("newsPollNeedsAnswer")} tone="orange" />
+      ) : (
+        <span
+          className={`flex items-center gap-1.5 font-semibold ${settled ? "text-moto-green-strong" : "text-gray-600"}`}
+        >
+          {settled && (
+            <Check
+              className="text-moto-green-strong h-4 w-4 shrink-0"
+              aria-hidden="true"
+            />
+          )}
+          {state}
+        </span>
+      )}
       {!complete && answered.length > 0 && (
         <span className="text-gray-500">
           {t("newsPollAnsweredCount", {
@@ -249,7 +248,72 @@ function NewsCardState({
           })}
         </span>
       )}
-    </span>
+    </>
+  );
+}
+
+/**
+ * The card line of an Einverständnis (#3430): "Antwort nötig" while this guardian
+ * still owes an action for a child, otherwise where each child stands.
+ */
+function DeclarationCardState({
+  item,
+}: Readonly<{
+  item: ParentAnnouncement & {
+    declaration: NonNullable<ParentAnnouncement["declaration"]>;
+  };
+}>): React.ReactNode {
+  const t = useTranslations("parentDashboard");
+  const td = useTranslations("parentDeclaration");
+  const locale = useLocale();
+  const declaration = item.declaration;
+  const children = declaration.children;
+  if (children.length === 0) return null;
+
+  const deadline =
+    declaration.deadline && !declaration.closed ? (
+      <span className="text-gray-500">
+        {td("deadline", {
+          date: formatBerlinDate(declaration.deadline, locale),
+        })}
+      </span>
+    ) : null;
+
+  if (isOpenDeclaration(item)) {
+    return (
+      <>
+        <StatusBadge label={t("newsPollNeedsAnswer")} tone="orange" />
+        {deadline}
+      </>
+    );
+  }
+
+  const summary = children
+    .map((child) =>
+      children.length === 1
+        ? td(`state.${child.state}`)
+        : `${child.first_name}: ${td(`state.${child.state}`)}`,
+    )
+    .join(" · ");
+  const settled = children.every((child) => child.state === "agreed");
+
+  return (
+    <>
+      <span
+        className={`flex items-center gap-1.5 font-semibold ${settled ? "text-moto-green-strong" : "text-gray-600"}`}
+      >
+        {settled && (
+          <Check
+            className="text-moto-green-strong h-4 w-4 shrink-0"
+            aria-hidden="true"
+          />
+        )}
+        {summary}
+      </span>
+      {declaration.closed && !settled && (
+        <span className="text-gray-500">{td("closed")}</span>
+      )}
+    </>
   );
 }
 
@@ -485,7 +549,7 @@ export function NewsCard({
   const outstanding = isOutstandingAnnouncement(item);
   const concept = isPoll(item)
     ? "polls"
-    : item.requires_acknowledgement
+    : item.requires_acknowledgement || isDeclarationItem(item)
       ? "confirmations"
       : "news";
 
@@ -493,8 +557,6 @@ export function NewsCard({
     <ChoiceTile
       as="button"
       onClick={() => onOpen(item)}
-      selected={outstanding}
-      tone="blue"
       className="min-h-12 w-full p-4 shadow-sm active:bg-gray-100"
     >
       <span className="relative flex size-10 shrink-0 items-center justify-center rounded-xl bg-gray-100">
@@ -510,9 +572,9 @@ export function NewsCard({
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <NewsCardMeta item={item} />
+        <NewsCardType item={item} />
         <span
-          className={`mt-1 block truncate text-sm text-gray-900 ${outstanding ? "font-semibold" : "font-medium"}`}
+          className={`block truncate text-sm text-gray-900 ${outstanding ? "font-semibold" : "font-medium"}`}
         >
           {item.title}
         </span>
@@ -527,8 +589,16 @@ export function NewsCard({
             ? item.reminder_text
             : item.body}
         </span>
-        <span className="mt-2 block">
+        {/* empty:hidden drops the line's margin when nothing is owed, done
+            or flagged: an unread message that asks for nothing. */}
+        <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm empty:hidden">
           <NewsCardState item={item} />
+          {item.priority === "important" && (
+            <StatusBadge label={t("newsImportant")} tone="orange" />
+          )}
+          {item.reminder_sent_at && (
+            <StatusBadge label={t("newsReminder")} tone="gray" />
+          )}
         </span>
       </span>
       <ChevronRight
@@ -671,7 +741,9 @@ function NewsMessageSection({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h4 id={headingId} className="text-base font-semibold text-gray-950">
-          {t("newsMessageFrom", { school: item.school_name })}
+          {isDeclarationItem(item)
+            ? t("newsDeclarationFrom", { school: item.school_name })
+            : t("newsMessageFrom", { school: item.school_name })}
         </h4>
         {item.published_at && (
           <time className="text-sm text-gray-500">
@@ -795,6 +867,9 @@ export function NewsDetailModal({
   const [stale, setStale] = useState(false);
   const markedRef = useRef(false);
   const poll = usePollAnswers(item, onUpdated, onStale);
+  // An open Einverständnis confirmation sits on top of this dialog; Escape and the
+  // backdrop must close only that one, never both.
+  const [declarationBusy, setDeclarationBusy] = useState(false);
 
   // Reset the per-version local flags when the id or published_at (the version
   // token) changes. On the stale-correction path the parent refetches the feed
@@ -867,7 +942,7 @@ export function NewsDetailModal({
   // so hide the button and surface the stale banner instead.
   const needsAck =
     item.requires_acknowledgement && !item.acknowledged && !stale;
-  const actionInProgress = busy || poll.saving;
+  const actionInProgress = busy || poll.saving || declarationBusy;
 
   return (
     <Modal
@@ -933,6 +1008,15 @@ export function NewsDetailModal({
         {poll.error && <Alert type="error" message={poll.error} />}
 
         {isPoll(item) && <PollAnswerRows poll={poll} />}
+
+        {isDeclarationItem(item) && (
+          <DeclarationSection
+            item={item}
+            onUpdated={onUpdated}
+            onReload={onStale}
+            onBusyChange={setDeclarationBusy}
+          />
+        )}
       </div>
     </Modal>
   );

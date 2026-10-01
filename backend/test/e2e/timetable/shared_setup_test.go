@@ -38,6 +38,12 @@ import (
 // in, and a neighbour used to prove cross-tenant isolation. Both are created
 // per test, so no flow depends on the fixed bootstrap tenant.
 
+// settingsWriter is the write side of the settings service the scenario
+// binds; the timetable routes only read through it.
+type settingsWriter interface {
+	SetValue(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
+}
+
 // scenario bundles the common infrastructure a single flow needs.
 type scenario struct {
 	t              *testing.T
@@ -73,7 +79,7 @@ func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *sce
 		ClosingDays:            factory.SchoolCalendar,
 		MaterializationService: factory.Materialization,
 		InstanceService:        factory.Instance,
-		PersonService:          factory.Users,
+		People:                 factory.People,
 		Templates:              factory.TimetableData.Templates,
 		RecurrenceLock:         factory.TimetableData.RecurrenceLock,
 		AttendanceCorrections:  factory.TimetableData.AttendanceCorrections,
@@ -83,7 +89,7 @@ func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *sce
 		UserContextService:     factory.UserContext,
 		SettingsService:        factory.Settings,
 		Staffing:               factory.Instance,
-		Logger:                 slog.Default(), DB: db,
+		Logger:                 slog.Default(),
 	})
 	s := &scenario{
 		t:               t,

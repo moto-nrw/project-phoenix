@@ -3,7 +3,9 @@ package studentpresence
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // Presence modes resolved from the tenant's presence_mode setting.
@@ -11,6 +13,20 @@ const (
 	PresenceModeDetailed = "detailed"
 	PresenceModeBinary   = "binary"
 )
+
+// MaxCheckoutNoteLength bounds the reason staff may leave when a child goes
+// home earlier than planned (#3324). It matches the column's CHECK constraint.
+const MaxCheckoutNoteLength = 500
+
+// NormalizeCheckoutNote trims a checkout note and enforces its length. An
+// empty or blank note means "no note".
+func NormalizeCheckoutNote(note string) (string, error) {
+	note = strings.TrimSpace(note)
+	if utf8.RuneCountInString(note) > MaxCheckoutNoteLength {
+		return "", ErrCheckoutNoteTooLong
+	}
+	return note, nil
+}
 
 // Operation errors shared by the presence commands and their consumers. The
 // messages are wire contracts: the web routes render them verbatim and the
@@ -38,12 +54,18 @@ var (
 	ErrDatabaseOperation         = errors.New("database operation failed")
 	ErrRoomConflict              = errors.New("room is already occupied by another active group")
 	ErrRoomCapacityExceeded      = errors.New("room capacity exceeded")
-	ErrNoRoomAvailable           = errors.New("no room available for this activity")
+	// ErrActivityParticipantLimitExceeded classifies
+	// ActivityParticipantLimitError with errors.Is (#3632).
+	ErrActivityParticipantLimitExceeded = errors.New("activity participant limit exceeded")
+	ErrNoRoomAvailable                  = errors.New("no room available for this activity")
 	// ErrNoAttendanceRecordForCheckout is returned by ConfirmDailyCheckout when
 	// the student has no attendance record for today — a daily checkout makes no
 	// sense because the student was never checked in. The message is a cross-repo
 	// contract mapped to German UI text in PyrePortal; do not change it.
 	ErrNoAttendanceRecordForCheckout = errors.New("student has no attendance record for today")
+	// ErrCheckoutNoteTooLong rejects an early-checkout note over
+	// MaxCheckoutNoteLength characters (#3324).
+	ErrCheckoutNoteTooLong = errors.New("checkout note is too long")
 	// Kiosk session errors. ErrDeviceAlreadyActive and ErrNoActiveSession are
 	// PyrePortal contract strings; do not change them.
 	ErrDeviceAlreadyActive    = errors.New("device is already running an activity session")
@@ -73,12 +95,24 @@ func (e *OperationError) Unwrap() error {
 	return e.Err
 }
 
+// RoomCapacityCode is the stable error code of a web admission refused
+// because the room is full (#3633). Clients map it to their own text. The
+// kiosk keeps its own ROOM_CAPACITY_EXCEEDED contract.
+const RoomCapacityCode = "presence.room_capacity_exceeded"
+
 // RoomCapacityError reports a presence admission beyond the room's capacity.
+// CurrentOccupancy is the number of open visits in the room before the write,
+// Incoming the number of children the write would add.
+//
+// It is a business rejection like ActivityParticipantLimitError: ErrorCode
+// and ErrorDetails let an HTTP adapter answer 409 with the code and the
+// numbers, so staff can tell a full room from a full activity.
 type RoomCapacityError struct {
 	RoomID           int64
 	RoomName         string
 	CurrentOccupancy int
 	MaxCapacity      int
+	Incoming         int
 }
 
 func (e *RoomCapacityError) Error() string {
@@ -86,6 +120,71 @@ func (e *RoomCapacityError) Error() string {
 }
 
 func (e *RoomCapacityError) Unwrap() error { return ErrRoomCapacityExceeded }
+
+func (e *RoomCapacityError) ErrorCode() string { return RoomCapacityCode }
+
+// RoomCapacityDetails are the values a room refusal names, in wire form.
+type RoomCapacityDetails struct {
+	RoomID           int64  `json:"room_id"`
+	RoomName         string `json:"room_name"`
+	CurrentOccupancy int    `json:"current_occupancy"`
+	MaxCapacity      int    `json:"max_capacity"`
+	IncomingStudents int    `json:"incoming_students"`
+}
+
+func (e *RoomCapacityError) ErrorDetails() any {
+	return RoomCapacityDetails{
+		RoomID: e.RoomID, RoomName: e.RoomName,
+		CurrentOccupancy: e.CurrentOccupancy, MaxCapacity: e.MaxCapacity, IncomingStudents: e.Incoming,
+	}
+}
+
+// ActivityParticipantLimitCode is the stable error code of a web assignment
+// refused because the activity's participant limit is reached (#3632).
+// Clients map it to their own text.
+const ActivityParticipantLimitCode = "presence.activity_participant_limit_reached"
+
+// ActivityParticipantLimitError refuses a web assignment that would put more
+// children into a session than its activity's participant limit allows.
+// CurrentOccupancy is the number of open visits of the session before the
+// write, Incoming the number of children the write would add. Nothing of the
+// write is applied, a bulk assignment included.
+//
+// It is a business rejection: ErrorCode and ErrorDetails let an HTTP adapter
+// answer 409 with the code and the numbers. It stays distinct from
+// RoomCapacityError, which limits the room rather than the activity.
+type ActivityParticipantLimitError struct {
+	ActivityID       int64
+	ActivityName     string
+	CurrentOccupancy int
+	MaxParticipants  int
+	Incoming         int
+}
+
+func (e *ActivityParticipantLimitError) Error() string {
+	return fmt.Sprintf("activity participant limit exceeded: activity %d (%d/%d, %d incoming)",
+		e.ActivityID, e.CurrentOccupancy, e.MaxParticipants, e.Incoming)
+}
+
+func (e *ActivityParticipantLimitError) Unwrap() error { return ErrActivityParticipantLimitExceeded }
+
+func (e *ActivityParticipantLimitError) ErrorCode() string { return ActivityParticipantLimitCode }
+
+// ActivityParticipantLimitDetails are the values a refusal names, in wire form.
+type ActivityParticipantLimitDetails struct {
+	ActivityID       int64  `json:"activity_id"`
+	ActivityName     string `json:"activity_name"`
+	CurrentOccupancy int    `json:"current_occupancy"`
+	MaxParticipants  int    `json:"max_participants"`
+	IncomingStudents int    `json:"incoming_students"`
+}
+
+func (e *ActivityParticipantLimitError) ErrorDetails() any {
+	return ActivityParticipantLimitDetails{
+		ActivityID: e.ActivityID, ActivityName: e.ActivityName,
+		CurrentOccupancy: e.CurrentOccupancy, MaxParticipants: e.MaxParticipants, IncomingStudents: e.Incoming,
+	}
+}
 
 // AttendanceStatus is a student's school attendance for one calendar day,
 // with the check-in and check-out staff resolved to display names.
@@ -274,6 +373,7 @@ type ActiveGroupInfo struct {
 	Name         string
 	Type         string
 	StudentCount int
+	MaxCapacity  *int
 	Location     string
 	Status       string
 }

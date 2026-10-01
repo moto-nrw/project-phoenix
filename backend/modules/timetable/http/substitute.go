@@ -1,0 +1,100 @@
+// Package timetablehttp provides shared substitute/deviation response and broadcast helpers.
+//
+// The former POST /api/timetable/substitute endpoint was consolidated into
+// POST /instances/{id}/deviations (#1886), and the plan/classify/write logic
+// moved to the Timetable owner (timetable.StaffDeviations, #1840, #3424). What
+// remains here is the wire response row (AffectedInstance), the shared reason
+// normalizer, and the post-save SSE broadcast helpers the handlers drive.
+package timetablehttp
+
+import (
+	"context"
+	"log/slog"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/tenant"
+)
+
+// StaffingAnnouncer sends the tenant-wide staffing_deviation_changed event
+// whose Source names the emitting flow. The composition root binds it to
+// the realtime hub.
+type StaffingAnnouncer interface {
+	AnnounceStaffingChanged(tenantID int64, source string) error
+}
+
+// AffectedInstance is one row in the affected_instances list of the response.
+type AffectedInstance struct {
+	InstanceID int64  `json:"instance_id"`
+	Title      string `json:"title"`
+	StartTime  string `json:"start_time"`
+	Action     string `json:"action"`
+}
+
+// trimReason normalizes an optional deviation reason: nil/blank becomes nil,
+// and an over-long value is truncated to the shared note ceiling so a single
+// oversized field can never bloat a row. The ceiling counts runes, not bytes:
+// slicing on a byte offset can split a multi-byte UTF-8 rune, producing an
+// invalid string that PostgreSQL rejects. The frontend's maxLength is likewise
+// a character count, so a rune ceiling keeps the two limits consistent.
+func trimReason(reason *string) *string {
+	if reason == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*reason)
+	if trimmed == "" {
+		return nil
+	}
+	if utf8.RuneCountInString(trimmed) > understaffedAckNoteMaxLength {
+		trimmed = string([]rune(trimmed)[:understaffedAckNoteMaxLength])
+	}
+	return &trimmed
+}
+
+// broadcastDeviationSaveEvents fires the SSE signals after a /deviations save:
+// the group-scoped activity_update per touched active group, plus — when the
+// save actually changed staffing state (any applied write, an acknowledgement
+// change, or a cleared stale ack) — the tenant-wide staffing_deviation_changed
+// invalidation (#1844).
+func (rs *Resource) broadcastDeviationSaveEvents(
+	ctx context.Context,
+	touched timetable.TouchedActivities,
+	appliedWrites int,
+	ackChanged bool,
+	clearedAcks int,
+) {
+	rs.Deviations.QueueActivityUpdates(ctx, touched)
+	rs.broadcastStaffingIfChanged(ctx, appliedWrites > 0 || ackChanged || clearedAcks > 0)
+}
+
+// broadcastStaffingIfChanged sends the tenant-wide invalidation of a staffing
+// save that changed staffing state.
+func (rs *Resource) broadcastStaffingIfChanged(ctx context.Context, changed bool) {
+	if changed {
+		rs.broadcastStaffingDeviationChanged(ctx, "deviations")
+	}
+}
+
+// broadcastStaffingDeviationChanged queues one tenant-wide
+// staffing_deviation_changed event after the surrounding tenant transaction
+// commits. Deviation writes on still-planned blocks emit no instance_*
+// lifecycle event, and the group-scoped activity_update only reaches clients
+// subscribed to the active group — so without this signal an open staff page
+// (Betreuungsplan card, planner) stays stale until reload (#1844). source names
+// the emitting flow for log review.
+func (rs *Resource) broadcastStaffingDeviationChanged(ctx context.Context, source string) {
+	if rs.Staffing == nil {
+		return
+	}
+	tenantID := tenant.FromContext(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		if err := rs.Staffing.AnnounceStaffingChanged(tenantID, source); err != nil {
+			rs.getLogger().Warn("SSE staffing deviation broadcast failed",
+				slog.String("source", source),
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+		}
+	})
+}

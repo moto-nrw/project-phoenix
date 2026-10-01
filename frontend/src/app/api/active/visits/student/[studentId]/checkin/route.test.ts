@@ -115,10 +115,12 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
   });
 
   it("returns error when backend fetch fails", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      text: async () => "Backend error",
-    });
+    mockFetch.mockResolvedValue(
+      new Response("Backend error", {
+        status: 500,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/active/visits/student/123/checkin",
@@ -136,8 +138,7 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
     const response = await POST(request, context);
 
     expect(response.status).toBe(500);
-    const data = (await response.json()) as ErrorResponse;
-    expect(data.error).toContain("Backend error");
+    expect(await response.text()).toBe("Backend error");
   });
 
   it("returns success with visit data on successful checkin", async () => {

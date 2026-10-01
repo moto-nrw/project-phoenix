@@ -25,23 +25,12 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiGet: mockApiGet,
   apiPost: mockApiPost,
   apiPut: vi.fn(),
   apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : message.includes("(403)")
-          ? 403
-          : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
 }));
 
 // ============================================================================
@@ -175,15 +164,15 @@ describe("GET /api/users", () => {
     expect(json.data).toEqual([]);
   });
 
-  it("returns empty array when API throws error", async () => {
+  it("propagates a failed backend request instead of returning an empty array", async () => {
     mockApiGet.mockRejectedValueOnce(new Error("Server error"));
 
     const request = createMockRequest("/api/users");
     const response = await GET(request, createMockContext());
 
-    expect(response.status).toBe(200);
-    const json = await parseJsonResponse<ApiResponse<unknown[]>>(response);
-    expect(json.data).toEqual([]);
+    expect(response.status).toBe(500);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).toBe("Server error");
   });
 });
 

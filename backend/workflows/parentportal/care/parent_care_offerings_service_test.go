@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +22,6 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -50,34 +51,65 @@ func (s careOfferingsChildRepoStub) FindForAccount(
 }
 
 type carePeriodRepoStub struct {
-	enrollmentSvc.StudentCarePeriodReader
-	periods []*enrollmentSvc.StudentCarePeriod
+	periods []*CarePeriod
 	err     error
 }
 
-func (s carePeriodRepoStub) StudentCarePeriods(
-	_ context.Context,
-	_ int64,
-) ([]*capability.StudentCarePeriod, error) {
-	result := make([]*capability.StudentCarePeriod, 0, len(s.periods))
-	for _, p := range s.periods {
-		result = append(result, &capability.StudentCarePeriod{RequestChildID: p.RequestChildID, RequestID: p.RequestID, PhaseID: p.PhaseID, PhaseName: p.PhaseName, ServiceStartDate: capability.Date(p.ServiceStartDate.String()), ServiceEndDate: capability.Date(p.ServiceEndDate.String())})
+func (s carePeriodRepoStub) CarePeriods(_ context.Context, _ int64) ([]*CarePeriod, error) {
+	if s.err != nil {
+		return nil, s.err
 	}
-	return result, s.err
+	return s.periods, nil
+}
+
+// offeringBookings is the Enrollment offering history as the root hands it
+// to the parent portal.
+func offeringBookings(links []*capability.RequestChildOffering) []*OfferingBooking {
+	result := make([]*OfferingBooking, 0, len(links))
+	for _, link := range links {
+		if link == nil {
+			result = append(result, nil)
+			continue
+		}
+		booking := &OfferingBooking{CareOfferingID: link.CareOfferingID, SelectedDays: link.SelectedDays}
+		if link.ValidFrom != nil {
+			date := timezone.Date(*link.ValidFrom)
+			booking.ValidFrom = &date
+		}
+		if link.ValidUntil != nil {
+			date := timezone.Date(*link.ValidUntil)
+			booking.ValidUntil = &date
+		}
+		result = append(result, booking)
+	}
+	return result
 }
 
 type childOfferingRepoStub struct {
-	enrollmentSvc.OfferingHistoryReader
 	links []*capability.RequestChildOffering
 	err   error
 }
 
+func (s childOfferingRepoStub) OfferingHistory(_ context.Context, _ int64) ([]*OfferingBooking, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return offeringBookings(s.links), nil
+}
+
 type recordingChildOfferingRepoStub struct {
-	enrollmentSvc.OfferingHistoryReader
 	links        []*capability.RequestChildOffering
 	dates        []timezone.Date
 	historyCalls int
 	err          error
+}
+
+func (s *recordingChildOfferingRepoStub) OfferingHistory(_ context.Context, _ int64) ([]*OfferingBooking, error) {
+	s.historyCalls++
+	if s.err != nil {
+		return nil, s.err
+	}
+	return offeringBookings(s.links), nil
 }
 
 func (s *recordingChildOfferingRepoStub) ListByRequestChildIDAtDate(
@@ -133,23 +165,23 @@ func (s careOfferingRepoStub) ListByIDs(
 }
 
 type offeringChangesStub struct {
-	enrollmentSvc.OfferingChangeRequestService
-	catalog      *enrollmentSvc.OfferingChangeCatalog
-	view         *enrollmentSvc.OfferingChangeView
+	OfferingChangeRequests
+	catalog      *careplan.OfferingChangeCatalog
+	view         *careplan.OfferingChangeView
 	earliest     timezone.Date
 	catalogErr   error
 	viewErr      error
 	earliestErr  error
 	createErr    error
 	withdrawErr  error
-	createdInput enrollmentSvc.CreateOfferingChangeInput
+	createdInput careplan.CreateOfferingChangeInput
 	withdrawn    [3]int64
 }
 
 func (s *offeringChangesStub) Catalog(
 	_ context.Context,
 	_ int64,
-) (*enrollmentSvc.OfferingChangeCatalog, error) {
+) (*careplan.OfferingChangeCatalog, error) {
 	return s.catalog, s.catalogErr
 }
 
@@ -157,23 +189,23 @@ func (s *offeringChangesStub) CatalogAt(
 	_ context.Context,
 	_ int64,
 	_ timezone.Date,
-) (*enrollmentSvc.OfferingChangeCatalog, error) {
+) (*careplan.OfferingChangeCatalog, error) {
 	return s.catalog, s.catalogErr
 }
 
 func (s *offeringChangesStub) GetForStudent(
 	_ context.Context,
 	_ int64,
-) (*enrollmentSvc.OfferingChangeView, error) {
+) (*careplan.OfferingChangeView, error) {
 	return s.view, s.viewErr
 }
 
-func (s *offeringChangesStub) Create(
+func (s *offeringChangesStub) SubmitOfferingChange(
 	_ context.Context,
-	input enrollmentSvc.CreateOfferingChangeInput,
-) (*enrollmentModels.OfferingChangeRequest, error) {
+	input careplan.CreateOfferingChangeInput,
+) (*careplan.OfferingChangeRequest, error) {
 	s.createdInput = input
-	return &enrollmentModels.OfferingChangeRequest{}, s.createErr
+	return &careplan.OfferingChangeRequest{}, s.createErr
 }
 
 func (s *offeringChangesStub) Withdraw(
@@ -280,26 +312,26 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 	}
 	changes := &offeringChangesStub{
 		earliest: today.AddDays(15),
-		view: &enrollmentSvc.OfferingChangeView{
-			Request: &enrollmentModels.OfferingChangeRequest{
+		view: &careplan.OfferingChangeView{
+			Request: &careplan.OfferingChangeRequest{
 				ID:            61,
 				CreatedAt:     createdAt,
-				EffectiveFrom: enrollmentModels.OfferingChangeDate(today.AddDays(20)),
+				EffectiveFrom: today.AddDays(20).String(),
 				ParentNote:    &note,
 				SubmittedBy:   11,
 			},
-			Diff: []enrollmentSvc.OfferingChangeDiffEntry{{
+			Diff: []careplan.OfferingChangeDiffEntry{{
 				Label:    "Erste Sortierung",
 				OldState: "not_booked",
 				NewState: "booked",
 				NewDays:  []string{"tue"},
 			}},
-			LastDecision: &enrollmentSvc.OfferingChangeDecision{ID: 60, SubmittedBy: 11, Status: "rejected"},
+			LastDecision: &careplan.OfferingChangeDecision{ID: 60, SubmittedBy: 11, Status: "rejected"},
 		},
 	}
 	svc := careOfferingsService(db, permittedCareOfferingsChild(t), changes)
 	svc.Settings = offeringChangeSettingsStub{enabled: true}
-	svc.CarePeriods = carePeriodRepoStub{periods: []*enrollmentSvc.StudentCarePeriod{{
+	svc.CarePeriods = carePeriodRepoStub{periods: []*CarePeriod{{
 		RequestChildID:   sourceChildID,
 		PhaseName:        "Schuljahr 2026/27",
 		ServiceStartDate: today.AddDays(-30),
@@ -364,7 +396,7 @@ func TestGetChildCareOfferingsWithoutEnrollmentStillReturnsEmptySlices(t *testin
 func TestPendingOfferingChange_HidesAnotherGuardiansRequest(t *testing.T) {
 	t.Parallel()
 
-	view := &enrollmentSvc.OfferingChangeView{Request: &enrollmentModels.OfferingChangeRequest{SubmittedBy: 41}}
+	view := &careplan.OfferingChangeView{Request: &careplan.OfferingChangeRequest{SubmittedBy: 41}}
 	assert.Nil(t, pendingOfferingChange(view, 42, false))
 }
 
@@ -372,7 +404,7 @@ func TestLoadChildCareOfferingsReadsOfferingHistory(t *testing.T) {
 	t.Parallel()
 
 	today := timezone.TodayDate()
-	period := &enrollmentSvc.StudentCarePeriod{
+	period := &CarePeriod{
 		RequestChildID:   101,
 		ServiceStartDate: today.AddDays(-20),
 		ServiceEndDate:   today.AddDays(-1),
@@ -383,7 +415,7 @@ func TestLoadChildCareOfferingsReadsOfferingHistory(t *testing.T) {
 		ValidUntil:     &periodEndExclusive,
 	}}}
 	svc := &Service{Config: Config{
-		CarePeriods:     carePeriodRepoStub{periods: []*enrollmentSvc.StudentCarePeriod{period}},
+		CarePeriods:     carePeriodRepoStub{periods: []*CarePeriod{period}},
 		OfferingHistory: links,
 		CareOfferingRepo: careOfferingRepoStub{offerings: []*enrollmentModels.CareOffering{{
 			ID: 1, Name: "Nachmittagsbetreuung",
@@ -466,7 +498,7 @@ func TestGetChildCareOfferingsPropagatesDependencyFailures(t *testing.T) {
 
 func currentCarePeriodStub() carePeriodRepoStub {
 	today := timezone.TodayDate()
-	return carePeriodRepoStub{periods: []*enrollmentSvc.StudentCarePeriod{{
+	return carePeriodRepoStub{periods: []*CarePeriod{{
 		RequestChildID:   1,
 		ServiceStartDate: today.AddDays(-1),
 		ServiceEndDate:   today.AddDays(1),
@@ -477,27 +509,27 @@ func TestCurrentCarePeriodSelection(t *testing.T) {
 	t.Parallel()
 
 	today := timezone.NewDate(2027, time.January, 15)
-	current := &enrollmentSvc.StudentCarePeriod{
+	current := &CarePeriod{
 		RequestChildID:   1,
 		ServiceStartDate: today.AddDays(-10),
 		ServiceEndDate:   today.AddDays(10),
 	}
-	upcomingEarly := &enrollmentSvc.StudentCarePeriod{
+	upcomingEarly := &CarePeriod{
 		RequestChildID:   2,
 		ServiceStartDate: today.AddDays(20),
 		ServiceEndDate:   today.AddDays(40),
 	}
-	upcomingLate := &enrollmentSvc.StudentCarePeriod{
+	upcomingLate := &CarePeriod{
 		RequestChildID:   3,
 		ServiceStartDate: today.AddDays(50),
 		ServiceEndDate:   today.AddDays(70),
 	}
-	pastRecent := &enrollmentSvc.StudentCarePeriod{
+	pastRecent := &CarePeriod{
 		RequestChildID:   4,
 		ServiceStartDate: today.AddDays(-40),
 		ServiceEndDate:   today.AddDays(-20),
 	}
-	pastOld := &enrollmentSvc.StudentCarePeriod{
+	pastOld := &CarePeriod{
 		RequestChildID:   5,
 		ServiceStartDate: today.AddDays(-80),
 		ServiceEndDate:   today.AddDays(-60),
@@ -505,19 +537,19 @@ func TestCurrentCarePeriodSelection(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		repo    enrollmentSvc.StudentCarePeriodReader
-		want    *enrollmentSvc.StudentCarePeriod
+		repo    CarePeriodReads
+		want    *CarePeriod
 		wantErr bool
 	}{
 		{name: "repository not wired"},
 		{name: "empty", repo: carePeriodRepoStub{}},
-		{name: "current", repo: carePeriodRepoStub{periods: []*enrollmentSvc.StudentCarePeriod{
+		{name: "current", repo: carePeriodRepoStub{periods: []*CarePeriod{
 			upcomingLate, current, pastRecent,
 		}}, want: current},
-		{name: "earliest upcoming", repo: carePeriodRepoStub{periods: []*enrollmentSvc.StudentCarePeriod{
+		{name: "earliest upcoming", repo: carePeriodRepoStub{periods: []*CarePeriod{
 			upcomingLate, upcomingEarly,
 		}}, want: upcomingEarly},
-		{name: "most recent past", repo: carePeriodRepoStub{periods: []*enrollmentSvc.StudentCarePeriod{
+		{name: "most recent past", repo: carePeriodRepoStub{periods: []*CarePeriod{
 			pastRecent, pastOld,
 		}}, want: pastRecent},
 		{name: "repository error", repo: carePeriodRepoStub{err: errors.New("periods")}, wantErr: true},
@@ -541,8 +573,8 @@ func TestOfferingChangeAvailabilityReasonsAndSettingFailures(t *testing.T) {
 	t.Parallel()
 
 	today := timezone.TodayDate()
-	activePeriod := &enrollmentSvc.StudentCarePeriod{ServiceEndDate: today.AddDays(1)}
-	endedPeriod := &enrollmentSvc.StudentCarePeriod{ServiceEndDate: today.AddDays(-1)}
+	activePeriod := &CarePeriod{ServiceEndDate: today.AddDays(1)}
+	endedPeriod := &CarePeriod{ServiceEndDate: today.AddDays(-1)}
 	permitted := &Child{
 		TenantID: testpkg.Tenant(t),
 		GuardianPermissions: map[string]interface{}{
@@ -555,7 +587,7 @@ func TestOfferingChangeAvailabilityReasonsAndSettingFailures(t *testing.T) {
 		name       string
 		settings   configSvc.SettingsService
 		child      *Child
-		period     *enrollmentSvc.StudentCarePeriod
+		period     *CarePeriod
 		want       bool
 		wantReason string
 	}{
@@ -619,7 +651,7 @@ func TestOfferingChangeCommandsAuthorizeDelegateAndRefresh(t *testing.T) {
 	today := timezone.TodayDate()
 	child := permittedCareOfferingsChild(t)
 	changes := &offeringChangesStub{
-		catalog:  &enrollmentSvc.OfferingChangeCatalog{PhaseID: 99},
+		catalog:  &careplan.OfferingChangeCatalog{PhaseID: 99},
 		earliest: today.AddDays(15),
 	}
 	svc := careOfferingsService(db, child, changes)
@@ -629,7 +661,7 @@ func TestOfferingChangeCommandsAuthorizeDelegateAndRefresh(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(99), catalog.PhaseID)
 
-	selections := []enrollmentSvc.OfferingChangeSelection{{OfferingID: 41, SelectedDays: []string{"mon"}}}
+	selections := []careplan.OfferingChangeSelection{{OfferingID: 41, SelectedDays: []string{"mon"}}}
 	view, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, selections, today.AddDays(20), "Bitte", false, nil)
 	require.NoError(t, err)
 	assert.NotNil(t, view)
@@ -658,7 +690,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 				_, err := svc.GetChildOfferingCatalog(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22)
 				return err
 			},
-			want: enrollmentSvc.ErrOfferingChangeDisabled,
+			want: careplan.ErrOfferingChangeDisabled,
 		},
 		{
 			name:  "create no service",
@@ -667,7 +699,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 				_, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, nil, timezone.TodayDate(), "", false, nil)
 				return err
 			},
-			want: enrollmentSvc.ErrOfferingChangeDisabled,
+			want: careplan.ErrOfferingChangeDisabled,
 		},
 		{
 			name:   "catalog permission denied",

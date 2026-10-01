@@ -3,8 +3,6 @@ package test
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -75,7 +73,7 @@ var forbiddenLogSelectors = map[string]bool{
 // backendRoot and reports direct forbidden-selector reads in Info+ log calls.
 func scanDirectPIISelectorsInLogCalls(backendRoot string) ([]string, error) {
 	var violations []string
-	fset := token.NewFileSet()
+	fset := sharedGoFileSet
 
 	err := filepath.WalkDir(backendRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -91,7 +89,7 @@ func scanDirectPIISelectorsInLogCalls(backendRoot string) ([]string, error) {
 			return nil
 		}
 
-		file, parseErr := parser.ParseFile(fset, path, nil, 0)
+		_, file, parseErr := parseGoSourceCached(path, nil)
 		if parseErr != nil {
 			return fmt.Errorf("parse %s: %w", path, parseErr)
 		}

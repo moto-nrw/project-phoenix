@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 const parentReadTable = "users.parent_message_reads"
@@ -74,4 +76,51 @@ func (s *ReadCursorStore) MarkReadUpTo(ctx context.Context, tenantID, threadID, 
 		return false, fmt.Errorf("mark parent message thread read up to: %w", err)
 	}
 	return affected > 0, nil
+}
+
+// clearUnreadForStaffSQL moves each account's personal clear boundary to the
+// exact counterpart message chosen by the inbox snapshot. Re-reading
+// parent_messages here could include a guardian message that committed after
+// that snapshot. The read cursor is left alone, so "Von der OGS gelesen" does
+// not change (#3673); a row created here starts its read cursor before any
+// message. The conflict guard keeps the boundary from moving backward and from
+// reporting an unchanged row.
+// Bind args: tenantID, accountID, threadIDs, clearedAt values, messageIDs.
+const clearUnreadForStaffSQL = `
+INSERT INTO users.parent_message_reads AS pmr (tenant_id, thread_id, account_id, last_read_at, last_read_message_id, cleared_up_to_at, cleared_up_to_message_id)
+SELECT ?, bound.thread_id, ?, '1970-01-01'::timestamptz, 0, bound.cleared_at, bound.message_id
+FROM unnest(?::bigint[], ?::timestamptz[], ?::bigint[]) AS bound(thread_id, cleared_at, message_id)
+ON CONFLICT (thread_id, account_id) DO UPDATE
+SET cleared_up_to_at = EXCLUDED.cleared_up_to_at,
+    cleared_up_to_message_id = EXCLUDED.cleared_up_to_message_id
+WHERE (EXCLUDED.cleared_up_to_at, EXCLUDED.cleared_up_to_message_id) >
+      (COALESCE(pmr.cleared_up_to_at, '1970-01-01'::timestamptz), COALESCE(pmr.cleared_up_to_message_id, 0))
+RETURNING pmr.thread_id`
+
+// ClearUnreadForStaff moves each personal clear boundary to its selected inbox
+// bound, never to NOW() and never backward. It returns threads whose boundary
+// moved.
+func (s *ReadCursorStore) ClearUnreadForStaff(ctx context.Context, tenantID, accountID int64, bounds []domain.ReadCursorBound) ([]int64, error) {
+	if len(bounds) == 0 {
+		return nil, nil
+	}
+	threadIDs := make([]int64, 0, len(bounds))
+	clearedAt := make([]time.Time, 0, len(bounds))
+	messageIDs := make([]int64, 0, len(bounds))
+	for _, bound := range bounds {
+		threadIDs = append(threadIDs, bound.ThreadID)
+		clearedAt = append(clearedAt, bound.ReadAt)
+		messageIDs = append(messageIDs, bound.MessageID)
+	}
+	db, _, err := s.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var cleared []int64
+	if err := db.NewRaw(clearUnreadForStaffSQL,
+		tenantID, accountID, pgdialect.Array(threadIDs), pgdialect.Array(clearedAt), pgdialect.Array(messageIDs),
+	).Scan(ctx, &cleared); err != nil {
+		return nil, fmt.Errorf("clear parent message unread for staff: %w", err)
+	}
+	return cleared, nil
 }

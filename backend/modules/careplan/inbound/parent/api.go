@@ -19,6 +19,8 @@ package parent
 import (
 	"net/http"
 
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
@@ -28,7 +30,6 @@ import (
 	pwaService "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -44,13 +45,15 @@ type Resource struct {
 	ParentService         PortalService
 	RequestSharing        parentService.RequestSharingService
 	CalendarService       calendarService.Service
-	RequestService        enrollmentService.RequestService
+	RequestService        enrollmentAPI.RequestService
 	GuardianProfileLoader *usersService.GuardianProfileLoader
 	SchoolService         SchoolDirectory
 	PushService           notificationsService.PushSubscriptionService
 	PreferenceService     notificationsService.PreferenceService
 	PWAUsageService       pwaService.UsageService
-	db                    *bun.DB
+	// Reports renders the Erklärung proof PDF (#3430).
+	Reports ReportRenderer
+	db      *bun.DB
 }
 
 // ResourceConfig lists the parent-portal collaborators. The composition root
@@ -63,7 +66,7 @@ type ResourceConfig struct {
 	Resets                PasswordResetRuntime
 	Parent                PortalService
 	Calendar              calendarService.Service
-	Requests              enrollmentService.RequestService
+	Requests              enrollmentAPI.RequestService
 	GuardianProfileLoader *usersService.GuardianProfileLoader
 	Schools               SchoolDirectory
 	// Push is the Web Push subscription service (#2003).
@@ -72,7 +75,9 @@ type ResourceConfig struct {
 	Preferences notificationsService.PreferenceService
 	// PWAUsage is the PWA standalone-usage service (#2189).
 	PWAUsage pwaService.UsageService
-	DB       *bun.DB
+	// Reports renders the Erklärung proof PDF (#3430).
+	Reports ReportRenderer
+	DB      *bun.DB
 }
 
 // NewResource builds the parent-portal resource.
@@ -97,6 +102,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		PushService:           cfg.Push,
 		PreferenceService:     cfg.Preferences,
 		PWAUsageService:       cfg.PWAUsage,
+		Reports:               cfg.Reports,
 		db:                    cfg.DB,
 	}
 }
@@ -246,16 +252,15 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 		r.Get("/me/messages/children/{studentId}/threads", rs.listChildThreads)
 		r.Get("/me/messages/children/{studentId}", rs.getChildConversation)
 		r.Post("/me/messages/children/{studentId}", rs.postChildMessage)
-		// Parent-news feed (#1669) — read-only broadcast announcements the
-		// guardian is targeted by across all their children's (news-enabled)
-		// schools. The guardian can mark one read, or acknowledge one that
-		// requires confirmation. Audience + visibility are enforced server-side
-		// from the JWT account; no tenant or audience selector is trusted from
-		// the client.
+		// Parent-news feed (#1669): announcements the guardian is targeted by
+		// across their children's news-enabled schools, to read, acknowledge,
+		// answer or declare on. Audience and visibility come from the JWT
+		// account; no tenant or audience selector is trusted from the client.
 		r.Get("/me/news", rs.listAnnouncements)
 		r.Get("/me/news/unread-count", rs.unreadAnnouncementCount)
 		r.Post("/me/news/{announcementId}/read", rs.markAnnouncementRead)
 		r.Post("/me/news/{announcementId}/acknowledge", rs.acknowledgeAnnouncement)
+		rs.mountDeclarationRoutes(r, authRateLimiter)
 		// Poll answer, one child per call (#1371).
 		r.Post("/me/news/{announcementId}/respond", rs.respondToAnnouncement)
 		r.Get("/me/children/{studentId}/care-exception", rs.listCareExceptions)

@@ -68,24 +68,32 @@ The script will:
 ## Starting the App
 
 ```bash
-docker compose up -d
+scripts/dev-native.sh up
 ```
 
-Wait for all services to start. First boot takes a minute because the backend runs all database migrations automatically.
+This starts only `postgres` and `mailpit` in Docker and runs the backend
+(air) and frontend (`next dev`) directly on your machine. It migrates the
+database before the backend starts; the first boot takes a minute. Stop with
+Ctrl+C. Details: [operations](agents/operations.md#native-dev-loop).
+
+Running the backend and frontend inside Docker as well
+(`docker compose --profile full up -d`) still works, but on 16 GB laptops the
+Docker VM then competes with the IDE for memory; see
+[low-memory machines](development-environment.md#low-memory-machines).
 
 ## Seeding Test Data
 
 The setup script prints the exact seed command with your credentials. It looks like this:
 
 ```bash
-docker compose run server go run . seed \
+scripts/dev-native.sh backend go run . seed \
   --email operator@example.com \
   --password 'YOUR_PASSWORD' \
   --pin 1234 \
-  --url http://server:8080
+  --url http://localhost:8080
 ```
 
-The server container must be running (`docker compose up -d`) before you seed.
+The backend must be running (`scripts/dev-native.sh up`) before you seed. In a `wt` worktree use its `SERVER_HOST_PORT` from `.env` instead of 8080.
 
 After seeding, you get 20 staff accounts, 100 students, rooms, groups, and activities.
 The default `vollbetrieb` profile has stable credentials and fails with a clear
@@ -141,9 +149,31 @@ and the protected virtual web device. The seed checks NFC check-in/check-out,
 web attendance, empty room history, and withdrawal states through the API.
 There is no separate withdrawal-demo school or special state field.
 
-The normal seed always creates and checks all four profiles through production
+The `marketing` profile is the product-screenshot school `OGS Sonnenhang` in
+its own organization `Demo-Träger Marketing` / `demo-traeger-marketing`. Its
+school-admin login is `marketing-admin@example.test` / `Marketing1234%`; this
+account is `accounts.admin[0]` of `profiles["marketing"]`, followed by the
+developer admin. The profile uses detailed web attendance without NFC (rooms
+record where the children are), fixed groups, and disabled enrollment. Two
+groups, two caregivers, four rooms, and twelve children with contacts have
+weekly plans for all five weekdays, derived from the 10:15 reference clock
+(`marketingReferenceClock`): seven children are present, two were picked up
+early, and three are expected after 10:15. The present children sit in two
+running blocks (`Bauecke` in the Bauraum, `Fußball` in the Turnhalle,
+09:30–11:30). The admin finds an unread team message and an unread parent
+message, the team has one notice for the day, and the families see one news
+item and a staff reply. Eight children have a logo-figure picture
+(`backend/seed/avatar`) uploaded with parental consent, the other four show
+initials; the admin and both caregivers upload theirs while signed in. No two
+people share a picture. Presence and the running blocks are recorded through
+the web API at seed time. Product screenshots using this profile therefore
+require a seed from the capture day (Berlin time), on a weekday. Four parent
+accounts (`ParentSeed1234%` unless `--staff-password` is set, one with two
+children) are listed under `credentials.parents`.
+
+The normal seed always creates and checks all five profiles through production
 HTTP endpoints against the local server. The shared developer admin can switch
-between all four schools; each school-admin account stays school-local.
+between all five schools; each school-admin account stays school-local.
 
 `Demo-Träger Nord` also contains `Demo-Schule Manuell` / `manuell`. Its
 school-admin login is `manuell-admin@example.test` / `Manuell1234%`. This
@@ -157,28 +187,28 @@ Each school's dedicated school-admin account remains isolated to that school.
 The simulator uses `vollbetrieb` without a flag. Select it explicitly with:
 
 ```bash
-docker compose run server go run . simulate full-day --profile vollbetrieb
+scripts/dev-native.sh backend go run . simulate full-day --profile vollbetrieb
 ```
 
 Inspect the manual profile without starting an IoT simulation:
 
 ```bash
-docker compose run server go run . simulate status --profile manuell
+scripts/dev-native.sh backend go run . simulate status --profile manuell
 ```
 
 Reset the development database before recreating this deterministic profile:
 
 ```bash
-docker compose run server go run . migrate reset
+scripts/dev-native.sh backend go run . migrate reset
 ```
 
 To add one more demo school to a database that is already seeded, give the run
 its own slug and restrict it to one profile. Every account of that school then
-carries the slug (`demo1.ogs-nord@mail.de`), and the school joins the existing
-Demo-Träger:
+carries the slug in its domain (`anna.mueller@demo-ogs-nord.moto-ogs.de`), and
+the school joins the existing Demo-Träger:
 
 ```bash
-docker compose run server go run . seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080 \
+scripts/dev-native.sh backend go run . seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://localhost:8080 \
   --profile vollbetrieb --tenant-slug ogs-nord --school-name 'OGS Nord' --state ogs-nord.seed-state.json
 ```
 
@@ -197,11 +227,12 @@ new consumers must use version 3 and select profiles through the shared reader.
 
 | Task | Command |
 |------|---------|
-| Start all services | `docker compose up -d` |
-| Stop all services | `docker compose down` |
-| View logs | `docker compose logs -f server` |
-| Rebuild backend after Go changes | `docker compose build server && docker compose up -d server` |
-| Reset database | `docker compose run server go run . migrate reset` |
+| Start everything | `scripts/dev-native.sh up` |
+| Stop backend/frontend | Ctrl+C or `scripts/dev-native.sh down` |
+| Stop infrastructure | `docker compose down` |
+| View logs | `tmp/dev-native/backend.log`, `tmp/dev-native/frontend.log` |
+| After `go.mod` changes | restart `scripts/dev-native.sh up` (air reloads plain Go edits) |
+| Reset database | `scripts/dev-native.sh backend go run . migrate reset` |
 | Run backend tests | `scripts/run-go-toolchain.sh scripts/test-backend.sh` |
 | Run frontend checks | `cd frontend && pnpm run check` |
 

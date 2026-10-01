@@ -24,10 +24,16 @@ type MasterDataFieldFacts struct {
 	CurrentValueChanged  *bool
 }
 
+// MasterDataFieldReviews supplies People Directory's baseline and validation
+// facts for proposed field changes, keyed by request id.
+type MasterDataFieldReviews interface {
+	ReviewFields(context.Context, []MasterDataFieldChange) (map[int64]MasterDataFieldFacts, error)
+}
+
 // MasterDataDirectory supplies only People Directory facts, never request
 // persistence or a decision. Scope remains a separate identity capability.
 type MasterDataDirectory interface {
-	ReviewFields(context.Context, []MasterDataFieldChange) (map[int64]MasterDataFieldFacts, error)
+	MasterDataFieldReviews
 	FindStudents(context.Context, []int64) (map[int64]ReviewStudent, error)
 	PersonNames(context.Context, []int64) (map[int64]PersonName, error)
 	ReviewerNames(context.Context, []int64) (map[int64]PersonName, error)

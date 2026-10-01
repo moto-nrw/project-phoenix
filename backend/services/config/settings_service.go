@@ -446,31 +446,50 @@ func (s *settingsService) ResolveStringForTenant(ctx context.Context, tenantID i
 // transaction — would take a second pooled connection while the caller holds
 // one, which is a deadlock waiting for a saturated pool.
 func (s *settingsService) ResolveStringForTenantInTx(ctx context.Context, tenantID int64, key string) (string, error) {
+	snapshot, err := s.resolveForTenantInTx(ctx, tenantID, key)
+	if err != nil {
+		return "", err
+	}
+	return snapshot.String(key)
+}
+
+// ResolveBoolForTenantInTx resolves a bool setting on the caller's already-open
+// transaction. Like its string counterpart, it bypasses snapshots and the
+// request cache so the value comes from the transaction the caller holds.
+func (s *settingsService) ResolveBoolForTenantInTx(ctx context.Context, tenantID int64, key string) (bool, error) {
+	snapshot, err := s.resolveForTenantInTx(ctx, tenantID, key)
+	if err != nil {
+		return false, err
+	}
+	return snapshot.Bool(key)
+}
+
+func (s *settingsService) resolveForTenantInTx(ctx context.Context, tenantID int64, key string) (*SettingsSnapshot, error) {
 	if tenantID <= 0 {
-		return "", &SettingsError{
+		return nil, &SettingsError{
 			Op:  "resolve_in_tx",
 			Err: fmt.Errorf("tenant id is required to resolve %q inside a transaction", key),
 		}
 	}
 	if s.runtime == nil || !s.runtime.HasTransaction(ctx) {
-		return "", &SettingsError{
+		return nil, &SettingsError{
 			Op:  "resolve_in_tx",
 			Err: fmt.Errorf("resolving %q inside a transaction requires an ambient transaction", key),
 		}
 	}
 	if s.registry.GetDefinition(key) == nil {
-		return "", &SettingsError{Op: "resolve_in_tx", Err: &DefinitionNotFoundError{Key: key}}
+		return nil, &SettingsError{Op: "resolve_in_tx", Err: &DefinitionNotFoundError{Key: key}}
 	}
 
 	stored, err := s.valueRepo.FindByTenantAndKeys(ctx, tenantID, []string{key})
 	if err != nil {
-		return "", &SettingsError{Op: "resolve_in_tx", Err: err}
+		return nil, &SettingsError{Op: "resolve_in_tx", Err: err}
 	}
 	snapshot, err := newSettingsSnapshot(s.registry, tenantID, []string{key}, stored)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return snapshot.String(key)
+	return snapshot, nil
 }
 
 // ResolveBoolForTenant resolves a setting as a bool for a specific tenant,
@@ -1188,7 +1207,7 @@ func slotListCutoffLockKey(tenantID int64) string {
 // that guards the enrollment class-restriction / class-collection invariant.
 // Two writes can otherwise race: one disabling concrete-class collection
 // (validateClassCollectionGuard here) and one activating a class-restricted
-// phase (validateEligibleClassesCollectable in services/enrollment). Under READ
+// phase (validateEligibleClassesCollectable in modules/enrollment). Under READ
 // COMMITTED each reads the other's pre-commit state, both pass, and they commit
 // an active restricted phase with class collection off — every submission then
 // fails class_not_eligible. Both sides take THIS lock on the same key, so the

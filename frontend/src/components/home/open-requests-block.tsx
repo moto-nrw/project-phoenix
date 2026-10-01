@@ -9,6 +9,7 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
+import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
@@ -27,6 +28,7 @@ export function OpenRequestsBlock() {
   const enrollmentRequests = useEnrollmentRequestsPending();
   const careWithdrawals = useCareWithdrawalsPending();
   const staffAbsences = useStaffAbsencesPending();
+  const unreadEnrollments = useEnrollmentsUnread();
 
   const rows = [
     {
@@ -35,6 +37,16 @@ export function OpenRequestsBlock() {
       hint: "Stammdaten, Betreuungszeiten, Krankmeldungen",
       count: changeRequests.unreadCount,
       href: tenantPath("/anfragen"),
+    },
+    {
+      // Eine Anmeldung ist keine Anfrage (#3778), wartet aber genauso auf
+      // die Leitung; die Zeile führt deshalb zu den Anmeldungen.
+      key: "unread-enrollment",
+      label: "Neue Anmeldungen",
+      hint: "Noch nicht gelesene Anmeldungen von Eltern",
+      count: unreadEnrollments.unreadCount,
+      badge: "ungelesen",
+      href: tenantPath("/admin/enrollments"),
     },
     {
       key: "enrollment",
@@ -97,7 +109,10 @@ export function OpenRequestsBlock() {
                     {row.hint}
                   </span>
                 </span>
-                <StatusBadge tone="orange" label={`${row.count} offen`} />
+                <StatusBadge
+                  tone="orange"
+                  label={`${row.count} ${row.badge ?? "offen"}`}
+                />
               </Link>
             </li>
           ))}

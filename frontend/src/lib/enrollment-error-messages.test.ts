@@ -91,6 +91,32 @@ describe("enrollment-error-messages", () => {
     );
   });
 
+  it("names the full Kinderkontingent when an approval is refused", async () => {
+    const logger = { error: vi.fn(), warn: vi.fn() };
+    const error = await readEnrollmentError(
+      jsonResponse(
+        {
+          error: "child quota reached: 50 of 50 places occupied, 1 requested",
+          code: "students.child_quota_reached",
+          details: {
+            booked_places: 50,
+            occupied_places: 50,
+            requested_places: 1,
+          },
+        },
+        { status: 409 },
+      ),
+      "Entscheidung konnte nicht gespeichert werden",
+      logger,
+      "test_event",
+    );
+
+    expect(error.message).toBe(
+      "Das Kinderkontingent Ihrer Schule ist voll. Die Kontingentzahl beträgt 50 von 50 Kindern. Für weitere Kinder melden Sie sich bitte beim moto-Team.",
+    );
+    expect(error.code).toBe("students.child_quota_reached");
+  });
+
   it("does not expose unknown English backend text to the UI", async () => {
     const logger = { error: vi.fn(), warn: vi.fn() };
     const error = await readEnrollmentError(

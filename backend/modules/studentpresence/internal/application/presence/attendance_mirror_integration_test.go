@@ -80,8 +80,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 		ActiveGroupID:   &activeGroup.ID,
 	}
 	instance.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	instanceStudentRepo := repoFactory.InstanceStudent
 

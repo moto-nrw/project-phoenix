@@ -1,5 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,7 @@ export async function GET(
     `${getServerApiUrl()}/public/calendar/${encodeURIComponent(token)}`,
   );
   if (!upstream.ok) {
-    return new Response("Not found", { status: upstream.status });
+    return forwardBackendResponse(upstream);
   }
   return new Response(await upstream.text(), {
     status: 200,

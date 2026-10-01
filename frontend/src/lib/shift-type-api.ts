@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 // API client for tenant-defined shift types (Schichtarten, #1836).
 // Admin CRUD goes through /api/staff/shift-types (backend /api/shift-types,
 // time_tracking:manage).
@@ -23,12 +24,12 @@ interface ShiftTypePayload {
   categoryIds?: string[];
 }
 
-export class ShiftTypeApiError extends Error {
+export class ShiftTypeApiError extends ApiError {
   readonly status: number;
   readonly detail: string;
 
   constructor(status: number, detail: string) {
-    super(`HTTP ${status}: ${detail}`);
+    super(`HTTP ${status}: ${detail}`, status);
     this.name = "ShiftTypeApiError";
     this.status = status;
     this.detail = detail;
@@ -54,18 +55,23 @@ async function readError(
   fallback: string,
 ): Promise<ShiftTypeApiError> {
   let detail = "";
+  let payload: unknown;
   const contentType = response.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
+  if (contentType.includes("json")) {
     try {
       const body = (await response.json()) as { error?: string };
       detail = body.error ?? "";
+      payload = body;
     } catch {
       detail = "";
     }
   } else {
     detail = await response.text();
   }
-  return new ShiftTypeApiError(response.status, detail || fallback);
+  return enrichApiError(
+    new ShiftTypeApiError(response.status, detail || fallback),
+    payload,
+  );
 }
 
 async function readList(response: Response): Promise<ShiftType[]> {

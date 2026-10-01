@@ -7,12 +7,12 @@ import (
 	"net/http"
 	"testing"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // responseOverviewPhaseService answers only the response overview; every
@@ -20,21 +20,21 @@ import (
 type responseOverviewPhaseService struct {
 	*mockPhaseService
 	id     int64
-	result *enrollmentService.PhaseResponseOverview
+	result *enrollmentOwner.PhaseResponseOverview
 	err    error
 }
 
-func (m *responseOverviewPhaseService) ResponseOverview(_ context.Context, id int64) (*enrollmentService.PhaseResponseOverview, error) {
+func (m *responseOverviewPhaseService) ResponseOverview(_ context.Context, id int64) (*enrollmentOwner.PhaseResponseOverview, error) {
 	m.id = id
 	return m.result, m.err
 }
 
 // ResponseOverview keeps the shared mock a full PhaseService.
-func (m *mockPhaseService) ResponseOverview(context.Context, int64) (*enrollmentService.PhaseResponseOverview, error) {
+func (m *mockPhaseService) ResponseOverview(context.Context, int64) (*enrollmentOwner.PhaseResponseOverview, error) {
 	return nil, errors.New("response overview not stubbed")
 }
 
-func buildPhaseResponseRouter(svc enrollmentService.PhaseService) chi.Router {
+func buildPhaseResponseRouter(svc enrollmentOwner.PhaseAdministration) chi.Router {
 	rs := &Resource{PhaseService: svc}
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -60,7 +60,7 @@ func TestPhaseResponseOverviewHandler_InvalidIDRejected(t *testing.T) {
 func TestPhaseResponseOverviewHandler_NotFoundReturns404(t *testing.T) {
 	t.Parallel()
 
-	svc := &responseOverviewPhaseService{mockPhaseService: &mockPhaseService{}, err: enrollmentService.ErrPhaseNotFound}
+	svc := &responseOverviewPhaseService{mockPhaseService: &mockPhaseService{}, err: enrollmentOwner.ErrPhaseNotFound}
 	w := executePhaseJSON(t, buildPhaseResponseRouter(svc), http.MethodGet, "/enrollment/phases/12/responses", nil)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
@@ -79,13 +79,13 @@ func TestPhaseResponseOverviewHandler_RendersRowsAndExclusions(t *testing.T) {
 	requestID, pendingID := int64(900), int64(901)
 	svc := &responseOverviewPhaseService{
 		mockPhaseService: &mockPhaseService{},
-		result: &enrollmentService.PhaseResponseOverview{
+		result: &enrollmentOwner.PhaseResponseOverview{
 			Applicable: true, Expected: 2, Responded: 1,
-			Rows: []enrollmentService.PhaseResponseRow{
+			Rows: []enrollmentOwner.PhaseResponseRow{
 				{StudentID: 7, FirstName: "Mia", LastName: "Arslan", SchoolClass: "2a", PendingRequestID: &pendingID, ChildStatus: "pending_renewal"},
 				{StudentID: 8, FirstName: "Ben", LastName: "Yilmaz", SchoolClass: "1b", HasParentApp: true, Responded: true, RequestID: &requestID, ChildStatus: "submitted"},
 			},
-			Excluded: []enrollmentService.PhaseResponseExclusion{{Reason: enrollmentService.PhaseResponseExcludedGraduating, Count: 3}},
+			Excluded: []enrollmentOwner.PhaseResponseExclusion{{Reason: enrollmentOwner.PhaseResponseExcludedGraduating, Count: 3}},
 		},
 	}
 	w := executePhaseJSON(t, buildPhaseResponseRouter(svc), http.MethodGet, "/enrollment/phases/12/responses", nil)
@@ -115,8 +115,8 @@ func TestPhaseResponseOverviewHandler_NotApplicableRendersEmptyArrays(t *testing
 
 	svc := &responseOverviewPhaseService{
 		mockPhaseService: &mockPhaseService{},
-		result: &enrollmentService.PhaseResponseOverview{
-			Rows: []enrollmentService.PhaseResponseRow{}, Excluded: []enrollmentService.PhaseResponseExclusion{},
+		result: &enrollmentOwner.PhaseResponseOverview{
+			Rows: []enrollmentOwner.PhaseResponseRow{}, Excluded: []enrollmentOwner.PhaseResponseExclusion{},
 		},
 	}
 	w := executePhaseJSON(t, buildPhaseResponseRouter(svc), http.MethodGet, "/enrollment/phases/12/responses", nil)

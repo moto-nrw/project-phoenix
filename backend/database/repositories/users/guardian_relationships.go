@@ -10,13 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/guardianlinkview"
 	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -49,11 +45,15 @@ type GuardianStudentAccessCommand interface {
 // GuardianRelationshipRepository implements users.StudentGuardianRepository
 // over the three owners.
 type GuardianRelationshipRepository struct {
-	db *bun.DB
+	runtime Runtime
 	// activeMemberships supplies bounded account-school facts for permission checks.
 	activeMemberships SchoolMembershipLookup
 	pickup            GuardianPickupPermissionCommand
 	access            GuardianStudentAccessCommand
+	// defaultRole gives a new relationship that names neither a role nor
+	// permissions the preset its type and flags imply. The authorization
+	// policy owns the presets, so the composition binds it.
+	defaultRole func(*users.StudentGuardian)
 }
 
 // GuardianRelationshipOption configures a GuardianRelationshipRepository at
@@ -75,15 +75,23 @@ func WithGuardianRelationshipOwners(pickup GuardianPickupPermissionCommand, acce
 	}
 }
 
+// WithGuardianDefaultRole installs the authorization policy's default role
+// preset a link without a role or permissions is written with.
+func WithGuardianDefaultRole(apply func(*users.StudentGuardian)) GuardianRelationshipOption {
+	return func(r *GuardianRelationshipRepository) { r.defaultRole = apply }
+}
+
 // NewGuardianRelationshipRepository creates the relationship store. Reads work
 // without the owner commands; a write fails closed until they are bound.
-func NewGuardianRelationshipRepository(db *bun.DB, options ...GuardianRelationshipOption) users.StudentGuardianRepository {
-	repository := &GuardianRelationshipRepository{db: db}
+func NewGuardianRelationshipRepository(runtime Runtime, options ...GuardianRelationshipOption) users.StudentGuardianRepository {
+	repository := &GuardianRelationshipRepository{runtime: requireRuntime(runtime)}
 	for _, option := range options {
 		option(repository)
 	}
 	return repository
 }
+
+var errGuardianDefaultRoleUnbound = errors.New("student guardian: the default role policy is required to link without a role")
 
 var errGuardianOwnersUnbound = errors.New("student guardian: the Care Plan and Identity & Access commands are required to write a relationship")
 
@@ -106,23 +114,18 @@ func (r *GuardianRelationshipRepository) write(ctx context.Context, fn func(cont
 	if r.pickup == nil || r.access == nil {
 		return errGuardianOwnersUnbound
 	}
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return tenant.WithSavepoint(ctx, fn)
-	}
-	if _, ok := modelBase.RepositoryTransaction(ctx); ok {
-		return fn(ctx)
+	if r.runtime.InTransaction(ctx) {
+		return r.runtime.WithSavepoint(ctx, fn)
 	}
 	// A transaction of its own rolls back as a whole; no savepoint needed.
-	return tenant.NewTransactionRunner().RunInTx(ctx, fn)
+	return r.runtime.RunInTx(ctx, fn)
 }
 
 // writeTenant is the school a new relationship is written in: the row's own,
 // or the one the caller is scoped to.
-func writeTenant(ctx context.Context, rel *users.StudentGuardian) int64 {
+func (r *GuardianRelationshipRepository) writeTenant(ctx context.Context, rel *users.StudentGuardian) int64 {
 	if rel.GetTenantID() == 0 {
-		if id := tenant.FromContext(ctx); id != 0 {
-			rel.SetTenantID(id)
-		} else if id := modelBase.RepositoryTenantID(ctx); id != 0 {
+		if id := r.runtime.TenantID(ctx); id != 0 {
 			rel.SetTenantID(id)
 		}
 	}
@@ -194,7 +197,7 @@ const insertRelationshipIfAbsentSQL = `INSERT INTO users.student_guardian_relati
 // zero when ifAbsent is set and the pair is linked already, together with the
 // portal account the guardian profile names, which the access row binds.
 func (r *GuardianRelationshipRepository) insertRelationship(ctx context.Context, rel *users.StudentGuardian, ifAbsent bool) (int64, *int64, error) {
-	db := base.GetDB(ctx, r.db)
+	db := r.runtime.DB(ctx)
 	if rel.IsPrimary {
 		demote := func() error { return demoteOtherPrimaries(ctx, db, rel.TenantID, rel.StudentID, 0) }
 		if ifAbsent {
@@ -245,12 +248,12 @@ func (r *GuardianRelationshipRepository) lockRelationship(ctx context.Context, i
 		TenantID  int64 `bun:"tenant_id"`
 		StudentID int64 `bun:"student_id"`
 	}
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		TableExpr(`users.student_guardian_relationships AS "relationship"`).
 		ColumnExpr(`"relationship".tenant_id, "relationship".student_id`).
 		Where(`"relationship".id = ?`, id).
 		For("UPDATE")
-	query = base.WithTenantFilter(ctx, query, "relationship")
+	query = withTenantFilter(ctx, r.runtime, query, "relationship")
 	if err := query.Scan(ctx, &rows); err != nil {
 		return 0, 0, false, fmt.Errorf("lock student guardian relationship: %w", err)
 	}
@@ -271,7 +274,7 @@ func (r *GuardianRelationshipRepository) Create(ctx context.Context, rel *users.
 	if err := rel.Validate(); err != nil {
 		return err
 	}
-	writeTenant(ctx, rel)
+	r.writeTenant(ctx, rel)
 	permissions, err := permissionsJSON(rel.Permissions)
 	if err != nil {
 		return err
@@ -284,7 +287,7 @@ func (r *GuardianRelationshipRepository) Create(ctx context.Context, rel *users.
 		return r.createOwnerHalves(ctx, rel, accountID, permissions)
 	})
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "create", Err: err}
+		return &users.DatabaseError{Op: "create", Err: err}
 	}
 	return nil
 }
@@ -311,12 +314,15 @@ func (r *GuardianRelationshipRepository) LinkIfNotExists(ctx context.Context, re
 		return false, fmt.Errorf("student guardian cannot be nil")
 	}
 	if strings.TrimSpace(rel.GuardianRole) == "" && len(rel.Permissions) == 0 {
-		authorize.ApplyDefaultStudentGuardianRole(rel)
+		if r.defaultRole == nil {
+			return false, errGuardianDefaultRoleUnbound
+		}
+		r.defaultRole(rel)
 	}
 	if err := rel.Validate(); err != nil {
 		return false, err
 	}
-	writeTenant(ctx, rel)
+	r.writeTenant(ctx, rel)
 	permissions, err := permissionsJSON(rel.Permissions)
 	if err != nil {
 		return false, err
@@ -331,7 +337,7 @@ func (r *GuardianRelationshipRepository) LinkIfNotExists(ctx context.Context, re
 		return r.createOwnerHalves(ctx, rel, accountID, permissions)
 	})
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "link guardian if not exists", Err: base.TranslateNotFound(err)}
+		return false, &users.DatabaseError{Op: "link guardian if not exists", Err: translateNotFound(err)}
 	}
 	return inserted, nil
 }
@@ -351,10 +357,10 @@ func (r *GuardianRelationshipRepository) Update(ctx context.Context, rel *users.
 		return err
 	})
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update", Err: err}
+		return &users.DatabaseError{Op: "update", Err: err}
 	}
 	if !found {
-		return base.AssertRowsAffectedCount(0, 1, "update StudentGuardian")
+		return assertRowsAffectedCount(0, 1, "update StudentGuardian")
 	}
 	return nil
 }
@@ -399,7 +405,7 @@ func (r *GuardianRelationshipRepository) UpdateColumns(ctx context.Context, rel 
 		return err
 	})
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "update columns", Err: err}
+		return 0, &users.DatabaseError{Op: "update columns", Err: err}
 	}
 	if !found {
 		return 0, nil
@@ -435,7 +441,7 @@ func (r *GuardianRelationshipRepository) updateColumns(ctx context.Context, rel 
 		return false, err
 	}
 	rel.TenantID = tenantID
-	db := base.GetDB(ctx, r.db)
+	db := r.runtime.DB(ctx)
 	if len(named) > 0 {
 		if slices.Contains(named, "is_primary") && rel.IsPrimary {
 			target := studentID
@@ -482,12 +488,12 @@ func (r *GuardianRelationshipRepository) updateColumns(ctx context.Context, rel 
 // Delete unlinks a guardian. The pickup permission and the portal access
 // follow the relationship through their foreign-key cascade.
 func (r *GuardianRelationshipRepository) Delete(ctx context.Context, id any) error {
-	query := base.GetDB(ctx, r.db).NewDelete().
+	query := r.runtime.DB(ctx).NewDelete().
 		TableExpr(`users.student_guardian_relationships AS "relationship"`).
 		Where(`"relationship".id = ?`, id)
-	query = base.WithTenantFilter(ctx, query, "relationship")
+	query = withTenantFilter(ctx, r.runtime, query, "relationship")
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "delete", Err: err}
+		return &users.DatabaseError{Op: "delete", Err: err}
 	}
 	return nil
 }
@@ -495,15 +501,15 @@ func (r *GuardianRelationshipRepository) Delete(ctx context.Context, id any) err
 // SetPrimary sets a guardian as the primary guardian for a student, demoting
 // the child's other primary first.
 func (r *GuardianRelationshipRepository) SetPrimary(ctx context.Context, id int64, isPrimary bool) error {
-	err := tenantAware(ctx, r.db, func(ctx context.Context) error {
+	err := r.runtime.RunInTx(ctx, func(ctx context.Context) error {
 		tenantID, studentID, found, err := r.lockRelationship(ctx, id)
 		if err != nil {
 			return err
 		}
 		if !found {
-			return base.AssertRowsAffectedCount(0, 1, "set primary student_guardian")
+			return assertRowsAffectedCount(0, 1, "set primary student_guardian")
 		}
-		db := base.GetDB(ctx, r.db)
+		db := r.runtime.DB(ctx)
 		if isPrimary {
 			if err := demoteOtherPrimaries(ctx, db, tenantID, studentID, id); err != nil {
 				return err
@@ -514,22 +520,13 @@ func (r *GuardianRelationshipRepository) SetPrimary(ctx context.Context, id int6
 		return err
 	})
 	if err != nil {
-		var databaseErr *modelBase.DatabaseError
+		var databaseErr *users.DatabaseError
 		if errors.As(err, &databaseErr) {
 			return err
 		}
-		return &modelBase.DatabaseError{Op: "set primary", Err: base.TranslateNotFound(err)}
+		return &users.DatabaseError{Op: "set primary", Err: translateNotFound(err)}
 	}
 	return nil
-}
-
-// tenantAware runs a single-owner write that takes a row lock inside the
-// caller's transaction, or opens the tenant transaction of the context.
-func tenantAware(ctx context.Context, db *bun.DB, fn func(context.Context) error) error {
-	if _, ok := modelBase.RepositoryTransaction(ctx); ok {
-		return fn(ctx)
-	}
-	return tenant.NewTransactionRunner().RunInTx(ctx, fn)
 }
 
 // SetPayer moves the payment mark for one child (#2608): it clears the mark
@@ -545,17 +542,17 @@ func tenantAware(ctx context.Context, db *bun.DB, fn func(context.Context) error
 // update expresses. Returns ErrStudentGuardianNotFound when the named guardian
 // is not linked to the child.
 func (r *GuardianRelationshipRepository) SetPayer(ctx context.Context, studentID int64, guardianProfileID *int64) error {
-	db := base.GetDB(ctx, r.db)
+	db := r.runtime.DB(ctx)
 
 	clear := db.NewUpdate().
 		TableExpr(`users.student_guardian_relationships AS "relationship"`).
 		Set("is_payer = FALSE").
 		Where(`"relationship".student_id = ?`, studentID).
 		Where(`"relationship".is_payer`)
-	clear = base.WithTenantFilter(ctx, clear, "relationship")
+	clear = withTenantFilter(ctx, r.runtime, clear, "relationship")
 
 	if _, err := clear.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "clear student payer", Err: base.TranslateNotFound(err)}
+		return &users.DatabaseError{Op: "clear student payer", Err: translateNotFound(err)}
 	}
 
 	if guardianProfileID == nil {
@@ -567,15 +564,15 @@ func (r *GuardianRelationshipRepository) SetPayer(ctx context.Context, studentID
 		Set("is_payer = TRUE").
 		Where(`"relationship".student_id = ?`, studentID).
 		Where(`"relationship".guardian_profile_id = ?`, *guardianProfileID)
-	set = base.WithTenantFilter(ctx, set, "relationship")
+	set = withTenantFilter(ctx, r.runtime, set, "relationship")
 
 	result, err := set.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "set student payer", Err: base.TranslateNotFound(err)}
+		return &users.DatabaseError{Op: "set student payer", Err: translateNotFound(err)}
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "set student payer", Err: base.TranslateNotFound(err)}
+		return &users.DatabaseError{Op: "set student payer", Err: translateNotFound(err)}
 	}
 	if affected == 0 {
 		return users.ErrStudentGuardianNotFound
@@ -586,15 +583,15 @@ func (r *GuardianRelationshipRepository) SetPayer(ctx context.Context, studentID
 // --- queries ------------------------------------------------------------------
 
 func (r *GuardianRelationshipRepository) linkQuery(ctx context.Context, model any) *bun.SelectQuery {
-	return guardianlinkview.ModelQuery(base.GetDB(ctx, r.db), 0, model)
+	return guardianlinkview.ModelQuery(r.runtime.DB(ctx), 0, model)
 }
 
 // FindByID retrieves one relationship with its three halves.
 func (r *GuardianRelationshipRepository) FindByID(ctx context.Context, id any) (*users.StudentGuardian, error) {
 	relationship := new(users.StudentGuardian)
-	query := base.WithTenantFilter(ctx, r.linkQuery(ctx, relationship).Where(`"student_guardian".id = ?`, id), "student_guardian")
+	query := withTenantFilter(ctx, r.runtime, r.linkQuery(ctx, relationship).Where(`"student_guardian".id = ?`, id), "student_guardian")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find by id", Err: base.TranslateNotFound(err)}
+		return nil, &users.DatabaseError{Op: "find by id", Err: translateNotFound(err)}
 	}
 	return relationship, nil
 }
@@ -619,9 +616,9 @@ func (r *GuardianRelationshipRepository) List(ctx context.Context, filters map[s
 		}
 		query = query.Where(`? = ?`, bun.Ident("student_guardian."+field), value)
 	}
-	query = base.WithTenantFilter(ctx, query, "student_guardian")
+	query = withTenantFilter(ctx, r.runtime, query, "student_guardian")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list", Err: base.TranslateNotFound(err)}
+		return nil, &users.DatabaseError{Op: "list", Err: translateNotFound(err)}
 	}
 	return relationships, nil
 }
@@ -629,10 +626,10 @@ func (r *GuardianRelationshipRepository) List(ctx context.Context, filters map[s
 // FindByStudentID retrieves relationships by student ID
 func (r *GuardianRelationshipRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
-	query := base.WithTenantFilter(ctx, r.linkQuery(ctx, &relationships).
+	query := withTenantFilter(ctx, r.runtime, r.linkQuery(ctx, &relationships).
 		Where(`"student_guardian".student_id = ?`, studentID), "student_guardian")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find by student ID", Err: base.TranslateNotFound(err)}
+		return nil, &users.DatabaseError{Op: "find by student ID", Err: translateNotFound(err)}
 	}
 	return relationships, nil
 }
@@ -643,10 +640,10 @@ func (r *GuardianRelationshipRepository) FindByStudentIDs(ctx context.Context, s
 		return []*users.StudentGuardian{}, nil
 	}
 	var relationships []*users.StudentGuardian
-	query := base.WithTenantFilter(ctx, r.linkQuery(ctx, &relationships).
+	query := withTenantFilter(ctx, r.runtime, r.linkQuery(ctx, &relationships).
 		Where(`"student_guardian".student_id IN (?)`, bun.List(studentIDs)), "student_guardian")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find by student IDs", Err: base.TranslateNotFound(err)}
+		return nil, &users.DatabaseError{Op: "find by student IDs", Err: translateNotFound(err)}
 	}
 	return relationships, nil
 }
@@ -654,10 +651,10 @@ func (r *GuardianRelationshipRepository) FindByStudentIDs(ctx context.Context, s
 // FindByGuardianProfileID retrieves relationships by guardian profile ID
 func (r *GuardianRelationshipRepository) FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
-	query := base.WithTenantFilter(ctx, r.linkQuery(ctx, &relationships).
+	query := withTenantFilter(ctx, r.runtime, r.linkQuery(ctx, &relationships).
 		Where(`"student_guardian".guardian_profile_id = ?`, guardianProfileID), "student_guardian")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find by guardian profile ID", Err: base.TranslateNotFound(err)}
+		return nil, &users.DatabaseError{Op: "find by guardian profile ID", Err: translateNotFound(err)}
 	}
 	return relationships, nil
 }
@@ -670,22 +667,22 @@ func (r *GuardianRelationshipRepository) FindByGuardianProfileID(ctx context.Con
 // until this transaction commits.
 func (r *GuardianRelationshipRepository) FindByStudentAndGuardianForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*users.StudentGuardian, error) {
 	var locked []int64
-	lock := base.GetDB(ctx, r.db).NewSelect().
+	lock := r.runtime.DB(ctx).NewSelect().
 		TableExpr(`users.student_guardian_relationships AS "relationship"`).
 		ColumnExpr(`"relationship".id`).
 		Where(`"relationship".student_id = ?`, studentID).
 		Where(`"relationship".guardian_profile_id = ?`, guardianProfileID).
 		For("UPDATE")
-	lock = base.WithTenantFilter(ctx, lock, "relationship")
+	lock = withTenantFilter(ctx, r.runtime, lock, "relationship")
 	if err := lock.Scan(ctx, &locked); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find by student and guardian for update", Err: base.TranslateNotFound(err)}
+		return nil, &users.DatabaseError{Op: "find by student and guardian for update", Err: translateNotFound(err)}
 	}
 	if len(locked) == 0 {
 		return nil, users.ErrStudentGuardianNotFound
 	}
 	relationship, err := r.FindByID(ctx, locked[0])
 	if err != nil {
-		if errors.Is(err, modelBase.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, users.ErrRepositoryNotFound) || errors.Is(err, sql.ErrNoRows) {
 			return nil, users.ErrStudentGuardianNotFound
 		}
 		return nil, err
@@ -715,9 +712,9 @@ func (r *GuardianRelationshipRepository) ListLinkedChildrenForGuardians(ctx cont
 		  AND p.deleted_at IS NULL
 		ORDER BY p.last_name ASC, p.first_name ASC`
 	var rows []*users.GuardianLinkedChild
-	db := base.GetDB(ctx, r.db)
-	if err := db.NewRaw(query, studentdirectoryview.Query(db, tenant.FromContext(ctx)), bun.List(guardianProfileIDs)).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list linked children for guardians", Err: base.TranslateNotFound(err)}
+	db := r.runtime.DB(ctx)
+	if err := db.NewRaw(query, studentdirectoryview.Query(db, r.runtime.TenantID(ctx)), bun.List(guardianProfileIDs)).Scan(ctx, &rows); err != nil {
+		return nil, &users.DatabaseError{Op: "list linked children for guardians", Err: translateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -760,7 +757,7 @@ func (r *GuardianRelationshipRepository) AccountHasStudentPermission(ctx context
 				AND gp.account_id = ?
 				AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
 		)`
-	db := base.GetDB(ctx, r.db)
+	db := r.runtime.DB(ctx)
 	var granted bool
 	if err := db.NewRaw(query, guardianlinkview.Query(db, tenantID), studentID, accountID, permission).Scan(ctx, &granted); err != nil {
 		return false, fmt.Errorf("student guardian: account permission for student: %w", err)
@@ -817,7 +814,7 @@ func (r *GuardianRelationshipRepository) FilterAccountsWithStudentAccess(ctx con
 		WHERE sg.student_id  IN (?)
 			AND gp.account_id  IN (?)
 			AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE`
-	db := base.GetDB(ctx, r.db)
+	db := r.runtime.DB(ctx)
 	var granted []int64
 	if err := db.NewRaw(query,
 		guardianlinkview.Query(db, tenantID),
@@ -897,7 +894,7 @@ func (r *GuardianRelationshipRepository) GuardianEmailHasStudentPermission(ctx c
 			WHERE sg.student_id = ?
 				AND LOWER(gp.email) = ?
 				AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE`
-	db := base.GetDB(ctx, r.db)
+	db := r.runtime.DB(ctx)
 	var rows []struct{ AccountID *int64 }
 	if err := db.NewRaw(query, guardianlinkview.Query(db, tenantID), studentID, normalizedEmail, permission).Scan(ctx, &rows); err != nil {
 		return false, fmt.Errorf("student guardian: email permission for student: %w", err)
@@ -935,7 +932,7 @@ func (r *GuardianRelationshipRepository) ListEmergencyContactRows(ctx context.Co
 	}
 
 	var rows []users.GuardianEmergencyContactRow
-	query := guardianlinkview.Query(base.GetDB(ctx, r.db), 0).
+	query := guardianlinkview.Query(r.runtime.DB(ctx), 0).
 		ColumnExpr(`"student_guardian".student_id`).
 		ColumnExpr(`"guardian".id AS guardian_profile_id`).
 		ColumnExpr(`"guardian".first_name`).
@@ -957,16 +954,16 @@ func (r *GuardianRelationshipRepository) ListEmergencyContactRows(ctx context.Co
 		OrderExpr(`"student_guardian".student_id ASC`).
 		OrderExpr(`"guardian".id ASC`)
 
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+	if tenantID := r.runtime.TenantID(ctx); tenantID > 0 {
 		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
 		query = query.Where(`"guardian".tenant_id = ?`, tenantID)
 		query = query.Where(`("phone".tenant_id = ? OR "phone".tenant_id IS NULL)`, tenantID)
 	}
 
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{
+		return nil, &users.DatabaseError{
 			Op:  "list emergency contact rows",
-			Err: base.TranslateNotFound(err),
+			Err: translateNotFound(err),
 		}
 	}
 	return rows, nil
@@ -979,7 +976,7 @@ func (r *GuardianRelationshipRepository) ListEmergencyContactRows(ctx context.Co
 // assigned looks complete while missing exactly the rows that need work.
 func (r *GuardianRelationshipRepository) ListPaymentAssignments(ctx context.Context) ([]users.GuardianPaymentAssignment, error) {
 	var rows []users.GuardianPaymentAssignment
-	query := studentdirectoryview.Query(base.GetDB(ctx, r.db), tenant.FromContext(ctx)).
+	query := studentdirectoryview.Query(r.runtime.DB(ctx), r.runtime.TenantID(ctx)).
 		ColumnExpr(`"student".id AS student_id`).
 		ColumnExpr(`"student_person".first_name AS student_first_name`).
 		ColumnExpr(`"student_person".last_name AS student_last_name`).
@@ -998,14 +995,14 @@ func (r *GuardianRelationshipRepository) ListPaymentAssignments(ctx context.Cont
 		OrderExpr(`"student_person".first_name ASC`).
 		OrderExpr(`"student".id ASC`)
 
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+	if tenantID := r.runtime.TenantID(ctx); tenantID > 0 {
 		query = query.Where(`"student".tenant_id = ?`, tenantID)
 		query = query.Where(`("student_guardian".tenant_id = ? OR "student_guardian".tenant_id IS NULL)`, tenantID)
 		query = query.Where(`("guardian".tenant_id = ? OR "guardian".tenant_id IS NULL)`, tenantID)
 	}
 
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list guardian payment assignments", Err: base.TranslateNotFound(err)}
+		return nil, &users.DatabaseError{Op: "list guardian payment assignments", Err: translateNotFound(err)}
 	}
 	return rows, nil
 }

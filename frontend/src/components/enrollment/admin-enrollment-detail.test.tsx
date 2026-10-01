@@ -55,6 +55,7 @@ import {
   AdminEnrollmentDetail,
   ChildOfferingAdjustment,
   ChildOfferings,
+  describeOfferingAdjustmentChanges,
   formatPlainDate,
 } from "./admin-enrollment-detail";
 
@@ -297,6 +298,76 @@ describe("AdminEnrollmentDetail approval without an offering", () => {
     expect(
       screen.queryByText(/Das Kind wird trotzdem in die OGS aufgenommen/),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("AdminEnrollmentDetail Kinderkontingent (#3570)", () => {
+  const request = {
+    id: "request-1",
+    phase_id: "phase-1",
+    phase_name: "2027/28",
+    guardian_first_name: "Mara",
+    guardian_last_name: "Beispiel",
+    guardian_email: "mara@example.test",
+    submitted_at: "2027-08-05T10:00:00Z",
+    status_token: "status-token",
+  };
+  const heldChild = {
+    id: "child-1",
+    first_name: "Lina",
+    last_name: "Kind",
+    date_of_birth: "2018-04-15",
+    status: "submitted" as const,
+    activation_mode: "scheduled",
+    review_reason: "child_quota_reached",
+  };
+
+  it("marks a renewal the Kinderkontingent held back", async () => {
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      children: [heldChild],
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+
+    expect(
+      (await screen.findAllByText("Wegen Kinderkontingent offen")).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/Darum wurde dieses Kind nicht automatisch verlängert/),
+    ).toBeVisible();
+  });
+
+  it("drops the mark once the enrollment is decided", async () => {
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      children: [{ ...heldChild, status: "waitlisted" as const }],
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+
+    expect(await screen.findAllByText("Mara Beispiel")).not.toHaveLength(0);
+    expect(
+      screen.queryByText("Wegen Kinderkontingent offen"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the Kinderkontingent message when an approval is refused", async () => {
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      children: [{ ...heldChild, review_reason: null }],
+    });
+    const message =
+      "Das Kinderkontingent Ihrer Schule ist voll. Die Kontingentzahl beträgt 50 von 50 Kindern. Für weitere Kinder melden Sie sich bitte beim moto-Team.";
+    mocks.decideAdminChild.mockRejectedValue(new Error(message));
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bestätigen" }));
+
+    expect(await screen.findByText(message)).toBeVisible();
   });
 });
 
@@ -1816,5 +1887,168 @@ describe("ChildExtraFields companion note (#1694)", () => {
       <ChildExtraFields child={child({})} schemaFields={[departureField]} />,
     );
     expect(container.firstChild).toBeNull();
+  });
+});
+
+describe("describeOfferingAdjustmentChanges", () => {
+  type Snapshot = Parameters<
+    typeof describeOfferingAdjustmentChanges
+  >[0][number];
+
+  const randstunde: Snapshot = {
+    offering_id: "1",
+    offering_name: "Randstunde",
+    days_of_week_mode: "parent_choice",
+    available_days: ["mon", "tue", "wed", "thu", "fri"],
+    selected_days: ["tue", "wed", "thu", "fri"],
+  };
+  const ganztag1430 = (selectedDays: string[]): Snapshot => ({
+    offering_id: "2",
+    offering_name: "Ganztagsbetreuung bis 14.30 Uhr",
+    days_of_week_mode: "parent_choice",
+    available_days: ["mon", "tue", "wed", "thu", "fri"],
+    selected_days: selectedDays,
+  });
+  const ganztag16 = (selectedDays: string[]): Snapshot => ({
+    offering_id: "3",
+    offering_name: "Ganztagsbetreuung bis 16 Uhr",
+    days_of_week_mode: "parent_choice",
+    available_days: ["mon", "tue", "wed", "thu", "fri"],
+    selected_days: selectedDays,
+  });
+
+  function lines(before: Snapshot[], after: Snapshot[]): string[] {
+    return describeOfferingAdjustmentChanges(before, after).map((line) =>
+      line.days ? `${line.days}: ${line.text}` : line.text,
+    );
+  }
+
+  it("names a weekday that was added to an offering whose name stayed the same", () => {
+    expect(
+      lines(
+        [randstunde, ganztag1430(["mon"])],
+        [randstunde, ganztag1430(["mon", "wed"])],
+      ),
+    ).toEqual(["Mi: Ganztagsbetreuung bis 14.30 Uhr gebucht"]);
+  });
+
+  it("groups the removed days of one offering into one line", () => {
+    expect(
+      lines(
+        [randstunde, ganztag1430(["mon", "wed"])],
+        [ganztag1430(["mon", "wed"])],
+      ),
+    ).toEqual(["Di, Mi, Do, Fr: Randstunde abgemeldet"]);
+  });
+
+  it("shows before and after when one offering replaces another on a day", () => {
+    expect(
+      lines(
+        [ganztag1430(["mon", "wed"])],
+        [ganztag1430(["mon"]), ganztag16(["wed"])],
+      ),
+    ).toEqual([
+      "Mi: vorher Ganztagsbetreuung bis 14.30 Uhr, nachher Ganztagsbetreuung bis 16 Uhr",
+    ]);
+  });
+
+  it("uses the available days of a fixed offering without selected days", () => {
+    expect(
+      lines(
+        [],
+        [
+          {
+            offering_id: "4",
+            offering_name: "Frühbetreuung",
+            days_of_week_mode: "fixed",
+            available_days: ["fri", "mon"],
+            selected_days: [],
+          },
+        ],
+      ),
+    ).toEqual(["Mo, Fr: Frühbetreuung gebucht"]);
+  });
+
+  it("falls back to a name change for offerings without known days", () => {
+    expect(
+      lines(
+        [{ offering_id: "7", days_of_week_mode: "parent_choice" }],
+        [
+          {
+            offering_id: "8",
+            offering_name: "Ferienbetreuung",
+            days_of_week_mode: "fixed",
+            available_days: [],
+          },
+          ganztag16(["thu"]),
+        ],
+      ),
+    ).toEqual([
+      "Do: Ganztagsbetreuung bis 16 Uhr gebucht",
+      "Angebot #7 abgemeldet",
+      "Ferienbetreuung gebucht",
+    ]);
+  });
+
+  it("keeps the known days of an offering whose days are unknown on one side", () => {
+    expect(
+      lines([ganztag16(["mon"])], [{ ...ganztag16([]), selected_days: [] }]),
+    ).toEqual(["Mo: Ganztagsbetreuung bis 16 Uhr abgemeldet"]);
+  });
+
+  it("reports unchanged offerings", () => {
+    expect(lines([randstunde], [{ ...randstunde }])).toEqual([
+      "Angebote unverändert",
+    ]);
+    expect(lines([], [])).toEqual(["Angebote unverändert"]);
+  });
+
+  it("orders days from Monday and joins several offerings", () => {
+    expect(
+      lines(
+        [],
+        [
+          ganztag16(["fri", "mon"]),
+          { ...randstunde, selected_days: ["mon", "fri"] },
+          ganztag1430(["wed"]),
+        ],
+      ),
+    ).toEqual([
+      "Mo, Fr: Ganztagsbetreuung bis 16 Uhr und Randstunde gebucht",
+      "Mi: Ganztagsbetreuung bis 14.30 Uhr gebucht",
+    ]);
+  });
+
+  it("renders each change as its own line in the history", async () => {
+    mocks.listAdminChildOfferingAdjustments.mockResolvedValue([
+      {
+        id: "adjustment-1",
+        request_id: "request-1",
+        request_child_id: "child-1",
+        student_id: "student-1",
+        actor_account_id: "account-1",
+        actor_role: "admin",
+        actor_name_snapshot: "Ada Admin",
+        reason: "Mittwoch länger",
+        before: [
+          ganztag1430(["mon", "wed"]),
+          { ...randstunde, selected_days: ["tue", "thu"] },
+        ],
+        after: [ganztag1430(["mon"]), ganztag16(["wed"])],
+        changed_at: "2026-09-24T13:59:00Z",
+      },
+    ]);
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+
+    renderAdjustment();
+
+    const change = await screen.findByText(
+      "vorher Ganztagsbetreuung bis 14.30 Uhr, nachher Ganztagsbetreuung bis 16 Uhr",
+    );
+    expect(change.closest("li")).toHaveTextContent(
+      /^Mi:? ?vorher Ganztagsbetreuung bis 14\.30 Uhr/,
+    );
+    expect(screen.getByText("Randstunde abgemeldet")).toBeVisible();
+    expect(screen.queryByText(/Vorher:/)).not.toBeInTheDocument();
   });
 });

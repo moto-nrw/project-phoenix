@@ -18,7 +18,7 @@ const {
   auth: operatorAuth,
   uncachedAuth: uncachedOperatorAuth,
   withAuthResponse: withOperatorAuth,
-} = createResponseAwareAuth(rawOperatorAuth);
+} = createResponseAwareAuth(rawOperatorAuth, "operator");
 
 export {
   operatorAuth,

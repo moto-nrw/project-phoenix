@@ -57,13 +57,15 @@ interface CurrentActivity {
   category: string;
   participants: number;
   maxCapacity: number | null;
-  status: "active" | "full" | "ending_soon";
+  status: "active" | "full" | "ending_soon" | "overbooked";
 }
 
 interface ActiveGroupInfo {
   name: string;
   type: "ogs_group" | "activity";
   studentCount: number;
+  /** Teilnehmergrenze der Aktivität; null ohne Grenze (#3634). */
+  maxCapacity?: number | null;
   location: string;
   status: "active" | "transitioning" | "preparing";
 }
@@ -111,6 +113,7 @@ export interface DashboardAnalyticsResponse {
     name: string;
     type: string;
     student_count: number;
+    max_capacity?: number | null;
     location: string;
     status: string;
   }>;
@@ -157,6 +160,7 @@ export function mapDashboardAnalyticsResponse(
       name: group.name,
       type: group.type as ActiveGroupInfo["type"],
       studentCount: group.student_count,
+      maxCapacity: group.max_capacity ?? null,
       location: group.location,
       status: group.status as ActiveGroupInfo["status"],
     })),
@@ -217,6 +221,8 @@ export function getActivityStatusColor(
       return "bg-moto-amber";
     case "ending_soon":
       return "bg-moto-orange";
+    case "overbooked":
+      return "bg-moto-red";
     default:
       // Unbekannt = LOCATION_COLORS.UNKNOWN (#78716C)
       return "bg-moto-stone";

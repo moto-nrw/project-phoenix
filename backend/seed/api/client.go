@@ -6,7 +6,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"maps"
 	"mime/multipart"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -25,7 +27,7 @@ type Client struct {
 
 // NewClientWithAdapter creates a client that reuses a shared adapter.
 func NewClientWithAdapter(adapter Adapter, verbose bool) *Client {
-	client := &Client{adapter: adapter, verbose: verbose}
+	client := &Client{adapter: newRetryingAdapter(adapter), verbose: verbose}
 	if adapter != nil {
 		client.baseURL = adapter.BaseURL()
 	}
@@ -142,8 +144,19 @@ func (c *Client) DevicePut(path string, body any, apiKey, pin string) ([]byte, e
 // PostFile makes an authenticated multipart POST with a single file part,
 // which is the shape every document upload in the API expects.
 func (c *Client) PostFile(path, fieldName, filename string, contents []byte) ([]byte, error) {
+	return c.PostFileWithFields(path, fieldName, filename, contents, nil)
+}
+
+// PostFileWithFields is PostFile plus plain form fields next to the file,
+// such as the consent flag of a student photo upload.
+func (c *Client) PostFileWithFields(path, fieldName, filename string, contents []byte, fields map[string]string) ([]byte, error) {
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
+	for _, name := range slices.Sorted(maps.Keys(fields)) {
+		if err := writer.WriteField(name, fields[name]); err != nil {
+			return nil, fmt.Errorf("write multipart field %s: %w", name, err)
+		}
+	}
 	part, err := writer.CreateFormFile(fieldName, filename)
 	if err != nil {
 		return nil, fmt.Errorf("build multipart body: %w", err)

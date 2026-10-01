@@ -6,12 +6,12 @@ import (
 	"time"
 
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
-	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 )
 
 // Organisation & Tenancy owns platform.schools (#3253). The HTTP resources

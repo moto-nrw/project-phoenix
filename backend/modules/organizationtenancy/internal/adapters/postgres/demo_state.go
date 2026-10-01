@@ -33,6 +33,22 @@ func (s *DemoStateStore) Load(ctx context.Context, name string) (*DemoState, err
 	return &state, nil
 }
 
+// Reserve records the school as soon as bootstrap created it. The full seed
+// state follows later; retaining this identity lets a final failed seed hide
+// a replacement that did not reach its state write.
+func (s *DemoStateStore) Reserve(ctx context.Context, name string, schoolID int64) error {
+	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states
+		SET tenant_id = ?
+		WHERE name = ? AND status = 'preparing' AND seed_state IS NULL`, schoolID, name).Exec(ctx)
+	if err != nil {
+		return errors.New("could not reserve demo school state")
+	}
+	if rows, err := result.RowsAffected(); err != nil || rows != 1 {
+		return errors.New("demo school state already exists")
+	}
+	return nil
+}
+
 func (s *DemoStateStore) Remember(ctx context.Context, name string, state DemoState) error {
 	// A queued order has its row already and stays preparing until its first
 	// tick; the standing school has no order and is ready with its seed.
@@ -47,6 +63,21 @@ func (s *DemoStateStore) Remember(ctx context.Context, name string, state DemoSt
 	}
 	if rows, err := result.RowsAffected(); err != nil || rows != 1 {
 		return errors.New("demo school state already exists")
+	}
+	return nil
+}
+
+// Update persists the complete state for a reserved or completed school
+// without allowing a caller to replace another school's state.
+func (s *DemoStateStore) Update(ctx context.Context, name string, state DemoState) error {
+	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states
+		SET seed_state = ?::jsonb
+		WHERE name = ? AND tenant_id = ?`, state.SeedJSON, name, state.TenantID).Exec(ctx)
+	if err != nil {
+		return errors.New("could not update demo school state")
+	}
+	if rows, err := result.RowsAffected(); err != nil || rows != 1 {
+		return errors.New("demo school state does not exist")
 	}
 	return nil
 }
@@ -108,7 +139,8 @@ func watchDemoLease(ctx context.Context, tx bun.Tx, cancel context.CancelFunc, f
 type DemoOrder struct {
 	Name       string `bun:"name"`
 	SchoolName string `bun:"school_name"`
-	PersonName string `bun:"person_name"`
+	FirstName  string `bun:"first_name"`
+	LastName   string `bun:"last_name"`
 	Attempts   int    `bun:"attempts"`
 	Seeded     bool   `bun:"seeded"`
 }
@@ -123,6 +155,28 @@ func (s *DemoStateStore) ReleaseClaims(ctx context.Context) error {
 	return nil
 }
 
+// RequeueDeferred returns a school whose optional seed stopped after its core
+// seed to the normal provisioning queue. Its partial API writes are never
+// retried in place: the next attempt retires that school and starts clean. It
+// retains the tenant identity until a final failed attempt can retire it too.
+func (s *DemoStateStore) RequeueDeferred(ctx context.Context, name string) error {
+	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states
+		SET status = 'preparing', claimed_at = NULL, seed_state = NULL,
+			visitor_account_id = NULL, visitor_parent_account_id = NULL
+		WHERE status IN ('preparing', 'ready') AND seed_state->>'deferred_seed_pending' = 'true'
+			AND (? = '' OR name = ?)`, name, name).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("requeue deferred demo school orders: %w", err)
+	}
+	if name != "" {
+		rows, err := result.RowsAffected()
+		if err != nil || rows != 1 {
+			return errors.New("deferred demo school order does not exist")
+		}
+	}
+	return nil
+}
+
 // Claim takes the oldest waiting order, or none.
 func (s *DemoStateStore) Claim(ctx context.Context) (*DemoOrder, error) {
 	var order DemoOrder
@@ -132,7 +186,7 @@ func (s *DemoStateStore) Claim(ctx context.Context) (*DemoOrder, error) {
 			SELECT name FROM platform.demo_school_states
 			WHERE status = 'preparing' AND claimed_at IS NULL
 			ORDER BY created_at, name LIMIT 1 FOR UPDATE SKIP LOCKED)
-		RETURNING state.name, state.school_name, state.person_name, state.attempts, state.seed_state IS NOT NULL AS seeded`).Scan(ctx, &order)
+		RETURNING state.name, state.school_name, state.first_name, state.last_name, state.attempts, state.seed_state IS NOT NULL AS seeded`).Scan(ctx, &order)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -156,12 +210,23 @@ func (s *DemoStateStore) Finish(ctx context.Context, name string, visitorAccount
 
 // Fail returns the order to the queue, or closes it as failed once it used
 // its attempts. A seed that stopped halfway cannot be resumed, so its state
-// is dropped and the next attempt starts over.
+// is dropped and the next attempt starts over. The final failed attempt also
+// retires the school whose identity RequeueDeferred retained for this cleanup.
 func (s *DemoStateStore) Fail(ctx context.Context, name string, maxAttempts int) (bool, error) {
 	var failed bool
-	err := s.db.NewRaw(`UPDATE platform.demo_school_states
-		SET status = CASE WHEN attempts >= ? THEN 'failed' ELSE 'preparing' END, claimed_at = NULL, tenant_id = NULL, seed_state = NULL
-		WHERE name = ? AND status = 'preparing' RETURNING status = 'failed'`, maxAttempts, name).Scan(ctx, &failed)
+	err := s.db.NewRaw(`WITH target AS (
+			SELECT name, tenant_id FROM platform.demo_school_states
+			WHERE name = ? AND status = 'preparing' FOR UPDATE
+		), changed AS (
+			UPDATE platform.demo_school_states
+			SET status = CASE WHEN attempts >= ? THEN 'failed' ELSE 'preparing' END, claimed_at = NULL, tenant_id = NULL, seed_state = NULL
+			FROM target WHERE platform.demo_school_states.name = target.name
+			RETURNING target.tenant_id, platform.demo_school_states.status
+		), retired AS (
+			UPDATE platform.schools SET deleted_at = NOW()
+			WHERE deleted_at IS NULL AND id IN (SELECT tenant_id FROM changed WHERE status = 'failed')
+		)
+		SELECT status = 'failed' FROM changed`, name, maxAttempts).Scan(ctx, &failed)
 	if err != nil {
 		return false, fmt.Errorf("fail demo school order: %w", err)
 	}
@@ -207,7 +272,7 @@ func (s *DemoStateStore) RetireMany(ctx context.Context, names []string) (int, e
 		return 0, nil
 	}
 	result, err := s.db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW()
-		WHERE deleted_at IS NULL AND id IN (SELECT tenant_id FROM platform.demo_school_states WHERE name IN (?) AND tenant_id IS NOT NULL)`,
+		WHERE deleted_at IS NULL AND id IN (SELECT tenant_id FROM platform.demo_school_states WHERE name IN (?) AND status = 'ready')`,
 		bun.List(names)).Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("retire demo schools: %w", err)
@@ -245,7 +310,7 @@ type DemoProgress struct {
 // ones and ready ones whose school is not deleted. A failed order holds none.
 // The lock makes concurrent orders take turns until the caller's transaction
 // ends, so they cannot pass the count together.
-func (s *DemoOrderStore) Enqueue(ctx context.Context, name, schoolName, personName string, maxActive int) error {
+func (s *DemoOrderStore) Enqueue(ctx context.Context, name, schoolName, firstName, lastName string, maxActive int) error {
 	db, err := s.database(ctx)
 	if err != nil {
 		return err
@@ -263,8 +328,8 @@ func (s *DemoOrderStore) Enqueue(ctx context.Context, name, schoolName, personNa
 	if active >= maxActive {
 		return ErrDemoCapacityReached
 	}
-	_, err = db.NewRaw(`INSERT INTO platform.demo_school_states (name, school_name, person_name) VALUES (?, ?, ?)`,
-		name, schoolName, personName).Exec(ctx)
+	_, err = db.NewRaw(`INSERT INTO platform.demo_school_states (name, school_name, first_name, last_name) VALUES (?, ?, ?, ?)`,
+		name, schoolName, firstName, lastName).Exec(ctx)
 	if err != nil {
 		if isIntegrityViolation(err) {
 			return ErrDemoOrderExists

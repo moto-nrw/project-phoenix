@@ -7,11 +7,12 @@ import (
 	"net/http"
 	"strconv"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -26,11 +27,11 @@ type PublicLegalTextsResponse struct {
 	Photo          string `json:"photo"`
 	// Standard blocks render only when their toggle is enabled and their
 	// matching text is non-empty.
-	TermsEnabled        bool                           `json:"terms_enabled"`
-	DSGVOEnabled        bool                           `json:"dsgvo_enabled"`
-	EmailContactEnabled bool                           `json:"email_contact_enabled"`
-	PhotoEnabled        bool                           `json:"photo_enabled"`
-	Blocks              []enrollmentService.LegalBlock `json:"blocks"`
+	TermsEnabled        bool         `json:"terms_enabled"`
+	DSGVOEnabled        bool         `json:"dsgvo_enabled"`
+	EmailContactEnabled bool         `json:"email_contact_enabled"`
+	PhotoEnabled        bool         `json:"photo_enabled"`
+	Blocks              []LegalBlock `json:"blocks"`
 }
 
 // publicLegalTexts serves the tenant's AGB + Datenschutz Markdown for
@@ -119,7 +120,7 @@ func (rs *Resource) resolveTenantLegalTexts(ctx context.Context, schoolID, phase
 
 // resolvePublicLegalTexts loads the phase-scoped legal texts when a phase is
 // selected, or the tenant-wide legal settings otherwise.
-func (rs *Resource) resolvePublicLegalTexts(ctx context.Context, phaseID int64, lateInviteToken string) (enrollmentService.LegalTexts, error) {
+func (rs *Resource) resolvePublicLegalTexts(ctx context.Context, phaseID int64, lateInviteToken string) (LegalTexts, error) {
 	if phaseID > 0 {
 		return rs.RequestService.LegalTextsForPhaseWithLateInvite(ctx, phaseID, lateInviteToken)
 	}
@@ -131,13 +132,13 @@ func (rs *Resource) resolvePublicLegalTexts(ctx context.Context, phaseID int64, 
 // rather than a genuine settings/DB/JSON failure. Gate sentinels take the
 // controlled 404/disabled mapping; everything else is a 500.
 func isPublicLegalGateError(err error) bool {
-	return errors.Is(err, enrollmentService.ErrInvalidSubmission) ||
-		errors.Is(err, enrollmentService.ErrEnrollmentDisabled) ||
-		errors.Is(err, enrollmentService.ErrEnrollmentWindowClosed) ||
-		errors.Is(err, enrollmentService.ErrLateInviteInvalid)
+	return errors.Is(err, capability.ErrInvalidSubmission) ||
+		errors.Is(err, capability.ErrEnrollmentDisabled) ||
+		errors.Is(err, capability.ErrEnrollmentWindowClosed) ||
+		errors.Is(err, capability.ErrLateInviteInvalid)
 }
 
-func legalTextsToResponse(texts enrollmentService.LegalTexts) PublicLegalTextsResponse {
+func legalTextsToResponse(texts LegalTexts) PublicLegalTextsResponse {
 	return PublicLegalTextsResponse{
 		AGB:                 texts.AGB,
 		AGBDocumentURL:      texts.AGBDocumentURL,

@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 24.09.2026 · Ratchet 571 · Composition 622 · Policy-Epoche 30 · 4 Regeln mit
+Stand 27.09.2026 · Ratchet 388 · Composition 603 · Policy-Epoche 31 · 4 Regeln mit
 `convert it to exact debt` · 20.013 LOC unter `modules/*/legacy`
 
-Summenprobe: 270 + 29 + 4 + 60 + 28 + 19 + 161 = 571 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 155 + 27 + 4 + 0 + 27 + 19 + 156 = 388 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -16,15 +16,14 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [x] [#3414](https://github.com/moto-nrw/project-phoenix/issues/3414) Projection-Owner `operator-dashboard-view` bleibt (ADR 0033)
 - [ ] Gehört der Träger-Strang [#2809](https://github.com/moto-nrw/project-phoenix/issues/2809) / [#2821](https://github.com/moto-nrw/project-phoenix/issues/2821) zu #2580?
 
-## Jetzt vergebbar · 270 Keys
+## Jetzt vergebbar · 155 Keys
 
-- [ ] [#2732](https://github.com/moto-nrw/project-phoenix/issues/2732) api/timetable — 27 (seit #3554 nicht mehr blockiert: die 13 Keys des Lebenszyklus-Fassade-Lecks sind weg)
-- [ ] [#2733](https://github.com/moto-nrw/project-phoenix/issues/2733) services/enrollment, repositories/enrollment — 60 (`database/repositories/enrollment` gelöscht, 7 Keys weg; die 60 `services/enrollment`-Keys fallen über #3558 bis #3565)
+- [ ] [#2733](https://github.com/moto-nrw/project-phoenix/issues/2733) services/enrollment, repositories/enrollment — 0 (`database/repositories/enrollment` gelöscht, 7 Keys weg; die `services/enrollment`-Keys fallen über #3558 bis #3565; #3559 hat den Care-Offering-Katalog nach `modules/careplan` verschoben, ohne Key; #3560 die Buchungs-Materialisierung, zwei erledigte Keys entfernt; #3561 die Angebotswechsel-, Kurs- und Abholzeit-Reviews, vier erledigte Keys entfernt, darunter `crypto/subtle`, `legacy/jwt` und `services/parentmessaging`; #3562 Phasen, Formulare, Captcha und Eltern-Mails nach `modules/enrollment/internal/application`, sechs erledigte Keys entfernt, darunter `email`, `pgdriver` und `net/http`, Policy-Epoche 30 → 31, Kompositionsregel per ADR 0041; #3563 Klassentag, Aufsichtsblatt und Ankunftsausnahmen nach `modules/classday`, Care-Usage- und Klassenlisten-Reports nach `modules/enrollment`, sechs erledigte Keys entfernt, darunter `internal/collation`, `internal/sliceutil` und `models/education`, acht verwaiste Regeln gelöscht, ohne neue Regel; #3564 Entscheidung, Wiederherstellung, Rollover, Löschung und Aufbewahrungs-Cleanup nach `modules/enrollment`, acht erledigte Keys entfernt, darunter `models/audit`, `models/base`, `models/schedule`, `realtime`, `services/import` und `bun.DB.RunInTx`, ohne neue Regel; #3565 Intake und Änderungsanträge nach `modules/enrollment`, `services/enrollment` gelöscht, die letzten 45 Keys entfernt, 14 verwaiste Regeln gelöscht, ohne neue Regel)
 - [ ] [#2742](https://github.com/moto-nrw/project-phoenix/issues/2742) services/education, repositories/education, api/groups, api/admin — 63
-- [ ] [#2728](https://github.com/moto-nrw/project-phoenix/issues/2728) services/users — 42
-- [ ] [#2734](https://github.com/moto-nrw/project-phoenix/issues/2734) api/enrollment — 32
-- [ ] [#2738](https://github.com/moto-nrw/project-phoenix/issues/2738) api/common — 23
-- [ ] [#2727](https://github.com/moto-nrw/project-phoenix/issues/2727) database/repositories/users — 14
+- [ ] [#2728](https://github.com/moto-nrw/project-phoenix/issues/2728) services/users — 37 (#3354: fünf erledigte Keys entfernt, darunter `cmp`, `realtime` und `services/parentmessaging`)
+- [ ] [#2734](https://github.com/moto-nrw/project-phoenix/issues/2734) api/enrollment — 26 (#2731: `api/students` entfernt, die Companion-Codes kommen aus `api/common`; #3564: `models/audit` in Produktion und internen Tests entfernt; #3565: `services/enrollment` in Produktion und Tests entfernt)
+- [ ] [#2738](https://github.com/moto-nrw/project-phoenix/issues/2738) api/common — 20 (#2731: die Listen-Snapshot-Hilfe zog mit den Schülerrouten um, drei Modell-Keys weg)
+- [x] [#2727](https://github.com/moto-nrw/project-phoenix/issues/2727) database/repositories/users — 0 (alle 14 Keys weg, 402 → 388; Tenant und Transaktion über die Runtime aus `modules/peopledirectory/compose`, Fehler- und Query-Formen über das `models/users`-Vokabular, Kalender über `sharedkernel/calendar`, Berechtigungen über `modules/securityruntime`; die Suiten komponieren über `api/testutil` → `services` und benennen Zeilen über `test`; eine stale Communication-Regel gelöscht, Composition 603 → 603)
 - [ ] [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) models/users — 9
 
 ## Legacy-Nester auflösen · 31.074 LOC, 0 Keys
@@ -37,20 +36,20 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [x] [#3420](https://github.com/moto-nrw/project-phoenix/issues/3420) `workflows/parentportal/legacy` aufgelöst — 5.881 LOC, 46 Kompatibilitätsregeln weg, Schreibpfade als Owner-Commands (Care Plan, People Directory, Audit Platform); offen: Announcement-Quittungen in `messaging` (Communication)
 - [x] [#3410](https://github.com/moto-nrw/project-phoenix/issues/3410) `modules/careplan/legacy` Wurzelpaket aufgelöst — 874 LOC, 15 Keys weniger (644 → 629)
 
-## Schuld sichtbar machen · 4 Regeln, 29 Keys
+## Schuld sichtbar machen · 4 Regeln, 27 Keys
 
-- [ ] [#3421](https://github.com/moto-nrw/project-phoenix/issues/3421) `inbound-parent.*` zu exaktem Debt konvertiert — 27 Regeln weg, 29 Keys unter #3421 (568 → 597); offen: Keys abbauen, dann schließen
+- [ ] [#3421](https://github.com/moto-nrw/project-phoenix/issues/3421) `inbound-parent.*` zu exaktem Debt konvertiert — 27 Regeln weg, 27 Keys unter #3421 (568 → 597; #3565 entfernt zwei); offen: Keys abbauen, dann schließen
 - [ ] [#3416](https://github.com/moto-nrw/project-phoenix/issues/3416) `issue`-Feld an Policy-Regeln und `rules.stale`
 - [ ] [#3423](https://github.com/moto-nrw/project-phoenix/issues/3423) Die acht neuen Quality-Ratchets auf null fahren
 
-## api/students · 60 Keys
+## api/students · 0 Keys
 
 - [x] [#3351](https://github.com/moto-nrw/project-phoenix/issues/3351) `modules/careplan/legacy/careschedule` auflösen — 9.561 LOC (nativ in Care Plan, ADR 0030)
 - [x] [#3352](https://github.com/moto-nrw/project-phoenix/issues/3352) Status-Tage und Präsenz-Reads → `modules/studentpresence` — die 16 Produktionsdateien hängen seit #3422 am öffentlichen Vertrag (`StatusDays`, `StatusDayOverviews`, `StudentHistory`); `api/students` bindet die Präsenz jetzt über den eigenen Port `StudentPresence` statt der ganzen `Presence`-Komposition, 0 Keys, keine Regel geändert
-- [ ] [#3353](https://github.com/moto-nrw/project-phoenix/issues/3353) Offering-Change- und Pickup-Entscheidungen → Owner-Commands
-- [ ] [#3354](https://github.com/moto-nrw/project-phoenix/issues/3354) Stammdaten- und Elternantrags-Reviews → Owner-Module
-- [ ] [#3356](https://github.com/moto-nrw/project-phoenix/issues/3356) Settings-, Listenexport-, Messaging-, IoT-, Aktivitäts- und Schulstruktur-Kanten
-- [ ] [#2731](https://github.com/moto-nrw/project-phoenix/issues/2731) Carrier — 60
+- [x] [#3353](https://github.com/moto-nrw/project-phoenix/issues/3353) Offering-Change- und Pickup-Entscheidungen → Owner-Commands
+- [x] [#3354](https://github.com/moto-nrw/project-phoenix/issues/3354) Stammdaten- und Elternantrags-Reviews → Owner-Module — Entscheidung, Korrektur, Mitsorgeberechtigten-Hinweis und Ledger der Stammdaten-Anfragen nativ in `modules/careplan` (`masterdatarequests.Decisions`), Sammelfreigabe und Konfliktauflösung als Care-Plan-Koordinator über alle vier Queues (`parentrequests.Coordinator`, neues Contract-Paket ohne neue Regel), acht Dateien aus `services/users` gelöscht, 5 Keys weniger (468 → 463), 2 verwaiste Regeln gelöscht, Composition 607 → 604
+- [x] [#3356](https://github.com/moto-nrw/project-phoenix/issues/3356) Settings-, Listenexport-, Messaging-, IoT-, Aktivitäts- und Schulstruktur-Kanten — `api/students` liest Settings, weckt Sorgeberechtigte, liest Gruppen und Anmeldungen und stößt den Regeltermin-Resync über eigene Ports an (`TenantSettings`, `GuardianWake`, `SchoolGroups`, `ActiveEnrollments`, `OfferingSourceResyncer`), die Root bindet die Owner; die vier Exporte füllen den neuen Document-Rendering-Vertrag `modules/documentrendering/lists` (drei Regeln am neuen Contract-Punkt); Audit-Vokabular und Sweep-Batchgröße (`careplan.StudentDocumentSweepBatchSize`) ohne `models/*`; 19 Keys weniger (463 → 444), Composition 604 → 604
+- [x] [#2731](https://github.com/moto-nrw/project-phoenix/issues/2731) Carrier geschlossen — `api/students` Datei für Datei nach `modules/peopledirectory/inbound/students` (`people-directory`/`http`), Owner `inbound-students` gelöscht; Schülerzeilen über die People-Directory-Capability, Personen-Schreibpfade über den Port `PersonRecords` (`services.NewStudentRoutePersons`); alle 37 Keys plus `api -> api/students` (#2750) und `api/enrollment -> api/students` (#2734) weg, dazu drei `api/common`-Keys (#2738) mit dem umgezogenen Listen-Snapshot (444 → 402), Composition 604 → 603; die File-Storage-Ausnahme bleibt, jetzt unter #2706
 
 ## Identity · 4 Keys
 
@@ -69,17 +68,17 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [ ] [#2760](https://github.com/moto-nrw/project-phoenix/issues/2760) Contract `users.students` — blockiert durch #2759, #3387, #3432
 - [x] [#2755](https://github.com/moto-nrw/project-phoenix/issues/2755) Backfill `users.students_guardians` — Migration 1.15.413 und `backfill guardian-owner`; Checkpoint und Verifikation (Counts, Checksummen, Account-Bindung, RLS) liegen für #2756 bereit, `users.students_guardians` bleibt autoritativ
 - [x] [#2756](https://github.com/moto-nrw/project-phoenix/issues/2756) Cutover `users.students_guardians` — Migration 1.15.417 und Caller-Switch in einem Release: People Directory schreibt die Beziehung und führt die Arbeitseinheit, Care Plan die Abholberechtigung, Identity & Access den Portalzugang; gelesen wird über die Projektion `guardian-link-view`. Die alte Tabelle bleibt als trigger-gepflegter Rollback-Spiegel mit Zähler für #2757
-- [ ] [#2757](https://github.com/moto-nrw/project-phoenix/issues/2757) Contract `users.students_guardians`
+- [x] [#2757](https://github.com/moto-nrw/project-phoenix/issues/2757) Contract `users.students_guardians` — Migration 1.15.429 entfernt Spiegeltabelle, Routing-, Spiegel- und Single-Primary-Trigger, alte Grant-Invalidierungsfunktionen und Zähler nach Integritätsprüfung unter Sperre (inkl. `incomplete_links` und `mirror_drift`); Fixtures und Tests schreiben die Owner-Tabellen
 - [x] [#2753](https://github.com/moto-nrw/project-phoenix/issues/2753) Cutover `users.staff` — Migration 1.15.409 und Caller-Switch in einem Release: School Membership schreibt die Mitgliedschaft, Workforce das Beschäftigungsprofil (`StaffEmployments`); Kompatibilitäts-View, Archiv und Zähler bleiben für #2754
-- [ ] [#2754](https://github.com/moto-nrw/project-phoenix/issues/2754) Contract `users.staff`
+- [x] [#2754](https://github.com/moto-nrw/project-phoenix/issues/2754) Contract `users.staff` — Migration 1.15.427 entfernt View, Routing, Archiv `users.staff_legacy` und Zähler nach Integritätsprüfung unter Sperre; `models/users.Staff` benennt keine Tabelle mehr, Fixtures und Tests schreiben die Owner-Tabellen
 - [x] [#2762](https://github.com/moto-nrw/project-phoenix/issues/2762) Cutover Activity Instances und Participants — Migration 1.15.415 und Caller-Switch in einem Release: Timetable plant Blöcke und Teilnehmer, Student Presence führt sie aus und erfasst die Anwesenheit (`active.activity_sessions`, `active.activity_session_attendance`); die alten Spalten bleiben als trigger-gepflegter Rollback-Spiegel mit Zähler für #2763
-- [ ] [#2763](https://github.com/moto-nrw/project-phoenix/issues/2763) Contract Activity Instances und Participants
+- [x] [#2763](https://github.com/moto-nrw/project-phoenix/issues/2763) Contract Activity Instances und Participants — Migration 1.15.432 entfernt die gespiegelten Ausführungs- und Anwesenheitsspalten, Spiegel- und Routing-Trigger und Zähler nach Integritätsprüfung unter Sperre (inkl. `execution mirror drift` und `attendance mirror drift`) und verengt den Planungsstatus auf planned/cancelled; Fixtures und Tests schreiben die Owner-Tabellen
 - [ ] [#2719](https://github.com/moto-nrw/project-phoenix/issues/2719) Contract Enrollment Request-Child
 
-## Worker und Scheduler · 28 Keys
+## Worker und Scheduler · 27 Keys
 
 - [ ] [#2726](https://github.com/moto-nrw/project-phoenix/issues/2726) Worker hinter erneuerbarem DB-Lease
-- [ ] [#2746](https://github.com/moto-nrw/project-phoenix/issues/2746) services/scheduler — 28, blockiert durch #2726
+- [ ] [#2746](https://github.com/moto-nrw/project-phoenix/issues/2746) services/scheduler — 27, blockiert durch #2726
 
 ## Laufzeit
 
@@ -91,14 +90,14 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Spur A · 19 Keys
 
-- [ ] [#2706](https://github.com/moto-nrw/project-phoenix/issues/2706) Dokument-Rendering — 19, blockiert durch #2727, #2729, #2731
+- [ ] [#2706](https://github.com/moto-nrw/project-phoenix/issues/2706) Dokument-Rendering — 19, blockiert durch #2729
 
-## Endkette · 161 Keys
+## Endkette · 156 Keys
 
-- [ ] [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) root api, cmd, main composition — 67
-- [ ] [#2748](https://github.com/moto-nrw/project-phoenix/issues/2748) shared test und E2E composition — 41 (Schnitt 1: `internal/testdb` ohne `crypto`, E2E ohne `jwt`, `tenant`, `auth/device`, `models/users`, `models/audit`; Epoche 24 gewährt dem Fixture-Owner per ADR 0039 eigenes Werkzeug, `tenant-runtime/public`, `legacy-shared/domain` und `security-runtime/contract`; die restlichen Keys zeigen auf Pakete, die andere Carrier auflösen: `models/*` #2729/#2742/#2733, `services/users` #2728, `database/repositories/*` #2727, Settings, Root-Composition #2747/#2750, Stundenplan-Zeilen #3424 — keine Regel dafür)
+- [ ] [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) root api, cmd, main composition — 64 (#2731: `api -> api/students` entfernt)
+- [ ] [#2748](https://github.com/moto-nrw/project-phoenix/issues/2748) shared test und E2E composition — 40 (Schnitt 1: `internal/testdb` ohne `crypto`, E2E ohne `jwt`, `tenant`, `auth/device`, `models/users`, `models/audit`; Epoche 24 gewährt dem Fixture-Owner per ADR 0039 eigenes Werkzeug, `tenant-runtime/public`, `legacy-shared/domain` und `security-runtime/contract`; die restlichen Keys zeigen auf Pakete, die andere Carrier auflösen: `models/*` #2729/#2742/#2733, `services/users` #2728, `database/repositories/*` #2727, Settings, Root-Composition #2747/#2750, Stundenplan-Zeilen #3424 — keine Regel dafür)
 - [ ] [#2743](https://github.com/moto-nrw/project-phoenix/issues/2743) repository Factory — 17
-- [ ] [#2747](https://github.com/moto-nrw/project-phoenix/issues/2747) service Factory — 32
+- [ ] [#2747](https://github.com/moto-nrw/project-phoenix/issues/2747) service Factory — 31
 - [ ] [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition löschen, leeren Ratchet beweisen — 4
 - [ ] [#2745](https://github.com/moto-nrw/project-phoenix/issues/2745) API-Aggregat — 0
 - [ ] [#2749](https://github.com/moto-nrw/project-phoenix/issues/2749) Scheduler-Setter, breite Test-Composition — 0

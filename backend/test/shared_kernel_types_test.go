@@ -2,7 +2,6 @@ package test
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"path/filepath"
 	"testing"
@@ -31,7 +30,7 @@ func TestSharedKernelTypesAreNamedDefinitions(t *testing.T) {
 			t.Parallel()
 
 			path := filepath.Join(backendRoot, filepath.FromSlash(contract.file))
-			file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+			_, file, err := parseGoSourceCached(path, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

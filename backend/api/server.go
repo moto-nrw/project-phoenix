@@ -29,6 +29,10 @@ type ServeConfig struct {
 	PublicAPIURL string
 	EnableCORS   bool
 	Logger       *slog.Logger
+	// SentryPyrePortalDSN is the DSN of the pyreportal project the kiosks'
+	// error reports go to (#3645); empty when the backend runs without
+	// Sentry.
+	SentryPyrePortalDSN string
 }
 
 // Runtime owns the assembled HTTP graph and its process-scoped resources.
@@ -103,7 +107,7 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 
 	config.Logger.Info("initializing API server")
 
-	api, err := New(config.EnableCORS, config.PublicAPIURL, config.Logger, config.FrontendURL)
+	api, err := New(config.EnableCORS, config.PublicAPIURL, config.Logger, config.FrontendURL, config.SentryPyrePortalDSN)
 	if err != nil {
 		return nil, err
 	}

@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import type { MouseEventHandler } from "react";
+import { useState, type MouseEventHandler } from "react";
 import { Alert, type AlertType } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
@@ -19,6 +19,11 @@ interface ToastProps {
   readonly closeLabel: string;
   readonly onClose: () => void;
   readonly action?: ToastAction;
+  readonly requestId?: string;
+  readonly requestIdLabel?: string;
+  readonly copyRequestIdLabel?: string;
+  readonly copySucceededLabel: string;
+  readonly copyFailedLabel: string;
   readonly visible: boolean;
   readonly reducedMotion: boolean;
   readonly touchFriendly: boolean;
@@ -37,14 +42,32 @@ export function Toast({
   closeLabel,
   onClose,
   action,
+  requestId,
+  requestIdLabel,
+  copyRequestIdLabel,
+  copySucceededLabel,
+  copyFailedLabel,
   visible,
   reducedMotion,
   touchFriendly,
   onMouseEnter,
   onMouseLeave,
 }: Readonly<ToastProps>) {
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+
+  const handleCopy = async () => {
+    if (!requestId) return;
+    try {
+      await navigator.clipboard.writeText(requestId);
+      setCopyFeedback(copySucceededLabel);
+    } catch {
+      setCopyFeedback(copyFailedLabel);
+    }
+  };
+
   const controls = (
-    <span className="flex items-center gap-1">
+    <span className="flex flex-wrap items-center justify-end gap-1">
+      {copyFeedback ? <span role="status">{copyFeedback}</span> : null}
       {action ? (
         <Button
           type="button"
@@ -58,6 +81,18 @@ export function Toast({
           )}
         >
           {action.label}
+        </Button>
+      ) : null}
+      {requestId && copyRequestIdLabel ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="compact"
+          aria-label={copyRequestIdLabel}
+          onClick={handleCopy}
+          className="shrink-0 self-center text-current underline underline-offset-2 hover:bg-black/5 hover:text-current"
+        >
+          {requestIdLabel?.replace("{requestId}", requestId) ?? requestId}
         </Button>
       ) : null}
       <Button
@@ -89,10 +124,10 @@ export function Toast({
       <Alert
         type={type}
         message={message}
-        announce="polite"
+        announce={type === "error" ? "assertive" : "polite"}
         aria-label={accessibleLabel}
         action={controls}
-        actionLayout="inline"
+        actionLayout={requestId ? "responsive" : "inline"}
         className="rounded-xl shadow-lg"
       />
     </div>

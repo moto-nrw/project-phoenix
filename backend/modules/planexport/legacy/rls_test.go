@@ -97,16 +97,16 @@ func TestPlanExportInputsEnforceRLS(t *testing.T) {
 			fixtures = append(fixtures, fixture{
 				ctx: ctx, tenantID: testpkg.Tenant(t), staff: staff, title: "Block " + side, room: room.Name,
 				rows: map[string]int64{
-					"users.staff":                 staff.ID,
-					"facilities.rooms":            room.ID,
-					"activities.groups":           activity.ID,
-					"schedule.activity_instances": instance.ID,
-					"schedule.instance_staff":     assignment.ID,
-					"schedule.instance_students":  roster.ID,
-					"schedule.staff_shifts":       shift.ID,
-					"schedule.shift_types":        shiftType.ID,
-					"schedule.planning_tracks":    track.ID,
-					"schedule.closing_days":       closing.ID,
+					"users.staff_school_memberships": staff.ID,
+					"facilities.rooms":               room.ID,
+					"activities.groups":              activity.ID,
+					"schedule.activity_instances":    instance.ID,
+					"schedule.instance_staff":        assignment.ID,
+					"schedule.instance_students":     roster.ID,
+					"schedule.staff_shifts":          shift.ID,
+					"schedule.shift_types":           shiftType.ID,
+					"schedule.planning_tracks":       track.ID,
+					"schedule.closing_days":          closing.ID,
 				},
 			})
 		})
@@ -233,7 +233,7 @@ func (r txOverviewReads) UsedStaffShiftWeeks(context.Context, string, string) ([
 
 func (r txOverviewReads) ListAllWithPerson(ctx context.Context) ([]*usersModel.Staff, error) {
 	var rows []*usersModel.Staff
-	if err := r.tx.NewSelect().Model(&rows).ModelTableExpr(`users.staff AS "staff"`).Scan(ctx); err != nil {
+	if err := r.tx.NewSelect().Model(&rows).ModelTableExpr(`(SELECT m.id, m.tenant_id, m.person_id, m.created_at, m.updated_at, m.deleted_at, p.staff_notes, p.employment_type, p.work_time_model_id, p.personnel_number, p.rotation_anchor_date, p.birthday_display_opt_out FROM users.staff_school_memberships AS m JOIN users.staff_employment_profiles AS p ON p.tenant_id = m.tenant_id AND p.membership_id = m.id) AS "staff"`).Scan(ctx); err != nil {
 		return nil, err
 	}
 	for _, row := range rows {

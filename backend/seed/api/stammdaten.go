@@ -40,7 +40,7 @@ type FixedSeeder struct {
 	guardianIDs      map[string]int64   // guardian "firstName lastName" -> id
 	staffCredentials []StaffCredentials // created staff credentials for summary
 	accountScope     string             // slug all account emails and usernames carry; empty for the local seed
-	visitorName      string             // prospect of the public demo shown as one caregiver and one parent
+	visitor          visitorName        // prospect of the public demo shown as one caregiver and one parent
 }
 
 // FixedResult contains counts of created entities
@@ -770,7 +770,7 @@ func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) erro
 			"preferred_contact_method": "email",
 			"language_preference":      "de",
 		}
-		body["first_name"], body["last_name"] = visitorDisplayName(s.visitorName, index == visitorGuardianIndex,
+		body["first_name"], body["last_name"] = visitorDisplayName(s.visitor, index == visitorGuardianIndex,
 			guardian.FirstName, guardian.LastName, DemoGuardians[visitorGuardianIndex].FirstName, DemoGuardians[visitorGuardianIndex].LastName)
 
 		// Add contact methods
@@ -1296,10 +1296,14 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 		personKey := fmt.Sprintf("%s %s", staff.FirstName, staff.LastName)
 
 		// Generate email and credentials for demo accounts.
-		// Email: demo{n}@mail.de where n = account number (1-20)
+		// Email: demo{n}@mail.de where n = account number (1-20); a scoped
+		// school names the person instead, e.g. julia.klein@demo-ogs-nord.moto-ogs.de
 		// Password: per-account defaults, or shared --staff-password when set
 		accountNum := i + 1
-		email := scopedEmail(fmt.Sprintf("demo%d@mail.de", accountNum), s.accountScope)
+		email := fmt.Sprintf("demo%d@mail.de", accountNum)
+		if s.accountScope != "" {
+			email = scopedEmail(emailLocalPart(staff.FirstName, staff.LastName)+"@", s.accountScope)
+		}
 		username := fmt.Sprintf("demo%d", accountNum)
 		if s.accountScope != "" {
 			username += "-" + s.accountScope
@@ -1336,9 +1340,9 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 			"confirm_password": password,
 			"role_id":          roleID,
 		}
-		registerBody["first_name"], registerBody["last_name"] = visitorDisplayName(s.visitorName, i == visitorStaffIndex,
+		registerBody["first_name"], registerBody["last_name"] = visitorDisplayName(s.visitor, i == visitorStaffIndex,
 			staff.FirstName, staff.LastName, DemoStaff[visitorStaffIndex].FirstName, DemoStaff[visitorStaffIndex].LastName)
-		if s.visitorName != "" && i == visitorStaffIndex {
+		if !s.visitor.empty() && i == visitorStaffIndex {
 			// The visitor enters with every function; the demo role chosen on
 			// the entry page replaces it with a reduced role of the school
 			// (#3469), so the seed itself needs no role for the visitor.

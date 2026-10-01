@@ -31,7 +31,7 @@ func (env *guardianTestEnv) linkExists(t *testing.T, studentID, guardianProfileI
 
 func (env *guardianTestEnv) deleteStudentGuardianLinks(studentID int64) {
 	_, _ = env.db.NewDelete().
-		TableExpr("users.students_guardians").
+		TableExpr("users.student_guardian_relationships").
 		Where("student_id = ?", studentID).
 		Exec(context.Background())
 }
@@ -146,9 +146,10 @@ func TestInviteToStudent_StaffAccountAsParent_GetsPortalAccessEmail(t *testing.T
 	require.NotNil(t, stored.AccountID)
 	assert.Equal(t, adminAccount.ID, *stored.AccountID, "the profile is attached to the admin account")
 
-	require.Len(t, outbox.Requests(), 1)
+	require.Len(t, outbox.Requests(), 2, "the portal access mail and the welcome (#3534)")
 	payload := outbox.Requests()[0].Payload
 	assert.Equal(t, emailKindGuardianInvitation, outbox.Requests()[0].Kind)
+	assert.Equal(t, "guardian_welcome", outbox.Requests()[1].Kind, "an existing account is welcomed to the school too")
 	assert.Equal(t, adminAccount.Email, payload["recipient_email"])
 	assert.Equal(t, "http://localhost:3000/login", payload["invitation_url"])
 	assert.Equal(t, true, payload["existing_account"])
@@ -537,7 +538,9 @@ func TestInviteToStudent_PendingApprovalTokenIsNotDeliverableOrRedeemable(t *tes
 
 	// Staff approval is what releases it.
 	require.NoError(t, env.service.ApproveInvitation(ctx, invitation.ID, creatorID))
-	require.Len(t, outbox.Requests(), 1)
+	require.Len(t, outbox.Requests(), 2, "the released invitation and its welcome (#3534)")
+	assert.Equal(t, emailKindGuardianInvitation, outbox.Requests()[0].Kind)
+	assert.Equal(t, "guardian_welcome", outbox.Requests()[1].Kind)
 	preview, err := env.service.ValidateGuardianInvitation(context.Background(), invitation.Token)
 	require.NoError(t, err)
 	assert.Equal(t, email, preview.Email)

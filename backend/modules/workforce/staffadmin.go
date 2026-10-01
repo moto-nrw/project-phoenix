@@ -9,9 +9,10 @@ import (
 // This file is the public personnel-record contract of the staff
 // administration surface (#2690): the staff member behind an account, the
 // payroll number, the Stammdaten sections, and the Dokumente tab. The
-// retained people-directory services serve it through the composition root;
-// the workforce module owns the master-data, qualification, financial-data
-// and document tables themselves (see StaffRecordQuery/StaffRecordCommand).
+// workforce module owns the master-data, qualification, financial-data and
+// document tables and serves the administration itself (StaffAdmin); the
+// staff and person rows behind it stay with School Membership and People
+// Directory and are reached through the StaffAdminSubjects port.
 
 // Sentinel failures of the personnel-record surface. Adapters report the
 // retained service's sentinel as one of these kinds with the original wording
@@ -141,14 +142,22 @@ type StaffFinancialPlain struct {
 	SocialSecurityNumber *string
 }
 
-// StaffDirectory resolves staff members and administers their personnel
-// record. The lookups return the retained not-found failure unchanged so the
-// HTTP layer classifies it the way it always did.
-type StaffDirectory interface {
+// StaffLookups resolves staff members and the person behind an account. The
+// lookups return the retained not-found failure unchanged so the HTTP layer
+// classifies it the way it always did.
+type StaffLookups interface {
 	PersonByAccountID(ctx context.Context, accountID int64) (*Person, error)
 	StaffByPersonID(ctx context.Context, personID int64) (*StaffProfile, error)
 	StaffByID(ctx context.Context, staffID int64) (*StaffProfile, error)
 	ResolveStaffIDByAccountID(ctx context.Context, accountID int64) (int64, error)
+}
+
+// StaffRecordAdmin administers the personnel record of a staff member: the
+// payroll number, the Stammdaten sections and the bank and tax data. Every
+// write locks the staff row and records its field-level audit rows in the same
+// tenant transaction; every financial read writes a data-access log row before
+// any value is served.
+type StaffRecordAdmin interface {
 	UpdatePersonnelNumber(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*StaffProfile, error)
 	StaffStammdaten(ctx context.Context, staffID int64) (*StaffStammdaten, error)
 	UpdateStaffStammdatenPerson(ctx context.Context, staffID int64, input StammdatenPersonInput, changedByStaffID int64, note string) error
@@ -158,6 +167,13 @@ type StaffDirectory interface {
 	StaffFinancialMasked(ctx context.Context, staffID, actorAccountID int64, actorRole string) (*StaffFinancialMasked, error)
 	RevealStaffFinancial(ctx context.Context, staffID, actorAccountID int64, actorRole string) (*StaffFinancialPlain, error)
 	UpdateStaffFinancial(ctx context.Context, staffID int64, input StammdatenFinancialInput, changedByAccountID int64, note string) error
+}
+
+// StaffDirectory resolves staff members and administers their personnel
+// record.
+type StaffDirectory interface {
+	StaffLookups
+	StaffRecordAdmin
 }
 
 // StaffDocumentActor identifies the acting account of a document operation:

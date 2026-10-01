@@ -97,6 +97,39 @@ func init() {
 		DependsOn:       config.DependsOnEq(config.KeyPerStudentCheckoutEnabled, true),
 	})
 
+	// --- Early checkout note (#3324) ---
+	// Web-only and independent of NFC: the web checkout dialogs offer an
+	// optional note when a child leaves this many minutes before its pickup
+	// time. The note is never required.
+
+	config.Register(config.Definition{
+		Key:             config.KeyEarlyCheckoutNoteEnabled,
+		Label:           "Bei frühem Gehen nach dem Grund fragen",
+		Description:     "Wird ein Kind früher als geplant abgemeldet, erscheint ein Feld für den Grund. Der Grund ist freiwillig.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "abholung",
+		SortOrder:       1,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyEarlyCheckoutNoteToleranceMinutes,
+		Label:           "Früh heißt: mehr als so viele Minuten vor der Abholzeit",
+		Description:     "Beispiel: Abholzeit 15:00 und 15 Minuten. Wer ein Kind vor 14:45 abmeldet, wird nach dem Grund gefragt.",
+		Type:            config.FieldNumber,
+		Default:         15,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "abholung",
+		SortOrder:       2,
+		Validation:      config.Range(0, 240),
+		DependsOn:       config.DependsOnEq(config.KeyEarlyCheckoutNoteEnabled, true),
+	})
+
 	// --- Abandoned Session Cleanup (system tab — automated background process) ---
 
 	config.Register(config.Definition{
@@ -294,24 +327,11 @@ func init() {
 	}
 
 	config.Register(config.Definition{
-		Key:             config.KeyStatusFlagClearTime,
-		Label:           "Abwesenheit automatisch beenden um",
-		Description:     "Uhrzeit, zu der Krankmeldungen und Entschuldigungen mit Einstellung \"Am Ende des Tages\" automatisch aufgehoben werden.",
-		Type:            config.FieldTime,
-		Default:         "18:00",
-		ReadPermission:  "config:read",
-		WritePermission: "config:update",
-		Tab:             "operations",
-		Category:        "abwesenheit",
-		SortOrder:       29,
-	})
-
-	config.Register(config.Definition{
 		Key:             config.KeySickClearMode,
 		Label:           "Krankmeldung automatisch beenden",
-		Description:     "Legt fest, wann die Krankmeldung eines Kindes automatisch aufgehoben wird.",
+		Description:     "Legt fest, wann die Krankmeldung eines Kindes automatisch aufgehoben wird. Bei \"Am Ende des Tages\" endet sie um 18 Uhr. Bei \"Beim nächsten Check-in\" bleibt sie auch nach dem Enddatum sichtbar. Sie endet erst, wenn das Kind wieder eincheckt.",
 		Type:            config.FieldSelect,
-		Default:         config.ClearModeNextCheckin,
+		Default:         config.ClearModeEndOfDay,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
@@ -323,7 +343,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyExcusedClearMode,
 		Label:           "Entschuldigung automatisch beenden",
-		Description:     "Legt fest, wann die Entschuldigung eines Kindes automatisch aufgehoben wird.",
+		Description:     "Legt fest, wann die Entschuldigung eines Kindes automatisch aufgehoben wird. Bei \"Am Ende des Tages\" endet sie um 18 Uhr.",
 		Type:            config.FieldSelect,
 		Default:         config.ClearModeEndOfDay,
 		ReadPermission:  "config:read",
@@ -444,52 +464,16 @@ func init() {
 		},
 	})
 
-	config.Register(config.Definition{
-		Key:             config.KeyCareConcept,
-		Label:           "Betreuungskonzept",
-		Description:     "Legt fest, ob die OGS mit einem festen Betriebsplan arbeitet oder Kinder sich frei zwischen offenen Räumen bewegen.",
-		Type:            config.FieldSelect,
-		Default:         config.CareConceptOpenRooms,
-		ReadPermission:  "config:read",
-		WritePermission: "config:update",
-		Tab:             "operations",
-		Category:        "organisation",
-		SortOrder:       2,
-		Options: &config.SelectOptions{
-			Static: []config.SelectOption{
-				{Label: "Fester Betriebsplan", Value: config.CareConceptFixedSchedule},
-				{Label: "Offenes Raumkonzept", Value: config.CareConceptOpenRooms},
-			},
-		},
-	})
-
-	// --- Student Activation Scheduler (parent-enrollment lifecycle) ---
+	// --- Spontane Aktivitäten (#3730) ---
 	//
-	// Controls how often the activate-students tick re-evaluates pending and
-	// active students against their enrolled_from / enrolled_until dates.
-	// Date transitions only happen on day boundaries — the interval is a
-	// safety-net for restarts and clock drift, not a precision dial.
-
-	config.Register(config.Definition{
-		Key:             config.KeyStudentActivationIntervalMin,
-		Label:           "Kinderaktivierung Intervall (Minuten)",
-		Description:     "Wie oft geprüft wird, ob Kinder mit Status \"ausstehend\" oder mit Abmeldedatum in der Vergangenheit ihren Status wechseln müssen.",
-		Type:            config.FieldNumber,
-		Default:         60,
-		ReadPermission:  "config:read",
-		WritePermission: "config:update",
-		Tab:             "operations",
-		Category:        "schüleraktivierung",
-		SortOrder:       50,
-		Validation:      config.Range(5, 1440),
-	})
-
-	// --- Web-An/Abmeldung Zugriff (who can toggle presence via web UI) ---
+	// The only switch for spontaneous activities from the web and the app. It
+	// replaced operations.care_concept, which read like a fundamental mode but
+	// only ever gated this start path.
 
 	config.Register(config.Definition{
 		Key:             config.KeyWebSpontaneousActivities,
-		Label:           "Spontane Aktivitäten über Web/App",
-		Description:     "Erlaubt Mitarbeitenden, in der mobilen Weboberfläche unter aktueller Aufsicht spontane Aktivitäten zu starten. Die Aktivität belegt den Raum und wird in den Betreuungsplan geschrieben, auch wenn die Betreuungsplanung deaktiviert ist.",
+		Label:           "Spontane Aktivitäten erlauben",
+		Description:     "Mitarbeitende können am Computer oder Handy unter \"Aktuelle Aufsicht\" spontan eine Aktivität starten. Die Aktivität belegt den Raum und steht danach im Betreuungsplan.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -497,7 +481,22 @@ func init() {
 		Tab:             "operations",
 		Category:        "anwesenheit",
 		SortOrder:       42,
-		DependsOn:       config.DependsOnEq(config.KeyCareConcept, config.CareConceptOpenRooms),
+	})
+
+	// Web assignments beyond an activity's participant limit (#3632). The
+	// terminal always enforces the limit; this setting only decides whether
+	// the web and app paths do too. Default on keeps every school's behavior.
+	config.Register(config.Definition{
+		Key:             config.KeyWebExceedParticipantLimit,
+		Label:           "Mehr Kinder als die Teilnehmergrenze erlauben",
+		Description:     "Gilt, wenn Mitarbeitende am Computer oder Handy Kinder einer Aktivität zuordnen. Eingeschaltet: Die Teilnehmergrenze darf dort überschritten werden. Ausgeschaltet: Ist die Aktivität voll, wird kein Kind zugeordnet. Am Tablet gilt die Grenze immer.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "anwesenheit",
+		SortOrder:       43,
 	})
 
 	// --- Kinderfotos (Datenverwaltung-Erweiterung) ---
@@ -541,16 +540,20 @@ func init() {
 	// school has to make (default OFF). Even then an individual can still
 	// remove themselves via the opt-out on their profile page — the setting
 	// permits the display, it does not compel anyone into it.
+	//
+	// Both live on the hand-written "Startseite für alle" tab next to the
+	// birthday card (#3737); the generic settings page filters the
+	// "startseite" tab out.
 
 	config.Register(config.Definition{
 		Key:             config.KeyBirthdayDisplayEnabled,
 		Label:           "Geburtstage auf der Startseite",
-		Description:     "Zeigt auf der Startseite, wer heute Geburtstag hat. Montags werden zusätzlich die Geburtstage vom Wochenende nachgetragen. Kinder ohne hinterlegtes Geburtsdatum erscheinen nicht.",
+		Description:     "Zeigt auf der Startseite, wer in dieser Woche Geburtstag hat. Man kann bis zu 4 Wochen zurück- und vorblättern. Kinder ohne hinterlegtes Geburtsdatum erscheinen nicht.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
-		Tab:             "operations",
+		Tab:             "startseite",
 		Category:        "geburtstage",
 		SortOrder:       1,
 	})
@@ -563,35 +566,10 @@ func init() {
 		Default:         false,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
-		Tab:             "operations",
+		Tab:             "startseite",
 		Category:        "geburtstage",
 		SortOrder:       2,
 		DependsOn:       config.DependsOnEq(config.KeyBirthdayDisplayEnabled, true),
-	})
-
-	// --- Notfallliste (#2609) ---
-	//
-	// The printed Notfallliste is a school's offline backup for the moment the
-	// internet is gone, so the health note a school already stores on the child
-	// belongs next to the phone number. It is Art. 9 data on a sheet of paper
-	// that lies around, though, so the school decides: default ON, because the
-	// schools asking for the list are the ones who want it, and a school with a
-	// stricter data-protection concept can switch it off. The column is not a
-	// second read gate — the note is already visible to every account with
-	// users:read in the child's record; the switch only decides whether it is
-	// printed.
-
-	config.Register(config.Definition{
-		Key:             config.KeyEmergencyListHealthInfo,
-		Label:           "Gesundheitsinfos auf der Notfallliste",
-		Description:     "Druckt zu jedem anwesenden Kind die hinterlegten Gesundheitsinfos mit: Allergien, Medikamente, medizinische Hinweise. Kinder ohne Eintrag erscheinen als \"Nicht hinterlegt\". Ausgeschaltet enthält die Liste nur Name, Klasse, Ort und Kontakte.",
-		Type:            config.FieldBoolean,
-		Default:         true,
-		ReadPermission:  "config:read",
-		WritePermission: "config:manage",
-		Tab:             "operations",
-		Category:        "notfallliste",
-		SortOrder:       1,
 	})
 
 	// --- Elternportal (parents-portal write features) ---

@@ -11,10 +11,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// instanceStudentRow maps the planning columns of schedule.instance_students.
-// The attendance columns still present on the table are a rollback-only
-// mirror of active.activity_session_attendance (#2762) and are neither read
-// nor written here.
+// instanceStudentRow maps schedule.instance_students, the planned participants
+// of a block. Their attendance lives in active.activity_session_attendance
+// (#2762, #2763).
 type instanceStudentRow struct {
 	bun.BaseModel `bun:"table:instance_students,alias:instance_student"`
 	ID            int64     `bun:"id,pk,autoincrement"`

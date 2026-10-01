@@ -71,7 +71,7 @@ func createSourceCareOfferingOnDays(
 	var created *testpkg.CareOffering
 	require.NoError(t, testpkg.WithTenantTx(t, s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var createErr error
-		created, createErr = s.factory.EnrollmentCareOffering.Create(txCtx, offering)
+		created, createErr = s.factory.EnrollmentCareOfferingRows().Create(txCtx, offering)
 		return createErr
 	}))
 
@@ -185,13 +185,8 @@ func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing
 	require.NotNil(t, mat)
 	require.GreaterOrEqual(t, mat.InstancesCreated, 1)
 
-	var instances []scheduleModels.ActivityInstance
-	require.NoError(t, s.db.NewSelect().
-		Model(&instances).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Where(`"activity_instance".activity_group_id = ?`, result.TemplateID).
-		Where(`"activity_instance".date = ?`, monday).
-		Scan(s.ctx))
+	instances := testpkg.ActivityInstancesWhere(t, s.ctx, s.db,
+		`"activity_instance".activity_group_id = ? AND "activity_instance".date = ?`, result.TemplateID, monday)
 	require.Len(t, instances, 1)
 	// Materialize is tenant-wide and also fills the scenario's baseline
 	// template. Tear those rows down before makeScenario drops students/rooms.
@@ -211,12 +206,7 @@ func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing
 		).Exec(s.ctx)
 	}}, s.extraCleanups...)
 
-	var rows []scheduleModels.InstanceStudent
-	require.NoError(t, s.db.NewSelect().
-		Model(&rows).
-		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		Where(`"instance_student".instance_id = ?`, instances[0].ID).
-		Scan(s.ctx))
+	rows := testpkg.InstanceStudentsWhere(t, s.ctx, s.db, `"instance_student".instance_id = ?`, instances[0].ID)
 	require.Len(t, rows, 1, "materialize must copy the sourced child onto the occurrence")
 	assert.Equal(t, s.students[0], rows[0].StudentID)
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, rows[0].Status)
@@ -319,8 +309,7 @@ func TestTemplateOfferingSource_CreateStoresTheRuleAndIsFoundByOffering(t *testi
 
 	// The reverse lookup is what the editor's overlap hint and the decision
 	// fan-out both read: one offering, every live template sourcing it.
-	sourced, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
-	require.NoError(t, err)
+	sourced := templatesSourcingOffering(t, s, offering.ID)
 	require.Len(t, sourced, 1)
 	assert.Equal(t, result.TemplateID, sourced[0].ID)
 }
@@ -389,8 +378,7 @@ func TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule(t *testing.T) {
 	assert.Empty(t, cleared.SourceCareOfferingIDs)
 	assert.Empty(t, cleared.SourceGradeLevels)
 
-	sourced, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
-	require.NoError(t, err)
+	sourced := templatesSourcingOffering(t, s, offering.ID)
 	assert.Empty(t, sourced, "a cleared source must drop out of the offering's template list")
 }
 
@@ -796,8 +784,7 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
 
 	// Nothing may survive the rejected create — the whole save is one tx.
-	sourced, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, overhanging.ID)
-	require.NoError(t, err)
+	sourced := templatesSourcingOffering(t, s, overhanging.ID)
 	assert.Empty(t, sourced)
 
 	// Same rule on the edit path: an existing sourced template cannot be
@@ -863,8 +850,7 @@ func TestTemplateOfferingSource_RejectsInactiveOffering(t *testing.T) {
 	})
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
 
-	sourced, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
-	require.NoError(t, err)
+	sourced := templatesSourcingOffering(t, s, offering.ID)
 	assert.Empty(t, sourced, "nothing may survive the rejected create")
 }
 
@@ -933,8 +919,7 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
 
 	// The rejected split must leave no successor behind.
-	sourced, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
-	require.NoError(t, err)
+	sourced := templatesSourcingOffering(t, s, offering.ID)
 	require.Len(t, sourced, 1)
 	assert.Equal(t, result.TemplateID, sourced[0].ID)
 }
@@ -984,8 +969,7 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 		Status:           scheduleModels.InstanceStatusPlanned,
 	}
 	instance.SetTenantID(s.tenantID)
-	_, err = s.db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, instance)
 	s.extraCleanups = append([]func(){func() {
 		_, _ = s.db.NewRaw(`DELETE FROM schedule.instance_students WHERE instance_id = ?`, instance.ID).Exec(s.ctx)
 	}}, s.extraCleanups...)
@@ -1010,12 +994,7 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 		GradeLevelMax:    testpkg.MaxSchoolGradeLevel,
 	}))
 
-	var rows []scheduleModels.InstanceStudent
-	require.NoError(t, s.db.NewSelect().
-		Model(&rows).
-		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		Where(`"instance_student".instance_id = ?`, instance.ID).
-		Scan(s.ctx))
+	rows := testpkg.InstanceStudentsWhere(t, s.ctx, s.db, `"instance_student".instance_id = ?`, instance.ID)
 	require.Len(t, rows, 1, "the manually re-picked child must land on the pre-existing occurrence")
 	assert.Equal(t, manualStudentID, rows[0].StudentID)
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, rows[0].Status)
@@ -1066,8 +1045,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 		Status:           scheduleModels.InstanceStatusPlanned,
 	}
 	instance.SetTenantID(s.tenantID)
-	_, err = s.db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, instance)
 	s.extraCleanups = append([]func(){func() {
 		_, _ = s.db.NewRaw(`DELETE FROM schedule.instance_students WHERE instance_id = ?`, instance.ID).Exec(s.ctx)
 	}}, s.extraCleanups...)
@@ -1077,8 +1055,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
 	instanceStudent.SetTenantID(s.tenantID)
-	_, err = s.db.NewInsert().Model(instanceStudent).ModelTableExpr(`schedule.instance_students`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertInstanceStudentRow(t, s.ctx, s.db, instanceStudent)
 
 	// The offering has no enrolled children, so the new source covers nobody:
 	// the retired manual child must disappear from the existing occurrence.
@@ -1101,11 +1078,18 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 		GradeLevelMax:    testpkg.MaxSchoolGradeLevel,
 	}))
 
-	var rows []scheduleModels.InstanceStudent
-	require.NoError(t, s.db.NewSelect().
-		Model(&rows).
-		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		Where(`"instance_student".instance_id = ?`, instance.ID).
-		Scan(s.ctx))
+	rows := testpkg.InstanceStudentsWhere(t, s.ctx, s.db, `"instance_student".instance_id = ?`, instance.ID)
 	require.Empty(t, rows, "the retired manual child must be removed from the already-materialized occurrence")
+}
+
+// templatesSourcingOffering lists the live templates sourcing the offering,
+// in id order, through the Timetable owner's group listing.
+func templatesSourcingOffering(t *testing.T, s *scenarioSetup, offeringID int64) []timetable.Group {
+	t.Helper()
+	isTemplate := true
+	sourced, err := repositories.NewUnobservedTimetableDependencies(s.db).Capability.ListGroups(s.ctx, timetable.GroupFilter{
+		IsTemplate: &isTemplate, ActiveOnly: true, SourceOfferingIDs: []int64{offeringID}, OrderByID: true,
+	})
+	require.NoError(t, err)
+	return sourced
 }

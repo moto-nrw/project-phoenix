@@ -51,7 +51,7 @@ err := r.db.NewSelect().
 Open tenant transactions through `tenant.TransactionRunner` (or the composition root's `tenant.UnitOfWork`). The runtime propagates the active transaction through context; repositories pick it up through `base.GetDB(ctx, db)`. For query filters and the generic repository API (`Repository[T]`, `base.Filter` with `Equal`/`ILike`/`In`/pagination), see `.claude/rules/backend-conventions.md` Rule 2 — don't invent per-field finder methods.
 
 ### Soft Delete
-`users.Person`, `users.Staff`, and `users.Teacher` carry `deleted_at` with bun's `soft_delete` tag: normal queries auto-filter soft-deleted rows. Staff deletion runs an offboarding service (not a bare delete). Keep this in mind when counting rows or writing raw SQL against these tables.
+`users.Person`, `users.Staff`, and `users.Teacher` carry `deleted_at` with bun's `soft_delete` tag: normal queries auto-filter soft-deleted rows. Staff deletion runs an offboarding service (not a bare delete). Keep this in mind when counting rows or writing raw SQL against these tables. `users.staff_documents` and `users.staff_qualifications` carry a plain `deleted_at` column instead: their workforce store filters `deleted_at IS NULL` explicitly, and the tenant role has no DELETE grant on them.
 
 ## Migration System
 

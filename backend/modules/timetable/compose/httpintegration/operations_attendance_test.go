@@ -589,3 +589,35 @@ func TestTimetableOperationsDependencyErrorsPropagate(t *testing.T) {
 		assert.Empty(t, deps.instanceService.completed)
 	})
 }
+
+// TestTimetableOperationsCheckInKeepsParticipantLimitRefusal pins the
+// Betreuungsplan side of #3632: a check-in the presence owner refuses because
+// the activity is full comes back as that refusal, and the child is not
+// marked present on the block's roster.
+func TestTimetableOperationsCheckInKeepsParticipantLimitRefusal(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(381)
+	activeGroupID := int64(281)
+	studentID := int64(541)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 661, 471, 251, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
+		{StudentID: studentID, Status: scheduleModels.AttendanceStatusExpected},
+	}
+	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = &scheduleModels.InstanceStudent{
+		InstanceID: instanceID,
+		StudentID:  studentID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	deps.activeService.createErr = &studentpresence.OperationError{Op: "CreateVisit", Err: &studentpresence.ActivityParticipantLimitError{
+		ActivityID: 7, ActivityName: "Fußball", CurrentOccupancy: 45, MaxParticipants: 45, Incoming: 1,
+	}}
+
+	_, err := deps.service.CheckInStudent(tenant.WithTenantID(context.Background(), 720), 661, false, instanceID, studentID)
+
+	require.ErrorIs(t, err, studentpresence.ErrActivityParticipantLimitExceeded)
+	assert.Empty(t, deps.activeService.created)
+	assert.Empty(t, deps.studentRepo.updates, "a refused check-in must not mark the child present")
+}

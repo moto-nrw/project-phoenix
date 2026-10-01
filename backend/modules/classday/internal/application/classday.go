@@ -10,28 +10,52 @@ import (
 )
 
 // ClassDayDependencies wires the school-portal capability of the projection.
-// ArrivalExceptions is optional: without it the exception capabilities
-// answer classday.ErrArrivalExceptionsNotConfigured and the write verdict
-// stays false, so the HTTP route table is stable across wirings.
+// Caller and Rosters are required. StatusDays, Times and CareDays are
+// required by the day report, which fails fast without them. Companions,
+// Students, EmergencyContacts and AccessLog are optional: without them a
+// departure names no companion, no sheet is served, the sheet lists no
+// contact and no read is logged. ClassArrivalExceptions is the one write
+// seam of moto schule (#2970); without it the exception capabilities answer
+// classday.ErrArrivalExceptionsNotConfigured and the write verdict stays
+// false, so the HTTP route table is stable across wirings.
 type ClassDayDependencies struct {
-	Caller            ports.Caller
-	Reports           ports.DayReports
-	ArrivalExceptions ports.ArrivalExceptions
+	Caller                 ports.Caller
+	Rosters                DayRosters
+	StatusDays             StatusDays
+	Times                  EffectiveDayTimes
+	CareDays               ports.CareDays
+	Companions             Companions
+	Students               SheetStudents
+	EmergencyContacts      EmergencyContacts
+	AccessLog              AccessLog
+	ClassArrivalExceptions ClassArrivalExceptions
+	WriteScope             ArrivalWriteScope
+	BlockStarts            BlockStarts
+	Announcer              ArrivalScheduleAnnouncer
 }
 
+// classDayService is the capability: the caller's classes, the day report
+// and supervision sheet (dayReports) and the arrival-exception seam.
 type classDayService struct {
-	caller            ports.Caller
-	reports           ports.DayReports
-	arrivalExceptions ports.ArrivalExceptions
+	caller ports.Caller
+	*dayReports
+	arrivalExceptions
 }
 
-// NewClassDay creates the school-portal capability. Caller and Reports are
+// NewClassDay creates the school-portal capability. Caller and Rosters are
 // required: without them no class can be resolved and no sheet served.
 func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
-	if deps.Caller == nil || deps.Reports == nil {
-		panic("classday application.NewClassDay: Caller and Reports dependencies are required")
+	if deps.Caller == nil || deps.Rosters == nil {
+		panic("classday application.NewClassDay: Caller and Rosters dependencies are required")
 	}
-	return &classDayService{caller: deps.Caller, reports: deps.Reports, arrivalExceptions: deps.ArrivalExceptions}
+	return &classDayService{
+		caller:     deps.Caller,
+		dayReports: newDayReports(deps),
+		arrivalExceptions: arrivalExceptions{
+			schedule: deps.ClassArrivalExceptions, writeScope: deps.WriteScope,
+			blockStarts: deps.BlockStarts, announcer: deps.Announcer,
+		},
+	}
 }
 
 func (s *classDayService) AssignedClasses(ctx context.Context) ([]string, error) {
@@ -70,64 +94,21 @@ func (s *classDayService) DayReport(ctx context.Context, schoolClass string, dat
 	if err != nil {
 		return nil, err
 	}
-	return s.reports.ClassDay(ctx, schoolClass, day, actor)
+	return s.classDay(ctx, schoolClass, day, actor)
 }
 
 func (s *classDayService) CurrentStaffID(ctx context.Context) (int64, error) {
 	return s.caller.StaffID(ctx)
 }
 
-func (s *classDayService) MayWriteArrivalExceptions(ctx context.Context) (bool, error) {
-	if s.arrivalExceptions == nil {
-		return false, classday.ErrArrivalExceptionsNotConfigured
-	}
-	return s.arrivalExceptions.SchoolMayWrite(ctx)
-}
+// invalidFilterError refuses a report request before anything is read. Its
+// text is the one the enrollment report put on the wire before the day
+// report moved here; it answers errors.Is for the projection's sentinel.
+type invalidFilterError struct{}
 
-func (s *classDayService) ArrivalExceptions(ctx context.Context, schoolClass string, from, to classday.Date) ([]classday.ArrivalException, error) {
-	if s.arrivalExceptions == nil {
-		return nil, classday.ErrArrivalExceptionsNotConfigured
-	}
-	start, err := parseDate(from)
-	if err != nil {
-		return nil, err
-	}
-	end, err := parseDate(to)
-	if err != nil {
-		return nil, err
-	}
-	return s.arrivalExceptions.ListForClass(ctx, schoolClass, start, end)
-}
+func (invalidFilterError) Error() string { return "enrollment report filter is invalid" }
 
-func (s *classDayService) SetArrivalException(ctx context.Context, in classday.ArrivalExceptionWrite) (*classday.ArrivalException, error) {
-	if s.arrivalExceptions == nil {
-		return nil, classday.ErrArrivalExceptionsNotConfigured
-	}
-	day, err := parseDate(in.Date)
-	if err != nil {
-		return nil, err
-	}
-	return s.arrivalExceptions.Set(ctx, in, day)
-}
+func (invalidFilterError) Is(target error) bool { return target == classday.ErrInvalidReportFilter }
 
-func (s *classDayService) ClearArrivalException(ctx context.Context, schoolClass string, date classday.Date) error {
-	if s.arrivalExceptions == nil {
-		return classday.ErrArrivalExceptionsNotConfigured
-	}
-	day, err := parseDate(date)
-	if err != nil {
-		return err
-	}
-	return s.arrivalExceptions.Clear(ctx, schoolClass, day)
-}
-
-func (s *classDayService) EarliestBlockStart(ctx context.Context, schoolClass string, date classday.Date) (string, error) {
-	if s.arrivalExceptions == nil {
-		return "", classday.ErrArrivalExceptionsNotConfigured
-	}
-	day, err := parseDate(date)
-	if err != nil {
-		return "", err
-	}
-	return s.arrivalExceptions.EarliestBlockStart(ctx, schoolClass, day)
-}
+// errInvalidFilter is the refusal the reports wrap.
+var errInvalidFilter error = invalidFilterError{}

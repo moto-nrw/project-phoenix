@@ -17,8 +17,9 @@ import (
 // TemplateAdministrationDependencies wires timetable.TemplateAdministration:
 // the retained template rows, the owner's materialization and recurrence
 // gate, and the ports the composition root binds — the instance lifecycle's
-// deviation preservation, Enrollment's care-offering checks and roster resync
-// (late-bound: the decision service is built after this one), School
+// deviation preservation, Care Plan's care-offering checks, Enrollment's
+// roster resync (late-bound: the decision service is built after this one),
+// School
 // Structure's education groups and class rules, and the realtime staffing
 // announcement. Staffing, Logger and Today are optional.
 type TemplateAdministrationDependencies struct {

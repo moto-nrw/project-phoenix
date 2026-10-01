@@ -1,3 +1,4 @@
+import { announceEnrollmentReadChange } from "~/lib/enrollment-unread-api";
 import { createLogger } from "~/lib/logger";
 import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 import type {
@@ -156,6 +157,12 @@ export interface AdminRequestChild {
   reviewed_by?: number | null;
   activation_mode: string;
   created_student_id?: string;
+  /**
+   * Why an open enrollment was left to the school, e.g.
+   * "child_quota_reached" for a renewal the automatic approval skipped
+   * because the Kinderkontingent was full (#3570).
+   */
+  review_reason?: string | null;
   custom_data?: Record<string, unknown>;
   /**
    * The Betreuungsangebote selection on file RIGHT NOW — exactly what a
@@ -202,6 +209,11 @@ export interface AdminRequestSummary {
   guardian_phone?: string | null;
   submitted_at: string;
   withdrawn_at?: string | null;
+  /**
+   * Ungelesen für die angemeldete Person (#3778). Der Lesestatus gilt pro
+   * Person; die Detailseite markiert beim Öffnen als gelesen.
+   */
+  is_unread?: boolean;
   /**
    * Request-level custom field answers (everything where
    * applies_to_child=false). Populated only on the detail endpoint.
@@ -337,6 +349,40 @@ export async function getAdminRequest(id: string): Promise<AdminRequestDetail> {
     throw await readError(response, "Anmeldung konnte nicht geladen werden");
   }
   return readJSON<AdminRequestDetail>(response);
+}
+
+/** Markiert eine Anmeldung für die Person als gelesen oder ungelesen. */
+export async function setAdminRequestRead(
+  id: string,
+  read: boolean,
+): Promise<void> {
+  const response = await fetch(`${BASE}/${encodeURIComponent(id)}/read`, {
+    method: read ? "PUT" : "DELETE",
+  });
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+    );
+  }
+  announceEnrollmentReadChange();
+}
+
+/** Markiert alle ungelesenen Anmeldungen der Person als gelesen. */
+export async function markAllAdminRequestsRead(): Promise<void> {
+  const response = await fetch(`${BASE}/mark-all-read`, { method: "POST" });
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+    );
+  }
+  announceEnrollmentReadChange();
+}
+
+/** Nach dem Öffnen einer Anmeldung: das Badge neu zählen lassen. */
+export function announceAdminRequestOpened() {
+  announceEnrollmentReadChange();
 }
 
 export async function getAdminRequestDeleteImpact(

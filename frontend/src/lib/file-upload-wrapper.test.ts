@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 import { createFileUploadHandler } from "./file-upload-wrapper.server";
 
+const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
+vi.mock("@sentry/nextjs", () => ({ captureException }));
+
 interface ErrorResponse {
   error: string;
   status?: number;
@@ -662,12 +665,14 @@ describe("createFileUploadHandler", () => {
     });
 
     it("handles handler errors via handleApiError", async () => {
-      const handler = vi.fn().mockRejectedValue(new Error("Upload failed"));
+      const failure = new Error("Upload failed");
+      const handler = vi.fn().mockRejectedValue(failure);
       const wrappedHandler = createFileUploadHandler(handler);
 
       const formData = new FormData();
       const request = new NextRequest("http://localhost:3000/api/upload", {
         method: "POST",
+        headers: { "X-Request-ID": "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10" },
         body: formData,
       });
       const context = { params: Promise.resolve({}) };
@@ -677,6 +682,9 @@ describe("createFileUploadHandler", () => {
 
       expect(response.status).toBe(500);
       expect(data.error).toBe("Upload failed");
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {
+        tags: { request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10" },
+      });
     });
   });
 });

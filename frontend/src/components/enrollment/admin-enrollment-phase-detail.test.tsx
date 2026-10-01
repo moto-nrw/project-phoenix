@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   getCareUsageReport: vi.fn(),
   listAdminRequests: vi.fn(),
   listPhases: vi.fn(),
+  setAdminRequestRead: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
   useCareOfferingsEnabled: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock("~/lib/enrollment-admin-api", async (importOriginal) => {
     ...actual,
     decideAdminChild: mocks.decideAdminChild,
     listAdminRequests: mocks.listAdminRequests,
+    setAdminRequestRead: mocks.setAdminRequestRead,
   };
 });
 
@@ -247,6 +249,77 @@ beforeEach(() => {
 });
 
 describe("AdminEnrollmentPhaseDetail", () => {
+  // Lesestatus pro Person (#3778): markiert an jedem Kind der Anmeldung,
+  // umschaltbar über das Menü der Zeile.
+  it("markiert ungelesene Anmeldungen und schaltet sie im Zeilenmenü um", async () => {
+    mocks.listAdminRequests.mockResolvedValue([
+      { ...requests[0], is_unread: true },
+    ]);
+    mocks.setAdminRequestRead.mockResolvedValue(undefined);
+    await renderPhase();
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Ungelesen")).toHaveLength(2);
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Aktionen für die Anmeldung von Lina Muster",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Als gelesen markieren" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.setAdminRequestRead).toHaveBeenCalledWith("10", true);
+    });
+    await waitFor(() => {
+      expect(screen.queryByText("Ungelesen")).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Aktionen für die Anmeldung von Tom Muster",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Als ungelesen markieren" }),
+    );
+    await waitFor(() => {
+      expect(mocks.setAdminRequestRead).toHaveBeenCalledWith("10", false);
+    });
+  });
+
+  it.each([
+    ["inaktiver Phase", false, false],
+    ["abgeschlossenen Kindern", true, true],
+  ])(
+    "bietet bei %s kein Markieren als ungelesen an",
+    async (_scenario, isActive, allTerminal) => {
+      mocks.listPhases.mockResolvedValue([{ ...phase, is_active: isActive }]);
+      if (allTerminal) {
+        mocks.listAdminRequests.mockResolvedValue([
+          {
+            ...requests[0],
+            children: requests[0]!.children.map((child) => ({
+              ...child,
+              status: "approved",
+            })),
+          },
+        ]);
+      }
+      await renderPhase();
+
+      expect(
+        screen.queryByRole("button", {
+          name: "Aktionen für die Anmeldung von Lina Muster",
+        }),
+      ).not.toBeInTheDocument();
+      expect(mocks.setAdminRequestRead).not.toHaveBeenCalled();
+    },
+  );
+
   it("keeps the tenant in the parent enrollment link in path routing", async () => {
     await renderPhase();
 
@@ -559,6 +632,38 @@ describe("AdminEnrollmentPhaseDetail", () => {
     expect(mocks.toastSuccess).toHaveBeenCalledWith(
       "Entscheidung gespeichert: Bestätigt",
     );
+  });
+
+  it("keeps the table when a quick decision is refused (#3570)", async () => {
+    const message =
+      "Das Kinderkontingent Ihrer Schule ist voll. Die Kontingentzahl beträgt 115 von 115 Kindern. Für weitere Kinder melden Sie sich bitte beim moto-Team.";
+    mocks.decideAdminChild.mockRejectedValue(new Error(message));
+    await renderPhase();
+
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+    await waitFor(() => {
+      expect(mocks.toastError).toHaveBeenCalledWith(message);
+    });
+    expect(screen.getByRole("button", { name: "Bestätigen" })).toBeVisible();
+  });
+
+  it("marks the row of a renewal the Kinderkontingent held back (#3570)", async () => {
+    mocks.listAdminRequests.mockResolvedValue(
+      requests.map((request) => ({
+        ...request,
+        children: request.children.map((child) =>
+          child.id === "20"
+            ? { ...child, review_reason: "child_quota_reached" }
+            : child,
+        ),
+      })),
+    );
+    await renderPhase();
+
+    expect(
+      await screen.findAllByText("Wegen Kinderkontingent offen"),
+    ).toHaveLength(1);
   });
 
   it("warns before a quick approval in an optional phase without an offering", async () => {

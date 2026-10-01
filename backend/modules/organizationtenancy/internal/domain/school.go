@@ -31,7 +31,6 @@ type School struct {
 	Zip            string
 	Phone          string
 	Email          string
-	DevicePinHash  string
 	// ChildQuotaBundles is nil when the school has no Kinderkontingent (#3567).
 	ChildQuotaBundles    *int
 	ChildQuotaBundleSize int
@@ -53,7 +52,6 @@ type CreateSchool struct {
 	Zip            string
 	Phone          string
 	Email          string
-	DevicePinHash  string
 }
 
 type UpdateSchool struct {
@@ -70,5 +68,4 @@ type UpdateSchool struct {
 	Zip            string
 	Phone          string
 	Email          string
-	DevicePinHash  string
 }

@@ -176,6 +176,24 @@ describe("open room sections (#3281)", () => {
     expect(openRoomSections({})).toBeNull();
   });
 
+  // #3634: a session outside a block keeps its activity's limit, so the
+  // section can show "Anzahl / Grenze" and flag an overbooked session.
+  it("keeps the activity's limit on a session section outside a block", () => {
+    const sections = openRoomSections({
+      sessions: [
+        blockSession("fußball", { own: true }),
+        { ...roomSession("kiosk", { studentCount: 66 }), participantLimit: 45 },
+      ],
+    });
+
+    const kiosk = sections?.find((section) => section.key === "session:kiosk");
+    expect(kiosk).toMatchObject({
+      kind: "occupancy",
+      studentCount: 66,
+      participantLimit: 45,
+    });
+  });
+
   it("collects independent stays under one section after the blocks", () => {
     const sections = openRoomSections({
       sessions: [
@@ -268,6 +286,7 @@ describe("open room sections (#3281)", () => {
       independent: false,
       activeGroupIds: ["kiosk"],
       studentCount: 0,
+      participantLimit: null,
       isOwn: true,
       assignableSessionId: "kiosk",
     });
@@ -373,6 +392,21 @@ describe("active-supervisions view model", () => {
     ]);
     expect(result[0]?.room_color).toBe("#83CD2D");
     expect(result[0]?.isCurrentUserSupervising).toBe(true);
+  });
+
+  it("carries the activity's participant limit onto the session (#3634)", () => {
+    const [limited, unlimited] = mapSupervisedGroupsToRooms([
+      {
+        id: "a",
+        name: "Fußball",
+        room: { id: "r1", name: "Atelier" },
+        participantLimit: 45,
+      },
+      { id: "b", name: "Lesen", room: { id: "r2", name: "Bücherei" } },
+    ]);
+
+    expect(limited?.participant_limit).toBe(45);
+    expect(unlimited?.participant_limit).toBeNull();
   });
 
   it("maps only active visits to student card rows", () => {

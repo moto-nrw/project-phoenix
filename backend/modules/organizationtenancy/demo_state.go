@@ -22,7 +22,9 @@ type DemoSchoolState struct {
 
 type DemoStateEngine interface {
 	LoadDemoSchool(context.Context, string) (*DemoSchoolState, error)
+	ReserveDemoSchool(context.Context, string, int64) error
 	RememberDemoSchool(context.Context, string, DemoSchoolState) error
+	UpdateDemoSchool(context.Context, string, DemoSchoolState) error
 	WithDemoLease(context.Context, string, func(context.Context) error) error
 }
 
@@ -44,11 +46,29 @@ func (d *DemoSchools) LoadDemoSchool(ctx context.Context, name string) (*DemoSch
 	return d.engine.LoadDemoSchool(ctx, name)
 }
 
+// ReserveDemoSchool retains a newly bootstrapped school before its complete
+// seed state exists, so a later failed attempt can retire that school.
+func (d *DemoSchools) ReserveDemoSchool(ctx context.Context, name string, schoolID int64) error {
+	if name == "" || schoolID <= 0 {
+		return fmt.Errorf("demo school name and school ID are required")
+	}
+	return d.engine.ReserveDemoSchool(ctx, name, schoolID)
+}
+
 func (d *DemoSchools) RememberDemoSchool(ctx context.Context, name string, state DemoSchoolState) error {
 	if name == "" || state.SchoolID <= 0 || len(state.SeedJSON) == 0 {
 		return fmt.Errorf("demo school name, school ID and seed state are required")
 	}
 	return d.engine.RememberDemoSchool(ctx, name, state)
+}
+
+// UpdateDemoSchool persists a complete state for a reserved or previously
+// stored school without allowing a caller to replace another school's state.
+func (d *DemoSchools) UpdateDemoSchool(ctx context.Context, name string, state DemoSchoolState) error {
+	if name == "" || state.SchoolID <= 0 || len(state.SeedJSON) == 0 {
+		return fmt.Errorf("demo school name, school ID and seed state are required")
+	}
+	return d.engine.UpdateDemoSchool(ctx, name, state)
 }
 
 func (d *DemoSchools) WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error {
@@ -60,10 +80,13 @@ func (d *DemoSchools) WithDemoLease(ctx context.Context, name string, run func(c
 
 // DemoSchoolOrder is a demo school of the public demo waiting for its seed
 // (#3463). Seeded reports a stored seed state: only the first tick is missing.
+// FirstName and LastName are the visitor's name the seed gives one caregiver
+// and one parent, unchanged.
 type DemoSchoolOrder struct {
 	Slug       string
 	SchoolName string
-	PersonName string
+	FirstName  string
+	LastName   string
 	Attempts   int
 	Seeded     bool
 }
@@ -71,6 +94,10 @@ type DemoSchoolOrder struct {
 // DemoQueueEngine is the demo process's side of the queue.
 type DemoQueueEngine interface {
 	ReleaseDemoSchoolOrders(context.Context) error
+	// RequeueDeferredDemoSchoolOrders discards interrupted optional seed work
+	// before it can be mistaken for a complete ready school.
+	RequeueDeferredDemoSchoolOrders(context.Context) error
+	RequeueDeferredDemoSchoolOrder(context.Context, string) error
 	ClaimDemoSchoolOrder(context.Context) (*DemoSchoolOrder, error)
 	// FinishDemoSchoolOrder opens the school and names the visitor's
 	// caregiver and parent account; zero names none.
@@ -117,7 +144,7 @@ type DemoSchoolProgress struct {
 }
 
 type DemoOrderEngine interface {
-	OrderDemoSchool(ctx context.Context, schoolName, personName string) (slug string, err error)
+	OrderDemoSchool(ctx context.Context, schoolName, firstName, lastName string) (slug string, err error)
 	DemoSchoolProgress(ctx context.Context, slug string) (*DemoSchoolProgress, error)
 	MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error
 	RetireDemoSchool(ctx context.Context, slug string) error
@@ -138,11 +165,11 @@ func NewDemoSchoolOrders(engine DemoOrderEngine) *DemoSchoolOrders {
 // OrderDemoSchool queues a school named schoolName and returns its slug: the
 // name as a DNS label plus a random suffix. It reports ErrDemoCapacityReached
 // while the configured number of active demo schools exists.
-func (d *DemoSchoolOrders) OrderDemoSchool(ctx context.Context, schoolName, personName string) (string, error) {
-	if schoolName == "" || personName == "" {
-		return "", fmt.Errorf("demo school and person name are required")
+func (d *DemoSchoolOrders) OrderDemoSchool(ctx context.Context, schoolName, firstName, lastName string) (string, error) {
+	if schoolName == "" || firstName == "" || lastName == "" {
+		return "", fmt.Errorf("demo school name and the visitor's first and last name are required")
 	}
-	return d.engine.OrderDemoSchool(ctx, schoolName, personName)
+	return d.engine.OrderDemoSchool(ctx, schoolName, firstName, lastName)
 }
 
 // DemoSchoolProgress returns nil for a slug nobody ordered.

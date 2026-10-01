@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 /**
  * Web Push client (#2003): service worker registration, permission +
  * subscription lifecycle, and the proxy-route calls that persist the
@@ -10,12 +11,12 @@
 
 export type PushPortal = "tenant" | "parent" | "school";
 
-class PushApiError extends Error {
+class PushApiError extends ApiError {
   constructor(
     public status: number,
     message: string,
   ) {
-    super(message);
+    super(message, status);
     this.name = "PushApiError";
   }
 }
@@ -91,7 +92,7 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
       data && typeof data === "object" && "error" in data
         ? String((data as { error: unknown }).error)
         : `Push-Anfrage fehlgeschlagen (${response.status}).`;
-    throw new PushApiError(response.status, message);
+    throw enrichApiError(new PushApiError(response.status, message), data);
   }
   return data as T;
 }

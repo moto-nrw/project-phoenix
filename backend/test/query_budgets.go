@@ -58,6 +58,9 @@ var queryBudgets = map[string]queryBudget{
 	// response sources inside the tenant transaction. The matching test proves
 	// the total stays flat from three to eight children.
 	"api.enrollment.phase_responses.list": {max: 9},
+	// api/enrollment — GET /admin/requests: the caller's read state of every
+	// listed enrollment in one batched statement (#3778).
+	"api.enrollment.admin_requests.read_state": {max: 1, exact: true},
 	// api/students — #2059: schema capabilities are fixed at startup.
 	"api.students.requests.schema_introspection": {max: 0, exact: true},
 	// api/students — #2098: each planning-time bulk load runs once per list request.
@@ -78,6 +81,27 @@ var queryBudgets = map[string]queryBudget{
 	// statement that joins the named student directory projection; the
 	// matching test also pins the rows read at one and at four children.
 	"api.students.care_withdrawals.list": {max: 6},
+	// workflows/studentdeletion — the permanent deletion behind DELETE
+	// /students/{id} and DELETE /students/care-withdrawals/{id} (#3411), over
+	// the production composition with one and with four linked children.
+	// Preview takes no lock and costs the same at both sizes: the tenant
+	// transaction (4), the student and person reads and one owner-count block
+	// of 16 statements (the Feedback counter is a test double here).
+	// Execute runs deleteConfirmed -> lockedSnapshot: the companion snapshot
+	// twice plus the stranding re-read, one locked student-row read (with its
+	// shared class-writes gate) per child in the graph, K unlocked re-reads,
+	// the subject's second locked read, and the owner-count block twice
+	// (fingerprint, then the recheck before the cascade: 32 statements), then
+	// the nine-statement cascade and audit. Each linked child adds three
+	// statements; .student_rows pins the 2(K+1) row round trips on
+	// their own so a third pass over the graph cannot hide behind a saving
+	// elsewhere.
+	"workflows.studentdeletion.preview.companions_1":              {max: 22},
+	"workflows.studentdeletion.preview.companions_4":              {max: 22},
+	"workflows.studentdeletion.execute.companions_1":              {max: 61},
+	"workflows.studentdeletion.execute.companions_4":              {max: 70},
+	"workflows.studentdeletion.execute.companions_1.student_rows": {max: 4},
+	"workflows.studentdeletion.execute.companions_4.student_rows": {max: 10},
 	// api/students — #2056: aggregated OGS group view, 10 students.
 	"api.students.ogs_group_live": {max: 41},
 	// api/students — #2099: identity chain resolved once per request.
@@ -116,21 +140,21 @@ var queryBudgets = map[string]queryBudget{
 	"api.activities.available_supervisors.specialization.reads": {max: 5},
 	"api.iot.teacher_students.reads":                            {max: 5},
 	"api.rooms.snapshot_export.reads":                           {max: 4},
-	// api/timetable — 14-day /week: FindByID + 7 preloads + class-exception
+	// modules/timetable/http — 14-day /week: FindByID + 7 preloads + class-exception
 	// lookup (#2962) with headroom for bun metadata reads; was ~98 pre-fix.
 	"api.timetable.student_week.14d": {max: 13},
-	// api/timetable — GET /instances over a week, 8 instances on 3 days:
+	// modules/timetable/http — GET /instances over a week, 8 instances on 3 days:
 	// instances + room + staff batch + student batch + one cutoff read per day.
 	"api.timetable.instances.list": {max: 7},
-	// api/timetable — GET /templates: template rows, retained list enrichments,
+	// modules/timetable/http — GET /templates: template rows, retained list enrichments,
 	// plus the setting, offering and series-root reads for roster maintenance
 	// (#3140). The test proves all 11 statements stay flat from 3 to 8 rows.
 	"api.timetable.templates.list": {max: 11},
-	// api/timetable — GET /pickup-extensions (#3261), day tasks only: tenant
+	// modules/timetable/http — GET /pickup-extensions (#3261), day tasks only: tenant
 	// transaction and tenant setup, task read, one batched block read,
 	// student and person names. Flat in the number of open tasks.
 	"api.timetable.pickup_extensions.list": {max: 9},
-	// api/timetable — GET /periods (#3124): tenant transaction (BEGIN, SET
+	// modules/timetable/http — GET /periods (#3124): tenant transaction (BEGIN, SET
 	// LOCAL ROLE, set_config, COMMIT) + period list + one usage read per
 	// owner (Enrollment phases, Timetable planning tables). The two owner
 	// round trips are the accepted #2580 boundary cost; the count is flat in
@@ -163,7 +187,8 @@ var queryBudgets = map[string]queryBudget{
 	"services.users.list_guardians.reads":                  {max: 2},
 	"services.users.student_guardians.reads":               {max: 4},
 	"api.active.combination_groups.reads":                  {max: 3, exact: true},
-	// services/enrollment — list/read paths stay flat as rows grow (#2941).
+	// Enrollment decision and Care Plan offering source reads (formerly
+	// services/enrollment) stay flat as rows grow (#2941).
 	"services.enrollment.list_child_offerings.reads":    {max: 5},
 	"services.enrollment.offering_source_options.reads": {max: 5},
 	// Source validation adds one batched read each for the offering catalog,

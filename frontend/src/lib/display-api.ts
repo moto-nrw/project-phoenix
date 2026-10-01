@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 // Client API for the info-point display domain (issue #1325).
 // Admin CRUD goes through the session-authenticated Next.js proxy routes
 // under /api/displays; the public dashboard fetch is token-only.
@@ -61,9 +62,9 @@ export interface DashboardPayload {
   };
 }
 
-export class DisplayDashboardError extends Error {
+export class DisplayDashboardError extends ApiError {
   constructor(public readonly status: number) {
-    super(`display dashboard request failed with status ${status}`);
+    super(`display dashboard request failed with status ${status}`, status);
     this.name = "DisplayDashboardError";
   }
 }
@@ -84,7 +85,8 @@ export async function fetchDisplayDashboard(
     headers: { "X-Display-Token": token },
   });
   if (!response.ok) {
-    throw new DisplayDashboardError(response.status);
+    const body: unknown = await response.json().catch(() => null);
+    throw enrichApiError(new DisplayDashboardError(response.status), body);
   }
   return (await response.json()) as DashboardPayload;
 }

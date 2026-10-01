@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 // Calendar period API client. Talks to the Next.js proxy at
 // /api/timetable/periods, which forwards to the Go backend
 // /api/timetable/periods (CRUD via SchedulesRead/Create/Update/Delete).
@@ -21,15 +22,13 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
-class CalendarPeriodApiError extends Error {
+class CalendarPeriodApiError extends ApiError {
   readonly httpStatus: number;
-  readonly code?: string;
 
   constructor(message: string, httpStatus: number, code?: string) {
-    super(message);
+    super(message, httpStatus, { code });
     this.name = "CalendarPeriodApiError";
     this.httpStatus = httpStatus;
-    this.code = code;
   }
 }
 
@@ -37,14 +36,20 @@ async function unwrap<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;
     let code: string | undefined;
+    let payload: unknown;
     try {
       const body = (await response.json()) as { error?: string; code?: string };
+      payload = body;
       if (body.error) message = body.error;
       code = body.code;
     } catch {
       // Body wasn't JSON — keep the generic message.
     }
-    throw new CalendarPeriodApiError(message, response.status, code);
+    throw enrichApiError(
+      new CalendarPeriodApiError(message, response.status, code),
+      payload,
+      response.status,
+    );
   }
 
   if (response.status === 204) {
@@ -154,13 +159,18 @@ class CalendarPeriodService {
     });
     if (!response.ok && response.status !== 204) {
       let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;
+      let payload: unknown;
       try {
         const body = (await response.json()) as { error?: string };
+        payload = body;
         if (body.error) message = body.error;
       } catch {
         // not JSON
       }
-      throw new CalendarPeriodApiError(message, response.status);
+      throw enrichApiError(
+        new CalendarPeriodApiError(message, response.status),
+        payload,
+      );
     }
     logger.info("period_deleted", { period_id: id });
   }

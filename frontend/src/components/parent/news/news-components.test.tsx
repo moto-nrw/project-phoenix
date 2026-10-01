@@ -6,6 +6,7 @@ import { NewsCard, NewsDetailModal, isOpenPoll } from "./news-components";
 import type { ParentAnnouncement } from "~/lib/parent-api";
 import * as parentApi from "~/lib/parent-api";
 import * as dateHelpers from "~/lib/date-helpers";
+import { BELOW_SM } from "~/lib/hooks/use-media-query";
 
 // Poll (Umfrage, #1371) behaviour in the parent portal: the feed card only
 // flags that an answer is due. The detail view is where it is given, one row
@@ -54,6 +55,49 @@ function announcement(
   };
 }
 
+function declaration(
+  overrides: Partial<ParentAnnouncement> = {},
+): ParentAnnouncement {
+  return announcement({
+    title: "Einverständnis für den Ausflug",
+    delivery_mode: "declaration",
+    declaration: {
+      kind: "consent",
+      signers: "all",
+      revocable: true,
+      requires_password: false,
+      deadline: null,
+      closed: false,
+      version: {
+        id: "1",
+        version_no: 1,
+        content_hash: "test-content-hash",
+      },
+      children: [
+        {
+          student_id: "10",
+          first_name: "Felix",
+          last_name: "Schneider",
+          can_submit: true,
+          state: "partial",
+          my_action: "agreed",
+          my_submitted_at: "2026-07-01T08:00:00Z",
+          allowed_actions: [],
+          other_signers: [
+            {
+              first_name: "Mila",
+              last_name: "Schneider",
+              action: null,
+              submitted_at: null,
+            },
+          ],
+        },
+      ],
+    },
+    ...overrides,
+  });
+}
+
 // Opening the detail view asks the backend for the message's attachments
 // (#2890). Without a stub that becomes a real fetch, which happy-dom aborts at
 // teardown — noise that has nothing to do with what these tests check.
@@ -100,6 +144,39 @@ describe("Umfrage answering in the detail view", () => {
     });
     // A successful write closes the dialog, like every other parent modal.
     await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  // Android im Hochformat (#3661): unter 640px lief der Dialog als Vaul-Drawer,
+  // der jede Berührung für die Zieh-Geste abfing. Antworten muss dort genauso
+  // gehen wie im Querformat. Der Handy-Mock bleibt, damit eine wieder
+  // eingebaute Breitenverzweigung hier in den Handy-Zweig läuft.
+  it("lets a phone in portrait pick and save an answer without a Vaul drawer", () => {
+    vi.spyOn(window, "matchMedia").mockImplementation(
+      (query) =>
+        ({
+          matches: query === BELOW_SM,
+          media: query,
+          onchange: null,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        }) as MediaQueryList,
+    );
+
+    render(
+      <NewsDetailModal item={poll()} onClose={vi.fn()} onUpdated={vi.fn()} />,
+    );
+
+    expect(screen.getByRole("dialog")).toHaveClass("rounded-t-2xl");
+    expect(document.querySelector("[data-vaul-drawer]")).toBeNull();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Ja" }));
+    expect(screen.getByRole("radio", { name: "Ja" })).toBeChecked();
+    expect(
+      screen.getByRole("button", { name: "Antwort speichern" }),
+    ).toBeEnabled();
   });
 
   it("keeps the save button disabled while nothing changed", () => {
@@ -303,12 +380,48 @@ describe("Umfrage answering in the detail view", () => {
     ).toBeDisabled();
   });
 
-  it("shows one clear action for an unanswered poll", () => {
+  // The whole card is the button. A bold action word in its last line read as
+  // a second button, so the line states where the item stands instead.
+  it("flags an unanswered poll as a state, not as an action word", () => {
     render(<NewsCard item={poll()} onOpen={vi.fn()} />);
     expect(screen.getByText("Umfrage")).toBeInTheDocument();
-    expect(screen.getByText("Antworten")).toBeInTheDocument();
-    expect(screen.queryByText("Antwort nötig")).not.toBeInTheDocument();
+    expect(screen.getByText("Antwort nötig")).toBeInTheDocument();
+    expect(screen.queryByText("Antworten")).not.toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: "Ja" })).not.toBeInTheDocument();
+  });
+
+  it("shows no answer status when no child can answer the poll", () => {
+    render(<NewsCard item={poll({ children: [] })} onOpen={vi.fn()} />);
+
+    expect(screen.getByText("Umfrage")).toBeInTheDocument();
+    expect(screen.queryByText("Antwort nötig")).not.toBeInTheDocument();
+    expect(screen.queryByText("Beantwortet")).not.toBeInTheDocument();
+  });
+
+  it("shows no status line and no tint on an unread message that asks for nothing", () => {
+    render(<NewsCard item={announcement({ read: false })} onOpen={vi.fn()} />);
+    const card = screen.getByRole("button", { name: /Sommerfest/ });
+    expect(screen.queryByText("Lesen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Gelesen")).not.toBeInTheDocument();
+    expect(screen.getByText("Offen")).toHaveClass("sr-only");
+    expect(card.className).not.toContain("bg-moto-blue");
+    expect(card.className).toContain("bg-white");
+  });
+
+  it("flags a missing read confirmation as a state on the card", () => {
+    render(
+      <NewsCard
+        item={announcement({
+          read: true,
+          requires_acknowledgement: true,
+          acknowledged: false,
+          delivery_mode: "letter",
+        })}
+        onOpen={vi.fn()}
+      />,
+    );
+    expect(screen.getAllByText("Bestätigung erforderlich")).toHaveLength(1);
+    expect(screen.queryByText("Gelesen bestätigen")).not.toBeInTheDocument();
   });
 
   it("shows the saved answer on an answered poll", () => {
@@ -330,7 +443,7 @@ describe("Umfrage answering in the detail view", () => {
 
     expect(screen.getByText("Beantwortet")).toBeInTheDocument();
     expect(screen.getByText("Antwort: Ja")).toBeInTheDocument();
-    expect(screen.queryByText("Antworten")).not.toBeInTheDocument();
+    expect(screen.queryByText("Antwort nötig")).not.toBeInTheDocument();
   });
 
   it("shows partial progress and the saved answer for multiple children", () => {
@@ -356,9 +469,18 @@ describe("Umfrage answering in the detail view", () => {
       />,
     );
 
-    expect(screen.getByText("Antwort vervollständigen")).toBeInTheDocument();
+    expect(screen.getByText("Antwort nötig")).toBeInTheDocument();
     expect(screen.getByText("1 von 2 beantwortet")).toBeInTheDocument();
     expect(screen.getByText("Mila: Nein")).toBeInTheDocument();
+  });
+
+  it("does not mark a partial declaration as settled after this guardian agreed", () => {
+    render(<NewsCard item={declaration()} onOpen={vi.fn()} />);
+
+    const state = screen.getByText("Teilweise beantwortet");
+    expect(state).toHaveClass("text-gray-600");
+    expect(state).not.toHaveClass("text-moto-green-strong");
+    expect(state.querySelector("svg")).toBeNull();
   });
 
   it("shows read and confirmed states instead of another action", () => {
@@ -409,6 +531,57 @@ describe("Umfrage answering in the detail view", () => {
     expect(screen.getByText("Mila Schneider")).toBeInTheDocument();
     // Two children, two option sets.
     expect(screen.getAllByRole("radio", { name: "Ja" })).toHaveLength(2);
+  });
+});
+
+// Up to three mini-headings ("Elternbrief · Erinnerung · Wichtig") stacked
+// above the title on a phone. Only a type that differs from the page's
+// "Elternbriefe" stays up there; the flags join the state line below.
+describe("card head without stacked mini-headings (#3719)", () => {
+  it("puts nothing above a letter's title and lists its flags below it", () => {
+    render(
+      <NewsCard
+        item={announcement({
+          requires_acknowledgement: true,
+          acknowledged: false,
+          delivery_mode: "letter",
+          priority: "important",
+          reminder_sent_at: "2026-09-08T06:00:00Z",
+        })}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    const title = screen.getByText("Infos zum Sommerfest");
+    expect(title.previousElementSibling).toBeNull();
+    expect(screen.queryByText("Elternbrief")).not.toBeInTheDocument();
+    for (const label of ["Bestätigung erforderlich", "Wichtig", "Erinnerung"]) {
+      expect(
+        title.compareDocumentPosition(screen.getByText(label)) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+  });
+
+  it("names a poll or a cancelled care day above the title", () => {
+    const { unmount } = render(
+      <NewsCard item={poll({ priority: "important" })} onOpen={vi.fn()} />,
+    );
+    expect(
+      screen.getByText("Kommt Ihr Kind zur Murmelparty?")
+        .previousElementSibling,
+    ).toHaveTextContent(/^Umfrage$/);
+    unmount();
+
+    render(
+      <NewsCard
+        item={announcement({ system_kind: "care_cancellation" })}
+        onOpen={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText("Infos zum Sommerfest").previousElementSibling,
+    ).toHaveTextContent(/^Betreuung fällt aus$/);
   });
 });
 
@@ -517,6 +690,7 @@ describe("isOpenPoll", () => {
     expect(
       isOpenPoll(poll({ response_deadline: "2020-01-01T00:00:00Z" })),
     ).toBe(false);
+    expect(isOpenPoll(poll({ children: [] }))).toBe(false);
     expect(isOpenPoll(poll({ response_type: "none" }))).toBe(false);
   });
 });

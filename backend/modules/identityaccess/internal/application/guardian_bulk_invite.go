@@ -384,7 +384,7 @@ func (l *AccountLifecycle) bulkInviteFresh(ctx context.Context, run *bulkInviteR
 		if err != nil {
 			return err
 		}
-		l.delivery.EnqueueInvitationEmail(ctx, invitation, profile, l.delivery.SchoolName(ctx, invitation.TenantID))
+		l.mailNewInvitation(ctx, invitation, profile)
 		run.result.Invited++
 		return nil
 	}

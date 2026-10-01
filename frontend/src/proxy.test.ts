@@ -14,7 +14,7 @@ vi.stubEnv("TENANT_DOMAIN", "localhost");
 vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", POSTHOG_KEY);
 
 // Import after env is stubbed , proxy reads the env var at module load
-const { proxy } = await import("./proxy");
+const { proxy, config } = await import("./proxy");
 
 function makeRequest(url: string, host?: string): NextRequest {
   const req = new NextRequest(url);
@@ -163,6 +163,31 @@ describe("trailing slash", () => {
   });
 });
 
+// Since @sentry/nextjs 11 the tunnel route runs through the proxy (#3687).
+// Events arrive without a session, so the proxy must hand them on untouched.
+describe("Sentry tunnel", () => {
+  it.each([
+    ["school-a.localhost:3000", "tenant host"],
+    ["localhost:3000", "path-mode host"],
+    [OPERATOR_HOSTNAME, "operator host"],
+    [PARENTS_HOSTNAME, "parents host"],
+    [SCHOOL_HOSTNAME, "school host"],
+  ])("passes /monitoring through on the %s (%s)", (host) => {
+    const req = new NextRequest(`http://${host}/monitoring?o=123&p=456&r=de`, {
+      method: "POST",
+      body: "envelope",
+    });
+    req.headers.set("host", host);
+
+    const res = proxy(req);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-middleware-next")).toBe("1");
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+    expect(res.headers.get("location")).toBeNull();
+  });
+});
+
 describe("proxy", () => {
   describe("legacy collection selections", () => {
     it("nests database room filters in the return path", () => {
@@ -237,6 +262,30 @@ describe("proxy", () => {
     expect(getForwardedRequestHeader(res, "x-moto-original-host")).toBe(
       "school.localhost:3000",
     );
+  });
+
+  it("gives every API request a fresh Vorgangskennung instead of the client's", () => {
+    const makeApiRequest = () => {
+      const req = new NextRequest("http://school.localhost:3000/api/students");
+      req.headers.set("host", "school.localhost:3000");
+      req.headers.set("x-request-id", "client-chosen");
+      return req;
+    };
+
+    const first = getForwardedRequestHeader(
+      proxy(makeApiRequest()),
+      "x-request-id",
+    );
+    const second = getForwardedRequestHeader(
+      proxy(makeApiRequest()),
+      "x-request-id",
+    );
+
+    const uuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+    expect(first).toMatch(uuid);
+    expect(second).toMatch(uuid);
+    expect(first).not.toBe(second);
   });
 
   describe("operator subdomain", () => {
@@ -1074,5 +1123,24 @@ describe("proxy", () => {
         "/school-a/helpdesk",
       );
     });
+  });
+});
+
+// The welcome mail links the Elterninfo on the parents host (#3534). The
+// parents host redirects every path it does not know to its start page, so
+// the file must bypass the proxy the way images and icons do.
+describe("proxy matcher", () => {
+  const [pattern] = config.matcher;
+  const matches = (path: string) => new RegExp(`^${pattern}$`).test(path);
+
+  it("leaves public downloads to the static file server", () => {
+    expect(matches("/downloads/moto-elterninfo.pdf")).toBe(false);
+    expect(matches("/images/moto-logo-mit-schriftzug.png")).toBe(false);
+  });
+
+  it("still runs the proxy for pages and help", () => {
+    expect(matches("/help/eltern-konto-einrichten")).toBe(true);
+    expect(matches("/login")).toBe(true);
+    expect(matches("/download")).toBe(true);
   });
 });

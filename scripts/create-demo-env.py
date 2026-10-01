@@ -37,7 +37,9 @@ def main():
         "FRONTEND_URL": "https://demo.moto-app.de", "PARENTS_URL": "https://eltern.demo.moto-app.de",
         "SCHOOL_URL": "https://schule.demo.moto-app.de", "EMAIL_FROM_NAME": "moto Demo",
         "ADMIN_EMAIL": "admin@demo.moto-app.de", "OPERATOR_EMAIL": "operator@demo.moto-app.de",
-        "OPERATOR_DISPLAY_NAME": "Demo Operator", "OGS_DEVICE_PIN": str(secrets.randbelow(900000) + 100000),
+        # The demo seeder writes the PIN into security.ogs_device_pin, which
+        # accepts exactly four digits.
+        "OPERATOR_DISPLAY_NAME": "Demo Operator", "OGS_DEVICE_PIN": f"{secrets.randbelow(10000):04d}",
         "SECURITY_LOGGING_ENABLED": "true", "RATE_LIMIT_ENABLED": "true", "SKIP_ENV_VALIDATION": "false",
         # The demo request form posts from the marketing website, so its origins
         # belong here too. The encrypted file is authoritative once it exists;
@@ -45,7 +47,9 @@ def main():
         "CORS_ALLOWED_ORIGINS": "https://demo.moto-app.de,https://*.demo.moto-app.de,"
                                 "https://moto-ogs.de,https://www.moto-ogs.de,https://staging.moto-ogs.de,"
                                 "https://moto.nrw,https://www.moto.nrw",
-        "SENTRY_DSN": "", "NEXT_PUBLIC_SENTRY_DSN": "", "SENTRY_ENVIRONMENT": "demo",
+        # SENTRY_DSN stays the staging value: backend events of all environments go
+        # to one project and filter apart by APP_ENV.
+        "NEXT_PUBLIC_SENTRY_DSN": "",
         "NEXT_PUBLIC_SENTRY_ENVIRONMENT": "demo", "POSTHOG_API_KEY": "", "NEXT_PUBLIC_POSTHOG_KEY": "",
         "VAPID_PUBLIC_KEY": "", "VAPID_PRIVATE_KEY": "", "VAPID_SUBSCRIBER": "",
     })

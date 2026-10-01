@@ -1,1 +1,0 @@
-../../.claude/hooks/guard-absolute-rules.sh

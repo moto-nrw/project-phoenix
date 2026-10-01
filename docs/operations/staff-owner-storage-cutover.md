@@ -13,7 +13,7 @@ person, lifecycle, soft deletion) and `users.staff_employment_profiles`
 anchor, birthday opt-out) are authoritative. The compatibility shape exists for
 one purpose only: deploying the previous image again. No current provider reads
 or writes it, there is no fallback read chain and no application dual write.
-[Contract #2754](https://github.com/moto-nrw/project-phoenix/issues/2754)
+[Contract #2754](staff-owner-storage-contract.md) (migration `1.15.427`)
 removes it at the end of the
 [rollback window](../agents/operations.md#rollback-window-of-a-storage-cutover),
 which ends on conditions, not after a waiting period.
@@ -149,9 +149,10 @@ Observation queries: [staff-owner-storage-cutover.sql](staff-owner-storage-cutov
 
 Deploy the previous image. It reads and writes `users.staff` through the view;
 nothing needs to be undone first. Do not run a down migration, do not rename the
-archive back, and do not drop the view, its routing, the personnel-number
-trigger or the counters: #2754 removes them once the counters read zero, the
-caller inventory is green and a restorable backup is verified.
+archive back, and do not drop the view, its routing or the counters:
+[#2754](staff-owner-storage-contract.md) removes them once the counters read
+zero, the caller inventory is green and a restorable backup is verified. It
+keeps the personnel-number trigger, which the new image depends on.
 
 If the switch itself refuses (drift, a foreign work-time model, a missing
 checkpoint), nothing changed: keep the previous image, fix the source data and

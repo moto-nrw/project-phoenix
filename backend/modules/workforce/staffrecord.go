@@ -137,8 +137,8 @@ type StaffRecordQuery interface {
 	// FindStaffMasterData resolves the Stammdaten row of a staff member;
 	// ErrStaffMasterDataNotFound when none was written yet.
 	FindStaffMasterData(ctx context.Context, staffID int64) (StaffMasterData, error)
-	// ListStaffQualifications returns the staff member's qualifications,
-	// oldest first.
+	// ListStaffQualifications returns the staff member's live
+	// qualifications, oldest first. Removed ones are retired, not listed.
 	ListStaffQualifications(ctx context.Context, staffID int64) ([]StaffQualification, error)
 	FindStaffFinancialData(ctx context.Context, staffID int64) (StaffFinancialData, error)
 	// FindStaffDocument loads one document by the staff/document pair; the
@@ -152,7 +152,8 @@ type StaffRecordCommand interface {
 	CreateStaffMasterData(context.Context, StaffMasterData) (StaffMasterData, error)
 	UpdateStaffMasterData(context.Context, StaffMasterData) (StaffMasterData, error)
 	// ReplaceStaffQualifications atomically replaces the qualification list
-	// of one staff member and returns the stored rows.
+	// of one staff member and returns the stored rows. Removed rows are
+	// retired as history (ADR 0021); unchanged rows keep their identity.
 	ReplaceStaffQualifications(ctx context.Context, staffID int64, values []StaffQualification) ([]StaffQualification, error)
 	CreateStaffFinancialData(context.Context, StaffFinancialData) (StaffFinancialData, error)
 	UpdateStaffFinancialData(context.Context, StaffFinancialData) (StaffFinancialData, error)

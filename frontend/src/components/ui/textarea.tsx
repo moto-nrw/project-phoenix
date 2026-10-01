@@ -14,9 +14,12 @@ export function Textarea({
   id,
   error,
   className = "",
+  "aria-describedby": describedBy,
+  "aria-invalid": ariaInvalid,
   ...props
 }: TextareaProps) {
   const inputId = id ?? name;
+  const errorId = error && inputId ? `${inputId}-error` : undefined;
 
   return (
     <div>
@@ -31,12 +34,19 @@ export function Textarea({
       <textarea
         id={inputId}
         name={name}
-        aria-invalid={error ? true : undefined}
-        className={`block w-full resize-none rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200 ${className}`}
         {...props}
+        aria-invalid={error ? true : ariaInvalid}
+        aria-describedby={
+          [describedBy, errorId].filter(Boolean).join(" ") || undefined
+        }
+        className={`block w-full resize-none rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200 ${className}`}
       />
       {error && (
-        <p role="alert" className="text-moto-red-strong mt-1 text-xs">
+        <p
+          id={errorId}
+          role="alert"
+          className="text-moto-red-strong mt-1 text-xs"
+        >
           {error}
         </p>
       )}

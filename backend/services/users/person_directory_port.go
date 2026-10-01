@@ -22,3 +22,12 @@ type PersonWriter interface {
 	// record that references them.
 	DeletePerson(ctx context.Context, id int64) error
 }
+
+// RFIDCards is the card existence check and registration the tag paths need,
+// declared by its one consumer (the person service) without persistence rows.
+// Identity & Access implements it; the composition root binds
+// identityaccess.RFIDCards.
+type RFIDCards interface {
+	LookupRFIDCard(context.Context, string) (id string, active, found bool, err error)
+	RegisterRFIDCard(context.Context, string) error
+}

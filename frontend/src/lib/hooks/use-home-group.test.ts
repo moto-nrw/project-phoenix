@@ -205,6 +205,33 @@ describe("deriveHomeGroup (#2180)", () => {
     expect(deriveHomeGroup(data, "").missing).toEqual([]);
   });
 
+  it("meldet ein Kind ohne Betreuungszeit nicht als fehlend (#3373)", () => {
+    const pickup = (pickupTime: string) => ({
+      pickupTime,
+      isException: false,
+      notes: undefined,
+      dayNotes: [],
+    });
+    const data = liveData({
+      students: [
+        // Unterricht bis 13:20, Betreuung bis 13:20: kommt nur bei Ausfall.
+        student("1", { current_location: "HOME", arrival_time: "13:20" }),
+        // Gewöhnlicher Tag: fehlt.
+        student("2", { current_location: "HOME", arrival_time: "11:50" }),
+      ],
+      pickupTimes: new Map([
+        ["1", pickup("13:20")],
+        ["2", pickup("15:00")],
+      ]),
+    });
+
+    const snapshot = deriveHomeGroup(data, "14:30");
+
+    expect(snapshot.missing.map((entry) => entry.student.id)).toEqual(["2"]);
+    expect(snapshot.away.map((s) => s.id)).toEqual(["1", "2"]);
+    expect([...snapshot.onlyIfLessonCancelled]).toEqual(["1"]);
+  });
+
   it("gibt ohne eigene Gruppe den leeren Stand zurück", () => {
     expect(deriveHomeGroup(liveData({ groupId: null }), "13:10").group).toBe(
       null,

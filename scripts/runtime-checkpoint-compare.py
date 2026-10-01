@@ -14,7 +14,12 @@ classified for the median and the worst run:
   never a regression verdict.
 
 A changed error contract is material. Metrics that only one side measured are
-listed as unmeasured, not compared. The classification does not explain a
+listed as unmeasured, not compared.
+
+``--bridge`` compares two workload versions measured on the same commit: only
+the scenarios both define are compared, and the scenarios one side adds are
+listed instead of refused. It exists for the old/new bridge run a workload
+change requires; it is not a way to compare different commits. The classification does not explain a
 change; every material entry needs an explanation in the checkpoint issue.
 """
 
@@ -50,18 +55,31 @@ def ratio(baseline, candidate):
 
 
 def compare(baseline, candidate, relative_tolerance=DEFAULT_RELATIVE_TOLERANCE,
-            absolute_tolerance_ms=DEFAULT_ABSOLUTE_TOLERANCE_MS):
-    if baseline["workload_version"] != candidate["workload_version"]:
+            absolute_tolerance_ms=DEFAULT_ABSOLUTE_TOLERANCE_MS, bridge=False):
+    same_version = baseline["workload_version"] == candidate["workload_version"]
+    if not bridge and not same_version:
         raise ValueError("workload version differs; measure an old/new bridge on the same commit instead")
-    if set(baseline["scenarios"]) != set(candidate["scenarios"]):
+    if bridge and same_version:
+        raise ValueError("a bridge compares two workload versions; use the default mode for one version")
+    if not bridge and set(baseline["scenarios"]) != set(candidate["scenarios"]):
         raise ValueError("scenario set differs between baseline and candidate")
+    shared = [name for name in baseline["scenarios"] if name in candidate["scenarios"]]
+    if not shared:
+        raise ValueError("a bridge needs at least one scenario both workloads define")
+    version = baseline["workload_version"]
+    if bridge:
+        version = f"{baseline['workload_version']} → {candidate['workload_version']} (bridge)"
     result = {
-        "workload_version": baseline["workload_version"],
+        "workload_version": version,
         "tolerance": {"relative": relative_tolerance, "absolute_ms": absolute_tolerance_ms},
         "scenarios": {},
         "material": [],
     }
-    for name, base in baseline["scenarios"].items():
+    if bridge:
+        result["only_in_baseline"] = [name for name in baseline["scenarios"] if name not in candidate["scenarios"]]
+        result["only_in_candidate"] = [name for name in candidate["scenarios"] if name not in baseline["scenarios"]]
+    for name in shared:
+        base = baseline["scenarios"][name]
         cand = candidate["scenarios"][name]
         if base["kind"] != cand["kind"]:
             raise ValueError(f"scenario kind differs: {name}")
@@ -178,6 +196,10 @@ def markdown(result):
         lines.extend(["", "## Measured only in the candidate", "",
                       "These metrics have no baseline value and are not compared: " +
                       ", ".join(f"`{key}`" for key in unmeasured) + "."])
+    for key, label in (("only_in_baseline", "baseline"), ("only_in_candidate", "candidate")):
+        if result.get(key):
+            lines.extend(["", f"## Scenarios only in the {label} workload", "",
+                          "Not compared: " + ", ".join(f"`{name}`" for name in result[key]) + "."])
     lines.append("")
     return "\n".join(lines)
 
@@ -189,9 +211,11 @@ def main():
     parser.add_argument("output_directory", type=pathlib.Path)
     parser.add_argument("--relative-tolerance", type=float, default=DEFAULT_RELATIVE_TOLERANCE)
     parser.add_argument("--absolute-tolerance-ms", type=float, default=DEFAULT_ABSOLUTE_TOLERANCE_MS)
+    parser.add_argument("--bridge", action="store_true",
+                        help="compare two workload versions measured on one commit over their shared scenarios")
     args = parser.parse_args()
     result = compare(json.loads(args.baseline.read_text()), json.loads(args.candidate.read_text()),
-                     args.relative_tolerance, args.absolute_tolerance_ms)
+                     args.relative_tolerance, args.absolute_tolerance_ms, args.bridge)
     args.output_directory.mkdir(parents=True, exist_ok=True)
     (args.output_directory / "comparison.json").write_text(json.dumps(result, indent=2, allow_nan=False) + "\n")
     (args.output_directory / "comparison.md").write_text(markdown(result))

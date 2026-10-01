@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime/debug"
+	"strconv"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -61,15 +63,45 @@ func (s *attendanceMirror) getLogger() *slog.Logger {
 
 // recoverMirrorPanic returns unexpected failures to the transaction owner and
 // keeps the stack in the logs for diagnosis without publishing it to
-// clients. It must be deferred directly so recover sees the panic.
-func (s *attendanceMirror) recoverMirrorPanic(logMessage, errPrefix string, err *error) {
+// clients. The panic itself goes to Sentry (#3640): the error that replaces
+// it no longer carries its stack. It must be deferred directly so recover
+// sees the panic.
+func (s *attendanceMirror) recoverMirrorPanic(ctx context.Context, logMessage, errPrefix string, err *error) {
 	if r := recover(); r != nil {
 		s.getLogger().Error(logMessage,
 			slog.Any("panic", r),
 			slog.String("stack", string(debug.Stack())),
 		)
+		reportMirrorPanic(ctx, r)
 		*err = fmt.Errorf("%s: %v", errPrefix, r)
 	}
+}
+
+// reportMirrorPanic sends the panic to Sentry on the hub of the request or
+// job that ran the mirror, tagged with the school whose transaction it ran
+// in. The event is flushed, since a panic may precede the end of the process.
+func reportMirrorPanic(ctx context.Context, recovered any) {
+	hub := sentry.GetHubFromContext(ctx)
+	if hub == nil {
+		hub = sentry.CurrentHub()
+	}
+	hub.WithScope(func(scope *sentry.Scope) {
+		if schoolID := mirrorSchoolID(ctx); schoolID > 0 {
+			scope.SetTag("school_id", strconv.FormatInt(schoolID, 10))
+		}
+		hub.RecoverWithContext(ctx, recovered)
+	})
+	hub.Flush(2 * time.Second)
+}
+
+// mirrorSchoolID is the school whose tenant transaction the mirror ran in,
+// or 0 outside one.
+func mirrorSchoolID(ctx context.Context) int64 {
+	tenantID, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return 0
+	}
+	return tenantID.Int64()
 }
 
 // MirrorCheckInForVisit mirrors a visit check-in onto its slot.
@@ -90,7 +122,7 @@ func (s *attendanceMirror) MirrorCheckInForVisit(
 	ctx context.Context, visit timetable.AttendanceVisit,
 ) (snapshot *timetable.AttendanceSnapshot, err error) {
 	// A panic leaves the snapshot nil: it is only ever set by a return.
-	defer s.recoverMirrorPanic("attendance mirror panic", "visit check-in sync panic", &err)
+	defer s.recoverMirrorPanic(ctx, "attendance mirror panic", "visit check-in sync panic", &err)
 
 	if visit.ActiveGroupID <= 0 {
 		s.getLogger().Debug("attendance mirror: visit has no active_group_id, skipping")
@@ -279,7 +311,7 @@ func (s *attendanceMirror) MirrorCheckInAt(
 	ctx context.Context, studentID int64, at time.Time,
 ) (snapshot *timetable.AttendanceSnapshot, err error) {
 	// A panic leaves the snapshot nil: it is only ever set by a return.
-	defer s.recoverMirrorPanic("roomless attendance mirror panic", "roomless check-in sync panic", &err)
+	defer s.recoverMirrorPanic(ctx, "roomless attendance mirror panic", "roomless check-in sync panic", &err)
 
 	rows, err := s.instanceStudentRepo.FindCurrentCandidates(
 		ctx, studentID, scheduleModel.DateFromTime(at), at,
@@ -337,7 +369,7 @@ func (s *attendanceMirror) MirrorCheckOutForVisit(
 	ctx context.Context, visit timetable.AttendanceVisit,
 ) (snapshot *timetable.AttendanceSnapshot, err error) {
 	// A panic leaves the snapshot nil: it is only ever set by a return.
-	defer s.recoverMirrorPanic("attendance load panic", "visit checkout sync panic", &err)
+	defer s.recoverMirrorPanic(ctx, "attendance load panic", "visit checkout sync panic", &err)
 
 	if visit.ActiveGroupID <= 0 {
 		return nil, nil
@@ -370,7 +402,7 @@ func (s *attendanceMirror) MirrorCheckOutForVisit(
 func (s *attendanceMirror) MirrorVisitRevision(
 	ctx context.Context, previous, updated timetable.AttendanceVisit,
 ) (err error) {
-	defer s.recoverMirrorPanic("attendance visit revision mirror panic", "attendance visit revision panic", &err)
+	defer s.recoverMirrorPanic(ctx, "attendance visit revision mirror panic", "attendance visit revision panic", &err)
 
 	if previous.StudentID != updated.StudentID ||
 		previous.ActiveGroupID <= 0 ||

@@ -3,10 +3,10 @@ package repositories
 import (
 	"context"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 )
 
 // careExitEnrollment serves the care lifecycle's Enrollment port: the
@@ -60,7 +60,7 @@ func (e careExitEnrollment) CareExitOfferingSnapshots(ctx context.Context, stude
 	if err != nil {
 		return nil, err
 	}
-	tenantID := usersRepo.TenantIDFromContext(ctx)
+	tenantID := peopleCompose.CallerTenantID(ctx)
 	result := make([]carePlanCompose.CareExitOfferingSnapshot, 0, len(snapshots))
 	for _, snapshot := range snapshots {
 		if snapshot.TenantID != tenantID {

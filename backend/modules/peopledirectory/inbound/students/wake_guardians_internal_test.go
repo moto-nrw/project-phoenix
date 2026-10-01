@@ -1,0 +1,46 @@
+package students
+
+import (
+	"bytes"
+	"log/slog"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+// TestResourceWakeChildGuardians pins the two guards on the staff-side guardian
+// wake helper (#1725): a nil emitter is a silent no-op (tests build a bare
+// Resource), and a zero tenant id logs and skips rather than fanning out with no
+// tenant context. The happy-path fan-out (emitter present + valid tenant →
+// BroadcastChildUpdateToGuardians) is covered end-to-end by the external
+// students_test guardian-wake integration test.
+func TestResourceWakeChildGuardians(t *testing.T) {
+	t.Parallel()
+
+	// nil emitter: no-op, must not panic.
+	(&Resource{}).wakeChildGuardians(42, 100)
+
+	// zero tenantID with a present emitter logs and skips (never reaches the
+	// emitter).
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+	emitter := &recordingGuardianWake{}
+	(&Resource{ResourceConfig: ResourceConfig{ParentEventEmitter: emitter, Logger: logger}}).
+		wakeChildGuardians(0, 100)
+	assert.Contains(t, buf.String(), "no tenant context")
+	assert.Empty(t, emitter.woken)
+
+	// A valid tenant reaches the Communication port unchanged.
+	(&Resource{ResourceConfig: ResourceConfig{ParentEventEmitter: emitter, Logger: logger}}).
+		wakeChildGuardians(42, 100)
+	assert.Equal(t, [][2]int64{{42, 100}}, emitter.woken)
+}
+
+// recordingGuardianWake records the fan-outs the Communication port receives.
+type recordingGuardianWake struct {
+	woken [][2]int64
+}
+
+func (w *recordingGuardianWake) BroadcastChildUpdateToGuardians(tenantID, studentID int64) {
+	w.woken = append(w.woken, [2]int64{tenantID, studentID})
+}

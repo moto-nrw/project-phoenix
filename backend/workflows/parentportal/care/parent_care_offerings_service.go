@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // CareOfferingSelection is one booked care offering of the current care period.
@@ -48,7 +48,7 @@ type PendingOfferingChange struct {
 	CreatedAt       time.Time
 	EffectiveFrom   timezone.Date
 	Note            string
-	Diff            []enrollmentSvc.OfferingChangeDiffEntry
+	Diff            []careplan.OfferingChangeDiffEntry
 	SubmittedBySelf bool
 }
 
@@ -71,7 +71,7 @@ type ChildCareOfferings struct {
 	PendingRequest *PendingOfferingChange
 	// LastDecision is the most recent decided request inside the recency window,
 	// so the outcome of a request is visible where it was submitted.
-	LastDecision *enrollmentSvc.OfferingChangeDecision
+	LastDecision *careplan.OfferingChangeDecision
 	// EarliestEffectiveFrom is the first date a new request may take effect
 	// under the school's notice period — the date picker's lower bound. Zero
 	// when requesting is not possible anyway.
@@ -101,7 +101,7 @@ func (s *Service) GetChildCareOfferings(ctx context.Context, accountID, studentI
 		Offerings: []CareOfferingSelection{},
 	}
 	today := s.todayDate()
-	var period *enrollmentSvc.StudentCarePeriod
+	var period *CarePeriod
 	var canRequest bool
 	var changesDisabledReason string
 	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
@@ -128,7 +128,7 @@ func (s *Service) loadChildCareOfferings(
 	studentID int64,
 	today timezone.Date,
 	view *ChildCareOfferings,
-) (*enrollmentSvc.StudentCarePeriod, error) {
+) (*CarePeriod, error) {
 	period, err := s.currentCarePeriod(ctx, studentID, today)
 	if err != nil {
 		return nil, err
@@ -139,7 +139,7 @@ func (s *Service) loadChildCareOfferings(
 		view.PeriodEnd = period.ServiceEndDate
 		// Shared with the staff views so both sides answer "what is booked,
 		// what starts later" from the same day (#2185).
-		offeringDate := enrollmentSvc.BookingViewDate(today, period.ServiceEndDate)
+		offeringDate := careplan.BookingViewDate(today, period.ServiceEndDate)
 		view.Offerings, err = s.carePeriodOfferings(ctx, period.RequestChildID, offeringDate)
 		if err != nil {
 			return nil, err
@@ -178,10 +178,10 @@ func (s *Service) loadOfferingChangeState(
 }
 
 func visibleOfferingDecision(
-	decision *enrollmentSvc.OfferingChangeDecision,
+	decision *careplan.OfferingChangeDecision,
 	accountID int64,
 	visibility RequestShareVisibility,
-) *enrollmentSvc.OfferingChangeDecision {
+) *careplan.OfferingChangeDecision {
 	if decision == nil || !visibility.Allows(RequestShareOffering, decision.ID, accountID, decision.SubmittedBy) {
 		return nil
 	}
@@ -189,7 +189,7 @@ func visibleOfferingDecision(
 	return decision
 }
 
-func pendingOfferingChange(view *enrollmentSvc.OfferingChangeView, accountID int64, visible bool) *PendingOfferingChange {
+func pendingOfferingChange(view *careplan.OfferingChangeView, accountID int64, visible bool) *PendingOfferingChange {
 	if view.Request == nil || !visible {
 		return nil
 	}
@@ -212,7 +212,7 @@ func pendingOfferingChange(view *enrollmentSvc.OfferingChangeView, accountID int
 func (s *Service) GetChildOfferingCatalog(
 	ctx context.Context,
 	accountID, studentID int64,
-) (*enrollmentSvc.OfferingChangeCatalog, error) {
+) (*careplan.OfferingChangeCatalog, error) {
 	return s.GetChildOfferingCatalogAt(ctx, accountID, studentID, timezone.Date(""))
 }
 
@@ -220,7 +220,7 @@ func (s *Service) GetChildOfferingCatalogAt(
 	ctx context.Context,
 	accountID, studentID int64,
 	effectiveFrom timezone.Date,
-) (*enrollmentSvc.OfferingChangeCatalog, error) {
+) (*careplan.OfferingChangeCatalog, error) {
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
 	if err != nil {
 		return nil, err
@@ -229,9 +229,9 @@ func (s *Service) GetChildOfferingCatalogAt(
 		return nil, err
 	}
 	if s.OfferingChanges == nil {
-		return nil, enrollmentSvc.ErrOfferingChangeDisabled
+		return nil, careplan.ErrOfferingChangeDisabled
 	}
-	var catalog *enrollmentSvc.OfferingChangeCatalog
+	var catalog *careplan.OfferingChangeCatalog
 	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		resolved, resolveErr := s.OfferingChanges.CatalogAt(txCtx, studentID, effectiveFrom)
 		if resolveErr != nil {
@@ -251,7 +251,7 @@ func (s *Service) GetChildOfferingCatalogAt(
 func (s *Service) CreateOfferingChangeRequest(
 	ctx context.Context,
 	accountID, studentID int64,
-	selections []enrollmentSvc.OfferingChangeSelection,
+	selections []careplan.OfferingChangeSelection,
 	effectiveFrom timezone.Date,
 	note string,
 	completeWithdrawalConfirmed bool,
@@ -267,12 +267,12 @@ func (s *Service) CreateOfferingChangeRequest(
 		return nil, err
 	}
 	if s.OfferingChanges == nil {
-		return nil, enrollmentSvc.ErrOfferingChangeDisabled
+		return nil, careplan.ErrOfferingChangeDisabled
 	}
 	// The note is mandatory only while the school asks the family for a
 	// reason (#2267, story 28).
 	if strings.TrimSpace(note) == "" && s.GuardianReasonRequired(ctx, child.TenantID) {
-		return nil, usersSvc.ErrParentRequestReasonRequired
+		return nil, careplan.ErrParentRequestReasonRequired
 	}
 	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
@@ -282,7 +282,7 @@ func (s *Service) CreateOfferingChangeRequest(
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		created, createErr := s.OfferingChanges.Create(txCtx, enrollmentSvc.CreateOfferingChangeInput{
+		created, createErr := s.OfferingChanges.SubmitOfferingChange(txCtx, careplan.CreateOfferingChangeInput{
 			StudentID:                   studentID,
 			AccountID:                   accountID,
 			Selections:                  selections,
@@ -316,7 +316,7 @@ func (s *Service) CreateOfferingChangeRequest(
 func (s *Service) EditOfferingChangeRequest(
 	ctx context.Context,
 	accountID, studentID, requestID int64,
-	selections []enrollmentSvc.OfferingChangeSelection,
+	selections []careplan.OfferingChangeSelection,
 	effectiveFrom timezone.Date,
 	note string,
 	completeWithdrawalConfirmed bool,
@@ -330,12 +330,12 @@ func (s *Service) EditOfferingChangeRequest(
 		return nil, err
 	}
 	if s.OfferingChanges == nil {
-		return nil, enrollmentSvc.ErrOfferingChangeDisabled
+		return nil, careplan.ErrOfferingChangeDisabled
 	}
 	// The note is mandatory only while the school asks the family for a
 	// reason (#2267, story 28).
 	if strings.TrimSpace(note) == "" && s.GuardianReasonRequired(ctx, child.TenantID) {
-		return nil, usersSvc.ErrParentRequestReasonRequired
+		return nil, careplan.ErrParentRequestReasonRequired
 	}
 	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
@@ -345,7 +345,7 @@ func (s *Service) EditOfferingChangeRequest(
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		_, editErr := s.OfferingChanges.Edit(txCtx, requestID, enrollmentSvc.CreateOfferingChangeInput{
+		_, editErr := s.OfferingChanges.Edit(txCtx, requestID, careplan.CreateOfferingChangeInput{
 			StudentID:                   studentID,
 			AccountID:                   accountID,
 			Selections:                  selections,
@@ -369,11 +369,11 @@ func (s *Service) currentCarePeriod(
 	ctx context.Context,
 	studentID int64,
 	today timezone.Date,
-) (*enrollmentSvc.StudentCarePeriod, error) {
+) (*CarePeriod, error) {
 	if s.CarePeriods == nil {
 		return nil, nil
 	}
-	periods, err := enrollmentSvc.ReadStudentCarePeriods(ctx, s.CarePeriods, studentID)
+	periods, err := s.CarePeriods.CarePeriods(ctx, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("list care periods: %w", err)
 	}
@@ -381,7 +381,7 @@ func (s *Service) currentCarePeriod(
 		return nil, nil
 	}
 	// Repository order is latest window first.
-	var upcoming, past *enrollmentSvc.StudentCarePeriod
+	var upcoming, past *CarePeriod
 	for _, candidate := range periods {
 		switch {
 		case !candidate.ServiceStartDate.After(today) && !candidate.ServiceEndDate.Before(today):
@@ -406,7 +406,7 @@ func (s *Service) carePeriodOfferings(
 	if s.OfferingHistory == nil || s.CareOfferingRepo == nil {
 		return []CareOfferingSelection{}, nil
 	}
-	links, err := enrollmentSvc.ReadOfferingHistory(ctx, s.OfferingHistory, requestChildID)
+	links, err := s.OfferingHistory.OfferingHistory(ctx, requestChildID)
 	if err != nil {
 		return nil, fmt.Errorf("list child offerings: %w", err)
 	}
@@ -439,7 +439,7 @@ func (s *Service) carePeriodOfferings(
 	return items, nil
 }
 
-func uniqueOfferingIDs(links []*enrollmentSvc.RequestChildOffering) []int64 {
+func uniqueOfferingIDs(links []*OfferingBooking) []int64 {
 	ids := make([]int64, 0, len(links))
 	seen := make(map[int64]bool, len(links))
 	for _, link := range links {
@@ -454,7 +454,7 @@ func uniqueOfferingIDs(links []*enrollmentSvc.RequestChildOffering) []int64 {
 
 func careOfferingSelection(
 	offering *enrollmentModels.CareOffering,
-	link *enrollmentSvc.RequestChildOffering,
+	link *OfferingBooking,
 	today timezone.Date,
 ) (CareOfferingSelection, bool) {
 	if offering == nil {
@@ -479,7 +479,7 @@ func careOfferingSelection(
 	return item, true
 }
 
-func careOfferingDays(offering *enrollmentModels.CareOffering, link *enrollmentSvc.RequestChildOffering) []string {
+func careOfferingDays(offering *enrollmentModels.CareOffering, link *OfferingBooking) []string {
 	if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
 		return offering.AvailableDays
 	}
@@ -557,7 +557,7 @@ func (s *Service) resolveOfferingChangeAvailabilityForStudent(
 	ctx context.Context,
 	child *Child,
 	studentID int64,
-	period *enrollmentSvc.StudentCarePeriod,
+	period *CarePeriod,
 	today timezone.Date,
 ) (bool, string) {
 	if period == nil {
@@ -587,7 +587,7 @@ func (s *Service) hasCarePeriodOnOrAfter(ctx context.Context, studentID int64, d
 	if s.CarePeriods == nil {
 		return false
 	}
-	periods, err := enrollmentSvc.ReadStudentCarePeriods(ctx, s.CarePeriods, studentID)
+	periods, err := s.CarePeriods.CarePeriods(ctx, studentID)
 	if err != nil {
 		return false
 	}

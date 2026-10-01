@@ -24,6 +24,8 @@ import {
 } from "@phosphor-icons/react";
 import {
   getStudentTimeStatus,
+  ONLY_IF_LESSON_CANCELLED_LABEL,
+  type StudentDayTimes,
   type StudentTimeStatus,
 } from "~/lib/student-time-status";
 import {
@@ -435,6 +437,7 @@ function TimeStatusRow({
   notes,
   now,
   kind,
+  day,
 }: Readonly<{
   label: string;
   plannedTime?: string;
@@ -443,8 +446,15 @@ function TimeStatusRow({
   notes?: string;
   now: Date;
   kind: "arrival" | "pickup";
+  day?: StudentDayTimes;
 }>) {
-  const status = getStudentTimeStatus({ plannedTime, actualTime, now });
+  const status = getStudentTimeStatus({
+    plannedTime,
+    actualTime,
+    now,
+    kind,
+    day,
+  });
 
   if (!status.displayTime) {
     const fallbackIcon =
@@ -462,7 +472,12 @@ function TimeStatusRow({
   // and screen-reader output read the row as one continuous string. Splitting
   // the time into its own <span> for the colored states would break exact
   // text matching even though the rendered characters are identical.
-  const fullText = `${label}: ${status.displayTime} Uhr`;
+  // A day without care time says so instead of a time: the card row is too
+  // narrow for time plus explanation, and the explanation is the news (#3373).
+  const fullText =
+    status.state === "only-if-lesson-cancelled"
+      ? ONLY_IF_LESSON_CANCELLED_LABEL
+      : `${label}: ${status.displayTime} Uhr`;
 
   return (
     <StudentInfoRow icon={icon}>
@@ -482,6 +497,7 @@ export function PickupTimeRow({
   isException,
   notes,
   now,
+  day,
 }: Readonly<{
   pickupTime?: string;
   actualTime?: string;
@@ -489,6 +505,8 @@ export function PickupTimeRow({
   notes?: string;
   /** Omit inside a `StudentCardClockProvider` — see `useRowClock` (#2975). */
   now?: Date;
+  /** The whole day; without a check-in the pickup cannot be late (#3373). */
+  day?: StudentDayTimes;
 }>) {
   const rowNow = useRowClock(now);
 
@@ -509,6 +527,7 @@ export function PickupTimeRow({
       notes={notes}
       now={rowNow}
       kind="pickup"
+      day={day}
     />
   );
 }
@@ -607,6 +626,7 @@ export function ArrivalTimeRow({
   notes,
   now,
   absentWording = "Kommt heute nicht",
+  day,
 }: Readonly<{
   arrivalTime?: string;
   actualTime?: string;
@@ -617,6 +637,8 @@ export function ArrivalTimeRow({
   now?: Date;
   /** See StudentAbsenceRow — date-neutral phrase for non-today views (#1939). */
   absentWording?: string;
+  /** The whole day; arrival not before pickup means no care time (#3373). */
+  day?: StudentDayTimes;
 }>) {
   const rowNow = useRowClock(now);
 
@@ -645,6 +667,7 @@ export function ArrivalTimeRow({
       notes={notes}
       now={rowNow}
       kind="arrival"
+      day={day}
     />
   );
 }

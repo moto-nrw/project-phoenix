@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 
+const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
+vi.mock("@sentry/nextjs", () => ({ captureException }));
+
 // Mock dependencies first — auth-proxy imports server-api-url which
 // reaches into env.js at module-eval time, and the t3-env validation
 // blows up under vitest without these.
@@ -69,6 +72,7 @@ function mockFetchResponse(opts: {
 
 describe("forwardJsonPost", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     globalThis.fetch = ORIGINAL_FETCH;
   });
   afterEach(() => {
@@ -140,7 +144,7 @@ describe("forwardJsonPost", () => {
     expect(await res.json()).toEqual({ error: "Invalid credentials" });
   });
 
-  it("wraps non-JSON bodies in a {message} envelope", async () => {
+  it("forwards non-JSON bodies unchanged", async () => {
     globalThis.fetch = mockFetchResponse({
       status: 502,
       body: "Bad Gateway",
@@ -153,13 +157,11 @@ describe("forwardJsonPost", () => {
     );
 
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ message: "Bad Gateway" });
+    expect(res.headers.get("Content-Type")).toBe("text/plain");
+    expect(await res.text()).toBe("Bad Gateway");
   });
 
-  it("falls back to {message} when the response claims JSON but body isn't valid JSON", async () => {
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
+  it("forwards malformed backend JSON unchanged", async () => {
     globalThis.fetch = mockFetchResponse({
       status: 500,
       body: "not-json-at-all",
@@ -172,21 +174,25 @@ describe("forwardJsonPost", () => {
     );
 
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ message: "not-json-at-all" });
-    expect(consoleError).toHaveBeenCalled();
-    consoleError.mockRestore();
+    expect(res.headers.get("Content-Type")).toBe("application/json");
+    expect(await res.text()).toBe("not-json-at-all");
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("treats fetch rejections as 500 Internal Server Error", async () => {
     const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => {});
+    const failure = new Error("ECONNREFUSED");
     globalThis.fetch = vi.fn(async () => {
-      throw new Error("ECONNREFUSED");
+      throw failure;
     }) as unknown as typeof fetch;
 
     const res = await forwardJsonPost(
-      makeRequest({ body: {} }),
+      makeRequest({
+        body: {},
+        headers: { "X-Request-ID": "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10" },
+      }),
       "/api/auth/login",
     );
 
@@ -196,6 +202,9 @@ describe("forwardJsonPost", () => {
       "proxy_failed",
       expect.objectContaining({ path: "/api/auth/login" }),
     );
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {
+      tags: { request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10" },
+    });
     consoleError.mockRestore();
   });
 
@@ -218,7 +227,7 @@ describe("forwardJsonPost", () => {
     expect((init as RequestInit).body).toBeUndefined();
   });
 
-  it("returns {message: 'Empty response'} when JSON body is empty/null", async () => {
+  it("keeps an empty backend body empty", async () => {
     globalThis.fetch = mockFetchResponse({
       status: 200,
       body: "",
@@ -231,6 +240,6 @@ describe("forwardJsonPost", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ message: "Empty response" });
+    expect(await res.text()).toBe("");
   });
 });

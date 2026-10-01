@@ -3,8 +3,6 @@ package test
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"sort"
@@ -70,7 +68,7 @@ const moduleFuncLenThreshold = 60
 // delete entries, never add one and never raise a number.
 var moduleFuncLenAllowlist = map[string]int{
 	"modules/appointments/recurrence.go:boundedRecurrenceDates":                                          117,
-	"modules/careplan/inbound/parent/api.go:(*Resource).RouterWithAuthRateLimiter":                       212,
+	"modules/careplan/inbound/parent/api.go:(*Resource).RouterWithAuthRateLimiter":                       211,
 	"modules/careplan/inbound/parent/child_write_handlers.go:(*Resource).submitSickNote":                 67,
 	"modules/careplan/inbound/parent/child_write_handlers.go:renderParentWriteError":                     162,
 	"modules/careplan/inbound/parent/enrollment_handlers.go:(*Resource).getEnrollmentBootstrap":          87,
@@ -96,17 +94,17 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/communication/internal/adapters/staffinbox/projection.go:(*Projection).ListInbox":                                       61,
 	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":                                         176,
 	"modules/communication/internal/parentmessages/message_email.go:messageEmailCopy":                                                84,
-	"modules/communication/internal/parentmessages/service.go:(*Service).PostMessage":                                                79,
+	"modules/communication/internal/parentmessages/service.go:(*Service).PostMessage":                                                69,
 	"modules/communication/internal/parentmessages/service.go:(*Service).notifyGuardianDevice":                                       61,
-	"modules/communication/internal/staffannouncements/care_cancellation.go:(*service).PublishCareCancellation":                      83,
+	"modules/communication/internal/staffannouncements/care_cancellation.go:(*service).PublishCareCancellation":                      72,
 	"modules/communication/internal/staffannouncements/email.go:NewAnnouncementRenderer":                                             61,
 	"modules/communication/internal/staffannouncements/letter.go:(*service).ResendFailedEmails":                                      107,
 	"modules/communication/internal/staffannouncements/letter.go:(*service).queueLetterMailsAs":                                      90,
 	"modules/communication/internal/staffannouncements/poll.go:(*service).enqueueReminderEmails":                                     77,
 	"modules/communication/internal/staffannouncements/poll.go:(*service).pushPollReminder":                                          64,
 	"modules/communication/internal/staffannouncements/reminder.go:(*service).SendDueReminders":                                      72,
-	"modules/communication/internal/staffannouncements/service.go:(*service).Publish":                                                100,
-	"modules/communication/internal/staffannouncements/service.go:(*service).Update":                                                 70,
+	"modules/communication/internal/staffannouncements/service.go:(*service).Publish":                                                86,
+	"modules/communication/internal/staffannouncements/service.go:(*service).Update":                                                 63,
 	"modules/communication/internal/staffannouncements/service.go:(*service).enqueueAnnouncementEmailsAs":                            131,
 	"modules/communication/internal/staffannouncements/service.go:(*service).notifyAnnouncementGuardiansWith":                        91,
 	"modules/communication/internal/staffannouncements/service.go:normalizeInput":                                                    78,
@@ -122,7 +120,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/delivery/application/notifications/service.go:(*router).NotifyBatch":                                                    62,
 	"modules/delivery/application/notifications/service.go:(*router).NotifySynchronously":                                            62,
 	"modules/delivery/application/notifications/service.go:validate":                                                                 69,
-	"modules/delivery/application/notifications/types.go:init":                                                                       152,
+	"modules/delivery/application/notifications/types.go:init":                                                                       151,
 	"modules/delivery/http/sse/school_api.go:(*Resource).schoolEventsHandler":                                                        71,
 	"modules/devicescan/internal/application/systemspace.go:(*Service).systemActivity":                                               68,
 	"modules/enrollment/form_schema.go:(*FormField).validateQuestion":                                                                83,
@@ -189,7 +187,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/schoolstructure/internal/adapters/postgres/transition_store.go:(*Store).ListTransitions":                                64,
 	"modules/schoolstructure/internal/application/transition.go:(*Service).UpdateTransition":                                         63,
 	"modules/statistics/http/response.go:toReportResponse":                                                                           78,
-	"modules/studentpresence/inbound/presence/analytics_handlers.go:(*Resource).getDashboardAnalytics":                               69,
 	"modules/studentpresence/inbound/presence/api.go:(*Resource).Router":                                                             131,
 	"modules/studentpresence/inbound/presence/checkin.go:(*Resource).parseAndValidateCheckinRequest":                                 62,
 	"modules/studentpresence/inbound/presence/groups_handlers.go:(*Resource).buildVisitDisplayResponses":                             68,
@@ -202,7 +199,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/timetable/internal/adapters/postgres/calendar_period_references.go:(*Store).CountCalendarPeriodReferences":              62,
 	"modules/timetable/internal/adapters/postgres/groups.go:(*Store).ListCourseGroups":                                               71,
 	"modules/timetable/internal/adapters/postgres/pickup_extensions.go:(*Store).ListPickupExtensionWeekdayBlocks":                    70,
-	"modules/timetableprojection/projection.go:CourseGroupsForOfferings":                                                             62,
 	"modules/workforce/inbound/timetracking/errors.go:classifyServiceError":                                                          63,
 	"modules/workforce/inbound/timetracking/staff_admin_document_cleanup.go:(*StaffAdminResource).CleanupOrphanedStaffDocumentFiles": 70,
 	"modules/workforce/inbound/timetracking/staff_admin_documents.go:(*StaffAdminResource).uploadStaffDocument":                      71,
@@ -348,8 +344,7 @@ func moduleFuncLenScan(backendRoot string) (map[string]int, error) {
 			}
 			rel = filepath.ToSlash(rel)
 
-			fset := token.NewFileSet()
-			file, parseErr := parser.ParseFile(fset, path, nil, 0)
+			fset, file, parseErr := parseGoSourceCached(path, nil)
 			if parseErr != nil {
 				return fmt.Errorf("parse %s: %w", rel, parseErr)
 			}

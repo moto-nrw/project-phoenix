@@ -1,3 +1,4 @@
+import { ApiError, enrichApiError } from "./api-error";
 // API client for tenant-defined activity categories (#2131).
 //
 // Admin CRUD goes through /api/activities/categories (backend
@@ -14,12 +15,12 @@ interface CategoryPayload {
   color: string;
 }
 
-export class CategoryApiError extends Error {
+export class CategoryApiError extends ApiError {
   readonly status: number;
   readonly detail: string;
 
   constructor(status: number, detail: string) {
-    super(`HTTP ${status}: ${detail}`);
+    super(`HTTP ${status}: ${detail}`, status);
     this.name = "CategoryApiError";
     this.status = status;
     this.detail = detail;
@@ -31,18 +32,23 @@ async function readError(
   fallback: string,
 ): Promise<CategoryApiError> {
   let detail = "";
+  let payload: unknown;
   const contentType = response.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
+  if (contentType.includes("json")) {
     try {
       const body = (await response.json()) as { error?: string };
       detail = body.error ?? "";
+      payload = body;
     } catch {
       detail = "";
     }
   } else {
     detail = await response.text();
   }
-  return new CategoryApiError(response.status, detail || fallback);
+  return enrichApiError(
+    new CategoryApiError(response.status, detail || fallback),
+    payload,
+  );
 }
 
 async function readOne(

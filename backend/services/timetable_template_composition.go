@@ -9,11 +9,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // TimetablePlanning carries the Timetable owner's planning capabilities the
@@ -75,7 +75,7 @@ type timetableTemplateInputs struct {
 	PlanningTracks       timetableCompose.PlanningTrackAssignments
 	Materialization      timetable.MaterializationCapability
 	Deviations           timetableCompose.SeriesDeviations
-	CareOfferings        enrollment.CareOfferingSeriesValidator
+	CareOfferings        careplan.CareOfferingGuards
 	ResyncOfferingRoster func(context.Context, timetable.OfferingRosterResyncInput) error
 	RecurrenceLock       timetable.RecurrenceWriteLock
 	Broadcaster          realtime.Broadcaster
@@ -123,14 +123,20 @@ func timetableSchoolClassRules() timetableCompose.SchoolClassRules {
 	}
 }
 
-// timetableCareOfferingChecks binds Enrollment's care-offering guards; an
+// timetableCareOfferingChecks binds the Care Plan catalog's guards; an
 // invalid linked offering is the client-correctable conflict.
-func timetableCareOfferingChecks(validator enrollment.CareOfferingSeriesValidator) timetableCompose.CareOfferingChecks {
+func timetableCareOfferingChecks(guards careplan.CareOfferingGuards) timetableCompose.CareOfferingChecks {
 	return timetableCompose.CareOfferingChecks{
-		ValidateSeries:         validator.ValidateTemplateSeries,
-		ValidateOfferingSource: validator.ValidateTemplateOfferingSource,
-		IsConflict:             enrollment.IsCareOfferingInvalid,
+		ValidateSeries:         guards.ValidateTemplateSeries,
+		ValidateOfferingSource: guards.ValidateTemplateOfferingSource,
+		IsConflict:             isCareOfferingConfigInvalid,
 	}
+}
+
+// isCareOfferingConfigInvalid reports whether err is a care-offering
+// compatibility refusal rather than an infrastructure failure.
+func isCareOfferingConfigInvalid(err error) bool {
+	return errors.Is(err, careplan.ErrCareOfferingConfigInvalid)
 }
 
 // staffingAnnouncer wakes the staffing caches through the realtime hub; the

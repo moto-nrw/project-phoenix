@@ -61,21 +61,9 @@ var validSelectionRules = map[string]bool{
 	SelectionRuleAtMostOne:  true,
 }
 
-// ErrCareOfferingInvalid classifies an administrator-controlled catalog or
-// timetable-link configuration that cannot be accepted. It lives with the
-// shared model so enrollment and schedule services can agree on the boundary
-// between a client-correctable conflict (HTTP 400) and an infrastructure
-// failure (HTTP 500) without introducing a service-package import cycle.
-var ErrCareOfferingInvalid = errors.New("invalid care offering configuration")
-
 // ErrCareOfferingDaysRequired marks the missing-weekday validation so the
 // HTTP layer can attach a stable error code for the admin editor (#1885).
 var ErrCareOfferingDaysRequired = errors.New("available_days must contain at least one day")
-
-// ErrCareOfferingPickupTimesRequired marks an active care offering whose
-// weekday plan has no unambiguous pickup time. The admin API maps it to a
-// stable client error code.
-var ErrCareOfferingPickupTimesRequired = errors.New("active care offering requires pickup_times for every weekday")
 
 const (
 	AvailabilityMatchAll = "all"

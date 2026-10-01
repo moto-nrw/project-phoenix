@@ -40,6 +40,8 @@ func (q *roomAvailability) AvailableRooms(ctx context.Context, capacity int) ([]
 			ID: room.ID, Name: room.Name, Building: room.Building,
 			Floor: room.Floor, Capacity: room.Capacity, Category: room.Category,
 			Color: room.Color, IsOccupied: room.IsOccupied,
+			IsOpenRoom: room.IsOpenRoom,
+			IsSchulhof: room.IsSystem && room.Name == facilities.SchulhofRoomName,
 		})
 	}
 	return result, nil

@@ -372,6 +372,39 @@ func (s *Service) OpenGuardianAttachment(ctx context.Context, accountID, announc
 	return attachment, object, err
 }
 
+// OpenGuardianDeclarationProofAttachment resolves one attachment that was
+// frozen in the caller's own declaration proof. Unlike the live-announcement
+// path, this remains available after expiry or withdrawal; the proof gate
+// verifies the relationship, submission and frozen attachment together.
+func (s *Service) OpenGuardianDeclarationProofAttachment(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (attachment domain.Document, object ports.Object, err error) {
+	err = s.run("open_guardian_declaration_proof_attachment", func(o *op) error {
+		tenantID, err := s.guardianDeclarationProofAttachmentTenant(ctx, accountID, announcementID, studentID, attachmentID)
+		if err != nil {
+			return err
+		}
+		if err := s.deps.Tx.RunInTenant(ctx, tenantID, func(txCtx context.Context) error {
+			found, ok, stats, err := s.deps.Attachments.FindForOwner(txCtx, announcementID, attachmentID, false)
+			o.add(stats)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return domain.ErrAttachmentNotFound
+			}
+			attachment = found
+			return nil
+		}); err != nil {
+			return err
+		}
+		if err := s.revalidateGuardianDeclarationProofAttachmentAccess(ctx, accountID, announcementID, studentID, attachmentID, tenantID); err != nil {
+			return err
+		}
+		object, err = s.openObject(ctx, s.attachments(), tenantID, attachment)
+		return err
+	})
+	return attachment, object, err
+}
+
 // revalidateGuardianAccess asks the audience a second time, after the rows
 // have been read and before anything is handed out. Die erste Prüfung und das
 // Lesen laufen in getrennten Transaktionen; zwischen beiden kann die Mitteilung
@@ -379,6 +412,17 @@ func (s *Service) OpenGuardianAttachment(ctx context.Context, accountID, announc
 // behandelt.
 func (s *Service) revalidateGuardianAccess(ctx context.Context, accountID, announcementID, expectedTenantID int64) error {
 	tenantID, err := s.guardianTenant(ctx, accountID, announcementID)
+	if err != nil {
+		return err
+	}
+	if tenantID != expectedTenantID {
+		return domain.ErrAttachmentNotFound
+	}
+	return nil
+}
+
+func (s *Service) revalidateGuardianDeclarationProofAttachmentAccess(ctx context.Context, accountID, announcementID, studentID, attachmentID, expectedTenantID int64) error {
+	tenantID, err := s.guardianDeclarationProofAttachmentTenant(ctx, accountID, announcementID, studentID, attachmentID)
 	if err != nil {
 		return err
 	}
@@ -397,6 +441,23 @@ func (s *Service) guardianTenant(ctx context.Context, accountID, announcementID 
 		return 0, errors.New("announcement audience is not wired; refusing attachment read")
 	}
 	tenantID, err := s.deps.GuardianAudience.GuardianAnnouncementTenant(ctx, accountID, announcementID)
+	if err != nil {
+		return 0, err
+	}
+	if tenantID <= 0 {
+		return 0, domain.ErrAttachmentNotFound
+	}
+	return tenantID, nil
+}
+
+func (s *Service) guardianDeclarationProofAttachmentTenant(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (int64, error) {
+	if accountID <= 0 || announcementID <= 0 || studentID <= 0 || attachmentID <= 0 {
+		return 0, domain.ErrAttachmentNotFound
+	}
+	if s.deps.GuardianAudience == nil {
+		return 0, errors.New("declaration proof attachment audience is not wired; refusing attachment read")
+	}
+	tenantID, err := s.deps.GuardianAudience.GuardianDeclarationProofAttachmentTenant(ctx, accountID, announcementID, studentID, attachmentID)
 	if err != nil {
 		return 0, err
 	}

@@ -101,11 +101,12 @@ describe("GET /api/operator/provisioning/organizations/[id]/schools", () => {
   // another tab surfaces a "not found" toast rather than a generic 500.
   it("forwards a backend 404 with the same status code", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 404,
-      text: async () => JSON.stringify({ error: "organization not found" }),
-    });
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "organization not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/provisioning/organizations/999/schools",
@@ -119,11 +120,12 @@ describe("GET /api/operator/provisioning/organizations/[id]/schools", () => {
 
   it("forwards a backend 500 with the same status code", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 500,
-      text: async () => "internal error",
-    });
+    mockFetch.mockResolvedValue(
+      new Response("internal error", {
+        status: 500,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/provisioning/organizations/42/schools",

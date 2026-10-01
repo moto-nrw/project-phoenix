@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   areStudentDayTimesResolved,
   combineTimeNotes,
+  comesOnlyIfLessonCancelled,
+  earlyCheckoutMinutes,
   getStudentAbsence,
+  getStudentDayTimes,
   getStudentTimeStatus,
   getTimeStatusSortRank,
 } from "./student-time-status";
@@ -464,5 +467,295 @@ describe("student-time-status helpers", () => {
     expect(getTimeStatusSortRank(approaching)).toBeLessThan(
       getTimeStatusSortRank(done),
     );
+  });
+});
+
+// #3373: a child booked for the day whose lessons end no earlier than the
+// care time (arrival 13:20, pickup 13:20) only comes when a lesson is
+// cancelled. Neither end of that day may turn into an overdue alarm.
+describe("getStudentTimeStatus with the whole day (#3373)", () => {
+  const afterBothTimes = new Date("2026-09-09T14:30:00");
+
+  it("does not flag the pickup of a child who never arrived as overdue", () => {
+    const status = getStudentTimeStatus({
+      kind: "pickup",
+      plannedTime: "13:20",
+      day: { plannedArrival: "11:50", plannedPickup: "13:20" },
+      now: afterBothTimes,
+    });
+
+    expect(status.state).toBe("awaiting-arrival");
+    expect(status.icon).toBe("clock");
+    expect(status.iconColor).toBe(LOCATION_COLORS.UNKNOWN);
+    expect(status.textColor).toBeUndefined();
+    expect(status.detailAnnotation).toBeUndefined();
+    expect(status.displayTime).toBe("13:20");
+    expect(getTimeStatusSortRank(status)).toBe(
+      getTimeStatusSortRank(
+        getStudentTimeStatus({ plannedTime: "16:00", now: afterBothTimes }),
+      ),
+    );
+  });
+
+  it("keeps the overdue pickup for a child who arrived and was not picked up", () => {
+    const status = getStudentTimeStatus({
+      kind: "pickup",
+      plannedTime: "13:20",
+      day: {
+        plannedArrival: "11:50",
+        actualArrival: "11:52",
+        plannedPickup: "13:20",
+      },
+      now: afterBothTimes,
+    });
+
+    expect(status.state).toBe("very-overdue");
+  });
+
+  it("counts a checked-in child without a recorded arrival as here", () => {
+    const pickup = getStudentTimeStatus({
+      kind: "pickup",
+      plannedTime: "13:20",
+      day: { plannedArrival: "13:20", plannedPickup: "13:20", checkedIn: true },
+      now: afterBothTimes,
+    });
+    const arrival = getStudentTimeStatus({
+      kind: "arrival",
+      plannedTime: "13:20",
+      day: { plannedArrival: "13:20", plannedPickup: "13:20", checkedIn: true },
+      now: afterBothTimes,
+    });
+
+    expect(pickup.state).toBe("very-overdue");
+    expect(arrival.state).toBe("very-overdue");
+  });
+
+  it("keeps the overdue arrival of an ordinary day", () => {
+    const status = getStudentTimeStatus({
+      kind: "arrival",
+      plannedTime: "11:50",
+      day: { plannedArrival: "11:50", plannedPickup: "15:00" },
+      now: afterBothTimes,
+    });
+
+    expect(status.state).toBe("very-overdue");
+  });
+
+  it.each([
+    ["the same time", "13:20", "13:20"],
+    ["arrival after pickup", "13:20", "12:35"],
+    ["seconds on the times", "13:20:00", "13:20:00"],
+  ])(
+    "marks the arrival as only-if-lesson-cancelled for %s",
+    (_case, plannedArrival, plannedPickup) => {
+      const status = getStudentTimeStatus({
+        kind: "arrival",
+        plannedTime: plannedArrival,
+        day: { plannedArrival, plannedPickup },
+        now: afterBothTimes,
+      });
+
+      expect(status.state).toBe("only-if-lesson-cancelled");
+      expect(status.icon).toBe("clock");
+      expect(status.iconColor).toBe(LOCATION_COLORS.UNKNOWN);
+      expect(status.textColor).toBeUndefined();
+      expect(status.isResolved).toBe(true);
+      expect(status.displayTime).toBe("13:20");
+      expect(status.detailAnnotation).toBe("nur bei Unterrichtsausfall");
+      expect(getTimeStatusSortRank(status)).toBeGreaterThan(
+        getTimeStatusSortRank(
+          getStudentTimeStatus({ plannedTime: "16:00", now: afterBothTimes }),
+        ),
+      );
+    },
+  );
+
+  it("treats the day as ordinary once the child checked in after a cancelled lesson", () => {
+    const day = {
+      plannedArrival: "13:20",
+      actualArrival: "12:30",
+      plannedPickup: "13:20",
+    };
+
+    const arrival = getStudentTimeStatus({
+      kind: "arrival",
+      plannedTime: day.plannedArrival,
+      actualTime: day.actualArrival,
+      day,
+      now: afterBothTimes,
+    });
+    const pickup = getStudentTimeStatus({
+      kind: "pickup",
+      plannedTime: day.plannedPickup,
+      day,
+      now: afterBothTimes,
+    });
+
+    expect(arrival.state).toBe("done-on-time");
+    expect(pickup.state).toBe("very-overdue");
+  });
+
+  it("lets a reported absence win over the special day", () => {
+    const status = getStudentTimeStatus({
+      kind: "arrival",
+      plannedTime: "13:20",
+      day: { plannedArrival: "13:20", plannedPickup: "13:20" },
+      sick: true,
+      now: afterBothTimes,
+    });
+
+    expect(status.state).toBe("absent-excused");
+  });
+
+  it("judges the row on its own time when a time of the day is missing", () => {
+    const status = getStudentTimeStatus({
+      kind: "arrival",
+      plannedTime: "13:20",
+      day: { plannedArrival: "13:20" },
+      now: afterBothTimes,
+    });
+
+    expect(status.state).toBe("very-overdue");
+  });
+});
+
+describe("getStudentDayTimes", () => {
+  it("reads check-in from the live location, only for today", () => {
+    const student = {
+      arrival_time: "13:20",
+      pickup_time: "13:20",
+      current_location: "Anwesend - OGS-Raum 1",
+    };
+
+    expect(getStudentDayTimes(student).checkedIn).toBe(true);
+    expect(
+      getStudentDayTimes({ ...student, current_location: "Zuhause" }).checkedIn,
+    ).toBe(false);
+    expect(
+      getStudentDayTimes(student, { ignoreCurrentAttendance: true }).checkedIn,
+    ).toBe(false);
+  });
+});
+
+describe("comesOnlyIfLessonCancelled", () => {
+  it("needs both planned times and no recorded check-in or check-out", () => {
+    expect(
+      comesOnlyIfLessonCancelled({
+        plannedArrival: "13:20",
+        plannedPickup: "13:20",
+      }),
+    ).toBe(true);
+    expect(
+      comesOnlyIfLessonCancelled({
+        plannedArrival: "11:50",
+        plannedPickup: "13:20",
+      }),
+    ).toBe(false);
+    expect(comesOnlyIfLessonCancelled({ plannedArrival: "13:20" })).toBe(false);
+    expect(
+      comesOnlyIfLessonCancelled({
+        plannedArrival: "13:20",
+        plannedPickup: "13:20",
+        actualPickup: "13:25",
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("earlyCheckoutMinutes (#3324)", () => {
+  const now = new Date("2025-01-15T13:40:00");
+
+  it("reports the minutes before the pickup time beyond the tolerance", () => {
+    expect(
+      earlyCheckoutMinutes({
+        plannedPickup: "15:00",
+        now,
+        toleranceMinutes: 15,
+      }),
+    ).toBe(80);
+  });
+
+  it("treats a checkout inside the tolerance as ordinary", () => {
+    expect(
+      earlyCheckoutMinutes({
+        plannedPickup: "13:55",
+        now,
+        toleranceMinutes: 15,
+      }),
+    ).toBeNull();
+    expect(
+      earlyCheckoutMinutes({
+        plannedPickup: "13:56",
+        now,
+        toleranceMinutes: 15,
+      }),
+    ).toBe(16);
+  });
+
+  it("asks when the checkout exceeds the tolerance by seconds", () => {
+    expect(
+      earlyCheckoutMinutes({
+        plannedPickup: "13:55",
+        now: new Date("2025-01-15T13:39:30"),
+        toleranceMinutes: 15,
+      }),
+    ).toBe(15);
+  });
+
+  it("uses the school's Berlin wall clock outside the browser timezone", () => {
+    const originalTimeZone = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+
+    try {
+      expect(
+        earlyCheckoutMinutes({
+          plannedPickup: "14:14",
+          now: new Date("2026-06-01T12:00:00Z"), // 14:00 in Berlin
+          toleranceMinutes: 15,
+        }),
+      ).toBeNull();
+    } finally {
+      process.env.TZ = originalTimeZone;
+    }
+  });
+
+  it("never asks after the pickup time", () => {
+    expect(
+      earlyCheckoutMinutes({
+        plannedPickup: "13:00",
+        now,
+        toleranceMinutes: 0,
+      }),
+    ).toBeNull();
+  });
+
+  it("stays silent without a pickup time or with the question off", () => {
+    expect(
+      earlyCheckoutMinutes({
+        plannedPickup: undefined,
+        now,
+        toleranceMinutes: 15,
+      }),
+    ).toBeNull();
+    expect(
+      earlyCheckoutMinutes({
+        plannedPickup: "15:00",
+        now,
+        toleranceMinutes: null,
+      }),
+    ).toBeNull();
+    expect(
+      earlyCheckoutMinutes({ plannedPickup: "abc", now, toleranceMinutes: 15 }),
+    ).toBeNull();
+  });
+
+  it("reads HH:MM:SS pickup times", () => {
+    expect(
+      earlyCheckoutMinutes({
+        plannedPickup: "15:00:00",
+        now,
+        toleranceMinutes: 15,
+      }),
+    ).toBe(80);
   });
 });

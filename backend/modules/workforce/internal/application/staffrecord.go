@@ -69,9 +69,14 @@ func (s *Service) ListStaffQualifications(ctx context.Context, staffID int64) (r
 	return result, err
 }
 
-// ReplaceStaffQualifications rewrites the qualification list of one staff
-// member atomically: the delete and the insert share one unit of work, so a
-// rejected row leaves the previous list in place.
+// ReplaceStaffQualifications makes the submitted list the live qualification
+// list of one staff member in one unit of work, so a rejected row leaves the
+// previous list in place. Removing retires instead of deleting (ADR 0021).
+// A submitted row continues the live row with the same name: an equal row is
+// left untouched, changed dates update it in place. Live rows no submitted row
+// continues are retired, and the remaining submitted rows are inserted. Saving
+// the same list again therefore writes nothing, and the list keeps its order.
+// The result follows the submitted order.
 func (s *Service) ReplaceStaffQualifications(ctx context.Context, staffID int64, values []domain.StaffQualification) (result []domain.StaffQualification, err error) {
 	if staffID <= 0 {
 		return nil, &domain.InvalidStaffRecordError{Reason: "staff_id is required"}
@@ -86,18 +91,148 @@ func (s *Service) ReplaceStaffQualifications(ctx context.Context, staffID int64,
 	}
 	err = s.run("replace_staff_qualifications", func(stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
-			deleteStats, deleteErr := s.store.DeleteStaffQualifications(txCtx, staffID)
-			stats.Add(deleteStats)
-			if deleteErr != nil {
-				return deleteErr
+			if lockErr := s.transaction.LockStaffQualifications(txCtx, staffID); lockErr != nil {
+				return lockErr
 			}
-			var insertStats domain.OperationStats
-			result, insertStats, err = s.store.InsertStaffQualifications(txCtx, rows)
-			stats.Add(insertStats)
+			live, listStats, listErr := s.store.ListStaffQualifications(txCtx, staffID)
+			stats.Add(listStats)
+			if listErr != nil {
+				return listErr
+			}
+			result, err = s.applyQualificationPlan(txCtx, staffID, planQualificationReplace(live, rows), stats)
 			return err
 		})
 	})
 	return result, err
+}
+
+func (s *Service) applyQualificationPlan(ctx context.Context, staffID int64, plan qualificationReplacePlan, stats *domain.OperationStats) ([]domain.StaffQualification, error) {
+	retireStats, err := s.store.RetireStaffQualifications(ctx, staffID, plan.retire)
+	stats.Add(retireStats)
+	if err != nil {
+		return nil, err
+	}
+	type pendingInsert struct {
+		index int
+		value domain.StaffQualification
+	}
+	result := make([]domain.StaffQualification, len(plan.rows))
+	var pending []pendingInsert
+	for index, row := range plan.rows {
+		switch row.action {
+		case qualificationKeep:
+			result[index] = row.value
+		case qualificationUpdate:
+			updated, found, updateStats, updateErr := s.store.UpdateStaffQualification(ctx, row.value)
+			stats.Add(updateStats)
+			if updateErr != nil {
+				return nil, updateErr
+			}
+			if found {
+				result[index] = updated
+				continue
+			}
+			// A writer outside this replacement path may have retired the row.
+			pending = append(pending, pendingInsert{index: index, value: domain.StaffQualification{
+				StaffID: staffID, SortOrder: row.value.SortOrder, Name: row.value.Name,
+				AcquiredOn: row.value.AcquiredOn, ExpiresOn: row.value.ExpiresOn,
+			}})
+		case qualificationInsert:
+			pending = append(pending, pendingInsert{index: index, value: row.value})
+		}
+	}
+	inserts := make([]domain.StaffQualification, 0, len(pending))
+	for _, insert := range pending {
+		inserts = append(inserts, insert.value)
+	}
+	inserted, insertStats, err := s.store.InsertStaffQualifications(ctx, inserts)
+	stats.Add(insertStats)
+	if err != nil {
+		return nil, err
+	}
+	for position, insert := range pending {
+		result[insert.index] = inserted[position]
+	}
+	return result, nil
+}
+
+type qualificationAction int
+
+const (
+	qualificationInsert qualificationAction = iota
+	qualificationKeep
+	qualificationUpdate
+)
+
+type plannedQualification struct {
+	action qualificationAction
+	value  domain.StaffQualification
+}
+
+func (row plannedQualification) atPosition(index int) plannedQualification {
+	if row.action == qualificationKeep && row.value.SortOrder != index {
+		row.action = qualificationUpdate
+	}
+	row.value.SortOrder = index
+	return row
+}
+
+// qualificationReplacePlan holds one planned write per submitted row, in
+// submitted order, and the live rows to retire.
+type qualificationReplacePlan struct {
+	rows   []plannedQualification
+	retire []int64
+}
+
+// planQualificationReplace pairs submitted rows with live rows. Equal rows
+// pair first, so a list holding the same name twice keeps both rows; a row
+// whose name is left pairs with the oldest live row of that name.
+func planQualificationReplace(live, submitted []domain.StaffQualification) qualificationReplacePlan {
+	plan := qualificationReplacePlan{rows: make([]plannedQualification, len(submitted))}
+	paired := make(map[int64]bool, len(live))
+	pair := func(match func(live, submitted domain.StaffQualification) bool, action qualificationAction) {
+		for index, row := range submitted {
+			if plan.rows[index].action != qualificationInsert {
+				continue
+			}
+			if candidate, ok := firstUnpaired(live, paired, row, match); ok {
+				paired[candidate.ID] = true
+				candidate.AcquiredOn, candidate.ExpiresOn = row.AcquiredOn, row.ExpiresOn
+				plan.rows[index] = plannedQualification{action: action, value: candidate}
+			}
+		}
+	}
+	pair(sameQualification, qualificationKeep)
+	pair(sameQualificationName, qualificationUpdate)
+	for index, row := range submitted {
+		if plan.rows[index].action == qualificationInsert {
+			plan.rows[index].value = row
+		}
+		plan.rows[index] = plan.rows[index].atPosition(index)
+	}
+	for _, row := range live {
+		if !paired[row.ID] {
+			plan.retire = append(plan.retire, row.ID)
+		}
+	}
+	return plan
+}
+
+func firstUnpaired(live []domain.StaffQualification, paired map[int64]bool, submitted domain.StaffQualification, match func(live, submitted domain.StaffQualification) bool) (domain.StaffQualification, bool) {
+	for _, candidate := range live {
+		if !paired[candidate.ID] && match(candidate, submitted) {
+			return candidate, true
+		}
+	}
+	return domain.StaffQualification{}, false
+}
+
+func sameQualificationName(live, submitted domain.StaffQualification) bool {
+	return live.Name == submitted.Name
+}
+
+func sameQualification(live, submitted domain.StaffQualification) bool {
+	return sameQualificationName(live, submitted) && live.AcquiredOn == submitted.AcquiredOn && live.ExpiresOn == submitted.ExpiresOn
 }
 
 // --- financial data ---

@@ -7,31 +7,47 @@ import (
 	"context"
 	"net/http"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
+// CareOfferingCatalog is the Care Plan care-offering catalog as these routes
+// use it (#3559), in the enrollment rows they render. The composition root
+// binds it to the owner through Enrollment's row translation.
+type CareOfferingCatalog interface {
+	List(ctx context.Context) ([]*enrollmentModels.CareOffering, error)
+	ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error)
+	GetByID(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error)
+	Create(ctx context.Context, offering *enrollmentModels.CareOffering) (*enrollmentModels.CareOffering, error)
+	Update(ctx context.Context, offering *enrollmentModels.CareOffering) error
+	Delete(ctx context.Context, id int64) error
+	Clone(ctx context.Context, sourceID int64, targetPhaseID int64) (*enrollmentModels.CareOffering, error)
+	ListBookingStats(ctx context.Context, phaseID int64) ([]CareOfferingBookingStat, error)
+}
+
 // Resource bundles the handler methods + their dependencies.
 type Resource struct {
-	FormSchemaService     enrollmentService.FormSchemaService
-	CareOfferingService   enrollmentService.CareOfferingService
-	RequestService        enrollmentService.RequestService
-	CaptchaService        *enrollmentService.CaptchaService
-	PhaseService          enrollmentService.PhaseService
-	PhaseExpiryService    enrollmentService.PhaseExpiryService
-	DecisionService       enrollmentService.DecisionService
-	ReportService         enrollmentService.ReportService
-	RolloverService       enrollmentService.RolloverService
-	ChangeRequestService  enrollmentService.ChangeRequestService
-	DeletionService       enrollmentService.EnrollmentDeletionService
+	FormSchemaService     capability.FormSchemaAdministration
+	CareOfferingService   CareOfferingCatalog
+	RequestService        RequestService
+	CaptchaService        capability.CaptchaVerifier
+	PhaseService          capability.PhaseAdministration
+	PhaseExpiryService    capability.PhaseExpiryWarnings
+	DecisionService       DecisionService
+	ReportService         capability.Reports
+	RolloverService       RolloverService
+	ChangeRequestService  ChangeRequestService
+	DeletionService       EnrollmentDeletionService
 	GuardianInvitations   GuardianInvitationRuntime
 	GuardianProfileLoader *usersService.GuardianProfileLoader
 	SchoolService         SchoolDirectory
@@ -51,16 +67,16 @@ type Resource struct {
 // admin review/accept/reject UI; slice 2 also wires the
 // GuardianInvitations runtime so post-approval invites can fire.
 func NewResource(
-	formSchemaSvc enrollmentService.FormSchemaService,
-	careOfferingSvc enrollmentService.CareOfferingService,
-	requestSvc enrollmentService.RequestService,
-	captchaSvc *enrollmentService.CaptchaService,
-	phaseSvc enrollmentService.PhaseService,
-	decisionSvc enrollmentService.DecisionService,
-	reportSvc enrollmentService.ReportService,
-	rolloverSvc enrollmentService.RolloverService,
-	changeRequestSvc enrollmentService.ChangeRequestService,
-	deletionSvc enrollmentService.EnrollmentDeletionService,
+	formSchemaSvc capability.FormSchemaAdministration,
+	careOfferingSvc CareOfferingCatalog,
+	requestSvc RequestService,
+	captchaSvc capability.CaptchaVerifier,
+	phaseSvc capability.PhaseAdministration,
+	decisionSvc DecisionService,
+	reportSvc capability.Reports,
+	rolloverSvc RolloverService,
+	changeRequestSvc ChangeRequestService,
+	deletionSvc EnrollmentDeletionService,
 	guardianInvitations GuardianInvitationRuntime,
 	guardianProfileLoader *usersService.GuardianProfileLoader,
 	schoolService SchoolDirectory,
@@ -214,8 +230,14 @@ func (rs *Resource) Router() chi.Router {
 		// reviewed_by/reviewed_at on each child row.
 		r.Route("/admin/requests", func(r chi.Router) {
 			r.With(common.RequiresPermission("config:read")).Get("/", rs.listAdminRequests)
+			// Per-account read state (#3778): the badge on the Anmeldungen
+			// section, same permission as the section.
+			r.With(common.RequiresPermission("config:manage")).Get("/unread-count", rs.unreadAdminRequestCount)
+			r.With(common.RequiresPermission("config:manage")).Post("/mark-all-read", rs.markAllAdminRequestsRead)
 			r.Route("/{id}", func(r chi.Router) {
 				r.With(common.RequiresPermission("config:manage")).Get("/", rs.getAdminRequest)
+				r.With(common.RequiresPermission("config:manage")).Put("/read", rs.markAdminRequestRead)
+				r.With(common.RequiresPermission("config:manage")).Delete("/read", rs.markAdminRequestUnread)
 				r.With(common.RequiresPermission("config:manage")).Get("/delete-impact", rs.getAdminRequestDeleteImpact)
 				r.With(common.RequiresPermission("config:manage")).Delete("/", rs.deleteAdminRequest)
 				r.With(common.RequiresPermission("config:manage")).Post("/restore", rs.restoreAdminRequest)

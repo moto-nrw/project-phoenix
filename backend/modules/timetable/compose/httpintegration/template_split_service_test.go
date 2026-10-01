@@ -67,8 +67,7 @@ func splitInsertInstance(t *testing.T, s *scenarioSetup, groupID *int64, date ca
 		ActivityGroupID: groupID,
 	}
 	row.SetTenantID(s.tenantID)
-	_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, row)
 	return row.ID
 }
 
@@ -262,7 +261,7 @@ func createLinkedCareOffering(
 	var created *testpkg.CareOffering
 	require.NoError(t, testpkg.WithTenantTx(t, s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var createErr error
-		created, createErr = s.factory.EnrollmentCareOffering.Create(txCtx, offering)
+		created, createErr = s.factory.EnrollmentCareOfferingRows().Create(txCtx, offering)
 		return createErr
 	}))
 
@@ -673,14 +672,7 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 	require.Len(t, second, 1)
 
 	// First Monday's instance has started — history that must survive.
-	_, err = s.db.NewUpdate().
-		Model((*scheduleModels.ActivityInstance)(nil)).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Set("status = ?", scheduleModels.InstanceStatusActive).
-		Where(`"activity_instance".id = ?`, first[0].ID).
-		Where(`"activity_instance".tenant_id = ?`, s.tenantID).
-		Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.SetActivityInstanceLifecycle(t, s.ctx, s.db, first[0].ID, scheduleModels.InstanceStatusActive)
 
 	// Protected kinds inside the horizon (mirrors flow_d): completed,
 	// cancelled, spontaneous planned — all on the OLD template — plus a
@@ -911,14 +903,7 @@ func TestTemplateEndFromDate_CapsTemplateAndProtectsHistory(t *testing.T) {
 	second := listInstancesForDate(t, s.db, s.template.ID, secondMonday)
 	require.Len(t, second, 1)
 
-	_, err = s.db.NewUpdate().
-		Model((*scheduleModels.ActivityInstance)(nil)).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Set("status = ?", scheduleModels.InstanceStatusActive).
-		Where(`"activity_instance".id = ?`, first[0].ID).
-		Where(`"activity_instance".tenant_id = ?`, s.tenantID).
-		Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.SetActivityInstanceLifecycle(t, s.ctx, s.db, first[0].ID, scheduleModels.InstanceStatusActive)
 
 	completedID := splitInsertInstance(t, s, &s.template.ID, effective, scheduleModels.InstanceStatusCompleted, false, 9)
 	cancelledID := splitInsertInstance(t, s, &s.template.ID, effective, scheduleModels.InstanceStatusCancelled, false, 10)

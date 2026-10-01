@@ -8,13 +8,14 @@ import (
 	"net/http"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // --- request/response payloads ---
@@ -111,7 +112,7 @@ func (rs *Resource) createRollover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var result *enrollmentService.RolloverResult
+	var result *RolloverResult
 	txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
 		res, runErr := rs.RolloverService.CreatePhaseFromSource(ctx, serviceReq)
 		result = res
@@ -167,7 +168,7 @@ func (rs *Resource) previewRollover(w http.ResponseWriter, r *http.Request) {
 	}
 	bumpsGrade := r.URL.Query().Get("bumps_grade") != "false"
 
-	var preview *enrollmentService.RolloverPreview
+	var preview *RolloverPreview
 	if txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
 		got, previewErr := rs.RolloverService.PreviewPhaseFromSource(ctx, sourceID, bumpsGrade)
 		preview = got
@@ -203,7 +204,7 @@ func (rs *Resource) listRolloverReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var items []*enrollmentService.ReviewQueueItem
+	var items []*ReviewQueueItem
 	if txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
 		got, listErr := rs.RolloverService.ListReviewQueue(ctx, phaseID)
 		items = got
@@ -254,7 +255,7 @@ func (rs *Resource) decideRolloverReview(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	req := enrollmentService.DecideReviewRequest{
+	req := DecideReviewRequest{
 		RequestChildID: childID,
 		Decision:       body.Decision,
 		NewGradeLevel:  body.NewGradeLevel,
@@ -272,8 +273,8 @@ func (rs *Resource) decideRolloverReview(w http.ResponseWriter, r *http.Request)
 
 // --- helpers ---
 
-func parseRolloverCreateRequest(sourceID int64, body *RolloverCreateRequest, adminAccountID int64) (enrollmentService.CreatePhaseFromSourceRequest, error) {
-	out := enrollmentService.CreatePhaseFromSourceRequest{
+func parseRolloverCreateRequest(sourceID int64, body *RolloverCreateRequest, adminAccountID int64) (CreatePhaseFromSourceRequest, error) {
+	out := CreatePhaseFromSourceRequest{
 		SourcePhaseID:       sourceID,
 		Name:                body.Name,
 		Kind:                body.Kind,
@@ -376,17 +377,17 @@ const (
 
 func (rs *Resource) mapRolloverError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, enrollmentService.ErrRolloverSourceNotFound):
+	case errors.Is(err, capability.ErrRolloverSourceNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, ErrCodeRolloverSourceNotFound))
-	case errors.Is(err, enrollmentService.ErrRolloverInvalidRequest):
+	case errors.Is(err, capability.ErrRolloverInvalidRequest):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeRolloverInvalidRequest))
-	case errors.Is(err, enrollmentService.ErrRolloverReviewInvalid):
+	case errors.Is(err, capability.ErrRolloverReviewInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeRolloverReviewInvalid))
-	case errors.Is(err, enrollmentService.ErrRolloverReviewNotFound):
+	case errors.Is(err, capability.ErrRolloverReviewNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, ErrCodeRolloverReviewNotFound))
-	case errors.Is(err, enrollmentService.ErrRolloverDuplicateName):
+	case errors.Is(err, capability.ErrRolloverDuplicateName):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeRolloverDuplicateName))
-	case errors.Is(err, enrollmentService.ErrRolloverSourceAlreadyRolled):
+	case errors.Is(err, capability.ErrRolloverSourceAlreadyRolled):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodeRolloverSourceAlreadyRolled))
 	default:
 		rs.logger().Error("rollover handler failed", slog.String("error", err.Error()))

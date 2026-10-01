@@ -211,6 +211,26 @@ der OGS ausgehen und ist die einzige Anfrageart mit Rückfrage-Dialog zwischen
 OGS und Eltern. Nach der Übernahme des Kindes sind Änderungswünsche
 Elternanfragen, keine Anmeldungsänderungen.
 
+## Ungelesene Anmeldung
+
+Eine **ungelesene Anmeldung** ist eine noch nicht abgeschlossene Anmeldung in
+einer aktiven Anmeldephase, die eine Person der Leitung noch nicht gelesen hat.
+„Gelesen" gilt pro Person, nicht für die ganze Schule. Öffnen der Anmeldung
+zählt als Lesen; man kann sie auch von Hand als gelesen oder ungelesen
+markieren. Ändern Eltern die Anmeldung, ist sie wieder ungelesen, eine
+Entscheidung der OGS macht sie nicht wieder ungelesen. Eine Anmeldung ist keine
+Anfrage und zählt nicht zu den offenen Anfragen.
+
+## Zahl bei Nachrichten
+
+Die **Zahl bei Nachrichten** zählt die ungelesenen Elternnachrichten einer
+Person im OGS-Portal. „Gelesen“ gilt pro Person; eine Antwort erledigt die
+Unterhaltung für das ganze Team. Jede Person legt selbst fest, ob ihre Zahl
+alle Nachrichten, nur Kinder aus den eigenen Gruppen oder nichts zählt. Die
+Einstellung ändert nur die Zahl, nicht den Posteingang. Die Lesebestätigung
+für Eltern („Von der OGS gelesen“) entsteht nur, wenn jemand die Unterhaltung
+öffnet, nie durch „Alle als gelesen markieren“ (ADR 0044).
+
 ## Elternänderung
 
 Eine **Elternänderung** ist eine von einer sorgeberechtigten Person gewünschte
@@ -549,9 +569,9 @@ Er ist die einzige Stelle, an der Fehlertexte für Nutzerinnen entstehen.
 ## Vorgangskennung
 
 Die **Vorgangskennung** benennt einen einzelnen fehlgeschlagenen Aufruf. Sie
-wird nur bei Serverfehlern und Netzabbrüchen angezeigt, damit eine Schule am
-Telefon auf denselben Vorgang zeigen kann, den der Support in der Auswertung
-sieht. Sie ist keine Fehleridentität: derselbe Fehlercode hat bei jedem
+wird nur bei Serverfehlern und der Fehlerklasse „Nicht erreichbar“ angezeigt,
+damit eine Schule am Telefon auf denselben Vorgang zeigen kann, den der
+Support in der Auswertung sieht. Sie ist keine Fehleridentität: derselbe Fehlercode hat bei jedem
 Auftreten eine andere Vorgangskennung.
 
 ## Träger
@@ -677,3 +697,22 @@ vorgemerkten, deren Betreuung erst später beginnt. Sie ist bewusst größer als
 die Stichtagszahl, damit ein späteres Startdatum das Kinderkontingent nicht
 umgeht.
 _Vermeiden_: Stichtagszahl für diese Zahl.
+
+## Produkt-Screenshots
+
+Ein **Produkt-Screenshot** ist ein automatisch erzeugtes, unverändertes Bild
+eines festgelegten Zustands im Tenant- oder Eltern-Portal, gedacht für
+Website, Unterlagen und Social Media. Er zeigt ausschließlich synthetische
+Daten aus einem eigenen Demo-Schulprofil.
+
+Ein **Shot** ist ein Eintrag der **Shot-Liste** mit stabiler ID. Aus einem
+Shot entstehen pro Release ein roher Produkt-Screenshot und seine
+Geräte-Mockups; die ID bleibt über Releases gleich.
+
+Ein **Geräte-Mockup** ist ein Produkt-Screenshot, der in den offiziellen
+Rahmen eines Apple-Geräts (iPhone, iPad, MacBook) auf transparentem
+Hintergrund eingesetzt ist.
+
+_Vermeiden_: Marketing-Bild, Screen, gestaltetes Bild (für Mockups).
+
+Hilfe-Screenshots im Hilfebereich sind keine Produkt-Screenshots.

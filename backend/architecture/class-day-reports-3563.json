@@ -1,0 +1,125 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#3020",
+    "#2733",
+    "#3562"
+  ],
+  "owner_and_capability": "Class Day View — class day report, supervision sheet and class-wide arrival exceptions in modules/classday; Enrollment — care usage and class roster reports, their export audit and the class roster of a day in modules/enrollment (#3563)",
+  "affected_packages": [
+    "services/enrollment",
+    "services",
+    "api",
+    "api/enrollment",
+    "api/students",
+    "database/repositories",
+    "models/users",
+    "modules/careplan",
+    "modules/classday",
+    "modules/classday/compose",
+    "modules/classday/internal/application",
+    "modules/classday/internal/ports",
+    "modules/enrollment",
+    "modules/enrollment/compose",
+    "modules/enrollment/internal/application",
+    "modules/peopledirectory",
+    "modules/peopledirectory/departure",
+    "workflows/parentportal/care"
+  ],
+  "affected_tables": [
+    "enrollment.requests",
+    "enrollment.request_children",
+    "enrollment.phases",
+    "enrollment.form_schemas",
+    "audit.data_access_log",
+    "active.student_status_days",
+    "users.students",
+    "users.persons",
+    "education.groups"
+  ],
+  "exact_ratchet_keys": [
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/audit",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/education",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/schedule",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/internal/collation",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/internal/sliceutil",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/enrollment|github.com/moto-nrw/project-phoenix/models/education"
+  ],
+  "atomic_cutover": "The class day report, the supervision sheet and the arrival exception seam move from services/enrollment into the Class Day View application; the care usage and class roster reports, their export audit and the class roster of a day move into the Enrollment application. Enrollment publishes the day roster as a Reports query that the root binds to the Class Day View port, so no new policy permission is added. People, groups, guardian contacts, status days, settings, the GDPR access log and the realtime announcement reach both applications through ports the root binds. The five retained files are deleted with no second provider; the decision flow keeps its own export audit writer until #3564.",
+  "tests": [
+    "The class day, supervision sheet and arrival exception unit suites run in modules/classday/internal/application against fakes of the new ports.",
+    "The care usage, class roster and day roster unit suites run in modules/enrollment/internal/application against fakes of the new ports.",
+    "The class-day HTTP, school portal and enrollment export router suites exercise the composed capabilities against the test database.",
+    "scripts/backend-architecture.sh check and scripts/test-changed.sh origin/development without --fast verify the architecture ratchet and affected packages."
+  ],
+  "runtime_evidence": {
+    "source": "The PR on the #3563 branch after the class day and report cutover. The PR description records the local architecture, lint, vet and changed-package test runs; the evidence is behavioral and structural, not a latency benchmark.",
+    "sources": [
+      "backend/modules/classday/internal/application/day_report_test.go",
+      "backend/modules/classday/internal/application/supervision_sheet_test.go",
+      "backend/modules/classday/http/class_day_arrival_exceptions_test.go"
+    ],
+    "workload": "Affected Go package suites against the local PostgreSQL test database, the moved unit suites and source-level architecture checks.",
+    "thresholds": "No new forbidden import, rule or composition target; six listed legacy keys retired; the moved suites retain their assertions and scripts/backend-architecture.sh check passes.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "This cutover changes implementation ownership and bindings, not the schema or row-update statements; the access-log rows and arrival exception writes keep their columns and transaction."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "The moved reports issue the same reads in the same order; the class day view still loads the class once and skips the guardian reads per covering phase."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run for this code relocation; no new network round trip was added."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was run for this code relocation; no new network round trip was added."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "The moved unit suites pin the refusal texts of the day report and the supervision sheet; the class-day HTTP suites keep the arrival exception status codes and codes."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection-pool configuration or acquisition path changes; the reads and writes use the ambient tenant transaction."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No lock is added or reordered; the arrival exception write keeps Care Plan's command."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No lock order changes were intended or measured in this code relocation."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "No scheduler job is part of the moved code."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No scheduler job is part of the moved code."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No job queue is introduced."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The unit suites cover missing bindings, lookup failures that fail the sheet closed, the arrival exception refusals and the audit dedupe."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No schema or data migration accompanies this code cutover; reverting the PR restores the former service implementations and bindings."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally at 523 legacy keys with a composition surface of 610."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR as a unit to restore the former services/enrollment implementations and bindings. No data cleanup is required.",
+  "exit_criterion": "The class day report, supervision sheet and arrival exceptions run in Class Day View and the reports in Enrollment; the six listed legacy keys are absent, no new key or rule is added, and validate-ticket --all --base-ref accepts their retirement."
+}

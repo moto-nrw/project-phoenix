@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, within } from "@testing-library/react";
 import {
   expectIdleRenderBudget,
   RENDER_BUDGET_MAX_COMMITS,
@@ -108,6 +108,11 @@ vi.mock("~/lib/shell-auth-context", () => ({
 
 vi.mock("~/lib/hooks/use-change-request-access", () => ({
   useChangeRequestAccess: vi.fn(),
+}));
+
+const enrollmentsUnread = vi.hoisted(() => ({ count: 0 }));
+vi.mock("~/lib/hooks/use-enrollments-unread", () => ({
+  useEnrollmentsUnread: () => ({ unreadCount: enrollmentsUnread.count }),
 }));
 
 vi.mock("~/lib/operator-url", () => ({
@@ -235,6 +240,7 @@ describe("MobileBottomNav", () => {
     mockHasPermission.mockReturnValue(false);
     mockUseNFCEnabled.mockReturnValue(true);
     mockUsePresenceMode.mockReturnValue("detailed");
+    mockUseOpenCareGroupMode.mockReturnValue(false);
     // Re-establish tenant defaults each test so per-test subdomain/slug
     // overrides (below) don't leak — vi.clearAllMocks() keeps the setup.ts
     // implementations but individual mockReturnValue calls would otherwise
@@ -297,6 +303,24 @@ describe("MobileBottomNav", () => {
         "href",
         "/test-tenant/admin/enrollments",
       );
+    });
+
+    // Ungelesene Anmeldungen (#3778) an der Zeile „Anmeldungen" im Menü.
+    it("zeigt ungelesene Anmeldungen an der Zeile Anmeldungen", () => {
+      enrollmentsUnread.count = 4;
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      try {
+        render(<MobileBottomNav />);
+        fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+        const row = screen.getByText("Anmeldungen").closest("a");
+        expect(
+          within(row!).getByLabelText("4 ungelesene Anmeldungen"),
+        ).toBeInTheDocument();
+      } finally {
+        enrollmentsUnread.count = 0;
+      }
     });
 
     it.each([
@@ -999,6 +1023,53 @@ describe("MobileBottomNav", () => {
       expect(drawer).toBeInTheDocument();
       // At minimum, Einstellungen should appear in the drawer for admins
       expect(screen.getByText("Einstellungen")).toBeInTheDocument();
+    });
+
+    // Nackt auf `/help` fragte die Hilfe auf dem Handy erneut nach Rolle und
+    // Arbeitsweise der OGS, und „Zurück zur App" hatte kein Ziel (#3575).
+    const getHelpTarget = () => {
+      fireEvent.click(getMoreButton());
+      const help = screen.getByText("Hilfe").closest("a");
+      expect(help).toHaveAttribute("target", "_blank");
+      return new URL(help?.getAttribute("href") ?? "", "https://moto.invalid");
+    };
+
+    it("gibt der Hilfe den Kontext der Sitzung mit (#3575)", () => {
+      mockUsePathname.mockReturnValue("/test-tenant/students/search");
+      mockUseSearchParams.mockReturnValue(
+        new URLSearchParams("group=5") as unknown as ReturnType<
+          typeof useSearchParams
+        >,
+      );
+      render(<MobileBottomNav />);
+
+      const target = getHelpTarget();
+      // `/help` ist nicht mandantengebunden: kein Schulname davor.
+      expect(target.pathname).toBe("/help");
+      expect(target.searchParams.get("role")).toBe("caregiver");
+      expect(target.searchParams.get("nfc_enabled")).toBe("true");
+      expect(target.searchParams.get("presence_mode")).toBe("detailed");
+      expect(target.searchParams.get("group_mode")).toBe("fixed_groups");
+      expect(target.searchParams.get("return_to")).toBe(
+        "/test-tenant/students/search?group=5",
+      );
+    });
+
+    it("schickt eine Leitung mit ihren Schuleinstellungen in die Hilfe (#3575)", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseNFCEnabled.mockReturnValue(false);
+      mockUsePresenceMode.mockReturnValue("binary");
+      mockUseOpenCareGroupMode.mockReturnValue(true);
+      render(<MobileBottomNav />);
+
+      const target = getHelpTarget();
+      expect(target.pathname).toBe("/help");
+      expect(target.searchParams.get("role")).toBe("lead");
+      expect(target.searchParams.get("nfc_enabled")).toBe("false");
+      expect(target.searchParams.get("presence_mode")).toBe("binary");
+      expect(target.searchParams.get("group_mode")).toBe("open_care");
+      expect(target.searchParams.get("return_to")).toBe("/home");
     });
   });
 

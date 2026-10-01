@@ -4,8 +4,8 @@ import (
 	"log/slog"
 
 	"github.com/go-chi/chi/v5"
-	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
+	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -15,7 +15,7 @@ import (
 // These test-support builders share the root's adapter wiring without invoking
 // its production bootstrap. Each accepts only the module under test.
 func newStaffTestResource(module schoolmembership.Capability, svc services.StaffTestModule, db *bun.DB, logger *slog.Logger) *staffHTTP.Resource {
-	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth,
+	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffAdmin, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth,
 		svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport)
 	admin := newStaffAdminResource(capabilities, nil, nil, nil, db, logger)
 	return newStaffResource(module, func(hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
@@ -30,7 +30,7 @@ func newCareScheduleTestRouter(db *bun.DB, module services.StudentTestModule) (c
 	}
 	students := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		CareRequestService: module.CareRequests, UserContextService: module.UserContext,
-		SettingsService: module.Settings, DB: db, Logger: slog.Default(),
+		SettingsService: module.Settings, Logger: slog.Default(),
 	})
 	router := chi.NewRouter()
 	router.Mount("/parent", parentAPI.NewResource(parentAPI.ResourceConfig{Parent: parent, DB: db}).Router())

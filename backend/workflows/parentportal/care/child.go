@@ -12,7 +12,7 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -153,5 +153,5 @@ func (s *Service) GuardianReasonRequired(ctx context.Context, tenantID int64) bo
 		)
 		return true
 	}
-	return usersSvc.ReasonRequiredFor(policy, false)
+	return configService.ReasonRequiredFor(policy, false)
 }

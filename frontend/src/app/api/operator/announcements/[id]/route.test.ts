@@ -77,11 +77,12 @@ describe("GET /api/operator/announcements/[id]", () => {
 
   it("returns 404 for non-existent announcement", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 404,
-      text: async () => JSON.stringify({ error: "Not found" }),
-    });
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "Not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/announcements/999",
@@ -214,11 +215,12 @@ describe("DELETE /api/operator/announcements/[id]", () => {
 
   it("returns 404 for non-existent announcement", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 404,
-      text: async () => JSON.stringify({ error: "Not found" }),
-    });
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "Not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/operator/announcements/999",

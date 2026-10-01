@@ -17,6 +17,10 @@ type RouteKey struct {
 // deliberately not captured.
 type CoreAction struct {
 	Event string
+	// CreatedOnly captures an event only when the standard response envelope
+	// carries data.created=true. Idempotent writes return created=false and
+	// must not be counted as another completed core action.
+	CreatedOnly bool
 	// Session: the response mints a session (login, demo entry); the actor
 	// comes from its access token, and a 2xx without one sends nothing.
 	Session bool
@@ -30,7 +34,10 @@ type CoreAction struct {
 
 var notCaptured = CoreAction{}
 
-func event(name string) CoreAction   { return CoreAction{Event: name} }
+func event(name string) CoreAction { return CoreAction{Event: name} }
+func createdEvent(name string) CoreAction {
+	return CoreAction{Event: name, CreatedOnly: true}
+}
 func session(name string) CoreAction { return CoreAction{Event: name, Session: true} }
 func sessionOr(name, surface string) CoreAction {
 	return CoreAction{Event: name, Session: true, Surface: surface}
@@ -137,6 +144,9 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/enrollment/admin/requests/{id}/children/{childId}/decide"}:                     notCaptured,
 	{http.MethodPut, "/api/enrollment/admin/requests/{id}/children/{childId}/offerings"}:                   notCaptured,
 	{http.MethodPost, "/api/enrollment/admin/requests/{id}/restore"}:                                       notCaptured,
+	{http.MethodPut, "/api/enrollment/admin/requests/{id}/read"}:                                           notCaptured,
+	{http.MethodDelete, "/api/enrollment/admin/requests/{id}/read"}:                                        notCaptured,
+	{http.MethodPost, "/api/enrollment/admin/requests/mark-all-read"}:                                      notCaptured,
 	{http.MethodPost, "/api/enrollment/admin/students/{studentId}/requests/export"}:                        export("student_enrollment_requests"),
 	{http.MethodPost, "/api/enrollment/care-offerings/"}:                                                   notCaptured,
 	{http.MethodDelete, "/api/enrollment/care-offerings/{id}/"}:                                            notCaptured,
@@ -206,9 +216,13 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/me/profile/avatar"}:                                                            notCaptured,
 	{http.MethodDelete, "/api/meal-plan/{date}"}:                                                           notCaptured,
 	{http.MethodPut, "/api/meal-plan/{date}"}:                                                              notCaptured,
+	{http.MethodPost, "/api/messages/mark-all-read"}:                                                       event("parent_messages_marked_all_read"),
+	{http.MethodPut, "/api/messages/count-scope"}:                                                          event("parent_message_count_scope_changed"),
 	{http.MethodPost, "/api/messages/threads"}:                                                             notCaptured,
 	{http.MethodPost, "/api/messages/threads/open"}:                                                        notCaptured,
 	{http.MethodPost, "/api/messages/threads/{threadId}"}:                                                  notCaptured,
+	{http.MethodPost, "/api/messages/threads/{threadId}/unread"}:                                           event("parent_message_marked_unread"),
+	{http.MethodPut, "/api/notifications/email-subscriptions/{type}"}:                                      notCaptured,
 	{http.MethodDelete, "/api/notifications/preferences/"}:                                                 notCaptured,
 	{http.MethodPut, "/api/notifications/preferences/{type}"}:                                              notCaptured,
 	{http.MethodDelete, "/api/notifications/push/subscriptions"}:                                           notCaptured,
@@ -241,6 +255,9 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/schedules/timeframes/"}:                                                        notCaptured,
 	{http.MethodDelete, "/api/schedules/timeframes/{id}"}:                                                  notCaptured,
 	{http.MethodPut, "/api/schedules/timeframes/{id}"}:                                                     notCaptured,
+	{http.MethodPost, "/api/school-setup/complete"}:                                                        notCaptured,
+	{http.MethodPut, "/api/school-setup/dismissal"}:                                                        notCaptured,
+	{http.MethodPut, "/api/school-setup/steps/{step}"}:                                                     notCaptured,
 	{http.MethodDelete, "/api/settings/enrollment/legal-agb-document"}:                                     event("settings_changed"),
 	{http.MethodPost, "/api/settings/enrollment/legal-agb-document"}:                                       event("settings_changed"),
 	{http.MethodDelete, "/api/settings/home-layout"}:                                                       event("settings_changed"),
@@ -535,6 +552,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/parent/me/children/{studentId}/sick-note"}:                                event("absence_request_submitted"),
 	{http.MethodPost, "/parent/me/messages/children/{studentId}"}:                                 event("parent_message_sent"),
 	{http.MethodPost, "/parent/me/news/{announcementId}/acknowledge"}:                             notCaptured,
+	{http.MethodPost, "/parent/me/news/{announcementId}/declaration"}:                             createdEvent("parent_declaration_submitted"),
 	{http.MethodPost, "/parent/me/news/{announcementId}/read"}:                                    notCaptured,
 	{http.MethodPost, "/parent/me/news/{announcementId}/respond"}:                                 notCaptured,
 	{http.MethodDelete, "/parent/me/notification-preferences/"}:                                   notCaptured,

@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
@@ -42,7 +41,7 @@ func statusLabelDE(status string) string {
 	return status
 }
 
-func activationSummary(c *enrollmentService.RequestChild) string {
+func activationSummary(c *RequestChild) string {
 	mode := "Geplant"
 	if c.ActivationMode == enrollmentModels.ChildActivationImmediate {
 		mode = "Sofort"
@@ -117,7 +116,7 @@ func formatDayCodes(days []string) string {
 	return strings.Join(out, ", ")
 }
 
-func formatOfferings(offerings []enrollmentService.ChildOfferingRow) string {
+func formatOfferings(offerings []ChildOfferingRow) string {
 	if len(offerings) == 0 {
 		return ""
 	}

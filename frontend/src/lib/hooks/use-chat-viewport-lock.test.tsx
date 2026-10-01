@@ -293,3 +293,118 @@ describe("useChatViewportLock — bottom-nav reserve", () => {
     expect(el?.style.height).toMatch(/px$/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Fit effect — soft keyboard on small phones (#3664)
+// ---------------------------------------------------------------------------
+
+describe("useChatViewportLock — soft keyboard", () => {
+  const originalViewport = window.visualViewport;
+  const originalInnerHeight = window.innerHeight;
+
+  // Layout viewport height, visual viewport height (shrinks when the soft
+  // keyboard opens) and the chat's top edge.
+  const mockLayout = (
+    innerHeight: number,
+    visualHeight: number,
+    top: number,
+    scale = 1,
+  ) => {
+    window.innerHeight = innerHeight;
+    const viewport = new EventTarget();
+    Object.defineProperty(viewport, "height", { value: visualHeight });
+    Object.defineProperty(viewport, "scale", { value: scale });
+    Object.defineProperty(window, "visualViewport", {
+      value: viewport,
+      configurable: true,
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, top, 360, 0),
+    );
+  };
+
+  const fittedChat = () => {
+    render(
+      React.createElement(MainWrapper, { ready: true, paddingBottom: "112px" }),
+    );
+    return document.querySelector<HTMLDivElement>('[data-testid="chat"]');
+  };
+
+  const keyboardFlag = () =>
+    document.documentElement.hasAttribute("data-chat-keyboard");
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.innerHeight = originalInnerHeight;
+    Object.defineProperty(window, "visualViewport", {
+      value: originalViewport,
+      configurable: true,
+    });
+  });
+
+  it("keeps the bottom-nav reserve while the keyboard is closed", () => {
+    mockLayout(640, 640, 80);
+
+    // 640 - 80 top - 112 reserved for the bottom nav.
+    expect(fittedChat()?.style.height).toBe("448px");
+  });
+
+  it("ends at the keyboard instead of subtracting the hidden nav again", () => {
+    // Small Android phone with the keyboard open: the layout viewport keeps its
+    // height, only the visual viewport shrinks. The bottom nav sits behind the
+    // keyboard, so the chat may use everything down to the keyboard edge.
+    mockLayout(640, 300, 80);
+
+    expect(fittedChat()?.style.height).toBe("220px");
+  });
+
+  it("never forces the minimum height past the visible area", () => {
+    mockLayout(640, 250, 80);
+
+    const chat = fittedChat();
+    // Only 170px are visible below the chat's top. A 240px floor pushed the
+    // composer under the keyboard, where the locked page cannot scroll to it.
+    expect(chat?.style.height).toBe("170px");
+    // The consumers' CSS min-height (min-h-[20rem]) must not undo the fit.
+    expect(chat?.style.minHeight).toBe("0px");
+  });
+
+  it("still applies the minimum height when it fits on screen", () => {
+    mockLayout(400, 400, 80);
+
+    // 400 - 80 - 112 = 208 is below the floor; 240px still fit into the
+    // 320px visible below the chat's top edge.
+    expect(fittedChat()?.style.height).toBe("240px");
+  });
+
+  it("flags the open keyboard on <html> so pages can hide their intro", () => {
+    mockLayout(640, 300, 80);
+    fittedChat();
+    expect(keyboardFlag()).toBe(true);
+  });
+
+  it("does not flag the keyboard while it is closed", () => {
+    mockLayout(640, 640, 80);
+    fittedChat();
+    expect(keyboardFlag()).toBe(false);
+  });
+
+  it("does not mistake a pinch zoom for an open keyboard", () => {
+    // Zoomed in 2x: the visual viewport shows half the layout in CSS pixels.
+    mockLayout(640, 320, 80, 2);
+    fittedChat();
+    expect(keyboardFlag()).toBe(false);
+  });
+
+  it("clears the keyboard flag when the chat unmounts", () => {
+    mockLayout(640, 300, 80);
+    const { unmount } = render(
+      React.createElement(MainWrapper, { ready: true, paddingBottom: "112px" }),
+    );
+    expect(keyboardFlag()).toBe(true);
+
+    unmount();
+
+    expect(keyboardFlag()).toBe(false);
+  });
+});

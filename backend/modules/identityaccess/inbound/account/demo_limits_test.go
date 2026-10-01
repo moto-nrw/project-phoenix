@@ -58,7 +58,7 @@ func TestDemoAccessAddressLimitCountsOnlyValidRequests(t *testing.T) {
 	t.Parallel()
 	env := newDemoEnv(t)
 	invalid := env.requestBody(t)
-	invalid["person_name"] = " "
+	invalid["last_name"] = " "
 	for range 5 {
 		assert.Equal(t, http.StatusUnprocessableEntity, env.post(t, "/demo/access-requests", invalid).Code)
 	}
@@ -93,7 +93,7 @@ func TestDemoAccessIPLimitCountsOnlyValidRequests(t *testing.T) {
 	t.Parallel()
 	env := newDemoEnv(t)
 	const client = "198.51.100.42"
-	invalid := map[string]any{"email": "kein-postfach", "school_name": "OGS", "person_name": "Kim"}
+	invalid := map[string]any{"email": "kein-postfach", "school_name": "OGS", "first_name": "Kim", "last_name": "Beispiel"}
 	for range 60 {
 		require.Equal(t, http.StatusUnprocessableEntity, env.postFrom(t, client, "/demo/access-requests", invalid).Code)
 	}

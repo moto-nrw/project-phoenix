@@ -8,6 +8,9 @@ import { Button } from "~/components/ui/button";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
+import { OccupancyBadges } from "~/components/ui/occupancy-badges";
+import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";
+import { useNFCEnabled } from "~/lib/tenant-context";
 import {
   clearOwnAttendanceMutation,
   markOwnAttendanceMutation,
@@ -529,6 +532,8 @@ interface TimetableRosterHeaderProps {
     readonly unplanned: number;
   };
   readonly note?: string;
+  readonly occupancy?: TimetableRosterContentProps["occupancy"];
+  readonly nfcEnabled: boolean;
   readonly extraActions?: ReactNode;
   readonly toggle?: ReactNode;
   /** Öffnet den Dialog „Kind ungeplant hinzufügen“; fehlt ohne das Recht. */
@@ -548,6 +553,8 @@ function TimetableRosterHeader({
   showTimetableCounts,
   summary,
   note,
+  occupancy,
+  nfcEnabled,
   extraActions,
   toggle,
   onAddStudent,
@@ -602,6 +609,15 @@ function TimetableRosterHeader({
               {roster.instance.roomName ?? `Raum ${roster.instance.roomId}`} ·{" "}
               {roster.instance.startTime}-{roster.instance.endTime}
             </p>
+            {occupancy?.limit != null ? (
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                <OccupancyBadges
+                  occupancy={occupancy}
+                  nfcEnabled={nfcEnabled}
+                  compact
+                />
+              </div>
+            ) : null}
           </div>
         </div>
         {toggle ? <div className="sm:order-last">{toggle}</div> : null}
@@ -837,6 +853,12 @@ interface TimetableRosterContentProps {
   readonly roster: TimetableRoster;
   readonly showTimetableCounts: boolean;
   /**
+   * Kinder der laufenden Sitzung und die Teilnehmergrenze der Aktivität
+   * (#3634). Mit Grenze steht „Anzahl / Grenze“ im Kopf, über der Grenze
+   * dazu „Überbucht“ und der Hinweis. Ohne Grenze bleibt der Kopf wie er ist.
+   */
+  readonly occupancy?: Occupancy;
+  /**
    * Erlaubt das Nachtragen eines Kindes, das nicht auf der Liste steht. Das
    * Schul-Portal setzt `false` (#2527): eine Lehrkraft darf nur die Kinder
    * ihrer Aufsicht anfassen und hat keine Kindersuche, hinter der das
@@ -883,6 +905,7 @@ export function TimetableRosterContent({
   isConfirmingExpected,
   roster,
   showTimetableCounts,
+  occupancy,
   canAddUnplanned = true,
   headerNote,
   headerActions,
@@ -919,9 +942,17 @@ export function TimetableRosterContent({
     !lifecycleEnabled &&
     !endEnabled &&
     !actionAccess.absence;
-  const note = viewOnly
-    ? [TIMETABLE_VIEW_ONLY_NOTICE, headerNote].filter(Boolean).join(" ")
-    : headerNote;
+  const nfcEnabled = useNFCEnabled();
+  const overbookedNote = occupancy
+    ? overbookedHintFor(occupancy, nfcEnabled)
+    : null;
+  const note = [
+    viewOnly ? TIMETABLE_VIEW_ONLY_NOTICE : undefined,
+    headerNote,
+    overbookedNote,
+  ]
+    .filter(Boolean)
+    .join(" ");
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [excuseRow, setExcuseRow] = useState<TimetableRosterRow | null>(null);
   const [isExcusing, setIsExcusing] = useState(false);
@@ -1038,6 +1069,8 @@ export function TimetableRosterContent({
         roster={roster}
         showTimetableCounts={showTimetableCounts}
         note={note}
+        occupancy={occupancy}
+        nfcEnabled={nfcEnabled}
         extraActions={headerActions}
         toggle={headerToggle}
         onAddStudent={

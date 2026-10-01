@@ -110,3 +110,10 @@ func (rs *Resource) deleteLegalDocument(w http.ResponseWriter, r *http.Request) 
 	common.RemoveImage(path)
 	common.RespondNoContent(w, r)
 }
+
+// PublicLegalDocumentURL maps the stored upload path of a tenant AGB document
+// to the URL the public enrollment form links, so the settings routes can
+// find references to it under both spellings.
+func PublicLegalDocumentURL(storedURL string) string {
+	return capability.PublicEnrollmentLegalDocumentURL(storedURL)
+}

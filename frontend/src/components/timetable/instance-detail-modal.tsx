@@ -51,8 +51,14 @@ import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useAttendanceWebEnabled,
+  useNFCEnabled,
   useShowTimetableCounts,
 } from "~/lib/tenant-context";
+import {
+  isOverbooked,
+  OVERBOOKED_LABEL,
+  overbookedHintFor,
+} from "~/lib/activity-occupancy";
 import { berlinTodayISO, formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useMinuteClock } from "~/lib/pickup-helpers";
@@ -76,6 +82,7 @@ import {
   timetableDangerPanel,
   timetableMutedSurface,
   timetableNestedSurface,
+  type TimetableTone,
 } from "./timetable-style";
 import {
   attendanceStaffTone,
@@ -1494,45 +1501,84 @@ function StatsRow({ instance }: StatsRowProps) {
   const present = instance.presentStudentsCount;
   const totalStudents = expected + present;
   const activeStaff = instance.staffCount - instance.absentStaffCount;
+  const nfcEnabled = useNFCEnabled();
+  // #3634: nur ein laufender Block hat eine Belegung, die das Tablet mit der
+  // Grenze vergleicht: die Kinder, die gerade da sind.
+  const occupancy =
+    instance.status === "active" ? (instance.occupancy ?? null) : null;
+  const overbookedHint = occupancy
+    ? overbookedHintFor(
+        {
+          count: occupancy.currentStudentsCount,
+          limit: occupancy.participantLimit,
+        },
+        nfcEnabled,
+      )
+    : null;
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {showTimetableCounts && (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {showTimetableCounts && (
+          <TimetableRatioPill
+            icon={<MotoConceptIcon concept="present" size={16} />}
+            label="Anwesend"
+            value={totalStudents === 0 ? "–" : `${present} / ${totalStudents}`}
+            tone={attendanceStudentTone(present, totalStudents)}
+          />
+        )}
+        {occupancy && (
+          <TimetableRatioPill
+            icon={<MotoConceptIcon concept="children" size={16} />}
+            label="Grenze"
+            value={`${occupancy.currentStudentsCount} / ${occupancy.participantLimit}`}
+            tone={participantLimitTone(
+              occupancy.currentStudentsCount,
+              occupancy.participantLimit,
+            )}
+          />
+        )}
         <TimetableRatioPill
-          icon={<MotoConceptIcon concept="present" size={16} />}
-          label="Anwesend"
-          value={totalStudents === 0 ? "–" : `${present} / ${totalStudents}`}
-          tone={attendanceStudentTone(present, totalStudents)}
+          icon={<MotoConceptIcon concept="staff" size={16} />}
+          label="Personal"
+          value={
+            instance.staffCount === 0
+              ? "–"
+              : `${activeStaff} / ${instance.staffCount}`
+          }
+          tone={attendanceStaffTone(
+            instance.staffCount,
+            instance.absentStaffCount,
+          )}
         />
-      )}
-      <TimetableRatioPill
-        icon={<MotoConceptIcon concept="staff" size={16} />}
-        label="Personal"
-        value={
-          instance.staffCount === 0
-            ? "–"
-            : `${activeStaff} / ${instance.staffCount}`
-        }
-        tone={attendanceStaffTone(
-          instance.staffCount,
-          instance.absentStaffCount,
-        )}
-      />
-      <TimetableRatioPill
-        icon={<MotoConceptIcon concept="supervision" size={16} />}
-        label="Besetzung"
-        value={
-          instance.requiredStaffCount === 0
-            ? "–"
-            : `${instance.assignedStaffCount} / ${instance.requiredStaffCount}`
-        }
-        tone={capacityTone(
-          instance.assignedStaffCount,
-          instance.requiredStaffCount,
-        )}
-      />
+        <TimetableRatioPill
+          icon={<MotoConceptIcon concept="supervision" size={16} />}
+          label="Besetzung"
+          value={
+            instance.requiredStaffCount === 0
+              ? "–"
+              : `${instance.assignedStaffCount} / ${instance.requiredStaffCount}`
+          }
+          tone={capacityTone(
+            instance.assignedStaffCount,
+            instance.requiredStaffCount,
+          )}
+        />
+      </div>
+      {overbookedHint ? (
+        <Alert
+          type="warning"
+          message={`${OVERBOOKED_LABEL}. ${overbookedHint}`}
+        />
+      ) : null}
     </div>
   );
+}
+
+/** Voll ist gelb, überbucht rot (#3634); darunter bleibt die Pille neutral. */
+function participantLimitTone(current: number, limit: number): TimetableTone {
+  if (isOverbooked(current, limit)) return "danger";
+  return current === limit ? "warning" : "neutral";
 }
 
 interface SectionProps {

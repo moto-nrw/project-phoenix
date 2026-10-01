@@ -71,6 +71,10 @@ func (s *stubSettingsResolver) SessionInactivityTimeoutMinutes(context.Context) 
 	return s.intValues[sessionInactivityTimeoutQuestion], nil
 }
 
+func (s *stubSettingsResolver) WebParticipantLimitEnforced(context.Context) (bool, error) {
+	return false, nil
+}
+
 func TestResolvePresenceModeRejectsFailuresAndInvalidValues(t *testing.T) {
 	t.Parallel()
 	injected := errors.New("settings read failed")

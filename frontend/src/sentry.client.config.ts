@@ -1,5 +1,10 @@
 import * as Sentry from "@sentry/nextjs";
-import { scrubEvent } from "./sentry.shared";
+import {
+  sampleBrowserTrace,
+  scrubClientEvent,
+  scrubSpan,
+  sentryDataCollection,
+} from "./sentry.shared";
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 const environment = process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT;
@@ -20,13 +25,24 @@ if (dsn) {
   Sentry.init({
     dsn,
     environment,
+    dataCollection: sentryDataCollection,
 
-    tracesSampleRate: 0,
+    // Page loads, navigations and their Web Vitals for a 5 % sample. The
+    // default browserTracingIntegration measures them and sends trace
+    // headers to the BFF (same origin), which passes them on to the backend.
+    tracesSampler: sampleBrowserTrace,
     replaysSessionSampleRate: 0,
     replaysOnErrorSampleRate: 0,
 
-    initialScope: { tags: { portal: currentPortal() } },
+    // Tags reach error events, attributes reach the streamed spans.
+    initialScope: {
+      tags: { portal: currentPortal() },
+      attributes: { portal: currentPortal() },
+    },
 
-    beforeSend: scrubEvent,
+    beforeSend: scrubClientEvent,
+    // Spans are streamed: the page view span carries the page URL and the
+    // referrer, so scrubSpan also covers what a transaction held in v10.
+    beforeSendSpan: scrubSpan,
   });
 }

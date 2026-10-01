@@ -8,7 +8,9 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
@@ -419,7 +421,7 @@ func (r staffMembershipRepository) ListAllStaffAccountIDs(ctx context.Context) (
 // permittedStaffLinks resolves the live staff of the request tenant whose
 // account is active there, together with their effective permission names.
 func (r staffMembershipRepository) permittedStaffLinks(ctx context.Context, filter schoolmembership.StaffFilter, op string) ([]staffAccountLink, map[int64][]string, error) {
-	tenantID := usersRepo.TenantIDFromContext(ctx)
+	tenantID := peopleCompose.CallerTenantID(ctx)
 	filter.MembershipOnly = true // permission links read no employment field
 	values, err := r.membership.ListStaff(ctx, filter)
 	if err != nil {
@@ -463,7 +465,7 @@ func (r staffMembershipRepository) ListStaffWithPermission(ctx context.Context, 
 	matched := make([]staffAccountLink, 0, len(links))
 	accountIDs := make([]int64, 0, len(links))
 	for _, link := range links {
-		if usersRepo.HasEffectivePermission(permissionName, names[link.accountID]) {
+		if securityruntime.HasPermission(permissionName, names[link.accountID]) {
 			matched = append(matched, link)
 			accountIDs = append(accountIDs, link.accountID)
 		}
@@ -494,7 +496,7 @@ func (r staffMembershipRepository) FindReachableCalendarStaffIDs(ctx context.Con
 	}
 	result := make(map[int64]bool, len(links))
 	for _, link := range links {
-		if usersRepo.HasEffectivePermission(usersRepo.CalendarOwnPermission, names[link.accountID]) {
+		if securityruntime.HasPermission(securityruntime.PermissionCalendarOwn, names[link.accountID]) {
 			result[link.staff.ID] = true
 		}
 	}

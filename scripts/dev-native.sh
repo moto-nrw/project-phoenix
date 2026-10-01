@@ -109,8 +109,10 @@ cmd_up() {
     port_free "$p" || die "port $p is in use: $(lsof -nP -iTCP:"$p" -sTCP:LISTEN | tail -n +2 | awk '{print $1, $2}' | head -3 | tr '\n' ' ')"
   done
 
-  # Same sequence as the Compose server command: migrate, then air.
-  start_svc backend backend bash -c 'go run . migrate && exec air -c .air.toml'
+  # Same sequence as the Compose server command: migrate, then air. Building
+  # air's binary first and migrating with it avoids a second full compile
+  # (`go run` links its own copy); air's first build is then a cache hit.
+  start_svc backend backend bash -c 'go build -ldflags="-s -w" -o ./tmp/main . && ./tmp/main migrate && exec air -c .air.toml'
   PORT=$FRONTEND_HOST_PORT start_svc frontend frontend pnpm dev
 
   trap 'echo; stop_native; exit 130' INT TERM
@@ -164,7 +166,7 @@ main() {
     env) load_env && export -p | sed -nE 's/^declare -x ([A-Za-z_][A-Za-z0-9_]*).*/\1/p' | sort ;;
     docker)
       stop_native
-      cd "$ROOT" && docker compose up -d
+      cd "$ROOT" && docker compose --profile full up -d
       ;;
     *) sed -n '10,17p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
   esac

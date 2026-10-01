@@ -99,7 +99,7 @@ describe("files-api error wording", () => {
     await expect(
       filesService.upload("3", new File(["x"], "Brief.pdf")),
     ).rejects.toThrow(
-      "Der Speicherplatz der Dateiablage ist voll. Bitte erst Dateien löschen.",
+      "Der Speicherplatz der Dateiablage ist voll. Löschen Sie Dateien, die Sie nicht mehr brauchen. Für mehr Speicherplatz melden Sie sich bitte beim moto-Team.",
     );
   });
 

@@ -96,12 +96,12 @@ export const GET = createGetHandler(
       }
 
       logger.error("unexpected timeframe response format");
-      return [];
+      throw new Error("Unexpected timeframe response format");
     } catch (error) {
       logger.error("timeframes fetch failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-      return [];
+      throw error;
     }
   },
 );

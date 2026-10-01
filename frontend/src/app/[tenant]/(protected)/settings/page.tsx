@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
+import { Alert } from "~/components/ui/alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useSettingsTabs } from "~/components/settings/settings-page";
@@ -83,10 +84,16 @@ function SettingsContent() {
     );
   }
 
-  const activeTab =
-    selectedTab && flatTabItems.some((tab) => tab.value === selectedTab)
-      ? selectedTab
-      : (flatTabItems[0]?.value ?? "");
+  // A deep link names a setting; when its tab is not named or not shown, the
+  // tab that holds the setting wins over the first tab.
+  const isShown = (tabId: string | null): tabId is string =>
+    tabId !== null && flatTabItems.some((tab) => tab.value === tabId);
+  let activeTab = flatTabItems[0]?.value ?? "";
+  if (isShown(selectedTab)) {
+    activeTab = selectedTab;
+  } else if (isShown(settingsTabs.highlightTabId)) {
+    activeTab = settingsTabs.highlightTabId;
+  }
 
   return (
     <TenantPage
@@ -106,6 +113,14 @@ function SettingsContent() {
         label: "Einstellungsbereiche",
       }}
     >
+      {settingsTabs.highlightNeedsNfc ? (
+        <div className="mb-4">
+          <Alert
+            type="info"
+            message="Diese Einstellung gibt es nur für Schulen mit NFC-Tablets. Ihre Schule nutzt keine NFC-Tablets."
+          />
+        </div>
+      ) : null}
       {settingsTabs.renderTab(activeTab)}
     </TenantPage>
   );

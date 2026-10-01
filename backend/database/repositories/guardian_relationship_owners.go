@@ -11,6 +11,7 @@ import (
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/uptrace/bun"
 )
 
@@ -46,9 +47,23 @@ func newGuardianRelationshipOwners(db *bun.DB, observeIdentity IdentityAccessObs
 // lookup and both owner halves bound.
 func newGuardianRelationships(db *bun.DB, memberships usersRepo.SchoolMembershipLookup, observeIdentity IdentityAccessObserver) usersModels.StudentGuardianRepository {
 	pickup, access := newGuardianRelationshipOwners(db, observeIdentity)
-	return usersRepo.NewGuardianRelationshipRepository(db,
+	return usersRepo.NewGuardianRelationshipRepository(peopleRuntime(db),
 		usersRepo.WithGuardianRelationshipMemberships(memberships),
-		usersRepo.WithGuardianRelationshipOwners(pickup, access))
+		usersRepo.WithGuardianRelationshipOwners(pickup, access),
+		usersRepo.WithGuardianDefaultRole(applyDefaultGuardianRole))
+}
+
+// applyDefaultGuardianRole gives a link without a role or permissions the
+// authorization policy's default preset and the permissions it grants.
+func applyDefaultGuardianRole(relationship *usersModels.StudentGuardian) {
+	relationshipType, _, primary, emergency, pickup, _ := relationship.GuardianAuthorizationData()
+	role, granted := securityruntime.StudentGuardianRolePreset(
+		securityruntime.DefaultStudentGuardianRole(relationshipType, primary, emergency, pickup))
+	permissions := make(map[string]interface{}, len(granted))
+	for _, permission := range granted {
+		permissions[permission] = true
+	}
+	relationship.SetGuardianAuthorizationData(role, permissions)
 }
 
 type guardianPickupPort struct {

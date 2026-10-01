@@ -134,7 +134,12 @@ function studentDetailLine(student: DayLogStudent): string {
     const range = until
       ? `Ankunft ${from} · gegangen ${until}`
       : `Ankunft ${from} · noch anwesend`;
-    return student.hint ? `${range} · ${student.hint}` : range;
+    const parts = [range];
+    if (student.check_out_note) {
+      parts.push(`Grund für das frühe Gehen: ${student.check_out_note}`);
+    }
+    if (student.hint) parts.push(student.hint);
+    return parts.join(" · ");
   }
   const parts: string[] = [];
   if (student.reported_at) {
@@ -308,7 +313,9 @@ export default function DayLogPage() {
       .catch((error: unknown) => {
         if (cancelled) return;
         setData(null);
-        setErrorCode(error instanceof DayLogError ? error.code : "unknown");
+        setErrorCode(
+          error instanceof DayLogError ? error.legacyCode : "unknown",
+        );
         logger.error("day_log_fetch_failed", {
           date: dateISO,
           error: error instanceof Error ? error.message : String(error),

@@ -335,32 +335,6 @@ func NormalizeSourceSchoolClasses(classes []string) ([]string, error) {
 	return normalized, nil
 }
 
-// SourceClassFilterMatches reports whether a child in the given school class
-// passes a template's Klassenfilter. An empty filter admits every child; a set
-// filter matches case- and whitespace-insensitively and never admits a child
-// without a class — silently planning a child with no class data into a
-// Klassen-Termin would hide data problems, the same rule the Jahrgang filter
-// applies to a missing grade.
-//
-// A package function rather than a method on Group: the roster resync holds
-// the filter as a plain slice on its resync input, never a Group, and one
-// implementation for both callers is the point (#2482).
-func SourceClassFilterMatches(classes []string, schoolClass string) bool {
-	if len(classes) == 0 {
-		return true
-	}
-	wanted := normalizeSchoolClass(schoolClass)
-	if wanted == "" {
-		return false
-	}
-	for _, class := range classes {
-		if normalizeSchoolClass(class) == wanted {
-			return true
-		}
-	}
-	return false
-}
-
 // MatchesSourceGradeFilter reports whether a child with the given grade level
 // (nil = grade not derivable from the school class) passes this template's
 // offering grade filter. An empty filter admits every child; a set filter

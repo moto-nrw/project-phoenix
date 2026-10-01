@@ -103,6 +103,11 @@ type Config struct {
 	Schools          SchoolFinder
 	LoginImages      LoginImageResolver
 	ParentsURL       string
+
+	// CountPreferences and Groups serve the personal count scope (#3673).
+	// Without the store every account counts all conversations.
+	CountPreferences CountPreferenceStore
+	Groups           CallerGroups
 }
 
 // NewService wires a staff messaging service.
@@ -192,7 +197,9 @@ func (s *Service) UnreadMessageCount(ctx context.Context) (int, error) {
 	}
 	accountID := accountIDFromCtx(ctx)
 	allStudents := s.scope(ctx)
-	count, err := s.ReadRepo.UnreadMessageCountForStaff(ctx, accountID, allStudents)
+	// The counter follows the caller's personal count scope (#3673); the inbox
+	// and the per-conversation marks do not.
+	count, err := s.scopedUnreadCount(ctx, accountID, allStudents)
 	if err != nil {
 		return 0, fmt.Errorf("messaging: unread count: %w", err)
 	}
@@ -320,6 +327,9 @@ func (s *Service) markReadAndBuild(ctx context.Context, thread *usersModels.Pare
 	if err != nil {
 		return nil, false, fmt.Errorf("messaging: mark read: %w", err)
 	}
+	if err := s.clearStaffUnreadMark(ctx, thread); err != nil {
+		return nil, false, err
+	}
 	detail, err := s.buildDetailFromMessages(ctx, thread, messages)
 	if err != nil {
 		return nil, false, err
@@ -370,21 +380,8 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, 
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list visible messages: %w", err)
 	}
-	boundaryFound := handledUpToMessageID <= 0
-	for _, message := range visibleMessages {
-		if message.ID == handledUpToMessageID {
-			boundaryFound = true
-		}
-	}
-	if !boundaryFound {
-		return nil, ErrHandledBoundaryRequired
-	}
-	if handledUpToMessageID <= 0 {
-		for _, message := range visibleMessages {
-			if usersModels.IsCounterpartMessage(message, true) {
-				return nil, ErrHandledBoundaryRequired
-			}
-		}
+	if err := requireHandledBoundary(visibleMessages, handledUpToMessageID); err != nil {
+		return nil, err
 	}
 
 	accountID := accountIDFromCtx(ctx)
@@ -414,6 +411,9 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, 
 	if _, err := MarkReadToNewest(ctx, s.ReadRepo, thread.TenantID, thread.ID, accountID, true, messages); err != nil {
 		return nil, fmt.Errorf("messaging: mark read: %w", err)
 	}
+	if err := s.clearStaffUnreadMark(ctx, thread); err != nil {
+		return nil, err
+	}
 	// Re-stamp the "Gelesen" receipts on the returned snapshot: the client applies
 	// this list optimistically (revalidate:false), so without it the staff's older,
 	// guardian-read messages would lose their receipt until the next GET/SSE refresh.
@@ -423,6 +423,26 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, 
 	s.broadcastAfterCommit(ctx, thread)
 	s.notifyGuardianDevice(ctx, thread, message.ID)
 	return messages, nil
+}
+
+// requireHandledBoundary checks that a reply names the newest timeline row the
+// client displayed: the id must be one of the visible messages, and a reply
+// without one is only accepted while the thread holds no guardian activity.
+func requireHandledBoundary(visibleMessages []*usersModels.ParentMessage, handledUpToMessageID int64) error {
+	if handledUpToMessageID > 0 {
+		for _, message := range visibleMessages {
+			if message.ID == handledUpToMessageID {
+				return nil
+			}
+		}
+		return ErrHandledBoundaryRequired
+	}
+	for _, message := range visibleMessages {
+		if usersModels.IsCounterpartMessage(message, true) {
+			return ErrHandledBoundaryRequired
+		}
+	}
+	return nil
 }
 
 // authorizeThreadParticipants enforces the shared precondition for opening or
@@ -496,6 +516,9 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	// the guardian with the new message (which refreshes receipts too).
 	if _, err := MarkReadToNewest(ctx, s.ReadRepo, thread.TenantID, thread.ID, accountID, true, messages); err != nil {
 		return nil, fmt.Errorf("messaging: mark read: %w", err)
+	}
+	if err := s.clearStaffUnreadMark(ctx, thread); err != nil {
+		return nil, err
 	}
 	detail, err := s.buildDetailFromMessages(ctx, thread, messages)
 	return detail, err

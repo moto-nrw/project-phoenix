@@ -265,6 +265,9 @@ func (s *stubGuardianProfileRepo) LockByIDForUpdate(context.Context, int64) erro
 func (s *stubGuardianProfileRepo) FindByEmail(context.Context, string) (*userModels.GuardianProfile, error) {
 	return nil, nil
 }
+func (s *stubGuardianProfileRepo) FindByEmails(context.Context, []string) ([]*userModels.GuardianProfile, error) {
+	return nil, nil
+}
 func (s *stubGuardianProfileRepo) FindWithoutAccount(context.Context) ([]*userModels.GuardianProfile, error) {
 	return nil, nil
 }
@@ -281,6 +284,10 @@ func (s *stubGuardianProfileRepo) FindByIDs(context.Context, []int64) (map[int64
 	return nil, nil
 }
 func (s *stubGuardianProfileRepo) FindActivePortalProfilesByIDs(context.Context, []int64) (map[int64]*userModels.GuardianProfile, error) {
+	return nil, nil
+}
+
+func (s *stubGuardianProfileRepo) FindLoginReadyPortalProfilesByIDs(context.Context, []int64) (map[int64]*userModels.GuardianProfile, error) {
 	return nil, nil
 }
 func (s *stubGuardianProfileRepo) Count(context.Context) (int, error) { return 0, nil }

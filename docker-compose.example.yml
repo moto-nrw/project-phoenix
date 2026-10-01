@@ -1,5 +1,13 @@
+# Default `docker compose up -d` starts only postgres and mailpit. Backend
+# and frontend run natively via scripts/dev-native.sh up: on 16 GB laptops
+# the Docker VM cannot hold Next dev, Go builds and the IDE at once.
+# Full container stack: `docker compose --profile full up -d`
+# (or `scripts/dev-native.sh docker`). Naming a service explicitly, e.g.
+# `docker compose run server ...`, works without the profile flag.
 services:
   server:
+    profiles: ["full"]
+    mem_limit: 3g
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
@@ -63,7 +71,7 @@ services:
       SECURITY_LOGGING_ENABLED: ${SECURITY_LOGGING_ENABLED}
       METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN}
       SENTRY_DSN: ${SENTRY_DSN}
-      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT}
+      SENTRY_PYREPORTAL_DSN: ${SENTRY_PYREPORTAL_DSN}
       POSTHOG_API_KEY: ${POSTHOG_API_KEY}
       POSTHOG_HOST: ${POSTHOG_HOST}
       CLEANUP_SCHEDULER_ENABLED: ${CLEANUP_SCHEDULER_ENABLED}
@@ -84,6 +92,8 @@ services:
     command: ["sh", "-c", "go run . migrate && air -c .air.toml"]
 
   frontend:
+    profiles: ["full"]
+    mem_limit: 4g
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -135,7 +145,7 @@ services:
       - ./frontend/pnpm-lock.yaml:/app/pnpm-lock.yaml
       - ./frontend/next.config.js:/app/next.config.js
       - ./frontend/tsconfig.json:/app/tsconfig.json
-      - ./frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./frontend/tailwind.config.ts:/app/tailwind.config.ts
       - ./frontend/postcss.config.mjs:/app/postcss.config.mjs
       # Preserve Next.js incremental build artifacts across container rebuilds
       - next_cache:/app/.next/cache
@@ -150,6 +160,7 @@ services:
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
+    mem_limit: 1g
     ports:
       - "${POSTGRES_HOST_PORT}:5432"
     volumes:
@@ -179,6 +190,7 @@ services:
   # Web UI: http://localhost:8025 — API: http://localhost:8025/api/v1/messages
   mailpit:
     image: axllent/mailpit:latest
+    mem_limit: 256m
     ports:
       - "${MAILPIT_HOST_PORT}:8025"   # Web UI
       - "${MAILPIT_SMTP_HOST_PORT}:1025"   # SMTP
@@ -193,6 +205,7 @@ services:
     image: postgres:17-alpine
     profiles: ["test"]
     restart: "no"
+    mem_limit: 1536m
     labels:
       de.moto.testdb.lifecycle: "1"
     ports:
@@ -217,7 +230,7 @@ services:
       - -c
       - full_page_writes=off
       - -c
-      - shared_buffers=256MB
+      - shared_buffers=128MB
       - -c
       # 300, nicht 200: `go test` startet bis zu -p Package-Binaries, jedes
       # mit (-parallel + Reserve) Verbindungen plus einem Keeper. Ein nacktes

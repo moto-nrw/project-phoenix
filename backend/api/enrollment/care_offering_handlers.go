@@ -17,7 +17,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -72,25 +71,25 @@ const ErrCodeCareOfferingPickupTimesRequired = "enrollment.care_offering_pickup_
 var careOfferingWriteErrorRenderer = common.RulesRenderer(
 	[]common.ErrorRule{
 		{
-			Target: enrollmentService.ErrCareOfferingTemplatePeriodMismatch,
+			Target: capability.ErrCareOfferingTemplatePeriodMismatch,
 			Render: func(err error) render.Renderer {
 				return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingTemplatePeriodMismatch)
 			},
 		},
 		{
-			Target: enrollmentModels.ErrCareOfferingDaysRequired,
+			Target: capability.ErrCareOfferingDaysRequired,
 			Render: func(err error) render.Renderer {
 				return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingDaysRequired)
 			},
 		},
 		{
-			Target: enrollmentModels.ErrCareOfferingPickupTimesRequired,
+			Target: capability.ErrCareOfferingPickupTimesRequired,
 			Render: func(err error) render.Renderer {
 				return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingPickupTimesRequired)
 			},
 		},
-		{Target: enrollmentService.ErrCareOfferingInvalid, Render: common.ErrorInvalidRequest},
-		{Target: enrollmentService.ErrCareOfferingGroupRuleConflict, Render: common.ErrorInvalidRequest},
+		{Target: capability.ErrCareOfferingInvalid, Render: common.ErrorInvalidRequest},
+		{Target: capability.ErrCareOfferingGroupRuleConflict, Render: common.ErrorInvalidRequest},
 	},
 	func(err error) render.Renderer {
 		return common.ErrorInternalServerWrap("care offering operation failed", err)
@@ -131,7 +130,7 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 	}
 	// The document is validated on every write. Should a row still fail to
 	// decode, the offering renders untranslated instead of failing the list.
-	resp.Translations, _ = enrollmentService.CareOfferingTranslations(o)
+	resp.Translations, _ = careOfferingTranslations(o)
 	return resp
 }
 
@@ -139,8 +138,42 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 // reduced to those still matching the German text, without their source.
 func toPublicCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingResponse {
 	resp := toCareOfferingResponse(o)
-	resp.Translations, _ = enrollmentService.CareOfferingPublicTranslations(o)
+	resp.Translations, _ = careOfferingPublicTranslations(o)
 	return resp
+}
+
+// Care offerings carry their translations (#3377) as stored JSON: the
+// catalog rows belong to Care Plan, which does not interpret Enrollment's
+// translation document. The routes decode it for rendering.
+
+// careOfferingTranslations decodes the stored translation document.
+func careOfferingTranslations(offering *enrollmentModels.CareOffering) (capability.Translations, error) {
+	if offering == nil || len(offering.Translations) == 0 {
+		return nil, nil
+	}
+	var translations capability.Translations
+	if err := json.Unmarshal(offering.Translations, &translations); err != nil {
+		return nil, fmt.Errorf("decode care offering translations: %w", err)
+	}
+	return translations, nil
+}
+
+// careOfferingPublicTranslations returns the translations parents may read:
+// only those still matching the current German name, description and
+// selection group.
+func careOfferingPublicTranslations(offering *enrollmentModels.CareOffering) (capability.Translations, error) {
+	translations, err := careOfferingTranslations(offering)
+	if err != nil || translations == nil {
+		return nil, err
+	}
+	sources := map[string]string{
+		capability.TranslationAttrName:           offering.Name,
+		capability.TranslationAttrSelectionGroup: offering.SelectionGroup,
+	}
+	if offering.Description != nil {
+		sources[capability.TranslationAttrDescription] = *offering.Description
+	}
+	return translations.Fresh(sources), nil
 }
 
 // CareOfferingRequest is the wire shape POST + PUT accept.
@@ -309,14 +342,14 @@ func (rs *Resource) listCareOfferingBookingStats(w http.ResponseWriter, r *http.
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("phase_id is required")))
 		return
 	}
-	var stats []enrollmentService.CareOfferingBookingStat
+	var stats []CareOfferingBookingStat
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		loaded, loadErr := rs.CareOfferingService.ListBookingStats(ctx, phaseID)
 		stats = loaded
 		return loadErr
 	})
 	if err != nil {
-		if errors.Is(err, enrollmentService.ErrCareOfferingInvalid) {
+		if errors.Is(err, capability.ErrCareOfferingInvalid) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
@@ -356,7 +389,7 @@ func (rs *Resource) getCareOffering(w http.ResponseWriter, r *http.Request) {
 		return e
 	})
 	if err != nil {
-		if errors.Is(err, enrollmentService.ErrCareOfferingNotFound) {
+		if errors.Is(err, capability.ErrCareOfferingNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
 		}
@@ -450,7 +483,7 @@ func (rs *Resource) deleteCareOffering(w http.ResponseWriter, r *http.Request) {
 			))
 			return
 		}
-		if errors.Is(err, enrollmentService.ErrCareOfferingInvalid) {
+		if errors.Is(err, capability.ErrCareOfferingInvalid) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
@@ -513,7 +546,7 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var data *enrollmentService.PublicFormBootstrapData
+	var data *PublicFormBootstrapData
 	lateInviteToken := lateInviteTokenFromRequest(r)
 	schoolID, err := rs.resolvePublicTenantID(r.Context(), slug)
 	if err == nil {
@@ -534,7 +567,7 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 	for _, o := range data.Offerings {
 		items = append(items, toPublicCareOfferingResponse(o))
 	}
-	capabilities := enrollmentService.EffectiveFormCapabilities(data.Capabilities, data.Offerings)
+	capabilities := data.EffectiveCapabilities
 	common.Respond(w, r, http.StatusOK, PublicCareOfferingsResponse{
 		Offerings:                 items,
 		CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(selectionMode, capabilities.CareOfferingsEnabled),
@@ -569,15 +602,15 @@ const ErrCodeEnrollmentWindowClosed = "enrollment.window_closed"
 // else falls through to the generic 404 path so the existing "tenant
 // not found" / "phase not found" messages still work.
 func renderPublicEnrollmentError(w http.ResponseWriter, r *http.Request, err error) {
-	if errors.Is(err, enrollmentService.ErrEnrollmentDisabled) {
+	if errors.Is(err, capability.ErrEnrollmentDisabled) {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, ErrCodeEnrollmentDisabled))
 		return
 	}
-	if errors.Is(err, enrollmentService.ErrEnrollmentWindowClosed) {
+	if errors.Is(err, capability.ErrEnrollmentWindowClosed) {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, ErrCodeEnrollmentWindowClosed))
 		return
 	}
-	if errors.Is(err, enrollmentService.ErrLateInviteInvalid) {
+	if errors.Is(err, capability.ErrLateInviteInvalid) {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, ErrCodeEnrollmentLateInviteInvalid))
 		return
 	}
@@ -589,13 +622,13 @@ func renderPublicEnrollmentError(w http.ResponseWriter, r *http.Request, err err
 // 500 with the stage-specific wrap; everything else falls through to the
 // public gate mapping (404 + stable codes).
 func renderPublicBootstrapError(w http.ResponseWriter, r *http.Request, err error) {
-	var stageErr *enrollmentService.BootstrapStageError
+	var stageErr *BootstrapStageError
 	if errors.As(err, &stageErr) {
 		switch stageErr.Stage {
-		case enrollmentService.BootstrapStageCapabilities:
+		case BootstrapStageCapabilities:
 			common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("resolve collect_school_class: %w", stageErr.Err)))
 			return
-		case enrollmentService.BootstrapStageLegal:
+		case BootstrapStageLegal:
 			common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("resolve legal texts: %w", stageErr.Err)))
 			return
 		}
@@ -676,7 +709,7 @@ func toPublicSchoolClassConfig(phase *capability.Phase, collect bool) PublicScho
 		Collect:          collect,
 		AvailableClasses: classes,
 		Require:          phase.RequireSchoolClass,
-		CollectGrade1:    enrollmentService.CollectsGrade1Class(phase),
+		CollectGrade1:    capability.CollectsGrade1Class(phase),
 	}
 }
 
@@ -698,7 +731,7 @@ func effectiveCareOfferingSelectionMode(mode string, enabled bool) string {
 
 // We deliberately don't expose enrollmentService here — it is already
 // referenced via *Resource.CareOfferingService.
-var _ = enrollmentService.ErrCareOfferingNotFound
+var _ = capability.ErrCareOfferingNotFound
 
 // PublicPhase is the parent-safe shape returned by the public phases
 // endpoint. Intentionally slim — no created_by, no audit metadata.
@@ -786,7 +819,7 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var (
-		data    *enrollmentService.PublicFormBootstrapData
+		data    *PublicFormBootstrapData
 		captcha PublicCaptchaConfigResponse
 	)
 	lateInviteToken := lateInviteTokenFromRequest(r)
@@ -798,8 +831,14 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 				return loadErr
 			}
 			data = loaded
-			captcha.Enabled = rs.CaptchaService.IsEnabled(txCtx)
-			captcha.SiteKey = rs.CaptchaService.SiteKey(txCtx)
+			captcha.Enabled, loadErr = rs.CaptchaService.IsEnabled(txCtx)
+			if loadErr != nil {
+				return loadErr
+			}
+			captcha.SiteKey, loadErr = rs.CaptchaService.SiteKey(txCtx)
+			if loadErr != nil {
+				return loadErr
+			}
 			return nil
 		})
 	}
@@ -818,14 +857,14 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 // parents-portal bootstrap handler so both form-load paths emit an
 // identical contract. captcha is empty for the parent path (the parent JWT
 // is the anti-bot signal, so captcha is skipped there).
-func BuildPublicEnrollmentFormBootstrapResponse(data *enrollmentService.PublicFormBootstrapData, captcha PublicCaptchaConfigResponse) PublicEnrollmentFormBootstrapResponse {
+func BuildPublicEnrollmentFormBootstrapResponse(data *PublicFormBootstrapData, captcha PublicCaptchaConfigResponse) PublicEnrollmentFormBootstrapResponse {
 	items := make([]CareOfferingResponse, 0, len(data.Offerings))
 	for _, o := range data.Offerings {
 		items = append(items, toPublicCareOfferingResponse(o))
 	}
 	phase := data.Phase
 	texts := data.LegalTexts
-	capabilities := enrollmentService.EffectiveFormCapabilities(data.Capabilities, data.Offerings)
+	capabilities := data.EffectiveCapabilities
 	var lateInvite *PublicLateInvitePrefill
 	if data.LateInvite != nil {
 		lateInvite = &PublicLateInvitePrefill{
@@ -887,7 +926,7 @@ func (rs *Resource) listPublicPhases(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		err = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
 			if rs.RequestService != nil && !rs.RequestService.IsEnrollmentEnabled(txCtx) {
-				return enrollmentService.ErrEnrollmentDisabled
+				return capability.ErrEnrollmentDisabled
 			}
 			list, listErr := rs.PhaseService.ListPublicOpen(txCtx, time.Now())
 			phases = list

@@ -83,12 +83,10 @@ function createMockFetchResponse(
   isText = false,
 ): Response {
   const body = isText ? (data as string) : JSON.stringify(data);
-  return {
+  return new Response(status === 204 ? null : body, {
     status,
-    ok: status >= 200 && status < 300,
-    json: async () => data,
-    text: async () => body,
-  } as Response;
+    headers: { "Content-Type": isText ? "text/plain" : "application/json" },
+  });
 }
 
 // ============================================================================
@@ -179,15 +177,8 @@ describe("POST /api/auth/accounts/[accountId]/roles/[roleId]", () => {
       createMockContext({ accountId: "1", roleId: "2" }),
     );
 
-    expect(response.status).toBe(200);
-    const json = await parseJsonResponse<{
-      success: boolean;
-      message: string;
-      error: string;
-    }>(response);
-    expect(json.success).toBe(false);
-    expect(json.message).toContain("Database schema mismatch");
-    expect(json.error).toContain("Backend database configuration error");
+    expect(response.status).toBe(500);
+    expect(await response.text()).toBe(errorText);
   });
 
   it("returns 500 on API error", async () => {
@@ -203,9 +194,8 @@ describe("POST /api/auth/accounts/[accountId]/roles/[roleId]", () => {
       createMockContext({ accountId: "1", roleId: "2" }),
     );
 
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("API error (404)");
+    expect(response.status).toBe(404);
+    expect(await response.text()).toBe("Not found");
   });
 
   it("handles fetch exceptions", async () => {
@@ -309,15 +299,8 @@ describe("DELETE /api/auth/accounts/[accountId]/roles/[roleId]", () => {
       createMockContext({ accountId: "1", roleId: "2" }),
     );
 
-    expect(response.status).toBe(200);
-    const json = await parseJsonResponse<{
-      success: boolean;
-      message: string;
-      error: string;
-    }>(response);
-    expect(json.success).toBe(false);
-    expect(json.message).toContain("Database schema mismatch");
-    expect(json.error).toContain("Backend database configuration error");
+    expect(response.status).toBe(500);
+    expect(await response.text()).toBe(errorText);
   });
 
   it("returns 500 on API error", async () => {
@@ -333,9 +316,8 @@ describe("DELETE /api/auth/accounts/[accountId]/roles/[roleId]", () => {
       createMockContext({ accountId: "1", roleId: "2" }),
     );
 
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("API error (404)");
+    expect(response.status).toBe(404);
+    expect(await response.text()).toBe("Not found");
   });
 
   it("handles fetch exceptions", async () => {

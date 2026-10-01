@@ -21,7 +21,6 @@ import (
 	"github.com/uptrace/bun"
 
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -44,17 +43,17 @@ type mockPhaseService struct {
 	deleteID          int64
 	deleteErr         error
 	deleteImpactID    int64
-	deleteImpactRes   *enrollmentService.PhaseDeleteImpact
+	deleteImpactRes   *capability.PhaseDeleteImpact
 	deleteImpactErr   error
 }
 
-func (m *mockPhaseService) List(_ context.Context) ([]*capability.Phase, error) {
+func (m *mockPhaseService) AllPhases(_ context.Context) ([]*capability.Phase, error) {
 	return m.listResult, m.listErr
 }
 func (m *mockPhaseService) ListPublicOpen(_ context.Context, _ time.Time) ([]*capability.Phase, error) {
 	return m.listPublicOpenRes, m.listPublicOpenErr
 }
-func (m *mockPhaseService) GetByID(_ context.Context, id int64) (*capability.Phase, error) {
+func (m *mockPhaseService) PhaseByID(_ context.Context, id int64) (*capability.Phase, error) {
 	m.getByIDCalls++
 	m.getByIDID = id
 	idx := m.getByIDCalls - 1
@@ -66,24 +65,24 @@ func (m *mockPhaseService) GetByID(_ context.Context, id int64) (*capability.Pha
 	}
 	return m.getByIDResult, m.getByIDErr
 }
-func (m *mockPhaseService) Create(_ context.Context, phase *capability.Phase) (*capability.Phase, error) {
+func (m *mockPhaseService) CreatePhase(_ context.Context, phase *capability.Phase) (*capability.Phase, error) {
 	m.createInput = phase
 	return m.createResult, m.createErr
 }
-func (m *mockPhaseService) Update(_ context.Context, phase *capability.Phase) error {
+func (m *mockPhaseService) UpdatePhase(_ context.Context, phase *capability.Phase) error {
 	m.updateInput = phase
 	return m.updateErr
 }
-func (m *mockPhaseService) Delete(_ context.Context, id int64) error {
+func (m *mockPhaseService) DeletePhase(_ context.Context, id int64) error {
 	m.deleteID = id
 	return m.deleteErr
 }
-func (m *mockPhaseService) DeleteImpact(_ context.Context, id int64) (*enrollmentService.PhaseDeleteImpact, error) {
+func (m *mockPhaseService) DeleteImpact(_ context.Context, id int64) (*capability.PhaseDeleteImpact, error) {
 	m.deleteImpactID = id
 	return m.deleteImpactRes, m.deleteImpactErr
 }
 
-func buildPhaseRouter(svc enrollmentService.PhaseService) chi.Router {
+func buildPhaseRouter(svc capability.PhaseAdministration) chi.Router {
 	rs := &Resource{PhaseService: svc}
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -217,8 +216,8 @@ func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 
 	rs := &Resource{
 		SchoolService: dbPublicSchools{db: db},
-		PhaseService: enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
-			Owner: enrollmentCompose.New(),
+		PhaseService: enrollmentCompose.NewPhases(enrollmentCompose.PhaseDependencies{
+			Records: enrollmentCompose.New(),
 		}),
 		db: db,
 	}
@@ -264,7 +263,7 @@ func TestGetPhaseHandler_HappyPath(t *testing.T) {
 func TestGetPhaseHandler_NotFoundReturns404(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockPhaseService{getByIDErr: enrollmentService.ErrPhaseNotFound}
+	mock := &mockPhaseService{getByIDErr: capability.ErrPhaseNotFound}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodGet, "/enrollment/phases/1234", nil)
 	assert.Equal(t, http.StatusNotFound, w.Code)
@@ -351,7 +350,7 @@ func TestCreatePhaseHandler_BadFormSchemaIDReturns400(t *testing.T) {
 func TestCreatePhaseHandler_InvalidPhaseReturns400(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockPhaseService{createErr: enrollmentService.ErrInvalidPhase}
+	mock := &mockPhaseService{createErr: capability.ErrInvalidPhase}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", validPhaseBody("X"))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -360,7 +359,7 @@ func TestCreatePhaseHandler_InvalidPhaseReturns400(t *testing.T) {
 func TestCreatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockPhaseService{createErr: enrollmentService.ErrPhaseDuplicateName}
+	mock := &mockPhaseService{createErr: capability.ErrPhaseDuplicateName}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", validPhaseBody("X"))
 	assert.Equal(t, http.StatusConflict, w.Code)
@@ -371,7 +370,7 @@ func TestCreatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
 func TestCreatePhaseHandler_DuplicateNameCarriesCodeWithoutSQLDetail(t *testing.T) {
 	t.Parallel()
 
-	wrapped := fmt.Errorf("%w: %v", enrollmentService.ErrPhaseDuplicateName,
+	wrapped := fmt.Errorf("%w: %v", capability.ErrPhaseDuplicateName,
 		errors.New(`ERROR: duplicate key value violates unique constraint "enrollment_phases_unique_name" (SQLSTATE 23505)`))
 	mock := &mockPhaseService{createErr: wrapped}
 	router := buildPhaseRouter(mock)
@@ -384,7 +383,7 @@ func TestCreatePhaseHandler_DuplicateNameCarriesCodeWithoutSQLDetail(t *testing.
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	assert.Equal(t, ErrCodePhaseNameExists, body.Code)
-	assert.Equal(t, enrollmentService.ErrPhaseDuplicateName.Error(), body.Error)
+	assert.Equal(t, capability.ErrPhaseDuplicateName.Error(), body.Error)
 	assert.NotContains(t, body.Error, "SQLSTATE")
 }
 
@@ -462,7 +461,7 @@ func TestUpdatePhaseHandler_NullCalendarPeriodIDUnlinks(t *testing.T) {
 func TestUpdatePhaseHandler_NullCalendarPeriodIDMissingPhaseReturns404(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockPhaseService{getByIDErr: enrollmentService.ErrPhaseNotFound}
+	mock := &mockPhaseService{getByIDErr: capability.ErrPhaseNotFound}
 	router := buildPhaseRouter(mock)
 	body := validPhaseBody("Updated")
 	body["calendar_period_id"] = nil
@@ -488,7 +487,7 @@ func TestUpdatePhaseHandler_InvalidPhaseReturns400(t *testing.T) {
 
 	mock := &mockPhaseService{
 		getByIDResult: makePhaseModel(1234, "Updated"),
-		updateErr:     enrollmentService.ErrInvalidPhase,
+		updateErr:     capability.ErrInvalidPhase,
 	}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
@@ -500,7 +499,7 @@ func TestUpdatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
 
 	mock := &mockPhaseService{
 		getByIDResult: makePhaseModel(1234, "Updated"),
-		updateErr:     enrollmentService.ErrPhaseDuplicateName,
+		updateErr:     capability.ErrPhaseDuplicateName,
 	}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
@@ -512,7 +511,7 @@ func TestUpdatePhaseHandler_CareOfferingConflictReturns409(t *testing.T) {
 
 	mock := &mockPhaseService{
 		getByIDResult: makePhaseModel(1234, "Updated"),
-		updateErr:     enrollmentService.ErrPhaseCareOfferingConflict,
+		updateErr:     capability.ErrPhaseCareOfferingConflict,
 	}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
@@ -664,7 +663,7 @@ func TestDeletePhaseHandler_HappyPathReturns204(t *testing.T) {
 func TestDeletePhaseHandler_NotFoundReturns404(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockPhaseService{deleteErr: enrollmentService.ErrPhaseNotFound}
+	mock := &mockPhaseService{deleteErr: capability.ErrPhaseNotFound}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodDelete, "/enrollment/phases/1234", nil)
 	assert.Equal(t, http.StatusNotFound, w.Code)
@@ -685,7 +684,7 @@ func TestPhaseDeleteImpactHandler_ReturnsCounts(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockPhaseService{
-		deleteImpactRes: &enrollmentService.PhaseDeleteImpact{
+		deleteImpactRes: &capability.PhaseDeleteImpact{
 			Requests:      3,
 			CareOfferings: 2,
 			StudentsKept:  5,
@@ -704,7 +703,7 @@ func TestPhaseDeleteImpactHandler_ReturnsCounts(t *testing.T) {
 func TestPhaseDeleteImpactHandler_NotFoundReturns404(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockPhaseService{deleteImpactErr: enrollmentService.ErrPhaseNotFound}
+	mock := &mockPhaseService{deleteImpactErr: capability.ErrPhaseNotFound}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodGet, "/enrollment/phases/1234/delete-impact", nil)
 	assert.Equal(t, http.StatusNotFound, w.Code)

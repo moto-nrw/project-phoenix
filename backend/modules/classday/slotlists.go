@@ -67,6 +67,18 @@ var ErrListDrifted = errors.New("Die Liste hat sich seit der Vorschau geändert.
 // schedule/user permissions but cannot read the settings schema themselves.
 var ErrTimetableDisabled = errors.New("timetable feature is disabled")
 
+// Format is the file format a slot list export renders to.
+type Format = listexport.Format
+
+// File is a rendered slot list export.
+type File = listexport.File
+
+// The export formats a slot list renders to.
+const (
+	FormatPDF  = listexport.FormatPDF
+	FormatXLSX = listexport.FormatXLSX
+)
+
 // SlotLists builds slot lists for preview (JSON) and export (PDF/XLSX).
 type SlotLists interface {
 	BuildList(ctx context.Context, params Params) (*Result, error)

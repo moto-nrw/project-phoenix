@@ -54,6 +54,11 @@ interface MessagesActivityDetail {
   readonly studentId?: string | null;
   /** Account that caused the event, when the emitter knows it. */
   readonly source?: string | null;
+  /**
+   * Only the team-wide unread state changed (a conversation was marked unread
+   * or the mark ended, #3654). No message and no receipt changed.
+   */
+  readonly unreadOnly?: boolean;
 }
 
 export function useMessagesActivity({
@@ -137,6 +142,10 @@ export function useMessagesActivity({
       ) {
         return;
       }
+      // A read-advancing consumer has nothing to show for an unread-only
+      // change, and reloading would open the conversation and end the mark
+      // someone just set.
+      if (marksRead && detail?.unreadOnly) return;
       if (threadId && detail?.threadId && detail.threadId !== threadId) return;
       if (studentId && detail?.studentId && detail.studentId !== studentId) {
         return;

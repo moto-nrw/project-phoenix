@@ -23,6 +23,9 @@ import {
 } from "~/lib/auth-utils";
 import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
+import { useHelpHref } from "~/lib/hooks/use-help-href";
+import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
+import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -607,6 +610,8 @@ interface MobileBottomNavProps {
 }
 
 export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
+  // Ungelesene Anmeldungen (#3778) an der Zeile „Anmeldungen" im Menü.
+  const { unreadCount: enrollmentsUnreadCount } = useEnrollmentsUnread();
   const rawPathname = usePathname();
   const tenantSlug = useTenantSlugSafe();
   const routingMode = useTenantRoutingModeSafe();
@@ -627,6 +632,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
   // subdomain/operator/parent mode). Used for tenant-scoped navigation links.
   const tenantPath = useTenantAwarePath();
+  // Dieselbe Hilfe-Adresse wie in der Seitenleiste: Rolle, Schuleinstellungen
+  // und `return_to`, damit die Hilfe nicht erneut fragt (#3575).
+  const helpHref = useHelpHref();
   const [isOverflowMenuOpen, setIsOverflowMenuOpen] = useState(false);
   // Unter lg gibt es keine Shell-Kopfzeile mehr (Eltern-App-Muster), also
   // auch keinen Avatar mit Profilmenü: Profil und Abmelden wohnen hier im
@@ -1102,9 +1110,12 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                         item.href,
                         item.activePaths,
                       );
-                      const href = TENANT_SCOPED_HREFS.has(item.href)
-                        ? tenantPath(item.href)
-                        : item.href;
+                      const href =
+                        item.href === STAFF_FLAT_PAGES.help.href
+                          ? helpHref
+                          : TENANT_SCOPED_HREFS.has(item.href)
+                            ? tenantPath(item.href)
+                            : item.href;
 
                       // Coming soon items are not clickable
                       if (item.comingSoon) {
@@ -1150,6 +1161,14 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                           <span className="text-base font-medium">
                             {item.label}
                           </span>
+                          {item.href === ENROLLMENT_SECTION.href ? (
+                            <UnreadBadge
+                              count={enrollmentsUnreadCount}
+                              tone="staff"
+                              noun="ungelesene Anmeldungen"
+                              className="ml-auto"
+                            />
+                          ) : null}
                         </NavLink>
                       );
                     })}

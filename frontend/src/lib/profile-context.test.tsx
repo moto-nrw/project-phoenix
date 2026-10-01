@@ -128,8 +128,8 @@ describe("ProfileContext", () => {
     });
 
     it("should handle fetch errors gracefully", async () => {
-      const consoleErrorSpy = vi
-        .spyOn(console, "error")
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
         .mockImplementation(() => undefined);
       vi.mocked(profileApi.fetchProfile).mockRejectedValue(
         new Error("Network error"),
@@ -146,11 +146,12 @@ describe("ProfileContext", () => {
       });
 
       expect(result.current.profile).toBe(null);
-      expect(consoleErrorSpy).toHaveBeenCalledWith("failed to load profile", {
+      // fetchProfile reports the cause itself; this is only a breadcrumb.
+      expect(consoleWarnSpy).toHaveBeenCalledWith("failed to load profile", {
         error: expect.any(String),
       });
 
-      consoleErrorSpy.mockRestore();
+      consoleWarnSpy.mockRestore();
     });
 
     it("should attempt to refresh when session token changes (subject to debounce)", async () => {

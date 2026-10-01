@@ -605,6 +605,61 @@ func TestRequestChildRepository_UpdateRolloverReview_NilGradePreservesExisting(t
 	assert.Equal(t, int16(3), *got.TargetGradeLevel, "nil newGradeLevel must NOT touch the existing target_grade_level")
 }
 
+// --- HoldAutoRenewedChild ----------------------------------------------
+
+// A renewal the Kinderkontingent held back stays open with its review reason
+// until the school decides it; the decision clears the reason (#3570).
+func TestRequestChildRepository_HoldAutoRenewedChild(t *testing.T) {
+	t.Parallel()
+
+	db, repo, tenantID, _, requestID := setupRequestChildRepoTest(t)
+	c := makeChild(requestID, "Mia", "K")
+	c.Status = capability.ChildStatusAutoRenewed
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.InsertChild(ctx, c)
+	}))
+	read := func() *capability.RequestChild {
+		var got *capability.RequestChild
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			var err error
+			got, err = enrollmentCompose.New().ChildByID(ctx, c.ID)
+			return err
+		}))
+		return got
+	}
+	hold := func() bool {
+		var held bool
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			var err error
+			held, err = enrollmentCompose.New().HoldAutoRenewedChild(ctx, c.ID, capability.ReviewReasonChildQuotaReached)
+			return err
+		}))
+		return held
+	}
+
+	assert.True(t, hold())
+	got := read()
+	assert.Equal(t, capability.ChildStatusSubmitted, got.Status)
+	require.NotNil(t, got.ReviewReason)
+	assert.Equal(t, capability.ReviewReasonChildQuotaReached, *got.ReviewReason)
+
+	assert.False(t, hold(), "a child that is no longer auto_renewed is left alone")
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return enrollmentCompose.New().UpdateChildStatus(ctx, c.ID, capability.ChildStatusUnderReview, nil, 0)
+	}))
+	got = read()
+	require.NotNil(t, got.ReviewReason, "an enrollment that stays open keeps its review reason")
+	assert.Equal(t, capability.ReviewReasonChildQuotaReached, *got.ReviewReason)
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return enrollmentCompose.New().UpdateChildStatus(ctx, c.ID, capability.ChildStatusWaitlisted, nil, 0)
+	}))
+	got = read()
+	assert.Equal(t, capability.ChildStatusWaitlisted, got.Status)
+	assert.Nil(t, got.ReviewReason, "a decision resolves the review reason")
+}
+
 func TestRequestChildRepository_UpdateRolloverReview_MissingIDErrors(t *testing.T) {
 	t.Parallel()
 

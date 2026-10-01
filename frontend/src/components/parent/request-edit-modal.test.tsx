@@ -19,10 +19,9 @@ vi.mock("~/lib/parent-api", async (importOriginal) => {
   };
 });
 
-vi.mock("~/components/ui/date-picker", async (importOriginal) => {
-  const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
-  return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
-});
+vi.mock("~/components/ui/date-picker", async () =>
+  (await import("~/test/mocks/date-picker")).datePickerModuleMock(),
+);
 
 const events = vi.mocked(listParentRequestEvents);
 const updateExcused = vi.mocked(updateExcusedRequest);

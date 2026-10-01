@@ -12,6 +12,24 @@ import (
 // consumer-owned ports (#3424 slice S3): the Änderungsprotokoll of the
 // deviation writes and the attendance correction trail.
 
+// The Timetable owner may not name the Audit Platform, so it mirrors the
+// vocabulary these trails store, and the bindings below pass it through
+// unchanged. A drift must not compile: a false comparison repeats the false
+// key of this map literal.
+var _ = map[bool]struct{}{
+	false: {},
+	auditModels.DeviationEventAbsence == timetableCompose.DeviationEventAbsence &&
+		auditModels.DeviationEventReturnToPresence == timetableCompose.DeviationEventReturnToPresence &&
+		auditModels.DeviationEventSubstitution == timetableCompose.DeviationEventSubstitution &&
+		auditModels.DeviationEventSubstituteRemoved == timetableCompose.DeviationEventSubstituteRemoved &&
+		auditModels.DeviationEventSickReported == timetableCompose.DeviationEventSickReported &&
+		auditModels.DeviationEventSickCleared == timetableCompose.DeviationEventSickCleared &&
+		auditModels.AttendanceFieldStatus == timetable.AttendanceCorrectionFieldStatus &&
+		auditModels.AttendanceFieldSubstatus == timetable.AttendanceCorrectionFieldSubstatus &&
+		auditModels.AttendanceFieldNote == timetable.AttendanceCorrectionFieldNote &&
+		auditModels.CorrectionReasonMaxLength == timetable.AttendanceCorrectionReasonMaxLength: {},
+}
+
 // TimetableDeviationProtocol appends the owner's Änderungsprotokoll entries
 // to the Audit Platform's deviation events.
 func TimetableDeviationProtocol(events auditModels.DeviationEventRepository) timetableCompose.DeviationProtocol {

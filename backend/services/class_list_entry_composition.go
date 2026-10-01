@@ -7,9 +7,9 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	auditClassList "github.com/moto-nrw/project-phoenix/modules/auditlog/classlist"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 // The audited class-list administration (#2382, #3355) lives with School
@@ -122,21 +122,21 @@ type classListEntryRosterReader struct {
 
 // NewClassListEntryRosterReader binds the class roster's class-list reader to
 // the School Membership capability that owns the entries.
-func NewClassListEntryRosterReader(entries schoolmembership.ClassListEntries) enrollment.ClassListEntryReader {
+func NewClassListEntryRosterReader(entries schoolmembership.ClassListEntries) enrollmentCompose.ClassListEntries {
 	if entries == nil {
 		panic("class list entry roster reader: the school membership capability is required")
 	}
 	return classListEntryRosterReader{entries: entries}
 }
 
-func (r classListEntryRosterReader) ListClassListEntries(ctx context.Context, schoolClass string) ([]enrollment.ClassListEntry, error) {
+func (r classListEntryRosterReader) ListClassListEntries(ctx context.Context, schoolClass string) ([]enrollmentCompose.ClassListEntry, error) {
 	values, err := r.entries.ListClassListEntriesInDisplayOrder(ctx, schoolmembership.ClassListEntryFilter{SchoolClass: schoolClass})
 	if err != nil {
 		return nil, err
 	}
-	result := make([]enrollment.ClassListEntry, 0, len(values))
+	result := make([]enrollmentCompose.ClassListEntry, 0, len(values))
 	for _, value := range values {
-		result = append(result, enrollment.ClassListEntry{
+		result = append(result, enrollmentCompose.ClassListEntry{
 			ID: value.ID, FirstName: value.FirstName, LastName: value.LastName, SchoolClass: value.SchoolClass,
 		})
 	}

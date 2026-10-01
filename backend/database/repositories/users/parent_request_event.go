@@ -4,10 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -18,13 +14,11 @@ const parentRequestEventTable = "users.parent_request_events"
 const parentRequestEventDefaultLimit = 200
 
 type ParentRequestEventRepository struct {
-	*base.Repository[*userModels.ParentRequestEvent]
+	runtime Runtime
 }
 
-func NewParentRequestEventRepository(db *bun.DB) userModels.ParentRequestEventRepository {
-	repo := base.NewRepository[*userModels.ParentRequestEvent](db, parentRequestEventTable, "ParentRequestEvent")
-	repo.TenantScoped = true
-	return &ParentRequestEventRepository{Repository: repo}
+func NewParentRequestEventRepository(runtime Runtime) userModels.ParentRequestEventRepository {
+	return &ParentRequestEventRepository{runtime: requireRuntime(runtime)}
 }
 
 // Create overrides the generic insert so created_at uses clock_timestamp():
@@ -34,16 +28,16 @@ func (r *ParentRequestEventRepository) Create(ctx context.Context, event *userMo
 	if event == nil {
 		return fmt.Errorf("parent request event cannot be nil")
 	}
-	base.EnsureTenantID(ctx, event)
+	ensureTenantID(ctx, r.runtime, event)
 	if event.Payload == nil {
 		event.Payload = map[string]any{}
 	}
-	if _, err := base.GetDB(ctx, r.DB).NewInsert().Model(event).
+	if _, err := r.runtime.DB(ctx).NewInsert().Model(event).
 		ModelTableExpr(parentRequestEventTable).
 		Value("created_at", "clock_timestamp()").
 		Value("updated_at", "clock_timestamp()").
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "create parent request event", Err: base.TranslateNotFound(err)}
+		return &userModels.DatabaseError{Op: "create parent request event", Err: translateNotFound(err)}
 	}
 	return nil
 }
@@ -56,15 +50,15 @@ func (r *ParentRequestEventRepository) ListForRequest(
 	requestID int64,
 ) ([]*userModels.ParentRequestEvent, error) {
 	rows := make([]*userModels.ParentRequestEvent, 0)
-	query := base.GetDB(ctx, r.DB).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(&rows).
 		ModelTableExpr(`users.parent_request_events AS "parent_request_event"`).
 		Where(`"parent_request_event".request_type = ?`, requestType).
 		Where(`"parent_request_event".request_id = ?`, requestID).
 		OrderExpr(`"parent_request_event".id`)
-	query = base.WithTenantFilter(ctx, query, "parent_request_event")
+	query = withTenantFilter(ctx, r.runtime, query, "parent_request_event")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list parent request events", Err: base.TranslateNotFound(err)}
+		return nil, &userModels.DatabaseError{Op: "list parent request events", Err: translateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -79,15 +73,15 @@ func (r *ParentRequestEventRepository) ListForStudent(
 		limit = parentRequestEventDefaultLimit
 	}
 	rows := make([]*userModels.ParentRequestEvent, 0)
-	query := base.GetDB(ctx, r.DB).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(&rows).
 		ModelTableExpr(`users.parent_request_events AS "parent_request_event"`).
 		Where(`"parent_request_event".student_id = ?`, studentID).
 		OrderExpr(`"parent_request_event".id DESC`).
 		Limit(limit)
-	query = base.WithTenantFilter(ctx, query, "parent_request_event")
+	query = withTenantFilter(ctx, r.runtime, query, "parent_request_event")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list student parent request events", Err: base.TranslateNotFound(err)}
+		return nil, &userModels.DatabaseError{Op: "list student parent request events", Err: translateNotFound(err)}
 	}
 	return rows, nil
 }

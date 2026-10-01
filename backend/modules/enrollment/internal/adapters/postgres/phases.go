@@ -59,7 +59,7 @@ func (r *Store) InsertPhase(ctx context.Context, phase *enrollment.Phase) error 
 		Returning("*").
 		Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to create phase: %w", err)
+		return markPhaseWriteError(fmt.Errorf("failed to create phase: %w", err))
 	}
 	*phase = *row.value()
 	return nil
@@ -159,7 +159,7 @@ func (r *Store) UpdatePhase(ctx context.Context, phase *enrollment.Phase) error 
 		Where(`"phase".id = ?`, phase.ID).
 		Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to update phase: %w", err)
+		return markPhaseWriteError(fmt.Errorf("failed to update phase: %w", err))
 	}
 	rows, countErr := res.RowsAffected()
 	if countErr != nil {
