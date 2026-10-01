@@ -126,8 +126,8 @@ func (b enrollmentRosterGuardianContacts) GuardianContacts(ctx context.Context, 
 	for _, row := range rows {
 		out = append(out, enrollmentCompose.GuardianContactRow{
 			StudentID: row.StudentID, GuardianProfileID: row.GuardianProfileID,
-			FirstName: row.FirstName.String, LastName: row.LastName.String,
-			Email: row.Email.String, PhoneNumber: row.PhoneNumber.String,
+			FirstName: stringValue(row.FirstName), LastName: stringValue(row.LastName),
+			Email: stringValue(row.Email), PhoneNumber: stringValue(row.PhoneNumber),
 		})
 	}
 	return out, nil

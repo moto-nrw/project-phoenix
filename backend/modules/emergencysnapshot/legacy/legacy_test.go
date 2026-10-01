@@ -2,7 +2,6 @@ package legacy
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -91,17 +90,6 @@ func (f *fakeRooms) ListRoomsByID(_ context.Context, ids []int64) ([]facilities.
 	return f.rows, f.err
 }
 
-type fakeSettings struct {
-	enabled bool
-	key     string
-	err     error
-}
-
-func (f *fakeSettings) ResolveBool(_ context.Context, key string) (bool, error) {
-	f.key = key
-	return f.enabled, f.err
-}
-
 func fullSources() Sources {
 	return Sources{
 		Presence:     &fakePresence{},
@@ -110,7 +98,6 @@ func fullSources() Sources {
 		Persons:      fakePersons{},
 		Contacts:     fakeContacts{},
 		Rooms:        &fakeRooms{},
-		Settings:     &fakeSettings{},
 		Renderer:     listexport.NewService(),
 	}
 }
@@ -130,8 +117,11 @@ func TestNewRejectsMissingSources(t *testing.T) {
 	require.NotNil(t, query)
 }
 
-func nullString(value string) sql.NullString {
-	return sql.NullString{String: value, Valid: value != ""}
+func optionalString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 // The retained service's fixture (#2609 tests): one child in the Kreativraum
@@ -148,11 +138,9 @@ func TestExportRendersTheRetainedNotfallliste(t *testing.T) {
 		}},
 	}
 	rooms := &fakeRooms{rows: []facilities.Room{{ID: kreativraum, Name: "Kreativraum"}}}
-	settings := &fakeSettings{enabled: true}
 	sources := fullSources()
 	sources.Presence = presence
 	sources.Rooms = rooms
-	sources.Settings = settings
 	sources.Students = fakeStudents{rows: map[int64]*usersModels.Student{
 		101: {PersonID: 301, SchoolClass: "Klasse 3b", HealthInfo: new("Nussallergie, Epipen im Gruppenraum")},
 		202: {PersonID: 302, SchoolClass: "Klasse 2a"},
@@ -162,10 +150,10 @@ func TestExportRendersTheRetainedNotfallliste(t *testing.T) {
 		{ID: 302, FirstName: "Max", LastName: "Schmitt"},
 	}}
 	sources.Contacts = fakeContacts{rows: []usersModels.GuardianEmergencyContactRow{
-		{StudentID: 202, FirstName: nullString("Familie"), LastName: nullString("Schmitt"), PhoneNumber: nullString("02551 444")},
-		{StudentID: 101, FirstName: nullString("Lea"), LastName: nullString("Albrecht"), PhoneNumber: nullString("02551 111")},
-		{StudentID: 101, FirstName: nullString("Noah"), LastName: nullString("Albrecht"), PhoneNumber: nullString("02551 222")},
-		{StudentID: 101, FirstName: nullString("Lea"), LastName: nullString("Albrecht"), PhoneNumber: nullString("02551 333")},
+		{StudentID: 202, FirstName: optionalString("Familie"), LastName: optionalString("Schmitt"), PhoneNumber: optionalString("02551 444")},
+		{StudentID: 101, FirstName: optionalString("Lea"), LastName: optionalString("Albrecht"), PhoneNumber: optionalString("02551 111")},
+		{StudentID: 101, FirstName: optionalString("Noah"), LastName: optionalString("Albrecht"), PhoneNumber: optionalString("02551 222")},
+		{StudentID: 101, FirstName: optionalString("Lea"), LastName: optionalString("Albrecht"), PhoneNumber: optionalString("02551 333")},
 	}}
 	generatedAt := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
 	sources.Now = func() time.Time { return generatedAt }
@@ -180,7 +168,6 @@ func TestExportRendersTheRetainedNotfallliste(t *testing.T) {
 		RunningGroupsOnly: true, LatestPerStudent: true,
 	}, presence.filter, "the owner query keeps the retained selection")
 	assert.Equal(t, []int64{kreativraum}, rooms.ids)
-	assert.Equal(t, "operations.emergency_list_health_info", settings.key)
 
 	assert.Equal(t, listexport.Document{
 		Title:       "Notfallliste",
@@ -445,7 +432,6 @@ func TestSnapshotInputsEnforceRLS(t *testing.T) {
 		Persons:      people,
 		Contacts:     usersRepo.NewGuardianRelationshipRepository(peopleCompose.NewLegacyRepositoryRuntime(db)),
 		Rooms:        facilitiesModule,
-		Settings:     &fakeSettings{enabled: false},
 		Renderer:     listexport.NewService(),
 	})
 	require.NoError(t, err)

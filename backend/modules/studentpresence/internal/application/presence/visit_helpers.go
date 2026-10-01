@@ -181,7 +181,7 @@ func (s *service) resolveClearMode(ctx context.Context, name string, read func(c
 }
 
 // autoClearStudentSickness clears the sickness flag on student check-in when
-// the tenant's operations.sick_clear_mode setting is "next_checkin" (default).
+// the tenant's operations.sick_clear_mode setting is "next_checkin".
 func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64) error {
 	mode, err := s.resolveSickClearMode(ctx)
 	if err != nil {

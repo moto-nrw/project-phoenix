@@ -103,6 +103,11 @@ type Config struct {
 	Schools          SchoolFinder
 	LoginImages      LoginImageResolver
 	ParentsURL       string
+
+	// CountPreferences and Groups serve the personal count scope (#3673).
+	// Without the store every account counts all conversations.
+	CountPreferences CountPreferenceStore
+	Groups           CallerGroups
 }
 
 // NewService wires a staff messaging service.
@@ -192,7 +197,9 @@ func (s *Service) UnreadMessageCount(ctx context.Context) (int, error) {
 	}
 	accountID := accountIDFromCtx(ctx)
 	allStudents := s.scope(ctx)
-	count, err := s.ReadRepo.UnreadMessageCountForStaff(ctx, accountID, allStudents)
+	// The counter follows the caller's personal count scope (#3673); the inbox
+	// and the per-conversation marks do not.
+	count, err := s.scopedUnreadCount(ctx, accountID, allStudents)
 	if err != nil {
 		return 0, fmt.Errorf("messaging: unread count: %w", err)
 	}

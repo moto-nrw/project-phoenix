@@ -297,16 +297,15 @@ func init() {
 		SortOrder:   2,
 	})
 
-	// Gated by the school-wide cancellation-notice switch, never by the news
-	// flag: the feed entry exists whenever the notice was sent, this only
-	// decides whether the phone rings for it.
+	// No school gate and never the news flag: the person cancelling decides
+	// in the dialog whether a notice goes out (#3731); the family decides here
+	// whether the phone rings for it.
 	RegisterType(TypeDefinition{
 		Key:         TypeParentCareCancelled,
 		Label:       "Betreuung fällt aus",
 		Description: "Wenn die OGS einen Betreuungstermin Ihres Kindes absagt.",
 		Group:       GroupAppointments,
 		Portal:      PortalParent,
-		TenantGate:  configModel.KeyNotificationsCareCancelledEnabled,
 		SortOrder:   3,
 	})
 

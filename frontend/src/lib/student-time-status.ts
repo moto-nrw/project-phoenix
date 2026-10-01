@@ -1,4 +1,9 @@
 import { isNotCheckedInLocation, LOCATION_COLORS } from "./location-helper";
+import {
+  berlinDateTimeISO,
+  berlinTodayISO,
+  parseISODate,
+} from "./date-helpers";
 
 const APPROACHING_THRESHOLD_MINUTES = 30;
 
@@ -179,15 +184,46 @@ export function comesOnlyIfLessonCancelled(day: StudentDayTimes): boolean {
   return arrival !== null && pickup !== null && arrival >= pickup;
 }
 
+/**
+ * How many minutes a checkout at `now` lies before today's planned pickup,
+ * when that is more than `toleranceMinutes` (#3324). Returns null for an
+ * ordinary checkout, a missing pickup time, or a switched-off question.
+ */
+export function earlyCheckoutMinutes({
+  plannedPickup,
+  now,
+  toleranceMinutes,
+}: Readonly<{
+  plannedPickup?: string | null;
+  now: Date;
+  toleranceMinutes?: number | null;
+}>): number | null {
+  if (toleranceMinutes == null || !plannedPickup) {
+    return null;
+  }
+  const planned = buildTimeDate(plannedPickup, now);
+  if (!planned) {
+    return null;
+  }
+  const millisecondsEarly = planned.getTime() - now.getTime();
+  if (millisecondsEarly <= toleranceMinutes * 60000) {
+    return null;
+  }
+  return Math.floor(millisecondsEarly / 60000);
+}
+
 function buildTimeDate(time: string, baseDate: Date): Date | null {
-  const parts = parseTimeParts(time);
-  if (!parts) {
+  if (!parseTimeParts(time)) {
     return null;
   }
 
-  const result = new Date(baseDate);
-  result.setHours(parts.hours, parts.minutes, 0, 0);
-  return result;
+  try {
+    return new Date(
+      berlinDateTimeISO(parseISODate(berlinTodayISO(baseDate)), time),
+    );
+  } catch {
+    return null;
+  }
 }
 
 function formatTimeDisplay(time?: string): string | undefined {

@@ -315,27 +315,13 @@ func TestRunActivateStudentsForTenant_NoDueRows_NoUpdates(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------------
-// resolveActivateStudentsInterval — fallback when setting < 1
+// activateStudentsInterval — fixed cadence (#3733)
 // -----------------------------------------------------------------------------
 
-func TestResolveActivateStudentsInterval_DefaultWhenUnset(t *testing.T) {
+// The interval was a school setting that no school ever changed; the tick
+// keeps running every 60 minutes as a code constant.
+func TestActivateStudentsInterval_IsSixtyMinutes(t *testing.T) {
 	t.Parallel()
 
-	s := unitScheduler(&Scheduler{logger: slog.Default()})
-	got := s.resolveActivateStudentsInterval()
-	assert.Equal(t, 60*time.Minute, got, "no settings resolver → registry default 60m")
-}
-
-func TestResolveActivateStudentsInterval_TenantOverride(t *testing.T) {
-	t.Parallel()
-
-	s := unitScheduler(&Scheduler{
-		logger: slog.Default(),
-		settings: &fakeSettingsResolver{
-			intValues: map[string]int{
-				"operations.student_activation_interval_minutes": 15,
-			},
-		}})
-
-	assert.Equal(t, 15*time.Minute, s.resolveActivateStudentsInterval())
+	assert.Equal(t, 60*time.Minute, activateStudentsInterval)
 }

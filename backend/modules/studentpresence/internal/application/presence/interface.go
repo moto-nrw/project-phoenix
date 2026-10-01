@@ -100,6 +100,10 @@ type Service interface {
 	// transaction, so attendance "checked_out" never coexists with an open
 	// visit (issue #895).
 	CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error)
+	// CheckOutStudentWithNote is CheckOutStudent with the optional reason for
+	// an early checkout (#3324). It rejects notes over
+	// studentpresence.MaxCheckoutNoteLength before touching attendance.
+	CheckOutStudentWithNote(ctx context.Context, studentID, staffID int64, note string, skipAuthCheck bool) (*AttendanceResult, error)
 	// CheckOutStudentFromDevice applies "out" for an IoT device after
 	// resolving the active session supervisor used as the checkout principal.
 	CheckOutStudentFromDevice(ctx context.Context, studentID, deviceID int64) (*AttendanceResult, error)

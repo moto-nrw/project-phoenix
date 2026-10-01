@@ -93,13 +93,6 @@ type Contacts interface {
 	EmergencyContacts(ctx context.Context, studentIDs []int64) ([]Contact, error)
 }
 
-// Settings reads the tenant settings the projection depends on.
-type Settings interface {
-	// HealthInfoEnabled reports whether the school prints health notes on
-	// the Notfallliste (operations.emergency_list_health_info).
-	HealthInfoEnabled(ctx context.Context) (bool, error)
-}
-
 // Calendar supplies the tenant's calendar day.
 type Calendar interface {
 	// DayOf is the calendar day (YYYY-MM-DD) of the instant.

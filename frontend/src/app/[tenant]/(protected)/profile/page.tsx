@@ -23,6 +23,7 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
 import { NotificationPreferencesSection } from "~/components/settings/notification-preferences-section";
+import { MessageCountSection } from "~/components/settings/message-count-section";
 import { BirthdayVisibilitySection } from "~/components/settings/birthday-visibility-section";
 import { PushNotificationSection } from "~/components/settings/push-notification-section";
 import { getInitials } from "~/lib/format-utils";
@@ -294,6 +295,10 @@ function ProfileContent() {
 
       {/* „Was" vor „wo": erst die Themen, dann das Gerät. */}
       <NotificationPreferencesSection />
+      {/* Welche Elternnachrichten die eigene Zahl bei „Nachrichten" zählt
+          (#3673). Steht bei den Benachrichtigungen, weil beides nur die
+          eigene Person betrifft. */}
+      <MessageCountSection />
       {/* Persönliche Geburtstagsanzeige (#1542) — steht bei den anderen
           Sichtbarkeits- und Benachrichtigungsentscheidungen des eigenen Kontos. */}
       <BirthdayVisibilitySection />

@@ -514,6 +514,7 @@ export interface BackendStudent {
   arrival_notes?: string; // Exception reason or schedule notes
   actual_arrival_time?: string; // Today's actual arrival time from attendance (HH:MM)
   actual_pickup_time?: string; // Today's actual pickup time from attendance (HH:MM)
+  actual_pickup_note?: string; // Why the child went home early today (#3324)
   has_full_access?: boolean;
   // Photo (gated by operations.student_photos_enabled). Empty string or
   // undefined when no photo / feature off / no consent — the <Avatar>
@@ -731,6 +732,7 @@ export interface Student {
   arrival_notes?: string; // Exception reason or schedule notes
   actual_arrival_time?: string; // Today's actual arrival time from attendance (HH:MM)
   actual_pickup_time?: string; // Today's actual pickup time from attendance (HH:MM)
+  actual_pickup_note?: string; // Why the child went home early today (#3324)
   // Photo + consent (gated server-side by operations.student_photos_enabled
   // setting). photo_url empty/missing is the universal "no photo to show"
   // signal; consumers do NOT need to read the setting separately — when the
@@ -830,6 +832,7 @@ export function mapStudentResponse(
     arrival_notes: backendStudent.arrival_notes,
     actual_arrival_time: backendStudent.actual_arrival_time,
     actual_pickup_time: backendStudent.actual_pickup_time,
+    actual_pickup_note: backendStudent.actual_pickup_note,
     has_full_access: backendStudent.has_full_access,
     photo_url: backendStudent.photo_url,
     photo_consent_given: backendStudent.photo_consent_given,

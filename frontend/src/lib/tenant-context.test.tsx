@@ -35,7 +35,6 @@ import {
   useCalDAVEnabled,
   useCareOfferingsEnabled,
   useDisplayEnabled,
-  useEmergencyHealthInfoEnabled,
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
@@ -737,66 +736,6 @@ describe("useCalDAVEnabled", () => {
 
   it("fails closed outside a resolved tenant", () => {
     const { result } = renderHook(() => useCalDAVEnabled());
-    expect(result.current).toBe(false);
-  });
-});
-
-describe("useEmergencyHealthInfoEnabled", () => {
-  it("returns true when the school prints health notes", () => {
-    const healthTenant: TenantInfo = {
-      ...mockTenant,
-      emergencyHealthInfoEnabled: true,
-    };
-    const wrapper = ({ children }: { children: React.ReactNode }) => (
-      <TenantProvider tenantSlug="demo" tenant={healthTenant}>
-        {children}
-      </TenantProvider>
-    );
-    const { result } = renderHook(() => useEmergencyHealthInfoEnabled(), {
-      wrapper,
-    });
-    expect(result.current).toBe(true);
-  });
-
-  it("returns false when the school turned the column off", () => {
-    const healthTenant: TenantInfo = {
-      ...mockTenant,
-      emergencyHealthInfoEnabled: false,
-    };
-    const wrapper = ({ children }: { children: React.ReactNode }) => (
-      <TenantProvider tenantSlug="demo" tenant={healthTenant}>
-        {children}
-      </TenantProvider>
-    );
-    const { result } = renderHook(() => useEmergencyHealthInfoEnabled(), {
-      wrapper,
-    });
-    expect(result.current).toBe(false);
-  });
-
-  // Fail closed: the backend omits the column whenever it cannot read the
-  // setting, so absent metadata must never let the UI promise it.
-  it("returns false when the backend sends no health metadata", () => {
-    const { result } = renderHook(() => useEmergencyHealthInfoEnabled(), {
-      wrapper: TenantWrapper,
-    });
-    expect(result.current).toBe(false);
-  });
-
-  it("returns false when tenant hasn't resolved yet", () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) => (
-      <TenantProvider tenantSlug="demo" tenant={null}>
-        {children}
-      </TenantProvider>
-    );
-    const { result } = renderHook(() => useEmergencyHealthInfoEnabled(), {
-      wrapper,
-    });
-    expect(result.current).toBe(false);
-  });
-
-  it("returns false outside any TenantProvider", () => {
-    const { result } = renderHook(() => useEmergencyHealthInfoEnabled());
     expect(result.current).toBe(false);
   });
 });
