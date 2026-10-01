@@ -71,7 +71,9 @@ type marketingStaffMember struct {
 
 func marketingProfileDefinition() demoProfileDefinition {
 	settings := fullOperationSettings()
-	settings[profileSettingPresenceMode] = SeedSetting{Value: json.RawMessage(`"` + profilePresenceBinary + `"`), ManagedBy: SettingManagedByOperator}
+	// Detailed presence: only then do rooms and running supervisions record
+	// where the children are (binary mode keeps no room visits).
+	settings[profileSettingPresenceMode] = SeedSetting{Value: json.RawMessage(`"` + profilePresenceDetailed + `"`), ManagedBy: SettingManagedByOperator}
 	settings[profileSettingAttendanceNFC] = SeedSetting{Value: json.RawMessage(`false`), ManagedBy: SettingManagedByOperator}
 	settings[profileSettingWebSpontaneous] = SeedSetting{Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant}
 	settings[profileSettingEnrollmentEnabled] = SeedSetting{Value: json.RawMessage(`false`), ManagedBy: SettingManagedByTenant}
@@ -83,7 +85,7 @@ func marketingProfileDefinition() demoProfileDefinition {
 		SchoolAdminEmail: "marketing-admin@example.test", SchoolAdminPassword: "Marketing1234%",
 		Settings: settings,
 		Expected: SeedExpectedState{
-			Students: 12, Groups: 2, Staff: 4, Contacts: 11, ParentAccounts: 4,
+			Students: 12, Rooms: len(marketingRooms()), Groups: 2, Staff: 4, Contacts: 11, ParentAccounts: 4,
 			HasAttendance: true, PresentStudents: 7, CheckedOutStudents: 2, WeeklyPlans: 12,
 		},
 	}
@@ -220,6 +222,13 @@ func seedMarketingProfile(ctx context.Context, primary, rt *Runtime, child *Seed
 	if err != nil {
 		return nil, err
 	}
+	if err := seedMarketingDailyLife(ctx, rt, data, schoolAdmin, staff, parents); err != nil {
+		return nil, err
+	}
+	// The school is set up; the onboarding checklist would cover the home page.
+	if err := (seedSchoolSetupStep{}).Run(ctx, rt); err != nil {
+		return nil, err
+	}
 	developer := &SeedState{Settings: cloneProfileSettings(child.definition.Settings)}
 	if err := linkDeveloperAdmin(ctx, primary, rt, developer); err != nil {
 		return nil, err
@@ -349,36 +358,37 @@ func marketingChildHasPicture(index int) bool { return index%3 != 2 }
 
 // seedMarketingPictures uploads the logo-figure pictures: children through
 // the student photo upload with the parents' consent, staff through their
-// own profile avatar, signed in as the respective person.
+// own profile avatar, signed in as the respective person. Children and staff
+// appear side by side, so avatar.Distinct keeps their pictures apart.
 func seedMarketingPictures(ctx context.Context, rt *Runtime, students map[string]SeedStudent, people []AccountCredentials) error {
-	index := 0
-	for _, family := range marketingFamilies() {
-		for _, source := range family.children {
-			hasPicture := marketingChildHasPicture(index)
-			index++
-			if !hasPicture {
-				continue
-			}
-			name := source.firstName + " " + source.lastName
-			picture, err := avatar.PNG(name, avatar.DefaultSize)
-			if err != nil {
-				return fmt.Errorf("draw marketing child picture %d: %w", index, err)
-			}
-			path := fmt.Sprintf("/api/students/%d/photo", students[semanticKey(name)].ID)
-			fields := map[string]string{"consent_acknowledged": "true"}
-			if _, err := rt.Client.PostFileWithFields(path, "photo", "avatar.png", picture, fields); err != nil {
-				return fmt.Errorf("upload marketing child picture %d: %w", index, err)
-			}
+	children := marketingPictureChildren()
+	names := make([]string, 0, len(children)+len(people))
+	for _, source := range children {
+		names = append(names, source.firstName+" "+source.lastName)
+	}
+	for _, person := range people {
+		names = append(names, person.Name)
+	}
+	variants := avatar.Distinct(names)
+	for index, source := range children {
+		picture, err := avatar.PNGVariant(variants[index], avatar.DefaultSize)
+		if err != nil {
+			return fmt.Errorf("draw marketing child picture %d: %w", index+1, err)
+		}
+		path := fmt.Sprintf("/api/students/%d/photo", students[semanticKey(names[index])].ID)
+		fields := map[string]string{"consent_acknowledged": "true"}
+		if _, err := rt.Client.PostFileWithFields(path, "photo", "avatar.png", picture, fields); err != nil {
+			return fmt.Errorf("upload marketing child picture %s: %w", semanticKey(source.firstName+" "+source.lastName), err)
 		}
 	}
 	previousAuth := rt.Client.auth
 	defer rt.Client.BindAuth(previousAuth)
-	for _, person := range people {
+	for index, person := range people {
 		auth, err := rt.Adapter.LoginTenant(ctx, person.Email, person.Password, rt.Bootstrap.TenantSlug)
 		if err != nil {
 			return fmt.Errorf("marketing picture login %s: %w", person.Key, err)
 		}
-		picture, err := avatar.PNG(person.Name, avatar.DefaultSize)
+		picture, err := avatar.PNGVariant(variants[len(children)+index], avatar.DefaultSize)
 		if err != nil {
 			return fmt.Errorf("draw marketing staff picture %s: %w", person.Key, err)
 		}
@@ -388,6 +398,22 @@ func seedMarketingPictures(ctx context.Context, rt *Runtime, students map[string
 		}
 	}
 	return nil
+}
+
+// marketingPictureChildren lists the children that get a picture, in seed
+// order.
+func marketingPictureChildren() []marketingChild {
+	children := []marketingChild{}
+	index := 0
+	for _, family := range marketingFamilies() {
+		for _, source := range family.children {
+			if marketingChildHasPicture(index) {
+				children = append(children, source)
+			}
+			index++
+		}
+	}
+	return children
 }
 
 func seedMarketingGroups(rt *Runtime, staff []AccountCredentials) (map[string]SeedEntityRef, error) {
@@ -571,13 +597,13 @@ func verifyMarketingProfile(rt *Runtime, definition demoProfileDefinition, data 
 	if len(physical) != 0 {
 		return fmt.Errorf("%s must have no physical terminals, got %d", definition.Key, len(physical))
 	}
-	if err := verifyManualStudents(rt, definition.Expected, data); err != nil {
+	if err := verifyManualStudents(rt, definition.Expected, data, true); err != nil {
 		return err
 	}
 	if err := verifyManualStaff(rt, definition.Expected.Staff); err != nil {
 		return err
 	}
-	return verifyManualVisits(rt)
+	return verifyMarketingDailyLife(rt)
 }
 
 func printMarketingProfile(profile *SeedProfile) {

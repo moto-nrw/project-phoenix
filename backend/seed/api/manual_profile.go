@@ -458,7 +458,7 @@ func verifyManualProfile(ctx context.Context, rt *Runtime, definition demoProfil
 	if err != nil {
 		return SeedDevice{}, err
 	}
-	if err := verifyManualStudents(rt, definition.Expected, data); err != nil {
+	if err := verifyManualStudents(rt, definition.Expected, data, false); err != nil {
 		return SeedDevice{}, err
 	}
 	if err := verifyManualStaff(rt, definition.Expected.Staff); err != nil {
@@ -525,7 +525,10 @@ func verifyProtectedDevice(rt *Runtime, deviceID int64) error {
 	return nil
 }
 
-func verifyManualStudents(rt *Runtime, expected SeedExpectedState, data manualProfileData) error {
+// verifyManualStudents checks the children of a web-attendance profile. With
+// roomTracking (presence mode "detailed") a present child may sit in a room
+// ("Anwesend - <Raum>"); without it any room location is an error.
+func verifyManualStudents(rt *Runtime, expected SeedExpectedState, data manualProfileData, roomTracking bool) error {
 	raw, err := rt.Client.Get("/api/students?page=1&page_size=100")
 	if err != nil {
 		return fmt.Errorf("read manual profile students: %w", err)
@@ -545,7 +548,7 @@ func verifyManualStudents(rt *Runtime, expected SeedExpectedState, data manualPr
 	if len(envelope.Data) != expected.Students {
 		return fmt.Errorf("manual profile students: expected %d, got %d", expected.Students, len(envelope.Data))
 	}
-	if err := verifyManualStudentRows(envelope.Data, expected); err != nil {
+	if err := verifyManualStudentRows(envelope.Data, expected, roomTracking); err != nil {
 		return err
 	}
 	return verifyManualContactsAndPlans(rt, data)
@@ -557,20 +560,20 @@ func verifyManualStudentRows(rows []struct {
 	GroupID        int64   `json:"group_id"`
 	Location       string  `json:"current_location"`
 	ActualPickupAt *string `json:"actual_pickup_time"`
-}, expected SeedExpectedState) error {
+}, expected SeedExpectedState, roomTracking bool) error {
 	present, checkedOut := 0, 0
 	for _, student := range rows {
 		if strings.TrimSpace(student.SchoolClass) == "" || student.GroupID <= 0 {
 			return fmt.Errorf("manual profile student %d has no class or group reference", student.ID)
 		}
-		switch student.Location {
-		case "Anwesend":
+		switch {
+		case student.Location == "Anwesend", roomTracking && strings.HasPrefix(student.Location, "Anwesend - "):
 			present++
-		case "Abwesend":
+		case student.Location == "Abwesend":
 			if student.ActualPickupAt != nil {
 				checkedOut++
 			}
-		case "Schule":
+		case student.Location == "Schule":
 			// Expected today but not checked in yet (#3260); the profile keeps
 			// the care day open until 23:59, so these rows stay "Schule".
 		default:
